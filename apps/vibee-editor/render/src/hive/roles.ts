@@ -1,149 +1,152 @@
 /**
- * РОЛИ В УЛЬЕ — ОДНО МЕСТО, КОТОРОЕ ОТВЕЧАЕТ «ЧТО ЭТОМУ ЧЕЛОВЕКУ ВИДНО».
+ * HIVE ROLES -- THE ONE PLACE THAT ANSWERS "WHAT MAY THIS PERSON SEE".
  *
- * Владелец 07.09.2026: «главное чтобы безопасно для всех это было! клиенты не
- * должны знать про других клиентов! только админы или супер-админы! проработай
- * роли в нашем улье».
+ * Owner, 2026-09-07: "the main thing is that it is safe for everyone; clients
+ * must not know about other clients; only admins or super-admins; work out the
+ * roles in our hive".
  *
- * ── ПОЧЕМУ ЭТО СРОЧНО, А НЕ КРАСИВО ────────────────────────────────────────
+ * WHY THIS IS URGENT RATHER THAN TIDY
  *
- * Замер 07.09.2026: таблица `users` в Supabase — ОДНА НА ВСЮ ПЛАТФОРМУ, 2380
- * человек всех шестнадцати владельцев ботов. Разделение делается НЕ В
- * ХРАНЕНИИ, а на чтении: каждый запрос сам обязан не забыть фильтр по
- * `bot_name`. Пока это правило живёт в головах и повторяется в каждом вызове,
- * одна забытая строка означает, что клиент увидел чужих клиентов.
+ * Measured 2026-09-07: the `users` table in Supabase is ONE TABLE FOR THE WHOLE
+ * PLATFORM -- 2380 people belonging to all sixteen bot owners. The separation is
+ * NOT in storage but at read time: every query is itself responsible for not
+ * forgetting the `bot_name` filter. While that rule lives in people's heads and
+ * is repeated at every call site, one forgotten line means a client saw other
+ * clients.
  *
- * Здесь это правило записано ОДИН раз и проверяется тестами. Всё, что читает
- * чужие данные, обязано спросить отсюда.
+ * Here the rule is written ONCE and checked by tests. Everything that reads
+ * other people's data must ask this module.
  *
- * ── ТРИ РОЛИ, И ГРАНИЦА МЕЖДУ НИМИ ─────────────────────────────────────────
+ * THREE ROLES, AND THE BORDER BETWEEN THEM
  *
- *   пчела     — обычный человек. Видит СЕБЯ и ничего больше. Ни числа соседей,
- *               ни их имён, ни даже того, сколько всего людей в улье.
+ *   bee    -- an ordinary person. Sees THEMSELVES and nothing else. Not the
+ *             count of neighbours, not their names, not even how many people
+ *             are in the hive at all.
  *
- *   владелец  — у кого есть боты в `avatars`. Видит своих ботов и людей ЭТИХ
- *               ботов. Не видит ни других владельцев, ни их выручку, ни их
- *               клиентов — даже суммарно: «всего по платформе 2380» уже
- *               говорит ему о чужих.
+ *   owner  -- someone with bots in `avatars`. Sees their bots and the people of
+ *             THOSE bots. Sees neither other owners, nor their revenue, nor
+ *             their clients -- not even in aggregate: "2380 platform-wide"
+ *             already tells them about other people's.
  *
- *   смотритель — супер-админ. Видит ферму целиком: доходы и убытки по каждому
- *               боту. Это единственная роль, для которой существует «все».
+ *   keeper -- the super-admin. Sees the whole farm: income and loss per bot.
+ *             This is the only role for which "everything" exists.
  *
- * ── ПОЧЕМУ ВЛАДЕНИЕ БЕРЁТСЯ ИЗ `avatars`, А НЕ ИЗ НОВОГО СПИСКА ────────────
+ * WHY OWNERSHIP COMES FROM `avatars` AND NOT FROM A NEW LIST
  *
- * На `avatars` уже стоят `getOwnedBots`, уведомления владельцам и биллинг.
- * Второй источник владения разошёлся бы с первым, и расхождение проявилось бы
- * как «мне не видно моего бота» либо, что хуже, «мне видно чужого».
+ * `getOwnedBots`, owner notifications and billing already stand on `avatars`. A
+ * second source of ownership would drift from the first, and the drift would
+ * show up as "I cannot see my own bot" or, worse, "I can see somebody else's".
  *
- * ── FAIL-CLOSED ────────────────────────────────────────────────────────────
+ * FAIL-CLOSED
  *
- * Не удалось определить, кто спрашивает, или чьи боты — ОТКАЗ, а не «покажем
- * всё». Обратный выбор в системе с общей таблицей означает утечку при первом
- * же сбое сети.
+ * If we cannot work out who is asking, or whose the bots are -- REFUSE, do not
+ * "show everything". The opposite choice in a system with one shared table
+ * means a leak on the first network hiccup.
  */
 
-export type Роль = 'пчела' | 'владелец' | 'смотритель'
+export type Role = 'bee' | 'owner' | 'keeper'
 
 /**
- * Кто смотритель улья.
+ * Who keeps the hive.
  *
- * Список, а не один id: у платформы может быть больше одного ответственного, и
- * второй, дописанный «временно» в код, останется там навсегда.
+ * A list, not a single id: a platform may have more than one responsible
+ * person, and the second one, added "temporarily" in code, stays there forever.
  *
- * Пусто в окружении — значит смотрителя НЕТ, и роль не выдаётся никому. Это
- * намеренно: отсутствие настройки не должно молча назначать кого-то главным.
+ * Empty in the environment means there is NO keeper, and the role is granted to
+ * nobody. That is deliberate: a missing setting must not silently appoint
+ * somebody in charge.
  */
-export function смотрители(): string[] {
+export function keepers(): string[] {
   return (process.env.HIVE_KEEPERS || process.env.OWNER_TELEGRAM_ID || '')
     .split(',')
-    .map(с => с.trim())
+    .map(s => s.trim())
     .filter(Boolean)
 }
 
-export interface ИсточникВладения {
-  /** Боты этого человека по `avatars`. Пустой список — их нет. */
-  ботыВладельца(telegramId: string): Promise<string[]>
+export interface OwnershipSource {
+  /** This person's bots according to `avatars`. An empty list means none. */
+  botsOwnedBy(telegramId: string): Promise<string[]>
 }
 
 /**
- * Что человеку видно.
+ * What a person may see.
  *
- * `боты: null` означает «вся ферма» и достаётся ТОЛЬКО смотрителю.
- * `боты: []` означает «ничего»: у пчелы нет чужих данных вовсе.
+ * `bots: null` means "the whole farm" and is reachable ONLY by a keeper.
+ * `bots: []` means "nothing": a bee has no access to other people's data at all.
  */
-export interface Видимость {
-  роль: Роль
-  кто: string
-  /** null = вся ферма (только смотритель); иначе — точный список ботов. */
-  боты: string[] | null
+export interface Visibility {
+  role: Role
+  who: string
+  /** null = the whole farm (keeper only); otherwise an exact list of bots. */
+  bots: string[] | null
 }
 
 /**
- * Определить роль и область видимости.
+ * Work out the role and the scope.
  *
- * `кто` обязан приходить из ПРОВЕРЕННОЙ личности (подпись мини-аппа, сессия,
- * ключ агента) — id из тела запроса здесь бесполезен и опасен: он называет,
- * кем человек хочет казаться.
+ * `who` must arrive from a VERIFIED identity (a Mini App signature, a session,
+ * an agent key). An id from a request body is useless and dangerous here: it
+ * states who the caller would like to appear to be.
  */
-export async function видимость(
-  кто: string | null | undefined,
-  источник: ИсточникВладения
-): Promise<Видимость> {
-  const id = String(кто ?? '').trim()
-  // Неопознанный не получает НИЧЕГО. Не «публичную часть», не «сводку» —
-  // ничего: сводка по платформе тоже рассказывает о чужих.
-  if (!id) return { роль: 'пчела', кто: '', боты: [] }
+export async function visibilityOf(
+  who: string | null | undefined,
+  source: OwnershipSource
+): Promise<Visibility> {
+  const id = String(who ?? '').trim()
+  // An unidentified caller gets NOTHING. Not "the public part", not "a summary"
+  // -- nothing: a platform summary also tells them about other people.
+  if (!id) return { role: 'bee', who: '', bots: [] }
 
-  if (смотрители().includes(id)) {
-    return { роль: 'смотритель', кто: id, боты: null }
+  if (keepers().includes(id)) {
+    return { role: 'keeper', who: id, bots: null }
   }
 
-  let боты: string[]
+  let bots: string[]
   try {
-    боты = await источник.ботыВладельца(id)
+    bots = await source.botsOwnedBy(id)
   } catch {
-    // Не смогли выяснить владение — считаем, что его нет. Обратный выбор
-    // превратил бы любой сбой базы в утечку.
-    боты = []
+    // We could not establish ownership -- treat it as absent. The opposite
+    // choice would turn any database hiccup into a leak.
+    bots = []
   }
 
-  return боты.length
-    ? { роль: 'владелец', кто: id, боты }
-    : { роль: 'пчела', кто: id, боты: [] }
+  return bots.length
+    ? { role: 'owner', who: id, bots }
+    : { role: 'bee', who: id, bots: [] }
 }
 
 /**
- * Можно ли этому человеку видеть данные ЭТОГО бота.
+ * May this person see THIS bot's data.
  *
- * Отдельной функцией, потому что проверка «мой ли это бот» повторяется в
- * каждом чтении, и повторённая руками она однажды будет забыта.
+ * A separate function because the "is this bot mine" check repeats in every
+ * read, and repeated by hand it will one day be forgotten.
  */
-export function виденЛиБот(в: Видимость, bot_name: string): boolean {
-  if (в.роль === 'смотритель') return true
-  const имя = String(bot_name || '').trim()
-  return !!имя && в.боты !== null && в.боты.includes(имя)
+export function canSeeBot(v: Visibility, botName: string): boolean {
+  if (v.role === 'keeper') return true
+  const name = String(botName || '').trim()
+  return !!name && v.bots !== null && v.bots.includes(name)
 }
 
 /**
- * Можно ли видеть данные ЭТОГО человека.
+ * May this person see THAT person's data.
  *
- * Себя видно всегда. Чужого — только смотрителю: даже владелец бота не должен
- * читать произвольный профиль по id, иначе граница «свои клиенты» обходится
- * перебором чисел.
+ * Yourself, always. Somebody else, keeper only: even a bot owner must not read
+ * an arbitrary profile by id, otherwise the "my clients" border is walked
+ * around by counting upwards.
  */
-export function виденЛиЧеловек(в: Видимость, telegramId: string): boolean {
-  if (в.роль === 'смотритель') return true
-  return String(telegramId || '').trim() === в.кто && в.кто !== ''
+export function canSeePerson(v: Visibility, telegramId: string): boolean {
+  if (v.role === 'keeper') return true
+  return String(telegramId || '').trim() === v.who && v.who !== ''
 }
 
 /**
- * Условие SQL/PostgREST для выборки «только видимое».
+ * The SQL/PostgREST condition for selecting "only what is visible".
  *
- * Возвращает `null`, если ограничивать нечем (смотритель), и ПУСТОЙ СПИСОК
- * ботов, если видеть нечего. Вызывающий обязан отличать одно от другого:
- * `null` и `[]` здесь — противоположности, и перепутать их значит показать
- * всё вместо ничего.
+ * Returns `null` when there is nothing to restrict by (a keeper), and an EMPTY
+ * list of bots when there is nothing to see. The caller must tell the two
+ * apart: `null` and `[]` are opposites here, and confusing them means showing
+ * everything instead of nothing.
  */
-export function фильтрПоБотам(в: Видимость): string[] | null {
-  return в.роль === 'смотритель' ? null : (в.боты ?? [])
+export function botFilter(v: Visibility): string[] | null {
+  return v.role === 'keeper' ? null : (v.bots ?? [])
 }

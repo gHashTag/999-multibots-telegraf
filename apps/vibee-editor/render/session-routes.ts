@@ -23,11 +23,11 @@
  */
 
 import {
-  сообщитьОВходе,
-  безопасноеИмяУстройства,
+  notifySignIn,
+  safeDeviceName,
 } from './src/auth/notify-sign-in'
-import { отправитьВTelegram } from './src/auth/telegram-sender'
-import { записать } from './src/hive/journal'
+import { sendToTelegram } from './src/auth/telegram-sender'
+import { record } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { пуститьВход } from './src/entry-throttle'
 import crypto from 'node:crypto'
@@ -552,17 +552,17 @@ export async function handleAuthRoute(
     }
 
     /*
-     * САМЫЙ ЧАСТЫЙ ВХОД БЫЛ САМЫМ НЕЗАМЕТНЫМ.
+     * THE MOST COMMON SIGN-IN WAS THE LEAST VISIBLE ONE.
      *
-     * Замер 07.09.2026: этот маршрут — обычный вход из мини-аппа — не писал
-     * НИЧЕГО при успехе, тогда как pair/start и pair/claim пишут оба. То есть
-     * в логах были видны редкие входы по коду и не был виден основной путь.
-     * «Тихо» означало и «всё хорошо», и «никто не заходил».
+     * Measured 2026-09-07: this route -- the ordinary Mini App sign-in -- wrote
+     * NOTHING on success, while pair/start and pair/claim both log. So the logs
+     * showed the rare code sign-ins and hid the main path. "Quiet" meant both
+     * "all is well" and "nobody came".
      */
-    void записать(pool, {
-      вид: 'вход',
-      кого: telegramId,
-      чем: безопасноеИмяУстройства(body.device_name),
+    void record(pool, {
+      kind: 'sign-in',
+      who: telegramId,
+      what: safeDeviceName(body.device_name),
     })
 
     json(
@@ -771,20 +771,21 @@ export async function handleAuthRoute(
        */
       console.warn(`🔑 [pair] claim ОТКАЗ: ${outcome.reason} — ${detail}`)
       /*
-       * В журнал — как ТРЕВОГА и БЕЗ СУБЪЕКТА.
+       * Into the journal as an ALARM and with NO SUBJECT.
        *
-       * Без субъекта не по забывчивости: `claimPairingCode` на отказе
-       * возвращает одну лишь причину, и чей это был код, здесь неизвестно.
-       * Значит событие ничьё, а ничьё событие видно только смотрителю улья —
-       * показывать «кто-то подбирал код» владельцу бота нечего и незачем.
+       * No subject is not forgetfulness: on refusal `claimPairingCode` returns
+       * only a reason, and whose code it was is unknown here. So the event
+       * belongs to nobody, and a nobody event is visible to the hive keeper
+       * alone -- there is nothing to show a bot owner in "somebody was guessing
+       * a code", and no reason to.
        *
-       * Тревога — потому что `exhausted` означает перебор. В логе это
-       * тонуло: одна строка среди тысяч, и никто её не ищет.
+       * An alarm, because `exhausted` means brute force. In the log that sank:
+       * one line among thousands, and nobody goes looking for it.
        */
-      void записать(pool, {
-        вид: 'код-отказ',
-        чем: outcome.reason,
-        важность: outcome.reason === 'exhausted' ? 'тревога' : 'внимание',
+      void record(pool, {
+        kind: 'code-refused',
+        what: outcome.reason,
+        severity: outcome.reason === 'exhausted' ? 'alarm' : 'attention',
       })
       json(res, 401, {
         error: 'pairing_failed',
@@ -816,26 +817,27 @@ export async function handleAuthRoute(
      * это должно кончаться потерянным уведомлением и НИЧЕМ больше. Ждать
      * отправку значит поставить успех входа в зависимость от чужой сети.
      */
-    void сообщитьОВходе(отправитьВTelegram, {
+    void notifySignIn(sendToTelegram, {
       telegramId: outcome.telegramId,
-      устройство: body.device_name,
-      когда: new Date(),
+      device: body.device_name,
+      when: new Date(),
     })
 
     /*
-     * И в журнал — по той же причине, что и уведомление, но для другого
-     * читателя. Уведомление говорит ЧЕЛОВЕКУ «на твой аккаунт вошли»;
-     * событие даёт СМОТРИТЕЛЮ увидеть картину: три входа по коду за час у
-     * трёх разных людей — это уже не совпадение.
+     * Into the journal too -- for the same reason as the notification, but for
+     * a different reader. The notification tells a PERSON "somebody signed in
+     * to your account"; the event lets the KEEPER see the shape: three code
+     * sign-ins within an hour across three different people is no longer a
+     * coincidence.
      *
-     * `void` по той же причине: вход состоялся, сессия выдана. Упавшая
-     * запись в журнал не должна его отменять.
+     * `void` for the same reason: the sign-in already happened and the session
+     * was issued. A failed journal write must not undo it.
      */
-    void записать(pool, {
-      вид: 'код-принят',
-      кого: outcome.telegramId,
-      чем: безопасноеИмяУстройства(body.device_name),
-      важность: 'внимание',
+    void record(pool, {
+      kind: 'code-claimed',
+      who: outcome.telegramId,
+      what: safeDeviceName(body.device_name),
+      severity: 'attention',
     })
 
     json(res, 200, сессия)

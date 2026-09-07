@@ -1,263 +1,284 @@
 /**
- * ОТЧЁТ КОРОЛЕВЫ — «ЧТО ИЗМЕНИЛОСЬ С ПРОШЛОГО РАЗА».
+ * THE QUEEN'S REPORT -- "WHAT CHANGED SINCE LAST TIME".
  *
- * Владелец 07.09.2026: «она постоянно шлёт мне понятные отчёты по ходу
- * эволюции проекта», «так я смогу реагировать вовремя».
+ * Owner, 2026-09-07: "she keeps sending me understandable reports as the
+ * project evolves", "so I can react in time".
  *
- * ── ПОЧЕМУ «С ПРОШЛОГО РАЗА», А НЕ «ЗА СУТКИ» ──────────────────────────────
+ * WHY "SINCE LAST TIME" AND NOT "FOR THE LAST 24 HOURS"
  *
- * Отчёт за фиксированное окно повторяет сам себя: одно и то же событие
- * приходит и в утренний, и в вечерний. Человек быстро перестаёт читать —
- * и вместе с повторами пропускает единственную новую строку.
+ * A fixed-window report repeats itself: the same event arrives in the morning
+ * digest and again in the evening one. A person quickly stops reading -- and
+ * along with the repeats they stop seeing the single new line.
  *
- * Поэтому курсор: отчёт рассказывает только про события, которые владелец
- * ещё не видел, и двигается ТОЛЬКО после успешной отправки. Недоставленный
- * отчёт не должен молча съедать день событий.
+ * Hence a cursor: the report covers only events the owner has not seen yet, and
+ * it advances ONLY after a successful send. An undelivered report must not
+ * silently eat a day of events.
  *
- * ── ПОЧЕМУ ПЕРВЫЙ ЗАПУСК НЕ ВЫСЫПАЕТ ВСЮ ИСТОРИЮ ───────────────────────────
+ * WHY THE FIRST RUN DOES NOT DUMP THE WHOLE HISTORY
  *
- * Курсора ещё нет — и соблазн «показать всё, что накопилось» кончился бы
- * простынёй на тысячу строк в первый же день. Первый запуск ставит курсор на
- * текущий момент и ничего не шлёт. Владелец получит первый отчёт тогда, когда
- * в проекте что-то произойдёт, и этот отчёт будет про то, что произошло.
+ * There is no cursor yet, and the temptation to "show everything accumulated"
+ * would end in a thousand-line wall on day one. The first run plants the cursor
+ * at the current moment and sends nothing. The owner gets their first report
+ * when something happens, and that report is about what happened.
  *
- * ── ТИШИНА ТОЖЕ ОТВЕТ, НО НЕ СООБЩЕНИЕ ─────────────────────────────────────
+ * SILENCE IS ALSO AN ANSWER, BUT NOT A MESSAGE
  *
- * Если ничего не случилось — отчёт не отправляется. «За сутки ничего не
- * произошло» каждый день превращает канал в шум, а шум прочитывают
- * по диагонали ровно до того дня, когда там окажется важное.
+ * If nothing happened, no report is sent. "Nothing happened today" every day
+ * turns the channel into noise, and noise gets skimmed right up to the day
+ * something important is in it.
  */
 
-import { лента, таблицаЖурнала, type ПулЖурнала, type СтрокаЛенты } from './journal'
-import { смотрители } from './roles'
+import {
+  feed,
+  ensureJournalTable,
+  type JournalPool,
+  type JournalRow,
+} from './journal'
+import { keepers } from './roles'
 
-/** Курсор живёт в базе: контейнер Railway не переживает деплой. */
-async function таблицаКурсора(pool: ПулЖурнала): Promise<void> {
+/** The cursor lives in the database: a Railway container does not survive a deploy. */
+async function ensureCursorTable(pool: JournalPool): Promise<void> {
   await pool.query(
     `CREATE TABLE IF NOT EXISTS hive_report_cursor (
-       кому text PRIMARY KEY,
-       последнее bigint NOT NULL,
-       обновлён timestamptz NOT NULL DEFAULT now()
+       who text PRIMARY KEY,
+       last_id bigint NOT NULL,
+       updated_at timestamptz NOT NULL DEFAULT now()
      )`
   )
 }
 
-async function прочитатьКурсор(
-  pool: ПулЖурнала,
-  кому: string
-): Promise<{ последнее: number; обновлён: number } | null> {
-  await таблицаКурсора(pool)
+async function readCursor(
+  pool: JournalPool,
+  who: string
+): Promise<{ lastId: number; updatedAt: number } | null> {
+  await ensureCursorTable(pool)
   const r = await pool.query(
-    `SELECT последнее, обновлён FROM hive_report_cursor WHERE кому = $1`,
-    [кому]
+    `SELECT last_id, updated_at FROM hive_report_cursor WHERE who = $1`,
+    [who]
   )
-  const с = r.rows?.[0]
-  if (!с || с.последнее === undefined || с.последнее === null) return null
-  const t = new Date(с.обновлён).getTime()
+  const row = r.rows?.[0]
+  if (!row || row.last_id === undefined || row.last_id === null) return null
+  const t = new Date(row.updated_at).getTime()
   return {
-    последнее: Number(с.последнее),
-    // Нечитаемая дата означает «давно», а не «только что»: иначе сбой
-    // разбора молча выключил бы отчёты навсегда.
-    обновлён: Number.isFinite(t) ? t : 0,
+    lastId: Number(row.last_id),
+    // An unreadable date means "long ago", not "just now": otherwise a parsing
+    // failure would silently switch reports off forever.
+    updatedAt: Number.isFinite(t) ? t : 0,
   }
 }
 
-async function записатьКурсор(
-  pool: ПулЖурнала,
-  кому: string,
-  до: number
+async function writeCursor(
+  pool: JournalPool,
+  who: string,
+  upTo: number
 ): Promise<void> {
-  await таблицаКурсора(pool)
+  await ensureCursorTable(pool)
   await pool.query(
-    `INSERT INTO hive_report_cursor (кому, последнее) VALUES ($1, $2)
-     ON CONFLICT (кому) DO UPDATE SET последнее = EXCLUDED.последнее, обновлён = now()`,
-    [кому, до]
+    `INSERT INTO hive_report_cursor (who, last_id) VALUES ($1, $2)
+     ON CONFLICT (who) DO UPDATE SET last_id = EXCLUDED.last_id, updated_at = now()`,
+    [who, upTo]
   )
 }
 
-/** Самый большой id в журнале. Нужен, чтобы поставить курсор при первом запуске. */
-async function край(pool: ПулЖурнала): Promise<number> {
-  await таблицаЖурнала(pool)
-  const r = await pool.query(`SELECT COALESCE(MAX(id), 0) AS край FROM hive_events`)
-  return Number(r.rows?.[0]?.край ?? 0)
+/** The largest id in the journal. Needed to plant the cursor on the first run. */
+async function newestId(pool: JournalPool): Promise<number> {
+  await ensureJournalTable(pool)
+  const r = await pool.query(
+    `SELECT COALESCE(MAX(id), 0) AS newest FROM hive_events`
+  )
+  return Number(r.rows?.[0]?.newest ?? 0)
 }
 
 /**
- * Человеческое имя события.
+ * The human name of an event.
  *
- * Отчёт читает человек, а не разбирает программа. «код-отказ» в сообщении
- * выглядит как обломок лога; «не подошёл код входа» — как новость.
+ * The report is read by a person, not parsed by a program. `code-refused` in a
+ * message looks like a fragment of a log; "the sign-in code did not match"
+ * looks like news. The owner reads Russian, so the message is Russian -- these
+ * are string literals, which is the one place the bilingual bot keeps Russian.
  */
-const ИМЕНА: Record<string, string> = {
-  вход: 'вошли в приложение',
-  'вход-отказ': 'не смогли войти',
-  'код-выдан': 'запросили код для второго устройства',
-  'код-принят': 'вошли по коду с другого устройства',
-  'код-отказ': 'не подошёл код входа',
-  выход: 'вышли из приложения',
-  'подключён-telegram': 'подключили Telegram',
-  'отключён-telegram': 'отключили Telegram',
-  оплата: 'оплатили',
-  'оплата-потеряна': 'платёж пришёл, а получателя не нашли',
-  'оплата-подделка': 'подделали подпись платежа',
-  'токены-списаны': 'потратили токены',
-  'токены-возвращены': 'вернули токены',
-  создано: 'создали материал',
-  опубликовано: 'опубликовали',
-  'снято-с-публикации': 'сняли с публикации',
-  одобрено: 'одобрили работу агента',
-  сбой: 'сбой',
+const NAMES: Record<string, string> = {
+  'sign-in': 'вошли в приложение',
+  'sign-in-refused': 'не смогли войти',
+  'code-issued': 'запросили код для второго устройства',
+  'code-claimed': 'вошли по коду с другого устройства',
+  'code-refused': 'не подошёл код входа',
+  'sign-out': 'вышли из приложения',
+  'telegram-connected': 'подключили Telegram',
+  'telegram-disconnected': 'отключили Telegram',
+  payment: 'оплатили',
+  'payment-lost': 'платёж пришёл, а получателя не нашли',
+  'payment-forged': 'подделали подпись платежа',
+  'tokens-spent': 'потратили токены',
+  'tokens-refunded': 'вернули токены',
+  created: 'создали материал',
+  published: 'опубликовали',
+  unpublished: 'сняли с публикации',
+  approved: 'одобрили работу агента',
+  failure: 'сбой',
 }
 
-function поимённо(вид: string): string {
-  return ИМЕНА[вид] ?? вид
-}
-
-function склонение(n: number, один: string, два: string, много: string): string {
-  const х = Math.abs(n) % 100
-  const е = х % 10
-  if (х > 10 && х < 20) return много
-  if (е > 1 && е < 5) return два
-  if (е === 1) return один
-  return много
+function humanName(kind: string): string {
+  return NAMES[kind] ?? kind
 }
 
 /**
- * Собрать текст отчёта.
- *
- * Отдельно от отправки: текст можно проверить, не трогая ни сеть, ни Telegram.
+ * Russian numeral agreement: the one/few/many forms differ by the last digits,
+ * so the count and its noun cannot simply be concatenated.
  */
-export function текстОтчёта(события: СтрокаЛенты[]): string {
-  const тревоги = события.filter(с => с.важность === 'тревога')
-  const счёт = new Map<string, number>()
-  for (const с of события) счёт.set(с.вид, (счёт.get(с.вид) ?? 0) + 1)
+function plural(n: number, one: string, few: string, many: string): string {
+  const h = Math.abs(n) % 100
+  const t = h % 10
+  if (h > 10 && h < 20) return many
+  if (t > 1 && t < 5) return few
+  if (t === 1) return one
+  return many
+}
 
-  const строки: string[] = []
-  строки.push(`🐝 Улей: ${события.length} ${склонение(события.length, 'событие', 'события', 'событий')} с прошлого отчёта`)
-  строки.push('')
+/**
+ * Build the report text.
+ *
+ * Separate from sending: the text can be checked without touching the network
+ * or Telegram.
+ */
+export function reportText(events: JournalRow[]): string {
+  const alarms = events.filter(e => e.severity === 'alarm')
+  const tally = new Map<string, number>()
+  for (const e of events) tally.set(e.kind, (tally.get(e.kind) ?? 0) + 1)
 
-  for (const [вид, n] of [...счёт.entries()].sort((а, б) => б[1] - а[1])) {
-    строки.push(`• ${поимённо(вид)} — ${n}`)
+  const lines: string[] = []
+  lines.push(
+    `🐝 Улей: ${events.length} ${plural(events.length, 'событие', 'события', 'событий')} с прошлого отчёта`
+  )
+  lines.push('')
+
+  for (const [kind, n] of [...tally.entries()].sort((a, b) => b[1] - a[1])) {
+    lines.push(`• ${humanName(kind)} — ${n}`)
   }
 
-  if (тревоги.length) {
-    строки.push('')
-    строки.push(
-      `⚠️ ${склонение(тревоги.length, 'Требует', 'Требуют', 'Требуют')} внимания:`
+  if (alarms.length) {
+    lines.push('')
+    lines.push(
+      `⚠️ ${plural(alarms.length, 'Требует', 'Требуют', 'Требуют')} внимания:`
     )
-    // Показываем не больше пяти: длинный список тревог читается как обои.
-    for (const т of тревоги.slice(0, 5)) {
-      const когда = new Date(т.когда).toLocaleString('ru-RU', {
+    // At most five: a long list of alarms reads like wallpaper.
+    for (const a of alarms.slice(0, 5)) {
+      const when = new Date(a.at).toLocaleString('ru-RU', {
         hour: '2-digit',
         minute: '2-digit',
         day: '2-digit',
         month: '2-digit',
       })
-      строки.push(`  ${когда} — ${поимённо(т.вид)}${т.чем ? ` (${т.чем})` : ''}`)
+      lines.push(
+        `  ${when} — ${humanName(a.kind)}${a.what ? ` (${a.what})` : ''}`
+      )
     }
-    if (тревоги.length > 5) {
-      строки.push(`  …и ещё ${тревоги.length - 5}. Спросите агента: «покажи тревоги».`)
+    if (alarms.length > 5) {
+      lines.push(
+        `  …и ещё ${alarms.length - 5}. Спросите агента: «покажи тревоги».`
+      )
     }
   }
 
-  строки.push('')
-  строки.push('Подробности — в чате агента: «пульс проекта».')
-  return строки.join('\n')
+  lines.push('')
+  lines.push('Подробности — в чате агента: «пульс проекта».')
+  return lines.join('\n')
 }
 
-export interface ИтогОтчёта {
-  что:
-    | 'отправлен'
-    | 'нечего сообщать'
-    | 'первый запуск'
-    | 'не отправлен'
-    | 'смотрителей нет'
-    | 'рано'
-  событий?: number
+export interface ReportOutcome {
+  what:
+    | 'sent'
+    | 'nothing to say'
+    | 'first run'
+    | 'not sent'
+    | 'no keepers'
+    | 'too soon'
+  events?: number
 }
 
 /**
- * Сколько ждать между обычными отчётами.
+ * How long to wait between ordinary reports.
  *
- * Проверять можно часто, а писать человеку — редко. Владелец просил
- * «реагировать вовремя», и это про ТРЕВОГИ: подбор кода, потерянный платёж,
- * подделанная подпись. Такое уходит немедленно.
+ * Checking may be frequent; writing to a person must be rare. The owner asked
+ * to "react in time", and that is about ALARMS: a guessed code, a lost payment,
+ * a forged signature. Those go out immediately.
  *
- * Обычная жизнь — входы, генерации, публикации — копится и приходит пачкой.
- * Иначе на платформе с 2380 людьми отчёт превращается в поток, а поток
- * читают по диагонали ровно до того дня, когда в нём окажется важное.
+ * Ordinary life -- sign-ins, generations, publishes -- accumulates and arrives
+ * in a batch. Otherwise, on a platform with 2380 people, the report becomes a
+ * stream, and a stream gets skimmed right up to the day something important is
+ * in it.
  */
-export const ПАУЗА_МЕЖДУ_ОБЫЧНЫМИ_МИНУТ = 180
+export const QUIET_GAP_MINUTES = 180
 
 /**
- * Отчитаться перед смотрителями улья.
+ * Report to the hive keepers.
  *
- * `отправить` передаётся снаружи, чтобы проверка не зависела от сети и от
- * токена бота, — та же причина, по которой это сделано в `notify-sign-in`.
+ * `send` is passed in from outside so the check depends on neither the network
+ * nor the bot token -- the same reason as in `notify-sign-in`.
  */
-export async function отчитаться(
-  pool: ПулЖурнала,
-  отправить: (кому: string, текст: string) => Promise<boolean>,
+export async function report(
+  pool: JournalPool,
+  send: (who: string, text: string) => Promise<boolean>,
   {
-    сейчас = Date.now(),
-    паузаМинут = ПАУЗА_МЕЖДУ_ОБЫЧНЫМИ_МИНУТ,
-  }: { сейчас?: number; паузаМинут?: number } = {}
-): Promise<ИтогОтчёта> {
-  const кто = смотрители()
-  if (!кто.length) {
-    // Не молча: без HIVE_KEEPERS отчитываться некому, и это настройка, а не
-    // поломка. Молчание здесь неотличимо от «в проекте тихо».
-    return { что: 'смотрителей нет' }
+    now = Date.now(),
+    gapMinutes = QUIET_GAP_MINUTES,
+  }: { now?: number; gapMinutes?: number } = {}
+): Promise<ReportOutcome> {
+  const who = keepers()
+  if (!who.length) {
+    // Not silently: without HIVE_KEEPERS there is nobody to report to, and that
+    // is a setting rather than a fault. Silence here is indistinguishable from
+    // "the project is quiet".
+    return { what: 'no keepers' }
   }
 
-  let итог: ИтогОтчёта = { что: 'нечего сообщать' }
+  let outcome: ReportOutcome = { what: 'nothing to say' }
 
-  for (const смотритель of кто) {
-    const курсор = await прочитатьКурсор(pool, смотритель)
+  for (const keeper of who) {
+    const cursor = await readCursor(pool, keeper)
 
-    if (курсор === null) {
-      // Первый запуск: ставим отметку и ничего не шлём.
-      await записатьКурсор(pool, смотритель, await край(pool))
-      итог = { что: 'первый запуск' }
+    if (cursor === null) {
+      // First run: plant the mark and send nothing.
+      await writeCursor(pool, keeper, await newestId(pool))
+      outcome = { what: 'first run' }
       continue
     }
 
-    const все = await лента(
+    const all = await feed(
       pool,
-      { роль: 'смотритель', кто: смотритель, боты: null },
-      { сколько: 200 }
+      { role: 'keeper', who: keeper, bots: null },
+      { limit: 200 }
     )
-    const новые = все.filter(с => Number(с.id) > курсор.последнее)
-    if (!новые.length) continue
+    const fresh = all.filter(e => Number(e.id) > cursor.lastId)
+    if (!fresh.length) continue
 
     /*
-     * Тревога идёт немедленно, обычное — ждёт паузы.
+     * An alarm goes out immediately, the ordinary waits for the gap.
      *
-     * Это единственное место, где различие между «посмотри сейчас» и
-     * «прочитаешь потом» превращается в поведение. Если его убрать в любую
-     * сторону, ломается одно из двух: либо владелец узнаёт о подборе кода
-     * через три часа, либо получает сорок сообщений в день и перестаёт
-     * их открывать.
+     * This is the only place where the difference between "look now" and "read
+     * later" becomes behaviour. Remove it in either direction and one of two
+     * things breaks: either the owner learns about a guessed code three hours
+     * late, or they get forty messages a day and stop opening them.
      */
-    const срочно = новые.some(с => с.важность === 'тревога')
-    const прошло = (сейчас - курсор.обновлён) / 60000
-    if (!срочно && прошло < паузаМинут) {
-      итог = { что: 'рано', событий: новые.length }
+    const urgent = fresh.some(e => e.severity === 'alarm')
+    const elapsed = (now - cursor.updatedAt) / 60000
+    if (!urgent && elapsed < gapMinutes) {
+      outcome = { what: 'too soon', events: fresh.length }
       continue
     }
 
-    const отправлено = await отправить(смотритель, текстОтчёта(новые))
-    if (!отправлено) {
-      // Курсор НЕ двигаем. Недоставленный отчёт не должен съесть события:
-      // в следующий раз они уйдут вместе с новыми.
-      итог = { что: 'не отправлен', событий: новые.length }
+    const delivered = await send(keeper, reportText(fresh))
+    if (!delivered) {
+      // Do NOT advance the cursor. An undelivered report must not eat the
+      // events: next time they go out together with the new ones.
+      outcome = { what: 'not sent', events: fresh.length }
       continue
     }
 
-    const до = Math.max(...новые.map(с => Number(с.id)))
-    await записатьКурсор(pool, смотритель, до)
-    итог = { что: 'отправлен', событий: новые.length }
+    const upTo = Math.max(...fresh.map(e => Number(e.id)))
+    await writeCursor(pool, keeper, upTo)
+    outcome = { what: 'sent', events: fresh.length }
   }
 
-  return итог
+  return outcome
 }

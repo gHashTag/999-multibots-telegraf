@@ -1,382 +1,391 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { отчитаться, текстОтчёта } from './src/hive/queen-report'
-import { записать, забытьТаблицу } from './src/hive/journal'
+import { report, reportText } from './src/hive/queen-report'
+import { record, forgetTable } from './src/hive/journal'
 
 /**
- * ОТЧЁТ КОРОЛЕВЫ — ПРОВЕРКИ.
+ * THE QUEEN'S REPORT -- CHECKS.
  *
- * Здесь проверяется не текст, а поведение курсора: он решает, увидит ли
- * владелец событие вообще. Две ошибки в нём стоят по-разному, и обе
- * молчаливые:
+ * What is checked here is not the text but the behaviour of the cursor: it
+ * decides whether the owner sees an event at all. Two mistakes in it cost
+ * differently, and both are silent:
  *
- *   курсор двинулся, а отчёт не ушёл — события потеряны навсегда;
- *   курсор не двинулся, а отчёт ушёл — один и тот же отчёт каждые полчаса,
- *   и владелец перестаёт их читать.
+ *   the cursor moved but the report did not go out -- events lost forever;
+ *   the cursor did not move but the report went out -- the same report every
+ *   half hour, and the owner stops reading them.
  */
 
-function поддельныйПул({
-  отметка = 0,
-  битаяДата = false,
-}: { отметка?: number; битаяДата?: boolean } = {}) {
-  const события: any[] = []
-  const курсоры = new Map<string, number>()
-  // Когда курсор в последний раз двигался. Настоящая база ставит `now()`;
-  // здесь время задаётся снаружи, чтобы проверять паузу без ожидания.
-  const отметки = new Map<string, number>()
+function fakePool({
+  stamp = 0,
+  brokenDate = false,
+}: { stamp?: number; brokenDate?: boolean } = {}) {
+  const events: any[] = []
+  const cursors = new Map<string, number>()
+  // When the cursor last moved. A real database sets `now()`; here the time is
+  // supplied from outside so the gap can be checked without waiting.
+  const stamps = new Map<string, number>()
   let n = 1
   return {
-    события,
-    курсоры,
-    отметки,
+    events,
+    cursors,
+    stamps,
     async query(sql: string, params: any[] = []) {
       if (/^\s*CREATE/i.test(sql)) return { rows: [] }
 
       if (/INSERT INTO hive_events/i.test(sql)) {
-        const [вид, кого, бот, сколько, чем, важность] = params
-        события.push({
+        const [kind, who, bot, amount, what, severity] = params
+        events.push({
           id: n++,
-          вид,
-          кого,
-          бот,
-          сколько,
-          чем,
-          важность,
-          когда: new Date().toISOString(),
+          kind,
+          who,
+          bot,
+          amount,
+          what,
+          severity,
+          at: new Date().toISOString(),
         })
         return { rows: [] }
       }
       if (/MAX\(id\)/i.test(sql)) {
-        return { rows: [{ край: события.length ? Math.max(...события.map(с => с.id)) : 0 }] }
+        return {
+          rows: [
+            { newest: events.length ? Math.max(...events.map(e => e.id)) : 0 },
+          ],
+        }
       }
-      if (/SELECT последнее, обновлён FROM hive_report_cursor/i.test(sql)) {
-        const з = курсоры.get(params[0])
+      if (/SELECT last_id, updated_at FROM hive_report_cursor/i.test(sql)) {
+        const v = cursors.get(params[0])
         return {
           rows:
-            з === undefined
+            v === undefined
               ? []
               : [
                   {
-                    последнее: з,
-                    обновлён: битаяДата
-                      ? 'не-дата'
-                      : new Date(отметки.get(params[0]) ?? отметка),
+                    last_id: v,
+                    updated_at: brokenDate
+                      ? 'not-a-date'
+                      : new Date(stamps.get(params[0]) ?? stamp),
                   },
                 ],
         }
       }
       if (/INSERT INTO hive_report_cursor/i.test(sql)) {
-        курсоры.set(params[0], Number(params[1]))
-        отметки.set(params[0], отметка)
+        cursors.set(params[0], Number(params[1]))
+        stamps.set(params[0], stamp)
         return { rows: [] }
       }
       if (/FROM hive_events/i.test(sql)) {
-        // Смотритель: всё. Отчёт читает только как смотритель.
+        // Keeper: everything. The report only ever reads as a keeper.
         return {
-          rows: [...события].sort((а, б) => б.id - а.id).slice(0, Number(params[0])),
+          rows: [...events]
+            .sort((a, b) => b.id - a.id)
+            .slice(0, Number(params[0])),
         }
       }
-      throw new Error(`подделка не знает запрос: ${sql}`)
+      throw new Error(`fake pool does not know this query: ${sql}`)
     },
   }
 }
 
-function почтальон() {
-  const ушло: Array<{ кому: string; текст: string }> = []
-  let работает = true
+function postman() {
+  const sent: Array<{ who: string; text: string }> = []
+  let working = true
   return {
-    ушло,
-    сломать() {
-      работает = false
+    sent,
+    breakIt() {
+      working = false
     },
-    async отправить(кому: string, текст: string) {
-      if (!работает) return false
-      ушло.push({ кому, текст })
+    async send(who: string, text: string) {
+      if (!working) return false
+      sent.push({ who, text })
       return true
     },
   }
 }
 
 /**
- * Проверки курсора идут БЕЗ паузы между отчётами.
+ * Cursor checks run WITHOUT the gap between reports.
  *
- * Пауза — отдельное свойство, и у неё свой блок ниже. Смешивать их значило бы
- * получить тесты, которые краснеют по двум разным причинам и не говорят, по
- * какой именно.
+ * The gap is a separate property with its own block below. Mixing them would
+ * give tests that go red for two different reasons and do not say which.
  */
-const БЕЗ_ПАУЗЫ = { паузаМинут: 0 }
+const NO_GAP = { gapMinutes: 0 }
 
 beforeEach(() => {
-  забытьТаблицу()
+  forgetTable()
   process.env.HIVE_KEEPERS = '144022504'
 })
 
-describe('отчёт королевы: курсор', () => {
-  it('первый запуск ничего не шлёт — иначе простыня в первый же день', async () => {
-    const pool = поддельныйПул()
-    for (let i = 0; i < 30; i++) await записать(pool, { вид: 'вход', кого: '7' })
-    const п = почтальон()
+describe('queen report: the cursor', () => {
+  it('the first run sends nothing -- otherwise a wall of text on day one', async () => {
+    const pool = fakePool()
+    for (let i = 0; i < 30; i++)
+      await record(pool, { kind: 'sign-in', who: '7' })
+    const post = postman()
 
-    const и = await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+    const out = await report(pool, post.send, NO_GAP)
 
-    expect(и.что).toBe('первый запуск')
-    expect(п.ушло).toHaveLength(0)
-    expect(pool.курсоры.get('144022504')).toBe(30)
+    expect(out.what).toBe('first run')
+    expect(post.sent).toHaveLength(0)
+    expect(pool.cursors.get('144022504')).toBe(30)
   })
 
-  it('во второй раз приходит только новое', async () => {
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ) // первый запуск, курсор = 1
+  it('the second time only the new arrives', async () => {
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const post = postman()
+    await report(pool, post.send, NO_GAP) // first run, cursor = 1
 
-    await записать(pool, { вид: 'оплата', кого: '7', сколько: 500 })
-    const и = await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+    await record(pool, { kind: 'payment', who: '7', amount: 500 })
+    const out = await report(pool, post.send, NO_GAP)
 
-    expect(и).toEqual({ что: 'отправлен', событий: 1 })
-    expect(п.ушло).toHaveLength(1)
-    expect(п.ушло[0].текст).toMatch(/оплатили/)
-    expect(п.ушло[0].текст).not.toMatch(/вошли в приложение/)
+    expect(out).toEqual({ what: 'sent', events: 1 })
+    expect(post.sent).toHaveLength(1)
+    expect(post.sent[0].text).toContain("оплатили")
+    expect(post.sent[0].text).not.toContain("вошли в приложение")
   })
 
-  it('тишина не отправляется — иначе канал становится шумом', async () => {
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+  it('silence is not sent -- otherwise the channel becomes noise', async () => {
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const post = postman()
+    await report(pool, post.send, NO_GAP)
 
-    const и = await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+    const out = await report(pool, post.send, NO_GAP)
 
-    expect(и.что).toBe('нечего сообщать')
-    expect(п.ушло).toHaveLength(0)
+    expect(out.what).toBe('nothing to say')
+    expect(post.sent).toHaveLength(0)
   })
 
   /*
-   * Курсор ставится на САМОЕ ПОЗДНЕЕ отправленное событие, а не на первое.
+   * The cursor lands on the LATEST event sent, not the first.
    *
-   * Проверка отдельным случаем, потому что с одним новым событием минимум и
-   * максимум совпадают, и подмена `Math.max` на `Math.min` прошла бы
-   * незамеченной — так и случилось на первом прогоне мутаций. Ошибка тихая:
-   * владелец получал бы одни и те же события в каждом следующем отчёте.
+   * A separate case, because with one new event the minimum and the maximum
+   * coincide, and swapping `Math.max` for `Math.min` would pass unnoticed --
+   * which is exactly what happened on the first mutation run. A silent error:
+   * the owner would get the same events again in every following report.
    */
-  it('после отчёта о нескольких событиях следующий отчёт пуст', async () => {
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+  it('after a report about several events the next report is empty', async () => {
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const post = postman()
+    await report(pool, post.send, NO_GAP)
 
-    await записать(pool, { вид: 'оплата', кого: '7' })
-    await записать(pool, { вид: 'создано', кого: '7' })
-    await записать(pool, { вид: 'опубликовано', кого: '7' })
-    expect((await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)).событий).toBe(3)
+    await record(pool, { kind: 'payment', who: '7' })
+    await record(pool, { kind: 'created', who: '7' })
+    await record(pool, { kind: 'published', who: '7' })
+    expect((await report(pool, post.send, NO_GAP)).events).toBe(3)
 
-    const и = await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
-    expect(и.что).toBe('нечего сообщать')
-    expect(п.ушло).toHaveLength(1)
+    const out = await report(pool, post.send, NO_GAP)
+    expect(out.what).toBe('nothing to say')
+    expect(post.sent).toHaveLength(1)
   })
 
-  it('НЕ доставлено — курсор не двигается, события не потеряны', async () => {
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
-    const было = pool.курсоры.get('144022504')
+  it('NOT delivered -- the cursor stays put and the events are not lost', async () => {
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const post = postman()
+    await report(pool, post.send, NO_GAP)
+    const before = pool.cursors.get('144022504')
 
-    await записать(pool, { вид: 'оплата', кого: '7' })
-    п.сломать()
-    const и = await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+    await record(pool, { kind: 'payment', who: '7' })
+    post.breakIt()
+    const out = await report(pool, post.send, NO_GAP)
 
-    expect(и).toEqual({ что: 'не отправлен', событий: 1 })
-    expect(pool.курсоры.get('144022504')).toBe(было)
+    expect(out).toEqual({ what: 'not sent', events: 1 })
+    expect(pool.cursors.get('144022504')).toBe(before)
   })
 
-  it('после починки связи потерянное событие приходит вместе с новым', async () => {
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const сломанный = почтальон()
-    await отчитаться(pool, сломанный.отправить, БЕЗ_ПАУЗЫ)
+  it('once the link is repaired the lost event arrives with the new one', async () => {
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const brokenPost = postman()
+    await report(pool, brokenPost.send, NO_GAP)
 
-    await записать(pool, { вид: 'оплата', кого: '7' })
-    сломанный.сломать()
-    await отчитаться(pool, сломанный.отправить, БЕЗ_ПАУЗЫ)
+    await record(pool, { kind: 'payment', who: '7' })
+    brokenPost.breakIt()
+    await report(pool, brokenPost.send, NO_GAP)
 
-    const целый = почтальон()
-    await записать(pool, { вид: 'создано', кого: '7' })
-    const и = await отчитаться(pool, целый.отправить, БЕЗ_ПАУЗЫ)
+    const goodPost = postman()
+    await record(pool, { kind: 'created', who: '7' })
+    const out = await report(pool, goodPost.send, NO_GAP)
 
-    expect(и).toEqual({ что: 'отправлен', событий: 2 })
-    expect(целый.ушло[0].текст).toMatch(/оплатили/)
-    expect(целый.ушло[0].текст).toMatch(/создали материал/)
+    expect(out).toEqual({ what: 'sent', events: 2 })
+    expect(goodPost.sent[0].text).toContain("оплатили")
+    expect(goodPost.sent[0].text).toContain("создали материал")
   })
 
-  it('без HIVE_KEEPERS отчитываться некому, и это сказано вслух', async () => {
+  it('without HIVE_KEEPERS there is nobody to report to, and it says so', async () => {
     process.env.HIVE_KEEPERS = ''
     process.env.OWNER_TELEGRAM_ID = ''
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const п = почтальон()
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const post = postman()
 
-    const и = await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+    const out = await report(pool, post.send, NO_GAP)
 
-    expect(и.что).toBe('смотрителей нет')
-    expect(п.ушло).toHaveLength(0)
+    expect(out.what).toBe('no keepers')
+    expect(post.sent).toHaveLength(0)
   })
 
-  it('каждый смотритель ведёт свой курсор', async () => {
+  it('every keeper carries their own cursor', async () => {
     process.env.HIVE_KEEPERS = '1,2'
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const post = postman()
+    await report(pool, post.send, NO_GAP)
 
-    await записать(pool, { вид: 'оплата', кого: '7' })
-    await отчитаться(pool, п.отправить, БЕЗ_ПАУЗЫ)
+    await record(pool, { kind: 'payment', who: '7' })
+    await report(pool, post.send, NO_GAP)
 
-    expect(п.ушло.map(у => у.кому).sort()).toEqual(['1', '2'])
+    expect(post.sent.map(s => s.who).sort()).toEqual(['1', '2'])
   })
 })
 
 /**
- * ПАУЗА: СРОЧНОЕ СРАЗУ, ОБЫЧНОЕ — ПАЧКОЙ.
+ * THE GAP: URGENT NOW, ORDINARY IN A BATCH.
  *
- * Владелец просил «реагировать вовремя». Это про тревоги: подбор кода,
- * потерянный платёж, подделанную подпись. Обычная жизнь платформы с 2380
- * людьми, отправляемая тут же, превратила бы канал в поток — а поток
- * читают по диагонали ровно до того дня, когда в нём окажется важное.
+ * The owner asked to "react in time". That is about alarms: a guessed code, a
+ * lost payment, a forged signature. The ordinary life of a platform with 2380
+ * people, sent immediately, would turn the channel into a stream -- and a
+ * stream gets skimmed right up to the day something important is in it.
  */
-describe('отчёт королевы: пауза', () => {
-  it('обычные события ждут паузу, а не летят сразу', async () => {
-    const pool = поддельныйПул({ отметка: 1_000_000 })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, { сейчас: 1_000_000 })
+describe('queen report: the gap', () => {
+  it('ordinary events wait for the gap rather than flying out at once', async () => {
+    const pool = fakePool({ stamp: 1_000_000 })
+    const post = postman()
+    await report(pool, post.send, { now: 1_000_000 })
 
-    await записать(pool, { вид: 'вход', кого: '7' })
-    // Прошёл час при паузе в три.
-    const и = await отчитаться(pool, п.отправить, { сейчас: 1_000_000 + 3600_000 })
+    await record(pool, { kind: 'sign-in', who: '7' })
+    // An hour has passed against a three-hour gap.
+    const out = await report(pool, post.send, { now: 1_000_000 + 3600_000 })
 
-    expect(и.что).toBe('рано')
-    expect(п.ушло).toHaveLength(0)
+    expect(out.what).toBe('too soon')
+    expect(post.sent).toHaveLength(0)
   })
 
-  it('тревога не ждёт паузу', async () => {
-    const pool = поддельныйПул({ отметка: 1_000_000 })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, { сейчас: 1_000_000 })
+  it('an alarm does not wait for the gap', async () => {
+    const pool = fakePool({ stamp: 1_000_000 })
+    const post = postman()
+    await report(pool, post.send, { now: 1_000_000 })
 
-    await записать(pool, { вид: 'код-отказ', важность: 'тревога', чем: 'exhausted' })
-    const и = await отчитаться(pool, п.отправить, { сейчас: 1_000_000 + 60_000 })
-
-    expect(и.что).toBe('отправлен')
-    expect(п.ушло[0].текст).toMatch(/не подошёл код входа/)
-  })
-
-  it('когда пауза вышла — приходит всё накопившееся', async () => {
-    const pool = поддельныйПул({ отметка: 1_000_000 })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, { сейчас: 1_000_000 })
-
-    await записать(pool, { вид: 'вход', кого: '7' })
-    await записать(pool, { вид: 'создано', кого: '7' })
-    const и = await отчитаться(pool, п.отправить, {
-      сейчас: 1_000_000 + 4 * 3600_000,
+    await record(pool, {
+      kind: 'code-refused',
+      severity: 'alarm',
+      what: 'exhausted',
     })
+    const out = await report(pool, post.send, { now: 1_000_000 + 60_000 })
 
-    expect(и).toEqual({ что: 'отправлен', событий: 2 })
+    expect(out.what).toBe('sent')
+    expect(post.sent[0].text).toContain("не подошёл код входа")
+  })
+
+  it('when the gap has passed everything accumulated arrives', async () => {
+    const pool = fakePool({ stamp: 1_000_000 })
+    const post = postman()
+    await report(pool, post.send, { now: 1_000_000 })
+
+    await record(pool, { kind: 'sign-in', who: '7' })
+    await record(pool, { kind: 'created', who: '7' })
+    const out = await report(pool, post.send, { now: 1_000_000 + 4 * 3600_000 })
+
+    expect(out).toEqual({ what: 'sent', events: 2 })
   })
 
   /*
-   * Нечитаемая отметка времени означает «давно», а не «только что».
+   * An unreadable timestamp means "long ago", not "just now".
    *
-   * Разница выглядит мелкой и стоит дорого: при «только что» пауза не
-   * истекала бы НИКОГДА, и отчёты выключились бы навсегда — молча, без
-   * единой ошибки в логе. При «давно» худшее, что случится, — один лишний
-   * отчёт. Мутация в эту сторону на первом прогоне выжила.
+   * The difference looks small and costs a lot: with "just now" the gap would
+   * NEVER expire and reports would switch off forever -- silently, without a
+   * single error in the log. With "long ago" the worst that happens is one
+   * extra report. A mutation in that direction survived the first run.
    */
-  it('нечитаемая отметка не выключает отчёты навсегда', async () => {
+  it('an unreadable timestamp does not switch reports off forever', async () => {
     /*
-     * Берём НАСТОЯЩЕЕ текущее время, и это принципиально.
+     * The REAL current time, and that is essential.
      *
-     * Сначала стояло 1_000_000 — шестнадцатая минута 1970 года, относительно
-     * которой «давно» не наступает; тест упал на исправном коде. Потом
-     * 1_800_000_000_000 — дата в будущем, относительно которой «давно»
-     * наступает ВСЕГДА, и мутация «нечитаемая дата = только что» снова
-     * прошла незамеченной. Свойство проверяется только тогда, когда часы
-     * теста и часы мутации идут по одной шкале.
+     * It first read 1_000_000 -- minute sixteen of 1970, relative to which
+     * "long ago" never arrives; the test failed against correct code. Then
+     * 1_800_000_000_000 -- a date in the future, relative to which "long ago"
+     * always arrives, and the mutation passed unnoticed again. The property is
+     * only testable when the test clock and the mutation's clock are on the
+     * same scale.
      */
-    const сейчас = Date.now()
-    const pool = поддельныйПул({ битаяДата: true })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, { сейчас })
+    const now = Date.now()
+    const pool = fakePool({ brokenDate: true })
+    const post = postman()
+    await report(pool, post.send, { now })
 
-    await записать(pool, { вид: 'вход', кого: '7' })
-    const и = await отчитаться(pool, п.отправить, { сейчас: сейчас + 60_000 })
+    await record(pool, { kind: 'sign-in', who: '7' })
+    const out = await report(pool, post.send, { now: now + 60_000 })
 
-    expect(и.что).toBe('отправлен')
+    expect(out.what).toBe('sent')
   })
 
-  it('«рано» не двигает курсор — событие придёт позже, а не пропадёт', async () => {
-    const pool = поддельныйПул({ отметка: 1_000_000 })
-    const п = почтальон()
-    await отчитаться(pool, п.отправить, { сейчас: 1_000_000 })
-    const было = pool.курсоры.get('144022504')
+  it('"too soon" does not move the cursor -- the event arrives later, not never', async () => {
+    const pool = fakePool({ stamp: 1_000_000 })
+    const post = postman()
+    await report(pool, post.send, { now: 1_000_000 })
+    const before = pool.cursors.get('144022504')
 
-    await записать(pool, { вид: 'вход', кого: '7' })
-    await отчитаться(pool, п.отправить, { сейчас: 1_000_000 + 60_000 })
+    await record(pool, { kind: 'sign-in', who: '7' })
+    await report(pool, post.send, { now: 1_000_000 + 60_000 })
 
-    expect(pool.курсоры.get('144022504')).toBe(было)
+    expect(pool.cursors.get('144022504')).toBe(before)
   })
 })
 
-describe('отчёт королевы: текст читает человек', () => {
-  const событие = (вид: string, важность = 'обычное', чем?: string) => ({
+describe('queen report: a person reads the text', () => {
+  const anEvent = (kind: string, severity = 'normal', what?: string) => ({
     id: 1,
-    вид,
-    кого: '7',
-    бот: null,
-    сколько: null,
-    чем: чем ?? null,
-    важность,
-    когда: new Date().toISOString(),
+    kind,
+    who: '7',
+    bot: null,
+    amount: null,
+    what: what ?? null,
+    severity,
+    at: new Date().toISOString(),
   })
 
-  it('виды названы словами, а не обломками лога', () => {
-    const т = текстОтчёта([событие('код-отказ'), событие('токены-списаны')])
-    expect(т).toMatch(/не подошёл код входа/)
-    expect(т).toMatch(/потратили токены/)
-    expect(т).not.toMatch(/код-отказ/)
+  it('kinds are named in words, not in log fragments', () => {
+    const t = reportText([anEvent('code-refused'), anEvent('tokens-spent')])
+    expect(t).toContain("не подошёл код входа")
+    expect(t).toContain("потратили токены")
+    expect(t).not.toMatch(/code-refused/)
   })
 
-  it('тревоги вынесены отдельно, иначе их не найти в списке', () => {
-    const т = текстОтчёта([
-      событие('вход'),
-      событие('код-отказ', 'тревога', 'exhausted'),
+  it('alarms are pulled out separately, otherwise they cannot be found', () => {
+    const t = reportText([
+      anEvent('sign-in'),
+      anEvent('code-refused', 'alarm', 'exhausted'),
     ])
-    expect(т).toMatch(/Требует внимания/)
-    expect(т).toMatch(/exhausted/)
+    expect(t).toContain("Требует внимания")
+    expect(t).toMatch(/exhausted/)
   })
 
   /*
-   * Считаются СТРОКИ, а не наличие хвоста «и ещё N».
+   * LINES are counted, not the presence of the "and N more" tail.
    *
-   * Первая версия проверяла только хвост — и мутация, убравшая `slice(0, 5)`,
-   * выжила: все девять печатались, а строчка «и ещё 4» всё равно стояла
-   * рядом. Проверка присутствия не заменяет проверку количества.
+   * The first version checked only the tail -- and the mutation that removed
+   * `slice(0, 5)` survived: all nine were printed and the "and 4 more" line
+   * still stood next to them. Checking presence does not replace checking
+   * quantity.
    */
-  it('длинный список тревог обрезан пятью и сказано, сколько осталось', () => {
-    const т = текстОтчёта(
-      Array.from({ length: 9 }, () => событие('код-отказ', 'тревога'))
+  it('a long alarm list is capped at five and says how many are left', () => {
+    const t = reportText(
+      Array.from({ length: 9 }, () => anEvent('code-refused', 'alarm'))
     )
-    const перечислены = т
+    const listed = t
       .split('\n')
-      .filter(с => /^ {2}\d{2}\.\d{2}/.test(с) || /^ {2}\d{2}:\d{2}/.test(с))
-    expect(перечислены).toHaveLength(5)
-    expect(т).toMatch(/и ещё 4/)
+      .filter(l => /^ {2}\d{2}\.\d{2}/.test(l) || /^ {2}\d{2}:\d{2}/.test(l))
+    expect(listed).toHaveLength(5)
+    expect(t).toContain("и ещё 4")
   })
 
-  it('числительные согласованы: 1 событие, 2 события, 5 событий', () => {
-    expect(текстОтчёта([событие('вход')])).toMatch(/1 событие /)
-    expect(текстОтчёта(Array(2).fill(событие('вход')))).toMatch(/2 события /)
-    expect(текстОтчёта(Array(5).fill(событие('вход')))).toMatch(/5 событий /)
-    expect(текстОтчёта(Array(11).fill(событие('вход')))).toMatch(/11 событий /)
-    expect(текстОтчёта(Array(21).fill(событие('вход')))).toMatch(/21 событие /)
+  it('Russian numerals agree: 1 event, 2 events, 5 events', () => {
+    expect(reportText([anEvent('sign-in')])).toContain("1 событие ")
+    expect(reportText(Array(2).fill(anEvent('sign-in')))).toContain("2 события ")
+    expect(reportText(Array(5).fill(anEvent('sign-in')))).toContain("5 событий ")
+    expect(reportText(Array(11).fill(anEvent('sign-in')))).toContain("11 событий ")
+    expect(reportText(Array(21).fill(anEvent('sign-in')))).toContain("21 событие ")
   })
 })

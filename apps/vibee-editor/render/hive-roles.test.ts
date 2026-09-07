@@ -1,139 +1,141 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
-  видимость,
-  виденЛиБот,
-  виденЛиЧеловек,
-  фильтрПоБотам,
-  смотрители,
+  visibilityOf,
+  canSeeBot,
+  canSeePerson,
+  botFilter,
+  keepers,
 } from './src/hive/roles'
 
 /**
- * ГРАНИЦА МЕЖДУ КЛИЕНТАМИ — САМОЕ ДОРОГОЕ, ЧТО ЕСТЬ В ЭТОЙ СИСТЕМЕ.
+ * THE BORDER BETWEEN CLIENTS -- THE MOST EXPENSIVE THING IN THIS SYSTEM.
  *
- * Владелец 07.09.2026: «клиенты не должны знать про других клиентов».
+ * Owner, 2026-09-07: "clients must not know about other clients".
  *
- * Замер того же дня: `users` в Supabase — ОДНА таблица на всю платформу, 2380
- * человек шестнадцати владельцев ботов, и разделение делается на ЧТЕНИИ. Пока
- * правило живёт в головах, одна забытая строка означает утечку.
+ * Measured the same day: `users` in Supabase is ONE table for the whole
+ * platform, 2380 people belonging to sixteen bot owners, and the separation
+ * happens at READ time. While the rule lives in people's heads, one forgotten
+ * line means a leak.
  *
- * Здесь оно закреплено. Каждый тест ниже описывает не «функцию», а то, чего
- * человек НЕ должен увидеть.
+ * Here it is pinned down. Every test below describes not "a function" but what
+ * a person must NOT see.
  */
 
-const источник = (карта: Record<string, string[]>) => ({
-  async ботыВладельца(id: string) {
-    return карта[id] ?? []
+const source = (map: Record<string, string[]>) => ({
+  async botsOwnedBy(id: string) {
+    return map[id] ?? []
   },
 })
 
-describe('роли в улье', () => {
-  const было = process.env.HIVE_KEEPERS
+describe('hive roles', () => {
+  const saved = process.env.HIVE_KEEPERS
   beforeEach(() => {
     process.env.HIVE_KEEPERS = '100'
   })
   afterEach(() => {
-    if (было === undefined) delete process.env.HIVE_KEEPERS
-    else process.env.HIVE_KEEPERS = было
+    if (saved === undefined) delete process.env.HIVE_KEEPERS
+    else process.env.HIVE_KEEPERS = saved
   })
 
-  it('обычный человек — пчела: видит СЕБЯ и ничего больше', async () => {
-    const в = await видимость('777', источник({}))
-    expect(в.роль).toBe('пчела')
-    expect(в.боты).toEqual([])
-    expect(виденЛиЧеловек(в, '777')).toBe(true)
-    expect(виденЛиЧеловек(в, '778'), 'пчела видит чужого человека').toBe(false)
-    expect(виденЛиБот(в, 'любой_бот'), 'пчела видит бота').toBe(false)
+  it('an ordinary person is a bee: sees THEMSELVES and nothing more', async () => {
+    const v = await visibilityOf('777', source({}))
+    expect(v.role).toBe('bee')
+    expect(v.bots).toEqual([])
+    expect(canSeePerson(v, '777')).toBe(true)
+    expect(canSeePerson(v, '778'), 'a bee sees another person').toBe(false)
+    expect(canSeeBot(v, 'any_bot'), 'a bee sees a bot').toBe(false)
   })
 
-  it('владелец видит СВОИХ ботов и НЕ видит чужих', async () => {
-    const в = await видимость('200', источник({ '200': ['bot_a', 'bot_b'] }))
-    expect(в.роль).toBe('владелец')
-    expect(виденЛиБот(в, 'bot_a')).toBe(true)
-    expect(виденЛиБот(в, 'bot_чужой'), 'владелец видит чужого бота').toBe(false)
+  it('an owner sees THEIR bots and does NOT see other ones', async () => {
+    const v = await visibilityOf('200', source({ '200': ['bot_a', 'bot_b'] }))
+    expect(v.role).toBe('owner')
+    expect(canSeeBot(v, 'bot_a')).toBe(true)
+    expect(canSeeBot(v, 'bot_other'), 'an owner sees another bot').toBe(false)
   })
 
-  it('ВЛАДЕЛЕЦ НЕ ЧИТАЕТ ЧУЖОЙ ПРОФИЛЬ ПО ID', async () => {
+  it('AN OWNER DOES NOT READ ANOTHER PROFILE BY ID', async () => {
     /*
-     * Иначе граница «свои клиенты» обходится перебором чисел: владелец бота
-     * подставляет чужой telegram_id и читает профиль человека, который к его
-     * ботам отношения не имеет.
+     * Otherwise the "my clients" border is walked around by counting upwards: a
+     * bot owner substitutes somebody else's telegram_id and reads the profile
+     * of a person who has nothing to do with their bots.
      */
-    const в = await видимость('200', источник({ '200': ['bot_a'] }))
-    expect(виденЛиЧеловек(в, '999')).toBe(false)
-    expect(виденЛиЧеловек(в, '200')).toBe(true)
+    const v = await visibilityOf('200', source({ '200': ['bot_a'] }))
+    expect(canSeePerson(v, '999')).toBe(false)
+    expect(canSeePerson(v, '200')).toBe(true)
   })
 
-  it('смотритель видит ферму целиком', async () => {
-    const в = await видимость('100', источник({}))
-    expect(в.роль).toBe('смотритель')
-    expect(в.боты).toBeNull()
-    expect(виденЛиБот(в, 'что_угодно')).toBe(true)
-    expect(виденЛиЧеловек(в, '999')).toBe(true)
+  it('a keeper sees the whole farm', async () => {
+    const v = await visibilityOf('100', source({}))
+    expect(v.role).toBe('keeper')
+    expect(v.bots).toBeNull()
+    expect(canSeeBot(v, 'anything')).toBe(true)
+    expect(canSeePerson(v, '999')).toBe(true)
   })
 
-  it('НЕОПОЗНАННЫЙ НЕ ПОЛУЧАЕТ НИЧЕГО', async () => {
-    // Не «публичную часть» и не «сводку»: сводка по платформе тоже
-    // рассказывает о чужих — хотя бы то, сколько их.
-    for (const никто of [null, undefined, '', '   ']) {
-      const в = await видимость(никто, источник({ '': ['bot_a'] }))
-      expect(в.роль).toBe('пчела')
-      expect(в.боты).toEqual([])
-      expect(виденЛиЧеловек(в, '777')).toBe(false)
-      expect(виденЛиЧеловек(в, ''), 'пустой видит пустого').toBe(false)
+  it('AN UNIDENTIFIED CALLER GETS NOTHING', async () => {
+    // Not "the public part" and not "a summary": a platform summary also tells
+    // them about other people -- at the very least, how many there are.
+    for (const nobody of [null, undefined, '', '   ']) {
+      const v = await visibilityOf(nobody, source({ '': ['bot_a'] }))
+      expect(v.role).toBe('bee')
+      expect(v.bots).toEqual([])
+      expect(canSeePerson(v, '777')).toBe(false)
+      expect(canSeePerson(v, ''), 'an empty caller sees an empty person').toBe(false)
     }
   })
 
-  it('СБОЙ БАЗЫ ЗАКРЫВАЕТ, А НЕ ОТКРЫВАЕТ', async () => {
+  it('A DATABASE FAILURE CLOSES RATHER THAN OPENS', async () => {
     /*
-     * Обратный выбор превратил бы любой обрыв сети в утечку: «не смогли
-     * выяснить владение» стало бы «покажем всё».
+     * The opposite choice would turn any network hiccup into a leak: "we could
+     * not establish ownership" would become "show everything".
      */
-    const в = await видимость('200', {
-      async ботыВладельца() {
-        throw new Error('база недоступна')
+    const v = await visibilityOf('200', {
+      async botsOwnedBy() {
+        throw new Error('database unreachable')
       },
     })
-    expect(в.роль).toBe('пчела')
-    expect(в.боты).toEqual([])
+    expect(v.role).toBe('bee')
+    expect(v.bots).toEqual([])
   })
 
-  it('без настройки смотрителя им не становится НИКТО', async () => {
-    // Отсутствие настройки не должно молча назначать кого-то главным.
+  it('with no keeper configured, NOBODY becomes one', async () => {
+    // A missing setting must not silently appoint somebody in charge.
     delete process.env.HIVE_KEEPERS
-    const было = process.env.OWNER_TELEGRAM_ID
+    const savedOwner = process.env.OWNER_TELEGRAM_ID
     delete process.env.OWNER_TELEGRAM_ID
     try {
-      expect(смотрители()).toEqual([])
-      const в = await видимость('100', источник({}))
-      expect(в.роль).toBe('пчела')
+      expect(keepers()).toEqual([])
+      const v = await visibilityOf('100', source({}))
+      expect(v.role).toBe('bee')
     } finally {
-      if (было !== undefined) process.env.OWNER_TELEGRAM_ID = было
+      if (savedOwner !== undefined) process.env.OWNER_TELEGRAM_ID = savedOwner
     }
   })
 
-  it('смотрителей может быть несколько', async () => {
+  it('there may be more than one keeper', async () => {
     process.env.HIVE_KEEPERS = '100, 101 ,102'
-    expect((await видимость('101', источник({}))).роль).toBe('смотритель')
-    expect((await видимость('103', источник({}))).роль).toBe('пчела')
+    expect((await visibilityOf('101', source({}))).role).toBe('keeper')
+    expect((await visibilityOf('103', source({}))).role).toBe('bee')
   })
 
-  it('фильтр различает «всё» и «ничего»', async () => {
+  it('the filter tells "everything" apart from "nothing"', async () => {
     /*
-     * `null` (смотритель) и `[]` (пчела) здесь ПРОТИВОПОЛОЖНОСТИ. Перепутать
-     * их — значит показать всю ферму тому, кому не видно ничего; такая
-     * путаница выглядит в коде как безобидное `?? []`.
+     * `null` (keeper) and `[]` (bee) are OPPOSITES here. Confusing them means
+     * showing the whole farm to someone who may see nothing; in code that
+     * confusion looks like a harmless `?? []`.
      */
-    expect(фильтрПоБотам(await видимость('100', источник({})))).toBeNull()
-    expect(фильтрПоБотам(await видимость('777', источник({})))).toEqual([])
-    expect(
-      фильтрПоБотам(await видимость('200', источник({ '200': ['b'] })))
-    ).toEqual(['b'])
+    expect(botFilter(await visibilityOf('100', source({})))).toBeNull()
+    expect(botFilter(await visibilityOf('777', source({})))).toEqual([])
+    expect(botFilter(await visibilityOf('200', source({ '200': ['b'] })))).toEqual([
+      'b',
+    ])
   })
 
-  it('пустое имя бота не проходит как «любой»', async () => {
-    // Пустая строка в фильтре — классический способ случайно снять фильтр.
-    const в = await видимость('200', источник({ '200': ['bot_a'] }))
-    expect(виденЛиБот(в, '')).toBe(false)
-    expect(виденЛиБот(в, '   ')).toBe(false)
+  it('an empty bot name does not pass as "any"', async () => {
+    // An empty string in a filter is the classic way to remove a filter by
+    // accident.
+    const v = await visibilityOf('200', source({ '200': ['bot_a'] }))
+    expect(canSeeBot(v, '')).toBe(false)
+    expect(canSeeBot(v, '   ')).toBe(false)
   })
 })

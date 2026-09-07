@@ -1,112 +1,110 @@
 import { describe, it, expect, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import {
-  сообщитьОВходе,
-  безопасноеИмяУстройства,
-} from './src/auth/notify-sign-in'
+import { notifySignIn, safeDeviceName } from './src/auth/notify-sign-in'
 
 /**
- * ЧУЖОЙ ВХОД ДОЛЖЕН БЫТЬ ЗАМЕТЕН.
+ * A STRANGER'S SIGN-IN MUST BE NOTICEABLE.
  *
- * Владелец 07.09.2026: «только в боте не видно, что я зашёл с другого
- * устройства».
+ * Owner, 2026-09-07: "the bot just does not show that I signed in from another
+ * device".
  *
- * Вход по коду: мини-апп показывает восьмизначный код, человек набирает его на
- * другом устройстве, оно получает сессию на шестьдесят дней. Код виден на
- * экране две минуты и одноразовый — кто набрал первым, тот и вошёл.
+ * The code sign-in: the Mini App shows an eight-digit code, the person types it
+ * on another device, and that device gets a sixty-day session. The code is on
+ * screen for two minutes and is single-use -- whoever types it first gets in.
  *
- * Единственным следом чужого входа было ОТСУТСТВИЕ следов: настоящий владелец
- * видел «код не подошёл» и думал, что опечатался. Уведомление не мешает краже
- * — оно единственный способ о ней узнать.
+ * The only trace of somebody else's sign-in was the ABSENCE of traces: the real
+ * owner saw "the code did not work" and assumed they had mistyped. The
+ * notification does not stop the theft -- it is the only way to learn about it.
  */
 
-const КОГДА = new Date('2026-09-07T12:34:00Z')
+const WHEN = new Date('2026-09-07T12:34:00Z')
 
-describe('сообщение о входе', () => {
-  it('называет устройство и время', async () => {
-    const шлём = vi.fn(async () => undefined)
+describe('the sign-in message', () => {
+  it('names the device and the time', async () => {
+    const sender = vi.fn(async () => undefined)
     expect(
-      await сообщитьОВходе(шлём, {
+      await notifySignIn(sender, {
         telegramId: '144022504',
-        устройство: 'iPhone Дмитрия',
-        когда: КОГДА,
+        device: 'iPhone Дмитрия',
+        when: WHEN,
       })
-    ).toBe('отправлено')
-    const [кому, текст] = шлём.mock.calls[0] as unknown as [string, string]
-    expect(кому).toBe('144022504')
-    expect(текст).toContain('iPhone Дмитрия')
-    expect(текст).toMatch(/\d{2}\.\d{2}/)
+    ).toBe('sent')
+    const [to, text] = sender.mock.calls[0] as unknown as [string, string]
+    expect(to).toBe('144022504')
+    expect(text).toContain('iPhone Дмитрия')
+    expect(text).toMatch(/\d{2}\.\d{2}/)
   })
 
-  it('говорит, ЧТО ДЕЛАТЬ, если это был не человек', async () => {
+  it('says WHAT TO DO if it was not them', async () => {
     /*
-     * Уведомление без действия — это тревога без выхода. Человек, увидевший
-     * чужой вход, должен из того же сообщения узнать, чем его закрыть.
+     * A notification with no action is an alarm with no exit. Somebody who sees
+     * a stranger's sign-in must learn from the same message how to close it.
      */
-    const шлём = vi.fn(async () => undefined)
-    await сообщитьОВходе(шлём, {
+    const sender = vi.fn(async () => undefined)
+    await notifySignIn(sender, {
       telegramId: '1',
-      устройство: 'x',
-      когда: КОГДА,
+      device: 'x',
+      when: WHEN,
     })
-    const текст = String((шлём.mock.calls[0] as unknown as string[])[1])
-    expect(текст).toContain('не вы')
-    expect(текст).toContain('Выйти')
+    const text = String((sender.mock.calls[0] as unknown as string[])[1])
+    expect(text).toContain('не вы')
+    expect(text).toContain('Выйти')
   })
 
-  it('ОТКАЗ ОТПРАВКИ НЕ БРОСАЕТ: вход уже состоялся', async () => {
-    // Заблокированный бот, протухший токен, недоступная сеть — всё это должно
-    // кончаться потерянным уведомлением и ничем больше.
-    const шлём = vi.fn(async () => {
+  it('A SEND FAILURE DOES NOT THROW: the sign-in already happened', async () => {
+    // A blocked bot, an expired token, an unreachable network -- all of these
+    // must end in a lost notification and nothing more.
+    const sender = vi.fn(async () => {
       throw new Error('403 bot was blocked by the user')
     })
     await expect(
-      сообщитьОВходе(шлём, { telegramId: '1', устройство: 'x', когда: КОГДА })
-    ).resolves.toBe('не отправлено')
+      notifySignIn(sender, { telegramId: '1', device: 'x', when: WHEN })
+    ).resolves.toBe('not sent')
   })
 })
 
-describe('имя устройства приходит снаружи и обезвреживается', () => {
-  it('переносы строк не дают подделать продолжение сообщения', () => {
+describe('the device name arrives from outside and is defanged', () => {
+  it('newlines cannot forge a continuation of the message', () => {
     /*
-     * Имя задаёт клиент. «MacBook\n\nВаш код: 12345678» — готовое
-     * мошенничество внутри нашего же уведомления, если пустить как есть.
+     * The client sets the name. "MacBook\n\nYour code: 12345678" is ready-made
+     * fraud inside our own notification if let through as is.
      */
-    const имя = безопасноеИмяУстройства('MacBook\n\nВаш код: 12345678')
-    expect(имя).not.toContain('\n')
+    const name = safeDeviceName('MacBook\n\nВаш код: 12345678')
+    expect(name).not.toContain('\n')
   })
 
-  it('длинное имя обрезается, а не растягивает сообщение на экран', () => {
-    expect(безопасноеИмяУстройства('и'.repeat(200)).length).toBeLessThanOrEqual(41)
+  it('a long name is trimmed rather than stretching the message across a screen', () => {
+    expect(safeDeviceName('x'.repeat(200)).length).toBeLessThanOrEqual(41)
   })
 
-  it('пустое имя не превращается в пустую строку в тексте', () => {
-    expect(безопасноеИмяУстройства('')).toContain('без имени')
-    expect(безопасноеИмяУстройства(null)).toContain('без имени')
+  it('an empty name does not become an empty string in the text', () => {
+    expect(safeDeviceName('')).toContain('без имени')
+    expect(safeDeviceName(null)).toContain('без имени')
   })
 })
 
-describe('маршрут выдачи сессии по коду шлёт уведомление', () => {
-  const КОД = fs
+describe('the code sign-in route sends the notification', () => {
+  const SRC = fs
     .readFileSync(path.join(__dirname, 'session-routes.ts'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
 
-  it('вызов есть', () => {
-    expect(КОД).toContain('сообщитьОВходе(отправитьВTelegram')
+  it('the call is there', () => {
+    expect(SRC).toContain('notifySignIn(sendToTelegram')
   })
 
-  it('НЕ ждёт отправки: успех входа не зависит от чужой сети', () => {
-    // `await` здесь поставил бы выдачу сессии в зависимость от доступности
-    // Telegram — то есть иногда ломал бы вход ради уведомления о нём.
-    expect(КОД).toContain('void сообщитьОВходе(')
-    expect(КОД).not.toContain('await сообщитьОВходе(')
+  it('does NOT await it: the sign-in must not depend on somebody else network', () => {
+    // An `await` here would make issuing the session depend on Telegram being
+    // reachable -- that is, sometimes break the sign-in for the sake of the
+    // notification about it.
+    expect(SRC).toContain('void notifySignIn(')
+    expect(SRC).not.toContain('await notifySignIn(')
   })
 
-  it('уведомление уходит ПОСЛЕ выдачи сессии, а не вместо неё', () => {
-    expect(КОД.indexOf('await mintSession(pool, outcome.telegramId')).toBeLessThan(
-      КОД.indexOf('void сообщитьОВходе(')
-    )
+  it('the notification goes out AFTER the session, not instead of it', () => {
+    expect(
+      SRC.indexOf('await mintSession(pool, outcome.telegramId')
+    ).toBeLessThan(SRC.indexOf('void notifySignIn('))
   })
 })

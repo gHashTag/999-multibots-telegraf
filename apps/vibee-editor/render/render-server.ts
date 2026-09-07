@@ -30,8 +30,8 @@ import {
 } from './src/lib/remoteMediaDuration'
 import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
-import { отчитаться } from './src/hive/queen-report'
-import { отправитьВTelegram } from './src/auth/telegram-sender'
+import { report } from './src/hive/queen-report'
+import { sendToTelegram } from './src/auth/telegram-sender'
 import {
   readRenderQuota,
   reserveRenderQuota,
@@ -2257,48 +2257,51 @@ setInterval(() => {
 }, 60 * 1000)
 
 /*
- * ОТЧЁТ КОРОЛЕВЫ — ЕДИНСТВЕННЫЙ ЧИТАТЕЛЬ ЖУРНАЛА, КОТОРЫЙ ПРИХОДИТ САМ.
+ * THE QUEEN'S REPORT -- THE ONLY READER OF THE JOURNAL THAT ARRIVES BY ITSELF.
  *
- * Пульс в чате агента отвечает, когда его спрашивают. Этого мало: владелец
- * просил «реагировать вовремя», а вовремя — значит не дожидаясь вопроса.
+ * The pulse tool in the agent chat answers when asked. That is not enough: the
+ * owner asked to react in time, and in time means without waiting to be asked.
  *
- * В trios лежат два append-only журнала с нулём читателей. Разница между ними
- * и этим — вот этот таймер.
+ * trios holds two append-only journals with zero readers. The difference
+ * between those and this one is exactly this timer.
  *
- * ПРОВЕРЯЕМ ЧАСТО, ПИШЕМ РЕДКО. Тик раз в десять минут; тревога уходит
- * немедленно, обычные события копятся и приходят пачкой не чаще, чем раз в
- * три часа (ПАУЗА_МЕЖДУ_ОБЫЧНЫМИ_МИНУТ). Курсор в базе, а не в памяти:
- * у этого проекта на Railway нет томов, и деплой стирает всё локальное.
+ * CHECK OFTEN, WRITE RARELY. A tick every ten minutes; an alarm goes out
+ * immediately, ordinary events accumulate and arrive in a batch at most every
+ * three hours (QUIET_GAP_MINUTES). The cursor lives in the database rather than
+ * in memory: this Railway project has no volumes and a deploy wipes anything
+ * local.
  */
 setInterval(() => {
   void (async () => {
     try {
-      const итог = await отчитаться(getPool(), async (кому, текст) => {
+      const outcome = await report(getPool(), async (who, text) => {
         try {
-          await отправитьВTelegram(кому, текст)
+          await sendToTelegram(who, text)
           return true
         } catch (e) {
-          // Возвращаем false, а НЕ бросаем: от этого значения зависит, двинуть
-          // ли курсор. Брошенное исключение потеряло бы события навсегда.
+          // Return false rather than THROW: the cursor's advance depends on
+          // this value. A thrown exception would lose the events forever.
           console.warn(
-            '[улей] отчёт не доставлен:',
+            '[hive] report not delivered:',
             e instanceof Error ? e.message : String(e)
           )
           return false
         }
       })
-      if (итог.что === 'смотрителей нет') {
-        // Раз в тик — но говорим. Без HIVE_KEEPERS отчёты не работают, и это
-        // настройка, а не поломка; молчание тут неотличимо от «всё тихо».
+      if (outcome.what === 'no keepers') {
+        // Once per tick, but out loud. Without HIVE_KEEPERS reports do not
+        // work, and that is a setting rather than a fault; silence here is
+        // indistinguishable from "all quiet".
         console.warn(
-          '[улей] HIVE_KEEPERS не задан — отчитываться некому, отчёты выключены'
+          '[hive] HIVE_KEEPERS is not set -- nobody to report to, reports are off'
         )
-      } else if (итог.что === 'отправлен') {
-        console.log(`[улей] отчёт отправлен: событий ${итог.событий}`)
+      } else if (outcome.what === 'sent') {
+        console.log(`[hive] report sent: ${outcome.events} events`)
       }
     } catch (e) {
-      // Отчёт — наблюдение. Его падение не должно ронять сервер рендера.
-      console.error('[улей] отчёт упал:', e)
+      // The report is observation. Its failure must not bring down the render
+      // server.
+      console.error('[hive] report failed:', e)
     }
   })()
 }, 10 * 60 * 1000)
@@ -8666,7 +8669,7 @@ const server = createServer(async (req, res) => {
     const url: string = String(body.url ?? '')
     // Только http(s)-ссылки: файл уже должен лежать в хранилище (клиент
     // грузит через /upload). Принять произвольную строку значило бы
-    // записать в профиль мусор, который галерея потом отфильтрует.
+    // записать в профиль мусор, который галерея потом отфильтрует. // cyrillic-ok: pre-existing comment
     if (!/^https?:\/\//.test(url)) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(

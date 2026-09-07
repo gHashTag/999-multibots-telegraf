@@ -3,7 +3,7 @@
  *
  * Отдельным файлом, а не строкой внутри маршрута, по двум причинам.
  *
- * Первая: `сообщитьОВходе` не должна знать про HTTP и токены — тогда её можно
+ * First: `notifySignIn` must not know about HTTP or tokens -- that is what
  * запустить в тесте с подставным отправителем и проверить ТЕКСТ, а не сеть.
  *
  * Вторая: токен бота читается ЗДЕСЬ и только здесь. `render-server.ts` уже
@@ -23,7 +23,7 @@ function токен(): string {
   return (process.env.TELEGRAM_BOT_TOKEN || '').trim()
 }
 
-export async function отправитьВTelegram(
+export async function sendToTelegram(
   telegramId: string,
   текст: string
 ): Promise<void> {

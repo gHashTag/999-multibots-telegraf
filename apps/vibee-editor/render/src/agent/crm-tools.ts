@@ -32,7 +32,7 @@
  * нельзя объяснить, в продаже хуже отсутствия числа.
  */
 
-import { видимость, фильтрПоБотам } from '../hive/roles'
+import { visibilityOf, botFilter } from '../hive/roles'
 import type { AgentTool, ToolContext } from './tools'
 
 /**
@@ -60,7 +60,7 @@ import type { AgentTool, ToolContext } from './tools'
  */
 
 /** Боты, которыми человек владеет. Пустой список — значит показывать нечего. */
-async function моиБоты(telegramId: string): Promise<string[]> {
+async function myBots(telegramId: string): Promise<string[]> {
   const строки = await запрос<{ bot_name: string | null }>(
     `avatars?select=bot_name&telegram_id=eq.${encodeURIComponent(telegramId)}`
   )
@@ -75,8 +75,8 @@ async function моиБоты(telegramId: string): Promise<string[]> {
  * инструмент. Всем остальным возвращается конкретный список их ботов.
  */
 async function областьВидимости(ctx?: ToolContext): Promise<string[] | null> {
-  const кто = ctx ? String(ctx.telegramId ?? '') : ''
-  if (!кто) {
+  const who = ctx ? String(ctx.telegramId ?? '') : ''
+  if (!who) {
     throw new Error(
       'CRM показывает данные других людей и требует подтверждённой личности'
     )
@@ -90,15 +90,15 @@ async function областьВидимости(ctx?: ToolContext): Promise<stri
    * системе ОДНА на всю платформу (2380 человек шестнадцати владельцев), и
    * разделение делается только на чтении.
    */
-  const в = await видимость(кто, { ботыВладельца: моиБоты })
-  const фильтр = фильтрПоБотам(в)
-  if (фильтр !== null && фильтр.length === 0) {
+  const v = await visibilityOf(who, { botsOwnedBy: myBots })
+  const filter = botFilter(v)
+  if (filter !== null && filter.length === 0) {
     throw new Error(
       'CRM показывает аудиторию ВАШИХ ботов, а за вами ботов не числится. ' +
         'Если бот ваш — он должен быть записан на вас в avatars.'
     )
   }
-  return фильтр
+  return filter
 }
 
 const noArgs = { type: 'object', properties: {} } as const

@@ -1,285 +1,286 @@
 /**
- * ЖУРНАЛ УЛЬЯ — ЧТО ПРОИСХОДИТ, И КТО ЭТО ВИДИТ.
+ * THE HIVE JOURNAL -- WHAT HAPPENS, AND WHO GETS TO SEE IT.
  *
- * Владелец 07.09.2026: «королева видеть все события! и я супер админ» и
- * «все логи бота сделай чтобы видно были у меня прямо в чате агента! пульс
- * жизни проекта! так я смогу реагировать вовремя».
+ * Owner, 2026-09-07: "the Queen should see every event and I am the
+ * super-admin", and "show me the bot logs right in the agent chat -- the pulse
+ * of the project, so I can react in time".
  *
- * ── ЗАМЕР ПЕРЕД ТЕМ, КАК ЗАВОДИТЬ НОВУЮ ТАБЛИЦУ ────────────────────────────
+ * MEASURED BEFORE CREATING A NEW TABLE
  *
- * 07.09.2026 разобрали все места записи в обоих репозиториях. Итог:
+ * On 2026-09-07 every write path in both repositories was surveyed. Result:
  *
- *   • Общего журнала событий НЕТ. Из 19 таблиц, реально существующих в
- *     Supabase, ни одна им не является. Имена вроде `ai_requests` и
- *     `bot_skills_log` встречаются в коде, но в базе их нет — то есть
- *     `skillManager.ts:41` пишет в несуществующую таблицу.
+ *   - There is NO general event log. Of the 19 tables that actually exist in
+ *     Supabase, not one is one. Names such as `ai_requests` and
+ *     `bot_skills_log` appear in code but are absent from the database, so
+ *     `skillManager.ts:41` writes into nothing.
  *
- *   • `payments_v2` — единственный сквозной поток событий, но только про
- *     деньги, и он НЕ append-only: `status` переписывается в шести местах.
- *     Как доказательство «что случилось» он не годится.
+ *   - `payments_v2` is the only cross-cutting stream, but it covers money
+ *     alone, and it is NOT append-only: `status` is rewritten in six places.
+ *     As evidence of what happened it does not qualify.
  *
- *   • В trios есть `gardener_decisions` и `railway_audit_events`. Оба
- *     append-only, у обоих ноль читателей. Это и есть способ, которым такая
- *     работа умирает: журнал пишут, в него никто не смотрит, и через месяц
- *     он просто занимает место.
+ *   - trios has `gardener_decisions` and `railway_audit_events`. Both are
+ *     append-only, and both have zero readers. That is how this kind of work
+ *     dies: the journal is written, nobody looks at it, and a month later it
+ *     is just occupying space.
  *
- * Отсюда правило этого файла: читатель (`лента`) написан вместе с писателем и
- * выведен в пульс сразу. Журнал без экрана не заводится.
+ * Hence the rule of this file: the reader (`feed`) is written together with the
+ * writer and wired to the pulse the same day. A journal without a screen is not
+ * started here.
  *
- * ── ГРАНИЦА ВИДИМОСТИ — ГЛАВНОЕ ЗДЕСЬ ──────────────────────────────────────
+ * THE VISIBILITY BORDER -- THE MAIN THING IN THIS FILE
  *
- * Журнал по построению содержит события ВСЕХ клиентов. Значит он же — самое
- * опасное место в системе: одна строка чтения без фильтра, и владелец бота
- * видит выручку соседа.
+ * By construction the journal holds the events of ALL clients. That makes it
+ * the most dangerous place in the system: one unfiltered read, and a bot owner
+ * sees a neighbour's revenue.
  *
- * Поэтому читать отсюда можно ТОЛЬКО через `видимость` из `roles.ts`:
+ * So it may be read ONLY through `visibilityOf` from `roles.ts`:
  *
- *   смотритель — вся ферма;
- *   владелец   — события СВОИХ ботов плюс свои личные;
- *   пчела      — только свои.
+ *   keeper -- the whole farm;
+ *   owner  -- events of THEIR bots plus their own;
+ *   bee    -- their own only.
  *
- * Событие без `bot_name` видно только его субъекту и смотрителю. Это не
- * мелочь и не редкий случай: по замеру арендатор известен лишь в 8 из 31
- * места. Отказ Robokassa по подписи знает только InvId; отказ спаривания не
- * знает вообще никого. Неизвестный арендатор — повод скрыть, а не показать
- * всем.
+ * An event with no `bot_name` is visible to its subject and to the keeper. That
+ * is neither a detail nor a rare case: the survey found the tenant knowable at
+ * only 8 sites out of 31. A rejected Robokassa signature knows only the invoice
+ * id; a refused pairing claim knows nobody at all. An unknown tenant is a
+ * reason to hide, not to show widely.
  *
- * ── ЧТО СЮДА НЕ КЛАДЁТСЯ ───────────────────────────────────────────────────
+ * WHAT DOES NOT GO IN HERE
  *
- * Ни текстов переписки, ни промптов, ни номеров телефонов, ни токенов, ни
- * ссылок на файлы. Журнал отвечает на «что случилось и у кого», а не «что
- * человек написал». Иначе он становится вторым хранилищем персональных
- * данных — с теми же обязанностями и без чьего-либо согласия.
+ * No message text, no prompts, no phone numbers, no tokens, no file links. The
+ * journal answers "what happened and to whom", not "what the person wrote".
+ * Otherwise it becomes a second store of personal data -- with the same duties
+ * and nobody's consent.
  */
 
-import { type Видимость, фильтрПоБотам } from './roles'
+import { type Visibility, botFilter } from './roles'
 
-export interface ПулЖурнала {
+export interface JournalPool {
   query(sql: string, params?: unknown[]): Promise<{ rows: any[] }>
 }
 
 /**
- * Что случилось. Список закрытый: свободная строка превращает ленту в шум,
- * а через полгода — в набор из сорока написаний одного и того же.
+ * What happened. A closed list: a free-form string turns the feed into noise,
+ * and in six months into forty spellings of the same thing.
  *
- * Виды названы по РЕЗУЛЬТАТУ, а не по маршруту: «вход» — не «POST
- * /api/auth/telegram». Маршрут переименуют, событие останется тем же.
+ * Kinds are named after the RESULT, not the route: `sign-in`, not
+ * `POST /api/auth/telegram`. Routes get renamed; the event stays the same.
  */
-export type ВидСобытия =
-  // доступ
-  | 'вход'
-  | 'вход-отказ'
-  | 'код-выдан'
-  | 'код-принят'
-  | 'код-отказ'
-  | 'выход'
-  | 'подключён-telegram'
-  | 'отключён-telegram'
-  // деньги
-  | 'оплата'
-  | 'оплата-потеряна'
-  | 'оплата-подделка'
-  | 'токены-списаны'
-  | 'токены-возвращены'
-  // содержимое
-  | 'создано'
-  | 'опубликовано'
-  | 'снято-с-публикации'
-  | 'одобрено'
-  // прочее
-  | 'сбой'
+export type EventKind =
+  // access
+  | 'sign-in'
+  | 'sign-in-refused'
+  | 'code-issued'
+  | 'code-claimed'
+  | 'code-refused'
+  | 'sign-out'
+  | 'telegram-connected'
+  | 'telegram-disconnected'
+  // money
+  | 'payment'
+  | 'payment-lost'
+  | 'payment-forged'
+  | 'tokens-spent'
+  | 'tokens-refunded'
+  // content
+  | 'created'
+  | 'published'
+  | 'unpublished'
+  | 'approved'
+  // other
+  | 'failure'
 
 /**
- * Насколько это срочно ДЛЯ ЧЕЛОВЕКА, а не для лога.
+ * How urgent this is FOR A PERSON, not for a log.
  *
- * Не «уровень логирования»: у пульса другая задача. `тревога` означает
- * «смотри сейчас, иначе потеряем деньги или пустим чужого». Всё остальное
- * читается, когда дошли руки.
+ * Not a "log level": the pulse has a different job. `alarm` means "look now, or
+ * we lose money or let a stranger in". Everything else is read when there is
+ * time.
  */
-export type Важность = 'обычное' | 'внимание' | 'тревога'
+export type Severity = 'normal' | 'attention' | 'alarm'
 
-export interface Событие {
-  вид: ВидСобытия
-  /** Чьё это событие. Пусто — событие ничьё, и показать его можно только смотрителю. */
-  кого?: string | null
-  /** Чей бот. Пусто — событие вне арендатора: субъекту и смотрителю. */
-  бот?: string | null
-  сколько?: number | null
-  /** Короткая пометка для человека: «видео 6 сцен», а НЕ промпт и не ссылка. */
-  чем?: string | null
-  важность?: Важность
+export interface HiveEvent {
+  kind: EventKind
+  /** Whose event this is. Empty means nobody's, and only a keeper may see it. */
+  who?: string | null
+  /** Whose bot. Empty means outside a tenant: subject and keeper only. */
+  bot?: string | null
+  amount?: number | null
+  /** A short human note: "video, 6 scenes" -- NOT a prompt and not a link. */
+  what?: string | null
+  severity?: Severity
 }
 
-let готово = false
+let tableReady = false
 
-export async function таблицаЖурнала(pool: ПулЖурнала): Promise<void> {
-  if (готово) return
+export async function ensureJournalTable(pool: JournalPool): Promise<void> {
+  if (tableReady) return
   await pool.query(
     `CREATE TABLE IF NOT EXISTS hive_events (
        id bigserial PRIMARY KEY,
-       вид text NOT NULL,
-       кого text,
-       бот text,
-       сколько numeric,
-       чем text,
-       важность text NOT NULL DEFAULT 'обычное',
-       когда timestamptz NOT NULL DEFAULT now()
+       kind text NOT NULL,
+       who text,
+       bot text,
+       amount numeric,
+       what text,
+       severity text NOT NULL DEFAULT 'normal',
+       at timestamptz NOT NULL DEFAULT now()
      )`
   )
-  // Ленту всегда читают «последние», и почти всегда с фильтром по субъекту
-  // либо по боту. Без этих индексов она станет медленной на первом десятке
-  // тысяч строк — ровно там, где на неё начнут смотреть.
+  // The feed is always read as "the latest", and almost always filtered by
+  // subject or by bot. Without these indexes it gets slow at the first ten
+  // thousand rows -- exactly where people start looking at it.
   await pool.query(
-    `CREATE INDEX IF NOT EXISTS hive_events_recent ON hive_events (когда DESC, id DESC)`
+    `CREATE INDEX IF NOT EXISTS hive_events_recent ON hive_events (at DESC, id DESC)`
   )
   await pool.query(
-    `CREATE INDEX IF NOT EXISTS hive_events_кого ON hive_events (кого, когда DESC)`
+    `CREATE INDEX IF NOT EXISTS hive_events_who ON hive_events (who, at DESC)`
   )
   await pool.query(
-    `CREATE INDEX IF NOT EXISTS hive_events_бот ON hive_events (бот, когда DESC)`
+    `CREATE INDEX IF NOT EXISTS hive_events_bot ON hive_events (bot, at DESC)`
   )
-  готово = true
+  tableReady = true
 }
 
-/** Только для проверок. */
-export function забытьТаблицу(): void {
-  готово = false
+/** For tests only. */
+export function forgetTable(): void {
+  tableReady = false
 }
 
 /**
- * Записать событие. НИКОГДА не бросает и никогда не ждёт долго.
+ * Record an event. NEVER throws and never waits long.
  *
- * Журнал — наблюдение, а не часть дела. Упавшая запись не должна отменять
- * оплату, публикацию или вход: событие, ради которого сломали действие, —
- * это уже не наблюдение, а помеха. По той же причине вызывающему разрешено
- * не ждать результата (`void записать(...)`).
+ * The journal is observation, not part of the deed. A failed write must not
+ * cancel a payment, a publish or a sign-in: an event for whose sake the action
+ * was broken is no longer observation, it is interference. For the same reason
+ * callers are free not to await it (`void record(...)`).
  */
-export async function записать(
-  pool: ПулЖурнала,
-  с: Событие
-): Promise<'записано' | 'не записано'> {
+export async function record(
+  pool: JournalPool,
+  e: HiveEvent
+): Promise<'recorded' | 'not recorded'> {
   try {
-    await таблицаЖурнала(pool)
+    await ensureJournalTable(pool)
     await pool.query(
-      `INSERT INTO hive_events (вид, кого, бот, сколько, чем, важность)
+      `INSERT INTO hive_events (kind, who, bot, amount, what, severity)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        с.вид,
-        (с.кого ?? '').toString().trim() || null,
-        (с.бот ?? '').toString().trim() || null,
-        с.сколько ?? null,
-        // Обрезаем: пометка для человека, а не место для промпта.
-        с.чем ? String(с.чем).slice(0, 200) : null,
-        с.важность ?? 'обычное',
+        e.kind,
+        (e.who ?? '').toString().trim() || null,
+        (e.bot ?? '').toString().trim() || null,
+        e.amount ?? null,
+        // Trimmed: a note for a person, not a place for a prompt.
+        e.what ? String(e.what).slice(0, 200) : null,
+        e.severity ?? 'normal',
       ]
     )
-    return 'записано'
+    return 'recorded'
   } catch {
-    return 'не записано'
+    return 'not recorded'
   }
 }
 
-export interface СтрокаЛенты {
+export interface JournalRow {
   id: number
-  вид: string
-  кого: string | null
-  бот: string | null
-  сколько: number | null
-  чем: string | null
-  важность: string
-  когда: string
+  kind: string
+  who: string | null
+  bot: string | null
+  amount: number | null
+  what: string | null
+  severity: string
+  at: string
 }
 
 /**
- * Лента событий В ПРЕДЕЛАХ ВИДИМОСТИ.
+ * The event feed WITHIN THE SCOPE OF VISIBILITY.
  *
- * Единственный способ читать журнал. Отдельной «читалки без фильтра» здесь
- * нет и быть не должно: она немедленно окажется в каком-нибудь маршруте, и
- * граница между клиентами исчезнет молча.
+ * The only way to read the journal. There is deliberately no "unfiltered
+ * reader" here, and there must not be one: it would immediately end up in some
+ * route, and the border between clients would disappear silently.
  */
-export async function лента(
-  pool: ПулЖурнала,
-  в: Видимость,
-  { сколько = 50, до }: { сколько?: number; до?: number } = {}
-): Promise<СтрокаЛенты[]> {
-  await таблицаЖурнала(pool)
-  const предел = Math.min(Math.max(1, Math.trunc(сколько) || 1), 200)
-  const боты = фильтрПоБотам(в)
-  const курсор = Number.isFinite(до as number) ? Number(до) : null
-  const поля = `id, вид, кого, бот, сколько, чем, важность, когда`
-  const срез = курсор === null ? '' : ' AND id < $К'
+export async function feed(
+  pool: JournalPool,
+  v: Visibility,
+  { limit = 50, before }: { limit?: number; before?: number } = {}
+): Promise<JournalRow[]> {
+  await ensureJournalTable(pool)
+  const cap = Math.min(Math.max(1, Math.trunc(limit) || 1), 200)
+  const bots = botFilter(v)
+  const cursor = Number.isFinite(before as number) ? Number(before) : null
+  const cols = `id, kind, who, bot, amount, what, severity, at`
+  const slice = cursor === null ? '' : ' AND id < $C'
 
-  if (боты === null) {
-    // Смотритель: вся ферма, включая события без субъекта (подделка подписи,
-    // отказ спаривания) — их не видно больше никому.
+  if (bots === null) {
+    // Keeper: the whole farm, including events with no subject (a forged
+    // signature, a refused pairing claim) -- nobody else can see those.
     const r = await pool.query(
-      `SELECT ${поля} FROM hive_events
-        WHERE true${срез.replace('$К', '$2')}
-        ORDER BY когда DESC, id DESC LIMIT $1`,
-      курсор === null ? [предел] : [предел, курсор]
+      `SELECT ${cols} FROM hive_events
+        WHERE true${slice.replace('$C', '$2')}
+        ORDER BY at DESC, id DESC LIMIT $1`,
+      cursor === null ? [cap] : [cap, cursor]
     )
-    return r.rows as СтрокаЛенты[]
+    return r.rows as JournalRow[]
   }
 
   /*
-   * Владелец и пчела: свои события ПЛЮС события своих ботов.
+   * Owner and bee: their own events PLUS the events of their bots.
    *
-   * `кого = $1` обязателен и для владельца: его собственные входы и оплаты
-   * часто идут без `bot_name` (по замеру — большинство), и без этого условия
-   * он не увидел бы даже себя.
+   * `who = $2` is required for an owner too: their own sign-ins and payments
+   * often carry no `bot_name` (by the survey, most of them), and without this
+   * condition they would not even see themselves.
    *
-   * Пустой список ботов — законный случай (пчела). Тогда остаётся только
-   * `кого = $1`, и это правильно.
+   * An empty bot list is a legitimate case (a bee). Then only `who = $2`
+   * remains, and that is correct.
    *
-   * `кого IS NOT NULL` подразумевается равенством: событие без субъекта
-   * никогда не совпадёт с `$1`, поэтому ничьи события сюда не попадают.
+   * `who IS NOT NULL` is implied by the equality: an event with no subject can
+   * never match `$2`, so nobody's events do not leak in here.
    */
   const r = await pool.query(
-    `SELECT ${поля} FROM hive_events
-      WHERE (кого = $2 OR (бот IS NOT NULL AND бот = ANY($3)))${срез.replace('$К', '$4')}
-      ORDER BY когда DESC, id DESC LIMIT $1`,
-    курсор === null ? [предел, в.кто, боты] : [предел, в.кто, боты, курсор]
+    `SELECT ${cols} FROM hive_events
+      WHERE (who = $2 OR (bot IS NOT NULL AND bot = ANY($3)))${slice.replace('$C', '$4')}
+      ORDER BY at DESC, id DESC LIMIT $1`,
+    cursor === null ? [cap, v.who, bots] : [cap, v.who, bots, cursor]
   )
-  return r.rows as СтрокаЛенты[]
+  return r.rows as JournalRow[]
 }
 
 /**
- * Пульс: короткая сводка за окно времени, тоже в пределах видимости.
+ * The pulse: a short summary over a time window, also within the scope.
  *
- * Нужна отдельно от ленты, потому что «что происходит» и «сколько этого» —
- * разные вопросы. В чат агента идёт именно сводка: сто строк ленты человек
- * не прочтёт, а «12 входов, 3 оплаты, 1 тревога» прочтёт.
+ * Separate from the feed because "what is happening" and "how much of it" are
+ * different questions. The agent chat gets the summary: nobody reads a hundred
+ * feed lines, but everybody reads "12 sign-ins, 3 payments, 1 alarm".
  */
-export interface Пульс {
-  часов: number
-  всего: number
-  тревог: number
-  поВидам: Array<{ вид: string; сколько: number }>
+export interface Pulse {
+  hours: number
+  total: number
+  alarms: number
+  byKind: Array<{ kind: string; count: number }>
 }
 
-export async function пульс(
-  pool: ПулЖурнала,
-  в: Видимость,
-  { часов = 24 }: { часов?: number } = {}
-): Promise<Пульс> {
-  const окно = Math.min(Math.max(1, Math.trunc(часов) || 1), 24 * 30)
-  // Считаем по той же ленте, а не отдельным запросом: два разных условия
-  // видимости для одних и тех же данных однажды разойдутся, и разойдутся
-  // в сторону «показали лишнее».
-  const строки = await лента(pool, в, { сколько: 200 })
-  const край = Date.now() - окно * 3600_000
-  const свежие = строки.filter(с => {
-    const t = new Date(с.когда).getTime()
-    return Number.isFinite(t) ? t >= край : true
+export async function pulse(
+  pool: JournalPool,
+  v: Visibility,
+  { hours = 24 }: { hours?: number } = {}
+): Promise<Pulse> {
+  const window = Math.min(Math.max(1, Math.trunc(hours) || 1), 24 * 30)
+  // Counted from the same feed rather than a separate query: two different
+  // visibility conditions over the same data will drift one day, and they will
+  // drift towards "showed too much".
+  const rows = await feed(pool, v, { limit: 200 })
+  const edge = Date.now() - window * 3600_000
+  const fresh = rows.filter(r => {
+    const t = new Date(r.at).getTime()
+    return Number.isFinite(t) ? t >= edge : true
   })
-  const счёт = new Map<string, number>()
-  for (const с of свежие) счёт.set(с.вид, (счёт.get(с.вид) ?? 0) + 1)
+  const tally = new Map<string, number>()
+  for (const r of fresh) tally.set(r.kind, (tally.get(r.kind) ?? 0) + 1)
   return {
-    часов: окно,
-    всего: свежие.length,
-    тревог: свежие.filter(с => с.важность === 'тревога').length,
-    поВидам: [...счёт.entries()]
-      .map(([вид, сколько]) => ({ вид, сколько }))
-      .sort((а, б) => б.сколько - а.сколько),
+    hours: window,
+    total: fresh.length,
+    alarms: fresh.filter(r => r.severity === 'alarm').length,
+    byKind: [...tally.entries()]
+      .map(([kind, count]) => ({ kind, count }))
+      .sort((a, b) => b.count - a.count),
   }
 }

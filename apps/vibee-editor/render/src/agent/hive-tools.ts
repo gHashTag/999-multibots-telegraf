@@ -1,79 +1,78 @@
 /**
- * ПУЛЬС УЛЬЯ В ЧАТЕ АГЕНТА — «ЧТО СЕЙЧАС ПРОИСХОДИТ».
+ * THE HIVE PULSE IN THE AGENT CHAT -- "WHAT IS HAPPENING RIGHT NOW".
  *
- * Владелец 07.09.2026: «все логи бота сделай чтобы видно были у меня прямо в
- * чате агента! пульс жизни проекта! так я смогу реагировать вовремя».
+ * Owner, 2026-09-07: "show me the bot logs right in the agent chat! the pulse
+ * of the project! so I can react in time".
  *
- * ── ПОЧЕМУ ИНСТРУМЕНТ АГЕНТА, А НЕ НОВЫЙ ЭКРАН ────────────────────────────
+ * WHY AN AGENT TOOL AND NOT A NEW SCREEN
  *
- * Чат агента уже есть везде: в боте, в мини-аппе и в приложении на iPhone.
- * Инструмент появляется во всех трёх сразу и в тот же день. Новый экран
- * пришлось бы рисовать трижды, и на телефоне он появился бы через релиз в
- * App Store.
+ * The agent chat already exists everywhere: in the bot, in the Mini App and in
+ * the iPhone app. A tool appears in all three at once, the same day. A new
+ * screen would have to be drawn three times, and on the phone it would arrive
+ * through an App Store release.
  *
- * Вторая причина важнее. В trios лежат два append-only журнала —
- * `gardener_decisions` и `railway_audit_events` — у обоих ноль читателей.
- * Журнал, к которому не подключён экран, не «ждёт своего часа»: он мёртв с
- * первого дня. Поэтому читатель заводится вместе с писателем.
+ * The second reason matters more. trios holds two append-only journals --
+ * `gardener_decisions` and `railway_audit_events` -- and both have zero
+ * readers. A journal with no screen attached is not "waiting for its moment":
+ * it is dead from day one. So the reader ships with the writer.
  *
- * ── ЭТО НЕ «ЛОГИ БОТА» ─────────────────────────────────────────────────────
+ * THIS IS NOT "THE BOT LOGS"
  *
- * Сырой лог сюда лить нельзя, и не из аккуратности. В логах проходят чужие
- * telegram_id, суммы и промпты 2380 человек шестнадцати владельцев ботов, а
- * чат агента у владельца бота и у обычного человека — один и тот же экран.
+ * A raw log cannot be piped in here, and not out of tidiness. Logs carry the
+ * telegram ids, sums and prompts of 2380 people belonging to sixteen bot
+ * owners, and the agent chat is the SAME screen for a bot owner and for an
+ * ordinary user.
  *
- * Пульс отдаёт СОБЫТИЯ, а каждое событие уже знает, кому его можно показать
- * (`видимость` из `hive/roles.ts`). Смотрителю это выглядит как «всё», и
- * разница проявится ровно один раз — когда владелец бота откроет свой пульс
- * и не увидит соседей.
+ * The pulse returns EVENTS, and every event already knows who may see it
+ * (`visibilityOf` from `hive/roles.ts`). To a keeper this looks like
+ * "everything", and the difference shows up exactly once -- when a bot owner
+ * opens their pulse and does not see the neighbours.
  */
 
-import { видимость, фильтрПоБотам } from '../hive/roles'
-import { лента, пульс } from '../hive/journal'
+import { visibilityOf, botFilter } from '../hive/roles'
+import { feed, pulse } from '../hive/journal'
 import type { AgentTool, ToolContext } from './tools'
 
 /**
- * Боты человека — из `avatars`, тем же запросом, что и в CRM.
+ * A person's bots come from `avatars`, by the same query as in the CRM.
  *
- * Второй источник владения разошёлся бы с первым, и расхождение проявилось бы
- * как «мне не видно моего бота» либо, что хуже, «мне видно чужого».
+ * A second source of ownership would drift from the first, and the drift would
+ * show up as "I cannot see my own bot" or, worse, "I can see somebody else's".
  */
-async function моиБоты(telegramId: string): Promise<string[]> {
+async function botsOwnedBy(telegramId: string): Promise<string[]> {
   const url = (process.env.SUPABASE_URL || '').replace(/\/+$/, '')
   const key = process.env.SUPABASE_SERVICE_KEY || ''
   if (!url || !key) return []
-  const о = await fetch(
+  const res = await fetch(
     `${url}/rest/v1/avatars?select=bot_name&telegram_id=eq.${encodeURIComponent(
       telegramId
     )}`,
     { headers: { apikey: key, Authorization: `Bearer ${key}` } }
   )
-  if (!о.ok) throw new Error(`avatars ответил ${о.status}`)
-  const строки = (await о.json()) as Array<{ bot_name: string | null }>
-  return строки.map(с => (с.bot_name || '').trim()).filter(Boolean)
+  if (!res.ok) throw new Error(`avatars replied ${res.status}`)
+  const rows = (await res.json()) as Array<{ bot_name: string | null }>
+  return rows.map(r => (r.bot_name || '').trim()).filter(Boolean)
 }
 
-async function чтоМнеВидно(ctx?: ToolContext) {
-  const кто = ctx ? String(ctx.telegramId ?? '') : ''
-  if (!кто) {
-    // Личность берётся из подписи, а не из аргумента: аргумент называет, кем
-    // человек хочет казаться.
+async function visibilityFor(ctx?: ToolContext) {
+  const who = ctx ? String(ctx.telegramId ?? '') : ''
+  if (!who) {
+    // Identity comes from the signature, never from an argument: an argument
+    // states who the caller would like to appear to be.
     throw new Error(
       'Пульс показывает события людей и требует подтверждённой личности'
     )
   }
-  return видимость(кто, { ботыВладельца: моиБоты })
+  return visibilityOf(who, { botsOwnedBy })
 }
 
-/** Человеческое имя области: чтобы владелец одного бота не принял её за ферму. */
-function чьиСобытия(в: Awaited<ReturnType<typeof чтоМнеВидно>>): string {
-  const ф = фильтрПоБотам(в)
-  if (ф === null) return 'вся ферма (вы смотритель улья)'
-  if (ф.length === 0) return 'только ваши собственные события'
-  return `ваши события и события ботов: ${ф.join(', ')}`
+/** A human name for the scope, so a one-bot owner does not read it as the farm. */
+function scopeLabel(v: Awaited<ReturnType<typeof visibilityFor>>): string {
+  const f = botFilter(v)
+  if (f === null) return 'вся ферма (вы смотритель улья)'
+  if (f.length === 0) return 'только ваши собственные события'
+  return `ваши события и события ботов: ${f.join(', ')}`
 }
-
-const БЕЗ_АРГУМЕНТОВ = { type: 'object', properties: {} } as const
 
 export const HIVE_TOOLS: AgentTool[] = [
   {
@@ -86,22 +85,22 @@ export const HIVE_TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        часов: {
+        hours: {
           type: 'number',
           description: 'Окно в часах. По умолчанию 24, максимум 720 (месяц).',
         },
       },
     },
     async handler(a: any, ctx?: ToolContext) {
-      const в = await чтоМнеВидно(ctx)
-      const п = await пульс(ctx!.pool, в, { часов: Number(a?.часов) || 24 })
+      const v = await visibilityFor(ctx)
+      const p = await pulse(ctx!.pool, v, { hours: Number(a?.hours) || 24 })
       return {
-        показаны_события: чьиСобытия(в),
-        за_часов: п.часов,
-        всего_событий: п.всего,
-        тревог: п.тревог,
-        по_видам: Object.fromEntries(п.поВидам.map(с => [с.вид, с.сколько])),
-        как_читать:
+        scope: scopeLabel(v),
+        hours: p.hours,
+        total: p.total,
+        alarms: p.alarms,
+        by_kind: Object.fromEntries(p.byKind.map(k => [k.kind, k.count])),
+        how_to_read:
           'Тревога — это то, на что стоит посмотреть сегодня: подбор кода ко ' +
           'входу, оплата без получателя, подделанная подпись. Остальное — ' +
           'обычная жизнь проекта. Ноль событий значит тишину, а не поломку.',
@@ -116,41 +115,42 @@ export const HIVE_TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        сколько: {
+        limit: {
           type: 'number',
-          description: 'Сколько последних событий. По умолчанию 20, максимум 200.',
+          description:
+            'Сколько последних событий. По умолчанию 20, максимум 200.',
         },
-        только_тревоги: {
+        alarms_only: {
           type: 'boolean',
           description: 'Показать только то, на что стоит посмотреть сегодня.',
         },
       },
     },
     async handler(a: any, ctx?: ToolContext) {
-      const в = await чтоМнеВидно(ctx)
-      const сколько = Math.min(Math.max(1, Number(a?.сколько) || 20), 200)
-      // Тревог мало, поэтому при фильтре берём широкий срез и отбираем из
-      // него. Отдельный запрос «только тревоги» завёл бы второе условие
-      // видимости для тех же данных, а два условия однажды разойдутся —
-      // и разойдутся в сторону «показали лишнее».
-      const строки = await лента(ctx!.pool, в, {
-        сколько: a?.только_тревоги ? 200 : сколько,
+      const v = await visibilityFor(ctx)
+      const limit = Math.min(Math.max(1, Number(a?.limit) || 20), 200)
+      // Alarms are few, so when filtering we take a wide slice and pick from
+      // it. A separate "alarms only" query would introduce a second visibility
+      // condition over the same data, and two conditions will drift one day --
+      // towards "showed too much".
+      const rows = await feed(ctx!.pool, v, {
+        limit: a?.alarms_only ? 200 : limit,
       })
-      const отобраны = a?.только_тревоги
-        ? строки.filter(с => с.важность === 'тревога').slice(0, сколько)
-        : строки
+      const picked = a?.alarms_only
+        ? rows.filter(r => r.severity === 'alarm').slice(0, limit)
+        : rows
       return {
-        показаны_события: чьиСобытия(в),
-        события: отобраны.map(с => ({
-          когда: с.когда,
-          что: с.вид,
-          у_кого: с.кого ?? '(никого — событие без субъекта)',
-          бот: с.бот ?? '(вне бота)',
-          сколько: с.сколько ?? undefined,
-          пометка: с.чем ?? undefined,
-          важность: с.важность,
+        scope: scopeLabel(v),
+        events: picked.map(r => ({
+          at: r.at,
+          kind: r.kind,
+          who: r.who ?? '(никого — событие без субъекта)',
+          bot: r.bot ?? '(вне бота)',
+          amount: r.amount ?? undefined,
+          note: r.what ?? undefined,
+          severity: r.severity,
         })),
-        как_читать:
+        how_to_read:
           'Событие без субъекта — попытка со стороны: подбор кода, подделанная ' +
           'подпись платежа. Такие видны только смотрителю улья.',
       }
@@ -158,4 +158,4 @@ export const HIVE_TOOLS: AgentTool[] = [
   },
 ]
 
-export const ПУЛЬС_ТОЛЬКО_ДЛЯ_ПРОВЕРОК = { чьиСобытия, моиБоты }
+export const HIVE_TOOLS_INTERNALS_FOR_TESTS = { scopeLabel, botsOwnedBy }

@@ -1,332 +1,346 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  записать,
-  лента,
-  пульс,
-  забытьТаблицу,
-  type Событие,
+  record,
+  feed,
+  pulse,
+  forgetTable,
+  type HiveEvent,
 } from './src/hive/journal'
-import type { Видимость } from './src/hive/roles'
+import type { Visibility } from './src/hive/roles'
 
 /**
- * ЖУРНАЛ УЛЬЯ — ПРОВЕРКИ ГРАНИЦЫ МЕЖДУ КЛИЕНТАМИ.
+ * THE HIVE JOURNAL -- THE BORDER BETWEEN CLIENTS.
  *
- * Здесь проверяется ровно одно свойство, и оно того стоит: клиент не видит
- * чужого. Журнал по построению лежит в одной таблице для всей платформы, и
- * забытое условие в SELECT означает не «неудобство», а показ чужой выручки.
+ * Exactly one property is checked here, and it is worth it: a client does not
+ * see other people's data. By construction the journal lives in ONE table for
+ * the whole platform, so a forgotten condition in a SELECT does not mean
+ * "inconvenience", it means showing somebody else's revenue.
  *
- * ── ПОЧЕМУ ПОДДЕЛЬНЫЙ ПУЛ ИСПОЛНЯЕТ SQL, А НЕ ЗНАЕТ ОТВЕТ ──────────────────
+ * WHY THE FAKE POOL EXECUTES SQL INSTEAD OF KNOWING THE ANSWER
  *
- * Обычный поддельный пул возвращает заранее заготовленные строки и молча
- * соглашается с любым запросом. Такой тест зелёный и когда фильтр есть, и
- * когда его вырезали — то есть не проверяет ничего.
+ * An ordinary fake pool returns prepared rows and silently agrees with any
+ * query. Such a test is green both when the filter is there and when it has
+ * been cut out -- that is, it checks nothing.
  *
- * На прошлой неделе это уже случилось: в `known-phone.test.ts` подделка
- * держала СВОЮ копию условия `WHERE telegram_id = ...`, поэтому мутация,
- * удалившая настоящее условие, прошла. Здесь пул РАЗБИРАЕТ `WHERE` из
- * пришедшего текста запроса и исполняет его. Вырезали условие — подделка
- * тоже перестаёт фильтровать, и тест краснеет.
+ * This already happened last week: in `known-phone.test.ts` the fake held its
+ * OWN copy of the `WHERE telegram_id = ...` condition, so a mutation that
+ * deleted the real one passed. Here the pool PARSES the `WHERE` out of the
+ * query text it received and executes it. Cut the condition and the fake stops
+ * filtering too, and the test goes red.
  */
 
-interface Строка {
+interface Row {
   id: number
-  вид: string
-  кого: string | null
-  бот: string | null
-  сколько: number | null
-  чем: string | null
-  важность: string
-  когда: string
+  kind: string
+  who: string | null
+  bot: string | null
+  amount: number | null
+  what: string | null
+  severity: string
+  at: string
 }
 
 /**
- * Превратить `WHERE` из настоящего запроса в предикат.
+ * Turn a real query's `WHERE` into a predicate.
  *
- * Понимает ровно те формы, которые встречаются в `journal.ts`. Незнакомая
- * форма — исключение, а не «пропустим всё»: молчаливый пропуск снова
- * превратил бы подделку в ту, что соглашается с чем угодно.
+ * It understands exactly the shapes that occur in `journal.ts`. An unknown
+ * shape throws rather than "letting everything through": a silent pass would
+ * turn the fake back into one that agrees with anything.
  */
-function предикат(условие: string, П: unknown[]): (С: Строка) => boolean {
+function predicate(cond: string, P: unknown[]): (R: Row) => boolean {
   /*
-   * Границы слов здесь — через `(?<![\p{L}…])`, а НЕ через `\b`.
+   * Word boundaries here use `(?<![\p{L}...])`, NOT `\b`.
    *
-   * В JavaScript `\b` определена ПО ASCII: перед кириллической буквой её
-   * попросту нет, поэтому `\bбот\b` не совпадает ни с чем. Первый прогон
-   * так и сломался — подстановка молча не произошла, и предикат упал на
-   * «бот is not defined». Та же болезнь, что кириллические имена
-   * переменных в bash: выглядит правильно, не работает, статическая
-   * проверка не ловит. Ловит только запуск.
+   * In JavaScript `\b` is defined over ASCII, so it does not exist before a
+   * non-Latin letter and a `\b...\b` pattern matches nothing. The first run
+   * broke exactly there: the substitution silently did not happen and the
+   * predicate died on an undefined name. Same disease as non-ASCII variable
+   * names in bash: it looks right, it does not work, and static checks do not
+   * catch it. Only running does.
    */
-  const колонки =
-    /(?<![\p{L}\d_.])(вид|кого|бот|сколько|чем|важность|когда|id)(?![\p{L}\d_])/gu
+  const columns =
+    /(?<![\p{L}\d_.])(kind|who|bot|amount|what|severity|at|id)(?![\p{L}\d_])/gu
 
-  const в = условие
-    .replace(/\$(\d+)/g, (_, н) => `П[${Number(н) - 1}]`)
-    .replace(колонки, 'С.$1')
+  const js = cond
+    .replace(/\$(\d+)/g, (_, n) => `P[${Number(n) - 1}]`)
+    .replace(columns, 'R.$1')
     .replace(/([\p{L}\d_.[\]]+) = ANY\(([^)]+)\)/gu, '($2).includes($1)')
-    .replace(/([\p{L}\d_.[\]]+) IS NOT NULL/gu, '($1 !== null && $1 !== undefined)')
-    // `=` в SQL сравнивает, в JavaScript ПРИСВАИВАЕТ. Без этой строки
-    // `С.кого = П[1]` не сравнивал, а записывал и всегда возвращал истину —
-    // подделка пропускала всё, и любая мутация выглядела бы безобидной.
-    // Делается ПОСЛЕ `= ANY(...)`, иначе испортило бы и его.
+    .replace(
+      /([\p{L}\d_.[\]]+) IS NOT NULL/gu,
+      '($1 !== null && $1 !== undefined)'
+    )
+    // `=` compares in SQL and ASSIGNS in JavaScript. Without this line
+    // `R.who = P[1]` was not comparing but writing, and always returned truthy
+    // -- the fake let everything through and every mutation looked harmless.
+    // Done AFTER `= ANY(...)`, which it would otherwise corrupt.
     .replace(/(?<![=<>!])=(?!=)/g, '===')
     .replace(/ AND /g, ' && ')
     .replace(/ OR /g, ' || ')
 
-  // Незнакомое слово — исключение, а не «пропустим всё». Молчаливый пропуск
-  // снова превратил бы подделку в ту, что соглашается с чем угодно.
-  const остаток = в.replace(
-    /С\.[\p{L}\d_]+|П\[\d+\]|true|false|null|undefined|includes/gu,
+  // An unknown word throws rather than "letting everything through". A silent
+  // pass would turn the fake back into one that agrees with anything.
+  const leftover = js.replace(
+    /R\.[\p{L}\d_]+|P\[\d+\]|true|false|null|undefined|includes/gu,
     ''
   )
-  if (/\p{L}/u.test(остаток)) {
-    throw new Error(`подделка не поняла «${условие}» — осталось: ${остаток}`)
+  if (/\p{L}/u.test(leftover)) {
+    throw new Error(
+      `the fake did not understand "${cond}" -- left over: ${leftover}`
+    )
   }
 
   // eslint-disable-next-line no-new-func
-  const f = new Function('С', 'П', `return (${в})`) as (
-    С: Строка,
-    П: unknown[]
+  const f = new Function('R', 'P', `return (${js})`) as (
+    R: Row,
+    P: unknown[]
   ) => boolean
-  return С => !!f(С, П)
+  return R => !!f(R, P)
 }
 
-function поддельныйПул() {
-  const строки: Строка[] = []
-  let следующий = 1
-  const запросы: string[] = []
+function fakePool() {
+  const rows: Row[] = []
+  let nextId = 1
+  const queries: string[] = []
 
   return {
-    строки,
-    запросы,
+    rows,
+    queries,
     async query(sql: string, params: unknown[] = []) {
-      запросы.push(sql)
+      queries.push(sql)
       if (/^\s*CREATE/i.test(sql)) return { rows: [] }
 
       if (/^\s*INSERT INTO hive_events/i.test(sql)) {
-        const [вид, кого, бот, сколько, чем, важность] = params as any[]
-        строки.push({
-          id: следующий++,
-          вид,
-          кого: кого ?? null,
-          бот: бот ?? null,
-          сколько: сколько ?? null,
-          чем: чем ?? null,
-          важность: важность ?? 'обычное',
-          когда: new Date().toISOString(),
+        const [kind, who, bot, amount, what, severity] = params as any[]
+        rows.push({
+          id: nextId++,
+          kind,
+          who: who ?? null,
+          bot: bot ?? null,
+          amount: amount ?? null,
+          what: what ?? null,
+          severity: severity ?? 'normal',
+          at: new Date().toISOString(),
         })
         return { rows: [] }
       }
 
       if (/^\s*SELECT/i.test(sql)) {
-        const м = sql.match(/WHERE ([\s\S]*?)\s+ORDER BY/i)
-        if (!м) throw new Error('подделка: у SELECT нет WHERE — это и есть утечка')
-        const годен = предикат(м[1], params)
-        const предел = Number(params[0])
-        const найдено = строки
-          .filter(годен)
-          .sort((а, б) => б.id - а.id)
-          .slice(0, предел)
-        return { rows: найдено }
+        const m = sql.match(/WHERE ([\s\S]*?)\s+ORDER BY/i)
+        if (!m)
+          throw new Error(
+            'fake pool: a SELECT with no WHERE is the leak itself'
+          )
+        const matches = predicate(m[1], params)
+        const cap = Number(params[0])
+        return {
+          rows: rows
+            .filter(matches)
+            .sort((a, b) => b.id - a.id)
+            .slice(0, cap),
+        }
       }
 
-      throw new Error(`подделка не знает запрос: ${sql}`)
+      throw new Error(`fake pool does not know this query: ${sql}`)
     },
   }
 }
 
-const смотритель: Видимость = { роль: 'смотритель', кто: '1', боты: null }
-const владелец: Видимость = { роль: 'владелец', кто: '2', боты: ['bot_a'] }
-const пчела: Видимость = { роль: 'пчела', кто: '3', боты: [] }
-const чужаяПчела: Видимость = { роль: 'пчела', кто: '9', боты: [] }
+const keeper: Visibility = { role: 'keeper', who: '1', bots: null }
+const owner: Visibility = { role: 'owner', who: '2', bots: ['bot_a'] }
+const bee: Visibility = { role: 'bee', who: '3', bots: [] }
+const otherBee: Visibility = { role: 'bee', who: '9', bots: [] }
 
-async function наполнить(pool: any) {
-  const события: Событие[] = [
-    { вид: 'вход', кого: '3', бот: 'bot_a' }, // пчела 3 в боте владельца 2
-    { вид: 'оплата', кого: '9', бот: 'bot_b', сколько: 500 }, // чужой бот
-    { вид: 'вход', кого: '2' }, // сам владелец, без бота
-    { вид: 'код-отказ', важность: 'тревога' }, // ничьё: подбор кода
-    { вид: 'оплата-подделка', важность: 'тревога' }, // ничьё: подпись
-    { вид: 'создано', кого: '3', бот: 'bot_a', чем: 'видео' },
+async function fill(pool: any) {
+  const events: HiveEvent[] = [
+    { kind: 'sign-in', who: '3', bot: 'bot_a' }, // bee 3 inside owner 2's bot
+    { kind: 'payment', who: '9', bot: 'bot_b', amount: 500 }, // another bot
+    { kind: 'sign-in', who: '2' }, // the owner themselves, with no bot
+    { kind: 'code-refused', severity: 'alarm' }, // nobody's: code guessing
+    { kind: 'payment-forged', severity: 'alarm' }, // nobody's: signature
+    { kind: 'created', who: '3', bot: 'bot_a', what: 'video' },
   ]
-  for (const с of события) await записать(pool, с)
+  for (const e of events) await record(pool, e)
 }
 
-describe('журнал улья: кто что видит', () => {
-  beforeEach(() => забытьТаблицу())
+describe('hive journal: who sees what', () => {
+  beforeEach(() => forgetTable())
 
-  it('смотритель видит всё, включая события без субъекта', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const л = await лента(pool, смотритель)
-    expect(л).toHaveLength(6)
-    expect(л.some(с => с.вид === 'код-отказ')).toBe(true)
-    expect(л.some(с => с.бот === 'bot_b')).toBe(true)
+  it('the keeper sees everything, including events with no subject', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const rows = await feed(pool, keeper)
+    expect(rows).toHaveLength(6)
+    expect(rows.some(r => r.kind === 'code-refused')).toBe(true)
+    expect(rows.some(r => r.bot === 'bot_b')).toBe(true)
   })
 
-  it('владелец видит своих и себя, но НЕ чужого бота', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const л = await лента(pool, владелец)
-    const боты = new Set(л.map(с => с.бот))
-    expect(боты.has('bot_b')).toBe(false)
-    expect(л.some(с => с.бот === 'bot_a')).toBe(true)
-    expect(л.some(с => с.кого === '2')).toBe(true) // своё событие без бота
+  it('an owner sees their own and themselves, but NOT another bot', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const rows = await feed(pool, owner)
+    const bots = new Set(rows.map(r => r.bot))
+    expect(bots.has('bot_b')).toBe(false)
+    expect(rows.some(r => r.bot === 'bot_a')).toBe(true)
+    expect(rows.some(r => r.who === '2')).toBe(true) // own event with no bot
   })
 
-  it('владельцу НЕ видно ничьих событий — это дело смотрителя', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const л = await лента(pool, владелец)
-    expect(л.some(с => с.кого === null)).toBe(false)
+  it("an owner does NOT see nobody's events -- those are the keeper's", async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const rows = await feed(pool, owner)
+    expect(rows.some(r => r.who === null)).toBe(false)
   })
 
-  it('пчела видит только свои события', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const л = await лента(pool, пчела)
-    expect(л.length).toBeGreaterThan(0)
-    expect(л.every(с => с.кого === '3')).toBe(true)
+  it('a bee sees only their own events', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const rows = await feed(pool, bee)
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every(r => r.who === '3')).toBe(true)
   })
 
-  it('пчела не видит событий другой пчелы в том же боте', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const л = await лента(pool, чужаяПчела)
-    expect(л.every(с => с.кого === '9')).toBe(true)
-    expect(л.some(с => с.бот === 'bot_a')).toBe(false)
+  it('a bee does not see another bee inside the same bot', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const rows = await feed(pool, otherBee)
+    expect(rows.every(r => r.who === '9')).toBe(true)
+    expect(rows.some(r => r.bot === 'bot_a')).toBe(false)
   })
 
-  it('неопознанный не видит ничего', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const л = await лента(pool, { роль: 'пчела', кто: '', боты: [] })
-    expect(л).toHaveLength(0)
+  it('an unidentified caller sees nothing', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const rows = await feed(pool, { role: 'bee', who: '', bots: [] })
+    expect(rows).toHaveLength(0)
   })
 })
 
-describe('журнал улья: запись', () => {
-  beforeEach(() => забытьТаблицу())
+describe('hive journal: writing', () => {
+  beforeEach(() => forgetTable())
 
-  it('пометка обрезается — журнал не место для промпта', async () => {
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'создано', кого: '3', чем: 'я'.repeat(900) })
-    expect(pool.строки[0].чем).toHaveLength(200)
+  it('the note is trimmed -- the journal is no place for a prompt', async () => {
+    const pool = fakePool()
+    await record(pool, { kind: 'created', who: '3', what: 'x'.repeat(900) })
+    expect(pool.rows[0].what).toHaveLength(200)
   })
 
-  it('пустой бот превращается в null, а не в пустую строку', async () => {
-    const pool = поддельныйПул()
-    await записать(pool, { вид: 'вход', кого: '3', бот: '   ' })
-    expect(pool.строки[0].бот).toBeNull()
+  it('an empty bot becomes null rather than an empty string', async () => {
+    const pool = fakePool()
+    await record(pool, { kind: 'sign-in', who: '3', bot: '   ' })
+    expect(pool.rows[0].bot).toBeNull()
   })
 
-  it('упавшая база НЕ роняет вызывающего: оплата важнее записи о ней', async () => {
-    const битый = {
+  it('a broken database does NOT take the caller down: the payment matters more', async () => {
+    const broken = {
       async query() {
-        throw new Error('база недоступна')
+        throw new Error('database unreachable')
       },
     }
-    await expect(записать(битый, { вид: 'оплата', кого: '3' })).resolves.toBe(
-      'не записано'
+    await expect(record(broken, { kind: 'payment', who: '3' })).resolves.toBe(
+      'not recorded'
     )
   })
 
-  it('событие без субъекта записывается — подбор кода никого не называет', async () => {
-    const pool = поддельныйПул()
-    const итог = await записать(pool, { вид: 'код-отказ', важность: 'тревога' })
-    expect(итог).toBe('записано')
-    expect(pool.строки[0].кого).toBeNull()
+  it('an event with no subject is recorded -- code guessing names nobody', async () => {
+    const pool = fakePool()
+    const result = await record(pool, {
+      kind: 'code-refused',
+      severity: 'alarm',
+    })
+    expect(result).toBe('recorded')
+    expect(pool.rows[0].who).toBeNull()
   })
 })
 
-describe('журнал улья: пульс', () => {
-  beforeEach(() => забытьТаблицу())
+describe('hive journal: pulse', () => {
+  beforeEach(() => forgetTable())
 
-  it('считает по той же видимости, что и лента', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const уСмотрителя = await пульс(pool, смотритель)
-    const уПчелы = await пульс(pool, пчела)
-    expect(уСмотрителя.всего).toBe(6)
-    expect(уСмотрителя.тревог).toBe(2)
-    expect(уПчелы.всего).toBe(2)
-    expect(уПчелы.тревог).toBe(0) // тревоги ничьи — пчеле их не видно
+  it('counts within the same visibility as the feed', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const forKeeper = await pulse(pool, keeper)
+    const forBee = await pulse(pool, bee)
+    expect(forKeeper.total).toBe(6)
+    expect(forKeeper.alarms).toBe(2)
+    expect(forBee.total).toBe(2)
+    expect(forBee.alarms).toBe(0) // the alarms are nobody's, so not the bee's
   })
 
-  it('окно ограничено сверху: месяц, а не произвольное число', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const п = await пульс(pool, смотритель, { часов: 1e9 })
-    expect(п.часов).toBe(24 * 30)
+  it('the window is capped: a month, not an arbitrary number', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const p = await pulse(pool, keeper, { hours: 1e9 })
+    expect(p.hours).toBe(24 * 30)
   })
 })
 
 /**
- * МУТАЦИИ. Проверка, которая не краснеет от порчи кода, не проверяет ничего.
+ * MUTATIONS. A check that does not go red when the code is broken checks
+ * nothing.
  *
- * Каждая мутация повторяет ленту с испорченным условием НА ТОМ ЖЕ поддельном
- * пуле и требует, чтобы результат отличался от правильного. Если не
- * отличается — значит настоящий тест выше прошёл бы и на сломанном коде.
+ * Each mutation repeats the feed with a corrupted condition ON THE SAME fake
+ * pool and requires the result to differ from the correct one. If it does not
+ * differ, the real test above would have passed on broken code too.
  */
-describe('журнал улья: мутации', () => {
-  beforeEach(() => забытьТаблицу())
+describe('hive journal: mutations', () => {
+  beforeEach(() => forgetTable())
 
-  async function лентаСУсловием(pool: any, условие: string, П: unknown[]) {
+  async function feedWithCondition(pool: any, cond: string, P: unknown[]) {
     const r = await pool.query(
-      `SELECT id, вид, кого, бот, сколько, чем, важность, когда FROM hive_events
-        WHERE ${условие} ORDER BY когда DESC, id DESC LIMIT $1`,
-      П
+      `SELECT id, kind, who, bot, amount, what, severity, at FROM hive_events
+        WHERE ${cond} ORDER BY at DESC, id DESC LIMIT $1`,
+      P
     )
     return r.rows
   }
 
-  it('убрать фильтр целиком — владелец увидел бы чужого бота (ловится)', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const правильно = await лента(pool, владелец)
-    const испорчено = await лентаСУсловием(pool, 'true', [200])
-    expect(испорчено.length).toBeGreaterThan(правильно.length)
-    expect(испорчено.some((с: any) => с.бот === 'bot_b')).toBe(true)
+  it('drop the filter entirely -- an owner would see another bot (caught)', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const correct = await feed(pool, owner)
+    const broken = await feedWithCondition(pool, 'true', [200])
+    expect(broken.length).toBeGreaterThan(correct.length)
+    expect(broken.some((r: any) => r.bot === 'bot_b')).toBe(true)
   })
 
-  it('убрать проверку списка ботов — чужие боты просочились бы (ловится)', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const правильно = await лента(pool, владелец)
-    const испорчено = await лентаСУсловием(
+  it('drop the bot-list check -- other bots would leak in (caught)', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const correct = await feed(pool, owner)
+    const broken = await feedWithCondition(
       pool,
-      '(кого = $2 OR бот IS NOT NULL)',
-      [200, владелец.кто]
+      '(who = $2 OR bot IS NOT NULL)',
+      [200, owner.who]
     )
-    expect(испорчено.some((с: any) => с.бот === 'bot_b')).toBe(true)
-    expect(правильно.some(с => с.бот === 'bot_b')).toBe(false)
+    expect(broken.some((r: any) => r.bot === 'bot_b')).toBe(true)
+    expect(correct.some(r => r.bot === 'bot_b')).toBe(false)
   })
 
-  it('убрать «кого = $2» — владелец потерял бы свои события без бота (ловится)', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const правильно = await лента(pool, владелец)
-    const испорчено = await лентаСУсловием(
+  it('drop "who = $2" -- an owner would lose their own bot-less events (caught)', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const correct = await feed(pool, owner)
+    const broken = await feedWithCondition(
       pool,
-      '(бот IS NOT NULL AND бот = ANY($2))',
-      [200, владелец.боты]
+      '(bot IS NOT NULL AND bot = ANY($2))',
+      [200, owner.bots]
     )
-    expect(правильно.some(с => с.кого === '2' && с.бот === null)).toBe(true)
-    expect(испорчено.some((с: any) => с.кого === '2' && с.бот === null)).toBe(false)
+    expect(correct.some(r => r.who === '2' && r.bot === null)).toBe(true)
+    expect(broken.some((r: any) => r.who === '2' && r.bot === null)).toBe(false)
   })
 
-  it('поменять кого на «не пусто» — пчела увидела бы всех (ловится)', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
-    const правильно = await лента(pool, пчела)
-    const испорчено = await лентаСУсловием(pool, 'кого IS NOT NULL', [200])
-    expect(испорчено.length).toBeGreaterThan(правильно.length)
-    expect(испорчено.some((с: any) => с.кого === '9')).toBe(true)
+  it('turn "who" into "is not empty" -- a bee would see everyone (caught)', async () => {
+    const pool = fakePool()
+    await fill(pool)
+    const correct = await feed(pool, bee)
+    const broken = await feedWithCondition(pool, 'who IS NOT NULL', [200])
+    expect(broken.length).toBeGreaterThan(correct.length)
+    expect(broken.some((r: any) => r.who === '9')).toBe(true)
   })
 
-  it('подделка отказывается исполнять SELECT без WHERE — утечка не проходит молча', async () => {
-    const pool = поддельныйПул()
-    await наполнить(pool)
+  it('the fake refuses a SELECT with no WHERE -- a leak must not pass quietly', async () => {
+    const pool = fakePool()
+    await fill(pool)
     await expect(
       pool.query('SELECT id FROM hive_events ORDER BY id DESC LIMIT $1', [10])
     ).rejects.toThrow(/WHERE/)
