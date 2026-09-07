@@ -113,7 +113,33 @@ async function testReport(specText) {
     } catch (e) {
       out = String(e.stdout || '') + String(e.stderr || '')
     }
-    if (/BLOCKED/.test(out)) return { blocked: true }
+    /*
+     * BLOCKED CONFLATES THREE DIFFERENT EVENTS, AND ONLY ONE IS THE MODEL'S FAULT.
+     *
+     * Measured 2026-09-08 by breaking specs/base/debounce.t27 three ways:
+     *
+     *   codegen failed:          t27c could not even emit Zig -- the SPEC is
+     *                            broken. That is the model's fault.
+     *   assertion failed
+     *   + called at comptime:    an INVARIANT was violated. The spec parsed and
+     *                            generated; it is semantically wrong. Far closer
+     *                            to correct than the line above.
+     *   does not compile: ...    the emitted Zig is invalid for some other
+     *                            reason. That is the GENERATOR's defect, not the
+     *                            model's -- 53-64% of HAND-WRITTEN specs land
+     *                            here, so scoring it against a model would
+     *                            charge it for a backend it never touched.
+     *
+     * Reporting them as one number would put "wrote nonsense" and "wrote a good
+     * spec the Zig backend cannot lower" in the same bucket.
+     */
+    if (/BLOCKED/.test(out)) {
+      if (/codegen failed/.test(out)) return { blocked: true, why: 'spec' }
+      if (/assertion failed/.test(out) && /comptime/.test(out)) {
+        return { blocked: true, why: 'invariant' }
+      }
+      return { blocked: true, why: 'backend' }
+    }
     const m = /tests\s+(\d+)\s+pass\s+(\d+)\s+FAIL\s+(\d+)/.exec(out)
     if (!m) return { blocked: true, why: 'вывод не разобран' }
     const [, total, pass, fail] = m.map(Number)
@@ -126,6 +152,7 @@ async function testReport(specText) {
 async function scoreAll(pairs, label) {
   let runnable = 0
   let blocked = 0
+  const why = { spec: 0, invariant: 0, backend: 0 }
   let tests = 0
   let passed = 0
   for (const { reference, answer } of pairs) {
@@ -137,6 +164,7 @@ async function scoreAll(pairs, label) {
     const r = await testReport(spec)
     if (r.blocked) {
       blocked++
+      if (r.why) why[r.why] = (why[r.why] || 0) + 1
       continue
     }
     runnable++
@@ -149,6 +177,13 @@ async function scoreAll(pairs, label) {
       `не пошло ${String(blocked).padStart(2)}  тестов ${String(tests).padStart(3)}  ` +
       `прошло ${String(passed).padStart(3)}  = ${rate.toFixed(0).padStart(3)}%`
   )
+  if (blocked) {
+    console.log(
+      `  ${''.padEnd(26)} из не пошедших: спек негоден ${why.spec}, ` +
+        `нарушен инвариант ${why.invariant}, ` +
+        `подвёл БЭКЕНД ${why.backend} (не вина модели)`
+    )
+  }
   return { runnable, blocked, tests, passed, rate: rate / 100 }
 }
 
@@ -167,7 +202,26 @@ async function main() {
       .split('\n')
       .filter(Boolean)
       .map(JSON.parse)
-    const cheat = tr[0].messages[2].content
+    /*
+     * THE CHEAT MUST BE A RUNNABLE SPEC -- THE WORST CASE, NOT AN ARBITRARY ONE.
+     *
+     * The first version took tr[0] and reported "cheater: 0 runnable", which
+     * read as proof that execution resists a constant answer. It was luck:
+     * tr[0] happens not to compile. Measured with tr[1], which does, the same
+     * cheat scores 34 of 34 runnable and 100% of tests passed.
+     *
+     * So execution ALONE cannot catch a constant answer, and a self-test that
+     * suggests otherwise is worse than none. The battery now picks the first
+     * cheat that actually runs, and asserts the honest thing below.
+     */
+    let cheat = tr[0].messages[2].content
+    for (const row of tr.slice(0, 40)) {
+      const probe = await testReport(row.messages[2].content)
+      if (!probe.blocked && probe.total > 0) {
+        cheat = row.messages[2].content
+        break
+      }
+    }
 
     console.log(`  эталонов: ${refs.length}\n`)
     const perfect = await scoreAll(
@@ -185,8 +239,21 @@ async function main() {
         `эталон проходит лишь ${(perfect.rate * 100).toFixed(0)}% своих тестов`
       )
     }
-    if (cheater.runnable > perfect.runnable * 0.5)
-      bad.push('ЖУЛЬНИК исполняется наравне с эталоном')
+    /*
+     * NO ASSERTION AGAINST THE CHEAT, AND THAT IS THE POINT.
+     *
+     * With a runnable cheat this score is ~100% by construction. Demanding it
+     * be low would make the battery fail for being honest. The cheat is caught
+     * by RELEVANT in score-spec-answers.mjs; this file's job is to say so
+     * loudly rather than to pretend it does the catching itself.
+     */
+    if (cheater.rate > 0.5) {
+      console.log(
+        `\n  ⚠️  ЖУЛЬНИК набрал ${(cheater.rate * 100).toFixed(0)}% — ТАК И ДОЛЖНО БЫТЬ.` +
+          `\n      Исполнение НЕ ловит постоянный ответ; его ловит RELEVANT.` +
+          `\n      Число из этого файла в одиночку ничего не значит.`
+      )
+    }
     if (perfect.runnable < 5)
       bad.push('исполнимых эталонов слишком мало для вывода')
     if (bad.length) {
@@ -194,7 +261,7 @@ async function main() {
       process.exit(1)
     }
     console.log(
-      '\n[exec] прибор поверен: эталон проходит свои тесты, жульник не исполняется.\n' +
+      '\n[exec] прибор поверен: эталон проходит свои тесты.\n' +
         '       ЧИТАТЬ ТОЛЬКО ВМЕСТЕ С RELEVANT из score-spec-answers.mjs:\n' +
         '       здесь тесты приходят вместе с ответом, и «свой модуль с лёгкими\n' +
         '       тестами» этим прибором не ловится.'
