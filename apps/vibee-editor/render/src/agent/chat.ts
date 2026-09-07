@@ -45,6 +45,58 @@ export type AgentEvent =
   | { тип: 'готово'; витков: number; обрыв?: string }
   | { тип: 'ошибка'; текст: string }
 
+/**
+ * The money-and-plan rule, lifted OUT of the SYSTEM template on purpose.
+ *
+ * It used to end with "the 30-day content plan is in SOUL.md below" -- said
+ * unconditionally, while SOUL.md is absent in production (see `soul()`), so
+ * the model was sent to a section that was not there. A model told to consult
+ * something it cannot see has one move left: ask the person. Which is the
+ * complaint the owner made.
+ *
+ * It lives here rather than inline because the Cyrillic gate can only see
+ * complete quoted literals on a single line: inside a multi-line template
+ * every edited line reads as code, and the marker that would satisfy the gate
+ * would end up inside the prompt itself.
+ */
+const MONEY_AND_PLAN =
+  '- Про деньги — честно: рилсы помогают зарабатывать, когда выходят ' + // cyrillic-ok: prompt copy
+  'регулярно (3–4 в неделю минимум). Обещать доход нельзя — можно ' + // cyrillic-ok: prompt copy
+  'обещать регулярность и разбор цифр. Контент-план на 30 дней ' + // cyrillic-ok: prompt copy
+  'составь САМ, когда человек говорит «хочу раскрутиться / зарабатывать / ' + // cyrillic-ok: prompt copy
+  'с чего начать» — не спрашивай разрешения, покажи первую неделю ' + // cyrillic-ok: prompt copy
+  'и спроси, что поправить.' // cyrillic-ok: prompt copy
+
+/**
+ * BUTTONS THE AGENT PROPOSES ITSELF.
+ *
+ * The owner asked that answers always arrive with something to press, so a
+ * person can react without typing. The bot already renders `[[Label|act:id]]`
+ * markers through `parseAgentButtons` and drops any id it cannot handle -- but
+ * nothing ever told the AGENT that the syntax exists. The only prompt that knew
+ * it was the bot's FALLBACK, the tool-less model used when this agent is down.
+ * So buttons were offered by the degraded path and not by the good one.
+ *
+ * ONLY FOR THE BOT. The same agent answers the mini app, which renders text as
+ * text: a marker there would reach the person as literal bracket soup. The
+ * surface arrives on the request and is already validated against an allowlist
+ * in routes.ts; this rule is appended only when it says `bot`.
+ *
+ * The contract is the parser's, not a wish: id must be one of the three
+ * registered ones, the label is at most 40 characters and may not contain `]`
+ * or `|`, and at most four markers survive. An unknown id is dropped silently,
+ * which is why the list is spelled out rather than left to invention.
+ */
+const BUTTON_MARKERS =
+  '\n\nКНОПКИ. Ты отвечаешь в Telegram-боте, где человек может нажать, а не ' + // cyrillic-ok: prompt copy
+  'печатать. Если у ответа есть очевидный следующий шаг — предложи его ' + // cyrillic-ok: prompt copy
+  'кнопкой: поставь в конце ответа маркер [[Подпись|act:id]], где id — одно ' + // cyrillic-ok: prompt copy
+  'из ТРЁХ: topup (пополнить баланс), balance (показать баланс), can (что ' + // cyrillic-ok: prompt copy
+  'сейчас доступно). Другие id не работают и будут молча выброшены — не ' + // cyrillic-ok: prompt copy
+  'выдумывай их. Подпись — до 40 символов, без символов ] и |. Не больше ' + // cyrillic-ok: prompt copy
+  '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy
+  'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
+
 const SYSTEM = `Ты — агент внутри приложения Trinity S³AI для создания рилсов.
 
 Ты не советчик, а исполнитель: у тебя есть инструменты, которые ДЕЙСТВИТЕЛЬНО
@@ -124,11 +176,7 @@ const SYSTEM = `Ты — агент внутри приложения Trinity S�
   только вместе с человеческим объяснением.
 - Хвали за действия, а не за слова: «ты опубликовал — это уже больше,
   чем у 90% людей, которые только собираются».
-- Про деньги — честно: рилсы помогают зарабатывать, когда выходят
-  регулярно (3–4 в неделю минимум). Обещать доход нельзя — можно
-  обещать регулярность и разбор цифр. Контент-план на 30 дней —
-  в SOUL.md ниже; предложи его сам, когда человек говорит «хочу
-  раскрутиться / зарабатывать / с чего начать».
+${MONEY_AND_PLAN}
 
 Отвечай по-русски, коротко, числами из инструментов, а не примерными.`
 
@@ -143,9 +191,26 @@ let soulCache: string | null | undefined
 function soul(): string | null {
   if (soulCache !== undefined) return soulCache
   const here = dirname(fileURLToPath(import.meta.url))
+  /*
+   * Walk UP looking for the file instead of counting `..` segments.
+   *
+   * The count was six; from the source tree it is five (agent -> src ->
+   * render -> vibee-editor -> apps -> root), so it resolved one level ABOVE
+   * the repository and never matched. A number like that is wrong differently
+   * under `tsx` and under a build that emits to `dist/`, and it fails the same
+   * silent way both times.
+   */
+  const upwards: string[] = []
+  let dir = here
+  for (;;) {
+    upwards.push(join(dir, 'SOUL.md'))
+    const up = dirname(dir)
+    if (up === dir) break
+    dir = up
+  }
   const candidates = [
     process.env.SOUL_MD_PATH,
-    join(here, '../../../../../../SOUL.md'),
+    ...upwards,
     join(process.cwd(), 'SOUL.md'),
   ].filter(Boolean) as string[]
   for (const p of candidates) {
@@ -159,16 +224,37 @@ function soul(): string | null {
       // файла нет по этому пути — пробуем следующий
     }
   }
-  console.warn('[agent] SOUL.md не найден, агент говорит без голоса владельца')
+  /*
+   * Say what to DO about it. Fixing the path above is not enough in
+   * production: the render image is built with `apps/vibee-editor` as its
+   * context and copies only `packages/` and `render/`, so the repository-root
+   * SOUL.md never enters the image at all. Until that is decided, SOUL_MD_PATH
+   * is the way in -- and the prompt below no longer pretends the voice is
+   * there when it is not.
+   */
+  console.warn(
+    '[agent] SOUL.md не найден (искал ' + // cyrillic-ok: operator-facing log line
+      candidates.length +
+      ' путей, включая SOUL_MD_PATH). Агент говорит без голоса владельца.' // cyrillic-ok: operator-facing log line
+  )
   soulCache = null
   return null
 }
 
-function systemPrompt(): string {
+/**
+ * Exported for the tests: the property being guarded is that the prompt never
+ * refers the model to a section that is not in it, and that is a property of
+ * the STRING, which is unreachable through `runAgent` without a live model.
+ */
+export function systemPrompt(surface?: string): string {
+  const buttons = surface === 'bot' ? BUTTON_MARKERS : ''
   const s = soul()
-  if (!s) return SYSTEM
+  if (!s) return SYSTEM + buttons
   return (
     SYSTEM +
+    buttons +
+    '\n\nКОНТЕНТ-ПЛАН НА 30 ДНЕЙ есть в голосе владельца ниже — бери его ' + // cyrillic-ok: prompt copy
+    'оттуда, а не выдумывай.' + // cyrillic-ok: prompt copy
     '\n\nГОЛОС ВЛАДЕЛЬЦА (SOUL.md). Когда пишешь текст поста, заголовок или ' +
     'описание для публикации — делай это голосом ниже: измерение вместо ' +
     'прилагательного, границы честно, ретракции без страха. В обычных ' +
@@ -375,7 +461,14 @@ async function* streamModel(
  */
 export async function* runAgent(
   history: ChatMessage[],
-  ctx: ToolContext
+  ctx: ToolContext,
+  /**
+   * Where the person is writing from. The chat route already validates it
+   * against an allowlist and used it only to label the stored turn; the agent
+   * needs it too, because a button marker belongs in the bot and nowhere else.
+   * Absent means "not the bot", which is the safe direction: no markers.
+   */
+  opts?: { surface?: string }
 ): AsyncGenerator<AgentEvent> {
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
   // агент пишет посты от его имени — значит, должен знать его SOUL так же,
@@ -403,14 +496,14 @@ export async function* runAgent(
     {
       role: 'system',
       content: personalSoul
-        ? systemPrompt() +
+        ? systemPrompt(opts?.surface) +
           '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
           'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
           'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' +
           'голосом — решает этот SOUL. Человек может просить править его ' +
           'через soul_edit — это его скилл, помогай с этим.\n\n' +
           personalSoul
-        : systemPrompt(),
+        : systemPrompt(opts?.surface),
     },
     ...history,
   ]

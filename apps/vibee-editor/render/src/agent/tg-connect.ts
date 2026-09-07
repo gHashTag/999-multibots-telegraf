@@ -171,7 +171,9 @@ export function нормализоватьТелефон(сырой: string): st
   const т = String(сырой ?? '').replace(/[^\d+]/g, '')
   const без = т.startsWith('+') ? т.slice(1) : т
   if (!/^\d{7,15}$/.test(без)) {
-    throw new Error('телефон должен быть в международном виде, например +79991234567')
+    throw new Error(
+      'телефон должен быть в международном виде, например +79991234567'
+    )
   }
   return `+${без}`
 }
@@ -197,7 +199,9 @@ export async function начатьВход(
 ): Promise<{ handle: string; phone: string }> {
   убратьПротухшие()
   if (попытки.size >= МАКС_ПОПЫТОК) {
-    throw new Error('слишком много незаконченных входов — попробуйте через минуту')
+    throw new Error(
+      'слишком много незаконченных входов — попробуйте через минуту'
+    )
   }
   const phone = нормализоватьТелефон(сыройТелефон)
   const client = await создатьКлиент()
@@ -235,7 +239,30 @@ export async function подтвердитьКод(
   }
   const код = нормализоватьКод(сыройКод)
   try {
-    await п.client.invoke({ _: 'auth.signIn', phone: п.phone, phoneCodeHash: п.phoneCodeHash, phoneCode: код })
+    /*
+     * A REAL `Api.auth.SignIn`, NOT A PLAIN OBJECT.
+     *
+     * This line used to pass `{ _: 'auth.signIn', ... }`. GramJS checks
+     * `classType === 'request'` before serialising and refuses anything else
+     * with "You can only invoke MTProtoRequests" -- exactly what the owner saw
+     * on screen after typing a correct code. Every sign-in was impossible;
+     * nothing about the code or the phone was ever wrong.
+     *
+     * The field name was wrong too: Telegram wants `phoneNumber`, so even a
+     * lenient client would have signed in nobody.
+     *
+     * Imported here rather than at the top so the module stays loadable
+     * without `telegram` present -- the same reason the client is injected.
+     */
+    const { Api } = await import('telegram')
+    await п.client.invoke(
+      // cyrillic-ok: pre-existing local name
+      new Api.auth.SignIn({
+        phoneNumber: п.phone, // cyrillic-ok: pre-existing local name
+        phoneCodeHash: п.phoneCodeHash, // cyrillic-ok: pre-existing local name
+        phoneCode: код, // cyrillic-ok: pre-existing local name
+      })
+    )
   } catch (e) {
     const текст = String(e)
     if (/SESSION_PASSWORD_NEEDED/i.test(текст)) {
@@ -263,7 +290,12 @@ export async function подтвердитьПароль(
   if (!пароль) throw new Error('пароль пустой')
   await п.client.signInWithPassword(
     { apiId: п.client.apiId, apiHash: п.client.apiHash },
-    { password: async () => пароль, onError: (e: unknown) => { throw e } }
+    {
+      password: async () => пароль,
+      onError: (e: unknown) => {
+        throw e
+      },
+    }
   )
   const сессия = String(п.client.session.save())
   попытки.delete(handle)
@@ -382,7 +414,10 @@ export async function обработатьПодключение(
   try {
     тело = JSON.parse((await зав.readBody(req)) || '{}')
   } catch {
-    return { код: 400, тело: { ok: false, error: 'тело не разобрано как JSON' } }
+    return {
+      код: 400,
+      тело: { ok: false, error: 'тело не разобрано как JSON' },
+    }
   }
 
   try {

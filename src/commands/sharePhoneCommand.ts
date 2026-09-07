@@ -2,6 +2,7 @@ import { Composer, Markup } from 'telegraf'
 import type { MyContext } from '../interfaces'
 import { isRussianFromState } from '../helpers/centralizedLanguage'
 import { logger } from '../utils/logger'
+import { MINI_APP_URL } from '../navigation/config/miniApp.config'
 
 /**
  * «ПОДЕЛИТЬСЯ НОМЕРОМ» — ОДНО НАЖАТИЕ ВМЕСТО ОДИННАДЦАТИ ЦИФР.
@@ -20,22 +21,58 @@ import { logger } from '../utils/logger'
  * Поэтому «не писать руками» достижимо так: один раз нажать здесь — и дальше
  * подставляется само, во всех клиентах.
  *
- * ── ПОЧЕМУ ПРОВЕРЯЕТСЯ `contact.user_id` ──────────────────────────────────
+ * WHY `contact.user_id` IS CHECKED
  *
- * Кнопка отдаёт СВОЙ номер, но человек может прислать и ЧУЖОЙ контакт из
- * записной книжки — обычным вложением. Тогда `contact.user_id` либо пуст,
- * либо не равен отправителю. Записать такой номер значило бы дать любому
- * подставить чужой телефон в чужой аккаунт — и потом отправить на него код
- * подключения.
+ * The button hands over the sender's OWN number, but a person can also forward
+ * SOMEBODY ELSE'S contact from their address book as an ordinary attachment.
+ * Then `contact.user_id` is either empty or not the sender. Storing such a
+ * number would let anyone put a stranger's phone on a stranger's account --
+ * and then have the connect code sent to it.
  */
 export const sharePhoneCommand = new Composer<MyContext>()
 
 const БАЗА = 'https://vibee-render-production.up.railway.app'
 
+/**
+ * THE WAY ONWARDS, NOT JUST A CONFIRMATION.
+ *
+ * Saving the number used to end with "saved" and nothing else, which left the
+ * person holding a fact instead of a next step: they had to find the mini app,
+ * find the profile, and find the right tab on their own. The owner asked for
+ * this to be "as automatic as possible", and this is the part of it that CAN
+ * be automatic.
+ *
+ * The link carries `?tab=agent` because ProfileTabs already reads `tab` from
+ * the address -- the connect screen lives on that tab, and landing anywhere
+ * else means hunting for it.
+ *
+ * WHAT IS DELIBERATELY NOT AUTOMATED. The button opens the screen; it does not
+ * request the login code. Telegram has no "approve this sign-in" API for
+ * MTProto -- the code must be typed into the client that asked for it -- and
+ * pressing "get code" on somebody's behalf starts access to their entire
+ * correspondence. The screen states the same rule in its own comment. Two taps
+ * and five digits is the floor Telegram allows, not a shortcut we declined to
+ * take.
+ */
+function connectButton(isRu: boolean) {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.webApp(
+        isRu ? '🔗 Подключить Telegram' : '🔗 Connect Telegram',
+        `${MINI_APP_URL}/profile?tab=agent`
+      ),
+    ],
+  ])
+}
+
 /** Кнопка-просьба. Показывается там, где номер вот-вот понадобится. */
-export function клавиатураНомера(isRu: boolean) {
+export function phoneKeyboard(isRu: boolean) {
   return Markup.keyboard([
-    [Markup.button.contactRequest(isRu ? '📱 Поделиться номером' : '📱 Share my number')],
+    [
+      Markup.button.contactRequest(
+        isRu ? '📱 Поделиться номером' : '📱 Share my number'
+      ),
+    ],
   ])
     .resize()
     .oneTime()
@@ -50,27 +87,39 @@ sharePhoneCommand.command('phone', async ctx => {
           'Кода и пароля мы не храним, номер убирается вместе с отключением.'
       : 'Press the button below — Telegram will ask for permission and pass the number.\n\n' +
           'It is only used so you do not have to type it when connecting your account.',
-    клавиатураНомера(isRu)
+    phoneKeyboard(isRu)
+  )
+  /*
+   * The way onwards is offered here too. Somebody whose number is already
+   * saved presses /phone, is asked to share it again, and has nowhere to go
+   * from there -- the one thing they actually need is the screen.
+   */
+  await ctx.reply(
+    isRu
+      ? 'Если номер уже сохранён — сразу сюда:'
+      : 'If the number is already saved, go straight here:',
+    connectButton(isRu)
   )
 })
 
 /**
- * Пришёл контакт. Проверяем, что он СВОЙ, и передаём серверу.
+ * A contact arrived. Check it is the sender's OWN, then pass it to the server.
  *
- * Ответ человеку — всегда, в том числе при отказе: молчание после нажатия
- * кнопки неотличимо от поломки.
+ * The person is always answered, refusals included: silence after pressing a
+ * button is indistinguishable from a breakage.
  */
 sharePhoneCommand.on('contact', async ctx => {
   const isRu = isRussianFromState(ctx)
-  const контакт = ctx.message.contact
-  const свой = контакт?.user_id && String(контакт.user_id) === String(ctx.from?.id)
+  const contact = ctx.message.contact
+  const isOwn =
+    contact?.user_id && String(contact.user_id) === String(ctx.from?.id)
 
-  if (!свой) {
+  if (!isOwn) {
     await ctx.reply(
       isRu
-        ? 'Это чужой контакт. Нужен ваш номер — нажмите кнопку «Поделиться номером».'
+        ? 'Это чужой contact. Нужен ваш номер — нажмите кнопку «Поделиться номером».'
         : 'That is somebody else’s contact. Please use the “Share my number” button.',
-      клавиатураНомера(isRu)
+      phoneKeyboard(isRu)
     )
     return
   }
@@ -94,16 +143,29 @@ sharePhoneCommand.on('contact', async ctx => {
       headers: { 'Content-Type': 'application/json', 'X-Api-Key': ключ },
       body: JSON.stringify({
         telegram_id: String(ctx.from?.id ?? ''),
-        phone: контакт.phone_number,
+        phone: contact.phone_number,
         источник: 'кнопка в боте',
       }),
     })
     if (!о.ok) throw new Error(`сервер ответил ${о.status}`)
+    /*
+     * Two messages, not one, because they carry different keyboards: the
+     * contact request is a REPLY keyboard and must be removed, while the way
+     * onwards is an INLINE web_app button. Telegram does not let one message
+     * do both.
+     */
     await ctx.reply(
       isRu
-        ? '✅ Номер сохранён. Теперь при подключении аккаунта он подставится сам — набирать не придётся.'
-        : '✅ Saved. It will be filled in for you when you connect your account.',
+        ? '✅ Номер сохранён — набирать его больше не придётся.'
+        : '✅ Saved — you will not have to type it again.',
       Markup.removeKeyboard()
+    )
+    await ctx.reply(
+      isRu
+        ? 'Осталось одно: откройте экран и введите код, который пришлёт Telegram.\n\n' +
+            'Код набираете вы — за вас его ввести нельзя, так устроен вход в Telegram.'
+        : 'One step left: open the screen and enter the code Telegram sends you.',
+      connectButton(isRu)
     )
   } catch (e) {
     logger.error('[phone] не удалось передать номер', {

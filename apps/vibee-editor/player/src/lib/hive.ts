@@ -350,6 +350,61 @@ export async function loadSpecs(): Promise<Fetched<Specs>> {
   }
 }
 
+// ── MODULES: the comb itself ───────────────────────────────────────────────
+
+/**
+ * One cell of the comb.
+ *
+ * `openIssues` carries the SAME issue numbers as the kanban board, which is
+ * what makes the map worth drawing rather than decorative: a cell with issues
+ * is a place the Queen is working right now, and the number leads to a verdict.
+ */
+export interface Module {
+  path: string
+  language: string
+  lines: number
+  files: number
+  functions: number
+  openIssues: number[]
+  busy: boolean
+}
+
+export interface Comb {
+  repo: string
+  modules: Module[]
+  busyCount: number
+}
+
+export async function loadComb(): Promise<Fetched<Comb>> {
+  const r = await get<any>(`${T27}/queen/modules.json`)
+  if (!r.reachable) return { reachable: false, why: r.why }
+  const raw: any[] = Array.isArray(r.data?.modules) ? r.data.modules : []
+  const modules: Module[] = raw.map(m => {
+    const openIssues = (Array.isArray(m?.openIssues) ? m.openIssues : [])
+      .map((x: any) => Number(x))
+      .filter((x: number) => Number.isFinite(x))
+    return {
+      path: clean(m?.path, 60),
+      language: clean(m?.language, 20),
+      lines: Number(m?.lines ?? 0),
+      files: Number(m?.files ?? 0),
+      functions: Number(m?.functions ?? 0),
+      openIssues,
+      busy: openIssues.length > 0,
+    }
+  })
+  return {
+    reachable: true,
+    data: {
+      repo: clean(r.data?.repo, 60),
+      // Biggest first: a honeycomb has no reading order, and file order would
+      // reshuffle the map every time the generator runs.
+      modules: modules.sort((a, b) => b.lines - a.lines),
+      busyCount: modules.filter(m => m.busy).length,
+    },
+  }
+}
+
 // ── ACTIVITY (shown under COMB: the marks appearing on the board) ──────────
 
 export interface Mark {
