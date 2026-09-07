@@ -158,6 +158,22 @@ struct AgentChatView: View {
   static let thisSurface = "ios"
 
   /**
+   * Every surface has a name here, INCLUDING this one.
+   *
+   * Leaving "ios" out would make the `thisSurface` check below dead code -- the
+   * lookup alone would already return nil -- and a mutation run on the sibling
+   * clients proved exactly that: deleting the check changed no behaviour and no
+   * test went red. With the name present, the check is the only thing standing
+   * between a person and a caption on every single bubble of their own chat.
+   */
+  private static let surfaceNames: [String: (String, String)] = [
+    "bot": ("from the bot", "из бота"),
+    "miniapp": ("from the app", "из мини-аппа"),
+    "ios": ("from this phone", "с этого телефона"),
+    "agent": ("via an agent key", "по ключу агента"),
+  ]
+
+  /**
    * The human name of another surface, or nil when there is nothing to say.
    *
    * `unknown` returns nil ON PURPOSE. It is the column default, so it marks a
@@ -166,13 +182,11 @@ struct AgentChatView: View {
    * looks like knowledge.
    */
   static func surfaceLabel(_ surface: String?) -> String? {
-    switch surface {
-    case "bot": return say("from the bot", "из бота")
-    case "miniapp": return say("from the app", "из мини-аппа")
-    case "agent": return say("via an agent key", "по ключу агента")
-    default: return nil
-    }
+    guard let surface, surface != thisSurface else { return nil }
+    guard let (en, ru) = surfaceNames[surface] else { return nil }
+    return say(en, ru)
   }
+
 
   private struct HistoryResponse: Decodable {
     let messages: [ServerTurn]

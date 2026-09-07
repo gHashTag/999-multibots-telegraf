@@ -6,6 +6,7 @@ import {
   shouldAdoptHistory,
   adoptHistory,
   turnsFromResponse,
+  surfaceLabel,
 } from '@/lib/agentHistory'
 import type {
   AgentAttachment,
@@ -496,6 +497,23 @@ function ChatPage() {
               key={m.id}
               className={`message ${m.role === 'user' ? 'user' : 'agent'}`}
             >
+              {/*
+               * WHERE THIS TURN CAME FROM, when it was not here.
+               *
+               * One conversation spans the bot, this app and the phone, so a
+               * reply can answer a question that was never typed on this
+               * screen. Without the caption the transcript looks like the
+               * agent answering itself.
+               *
+               * Only OTHER surfaces are named: labelling every local bubble
+               * "from the mini app" is noise, and noise is what stops people
+               * reading the captions that matter.
+               */}
+              {surfaceLabel(m.surface) ? (
+                <span className="message-surface">
+                  {surfaceLabel(m.surface)}
+                </span>
+              ) : null}
               {m.thinking ? (
                 <button
                   className="thinking-toggle"

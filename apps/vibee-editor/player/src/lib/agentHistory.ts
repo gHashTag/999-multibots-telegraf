@@ -21,6 +21,44 @@ import type { Message } from '@/atoms/agentChat'
 export interface ServerTurn {
   role: string
   content: string
+  /** Which client wrote it: bot | miniapp | ios | agent | unknown. */
+  surface?: string
+}
+
+/**
+ * WHERE THIS SURFACE IS. Everything written here is "here", so it is never
+ * labelled -- a caption on every single bubble is noise, and noise is what
+ * stops people reading the captions that matter.
+ */
+export const THIS_SURFACE = 'miniapp'
+
+/**
+ * Every surface has a name here, INCLUDING this one.
+ *
+ * Leaving `miniapp` out would make the `THIS_SURFACE` check below dead code --
+ * the lookup alone would already return nothing -- and a mutation run proved
+ * exactly that: deleting the check changed no behaviour and no test went red.
+ * With the name present, the check is the only thing standing between a person
+ * and a caption on every single bubble of their own chat.
+ */
+const SURFACE_NAMES: Record<string, string> = {
+  bot: 'из бота',
+  miniapp: 'из мини-аппа',
+  ios: 'с телефона',
+  agent: 'по ключу агента',
+}
+
+/**
+ * The human name of another surface, or null when there is nothing to say.
+ *
+ * `unknown` returns null ON PURPOSE. The column defaults to it, so a turn
+ * written before this existed, or by a client that forgot to name itself,
+ * carries no information -- and inventing "from somewhere" would be a caption
+ * that looks like knowledge.
+ */
+export function surfaceLabel(surface: string | undefined): string | null {
+  if (!surface || surface === THIS_SURFACE) return null
+  return SURFACE_NAMES[surface] ?? null
 }
 
 /**
@@ -99,6 +137,7 @@ export function adoptHistory(server: ServerTurn[]): Message[] {
     id: `server-${i}`,
     role: turn.role === 'user' ? 'user' : 'assistant',
     text: String(turn.content ?? ''),
+    surface: turn.surface,
   }))
 }
 
@@ -123,5 +162,6 @@ export function turnsFromResponse(body: unknown): ServerTurn[] {
     .map(m => ({
       role: String(m.role ?? 'assistant'),
       content: String(m.content),
+      surface: m.surface === undefined ? undefined : String(m.surface),
     }))
 }

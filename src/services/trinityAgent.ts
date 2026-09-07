@@ -40,6 +40,56 @@ export interface ОтветАгента {
   инструменты: string[]
 }
 
+/**
+ * WHERE THIS SURFACE IS.
+ *
+ * Anything the bot writes is "here", so it is never marked -- a marker on
+ * every line is noise the model has to read past on every single turn.
+ */
+const THIS_SURFACE = 'bot'
+
+/**
+ * NAME THE OTHER SURFACE, FOR THE MODEL.
+ *
+ * The bot has no transcript of its own to annotate: the Telegram chat IS the
+ * transcript, and turns typed in the mini app or on the phone never appeared
+ * in it at all. So the only place the origin can become visible here is the
+ * context the model reads -- and then the agent can answer "you asked me that
+ * from your phone" instead of treating a stranger's line as its own.
+ *
+ * Only USER turns are marked by the caller. An assistant turn is ours wherever
+ * it was delivered, and marking it would tell the model that its own past
+ * replies came from somewhere else.
+ *
+ * `unknown` is left alone ON PURPOSE. It is the column default, so it marks a
+ * turn written before this existed or by a client that did not name itself.
+ * Inventing "from somewhere" would put a claim into the context that nothing
+ * supports.
+ */
+const SURFACE_NAMES: Record<string, string> = {
+  // 'bot' is listed even though the bot never marks itself. Leaving it out
+  // would make the THIS_SURFACE check below dead code -- the lookup alone would
+  // already return undefined -- and a mutation run proved exactly that: removing
+  // the check changed no behaviour and no test went red. With the name present,
+  // the check is the only thing standing between a person and a bracket on
+  // every single line of their own chat.
+  bot: 'из бота',
+  miniapp: 'из мини-аппа',
+  ios: 'с телефона',
+  agent: 'по ключу агента',
+}
+
+export function markSurface(
+  content: string,
+  role: string,
+  surface?: string
+): string {
+  if (role !== 'user') return content
+  const name =
+    surface && surface !== THIS_SURFACE ? SURFACE_NAMES[surface] : undefined
+  return name ? '[' + name + '] ' + content : content
+}
+
 function apiKey(): string {
   return process.env.RENDER_API_KEY || ''
 }
@@ -50,9 +100,9 @@ function apiKey(): string {
  * Ошибку глотаем НАМЕРЕННО: недоступная история — повод ответить без
  * контекста, а не повод молчать. Человек уже написал и ждёт.
  */
-async function историю(
+async function readConversation(
   telegramId: string
-): Promise<Array<{ role: string; content: string }>> {
+): Promise<Array<{ role: string; content: string; surface?: string }>> {
   try {
     const о = await fetch(
       `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}`,
@@ -60,7 +110,7 @@ async function историю(
     )
     if (!о.ok) return []
     const д = (await о.json()) as {
-      messages?: Array<{ role: string; content: string }>
+      messages?: Array<{ role: string; content: string; surface?: string }>
     }
     return Array.isArray(д.messages) ? д.messages : []
   } catch {
@@ -84,9 +134,12 @@ export async function спроситьАгента(
     throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
   }
 
-  const прошлое = await историю(telegramId)
+  const past = await readConversation(telegramId)
   const messages = [
-    ...прошлое.map(м => ({ role: м.role, content: м.content })),
+    ...past.map(turn => ({
+      role: turn.role,
+      content: markSurface(turn.content, turn.role, turn.surface),
+    })),
     { role: 'user', content: текст },
   ]
 

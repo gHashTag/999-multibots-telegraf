@@ -40,6 +40,11 @@ export interface Message {
   role: 'user' | 'assistant'
   text: string
   attachments?: AgentAttachment[]
+  /**
+   * Which client wrote this turn. Absent for anything typed here and now:
+   * only history fetched from the server carries it.
+   */
+  surface?: string
   /** Поток размышления модели — сворачиваемый, показывается по желанию. */
   thinking?: string
   tools?: ToolCall[]

@@ -3,6 +3,8 @@ import {
   shouldAdoptHistory,
   adoptHistory,
   turnsFromResponse,
+  surfaceLabel,
+  THIS_SURFACE,
 } from '@/lib/agentHistory'
 import type { Message } from '@/atoms/agentChat'
 
@@ -210,5 +212,62 @@ describe('a shorter AND divergent server transcript', () => {
         busy: false,
       })
     ).toBe(false)
+  })
+})
+
+/**
+ * WHERE A TURN CAME FROM.
+ *
+ * One conversation spans the bot, this app and the phone. Without a marker a
+ * reply can answer a question that was never typed on this screen, and the
+ * transcript reads as the agent answering itself.
+ *
+ * The failure to avoid is the opposite one: a caption on every bubble. Noise is
+ * what stops people reading the captions that matter.
+ */
+describe('naming the surface a turn came from', () => {
+  it('other surfaces are named', () => {
+    expect(surfaceLabel('bot')).toBe('из бота')
+    expect(surfaceLabel('ios')).toBe('с телефона')
+    expect(surfaceLabel('agent')).toBe('по ключу агента')
+  })
+
+  it('this surface is NOT named -- every bubble would carry it', () => {
+    expect(surfaceLabel(THIS_SURFACE)).toBeNull()
+    expect(surfaceLabel('miniapp')).toBeNull()
+  })
+
+  /*
+   * `unknown` is the column default, so it marks a turn written before this
+   * existed or by a client that did not name itself. It carries no
+   * information, and "from somewhere" would be a caption that looks like
+   * knowledge.
+   */
+  it('unknown and missing say nothing rather than guessing', () => {
+    expect(surfaceLabel('unknown')).toBeNull()
+    expect(surfaceLabel(undefined)).toBeNull()
+    expect(surfaceLabel('')).toBeNull()
+  })
+
+  it('the surface survives the trip from the server to the bubble', () => {
+    const shown = adoptHistory([
+      { role: 'user', content: 'asked in the bot', surface: 'bot' },
+      { role: 'assistant', content: 'answered', surface: 'bot' },
+    ])
+    expect(shown.map(m => m.surface)).toEqual(['bot', 'bot'])
+  })
+
+  it('a response without surface fields still parses', () => {
+    expect(
+      turnsFromResponse({ messages: [{ role: 'user', content: 'x' }] })
+    ).toEqual([{ role: 'user', content: 'x', surface: undefined }])
+  })
+
+  it('the surface is read from the response when present', () => {
+    expect(
+      turnsFromResponse({
+        messages: [{ role: 'user', content: 'x', surface: 'ios' }],
+      })
+    ).toEqual([{ role: 'user', content: 'x', surface: 'ios' }])
   })
 })
