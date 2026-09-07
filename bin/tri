@@ -46,6 +46,11 @@ tri — оболочка Trinity S³AI
                  (тест, который не может упасть, — не защита, а её изображение)
   tri entry      двери входа: чем отвечают на мусор, есть ли тормоз
 
+  Обучение под t27
+  tri igla pairs    собрать пары «спек → код» из t27 (подтверждая шапкой t27c)
+  tri igla dataset  из пар сделать train/eval для LoRA (без обрезки, со стратификацией)
+  tri igla status   где узкое место корпуса прямо сейчас
+
   Улей и наблюдение
   tri hive       смотритель, журнал событий, отчёты королевы
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
@@ -119,6 +124,37 @@ io.open(p,"w",encoding="utf-8").write(s.replace(было,стало,1))' || { cp
 }
 
 case "${1:-}" in
+  igla)
+    # ОБУЧЕНИЕ ПОД t27: СОБРАТЬ КОРПУС И УВИДЕТЬ, ГДЕ ОН УПИРАЕТСЯ.
+    #
+    # Заведено 08.09.2026. Опубликованный датасет IGLA CODER — восемь пар, и
+    # он сам об этом говорит: «CANNOT train a working model». При этом 35 пар
+    # уже лежат в репозитории закоммиченными, просто не собраны. Эта команда
+    # собирает их и НЕ даёт соврать: каждая пара подтверждается шапкой t27c
+    # внутри сгенерированного файла, заглушки отбрасываются.
+    #
+    # Почему это команда, а не разовый скрипт: корпус будет расти по мере
+    # прогона кодогенератора, и число пар надо перепроверять, а не помнить.
+    S="$ROOT/.claude/skills/t27-model-training/scripts"
+    export PATH="$HOME/.nvm/versions/node/v20.19.0/bin:$PATH"
+    export GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null)}"
+    case "${2:-status}" in
+      pairs)   node "$S/harvest-igla-pairs.mjs" ;;
+      dataset)
+        [ -f igla-pairs-manifest.json ] || node "$S/harvest-igla-pairs.mjs"
+        node "$S/prepare-lora-dataset.mjs" --max-tokens "${3:-32768}"
+        ;;
+      status)
+        node "$S/harvest-igla-pairs.mjs" | grep -E 'СОБРАНО|токенов|порог'
+        echo "— узкое место —"
+        echo "  связывает ЧИСЛО ПРИМЕРОВ, а не токенов: спеков 493,"
+        echo "  вывод кодогенератора закоммичен у 35. Прогон генератора по"
+        echo "  остальным — единственный рычаг; резать длинные пары ПРОВЕРЕНО"
+        echo "  и не выходит (крупный Verilog — ровно один модуль в файле)."
+        ;;
+      *) echo "tri igla {pairs|dataset [макс_токенов]|status}"; exit 2 ;;
+    esac
+    ;;
   fresh)    fresh ;;
   disk)     bash "$LOOP/check-free-disk.sh" && bash "$LOOP/free-disk.sh" ;;
   pipeline) (cd "$RENDER" && npx tsx scripts/pipeline-check.ts) ;;
