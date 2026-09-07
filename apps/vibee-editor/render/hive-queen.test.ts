@@ -153,9 +153,179 @@ describe('when the Queen is silent she is not reported as quiet', () => {
     expect(out.reachable).toBe(true)
     expect(out.repo).toBe('gHashTag/trios')
     expect(out.bees).toEqual({ capacity: 4, active: 0, idle: 4 })
-    expect(out.board).toEqual({ review: 2, done: 1 })
+    // This stub predates her publishing `columns`, so the board falls back to
+    // the counts -- see 'if she publishes no columns at all' below.
+    expect(out.board).toEqual([
+      { key: 'review', title: 'review', blurb: '', count: 2 },
+      { key: 'done', title: 'done', blurb: '', count: 1 },
+    ])
     expect(out.awaiting_judgement).toHaveLength(2)
     expect(out.latest[0].issue).toBe(1575)
+  })
+})
+
+/**
+ * AN EMPTY COLUMN IS NEWS, AND IT WAS DISAPPEARING.
+ *
+ * She publishes the board's columns herself -- six of them, each with a key, a
+ * title and a blurb -- and separately the cards. Counting the cards to discover
+ * the columns loses every column that currently holds nothing: `blocked` and
+ * `running` are empty most of the time, so the agent reported FOUR columns while
+ * the mini app and the phone reported SIX.
+ *
+ * "nothing is running" and "there is no such column" are different facts, and
+ * this panel exists to tell them apart. The other two surfaces already read her
+ * declaration (`player/src/lib/hive.ts`, `HiveAPI.swift`); this is the odd one
+ * out being brought in line.
+ */
+function queenFetch(board: any) {
+  return async (url: string) => {
+    const u = String(url)
+    if (u.includes('/rest/v1/avatars')) return stubAvatars()(u)
+    if (u.includes('/queen/status'))
+      return {
+        ok: true,
+        json: async () => ({
+          swarmState: 'waiting_for_review',
+          workers: { capacity: 4, active: 0, idle: 4 },
+          scheduler: { intervalSeconds: 300 },
+          lastTick: { decidedAt: 'x', skippedCount: 0 },
+        }),
+      } as any
+    if (u.includes('/queen/public-activity'))
+      return { ok: true, json: async () => ({ events: [] }) } as any
+    if (u.includes('/queen/public-board'))
+      return { ok: true, json: async () => board } as any
+    throw new Error(`unexpected fetch: ${u}`)
+  }
+}
+
+const asKeeper = () =>
+  tool('hive_queen').handler({}, { pool, telegramId: '1' } as any) as any
+
+/** Her real shape, trimmed: six declared columns, cards in only two of them. */
+const HER_BOARD = {
+  repo: 'gHashTag/trios',
+  columns: [
+    { key: 'backlog', title: 'backlog', blurb: 'nobody on it' },
+    { key: 'blocked', title: 'blocked', blurb: 'its files are held' },
+    { key: 'running', title: 'running', blurb: 'bees on it now' },
+    { key: 'review', title: 'review', blurb: 'awaiting judgement' },
+    { key: 'done', title: 'done', blurb: 'judged and closed' },
+    { key: 'dropped', title: 'dropped', blurb: 'abandoned' },
+  ],
+  cards: [
+    { number: 1, column: 'review', title: 'a' },
+    { number: 2, column: 'review', title: 'b' },
+    { number: 3, column: 'done', title: 'c' },
+  ],
+}
+
+describe('her board keeps the columns she declares', () => {
+  it('a column she declares but nobody is in still appears, holding zero', async () => {
+    vi.stubGlobal('fetch', queenFetch(HER_BOARD))
+    const out = await asKeeper()
+
+    expect(out.board.map((c: any) => c.key)).toEqual([
+      'backlog',
+      'blocked',
+      'running',
+      'review',
+      'done',
+      'dropped',
+    ])
+    const running = out.board.find((c: any) => c.key === 'running')
+    // The point of the whole block: present, and honestly zero.
+    expect(running).toBeDefined()
+    expect(running.count).toBe(0)
+    expect(out.board.find((c: any) => c.key === 'review').count).toBe(2)
+  })
+
+  it('her order is kept, not the order cards happen to arrive in', async () => {
+    /*
+     * Counting cards yields insertion order -- review before done, because a
+     * review card came first. Her order is the board's reading order, and it is
+     * the one both other surfaces show.
+     */
+    vi.stubGlobal('fetch', queenFetch(HER_BOARD))
+    const out = await asKeeper()
+    const keys = out.board.map((c: any) => c.key)
+    expect(keys.indexOf('backlog')).toBeLessThan(keys.indexOf('review'))
+  })
+
+  it('she carries the blurb that says what the column MEANS', async () => {
+    vi.stubGlobal('fetch', queenFetch(HER_BOARD))
+    const out = await asKeeper()
+    expect(out.board.find((c: any) => c.key === 'blocked').blurb).toBe(
+      'its files are held'
+    )
+  })
+
+  /*
+   * The inverse guard. If a card sits in a column she did not declare, dropping
+   * it would hide real work -- the same disappearance, from the other side.
+   */
+  it('a column she did not declare still shows up rather than losing its cards', async () => {
+    vi.stubGlobal(
+      'fetch',
+      queenFetch({
+        ...HER_BOARD,
+        cards: [...HER_BOARD.cards, { number: 9, column: 'quarantine' }],
+      })
+    )
+    const out = await asKeeper()
+    const extra = out.board.find((c: any) => c.key === 'quarantine')
+    expect(extra).toBeDefined()
+    expect(extra.count).toBe(1)
+    // Appended, not prepended: her six still lead, in her order.
+    expect(out.board[out.board.length - 1].key).toBe('quarantine')
+    expect(out.board.map((c: any) => c.key).slice(0, 6)).toEqual([
+      'backlog',
+      'blocked',
+      'running',
+      'review',
+      'done',
+      'dropped',
+    ])
+  })
+
+  /*
+   * And the failure that would make this change WORSE than the bug it fixes: if
+   * she ever stops publishing `columns`, mapping over her declaration yields an
+   * empty board -- 414 cards rendered as nothing at all. Falling back to the
+   * counts is the old behaviour, which is wrong only about empty columns.
+   */
+  it('if she publishes no columns at all, the cards still produce a board', async () => {
+    vi.stubGlobal('fetch', queenFetch({ repo: 'r', cards: HER_BOARD.cards }))
+    const out = await asKeeper()
+    expect(out.board.map((c: any) => c.key).sort()).toEqual(['done', 'review'])
+    expect(out.board.find((c: any) => c.key === 'review').count).toBe(2)
+  })
+
+  /*
+   * A column she declares without a title would otherwise render as a nameless
+   * row: present in the count, impossible to refer to. The key is not pretty,
+   * but it is what she calls the column everywhere else.
+   */
+  it('a column with no title of its own falls back to her key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      queenFetch({
+        ...HER_BOARD,
+        columns: [{ key: 'running', blurb: 'bees on it now' }],
+      })
+    )
+    const out = await asKeeper()
+    expect(out.board.find((c: any) => c.key === 'running').title).toBe(
+      'running'
+    )
+  })
+
+  it('a board with no cards at all is six empty columns, not an empty answer', async () => {
+    vi.stubGlobal('fetch', queenFetch({ ...HER_BOARD, cards: [] }))
+    const out = await asKeeper()
+    expect(out.board).toHaveLength(6)
+    expect(out.board.every((c: any) => c.count === 0)).toBe(true)
   })
 })
 

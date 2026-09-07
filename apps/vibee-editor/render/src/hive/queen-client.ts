@@ -69,13 +69,18 @@ async function ask<T>(path: string): Promise<T> {
   }
 }
 
-/** Defang a title that came from another system. */
-export function safeTitle(raw: unknown): string {
+/** Defang a string that came from another system, and keep it to `max`. */
+function clean(raw: unknown, max: number): string {
   const cleaned = (raw == null ? '' : String(raw))
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/[<>&]/g, '')
     .trim()
-  return cleaned.length > 160 ? `${cleaned.slice(0, 160)}…` : cleaned
+  return cleaned.length > max ? `${cleaned.slice(0, max)}…` : cleaned
+}
+
+/** Defang a title that came from another system. */
+export function safeTitle(raw: unknown): string {
+  return clean(raw, 160)
 }
 
 export interface QueenStatus {
@@ -157,11 +162,20 @@ export async function queenActivity({
   }
 }
 
+/** One column of her board: what she calls it, and how full it is. */
+export interface QueenColumn {
+  key: string
+  title: string
+  /** Her one-line gloss on what the column MEANS. */
+  blurb: string
+  count: number
+}
+
 export interface QueenBoard {
   reachable: boolean
   repo?: string
-  /** Column key to card count. The board itself is large; counts are the news. */
-  columns?: Record<string, number>
+  /** Her columns, in her order, each with its count. */
+  columns?: QueenColumn[]
   /** A few cards awaiting judgement, because that is the column that blocks. */
   waiting?: Array<{ issue: number; title: string }>
   why?: string
@@ -171,14 +185,49 @@ export async function queenBoard(): Promise<QueenBoard> {
   try {
     const b = await ask<any>('/queen/public-board')
     const cards: any[] = Array.isArray(b?.cards) ? b.cards : []
-    const columns: Record<string, number> = {}
+
+    const counted = new Map<string, number>()
     for (const c of cards) {
-      const k = String(c?.column ?? 'unknown')
-      columns[k] = (columns[k] ?? 0) + 1
+      const k = clean(c?.column, 30) || 'unknown'
+      counted.set(k, (counted.get(k) ?? 0) + 1)
     }
+
+    /*
+     * THE COLUMNS ARE HERS, NOT OURS TO INFER FROM THE CARDS.
+     *
+     * Discovering them by counting loses every column that is currently empty
+     * -- `blocked` and `running` are empty most of the time -- so this panel
+     * reported four columns while the mini app and the phone reported six.
+     * "nothing is running" and "there is no such column" are different facts.
+     *
+     * `player/src/lib/hive.ts` and `HiveAPI.swift` already read her declaration
+     * this way; the three surfaces now agree.
+     */
+    const declared: any[] = Array.isArray(b?.columns) ? b.columns : []
+    const columns: QueenColumn[] = declared.map(c => {
+      const key = clean(c?.key, 30)
+      return {
+        key,
+        title: clean(c?.title, 40) || key,
+        blurb: clean(c?.blurb, 80),
+        count: counted.get(key) ?? 0,
+      }
+    })
+
+    /*
+     * A card in a column she never declared -- and the fallback for her not
+     * declaring any at all. Mapping over an empty declaration would render 414
+     * cards as nothing, which is worse than the bug above; appending keeps her
+     * order leading when she does declare.
+     */
+    const named = new Set(columns.map(c => c.key))
+    for (const [key, count] of counted) {
+      if (!named.has(key)) columns.push({ key, title: key, blurb: '', count })
+    }
+
     return {
       reachable: true,
-      repo: String(b?.repo ?? ''),
+      repo: clean(b?.repo, 60),
       columns,
       // Only the review column, and only a handful: the board runs to hundreds
       // of cards, and a dump of them is not a report, it is a wall.
