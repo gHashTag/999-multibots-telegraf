@@ -21,6 +21,7 @@
  */
 import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
 import { allProviders, diagnose } from './provider'
+import { withImageParts, hasImageToSee } from './vision-parts'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -183,7 +184,38 @@ async function* streamModel(
   | { kind: 'content'; text: string }
   | { kind: 'done'; message: any }
 > {
-  const providers = allProviders()
+  /*
+   * A TURN WITH A PICTURE GOES TO A PROVIDER THAT CAN SEE IT.
+   *
+   * Order alone is not enough and would break twice. Sending image parts to
+   * z.ai fails the whole turn with 400 "allowed values: ['text']" -- not a
+   * degraded answer, no answer. And the reverse is just as real: on 2026-09-07
+   * z.ai was rate-limited until the 11th, so the agent was already running on
+   * the sighted provider; when the limit resets, z.ai returns to the front and
+   * sight would vanish with no code change and no message.
+   *
+   * So capability decides, not position. Among the sighted ones the configured
+   * order still holds, which is why this filters rather than picks.
+   */
+  const wantsVision = hasImageToSee(messages)
+  const configured = allProviders()
+  const sighted = configured.filter(p => p.vision)
+
+  /*
+   * Parts are built ONLY when somebody can actually look at them. With a
+   * picture present and no sighted provider configured, the marker line is
+   * still in the text -- answering blind is strictly better than failing the
+   * turn, and it is exactly today's behaviour.
+   */
+  const useParts = wantsVision && sighted.length > 0
+  if (wantsVision && !useParts) {
+    console.warn(
+      '[agent] в сообщении есть изображение, но ни один настроенный провайдер ' +
+        'его не видит — отвечаю по тексту вложения'
+    )
+  }
+  const providers = useParts ? sighted : configured
+
   if (!providers.length) {
     throw new Error(
       'Ключ модели не задан. Нужен GLM_API_KEY или OPENAI_API_KEY. ' +
@@ -198,7 +230,7 @@ async function* streamModel(
   for (const p of providers) {
     const body: Record<string, unknown> = {
       model: p.model,
-      messages,
+      messages: useParts ? withImageParts(messages) : messages,
       tools: toOpenAITools(),
       tool_choice: 'auto',
       temperature: 0.3,
