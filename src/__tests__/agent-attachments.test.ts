@@ -15,6 +15,7 @@ import {
   attachmentToLine,
   attachmentRefused,
   buildAgentMessage,
+  buildAgentTurn,
   TELEGRAM_DOWNLOAD_LIMIT,
 } from '@/services/agentAttachments'
 
@@ -385,5 +386,92 @@ describe('what the agent actually receives', () => {
   it('plain text passes through untouched', async () => {
     const plan = await buildAgentMessage(telegram, { text: '  привет  ' })
     expect(plan).toEqual({ text: 'привет', refusal: null })
+  })
+})
+
+/**
+ * AN ALBUM BECOMES ONE TURN.
+ *
+ * Telegram delivers several photos as separate updates sharing a
+ * `media_group_id`, with the caption on only one of them. Built one at a time,
+ * five photos became five questions and four of them had no question at all.
+ */
+describe('one turn out of a whole album', () => {
+  const telegram = { getFileLink: vi.fn(async () => 'https://tg/secret/x.jpg') }
+  const part = (n: number, caption?: string) => ({
+    caption,
+    photo: [{ file_id: `p${n}`, file_unique_id: `u${n}`, file_size: 3 }],
+  })
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+      }))
+    )
+  })
+
+  it('every photo gets a line, under ONE caption', async () => {
+    const plan = await buildAgentTurn(telegram, [
+      part(1),
+      part(2, 'какая резче?'),
+      part(3),
+    ])
+    const lines = plan.text.split('\n')
+    expect(lines[0]).toBe('какая резче?')
+    expect(lines.filter(l => l.startsWith('[attached image:'))).toHaveLength(3)
+    expect(plan.refusal).toBeNull()
+  })
+
+  it('an album with no caption is still a turn', async () => {
+    const plan = await buildAgentTurn(telegram, [part(1), part(2)])
+    expect(plan.text.split('\n')).toHaveLength(2)
+  })
+
+  /*
+   * ONE FAILED FILE DOES NOT SINK THE TURN: the others may be fine and the
+   * caption is a question the agent can still answer.
+   */
+  it('a failed part does not lose the rest or the caption', async () => {
+    const tooBig = {
+      caption: 'посмотри',
+      video: {
+        file_id: 'v',
+        file_unique_id: 'u',
+        file_size: TELEGRAM_DOWNLOAD_LIMIT + 1,
+      },
+    }
+    const plan = await buildAgentTurn(telegram, [part(1), tooBig, part(2)])
+    expect(plan.text).toContain('посмотри')
+    expect(
+      plan.text.split('\n').filter(l => l.startsWith('[attached'))
+    ).toHaveLength(2)
+    expect(plan.refusal).not.toBeNull()
+  })
+
+  /*
+   * Every refusal is named. "One of your photos failed" is not something
+   * anybody can act on.
+   */
+  it('two failures are both reported, not just the first', async () => {
+    const big = (name: string) => ({
+      document: {
+        file_id: name,
+        file_unique_id: name,
+        file_name: name,
+        file_size: TELEGRAM_DOWNLOAD_LIMIT + 1,
+      },
+    })
+    const plan = await buildAgentTurn(telegram, [big('a.pdf'), big('b.pdf')])
+    expect(plan.refusal).toContain('a.pdf')
+    expect(plan.refusal).toContain('b.pdf')
+  })
+
+  it('a single message is the same path with one part', async () => {
+    const plan = await buildAgentTurn(telegram, [part(1, 'одно фото')])
+    expect(plan.text.split('\n')[0]).toBe('одно фото')
+    expect(plan.text.split('\n')).toHaveLength(2)
   })
 })

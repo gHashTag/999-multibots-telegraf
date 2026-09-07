@@ -14,8 +14,9 @@ import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import {
   attachmentFromMessage,
-  buildAgentMessage,
+  buildAgentTurn,
 } from '@/services/agentAttachments'
+import { createAlbumBuffer } from '@/services/albumBuffer'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
@@ -1014,6 +1015,15 @@ If not, continue on your own and click the "I myself" button`
       return next()
     })
 
+    /*
+     * Album parts gather here, in memory, for a second at a time.
+     *
+     * One buffer for the whole bot rather than one per chat: the key already
+     * carries the chat id, and a per-chat map would be a second thing to clean
+     * up after somebody leaves.
+     */
+    const albums = createAlbumBuffer()
+
     // 10. AI FALLBACK — последний handler, ловит необработанный текст
     bot.use(async (ctx: any, next: any) => {
       if (!ctx.message) return next()
@@ -1074,7 +1084,25 @@ If not, continue on your own and click the "I myself" button`
        */
       let questionRecorded = false
 
-      const plan = await buildAgentMessage(ctx.telegram, ctx.message)
+      /*
+       * SEVERAL PHOTOS SENT TOGETHER ARE ONE MESSAGE, NOT FIVE.
+       *
+       * Telegram delivers an album as separate updates sharing a
+       * `media_group_id`, and only one of them carries the caption. Handled
+       * one by one, five photos became five turns: five trips to the model and
+       * five answers, four of them about a picture with no question attached.
+       *
+       * The FIRST part waits for its group and continues with all of them;
+       * every later part gets `null` and stops here. A message that is not
+       * part of an album passes straight through with itself as the only part.
+       */
+      const albumParts = await albums.collect(
+        String(ctx.chat?.id ?? ctx.from?.id ?? ''),
+        ctx.message
+      )
+      if (!albumParts) return
+
+      const plan = await buildAgentTurn(ctx.telegram, albumParts)
       if (plan.refusal) await ctx.reply(plan.refusal)
       const text = plan.text
       if (!text.trim()) return next()

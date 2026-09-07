@@ -49,6 +49,7 @@
 
 import { logger } from '@/utils/logger'
 import { putBytes } from '@/services/contentFactory/storage'
+import { albumCaption } from '@/services/albumBuffer'
 
 /** The four buckets the mini app uses. Keep them identical: same vocabulary. */
 export type AttachmentKind = 'image' | 'video' | 'audio' | 'file'
@@ -315,22 +316,50 @@ export async function buildAgentMessage(
   telegram: FileFetcher,
   message: any
 ): Promise<AgentMessagePlan> {
-  const written: string = String(
-    (message && ('text' in message ? message.text : message.caption)) || ''
-  ).trim()
+  return buildAgentTurn(telegram, [message])
+}
 
-  const attachment = attachmentFromMessage(message)
-  if (!attachment) return { text: written, refusal: null }
+/**
+ * Build ONE turn out of one message or out of a whole album.
+ *
+ * An album reaches Telegram as several updates sharing a `media_group_id`, and
+ * only one of them carries the caption -- so the caption is looked for across
+ * all the parts rather than taken from the first. Every attachment becomes its
+ * own marker line under that single caption, which is what makes "which of
+ * these is sharper?" a question about five photos instead of five questions
+ * about one photo each.
+ *
+ * A single message is the same thing with one part, so there is one code path
+ * and not two.
+ */
+export async function buildAgentTurn(
+  telegram: FileFetcher,
+  parts: any[]
+): Promise<AgentMessagePlan> {
+  const written = albumCaption(parts)
 
-  const outcome = await attachmentToLine(telegram, attachment)
-  if (attachmentRefused(outcome)) {
-    // The caption survives a failed upload. Refusing the whole turn because a
-    // file did not store would throw away a question the agent can answer.
-    return { text: written, refusal: outcome.message }
+  const lines: string[] = []
+  const refusals: string[] = []
+  for (const part of parts) {
+    const attachment = attachmentFromMessage(part)
+    if (!attachment) continue
+    const outcome = await attachmentToLine(telegram, attachment)
+    /*
+     * ONE FAILED FILE DOES NOT SINK THE TURN. In an album the others may be
+     * fine, and the caption is a question the agent can still answer. Each
+     * refusal is named so the person knows WHICH file did not make it -- "one
+     * of your photos failed" is not something anybody can act on.
+     */
+    if (attachmentRefused(outcome)) refusals.push(outcome.message)
+    else lines.push(outcome.line)
   }
+
   return {
-    text: [written, outcome.line].filter(Boolean).join('\n'),
-    refusal: null,
+    text: [written, ...lines].filter(Boolean).join('\n'),
+    // Joined, not just the first: with three failures out of five, hearing
+    // about one of them and silence about the rest is worse than a long
+    // message.
+    refusal: refusals.length ? refusals.join('\n') : null,
   }
 }
 
