@@ -29,6 +29,7 @@ import {
   SUNO_DURATION_OPTIONS,
 } from '@/price/helpers/modelsCost'
 import axios from 'axios'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Интерфейс данных wizard
 interface MusicWizardData {
@@ -157,6 +158,10 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
     const cost = wizardData.cost
 
     if (currentBalance < cost) {
+      // A refusal that names the price hands over the way to pay it. The
+      // person asked for something paid and was told the only obstacle is
+      // money -- the highest-intent moment there is, and it carried nothing
+      // to press.
       await ctx.reply(
         isRu
           ? `❌ Недостаточно средств для генерации музыки.\n\n` +
@@ -166,7 +171,8 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
           : `❌ Insufficient funds for music generation.\n\n` +
               `💰 Required: ${cost} ⭐\n` +
               `💳 Your balance: ${currentBalance.toFixed(2)} ⭐\n\n` +
-              `Top up your balance and try again.`
+              `Top up your balance and try again.`,
+        standardButtons(isRu)
       )
       return ctx.scene.leave()
     }

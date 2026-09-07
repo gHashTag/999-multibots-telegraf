@@ -29,6 +29,7 @@ import {
   validateAudioFormat,
 } from '@/services/rvc'
 import { getAICoverCost, AI_COVER_CONFIG } from '@/price/helpers/modelsCost'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WIZARD SETUP
@@ -317,10 +318,15 @@ aiCoverWizard.action('confirm_cover', async ctx => {
     // 1. Проверка баланса
     const balance = await getUserBalance(telegramId)
     if (balance < cost) {
+      // A refusal that names the price hands over the way to pay it. The
+      // person asked for something paid and was told the only obstacle is
+      // money -- the highest-intent moment there is, and it carried nothing
+      // to press.
       await ctx.reply(
         isRu
           ? `❌ Недостаточно средств.\n\nТребуется: ${cost}⭐\nВаш баланс: ${balance}⭐`
-          : `❌ Insufficient funds.\n\nRequired: ${cost}⭐\nYour balance: ${balance}⭐`
+          : `❌ Insufficient funds.\n\nRequired: ${cost}⭐\nYour balance: ${balance}⭐`,
+        standardButtons(isRu)
       )
       return ctx.scene.leave()
     }

@@ -19,6 +19,7 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { calculateLipSyncCostStars } from '@/config/lipsync-models.config'
 import { WAN25ModelType, calculateWAN25CostStars } from '@/config/wan25-config'
 import { PUBLIC_URL } from '@/config'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_inngest_wizard',
@@ -309,10 +310,14 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
       const currentBalance = await getUserBalance(telegramId)
 
       if (currentBalance === null || currentBalance < totalCost) {
+        // A refusal that names the price hands over the way to pay it: the
+        // person asked for something paid and was told the only obstacle is
+        // money, and it carried nothing to press.
         await ctx.reply(
           isRu
             ? `💰 Недостаточно средств\n\nТребуется: ${totalCost.toFixed(2)}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
-            : `💰 Insufficient funds\n\nRequired: ${totalCost.toFixed(2)}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`
+            : `💰 Insufficient funds\n\nRequired: ${totalCost.toFixed(2)}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`,
+          standardButtons(isRu)
         )
         return ctx.scene.leave()
       }

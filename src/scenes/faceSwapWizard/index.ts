@@ -15,6 +15,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { createCancelButton, handleCancelButton } from '@/utils/cancelButton'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
   'faceSwapWizard',
@@ -189,10 +190,15 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (balance < requiredStars) {
+      // A refusal that names the price hands over the way to pay it. The
+      // person asked for something paid and was told the only obstacle is
+      // money -- the highest-intent moment there is, and it carried nothing
+      // to press.
       await ctx.reply(
         isRu
           ? `❌ Недостаточно звезд для замены лица.\n\n💰 Требуется: ${requiredStars} ⭐\n💰 У вас: ${balance.toFixed(1)} ⭐\n\nПополните баланс командой /balance`
-          : `❌ Insufficient stars for face swap.\n\n💰 Required: ${requiredStars} ⭐\n💰 You have: ${balance.toFixed(1)} ⭐\n\nTop up with /balance`
+          : `❌ Insufficient stars for face swap.\n\n💰 Required: ${requiredStars} ⭐\n💰 You have: ${balance.toFixed(1)} ⭐\n\nTop up with /balance`,
+        standardButtons(isRu)
       )
       return ctx.scene.leave()
     }

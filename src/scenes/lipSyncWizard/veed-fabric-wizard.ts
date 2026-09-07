@@ -8,6 +8,7 @@ import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
 import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
 import { logger } from '@/utils/logger'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 import {
   LIPSYNC_MODELS,
   getAvailableLipSyncModels,
@@ -542,10 +543,14 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (currentBalance < cost) {
+        // A refusal that names the price hands over the way to pay it: the
+        // person asked for something paid and was told the only obstacle is
+        // money, and it carried nothing to press.
         await ctx.reply(
           isRu
             ? `Недостаточно средств. Требуется: ${cost.toFixed(2)}⭐, у вас: ${currentBalance}⭐`
-            : `Insufficient funds. Required: ${cost.toFixed(2)}⭐, you have: ${currentBalance}⭐`
+            : `Insufficient funds. Required: ${cost.toFixed(2)}⭐, you have: ${currentBalance}⭐`,
+          standardButtons(isRu)
         )
         return ctx.scene.leave()
       }

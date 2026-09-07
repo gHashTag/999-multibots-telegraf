@@ -17,6 +17,7 @@ import path from 'path'
 import fs from 'fs'
 import { updateUserBalance, getUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
   'video_transcription',
@@ -124,10 +125,15 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
     const currentBalance = await getUserBalance(ctx.from.id.toString())
 
     if (currentBalance < costInStars) {
+      // A refusal that names the price hands over the way to pay it. The
+      // person asked for something paid and was told the only obstacle is
+      // money -- the highest-intent moment there is, and it carried nothing
+      // to press.
       await ctx.reply(
         isRu
           ? `❌ Недостаточно средств для транскрибации.\n\n💰 Нужно: ${costInStars} ⭐\n💳 Ваш баланс: ${currentBalance.toFixed(2)} ⭐\n\nПополните баланс и попробуйте снова.`
-          : `❌ Insufficient funds for transcription.\n\n💰 Required: ${costInStars} ⭐\n💳 Your balance: ${currentBalance.toFixed(2)} ⭐\n\nTop up your balance and try again.`
+          : `❌ Insufficient funds for transcription.\n\n💰 Required: ${costInStars} ⭐\n💳 Your balance: ${currentBalance.toFixed(2)} ⭐\n\nTop up your balance and try again.`,
+        standardButtons(isRu)
       )
       return ctx.scene.leave()
     }

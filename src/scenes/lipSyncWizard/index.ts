@@ -26,6 +26,7 @@ import {
   needsAudioConversion,
 } from '@/helpers/video-helpers'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 const MAX_FILE_SIZE = LIPSYNC_CONSTANTS.MAX_FILE_SIZE
 
@@ -353,10 +354,14 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (currentBalance < lipSyncCost) {
+        // A refusal that names the price hands over the way to pay it: the
+        // person asked for something paid and was told the only obstacle is
+        // money, and it carried nothing to press.
         await ctx.reply(
           isRu
             ? `Недостаточно средств. Требуется: ~${Math.ceil(lipSyncCost)}⭐ (за ~${estimatedDuration} сек), у вас: ${Math.floor(currentBalance)}⭐`
-            : `Insufficient funds. Required: ~${Math.ceil(lipSyncCost)}⭐ (for ~${estimatedDuration} sec), you have: ${Math.floor(currentBalance)}⭐`
+            : `Insufficient funds. Required: ~${Math.ceil(lipSyncCost)}⭐ (for ~${estimatedDuration} sec), you have: ${Math.floor(currentBalance)}⭐`,
+          standardButtons(isRu)
         )
         return ctx.scene.leave()
       }

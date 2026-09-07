@@ -155,7 +155,33 @@ describe('the number of money refusals with nothing to press does not grow', () 
     expect(
       mute.length,
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(53)
+    ).toBeLessThanOrEqual(43)
+  })
+
+  /**
+   * The wizards a paying person actually reaches, closed one batch at a time.
+   * Named individually rather than trusted to the count: a ceiling that drops
+   * says the number moved, not that these particular screens did.
+   */
+  it('the wizards where somebody is refused to their face now offer the button', () => {
+    const sites = measure()
+    const fixed = [
+      'aiCoverWizard',
+      'faceSwapWizard',
+      'musicGenerationWizard',
+      'videoTranscriptionWizard',
+      'voiceTrainingWizard',
+      'ai-reels-inngest-wizard',
+      'ai-reels-render-wizard',
+      'veed-fabric-wizard',
+    ]
+    const still = fixed.filter(name =>
+      sites.some(s => s.file.includes(name) && !s.keyboard)
+    )
+    expect(
+      still,
+      `still refusing with nothing to press: ${still.join(', ')}`
+    ).toEqual([])
   })
 
   it('the shared helper is no longer one of them', () => {
