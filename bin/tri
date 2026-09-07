@@ -169,6 +169,12 @@ case "${1:-}" in
           node "$S/validate-t27.mjs" "${3:?укажите файл .t27}"
         fi
         ;;
+      dataset-specs)
+        # СБОРКА ДАТАСЕТА ДЛЯ НАСТОЯЩЕЙ ЗАДАЧИ: ПИСАТЬ .t27.
+        export T27C="${T27C:-$(command -v t27c)}"
+        [ -x "$T27C" ] || { echo "нет t27c. Сборка: см. скилл"; exit 2; }
+        node "$S/build-spec-dataset.mjs" --specs "${3:-specs}" --out "${4:-spec-dataset}"
+        ;;
       count)
         # ЧЕСТНЫЙ ПОДСЧЁТ КОРПУСА -- ПО spec-status, А НЕ ПО РАСШИРЕНИЮ.
         #
