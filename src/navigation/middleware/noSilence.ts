@@ -1,6 +1,7 @@
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
 import { logger } from '@/utils/logger'
+import { track } from '@/services/trackEvent'
 
 /**
  * NO MESSAGE MAY BE MET WITH SILENCE.
@@ -165,6 +166,11 @@ async function answerIfNobodyDid(ctx: any): Promise<void> {
   const shape = Object.keys(message).filter(
     key => !['message_id', 'date', 'chat', 'from', 'entities'].includes(key)
   )
+  /*
+   * The same fact, kept somewhere a deploy cannot erase. The log line below is
+   * for whoever is watching right now; this row is for whoever asks next week.
+   */
+  void track(ctx, 'unanswered_message', { shape })
   logger.warn('🔇 [no-reply] a message crossed the whole chain unanswered', {
     telegram_id: ctx.from?.id,
     updateType: ctx.updateType,
@@ -220,6 +226,7 @@ export const deadPressNet = async (ctx: any, next: any) => {
       const handled = Boolean(ctx.state?.answered)
 
       if (!handled) {
+        void track(ctx, 'unanswered_press', { data })
         logger.warn('🔇 [no-press] a button press reached no handler', {
           telegram_id: ctx.from?.id,
           data,
