@@ -55,6 +55,23 @@ const arrayIds = text =>
 const grab = (re, text) => [...text.matchAll(re)].map(m => m[2])
 
 /**
+ * Does this file handle callback presses at all?
+ *
+ * A gate is needed, because ANY_EQ matches every `x === 'string'` in the tree
+ * and `mode === 'production'` is not a button catcher. The gate used to be
+ * `/callbackQuery/` alone, and that threw away the comparisons of 254 files
+ * carrying 270 distinct ids -- among them veed-fabric-wizard, which reads
+ * `const callbackData = ...` upstream and never writes the word callbackQuery.
+ * Its two buttons were reported as having no catcher of any shape for weeks,
+ * while both are compared thirteen lines below where they are drawn.
+ *
+ * Widened to the names a callback id is actually compared against. Kept narrow
+ * enough that a file doing ordinary string equality is still excluded.
+ */
+const handlesCallbacks = text =>
+  /callbackQuery|callbackData|callback_data|ctx\.match|\.action\(/.test(text)
+
+/**
  * Self-check, on a fixture that carries every shape this has been wrong about.
  * `fx_named_action` is the one that mattered: an earlier version required the
  * comparison variable to be called `data` and declared a live button dead.
@@ -71,6 +88,39 @@ function selfCheck() {
     'const m = action.match(/fx_rx_(\\d+)/)',
     "someScene.action(['fx_arr_one', 'fx_arr_two'], h)",
   ].join('\n')
+
+  /*
+   * THE GATE ITSELF, ON TWO FIXTURES. The old self-check could not have caught
+   * the defect it was supposed to guard: the fixture line
+   * `const action = (ctx.callbackQuery as any).data` satisfies the very gate
+   * under test, so the gate was never exercised. A control that cannot fail is
+   * not a control.
+   *
+   * The positive fixture is the shape that was being discarded -- callbackData
+   * read upstream, no mention of callbackQuery anywhere. The negative one is an
+   * ordinary string comparison, which must stay out.
+   */
+  const GATED_IN = [
+    'const callbackData = update.data',
+    "if (callbackData === 'fx_gate_in') {}",
+  ].join('\n')
+  const GATED_OUT = "if (mode === 'production') {}"
+  if (!handlesCallbacks(GATED_IN)) {
+    console.error(
+      'SELF-CHECK FAILED: a file that compares callbackData is treated as not'
+    )
+    console.error(
+      'handling callbacks, so every id it catches is reported as an orphan.'
+    )
+    process.exit(2)
+  }
+  if (handlesCallbacks(GATED_OUT)) {
+    console.error(
+      'SELF-CHECK FAILED: a file doing ordinary string equality passes the gate,'
+    )
+    console.error('so any literal anywhere would read as a caught button.')
+    process.exit(2)
+  }
 
   const want = [
     ['render', RENDER, 'fx_render'],
@@ -176,7 +226,7 @@ for (const file of files) {
     if (/\bbot\.action\(\s*\[/.test(text)) bot.add(id)
     push(scene, id, file)
   }
-  if (!/callbackQuery/.test(text)) continue
+  if (!handlesCallbacks(text)) continue
   for (const id of grab(ANY_EQ, text)) byHand.add(id)
   for (const id of grab(CASE, text)) byHand.add(id)
   for (const p of grab(PREFIX, text)) prefixes.add(p)
@@ -352,11 +402,26 @@ const grouped = {}
 for (const id of orphans)
   for (const f of new Set(rendered.get(id)))
     (grouped[f] = grouped[f] || []).push(id)
+/*
+ * LABEL, DO NOT FILTER. Roughly half of what lands here is a `callback_data`
+ * field in a server-side table -- subscription plans in robokassa.routes and
+ * getTranslation, priced and matched, never drawn on a keyboard by that file.
+ * The tempting move is to drop files that build no keyboard, and it is wrong:
+ * a file may DECLARE buttons as data that a consumer renders, which is exactly
+ * what getTranslation looks like. Dropping them would silence a real class.
+ *
+ * So the count stays whole and each line says which kind it is. A reader who
+ * wants the live buttons reads the [keyboard] lines first.
+ */
+const buildsKeyboards = file => {
+  const t = fs.readFileSync(file, 'utf8')
+  return /inline_keyboard|Markup\./.test(t)
+}
 for (const [file, ids] of Object.entries(grouped).sort(
   (a, b) => b[1].length - a[1].length
 ))
   console.log(
-    `  ${file.replace('src/', '')}  (${ids.length}): ${ids.slice(0, 6).join(', ')}${ids.length > 6 ? ' …' : ''}`
+    `  ${buildsKeyboards(file) ? '[keyboard]' : '[data only]'} ${file.replace('src/', '')}  (${ids.length}): ${ids.slice(0, 6).join(', ')}${ids.length > 6 ? ' …' : ''}`
   )
 console.log('')
 console.log(`DRAWN OUTSIDE THE SCENE THAT CATCHES THEM: ${crossFile.length}`)

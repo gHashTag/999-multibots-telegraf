@@ -68,6 +68,30 @@ describe('the button census refuses to report through a broken matcher', () => {
     ['switch/case', 'case\\s+([\'"`])', 'never_case\\s+([\'"`])'],
     ['startsWith', '\\.startsWith\\(', '\\.neverStartsWith\\('],
     ['array trigger', '\\.action\\(\\s*\\[', '\\.neverAction\\(\\s*\\['],
+    /*
+     * THE GATE THAT DECIDES WHOSE COMPARISONS COUNT, in both directions.
+     *
+     * It used to be `/callbackQuery/` alone, which threw away the hand
+     * comparisons of 254 files carrying 270 ids. veed-fabric-wizard reads
+     * `const callbackData = ...` upstream and never writes the word
+     * callbackQuery, so both of its buttons were reported as having no catcher
+     * of any shape -- while each is compared thirteen lines below where it is
+     * drawn. The reported debt was 38; the true figure was 18.
+     *
+     * The old self-check could not have caught that: its fixture line
+     * `const action = (ctx.callbackQuery as any).data` satisfies the very gate
+     * under test, so the gate was never exercised by it.
+     */
+    [
+      'callback gate, narrowed back',
+      'callbackQuery|callbackData|callback_data|ctx\\.match|\\.action\\(',
+      'callbackQuery',
+    ],
+    [
+      'callback gate, opened to everything',
+      'callbackQuery|callbackData|callback_data|ctx\\.match|\\.action\\(',
+      '[\\s\\S]',
+    ],
   ]
 
   for (const [name, from, to] of breakages) {
@@ -122,6 +146,11 @@ describe('the buttons repaired here land somewhere', () => {
     'go_to_main_menu',
     'create_voice_avatar',
     'back_to_competitors',
+    // Never broken -- reported broken. Both are compared by hand in
+    // veed-fabric-wizard, thirteen lines below where they are drawn, in a file
+    // that never mentions callbackQuery. The census could not see that.
+    'veed_fabric_confirm',
+    'veed_fabric_cancel',
   ]
 
   it('scanned a population of the expected size', () => {
@@ -165,7 +194,11 @@ describe('the buttons repaired here land somewhere', () => {
     expect(
       orphans.length,
       `ids with no catcher of any shape:\n  ${orphans.join('\n  ')}`
-    ).toBeLessThanOrEqual(38)
+      // Was 38. Twenty of those were the census's own blindness, not dead
+      // buttons: the gate deciding whose hand comparisons count discarded 254
+      // files. Lowered because the detector got STRONGER, and the two gate
+      // breakages above are what stops it being lowered by weakening it again.
+    ).toBeLessThanOrEqual(18)
   })
 })
 
