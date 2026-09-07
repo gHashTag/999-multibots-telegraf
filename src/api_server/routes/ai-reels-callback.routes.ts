@@ -308,6 +308,12 @@ async function handleCompletedRender(
 
   const botToUse = bot || defaultBot
 
+  // The claim was taken on entry to serialise concurrent duplicates. Track
+  // whether we have begun the actual delivery send: on a PRE-send failure we
+  // release the claim so a legitimate at-least-once retry can re-deliver
+  // (otherwise the claim permanently suppresses the retry = charged-not-delivered).
+  let deliveryAttempted = false
+
   try {
     const videoUrl =
       payload.result_url || payload.video_url || payload.download_url
@@ -381,6 +387,9 @@ async function handleCompletedRender(
       )
 
       // Отправляем URL вместо файла
+      // Committing to deliver (URL fallback). A failure from here must NOT
+      // release the claim -- a retry could double-send.
+      deliveryAttempted = true
       await botToUse.telegram.sendMessage(
         telegramId,
         (isRu
@@ -412,6 +421,8 @@ async function handleCompletedRender(
     }
 
     // Отправляем видео как InputFile (Buffer)
+    // Committing to deliver. A failure from here must NOT release the claim.
+    deliveryAttempted = true
     await botToUse.telegram.sendVideo(
       telegramId,
       Input.fromBuffer(videoBuffer, `ai-reels-${Date.now()}.mp4`),
@@ -439,6 +450,13 @@ async function handleCompletedRender(
       jobId: payload.job_id,
       error: error instanceof Error ? error.message : String(error),
     })
+
+    // If we failed BEFORE any delivery send (e.g. the S3 download timed out),
+    // release the claim so a legitimate at-least-once retry can re-deliver.
+    // Never release once a send was attempted -- a retry could double-send.
+    if (payload.job_id && !deliveryAttempted) {
+      claimVideoJobDelivery.release(payload.job_id)
+    }
 
     // Отправляем сообщение об ошибке пользователю
     try {
