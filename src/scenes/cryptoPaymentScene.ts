@@ -6,6 +6,7 @@
  */
 
 import { Markup, Scenes } from 'telegraf'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
@@ -15,6 +16,8 @@ import {
 import {
   generateX402PaymentUrl,
   isX402Configured,
+  canX402Credit,
+  X402_SETTLEMENT_IMPLEMENTED,
   getX402Config,
   logX402Event,
 } from '@/core/x402'
@@ -53,13 +56,30 @@ cryptoPaymentScene.enter(async ctx => {
     return ctx.scene.leave()
   }
 
-  // Check if x402 is configured
-  if (!isX402Configured()) {
-    logger.warn('[CryptoPaymentScene] x402 is not configured')
+  /*
+   * A PAYMENT WE CANNOT CREDIT MUST NOT BE OFFERED, AND THE REFUSAL MUST CARRY
+   * THE WAY OUT.
+   *
+   * This asked `isX402Configured`, which only checks that a wallet address is a
+   * well-formed 0x string. Settlement verification does not exist, so nothing
+   * could ever turn such a payment into stars -- twelve people found that out
+   * by paying. canX402Credit is the question that matters.
+   *
+   * The refusal was a bare `ctx.reply` pointing at "another payment method" in
+   * words, with no keyboard. Prose where a button belongs is the same defect
+   * the shared money refusal had; standardButtons puts top-up first, so a
+   * person leaves this dead end holding a live way to pay.
+   */
+  if (!canX402Credit()) {
+    logger.warn('[CryptoPaymentScene] x402 cannot credit a payment', {
+      settlementImplemented: X402_SETTLEMENT_IMPLEMENTED,
+      walletConfigured: isX402Configured(),
+    })
     await ctx.reply(
       isRu
-        ? '❌ Оплата криптовалютой временно недоступна. Используйте другой способ оплаты.'
-        : '❌ Crypto payment is temporarily unavailable. Please use another payment method.'
+        ? '❌ Оплата криптовалютой сейчас недоступна. Пополнить можно так:'
+        : '❌ Crypto payment is unavailable right now. You can top up here:',
+      standardButtons(isRu)
     )
     return ctx.scene.leave()
   }

@@ -88,6 +88,43 @@ export function getX402Config(): X402Config {
 /**
  * Check if x402 is properly configured
  */
+/**
+ * SETTLEMENT VERIFICATION DOES NOT EXIST IN THIS PROJECT, so nothing can turn an
+ * x402 payment into stars. Two independent facts say so, and both are deliberate:
+ *
+ *   - the credit handlers in api_server/routes/x402.routes.ts refuse with 501,
+ *     because telegram_id and stars are taken from the request body and
+ *     transaction_hash is only logged. Crediting there would let anyone who
+ *     knows a pending inv_id mint balance to any account for any amount;
+ *   - that router is not mounted at all -- see routesAreMounted.test.ts, where
+ *     x402.routes.ts sits on the known-unmounted list for exactly this reason.
+ *
+ * MEANWHILE THE BUTTON WAS LIVE. Measured in production on 2026-09-08: twelve
+ * X402 rows since December 2025, every one PENDING, not one ever completed.
+ * Twelve people pressed pay on a method whose receiving end is switched off on
+ * purpose. Two censuses each held half of that -- the route census knew the
+ * endpoint was dead, the payment census knew people were paying -- and neither
+ * knew about the other.
+ *
+ * `isX402Configured` cannot answer this: it checks that a wallet address is a
+ * well-formed 0x string of 42 characters. That is a question about a variable
+ * being SET, not about the path being ALIVE.
+ *
+ * Flip this constant only together with real settlement verification: the
+ * X-PAYMENT header checked against the facilitator, and the amount read from
+ * the payments_v2 record rather than from the request.
+ */
+export const X402_SETTLEMENT_IMPLEMENTED = false
+
+/**
+ * Whether x402 may be OFFERED to a person -- that is, whether a payment made
+ * this way could ever be credited. Every place that decides to show the USDC
+ * button must ask this, not `isX402Configured`.
+ */
+export function canX402Credit(): boolean {
+  return X402_SETTLEMENT_IMPLEMENTED && isX402Configured()
+}
+
 export function isX402Configured(): boolean {
   const config = getX402Config()
   return !!(
