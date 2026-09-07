@@ -17,11 +17,18 @@
  */
 const DEFAULT_MAX = 1000
 
+// A claimer with an additive release(), for callers that must undo a claim
+// when delivery fails BEFORE any send (so a legitimate at-least-once retry can
+// re-deliver). Existing callers keep calling it as a plain (jobId) => boolean.
+export type VideoDeliveryClaimer = ((jobId: string) => boolean) & {
+  release(jobId: string): void
+}
+
 export function createVideoDeliveryClaimer(
   max: number = DEFAULT_MAX
-): (jobId: string) => boolean {
+): VideoDeliveryClaimer {
   const delivered = new Set<string>()
-  return function claimVideoJobDelivery(jobId: string): boolean {
+  const claim = function claimVideoJobDelivery(jobId: string): boolean {
     // has()+add() is synchronous, so it is atomic w.r.t. the event loop: the
     // first entry for a job wins, a racing re-entry gets false.
     if (delivered.has(jobId)) return false
@@ -31,5 +38,11 @@ export function createVideoDeliveryClaimer(
       if (oldest !== undefined) delivered.delete(oldest)
     }
     return true
+  } as VideoDeliveryClaimer
+  // Undo a claim. Use ONLY when nothing was delivered yet (pre-send failure);
+  // releasing after a send was attempted could allow a duplicate delivery.
+  claim.release = function release(jobId: string): void {
+    delivered.delete(jobId)
   }
+  return claim
 }
