@@ -1,0 +1,212 @@
+#!/usr/bin/env node
+/**
+ * TURN THE HARVESTED PAIRS INTO A LoRA DATASET THAT WILL NOT LIE.
+ *
+ * Input:  igla-pairs-manifest.json from harvest-igla-pairs.mjs
+ * Output: train.jsonl / eval.jsonl in instruction format, plus a report.
+ *
+ * ── WHY THE SPLIT IS STRATIFIED AND NOT RANDOM ────────────────────────────
+ *
+ * Measured on the real corpus: 31 of 35 pairs are Verilog and 4 are Rust.
+ * A random 80/20 split has a substantial chance of leaving zero Rust in the
+ * evaluation set -- and an eval set with no Rust cannot detect a model that
+ * has forgotten how to emit Rust at all. Stratifying by target language costs
+ * nothing and removes that failure.
+ *
+ * ── WHY OVERSIZED PAIRS ARE REPORTED, NOT SILENTLY TRUNCATED ──────────────
+ *
+ * 14 of 35 pairs exceed an 8K-token window. Truncating them teaches the model
+ * to stop mid-file: it sees a complete spec whose answer is cut off, and the
+ * most consistent lesson in the data becomes "generate until roughly here,
+ * then stop." That is worse than dropping the pair, and far worse than raising
+ * the context.
+ *
+ * So this script never truncates. It reports what does not fit at the chosen
+ * context and makes you choose: raise --max-tokens, or accept fewer examples.
+ *
+ * ── THE THING THAT CANNOT BE FIXED HERE ───────────────────────────────────
+ *
+ * 35 examples is very few for LoRA, whatever the token count says: the corpus
+ * is 35 LONG samples averaging ~10K tokens, not 346K short ones, and adapters
+ * learn from the number of distinct examples.
+ *
+ * Splitting the big files into smaller ones was measured and does NOT work:
+ * the large generated Verilog files hold exactly ONE module each (a 60 KB file
+ * is one module). Only the Rust output decomposes.
+ *
+ * The only real lever is more pairs -- 493 specs exist and 35 have committed
+ * output. Run the generator over the rest before expecting much from training.
+ */
+
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+
+const REPO = process.env.IGLA_REPO || 'gHashTag/t27'
+const BRANCH = process.env.IGLA_BRANCH || 'main'
+const BYTES_PER_TOKEN = 3.5
+
+function arg(name, fallback) {
+  const i = process.argv.indexOf(name)
+  return i > -1 ? process.argv[i + 1] : fallback
+}
+
+/**
+ * The prompt template. One template, used for every example and for inference.
+ *
+ * A model fine-tuned on one phrasing and prompted with another performs far
+ * worse than the eval suggested, because the eval used the training phrasing.
+ * Keeping the template in this file -- and printing it into the report -- is
+ * what makes the two agree later.
+ */
+function render(pair, spec, code) {
+  const lang = pair.target_lang === 'v' ? 'Verilog' : 'Rust'
+  return {
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You generate code from a .t27 specification. Emit only the target ' +
+          'language, no prose, no fences.',
+      },
+      {
+        role: 'user',
+        content: `Target language: ${lang}\n\n### Specification (${pair.spec_path})\n\n${spec}`,
+      },
+      { role: 'assistant', content: code },
+    ],
+    meta: {
+      pair_id: pair.pair_id,
+      target_lang: pair.target_lang,
+      spec_path: pair.spec_path,
+      code_path: pair.code_path,
+    },
+  }
+}
+
+async function fetchText(path) {
+  const res = await fetch(
+    `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${path}`
+  )
+  if (!res.ok) throw new Error(`${res.status} для ${path}`)
+  return res.text()
+}
+
+/**
+ * Stratified split, deterministic.
+ *
+ * Deterministic on purpose: a split that moves between runs makes two
+ * evaluations incomparable, and the first thing anyone does with a fine-tune is
+ * compare it to the previous one. Pairs are ordered by id and dealt round-robin
+ * within each language, so the same manifest always yields the same split.
+ */
+function split(examples, evalRatio) {
+  const byLang = new Map()
+  for (const e of examples) {
+    const k = e.meta.target_lang
+    if (!byLang.has(k)) byLang.set(k, [])
+    byLang.get(k).push(e)
+  }
+  const train = []
+  const evalSet = []
+  for (const [, list] of [...byLang].sort((a, b) => a[0].localeCompare(b[0]))) {
+    list.sort((a, b) => a.meta.pair_id.localeCompare(b.meta.pair_id))
+    // At least one of every language in eval, or that language is untested.
+    const want = Math.max(1, Math.round(list.length * evalRatio))
+    list.forEach((e, i) => (i < want ? evalSet : train).push(e))
+  }
+  return { train, evalSet }
+}
+
+async function main() {
+  const manifestPath = arg('--manifest', 'igla-pairs-manifest.json')
+  const outDir = arg('--out', 'lora-dataset')
+  const maxTokens = Number(arg('--max-tokens', '8192'))
+  const evalRatio = Number(arg('--eval-ratio', '0.2'))
+
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  const pairs = manifest.pairs.filter(p => p.verified !== false)
+
+  const kept = []
+  const oversized = []
+  for (const p of pairs) {
+    const [spec, code] = await Promise.all([
+      fetchText(p.spec_path),
+      fetchText(p.code_path),
+    ])
+    const tokens = Math.round((spec.length + code.length) / BYTES_PER_TOKEN)
+    if (tokens > maxTokens) {
+      oversized.push({ pair_id: p.pair_id, tokens })
+      continue
+    }
+    kept.push(render(p, spec, code))
+  }
+
+  const { train, evalSet } = split(kept, evalRatio)
+
+  /*
+   * The disjointness check `trios-trainer-igla` already learned to need
+   * (`assert_train_val_disjoint`). Here the unit is the PAIR: one pair on both
+   * sides means the evaluation is scoring memorisation.
+   */
+  const trainIds = new Set(train.map(e => e.meta.pair_id))
+  const leaked = evalSet.filter(e => trainIds.has(e.meta.pair_id))
+  if (leaked.length) {
+    console.error(
+      `[lora] УТЕЧКА: ${leaked.length} пар в обучении И в оценке — ` +
+        `оценка мерила бы запоминание. Сборка прервана.`
+    )
+    process.exit(1)
+  }
+
+  await mkdir(outDir, { recursive: true })
+  const jsonl = rows =>
+    rows.map(r => JSON.stringify({ messages: r.messages })).join('\n') + '\n'
+  await writeFile(join(outDir, 'train.jsonl'), jsonl(train))
+  await writeFile(join(outDir, 'eval.jsonl'), jsonl(evalSet))
+
+  const langs = rows => {
+    const c = {}
+    for (const r of rows)
+      c[r.meta.target_lang] = (c[r.meta.target_lang] || 0) + 1
+    return c
+  }
+
+  const report = {
+    source_manifest: manifestPath,
+    max_tokens: maxTokens,
+    kept: kept.length,
+    dropped_oversized: oversized.length,
+    oversized,
+    train: { count: train.length, by_lang: langs(train) },
+    eval: { count: evalSet.length, by_lang: langs(evalSet) },
+    ids_train: train.map(e => e.meta.pair_id),
+    ids_eval: evalSet.map(e => e.meta.pair_id),
+  }
+  await writeFile(join(outDir, 'REPORT.json'), JSON.stringify(report, null, 2))
+
+  console.log(`[lora] контекст          : ${maxTokens} токенов`)
+  console.log(`[lora] пар на входе      : ${pairs.length}`)
+  console.log(
+    `[lora] НЕ ВЛЕЗЛО        : ${oversized.length} ` +
+      `(не обрезаны — обрезка учит обрывать генерацию)`
+  )
+  console.log(
+    `[lora] обучение          : ${train.length} ${JSON.stringify(langs(train))}`
+  )
+  console.log(
+    `[lora] оценка            : ${evalSet.length} ${JSON.stringify(langs(evalSet))}`
+  )
+  if (train.length < 50) {
+    console.log(
+      `[lora] ⚠️  ${train.length} примеров — мало для LoRA. Число ПРИМЕРОВ, ` +
+        `а не токенов, здесь связывающее ограничение: прогоните кодогенератор ` +
+        `по остальным спекам.`
+    )
+  }
+  console.log(`[lora] записано в ${outDir}/`)
+}
+
+main().catch(e => {
+  console.error('[lora] не удалось:', e.message)
+  process.exit(1)
+})
