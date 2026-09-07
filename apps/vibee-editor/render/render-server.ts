@@ -30,6 +30,8 @@ import {
 } from './src/lib/remoteMediaDuration'
 import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
+import { отчитаться } from './src/hive/queen-report'
+import { отправитьВTelegram } from './src/auth/telegram-sender'
 import {
   readRenderQuota,
   reserveRenderQuota,
@@ -2253,6 +2255,53 @@ setInterval(() => {
     }
   }
 }, 60 * 1000)
+
+/*
+ * ОТЧЁТ КОРОЛЕВЫ — ЕДИНСТВЕННЫЙ ЧИТАТЕЛЬ ЖУРНАЛА, КОТОРЫЙ ПРИХОДИТ САМ.
+ *
+ * Пульс в чате агента отвечает, когда его спрашивают. Этого мало: владелец
+ * просил «реагировать вовремя», а вовремя — значит не дожидаясь вопроса.
+ *
+ * В trios лежат два append-only журнала с нулём читателей. Разница между ними
+ * и этим — вот этот таймер.
+ *
+ * ПРОВЕРЯЕМ ЧАСТО, ПИШЕМ РЕДКО. Тик раз в десять минут; тревога уходит
+ * немедленно, обычные события копятся и приходят пачкой не чаще, чем раз в
+ * три часа (ПАУЗА_МЕЖДУ_ОБЫЧНЫМИ_МИНУТ). Курсор в базе, а не в памяти:
+ * у этого проекта на Railway нет томов, и деплой стирает всё локальное.
+ */
+setInterval(() => {
+  void (async () => {
+    try {
+      const итог = await отчитаться(getPool(), async (кому, текст) => {
+        try {
+          await отправитьВTelegram(кому, текст)
+          return true
+        } catch (e) {
+          // Возвращаем false, а НЕ бросаем: от этого значения зависит, двинуть
+          // ли курсор. Брошенное исключение потеряло бы события навсегда.
+          console.warn(
+            '[улей] отчёт не доставлен:',
+            e instanceof Error ? e.message : String(e)
+          )
+          return false
+        }
+      })
+      if (итог.что === 'смотрителей нет') {
+        // Раз в тик — но говорим. Без HIVE_KEEPERS отчёты не работают, и это
+        // настройка, а не поломка; молчание тут неотличимо от «всё тихо».
+        console.warn(
+          '[улей] HIVE_KEEPERS не задан — отчитываться некому, отчёты выключены'
+        )
+      } else if (итог.что === 'отправлен') {
+        console.log(`[улей] отчёт отправлен: событий ${итог.событий}`)
+      }
+    } catch (e) {
+      // Отчёт — наблюдение. Его падение не должно ронять сервер рендера.
+      console.error('[улей] отчёт упал:', e)
+    }
+  })()
+}, 10 * 60 * 1000)
 
 // Resolve media path to absolute file path
 function resolveMediaPath(mediaPath: string): string {
