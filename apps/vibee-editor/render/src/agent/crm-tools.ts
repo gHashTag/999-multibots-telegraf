@@ -245,6 +245,9 @@ function карточка(ч: Человек) {
  * lines and keeps every new file free of them.
  */
 export const visibleScope = областьВидимости // cyrillic-ok: pre-existing name
+export const whoPaid = платившие // cyrillic-ok: pre-existing name
+export const audienceOf = люди // cyrillic-ok: pre-existing name
+export type Person = Человек // cyrillic-ok: pre-existing name
 export const askSupabase = запрос // cyrillic-ok: pre-existing name
 
 export const CRM_TOOLS: AgentTool[] = [

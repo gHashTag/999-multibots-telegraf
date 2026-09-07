@@ -526,3 +526,124 @@ describe('тронутых не предлагают снова', () => { // cyr
     expect(mine.set_aside_touched).toBe(0)
   })
 })
+
+describe('кто ждёт ответа', () => {
+  beforeEach(async () => {
+    const { forgetTouchTable } = await import('./src/agent/crm-touches')
+    forgetTouchTable()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** A pool whose touches carry a chosen age, so "days" is testable. */
+  const poolWith = (
+    seed: Array<{ lead: string; kind: string; daysAgo: number; owner?: string }>
+  ) => {
+    const rows = seed.map(s => ({
+      owner_id: s.owner ?? '77',
+      lead_id: s.lead,
+      kind: s.kind,
+      note: null,
+      at: new Date(Date.now() - s.daysAgo * 86400000).toISOString(),
+    }))
+    return {
+      rows,
+      query: async (sql: string, params: any[] = []) => {
+        const q = sql.replace(/\s+/g, ' ').trim()
+        if (q.startsWith('CREATE')) return { rows: [] }
+        if (q.includes('FROM crm_touches')) {
+          // The WHERE is read off the query, never repeated here -- a fake that
+          // filters on the code's behalf hides a missing condition.
+          const byOwner = q.includes('owner_id = $1')
+          return {
+            rows: rows.filter(r => !byOwner || r.owner_id === String(params[0])),
+          }
+        }
+        return { rows: [] }
+      },
+    }
+  }
+
+  it('ответивший, которому мы молчим, идёт ПЕРВЫМ', async () => {
+    /*
+     * The ordering is the product. A waiting screen that lists "we wrote and
+     * nobody answered" above "they answered and we are silent" buries the only
+     * item that costs money every day it is ignored.
+     */
+    stubNet({ '111': 'bot1', '222': 'bot1' })
+    const pool = poolWith([
+      { lead: '222', kind: 'written', daysAgo: 20 },
+      { lead: '111', kind: 'replied', daysAgo: 1 },
+    ])
+    const r: any = await tool('crm_waiting').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total).toBe(2)
+    expect(r.waiting[0].telegram_id).toBe('111')
+    expect(r.waiting[0].waiting).toBe('ours')
+  })
+
+  it('свежее «написали» не дёргает, пока не вышел срок', async () => {
+    stubNet({ '111': 'bot1' })
+    const pool = poolWith([{ lead: '111', kind: 'written', daysAgo: 1 }])
+    const r: any = await tool('crm_waiting').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total).toBe(0)
+  })
+
+  it('отказавшийся не появляется в ожидающих', async () => {
+    stubNet({ '111': 'bot1' })
+    const pool = poolWith([
+      { lead: '111', kind: 'replied', daysAgo: 1 },
+      { lead: '111', kind: 'refused', daysAgo: 5 },
+    ])
+    const r: any = await tool('crm_waiting').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total, 'сказавшего нет снова тянут в работу').toBe(0)
+  })
+
+  it('ЧУЖОЙ лид не попадает в мой список ожидания', async () => {
+    /*
+     * The touch table is per owner, but the audience filter is what stops a
+     * lead from another owner's bot appearing here if a touch ever names one.
+     */
+    stubNet({ '111': 'bot1' })
+    const pool = poolWith([
+      { lead: '111', kind: 'replied', daysAgo: 1 },
+      { lead: '999', kind: 'replied', daysAgo: 1 },
+    ])
+    const r: any = await tool('crm_waiting').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total).toBe(1)
+    expect(JSON.stringify(r.waiting)).not.toContain('999')
+  })
+
+  it('касания соседа в мой список ожидания не попадают', async () => {
+    stubNet({ '111': 'bot1' })
+    const pool = poolWith([
+      { lead: '111', kind: 'replied', daysAgo: 1, owner: 'сосед' },
+    ])
+    const r: any = await tool('crm_waiting').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total).toBe(0)
+  })
+
+  it('пустой список говорит, что это хорошо, а не молчит', async () => {
+    // An empty screen with no words reads as broken. This one is a result.
+    stubNet({ '111': 'bot1' })
+    const r: any = await tool('crm_waiting').handler(
+      {},
+      { telegramId: '77', pool: poolWith([]) } as any
+    )
+    expect(r.total).toBe(0)
+    expect(String(r.what_to_do)).toContain('хорошая новость')
+  })
+})

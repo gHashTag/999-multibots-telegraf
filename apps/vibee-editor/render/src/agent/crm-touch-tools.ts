@@ -18,13 +18,23 @@
  */
 
 import type { AgentTool, ToolContext } from './tools'
-import { visibleScope, askSupabase } from './crm-tools'
+import { visibleScope, askSupabase, whoPaid, audienceOf } from './crm-tools'
+import { stageOf, waitingOn, type Stage } from './crm-stages'
 import {
   recordTouch,
   touchesFor,
+  touchesByLead,
   TOUCH_KINDS,
   type TouchKind,
 } from './crm-touches'
+
+/** Days since an ISO timestamp, or null when it cannot be read. */
+function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null
+  const t = Date.parse(String(iso))
+  if (Number.isNaN(t)) return null
+  return Math.floor((Date.now() - t) / 86400000)
+}
 
 interface LeadRow {
   telegram_id: string | number
@@ -157,4 +167,104 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       }
     },
   },
+
+  {
+    name: 'crm_waiting',
+    description:
+      'Кто ждёт ОТВЕТА, а не «кому можно написать». Три вида: ours — человек ответил, а мы молчим ' +
+      '(самое дорогое); theirs — мы написали и тишина; due — просил вернуться позже, и позже настало. ' +
+      'Стадия и причина считаются из фактов, руками ничего не проставляется. Ничего не отправляет.',
+    parameters: {
+      type: 'object',
+      properties: {
+        no_answer_after_days: {
+          type: 'number',
+          description: 'через сколько дней тишины считать, что ответа нет (по умолчанию 3)',
+        },
+        later_after_days: {
+          type: 'number',
+          description: 'через сколько дней возвращать тех, кто просил позже (по умолчанию 14)',
+        },
+      },
+    },
+    async handler(a: Record<string, any>, ctx) {
+      const scope = await visibleScope(ctx)
+      if (!ctx?.pool) return { waiting: [], why: 'память недоступна' }
+
+      const noAnswerAfterDays =
+        Number(a?.no_answer_after_days) > 0
+          ? Math.floor(Number(a.no_answer_after_days))
+          : 3
+      const laterAfterDays =
+        Number(a?.later_after_days) > 0
+          ? Math.floor(Number(a.later_after_days))
+          : 14
+
+      const [people, paid, touches] = await Promise.all([
+        audienceOf(scope),
+        whoPaid(),
+        touchesByLead(ctx.pool as never, String(ctx.telegramId)),
+      ])
+
+      /*
+       * Only people this owner has actually touched can be waiting: waiting is
+       * a property of a conversation, and there is no conversation with
+       * somebody nobody has written to. Starting from the touch table rather
+       * than from the audience also keeps this cheap -- the audience is
+       * thousands of rows, the touched are dozens.
+       */
+      const known = new Map(people.map(p => [String(p.telegram_id), p]))
+      const out: Array<Record<string, unknown>> = []
+      for (const [leadId, list] of touches) {
+        const person = known.get(leadId)
+        // Outside the caller's visibility, or gone from `users` entirely.
+        if (!person) continue
+        const quietDays = daysSince(person.updated_at)
+        const w = waitingOn({
+          paid: paid.has(leadId),
+          touches: list,
+          quietDays,
+          noAnswerAfterDays,
+          laterAfterDays,
+        })
+        if (!w) continue
+        const st = stageOf({ paid: paid.has(leadId), touches: list, quietDays })
+        out.push({
+          telegram_id: leadId,
+          name: person.first_name || null,
+          link: person.username ? `https://t.me/${person.username}` : null,
+          bot: person.bot_name || null,
+          waiting: w.waiting,
+          days: w.days,
+          stage: st.stage,
+          because: w.because,
+        })
+      }
+
+      /*
+       * Ours first, then oldest. The one thing on this screen that costs money
+       * every day it is ignored is somebody who answered and got silence.
+       */
+      const rank: Record<string, number> = { ours: 0, due: 1, theirs: 2 }
+      out.sort(
+        (x, y) =>
+          (rank[String(x.waiting)] ?? 9) - (rank[String(y.waiting)] ?? 9) ||
+          Number(y.days) - Number(x.days)
+      )
+
+      return {
+        total: out.length,
+        ours: out.filter(x => x.waiting === 'ours').length,
+        due: out.filter(x => x.waiting === 'due').length,
+        theirs: out.filter(x => x.waiting === 'theirs').length,
+        waiting: out.slice(0, 50),
+        what_to_do:
+          out.length === 0
+            ? 'Никто не ждёт ответа. Это хорошая новость, а не пустой экран.'
+            : 'Начни с ours: человек ответил, а мы молчим — это дороже всего. ' +
+              'Отправку владелец подтверждает сам, и после неё запиши crm_touch.',
+      }
+    },
+  },
+
 ]

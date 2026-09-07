@@ -202,3 +202,42 @@ export async function touchesFor(
     return []
   }
 }
+
+/**
+ * Every touch this owner has, grouped by lead, newest first inside each group.
+ *
+ * One query rather than one per lead: the waiting list asks about every person
+ * an owner has ever touched, and a query per person turns opening a screen into
+ * a hundred round trips.
+ *
+ * Capped, because an owner with years of history should not pull all of it to
+ * answer "who is waiting today". The cap is on ROWS, and the rows are ordered
+ * newest first, so what falls off the end is the oldest history -- which does
+ * not change who is waiting now.
+ */
+export async function touchesByLead(
+  pool: Pool,
+  owner: string,
+  maxRows = 5000
+): Promise<Map<string, Array<{ kind: TouchKind; at: string }>>> {
+  const out = new Map<string, Array<{ kind: TouchKind; at: string }>>()
+  try {
+    if (!owner) return out
+    await ensureTable(pool)
+    const r = await pool.query(
+      `SELECT lead_id, kind, at FROM crm_touches
+        WHERE owner_id = $1
+        ORDER BY at DESC LIMIT $2`,
+      [String(owner), Math.max(1, Math.floor(maxRows))]
+    )
+    for (const row of r.rows ?? []) {
+      const id = String(row.lead_id)
+      const list = out.get(id) ?? []
+      list.push({ kind: row.kind as TouchKind, at: String(row.at) })
+      out.set(id, list)
+    }
+    return out
+  } catch {
+    return out
+  }
+}
