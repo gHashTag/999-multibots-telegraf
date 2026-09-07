@@ -24,51 +24,129 @@ const { readFileSync, existsSync, unlinkSync } = require('fs')
 const { resolve } = require('path')
 
 const root = resolve(__dirname, '..')
+
+/*
+ * Before anything else: a git hook does not inherit a shell setup, and on this
+ * machine its PATH resolves an old Node that cannot load vite. The gate then
+ * blocks with an ESM stack trace and no broken test in sight -- and the push
+ * goes through with --no-verify. See scripts/lib/usable-node.cjs.
+ */
+require('./lib/usable-node.cjs').ensureUsableNode(__filename, root)
 const BASELINE = resolve(root, 'scripts', 'tests-baseline.json')
 const OUT = resolve(root, 'node_modules', '.cache', 'test-guard.json')
 
-const declared = process.argv.slice(2).filter(f => /\.(ts|tsx|js|jsx)$/.test(f))
+/**
+ * WHAT THIS PUSH ACTUALLY CARRIES.
+ *
+ * lefthook's `{push_files}` is empty when the branch has no counterpart on the
+ * remote, and lefthook then SKIPS the command entirely -- "(skip) no files for
+ * inspection", before this script is ever started. Verified 2026-09-07 with a
+ * dry-run push to a fresh ref.
+ *
+ * That is the worst possible moment to check nothing: the FIRST push of a
+ * feature branch is the one carrying every commit on it. The gate looked
+ * healthy in the summary and had inspected zero files.
+ *
+ * So the range is computed here instead of being handed in. Explicit arguments
+ * still win -- the script is also run by hand with a file list -- and this only
+ * fills the gap when nothing was passed.
+ */
+function filesBeingPushed() {
+  const git = (...a) => {
+    try {
+      // stderr is discarded: "no upstream configured" is an ANSWER here, not a
+      // fault, and git's fatal printed above our own report reads as a broken
+      // gate.
+      return execFileSync('git', a, {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim()
+    } catch {
+      return null
+    }
+  }
+
+  // The branch's own remote counterpart, when it has one: everything between
+  // it and HEAD is exactly what the push adds.
+  let base = null
+  const upstream = git(
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{upstream}'
+  )
+  if (upstream && git('rev-parse', '--verify', '--quiet', upstream)) {
+    base = upstream
+  }
+
+  /*
+   * No counterpart -- a new branch. Compare against where it left the default
+   * branch. `merge-base` rather than `origin/main` itself: the range must
+   * describe what THIS branch adds, not everything that landed on main while it
+   * was being written.
+   */
+  if (!base) base = git('merge-base', 'origin/main', 'HEAD')
+  if (!base) return []
+
+  const out = git('diff', '--name-only', `${base}..HEAD`)
+  return out ? out.split('\n').filter(Boolean) : []
+}
 
 /**
- * Intersect what was handed in with what actually differs from origin/main.
+ * A HANDED-IN LIST CAN BE WRONG IN THE OPPOSITE DIRECTION.
  *
- * WHY. On the FIRST push of a new branch the remote ref does not exist, so
- * lefthook fills `{push_files}` with the ENTIRE repository. `vitest related`
- * then gets hundreds of paths and does not start at all -- and the gate stops
- * the push saying "tests failed", when not one test ran. Hit twice in one
- * shift on an untouched repository.
+ * This first-push bug was fixed twice, independently, from two different
+ * configs -- and BOTH reports were accurate:
  *
- * On an ordinary push this is a no-op: the files already come from the diff.
- * On a new branch it collapses the repository to the real change.
+ *   with `glob:` and `{push_files}` in lefthook.yml, a branch with no remote
+ *   counterpart made lefthook hand over the ENTIRE repository. `vitest related`
+ *   got hundreds of paths, never started, and the gate stopped the push saying
+ *   "tests failed" when not one test had run;
+ *
+ *   with both removed -- what lefthook.yml does now -- the computed list is
+ *   EMPTY instead, and lefthook skips the command before this script starts.
+ *
+ * The config passes nothing today, so `filesBeingPushed()` above is the live
+ * path. This narrowing stays for the other case: it costs one `git diff`, and
+ * it is what stands between a re-added `{push_files}` and a gate that blocks
+ * every push on a fresh branch.
  *
  * If git does not answer, the declared list is used unchanged. A gate has no
  * business quietly passing because of its own failure.
  */
-let files = declared
-try {
-  const changed = execFileSync(
-    'git',
-    ['diff', '--name-only', 'origin/main...HEAD'],
-    { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-  )
-    .split('\n')
-    .map(s => s.trim())
-    .filter(Boolean)
-  if (changed.length) {
-    const mine = new Set(changed)
-    const both = declared.filter(f => mine.has(f))
-    if (both.length !== declared.length) {
-      console.log(
-        `[tests] handed ${declared.length} files, this branch changes ` +
-          `${both.length} -- checking those`
-      )
-    }
-    files = both
+function narrowToBranch(declared) {
+  let changed
+  try {
+    changed = execFileSync(
+      'git',
+      ['diff', '--name-only', 'origin/main...HEAD'],
+      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean)
+  } catch {
+    return declared // git did not answer -- go with what was given.
   }
-} catch {
-  // git did not answer -- go with what was given.
+  if (!changed.length) return declared
+
+  const mine = new Set(changed)
+  const both = declared.filter(f => mine.has(f))
+  if (both.length !== declared.length) {
+    console.log(
+      `[tests] handed ${declared.length} files, this branch changes ` +
+        `${both.length} -- checking those`
+    )
+  }
+  return both
 }
 
+const isCode = f => /\.(ts|tsx|js|jsx)$/.test(f)
+const passed = process.argv.slice(2).filter(isCode)
+const files = passed.length
+  ? narrowToBranch(passed)
+  : filesBeingPushed().filter(isCode)
 if (files.length === 0) {
   console.log('[тесты] в push нет файлов с кодом — проверять нечего')
   process.exit(0)

@@ -26,11 +26,45 @@ export interface Provider {
   key: string
   /** Умеет ли отдавать поток размышления отдельным полем. */
   thinking: boolean
+  /**
+   * Can this model actually LOOK at an image?
+   *
+   * Measured against the live endpoints on 2026-09-07, not read off the model
+   * name. Both z.ai models refuse the shape outright:
+   *
+   *   HTTP 400 {"code":"1210","message":"messages.content.type is invalid,
+   *             allowed values: ['text']"}
+   *
+   * and the coding endpoint's catalogue has no vision model to switch to --
+   * ten ids, glm-4.5 through glm-5.3-flash, all text. Nemotron answered 200
+   * and named the colour of a solid-red and a solid-blue PNG differently, so
+   * it is reading pixels rather than guessing.
+   */
+  vision: boolean
+  /**
+   * Can this model HEAR an attached recording?
+   *
+   * Kept apart from `vision` on purpose. Today one provider happens to do both,
+   * so a single flag would work and would be a coincidence -- the next provider
+   * with sight and no hearing would silently send voice to a model that cannot
+   * listen, and the person would get a confident answer about nothing.
+   *
+   * Measured the same way: nemotron transcribed a generated sentence word for
+   * word from ogg, mp3, wav and m4a. The z.ai models refuse any non-text part.
+   */
+  audio: boolean
 }
 
 const CATALOG: Record<
   ProviderId,
-  { base: string; env: string; model: string; thinking: boolean }
+  {
+    base: string
+    env: string
+    model: string
+    thinking: boolean
+    vision: boolean
+    audio: boolean
+  }
 > = {
   // z.ai — КОДЕРСКИЙ эндпоинт, а не обычный pay-as-you-go.
   //
@@ -45,6 +79,9 @@ const CATALOG: Record<
     env: 'GLM_API_KEY',
     model: 'glm-5.3',
     thinking: true,
+    // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
+    vision: false,
+    audio: false,
   },
   /**
    * Запасной — ТОЖЕ z.ai, только более лёгкой моделью.
@@ -63,6 +100,9 @@ const CATALOG: Record<
     env: 'GLM_API_KEY',
     model: 'glm-4.5',
     thinking: false,
+    // Same endpoint, same refusal.
+    vision: false,
+    audio: false,
   },
   /**
    * NVIDIA NIM — запасной, когда z.ai упирается в лимит.
@@ -83,6 +123,12 @@ const CATALOG: Record<
     env: 'NVIDIA_API_KEY',
     model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
     thinking: false,
+    // Answers 200 with an image part, and streaming plus tool schemas work
+    // alongside it. The only sighted provider configured here.
+    vision: true,
+    // Transcribes ogg, mp3, wav and m4a -- but ONLY via `audio_url`.
+    // `input_audio` returns 200 and silently ignores the sound.
+    audio: true,
   },
 }
 
@@ -135,6 +181,8 @@ export function allProviders(): Provider[] {
       model: (id === order[0] && process.env.AGENT_MODEL) || c.model,
       key,
       thinking: c.thinking,
+      vision: c.vision,
+      audio: c.audio,
     })
   }
   return out
@@ -189,6 +237,8 @@ export function resolveProvider(): Provider {
         // и подставить его туда — верный способ получить 404 вместо ответа.
         model: (id === order[0] && process.env.AGENT_MODEL) || c.model,
         key,
+        vision: c.vision,
+        audio: c.audio,
         thinking: c.thinking,
       }
     }

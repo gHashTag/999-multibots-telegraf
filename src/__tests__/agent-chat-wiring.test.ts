@@ -69,7 +69,9 @@ describe('the agent middleware takes files, not only text', () => {
   })
 
   it('it builds the agent message through the shared builder', () => {
-    expect(CODE).toContain('buildAgentMessage(ctx.telegram, ctx.message)')
+    // The call takes the gathered album parts now, not a single message --
+    // see the album block below.
+    expect(CODE).toContain('buildAgentTurn(ctx.telegram, albumParts)')
   })
 
   it('a refusal is spoken to the person rather than swallowed', () => {
@@ -110,5 +112,39 @@ describe('the fallback answer is recorded', () => {
   it('recording never blocks or breaks the reply', () => {
     expect(CODE).toMatch(/void recordTurns\(/)
     expect(CODE).not.toMatch(/await recordTurns\(/)
+  })
+})
+
+/**
+ * THE ALBUM IS GATHERED BEFORE THE AGENT IS ASKED.
+ *
+ * Telegram delivers several photos as separate updates. Without the buffer the
+ * middleware answered each one, so an album of five produced five trips to the
+ * model and five replies.
+ */
+describe('an album becomes one turn', () => {
+  it('the middleware gathers parts before building the turn', () => {
+    expect(CODE).toContain('albums.collect(')
+  })
+
+  /*
+   * The later parts MUST stop. If they carried on, the album would be answered
+   * once per photo -- the very bug the buffer exists to remove.
+   */
+  it('a part that was absorbed stops instead of answering', () => {
+    expect(CODE).toMatch(/if \(!albumParts\) return/)
+  })
+
+  it('the turn is built from all the parts, not from one message', () => {
+    expect(CODE).toContain('buildAgentTurn(ctx.telegram, albumParts)')
+    expect(CODE).not.toContain('buildAgentMessage(ctx.telegram, ctx.message)')
+  })
+
+  /*
+   * One buffer for the bot, keyed by chat: a per-chat map would be a second
+   * thing to clean up after somebody leaves.
+   */
+  it('the buffer is keyed by chat, so two people do not share an album', () => {
+    expect(CODE).toMatch(/albums\.collect\(\s*String\(ctx\.chat\?\.id/)
   })
 })
