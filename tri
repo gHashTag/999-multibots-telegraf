@@ -361,6 +361,7 @@ LOOP TOOLING
 
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
+  tri кнопки [--json]     rendered callback ids against every catcher, both ways
   tri help
 СПРАВКА
 }
@@ -3722,6 +3723,7 @@ case "$action" in
   mint|минт)           cmd_mint "$@" ;;
   stepjump|шаг)        cmd_stepjump "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
+  buttons|кнопки)      node "$ROOT/scripts/button-census.cjs" "${@:2}" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;

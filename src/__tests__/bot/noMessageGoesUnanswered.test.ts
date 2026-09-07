@@ -76,8 +76,14 @@ const botWith = (middle?: (ctx: any, next: any) => any) => {
   })
   bot.use(replyWitness)
   bot.use(session())
-  if (middle) bot.use(middle as any)
+  /*
+   * The net goes in BEFORE the handlers, exactly as registerCommands does it:
+   * it awaits the rest of the chain and decides afterwards. Registered behind
+   * a handler that answers and does not call next(), it would never run at all
+   * -- which is the case where a press was handled but never answered.
+   */
   bot.use(silenceNet as any)
+  if (middle) bot.use(middle as any)
   return { bot, sent, errors }
 }
 
@@ -193,6 +199,37 @@ describe('the net does not talk over anybody', () => {
     expect(sent.filter(s => s.method === 'sendMessage')).toHaveLength(0)
   })
 
+  /**
+   * THE REGRESSION THIS POSITION FIXES.
+   *
+   * The net used to decide BEFORE calling next(), and `setupStatsCommand` is
+   * registered after registerCommands in both bootstraps. So `/admin_sub`
+   * reached the net before its real handler, and an admin got the puzzled
+   * sentence first and the actual answer second.
+   */
+  it('lets a handler registered AFTER it answer first, and then says nothing', async () => {
+    const { bot, sent } = botWith()
+    bot.use(async (ctx: any) => {
+      await ctx.reply('the real answer, from a later handler')
+    })
+    await bot.handleUpdate(update({ text: '/admin_sub' }) as any)
+    const messages = sent.filter(s => s.method === 'sendMessage')
+    expect(messages).toHaveLength(1)
+    expect(messages[0].payload.text).toBe(
+      'the real answer, from a later handler'
+    )
+  })
+
+  /** A handler that throws must still leave the person with something. */
+  it('still answers when a downstream handler throws', async () => {
+    const { bot, sent } = botWith()
+    bot.use(async () => {
+      throw new Error('downstream exploded')
+    })
+    await bot.handleUpdate(update({ text: 'anything' }) as any)
+    expect(sent.filter(s => s.method === 'sendMessage')).toHaveLength(1)
+  })
+
   it('passes the update on, so handlers registered after it still run', async () => {
     const { bot, sent } = botWith()
     let reachedAfter = false
@@ -228,16 +265,14 @@ describe('the pair is wired at the two ends of the chain', () => {
   })
 
   /**
-   * Half of the evidence that nobody answered is that the net was reached at
-   * all. A registration added after it would take that away silently.
+   * REGISTERED FIRST, DECIDING LAST — and both halves matter.
    *
-   * Only the BODY of `registerCommands` is scanned, and that is not a detail:
-   * the first version of this check read the whole file and failed, because
-   * every `bot.hears` label lives in a function DEFINED near the bottom and
-   * CALLED at the top (`initializeNavigation`, line ~209). Position in a file
-   * is not registration order, and reading it as such accused correct code.
+   * The nets await the rest of the chain and only then ask whether anybody
+   * answered. That is why they go in EARLY: a handler that answers and does not
+   * call next() terminates the chain, so a net standing behind it never runs at
+   * all. The previous version was registered last and lost exactly that case.
    */
-  it('registers the net after every other handler in this function', () => {
+  it('registers both nets before anything that could answer', () => {
     const start = CODE.indexOf(
       'export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {'
     )
@@ -247,21 +282,57 @@ describe('the pair is wired at the two ends of the chain', () => {
     expect(end).toBeGreaterThan(0)
     const BODY = rest.slice(0, end)
 
-    const net = BODY.indexOf('bot.use(silenceNet)')
-    expect(net).toBeGreaterThan(-1)
+    const witness = BODY.indexOf('bot.use(replyWitness)')
+    const message = BODY.indexOf('bot.use(silenceNet)')
+    const pressNet = BODY.indexOf('bot.use(deadPressNet)')
+    expect(witness).toBeGreaterThan(-1)
+    expect(message).toBeGreaterThan(witness)
+    expect(pressNet).toBeGreaterThan(message)
 
-    // The population this claim is made over, so a matcher that stops matching
-    // cannot pass as "nothing registered after the net".
-    const all = [
+    // Everything else in this function comes after the three of them.
+    const others = [
       ...BODY.matchAll(
         /bot\.(use|on|hears|command|action)\(|\w+\(\s*bot\s*[,)]/g
       ),
     ]
-    expect(all.length).toBeGreaterThan(4)
+      .map(m => m.index ?? -1)
+      .filter(i => i !== witness && i !== message && i !== pressNet)
+    expect(others.length).toBeGreaterThan(4)
+    expect(others.filter(i => i < pressNet)).toEqual([])
+  })
 
-    const later = all
-      .map(match => match.index ?? -1)
-      .filter(index => index > net + 'bot.use(silenceNet)'.length)
-    expect(later).toEqual([])
+  /**
+   * The decision must sit AFTER the await. A net that decides first is a
+   * different, weaker thing wearing the same name, and nothing else here would
+   * notice: the easy cases keep passing.
+   */
+  it('each net awaits the chain before it decides', () => {
+    // Comments stripped: the prose in this very file explains the `finally`,
+    // and a search over the raw text finds the explanation before the code.
+    const SRC = fs
+      .readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          '..',
+          'navigation',
+          'middleware',
+          'noSilence.ts'
+        ),
+        'utf8'
+      )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+    for (const name of ['silenceNet', 'deadPressNet']) {
+      const at = SRC.indexOf(`export const ${name} =`)
+      expect(at, `${name} must exist`).toBeGreaterThan(-1)
+      const body = SRC.slice(at, at + 1200)
+      const awaitNext = body.indexOf('await next()')
+      expect(awaitNext, `${name} must await the chain`).toBeGreaterThan(-1)
+      expect(
+        body.indexOf('finally'),
+        `${name} must decide in a finally`
+      ).toBeGreaterThan(awaitNext)
+    }
   })
 })

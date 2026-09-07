@@ -684,7 +684,12 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      if (callbackData === 'back') {
+      /*
+       * Two ids, one Back button. The keyboard at :550 and :613 sends
+       * `back_to_competitors`; this check only knew `back`, so the arrow at the
+       * end of step two spun and stopped. Same intent, same step back.
+       */
+      if (callbackData === 'back' || callbackData === 'back_to_competitors') {
         console.log('🚨 [DEBUG] Back selected - going to previous step')
         await ctx.answerCbQuery()
         return ctx.wizard.back()
