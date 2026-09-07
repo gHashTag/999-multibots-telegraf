@@ -146,6 +146,100 @@ enum API {
   }
 
   /**
+   * ЖДУТ ОДОБРЕНИЯ — единственное место, где видно свой НЕОДОБРЕННЫЙ ролик.
+   *
+   * Агент публикует сам, и владелец просил обратного: в ленте только
+   * одобренное. «Публиковать скрыто» без этого раздела было нельзя — ВСЕ
+   * чтения фильтруют `is_public = TRUE`, и такой ролик стал бы невидим и
+   * АВТОРУ: одобрять негде, работа автопилота исчезает молча.
+   *
+   * В вебе раздел есть с самого начала; на телефоне его не было, то есть
+   * владелец, живущий в приложении, не узнавал о сделанном агентом ВООБЩЕ.
+   *
+   * Все поля кроме `id` необязательные: строгое поле роняет весь разбор на
+   * первой же записи без описания, и человек вместо списка видит пустоту.
+   */
+  struct Ожидающий: Decodable, Identifiable {
+    let id: Int
+    let name: String?
+    let description: String?
+    let thumbnail_url: String?
+    let video_url: String?
+    let created_at: String?
+
+    /*
+     * `id` ПРИХОДИТ СТРОКОЙ. Измерено на живом ответе: `{"id":"51",…}`.
+     *
+     * Объявленный `Int` ронял разбор целиком, и список оказывался ПУСТЫМ —
+     * раздел выглядел бы рабочим и всегда пустым, а это худший вид поломки:
+     * жаловаться не на что.
+     *
+     * Принимаем оба вида: сегодня строка, но соседние маршруты этого же
+     * сервера отдают число, и жёсткий выбор одного развалится при первой же
+     * правке на той стороне.
+     */
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      if let число = try? c.decode(Int.self, forKey: .id) {
+        id = число
+      } else {
+        let строка = try c.decode(String.self, forKey: .id)
+        guard let число = Int(строка) else {
+          throw DecodingError.dataCorruptedError(
+            forKey: .id, in: c, debugDescription: "id не число: \(строка)")
+        }
+        id = число
+      }
+      name = try? c.decode(String.self, forKey: .name)
+      description = try? c.decode(String.self, forKey: .description)
+      thumbnail_url = try? c.decode(String.self, forKey: .thumbnail_url)
+      video_url = try? c.decode(String.self, forKey: .video_url)
+      created_at = try? c.decode(String.self, forKey: .created_at)
+    }
+
+    enum CodingKeys: String, CodingKey {
+      case id, name, description, thumbnail_url, video_url, created_at
+    }
+  }
+
+  static func ожидаютОдобрения() async throws -> [Ожидающий] {
+    var r = URLRequest(url: base.appendingPathComponent("api/feed/pending"))
+    r.httpMethod = "GET"
+    let (d, http) = try await сЛичностью(r)
+    guard http.statusCode == 200 else {
+      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+    }
+    /*
+     * ФОРМА ОТВЕТА ИЗМЕРЕНА, А НЕ УГАДАНА.
+     *
+     * Первая версия ждала `items` или голый массив. Сервер отдаёт
+     * `{ success, templates }` (render-server.ts, маршрут /api/feed/pending) —
+     * и разбор молча возвращал ПУСТОЙ список. Раздел выглядел бы рабочим и
+     * всегда пустым: худший вид поломки, потому что жаловаться не на что.
+     *
+     * Запасная ветка на голый массив оставлена: она ничего не стоит и
+     * переживёт смену обёртки.
+     */
+    struct Ответ: Decodable { let templates: [Ожидающий]? }
+    if let о = try? JSONDecoder().decode(Ответ.self, from: d), let т = о.templates {
+      return т
+    }
+    return (try? JSONDecoder().decode([Ожидающий].self, from: d)) ?? []
+  }
+
+  /// Опубликовать. Бросает — значит НЕ опубликовано, и карточка остаётся.
+  static func одобрить(id: Int) async throws {
+    var r = URLRequest(url: base.appendingPathComponent("api/feed/approve"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    r.httpBody = try JSONSerialization.data(withJSONObject: ["id": id])
+    let (_, http) = try await сЛичностью(r)
+    guard http.statusCode == 200 else {
+      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+    }
+  }
+
+  /**
    * SOUL — визитка человека, которую читают и люди, и агенты.
    *
    * Тот же адрес, что у веба (`SoulCard.tsx:76`): один источник, иначе два

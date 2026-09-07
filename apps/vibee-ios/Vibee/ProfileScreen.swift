@@ -109,6 +109,11 @@ struct ProfileScreen: View {
   /// Визитка человека. `nil` — её просто нет, и это обычный случай.
   @State private var soul: String?
   @State private var soulРазвёрнут = false
+  /// Ролики агента, ждущие одобрения. Пусто — их правда нет.
+  @State private var ожидают: [API.Ожидающий] = []
+  /// id того, который сейчас публикуется: кнопка не должна нажиматься дважды.
+  @State private var публикую: Int?
+  @State private var ошибкаОдобрения: String?
 
   var body: some View {
     ScrollView {
@@ -147,6 +152,17 @@ struct ProfileScreen: View {
             if Identity.telegramId != nil {
               ConnectTelegramView()
             }
+            /*
+             * ЖДУТ ОДОБРЕНИЯ — НАД «Роликами», а не под ними.
+             *
+             * В вебе этот раздел стоит сразу за «Шаблонами» (ProfileTabs.tsx:
+             * templates → pending), и порядок там осмысленный: сначала то, что
+             * ТРЕБУЕТ ДЕЙСТВИЯ, потом то, что просто лежит.
+             *
+             * Здесь то же: сделанное агентом ждёт решения, и прятать его под
+             * ленту своих роликов значило бы, что человек до него не долистает.
+             */
+            ждутОдобрения
             сетка
           }
         }
@@ -441,6 +457,93 @@ struct ProfileScreen: View {
     }
   }
 
+  /**
+   * Раздел одобрения. Пустой — НЕ показывается вовсе.
+   *
+   * Пустой блок с заголовком читается как поломка («почему тут ничего?»), а
+   * объяснять «агент пока ничего не сделал» на главном экране профиля значит
+   * занимать место рассказом о небытии. В вебе объяснение уместно: там это
+   * ОТДЕЛЬНАЯ вкладка, куда человек зашёл нарочно и вправе узнать, почему
+   * пусто. Здесь раздел один из многих в общей прокрутке.
+   */
+  @ViewBuilder private var ждутОдобрения: some View {
+    if !ожидают.isEmpty {
+      VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
+        Text("Ждут одобрения · \(ожидают.count)")
+          .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+          .foregroundStyle(Тема.Профиль.текст)
+        Text("Это сделал агент. В ленту попадёт только то, что вы одобрите.")
+          .font(Тема.Шрифт.стиль(.caption))
+          .foregroundStyle(Тема.Профиль.текстПриглушённый)
+          .fixedSize(horizontal: false, vertical: true)
+
+        ForEach(ожидают) { п in
+          HStack(alignment: .top, spacing: Тема.Отступ.xs) {
+            обложкаОжидающего(п)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(п.name ?? "Без названия")
+                .font(Тема.Шрифт.стиль(.footnote, .medium))
+                .foregroundStyle(Тема.Профиль.текст)
+                .lineLimit(2)
+              if let о = п.description, !о.isEmpty {
+                Text(о)
+                  .font(Тема.Шрифт.стиль(.caption))
+                  .foregroundStyle(Тема.Профиль.текстВторичный)
+                  .lineLimit(2)
+              }
+            }
+            Spacer(minLength: 0)
+            Button(публикую == п.id ? "Публикую…" : "Опубликовать") {
+              Task { await одобрить(п.id) }
+            }
+            .disabled(публикую != nil)
+            .buttonStyle(Тема.Пилюля(цвет: Тема.Профиль.акцент, заливка: .clear))
+            .frame(minHeight: 44)
+          }
+        }
+
+        if let ошибкаОдобрения {
+          Text(ошибкаОдобрения)
+            .font(Тема.Шрифт.стиль(.caption))
+            .foregroundStyle(Тема.Профиль.красный)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder private func обложкаОжидающего(_ п: API.Ожидающий) -> some View {
+    AsyncImage(url: п.thumbnail_url.flatMap(URL.init(string:))) { фаза in
+      if case .success(let img) = фаза {
+        img.resizable().scaledToFill()
+      } else {
+        Тема.Профиль.поверхность
+      }
+    }
+    .frame(width: 56, height: 84)
+    .clipShape(RoundedRectangle(cornerRadius: Тема.Профиль.радиусПоля))
+  }
+
+  /**
+   * Одобрить. Карточка исчезает ТОЛЬКО после успеха.
+   *
+   * Убрать её сразу «для отзывчивости» значило бы сказать «опубликовано» там,
+   * где публикации не было: человек уходит с экрана уверенным, а ролик лежит
+   * дальше — и второй раз он туда уже не заглянет.
+   */
+  private func одобрить(_ id: Int) async {
+    ошибкаОдобрения = nil
+    публикую = id
+    defer { публикую = nil }
+    do {
+      try await API.одобрить(id: id)
+      ожидают.removeAll { $0.id == id }
+    } catch {
+      ошибкаОдобрения = "Не опубликовалось: \(error.localizedDescription)"
+    }
+  }
+
   @ViewBuilder private var сетка: some View {
     if ролики.isEmpty {
       подпись("Пока ни одного ролика")
@@ -543,6 +646,8 @@ struct ProfileScreen: View {
       // SOUL — третьим и так же необязательно: профиль без визитки полезен,
       // визитка без профиля бессмысленна.
       soul = try? await API.soul(username: p.username)
+      // Список ожидающих — тоже необязательно: профиль без него полезен.
+      ожидают = (try? await API.ожидаютОдобрения()) ?? []
       пакеты = await API.tokenPacks()
       // Остаток НЕ обязателен для экрана: без входа его нет, и профиль обязан
       // открыться всё равно. Поэтому отдельной попыткой и без throw наружу.
