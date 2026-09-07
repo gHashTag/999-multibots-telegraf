@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 export const sendInsufficientStarsMessage = async (
   ctx: MyContext,
@@ -12,11 +13,30 @@ export const sendInsufficientStarsMessage = async (
       return
     }
 
+    /*
+     * THE REFUSAL THAT NAMES THE PRICE MUST OFFER THE WAY TO PAY IT.
+     *
+     * This is the one message in the product where a person has already asked
+     * for a paid thing and been told the only obstacle is money -- the moment
+     * of highest intent to pay in the whole tree. It went out through
+     * `sendMessage(chatId, message)`: two arguments, so no keyboard of any
+     * kind, and the copy pointed at "the main menu" IN WORDS. That prose is
+     * the tell: the author knew a next step was needed and wrote it as a
+     * sentence instead of a button.
+     *
+     * Fixed in the shared helper rather than at its call sites, because all
+     * three of them (checkBalanceScene twice, checkUserBalance once, and
+     * checkUserBalance has callers of its own) send exactly this.
+     *
+     * The copy no longer names a destination, since the destination is now
+     * under the message. `standardButtons` puts top-up first for exactly this
+     * reason -- see actionButtonsAreLive.test.ts.
+     */
     const message = isRu
-      ? `Недостаточно звезд для генерации изображения. Ваш баланс: ${currentBalance} звезд. Пополните баланс в главном меню.`
-      : `Insufficient stars for image generation. Your balance: ${currentBalance} stars. Top up your balance in the main menu.`
+      ? `Недостаточно звезд. Ваш баланс: ${currentBalance} ⭐. Пополните — и продолжим.`
+      : `Not enough stars. Your balance: ${currentBalance} ⭐. Top up and we continue.`
 
-    await ctx.telegram.sendMessage(chatId, message)
+    await ctx.telegram.sendMessage(chatId, message, standardButtons(isRu))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
 

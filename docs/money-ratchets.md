@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 105. Без заголовка: 0.
+Ратчетов: 107. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -82,6 +82,7 @@
 | `paidServicesTableUnread.test.ts`                      | the two dollar-cost tables                                                                    |
 | `payment-record-not-silent.test.ts`                    | запись платежа                                                                                |
 | `paymentHandlerInvIdDeterministic.test.ts`             | handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry)               |
+| `paymentPairAtomicInsert.test.ts`                      | paired income+outcome payments are one atomic insert                                          |
 | `paymentTypeVocabularyComplete.test.ts`                | the money vocabulary of the refund census                                                     |
 | `processBalanceOperationNonPositive.test.ts`           | processBalanceOperation refuses a non-positive price before charging                          |
 | `processBalanceVideoHelperNonPositive.test.ts`         | processBalanceVideoOperationHelper refuses a non-positive price before charging               |
@@ -93,6 +94,7 @@
 | `refund-needs-charge.test.ts`                          | возврат требует состоявшегося списания                                                        |
 | `refund-reason.test.ts`                                | возврат денег называет причину                                                                |
 | `refundFailureIsAnnounced.test.ts`                     | a refund that failed is announced too                                                         |
+| `refusalOffersAWayToPay.test.ts`                       | the shared money refusal hands over the button, not directions                                |
 | `replicateWrapperTimeout.test.ts`                      | shared replicate.run wrapper bounds client.run with a timeout                                 |
 | `robokassa-claim-once.test.ts`                         | robokassa ResultURL credits a payment once                                                    |
 | `robokassa-order.test.ts`                              | порядок обработки оплаты                                                                      |
