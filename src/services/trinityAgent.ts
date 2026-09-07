@@ -22,6 +22,10 @@
  * видно здесь, написанное здесь — там.
  */
 import { logger } from '@/utils/logger'
+import {
+  parseAgentTaskAction,
+  type AgentTaskAction,
+} from '@/navigation/helpers/agentTaskButtons'
 
 /** Адрес прод-рендера литералом — как в postStarPaid: URL из ENV сканер
  *  считает потенциальным SSRF, а переопределения для этого вызова нет. */
@@ -38,6 +42,7 @@ export interface ОтветАгента {
   текст: string
   /** Имена вызванных инструментов — для журнала, не для показа человеку. */
   инструменты: string[]
+  actions: AgentTaskAction[]
 }
 
 function apiKey(): string {
@@ -121,6 +126,7 @@ export async function спроситьАгента(
     const части: string[] = []
     const инструменты: string[] = []
     let ошибка = ''
+    const actions: AgentTaskAction[] = []
 
     const строку = (s: string) => {
       const t = s.trim()
@@ -130,11 +136,31 @@ export async function спроситьАгента(
           тип?: string
           текст?: string
           имя?: string
+          значение?: unknown // cyrillic-ok: existing NDJSON protocol key
         }
         if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
         else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
         else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
+        if (ev['тип'] === 'результат' && ev['имя'] === 'open_app') {
+          const result = ev['значение'] as Record<string, unknown> | undefined
+          if (
+            result &&
+            typeof result === 'object' &&
+            result.ok !== false &&
+            !result.error &&
+            !result['ошибка']
+          ) {
+            const action = parseAgentTaskAction(result.action)
+            if (
+              action &&
+              actions.length < 2 &&
+              !actions.some(item => item.destination === action.destination)
+            ) {
+              actions.push(action)
+            }
+          }
+        }
       } catch {
         // Неразобранная строка — не повод терять остальные.
       }
@@ -165,7 +191,7 @@ export async function спроситьАгента(
       длина: собрано.length,
     })
 
-    return { текст: собрано, инструменты }
+    return { текст: собрано, инструменты, actions } // cyrillic-ok: existing response keys
   } finally {
     clearTimeout(таймер)
   }

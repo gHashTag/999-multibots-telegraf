@@ -36,6 +36,8 @@ import {
   РЕПЛИК_ПО_УМОЛЧАНИЮ,
 } from './conversation'
 
+const readConversation = прочитатьРазговор // cyrillic-ok: existing API
+
 /**
  * CONSTANT-TIME key comparison.
  *
@@ -419,6 +421,22 @@ export async function handleAgentChat(
     })
   }
 
+  if (body.expectedOwnerId != null && body.expectedOwnerId !== telegramId) {
+    return json(res, 409, {
+      error: 'Conversation owner changed; sign in again',
+    })
+  }
+  const currentTurn = history[history.length - 1]
+  if (
+    currentTurn?.role !== 'user' ||
+    typeof currentTurn.content !== 'string' ||
+    !currentTurn.content.trim()
+  ) {
+    return json(res, 400, {
+      error: 'messages must end with a non-empty user message',
+    })
+  }
+
   res.writeHead(200, {
     'Content-Type': 'application/x-ndjson; charset=utf-8',
     'Cache-Control': 'no-cache, no-store',
@@ -441,6 +459,20 @@ export async function handleAgentChat(
   try {
     const pool = await getPool()
 
+    // Read before appending: the newest user turn belongs in context once.
+    // A client cache may predate a bot reply, a clear, or an account switch.
+    // If storage is unavailable, answer only the current question.
+    const storedHistory = await readConversation(pool, telegramId).catch(
+      () => []
+    )
+    const context: ChatMessage[] = [
+      ...storedHistory.map(turn => ({
+        role: turn.role,
+        content: turn.content,
+      })),
+      { role: 'user', content: currentTurn.content },
+    ]
+
     /*
      * Записываем ПОСЛЕДНЮЮ реплику человека, а не всю присланную историю:
      * клиент шлёт весь свой транскрипт каждым запросом, и запись целиком
@@ -459,7 +491,7 @@ export async function handleAgentChat(
     }
 
     const события: Array<{ тип?: string; текст?: string }> = []
-    for await (const ev of runAgent(history, { telegramId, pool })) {
+    for await (const ev of runAgent(context, { telegramId, pool })) {
       события.push(ev as { тип?: string; текст?: string })
       res.write(JSON.stringify(ev) + '\n')
     }
@@ -510,6 +542,14 @@ export async function handleAgentHistoryDelete(
   telegramId: string,
   getPool: () => any
 ) {
+  const expectedOwnerId = new URL(req.url || '', 'http://x').searchParams.get(
+    'expectedOwnerId'
+  )
+  if (expectedOwnerId != null && expectedOwnerId !== telegramId) {
+    return json(res, 409, {
+      error: 'Conversation owner changed; sign in again',
+    })
+  }
   const параметры = new URL(req.url || '', 'http://x').searchParams
   const сырой = параметры.get('id')
   try {
@@ -549,7 +589,7 @@ export async function handleAgentHistory(
       telegramId,
       предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ
     )
-    return json(res, 200, { ok: true, messages: реплики })
+    return json(res, 200, { ok: true, ownerId: telegramId, messages: реплики }) // cyrillic-ok: existing local
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }

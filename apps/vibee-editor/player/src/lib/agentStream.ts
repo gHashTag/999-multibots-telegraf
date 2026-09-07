@@ -21,18 +21,21 @@
  */
 import { atom } from 'jotai'
 import { editorStore } from '@/atoms/Provider'
-import { agentMessagesAtom } from '@/atoms/agentChat'
+import { agentChatOwnerAtom, agentMessagesAtom } from '@/atoms/agentChat'
 import type { AgentAttachment, Message } from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
+import { miniAppTaskDestination } from './miniAppRoutes'
 
 /** Идёт ли ответ прямо сейчас. В атоме, а не в useState: переживает уход. */
 export const agentBusyAtom = atom(false)
 
 /** Не даём запустить второй поток поверх первого. */
 let inFlight = false
+let inFlightOwner: string | null = null
 
 function patch(agentId: string, fn: (m: Message) => Message): void {
+  if (editorStore.get(agentChatOwnerAtom) !== inFlightOwner) return
   editorStore.set(agentMessagesAtom, prev =>
     prev.map(m => (m.id === agentId ? fn(m) : m))
   )
@@ -45,7 +48,7 @@ export function isAgentBusy(): boolean {
 export function messageContentForAgent(message: Message): string {
   const oneLine = (value: string, limit: number) =>
     value
-      .replace(/[\r\n\[\]]+/g, ' ')
+      .replace(/[\r\n[\]]+/g, ' ')
       .trim()
       .slice(0, limit)
   const attachmentLines = (message.attachments ?? []).map(
@@ -64,8 +67,15 @@ export async function sendToAgent(
   attachments: AgentAttachment[] = []
 ): Promise<void> {
   const trimmed = text.trim()
+  if (editorStore.get(agentChatOwnerAtom) === 'anonymous') return
   if ((!trimmed && attachments.length === 0) || inFlight) return
   inFlight = true
+  inFlightOwner = editorStore.get(agentChatOwnerAtom)
+  const requestOwner = inFlightOwner
+  const controller = new AbortController()
+  const unsubscribeOwner = editorStore.sub(agentChatOwnerAtom, () => {
+    if (editorStore.get(agentChatOwnerAtom) !== requestOwner) controller.abort()
+  })
   editorStore.set(agentBusyAtom, true)
 
   const userMsg: Message = {
@@ -83,10 +93,11 @@ export async function sendToAgent(
     tools: [],
   }
 
-  // История для сервера — из уже показанных сообщений плюс новое.
-  const history = [...editorStore.get(agentMessagesAtom), userMsg]
-    .filter(m => m.id !== 'welcome')
-    .map(m => ({ role: m.role, content: messageContentForAgent(m) }))
+  // Shared context is loaded by the server, independent of this browser cache.
+  const history = [userMsg].map(m => ({
+    role: m.role,
+    content: messageContentForAgent(m),
+  }))
 
   editorStore.set(agentMessagesAtom, prev => [...prev, userMsg, agentMsg])
 
@@ -105,7 +116,9 @@ export async function sendToAgent(
     const res = await fetch(`${API_BASE}/api/agent/chat`, {
       method: 'POST',
       headers,
+      signal: controller.signal,
       body: JSON.stringify({
+        expectedOwnerId: requestOwner,
         messages: history,
         /*
          * ОТКУДА ПИШЕТ ЧЕЛОВЕК. Разговор общий для бота и мини-аппа, и
@@ -140,8 +153,13 @@ export async function sendToAgent(
     let текстОбрыва = ''
     for (;;) {
       const { done, value } = await reader.read()
-      if (done) break
-      buf += decoder.decode(value, { stream: true })
+      if (done) {
+        buf += decoder.decode()
+        if (!buf.trim()) break
+        buf += '\n'
+      } else {
+        buf += decoder.decode(value, { stream: true })
+      }
       const lines = buf.split('\n')
       buf = lines.pop() ?? ''
       for (const line of lines) {
@@ -192,8 +210,16 @@ export async function sendToAgent(
         } else if (kind === 'результат') {
           const nm = String(ev['имя'])
           const ms = Number(ev['мс'])
+          const value = ev['значение'] as { action?: unknown } | null
+          const destination =
+            nm === 'open_app'
+              ? miniAppTaskDestination(value?.action)
+              : undefined
           patch(agentId, m => ({
             ...m,
+            ...(destination
+              ? { actions: [...new Set([...(m.actions ?? []), destination])] }
+              : {}),
             tools: (m.tools || []).map(tc =>
               tc.name === nm && tc.ms == null ? { ...tc, ms } : tc
             ),
@@ -211,6 +237,7 @@ export async function sendToAgent(
           if (ev['обрыв']) текстОбрыва = String(ev['обрыв'])
         }
       }
+      if (done) break
     }
 
     // Поток закончился. Если агент не сказал ни слова, не позвал инструмент с
@@ -232,6 +259,8 @@ export async function sendToAgent(
       text: `Сеть недоступна: ${String(e).slice(0, 160)}`,
     }))
   } finally {
+    unsubscribeOwner()
+    inFlightOwner = null
     inFlight = false
     editorStore.set(agentBusyAtom, false)
   }

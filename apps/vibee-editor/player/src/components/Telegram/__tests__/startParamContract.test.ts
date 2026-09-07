@@ -21,21 +21,11 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { resolveMiniAppStartRoute } from '@/lib/miniAppRoutes'
 
 const REPO_ROOT = path.join(__dirname, '..', '..', '..', '..', '..', '..', '..')
 const BOT_SRC = path.join(REPO_ROOT, 'src')
 const PROVIDER = path.join(__dirname, '..', 'TelegramProvider.tsx')
-
-/** Keys of the mini app's start_param -> route map. */
-function routeKeys(): string[] {
-  const src = fs.readFileSync(PROVIDER, 'utf8')
-  // The map is the only object literal here whose values start with "/". Match
-  // that shape rather than "the first object": the file is alive and other
-  // constants will appear above the map over time.
-  return [...src.matchAll(/^\s{2}([a-z_]+):\s*'\/[^']*',?\s*$/gm)].map(
-    m => m[1]
-  )
-}
 
 /**
  * Every start_param value the bot ACTUALLY sends.
@@ -88,14 +78,15 @@ describe('start_param: the bot sends only what the mini app understands', () => 
   it('the scan found both the map and the senders', () => {
     // A zero denominator would pass every assertion below. A regex that
     // matches nothing is precisely the failure this file exists to prevent.
-    expect(routeKeys().length).toBeGreaterThan(5)
+    expect(fs.readFileSync(PROVIDER, 'utf8')).toContain(
+      'resolveMiniAppStartRoute(startParam, LAUNCH_SEARCH)'
+    )
     expect(paramsSentByBot().length).toBeGreaterThan(0)
   })
 
   it('every value the bot sends exists in the route map', () => {
-    const map = new Set(routeKeys())
     const orphans = paramsSentByBot()
-      .filter(p => !map.has(p.value))
+      .filter(p => !resolveMiniAppStartRoute(p.value, ''))
       .map(p => `${p.value} (${p.file})`)
     expect(
       orphans,
@@ -106,22 +97,9 @@ describe('start_param: the bot sends only what the mini app understands', () => 
   it('app sign-in leads to the screen that shows the code', () => {
     // Asserted on its own, not only through the sweep above: this is the one
     // route whose failure is invisible -- the feed opens, everything "works".
-    expect(routeKeys()).toContain('pair')
-    /*
-     * ТЕСТ НАЗЫВАЛ СВОЙСТВО И ЗАКРЕПЛЯЛ ЕГО ОТСУТСТВИЕ.
-     *
-     * Здесь стояло `toMatch(/pair:\s*'\/profile'/)` — то есть проверялось
-     * ровно то значение, при котором человек экрана с кодом НЕ ВИДИТ:
-     * `/profile` открывается на вкладке «Шаблоны», а код живёт во вкладке
-     * «Агент». Имя теста обещало «ведёт на экран, где показан код», и
-     * комментарий рядом честно предупреждал, что отказ этого маршрута
-     * невидим, — а утверждение фиксировало дефект.
-     *
-     * Теперь проверяется НАЗНАЧЕНИЕ: адрес обязан называть вкладку, на
-     * которой код действительно есть.
-     */
-    const провайдер = fs.readFileSync(PROVIDER, 'utf8')
-    expect(провайдер).toMatch(/pair:\s*'\/profile\?tab=agent'/)
-    expect(провайдер).not.toMatch(/pair:\s*'\/profile',/)
+    expect(resolveMiniAppStartRoute('pair', '')).toBe('/profile?tab=agent')
+    expect(
+      resolveMiniAppStartRoute(undefined, '?tgWebAppStartParam=pair')
+    ).toBe('/profile?tab=agent')
   })
 })

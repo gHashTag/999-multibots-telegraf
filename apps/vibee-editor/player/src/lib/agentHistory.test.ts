@@ -51,18 +51,16 @@ describe('when the fetched history is adopted', () => {
   })
 
   /*
-   * Empty means "the server has nothing for this person yet", not "the
-   * conversation was cleared". Treating it as authoritative would wipe a
-   * visible chat on the first request after a deploy.
+   * Only a validated response reaches adoption; empty means cleared elsewhere.
    */
-  it('never adopted when the server answers empty', () => {
+  it('adopted when the server confirms an empty conversation', () => {
     expect(
       shouldAdoptHistory({
         server: [],
         local: [msg('user', 'do not lose me')],
         busy: false,
       })
-    ).toBe(false)
+    ).toBe(true)
   })
 
   /*
@@ -129,19 +127,19 @@ describe('turning the transcript into what the page renders', () => {
 
 describe('reading the response body', () => {
   /*
-   * The effect swallows errors on purpose, so a shape it cannot read must
-   * become an empty list rather than an exception nobody ever sees.
+   * Unknown responses must not become an authoritative empty conversation.
    */
   it('anything that is not a messages array yields nothing', () => {
-    expect(turnsFromResponse(null)).toEqual([])
-    expect(turnsFromResponse({})).toEqual([])
-    expect(turnsFromResponse({ messages: 'oops' })).toEqual([])
-    expect(turnsFromResponse('<html>proxy error</html>')).toEqual([])
+    expect(turnsFromResponse(null)).toBeNull()
+    expect(turnsFromResponse({})).toBeNull()
+    expect(turnsFromResponse({ messages: 'oops' })).toBeNull()
+    expect(turnsFromResponse('<html>proxy error</html>')).toBeNull()
   })
 
-  it('entries without text content are dropped rather than rendered blank', () => {
+  it('malformed entries invalidate the response rather than deleting valid local turns', () => {
     expect(
       turnsFromResponse({
+        ok: true,
         messages: [
           { role: 'user', content: 'kept' },
           { role: 'user' },
@@ -149,33 +147,28 @@ describe('reading the response body', () => {
           { role: 'assistant', content: 'also kept' },
         ],
       })
-    ).toEqual([
-      { role: 'user', content: 'kept' },
-      { role: 'assistant', content: 'also kept' },
-    ])
+    ).toBeNull()
   })
 
-  it('a missing role defaults to assistant rather than crashing', () => {
-    expect(turnsFromResponse({ messages: [{ content: 'x' }] })).toEqual([
-      { role: 'assistant', content: 'x' },
-    ])
+  it('a missing role invalidates the response rather than inventing a speaker', () => {
+    expect(
+      turnsFromResponse({ ok: true, messages: [{ content: 'x' }] })
+    ).toBeNull()
   })
 })
 
 describe('what a mutation run found the first version had missed', () => {
   /*
-   * A server transcript SHORTER than what is on screen means the page holds
-   * something the server does not -- a reply whose recording failed. Adopting
-   * would delete an answer the person has already read.
+   * A shorter server transcript can result from a deletion on another device.
    */
-  it('a shorter server transcript never replaces a longer page', () => {
+  it('a shorter server transcript replaces the outdated page', () => {
     expect(
       shouldAdoptHistory({
         server: [{ role: 'user', content: 'hello' }],
         local: [msg('user', 'hello', 'a'), msg('assistant', 'an answer', 'b')],
         busy: false,
       })
-    ).toBe(false)
+    ).toBe(true)
   })
 
   /*
@@ -194,21 +187,16 @@ describe('what a mutation run found the first version had missed', () => {
 })
 
 /**
- * The case that makes the length rule load-bearing rather than decorative.
- *
- * The first version of these tests only ever offered a server transcript that
- * was a PREFIX of the page, and a prefix compares equal position by position --
- * so the rule could be deleted and every test stayed green. A server that is
- * both shorter AND divergent is the case only the rule catches.
+ * A reset elsewhere can be followed by a shorter, entirely new conversation.
  */
 describe('a shorter AND divergent server transcript', () => {
-  it('is refused, because adopting it would delete turns the person has read', () => {
+  it('is adopted after a reset and new message from another device', () => {
     expect(
       shouldAdoptHistory({
         server: [{ role: 'user', content: 'a different first turn' }],
         local: [msg('user', 'hello', 'a'), msg('assistant', 'an answer', 'b')],
         busy: false,
       })
-    ).toBe(false)
+    ).toBe(true)
   })
 })

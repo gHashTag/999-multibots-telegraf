@@ -2,6 +2,7 @@ import { TelegramId } from '@/interfaces/telegram.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from './interfaces'
 import { supabase } from './core/supabase'
+import { buildAgentTaskUrl } from './navigation/helpers/agentTaskButtons'
 
 // Резервный ID для тестирования, если владелец не найден в базе
 const FALLBACK_OWNER_ID = '144022504'
@@ -11,6 +12,27 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
     // Получаем информацию о боте
     const botInfo = await bot.telegram.getMe()
     const botName = botInfo.username
+
+    // Telegram applies its default chat menu button to private chats only.
+    // Provision it for every bot instead of relying on manual BotFather state.
+    try {
+      await bot.telegram.setChatMenuButton({
+        menuButton: {
+          type: 'web_app',
+          text: 'APP',
+          web_app: {
+            url: buildAgentTaskUrl({
+              type: 'open_mini_app',
+              destination: 'chat',
+            }),
+          },
+        },
+      })
+    } catch {
+      console.warn('[Navigation] Could not configure the APP menu button', {
+        botName,
+      })
+    }
 
     let ownerTelegramId = FALLBACK_OWNER_ID // По умолчанию используем резервный ID
 

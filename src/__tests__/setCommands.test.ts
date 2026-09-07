@@ -26,6 +26,7 @@ describe('setBotCommands', () => {
       getMe: vi.fn().mockResolvedValue({ username: 'bot_without_owner' }),
       deleteMyCommands: vi.fn().mockResolvedValue(undefined),
       setMyCommands: vi.fn().mockResolvedValue(undefined),
+      setChatMenuButton: vi.fn().mockResolvedValue(undefined),
     }
 
     await setBotCommands({ telegram } as never)
@@ -33,5 +34,12 @@ describe('setBotCommands', () => {
     expect(maybeSingle).toHaveBeenCalledOnce()
     expect(single).not.toHaveBeenCalled()
     expect(telegram.setMyCommands).toHaveBeenCalledTimes(2)
+    expect(telegram.setChatMenuButton).toHaveBeenCalledExactlyOnceWith({
+      menuButton: {
+        type: 'web_app',
+        text: 'APP',
+        web_app: { url: 'https://app.t27.ai/chat' },
+      },
+    })
   })
 })

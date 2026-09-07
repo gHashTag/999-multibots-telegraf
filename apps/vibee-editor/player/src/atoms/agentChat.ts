@@ -5,6 +5,8 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import { STORAGE_KEYS } from '@vibee/atoms'
+import { userAtom } from './user'
+import { getTelegramUser } from '@/lib/telegram'
 
 /**
  * ЗАЧЕМ ЭТОТ ФАЙЛ. И переписка, и недописанное сообщение жили в `useState`
@@ -43,6 +45,8 @@ export interface Message {
   /** Поток размышления модели — сворачиваемый, показывается по желанию. */
   thinking?: string
   tools?: ToolCall[]
+  actions?: string[]
+  surface?: string
 }
 
 /**
@@ -65,25 +69,42 @@ const MAX_STORED_MESSAGES = 100
  * приветствие, и восстановленная история легла бы поверх — или наоборот.
  * С `getOnInit` первое же чтение идёт из localStorage, и гонки нет.
  */
-const storedMessagesAtom = atomWithStorage<Message[]>(
-  STORAGE_KEYS.agentChat,
-  [],
+// Legacy cache has no owner; importing it would disclose the previous account.
+// The verified server transcript repopulates each account's scoped cache.
+export const agentChatOwnerAtom = atom(get => {
+  const user = get(userAtom)
+  const launchUser = getTelegramUser()
+  if (!user || (launchUser && String(launchUser.id) !== String(user.id)))
+    return 'anonymous'
+  return String(user.id)
+})
+const EMPTY_MESSAGES: Message[] = []
+const storedMessagesAtom = atomWithStorage<Record<string, Message[]>>(
+  `${STORAGE_KEYS.agentChat}-by-owner`,
+  {},
   undefined,
   { getOnInit: true }
 )
 
 /** История переписки. Пишется с обрезкой хвоста — свежее важнее старого. */
 export const agentMessagesAtom = atom(
-  get => get(storedMessagesAtom),
+  get =>
+    get(agentChatOwnerAtom) === 'anonymous'
+      ? EMPTY_MESSAGES
+      : (get(storedMessagesAtom)[get(agentChatOwnerAtom)] ?? EMPTY_MESSAGES),
   (get, set, update: Message[] | ((prev: Message[]) => Message[])) => {
-    const prev = get(storedMessagesAtom)
+    const owner = get(agentChatOwnerAtom)
+    if (owner === 'anonymous') return
+    const stored = get(storedMessagesAtom)
+    const prev = stored[owner] ?? EMPTY_MESSAGES
     const next = typeof update === 'function' ? update(prev) : update
-    set(
-      storedMessagesAtom,
-      next.length > MAX_STORED_MESSAGES
-        ? next.slice(next.length - MAX_STORED_MESSAGES)
-        : next
-    )
+    set(storedMessagesAtom, {
+      ...stored,
+      [owner]:
+        next.length > MAX_STORED_MESSAGES
+          ? next.slice(next.length - MAX_STORED_MESSAGES)
+          : next,
+    })
   }
 )
 
@@ -93,9 +114,23 @@ export const agentMessagesAtom = atom(
  * Человек описывает ролик абзацем, отвлекается на ленту, возвращается — и
  * раньше видел пустое поле.
  */
-export const agentDraftAtom = atomWithStorage<string>(
-  STORAGE_KEYS.agentChatDraft,
-  '',
+const storedDraftsAtom = atomWithStorage<Record<string, string>>(
+  `${STORAGE_KEYS.agentChatDraft}-by-owner`,
+  {},
   undefined,
   { getOnInit: true }
+)
+
+export const agentDraftAtom = atom(
+  get =>
+    get(agentChatOwnerAtom) === 'anonymous'
+      ? ''
+      : (get(storedDraftsAtom)[get(agentChatOwnerAtom)] ?? ''),
+  (get, set, draft: string) => {
+    if (get(agentChatOwnerAtom) === 'anonymous') return
+    set(storedDraftsAtom, {
+      ...get(storedDraftsAtom),
+      [get(agentChatOwnerAtom)]: draft,
+    })
+  }
 )

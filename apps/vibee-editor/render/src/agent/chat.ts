@@ -52,6 +52,10 @@ const SYSTEM = `Ты — агент внутри приложения Trinity S�
 названий, идентификаторов и ссылок: их возвращают инструменты.
 
 Как работать:
+- To open an app screen, call open_app with the matching destination.
+  The client renders a button below the answer: do not ask people to hunt for
+  menus or invent links. Offer the appropriate next step, not a generic menu.
+  This only opens a screen; opening never starts generation or payment.
 - Сначала посмотри, потом говори. Один-два вызова инструментов почти всегда
   лучше, чем догадка.
 - Если задача составная — выполняй по шагам и говори, что делаешь.
