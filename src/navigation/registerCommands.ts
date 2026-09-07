@@ -9,7 +9,11 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { replyWitness, silenceNet } from '@/navigation/middleware/noSilence'
+import {
+  replyWitness,
+  silenceNet,
+  deadPressNet,
+} from '@/navigation/middleware/noSilence'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
@@ -175,6 +179,25 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      * `middleware/noSilence.ts`.
      */
     bot.use(replyWitness)
+    /*
+     * THE NETS ARE REGISTERED EARLY AND DECIDE LATE.
+     *
+     * They await the whole rest of the chain and only then ask whether anybody
+     * answered, so position and timing point in opposite directions: FIRST in
+     * registration order, LAST in decision order.
+     *
+     * The previous version put them at the END of this function and got the
+     * cheaper half of the property. Two cases were lost there. A handler that
+     * answers and does not call next() terminates the chain, so a net standing
+     * behind it never runs -- and that is exactly the case where a press was
+     * handled but never ANSWERED, leaving the clock spinning under a perfectly
+     * good reply. And `setupStatsCommand` is registered after registerCommands
+     * in both bootstraps, so `/admin_sub` met the message net before its own
+     * handler: an admin got the puzzled sentence first and the real answer
+     * second.
+     */
+    bot.use(silenceNet)
+    bot.use(deadPressNet)
 
     // 1. Логгер для ВСЕХ входящих обновлений (самый первый middleware)
     bot.use((ctx, next) => {
@@ -1336,11 +1359,6 @@ If not, continue on your own and click the "I myself" button`
           })
       }
     })
-
-    // The other end of the pair above: registered LAST, after every command,
-    // every `hears` label and the agent middleware, so that reaching it means
-    // every one of them said "not mine".
-    bot.use(silenceNet)
 
     logger.info(
       '✅ [Navigation] All commands and handlers registered successfully'
