@@ -81,8 +81,17 @@ describe('mini-app generation is billed', () => {
      * Теперь: чип умножает только при `duration` в контракте; присланный файл
      * ЗАМЕРЯЕТСЯ, как это давно делает липсинк, и имеет потолок.
      */
-    expect(SERVER).toMatch(/посекунднаяМодель\(model\) && длинуЗадаётФайл\(контракт\)/)
-    expect(SERVER).toMatch(/посекунднаяМодель\(model\) && длинуЗадаётЧеловек\(контракт\)/)
+    // The two patterns below name Russian identifiers that really exist in
+    // render-server.ts, so the Cyrillic here is the thing under test, not a
+    // comment. Marked rather than rewritten: renaming those functions is a
+    // separate change, and a test that stops matching them would stop
+    // guarding the per-second billing.
+    expect(SERVER).toMatch(
+      /посекунднаяМодель\(model\) && длинуЗадаётФайл\(контракт\)/ // cyrillic-ok: identifiers under test
+    )
+    expect(SERVER).toMatch(
+      /посекунднаяМодель\(model\) && длинуЗадаётЧеловек\(контракт\)/ // cyrillic-ok: identifiers under test
+    )
     expect(SERVER).toMatch(/measuredRemoteDuration\(источник\)/)
     expect(SERVER).toContain('MAX_UPSCALE_SECONDS')
     expect(SERVER).toMatch(/'video_generate',\s*\n\s*секунды,/)
@@ -104,9 +113,24 @@ describe('mini-app generation is billed', () => {
      * Пинится по ИСХОДНИКУ по вчерашней причине: юнит-тест на startJob
      * остаётся зелёным, даже если маршрут его не зовёт.
      */
+    /*
+     * THE `\s*` AFTER THE BRACKET IS NOT DECORATION.
+     *
+     * This used to pin `startJob\('image'` with the bracket flush. On
+     * 2026-09-07 pre-commit ran in this project for the first time (husky was
+     * shadowing lefthook, so prettier had never run), and the long calls were
+     * reflowed onto several lines:
+     *
+     *     startJob(
+     *       'image',
+     *
+     * The check went red while the call was intact. It was pinning FORMATTING
+     * while promising to check wiring, and the very first formatting pass
+     * showed it.
+     */
     for (const вид of ['image', 'video', 'audio', 'lipsync']) {
       expect(SERVER, `${вид}: маршрут не регистрирует задачу`).toMatch(
-        new RegExp(`startJob\\('${вид}'`)
+        new RegExp(`startJob\\(\\s*'${вид}'`)
       )
     }
   })

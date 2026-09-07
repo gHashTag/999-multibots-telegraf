@@ -31,6 +31,7 @@
 
 import { visibilityOf, botFilter } from '../hive/roles'
 import { feed, pulse } from '../hive/journal'
+import { queenStatus, queenActivity, queenBoard } from '../hive/queen-client'
 import type { AgentTool, ToolContext } from './tools'
 
 /**
@@ -157,5 +158,76 @@ export const HIVE_TOOLS: AgentTool[] = [
     },
   },
 ]
+
+/*
+ * THE QUEEN AT t27.ai IS A SEPARATE TOOL, AND KEEPER-ONLY.
+ *
+ * She watches `gHashTag/trios`, not this platform. Her verdicts name file
+ * paths, issue numbers and internal engineering state. Her API happens to be
+ * public and unauthenticated, but that is not a reason to widen who sees it
+ * here: a bot owner's agent chat is the same screen as an ordinary user's.
+ *
+ * Refusal names the role rather than saying "forbidden", because the person
+ * asking is usually a legitimate owner who simply is not the platform keeper.
+ */
+HIVE_TOOLS.push({
+  name: 'hive_queen',
+  description:
+    'Королева на t27.ai: сколько пчёл занято, что она проверяет сейчас, ' +
+    'сколько работ ждёт её приговора. Это ДРУГОЙ улей — репозиторий trios, ' +
+    'не этот проект. Только для смотрителя платформы. Бесплатно.',
+  parameters: {
+    type: 'object',
+    properties: {
+      events: {
+        type: 'number',
+        description: 'Сколько последних её событий показать. По умолчанию 10.',
+      },
+    },
+  },
+  async handler(a: any, ctx?: ToolContext) {
+    const v = await visibilityFor(ctx)
+    if (v.role !== 'keeper') {
+      throw new Error(
+        'Королева на t27.ai показывает внутреннее состояние платформы, ' +
+          'и это видно только смотрителю улья.'
+      )
+    }
+    const [status, activity, board] = await Promise.all([
+      queenStatus(),
+      queenActivity({ limit: Number(a?.events) || 10 }),
+      queenBoard(),
+    ])
+
+    // Unreachable is said out loud. Zeros and silence look identical on a
+    // dashboard and mean opposite things: a quiet hive, or a blind one.
+    if (!status.reachable) {
+      return {
+        reachable: false,
+        why: status.why,
+        how_to_read:
+          'Королева не ответила. Это НЕ значит «в trios тихо» — значит, что мы ' +
+          'её не видим. Проверьте сервис trios-agent-server на Railway.',
+      }
+    }
+
+    return {
+      reachable: true,
+      repo: board.repo,
+      swarm_state: status.swarmState,
+      bees: status.workers,
+      tick_every_seconds: status.tickEverySeconds,
+      last_tick_at: status.lastTickAt,
+      skipped_last_tick: status.skipped,
+      board: board.columns,
+      awaiting_judgement: board.waiting,
+      latest: activity.events,
+      how_to_read:
+        'Это второй улей, не наш: она судит код в trios. «review» — работы, ' +
+        'которые держат свою границу, пока их не рассудят; их скопление ' +
+        'означает, что решения ждут человека, а не машину.',
+    }
+  },
+})
 
 export const HIVE_TOOLS_INTERNALS_FOR_TESTS = { scopeLabel, botsOwnedBy }
