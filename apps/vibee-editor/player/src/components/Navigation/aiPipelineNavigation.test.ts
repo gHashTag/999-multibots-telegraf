@@ -9,6 +9,7 @@ describe('AI pipeline primary navigation', () => {
       'feed',
       'chat',
       'ai',
+      'hive',
       'profile',
     ])
 

@@ -546,6 +546,18 @@ export interface InstagramStatus {
 // Feed template - a published video/template in the social feed
 export interface FeedTemplate {
   id: number
+  /**
+   * Which composition the reel was built from. Nullable: older rows have none.
+   *
+   * The field was MISSING from this type while the server has been sending it
+   * (render-server.ts reads template_settings->>'compositionId'). The profile
+   * groups templates by exactly this value, so with it absent every reel fell
+   * into the "no composition" bucket and the grouping silently never grouped.
+   * The type gate had been pointing at this the whole time, behind 39 cascaded
+   * errors -- and the gate itself was not running, because husky was shadowing
+   * lefthook.
+   */
+  compositionId?: string | null
   telegramId: number
   creatorName: string
   creatorAvatar?: string

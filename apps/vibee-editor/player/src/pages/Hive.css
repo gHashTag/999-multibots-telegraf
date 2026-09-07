@@ -1,0 +1,216 @@
+/*
+ * THE HIVE TAB.
+ *
+ * Colours come from the app's own variables, not from t27.ai. The Queen's page
+ * is a dark 3-D scene; copying its palette here would make one tab look like a
+ * different application, and the person would not know which app they are in.
+ * The DATA is hers, the surface is ours.
+ */
+
+.hive-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-bottom: var(--nav-height, 64px);
+}
+
+/* Sub-tabs scroll horizontally: six of them do not fit a phone, and shrinking
+   the text until they do makes every one of them unreadable. */
+.hive-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+}
+.hive-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.hive-tab {
+  flex: 0 0 auto;
+  /* 44px minimum touch target, the same rule as the main tab bar. */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 10px;
+  color: var(--text-secondary, #888);
+  text-decoration: none;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.hive-tab--active {
+  background: var(--accent-soft, rgba(120, 120, 255, 0.14));
+  color: var(--accent, #7878ff);
+  font-weight: 600;
+}
+
+.hive-main {
+  flex: 1;
+  padding: 12px 16px 24px;
+}
+
+.hive-blurb {
+  margin: 0 0 14px;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+}
+
+.hive-note {
+  margin: 6px 0;
+  color: var(--text-secondary, #888);
+  font-size: 12px;
+}
+
+/* An unreachable Queen is visually distinct from an empty one. If both looked
+   the same, a dead service would read as a quiet week. */
+.hive-down {
+  padding: 16px;
+  border: 1px solid var(--warning, #c9a227);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--warning, #c9a227) 8%, transparent);
+}
+.hive-down__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.hive-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.hive-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface-2, rgba(128, 128, 128, 0.08));
+}
+.hive-stat b {
+  font-size: 20px;
+  line-height: 1.1;
+}
+.hive-stat span {
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+}
+
+.hive-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.hive-column,
+.hive-layer {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-2, rgba(128, 128, 128, 0.08));
+}
+.hive-column h3,
+.hive-layer h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  text-transform: lowercase;
+}
+.hive-column ul,
+.hive-layer ul {
+  margin: 8px 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.hive-layer {
+  margin-bottom: 12px;
+}
+
+.hive-count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft, rgba(120, 120, 255, 0.14));
+  color: var(--accent, #7878ff);
+  font-size: 11px;
+  text-align: center;
+}
+
+.hive-marks {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hive-mark {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2, rgba(128, 128, 128, 0.08));
+  font-size: 13px;
+}
+
+.hive-mark__kind,
+.hive-node__state {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-3, rgba(128, 128, 128, 0.16));
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.hive-mark__id {
+  color: var(--text-secondary, #888);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+/* A refused verdict is the one a person should notice; it is marked, not
+   coloured red — red on a board of hundreds of rows stops meaning anything. */
+.hive-mark--refused .hive-mark__kind {
+  background: color-mix(in srgb, var(--warning, #c9a227) 30%, transparent);
+}
+
+.hive-node {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.hive-node--researched .hive-node__state {
+  background: color-mix(in srgb, var(--accent, #7878ff) 26%, transparent);
+}
+
+.hive-rule {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent, #7878ff);
+  background: var(--surface-2, rgba(128, 128, 128, 0.08));
+  font-size: 13px;
+}
+
+.hive-out {
+  display: inline-block;
+  margin-top: 18px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--accent, #7878ff);
+  font-size: 14px;
+  text-decoration: none;
+}

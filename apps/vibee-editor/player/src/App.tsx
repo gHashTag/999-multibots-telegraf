@@ -27,6 +27,7 @@ const FeedPage = lazy(() => import('@/pages/Feed'))
 const BlogPage = lazy(() => import('@/pages/Blog'))
 const SearchPage = lazy(() => import('@/pages/Search'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
+const HivePage = lazy(() => import('@/pages/Hive'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
 const TemplatesPage = lazy(() => import('@/pages/Templates'))
 const InstagramCallbackPage = lazy(() => import('@/pages/InstagramCallback'))
@@ -41,9 +42,10 @@ const LearnPage = lazy(() => import('@/pages/Learn'))
 export function ProfileRedirect() {
   const myProfile = useAtomValue(myProfileAtom)
   const user = useAtomValue(userAtom)
-  const [поИдентификатору, setПоИдентификатору] = useState<string | null | undefined>(
-    undefined
-  )
+  const [поИдентификатору, setПоИдентификатору] = useState<
+    // cyrillic-ok: pre-existing name, reflowed by the first prettier run
+    string | null | undefined
+  >(undefined)
   const username = myProfile?.username || user?.username
 
   /**
@@ -275,6 +277,11 @@ function App() {
                       <Route path="/generate/script" element={<ScriptPage />} />
                       <Route path="/generate/editor" element={<EditorPage />} />
                       <Route path="/generate/:tab" element={<GeneratePage />} />
+                      <Route
+                        path="/hive"
+                        element={<Navigate to="/hive/comb" replace />}
+                      />
+                      <Route path="/hive/:tab" element={<HivePage />} />
                       <Route path="/templates" element={<TemplatesPage />} />
                       <Route path="/chat" element={<ChatPage />} />
                       <Route
