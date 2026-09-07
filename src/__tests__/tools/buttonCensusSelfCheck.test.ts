@@ -142,3 +142,88 @@ describe('the buttons repaired here land somewhere', () => {
     ).toBeLessThanOrEqual(38)
   })
 })
+
+/**
+ * OFFERED, THEN ABANDONED.
+ *
+ * The second thing the census reports: a scene draws a keyboard and calls
+ * `ctx.scene.leave()` a few lines later, so its own handler can never fire.
+ * Every grep says the handler exists, which is why it needs its own reading.
+ *
+ * The calibration instance is `another_cover` -- aiCoverWizard draws the
+ * repeat-purchase button at index.ts:395, to somebody who has just paid for a
+ * cover, and returns `ctx.scene.leave()` at :414.
+ */
+describe('the census sees a keyboard drawn just before the scene leaves', () => {
+  const census = () => {
+    const out = execFileSync('node', [SCRIPT, '--json'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+    return JSON.parse(out) as {
+      abandoned: Array<{
+        id: string
+        file: string
+        line: number
+        leaveAt: number
+      }>
+    }
+  }
+
+  it('finds the calibration instance', () => {
+    const { abandoned } = census()
+    const cover = abandoned.find(a => a.id === 'another_cover')
+    expect(
+      cover,
+      'another_cover is the known instance; not finding it means the check is blind'
+    ).toBeTruthy()
+    expect(cover!.file).toContain('aiCoverWizard')
+    expect(cover!.leaveAt).toBeGreaterThan(cover!.line)
+  })
+
+  /**
+   * A detector that flags everything is not a detector. The first negative
+   * control chosen for this check was `configure_fix_types`, picked as an
+   * obvious staying menu -- and it turned out to have a leave eighteen lines
+   * under its render. So what is asserted is discrimination, not a guess about
+   * one site.
+   */
+  it('does not flag every scene-caught site', () => {
+    const { abandoned } = census()
+    expect(abandoned.length).toBeGreaterThan(0)
+    expect(abandoned.length).toBeLessThan(60)
+  })
+
+  it('reports a leave that comes AFTER the render, never before', () => {
+    const { abandoned } = census()
+    const backwards = abandoned.filter(a => a.leaveAt <= a.line)
+    expect(
+      backwards,
+      'a leave above the render is a slicing bug, not a finding'
+    ).toEqual([])
+  })
+  /**
+   * The discrimination guard must be able to fail, or it is decoration. This
+   * makes the leave-finder say "yes" at the first line it looks at, so every
+   * scene-caught site is flagged, and insists the script refuses to print.
+   */
+  it('exits 2 if the leave-finder starts flagging everything', () => {
+    const source = fs.readFileSync(SCRIPT, 'utf8')
+    const from =
+      'if (/ctx\\.scene\\.leave\\(\\)/.test(site.lines[k])) return k + 1'
+    expect(source.includes(from), 'anchor for the leave-finder not found').toBe(
+      true
+    )
+    const broken = source.replace(from, 'return k + 1')
+    expect(broken).not.toBe(source)
+    const tmp = path.join(os.tmpdir(), 'button-census-flags-everything.cjs')
+    fs.writeFileSync(tmp, broken)
+    const { code, out } = run(tmp)
+    fs.unlinkSync(tmp)
+    expect(
+      code,
+      `a check that flags everything must refuse to print. output:\n${out}`
+    ).toBe(2)
+    expect(out).toContain('SELF-CHECK FAILED')
+  })
+})

@@ -137,9 +137,23 @@ const push = (map, key, where) => {
   map.get(key).push(where)
 }
 
+const renderSites = []
+
 for (const file of files) {
   const text = fs.readFileSync(file, 'utf8')
   for (const id of grab(RENDER, text)) push(rendered, id, file)
+  // Positions too, for the leave check below. Multi-line on purpose:
+  // `Markup.button.callback(` puts the label on one line and the id on the
+  // next, and a per-line matcher misses exactly the shape that check is for.
+  const lines = text.split('\n')
+  for (const m of text.matchAll(RENDER)) {
+    renderSites.push({
+      file,
+      line: text.slice(0, m.index).split('\n').length,
+      id: m[2],
+      lines,
+    })
+  }
   for (const id of grab(BOT_ACT, text)) bot.add(id)
   for (const id of grab(SCENE_ACT, text)) push(scene, id, file)
   for (const id of arrayIds(text)) {
@@ -168,6 +182,54 @@ const crossFile = [...rendered.keys()].filter(id => {
   return !drawn.every(d => caughtIn.includes(d))
 })
 
+/*
+ * OFFERED, THEN ABANDONED.
+ *
+ * A scene draws a keyboard and calls ctx.scene.leave() a few lines later. Its
+ * own handler can never fire: by the time a finger reaches the button the scene
+ * is gone. Every grep says the handler exists, which is why this needs its own
+ * reading rather than the orphan count above.
+ *
+ * The window is crude in one specific way, said here rather than discovered
+ * later: the leave it finds may be in a DIFFERENT BRANCH -- a catch block, an
+ * early guard -- that the render never reaches. So this section prints
+ * candidates and its own discrimination rate, and calls them candidates.
+ */
+const LEAVE_WINDOW = 40
+const leavesSoon = site => {
+  for (
+    let k = site.line;
+    k < Math.min(site.lines.length, site.line + LEAVE_WINDOW);
+    k++
+  ) {
+    if (/\.action\(/.test(site.lines[k])) return 0 // a new registration: another function
+    if (/ctx\.scene\.leave\(\)/.test(site.lines[k])) return k + 1
+  }
+  return 0
+}
+const sceneOnlySites = renderSites.filter(
+  s => !bot.has(s.id) && !byHand.has(s.id) && !byPrefix(s.id) && scene.has(s.id)
+)
+const abandoned = sceneOnlySites
+  .map(s => ({ ...s, leaveAt: leavesSoon(s) }))
+  .filter(s => s.leaveAt > 0)
+
+/*
+ * The control is EARNED, not assumed. The first negative control chosen for
+ * this check -- `configure_fix_types`, picked as an obvious staying menu --
+ * turned out to have a scene.leave() eighteen lines under its render, i.e. an
+ * instance of the very shape. So what is asserted now is that the check
+ * DISCRIMINATES: a detector that flags every site is not a detector.
+ */
+if (sceneOnlySites.length > 0 && abandoned.length === sceneOnlySites.length) {
+  console.error('')
+  console.error(
+    'SELF-CHECK FAILED: every scene-caught render site was flagged as abandoned.'
+  )
+  console.error('That discriminates nothing, so the list below would be noise.')
+  process.exit(2)
+}
+
 if (JSON_OUT) {
   console.log(
     JSON.stringify(
@@ -180,6 +242,12 @@ if (JSON_OUT) {
         prefixes: prefixes.size,
         orphans,
         crossFile,
+        abandoned: abandoned.map(a => ({
+          id: a.id,
+          file: a.file,
+          line: a.line,
+          leaveAt: a.leaveAt,
+        })),
       },
       null,
       1
@@ -211,6 +279,20 @@ for (const [file, ids] of Object.entries(grouped).sort(
 console.log('')
 console.log(`DRAWN OUTSIDE THE SCENE THAT CATCHES THEM: ${crossFile.length}`)
 for (const id of crossFile) console.log(`  ${id}`)
+console.log('')
+console.log('')
+console.log(
+  `OFFERED THEN ABANDONED (candidates): ${abandoned.length} of ${sceneOnlySites.length} scene-caught render sites`
+)
+const seenSite = new Set()
+for (const a of abandoned) {
+  const key = `${a.file}:${a.id}`
+  if (seenSite.has(key)) continue
+  seenSite.add(key)
+  console.log(
+    `  ${a.id}  ${a.file.replace('src/', '')}:${a.line} -> leave at :${a.leaveAt}`
+  )
+}
 console.log('')
 console.log('A number here is a LEAD, not a verdict: an id may be caught by a')
 console.log('shape this does not know, or never drawn to a person at all. Open')
