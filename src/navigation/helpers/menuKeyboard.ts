@@ -28,6 +28,7 @@ import { logSceneEnter, logMainMenuReturn } from './navigationLogger'
 import { logger } from '@/utils/logger'
 import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
 import { isAdmin } from '@/middleware/adminOnly'
+import { standardButtons } from './actionButtons'
 
 /**
  * Создаёт клавиатуру главного меню (категории)
@@ -219,14 +220,50 @@ export async function showMainMenu(ctx: MyContext): Promise<void> {
 
   logMainMenuReturn(ctx, 'showMainMenu')
 
+  /*
+   * THE GREETING NO LONGER PROMISES A LIST THAT WAS DELIBERATELY REMOVED.
+   *
+   * It said "Выберите категорию:" while `createMainMenuKeyboard` returns
+   * `Markup.removeKeyboard()` -- the owner took the eight category buttons out
+   * on purpose (see that function). So the last thing a person saw, from 108
+   * call sites including the end of new-user onboarding, was an instruction to
+   * choose from nothing.
+   */
   const greeting = isRu
-    ? '🏠 *Главное меню*\n\nВыберите категорию:'
-    : '🏠 *Main menu*\n\nChoose a category:'
+    ? '🏠 *Главное меню*\n\nДве двери: приложение или разговор со мной.'
+    : '🏠 *Main menu*\n\nTwo doors: the app, or a conversation with me.'
 
   try {
     await ctx.reply(greeting, {
       parse_mode: 'Markdown',
       reply_markup: createMainMenuKeyboard(ctx).reply_markup,
+    })
+
+    /*
+     * AND SOMETHING TO PRESS, WHICH THIS SCREEN HAD NONE OF.
+     *
+     * Owner: "always send the answers with buttons so the user can react
+     * without writing text", and "the bot must proactively offer to pay right
+     * after /start". The offer existed but was wired to ONE branch of /start --
+     * the EXISTING-user branch. A brand-new person went to CreateUserScene,
+     * through the free demo, and landed here, which is where the whole
+     * onboarding chain ends: greeting, keyboard removed, nothing to tap.
+     *
+     * It is a second message rather than a keyboard on the greeting because
+     * the greeting carries `remove_keyboard`, and Telegram allows one
+     * reply_markup per message. The removal is load-bearing: 87 places still
+     * send a reply keyboard, and this is what clears a stale wizard one.
+     *
+     * The failure is swallowed: a menu that displayed is not undone by a
+     * follow-up that did not.
+     */
+    const next = isRu
+      ? 'Что дальше? Для генераций нужен баланс в звёздах — пополнить можно прямо здесь. ' +
+        'Или просто напишите, что нужно сделать.'
+      : 'What next? Generations run on a star balance -- you can top it up right here. ' +
+        'Or just tell me what you need.'
+    await ctx.reply(next, standardButtons(isRu)).catch(() => {
+      // The menu is already on screen; a missing follow-up is not a failure of it.
     })
 
     logger.info('✅ [showMainMenu] Main menu displayed', { telegramId })
@@ -315,7 +352,8 @@ export async function showCategoryMenu(
       // Клавиатура может быть и снятием (removeKeyboard) — у него рядов нет.
       keyboardRows:
         'keyboard' in (keyboard.reply_markup ?? {})
-          ? ((keyboard.reply_markup as ReplyKeyboardMarkup).keyboard?.length ?? 0)
+          ? ((keyboard.reply_markup as ReplyKeyboardMarkup).keyboard?.length ??
+            0)
           : 0,
       messageLength: description.length,
     })
@@ -331,7 +369,8 @@ export async function showCategoryMenu(
       // Клавиатура может быть и снятием (removeKeyboard) — у него рядов нет.
       keyboardRows:
         'keyboard' in (keyboard.reply_markup ?? {})
-          ? ((keyboard.reply_markup as ReplyKeyboardMarkup).keyboard?.length ?? 0)
+          ? ((keyboard.reply_markup as ReplyKeyboardMarkup).keyboard?.length ??
+            0)
           : 0,
     })
   } catch (error) {

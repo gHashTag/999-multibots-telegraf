@@ -20,7 +20,10 @@ import {
   navigateToCategory,
 } from '@/navigation/helpers/menuKeyboard'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { CATEGORIES, getCategoryText } from '@/navigation/config/categories.config'
+import {
+  CATEGORIES,
+  getCategoryText,
+} from '@/navigation/config/categories.config'
 
 // Mock logger
 vi.mock('@/utils/logger', () => ({
@@ -346,8 +349,17 @@ describe('menuKeyboard', () => {
 
       await showCategoryMenu(mockContext as MyContext, categoryId)
 
-      // После ошибки должен показать главное меню
-      expect(mockReply).toHaveBeenCalledTimes(2)
+      /*
+       * Three calls, not two: after the failure the main menu is shown, and it
+       * now sends the greeting AND the buttons under it. This said 2 before.
+       *
+       * Counting calls is a brittle way to assert "the menu appeared", so the
+       * property it stood for is asserted below: the last message carries the
+       * buttons. The count stays, but it can no longer pass on an empty menu.
+       */
+      expect(mockReply).toHaveBeenCalledTimes(3)
+      const last = mockReply.mock.calls[mockReply.mock.calls.length - 1]
+      expect(JSON.stringify(last[1])).toContain('act:topup')
     })
   })
 
