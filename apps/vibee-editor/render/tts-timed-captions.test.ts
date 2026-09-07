@@ -21,16 +21,8 @@ describe('TTS timed caption contract', () => {
     expect(audio).toContain('timed_captions')
   })
 
-  it('does not fabricate timed captions in the provider fallback', () => {
-    const audio = handler('/api/generate/audio')
-    const fallbackStart = audio.indexOf('generateAudioViaReplicate')
-    const responseStart = audio.indexOf('res.writeHead(200', fallbackStart)
-    expect(fallbackStart).toBeGreaterThan(-1)
-    expect(responseStart).toBeGreaterThan(fallbackStart)
-    expect(audio.slice(fallbackStart, responseStart)).not.toContain(
-      'timedCaptions ='
-    )
-  })
+  // Kie response timing and the no-fallback policy are exercised by the
+  // actual HTTP handler in audio-provider.test.ts, not a source substring.
 
   it('keeps script captions separate from media timing', () => {
     expect(handler('/api/ai/generate-script')).not.toContain('timed_captions')

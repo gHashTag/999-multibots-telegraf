@@ -1,3 +1,5 @@
+import type { Voice } from '../atoms/voices'
+
 export interface KieWebModel {
   id: string
   name: string
@@ -27,7 +29,7 @@ export const KIE_WEB_MODELS: Record<
     {
       id: 'kie/elevenlabs/text-to-speech-multilingual-v2',
       name: 'Kie · Multilingual Voice',
-      description: 'Запасной TTS через Kie.ai',
+      description: 'Primary TTS through Kie.ai',
     },
   ],
   /**
@@ -62,6 +64,16 @@ export const KIE_WEB_MODELS: Record<
     },
   ],
 }
+
+export const DEFAULT_AUDIO_MODEL = KIE_WEB_MODELS.audio[0].id
+
+/** Documented Kie stock voice; never reuse a Direct/MiniMax cached voice.
+ * https://docs.kie.ai/market/elevenlabs/text-to-speech-multilingual-v2
+ * This is not an owner voice clone. Expand only with verified model voices.
+ */
+export const KIE_AUDIO_VOICES: Voice[] = [
+  { id: 'Rachel', name: 'Rachel', category: 'premade' },
+]
 
 export function kieServerModelId(id: string): string | null {
   if (!id.startsWith('kie/')) return null

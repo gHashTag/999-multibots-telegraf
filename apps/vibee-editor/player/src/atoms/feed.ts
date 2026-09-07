@@ -134,6 +134,7 @@ const asObject = (v: unknown, fallback: unknown) => {
 function transformTemplate(raw: any): FeedTemplate {
   return {
     id: raw.id,
+    compositionId: pick(raw, 'composition_id', 'compositionId') ?? null,
     telegramId: pick(raw, 'telegram_id', 'telegramId'),
     creatorName: pick(raw, 'creator_name', 'creatorName') || 'Anonymous',
     creatorAvatar: pick(raw, 'creator_avatar', 'creatorAvatar'),

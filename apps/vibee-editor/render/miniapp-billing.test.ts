@@ -81,8 +81,12 @@ describe('mini-app generation is billed', () => {
      * Теперь: чип умножает только при `duration` в контракте; присланный файл
      * ЗАМЕРЯЕТСЯ, как это давно делает липсинк, и имеет потолок.
      */
-    expect(SERVER).toMatch(/посекунднаяМодель\(model\) && длинуЗадаётФайл\(контракт\)/)
-    expect(SERVER).toMatch(/посекунднаяМодель\(model\) && длинуЗадаётЧеловек\(контракт\)/)
+    expect(SERVER).toMatch(
+      /посекунднаяМодель\(model\) && длинуЗадаётФайл\(контракт\)/ // cyrillic-ok: existing billing API check
+    )
+    expect(SERVER).toMatch(
+      /посекунднаяМодель\(model\) && длинуЗадаётЧеловек\(контракт\)/ // cyrillic-ok: existing billing API check
+    )
     expect(SERVER).toMatch(/measuredRemoteDuration\(источник\)/)
     expect(SERVER).toContain('MAX_UPSCALE_SECONDS')
     expect(SERVER).toMatch(/'video_generate',\s*\n\s*секунды,/)
@@ -106,7 +110,7 @@ describe('mini-app generation is billed', () => {
      */
     for (const вид of ['image', 'video', 'audio', 'lipsync']) {
       expect(SERVER, `${вид}: маршрут не регистрирует задачу`).toMatch(
-        new RegExp(`startJob\\('${вид}'`)
+        new RegExp(`startJob\\(\\s*'${вид}'`)
       )
     }
   })

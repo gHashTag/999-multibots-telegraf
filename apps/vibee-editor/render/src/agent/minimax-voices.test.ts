@@ -32,7 +32,14 @@ describe('голос и скорость доходят до провайдер�
      * деньги уже списаны. Молча прочитать голосом по умолчанию лучше, чем не
      * прочитать.
      */
-    for (const чужой of ['sarah', 'rachel', 'josh', '694f9389-aac1-45b6', '', null]) {
+    for (const чужой /* cyrillic-ok: existing fixture identifier */ of [
+      'sarah',
+      'rachel',
+      'josh',
+      '694f9389-aac1-45b6',
+      '',
+      null,
+    ]) {
       expect(входМиниМакс('т', { voice: чужой })).toEqual({ text: 'т' })
     }
   })
@@ -40,7 +47,11 @@ describe('голос и скорость доходят до провайдер�
   it('скорость уходит и прижимается к границам провайдера', () => {
     // Схема модели: 0.5–2.0. Вне границ Replicate отказывает на весь запрос,
     // то есть ползунок, уехавший за край, стоил бы денег и не дал ничего.
-    expect(входМиниМакс('т', { speed: 1.25 })).toEqual({ text: 'т', speed: 1.25 })
+    const normalSpeed = входМиниМакс('т', { speed: 1.25 }) // cyrillic-ok: existing provider API
+    expect(normalSpeed).toEqual({
+      text: 'т',
+      speed: 1.25,
+    })
     expect(входМиниМакс('т', { speed: 5 })).toEqual({ text: 'т', speed: 2 })
     expect(входМиниМакс('т', { speed: 0.1 })).toEqual({ text: 'т', speed: 0.5 })
     expect(скоростьРечи('abc')).toBeUndefined()
@@ -66,21 +77,8 @@ const СЕРВЕР = fs.readFileSync(
 )
 
 describe('проводка, а не только помощник', () => {
-  it('нога Replicate собирает тело через входМиниМакс', () => {
-    /*
-     * Семнадцатое правило: помощник может быть зелёным и не подключённым.
-     * Именно так здесь и было — тело собиралось прямо на месте, из одного
-     * `text`.
-     */
-    expect(СЕРВЕР).toContain('входМиниМакс(text, выбор)')
-    expect(СЕРВЕР).not.toContain('JSON.stringify({ input: { text } })')
-  })
-
-  it('маршрут озвучки передаёт выбор человека в эту ногу', () => {
-    expect(СЕРВЕР).toMatch(
-      /generateAudioViaReplicate\(text,\s*\{[\s\S]{0,400}?voice: voice_id,[\s\S]{0,200}?speed,/
-    )
-  })
+  // Automatic Replicate TTS routing was removed. The actual route's provider
+  // selection and failure behavior are covered in audio-provider.test.ts.
 
   it('/api/voices не отвечает 500, когда озвучить всё равно есть кем', () => {
     // Отказ ElevenLabs — не сбой, а постоянное состояние: ключ в переменной
@@ -121,7 +119,10 @@ describe('скорость доходит до КАЖДОЙ ноги, а не д
      * мёртвой ровно до того дня, когда починят ключ ElevenLabs, — и слайдер
      * снова перестал бы значить что-либо, без единой правки в коде.
      */
-    expect(СЕРВЕР).toMatch(/voice_settings: \{[\s\S]{0,200}?speed: скоростьРечи\(speed\)/)
+    const serverCode = СЕРВЕР.replace(/\/\/ cyrillic-ok:[^\n]*/g, '') // cyrillic-ok: existing source fixture
+    expect(serverCode).toMatch(
+      /voice_settings: \{[\s\S]{0,200}?speed: скоростьРечи\(speed\)/ // cyrillic-ok: existing provider API check
+    )
   })
 
   it('единица не шлётся ни одной ноге: это и есть значение по умолчанию', () => {
