@@ -21,7 +21,7 @@ const SRC = path.join(__dirname, '..', '..')
 const SECRET =
   /token|api_?key|apikey|secret|password|BOT_TOKEN|SERVICE_KEY|CLIENT_SECRET|private_?key/i
 const SAFE =
-  /!!|Boolean|has[A-Z]|\.length|\.substring|\.slice|redact|mask|\*\*\*|===|!==|not\s*found|not\s*set|is not set|missing|configured|Present|present|exists|Label|tokenKey|tokenExists|totalSecrets|secretsStats|numSecrets|secretsCount|getBotName|\.bot_name|\.secretKey\b|secretKey:|\.name\b/i
+  /!!|Boolean|has[A-Z]|\.length|\.substring|\.slice|redact|mask|scrub|\*\*\*|===|!==|not\s*found|not\s*set|is not set|missing|configured|Present|present|exists|Label|tokenKey|tokenExists|totalSecrets|secretsStats|numSecrets|secretsCount|getBotName|\.bot_name|\.secretKey\b|secretKey:|\.name\b/i
 const OPEN =
   /(?:console\.(?:log|error|warn|info)|logger\.(?:info|error|warn|debug))\s*\(/g
 
@@ -118,6 +118,32 @@ function leaks(): string[] {
 }
 
 describe('no production log leaks a secret value', () => {
+  /**
+   * WIDENING THE SAFE LIST IS THE DANGEROUS DIRECTION, so it is checked both
+   * ways on a fixture rather than trusted.
+   *
+   * `scrub` was added because the rule flagged the MITIGATION: registerCommands
+   * logs `scrubCallbackSecrets(callbackData)`, and that function replaces the
+   * one-time confirmation secret with a placeholder before anything is printed
+   * (src/utils/scrubCallbackSecrets.ts). Accusing the scrubber is a false
+   * alarm; failing to accuse a bare value would be the real miss.
+   */
+  it('still catches a bare secret value, and no longer accuses the scrubber', () => {
+    const leaks = "console.log('token', apiKeyValue)"
+    const scrubbed = "console.log('data', scrubCallbackSecrets(callbackData))"
+    const masked = "console.log('token', redact(apiKeyValue))"
+    expect(
+      SECRET.test(leaks) && !SAFE.test(leaks),
+      'a bare value must still be flagged'
+    ).toBe(true)
+    expect(SAFE.test(scrubbed), 'a scrubbed value must not be flagged').toBe(
+      true
+    )
+    expect(SAFE.test(masked), 'the neighbouring verbs must keep working').toBe(
+      true
+    )
+  })
+
   it('every console/logger call logs the key NAME / a flag, never the value', () => {
     const offenders = leaks()
     expect(
