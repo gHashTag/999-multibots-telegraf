@@ -47,6 +47,7 @@ async function statusOf(file) {
   try {
     const { stdout } = await run(T27C, ['spec-status', file], {
       timeout: 60_000,
+      maxBuffer: 256 * 1024 * 1024,
     })
     return stdout.trim().split(/\s+/).pop()
   } catch (e) {
@@ -62,7 +63,10 @@ export async function validate(file) {
   if (!text.trim()) return { ok: false, why: 'файл пуст' }
 
   try {
-    await run(T27C, ['parse', file], { timeout: 60_000 })
+    await run(T27C, ['parse', file], {
+      timeout: 60_000,
+      maxBuffer: 256 * 1024 * 1024,
+    })
   } catch (e) {
     const msg = String(e.stderr || e.stdout || e).split('\n')[0]
     return { ok: false, why: `не разбирается: ${msg.slice(0, 90)}` }

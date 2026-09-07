@@ -175,6 +175,12 @@ case "${1:-}" in
         [ -x "$T27C" ] || { echo "нет t27c. Сборка: см. скилл"; exit 2; }
         node "$S/build-spec-dataset.mjs" --specs "${3:-specs}" --out "${4:-spec-dataset}"
         ;;
+      score)
+        # ИЗМЕРИТЕЛЬ ОТВЕТОВ МОДЕЛИ: валидность, РЕЛЕВАНТНОСТЬ, существо.
+        # Без релевантности жульник, отвечающий одним спеком на всё, даёт 100%.
+        export T27C="${T27C:-$(command -v t27c)}"
+        node "$S/score-spec-answers.mjs" "${@:3}"
+        ;;
       count)
         # ЧЕСТНЫЙ ПОДСЧЁТ КОРПУСА -- ПО spec-status, А НЕ ПО РАСШИРЕНИЮ.
         #
