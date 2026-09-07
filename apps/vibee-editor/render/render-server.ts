@@ -2658,12 +2658,69 @@ function startRenderAsync(
             ? `✅ <b>Рендер готов!</b>\n\n👤 ${userInfo.first_name || 'Unknown'} (@${userInfo.username || 'нет'})\n📹 ${userInfo.project_name || 'Untitled'}\n⏱ ${renderTimeSec}s${hlsInfo}`
             : `✅ <b>Рендер готов!</b>\n\n⏱ ${renderTimeSec}s${hlsInfo}`
 
-          await sendTelegramVideo(
+          /*
+           * THE FINISHED VIDEO GOES TO THE PERSON WHO ASKED FOR IT.
+           *
+           * It did not. Every completed render was sent to
+           * TELEGRAM_RENDERS_GROUP -- an internal group id hardcoded above --
+           * and the bot is not in that chat, so Telegram answered
+           * "Bad Request: chat not found", the fallback message failed the
+           * same way, and the video was dropped. Verified in production: two
+           * renders in one log window, each about two minutes of compute,
+           * uploaded to S3 and then thrown away. From the outside that is
+           * exactly "it does not make assets" -- they were made and never
+           * arrived.
+           *
+           * The job has always known the buyer: userInfo.telegram_id is set
+           * when the render is created and is used a few lines below to
+           * publish to the feed.
+           *
+           * Order matters. The buyer is served FIRST and their failure is
+           * reported as a failure; the internal group is a courtesy copy
+           * afterwards, and its own failure must not be able to hide a
+           * delivery that did work -- nor stop one that has not happened yet.
+           */
+          const buyerChatId = userInfo?.telegram_id
+            ? String(userInfo.telegram_id)
+            : ''
+          const projectLine = userInfo?.project_name
+            ? `\n\n📹 ${userInfo.project_name}`
+            : ''
+          const buyerHead = '✅ <b>Готово!</b>'
+          const buyerCaption = `${buyerHead}${projectLine}\n⏱ ${renderTimeSec}s${hlsInfo}`
+
+          let deliveredToBuyer = false
+          if (buyerChatId) {
+            deliveredToBuyer = await sendTelegramVideo(
+              buyerChatId,
+              uploadResult.signedUrl,
+              buyerCaption
+            )
+            if (!deliveredToBuyer) {
+              console.error(
+                `❌ [Render] ${renderId}: the buyer did NOT receive the video. ` +
+                  `A finished render that reaches nobody is a paid job with no ` +
+                  `result -- chat ${buyerChatId} could not be written to ` +
+                  `(most often: the person has never opened a chat with this bot).`
+              )
+            }
+          } else {
+            console.error(
+              `❌ [Render] ${renderId}: no telegram_id on the job, so the video ` +
+                `has no addressee at all.`
+            )
+          }
+
+          // Courtesy copy for the team. Never allowed to mask the line above.
+          const groupCopy = await sendTelegramVideo(
             TELEGRAM_RENDERS_GROUP,
             uploadResult.signedUrl,
             caption
           )
-          console.log(`📱 Telegram notification sent for render ${renderId}`)
+          console.log(
+            `📱 [Render] ${renderId}: buyer=${deliveredToBuyer ? 'ok' : 'FAILED'}, ` +
+              `group=${groupCopy ? 'ok' : 'failed'}`
+          )
 
           // Auto-publish to community feed
           if (userInfo && userInfo.telegram_id) {
