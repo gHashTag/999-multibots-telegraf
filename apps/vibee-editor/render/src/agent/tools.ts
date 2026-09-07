@@ -1564,7 +1564,9 @@ export const TOOLS: AgentTool[] = [
       )
       const д: any = await о.json()
       if (!д?.ok || !д?.result) {
-        throw new Error(`Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`)
+        throw new Error(
+          `Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`
+        )
       }
       return {
         ссылка: д.result,
@@ -1924,7 +1926,9 @@ export const TOOLS: AgentTool[] = [
       required: ['username'],
     },
     async handler(a: Record<string, unknown>, ctx) {
-      const name = String(a.username ?? '').replace(/^@/, '').trim()
+      const name = String(a.username ?? '')
+        .replace(/^@/, '')
+        .trim()
       if (!name) return { ok: false, error: 'нужно имя пользователя' }
       const r = await ctx.pool.query(
         `SELECT us.content, us.updated_at::text AS updated_at, p.username
@@ -2251,13 +2255,32 @@ TOOLS.push(...PROJECT_TOOLS)
  * owner sees their bots, everyone else sees only themselves.
  */
 TOOLS.push(...HIVE_TOOLS)
+
 /*
- * Пульс улья — сюда же. Это ответ на «как дела у проекта», и спрашивают его
- * в том же чате, где спрашивают про баланс и ленту. Область видимости у
- * инструмента своя (`hive/roles.ts`): смотритель видит ферму, владелец —
- * своих ботов, остальные — только себя.
+ * NO TOOL IS REGISTERED TWICE.
+ *
+ * This line exists because it already happened. Two branches each added
+ * `TOOLS.push(...HIVE_TOOLS)` with its own comment, the merge kept both
+ * because they were adjacent additions rather than a textual conflict, and
+ * production listed hive_pulse, hive_events and hive_queen twice each.
+ *
+ * `TOOLS_BY_NAME` below is a Map, so duplicates collapse there and every
+ * CALL kept working -- which is exactly why nothing caught it. The damage
+ * lands on `tools/list`: an MCP client is handed the same tool twice and has
+ * to guess whether they differ.
+ *
+ * Thrown at module load rather than logged: a registry that lies about what
+ * it offers should not start.
  */
-TOOLS.push(...HIVE_TOOLS)
+const seen = new Set<string>()
+for (const t of TOOLS) {
+  if (seen.has(t.name)) {
+    throw new Error(
+      `tool registered twice: ${t.name} -- one of the TOOLS.push lines is a duplicate`
+    )
+  }
+  seen.add(t.name)
+}
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 
