@@ -2601,12 +2601,69 @@ function startRenderAsync(
             ? `✅ <b>Рендер готов!</b>\n\n👤 ${userInfo.first_name || 'Unknown'} (@${userInfo.username || 'нет'})\n📹 ${userInfo.project_name || 'Untitled'}\n⏱ ${renderTimeSec}s${hlsInfo}`
             : `✅ <b>Рендер готов!</b>\n\n⏱ ${renderTimeSec}s${hlsInfo}`
 
-          await sendTelegramVideo(
+          /*
+           * THE FINISHED VIDEO GOES TO THE PERSON WHO ASKED FOR IT.
+           *
+           * It did not. Every completed render was sent to
+           * TELEGRAM_RENDERS_GROUP -- an internal group id hardcoded above --
+           * and the bot is not in that chat, so Telegram answered
+           * "Bad Request: chat not found", the fallback message failed the
+           * same way, and the video was dropped. Verified in production:
+           * two renders in one log window, each about two minutes of compute,
+           * uploaded to S3 and then thrown away. From the outside that is
+           * exactly "it does not make assets" -- they were made and never
+           * arrived.
+           *
+           * The job has always known the buyer: userInfo.telegram_id is set
+           * when the render is created and is used a few lines below to
+           * publish to the feed.
+           *
+           * Order matters. The buyer is served FIRST and their failure is
+           * reported as a failure; the internal group is a courtesy copy
+           * afterwards, and its own failure must not be able to hide a
+           * delivery that did work -- nor stop one that has not happened yet.
+           */
+          const buyerChatId = userInfo?.telegram_id
+            ? String(userInfo.telegram_id)
+            : ''
+          const projectLine = userInfo?.project_name
+            ? `\n\n📹 ${userInfo.project_name}`
+            : ''
+          const buyerHead = '✅ <b>Готово!</b>'
+          const buyerCaption = `${buyerHead}${projectLine}\n⏱ ${renderTimeSec}s${hlsInfo}`
+
+          let deliveredToBuyer = false
+          if (buyerChatId) {
+            deliveredToBuyer = await sendTelegramVideo(
+              buyerChatId,
+              uploadResult.signedUrl,
+              buyerCaption
+            )
+            if (!deliveredToBuyer) {
+              console.error(
+                `❌ [Render] ${renderId}: the buyer did NOT receive the video. ` +
+                  `A finished render that reaches nobody is a paid job with no ` +
+                  `result -- chat ${buyerChatId} could not be written to ` +
+                  `(most often: the person has never opened a chat with this bot).`
+              )
+            }
+          } else {
+            console.error(
+              `❌ [Render] ${renderId}: no telegram_id on the job, so the video ` +
+                `has no addressee at all.`
+            )
+          }
+
+          // Courtesy copy for the team. Never allowed to mask the line above.
+          const groupCopy = await sendTelegramVideo(
             TELEGRAM_RENDERS_GROUP,
             uploadResult.signedUrl,
             caption
           )
-          console.log(`📱 Telegram notification sent for render ${renderId}`)
+          console.log(
+            `📱 [Render] ${renderId}: buyer=${deliveredToBuyer ? 'ok' : 'FAILED'}, ` +
+              `group=${groupCopy ? 'ok' : 'failed'}`
+          )
 
           // Auto-publish to community feed
           if (userInfo && userInfo.telegram_id) {
@@ -3282,7 +3339,14 @@ const server = createServer(async (req, res) => {
          */
         const ownerКартинки = generationOwnerId(req)
         if (ownerКартинки) {
-          recordInto(startJob('image', ownerКартинки, typeof prompt === 'string' ? prompt : undefined), res)
+          recordInto(
+            startJob(
+              'image',
+              ownerКартинки, // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+              typeof prompt === 'string' ? prompt : undefined
+            ),
+            res
+          )
         }
         receipt = billed.receipt
 
@@ -4021,7 +4085,10 @@ const server = createServer(async (req, res) => {
    * времени; личность берётся из подписи или сессии, а список — из `ADMIN_IDS`,
    * той же переменной, что решает вопрос оплаты.
    */
-  if (req.url?.split('?')[0] === '/api/feed/backfill-thumbnails' && req.method === 'POST') {
+  if (
+    req.url?.split('?')[0] === '/api/feed/backfill-thumbnails' &&
+    req.method === 'POST'
+  ) {
     const кто = generationOwnerId(req)
     if (!кто || !владелец(кто)) {
       res.writeHead(403, { 'Content-Type': 'application/json' })
@@ -4186,7 +4253,14 @@ const server = createServer(async (req, res) => {
          */
         const ownerЗвука = generationOwnerId(req)
         if (ownerЗвука) {
-          recordInto(startJob('audio', ownerЗвука, typeof text === 'string' ? text : undefined), res)
+          recordInto(
+            startJob(
+              'audio',
+              ownerЗвука, // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+              typeof text === 'string' ? text : undefined
+            ),
+            res
+          )
         }
         receipt = billed.receipt
 
@@ -4297,8 +4371,7 @@ const server = createServer(async (req, res) => {
                 voice_settings: {
                   stability: 0.5,
                   similarity_boost: 0.75,
-                  ...(скоростьРечи(speed) != null &&
-                  скоростьРечи(speed) !== 1
+                  ...(скоростьРечи(speed) != null && скоростьРечи(speed) !== 1 // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
                     ? { speed: скоростьРечи(speed) }
                     : {}),
                 },
@@ -4661,7 +4734,7 @@ const server = createServer(async (req, res) => {
           'kling/ai-avatar-standard',
         ]
         const explicitKie = model?.startsWith('kie/') ?? false
-/*
+        /*
          * ГОЛОЕ ИМЯ НЕ ВЫБИРАЕТ МОДЕЛЬ. Было `: model`: строка без префикса
          * `kie/` миновала допуск и попадала в список липсинка, а цена
          * считалась ПО ПРЕФИКСУ — убери четыре символа, и OmniHuman работал
@@ -6814,7 +6887,10 @@ const server = createServer(async (req, res) => {
    * читателя, как он выглядит.
    */
   if (req.url?.startsWith('/api/soul/') && req.method === 'GET') {
-    const имя = decodeURIComponent(req.url.slice('/api/soul/'.length).split('?')[0])
+    const имя = decodeURIComponent(
+      // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+      req.url.slice('/api/soul/'.length).split('?')[0]
+    )
     if (!имя) {
       sendJson(res, 400, { success: false, error: 'username is required' })
       return
@@ -6845,7 +6921,10 @@ const server = createServer(async (req, res) => {
       })
     } catch (e) {
       console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+      sendJson(res, 500, {
+        success: false,
+        error: 'внутренняя ошибка — подробность в журнале сервера',
+      })
     }
     return
   }
@@ -6933,7 +7012,10 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, { success: true, coverUrl: результат.url })
     } catch (e) {
       console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+      sendJson(res, 500, {
+        success: false,
+        error: 'внутренняя ошибка — подробность в журнале сервера',
+      })
     }
     return
   }
@@ -6986,7 +7068,12 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
       console.error('[render] ошибка обработчика:', e)
-      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: 'внутренняя ошибка — подробность в журнале сервера',
+        })
+      )
     }
     return
   }
@@ -7037,7 +7124,12 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
         console.error('[render] ошибка обработчика:', e)
-      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: 'внутренняя ошибка — подробность в журнале сервера',
+          })
+        )
       }
     })
     return
@@ -7333,9 +7425,14 @@ const server = createServer(async (req, res) => {
       личность: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
       readBody: r => readBody(r as any),
       создатьКлиент: async () => {
-        const c: any = new TelegramClient(new StringSession(''), apiId, apiHash, {
-          connectionRetries: 2,
-        })
+        const c: any = new TelegramClient(
+          new StringSession(''),
+          apiId,
+          apiHash,
+          {
+            connectionRetries: 2,
+          }
+        )
         c.apiId = apiId
         c.apiHash = apiHash
         await c.connect()
@@ -7567,8 +7664,12 @@ const server = createServer(async (req, res) => {
            * работающего клиента ради формы запроса незачем.
            */
           const запрошено =
-            body.tokens != null ? Number(body.tokens) : PACKS[String(body.pack)]?.tokens
-          if (!запрошено) throw new Error('нужно поле tokens или известный pack')
+            body.tokens != null
+              ? Number(body.tokens)
+              : PACKS[String(body.pack)]?.tokens
+          if (!запрошено)
+            // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+            throw new Error('нужно поле tokens или известный pack')
           const цена = ценаТокенов(запрошено)
           const pack = {
             tokens: цена.токенов,
@@ -9299,9 +9400,7 @@ const server = createServer(async (req, res) => {
         [username]
       )
       sendJson(res, 200, {
-        compositionCounts: Object.fromEntries(
-          counts.rows.map(r => [r.k, r.n])
-        ),
+        compositionCounts: Object.fromEntries(counts.rows.map(r => [r.k, r.n])),
         templates: result.rows.map(row => ({
           id: row.id,
           telegramId: row.telegram_id,
@@ -9778,7 +9877,7 @@ const server = createServer(async (req, res) => {
               {
                 role: 'system',
                 content:
-                  'Translate the user\'s SOUL.md into natural English. ' +
+                  "Translate the user's SOUL.md into natural English. " +
                   'Keep the markdown structure and heading levels exactly. ' +
                   'Do not add, drop or soften anything: this is what a person ' +
                   'says about themselves. Answer with the translation only.',
@@ -9815,7 +9914,10 @@ const server = createServer(async (req, res) => {
         })
       } catch (e) {
         console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+        sendJson(res, 500, {
+          success: false,
+          error: 'внутренняя ошибка — подробность в журнале сервера',
+        })
       }
     })
     return
@@ -10323,17 +10425,27 @@ export { broadcastWS }
  */
 function понятнаяПричина(e: unknown): string {
   const т = String(e)
-  if (/PHONE_CODE_INVALID/i.test(т)) return 'код неверный — проверьте и введите заново'
+  if (/PHONE_CODE_INVALID/i.test(т))
+    // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+    return 'код неверный — проверьте и введите заново'
   if (/PHONE_CODE_EXPIRED/i.test(т)) return 'код истёк — запросите новый'
-  if (/PHONE_NUMBER_INVALID/i.test(т)) return 'номер не принят Telegram — проверьте формат'
-  if (/PASSWORD_HASH_INVALID/i.test(т)) return 'пароль двухфакторной защиты не подошёл'
+  if (/PHONE_NUMBER_INVALID/i.test(т))
+    // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+    return 'номер не принят Telegram — проверьте формат'
+  if (/PASSWORD_HASH_INVALID/i.test(т))
+    // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+    return 'пароль двухфакторной защиты не подошёл'
   if (/FLOOD_WAIT_(\d+)/i.test(т)) {
     const m = /FLOOD_WAIT_(\d+)/i.exec(т)
     return `Telegram просит подождать ${m ? m[1] : 'немного'} секунд`
   }
-  if (/SESSION_PASSWORD_NEEDED/i.test(т)) return 'нужен пароль двухфакторной защиты'
+  if (/SESSION_PASSWORD_NEEDED/i.test(т))
+    // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+    return 'нужен пароль двухфакторной защиты'
   // Сообщения, которые мы формулируем сами, безопасны и полезны.
-  if (e instanceof Error && /^[А-Яа-яЁё]/.test(e.message)) return e.message.slice(0, 200)
+  if (e instanceof Error && /^[А-Яа-яЁё]/.test(e.message))
+    // cyrillic-ok: pre-existing identifier, line only reflowed by prettier
+    return e.message.slice(0, 200)
   return 'не получилось — подробность в журнале сервера'
 }
 
