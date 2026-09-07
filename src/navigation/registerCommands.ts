@@ -1191,6 +1191,77 @@ If not, continue on your own and click the "I myself" button`
         } finally {
           стоп()
         }
+        const isRuOtvet = isRussianFromState(ctx)
+        /*
+         * THE CARD IS SHOWN WHETHER OR NOT THE ANSWER CARRIED WORDS.
+         *
+         * It used to live inside `if (ответ.текст)`. A turn that called
+         * tg_send and said nothing -- which the model does -- fell straight
+         * through to the fallback path: the secret had already been issued and
+         * burned, no card was ever drawn, and the prepared message sat in the
+         * queue until it expired. The person was told nothing at all.
+         *
+         * Drawn BEFORE the answer text is handled, so the two orderings below
+         * (reply-then-return, or fall through to the fallback model) both keep
+         * it.
+         */
+        /*
+         * A DRAFT WAITING FOR CONFIRMATION IS SHOWN, NOT LEFT IN A QUEUE.
+         *
+         * `tg_send` and its siblings never send -- they file a proposal. Up
+         * to 2026-09-07 nothing anywhere read that queue, so the agent could
+         * answer "I have prepared the message" and the message existed
+         * nowhere a person could reach. The card below is what makes the
+         * whole tool real: recipient, full text, and two buttons.
+         *
+         * Only after an ACTING tool. Asking for approval of something that
+         * already happened teaches people to press the green button without
+         * reading, which is the habit this card exists to prevent.
+         */
+        try {
+          const { proposalCard } = await import('@/services/telegramProposals')
+          /*
+           * PRIVATE CHATS ONLY.
+           *
+           * The card carries the recipient and the full text of a message
+           * from somebody's PERSONAL Telegram. The AI fallback that produced
+           * this answer has no chat-type gate of its own, so in a group the
+           * bot would print that draft -- and a "Send" button anybody
+           * present could press -- in front of everyone.
+           *
+           * The draft is not lost: it waits in the queue and expires unsent.
+           */
+          const draft = ответ.proposal // cyrillic-ok: pre-existing local name
+          if (ctx.chat?.type === 'private' && draft) {
+            /*
+             * THE DRAFT COMES FROM THE ANSWER, NOT FROM A SECOND REQUEST.
+             *
+             * It used to be fetched from GET /api/tg/proposal after the
+             * reply. That route hands out no secret -- deliberately, since
+             * anything holding the shared server key can call it -- so a
+             * card built from it would carry a button that cannot confirm.
+             * Taking it from this turn's own answer also removes the window
+             * between "a draft exists" and "the client that caused it holds
+             * the secret".
+             */
+            const card = proposalCard(
+              {
+                id: draft.id,
+                action: draft.action,
+                target: draft.target,
+                what: draft.what,
+                secret: draft.secret,
+              },
+              isRuOtvet
+            )
+            await ctx.reply(card.text, card.markup)
+          }
+        } catch (e: any) {
+          // The answer is already delivered. A failure here costs an unsent
+          // draft, which expires by itself; it must not cost the reply.
+          logger.warn('proposal card failed', { error: e?.message })
+        }
+
         if (ответ.текст) {
           /*
            * Telegram ОТКАЗЫВАЕТ в отправке текста длиннее 4096 символов —
@@ -1212,7 +1283,6 @@ If not, continue on your own and click the "I myself" button`
            * keyboard per message, and repeating it under every part of a long
            * answer would give the person the same three buttons four times.
            */
-          const isRuOtvet = isRussianFromState(ctx)
           const { text: ochishcheno, markup } = buttonsForAnswer(
             ответ.текст, // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
             isRuOtvet
@@ -1221,64 +1291,6 @@ If not, continue on your own and click the "I myself" button`
           for (let i = 0; i < chasti.length; i++) {
             const posledniy = i === chasti.length - 1
             await ctx.reply(chasti[i], posledniy ? markup : undefined)
-          }
-          /*
-           * A DRAFT WAITING FOR CONFIRMATION IS SHOWN, NOT LEFT IN A QUEUE.
-           *
-           * `tg_send` and its siblings never send -- they file a proposal. Up
-           * to 2026-09-07 nothing anywhere read that queue, so the agent could
-           * answer "I have prepared the message" and the message existed
-           * nowhere a person could reach. The card below is what makes the
-           * whole tool real: recipient, full text, and two buttons.
-           *
-           * Only after an ACTING tool. Asking for approval of something that
-           * already happened teaches people to press the green button without
-           * reading, which is the habit this card exists to prevent.
-           */
-          try {
-            const { proposalCard } = await import(
-              '@/services/telegramProposals'
-            )
-            /*
-             * PRIVATE CHATS ONLY.
-             *
-             * The card carries the recipient and the full text of a message
-             * from somebody's PERSONAL Telegram. The AI fallback that produced
-             * this answer has no chat-type gate of its own, so in a group the
-             * bot would print that draft -- and a "Send" button anybody
-             * present could press -- in front of everyone.
-             *
-             * The draft is not lost: it waits in the queue and expires unsent.
-             */
-            const draft = ответ.proposal // cyrillic-ok: pre-existing local name
-            if (ctx.chat?.type === 'private' && draft) {
-              /*
-               * THE DRAFT COMES FROM THE ANSWER, NOT FROM A SECOND REQUEST.
-               *
-               * It used to be fetched from GET /api/tg/proposal after the
-               * reply. That route hands out no secret -- deliberately, since
-               * anything holding the shared server key can call it -- so a
-               * card built from it would carry a button that cannot confirm.
-               * Taking it from this turn's own answer also removes the window
-               * between "a draft exists" and "the client that caused it holds
-               * the secret".
-               */
-              const card = proposalCard(
-                {
-                  id: draft.id,
-                  action: draft.action,
-                  target: draft.target,
-                  what: draft.what,
-                  secret: draft.secret,
-                },
-                isRuOtvet
-              )
-              await ctx.reply(card.text, card.markup)
-            }
-          } catch (e: any) {
-            // The answer is already delivered. A failure here costs an unsent
-            // draft, which expires by itself; it must not cost the reply.
-            logger.warn('proposal card failed', { error: e?.message })
           }
           return
         }

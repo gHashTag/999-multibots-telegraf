@@ -523,6 +523,9 @@ describe('only an executable action takes the one queue slot', () => {
     const owner = {
       telegramId: '144022504',
       pool: { query: async () => ({ rows: [] }) },
+      // 'bot' because only that surface can confirm, and therefore only that
+      // surface queues anything at all.
+      surface: 'bot',
     } as never
     const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
     const read = TELEGRAM_TOOLS.find(t => t.name === 'tg_read')!
@@ -547,6 +550,9 @@ describe('only an executable action takes the one queue slot', () => {
     const owner = {
       telegramId: '144022504',
       pool: { query: async () => ({ rows: [] }) },
+      // 'bot' because only that surface can confirm, and therefore only that
+      // surface queues anything at all.
+      surface: 'bot',
     } as never
     const read = TELEGRAM_TOOLS.find(t => t.name === 'tg_read')!
     const answer = (await read.handler({ chat: '@x' }, owner)) as {
@@ -766,5 +772,99 @@ describe('there is no route that simply hands drafts out', () => {
     // ...while confirm and cancel are still there.
     expect(src).toContain("route === '/api/tg/proposal/confirm'")
     expect(src).toContain("route === '/api/tg/proposal/cancel'")
+  })
+})
+
+describe('a draft is only prepared where it can be confirmed', () => {
+  /*
+   * Only the bot chat draws the card and takes a press. The mini app and iOS
+   * read the same agent stream and ignore the proposal event; a direct /mcp
+   * call has no screen at all.
+   *
+   * Queueing for those was worse than useless: it BURNED the draft's one-time
+   * secret on a client with nowhere to use it, so the message could not be
+   * confirmed from anywhere -- while the agent told the person it was ready.
+   */
+  const owner = (surface?: string) =>
+    ({
+      telegramId: '144022504',
+      pool: { query: async () => ({ rows: [] }) },
+      turn: 'ход-1',
+      surface,
+    }) as never
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock('./src/agent/telegram-tools')
+    forgetProposals()
+  })
+
+  it('the bot chat queues it', async () => {
+    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    const q = await import('./src/agent/tg-proposals')
+    q.forgetProposals()
+    const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
+    await send.handler({ chat: '@ivan', text: 'привет' }, owner('bot'))
+    expect(q.pendingCount()).toBe(1)
+  })
+
+  for (const surface of ['miniapp', 'ios', 'agent', 'unknown', undefined]) {
+    it(`${surface ?? 'no surface'} does NOT queue it`, async () => {
+      const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+      const q = await import('./src/agent/tg-proposals')
+      q.forgetProposals()
+      const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
+      await send.handler({ chat: '@ivan', text: 'привет' }, owner(surface))
+      expect(
+        q.pendingCount(),
+        'черновик поставлен там, где его нечем подтвердить'
+      ).toBe(0)
+    })
+  }
+
+  it('and says WHERE it can be confirmed, instead of going quiet', async () => {
+    /*
+     * The model relays this. Without it the person is told a message is ready
+     * and waits for a card that will never be drawn -- the same dangling
+     * promise the whole change exists to remove, one surface over.
+     */
+    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
+    const answer = (await send.handler(
+      { chat: '@ivan', text: 'привет' },
+      owner('miniapp')
+    )) as { proposal?: boolean; why?: string }
+    expect(answer.proposal).toBe(true)
+    expect(answer.why).toContain('чате бота')
+  })
+})
+
+describe('a wrong secret is visible, not merely counted', () => {
+  it('it is written to the log', () => {
+    /*
+     * A counter outlived the removed lockout for one commit: incremented on
+     * every miss, read by nobody, under a comment claiming the attempts were
+     * "worth seeing in the numbers". They were not being seen anywhere.
+     */
+    forgetProposals()
+    remember(draft('p1', '144022504'))
+    const said: string[] = []
+    const real = console.warn
+    console.warn = (...a: unknown[]) => said.push(a.join(' '))
+    try {
+      claim('144022504', 'p1', 'мимо')
+    } finally {
+      console.warn = real
+    }
+    expect(said.join(' ')).toContain('wrong secret')
+    expect(said.join(' ')).toContain('p1')
+    // The secret itself is NOT in the line: a log is where secrets go to leak.
+    expect(said.join(' ')).not.toContain('мимо')
+  })
+
+  it('the dead counter is gone from the record', () => {
+    forgetProposals()
+    const kept = remember(draft('p1', '144022504'))
+    expect(Object.keys(kept)).not.toContain('wrong')
   })
 })

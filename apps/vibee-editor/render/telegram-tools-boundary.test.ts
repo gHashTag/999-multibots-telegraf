@@ -89,7 +89,14 @@ describe('действующие инструменты не действуют 
    * bite because nothing executed a proposal. The moment execution existed the
    * hole was real, so the owner is now named explicitly.
    */
-  const OWNER_CTX = { telegramId: '144022504', pool } as never
+  const OWNER_CTX = {
+    telegramId: '144022504',
+    pool,
+    // Only a surface that can SHOW a confirmation queues a draft: preparing a
+    // message where nobody can press is a promise nothing keeps, and it burns
+    // the draft's one-time secret on a client with nowhere to use it.
+    surface: 'bot',
+  } as never
 
   for (const name of ACTING) {
     it(`${name} возвращает proposal, а не результат`, async () => {

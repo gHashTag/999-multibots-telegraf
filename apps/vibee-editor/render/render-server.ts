@@ -7511,32 +7511,42 @@ const server = createServer(async (req, res) => {
    * the player and the bot found no reader at all, so those tools could not
    * reach anybody, ever. This is the other half.
    *
-   * Identity comes from `resolveIdentity`, the same as every other route that
-   * acts for a person, and `claim` checks it again against the proposal's own
-   * owner -- so the id in the body is a claim, not a credential.
+   * ── THREE THINGS HAVE TO LINE UP, NOT ONE ─────────────────────────────────
    *
-   * ── WHAT THAT DOES *NOT* BUY, STATED PLAINLY ──────────────────────────────
+   * 1. Identity, from `resolveIdentity`, as on every route that acts for a
+   *    person.
+   * 2. Ownership: `claim` checks the draft belongs to that same person.
+   * 3. A ONE-TIME SECRET, which is the one that carries the weight.
    *
-   * The two checks are not independent. `resolveIdentity`'s server-key branch
-   * returns whatever `telegram_id` the caller typed, and `claim` then compares
-   * the draft's owner against that same caller-chosen string. Anyone holding
-   * RENDER_API_KEY can therefore read a prepared message and make it go out
-   * from the owner's real Telegram: no press, no card. Verified by execution,
-   * with a `getPool` that throws if touched -- no database, session or
-   * signature is consulted on that path.
+   * The first two are not independent, and it is worth saying why rather than
+   * letting somebody discover it. `resolveIdentity`'s server-key branch returns
+   * whatever `telegram_id` the caller typed, so checks 1 and 2 compare a
+   * caller-chosen string against itself. For a while that was the whole gate:
+   * anyone holding RENDER_API_KEY could read a waiting draft from a GET route
+   * and post it straight back here, and a prepared message left the owner's
+   * real account with nobody touching a button. Verified by execution, with a
+   * `getPool` that threw if touched -- no database, session or signature was
+   * consulted on that path.
    *
-   * The key HAS to be accepted here, because the presser is a person in the
-   * bot chat and the bot is what carries the press; it holds only this key.
-   * So the property is "nothing sends without a press" for everyone EXCEPT the
-   * trusted services, and for those it is "nothing sends without the key".
+   * The secret is what closed it. It is minted when the draft is filed, never
+   * returned by any read route -- there is no read route any more -- and handed
+   * out exactly once, in the answer to the turn that created the draft, to that
+   * turn alone. A key holder watching the queue now sees nothing it can use.
    *
-   * That is a widening: before this route, the key could read the owner's
-   * Telegram through the tools but could not send, because every acting tool
-   * only proposed. It is worth knowing rather than discovering. Narrowing it
-   * needs a secret the key-holder does not have -- a nonce minted when the
-   * card is shown and burned on use -- which is a design change, not a line.
+   * ── WHAT IS STILL TRUE, AND MUST STAY WRITTEN DOWN ────────────────────────
    *
-   * Until then the confirm is LOGGED, so a send nobody remembers pressing
+   * The key HAS to be accepted here: the presser is a person in the bot chat,
+   * the bot carries the press, and the bot holds only this key. So a key holder
+   * can still drive a WHOLE agent turn as the owner and be handed a secret of
+   * their own. What is gone is the quiet path -- taking over a draft the owner
+   * was about to approve, leaving no trace anywhere. Driving a turn writes to
+   * the conversation the owner reads.
+   *
+   * Closing the rest needs a credential the key holder does not have: a confirm
+   * key issued only to the bot service. That is an ops decision, not a line of
+   * code, and it is not made here.
+   *
+   * The confirm is LOGGED either way, so a send nobody remembers pressing
    * leaves a trace to find.
    */
   {

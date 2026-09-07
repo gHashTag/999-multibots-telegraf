@@ -67,8 +67,6 @@ export interface PendingProposal {
    * bot service.
    */
   secret: string
-  /** Wrong-secret attempts. Fail closed rather than allow a search. */
-  wrong: number
   /**
    * Has the secret already been handed to a client?
    *
@@ -102,10 +100,7 @@ export interface PendingProposal {
 }
 
 /** What may leave this module. Never the secret, except through `issueFor`. */
-export type PublicProposal = Omit<
-  PendingProposal,
-  'secret' | 'wrong' | 'issued' | 'turn'
->
+export type PublicProposal = Omit<PendingProposal, 'secret' | 'issued' | 'turn'>
 
 /*
  * THERE IS NO WRONG-ATTEMPT LIMIT, AND THAT IS DELIBERATE.
@@ -113,11 +108,14 @@ export type PublicProposal = Omit<
  * A limit was written here first, on the reflex that a secret check wants one.
  * It bought nothing and cost something real: 128 bits is not searchable, so
  * the limit never stops an attack -- but anybody able to reach the route can
- * post three wrong secrets and DESTROY the owner's waiting draft. A control
+ * post three wrong secrets and DESTROY the owner's waiting message. A control
  * whose only reachable effect is denial of service is worse than its absence.
  *
- * The attempt is still counted, because a wrong secret is worth seeing in the
- * numbers; it simply does not decide anything.
+ * A counter outlived it for one commit: incremented on every miss and read by
+ * nobody, under a comment claiming the attempts were "worth seeing in the
+ * numbers". They were not being seen. A wrong secret IS worth noticing, so it
+ * is written to the log where somebody can actually find it, and the dead
+ * field is gone.
  */
 
 /** How long an unconfirmed proposal survives. */
@@ -130,15 +128,8 @@ const pending = new Map<string, PendingProposal>()
 
 /** Strip what must never leave. Copies, so a caller cannot reach the original. */
 function redact(p: PendingProposal): PublicProposal {
-  const {
-    secret: _secret,
-    wrong: _wrong,
-    issued: _issued,
-    turn: _turn,
-    ...rest
-  } = p
+  const { secret: _secret, issued: _issued, turn: _turn, ...rest } = p
   void _secret
-  void _wrong
   void _issued
   void _turn
   return rest
@@ -185,7 +176,7 @@ export function pendingCount(): number {
  * that owns it, so no caller can supply a weak one or reuse an old one.
  */
 export function remember(
-  p: Omit<PendingProposal, 'createdAt' | 'secret' | 'wrong' | 'issued'>
+  p: Omit<PendingProposal, 'createdAt' | 'secret' | 'issued'>
 ): PendingProposal {
   dropExpired()
   if (pending.size >= MAX_PENDING) {
@@ -208,7 +199,6 @@ export function remember(
     createdAt: Date.now(),
     // 128 bits. The id is only a lookup key now; this is the authorisation.
     secret: randomBytes(16).toString('hex'),
-    wrong: 0,
     issued: false,
   }
   pending.set(p.id, saved)
@@ -342,7 +332,10 @@ export function claim(
      * stale draft gets, because the difference is only useful to somebody
      * probing.
      */
-    p.wrong += 1
+    console.warn(
+      `[proposal] wrong secret id=${id} who=${String(telegramId)} ` +
+        `action=${p.action}`
+    )
     return { ok: false, why: 'это действие уже подтверждено или истекло' }
   }
   pending.delete(id)

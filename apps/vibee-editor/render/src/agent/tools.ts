@@ -42,6 +42,13 @@ export interface ToolContext {
    * whoever asked at the right moment rather than to whoever caused the draft.
    */
   turn?: string
+  /**
+   * Where the person is: 'bot', 'miniapp', 'ios', 'agent', 'unknown'.
+   *
+   * Needed because only some surfaces can CONFIRM an action. Preparing a
+   * message on one that cannot is a promise nothing keeps.
+   */
+  surface?: string
 }
 
 export interface AgentTool {

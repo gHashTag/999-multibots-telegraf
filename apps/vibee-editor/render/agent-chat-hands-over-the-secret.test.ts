@@ -57,9 +57,12 @@ vi.mock('./src/agent/chat', () => ({
   },
 }))
 
-function request() {
+function request(surface?: string) {
   const s = Readable.from([
-    JSON.stringify({ messages: [{ role: 'user', content: 'напиши Ивану' }] }),
+    JSON.stringify({
+      messages: [{ role: 'user', content: 'напиши Ивану' }],
+      surface,
+    }),
   ]) as unknown as {
     headers: Record<string, string>
     method: string
@@ -236,6 +239,50 @@ describe('the answer carries the draft and its secret', () => {
     expect(eventsOf(res).some(e => e['тип'] === 'proposal')).toBe(false)
     // ...and the draft is still there for its own turn.
     expect(issueFor(OWNER, 'ход-владельца')?.secret).toBeTruthy()
+  })
+
+  it('the SURFACE reaches the tool, or no draft is ever queued', async () => {
+    /*
+     * Caught by mutation, not by design: dropping `surface` from the context
+     * the route builds changed nothing in this file, because the fake agent
+     * above files its draft by calling `remember` directly. In production the
+     * same edit refuses every proposal -- `propose` queues only where a
+     * confirmation can be shown -- so no card would ever appear and the whole
+     * feature would be silently dead.
+     *
+     * So this one goes through the REAL tg_send handler with the REAL context
+     * the route assembled: route -> ctx -> propose -> queue, end to end.
+     */
+    filesDraft = false
+    let seen: { surface?: string; turn?: string } | null = null
+    vi.doMock('./src/agent/chat', () => ({
+      runAgent: async function* (
+        _history: unknown,
+        ctx: { telegramId: string; turn?: string; surface?: string }
+      ) {
+        seen = { surface: ctx.surface, turn: ctx.turn }
+        const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+        const send = TELEGRAM_TOOLS.find(t => t.name === 'tg_send')!
+        await send.handler({ chat: '@ivan', text: 'привет' }, ctx as never)
+        yield { ['тип']: 'текст', ['текст']: 'Подготовил письмо.' }
+      },
+    }))
+    const { forgetProposals } = await import('./src/agent/tg-proposals')
+    const { handleAgentChat } = await import('./src/agent/routes')
+    forgetProposals()
+    const res = response()
+    await handleAgentChat(
+      request('bot') as never,
+      res as never,
+      OWNER,
+      async () => pool
+    )
+    expect(seen, 'runAgent не получил контекст').toBeTruthy()
+    expect(seen!.surface, 'поверхность не доехала до инструмента').toBe('bot')
+    expect(seen!.turn, 'ход не доехал до инструмента').toBeTruthy()
+    const draft = eventsOf(res).find(e => e['тип'] === 'proposal')
+    expect(draft, 'карточки не будет: черновик не встал в очередь').toBeTruthy()
+    vi.doUnmock('./src/agent/chat')
   })
 
   it('somebody else never receives it', async () => {

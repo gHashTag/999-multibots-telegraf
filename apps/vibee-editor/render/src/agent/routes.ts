@@ -475,7 +475,7 @@ export async function handleAgentChat(
     const события: Array<{ тип?: string; текст?: string }> = []
     for await (const ev of runAgent(
       history,
-      { telegramId, pool, turn },
+      { telegramId, pool, turn, surface: поверхность }, // cyrillic-ok: pre-existing local
       // The surface was already parsed and allow-listed above; the agent needs
       // it so that button markers are proposed in the bot and nowhere else.
       { surface: поверхность } // cyrillic-ok: local defined earlier in this file

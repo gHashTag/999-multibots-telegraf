@@ -162,6 +162,36 @@ describe('the card shows what will actually be sent', () => {
   })
 })
 
+describe('a silent answer still shows the card', () => {
+  it('the card is drawn OUTSIDE the "answer has text" branch', () => {
+    /*
+     * It used to live inside `if (ответ.текст)`. A turn that called tg_send
+     * and said nothing -- which the model does -- fell straight through to the
+     * fallback path: the one-time secret had already been issued and burned,
+     * no card was ever drawn, and the prepared message sat in the queue until
+     * it expired. The person was told nothing at all.
+     *
+     * Checked by position, because that is exactly what went wrong: the code
+     * was correct and in the wrong block.
+     */
+    const card = SOURCE.indexOf("ctx.chat?.type === 'private' && draft")
+    const textBranch = SOURCE.indexOf('if (ответ.текст) {')
+    expect(card, 'the card is gone').toBeGreaterThan(-1)
+    expect(textBranch, 'the text branch is gone').toBeGreaterThan(-1)
+    expect(
+      card,
+      'карточка снова внутри ветки «в ответе есть текст» — молчаливый ход её потеряет'
+    ).toBeLessThan(textBranch)
+  })
+
+  it('and the draft is read from the answer before either path runs', () => {
+    const draft = SOURCE.indexOf('const draft = ответ.proposal')
+    const textBranch = SOURCE.indexOf('if (ответ.текст) {')
+    expect(draft).toBeGreaterThan(-1)
+    expect(draft).toBeLessThan(textBranch)
+  })
+})
+
 describe('the draft is never shown to a room', () => {
   it('the card is gated on a private chat', () => {
     /*
