@@ -230,6 +230,69 @@ describe('оба клиента читают одни и те же поля пр
     expect(ios).toContain('let templates: [Ожидающий]?')
   })
 
+  it('план берётся ТЕМИ ЖЕ инструментами, что у агента', () => {
+    /*
+     * План — это то, чем человек и агент обмениваются работой. Завести рядом
+     * отдельный REST значило бы два описания одного списка: одно для человека,
+     * другое для агента. Они разойдутся, и первым это заметит тот, кто
+     * попросит агента «отметь, что вышло», а в приложении увидит прежнее.
+     */
+    const веб = читать(
+      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePlan.tsx'
+    )
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    for (const инструмент of ['plan_list', 'plan_item_update']) {
+      expect(веб, `веб потерял ${инструмент}`).toContain(инструмент)
+      expect(ios, `iOS не знает ${инструмент}`).toContain(инструмент)
+    }
+    expect(ios).toContain('tools/call')
+    expect(IOS_ЭКРАН).toContain('карточкаПлана')
+  })
+
+  it('круг статусов одинаковый: замысел → в работе → вышло → замысел', () => {
+    /*
+     * Разный круг на двух экранах означал бы, что одно нажатие даёт разный
+     * результат в зависимости от того, где нажали, — и человек перестанет
+     * доверять кнопке.
+     */
+    const веб = читать(
+      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePlan.tsx'
+    )
+    expect(веб).toMatch(/замысел:\s*'doing'/)
+    expect(веб).toMatch(/'в работе':\s*'done'/)
+    expect(веб).toMatch(/вышло:\s*'idea'/)
+
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    const от = ios.indexOf('func следующийСтатус')
+    const круг = ios.slice(от, от + 320)
+    expect(круг).toContain('case "замысел": return "doing"')
+    expect(круг).toContain('case "в работе": return "done"')
+    expect(круг).toContain('return "idea"')
+  })
+
+  it('счётчик «сделано» считает одно и то же', () => {
+    // В вебе это `статус === 'вышло'`; расхождение дало бы два разных ответа
+    // на вопрос «как идёт».
+    const веб = читать(
+      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePlan.tsx'
+    )
+    expect(веб).toContain("статус === 'вышло'")
+    expect(IOS_API).toContain('$0.статус == "вышло"')
+  })
+
+  it('JSON-RPC ошибка не превращается в пустой план', () => {
+    /*
+     * JSON-RPC отвечает 200 И на ошибку — она лежит в поле `error`. Молча
+     * вернуть пустоту значило бы показать пустой план вместо причины: человек
+     * решит, что плана нет, и заведёт второй.
+     */
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    const от = ios.indexOf('private static func инструмент')
+    const блок = ios.slice(от, от + 1400)
+    expect(блок).toContain('тело["error"]')
+    expect(блок).toContain('throw')
+  })
+
   it('сокращение тысяч одинаковое: 1.2K и 3.4M', () => {
     // Иначе одно и то же число выглядит на двух экранах по-разному, и человек
     // решает, что видит разные величины.
