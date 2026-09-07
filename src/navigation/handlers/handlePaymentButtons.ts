@@ -83,14 +83,15 @@ export async function handlePaymentButtons(
     try {
       const { Markup } = await import('telegraf')
       const { isRussian } = await import('@/helpers')
-      const { isX402Configured } = await import('@/core/x402')
+      const { canX402Credit } = await import('@/core/x402')
       const { TON_PAYMENT_SCENE_ID } = await import('@/scenes/tonPaymentScene')
       const { TON_NATIVE_PAYMENT_SCENE_ID } = await import(
         '@/scenes/tonNativePaymentScene'
       )
 
       const isRu = isRussian(ctx)
-      const showX402 = isX402Configured()
+      // Same gate as paymentScene: offered only if it could be credited.
+      const showX402 = canX402Credit()
 
       const message = isRu
         ? '💎 *Выберите криптовалюту для оплаты:*'
