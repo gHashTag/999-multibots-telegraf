@@ -129,7 +129,17 @@ export function ConnectCode(props: ConnectCodeProps) {
             className={
               'tg-code__cell' +
               (digits[i] ? ' is-filled' : '') +
-              (focused && i === Math.min(digits.length, cells - 1) && !digits[i]
+              /*
+               * The next cell is marked WHETHER OR NOT the field has focus.
+               *
+               * Screenshotted on a phone-sized viewport: an empty, unfocused
+               * row is five identical dark slabs with nothing saying where to
+               * start -- it reads as a disabled control, and the keyboard does
+               * not always open by itself inside a Mini App webview. The
+               * marker is dimmer without focus and full strength with it, so
+               * it invites first and confirms second.
+               */
+              (i === Math.min(digits.length, cells - 1) && !digits[i]
                 ? ' is-next'
                 : '')
             }

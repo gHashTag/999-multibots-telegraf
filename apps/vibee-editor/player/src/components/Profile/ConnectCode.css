@@ -105,7 +105,10 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-primary, #fff);
   background: var(--color-bg-elevated, #1a1a1a);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  /* 0.22, not 0.14: at 0.14 on a black page the empty row photographed as five
+     flat slabs indistinguishable from the background, and a field that does
+     not look like a field does not get typed into. */
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 14px;
   transition:
     border-color 0.12s ease,
@@ -116,10 +119,19 @@
   border-color: rgba(0, 255, 136, 0.5);
 }
 
-/* The cell about to receive a digit. There is no real caret to show -- the
-   input is invisible -- so the highlight IS the caret. Without it the field
-   looks inert and people tap it repeatedly. */
+/*
+ * The cell about to receive a digit. There is no real caret to show -- the
+ * input is invisible -- so this highlight IS the caret.
+ *
+ * It is drawn even without focus, dimmer. An empty unfocused row otherwise
+ * says nothing about where to start, and inside a Mini App webview the
+ * keyboard does not reliably open on its own.
+ */
 .tg-code__cell.is-next {
+  border-color: rgba(0, 255, 136, 0.55);
+}
+
+.tg-code__field.is-focused .tg-code__cell.is-next {
   border-color: var(--vibee-green, #00ff88);
   box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.18);
 }
