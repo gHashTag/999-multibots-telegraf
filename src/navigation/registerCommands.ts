@@ -1025,9 +1025,7 @@ If not, continue on your own and click the "I myself" button`
        * сейчас недоступны, — вместо молчания.
        */
       try {
-        logger.info(
-          `🤖 [Агент] "${text.substring(0, 50)}" от ${ctx.from?.id}`
-        )
+        logger.info(`🤖 [Агент] "${text.substring(0, 50)}" от ${ctx.from?.id}`)
         /*
          * «Печатает…» ЖИВЁТ ПЯТЬ СЕКУНД, а виток агента — до трёх минут.
          *
@@ -1069,6 +1067,32 @@ If not, continue on your own and click the "I myself" button`
         })
       }
 
+      /*
+       * THE FALLBACK MODEL MUST NOT PROMISE WHAT DOES NOT EXIST.
+       *
+       * Owner: "it talks complete nonsense and makes no assets". Half of that
+       * is right here. When the agent is unreachable the answer comes from a
+       * model with NO tools, and its prompt tells it to help "make photos,
+       * video, voice" -- so it happily agrees to do what it cannot invoke, and
+       * the person waits for a result that will never arrive.
+       *
+       * The prompt therefore carries a list of services that CANNOT be
+       * performed right now (the provider key is unset). The model neither
+       * invents that list nor softens it: it is computed from the environment.
+       */
+      const cannotDoNow = (): string => {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const {
+            unavailableWarning,
+          } = require('@/services/capabilityPreflight')
+          return unavailableWarning()
+        } catch {
+          // The check must never stop the reply: an empty string is the plain prompt.
+          return ''
+        }
+      }
+
       try {
         const { chatWithAI } = await import('@/services/aiChatService')
         const reply = await chatWithAI(
@@ -1095,6 +1119,7 @@ If not, continue on your own and click the "I myself" button`
                * которые пришлось убирать.
                */
               content:
+                cannotDoNow() +
                 'Ты — ассистент Trinity S³AI. Помогаешь делать фото, видео, ' +
                 'озвучку и рилсы. Отвечай кратко (2-3 предложения). ' +
                 'Как устроена оплата: тарифов и подписок НЕТ — есть токены, ' +
