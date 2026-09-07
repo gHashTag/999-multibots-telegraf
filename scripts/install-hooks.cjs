@@ -37,4 +37,41 @@ if (!existsSync(bin)) {
 }
 
 // Дальше любая ошибка — настоящая, и она должна быть видна.
+/*
+ * Condition 3: clear somebody else's core.hooksPath, or the install does
+ * NOTHING.
+ *
+ * This was the hole that cost a day. `core.hooksPath` pointed at `.husky`, git
+ * ran husky, and lefthook printed "Custom hooks paths are not supported by
+ * default" and "Skipping hook sync" on every single commit -- then skipped the
+ * sync. Not one of the six pre-commit checks ran, while `npm install` reported
+ * success, and the only hint was a warning nobody read.
+ *
+ * The setting is LOCAL, so it survives in the working copy of anyone who ever
+ * installed husky here. It is cleared out loud: silently rewriting somebody's
+ * git config is the next mystery, not a fix.
+ */
+const hooksPath = (() => {
+  try {
+    return execFileSync('git', ['config', '--local', 'core.hooksPath'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).trim()
+  } catch {
+    // A non-zero code here means "not set", which is the normal case.
+    return ''
+  }
+})()
+
+if (hooksPath) {
+  console.log(
+    `[hooks] core.hooksPath points at ${hooksPath}. lefthook skips its sync when` +
+      ' that is set, so no hook actually runs. Clearing it.'
+  )
+  execFileSync('git', ['config', '--unset-all', '--local', 'core.hooksPath'], {
+    stdio: 'inherit',
+    cwd: root,
+  })
+}
+
 execFileSync(bin, ['install'], { stdio: 'inherit', cwd: root })
