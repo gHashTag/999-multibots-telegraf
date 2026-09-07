@@ -12,6 +12,7 @@ import { MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { slugify } from 'inngest' // For v3 migration
 import { createInngestFailureHandler } from '@/inngest_app/client'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 // Константы для вариантов оплаты
 const PAYMENT_OPTIONS = [
@@ -193,7 +194,9 @@ export const processPayment = inngest.createFunction(
             throw new Error(`Токен бота не найден для ${bot_name}`)
           }
 
-          const bot = new Telegraf<MyContext>(botToken)
+          const bot = new Telegraf<MyContext>(botToken, {
+            telegram: telegramClientOptions(),
+          })
 
           // Отправляем уведомление об оплате
           const caption = isRussianLanguageCode(language_code)

@@ -17,6 +17,7 @@ import path from 'path'
 import fs from 'fs'
 import { updateUserBalance, getUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { telegramFileApiFor } from '@/services/telegramApi'
 
 export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
   'video_transcription',
@@ -67,7 +68,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
       // Обработка загруженного видеофайла
       const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
       // getFile throws a Telegram 400 for files above the Bot API download limit
-      // (~20MB on api.telegram.org). Unguarded, that throw aborts this step and
+      // (~20MB on api.telegram.org). Unguarded, that throw aborts this step and  telegram-api-root-ok
       // silently drops the user's uploaded video (this runs before any charge).
       // Catch it and tell the user how to proceed instead of losing the upload.
       let videoFile
@@ -100,7 +101,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
+      videoUrl = `${telegramFileApiFor(ctx.telegram.token)}/${videoFile.file_path}`
     } else if (isTextWithUrl) {
       // Обработка ссылки на видео
       videoUrl = message.text.trim()

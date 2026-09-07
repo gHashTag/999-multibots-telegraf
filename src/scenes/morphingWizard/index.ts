@@ -4,6 +4,7 @@ import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleHelpCancel } from '@/navigation'
 import { getBotToken } from '@/handlers/getBotToken'
+import { telegramFileApiFor } from '@/services/telegramApi'
 import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
@@ -380,7 +381,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
         // a bare fetch had neither, so an expired file_path only failed later at
         // isValidImage, and a hung download wedged this step indefinitely.
         const buffer = await downloadTelegramFileBuffer(
-          `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+          `${telegramFileApiFor(botToken)}/${file.file_path}`
         )
 
         // Валидация изображения

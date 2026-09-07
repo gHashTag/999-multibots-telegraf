@@ -5,6 +5,7 @@ import { redactBotToken } from '../../utils/redactBotToken'
 import { randomUUID } from 'node:crypto'
 import { Markup } from 'telegraf'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { telegramFileApiFor } from '@/services/telegramApi'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB, пример ограничения
 
@@ -38,7 +39,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
       }
 
       const videoFile = await ctx.telegram.getFile(message.video.file_id)
-      const videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
+      const videoUrl = `${telegramFileApiFor(ctx.telegram.token)}/${videoFile.file_path}`
       console.log('CASE: videoUrl', redactBotToken(videoUrl))
       ctx.session.videoUrl = videoUrl
       ctx.wizard.next()

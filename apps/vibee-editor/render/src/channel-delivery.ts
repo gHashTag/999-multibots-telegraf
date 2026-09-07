@@ -55,6 +55,8 @@
  * (the defect fixed for notifications in 329e1458).
  */
 
+import { telegramApiFor } from './telegram-api'
+
 /**
  * Structural, deliberately not `import type { Pool } from 'pg'` -- the same
  * trick as src/autopilot-state.ts: a test passes a plain object and needs no
@@ -303,22 +305,19 @@ async function sendViaTelegram(input: {
   caption: string
 }): Promise<SendResult> {
   try {
-    const r = await fetch(
-      `https://api.telegram.org/bot${input.token}/sendVideo`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: input.chatId,
-          video: input.videoUrl,
-          caption: input.caption,
-          supports_streaming: true,
-        }),
-        // Telegram downloads the file itself; a minute is generous for 2 MB and
-        // still bounded, because an unbounded fetch here hangs the whole tick.
-        signal: AbortSignal.timeout(60_000),
-      }
-    )
+    const r = await fetch(`${telegramApiFor(input.token)}/sendVideo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: input.chatId,
+        video: input.videoUrl,
+        caption: input.caption,
+        supports_streaming: true,
+      }),
+      // Telegram downloads the file itself; a minute is generous for 2 MB and
+      // still bounded, because an unbounded fetch here hangs the whole tick.
+      signal: AbortSignal.timeout(60_000),
+    })
     const body = (await r.json().catch(() => ({}))) as {
       ok?: boolean
       description?: string

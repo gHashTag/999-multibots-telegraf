@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf'
 // ✅ Используем единый клиент из @/inngest_app/client
 import { inngest } from '@/inngest_app/client'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 export const testSimpleMessageFunction = inngest.createFunction(
   {
@@ -15,7 +16,9 @@ export const testSimpleMessageFunction = inngest.createFunction(
 
       console.log(`🧪 Sending test message to user ${userId}: ${message}`)
 
-      const bot = new Telegraf(process.env.BOT_TOKEN!)
+      const bot = new Telegraf(process.env.BOT_TOKEN!, {
+        telegram: telegramClientOptions(),
+      })
 
       await bot.telegram.sendMessage(userId, message)
 

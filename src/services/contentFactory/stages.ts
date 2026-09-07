@@ -3,6 +3,7 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { logger } from '@/utils/logger'
+import { telegramApiFor } from '@/services/telegramApi'
 import { runModel, firstUrl } from './replicate'
 import { mirror, putFile } from './storage'
 import { Artifact, Caption, Cut, FactoryContext, StageError } from './types'
@@ -377,7 +378,7 @@ export async function stageDeliver(
     'reel.mp4'
   )
 
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+  const res = await fetch(`${telegramApiFor(token)}/sendVideo`, {
     method: 'POST',
     body,
   })

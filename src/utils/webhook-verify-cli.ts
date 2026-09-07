@@ -6,6 +6,7 @@
 
 import { Telegraf } from 'telegraf'
 import { validateWebhookSetup } from './webhook-manager'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 interface BotConfig {
   name: string
@@ -48,7 +49,9 @@ async function verifyWebhooksFromEnv(): Promise<void> {
   // Verify each bot
   const results = await Promise.all(
     botConfigs.map(async config => {
-      const bot = new Telegraf(config.token)
+      const bot = new Telegraf(config.token, {
+        telegram: telegramClientOptions(),
+      })
       try {
         const validation = await validateWebhookSetup(bot, config.name)
         return { config, ...validation }

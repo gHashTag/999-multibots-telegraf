@@ -12,6 +12,7 @@ import axios from 'axios'
 import { Input } from 'telegraf'
 import { logger } from '@/utils/logger'
 import FormData from 'form-data'
+import { telegramApiFor } from '@/services/telegramApi'
 
 /**
  * Interface для callback payload от Railway render-server
@@ -37,7 +38,6 @@ interface AIReelsCallbackPayload {
 
 const TELEGRAM_BOT_TOKEN =
   process.env.TELEGRAM_BOT_TOKEN_AI_STARS || process.env.TELEGRAM_BOT_TOKEN
-const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`
 const TELEGRAM_VIDEO_LIMIT = 50 * 1024 * 1024
 
 function extractTelegramIdFromJobId(jobId: string): string | null {
@@ -56,7 +56,7 @@ async function sendTelegramMessage(
   if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not configured')
 
   await axios.post(
-    `${TELEGRAM_API_URL}/sendMessage`,
+    `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendMessage`,
     {
       chat_id: telegramId,
       text,
@@ -77,7 +77,7 @@ async function sendTelegramVideo(
 ): Promise<void> {
   if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not configured')
 
-  const url = `${TELEGRAM_API_URL}/sendVideo`
+  const url = `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendVideo`
   const formData = new FormData()
   formData.append('chat_id', telegramId)
   formData.append('video', videoBuffer, { filename })

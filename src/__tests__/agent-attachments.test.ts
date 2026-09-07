@@ -16,7 +16,7 @@ import {
   attachmentRefused,
   buildAgentMessage,
   buildAgentTurn,
-  TELEGRAM_DOWNLOAD_LIMIT,
+  telegramDownloadLimit,
 } from '@/services/agentAttachments'
 
 /**
@@ -217,7 +217,7 @@ describe('fetching the bytes', () => {
       name: 'big.mp4',
       mimeType: 'video/mp4',
       fileId: 'f',
-      bytes: TELEGRAM_DOWNLOAD_LIMIT + 1,
+      bytes: telegramDownloadLimit() + 1,
     })
     expect(attachmentRefused(out)).toBe(true)
     if (!attachmentRefused(out)) return
@@ -238,7 +238,7 @@ describe('fetching the bytes', () => {
       vi.fn(async () => ({
         ok: true,
         arrayBuffer: async () =>
-          new Uint8Array(TELEGRAM_DOWNLOAD_LIMIT + 10).buffer,
+          new Uint8Array(telegramDownloadLimit() + 10).buffer,
       }))
     )
     const out = await attachmentToLine(telegram('link'), {
@@ -364,7 +364,7 @@ describe('what the agent actually receives', () => {
       video: {
         file_id: 'v',
         file_unique_id: 'u',
-        file_size: TELEGRAM_DOWNLOAD_LIMIT + 1,
+        file_size: telegramDownloadLimit() + 1,
       },
     })
     expect(plan.refusal).toContain('Telegram')
@@ -376,7 +376,7 @@ describe('what the agent actually receives', () => {
       video: {
         file_id: 'v',
         file_unique_id: 'u',
-        file_size: TELEGRAM_DOWNLOAD_LIMIT + 1,
+        file_size: telegramDownloadLimit() + 1,
       },
     })
     expect(plan.refusal).not.toBeNull()
@@ -440,7 +440,7 @@ describe('one turn out of a whole album', () => {
       video: {
         file_id: 'v',
         file_unique_id: 'u',
-        file_size: TELEGRAM_DOWNLOAD_LIMIT + 1,
+        file_size: telegramDownloadLimit() + 1,
       },
     }
     const plan = await buildAgentTurn(telegram, [part(1), tooBig, part(2)])
@@ -461,7 +461,7 @@ describe('one turn out of a whole album', () => {
         file_id: name,
         file_unique_id: name,
         file_name: name,
-        file_size: TELEGRAM_DOWNLOAD_LIMIT + 1,
+        file_size: telegramDownloadLimit() + 1,
       },
     })
     const plan = await buildAgentTurn(telegram, [big('a.pdf'), big('b.pdf')])

@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 /**
  * TelegramLogService - централизованный сервис логирования в Telegram группу
@@ -47,7 +48,9 @@ class TelegramLogService {
    * Инициализация с токеном бота напрямую
    */
   initializeWithToken(botToken: string): void {
-    this.bot = new Telegraf<MyContext>(botToken)
+    this.bot = new Telegraf<MyContext>(botToken, {
+      telegram: telegramClientOptions(),
+    })
     this.isInitialized = true
     logger.info('[TelegramLogService] Initialized with token', {
       logGroupId: this.logGroupId,

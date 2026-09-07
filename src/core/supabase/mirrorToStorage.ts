@@ -13,7 +13,7 @@ import { logger } from '@/utils/logger'
  *   своих          1 418
  *
  * Из проверенных выборками: `replicate.delivery`, `replicate.com`,
- * `tempfile.aiquickdraw.com`, `api.telegram.org`, `via.placeholder.com`,
+ * `tempfile.aiquickdraw.com`, `api.telegram.org`, `via.placeholder.com`,  telegram-api-root-ok
  * бывшие адреса нашего же ai-server и dev-туннели ngrok — ВСЁ отдаёт 404.
  * Живы только fal, страницы instagram.com и наши собственные ссылки.
  *

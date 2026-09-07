@@ -28,7 +28,7 @@ export async function createVoiceAvatar(
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }
     const level = userExists.level
-    // Do NOT log fileUrl: it is https://api.telegram.org/file/bot<BOT_TOKEN>/...
+    // Do NOT log fileUrl: it is https://api.telegram.org/file/bot<BOT_TOKEN>/...  telegram-api-root-ok
     // so it embeds the full bot token (a full-control credential) plus an
     // unauthenticated link to the user's voice recording (biometric PII).
     // console.log bypasses the winston redactBotToken redaction (which only runs

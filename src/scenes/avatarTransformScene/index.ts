@@ -5,6 +5,7 @@ import { getMainMenuText } from '@/navigation'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { logger } from '@/utils/logger'
 import { redactBotToken } from '@/utils/redactBotToken'
+import { telegramFileApiFor } from '@/services/telegramApi'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
@@ -2761,7 +2762,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     try {
       const photo = ctx.message.photo[ctx.message.photo.length - 1]
       const file = await ctx.telegram.getFile(photo.file_id)
-      const photoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+      const photoUrl = `${telegramFileApiFor(ctx.telegram.token)}/${file.file_path}`
 
       // Сохраняем новое фото в сессии
       ctx.session.kontextImageUrl = photoUrl

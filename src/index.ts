@@ -51,6 +51,7 @@ import { setBotInstance } from './api_server/routes/kie-ai-webhook.routes'
 
 // ✅ Импортируем supabase для диагностики
 import { supabase } from './core/supabase'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -79,7 +80,7 @@ export async function validateBotToken(
   tokenName?: string
 ): Promise<boolean> {
   try {
-    const bot = new Telegraf(token)
+    const bot = new Telegraf(token, { telegram: telegramClientOptions() })
     const botInfo = await bot.telegram.getMe()
     return true
   } catch (error) {
@@ -200,6 +201,7 @@ async function initializeBots() {
 
     if (await validateBotToken(token, tokenName)) {
       const bot = new Telegraf<MyContext>(token, {
+        telegram: telegramClientOptions(),
         handlerTimeout: Infinity,
       })
       bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow

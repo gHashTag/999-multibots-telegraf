@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { mirrorToOwnStorage } from '@/core/supabase/mirrorToStorage'
+import { telegramFileApiFor } from '@/services/telegramApi'
 
 // Telegram Bot API limit for getFile
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
@@ -79,7 +80,7 @@ export async function getUserPhotoUrl(
       // ССЫЛКА СОДЕРЖИТ ТОКЕН БОТА — НАРУЖУ ЕЁ ОТДАВАТЬ НЕЛЬЗЯ.
       //
       // Адрес файла у Telegram имеет вид
-      //   https://api.telegram.org/file/bot<ТОКЕН>/<путь>
+      //   https://api.telegram.org/file/bot<ТОКЕН>/<путь>  telegram-api-root-ok  cyrillic-ok
       // и раньше он возвращался как есть, после чего попадал в
       // `users.photo_url`. Проверено на живой базе: **264 строки содержат
       // 14 разных токенов ботов**, и шесть из них на момент проверки были
@@ -92,7 +93,7 @@ export async function getUserPhotoUrl(
       // не протухает. Если переложить не удалось, mirrorToOwnStorage вернёт
       // исходную ссылку — тогда её нельзя сохранять, и вызывающий получает
       // null вместо адреса с токеном.
-      const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+      const telegramUrl = `${telegramFileApiFor(ctx.telegram.token)}/${file.file_path}`
       const mirrored = await mirrorToOwnStorage(telegramUrl, userId, 'avatars')
       if (mirrored === telegramUrl) {
         logger.warn(
@@ -126,7 +127,7 @@ export async function getUserPhotoUrl(
 
             if (file.file_path) {
               // Тот же запрет: адрес с токеном наружу не уходит.
-              const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+              const telegramUrl = `${telegramFileApiFor(ctx.telegram.token)}/${file.file_path}`
               const photoUrl = await mirrorToOwnStorage(
                 telegramUrl,
                 userId,

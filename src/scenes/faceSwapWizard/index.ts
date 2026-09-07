@@ -15,6 +15,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { createCancelButton, handleCancelButton } from '@/utils/cancelButton'
+import { telegramFileApiFor } from '@/services/telegramApi'
 
 export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
   'faceSwapWizard',
@@ -89,7 +90,7 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       )
       return
     }
-    const targetImageUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+    const targetImageUrl = `${telegramFileApiFor(ctx.telegram.token)}/${file.file_path}`
 
     // Store in session
     ;(ctx.session as any).targetImageUrl = targetImageUrl
@@ -151,7 +152,7 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       )
       return
     }
-    const swapImageUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+    const swapImageUrl = `${telegramFileApiFor(ctx.telegram.token)}/${file.file_path}`
 
     const targetImageUrl = (ctx.session as any).targetImageUrl
 

@@ -33,6 +33,7 @@ import { ensureAuthTables, pollRevocations } from './session-store'
 import { report } from './src/hive/queen-report'
 import { record } from './src/hive/journal'
 import { sendToTelegram } from './src/auth/telegram-sender'
+import { telegramApiFor, telegramFileApiFor } from './src/telegram-api'
 import {
   readRenderQuota,
   reserveRenderQuota,
@@ -643,7 +644,7 @@ async function postReelToChannel(input: {
   const caption = input.caption.slice(0, 1024)
 
   try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+    const r = await fetch(`${telegramApiFor(token)}/sendVideo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -933,7 +934,7 @@ async function sendTelegramMessage(
   }
   try {
     const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendMessage`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -969,7 +970,7 @@ async function sendTelegramVideo(
   }
   try {
     const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo`,
+      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendVideo`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1477,7 +1478,7 @@ async function getBotBranding(botId: string) {
   const token = tokens.find(t => t.split(':')[0] === botId)
   if (!token) throw new Error(`токена бота ${botId} нет на сервере`)
 
-  const me = await fetch(`https://api.telegram.org/bot${token}/getMe`).then(
+  const me = await fetch(`${telegramApiFor(token)}/getMe`).then(
     r => r.json() as any
   )
   if (!me?.ok) throw new Error(`getMe: ${me?.description || 'отказ'}`)
@@ -1485,12 +1486,12 @@ async function getBotBranding(botId: string) {
   let avatarUrl: string | null = null
   try {
     const photos = await fetch(
-      `https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${botId}&limit=1`
+      `${telegramApiFor(token)}/getUserProfilePhotos?user_id=${botId}&limit=1`
     ).then(r => r.json() as any)
     const fileId = photos?.result?.photos?.[0]?.slice(-1)?.[0]?.file_id
     if (fileId) {
       const file = await fetch(
-        `https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`
+        `${telegramApiFor(token)}/getFile?file_id=${fileId}`
       ).then(r => r.json() as any)
       if (file?.ok?.valueOf() && file.result?.file_path) {
         // Ссылка на файл содержит токен, поэтому наружу отдаём её через свой
@@ -4990,15 +4991,15 @@ const server = createServer(async (req, res) => {
       if (!token) throw new Error('нет токена')
 
       const photos = await fetch(
-        `https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${botId}&limit=1`
+        `${telegramApiFor(token)}/getUserProfilePhotos?user_id=${botId}&limit=1`
       ).then(r => r.json() as any)
       const fileId = photos?.result?.photos?.[0]?.slice(-1)?.[0]?.file_id
       if (!fileId) throw new Error('аватара нет')
       const file = await fetch(
-        `https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`
+        `${telegramApiFor(token)}/getFile?file_id=${fileId}`
       ).then(r => r.json() as any)
       const img = await fetch(
-        `https://api.telegram.org/file/bot${token}/${file.result.file_path}`
+        `${telegramFileApiFor(token)}/${file.result.file_path}`
       )
       const buf = Buffer.from(await img.arrayBuffer())
       res.writeHead(200, {
@@ -7888,7 +7889,7 @@ const server = createServer(async (req, res) => {
             title: названиеСчёта(цена.токенов),
           }
           const tg = await fetch(
-            `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
+            `${telegramApiFor(PAY_BOT)}/createInvoiceLink`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -7989,7 +7990,7 @@ const server = createServer(async (req, res) => {
             return
           }
           const st = await fetch(
-            `https://api.telegram.org/bot${PAY_BOT}/getStarTransactions?limit=100`
+            `${telegramApiFor(PAY_BOT)}/getStarTransactions?limit=100`
           ).then(r => r.json())
           const txs = st?.result?.transactions || []
           // Exclude transactions already tied to this user's redeemed invoices:
@@ -8514,9 +8515,9 @@ const server = createServer(async (req, res) => {
           })
           return
         }
-        // Инвойс Stars: provider_token пуст (XTR), хост фиксированный.
+        // Инвойс Stars: provider_token пуст (XTR).  cyrillic-ok
         const invResp = await fetch(
-          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/createInvoiceLink`,
+          `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/createInvoiceLink`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
