@@ -137,6 +137,22 @@ const push = (map, key, where) => {
   map.get(key).push(where)
 }
 
+/**
+ * Comments masked, newlines kept, so line numbers still line up.
+ *
+ * Without this the check finds `ctx.scene.leave()` inside a comment that
+ * QUOTES the line it replaced -- which is exactly what happened the first time
+ * a site was repaired: the fix's own explanation kept the site on the list. A
+ * quotation is not a call.
+ */
+const maskComments = text =>
+  text
+    .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+    .replace(
+      /(^|[^:])\/\/[^\n]*/g,
+      (m, p) => p + ' '.repeat(m.length - p.length)
+    )
+
 const renderSites = []
 
 for (const file of files) {
@@ -145,7 +161,7 @@ for (const file of files) {
   // Positions too, for the leave check below. Multi-line on purpose:
   // `Markup.button.callback(` puts the label on one line and the id on the
   // next, and a per-line matcher misses exactly the shape that check is for.
-  const lines = text.split('\n')
+  const lines = maskComments(text).split('\n')
   for (const m of text.matchAll(RENDER)) {
     renderSites.push({
       file,
@@ -196,6 +212,66 @@ const crossFile = [...rendered.keys()].filter(id => {
  * candidates and its own discrimination rate, and calls them candidates.
  */
 const LEAVE_WINDOW = 40
+
+/**
+ * The leave-finder proves itself on a FIXTURE, not on the repository.
+ *
+ * Its first calibration was a live defect -- aiCoverWizard's repeat-purchase
+ * button -- and the moment that was repaired the calibration went with it. A
+ * check anchored to a defect stops working exactly when the work succeeds.
+ *
+ * Three samples, and all three have been wrong here at least once:
+ *   found     a render with a leave a few lines under it, on the same path;
+ *   branch    the same, with a `} catch (` between them -- a different path,
+ *             and the false alarm an adjudication of nineteen candidates
+ *             mostly consisted of;
+ *   quoted    a leave inside a COMMENT, which is what the repair's own
+ *             explanation contained. A quotation is not a call.
+ */
+const leaveFixture = (lines, from) => {
+  const masked = maskComments(lines.join('\n')).split('\n')
+  for (let k = from; k < Math.min(masked.length, from + LEAVE_WINDOW); k++) {
+    if (/\.action\(/.test(masked[k])) return 0
+    if (/^\s*\}?\s*catch\s*\(/.test(masked[k])) return 0
+    if (/^\s*\}\s*else\b/.test(masked[k])) return 0
+    if (/ctx\.scene\.leave\(\)/.test(masked[k])) return k + 1
+  }
+  return 0
+}
+{
+  const FOUND = [
+    "  callback_data: 'fx_leave_id',",
+    '  })',
+    '  return ctx.scene.leave()',
+  ]
+  const BRANCH = [
+    "  callback_data: 'fx_branch_id',",
+    '  } catch (e) {',
+    '  return ctx.scene.leave()',
+  ]
+  const QUOTED = [
+    "  callback_data: 'fx_quoted_id',",
+    '  // this line was ctx.scene.leave() before the fix',
+    '  return',
+  ]
+  const bad = []
+  if (!leaveFixture(FOUND, 1))
+    bad.push('a leave on the same path was not found')
+  if (leaveFixture(BRANCH, 1))
+    bad.push('a leave behind a catch was counted as the same path')
+  if (leaveFixture(QUOTED, 1))
+    bad.push('a leave quoted in a comment was counted as a call')
+  if (bad.length) {
+    console.error(
+      'SELF-CHECK FAILED: the leave-finder is wrong on its own fixture:'
+    )
+    for (const b of bad) console.error(`  ${b}`)
+    console.error(
+      'Every candidate below would be noise. Refusing to print one.'
+    )
+    process.exit(2)
+  }
+}
 const leavesSoon = site => {
   for (
     let k = site.line;
@@ -203,6 +279,12 @@ const leavesSoon = site => {
     k++
   ) {
     if (/\.action\(/.test(site.lines[k])) return 0 // a new registration: another function
+    // A catch or an else opens a DIFFERENT path. The leave beyond it is not
+    // the render's leave, and counting it is the false alarm this check was
+    // criticised for: an adjudication of nineteen candidates found thirteen
+    // reachable, most of them exactly this shape.
+    if (/^\s*\}?\s*catch\s*\(/.test(site.lines[k])) return 0
+    if (/^\s*\}\s*else\b/.test(site.lines[k])) return 0
     if (/ctx\.scene\.leave\(\)/.test(site.lines[k])) return k + 1
   }
   return 0
