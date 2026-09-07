@@ -170,7 +170,28 @@ async function main() {
       'пустые ответы'
     )
 
+    /*
+     * ASSERT ON EVERY NUMBER THE BATTERY PRINTS.
+     *
+     * The maxBuffer bug was VISIBLE here before it was found: the reference row
+     * read VALID 79% instead of 100%, which is exactly the 7 of 34 eval specs
+     * whose AST exceeds a megabyte. The battery measured it correctly and then
+     * said "прибор поверен", because the verdict only looked at `relevant`.
+     *
+     * A number printed and not asserted on is decoration. Every column now has
+     * a claim attached to it.
+     */
     const bad = []
+    if (perfect.valid < 0.98) {
+      bad.push(
+        `эталон валиден лишь на ${(perfect.valid * 100).toFixed(0)}% — ` +
+          `сами эталоны обязаны проходить ворота`
+      )
+    }
+    if (perfect.substance < 0.98)
+      bad.push('эталон не совпал сам с собой по существу')
+    if (cheater.substance > 0.1) bad.push('ЖУЛЬНИК набирает существо')
+    if (empty.relevant > 0) bad.push('пустой ответ признан релевантным')
     if (perfect.relevant < 0.95) bad.push('эталон не признан релевантным')
     if (cheater.relevant > 0.1) bad.push('ЖУЛЬНИК проходит по релевантности')
     if (empty.valid > 0) bad.push('пустой ответ признан валидным')

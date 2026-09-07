@@ -195,11 +195,24 @@ async function main() {
   console.log(`[spec] обучение / оценка  : ${train.length} / ${evalSet.length}`)
   console.log(`[spec] областей           : ${byArea.size}`)
 
-  // Leakage: the prompt must not already contain the answer.
+  /*
+   * LEAKAGE, CHECKED IN THE DIRECTION IT ACTUALLY HAPPENS.
+   *
+   * The first version asked "does the PROMPT contain the start of the ANSWER".
+   * That is the wrong way round and it caught nothing: a mutation putting the
+   * description back into the target -- the exact defect this dataset was built
+   * to avoid -- passed it cleanly, because the target then began with an SPDX
+   * line the prompt never had.
+   *
+   * The leak that matters is the reverse: the ANSWER repeating text the model
+   * was just handed. That is what makes copying the cheapest way to lower the
+   * loss.
+   */
   const copyable = train.filter(r => {
     const ask = r.messages[1].content
     const ans = r.messages[2].content
-    return ans.length > 40 && ask.includes(ans.slice(0, 40))
+    const desc = ask.split('\n').slice(2).join('\n').trim()
+    return desc.length > 40 && ans.includes(desc.slice(0, 60))
   })
   console.log(
     `[spec] запрос содержит ответ: ${copyable.length} ` +
@@ -208,6 +221,34 @@ async function main() {
 
   const tiny = rows.filter(r => r.messages[2].content.length < 120)
   console.log(`[spec] подозрительно коротких ответов: ${tiny.length}`)
+
+  /*
+   * A NUMBER PRINTED AND NOT ASSERTED ON IS DECORATION.
+   *
+   * This script printed leakage and short-answer counts for three iterations
+   * and would have exited 0 with either of them non-zero -- handing over
+   * corrupted training data while reporting success.
+   *
+   * The same defect was found one file over: the scorer's battery displayed
+   * `VALID 79%` for the references, which was the maxBuffer bug in plain sight,
+   * and still concluded "прибор поверен" because the verdict only inspected a
+   * different column.
+   *
+   * So every count this script prints now carries a claim, and a violated claim
+   * is a non-zero exit.
+   */
+  const problems = []
+  if (copyable.length)
+    problems.push(`${copyable.length} запросов содержат ответ`)
+  if (tiny.length) problems.push(`${tiny.length} ответов короче 120 символов`)
+  if (train.length + evalSet.length !== rows.length) {
+    problems.push('обучение + оценка не равны числу примеров')
+  }
+  if (!evalSet.length) problems.push('оценочная выборка пуста')
+  if (problems.length) {
+    console.error(`[spec] ⛔ ДАТАСЕТ НЕ ГОДЕН: ${problems.join('; ')}`)
+    process.exit(1)
+  }
 }
 
 main().catch(e => {
