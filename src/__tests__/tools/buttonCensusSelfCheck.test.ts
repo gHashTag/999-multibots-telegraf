@@ -67,6 +67,7 @@ describe('the button census refuses to report through a broken matcher', () => {
     ['named comparison', '\\b[A-Za-z_$][\\w$]*\\s*===?', '\\bdata\\s*===?'],
     ['switch/case', 'case\\s+([\'"`])', 'never_case\\s+([\'"`])'],
     ['startsWith', '\\.startsWith\\(', '\\.neverStartsWith\\('],
+    ['array trigger', '\\.action\\(\\s*\\[', '\\.neverAction\\(\\s*\\['],
   ]
 
   for (const [name, from, to] of breakages) {
@@ -91,4 +92,53 @@ describe('the button census refuses to report through a broken matcher', () => {
       expect(out).toContain('SELF-CHECK FAILED')
     })
   }
+})
+
+/**
+ * THE SIX BUTTONS THIS BRANCH REPAIRED.
+ *
+ * Each was adjudicated by an agent, then put to a skeptic that tried to prove
+ * the death sentence wrong and could not. Rather than restate the argument,
+ * this asks the census itself: are they caught now?
+ *
+ * The ceiling on the total is a separate assertion, because a matcher that
+ * stopped matching would satisfy the six by finding nothing at all.
+ */
+describe('the buttons repaired here land somewhere', () => {
+  const census = () => {
+    const out = execFileSync('node', [SCRIPT, '--json'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+    return JSON.parse(out) as { rendered: number; orphans: string[] }
+  }
+
+  const REPAIRED = [
+    'ai_photoshop_multi_choose_model',
+    'loading_indicator',
+    'loading_processing_indicator',
+    'loading_all_models_indicator',
+    'go_to_main_menu',
+    'create_voice_avatar',
+    'back_to_competitors',
+  ]
+
+  it('scanned a population of the expected size', () => {
+    const { rendered } = census()
+    expect(rendered).toBeGreaterThanOrEqual(200)
+  })
+
+  it('no longer counts any of them as unreachable', () => {
+    const { orphans } = census()
+    const still = REPAIRED.filter(id => orphans.includes(id))
+    expect(still, `still without a catcher: ${still.join(', ')}`).toEqual([])
+  })
+
+  it('does not let the remaining debt grow', () => {
+    const { orphans } = census()
+    expect(
+      orphans.length,
+      `ids with no catcher of any shape:\n  ${orphans.join('\n  ')}`
+    ).toBeLessThanOrEqual(38)
+  })
 })
