@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { Telegraf, Telegram, session } from 'telegraf'
+import { replyWitness, deadPressNet } from '@/navigation/middleware/noSilence'
 
 /**
  * NOTHING REACHES ANOTHER PERSON WITHOUT A PRESS.
@@ -456,5 +458,152 @@ describe('the card does not present a bare id as a checkable address', () => {
     )
     expect(card.text).toContain('@ivan')
     expect(card.text).not.toContain('числовой id')
+  })
+})
+
+/**
+ * THE CONFIRM PRESS UNDER THE DEAD-PRESS NET.
+ *
+ * `deadPressNet` arrived from main while this branch was open. It wraps every
+ * update and, if nothing answered the press, tells the person "that button is
+ * out of date" and posts a fresh menu.
+ *
+ * That is right for an orphaned button and wrong for this one: the message has
+ * just been SENT, and being told the button is dead immediately afterwards
+ * would make a successful send look like a failure -- the person re-sends.
+ *
+ * Reasoning says the handlers are safe because they call `answerCbQuery` first
+ * and the witness marks the press. Reasoning is not a check: this drives a real
+ * Telegraf with the real middleware, in the real registration order.
+ */
+const realCallApi = (Telegram.prototype as any).callApi
+
+function press(data: string, chatType = 'private') {
+  return {
+    update_id: 1,
+    callback_query: {
+      id: 'cb1',
+      from: { id: 144022504, is_bot: false, first_name: 'o' },
+      chat_instance: 'ci',
+      data,
+      message: {
+        message_id: 5,
+        date: 0,
+        chat: { id: 144022504, type: chatType },
+      },
+    },
+  }
+}
+
+describe('a confirmed send is not then called a dead button', () => {
+  let sink: Array<{ method: string; payload: any }> = []
+
+  beforeEach(() => {
+    sink = []
+    ;(Telegram.prototype as any).callApi = async (
+      method: string,
+      payload: any
+    ) => {
+      sink.push({ method, payload })
+      return method === 'sendMessage' ? { message_id: 6 } : true
+    }
+  })
+  afterEach(() => {
+    ;(Telegram.prototype as any).callApi = realCallApi
+    vi.unstubAllGlobals()
+  })
+
+  const botWithRealHandlers = async () => {
+    const bot = new Telegraf('111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
+    ;(bot as any).botInfo = {
+      id: 111,
+      is_bot: true,
+      username: 'probe',
+      first_name: 'p',
+    }
+    const errors: string[] = []
+    bot.catch((e: any) => errors.push(String((e && e.message) || e)))
+    // The order registerCommands uses: witness, net, THEN the confirm buttons,
+    // which sit ahead of the scene middleware.
+    bot.use(replyWitness)
+    bot.use(session())
+    bot.use(deadPressNet as any)
+    const { registerProposalButtons } = await import(
+      '@/navigation/registerCommands'
+    )
+    registerProposalButtons(bot as never)
+    return { bot, errors }
+  }
+
+  it('a successful confirm answers the press and says nothing about dead buttons', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      }))
+    )
+    process.env.RENDER_API_KEY = 'test-key'
+    const { bot, errors } = await botWithRealHandlers()
+    await bot.handleUpdate(press(`tgp:ok:abc123456789:${'f'.repeat(32)}`) as never)
+
+    expect(errors).toEqual([])
+    const said = sink
+      .filter(s => s.method === 'sendMessage')
+      .map(s => String(s.payload?.text ?? ''))
+      .join(' | ')
+    /*
+     * Language-agnostic: `isRussianFromState` answers English without a stored
+     * language, and pinning one wording would make this test about the
+     * dictionary rather than about the net.
+     */
+    const saysSent = said.includes('Отправлено') || said.includes('Sent')
+    const saysDead =
+      said.includes('устарела') || said.includes('out of date')
+    expect(saysSent, 'подтверждение не отчиталось человеку').toBe(true)
+    expect(saysDead, 'после отправки бот назвал кнопку устаревшей').toBe(false)
+    // Exactly one answer: the net must not add a second on top of the handler.
+    expect(
+      sink.filter(s => s.method === 'answerCallbackQuery'),
+      'нажатие отвечено дважды'
+    ).toHaveLength(1)
+  })
+
+  it('a cancel is treated the same way', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      }))
+    )
+    process.env.RENDER_API_KEY = 'test-key'
+    const { bot } = await botWithRealHandlers()
+    await bot.handleUpdate(press(`tgp:no:abc123456789:${'f'.repeat(32)}`) as never)
+    const said = sink
+      .filter(s => s.method === 'sendMessage')
+      .map(s => String(s.payload?.text ?? ''))
+      .join(' | ')
+    expect(said.includes('Отменено') || said.includes('Cancelled')).toBe(true)
+    expect(said.includes('устарела') || said.includes('out of date')).toBe(
+      false
+    )
+  })
+
+  it('and a genuinely orphaned press still gets the net', async () => {
+    // The other direction, so the check above cannot pass by the net being
+    // broken rather than by the handler working.
+    const { bot } = await botWithRealHandlers()
+    await bot.handleUpdate(press('act:long_dead_button') as never)
+    const said = sink
+      .filter(s => s.method === 'sendMessage')
+      .map(s => String(s.payload?.text ?? ''))
+      .join(' | ')
+    expect(
+      said.includes('устарела') || said.includes('out of date'),
+      'сеть перестала ловить осиротевшие нажатия'
+    ).toBe(true)
   })
 })
