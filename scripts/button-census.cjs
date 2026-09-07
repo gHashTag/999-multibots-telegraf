@@ -39,6 +39,19 @@ const CASE = /case\s+(['"`])([a-zA-Z0-9_:\-.]{2,64})\1\s*:/g
 const PREFIX = /\.startsWith\(\s*(['"`])([a-zA-Z0-9_:\-.]{1,40})\1/g
 const REGEX = /\/(\^?)([a-zA-Z0-9_]{2,40})[^/\s]{0,40}\//g
 
+/**
+ * `.action(['a', 'b'], handler)` -- an array of triggers. The single-literal
+ * matchers above see only the first element, so the second was reported as an
+ * orphan the very first time this repository used the shape. Found by running
+ * this census against a fix that used it: a tool that cannot see the repair it
+ * just prompted is worse than no tool.
+ */
+const ARRAY_ACT = /\.action\(\s*\[([^\]]{0,400})\]/g
+const arrayIds = text =>
+  [...text.matchAll(ARRAY_ACT)].flatMap(m =>
+    [...m[1].matchAll(/(['"`])([a-zA-Z0-9_:\-.]{2,64})\1/g)].map(x => x[2])
+  )
+
 const grab = (re, text) => [...text.matchAll(re)].map(m => m[2])
 
 /**
@@ -56,6 +69,7 @@ function selfCheck() {
     "switch (action) { case 'fx_case': break }",
     "if (action.startsWith('fx_pre_')) {}",
     'const m = action.match(/fx_rx_(\\d+)/)',
+    "someScene.action(['fx_arr_one', 'fx_arr_two'], h)",
   ].join('\n')
 
   const want = [
@@ -67,6 +81,17 @@ function selfCheck() {
     ['startsWith', PREFIX, 'fx_pre_'],
     ['regex literal', REGEX, 'fx_rx_'],
   ]
+  // The array shape needs its own reader, so it is checked separately -- and on
+  // the SECOND element, which is the one the single-literal matchers miss.
+  if (!arrayIds(FIXTURE).includes('fx_arr_two')) {
+    console.error(
+      'SELF-CHECK FAILED: the array-trigger reader misses elements after the first.'
+    )
+    console.error(
+      'Every count below would be an accusation of working code. Refusing to print one.'
+    )
+    process.exit(2)
+  }
   const missed = want.filter(([, re, id]) => !grab(re, FIXTURE).includes(id))
   if (missed.length) {
     console.error(
@@ -117,6 +142,10 @@ for (const file of files) {
   for (const id of grab(RENDER, text)) push(rendered, id, file)
   for (const id of grab(BOT_ACT, text)) bot.add(id)
   for (const id of grab(SCENE_ACT, text)) push(scene, id, file)
+  for (const id of arrayIds(text)) {
+    if (/\bbot\.action\(\s*\[/.test(text)) bot.add(id)
+    push(scene, id, file)
+  }
   if (!/callbackQuery/.test(text)) continue
   for (const id of grab(ANY_EQ, text)) byHand.add(id)
   for (const id of grab(CASE, text)) byHand.add(id)
@@ -159,7 +188,7 @@ if (JSON_OUT) {
   process.exit(0)
 }
 
-console.log(`self-check ok: ${shapes} catching shapes found in the fixture`)
+console.log(`self-check ok: ${shapes + 1} catching shapes found in the fixture`)
 console.log('')
 console.log(`files scanned          ${files.length}`)
 console.log(`rendered callback ids  ${rendered.size}`)

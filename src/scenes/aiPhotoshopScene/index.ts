@@ -4664,43 +4664,78 @@ const processSingleAiPhotoshopModel = async (
 }
 
 // Navigation buttons
-aiPhotoshopScene.action('ai_photoshop_back_to_models', async ctx => {
-  try {
-    await ctx.answerCbQuery()
-    const isRu = isRussianFromState(ctx)
+/*
+ * A LABEL IS NOT A CONTROL.
+ *
+ * Three progress chips are drawn as callback buttons -- index.ts:1876,
+ * :5147 and :5476 -- purely so the spinner is visible. Nothing catches them,
+ * and one of them is never cleaned up: the message holding it is neither edited
+ * nor deleted, so it stays tappable in the chat for good.
+ *
+ * Since the dead-press net went in, a tap on one of these answers "that button
+ * is out of date" and posts the main menu -- in the middle of a job that is
+ * still running. Answering quietly is the honest reply: the chip is telling the
+ * truth, it just has nothing to do.
+ */
+aiPhotoshopScene.action(/^loading_[a-z_]*indicator$/, async ctx => {
+  await ctx.answerCbQuery().catch(() => undefined)
+})
 
-    if (ctx.session) {
-      ctx.session.aiPhotoshopModel = undefined
-      ctx.session.aiPhotoshopStyle = undefined
-    }
+/*
+ * TWO IDS, ONE INTENT.
+ *
+ * `ai_photoshop_multi_choose_model` is drawn at index.ts:1595 and :4884 with the
+ * label "Выбрать модель" / "Choose Model" and was caught by nothing at all: the
+ * literal appears at those two lines and nowhere else in the repository. Both
+ * sites are on the mainline consumer path -- upload an album, tap the button
+ * that starts processing, and the keyboard offers one that does nothing.
+ *
+ * The handler it is asking for is this one: it clears the model and style and
+ * re-renders the model selector, which is exactly what the label promises. So
+ * the id is added as a second trigger rather than rewritten at the render
+ * sites, because keyboards already sent are still live in people's chats and a
+ * rename would leave those pressing into nothing.
+ */
+aiPhotoshopScene.action(
+  ['ai_photoshop_back_to_models', 'ai_photoshop_multi_choose_model'],
+  async ctx => {
+    try {
+      await ctx.answerCbQuery()
+      const isRu = isRussianFromState(ctx)
 
-    const title = isRu
-      ? '🎨 *ИИ Фотошоп* - Продвинутая обработка изображений'
-      : '🎨 *AI Photoshop* - Advanced Image Processing'
+      if (ctx.session) {
+        ctx.session.aiPhotoshopModel = undefined
+        ctx.session.aiPhotoshopStyle = undefined
+      }
 
-    const description = isRu
-      ? `Выберите модель ИИ для обработки:
+      const title = isRu
+        ? '🎨 *ИИ Фотошоп* - Продвинутая обработка изображений'
+        : '🎨 *AI Photoshop* - Advanced Image Processing'
+
+      const description = isRu
+        ? `Выберите модель ИИ для обработки:
 
 🎭 *SeeDream-4* - Генерация и трансформация изображений (4⭐)
 🍌 *Nano Banana* - ИИ редактирование на базе Gemini 2.5 (5⭐)
 🚀 *FLUX Multi-Kontext* - Профессиональное редактирование (4⭐)`
-      : `Choose an AI model for processing:
+        : `Choose an AI model for processing:
 
 🎭 *SeeDream-4* - Image generation and transformation (4⭐)
 🍌 *Nano Banana* - AI editing powered by Gemini 2.5 (5⭐)
 🚀 *FLUX Multi-Kontext* - Professional editing (4⭐)`
 
-    await ctx.editMessageText(title + '\n\n' + description, {
-      parse_mode: 'Markdown',
-      reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
-    })
-  } catch (error) {
-    logger.error('Error returning to models', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id,
-    })
+      await ctx.editMessageText(title + '\n\n' + description, {
+        parse_mode: 'Markdown',
+        reply_markup: createModelSelectionKeyboard(isRu).reply_markup,
+      })
+    } catch (error) {
+      logger.error('Error returning to models', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        telegramId: ctx.from?.id,
+      })
+    }
   }
-})
+)
 
 aiPhotoshopScene.action('ai_photoshop_back_to_styles', async ctx => {
   try {

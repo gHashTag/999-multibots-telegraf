@@ -914,6 +914,55 @@ If not, continue on your own and click the "I myself" button`
       }, 'go_to_balance_topup')
     )
 
+    /*
+     * THE OTHER HALF OF THE SAME KEYBOARD.
+     *
+     * featureGuard's "not enough balance" refusal draws two buttons side by
+     * side (helpers/featureGuard.ts:132-145): the top-up button ->
+     * go_to_balance_topup, handled just above, and the main-menu button ->
+     * go_to_main_menu, handled NOWHERE. The live spelling everywhere else is
+     * `go_main_menu` (registerCommands.ts:2220), so this one was a typo that
+     * killed half a money screen's keyboard and nothing noticed.
+     *
+     * Registered as its own trigger rather than fixed at the render site: the
+     * refusal keyboards already sent are still live in people's chats.
+     */
+    bot.action(
+      'go_to_main_menu',
+      withErrorHandling(async ctx => {
+        await ctx.answerCbQuery()
+        await ctx.scene.leave().catch(() => {
+          // Not in a scene is not an error here.
+        })
+        await navShowMainMenu(ctx)
+      }, 'go_to_main_menu')
+    )
+
+    /*
+     * A BUTTON OFFERED AFTER THE SCENE HAS ALREADY LEFT.
+     *
+     * ai-reels-wizard draws its create-a-voice button -> create_voice_avatar at
+     * :589 and :832 and then calls `ctx.scene.leave()` on the very next
+     * statement, so a scene-level handler could never fire even if one existed
+     * -- and none does. This has to be bot-level for that reason.
+     *
+     * The message next to it also tells the person to use "/voice", a command
+     * that does not exist in this bot. The button is the repair; the sentence
+     * is left for whoever owns that copy.
+     */
+    bot.action(
+      'create_voice_avatar',
+      withErrorHandling(async ctx => {
+        await ctx.answerCbQuery()
+        await ctx.scene.leave().catch(() => {
+          // Already outside a scene, which is the normal case here.
+        })
+        // 'voice' is the scene id of voiceAvatarWizard (scenes/voiceAvatarWizard/index.ts:18),
+        // registered in the Stage at registerCommands.ts:1490.
+        await ctx.scene.enter('voice')
+      }, 'create_voice_avatar')
+    )
+
     bot.action(
       /^lip_sync_model_(.+)$/,
       withErrorHandling(async ctx => {
