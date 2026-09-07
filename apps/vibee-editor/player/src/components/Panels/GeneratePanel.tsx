@@ -1057,16 +1057,14 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
             {почемуНельзя(
-              // cyrillic-ok: existing API or fixture identifier
-              'image_generate',
+              /* cyrillic-ok: existing billing API */ 'image_generate',
               imageModel,
               !imagePrompt.trim(),
               'Опишите картинку — без описания генерировать нечего'
             ) && (
               <div className="generate-hint">
                 {почемуНельзя(
-                  // cyrillic-ok: existing API or fixture identifier
-                  'image_generate',
+                  /* cyrillic-ok: existing billing API */ 'image_generate',
                   imageModel,
                   !imagePrompt.trim(),
                   'Опишите картинку — без описания генерировать нечего'
@@ -1286,16 +1284,14 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             {/* Причина ТЕКСТОМ, а не подсказкой: `title` на телефоне не
                 показывается вовсе, и кнопка выглядела бы сломанной. */}
             {почемуНельзя(
-              // cyrillic-ok: existing API or fixture identifier
-              'video_generate',
+              /* cyrillic-ok: existing billing API */ 'video_generate',
               videoModel,
               !videoPrompt.trim(),
               'Опишите видео — без описания генерировать нечего'
             ) && (
               <div className="generate-hint">
                 {почемуНельзя(
-                  // cyrillic-ok: existing API or fixture identifier
-                  'video_generate',
+                  /* cyrillic-ok: existing billing API */ 'video_generate',
                   videoModel,
                   !videoPrompt.trim(),
                   'Опишите видео — без описания генерировать нечего'
@@ -1514,8 +1510,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
             {почемуНельзя(
-              // cyrillic-ok: existing API or fixture identifier
-              'audio_generate',
+              /* cyrillic-ok: existing billing API */ 'audio_generate',
               audioModel,
               !audioText.trim(),
               'Введите текст, который надо произнести',
@@ -1523,8 +1518,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             ) && (
               <div className="generate-hint">
                 {почемуНельзя(
-                  // cyrillic-ok: existing API or fixture identifier
-                  'audio_generate',
+                  /* cyrillic-ok: existing billing API */ 'audio_generate',
                   audioModel,
                   !audioText.trim(),
                   'Введите текст, который надо произнести',
@@ -1877,16 +1871,14 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               не этап.
             */}
             {почемуНельзя(
-              // cyrillic-ok: existing API or fixture identifier
-              'lipsync_generate',
+              /* cyrillic-ok: existing billing API */ 'lipsync_generate',
               lipsyncModel,
               !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),
               'Нужны фото и звук — без них озвучивать нечего'
             ) && (
               <div className="generate-hint">
                 {почемуНельзя(
-                  // cyrillic-ok: existing API or fixture identifier
-                  'lipsync_generate',
+                  /* cyrillic-ok: existing billing API */ 'lipsync_generate',
                   lipsyncModel,
                   !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),
                   'Нужны фото и звук — без них озвучивать нечего'

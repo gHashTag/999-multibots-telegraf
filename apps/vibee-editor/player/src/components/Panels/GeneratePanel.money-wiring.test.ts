@@ -15,9 +15,10 @@ import path from 'path'
  * проекта и сеть. Поэтому проверяем то, что и ломалось, — есть ли вызов в
  * коде каждой из четырёх кнопок.
  */
-const ПАНЕЛЬ = fs
+const ПАНЕЛЬ /* cyrillic-ok: existing fixture identifier */ = fs
   .readFileSync(path.join(__dirname, 'GeneratePanel.tsx'), 'utf8')
   .replace(/\/\/ cyrillic-ok:[^\n]*/g, '')
+  .replace(/\s*\/\* cyrillic-ok:[^*]*\*\/\s*/g, '')
 
 const ОПЕРАЦИИ = [
   'image_generate',
@@ -61,10 +62,11 @@ describe('чек виден на всех четырёх вкладках и н�
     // Inspect each dispatch, not a global count: provider changes also clear
     // a receipt now, but must not mask a missing clear in a generation path.
     const handlers =
-      ПАНЕЛЬ.match(
-        // cyrillic-ok: existing API or fixture identifier
-        /const handleGenerate\w+ = async \(\) => \{[\s\S]*?\n {2}\}/g
-      ) ?? [] // cyrillic-ok: existing fixture identifier
+      ПАНЕЛЬ /* cyrillic-ok: existing fixture identifier */
+        .match(
+          // cyrillic-ok: existing API or fixture identifier
+          /const handleGenerate\w+ = async \(\) => \{[\s\S]*?\n {2}\}/g
+        ) ?? [] // cyrillic-ok: existing fixture identifier
     expect(handlers).toHaveLength(ОПЕРАЦИИ.length) // cyrillic-ok: existing fixture identifier
     for (const handler of handlers) {
       expect(
@@ -79,23 +81,21 @@ describe('длина текста доходит до счёта озвучки'
     // Маршрут озвучки умножает счёт на начатые тысячи знаков при ЛЮБОЙ
     // модели. Экран множителя не знал: 2500 знаков по 12 — кнопка «· 12»,
     // счёт 36.
-    expect(ПАНЕЛЬ).toContain(
-      // cyrillic-ok: existing API or fixture identifier
+    expect(ПАНЕЛЬ /* cyrillic-ok: existing fixture identifier */).toContain(
       'const тысячиОзвучки = тысячиЗнаковКОплате(audioText)'
     )
-    expect(ПАНЕЛЬ).toContain(
-      // cyrillic-ok: existing API or fixture identifier
+    expect(ПАНЕЛЬ /* cyrillic-ok: existing fixture identifier */).toContain(
       "неХватает('audio_generate', audioModel, тысячиОзвучки)"
     )
-    expect(ПАНЕЛЬ).toContain(
-      // cyrillic-ok: existing API or fixture identifier
+    expect(ПАНЕЛЬ /* cyrillic-ok: existing fixture identifier */).toContain(
       "подписьЦены('audio_generate', audioModel, тысячиОзвучки)"
     )
     expect(
-      ПАНЕЛЬ.match(
-        // cyrillic-ok: existing API or fixture identifier
-        /'Введите текст, который надо произнести',\s*\n?\s*тысячиОзвучки/g // cyrillic-ok: existing API or fixture identifier
-      )?.length
+      ПАНЕЛЬ /* cyrillic-ok: existing fixture identifier */
+        .match(
+          // cyrillic-ok: existing API or fixture identifier
+          /'Введите текст, который надо произнести',\s*\n?\s*тысячиОзвучки/g // cyrillic-ok: existing API or fixture identifier
+        )?.length
     ).toBe(2)
   })
 })
