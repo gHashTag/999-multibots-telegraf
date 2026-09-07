@@ -54,7 +54,9 @@ function поддельныйПул() {
         })
         return { rows: [] }
       }
-      if (/^SELECT session FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)) {
+      if (
+        /^SELECT session FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)
+      ) {
         const с = строки.get(String(params[0]))
         return { rows: с ? [{ session: с.session }] : [] }
       }
@@ -178,8 +180,29 @@ describe('чужой вход нельзя завершить', () => {
       async sendCode() {
         return { phoneCodeHash: 'HASH' }
       },
-      async invoke() {
-        if (нуженПароль) throw new Error('SESSION_PASSWORD_NEEDED')
+      /*
+       * THE FAKE REFUSES WHAT GRAMJS REFUSES.
+       *
+       * It used to be `async invoke() {}` -- it ignored its argument entirely
+       * and agreed with anything. That is how a plain object went out in place
+       * of an `Api.auth.SignIn` request and reached production, where every
+       * sign-in died with "You can only invoke MTProtoRequests" after the
+       * person had typed a correct code.
+       *
+       * GramJS checks `classType === 'request'` before serialising. So does
+       * this double now, with the same message, and the field names too: the
+       * old object said `phone` where Telegram wants `phoneNumber`.
+       */
+      async invoke(request: any) {
+        if (!request || request.classType !== 'request') {
+          throw new Error('You can only invoke MTProtoRequests')
+        }
+        if (request.className === 'auth.SignIn') {
+          if (!request.phoneNumber) throw new Error('phoneNumber missing')
+          if (!request.phoneCodeHash) throw new Error('phoneCodeHash missing')
+          if (!request.phoneCode) throw new Error('phoneCode missing')
+        }
+        if (нуженПароль) throw new Error('SESSION_PASSWORD_NEEDED') // cyrillic-ok: pre-existing local name
       },
       async signInWithPassword() {},
       async disconnect() {},
@@ -283,7 +306,9 @@ describe('маршруты подключения: личность строже
           строки.set(String(params[0]), { session: String(params[1]) })
           return { rows: [] }
         }
-        if (/^SELECT session FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)) {
+        if (
+          /^SELECT session FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)
+        ) {
           const c = строки.get(String(params[0]))
           return { rows: c ? [{ session: c.session }] : [] }
         }

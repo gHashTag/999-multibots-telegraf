@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import './ConnectTelegram.css'
 import { API_BASE } from '../../config'
 import { authHeaders } from '@/lib/apiFetch'
 
@@ -29,7 +30,7 @@ export function ConnectTelegram() {
   const [код, setКод] = useState('')
   const [пароль, setПароль] = useState('')
   const [handle, setHandle] = useState('')
-  const [ошибка, setОшибка] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [занято, setЗанято] = useState(false)
   /** Номер подставлен, а не набран. Влияет только на подпись под полем. */
   const [номерИзTelegram, setНомерИзTelegram] = useState(false)
@@ -80,13 +81,47 @@ export function ConnectTelegram() {
     }
   }, [запрос])
 
+  /**
+   * Turn Telegram's own wording into something a person can act on.
+   *
+   * The owner saw "Error: You can only invoke MTProtoRequests" on screen after
+   * typing a correct code. That was a genuine bug in our code, now fixed -- but
+   * the SHAPE of the message is the second problem: raw protocol text tells the
+   * person nothing about what to do, and makes a working screen look broken.
+   *
+   * Unknown errors are passed through unchanged. Replacing them with a friendly
+   * "something went wrong" would hide the only clue anybody has, and this screen
+   * has already cost one evening of that.
+   */
+  function inPlainWords(raw: string): string {
+    const up = raw.toUpperCase()
+    if (up.includes('PHONE_CODE_INVALID'))
+      return 'Код не подошёл. Проверьте цифры и попробуйте снова.'
+    if (up.includes('PHONE_CODE_EXPIRED'))
+      return 'Код устарел — запросите новый.'
+    if (up.includes('PHONE_NUMBER_INVALID'))
+      return 'Такого номера нет. Нужен международный вид: +79991234567.'
+    if (up.includes('FLOOD_WAIT')) {
+      const secs = /FLOOD_WAIT_(\d+)/.exec(up)?.[1]
+      return secs
+        ? `Слишком много попыток. Подождите ${Math.ceil(Number(secs) / 60)} мин.`
+        : 'Слишком много попыток — подождите немного.'
+    }
+    if (up.includes('SESSION_PASSWORD_NEEDED'))
+      return 'Нужен пароль двухфакторной защиты.'
+    if (up.includes('PASSWORD_HASH_INVALID')) return 'Пароль не подошёл.'
+    if (up.includes('ВХОД НЕ НАЧАТ') || up.includes('ИСТЁК'))
+      return 'Вход истёк — начните заново, код живёт пару минут.'
+    return raw
+  }
+
   const шагнуть = async (дело: () => Promise<void>) => {
-    setОшибка(null)
+    setError(null)
     setЗанято(true)
     try {
       await дело()
     } catch (e) {
-      setОшибка(e instanceof Error ? e.message : String(e))
+      setError(inPlainWords(e instanceof Error ? e.message : String(e)))
     } finally {
       setЗанято(false)
     }
@@ -104,6 +139,7 @@ export function ConnectTelegram() {
         </p>
         <button
           type="button"
+          className="connect-tg__off"
           disabled={занято}
           onClick={() =>
             void шагнуть(async () => {
@@ -114,7 +150,7 @@ export function ConnectTelegram() {
         >
           Отключить
         </button>
-        {ошибка && <p className="connect-tg__error">{ошибка}</p>}
+        {error && <p className="connect-tg__error">{error}</p>}
       </section>
     )
   }
@@ -137,7 +173,10 @@ export function ConnectTelegram() {
           подстановкой номера это стало бы ложью — а экран, обещающий не
           хранить и хранящий, хуже экрана без обещаний.
         */}
-        <li>Номер сохраняется, чтобы не вводить его снова; при отключении удаляется.</li>
+        <li>
+          Номер сохраняется, чтобы не вводить его снова; при отключении
+          удаляется.
+        </li>
         <li>Отключить можно здесь же, в одно нажатие.</li>
       </ul>
 
@@ -153,7 +192,9 @@ export function ConnectTelegram() {
           {номерИзTelegram && (
             // Говорим, ОТКУДА номер: подставленный молча выглядит как чужой,
             // и человек начинает его перепроверять вместо того, чтобы нажать.
-            <p className="connect-tg__hint">Номер из Telegram — можно исправить</p>
+            <p className="connect-tg__hint">
+              Номер из Telegram — можно исправить
+            </p>
           )}
           <button
             type="button"
@@ -236,7 +277,7 @@ export function ConnectTelegram() {
         </>
       )}
 
-      {ошибка && <p className="connect-tg__error">{ошибка}</p>}
+      {error && <p className="connect-tg__error">{error}</p>}
     </section>
   )
 }
