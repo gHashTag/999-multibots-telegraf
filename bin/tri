@@ -50,6 +50,7 @@ tri — оболочка Trinity S³AI
   tri igla pairs    собрать пары «спек → код» из t27 (подтверждая шапкой t27c)
   tri igla dataset  из пар сделать train/eval для LoRA (без обрезки, со стратификацией)
   tri igla status   где узкое место корпуса прямо сейчас
+  tri igla rivals   кто уже решает эту задачу и насколько мы отстаём
 
   Улей и наблюдение
   tri hive       смотритель, журнал событий, отчёты королевы
@@ -152,7 +153,29 @@ case "${1:-}" in
         echo "  остальным — единственный рычаг; резать длинные пары ПРОВЕРЕНО"
         echo "  и не выходит (крупный Verilog — ровно один модуль в файле)."
         ;;
-      *) echo "tri igla {pairs|dataset [макс_токенов]|status}"; exit 2 ;;
+      rivals)
+        # КТО УЖЕ РЕШАЕТ ЭТУ ЗАДАЧУ.
+        #
+        # Заведено 08.09.2026, когда выяснилось, что генерация Verilog из
+        # спецификации -- отдельная область с эталоном и датасетами, а мы
+        # собирались учить язык заново на 26 примерах. Команда есть, чтобы
+        # разрыв пересчитывался, а не помнился: и наш корпус, и чужие растут.
+        echo "— эталон и датасеты (HF) —"
+        for d in dakies/nvlabs-verilogeval-v2-spec-to-rtl GaTech-EIC/MG-Verilog \
+                 bnadimi/PyraNet-Verilog davide221/verilog-instruct-60k; do
+          curl -sL --max-time 20 "https://huggingface.co/api/datasets/$d" \
+          | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+              try{const x=JSON.parse(s),c=x.cardData||{};
+              console.log("  "+(x.id||"?").padEnd(46)+" лицензия="+(c.license||"НЕ УКАЗАНА"));
+              }catch(e){console.log("  ?")}})'
+        done
+        echo "— наш корпус против них —"
+        echo "  verilog-instruct-60k: 60199 примеров | наш: 26 обучение / 7 оценка"
+        echo "  разрыв ~2300x -- учить Verilog с нуля на нашем корпусе нельзя,"
+        echo "  брать базу линии RTLCoder/VeriReason и адаптировать ДИАЛЕКТ t27."
+        echo "  ВНИМАНИЕ: PyraNet -- CC-BY-NC-SA, коммерчески использовать нельзя."
+        ;;
+      *) echo "tri igla {pairs|dataset [макс_токенов]|status|rivals}"; exit 2 ;;
     esac
     ;;
   fresh)    fresh ;;
