@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
 import { webhookSecretFor } from '@/utils/webhookSecret'
 import { logger } from '@/utils/enhancedLogger'
 import { setupSafeConsoleLogging } from './utils/logger'
@@ -143,7 +144,7 @@ async function initializeBots() {
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(session()) // 1. Сессия (из bot.ts)
     bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
-    bot.use(Telegraf.log(console.log)) // 3. Log all Telegraf updates and middleware flow
+    bot.use(Telegraf.log(scrubbedLog)) // 3. Log all Telegraf updates and middleware flow
 
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
     setupErrorHandler(bot)
@@ -226,7 +227,7 @@ async function initializeBots() {
         const bot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
         })
-        bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
+        bot.use(Telegraf.log(scrubbedLog)) // Log all Telegraf updates and middleware flow
 
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(session()) // 1. Сессия (из bot.ts)

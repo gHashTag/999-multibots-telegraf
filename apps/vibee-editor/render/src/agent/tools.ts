@@ -33,6 +33,15 @@ export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
   telegramId: string
   pool: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+  /**
+   * This request, so a prepared action can be handed back to the caller that
+   * caused it and to nobody else.
+   *
+   * Minted per chat turn. Without it, "is anything pending for this person?"
+   * was answerable by any concurrent request, and the one-time secret went to
+   * whoever asked at the right moment rather than to whoever caused the draft.
+   */
+  turn?: string
 }
 
 export interface AgentTool {

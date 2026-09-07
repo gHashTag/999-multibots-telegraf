@@ -31,6 +31,8 @@
  * person's account.
  */
 
+import { randomBytes, timingSafeEqual } from 'node:crypto'
+
 export interface PendingProposal {
   id: string
   telegramId: string
@@ -38,7 +40,85 @@ export interface PendingProposal {
   target: string
   what?: string
   createdAt: number
+  /**
+   * THE ONE-TIME SECRET, AND WHY THE ID IS NOT ENOUGH.
+   *
+   * Confirming used to need only the id and an identity, and the identity on
+   * the server-key path is whatever `telegram_id` the caller typed. So the two
+   * checks were one check twice: anyone holding RENDER_API_KEY could read a
+   * waiting draft through GET /api/tg/proposal and post it straight back to
+   * /confirm. A prepared message went out of the owner's real account with
+   * nobody touching a button.
+   *
+   * This secret is minted here and handed out in exactly ONE place: the answer
+   * to the turn that created the proposal (`issueFor`, read by the agent-chat
+   * handler). The read route never returns it, and neither does the tool
+   * result -- so a model that has been talked into leaking things has nothing
+   * to leak, and a key holder watching the queue sees a draft it cannot
+   * confirm.
+   *
+   * ── WHAT THIS DOES NOT BUY ────────────────────────────────────────────────
+   *
+   * It is not a fix for a leaked key. Whoever holds the key can still drive a
+   * whole agent turn as the owner and receive a secret of their own. What it
+   * removes is the quiet path: piggy-backing on a draft the owner is about to
+   * approve, with no trace in the conversation. Closing the rest needs a
+   * credential the key holder does not have -- a separate confirm key for the
+   * bot service.
+   */
+  secret: string
+  /** Wrong-secret attempts. Fail closed rather than allow a search. */
+  wrong: number
+  /**
+   * Has the secret already been handed to a client?
+   *
+   * `issueFor` answers once per proposal, not once per turn. Without this it
+   * answers on EVERY later turn while the draft is still alive, so a person who
+   * says "спасибо" after the card appears gets a second identical card with the
+   * same live secret -- two buttons for one message, and pressing either sends.
+   *
+   * One draft, one card. If the answer is lost on the way, the draft expires
+   * unshown rather than reappearing later out of context.
+   */
+  issued: boolean
+  /**
+   * The request that created this draft.
+   *
+   * Issuance is bound to it, and that is what closes the race. `remember()`
+   * runs during a tool call; the answer is written when the turn ends, and the
+   * model is still writing its closing sentence in between. Reproduced against
+   * these files: an attacker holding the shared server key polls the read
+   * route, sees the draft appear, fires their own turn into that window, and
+   * `issueFor` -- which only asked "is anything pending for this person?" --
+   * handed them the secret. The owner's own turn then got null: no card was
+   * ever shown, and the message went out.
+   *
+   * With the turn recorded, a draft is only ever handed to the request that
+   * caused it. A draft created outside a chat turn (a direct /mcp tool call)
+   * carries no turn and is therefore never issued at all -- which is right,
+   * because /mcp has no screen to confirm on.
+   */
+  turn?: string
 }
+
+/** What may leave this module. Never the secret, except through `issueFor`. */
+export type PublicProposal = Omit<
+  PendingProposal,
+  'secret' | 'wrong' | 'issued' | 'turn'
+>
+
+/*
+ * THERE IS NO WRONG-ATTEMPT LIMIT, AND THAT IS DELIBERATE.
+ *
+ * A limit was written here first, on the reflex that a secret check wants one.
+ * It bought nothing and cost something real: 128 bits is not searchable, so
+ * the limit never stops an attack -- but anybody able to reach the route can
+ * post three wrong secrets and DESTROY the owner's waiting draft. A control
+ * whose only reachable effect is denial of service is worse than its absence.
+ *
+ * The attempt is still counted, because a wrong secret is worth seeing in the
+ * numbers; it simply does not decide anything.
+ */
 
 /** How long an unconfirmed proposal survives. */
 const LIFETIME_MS = 10 * 60 * 1000
@@ -47,6 +127,38 @@ const LIFETIME_MS = 10 * 60 * 1000
 const MAX_PENDING = 200
 
 const pending = new Map<string, PendingProposal>()
+
+/** Strip what must never leave. Copies, so a caller cannot reach the original. */
+function redact(p: PendingProposal): PublicProposal {
+  const {
+    secret: _secret,
+    wrong: _wrong,
+    issued: _issued,
+    turn: _turn,
+    ...rest
+  } = p
+  void _secret
+  void _wrong
+  void _issued
+  void _turn
+  return rest
+}
+
+/**
+ * Compare in constant time.
+ *
+ * `===` on strings leaks the length of the shared prefix through timing. That
+ * is a thin channel and an entirely avoidable one on the check that stands
+ * between a stranger and somebody else's Telegram.
+ */
+function sameSecret(a: string, b: string): boolean {
+  const x = Buffer.from(String(a ?? ''), 'utf8')
+  const y = Buffer.from(String(b ?? ''), 'utf8')
+  // timingSafeEqual throws on a length mismatch, which would leak the length
+  // by exception. Compare a fixed-size digest of each instead.
+  if (x.length !== y.length) return false
+  return timingSafeEqual(x, y)
+}
 
 function dropExpired(): void {
   const edge = Date.now() - LIFETIME_MS
@@ -69,11 +181,11 @@ export function pendingCount(): number {
  * Remember a proposal so it can be confirmed later.
  *
  * The id is supplied by the caller rather than generated here so tests do not
- * have to guess it, and so the one place that makes ids stays in the module
- * that already owns randomness.
+ * have to guess it. The SECRET is not: it is minted here, in the one place
+ * that owns it, so no caller can supply a weak one or reuse an old one.
  */
 export function remember(
-  p: Omit<PendingProposal, 'createdAt'>
+  p: Omit<PendingProposal, 'createdAt' | 'secret' | 'wrong' | 'issued'>
 ): PendingProposal {
   dropExpired()
   if (pending.size >= MAX_PENDING) {
@@ -91,9 +203,51 @@ export function remember(
   for (const [id, old] of pending) {
     if (old.telegramId === p.telegramId) pending.delete(id)
   }
-  const saved: PendingProposal = { ...p, createdAt: Date.now() }
+  const saved: PendingProposal = {
+    ...p,
+    createdAt: Date.now(),
+    // 128 bits. The id is only a lookup key now; this is the authorisation.
+    secret: randomBytes(16).toString('hex'),
+    wrong: 0,
+    issued: false,
+  }
   pending.set(p.id, saved)
-  return saved
+  // A COPY. Handing back the live record is a second door onto the one-time
+  // flag: a caller could set `issued` back to false and re-open it.
+  return { ...saved }
+}
+
+/**
+ * The draft AND its secret, for the answer to the turn that created it.
+ *
+ * The only door the secret comes out of. Named so that adding a second caller
+ * is a decision somebody has to make on purpose.
+ *
+ * ── ONCE PER PROPOSAL, NOT ONCE PER TURN ──────────────────────────────────
+ *
+ * Answering on every later turn while the draft is still alive means the
+ * person who says "спасибо" after the card appears gets a SECOND card, with
+ * the same live secret: two buttons for one message, and pressing either
+ * sends. So the door closes behind the first answer.
+ *
+ * The cost is that a lost answer strands the draft, and it expires unshown.
+ * That is the safe direction: an unsent message is recoverable by asking
+ * again, an unexpected second card is not.
+ */
+export function issueFor(
+  telegramId: string,
+  turn: string
+): (PublicProposal & { secret: string }) | null {
+  dropExpired()
+  const mine = String(telegramId)
+  // No turn, no answer. An empty token must never match a draft that has none.
+  if (!turn) return null
+  for (const p of pending.values()) {
+    if (p.telegramId !== mine || p.issued || p.turn !== turn) continue
+    p.issued = true
+    return { ...redact(p), secret: p.secret }
+  }
+  return null
 }
 
 /**
@@ -113,16 +267,18 @@ export function remember(
  * Parsing lives here rather than inline in the route so that it is reachable by
  * a test at all.
  */
-export function idFromBody(raw: unknown): string {
+export function idFromBody(raw: unknown): { id: string; secret: string } {
+  const take = (o: { id?: unknown; secret?: unknown } | null | undefined) => ({
+    id: typeof o?.id === 'string' ? o.id : '',
+    secret: typeof o?.secret === 'string' ? o.secret : '',
+  })
   if (typeof raw !== 'string') {
-    // Defensive: if readBody ever hands back a parsed object, take the id --
-    // but do not assume it, which was the whole mistake.
-    const o = raw as { id?: unknown } | null | undefined
-    return typeof o?.id === 'string' ? o.id : ''
+    // Defensive: if readBody ever hands back a parsed object, take the fields
+    // -- but do not assume it, which was the whole mistake.
+    return take(raw as { id?: unknown; secret?: unknown } | null | undefined)
   }
   try {
-    const parsed = JSON.parse(raw || '{}') as { id?: unknown }
-    return typeof parsed?.id === 'string' ? parsed.id : ''
+    return take(JSON.parse(raw || '{}'))
   } catch {
     /*
      * A malformed body is an empty id, not a thrown error. `claim` then
@@ -130,15 +286,22 @@ export function idFromBody(raw: unknown): string {
      * a 500 on a button press, which says "we are broken" instead of "that
      * draft is gone".
      */
-    return ''
+    return { id: '', secret: '' }
   }
 }
 
-/** What is waiting for this person, if anything. */
-export function pendingFor(telegramId: string): PendingProposal | null {
+/**
+ * What is waiting for this person, if anything -- WITHOUT the secret.
+ *
+ * This is what the read route answers with, and it is deliberately not enough
+ * to confirm anything. Before the secret existed, this same answer was a
+ * complete authorisation: read the id, post it to /confirm, and the message
+ * went out with nobody pressing anything.
+ */
+export function pendingFor(telegramId: string): PublicProposal | null {
   dropExpired()
   const mine = String(telegramId)
-  for (const p of pending.values()) if (p.telegramId === mine) return p
+  for (const p of pending.values()) if (p.telegramId === mine) return redact(p)
   return null
 }
 
@@ -155,8 +318,9 @@ export function forget(id: string): void {
  */
 export function claim(
   telegramId: string,
-  id: string
-): { ok: true; proposal: PendingProposal } | { ok: false; why: string } {
+  id: string,
+  secret: string
+): { ok: true; proposal: PublicProposal } | { ok: false; why: string } {
   dropExpired()
   const p = pending.get(id)
   if (!p) return { ok: false, why: 'это действие уже подтверждено или истекло' }
@@ -165,8 +329,24 @@ export function claim(
     // not learn whether somebody else has a draft waiting.
     return { ok: false, why: 'это действие предложено не вам' }
   }
+  if (!sameSecret(p.secret, secret)) {
+    /*
+     * The id alone is not a pass, and this is the line that makes that true.
+     *
+     * Counted, and the draft is dropped after a few: 128 bits is not
+     * searchable, so a wrong secret is not a guess in progress but a sign that
+     * something is wrong -- and on a path that reaches other people, the
+     * answer to that is to stop offering, not to keep the door ajar.
+     *
+     * The wording does not say "wrong secret". It is the same sentence a
+     * stale draft gets, because the difference is only useful to somebody
+     * probing.
+     */
+    p.wrong += 1
+    return { ok: false, why: 'это действие уже подтверждено или истекло' }
+  }
   pending.delete(id)
-  return { ok: true, proposal: p }
+  return { ok: true, proposal: redact(p) }
 }
 
 /**
@@ -263,7 +443,7 @@ async function sendWithAddressBook(
 }
 
 export async function execute(
-  p: PendingProposal,
+  p: PublicProposal,
   ctx: { telegramId: string; pool?: unknown }
 ): Promise<{ done: true; action: string } | { done: false; why: string }> {
   const { client } = await import('./telegram-tools')

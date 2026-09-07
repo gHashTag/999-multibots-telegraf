@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -202,7 +203,7 @@ async function initializeBots() {
       const bot = new Telegraf<MyContext>(token, {
         handlerTimeout: Infinity,
       })
-      bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
+      bot.use(Telegraf.log(scrubbedLog)) // Log all Telegraf updates and middleware flow
 
       // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
       bot.use(session()) // 1. Сессия (из bot.ts)

@@ -7543,21 +7543,19 @@ const server = createServer(async (req, res) => {
     const route = req.url?.split('?')[0] || ''
     const NO_IDENTITY = 'нужна проверенная личность'
 
-    if (route === '/api/tg/proposal' && req.method === 'GET') {
-      const who = await resolveIdentity(req, getPool)
-      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { pendingFor } = await import('./src/agent/tg-proposals')
-      const p = pendingFor(who)
-      return sendJson(res, 200, {
-        ok: true,
-        // The full text goes back so the person confirms what will actually be
-        // sent, not a summary of it.
-        proposal: p
-          ? { id: p.id, action: p.action, target: p.target, what: p.what }
-          : null,
-      })
-    }
-
+    /*
+     * THERE IS NO READ ROUTE, AND THAT IS THE POINT.
+     *
+     * GET /api/tg/proposal used to answer with the full text of a waiting
+     * draft for any telegram_id a caller named -- and the shared server key is
+     * enough to name any of them. So a private message somebody had not yet
+     * approved was readable by anything holding that key, and, before the
+     * one-time secret, postable straight back to /confirm.
+     *
+     * Nothing needs it any more: the draft reaches the bot on the answer to
+     * the turn that created it, together with its secret. A route that exists
+     * only to be polled is a route that will be.
+     */
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
@@ -7566,7 +7564,8 @@ const server = createServer(async (req, res) => {
       )
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
-      const taken = claim(who, idFromBody(await readBody(req)))
+      const asked = idFromBody(await readBody(req))
+      const taken = claim(who, asked.id, asked.secret)
       if (!taken.ok) return sendJson(res, 409, { ok: false, error: taken.why })
       // The trace. Not the text -- that is somebody's private message and does
       // not belong in a log -- but enough to answer "who sent what to whom".
@@ -7587,7 +7586,8 @@ const server = createServer(async (req, res) => {
       const { claim, idFromBody } = await import('./src/agent/tg-proposals')
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
-      const taken = claim(who, idFromBody(await readBody(req)))
+      const asked = idFromBody(await readBody(req))
+      const taken = claim(who, asked.id, asked.secret)
       return sendJson(res, taken.ok ? 200 : 409, {
         ok: taken.ok,
         error: taken.ok ? undefined : taken.why,

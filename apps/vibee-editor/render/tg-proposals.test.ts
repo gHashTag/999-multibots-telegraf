@@ -9,6 +9,7 @@ import {
   pendingCount,
   idFromBody,
   execute,
+  issueFor,
 } from './src/agent/tg-proposals'
 
 /**
@@ -40,24 +41,24 @@ describe('a proposal belongs to one person', () => {
      * on its own, anybody who saw or guessed one could send a message from
      * another person's Telegram account.
      */
-    remember(draft('p1', '144022504'))
-    const r = claim('999', 'p1')
+    const kept = remember(draft('p1', '144022504'))
+    const r = claim('999', 'p1', kept.secret)
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.why).toContain('не вам')
   })
 
   it('a refusal does not reveal whether the id exists', () => {
-    remember(draft('p1', '144022504'))
-    const foreign = claim('999', 'p1')
-    const missing = claim('999', 'nonexistent')
+    const kept = remember(draft('p1', '144022504'))
+    const foreign = claim('999', 'p1', kept.secret)
+    const missing = claim('999', 'nonexistent', kept.secret)
     // Different reasons are fine; what must not differ is that both refuse.
     expect(foreign.ok).toBe(false)
     expect(missing.ok).toBe(false)
   })
 
   it('the owner can confirm their own', () => {
-    remember(draft('p1', '144022504', 'текст письма'))
-    const r = claim('144022504', 'p1')
+    const kept = remember(draft('p1', '144022504', 'текст письма'))
+    const r = claim('144022504', 'p1', kept.secret)
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.proposal.what).toBe('текст письма')
   })
@@ -69,18 +70,18 @@ describe('confirming consumes the proposal', () => {
      * On a phone a slow reply is indistinguishable from a missed press, so the
      * second tap is not a rare case -- it is the normal one.
      */
-    remember(draft('p1', '144022504'))
-    expect(claim('144022504', 'p1').ok).toBe(true)
-    const again = claim('144022504', 'p1')
+    const kept = remember(draft('p1', '144022504'))
+    expect(claim('144022504', 'p1', kept.secret).ok).toBe(true)
+    const again = claim('144022504', 'p1', kept.secret)
     expect(again.ok).toBe(false)
     if (!again.ok) expect(again.why).toContain('уже подтверждено')
   })
 
   it('cancelling also consumes it, so a cancelled draft cannot be sent', () => {
     // Cancel goes through the same claim; that is the point.
-    remember(draft('p1', '144022504'))
-    expect(claim('144022504', 'p1').ok).toBe(true)
-    expect(claim('144022504', 'p1').ok).toBe(false)
+    const kept = remember(draft('p1', '144022504'))
+    expect(claim('144022504', 'p1', kept.secret).ok).toBe(true)
+    expect(claim('144022504', 'p1', kept.secret).ok).toBe(false)
   })
 })
 
@@ -90,10 +91,10 @@ describe('one pending proposal per person', () => {
      * Two drafts waiting at once is how somebody confirms the wrong one: the
      * buttons look identical and the chat has moved on.
      */
-    remember(draft('p1', '144022504', 'первое'))
+    const first = remember(draft('p1', '144022504', 'первое'))
     remember(draft('p2', '144022504', 'второе'))
     expect(pendingFor('144022504')?.what).toBe('второе')
-    expect(claim('144022504', 'p1').ok).toBe(false)
+    expect(claim('144022504', 'p1', first.secret).ok).toBe(false)
   })
 
   it('two different people keep their own', () => {
@@ -127,19 +128,20 @@ describe('the id survives the trip through an HTTP body', () => {
    * bot module; the route wiring in render-server.ts had no cover at all. Found
    * by a probe before merge, and this is the cover that gap was missing.
    */
-  it('a JSON string body yields the id, and the draft is claimed', () => {
+  it('a JSON string body yields id AND secret, and the draft is claimed', () => {
     forgetProposals()
-    remember(draft('p1', '144022504', 'текст'))
-    const raw = JSON.stringify({ id: 'p1' })
-    const r = claim('144022504', idFromBody(raw))
+    const kept = remember(draft('p1', '144022504', 'текст'))
+    const raw = JSON.stringify({ id: 'p1', secret: kept.secret })
+    const asked = idFromBody(raw)
+    const r = claim('144022504', asked.id, asked.secret)
     expect(r.ok, 'подтверждение не дошло до черновика').toBe(true)
   })
 
   it('the raw string is NOT treated as an object', () => {
     // The precise mistake, pinned: reading `.id` off the string gives nothing.
-    const raw = JSON.stringify({ id: 'p1' })
+    const raw = JSON.stringify({ id: 'p1', secret: 'abc' })
     expect((raw as unknown as { id?: string }).id).toBeUndefined()
-    expect(idFromBody(raw)).toBe('p1')
+    expect(idFromBody(raw)).toEqual({ id: 'p1', secret: 'abc' })
   })
 
   it('a malformed body refuses instead of throwing', () => {
@@ -149,20 +151,24 @@ describe('the id survives the trip through an HTTP body', () => {
      * honest answer, and the recoverable one.
      */
     expect(() => idFromBody('{not json')).not.toThrow()
-    expect(idFromBody('{not json')).toBe('')
-    expect(idFromBody('')).toBe('')
-    expect(idFromBody(undefined)).toBe('')
+    expect(idFromBody('{not json')).toEqual({ id: '', secret: '' })
+    expect(idFromBody('')).toEqual({ id: '', secret: '' })
+    expect(idFromBody(undefined)).toEqual({ id: '', secret: '' })
   })
 
   it('a non-string id is refused rather than coerced', () => {
     // `String(42)` would happily produce "42" and hunt for a draft named that.
-    expect(idFromBody(JSON.stringify({ id: 42 }))).toBe('')
-    expect(idFromBody(JSON.stringify({ id: { toString: 1 } }))).toBe('')
-    expect(idFromBody(JSON.stringify({}))).toBe('')
+    expect(idFromBody(JSON.stringify({ id: 42 })).id).toBe('')
+    expect(idFromBody(JSON.stringify({ id: { toString: 1 } })).id).toBe('')
+    expect(idFromBody(JSON.stringify({})).id).toBe('')
+    expect(idFromBody(JSON.stringify({ id: 'p', secret: 7 })).secret).toBe('')
   })
 
   it('an already-parsed object still works, defensively', () => {
-    expect(idFromBody({ id: 'p9' })).toBe('p9')
+    expect(idFromBody({ id: 'p9', secret: 's9' })).toEqual({
+      id: 'p9',
+      secret: 's9',
+    })
   })
 })
 
@@ -548,5 +554,217 @@ describe('only an executable action takes the one queue slot', () => {
     }
     expect(answer.proposal).toBe(true)
     expect(q.pendingCount()).toBe(0)
+  })
+})
+
+describe('the id is not a pass -- the one-time secret is', () => {
+  /*
+   * WHAT THIS CLOSES.
+   *
+   * Confirming used to need only an id and an identity, and on the server-key
+   * path the identity is whatever telegram_id the caller typed. So the "two
+   * checks" were one check twice: anything holding RENDER_API_KEY could read a
+   * waiting draft through GET /api/tg/proposal and post it straight back to
+   * /confirm, and a prepared message left the owner's real account with nobody
+   * touching a button.
+   *
+   * Every check below describes that path staying shut.
+   */
+  beforeEach(() => forgetProposals())
+
+  it('the right id with the wrong secret confirms nothing', () => {
+    const kept = remember(draft('p1', '144022504', 'важное'))
+    const r = claim('144022504', 'p1', 'не тот секрет')
+    expect(r.ok).toBe(false)
+  })
+
+  it('no secret at all confirms nothing', () => {
+    // The exact shape of the old attack: id in hand, nothing else.
+    remember(draft('p1', '144022504'))
+    expect(claim('144022504', 'p1', '').ok).toBe(false)
+  })
+
+  it('a refused secret does not consume the draft -- one wrong tap is not fatal', () => {
+    /*
+     * A stale button in an old chat message is an ordinary thing on a phone.
+     * Destroying the live draft on the first mismatch would let anybody who
+     * ever saw an id cancel the owner's messages at will.
+     */
+    const kept = remember(draft('p1', '144022504', 'важное'))
+    expect(claim('144022504', 'p1', 'мимо').ok).toBe(false)
+    expect(claim('144022504', 'p1', kept.secret).ok).toBe(true)
+  })
+
+  it('and a run of wrong secrets does NOT destroy it', () => {
+    /*
+     * A wrong-attempt limit was written here first, on the reflex that a
+     * secret check wants one. It bought nothing -- 128 bits is not searchable,
+     * so the limit never stops an attack -- and cost something real: anybody
+     * able to reach the route could post three wrong secrets and DESTROY the
+     * owner's waiting message. A control whose only reachable effect is denial
+     * of service is worse than its absence.
+     */
+    const kept = remember(draft('p1', '144022504', 'важное'))
+    for (let i = 0; i < 10; i++) {
+      expect(claim('144022504', 'p1', 'мимо').ok).toBe(false)
+    }
+    expect(
+      claim('144022504', 'p1', kept.secret).ok,
+      'чужие неверные попытки уничтожили черновик владельца'
+    ).toBe(true)
+  })
+
+  it('the refusal does not say WHICH thing was wrong', () => {
+    // "Wrong secret" versus "no such draft" is a difference only useful to
+    // somebody probing; the person just sees that it is gone.
+    const kept = remember(draft('p1', '144022504'))
+    const wrongSecret = claim('144022504', 'p1', 'мимо')
+    const noDraft = claim('144022504', 'нет-такого', kept.secret)
+    expect(wrongSecret.ok).toBe(false)
+    expect(noDraft.ok).toBe(false)
+    if (!wrongSecret.ok && !noDraft.ok) {
+      expect(wrongSecret.why).toBe(noDraft.why)
+    }
+  })
+})
+
+describe('the secret comes out of exactly one door', () => {
+  beforeEach(() => forgetProposals())
+
+  it('pendingFor carries no secret', () => {
+    /*
+     * `pendingFor` used to be the answer of GET /api/tg/proposal, which any
+     * holder of the shared server key could ask for any telegram_id. That
+     * route is gone -- the draft now travels on the answer to its own turn --
+     * but the redaction stays: the next reader of this function must not be
+     * able to reintroduce that route by accident.
+     */
+    remember(draft('p1', '144022504', 'важное'))
+    const shown = pendingFor('144022504')
+    expect(shown).toBeTruthy()
+    expect(JSON.stringify(shown)).not.toContain('secret')
+    expect((shown as unknown as { secret?: string }).secret).toBeUndefined()
+  })
+
+  it('a claimed proposal carries no secret either', () => {
+    // `execute` receives this. Nothing downstream needs the secret, and a
+    // value that travels further than it must is a value that leaks.
+    const kept = remember(draft('p1', '144022504'))
+    const r = claim('144022504', 'p1', kept.secret)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(
+        (r.proposal as unknown as { secret?: string }).secret
+      ).toBeUndefined()
+    }
+  })
+
+  it('issueFor is the door, and it opens for the owner and the right turn', () => {
+    remember({ ...draft('p1', '144022504', 'важное'), turn: 'ход-1' })
+    expect(issueFor('999', 'ход-1'), 'чужому выдали чужой черновик').toBeNull()
+    expect(
+      issueFor('144022504', 'другой-ход'),
+      'черновик выдан ЧУЖОМУ запросу — это и есть гонка'
+    ).toBeNull()
+    expect(
+      issueFor('144022504', 'ход-1')?.secret,
+      'дверь не отдала секрет своему же ходу'
+    ).toBeTruthy()
+  })
+
+  it('an empty turn matches nothing, including a draft that has none', () => {
+    // A draft made outside a chat turn (a direct /mcp call) carries no turn.
+    // If an empty token matched it, /mcp would become the free read route the
+    // whole design just removed.
+    remember(draft('p1', '144022504', 'важное'))
+    expect(issueFor('144022504', '')).toBeNull()
+  })
+
+  it('the door opens ONCE per proposal, not once per turn', () => {
+    /*
+     * A defect I introduced and caught before merge. `issueFor` answered on
+     * every later turn while the draft was still alive, so a person who says
+     * "спасибо" after the card appears would get a SECOND card carrying the
+     * same live secret: two buttons for one message, either of which sends.
+     */
+    remember({ ...draft('p1', '144022504', 'важное'), turn: 'ход-1' })
+    expect(issueFor('144022504', 'ход-1')?.secret).toBeTruthy()
+    expect(
+      issueFor('144022504', 'ход-1'),
+      'черновик выдан второй раз — будет вторая карточка'
+    ).toBeNull()
+  })
+
+  it('a new draft opens the door again', () => {
+    // The gate is per proposal. A fresh message must still get its card.
+    remember({ ...draft('p1', '144022504', 'первое'), turn: 'ход-1' })
+    expect(issueFor('144022504', 'ход-1')).toBeTruthy()
+    remember({ ...draft('p2', '144022504', 'второе'), turn: 'ход-2' })
+    expect(issueFor('144022504', 'ход-2')?.what).toBe('второе')
+  })
+
+  it('an issued draft is still confirmable -- issuing is not consuming', () => {
+    // The card has been shown; the press must still work.
+    const kept = remember({ ...draft('p1', '144022504'), turn: 'ход-1' })
+    issueFor('144022504', 'ход-1')
+    expect(claim('144022504', 'p1', kept.secret).ok).toBe(true)
+  })
+
+  it('remember hands back a COPY, not the live record', () => {
+    /*
+     * A caller holding the stored object could set `issued` back to false and
+     * re-open the one-time door -- a second way in, next to the one this whole
+     * change exists to close.
+     */
+    const kept = remember({ ...draft('p1', '144022504'), turn: 'ход-1' })
+    ;(kept as unknown as { issued: boolean }).issued = true
+    expect(
+      issueFor('144022504', 'ход-1'),
+      'вернули живую запись — её можно править снаружи'
+    ).toBeTruthy()
+  })
+
+  it('two proposals never share a secret', () => {
+    // A reused secret would make an old button work on a new draft -- the
+    // person confirms a message they were not shown.
+    const a = remember(draft('a', '111'))
+    const b = remember(draft('b', '222'))
+    expect(a.secret).not.toBe(b.secret)
+    expect(a.secret).toMatch(/^[0-9a-f]{32}$/)
+  })
+})
+
+describe('the button has 64 bytes and the payload must fit', () => {
+  it('id and secret together leave room for the prefix', () => {
+    /*
+     * Over the limit Telegram rejects the whole message, so the card would not
+     * appear at all and the failure would read as "the agent did nothing"
+     * rather than as a bug. Measured against the real generated shapes.
+     */
+    const kept = remember(draft('0123456789ab', '144022504'))
+    const payload = `tgp:ok:${kept.id}:${kept.secret}`
+    expect(Buffer.byteLength(payload, 'utf8')).toBeLessThanOrEqual(64)
+  })
+})
+
+describe('there is no route that simply hands drafts out', () => {
+  it('GET /api/tg/proposal no longer exists', () => {
+    /*
+     * It answered with the full text of an unapproved private message for any
+     * telegram_id the caller named, and the shared server key is enough to
+     * name any of them. Before the one-time secret it was also a complete
+     * authorisation: read the id, post it to /confirm.
+     *
+     * Nothing needs it now. A route that exists only to be polled is a route
+     * that will be, so it is gone rather than merely unused.
+     */
+    const src = fs.readFileSync(
+      path.join(__dirname, 'render-server.ts'),
+      'utf8'
+    )
+    expect(src).not.toContain("route === '/api/tg/proposal' && req.method")
+    // ...while confirm and cancel are still there.
+    expect(src).toContain("route === '/api/tg/proposal/confirm'")
+    expect(src).toContain("route === '/api/tg/proposal/cancel'")
   })
 })

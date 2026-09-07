@@ -133,7 +133,20 @@ function propose(
   ctx?: ToolContext
 ): Proposal & { id: string } {
   requireOwner(ctx)
-  const id = crypto.randomUUID()
+  /*
+   * A SHORT ID, BECAUSE THE BUTTON HAS 64 BYTES.
+   *
+   * Telegram's callback data must hold "tgp:ok:" + id + ":" + a 32-char
+   * secret. A 36-char UUID leaves 20 bytes, which is not enough for a secret
+   * worth having -- and over the limit Telegram rejects the whole message, so
+   * the card would simply not appear and the failure would read as "the agent
+   * did nothing".
+   *
+   * 12 hex characters is 48 bits, which is plenty for a lookup key inside a
+   * map that holds at most 200 entries for ten minutes. The authorisation is
+   * the secret, not this.
+   */
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
   /*
    * ONLY WHAT CAN ACTUALLY BE CARRIED OUT TAKES THE QUEUE SLOT.
    *
@@ -159,6 +172,9 @@ function propose(
       action,
       target,
       what,
+      // The turn this draft belongs to. Only that turn's answer may carry its
+      // secret; a draft made outside a chat turn is never handed to anybody.
+      turn: ctx?.turn,
     })
   }
   return { proposal: true, id, action, target, what, why }
