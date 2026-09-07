@@ -96,6 +96,44 @@ export function remember(
   return saved
 }
 
+/**
+ * The proposal id out of a request body.
+ *
+ * `readBody` returns the RAW STRING, not a parsed object. Every other caller in
+ * render-server.ts wraps it in `JSON.parse`; the two confirm/cancel routes did
+ * not, and the cast `as { id?: string }` compiled happily. `body.id` was
+ * therefore always undefined, `claim(who, '')` always refused, and every press
+ * of "Send" answered "already confirmed or expired".
+ *
+ * The button would have existed, looked right, and reached nobody -- which is
+ * the exact defect this whole change was written to remove, reintroduced one
+ * layer up. Caught by a probe before merge, not by the tests: those covered the
+ * store and the bot module, and nothing covered the route wiring.
+ *
+ * Parsing lives here rather than inline in the route so that it is reachable by
+ * a test at all.
+ */
+export function idFromBody(raw: unknown): string {
+  if (typeof raw !== 'string') {
+    // Defensive: if readBody ever hands back a parsed object, take the id --
+    // but do not assume it, which was the whole mistake.
+    const o = raw as { id?: unknown } | null | undefined
+    return typeof o?.id === 'string' ? o.id : ''
+  }
+  try {
+    const parsed = JSON.parse(raw || '{}') as { id?: unknown }
+    return typeof parsed?.id === 'string' ? parsed.id : ''
+  } catch {
+    /*
+     * A malformed body is an empty id, not a thrown error. `claim` then
+     * refuses in words the person can read; an exception here would surface as
+     * a 500 on a button press, which says "we are broken" instead of "that
+     * draft is gone".
+     */
+    return ''
+  }
+}
+
 /** What is waiting for this person, if anything. */
 export function pendingFor(telegramId: string): PendingProposal | null {
   dropExpired()
@@ -139,24 +177,104 @@ export function claim(
  * whoever pressed the button has already decided, and a resurrected draft is
  * how the same message gets sent twice.
  */
+interface SendingClient {
+  sendMessage: (
+    to: string,
+    opts: { message: string; parseMode: false }
+  ) => Promise<unknown>
+  getDialogs: (opts: { limit: number }) => Promise<unknown>
+  disconnect?: () => Promise<unknown>
+}
+
+/**
+ * `parseMode: false` -- THE APPROVED BYTES MUST BE THE SENT BYTES.
+ *
+ * GramJS defaults `client.parseMode` to the MARKDOWN parser
+ * (telegramBaseClient.js:133), and `sendMessage` runs the text through it
+ * unless told otherwise. The card in the bot shows the raw string with no
+ * parse mode, so what a person reads and what Telegram receives were two
+ * different things. Measured on the installed telegram@2.26.22:
+ *
+ *   approved: "Смета на правку src/__tests__/auth_flow.ts: 5**2 часов. Код: `npm run verify`"
+ *   sent:     "Смета на правку src/tests/auth_flow.ts: 52 часов. Код: npm run verify"
+ *
+ * Three silent corruptions in one sentence: `__tests__` eaten as italics, the
+ * `**` of an arithmetic expression eaten as bold, the backticks stripped. A
+ * confirmation screen that shows one thing and sends another is worse than no
+ * confirmation, because the person believes they checked.
+ *
+ * `_parseMessageText` returns the text untouched when parseMode is falsy
+ * (messageParse.js:38-40), which is exactly what is wanted here.
+ */
+const VERBATIM = { parseMode: false } as const
+
+/** A bare id, which is exactly the shape `tg_dialogs` hands the model. */
+const LOOKS_NUMERIC = /^-?\d+$/
+
+/**
+ * Send, warming the address book first if the target is a bare id.
+ *
+ * ── WHY THIS IS NOT JUST `sendMessage` ────────────────────────────────────
+ *
+ * `client()` builds a BRAND NEW `TelegramClient` on every call, and a
+ * `StringSession` carries only dcId, server, port and auth key -- no entities.
+ * GramJS resolves the peer inside send (`getInputEntity`), and for a bare
+ * numeric id every fast path is empty on a fresh client: the per-instance
+ * entity cache is populated only by results of calls made on that same
+ * instance, and `checkAuthorization` (`updates.GetState`) carries no users or
+ * chats, so it warms nothing.
+ *
+ * Reproduced against the installed telegram@2.26.22:
+ *   user id      -> "Could not find the input entity for {PeerUser}"
+ *   channel id   -> "Could not find the input entity for {PeerChannel}"
+ *   basic group  -> resolves (InputPeerChat needs no access hash)
+ *   @username    -> resolves (contacts.ResolveUsername)
+ *
+ * And a bare id is precisely what the model holds: `tg_dialogs` returns
+ * `id: x.id?.toString()` with no username, and `tg_send` takes it back as
+ * `chat`. So the common case -- "reply to this dialog" -- would have failed on
+ * every press with a message about input entities, which says nothing to
+ * anybody about what to do next.
+ *
+ * `getDialogs` is what a real client does on startup: its result carries the
+ * users and chats, and GramJS feeds them into the session and the cache. One
+ * extra round trip, taken ONLY when the first attempt fails, so a @username
+ * send stays a single call.
+ */
+async function sendWithAddressBook(
+  c: SendingClient,
+  target: string,
+  message: string
+): Promise<void> {
+  try {
+    await c.sendMessage(target, { message, ...VERBATIM })
+    return
+  } catch (e) {
+    const text = e instanceof Error ? e.message : String(e)
+    const unresolved = /input entity|Could not find/i.test(text)
+    if (!unresolved || !LOOKS_NUMERIC.test(target)) throw e
+  }
+  /*
+   * Warm and retry ONCE. A loop here would turn one bad address into a stream
+   * of dialog fetches against Telegram, which is how an account gets limited.
+   */
+  await c.getDialogs({ limit: 200 })
+  await c.sendMessage(target, { message, ...VERBATIM })
+}
+
 export async function execute(
   p: PendingProposal,
   ctx: { telegramId: string; pool?: unknown }
 ): Promise<{ done: true; action: string } | { done: false; why: string }> {
   const { client } = await import('./telegram-tools')
+  let c: SendingClient | null = null
   try {
-    const c = (await client(ctx as never)) as {
-      sendMessage: (to: string, opts: { message: string }) => Promise<unknown>
-      forwardMessages: (
-        to: string,
-        opts: { messages: number[]; fromPeer: string }
-      ) => Promise<unknown>
-    }
+    c = (await client(ctx as never)) as SendingClient
     switch (p.action) {
       case 'send':
         if (!p.what)
           return { done: false, why: 'нечего отправлять: текст пуст' }
-        await c.sendMessage(p.target, { message: p.what })
+        await sendWithAddressBook(c, p.target, p.what)
         return { done: true, action: 'send' }
       default:
         /*
@@ -171,6 +289,51 @@ export async function execute(
         }
     }
   } catch (e) {
-    return { done: false, why: e instanceof Error ? e.message : String(e) }
+    return { done: false, why: inPlainWords(e) }
+  } finally {
+    /*
+     * CLOSE THE SOCKET.
+     *
+     * `client()` builds a NEW TelegramClient every call and never closes it;
+     * connect() starts an update loop that pings Telegram every nine seconds
+     * for the life of the process. Counted on this branch: six clients built
+     * across the tools, six connects, ZERO disconnects.
+     *
+     * The correct pattern already exists a hundred lines away in
+     * render-server.ts's logout helper (`try { ... } finally { await
+     * c.disconnect() }`) and simply was not applied here. This closes the one
+     * this module opens; the five reading tools still leak and need the same
+     * treatment -- filed separately rather than widened into this change.
+     */
+    await c?.disconnect?.().catch?.(() => undefined)
   }
+}
+
+/**
+ * Telegram's wording turned into something the person can act on.
+ *
+ * "Could not find the input entity for {\"userId\":…,\"className\":\"PeerUser\"}"
+ * under a button that says "Send" reads as a broken product. It has a precise
+ * meaning -- we do not know this address -- and a precise remedy: name the
+ * person by @username instead of by number.
+ *
+ * Anything unrecognised passes through unchanged. A friendly "something went
+ * wrong" would erase the only clue anybody has, and this repository has already
+ * paid an evening for exactly that on the login screen.
+ */
+function inPlainWords(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e)
+  if (/input entity|Could not find/i.test(raw)) {
+    return 'не нашёл этот чат в вашем Telegram — назовите адресата по @имени'
+  }
+  if (/FLOOD_WAIT_(\d+)/i.test(raw)) {
+    const secs = Number(/FLOOD_WAIT_(\d+)/i.exec(raw)?.[1] ?? 0)
+    return `Telegram просит подождать ${Math.ceil(secs / 60)} мин — слишком много действий подряд`
+  }
+  if (/PEER_ID_INVALID/i.test(raw)) return 'такого адресата не существует'
+  if (/USER_IS_BLOCKED|USER_PRIVACY/i.test(raw)) {
+    return 'этот человек не принимает от вас сообщения'
+  }
+  if (/CHAT_WRITE_FORBIDDEN/i.test(raw)) return 'в этот чат писать нельзя'
+  return raw
 }

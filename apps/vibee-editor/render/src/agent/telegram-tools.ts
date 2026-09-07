@@ -122,6 +122,9 @@ export interface Proposal {
  * handlers took no ToolContext at all, which meant no identity check on the
  * tools that reach other people. Harmless only while nothing executed.
  */
+/** Actions `execute` can actually carry out. Keep in step with it. */
+const EXECUTABLE = new Set<Proposal['action']>(['send'])
+
 function propose(
   action: Proposal['action'],
   target: string,
@@ -131,13 +134,33 @@ function propose(
 ): Proposal & { id: string } {
   requireOwner(ctx)
   const id = crypto.randomUUID()
-  remember({
-    id,
-    telegramId: String(ctx?.telegramId ?? ''),
-    action,
-    target,
-    what,
-  })
+  /*
+   * ONLY WHAT CAN ACTUALLY BE CARRIED OUT TAKES THE QUEUE SLOT.
+   *
+   * `execute` performs `send` and honestly refuses forward, read, delete,
+   * join and leave. Queueing those anyway cost two real defects:
+   *
+   *  - the card said "Отправить сообщение в Telegram?" for every action, so a
+   *    `tg_read` proposal appeared as a send with an empty body, and pressing
+   *    the green button answered that read is not wired -- a confirmation
+   *    screen describing an action that is not the one on offer;
+   *  - one slot per person means a `tg_read` proposal EVICTED the send draft
+   *    the person was about to confirm. The agent reads a chat, and the
+   *    message waiting for approval quietly disappears.
+   *
+   * The others still return a proposal to the model -- that is how it learns
+   * the action was not performed -- they simply do not occupy the human
+   * queue. When forward becomes executable it is added here, in one place.
+   */
+  if (EXECUTABLE.has(action)) {
+    remember({
+      id,
+      telegramId: String(ctx?.telegramId ?? ''),
+      action,
+      target,
+      what,
+    })
+  }
   return { proposal: true, id, action, target, what, why }
 }
 

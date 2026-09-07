@@ -56,12 +56,28 @@ describe('the card appears only when something is actually waiting', () => {
     expect(toolsMayHaveProposed([])).toBe(false)
   })
 
-  it('an acting tool does', async () => {
+  it('a send does', async () => {
     const { toolsMayHaveProposed } = await import(
       '@/services/telegramProposals'
     )
     expect(toolsMayHaveProposed(['tg_send'])).toBe(true)
-    expect(toolsMayHaveProposed(['tg_dialogs', 'tg_forward'])).toBe(true)
+    expect(toolsMayHaveProposed(['tg_dialogs', 'tg_send'])).toBe(true)
+  })
+
+  it('forward and read do NOT raise a card', async () => {
+    /*
+     * Not an omission. The server queues only what `execute` can carry out,
+     * and that is `send` alone. Cards for the rest cost two real defects: the
+     * card read "Отправить сообщение в Telegram?" over an empty body whatever
+     * the action was, and -- worse -- a tg_read proposal took the person's one
+     * queue slot, evicting the send draft they were about to confirm. The
+     * agent reads a chat, and the message awaiting approval disappears.
+     */
+    const { toolsMayHaveProposed } = await import(
+      '@/services/telegramProposals'
+    )
+    expect(toolsMayHaveProposed(['tg_forward'])).toBe(false)
+    expect(toolsMayHaveProposed(['tg_read'])).toBe(false)
   })
 
   it('an unreachable server costs the draft, never the answer', async () => {
@@ -157,7 +173,36 @@ describe('the card shows what will actually be sent', () => {
   })
 })
 
-describe('both buttons are wired, and the press is the only thing that acts', () => {
+describe('the draft is never shown to a room', () => {
+  it('the card is gated on a private chat', () => {
+    /*
+     * The card carries the recipient and the FULL TEXT of a message from
+     * somebody's personal Telegram, under a Send button. The AI fallback that
+     * produces the answer has no chat-type gate of its own -- verified: the
+     * only gates below it are attachment, "/" prefix, emoji and scene -- so in
+     * a group the bot would print that draft in front of everyone present, and
+     * any of them could press.
+     */
+    /*
+     * Anchored on the CALL, not on the first mention of the name: the first
+     * `toolsMayHaveProposed` in this file is the import line, so slicing there
+     * looked at code above the gate and the check failed on healthy code.
+     */
+    const call = SOURCE.indexOf('if (inPrivate')
+    expect(call, 'the card is no longer gated at all').toBeGreaterThan(-1)
+    expect(SOURCE.slice(call, call + 140)).toContain(
+      'inPrivate && toolsMayHaveProposed'
+    )
+    // ...and `inPrivate` is the chat type, not a constant somebody flipped.
+    const decl = SOURCE.slice(0, call).lastIndexOf('const inPrivate')
+    expect(decl, 'inPrivate is not declared before the gate').toBeGreaterThan(
+      -1
+    )
+    expect(SOURCE.slice(decl, call)).toContain("ctx.chat?.type === 'private'")
+  })
+})
+
+describe('both buttons are wired, and the press is what acts', () => {
   it('confirm and cancel are both registered as handlers', () => {
     // A button whose press reaches nothing is the same broken promise as the
     // tool that could never send -- one interaction later.
@@ -170,6 +215,12 @@ describe('both buttons are wired, and the press is the only thing that acts', ()
      * Structural, and load-bearing: `confirmProposal` may appear ONLY inside
      * the callback handler. Anywhere else -- in the answer path, in a timer --
      * it would send without anybody deciding to.
+     *
+     * The scope of the claim, stated so it is not over-read: this pins the
+     * BOT. The render route also accepts the shared server key with an
+     * explicit telegram_id, so a key-holder can confirm without any press at
+     * all -- see the comment above the route. What is verified here is that
+     * the bot itself never presses on somebody's behalf.
      */
     const handler = handlerBody('tgp:ok')
     const total = SOURCE.split('confirmProposal').length - 1
@@ -208,5 +259,90 @@ describe('both buttons are wired, and the press is the only thing that acts', ()
     const acted = ok.indexOf('confirmProposal')
     expect(answered).toBeGreaterThan(-1)
     expect(answered).toBeLessThan(acted)
+  })
+})
+
+describe('the bot does not claim to know what it does not know', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    process.env.RENDER_API_KEY = 'test-key'
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('a dropped connection is reported as UNKNOWN, not as "not sent"', async () => {
+    /*
+     * The route deletes the draft and only then sends. Reproduced against a
+     * server that sends and then drops the socket: the recipient received the
+     * message and the owner was shown "❌ Не отправлено: fetch failed".
+     *
+     * That is a claim about a state nobody knows, and it is the expensive kind
+     * -- the person rewrites the message and it arrives twice.
+     */
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('fetch failed')
+      })
+    )
+    const { confirmProposal } = await import('@/services/telegramProposals')
+    const r = await confirmProposal('144022504', 'p1')
+    expect(r.ok).toBe(false)
+    expect(r.unknown, 'a transport failure is reported as a definite one').toBe(
+      true
+    )
+  })
+
+  it('a server answer is NOT unknown -- that one really did not send', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 409,
+        json: async () => ({ ok: false, error: 'уже подтверждено' }),
+      }))
+    )
+    const { confirmProposal } = await import('@/services/telegramProposals')
+    const r = await confirmProposal('144022504', 'p1')
+    expect(r.ok).toBe(false)
+    expect(r.unknown).toBeFalsy()
+    expect(r.error).toContain('уже подтверждено')
+  })
+
+  it('the three states reach three different sentences', () => {
+    // A branch nobody renders is a branch that does not exist.
+    const handler = handlerBody('tgp:ok')
+    expect(handler).toContain('r.unknown')
+    expect(handler).toContain('Связь прервалась')
+    expect(handler).toContain('Не отправлено')
+    expect(handler).toContain('Отправлено')
+  })
+})
+
+describe('the card does not present a bare id as a checkable address', () => {
+  it('a numeric recipient is marked as unverifiable', async () => {
+    /*
+     * `tg_dialogs` hands the model an id and no username, so "reply to this
+     * dialog" arrives here as digits -- and the send path was deliberately
+     * made to work for that shape. "Кому: 6579515876" asks somebody to approve
+     * a recipient they cannot recognise.
+     */
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      { id: 'p1', action: 'send', target: '6579515876', what: 'hi' },
+      true
+    )
+    expect(card.text).toContain('6579515876')
+    expect(card.text).toContain('числовой id')
+  })
+
+  it('a @username is shown plainly, with no warning bolted on', async () => {
+    // A warning on every recipient is a warning on none.
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      { id: 'p1', action: 'send', target: '@ivan', what: 'hi' },
+      true
+    )
+    expect(card.text).toContain('@ivan')
+    expect(card.text).not.toContain('числовой id')
   })
 })

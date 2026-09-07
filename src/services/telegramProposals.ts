@@ -84,11 +84,22 @@ export async function pendingProposal(
   }
 }
 
-/** Confirm: the server claims the draft and carries it out. */
+/**
+ * Confirm: the server claims the draft and carries it out.
+ *
+ * Three outcomes, not two. `unknown` is the one that matters: the request left
+ * and the connection died before an answer came back, so the message may well
+ * have gone out. Reproduced against a server that sends and then drops the
+ * socket -- the recipient got the message and the owner was shown a flat
+ * "not sent".
+ *
+ * That is a lie about a state we do not know, and it is the expensive kind:
+ * the person writes the message again, and it arrives twice.
+ */
 export async function confirmProposal(
   telegramId: string,
   id: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; unknown?: boolean; error?: string }> {
   return post('/api/tg/proposal/confirm', telegramId, id)
 }
 
@@ -104,7 +115,7 @@ async function post(
   path: string,
   telegramId: string,
   id: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; unknown?: boolean; error?: string }> {
   if (!apiKey()) return { ok: false, error: 'сервис не настроен' }
   try {
     const r = await fetch(
@@ -120,11 +131,30 @@ async function post(
       error?: string
     }
     if (!r.ok || d.ok === false) {
+      // The server ANSWERED. This one really did not send.
       return { ok: false, error: d.error || `сервер ответил ${r.status}` }
     }
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: (e as Error)?.message || 'связь потеряна' }
+    /*
+     * NOT AN ANSWER -- AN ABSENCE OF ONE.
+     *
+     * The route deletes the draft and only then sends, and its own contract
+     * forbids putting a failed draft back. So by the time the connection
+     * broke, the message may already be in somebody's chat. Saying "not sent"
+     * here would be asserting a fact about a state nobody knows, and the
+     * person would rewrite the message and send it twice.
+     *
+     * Logged, because there is otherwise no breadcrumb to reconcile against.
+     */
+    const error = (e as Error)?.message || 'связь потеряна'
+    logger.warn('proposal confirm outcome unknown', {
+      telegram_id: telegramId,
+      proposal: id,
+      path,
+      error,
+    })
+    return { ok: false, unknown: true, error }
   }
 }
 
@@ -144,9 +174,27 @@ export function proposalCard(
   const cut = body.length > SHOWN_CHARS
   const shown = cut ? body.slice(0, SHOWN_CHARS) : body
 
+  /*
+   * A BARE ID IS NOT AN ADDRESS A PERSON CAN CHECK.
+   *
+   * `tg_dialogs` hands the model `id` and no username, so the common case --
+   * "reply to this dialog" -- reaches here as digits. "Кому: 6579515876" asks
+   * somebody to approve a recipient they cannot recognise, and the send path
+   * was deliberately made to work for exactly that shape.
+   *
+   * Naming it as unverified does not make it verifiable; it stops the card
+   * from implying that it is. Resolving the id to a name belongs in the
+   * proposal itself and is filed separately.
+   */
+  const opaque = /^-?\d+$/.test(p.target)
+  const to = opaque
+    ? isRu
+      ? `${p.target} (числовой id — не могу показать имя)`
+      : `${p.target} (numeric id — no name to show)`
+    : p.target
   const head = isRu
-    ? `Отправить сообщение в Telegram?\n\nКому: ${p.target}`
-    : `Send this Telegram message?\n\nTo: ${p.target}`
+    ? `Отправить сообщение в Telegram?\n\nКому: ${to}`
+    : `Send this Telegram message?\n\nTo: ${to}`
   const tail = cut
     ? isRu
       ? `\n\n(показано ${SHOWN_CHARS} из ${body.length} символов — отправится целиком)`
@@ -173,11 +221,17 @@ export function proposalCard(
 /**
  * Which tools leave something waiting for confirmation.
  *
- * Read tools change nothing and must not make a card appear; asking somebody
+ * Read tools change nothing and must not make a card appear: asking somebody
  * to approve a thing that already happened teaches them to press the green
  * button without reading it.
+ *
+ * `tg_forward` and `tg_read` are not here either, and that is not an omission.
+ * The server queues only what it can carry out, and `execute` performs `send`
+ * alone. A card for the rest showed "Отправить сообщение в Telegram?" over an
+ * empty body and answered, on the press, that the action is not wired --
+ * describing one action while offering another.
  */
-const ACTING_TOOLS = ['tg_send', 'tg_forward', 'tg_read']
+const ACTING_TOOLS = ['tg_send']
 
 export function toolsMayHaveProposed(tools: string[]): boolean {
   return tools.some(t => ACTING_TOOLS.includes(t))

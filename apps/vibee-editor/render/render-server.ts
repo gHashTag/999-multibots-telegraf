@@ -7512,9 +7512,32 @@ const server = createServer(async (req, res) => {
    * reach anybody, ever. This is the other half.
    *
    * Identity comes from `resolveIdentity`, the same as every other route that
-   * acts for a person, and `claim` checks it AGAIN against the proposal's own
-   * owner. Two checks because this one reaches other human beings: the id in
-   * the body is a claim, not a credential.
+   * acts for a person, and `claim` checks it again against the proposal's own
+   * owner -- so the id in the body is a claim, not a credential.
+   *
+   * ── WHAT THAT DOES *NOT* BUY, STATED PLAINLY ──────────────────────────────
+   *
+   * The two checks are not independent. `resolveIdentity`'s server-key branch
+   * returns whatever `telegram_id` the caller typed, and `claim` then compares
+   * the draft's owner against that same caller-chosen string. Anyone holding
+   * RENDER_API_KEY can therefore read a prepared message and make it go out
+   * from the owner's real Telegram: no press, no card. Verified by execution,
+   * with a `getPool` that throws if touched -- no database, session or
+   * signature is consulted on that path.
+   *
+   * The key HAS to be accepted here, because the presser is a person in the
+   * bot chat and the bot is what carries the press; it holds only this key.
+   * So the property is "nothing sends without a press" for everyone EXCEPT the
+   * trusted services, and for those it is "nothing sends without the key".
+   *
+   * That is a widening: before this route, the key could read the owner's
+   * Telegram through the tools but could not send, because every acting tool
+   * only proposed. It is worth knowing rather than discovering. Narrowing it
+   * needs a secret the key-holder does not have -- a nonce minted when the
+   * card is shown and burned on use -- which is a design change, not a line.
+   *
+   * Until then the confirm is LOGGED, so a send nobody remembers pressing
+   * leaves a trace to find.
    */
   {
     const route = req.url?.split('?')[0] || ''
@@ -7538,10 +7561,19 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const body = (await readBody(req)) as { id?: string }
-      const { claim, execute } = await import('./src/agent/tg-proposals')
-      const taken = claim(who, String(body?.id ?? ''))
+      const { claim, execute, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
+      // idFromBody, not a cast: readBody hands back the raw string, and the
+      // cast that pretended otherwise made every confirm press fail silently.
+      const taken = claim(who, idFromBody(await readBody(req)))
       if (!taken.ok) return sendJson(res, 409, { ok: false, error: taken.why })
+      // The trace. Not the text -- that is somebody's private message and does
+      // not belong in a log -- but enough to answer "who sent what to whom".
+      console.log(
+        `[proposal] confirm who=${who} action=${taken.proposal.action} ` +
+          `to=${taken.proposal.target} chars=${taken.proposal.what?.length ?? 0}`
+      )
       const outcome = await execute(taken.proposal, {
         telegramId: who,
         pool: await getPool(),
@@ -7552,11 +7584,10 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const body = (await readBody(req)) as { id?: string }
-      const { claim } = await import('./src/agent/tg-proposals')
+      const { claim, idFromBody } = await import('./src/agent/tg-proposals')
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
-      const taken = claim(who, String(body?.id ?? ''))
+      const taken = claim(who, idFromBody(await readBody(req)))
       return sendJson(res, taken.ok ? 200 : 409, {
         ok: taken.ok,
         error: taken.ok ? undefined : taken.why,

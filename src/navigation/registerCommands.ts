@@ -1189,7 +1189,19 @@ If not, continue on your own and click the "I myself" button`
               await import('@/services/telegramProposals')
             // cyrillic-ok: pre-existing field of ОтветАгента
             const usedTools = ответ.инструменты || [] // cyrillic-ok
-            if (toolsMayHaveProposed(usedTools)) {
+            /*
+             * PRIVATE CHATS ONLY.
+             *
+             * The card carries the recipient and the full text of a message
+             * from somebody's PERSONAL Telegram. The AI fallback that produced
+             * this answer has no chat-type gate of its own, so in a group the
+             * bot would print that draft -- and a "Send" button anybody
+             * present could press -- in front of everyone.
+             *
+             * The draft is not lost: it waits in the queue and expires unsent.
+             */
+            const inPrivate = ctx.chat?.type === 'private'
+            if (inPrivate && toolsMayHaveProposed(usedTools)) {
               const draft = await pendingProposal(String(ctx.from?.id ?? ''))
               if (draft) {
                 const card = proposalCard(draft, isRuOtvet)
@@ -1736,14 +1748,33 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     const id = (ctx.match as RegExpMatchArray)[1]
     const { confirmProposal } = await import('@/services/telegramProposals')
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id)
+    /*
+     * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
+     *
+     * "Sent" and "not sent" are the easy two. The third is a request that left
+     * and never came back: the route deletes the draft and only then sends, so
+     * the message may already be sitting in somebody's chat. Reproduced --
+     * against a server that sends and then drops the socket, the recipient got
+     * the message and the owner read "not sent".
+     *
+     * Told "not sent", a person writes it again and it arrives twice. Told the
+     * truth, they look at the chat. The truth is cheaper.
+     */
     await ctx.reply(
       r.ok
         ? isRu
           ? '✅ Отправлено'
           : '✅ Sent'
-        : // The reason is shown as it came. "Something went wrong" would hide
-          // the only thing that says whether to retry or to rewrite.
-          (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') + (r.error ?? '')
+        : r.unknown
+          ? isRu
+            ? '⚠️ Связь прервалась — не знаю, ушло сообщение или нет. ' +
+              'Посмотрите чат, прежде чем отправлять снова.'
+            : '⚠️ The connection dropped — I cannot tell whether it went. ' +
+              'Check the chat before sending again.'
+          : // A server ANSWER: this one really did not send. The reason is
+            // shown as it came, because "something went wrong" would hide the
+            // only thing that says whether to retry or to rewrite.
+            (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') + (r.error ?? '')
     )
   })
 
