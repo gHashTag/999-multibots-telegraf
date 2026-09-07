@@ -6,6 +6,11 @@ import {
   foreignText,
   NOT_WIRED,
 } from './src/agent/telegram-tools'
+import {
+  forgetProposals,
+  pendingFor,
+  pendingCount,
+} from './src/agent/tg-proposals'
 
 /**
  * The boundary, asserted rather than trusted.
@@ -19,7 +24,11 @@ import {
  * in a hurry. These tests make the erosion loud.
  */
 
-const READING = ['tg_dialogs', 'tg_history', 'tg_search', 'tg_contacts',
+const READING = [
+  'tg_dialogs',
+  'tg_history',
+  'tg_search',
+  'tg_contacts',
   /*
    * tg_unanswered — читающий: «кто написал, а я не ответил». Долг считается
    * по последнему слову в диалоге, а не по счётчику непрочитанного:
@@ -28,6 +37,27 @@ const READING = ['tg_dialogs', 'tg_history', 'tg_search', 'tg_contacts',
   'tg_unanswered',
 ]
 const ACTING = ['tg_send', 'tg_forward', 'tg_read']
+
+/**
+ * WHO may call these, not merely what they do.
+ *
+ * There is only one Telegram session per person, and the registry that carries
+ * these tools is shared with dispatchers (/mcp, /api/agent/chat, /a2a) that
+ * admit any Mini App user with a valid initData signature. Until the gate
+ * below existed, a stranger could read the owner's dialogs, contacts and
+ * message history -- including the Telegram service chat that carries login
+ * codes.
+ *
+ * The owner id here is the module default (render-server.ts uses the same
+ * value); OWNER_TELEGRAM_ID would override it, and this suite deliberately does
+ * not set it, so the default itself is under test.
+ */
+const OWNER = '144022504'
+const STRANGER = '987654321'
+// A quoted fragment of the refusal, not a regex: the repo's no-cyrillic gate
+// strips string literals but not regex literals, so /.../ here would trip it.
+const REFUSAL = 'принадлежит владельцу'
+const pool = { query: async () => ({ rows: [] }) }
 
 describe('чужой text помечен как данные', () => {
   it('обёртка называет источник и отрицает исполнение', () => {
@@ -52,19 +82,88 @@ describe('чужой text помечен как данные', () => {
 })
 
 describe('действующие инструменты не действуют сами', () => {
+  /*
+   * Identity reaches these too, as of 2026-09-07. Before that the three acting
+   * handlers took no ctx AT ALL: the only tools able to reach another human
+   * being were also the only ones that never asked who was calling. It did not
+   * bite because nothing executed a proposal. The moment execution existed the
+   * hole was real, so the owner is now named explicitly.
+   */
+  const OWNER_CTX = { telegramId: '144022504', pool } as never
+
   for (const name of ACTING) {
     it(`${name} возвращает proposal, а не результат`, async () => {
       const t = TELEGRAM_TOOLS.find(x => x.name === name)!
       expect(t, `инструмент ${name} исчез из набора`).toBeTruthy()
       const о = (await t.handler(
         { chat: '123', text: 'привет', from: 'a', to: 'b', messageId: 1 },
-        {} as never
+        OWNER_CTX
       )) as { proposal?: boolean; why?: string }
       // The load-bearing assertion of this file: a PROPOSAL went out.
       expect(о.proposal).toBe(true)
       expect(о.why).toBeTruthy()
     })
+
+    it(`${name} отказывает постороннему`, async () => {
+      // A stranger cannot reach the owner's correspondence even by proposing:
+      // the draft lands in the owner's queue and is shown under their buttons.
+      const t = TELEGRAM_TOOLS.find(x => x.name === name)!
+      await expect(
+        t.handler({ chat: '123', text: 'привет', messageId: 1 }, {
+          telegramId: STRANGER,
+          pool,
+        } as never)
+      ).rejects.toThrow(REFUSAL)
+    })
+
+    it(`${name} отказывает вызову без подтверждённой личности`, async () => {
+      const t = TELEGRAM_TOOLS.find(x => x.name === name)!
+      await expect(
+        t.handler(
+          { chat: '123', text: 'привет', messageId: 1 },
+          undefined as never
+        )
+      ).rejects.toThrow(REFUSAL)
+    })
   }
+
+  it('предложение попадает в очередь владельца, а не только в ответ', async () => {
+    /*
+     * The defect this whole change exists for. Until 2026-09-07 `propose()`
+     * built an object for the model and stopped there: across the player and
+     * the bot, `grep -rn proposal` found NOT ONE reader. The answer looked
+     * right, there was nothing able to accept it, and tg_send could not reach
+     * anybody, ever.
+     *
+     * Behavioural on purpose. A source-level check for `remember(` survives a
+     * stub being substituted for it; the queue does not.
+     */
+    forgetProposals()
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    const answer = (await t.handler(
+      { chat: '6579515876', text: 'здравствуйте' },
+      OWNER_CTX
+    )) as { id?: string }
+    const waiting = pendingFor(OWNER)
+    expect(waiting, 'предложение никуда не положили').toBeTruthy()
+    expect(waiting!.id).toBe(answer.id)
+    expect(waiting!.target).toBe('6579515876')
+    expect(waiting!.what).toBe('здравствуйте')
+  })
+
+  it('чужому в очередь ничего не кладётся', async () => {
+    // The refusal must come BEFORE the queue. A draft written by a rejected
+    // call would sit waiting under the owner's own button with foreign text.
+    forgetProposals()
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    await expect(
+      t.handler({ chat: '6579515876', text: 'от чужого' }, {
+        telegramId: STRANGER,
+        pool,
+      } as never)
+    ).rejects.toThrow(REFUSAL)
+    expect(pendingCount()).toBe(0)
+  })
 
   it('ни один действующий инструмент не зовёт клиента напрямую', async () => {
     // Indirect but decisive: without a session the client throws. A proposal
@@ -72,7 +171,7 @@ describe('действующие инструменты не действуют 
     delete process.env.TELEGRAM_SESSION_STRING
     const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
     await expect(
-      t.handler({ chat: 'x', text: 'y' }, {} as never)
+      t.handler({ chat: 'x', text: 'y' }, OWNER_CTX)
     ).resolves.toBeTruthy()
   })
 })
@@ -103,29 +202,6 @@ describe('опасное не подключено', () => {
     expect(names).toEqual([...READING, ...ACTING].sort())
   })
 })
-
-/**
- * WHO may call these, not merely what they do.
- *
- * The tests above pin the tools' behaviour and never asked whose account they
- * touch. There is only one Telegram session in the process -- the owner's -- so
- * a reading tool acts as the owner regardless of the caller, and the registry
- * that carries these tools is shared with dispatchers (/mcp, /api/agent/chat,
- * /a2a) that admit any Mini App user with a valid initData signature. Until the
- * gate below existed, a stranger could read the owner's dialogs, contacts and
- * message history -- including the Telegram service chat that carries login
- * codes.
- *
- * The owner id here is the module default (render-server.ts uses the same
- * value); OWNER_TELEGRAM_ID would override it, and this suite deliberately does
- * not set it, so the default itself is under test.
- */
-const OWNER = '144022504'
-const STRANGER = '987654321'
-// A quoted fragment of the refusal, not a regex: the repo's no-cyrillic gate
-// strips string literals but not regex literals, so /.../ here would trip it.
-const REFUSAL = 'принадлежит владельцу'
-const pool = { query: async () => ({ rows: [] }) }
 
 describe('читать аккаунт владельца может только владелец', () => {
   for (const name of READING) {
@@ -186,5 +262,26 @@ describe('читать аккаунт владельца может только
         b => !b.slice(0, b.indexOf('await client()')).includes('requireOwner(')
       )
     expect(unguarded).toEqual([])
+  })
+
+  it('очередь предложений закрыта тем же гвардом', () => {
+    /*
+     * The second door to another person, and it does not go through client().
+     * The acting tools send nothing themselves -- they put a draft in the
+     * owner's queue, where a button press executes it. A guard that knows only
+     * about `await client()` would therefore wave through exactly the three
+     * tools that reach somebody else's correspondence.
+     *
+     * `propose` is the choke point all three share. The first version of this
+     * check looked for `remember(` inside handler bodies, where it does not
+     * appear at all, and so looked at nothing.
+     */
+    const src = fs.readFileSync(
+      path.join(__dirname, 'src', 'agent', 'telegram-tools.ts'),
+      'utf8'
+    )
+    const body = src.slice(src.indexOf('function propose('))
+    const before = body.slice(0, body.indexOf('remember('))
+    expect(before).toContain('requireOwner(')
   })
 })

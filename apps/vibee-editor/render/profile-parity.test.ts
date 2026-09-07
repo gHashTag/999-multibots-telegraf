@@ -20,10 +20,17 @@ import path from 'node:path'
  */
 
 const КОРЕНЬ = path.join(__dirname, '..', '..', '..')
-const читать = (...ч: string[]) => fs.readFileSync(path.join(КОРЕНЬ, ...ч), 'utf8')
+const читать = (...ч: string[]) =>
+  fs.readFileSync(path.join(КОРЕНЬ, ...ч), 'utf8')
 
 const ВЕБ_ШАПКА = читать(
-  'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfileHeader.tsx'
+  'apps',
+  'vibee-editor',
+  'player',
+  'src',
+  'components',
+  'Profile',
+  'ProfileHeader.tsx'
 )
 const IOS_API = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
 const IOS_ЭКРАН = читать('apps', 'vibee-ios', 'Vibee', 'ProfileScreen.swift')
@@ -93,10 +100,19 @@ describe('оба клиента читают одни и те же поля пр
     const от = IOS_ЭКРАН.indexOf('счётчики(_ p: API.Profile)')
     const блок = IOS_ЭКРАН.slice(от, от + 700)
     const порядокIOS = СЧЁТЧИКИ.map(п => блок.indexOf(п))
-    expect(порядокIOS.every(i => i > 0), 'не все счётчики в блоке').toBe(true)
+    expect(
+      порядокIOS.every(i => i > 0),
+      'не все счётчики в блоке'
+    ).toBe(true)
     expect([...порядокIOS].sort((a, b) => a - b)).toEqual(порядокIOS)
 
-    for (const подпись of ['ПОДПИСЧИКИ', 'ПОДПИСКИ', 'ВИДЕО', 'ПРОСМОТРЫ', 'ЛАЙКИ']) {
+    for (const подпись of [
+      'ПОДПИСЧИКИ',
+      'ПОДПИСКИ',
+      'ВИДЕО',
+      'ПРОСМОТРЫ',
+      'ЛАЙКИ',
+    ]) {
       expect(блок, `нет подписи ${подпись}`).toContain(подпись)
     }
   })
@@ -109,7 +125,13 @@ describe('оба клиента читают одни и те же поля пр
      * визитки одного человека.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'SoulCard.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'SoulCard.tsx'
     )
     const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
     expect(веб).toContain('/api/soul/')
@@ -120,7 +142,13 @@ describe('оба клиента читают одни и те же поля пр
   it('свёртка SOUL одинаковая: шесть строк и та же кнопка', () => {
     // Человек, знающий веб, ищет ту же кнопку на том же месте.
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'SoulCard.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'SoulCard.tsx'
     )
     expect(веб).toContain('СТРОК_В_ПРЕВЬЮ = 6')
     expect(IOS_ЭКРАН).toContain('строкВПревью = 6')
@@ -138,12 +166,35 @@ describe('оба клиента читают одни и те же поля пр
      * поля ввода.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ConnectTelegram.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ConnectTelegram.tsx'
     )
     const ios = читать('apps', 'vibee-ios', 'Vibee', 'ConnectTelegram.swift')
-    for (const текст of [веб, ios]) {
-      expect(текст).toContain('читать ваши диалоги')
-      expect(текст).toContain('не сохраняются')
+    /*
+     * The web wording moved into the dictionary on 2026-09-08 (project rule:
+     * interface text lives only in `atoms/language.ts`), so the screen renders
+     * keys and the sentences are checked where they now are. iOS still carries
+     * its own strings.
+     */
+    const dict = читать(
+      // cyrillic-ok: pre-existing helper name
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'atoms',
+      'language.ts'
+    )
+    for (const source of [dict, ios]) {
+      // A fragment, not the whole sentence: the two clients word the promise
+      // differently. What is checked is the promise, not its grammar.
+      expect(source).toContain('ваши диалоги') // cyrillic-ok
+      expect(source).toContain('не сохраняются') // cyrillic-ok
     }
     /*
      * Порядок сверяется по МЕСТУ ОТРИСОВКИ, а не по месту объявления.
@@ -153,8 +204,13 @@ describe('оба клиента читают одни и те же поля пр
      * рисуется выше неё. Тест проверял бы порядок строк в исходнике —
      * величину, не имеющую отношения к тому, что видит человек.
      */
-    expect(веб.indexOf('читать ваши диалоги')).toBeLessThan(веб.indexOf('+7 999'))
-    expect(ios.indexOf('ForEach(Self.факты')).toBeLessThan(ios.indexOf('+7 999'))
+    const web = веб // cyrillic-ok: pre-existing local name
+    expect(web.indexOf("t('connect.can.read')")).toBeLessThan(
+      web.indexOf('+7 999')
+    )
+    expect(ios.indexOf('ForEach(Self.факты')).toBeLessThan(
+      ios.indexOf('+7 999')
+    )
     expect(IOS_ЭКРАН).toContain('ConnectTelegramView()')
   })
 
@@ -180,7 +236,13 @@ describe('оба клиента читают одни и те же поля пр
      * работа лежала в базе и была невидима отовсюду, навсегда.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePending.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ProfilePending.tsx'
     )
     const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
     for (const адрес of ['api/feed/pending', 'api/feed/approve']) {
@@ -200,9 +262,17 @@ describe('оба клиента читают одни и те же поля пр
      * удаление стоит ПОСЛЕ успешного запроса, а не до него.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePending.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ProfilePending.tsx'
     )
-    expect(веб.indexOf('if (!о.ok) throw')).toBeLessThan(веб.indexOf('setСписок(с =>'))
+    expect(веб.indexOf('if (!о.ok) throw')).toBeLessThan(
+      веб.indexOf('setСписок(с =>')
+    )
     expect(IOS_ЭКРАН.indexOf('try await API.одобрить')).toBeLessThan(
       IOS_ЭКРАН.indexOf('ожидают.removeAll')
     )
@@ -225,7 +295,7 @@ describe('оба клиента читают одни и те же поля пр
     // Сервер отвечает `{ success, templates }`. Разбор, ждущий `items`, вернул
     // бы пустой список молча.
     const сервер = читать('apps', 'vibee-editor', 'render', 'render-server.ts')
-    expect(сервер).toContain("success: true, templates: r.rows")
+    expect(сервер).toContain('success: true, templates: r.rows')
     const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
     expect(ios).toContain('let templates: [Ожидающий]?')
   })
@@ -238,7 +308,13 @@ describe('оба клиента читают одни и те же поля пр
      * попросит агента «отметь, что вышло», а в приложении увидит прежнее.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePlan.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ProfilePlan.tsx'
     )
     const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
     for (const инструмент of ['plan_list', 'plan_item_update']) {
@@ -256,7 +332,13 @@ describe('оба клиента читают одни и те же поля пр
      * доверять кнопке.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePlan.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ProfilePlan.tsx'
     )
     expect(веб).toMatch(/замысел:\s*'doing'/)
     expect(веб).toMatch(/'в работе':\s*'done'/)
@@ -274,7 +356,13 @@ describe('оба клиента читают одни и те же поля пр
     // В вебе это `статус === 'вышло'`; расхождение дало бы два разных ответа
     // на вопрос «как идёт».
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePlan.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ProfilePlan.tsx'
     )
     expect(веб).toContain("статус === 'вышло'")
     expect(IOS_API).toContain('$0.статус == "вышло"')
@@ -300,7 +388,13 @@ describe('оба клиента читают одни и те же поля пр
      * её потом было негде — тем более если делали с другого устройства.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfileFilesGrid.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ProfileFilesGrid.tsx'
     )
     const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
     expect(веб).toContain("name: 'my_assets'")
@@ -315,7 +409,13 @@ describe('оба клиента читают одни и те же поля пр
      * и человек не узнает своё изображение.
      */
     const веб = читать(
-      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfileFilesGrid.tsx'
+      'apps',
+      'vibee-editor',
+      'player',
+      'src',
+      'components',
+      'Profile',
+      'ProfileFilesGrid.tsx'
     )
     expect(веб).toContain("f.type === 'generated_image'")
     expect(веб).toContain("f.type === 'generated_video'")
@@ -340,8 +440,8 @@ describe('оба клиента читают одни и те же поля пр
   it('сокращение тысяч одинаковое: 1.2K и 3.4M', () => {
     // Иначе одно и то же число выглядит на двух экранах по-разному, и человек
     // решает, что видит разные величины.
-    expect(ВЕБ_ШАПКА).toContain("toFixed(1)}K")
-    expect(ВЕБ_ШАПКА).toContain("toFixed(1)}M")
+    expect(ВЕБ_ШАПКА).toContain('toFixed(1)}K')
+    expect(ВЕБ_ШАПКА).toContain('toFixed(1)}M')
     expect(IOS_ЭКРАН).toContain('%.1fK')
     expect(IOS_ЭКРАН).toContain('%.1fM')
   })

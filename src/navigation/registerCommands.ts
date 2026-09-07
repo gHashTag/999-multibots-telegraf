@@ -1199,6 +1199,48 @@ If not, continue on your own and click the "I myself" button`
             const posledniy = i === chasti.length - 1
             await ctx.reply(chasti[i], posledniy ? markup : undefined)
           }
+          /*
+           * A DRAFT WAITING FOR CONFIRMATION IS SHOWN, NOT LEFT IN A QUEUE.
+           *
+           * `tg_send` and its siblings never send -- they file a proposal. Up
+           * to 2026-09-07 nothing anywhere read that queue, so the agent could
+           * answer "I have prepared the message" and the message existed
+           * nowhere a person could reach. The card below is what makes the
+           * whole tool real: recipient, full text, and two buttons.
+           *
+           * Only after an ACTING tool. Asking for approval of something that
+           * already happened teaches people to press the green button without
+           * reading, which is the habit this card exists to prevent.
+           */
+          try {
+            const { toolsMayHaveProposed, pendingProposal, proposalCard } =
+              await import('@/services/telegramProposals')
+            // cyrillic-ok: pre-existing field of ОтветАгента
+            const usedTools = ответ.инструменты || [] // cyrillic-ok
+            /*
+             * PRIVATE CHATS ONLY.
+             *
+             * The card carries the recipient and the full text of a message
+             * from somebody's PERSONAL Telegram. The AI fallback that produced
+             * this answer has no chat-type gate of its own, so in a group the
+             * bot would print that draft -- and a "Send" button anybody
+             * present could press -- in front of everyone.
+             *
+             * The draft is not lost: it waits in the queue and expires unsent.
+             */
+            const inPrivate = ctx.chat?.type === 'private'
+            if (inPrivate && toolsMayHaveProposed(usedTools)) {
+              const draft = await pendingProposal(String(ctx.from?.id ?? ''))
+              if (draft) {
+                const card = proposalCard(draft, isRuOtvet)
+                await ctx.reply(card.text, card.markup)
+              }
+            }
+          } catch (e: any) {
+            // The answer is already delivered. A failure here costs an unsent
+            // draft, which expires by itself; it must not cost the reply.
+            logger.warn('proposal card failed', { error: e?.message })
+          }
           return
         }
         logger.warn('🤖 [Агент] пустой ответ — иду запасным путём', {
@@ -1710,6 +1752,77 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   bot.action(`${ACTION_PREFIX}balance`, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
     await ctx.scene.enter(ModeEnum.BalanceScene)
+  })
+
+  /*
+   * CONFIRMING OR CANCELLING A PREPARED TELEGRAM MESSAGE.
+   *
+   * The press IS the decision -- nothing before it sends anything. The id
+   * travels in the callback data, so it is a claim and not a credential: the
+   * server checks that the draft belongs to whoever pressed, and consumes it
+   * in the same step, because on a phone a slow reply and a missed press look
+   * identical and the second tap is the normal case, not the rare one.
+   *
+   * The buttons are removed either way. A card whose buttons survive their own
+   * press invites exactly that second tap.
+   */
+  const stripButtons = async (ctx: any) =>
+    ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
+
+  bot.action(/^tgp:ok:(.+)$/, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    await stripButtons(ctx)
+    const isRu = isRussianFromState(ctx)
+    const id = (ctx.match as RegExpMatchArray)[1]
+    const { confirmProposal } = await import('@/services/telegramProposals')
+    const r = await confirmProposal(String(ctx.from?.id ?? ''), id)
+    /*
+     * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
+     *
+     * "Sent" and "not sent" are the easy two. The third is a request that left
+     * and never came back: the route deletes the draft and only then sends, so
+     * the message may already be sitting in somebody's chat. Reproduced --
+     * against a server that sends and then drops the socket, the recipient got
+     * the message and the owner read "not sent".
+     *
+     * Told "not sent", a person writes it again and it arrives twice. Told the
+     * truth, they look at the chat. The truth is cheaper.
+     */
+    await ctx.reply(
+      r.ok
+        ? isRu
+          ? '✅ Отправлено'
+          : '✅ Sent'
+        : r.unknown
+          ? isRu
+            ? '⚠️ Связь прервалась — не знаю, ушло сообщение или нет. ' +
+              'Посмотрите чат, прежде чем отправлять снова.'
+            : '⚠️ The connection dropped — I cannot tell whether it went. ' +
+              'Check the chat before sending again.'
+          : // A server ANSWER: this one really did not send. The reason is
+            // shown as it came, because "something went wrong" would hide the
+            // only thing that says whether to retry or to rewrite.
+            (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') + (r.error ?? '')
+    )
+  })
+
+  bot.action(/^tgp:no:(.+)$/, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    await stripButtons(ctx)
+    const isRu = isRussianFromState(ctx)
+    const id = (ctx.match as RegExpMatchArray)[1]
+    const { cancelProposal } = await import('@/services/telegramProposals')
+    await cancelProposal(String(ctx.from?.id ?? ''), id)
+    /*
+     * Said plainly, and said even when the cancel call failed. The draft is
+     * consumed by the same claim either way, and a proposal that expires
+     * unsent is the same outcome as one cancelled -- telling somebody their
+     * cancel "did not work" would invite them to hunt for a way to cancel it
+     * harder.
+     */
+    await ctx.reply(
+      isRu ? '✖️ Отменено, ничего не ушло' : '✖️ Cancelled, nothing was sent'
+    )
   })
 
   bot.action(`${ACTION_PREFIX}can`, async ctx => {

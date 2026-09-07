@@ -2245,6 +2245,15 @@ async function refundMiniAppUser(
   }
 }
 
+/** Shape the execution result for the wire without losing the reason. */
+function outcomeToBody(
+  outcome: { done: true; action: string } | { done: false; why: string }
+): Record<string, unknown> {
+  return outcome.done
+    ? { ok: true, action: outcome.action }
+    : { ok: false, error: outcome.why }
+}
+
 /** Кэш RSS-блога t27.ai для GET /api/blog (см. обработчик ниже). */
 let blogCache: { at: number; data: unknown } | null = null
 
@@ -7494,6 +7503,98 @@ const server = createServer(async (req, res) => {
    * владелец ключа начал бы вход за постороннего, и Telegram прислал бы код
    * ничего не подозревающему человеку.
    */
+  /*
+   * CONFIRMING A PROPOSED TELEGRAM ACTION.
+   *
+   * `tg_send` and its siblings never act on a model's decision -- they return
+   * a proposal. Until now nothing could accept one: `grep -rn proposal` across
+   * the player and the bot found no reader at all, so those tools could not
+   * reach anybody, ever. This is the other half.
+   *
+   * Identity comes from `resolveIdentity`, the same as every other route that
+   * acts for a person, and `claim` checks it again against the proposal's own
+   * owner -- so the id in the body is a claim, not a credential.
+   *
+   * ── WHAT THAT DOES *NOT* BUY, STATED PLAINLY ──────────────────────────────
+   *
+   * The two checks are not independent. `resolveIdentity`'s server-key branch
+   * returns whatever `telegram_id` the caller typed, and `claim` then compares
+   * the draft's owner against that same caller-chosen string. Anyone holding
+   * RENDER_API_KEY can therefore read a prepared message and make it go out
+   * from the owner's real Telegram: no press, no card. Verified by execution,
+   * with a `getPool` that throws if touched -- no database, session or
+   * signature is consulted on that path.
+   *
+   * The key HAS to be accepted here, because the presser is a person in the
+   * bot chat and the bot is what carries the press; it holds only this key.
+   * So the property is "nothing sends without a press" for everyone EXCEPT the
+   * trusted services, and for those it is "nothing sends without the key".
+   *
+   * That is a widening: before this route, the key could read the owner's
+   * Telegram through the tools but could not send, because every acting tool
+   * only proposed. It is worth knowing rather than discovering. Narrowing it
+   * needs a secret the key-holder does not have -- a nonce minted when the
+   * card is shown and burned on use -- which is a design change, not a line.
+   *
+   * Until then the confirm is LOGGED, so a send nobody remembers pressing
+   * leaves a trace to find.
+   */
+  {
+    const route = req.url?.split('?')[0] || ''
+    const NO_IDENTITY = 'нужна проверенная личность'
+
+    if (route === '/api/tg/proposal' && req.method === 'GET') {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      const { pendingFor } = await import('./src/agent/tg-proposals')
+      const p = pendingFor(who)
+      return sendJson(res, 200, {
+        ok: true,
+        // The full text goes back so the person confirms what will actually be
+        // sent, not a summary of it.
+        proposal: p
+          ? { id: p.id, action: p.action, target: p.target, what: p.what }
+          : null,
+      })
+    }
+
+    if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      const { claim, execute, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
+      // idFromBody, not a cast: readBody hands back the raw string, and the
+      // cast that pretended otherwise made every confirm press fail silently.
+      const taken = claim(who, idFromBody(await readBody(req)))
+      if (!taken.ok) return sendJson(res, 409, { ok: false, error: taken.why })
+      // The trace. Not the text -- that is somebody's private message and does
+      // not belong in a log -- but enough to answer "who sent what to whom".
+      console.log(
+        `[proposal] confirm who=${who} action=${taken.proposal.action} ` +
+          `to=${taken.proposal.target} chars=${taken.proposal.what?.length ?? 0}`
+      )
+      const outcome = await execute(taken.proposal, {
+        telegramId: who,
+        pool: await getPool(),
+      })
+      return sendJson(res, outcome.done ? 200 : 502, outcomeToBody(outcome))
+    }
+
+    if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      const { claim, idFromBody } = await import('./src/agent/tg-proposals')
+      // Cancelling uses the same claim, so a cancel cannot remove somebody
+      // else's draft either.
+      const taken = claim(who, idFromBody(await readBody(req)))
+      return sendJson(res, taken.ok ? 200 : 409, {
+        ok: taken.ok,
+        error: taken.ok ? undefined : taken.why,
+      })
+    }
+  }
+
   if (этоПутьПодключения(req.url?.split('?')[0] || '')) {
     const { TelegramClient } = await import('telegram')
     const { StringSession } = await import('telegram/sessions')

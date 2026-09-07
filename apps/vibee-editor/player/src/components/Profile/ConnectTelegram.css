@@ -23,6 +23,51 @@
 }
 
 /*
+ * "STEP 1 OF 2" IS NOT DECORATION.
+ *
+ * A login of unknown length reads as an unknown amount of work, and this one
+ * asks for a phone number and access to correspondence in the same breath.
+ * Two named steps turn it into something that visibly ends.
+ */
+.connect-tg__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.connect-tg__top h3 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+}
+
+.connect-tg__step {
+  flex: none;
+  font-size: 14px;
+  color: var(--text-muted, #888);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One sentence of what this is FOR, before the list of what it can do. The
+   list alone reads as a permissions dialog. */
+.connect-tg__lead {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text-primary, #fff);
+}
+
+.connect-tg__label {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+/*
  * 16px MINIMUM ON INPUTS, AND IT IS NOT A STYLE CHOICE.
  *
  * Safari on iOS zooms the whole page when a focused input has a font smaller

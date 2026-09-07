@@ -17,6 +17,52 @@ interface Translations {
 // ===============================
 
 const en: Translations = {
+  // ── Connecting a personal Telegram account ────────────────────────────────
+  // The login is the front door of the product: a personal assistant and a CRM
+  // that can do nothing at all until this screen succeeds. It is written to be
+  // short and unfrightening -- one decision per screen -- while still saying
+  // out loud what access is being handed over.
+  'connect.title': 'Connect Telegram',
+  'connect.lead':
+    'The assistant works with your correspondence: it reads it, drafts replies, and sends only what you have confirmed.',
+  'connect.can.read': 'Reads your dialogs, contacts and message history.',
+  'connect.can.write': 'Writes to anybody only after you confirm the text.',
+  'connect.can.secret':
+    'The code and the two-factor password are not stored — they go straight to Telegram.',
+  'connect.can.phone':
+    'Your number is kept so you need not type it again; disconnecting deletes it.',
+  'connect.can.off': 'You can disconnect here, in one tap.',
+  'connect.step': 'Step {n} of {total}',
+  'connect.back': 'Back',
+  'connect.phone.title': 'Your phone number',
+  'connect.phone.hint':
+    'The same number your Telegram account is registered to.',
+  'connect.phone.fromTelegram': 'Taken from Telegram — you can correct it',
+  'connect.phone.go': 'Get the code',
+  'connect.phone.going': 'Sending the code…',
+  'connect.code.title': 'Enter the code',
+  'connect.code.viaApp':
+    'Telegram sent the code as a message — look for the "Telegram" chat',
+  'connect.code.viaSms': 'The code was sent to you by SMS',
+  'connect.code.to': 'to {phone}',
+  'connect.code.change': 'Change the number',
+  'connect.code.label': 'Code from Telegram',
+  'connect.code.warn': 'Do not forward this code to anybody, us included.',
+  'connect.code.go': 'Confirm',
+  'connect.code.going': 'Checking…',
+  'connect.code.resend': 'Request a new code',
+  'connect.code.resendIn': 'A new code can be requested in {sec} s',
+  'connect.pass.title': 'Two-factor password',
+  'connect.pass.hint':
+    'Your account has two-factor protection switched on. The password is not stored.',
+  'connect.pass.label': 'Password',
+  'connect.pass.go': 'Sign in',
+  'connect.pass.going': 'Checking…',
+  'connect.done.title': 'Telegram connected',
+  'connect.done.body':
+    'The assistant sees your dialogs and contacts and can search your correspondence. It sends nothing in your name without your confirmation.',
+  'connect.done.off': 'Disconnect',
+
   // Header
   'nav.features': 'Features',
   'nav.pricing': 'Pricing',
@@ -1730,6 +1776,47 @@ types:
 }
 
 const ru: Translations = {
+  // cyrillic-ok: UI dictionary, Russian half
+  'connect.title': 'Подключить Telegram',
+  'connect.lead':
+    'Ассистент работает с вашей перепиской: читает её, готовит ответы и отправляет только то, что вы подтвердили.',
+  'connect.can.read': 'Читает ваши диалоги, контакты и историю сообщений.',
+  'connect.can.write': 'Пишет кому-либо только после вашего подтверждения.',
+  'connect.can.secret':
+    'Код и пароль двухфакторной защиты не сохраняются — они уходят в Telegram.',
+  'connect.can.phone':
+    'Номер сохраняется, чтобы не вводить его снова; при отключении удаляется.',
+  'connect.can.off': 'Отключить можно здесь же, в одно нажатие.',
+  'connect.step': 'Шаг {n} из {total}',
+  'connect.back': 'Назад',
+  'connect.phone.title': 'Ваш номер телефона',
+  'connect.phone.hint': 'Тот, на который зарегистрирован ваш Telegram.',
+  'connect.phone.fromTelegram': 'Номер из Telegram — можно исправить',
+  'connect.phone.go': 'Получить код',
+  'connect.phone.going': 'Отправляю код…',
+  'connect.code.title': 'Введите код',
+  'connect.code.viaApp':
+    'Telegram прислал код сообщением — ищите чат «Telegram»',
+  'connect.code.viaSms': 'Код отправлен вам по SMS',
+  'connect.code.to': 'на {phone}',
+  'connect.code.change': 'Изменить номер',
+  'connect.code.label': 'Код из Telegram',
+  'connect.code.warn': 'Не пересылайте этот код никому, включая нас.',
+  'connect.code.go': 'Подтвердить',
+  'connect.code.going': 'Проверяю…',
+  'connect.code.resend': 'Запросить новый код',
+  'connect.code.resendIn': 'Новый код можно запросить через {sec} с',
+  'connect.pass.title': 'Пароль двухфакторной защиты',
+  'connect.pass.hint':
+    'У вас включена двухфакторная защита. Пароль не сохраняется.',
+  'connect.pass.label': 'Пароль',
+  'connect.pass.go': 'Войти',
+  'connect.pass.going': 'Проверяю…',
+  'connect.done.title': 'Telegram подключён',
+  'connect.done.body':
+    'Ассистент видит ваши диалоги и контакты и может искать по переписке. Он ничего не отправляет от вашего имени без вашего подтверждения.',
+  'connect.done.off': 'Отключить',
+
   // Header
   'nav.features': 'Возможности',
   'nav.pricing': 'Цены',
