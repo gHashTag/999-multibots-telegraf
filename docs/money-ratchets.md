@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 107. Без заголовка: 0.
+Ратчетов: 108. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -102,6 +102,7 @@
 | `sessionPaymentAmountNeverUnbacked.test.ts`            | the session field the cancel button refunds                                                   |
 | `sibling-batch-double-refund.test.ts`                  | sibling image services refund a batch failure at most once                                    |
 | `stuck-trainings-visible.test.ts`                      | застрявшее обучение видно человеку                                                            |
+| `stuckPaymentsWatchdog.test.ts`                        | the stuck-payment watchdog cannot report a comfortable zero                                   |
 | `superheroQuotaCounterAccumulates.test.ts`             | superhero generation quota counter accumulates (no upsert-overwrite)                          |
 | `ton-payment-claim-once.test.ts`                       | %s credits a TON payment once                                                                 |
 | `tonAmountVerificationParity.test.ts`                  | the two on-chain payment finders                                                              |
