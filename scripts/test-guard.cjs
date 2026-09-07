@@ -35,7 +35,68 @@ require('./lib/usable-node.cjs').ensureUsableNode(__filename, root)
 const BASELINE = resolve(root, 'scripts', 'tests-baseline.json')
 const OUT = resolve(root, 'node_modules', '.cache', 'test-guard.json')
 
-const files = process.argv.slice(2).filter(f => /\.(ts|tsx|js|jsx)$/.test(f))
+/**
+ * WHAT THIS PUSH ACTUALLY CARRIES.
+ *
+ * lefthook's `{push_files}` is empty when the branch has no counterpart on the
+ * remote, and lefthook then SKIPS the command entirely -- "(skip) no files for
+ * inspection", before this script is ever started. Verified 2026-09-07 with a
+ * dry-run push to a fresh ref.
+ *
+ * That is the worst possible moment to check nothing: the FIRST push of a
+ * feature branch is the one carrying every commit on it. The gate looked
+ * healthy in the summary and had inspected zero files.
+ *
+ * So the range is computed here instead of being handed in. Explicit arguments
+ * still win -- the script is also run by hand with a file list -- and this only
+ * fills the gap when nothing was passed.
+ */
+function filesBeingPushed() {
+  const git = (...a) => {
+    try {
+      // stderr is discarded: "no upstream configured" is an ANSWER here, not a
+      // fault, and git's fatal printed above our own report reads as a broken
+      // gate.
+      return execFileSync('git', a, {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim()
+    } catch {
+      return null
+    }
+  }
+
+  // The branch's own remote counterpart, when it has one: everything between
+  // it and HEAD is exactly what the push adds.
+  let base = null
+  const upstream = git(
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{upstream}'
+  )
+  if (upstream && git('rev-parse', '--verify', '--quiet', upstream)) {
+    base = upstream
+  }
+
+  /*
+   * No counterpart -- a new branch. Compare against where it left the default
+   * branch. `merge-base` rather than `origin/main` itself: the range must
+   * describe what THIS branch adds, not everything that landed on main while it
+   * was being written.
+   */
+  if (!base) base = git('merge-base', 'origin/main', 'HEAD')
+  if (!base) return []
+
+  const out = git('diff', '--name-only', `${base}..HEAD`)
+  return out ? out.split('\n').filter(Boolean) : []
+}
+
+const passed = process.argv.slice(2)
+const files = (passed.length ? passed : filesBeingPushed()).filter(f =>
+  /\.(ts|tsx|js|jsx)$/.test(f)
+)
 if (files.length === 0) {
   console.log('[тесты] в push нет файлов с кодом — проверять нечего')
   process.exit(0)

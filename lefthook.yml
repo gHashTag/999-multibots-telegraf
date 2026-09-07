@@ -149,9 +149,18 @@ pre-push:
     # test-guard.cjs сравнивает со снимком scripts/tests-baseline.json и
     # падает только на файлах, которых там нет. Размер долга печатается
     # каждый прогон, чтобы он не исчез из виду.
+    # NO glob AND NO {push_files}, and skip_empty off on purpose.
+    #
+    # lefthook skips a command whose computed file list is empty, and that list
+    # is empty for a branch with no counterpart on the remote -- the FIRST push
+    # of a feature branch, the one carrying every commit on it. Verified with a
+    # dry-run to a fresh ref: "related-tests (skip) no files for inspection",
+    # a summary that looked healthy having inspected nothing.
+    #
+    # The script works out its own range instead; see scripts/test-guard.cjs.
     related-tests:
-      glob: "src/**/*.{ts,tsx}"
-      run: node scripts/test-guard.cjs {push_files}
+      skip_empty: false
+      run: node scripts/test-guard.cjs
       fail_text: "Упали тесты, которых не было в базе."
 
     # Событие без подписчика — деньги уходят провайдерам, а результат никуда.
