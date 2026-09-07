@@ -40,7 +40,7 @@ export interface ОтветАгента {
   инструменты: string[]
 }
 
-function ключ(): string {
+function apiKey(): string {
   return process.env.RENDER_API_KEY || ''
 }
 
@@ -50,16 +50,18 @@ function ключ(): string {
  * Ошибку глотаем НАМЕРЕННО: недоступная история — повод ответить без
  * контекста, а не повод молчать. Человек уже написал и ждёт.
  */
-async function историю(telegramId: string): Promise<
-  Array<{ role: string; content: string }>
-> {
+async function историю(
+  telegramId: string
+): Promise<Array<{ role: string; content: string }>> {
   try {
     const о = await fetch(
       `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}`,
-      { headers: { 'X-Api-Key': ключ() } }
+      { headers: { 'X-Api-Key': apiKey() } }
     )
     if (!о.ok) return []
-    const д = (await о.json()) as { messages?: Array<{ role: string; content: string }> }
+    const д = (await о.json()) as {
+      messages?: Array<{ role: string; content: string }>
+    }
     return Array.isArray(д.messages) ? д.messages : []
   } catch {
     return []
@@ -78,10 +80,8 @@ export async function спроситьАгента(
   telegramId: string,
   текст: string
 ): Promise<ОтветАгента> {
-  if (!ключ()) {
-    throw new Error(
-      'RENDER_API_KEY не задан в сервисе бота — агент недоступен'
-    )
+  if (!apiKey()) {
+    throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
   }
 
   const прошлое = await историю(telegramId)
@@ -99,7 +99,7 @@ export async function спроситьАгента(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Api-Key': ключ(),
+          'X-Api-Key': apiKey(),
         },
         // surface: 'bot' — сервер сохранит реплику с пометкой, откуда она.
         body: JSON.stringify({ messages, surface: 'bot' }),
@@ -131,7 +131,8 @@ export async function спроситьАгента(
           текст?: string
           имя?: string
         }
-        if (ev.тип === 'текст' && typeof ev.текст === 'string') части.push(ev.текст)
+        if (ev.тип === 'текст' && typeof ev.текст === 'string')
+          части.push(ev.текст)
         else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
         else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
       } catch {
@@ -167,5 +168,57 @@ export async function спроситьАгента(
     return { текст: собрано, инструменты }
   } finally {
     clearTimeout(таймер)
+  }
+}
+
+/**
+ * WRITE A TURN INTO THE SHARED CONVERSATION.
+ *
+ * Exists for the bot's fallback answer. When the agent is unreachable the bot
+ * replies with a plain model so the person is not left in silence, and that
+ * answer used to go nowhere: measured 2026-09-07, the shared conversation ended
+ * on a question with no answer. The question was already stored -- the server
+ * records it on its way into `runAgent` -- so the next turn handed the model a
+ * transcript in which the bot appeared to have ignored somebody.
+ *
+ * WHY BOTH TURNS CAN TRAVEL AT ONCE. The two failures differ in what is already
+ * on record. An empty answer means the request DID arrive, so the question is
+ * stored and only the answer is missing. A thrown call means it never arrived
+ * and neither is. The caller knows which case it is in; sending the pair in one
+ * request avoids a second round trip that could half-succeed and leave exactly
+ * the hole this closes.
+ *
+ * NEVER THROWS. A conversation that was answered out loud must not be reported
+ * as broken because the bookkeeping failed. The person already has their reply.
+ */
+export async function recordTurns(
+  telegramId: string,
+  turns: Array<{ role: 'user' | 'assistant'; content: string }>
+): Promise<'recorded' | 'not recorded'> {
+  const usable = turns.filter(turn => (turn.content || '').trim())
+  if (!apiKey() || !telegramId || !usable.length) return 'not recorded'
+  try {
+    const response = await fetch(
+      `${БАЗА}/api/agent/history?telegram_id=${encodeURIComponent(telegramId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
+        body: JSON.stringify({ turns: usable, surface: 'bot' }),
+      }
+    )
+    if (!response.ok) {
+      logger.warn('[trinityAgent] реплика не записана', {
+        telegram_id: telegramId,
+        status: response.status,
+      })
+      return 'not recorded'
+    }
+    return 'recorded'
+  } catch (e) {
+    logger.warn('[trinityAgent] запись реплики не прошла', {
+      telegram_id: telegramId,
+      error: e instanceof Error ? e.message : String(e),
+    })
+    return 'not recorded'
   }
 }

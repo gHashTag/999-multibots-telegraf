@@ -522,7 +522,8 @@ export async function handleAgentHistoryDelete(
       const убрано = await удалитьРеплику(pool, telegramId, id)
       // 404, а не 200: «удалил ноль строк» и «удалил» — разные исходы, и
       // молчаливое «ок» на несуществующий id скрывало бы опечатку.
-      if (!убрано) return json(res, 404, { ok: false, error: 'реплика не найдена' })
+      if (!убрано)
+        return json(res, 404, { ok: false, error: 'реплика не найдена' })
       return json(res, 200, { ok: true, убрано })
     }
     const убрано = await очиститьРазговор(pool, telegramId)
@@ -549,6 +550,113 @@ export async function handleAgentHistory(
       предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ
     )
     return json(res, 200, { ok: true, messages: реплики })
+  } catch (e) {
+    return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
+  }
+}
+
+/**
+ * APPEND TURNS TO THE SHARED CONVERSATION.
+ *
+ * Why this route has to exist at all.
+ *
+ * `handleAgentChat` records both sides of a turn on its way through, so for a
+ * normal exchange nothing else is needed. But the bot has a FALLBACK: when the
+ * agent is unreachable or returns nothing, it answers with a plain model
+ * (`aiChatService`) so the person is not left in silence. That answer went
+ * nowhere. Measured 2026-09-07: the user's question was already stored by the
+ * server before `runAgent`, so the shared conversation ended on a question with
+ * no answer -- and the next turn fed the model a transcript in which the bot
+ * appeared to have ignored somebody.
+ *
+ * WHY IT ACCEPTS A PAIR AND NOT ONE TURN.
+ *
+ * The two failures differ in what was already stored. If the agent answered
+ * with empty text, the server got the request and the question IS on record;
+ * only the answer is missing. If the call never arrived -- no key, network
+ * down, a 4xx before the handler -- neither is. The caller knows which case it
+ * is in, so it sends one turn or two, in order, in a single request. A second
+ * round trip could half-succeed and leave exactly the hole this fixes.
+ *
+ * WHAT IT REFUSES.
+ *
+ * Roles other than user/assistant: `system` here would let a caller write
+ * instructions into someone's conversation that the model then reads as its
+ * own. That is not a hypothetical -- the conversation is fed back verbatim on
+ * every turn.
+ */
+export async function handleAgentHistoryAppend(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  let body: any
+  try {
+    body = JSON.parse((await readBody(req)) || '{}')
+  } catch {
+    return json(res, 400, {
+      ok: false,
+      error: 'тело запроса не разобрано как JSON',
+    })
+  }
+
+  const incoming = Array.isArray(body.turns) ? body.turns : []
+  if (!incoming.length) {
+    return json(res, 400, {
+      ok: false,
+      error:
+        'нужен непустой массив turns вида [{role:"assistant",content:"…"}]',
+    })
+  }
+  // Two is a question and its answer. More would mean somebody is rewriting
+  // the conversation, and this route is not for that.
+  if (incoming.length > 2) {
+    return json(res, 400, {
+      ok: false,
+      error: 'за один раз не больше двух реплик',
+    })
+  }
+
+  const ALLOWED_ROLES = new Set(['user', 'assistant'])
+  const turns: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  for (const raw of incoming) {
+    const role = String(raw?.role ?? '')
+    if (!ALLOWED_ROLES.has(role)) {
+      return json(res, 400, {
+        ok: false,
+        error: `роль «${role.slice(0, 20)}» недопустима: только user или assistant`,
+      })
+    }
+    const content = String(raw?.content ?? '').trim()
+    if (!content) {
+      return json(res, 400, {
+        ok: false,
+        error: 'пустая реплика не записывается',
+      })
+    }
+    turns.push({ role: role as 'user' | 'assistant', content })
+  }
+
+  // Same check as the chat route: a word from the client, but only a known one.
+  const KNOWN_SURFACES = new Set(['miniapp', 'bot', 'agent', 'ios'])
+  const surface = KNOWN_SURFACES.has(String(body.surface))
+    ? String(body.surface)
+    : 'unknown'
+
+  try {
+    const pool = await getPool()
+    let stored = 0
+    for (const turn of turns) {
+      const ok = await записатьРеплику(pool, telegramId, {
+        // cyrillic-ok: pre-existing writer
+        role: turn.role,
+        content: turn.content,
+        surface,
+      })
+      if (ok) stored++
+    }
+    return json(res, 200, { ok: true, stored })
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }

@@ -1064,6 +1064,16 @@ If not, continue on your own and click the "I myself" button`
         // anything arrived.
         await ctx.sendChatAction('upload_document').catch(() => {})
       }
+      /*
+       * Did the question already reach the shared conversation?
+       *
+       * The server records the person's turn on its way into the agent, so
+       * after a successful call it is stored. If the call never arrived, it is
+       * not -- and the fallback below has to write both turns, or the answer
+       * would appear in the conversation with nothing it answers.
+       */
+      let questionRecorded = false
+
       const plan = await buildAgentMessage(ctx.telegram, ctx.message)
       if (plan.refusal) await ctx.reply(plan.refusal)
       const text = plan.text
@@ -1104,6 +1114,13 @@ If not, continue on your own and click the "I myself" button`
         try {
           const { спроситьАгента } = await import('@/services/trinityAgent')
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text)
+          /*
+           * The request reached the server, so the server already stored the
+           * question on its way into the agent. Only an ANSWER can be missing
+           * from here on. A thrown call means it never arrived and neither
+           * turn is on record -- see the fallback below.
+           */
+          questionRecorded = true
         } finally {
           стоп()
         }
@@ -1172,6 +1189,30 @@ If not, continue on your own and click the "I myself" button`
           }
         )
         await ctx.reply(reply)
+
+        /*
+         * THE FALLBACK ANSWER GOES INTO THE SHARED CONVERSATION TOO.
+         *
+         * It used to go nowhere. The question was already stored by the server
+         * before `runAgent`, so the conversation ended on a question with no
+         * answer -- and the next turn fed the model a transcript in which the
+         * bot appeared to have ignored somebody. The mini app and the phone
+         * showed the same hole.
+         *
+         * `void`, and the writer never throws: the person already has their
+         * reply out loud, and failed bookkeeping must not turn an answered
+         * question into an error.
+         */
+        const { recordTurns } = await import('@/services/trinityAgent')
+        void recordTurns(
+          String(ctx.from?.id ?? ''),
+          questionRecorded
+            ? [{ role: 'assistant', content: reply }]
+            : [
+                { role: 'user', content: text },
+                { role: 'assistant', content: reply },
+              ]
+        )
       } catch (err: any) {
         logger.error('🤖 [AI Fallback] Error', { error: err?.message })
 

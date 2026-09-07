@@ -56,6 +56,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   handleAgentHistory,
+  handleAgentHistoryAppend,
   handleAgentHistoryDelete,
   handleAgentKeys,
   chatIdentity,
@@ -7525,6 +7526,38 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentHistory(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * POST /api/agent/history -- append a turn to YOUR OWN conversation.
+   *
+   * It exists for the bot's fallback: when the agent is unreachable the bot
+   * answers with a plain model, and that answer used to go nowhere. The
+   * conversation ended on a question with no answer -- the server had already
+   * stored the question on its way into the agent, and nobody stored the reply.
+   *
+   * Identity comes from the same `resolveIdentity` as reading, deleting and
+   * chatting: four routes about one conversation must understand a person
+   * identically.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/agent/history' &&
+    req.method === 'POST'
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    await handleAgentHistoryAppend(req, res, String(who), getPool)
     return
   }
 

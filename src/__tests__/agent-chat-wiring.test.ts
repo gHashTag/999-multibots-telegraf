@@ -78,3 +78,37 @@ describe('the agent middleware takes files, not only text', () => {
     )
   })
 })
+
+/**
+ * THE FALLBACK ANSWER REACHES THE SHARED CONVERSATION.
+ *
+ * When the agent is unreachable the bot answers with a plain model so nobody
+ * is left in silence. That answer used to go nowhere: the question was already
+ * stored by the server on its way into the agent, so the conversation ended on
+ * a question with no answer, and the next turn fed the model a transcript in
+ * which the bot appeared to have ignored somebody.
+ */
+describe('the fallback answer is recorded', () => {
+  it('the fallback path writes the turn back', () => {
+    expect(CODE).toContain('recordTurns(')
+  })
+
+  /*
+   * Which turns travel depends on whether the question already reached the
+   * server. An agent call that returned (even emptily) means it is stored; a
+   * call that threw means it is not, and both turns have to go.
+   */
+  it('it tracks whether the question already reached the server', () => {
+    expect(CODE).toContain('questionRecorded = true')
+    expect(CODE).toMatch(/questionRecorded\s*\?/)
+  })
+
+  /*
+   * `void`, never awaited: the person already has their reply out loud, and
+   * bookkeeping must not turn an answered question into a visible error.
+   */
+  it('recording never blocks or breaks the reply', () => {
+    expect(CODE).toMatch(/void recordTurns\(/)
+    expect(CODE).not.toMatch(/await recordTurns\(/)
+  })
+})
