@@ -41,6 +41,18 @@ export interface Provider {
    * it is reading pixels rather than guessing.
    */
   vision: boolean
+  /**
+   * Can this model HEAR an attached recording?
+   *
+   * Kept apart from `vision` on purpose. Today one provider happens to do both,
+   * so a single flag would work and would be a coincidence -- the next provider
+   * with sight and no hearing would silently send voice to a model that cannot
+   * listen, and the person would get a confident answer about nothing.
+   *
+   * Measured the same way: nemotron transcribed a generated sentence word for
+   * word from ogg, mp3, wav and m4a. The z.ai models refuse any non-text part.
+   */
+  audio: boolean
 }
 
 const CATALOG: Record<
@@ -51,6 +63,7 @@ const CATALOG: Record<
     model: string
     thinking: boolean
     vision: boolean
+    audio: boolean
   }
 > = {
   // z.ai — КОДЕРСКИЙ эндпоинт, а не обычный pay-as-you-go.
@@ -68,6 +81,7 @@ const CATALOG: Record<
     thinking: true,
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
     vision: false,
+    audio: false,
   },
   /**
    * Запасной — ТОЖЕ z.ai, только более лёгкой моделью.
@@ -88,6 +102,7 @@ const CATALOG: Record<
     thinking: false,
     // Same endpoint, same refusal.
     vision: false,
+    audio: false,
   },
   /**
    * NVIDIA NIM — запасной, когда z.ai упирается в лимит.
@@ -111,6 +126,9 @@ const CATALOG: Record<
     // Answers 200 with an image part, and streaming plus tool schemas work
     // alongside it. The only sighted provider configured here.
     vision: true,
+    // Transcribes ogg, mp3, wav and m4a -- but ONLY via `audio_url`.
+    // `input_audio` returns 200 and silently ignores the sound.
+    audio: true,
   },
 }
 
@@ -164,6 +182,7 @@ export function allProviders(): Provider[] {
       key,
       thinking: c.thinking,
       vision: c.vision,
+      audio: c.audio,
     })
   }
   return out
@@ -219,6 +238,7 @@ export function resolveProvider(): Provider {
         model: (id === order[0] && process.env.AGENT_MODEL) || c.model,
         key,
         vision: c.vision,
+        audio: c.audio,
         thinking: c.thinking,
       }
     }

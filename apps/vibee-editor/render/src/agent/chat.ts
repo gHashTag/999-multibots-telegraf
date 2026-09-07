@@ -21,7 +21,7 @@
  */
 import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
 import { allProviders, diagnose } from './provider'
-import { withImageParts, hasImageToSee } from './vision-parts'
+import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -197,24 +197,42 @@ async function* streamModel(
    * So capability decides, not position. Among the sighted ones the configured
    * order still holds, which is why this filters rather than picks.
    */
-  const wantsVision = hasImageToSee(messages)
+  /*
+   * A TURN WITH MEDIA GOES TO A PROVIDER THAT CAN PERCEIVE IT.
+   *
+   * Order alone is not enough and would break twice. Sending parts to z.ai
+   * fails the whole turn with 400 "allowed values: ['text']" -- not a degraded
+   * answer, no answer. And the reverse is just as real: on 2026-09-07 z.ai was
+   * rate-limited until the 11th, so the agent already ran on the capable
+   * provider; when the limit resets, z.ai returns to the front and the senses
+   * would vanish with no code change and nothing in the log.
+   *
+   * Sight and hearing are required SEPARATELY. A turn carrying both a photo
+   * and a voice message needs a provider that does both, and demanding only
+   * one would send the other into a model that cannot take it.
+   */
+  const kinds = mediaKindsPresent(messages)
   const configured = allProviders()
-  const sighted = configured.filter(p => p.vision)
+  const capable = configured.filter(
+    p => (!kinds.has('image') || p.vision) && (!kinds.has('audio') || p.audio)
+  )
 
   /*
-   * Parts are built ONLY when somebody can actually look at them. With a
-   * picture present and no sighted provider configured, the marker line is
-   * still in the text -- answering blind is strictly better than failing the
-   * turn, and it is exactly today's behaviour.
+   * Parts are built ONLY when somebody can actually perceive them. With media
+   * present and no capable provider configured, the marker line is still in
+   * the text -- answering from the description is strictly better than failing
+   * the turn, and it is exactly today's behaviour.
    */
-  const useParts = wantsVision && sighted.length > 0
-  if (wantsVision && !useParts) {
+  const useParts = kinds.size > 0 && capable.length > 0
+  if (kinds.size > 0 && !useParts) {
     console.warn(
-      '[agent] в сообщении есть изображение, но ни один настроенный провайдер ' +
-        'его не видит — отвечаю по тексту вложения'
+      '[agent] во вложении есть ' +
+        [...kinds].join(', ') +
+        ', но ни один настроенный провайдер это не воспринимает — ' +
+        'отвечаю по тексту вложения'
     )
   }
-  const providers = useParts ? sighted : configured
+  const providers = useParts ? capable : configured
 
   if (!providers.length) {
     throw new Error(
@@ -230,7 +248,7 @@ async function* streamModel(
   for (const p of providers) {
     const body: Record<string, unknown> = {
       model: p.model,
-      messages: useParts ? withImageParts(messages) : messages,
+      messages: useParts ? withMediaParts(messages) : messages,
       tools: toOpenAITools(),
       tool_choice: 'auto',
       temperature: 0.3,

@@ -32,6 +32,23 @@ describe('who can see', () => {
   })
 
   /*
+   * Hearing is tracked SEPARATELY from sight. Today one provider does both, so
+   * a single flag would work -- and would be a coincidence. The next provider
+   * with sight and no hearing would send voice to a model that cannot listen,
+   * and the person would get a confident answer about nothing.
+   */
+  it('hearing is its own flag, not implied by sight', () => {
+    const byId = Object.fromEntries(allProviders().map(p => [p.id, p]))
+    expect(byId['zai'].audio).toBe(false)
+    expect(byId['zai-lite'].audio).toBe(false)
+    expect(byId['nemotron'].audio).toBe(true)
+  })
+
+  it('at least one configured provider can hear, or voice is dead', () => {
+    expect(allProviders().some(p => p.audio)).toBe(true)
+  })
+
+  /*
    * The default order puts z.ai first. That is correct for text and fatal for
    * a picture, which is the whole reason routing exists.
    */
