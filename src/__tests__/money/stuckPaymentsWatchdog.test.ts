@@ -89,6 +89,35 @@ describe('the stuck-payment watchdog cannot report a comfortable zero', () => {
     expect(source).toMatch(/not\('description', 'ilike', '%efund%'\)/)
   })
 
+  /**
+   * A CORRECTION, GUARDED SO IT CANNOT BE LOST.
+   *
+   * An earlier reading of mine called 208 pending rows "208 people who pressed
+   * pay and were not credited". A PENDING row is written when the INVOICE is
+   * issued, before any money moves, so most of them are abandoned checkouts --
+   * and they always existed: 15 in May 2025, 28 in June, long before anything
+   * broke. The sum of their stars is not a debt.
+   *
+   * What abandonment does not explain is a completion rate of zero from March
+   * 2026, and that is what the gate watches. The script has to say so, or the
+   * next reader repeats the overstatement.
+   */
+  it('says plainly that a pending row is not proof of a lost payment', () => {
+    expect(source).toContain('not that money changed hands')
+    expect(source).toMatch(/abandoned checkouts/)
+    expect(source).toMatch(/completion rate of/)
+  })
+
+  it('offers the reconciliation list only on request, never in the summary', () => {
+    // telegram ids are people; they belong where the owner runs the tool.
+    expect(source).toMatch(
+      /const DETAIL = process\.argv\.includes\('--detail'\)/
+    )
+    expect(source).toMatch(/if \(DETAIL\)/)
+    const summaryEnd = source.indexOf('if (DETAIL)')
+    expect(source.slice(0, summaryEnd)).not.toContain('telegram_id')
+  })
+
   it('never credits anybody: the money direction stays with the owner', () => {
     expect(source).not.toMatch(/\.update\(|\.insert\(|\.upsert\(|\.delete\(/)
     expect(source).toContain("owner's decision")

@@ -23,6 +23,18 @@
  * Nobody noticed for nine months because nothing was watching. That is what
  * this is: `checkPaymentStatus` exists in the tree and is called from nowhere.
  *
+ * WHAT A PENDING ROW DOES NOT PROVE, corrected 2026-09-08 after an earlier
+ * reading of mine overstated it. The row is written when the INVOICE is issued,
+ * before any money moves. Most pending rows are therefore abandoned checkouts,
+ * and they always existed: 15 in May 2025, 28 in June, 17 in August, long
+ * before anything broke. "208 stuck" is not "208 people were robbed", and the
+ * sum of their stars is not a debt.
+ *
+ * The signal is the RATIO, not the count. October 2025: 180 completed against
+ * 14 pending. December: 6 against 32. From March 2026: zero completed, ever.
+ * Abandonment does not explain a completion rate of zero -- that is the defect,
+ * and it is what the gate below watches for.
+ *
  * TWO POPULATIONS, ON PURPOSE. The historical backlog cannot be fixed by code
  * and would make a gate permanently red, which is how a gate gets ignored. So
  * the exit code is decided ONLY by rows young enough that the callback should
@@ -37,6 +49,7 @@
 const { createClient } = require('@supabase/supabase-js')
 
 const GATE = process.argv.includes('--gate')
+const DETAIL = process.argv.includes('--detail')
 /** Robokassa answers in seconds; an hour is generous. */
 const FRESH_STUCK_MINUTES = 60
 /** Rows older than this are the historical backlog, reported and not gated. */
@@ -135,7 +148,9 @@ const count = async shape => {
     .order('created_at', { ascending: false })
     .limit(10)
   if (recent && recent.length) {
-    console.log('most recent people who pressed pay and were not credited:')
+    console.log(
+      'most recent invoices that never completed (issued, not necessarily paid):'
+    )
     for (const r of recent) {
       console.log(
         `  ${String(r.created_at).slice(0, 10)}  ${String(r.stars ?? '-').padStart(6)} stars  ${String(r.bot_name || '?').padEnd(22)} ${String(r.description || '').slice(0, 34)}`
@@ -145,11 +160,68 @@ const count = async shape => {
   }
 
   console.log(
-    'Nobody is credited by this script. Who is owed what for the backlog'
+    'A PENDING row means an invoice was issued, not that money changed hands:'
   )
   console.log(
-    "is the owner's decision, and the numbers above are the evidence."
+    'most of the backlog is abandoned checkouts, and those existed long before'
   )
+  console.log(
+    'anything broke. What abandonment does NOT explain is a completion rate of'
+  )
+  console.log('zero, which is what the gate watches.')
+  console.log('')
+  console.log(
+    'Nobody is credited by this script. Whether Robokassa actually took money'
+  )
+  console.log(
+    'for any of these is visible only in the merchant dashboard, and what to do'
+  )
+  console.log("about it is the owner's decision.")
+
+  if (DETAIL) {
+    /*
+     * The reconciliation list, printed only on request and only where the owner
+     * runs it. It carries telegram ids, so it belongs on their machine and not
+     * in a report: these are people, not rows.
+     *
+     * Paged rather than read once -- the client caps a read at 1000, and a
+     * bounded read printed as a population is how "354 people" once became 15.
+     */
+    const rows = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await db
+        .from('payments_v2')
+        .select('created_at,stars,bot_name,telegram_id')
+        .eq('type', 'MONEY_INCOME')
+        .eq('status', 'PENDING')
+        .not('description', 'ilike', '%efund%')
+        .order('created_at', { ascending: false })
+        .range(from, from + 999)
+      if (error) {
+        console.error(`detail read failed: ${error.message.slice(0, 60)}`)
+        break
+      }
+      rows.push(...data)
+      if (data.length < 1000) break
+    }
+    console.log('')
+    console.log(`DETAIL: ${rows.length} pending top-ups, newest first`)
+    for (const r of rows) {
+      console.log(
+        `${String(r.created_at).slice(0, 10)}  ${String(r.stars ?? '-').padStart(6)}  ${String(r.bot_name || '?').padEnd(22)} ${r.telegram_id}`
+      )
+    }
+    console.log('')
+    console.log(
+      'Rows after 2026-02 are worth checking first: in that window NOTHING'
+    )
+    console.log(
+      'completed, so an abandoned checkout and a lost payment look the same'
+    )
+    console.log(
+      'from here and only the merchant dashboard can tell them apart.'
+    )
+  }
 
   if (GATE && fresh.n > 0) {
     console.error('')

@@ -363,7 +363,7 @@ OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
   tri кнопки [--json]     rendered callback ids against every catcher, both ways
   tri воронка             is anybody using this? generations and charges by month
-  tri платежи [--gate]    top-ups pressed and never credited; --gate reds on fresh ones
+  tri платежи [--gate|--detail]    top-ups pressed and never credited; --gate reds on fresh ones
   tri события             the dark segment: arrival to payment, step by step
                           (needs a railway-linked checkout, not a worktree)
   tri help
