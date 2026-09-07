@@ -139,6 +139,18 @@ export interface Verdict {
   missing: string[]
 }
 
+/*
+ * WHAT THIS CANNOT KNOW, said here so the next reader does not trust it too far.
+ *
+ * A variable being set is not a key that works, and the difference has been the
+ * live one every time: fal was set with an exhausted balance, ELEVENLABS holds
+ * an API key ID rather than a key, and OPENAI answers 401 Incorrect API key.
+ * All three pass this check and refuse at the moment somebody asks.
+ *
+ * Asking the providers on every boot would put three network calls in front of
+ * every restart, so it stays out of here and lives in a command instead:
+ * `tri ключи --gate` (scripts/provider-liveness.cjs).
+ */
 const isSet = (name: string): boolean => Boolean(process.env[name]?.trim())
 
 /** Check one service. Calls nothing outside the process. */

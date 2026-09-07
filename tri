@@ -365,6 +365,7 @@ OTHER
   tri воронка             is anybody using this? generations and charges by month
   tri платежи [--gate|--detail]    top-ups pressed and never credited; --gate reds on fresh ones
   tri события             the dark segment: arrival to payment, step by step
+  tri ключи [--gate]      ask each provider whether the key still works, not whether it is set
                           (needs a railway-linked checkout, not a worktree)
   tri help
 СПРАВКА
@@ -3731,6 +3732,7 @@ case "$action" in
   funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "${@:2}" ;;
   stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "${@:2}" ;;
   events|события)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "${@:2}" ;;
+  keys|ключи)         railway run -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "${@:2}" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
