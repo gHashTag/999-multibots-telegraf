@@ -8,6 +8,20 @@ import { isDev } from '@/config'
  * Проверяет статус платежа по его идентификатору.
  * @param invId Идентификатор счета (InvId).
  * @returns Объект с информацией о платеже или null, если платеж не найден или произошла ошибка.
+ *
+ * WHAT THIS IS NOT, because the name has already misled two readings of the
+ * December 2025 outage. This reads OUR OWN payments_v2 row. It is not a
+ * reconciliation against the payment provider, and wiring it into a watchdog
+ * would not have caught that outage: asked about a stuck payment it answers
+ * PENDING, which is exactly what the table already said. A checker that reads
+ * the table holding the defect cannot see the defect.
+ *
+ * Answering "did this person actually pay" needs an INDEPENDENT channel --
+ * Robokassa's OpStateExt, called with the merchant credentials. That is a
+ * separate tool and it does not exist yet.
+ *
+ * Nothing calls this today (only the barrel re-exports it). Left in place
+ * rather than deleted: the shape is a reasonable base for the real thing.
  */
 export const checkPaymentStatus = async (
   invId: string
