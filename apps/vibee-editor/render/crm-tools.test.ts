@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { CRM_TOUCH_TOOLS } from './src/agent/crm-touch-tools'
 import { CRM_TOOLS } from './src/agent/crm-tools'
 
 /**
@@ -15,14 +16,17 @@ import { CRM_TOOLS } from './src/agent/crm-tools'
  * опознанному» значит отдать базу клиентов каждому, кто открыл мини-апп:
  * подпись мини-аппа есть у всех пользователей платформы.
  */
-const инструмент = (имя: string) => {
-  const т = CRM_TOOLS.find(t => t.name === имя)
-  if (!т) throw new Error(`нет инструмента ${имя}`)
-  return т
+const tool = (name: string) => {
+  // Looked up in BOTH sets: crm_touch and crm_history live in a separate,
+  // English-only module, and a test that searched only the old array would
+  // report "tool missing" for a tool the agent serves perfectly well.
+  const found = [...CRM_TOOLS, ...CRM_TOUCH_TOOLS].find(t => t.name === name)
+  if (!found) throw new Error(`нет инструмента ${name}`)
+  return found
 }
 
-const ЧУЖОЙ = { telegramId: '999', pool: {} } as any
-const ВЛАДЕЛЕЦ = { telegramId: '144022504', pool: {} } as any
+const STRANGER_CTX = { telegramId: '999', pool: {} } as any
+const OWNER_CTX = { telegramId: '144022504', pool: {} } as any
 
 /*
  * Настройки Supabase ставятся ДЛЯ ВСЕГО файла: без них любой инструмент
@@ -50,10 +54,10 @@ process.env.HIVE_KEEPERS = '144022504'
 describe('каждый видит только свою аудиторию', () => {
   it.each(['crm_overview', 'crm_hot_leads', 'crm_winback'])(
     '%s отказывает тому, за кем ботов нет',
-    async имя => {
+    async name => {
       // Пустой список ботов — не повод показать всё: показывать нечего.
       vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => [] }) as any)
-      await expect(инструмент(имя).handler({}, ЧУЖОЙ)).rejects.toThrow(
+      await expect(tool(name).handler({}, STRANGER_CTX)).rejects.toThrow(
         /ботов не числится/
       )
       vi.unstubAllGlobals()
@@ -80,7 +84,7 @@ describe('каждый видит только свою аудиторию', () 
       if (тело === null) throw new Error(`подделка не знает адрес: ${a}`)
       return { ok: true, json: async () => тело } as any
     })
-    await инструмент('crm_overview').handler({}, ЧУЖОЙ)
+    await tool('crm_overview').handler({}, STRANGER_CTX)
     const запросЛюдей = адреса.find(a => a.includes('/users?')) || ''
     expect(запросЛюдей).toContain('bot_name=in.')
     expect(запросЛюдей).toContain('bot1')
@@ -94,7 +98,7 @@ describe('каждый видит только свою аудиторию', () 
      * когда-то отдавали переписку владельца кому угодно.
      */
     await expect(
-      инструмент('crm_overview').handler({}, undefined as any)
+      tool('crm_overview').handler({}, undefined as any)
     ).rejects.toThrow(/подтверждённой личности/)
   })
 })
@@ -141,7 +145,7 @@ describe('считаем по данным, а не по ощущениям', ()
   afterEach(() => vi.unstubAllGlobals())
 
   it('сводка считает платящих и долю', async () => {
-    const r: any = await инструмент('crm_overview').handler({}, ВЛАДЕЛЕЦ)
+    const r: any = await tool('crm_overview').handler({}, OWNER_CTX)
     expect(r.всего_людей).toBe(4)
     expect(r.платящих).toBe(2)
     expect(r.доля_платящих).toBe('50.0%')
@@ -149,12 +153,12 @@ describe('считаем по данным, а не по ощущениям', ()
   })
 
   it('горячий лид — недавний И НЕПЛАТИВШИЙ', async () => {
-    const r: any = await инструмент('crm_hot_leads').handler({ дней: 14 }, ВЛАДЕЛЕЦ)
+    const r: any = await tool('crm_hot_leads').handler({ дней: 14 }, OWNER_CTX) // cyrillic-ok
     expect(r.люди.map((ч: any) => ч.telegram_id)).toEqual(['2'])
   })
 
   it('вернуть — ПЛАТИВШИЙ и замолчавший', async () => {
-    const r: any = await инструмент('crm_winback').handler({ молчит_дней: 30 }, ВЛАДЕЛЕЦ)
+    const r: any = await tool('crm_winback').handler({ молчит_дней: 30 }, OWNER_CTX) // cyrillic-ok
     expect(r.люди.map((ч: any) => ч.telegram_id)).toEqual(['3'])
   })
 
@@ -173,7 +177,7 @@ describe('считаем по данным, а не по ощущениям', ()
   })
 
   it('человек без username отдаётся без ссылки, а не с битой', async () => {
-    const r: any = await инструмент('crm_winback').handler({ молчит_дней: 30 }, ВЛАДЕЛЕЦ)
+    const r: any = await tool('crm_winback').handler({ молчит_дней: 30 }, OWNER_CTX) // cyrillic-ok
     expect(r.люди[0].ссылка).toBeNull()
   })
 })
@@ -205,7 +209,7 @@ describe('читаем всю базу, а не первую страницу', 
   it('страницы склеиваются, пока не придёт короткая', async () => {
     /*
      * НАЙДЕНО НА ЖИВОЙ БАЗЕ, а не в тесте: crm_overview отвечал
-     * «всего_людей: 1000» при 2380 в таблице и «пришли_за_7_дней: 0», потому
+     * «всего_людей: 1000» при 2380 в таблице и «пришли_за_7_дней: 0», потому // cyrillic-ok
      * что PostgREST режет выдачу своим потолком. Худшая форма ошибки —
      * уверенный неверный ответ.
      *
@@ -242,7 +246,7 @@ describe('читаем всю базу, а не первую страницу', 
       return { ok: true, json: async () => кусок } as any
     })
 
-    const r: any = await инструмент('crm_overview').handler({}, ВЛАДЕЛЕЦ)
+    const r: any = await tool('crm_overview').handler({}, OWNER_CTX)
     expect(r.всего_людей).toBe(ВСЕГО)
     expect(запрошено).toEqual(['0-999', '1000-1999'])
   })
@@ -253,7 +257,272 @@ describe('читаем всю базу, а не первую страницу', 
       if (init?.headers?.Range) сRange++
       return { ok: true, json: async () => [] } as any
     })
-    await инструмент('crm_overview').handler({}, ВЛАДЕЛЕЦ)
+    await tool('crm_overview').handler({}, OWNER_CTX)
     expect(сRange).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * A CRM THAT FORGETS IS A REPORT.
+ *
+ * Measured 2026-09-08 before this: `grep -c "INSERT|UPDATE|CREATE TABLE"` over
+ * crm-tools.ts was 0, and no table anywhere recorded a touch. So the hot-lead
+ * list returned the same names every day, and the same people got written to
+ * twice -- the fastest way to have an account limited and to lose somebody who
+ * was only still thinking.
+ *
+ * Every check below describes a way that memory can go wrong with somebody
+ * else's clients.
+ */
+const fakePool = () => {
+  const rows: any[] = []
+  return {
+    rows,
+    query: async (sql: string, params: any[] = []) => {
+      const s = sql.replace(/\s+/g, ' ').trim()
+      if (s.startsWith('CREATE')) return { rows: [] }
+      if (s.startsWith('INSERT INTO crm_touches')) {
+        rows.push({
+          owner_id: params[0],
+          lead_id: params[1],
+          bot_name: params[2],
+          kind: params[3],
+          note: params[4],
+          at: new Date().toISOString(),
+        })
+        return { rows: [] }
+      }
+      if (s.includes('FROM crm_touches')) {
+        /*
+         * The WHERE is read OFF THE QUERY, not repeated here. A fake that keeps
+         * its own copy of `owner_id = $1` filters on behalf of the code, and a
+         * mutation removing the real condition passes straight through it. This
+         * repository has already paid for that shape of fake twice.
+         */
+        const byOwner = s.includes('owner_id = $1')
+        const byLead = s.includes('lead_id = $2')
+        return {
+          rows: rows.filter(
+            r =>
+              (!byOwner || r.owner_id === String(params[0])) &&
+              (!byLead || r.lead_id === String(params[1]))
+          ),
+        }
+      }
+      return { rows: [] }
+    },
+  }
+}
+
+const stubNet = (byBot: Record<string, string>) =>
+  vi.stubGlobal('fetch', async (url: string) => {
+    const a = String(url)
+    if (a.includes('/avatars?')) {
+      return { ok: true, json: async () => [{ bot_name: 'bot1' }] } as any
+    }
+    if (a.includes('/users?')) {
+      const m = /telegram_id=eq\.([^&]+)/.exec(a)
+      if (m) {
+        const bot = byBot[decodeURIComponent(m[1])]
+        return {
+          ok: true,
+          json: async () =>
+            bot ? [{ telegram_id: decodeURIComponent(m[1]), bot_name: bot }] : [],
+        } as any
+      }
+      return {
+        ok: true,
+        json: async () =>
+          Object.entries(byBot).map(([id, bot]) => ({
+            telegram_id: id,
+            bot_name: bot,
+            updated_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          })),
+      } as any
+    }
+    return { ok: true, json: async () => [] } as any
+  })
+
+describe('касание записывается только про своих людей', () => {
+  beforeEach(async () => {
+    const { forgetTouchTable } = await import('./src/agent/crm-touches')
+    forgetTouchTable()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('владелец бота записывает касание своего лида', async () => {
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    const r: any = await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'written', note: 'позвал на разбор' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.saved, r.why).toBe(true)
+    expect(pool.rows).toHaveLength(1)
+    expect(pool.rows[0].lead_id).toBe('111')
+    expect(pool.rows[0].owner_id).toBe('77')
+  })
+
+  it('ЧУЖОГО лида коснуться нельзя, и отказ не выдаёт, чей он', async () => {
+    /*
+     * The sharpest one. A touch outside your scope is a write into another
+     * owner's space: mark their client "refused" and the person drops out of
+     * THEIR list tomorrow. The refusal is worded as "no such person" so a probe
+     * cannot learn whose client somebody is by being told "not yours".
+     */
+    stubNet({ '222': 'чужой_бот' })
+    const pool = fakePool()
+    const r: any = await tool('crm_touch').handler(
+      { telegram_id: '222', kind: 'refused' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.saved).toBe(false)
+    expect(r.why).toBe('такого человека нет')
+    expect(pool.rows, 'чужое касание всё-таки записалось').toHaveLength(0)
+  })
+
+  it('бот лида берётся из базы, а не со слов вызывающего', async () => {
+    // Trusting a claimed bot_name would make the check decorative: name your
+    // own bot and touch anybody.
+    stubNet({ '222': 'чужой_бот' })
+    const pool = fakePool()
+    const r: any = await tool('crm_touch').handler(
+      { telegram_id: '222', kind: 'written', bot_name: 'bot1' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.saved).toBe(false)
+    expect(pool.rows).toHaveLength(0)
+  })
+
+  it('выдуманный вид касания отклоняется', async () => {
+    // "warm", "in progress" are judgements nobody can count a month later.
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    const r: any = await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'тёплый' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.saved).toBe(false)
+    expect(pool.rows).toHaveLength(0)
+  })
+
+  it('неудачная запись НЕ выдаётся за успешную', async () => {
+    // A memory that silently fails to save is worse than none: the list keeps
+    // looking correct while it forgets.
+    stubNet({ '111': 'bot1' })
+    const brokenPool = {
+      query: async () => {
+        throw new Error('база недоступна')
+      },
+    }
+    const r: any = await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'written' },
+      { telegramId: '77', pool: brokenPool } as any
+    )
+    expect(r.saved).toBe(false)
+    expect(r.why).toBeTruthy()
+  })
+})
+
+describe('история касаний не показывает чужое', () => {
+  beforeEach(async () => {
+    const { forgetTouchTable } = await import('./src/agent/crm-touches')
+    forgetTouchTable()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('свои касания видны', async () => {
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'written', note: 'первое' },
+      { telegramId: '77', pool } as any
+    )
+    const r: any = await tool('crm_history').handler(
+      { telegram_id: '111' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total).toBe(1)
+    expect(r.touches[0].note).toBe('первое')
+  })
+
+  it('касания ДРУГОГО владельца по тому же человеку не видны', async () => {
+    /*
+     * Two owners can share a lead only if they share a bot, but the memory is
+     * per-owner regardless: what one of them wrote in a note is theirs.
+     */
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'note', note: 'секрет соседа' },
+      { telegramId: 'сосед', pool } as any
+    )
+    const r: any = await tool('crm_history').handler(
+      { telegram_id: '111' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total).toBe(0)
+    expect(JSON.stringify(r)).not.toContain('секрет соседа')
+  })
+})
+
+describe('тронутых не предлагают снова', () => { // cyrillic-ok
+  beforeEach(async () => {
+    const { forgetTouchTable } = await import('./src/agent/crm-touches')
+    forgetTouchTable()
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('после касания человек уходит из горячих лидов, и это сказано числом', async () => {
+    /*
+     * THE WHOLE POINT. Without this the same names come back every day and the
+     * same people get written to twice.
+     *
+     * "Set aside", not "hidden": the count is reported. A list that quietly
+     * shrinks is a list nobody can trust, and this repository has spent a day
+     * on exactly that failure elsewhere.
+     */
+    stubNet({ '111': 'bot1', '222': 'bot1' })
+    const pool = fakePool()
+    const before: any = await tool('crm_hot_leads').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(before.показано).toBe(2) // cyrillic-ok
+    expect(before.set_aside_touched).toBe(0)
+
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'written' },
+      { telegramId: '77', pool } as any
+    )
+
+    const after: any = await tool('crm_hot_leads').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(after.показано, 'тронутый снова в списке').toBe(1) // cyrillic-ok
+    expect(
+      after.set_aside_touched,
+      'человек исчез молча — список, который тихо усыхает, доверия не заслуживает'
+    ).toBe(1)
+    expect(JSON.stringify(after.люди)).not.toContain('111') // cyrillic-ok
+  })
+
+  it('касание ДРУГОГО владельца чужой список не укорачивает', async () => {
+    // Otherwise touching a shared lead would quietly remove them from a
+    // colleague's list -- a write into somebody else's working day.
+    stubNet({ '111': 'bot1', '222': 'bot1' })
+    const pool = fakePool()
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'written' },
+      { telegramId: 'сосед', pool } as any
+    )
+    const mine: any = await tool('crm_hot_leads').handler(
+      {},
+      { telegramId: '77', pool } as any
+    )
+    expect(mine.показано).toBe(2) // cyrillic-ok
+    expect(mine.set_aside_touched).toBe(0)
   })
 })
