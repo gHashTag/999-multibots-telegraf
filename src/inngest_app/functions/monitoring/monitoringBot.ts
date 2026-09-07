@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 /**
  * Бот, от имени которого уходят уведомления мониторинга.
@@ -40,7 +41,9 @@ export function getMonitoringBot(): Telegraf<MyContext> {
   const dedicatedToken = process.env.MONITORING_BOT_TOKEN
 
   if (dedicatedToken) {
-    return new Telegraf<MyContext>(dedicatedToken)
+    return new Telegraf<MyContext>(dedicatedToken, {
+      telegram: telegramClientOptions(),
+    })
   }
 
   // Тот же выбор переменной, что делает src/core/bot для pulseBot.
@@ -57,7 +60,9 @@ export function getMonitoringBot(): Telegraf<MyContext> {
         fallbackName,
       }
     )
-    return new Telegraf<MyContext>(fallbackToken)
+    return new Telegraf<MyContext>(fallbackToken, {
+      telegram: telegramClientOptions(),
+    })
   }
 
   const message =

@@ -11,6 +11,8 @@
  * вторая продолжит слать по-старому. Новые места зовут эту.
  */
 
+import { telegramApiFor } from '../telegram-api'
+
 /**
  * Токен читается ПРИ КАЖДОМ ВЫЗОВЕ, а не один раз при импорте.
  *
@@ -34,19 +36,19 @@ export async function sendToTelegram(
     console.warn('[telegram] TELEGRAM_BOT_TOKEN не задан — уведомление не ушло')
     return
   }
-  const о = await fetch(`https://api.telegram.org/bot${t}/sendMessage`, {
+  const res = await fetch(`${telegramApiFor(t)}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: telegramId, text: текст }),
   })
-  if (!о.ok) {
+  if (!res.ok) {
     /*
      * Тело ответа Telegram НЕ печатается целиком: в нём эхо нашего же
      * сообщения. Печатаем код и описание — этого хватает, чтобы отличить
      * «человек заблокировал бота» (403) от «токен не тот» (401).
      */
-    const тело = (await о.text().catch(() => '')).slice(0, 200)
+    const тело = (await res.text().catch(() => '')).slice(0, 200) // cyrillic-ok
     const описание = /"description":"([^"]+)"/.exec(тело)?.[1] ?? 'без описания'
-    throw new Error(`Telegram ответил ${о.status}: ${описание}`)
+    throw new Error(`Telegram ответил ${res.status}: ${описание}`)
   }
 }

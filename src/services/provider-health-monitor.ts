@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger'
+import { telegramApiFor } from '@/services/telegramApi'
 
 interface ProviderStatus {
   name: string
@@ -27,7 +28,7 @@ async function notifyAdmin(message: string) {
   if (!chatId || !token) return
 
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    await fetch(`${telegramApiFor(token)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

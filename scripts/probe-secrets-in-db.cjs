@@ -204,7 +204,7 @@ function* strings(value, path = '') {
 const SELF_CHECK = [
   [
     'токен бота Telegram',
-    'https://api.telegram.org/file/bot1111111111:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/p/f.jpg', // secret-guard-ok: выдуманный образец самопроверки
+    'https://api.telegram.org/file/bot1111111111:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/p/f.jpg', // secret-guard-ok: выдуманный образец самопроверки  // telegram-api-root-ok  cyrillic-ok
   ],
   /**
    * Кириллическое «Токен:». ОТДЕЛЬНОГО ШАБЛОНА ЗДЕСЬ НАМЕРЕННО НЕТ, и это не

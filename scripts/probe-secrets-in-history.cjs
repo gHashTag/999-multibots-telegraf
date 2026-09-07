@@ -117,7 +117,7 @@ const PATTERNS = [
 const SELF_CHECK = [
   [
     'токен бота Telegram',
-    'https://api.telegram.org/file/bot1111111111:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/p.jpg', // secret-guard-ok: выдуманный образец самопроверки
+    'https://api.telegram.org/file/bot1111111111:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/p.jpg', // secret-guard-ok: выдуманный образец самопроверки  // telegram-api-root-ok  cyrillic-ok
   ],
   [
     'ключ Replicate',

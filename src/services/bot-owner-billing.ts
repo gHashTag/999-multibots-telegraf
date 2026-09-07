@@ -5,6 +5,7 @@
  */
 import { logger } from '@/utils/logger'
 import { supabaseAdmin } from '@/core/supabase'
+import { telegramApiFor } from '@/services/telegramApi'
 import {
   BillingPaymentRow,
   aiCostStars,
@@ -149,7 +150,7 @@ async function tgSend(
   }
   if (markup) body.reply_markup = markup
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    await fetch(`${telegramApiFor(token)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

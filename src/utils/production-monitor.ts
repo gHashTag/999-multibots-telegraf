@@ -9,6 +9,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs/promises'
 import path from 'path'
+import { telegramApiFor } from '../services/telegramApi'
 
 const execAsync = promisify(exec)
 
@@ -428,7 +429,7 @@ export class ProductionMonitor {
             totalTokens++
 
             const response = await fetch(
-              `https://api.telegram.org/bot${token}/getWebhookInfo`
+              `${telegramApiFor(token)}/getWebhookInfo`
             )
             const data = await response.json()
 
@@ -620,7 +621,7 @@ export class ProductionMonitor {
     ) {
       try {
         await fetch(
-          `https://api.telegram.org/bot${this.config.notifications.telegramBotToken}/sendMessage`,
+          `${telegramApiFor(this.config.notifications.telegramBotToken)}/sendMessage`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

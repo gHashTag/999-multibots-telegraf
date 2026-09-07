@@ -43,6 +43,7 @@ import { message } from 'telegraf/filters'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -57,7 +58,7 @@ const botInstances: Telegraf<MyContext>[] = []
 // Функция для проверки валидности токена
 export async function validateBotToken(token: string): Promise<boolean> {
   try {
-    const bot = new Telegraf(token)
+    const bot = new Telegraf(token, { telegram: telegramClientOptions() })
     await bot.telegram.getMe()
     return true
   } catch (error) {
@@ -115,6 +116,7 @@ async function initializeBots() {
       try {
         const tempBot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
+          telegram: telegramClientOptions(),
         })
         const botInfo = await tempBot.telegram.getMe()
         if (botInfo.username === targetBotUsername) {
@@ -225,6 +227,7 @@ async function initializeBots() {
       if (await validateBotToken(token)) {
         const bot = new Telegraf<MyContext>(token, {
           handlerTimeout: Infinity,
+          telegram: telegramClientOptions(),
         })
         bot.use(Telegraf.log(console.log)) // Log all Telegraf updates and middleware flow
 

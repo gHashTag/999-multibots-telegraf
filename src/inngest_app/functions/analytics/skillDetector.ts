@@ -7,6 +7,7 @@ import {
   createSkill,
   listSkills,
 } from '@/services/skillManager'
+import { telegramApiFor } from '@/services/telegramApi'
 
 const SERVICE_TYPES = [
   'neuro_photo',
@@ -20,7 +21,7 @@ const SERVICE_TYPES = [
 async function sendTelegram(chatId: string, text: string) {
   const token = process.env.BOT_TOKEN_1
   if (!token || !chatId) return
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  await fetch(`${telegramApiFor(token)}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),

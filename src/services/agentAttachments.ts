@@ -33,23 +33,28 @@
  *
  * WHY THE TELEGRAM FILE URL NEVER LEAVES THIS MODULE
  *
- * `getFileLink` returns `https://api.telegram.org/file/bot<TOKEN>/...` -- the
+ * `getFileLink` returns `https://api.telegram.org/file/bot<TOKEN>/...` -- the  telegram-api-root-ok
  * bot token is IN the path. Putting that link into the message would write the
  * token into `agent_messages` (a table the mini app reads back and renders) and
  * send it to a third-party model. So the bytes are fetched here and re-uploaded
  * to our own shelf, and only our own URL is ever returned.
  *
- * THE 20 MB CEILING IS TELEGRAM'S, NOT OURS
+ * THE 20 MB CEILING IS TELEGRAM'S, NOT OURS -- AND IT IS NOW LIFTABLE
  *
- * The Bot API refuses `getFile` for anything larger than 20 MB, while the mini
- * app accepts 100 MB. Full parity is impossible without running a local Bot API
- * server. A file over the ceiling is refused with a sentence a person can act
- * on, because the failure mode we are replacing is silence.
+ * The cloud Bot API refuses `getFile` for anything larger than 20 MB, while the
+ * mini app accepts 100 MB. Parity needs a local Bot API server, which serves up
+ * to 2000 MB; `services/telegramApi.ts` is the switch, and the ceiling here
+ * follows it rather than being written down twice.
+ *
+ * Until that server exists, a file over the ceiling is refused with a sentence
+ * a person can act on -- including where else the same file WILL go through,
+ * because the failure mode we are replacing is silence.
  */
 
 import { logger } from '@/utils/logger'
 import { putBytes } from '@/services/contentFactory/storage'
 import { albumCaption } from '@/services/albumBuffer'
+import { telegramDownloadLimit } from '@/services/telegramApi'
 
 /** The four buckets the mini app uses. Keep them identical: same vocabulary. */
 export type AttachmentKind = 'image' | 'video' | 'audio' | 'file'
@@ -65,12 +70,15 @@ export interface TelegramAttachment {
 }
 
 /**
- * The Bot API download ceiling.
+ * The Bot API download ceiling, for whichever server we are talking to.
  *
- * Not a policy of ours and not tunable: `getFile` answers "file is too big" for
- * anything above it, so checking earlier only changes WHO explains it.
+ * Still not a policy of ours: `getFile` answers "file is too big" above it, so
+ * checking earlier only changes WHO explains it. But it is no longer a fixed
+ * number -- a local Bot API server serves up to 2000 MB -- and it is read at
+ * CALL time, not captured here, so the refusal can never name a ceiling other
+ * than the one being enforced. See `services/telegramApi.ts`.
  */
-export const TELEGRAM_DOWNLOAD_LIMIT = 20 * 1024 * 1024
+export { telegramDownloadLimit }
 
 const EXTENSION_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -378,13 +386,14 @@ export async function attachmentToLine(
   telegram: FileFetcher,
   a: TelegramAttachment
 ): Promise<AttachmentOutcome> {
-  if (a.bytes !== null && a.bytes > TELEGRAM_DOWNLOAD_LIMIT) {
+  const ceiling = telegramDownloadLimit()
+  if (a.bytes !== null && a.bytes > ceiling) {
     return {
       ok: false,
       reason: 'too-big',
       message:
         `«${a.name}» весит ${megabytes(a.bytes)}, а Telegram отдаёт ботам ` +
-        `не больше ${megabytes(TELEGRAM_DOWNLOAD_LIMIT)}. Пришлите файл ` +
+        `не больше ${megabytes(ceiling)}. Пришлите файл ` +
         'полегче или загрузите его в приложении — там предел 100 МБ.',
     }
   }
@@ -424,13 +433,14 @@ export async function attachmentToLine(
   // A real size beats a declared one: `file_size` is absent on video notes and
   // on some documents, so the ceiling has to be checked again on what actually
   // arrived. Otherwise an undeclared 60 MB file would sail through.
-  if (bytes.length > TELEGRAM_DOWNLOAD_LIMIT) {
+  if (bytes.length > ceiling) {
     return {
       ok: false,
       reason: 'too-big',
       message:
         `«${a.name}» весит ${megabytes(bytes.length)} — больше предела ` +
-        `${megabytes(TELEGRAM_DOWNLOAD_LIMIT)} для файлов из Telegram.`,
+        `${megabytes(ceiling)} для файлов из Telegram. ` +
+        'Загрузите его в приложении — там предел 100 МБ.',
     }
   }
 

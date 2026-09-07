@@ -4,6 +4,7 @@ import { logger } from '@/utils/logger'
 import { sendMediaToPulse } from '@/helpers/pulse'
 import { getBotTokenByName } from '@/core/getBotTokenByName'
 import { Telegraf, Markup } from 'telegraf'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 interface MorphingRequest {
   images: Array<{
@@ -140,7 +141,7 @@ export async function generateMorphing(
       if (!botToken) {
         throw new Error(`Bot token not found for: ${requestData.botName}`)
       }
-      bot = new Telegraf(botToken)
+      bot = new Telegraf(botToken, { telegram: telegramClientOptions() })
       logger.info('⚠️ Creating new Telegraf instance', {
         telegram_id: requestData.telegram_id,
         botName: requestData.botName,

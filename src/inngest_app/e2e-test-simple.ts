@@ -6,6 +6,7 @@
 
 import 'dotenv/config'
 import { inngest } from './client'
+import { telegramApiFor } from '../services/telegramApi'
 
 // Проверка загрузки env
 console.log('🔐 ENV Check:', {
@@ -32,7 +33,7 @@ async function sendTelegramMessage(message: string) {
   }
 
   try {
-    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`
+    const url = `${telegramApiFor(BOT_TOKEN)}/sendMessage`
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

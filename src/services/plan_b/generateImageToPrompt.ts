@@ -44,7 +44,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 // escapeForMarkdownV2CodeBlock moved to @/helpers/escapeMarkdown (canonical, shared)
 
 /**
- * Space не всегда может скачать файл по ссылке api.telegram.org
+ * Space не всегда может скачать файл по ссылке api.telegram.org  telegram-api-root-ok cyrillic-ok
  * (сеть HF, приватность, размер) — в этом случае stream_chat отдаёт
  * `event: error` / `data: null`. Поэтому скачиваем картинку сами
  * и загружаем её в Space через /upload.

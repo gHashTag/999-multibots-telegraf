@@ -22,8 +22,20 @@ import path from 'path'
 const strip = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
-/** Шаблон адреса файла Telegram с подстановкой токена. */
-const TOKEN_URL = /api\.telegram\.org\/file\/bot\$\{/
+/**
+ * The token-bearing file URL, IN BOTH SHAPES.
+ *
+ * It used to be written as a literal. Since the API root became configurable
+ * (`services/telegramApi.ts`) the same places build it through
+ * `telegramFileApiFor`, and the token in it is exactly the same token.
+ *
+ * Matching only the literal would mean the leak migrates along with a
+ * refactor while this test says nothing -- which is precisely what happened:
+ * the sweep emptied the pattern and only this file's own vacuity check
+ * noticed.
+ */
+const TOKEN_URL =
+  /api\.telegram\.org\/file\/bot\$\{|telegramFileApiFor\s*\(|telegramApiFor\s*\(/
 
 function collect(): string[] {
   const out: string[] = []
@@ -66,7 +78,8 @@ describe('токен бота не уходит в адресах', () => {
         const above = lines.slice(Math.max(0, i - 12), i).join('\n')
         if (
           new RegExp(
-            `\\b${m[1]}\\s*=\\s*\`[^\`]*api\\.telegram\\.org/file/bot`
+            `\\b${m[1]}\\s*=\\s*\`[^\`]*` +
+              `(api\\.telegram\\.org/file/bot|\\$\\{telegramFileApiFor)`
           ).test(above)
         ) {
           bad.push(`${f}:${i + 1}`)

@@ -2,6 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { createVoiceAvatar } from '@/services/plan_b/createVoiceAvatar'
+import { telegramFileApiFor } from '@/services/telegramApi'
 import { isRussian } from '@/helpers/language'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import {
@@ -110,7 +111,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           throw new Error('File path not found')
         }
 
-        const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+        const fileUrl = `${telegramFileApiFor(ctx.telegram.token)}/${file.file_path}`
 
         // Получаем текст сообщения безопасно
         const messageText =

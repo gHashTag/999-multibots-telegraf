@@ -7,6 +7,7 @@ import { Telegraf } from 'telegraf'
 import fetch from 'node-fetch'
 import { addMusic, combineVideos } from '@/helpers/video-helpers'
 import { downloadFile } from '@/helpers'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 const inngest = new Inngest({
   name: 'bot-farm',
@@ -208,7 +209,9 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
     })
 
     await step.run('send-to-telegram', async () => {
-      const bot = new Telegraf(bot_token!)
+      const bot = new Telegraf(bot_token!, {
+        telegram: telegramClientOptions(),
+      })
       await bot.telegram.sendVideo(
         telegram_id,
         { source: finalVideoPath },

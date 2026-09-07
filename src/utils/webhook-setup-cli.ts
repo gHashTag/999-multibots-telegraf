@@ -10,6 +10,7 @@ import {
   autoConfigureProductionWebhooks,
 } from './webhook-manager'
 import { botLogger } from './logger'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 interface BotConfig {
   name: string
@@ -66,7 +67,7 @@ async function setupWebhooksFromEnv(): Promise<void> {
 
   // Setup webhooks
   const bots = botConfigs.map(config => ({
-    bot: new Telegraf(config.token),
+    bot: new Telegraf(config.token, { telegram: telegramClientOptions() }),
     name: config.name,
     port: config.port,
   }))

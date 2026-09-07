@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf'
 // ✅ Используем единый клиент из @/inngest_app/client
 import { inngest } from '@/inngest_app/client'
+import { telegramClientOptions } from '@/services/telegramApi'
 
 export const testAdvancedLoopFunction = inngest.createFunction(
   {
@@ -18,7 +19,9 @@ export const testAdvancedLoopFunction = inngest.createFunction(
       )
       console.log(`🧪 Received ${image_base64s?.length || 0} images`)
 
-      const bot = new Telegraf(process.env.BOT_TOKEN!)
+      const bot = new Telegraf(process.env.BOT_TOKEN!, {
+        telegram: telegramClientOptions(),
+      })
 
       await bot.telegram.sendMessage(
         telegram_id,

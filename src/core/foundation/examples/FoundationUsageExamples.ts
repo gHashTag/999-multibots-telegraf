@@ -8,6 +8,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { configManager } from '../ConfigManager'
 import { isRussianFromState, languageManager } from '../LanguageManager'
 import { errorHandler, ErrorType } from '../ErrorHandler'
+import { telegramApiFor, telegramFileApiFor } from '@/services/telegramApi'
 // import { menuActionHandler } from '../MenuActionHandler' // ❌ REMOVED: MenuActionHandler был удален
 
 // ===============================
@@ -97,7 +98,7 @@ export class FileProcessor {
       }
 
       // ✅ Загрузка файла
-      const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${fileInfo.file_path}`
+      const fileUrl = `${telegramFileApiFor(ctx.telegram.token)}/${fileInfo.file_path}`
       const response = await fetch(fileUrl)
 
       if (!response.ok) {
@@ -362,9 +363,7 @@ export class HealthCheckService {
       const botToken = configManager.get('botTokens')?.[0]
       if (!botToken) return 'error'
 
-      const response = await fetch(
-        `https://api.telegram.org/bot${botToken}/getMe`
-      )
+      const response = await fetch(`${telegramApiFor(botToken)}/getMe`)
       return response.ok ? 'ok' : 'error'
     } catch {
       return 'error'

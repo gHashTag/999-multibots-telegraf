@@ -28,6 +28,7 @@
 import { planTools } from './plan-tools'
 import { pricingSummary, providerSetup, CLUB } from './pricing'
 import { editImage, EDIT_MODEL } from '../kie-image'
+import { telegramApiFor, telegramFileApiFor } from '../telegram-api'
 
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
@@ -67,7 +68,7 @@ const selfBase = () =>
  * 1. THE PROFILE URL IS NOT AN IMAGE. whoami hands back
  *    https://t.me/i/userpic/320/<hash>.svg -- an SVG placeholder, not the
  *    photograph. Feeding it to an image model produces a picture of nothing.
- * 2. THE TELEGRAM FILE URL CARRIES THE BOT TOKEN. api.telegram.org/file/bot
+ * 2. THE TELEGRAM FILE URL CARRIES THE BOT TOKEN. api.telegram.org/file/bot  telegram-api-root-ok
  *    <TOKEN>/<path> is the only way to fetch the real JPEG, and handing that
  *    address to an external provider would publish the token to it. So the
  *    bytes are pulled HERE and re-published to our own S3, and only that link
@@ -85,7 +86,7 @@ async function ownerAvatarUrl(ctx: any): Promise<string> {
     ''
   if (!tid || !token) return ''
   try {
-    const api = `https://api.telegram.org/bot${token}`
+    const api = telegramApiFor(token)
     const list: any = await (
       await fetch(`${api}/getUserProfilePhotos?user_id=${tid}&limit=1`)
     ).json()
@@ -98,7 +99,7 @@ async function ownerAvatarUrl(ctx: any): Promise<string> {
     ).json()
     const path = file?.result?.file_path
     if (!path) return ''
-    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${path}`)
+    const bin = await fetch(`${telegramFileApiFor(token)}/${path}`)
     if (!bin.ok) return ''
     const bytes = Buffer.from(await bin.arrayBuffer())
     const up = await selfFetch(`${selfBase()}/upload`, {
@@ -1543,26 +1544,21 @@ export const TOOLS: AgentTool[] = [
           'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан — счёт выставить нечем'
         )
       }
-      const о = await fetch(
-        `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: названиеСчёта(цена.токенов),
-            description: 'Токены для генераций в Trinity S³AI',
-            // Тот же payload, что и у маршрута: его разбирает бот и
-            // переправляет зачисление сюда. Разойдись он — оплата не
-            // зачислилась бы, а деньги ушли бы.
-            payload: `tokens:${цена.токенов}:${ctx.telegramId}`,
-            currency: 'XTR',
-            prices: [
-              { label: названиеСчёта(цена.токенов), amount: цена.звёзд },
-            ],
-          }),
-        }
-      )
-      const д: any = await о.json()
+      const res = await fetch(`${telegramApiFor(PAY_BOT)}/createInvoiceLink`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: названиеСчёта(цена.токенов), // cyrillic-ok
+          description: 'Токены для генераций в Trinity S³AI',
+          // Тот же payload, что и у маршрута: его разбирает бот и  cyrillic-ok
+          // переправляет зачисление сюда. Разойдись он — оплата не  cyrillic-ok
+          // зачислилась бы, а деньги ушли бы.  cyrillic-ok
+          payload: `tokens:${цена.токенов}:${ctx.telegramId}`,
+          currency: 'XTR',
+          prices: [{ label: названиеСчёта(цена.токенов), amount: цена.звёзд }], // cyrillic-ok
+        }),
+      })
+      const data: any = await res.json()
       if (!д?.ok || !д?.result) {
         throw new Error(
           `Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`
