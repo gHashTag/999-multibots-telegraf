@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
-import { sendToAgent, agentBusyAtom } from '@/lib/agentStream'
+import { sendToAgent, agentBusyAtom, isAgentBusy } from '@/lib/agentStream'
+import {
+  shouldAdoptHistory,
+  adoptHistory,
+  turnsFromResponse,
+} from '@/lib/agentHistory'
 import type {
   AgentAttachment,
   AgentAttachmentKind,
@@ -255,33 +260,56 @@ function ChatPage() {
    * сети, и работает, когда сети нет.
    */
   useEffect(() => {
-    let живо = true
-    fetch(`${API_BASE}/api/agent/history?limit=100`, {
-      headers: authHeaders(),
-    })
-      .then(о => (о.ok ? о.json() : null))
-      .then(д => {
-        if (!живо) return
-        const серверные = Array.isArray(д?.messages) ? д.messages : []
-        if (серверные.length === 0) return
-        setMessages(
-          серверные.map(
-            (м: { role: string; content: string }, i: number): Message => ({
-              id: `server-${i}`,
-              role: м.role === 'user' ? 'user' : 'assistant',
-              text: String(м.content ?? ''),
-            })
+    let alive = true
+
+    /*
+     * REFRESHED ON EVERY RETURN TO THE TAB, NOT ONLY ON MOUNT.
+     *
+     * This used to run once, with an empty dependency list. A turn written in
+     * the bot while this tab stayed open never appeared here -- and, worse,
+     * never reached the model, because the next request carries THIS page's
+     * transcript. The symptom reads as the agent being stupid: you tell the
+     * bot something, switch to the app, ask a follow-up, and it has no idea.
+     *
+     * `isAgentBusy()` is read at call time rather than the `busy` value from
+     * render: this effect never re-runs, so a captured `busy` would be stale
+     * forever and the guard would be decorative.
+     */
+    const refresh = () => {
+      if (
+        typeof document !== 'undefined' &&
+        document.visibilityState === 'hidden'
+      ) {
+        return
+      }
+      fetch(`${API_BASE}/api/agent/history?limit=100`, {
+        headers: authHeaders(),
+      })
+        .then(response => (response.ok ? response.json() : null))
+        .then(body => {
+          if (!alive) return
+          const server = turnsFromResponse(body)
+          setMessages(local =>
+            shouldAdoptHistory({ server, local, busy: isAgentBusy() })
+              ? adoptHistory(server)
+              : local
           )
-        )
-      })
-      .catch(() => {
-        // Молчим НАМЕРЕННО: недоступная история не должна мешать написать
-        // новое сообщение. Локальная копия уже показана.
-      })
-    return () => {
-      живо = false
+        })
+        .catch(() => {
+          // Silent ON PURPOSE: an unreachable history must not stand between a
+          // person and writing a new message. The local copy is already shown.
+        })
     }
-    // Один раз на монтировании: разговор подтягивается при входе на вкладку.
+
+    refresh()
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      alive = false
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+    // Mount once; the listeners above carry every later refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
