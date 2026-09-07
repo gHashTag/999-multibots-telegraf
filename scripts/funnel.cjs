@@ -82,6 +82,39 @@ const show = r =>
    * at exactly 1000 the reader is truncating again and every number below is a
    * floor wearing a total.
    */
+  /*
+   * Self-check, BOTH directions, before any number is printed.
+   *
+   * A count that comes back at exactly the client's row ceiling is the ceiling,
+   * not a count -- that is how "354 people have ever generated" once came out
+   * as 15. But a guard that only ever refuses is not a guard either: it has to
+   * accept a legitimate count, or it would be indistinguishable from a script
+   * that never reports anything. So the predicate is checked against a sample
+   * it MUST refuse and a sample it MUST accept.
+   */
+  const ROW_CEILING = 1000
+  const looksLikeCeiling = n => n === ROW_CEILING
+  // Positive: the sample that MUST be caught.
+  if (!looksLikeCeiling(ROW_CEILING)) {
+    console.error(
+      `SELF-CHECK FAILED: a count of exactly ${ROW_CEILING} was not recognised as the row ceiling.`
+    )
+    process.exit(2)
+  }
+  // Negative: the clean sample that must NOT be caught. Written as its own
+  // check rather than folded into the line above, because two directions in
+  // one condition are one control twice -- the negative half hides behind the
+  // positive one, in the reader and in the ratchet that counts them.
+  if (looksLikeCeiling(ROW_CEILING - 1)) {
+    console.error(
+      `SELF-CHECK FAILED: a legitimate count of ${ROW_CEILING - 1} was refused as a ceiling.`
+    )
+    console.error(
+      'A guard that only ever refuses cannot be told from a script that never reports.'
+    )
+    process.exit(2)
+  }
+
   const total = await exact('prompts_history')
   if (total.error) {
     console.error(
@@ -89,7 +122,7 @@ const show = r =>
     )
     process.exit(2)
   }
-  if (total.count === 1000) {
+  if (looksLikeCeiling(total.count)) {
     console.error(
       'SELF-CHECK FAILED: prompts_history reports exactly 1000 rows,'
     )

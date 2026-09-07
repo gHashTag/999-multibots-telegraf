@@ -57,9 +57,19 @@ describe('the funnel refuses to print a number it did not measure', () => {
    * to name the number it watches for. A count that comes back at exactly the
    * ceiling is not a count.
    */
-  it('carries a guard against reading the row ceiling as a count', () => {
+  /**
+   * Guards the property, not the spelling. The first version asserted the
+   * literal `=== 1000`; the guard was later given a name and a negative
+   * direction, and the test went red for the improvement rather than for a
+   * defect. What matters is that the ceiling is recognised AND that a
+   * legitimate count is not -- a guard that only ever refuses cannot be told
+   * from a script that never reports.
+   */
+  it('recognises the row ceiling and still accepts a legitimate count', () => {
     const source = fs.readFileSync(SCRIPT, 'utf8')
-    expect(source).toContain('=== 1000')
+    expect(source).toMatch(/ROW_CEILING\s*=\s*1000/)
+    expect(source).toMatch(/if \(!looksLikeCeiling\(ROW_CEILING\)\)/)
+    expect(source).toMatch(/if \(looksLikeCeiling\(ROW_CEILING - 1\)\)/)
     expect(source).toMatch(/Refusing to print a funnel/)
   })
 

@@ -29,6 +29,7 @@ import { logger } from '@/utils/logger'
 import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
 import { isAdmin } from '@/middleware/adminOnly'
 import { standardButtons } from './actionButtons'
+import { track } from '@/services/trackEvent'
 
 /**
  * Создаёт клавиатуру главного меню (категории)
@@ -219,6 +220,9 @@ export async function showMainMenu(ctx: MyContext): Promise<void> {
   const telegramId = ctx.from?.id
 
   logMainMenuReturn(ctx, 'showMainMenu')
+  // Every path in the product ends here, so this is the step that tells us
+  // how many people got somewhere and how many just came back.
+  void track(ctx as any, 'menu_shown')
 
   /*
    * THE GREETING NO LONGER PROMISES A LIST THAT WAS DELIBERATELY REMOVED.
