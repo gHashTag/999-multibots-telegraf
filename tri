@@ -211,6 +211,13 @@ CHECKS THAT EACH COST A CYCLE
         one imports+calls still LIVE (referenced by >=1 production file outside
         its def)? A 0 is a "ratchet on a dead twin" (the #1572 class) -- a
         vacuous green. Verify, then delete fn+ratchet or move the invariant.
+
+  tri ton-verify <jetton-wallet> | --owner <address> | (TON_WALLET_ADDRESS)
+        Prove the USDT jetton parser on REAL chain data: the real src parser on
+        v2 getTransactions of the jetton wallet vs TON Center v3 (independent
+        decoder) on amount, source wallet, memo, time. Exit 0 corroborated,
+        1 mismatch, 2 unavailable, 3 no transfers, 4 PARSER-BLIND (#2147 class).
+        --self-check runs offline. Non-zero is never a pass.
         --self-check proves the predicate against known truth first.
 
   tri timeouts | tri таймауты
@@ -1458,6 +1465,15 @@ cmd_ratchet_audit() {
   # recurring bug (it.198/199/200/204). Behavioral tests (import + call the real
   # fn) are inherently self-validating and exempt. TRIAGE, not a gate.
   ( cd "$ROOT" && node "$TOOLS/ratchet-audit.mjs" "$@" )
+}
+
+cmd_ton_verify() {
+  # Prove the USDT jetton parser against REAL chain data with an INDEPENDENT
+  # oracle: v2 getTransactions on the jetton wallet (what production reads) run
+  # through the real src parser, corroborated by v3 jetton/transfers on amount,
+  # source wallet, memo and time. Exit 4 = PARSER-BLIND (the #2147 class: the
+  # oracle sees payments, the parser sees none). --self-check is offline.
+  ( cd "$ROOT" && node "$TOOLS/ton-verify.mjs" "$@" )
 }
 
 cmd_fn_liveness() {
@@ -3697,6 +3713,7 @@ case "$action" in
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
+  ton-verify)         cmd_ton_verify "$@" ;;
   fn-liveness|живость-функций) cmd_fn_liveness "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
   inflight|блокировка) cmd_inflight "@" ;;
