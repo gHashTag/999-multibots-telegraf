@@ -2393,6 +2393,36 @@ cmd_neg_controls() {
   ( cd "$ROOT" && node scripts/negative-controls.cjs "$@" )
 }
 
+cmd_can_deliver() {
+  # ЧТО БОТ МОЖЕТ ОТДАТЬ ПРЯМО СЕЙЧАС.
+  #
+  # Владелец: «клиенты хотят платить, а мы не можем сервис дать». Проверка
+  # окружения на старте требовала ТРИ переменные — NODE_ENV, WEBHOOK_DOMAIN,
+  # BOT_TOKEN_1 — и ни одного ключа провайдера. Бот рапортовал об успешном
+  # старте, предлагал фото, видео и озвучку, доводил до оплаты и узнавал о
+  # недостающем ключе уже в обработчике: ПОСЛЕ списания.
+  #
+  # Здесь это спрашивается заранее и без единого обращения к провайдеру:
+  # ключ либо задан, либо нет. Денег не тратит, задержки не создаёт.
+  #
+  # ЧЕГО НЕ ЗНАЕТ: заданный ключ может быть недействителен, у провайдера может
+  # кончиться баланс, модель пользователя может быть не обучена. Поэтому
+  # вывод узкий: не «услуга работает», а «ключа нет — работать не может».
+  ( cd "$ROOT" && npx tsx -e "
+import { checkAll } from './src/services/capabilityPreflight'
+const all = checkAll()
+for (const v of all) {
+  const mark = v.available ? '  OK      ' : (v.capability.paid ? '  ПЛАТНО! ' : '  нет     ')
+  console.log(mark + v.capability.name + (v.available ? '' : '  — не задано: ' + v.missing.join(', ')))
+}
+const deadPaid = all.filter(v => !v.available && v.capability.paid)
+console.log('')
+console.log('доступно ' + all.filter(v => v.available).length + ' из ' + all.length +
+            ', платных недоступно: ' + deadPaid.length)
+if (deadPaid.length) process.exit(1)
+" )
+}
+
 cmd_floors() {
   # СВЯЗЫВАЕТ ЛИ ЧИСЛЕННЫЙ ПОРОГ ХОТЬ ЧТО-НИБУДЬ.
   #
@@ -3717,6 +3747,7 @@ case "$action" in
   money-invariants|карта-денег)  cmd_money_invariants "$@" ;;
   money-ratchets|реестр-ратчетов)  cmd_money_ratchets "$@" ;;
   floors|пороги)  cmd_floors "$@" ;;
+  can-deliver|могу)  cmd_can_deliver "$@" ;;
   neg-controls|контроли)  cmd_neg_controls "$@" ;;
   gate-liveness|живость-гейтов)  cmd_gate_liveness "$@" ;;
   gate-liveness-check|живость-проверка) ( cd "$ROOT" && node scripts/gate-liveness.cjs --self-check ) ;;
