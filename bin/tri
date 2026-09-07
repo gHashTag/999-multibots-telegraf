@@ -155,6 +155,24 @@ case "${1:-}" in
         echo "  остальным — единственный рычаг; резать длинные пары ПРОВЕРЕНО"
         echo "  и не выходит (крупный Verilog — ровно один модуль в файле)."
         ;;
+      specs)
+        # КОРПУС ДЛЯ НАСТОЯЩЕЙ ЗАДАЧИ: ПИСАТЬ .t27.
+        #
+        # Четыре итерации ушли на «спек -> Verilog», где годных пар ноль.
+        # Настоящая цель -- писать сам спек; тогда корпус это спеки, а их
+        # 317 написанных. Считает t27c, а не регулярка: у них есть classify
+        # (что вообще исходник) и spec-status (написан ли спек).
+        T27C="${T27C:-$(command -v t27c)}"
+        [ -x "$T27C" ] || { echo "нет t27c. Сборка: см. скилл t27-model-training"; exit 2; }
+        D="${3:-specs}"
+        "$T27C" classify --specs-dir "$D" 2>&1 | tail -14
+        echo "— статус реализации —"
+        find "$D" -name '*.t27' -not -path '*/scratch/*' -print0 \
+          | xargs -0 -P 8 -n 1 "$T27C" spec-status 2>/dev/null \
+          | awk '{print $NF}' | sort | uniq -c | sort -rn
+        echo "  ОБУЧАТЬ ТОЛЬКО НА IMPLEMENTED: UNWRITTEN это скелеты,"
+        echo "  они учат отвечать ничем -- тот же класс, что пустые оболочки."
+        ;;
       audit)
         node "$S/audit-corpus-compiles.mjs"
         ;;
