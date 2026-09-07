@@ -1559,13 +1559,13 @@ export const TOOLS: AgentTool[] = [
         }),
       })
       const data: any = await res.json()
-      if (!д?.ok || !д?.result) {
+      if (!data?.ok || !data?.result) {
         throw new Error(
-          `Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`
+          `Telegram не выдал ссылку: ${String(data?.description).slice(0, 200)}`
         )
       }
       return {
-        ссылка: д.result,
+        ссылка: data.result, // cyrillic-ok
         токенов: цена.токенов,
         звёзд: цена.звёзд,
         звёзд_за_токен: Number(цена.звёздЗаТокен.toFixed(4)),
