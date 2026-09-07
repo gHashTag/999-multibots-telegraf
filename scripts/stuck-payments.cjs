@@ -32,8 +32,20 @@
  * The single repair on record before that was manual: row `fix-264623904`,
  * February 2026, metadata fix_reason "OutSum string/number comparison bug". One
  * person was patched; the channel stayed dead for five more months, because
- * nothing was watching. That is what this is: `checkPaymentStatus` exists in
- * the tree and is called from nowhere.
+ * nothing was watching.
+ *
+ * CORRECTED 2026-09-08, AND THE CORRECTION MATTERS. This file used to end that
+ * sentence with "that is what this is: `checkPaymentStatus` exists in the tree
+ * and is called from nowhere" -- as though wiring that function up were the
+ * missing watchdog. It is not, and acting on that would have been wasted work.
+ * `checkPaymentStatus` reads OUR OWN payments_v2 row. Called on a stuck
+ * payment it answers PENDING, which is the thing we already know. A checker
+ * that reads the table holding the defect cannot see the defect.
+ *
+ * What this file is instead: a RATIO watched over time. It cannot say whether
+ * a particular person paid -- only Robokassa knows that, through OpStateExt
+ * with the merchant credentials, which is an owner-gated question and not one
+ * an uncalibrated script should pretend to answer.
  *
  * WHAT A PENDING ROW DOES NOT PROVE, corrected 2026-09-08 after an earlier
  * reading of mine overstated it. The row is written when the INVOICE is issued,
@@ -315,6 +327,22 @@ const count = async shape => {
       'from here and only the merchant dashboard can tell them apart.'
     )
   }
+
+  /*
+   * SAY WHAT THIS CANNOT ANSWER, next to what it can. Every number above comes
+   * from our own payments_v2. That is enough to watch a RATIO and to red on a
+   * fresh top-up going uncredited -- and not enough to say whether any
+   * particular person's money actually left their account. Only the provider
+   * knows that.
+   */
+  console.log('')
+  console.log(
+    'Read from our own payments_v2 only. Whether a pending row was actually'
+  )
+  console.log(
+    'PAID is a question for Robokassa (OpStateExt, merchant credentials), and'
+  )
+  console.log('no tool here asks it yet.')
 
   if (GATE && fresh.n > 0) {
     console.error('')
