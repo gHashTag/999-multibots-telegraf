@@ -117,6 +117,19 @@ export const CAPABILITIES: Capability[] = [
     needs: ['RAPIDAPI_INSTAGRAM_KEY'],
     paid: true,
   },
+  {
+    name: 'Видео из текста (Kie.ai)',
+    file: 'src/scenes/textToVideoWizard/index.ts',
+    keysIn: 'src/services/video-providers/KieAiProvider.ts',
+    needs: ['KIE_AI_API_KEY'],
+    paid: true,
+  },
+  {
+    name: 'Липсинк Veed Fabric (Kie.ai)',
+    file: 'src/core/lipsync/providers/kie-veed-fabric-provider.ts',
+    needs: ['KIE_AI_API_KEY'],
+    paid: true,
+  },
 ]
 
 export interface Verdict {

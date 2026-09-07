@@ -1345,7 +1345,12 @@ export async function waitForBrollResult(
     }
 
     // Poll KIE API for completion
-    const kieService = new KieAIService(process.env.KIE_API_KEY || '')
+    // The key is KIE_AI_API_KEY everywhere else in the codebase (and in Railway);
+    // KIE_API_KEY was a name mismatch that constructed this client with an EMPTY
+    // key, so status polling of a Kie render job failed 401. Accept both.
+    const kieService = new KieAIService(
+      process.env.KIE_AI_API_KEY || process.env.KIE_API_KEY || ''
+    )
 
     while (true) {
       const status = await kieService.checkStatus(video.task_id)
