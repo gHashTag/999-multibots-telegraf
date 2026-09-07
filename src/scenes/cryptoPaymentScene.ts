@@ -139,6 +139,34 @@ cryptoPaymentScene.action(/crypto_topup_(\d+)/, async ctx => {
   const userId = ctx.from?.id
   const amountUsd = parseInt(ctx.match[1], 10)
 
+  /*
+   * THE GUARD BELONGS WHERE THE ROW IS WRITTEN, NOT ONLY AT THE DOOR.
+   *
+   * The entry check added yesterday refuses this scene while x402 cannot
+   * credit, and that closed the way IN. It did not close this handler. A
+   * person already inside the scene -- session state outlives a restart, and a
+   * message with these buttons stays pressable in the chat history forever --
+   * reaches this line without passing the door, and the next thirty lines
+   * write a PENDING payment row and hand out a payment URL.
+   *
+   * Guarding the offer is not guarding the act. That is the whole shape of the
+   * defect this scene already carries: twelve X402 rows exist because a button
+   * was live while nothing could credit it.
+   */
+  if (!canX402Credit()) {
+    logger.warn('[CryptoPaymentScene] top-up refused: x402 cannot credit', {
+      telegram_id: userId,
+      amountUsd,
+    })
+    await ctx.reply(
+      isRu
+        ? '❌ Оплата криптовалютой сейчас недоступна. Пополнить можно так:'
+        : '❌ Crypto payment is unavailable right now. You can top up here:',
+      standardButtons(isRu)
+    )
+    return ctx.scene.leave()
+  }
+
   if (!userId) {
     await ctx.reply(
       isRu

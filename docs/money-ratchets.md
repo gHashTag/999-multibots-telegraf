@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 110. Без заголовка: 0.
+Ратчетов: 111. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -82,6 +82,7 @@
 | `paidServicesTableUnread.test.ts`                      | the two dollar-cost tables                                                                    |
 | `payment-record-not-silent.test.ts`                    | запись платежа                                                                                |
 | `paymentHandlerInvIdDeterministic.test.ts`             | handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry)               |
+| `paymentMethodCensus.test.ts`                          | no payment method takes money it cannot deliver                                               |
 | `paymentPairAtomicInsert.test.ts`                      | paired income+outcome payments are one atomic insert                                          |
 | `paymentTypeVocabularyComplete.test.ts`                | the money vocabulary of the refund census                                                     |
 | `processBalanceOperationNonPositive.test.ts`           | processBalanceOperation refuses a non-positive price before charging                          |
