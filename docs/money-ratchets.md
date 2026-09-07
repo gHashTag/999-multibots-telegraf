@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 108. Без заголовка: 0.
+Ратчетов: 109. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -98,6 +98,7 @@
 | `replicateWrapperTimeout.test.ts`                      | shared replicate.run wrapper bounds client.run with a timeout                                 |
 | `robokassa-claim-once.test.ts`                         | robokassa ResultURL credits a payment once                                                    |
 | `robokassa-order.test.ts`                              | порядок обработки оплаты                                                                      |
+| `robokassa-result-url-is-mounted.test.ts`              | the ResultURL handed to Robokassa is a path this app answers                                  |
 | `robokassa-webhook-behaviour.test.ts`                  | вебхук Робокассы: поведение, а не форма                                                       |
 | `sessionPaymentAmountNeverUnbacked.test.ts`            | the session field the cancel button refunds                                                   |
 | `sibling-batch-double-refund.test.ts`                  | sibling image services refund a batch failure at most once                                    |
