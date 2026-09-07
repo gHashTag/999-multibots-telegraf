@@ -114,6 +114,7 @@ describe('the buttons repaired here land somewhere', () => {
   }
 
   const REPAIRED = [
+    'flux_kontext_retry',
     'ai_photoshop_multi_choose_model',
     'loading_indicator',
     'loading_processing_indicator',
@@ -134,11 +135,151 @@ describe('the buttons repaired here land somewhere', () => {
     expect(still, `still without a catcher: ${still.join(', ')}`).toEqual([])
   })
 
+  /**
+   * Two repairs from the adjudication pass, asserted through the census rather
+   * than by restating their arguments.
+   *
+   * `another_cover` is the repeat-purchase button: aiCoverWizard drew it after
+   * a paid cover and returned ctx.scene.leave() seventeen lines later, so its
+   * own handler could never fire. The success path now stays in the scene.
+   *
+   * `flux_kontext_retry` is drawn by a shared service and was caught only by a
+   * scene that is not in the Stage at all -- dead on every one of its four
+   * call paths. It has a bot-level handler now.
+   */
+  it('no longer offers a button and then abandons it', () => {
+    const out = execFileSync('node', [SCRIPT, '--json'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+    const { abandoned, crossFile } = JSON.parse(out) as {
+      abandoned: Array<{ id: string }>
+      crossFile: string[]
+    }
+    expect(abandoned.map(a => a.id)).not.toContain('another_cover')
+    expect(crossFile).not.toContain('flux_kontext_retry')
+  })
+
   it('does not let the remaining debt grow', () => {
     const { orphans } = census()
     expect(
       orphans.length,
       `ids with no catcher of any shape:\n  ${orphans.join('\n  ')}`
     ).toBeLessThanOrEqual(38)
+  })
+})
+
+/**
+ * OFFERED, THEN ABANDONED.
+ *
+ * The second thing the census reports: a scene draws a keyboard and calls
+ * `ctx.scene.leave()` a few lines later, so its own handler can never fire.
+ * Every grep says the handler exists, which is why it needs its own reading.
+ *
+ * The calibration instance is `another_cover` -- aiCoverWizard draws the
+ * repeat-purchase button at index.ts:395, to somebody who has just paid for a
+ * cover, and returns `ctx.scene.leave()` at :414.
+ */
+describe('the census sees a keyboard drawn just before the scene leaves', () => {
+  const census = () => {
+    const out = execFileSync('node', [SCRIPT, '--json'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+    return JSON.parse(out) as {
+      abandoned: Array<{
+        id: string
+        file: string
+        line: number
+        leaveAt: number
+      }>
+    }
+  }
+
+  /**
+   * The calibration lives in the script's own FIXTURE, not in the repository.
+   *
+   * Its first version asserted a live defect -- aiCoverWizard's repeat-purchase
+   * button, drawn at index.ts:395 with a leave seventeen lines under it. That
+   * was repaired, and the calibration went with it: a check anchored to a
+   * defect stops working exactly when the work succeeds.
+   *
+   * So what is asserted here is that the fixture check can FAIL, in each of the
+   * three ways it has been wrong: missing a same-path leave, counting one
+   * behind a `catch`, and counting one quoted inside a comment.
+   */
+  const breakLeaveFinder: Array<[string, string, string]> = [
+    [
+      'blind to a same-path leave',
+      'if (/ctx\\.scene\\.leave\\(\\)/.test(masked[k])) return k + 1',
+      'if (false) return k + 1',
+    ],
+    [
+      'deaf to a catch boundary',
+      'if (/^\\s*\\}?\\s*catch\\s*\\(/.test(masked[k])) return 0',
+      'if (false) return 0',
+    ],
+    [
+      'counting a quoted leave',
+      'const masked = maskComments(lines.join',
+      'const masked = (lines.join',
+    ],
+  ]
+
+  for (const [name, from, to] of breakLeaveFinder) {
+    it(`exits 2 when the leave-finder goes ${name}`, () => {
+      const source = fs.readFileSync(SCRIPT, 'utf8')
+      expect(source.includes(from), `anchor for "${name}" not found`).toBe(true)
+      const broken = source.replace(from, to)
+      expect(broken).not.toBe(source)
+      const tmp = path.join(
+        os.tmpdir(),
+        `census-leave-${name.replace(/\W/g, '')}.cjs`
+      )
+      fs.writeFileSync(tmp, broken)
+      const { code, out } = run(tmp)
+      fs.unlinkSync(tmp)
+      expect(code, `output:\n${out}`).toBe(2)
+      expect(out).toContain('SELF-CHECK FAILED')
+    })
+  }
+
+  it('does not flag every scene-caught site', () => {
+    const { abandoned } = census()
+    expect(abandoned.length).toBeGreaterThan(0)
+    expect(abandoned.length).toBeLessThan(60)
+  })
+
+  it('reports a leave that comes AFTER the render, never before', () => {
+    const { abandoned } = census()
+    const backwards = abandoned.filter(a => a.leaveAt <= a.line)
+    expect(
+      backwards,
+      'a leave above the render is a slicing bug, not a finding'
+    ).toEqual([])
+  })
+  /**
+   * The discrimination guard must be able to fail, or it is decoration. This
+   * makes the leave-finder say "yes" at the first line it looks at, so every
+   * scene-caught site is flagged, and insists the script refuses to print.
+   */
+  it('exits 2 if the leave-finder starts flagging everything', () => {
+    const source = fs.readFileSync(SCRIPT, 'utf8')
+    const from =
+      'if (/ctx\\.scene\\.leave\\(\\)/.test(site.lines[k])) return k + 1'
+    expect(source.includes(from), 'anchor for the leave-finder not found').toBe(
+      true
+    )
+    const broken = source.replace(from, 'return k + 1')
+    expect(broken).not.toBe(source)
+    const tmp = path.join(os.tmpdir(), 'button-census-flags-everything.cjs')
+    fs.writeFileSync(tmp, broken)
+    const { code, out } = run(tmp)
+    fs.unlinkSync(tmp)
+    expect(
+      code,
+      `a check that flags everything must refuse to print. output:\n${out}`
+    ).toBe(2)
+    expect(out).toContain('SELF-CHECK FAILED')
   })
 })

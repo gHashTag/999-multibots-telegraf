@@ -411,7 +411,31 @@ aiCoverWizard.action('confirm_cover', async ctx => {
       cost,
     })
 
-    return ctx.scene.leave()
+    /*
+     * THE REPEAT-PURCHASE BUTTON WAS OFFERED AND THEN ABANDONED.
+     *
+     * This line was `return ctx.scene.leave()`. Twenty-three lines above it the
+     * success path asks "Хотите создать ещё один кавер?" and draws two buttons
+     * -- another_cover and back_to_menu -- whose handlers are registered on
+     * THIS scene, at :275 and :476. The scene was gone before the message
+     * reached the phone, so neither could ever fire.
+     *
+     * That is the highest-intent moment in the product: the cover has landed,
+     * the person has just been charged for it, and the one button that says
+     * "again" was inert. Repo-wide there is no bot-level catcher for either id
+     * -- the global ones are `go_main_menu` and `main_menu`, different strings.
+     *
+     * Staying costs nothing. Wizard step 3 is an empty `return` (:213), both
+     * offered buttons leave for themselves (back_to_menu does scene.leave() +
+     * showMainMenu; another_cover resets and re-enters step 1), the `/menu`
+     * hears handler below still works, and the double-charge guard is
+     * untouched: `aiCoverGenerationInProgress` is cleared in the `finally`,
+     * which runs either way.
+     *
+     * Not fixed by registering the ids at bot level: another_cover's body needs
+     * ctx.wizard, which only exists inside the scene.
+     */
+    return
   } catch (error) {
     logger.error('[AI_COVER] Error generating cover', {
       telegramId,

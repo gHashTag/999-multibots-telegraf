@@ -362,6 +362,8 @@ LOOP TOOLING
 OTHER
   tri lesson <title>      append a lesson to the skill (body read from stdin)
   tri кнопки [--json]     rendered callback ids against every catcher, both ways
+  tri воронка             is anybody using this? generations and charges by month
+                          (needs a railway-linked checkout, not a worktree)
   tri help
 СПРАВКА
 }
@@ -3724,6 +3726,7 @@ case "$action" in
   stepjump|шаг)        cmd_stepjump "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   buttons|кнопки)      node "$ROOT/scripts/button-census.cjs" "${@:2}" ;;
+  funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "${@:2}" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
