@@ -149,6 +149,57 @@ function discoverBotTokens(): string[] {
   return tokens
 }
 
+/**
+ * Launch a bot, retrying on Telegram 409 Conflict.
+ *
+ * On Railway a redeploy overlaps the old and the new instance for a short
+ * while; both poll getUpdates for the same token and Telegram answers the
+ * newcomer with 409 "terminated by other getUpdates request". Until now that
+ * rejection was logged once and the bot stayed DEAD until the next deploy
+ * (2026-09-07: neuro_blogger_bot and MetaMuse_Manifest_bot, two deployments
+ * in a row, during a night of seven deploys). The old instance is gone within
+ * a minute, so a bounded retry turns a dead bot into a late one. Anything
+ * other than 409 is not retried -- it is a real error, and it is logged as
+ * before.
+ */
+async function launchWithConflictRetry(
+  bot: {
+    launch: (o: any) => Promise<unknown>
+    stop: (reason?: string) => void
+  },
+  username: string,
+  allowedUpdates: string[],
+  attempts = 8
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await bot.launch({ allowedUpdates: allowedUpdates as any })
+      const suffix = attempt > 1 ? ' (attempt ' + attempt + ')' : ''
+      console.log(`🚀 Бот ${username} запущен в polling режиме${suffix}`)
+      return
+    } catch (error: any) {
+      const conflict =
+        error?.response?.error_code === 409 ||
+        error?.error_code === 409 ||
+        /terminated by other getUpdates/.test(String(error?.message ?? error))
+      if (!conflict || attempt >= attempts) {
+        console.error(`❌ Ошибка запуска бота ${username}:`, error)
+        return
+      }
+      const waitMs = Math.min(15_000 * attempt, 60_000)
+      console.warn(
+        `⏳ 409 Conflict для ${username}: другой инстанс ещё поллит, повтор через ${waitMs / 1000}s (попытка ${attempt}/${attempts})`
+      )
+      try {
+        bot.stop('409-retry')
+      } catch {
+        // not running -- nothing to stop
+      }
+      await new Promise(resolve => setTimeout(resolve, waitMs))
+    }
+  }
+}
+
 async function initializeBots() {
   console.log('🤖 Инициализация ботов:', isDev ? 'development' : 'production')
 
@@ -491,25 +542,17 @@ async function initializeBots() {
         console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
       }
 
-      // 🔧 ЗАПУСКАЕМ БОТ БЕЗ await, чтобы не блокировать цикл!
-      const botPromise = bot
-        .launch({
-          allowedUpdates: [
-            'message',
-            'callback_query',
-            'pre_checkout_query' as any,
-            'successful_payment' as any,
-            'chat_member' as any,
-            'business_connection' as any,
-            'business_message' as any,
-          ],
-        })
-        .then(() => {
-          console.log(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
-        })
-        .catch(error => {
-          console.error(`❌ Ошибка запуска бота ${botInfo.username}:`, error)
-        })
+      // Launch without await so the loop is not blocked; 409 Conflict is retried
+      // (see launchWithConflictRetry), anything else is logged once.
+      const botPromise = launchWithConflictRetry(bot, botInfo.username, [
+        'message',
+        'callback_query',
+        'pre_checkout_query',
+        'successful_payment',
+        'chat_member',
+        'business_connection',
+        'business_message',
+      ])
 
       botPromises.push(botPromise)
     }

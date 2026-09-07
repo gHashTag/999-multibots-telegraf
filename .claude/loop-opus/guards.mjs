@@ -105,6 +105,8 @@ const GUARDS = [
   'src/__tests__/money/aiReelsCallbackReleasesClaimOnPreSendFailure.test.ts', // iter258 the AI Reels completion callback releases its delivery claim on a PRE-send failure (S3 download timeout) so a legit at-least-once retry can re-deliver, but NOT after a send was attempted (double-send guard) -- claim was add-only = charged-not-delivered; found+self-verified by wave23 + a 3-skeptic double-send panel
   'src/__tests__/money/paymentPairAtomicInsert.test.ts', // paired MONEY_INCOME + compensating MONEY_OUTCOME (club fee, feed-star gift) are ONE atomic multi-row setPayments([income,outcome]) insert -- two separate inserts let a transient failure on the 2nd leave the income alone = orphaned SPENDABLE balance minted at owner cost, no rollback, no retry; wave23 finding
   'src/__tests__/tools/tonVerifySelfCheck.test.ts', // tri ton-verify stays wired (help/cmd/case) and honest: offline --self-check passes, and it imports the REAL parser src/core/ton/jettonBody.ts (no loadCoins copy that could drift) -- the one-command chain proof for the #2147 class (parser sees 0 payments while TON Center v3 sees them)
+  'src/__tests__/reliability/botLaunchRetriesOn409.test.ts', // hotfix 2026-09-08: bots launch via launchWithConflictRetry -- a redeploy overlap gives the newcomer 409 Conflict; it used to be logged once and the bot stayed DEAD until the next deploy (neuro_blogger_bot, MetaMuse_Manifest_bot); bounded retry, 409 only
+  'src/__tests__/reliability/kieRenderStatusUsesConfiguredKey.test.ts', // hotfix 2026-09-08: render/steps.ts built KieAIService with process.env.KIE_API_KEY (set nowhere) -> empty key -> every Kie render status poll 401; reads KIE_AI_API_KEY like the other 44 sites
 ]
 
 const ROOT = process.cwd()
