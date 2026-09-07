@@ -171,14 +171,62 @@ export interface QueenColumn {
   count: number
 }
 
+/**
+ * HER OWN COUNTERS, UNDER HER OWN NAMES.
+ *
+ * The board also carries a `pulse`. Measured twice, ten minutes apart on
+ * 2026-09-07: `rounds`, `bees` and `verdicts` did not move across two rounds
+ * while she stood in `waiting_for_review`, so they are NOT a rate of work; and
+ * they correlate with nothing else she publishes (`bees: 133` against a
+ * `workers.capacity` of 4, `verdicts: 145` against 392 dispatches and 414
+ * cards). Her own page does not display them.
+ *
+ * So they are carried through verbatim rather than relabelled. Naming a number
+ * nobody can explain -- "verdicts this round", say -- is how a status panel
+ * starts making claims it cannot support.
+ *
+ * `lastRoundAt` and `roundSeconds` are deliberately absent: they were measured
+ * to be EXACTLY `status.lastTick.decidedAt` and `scheduler.intervalSeconds`,
+ * which the caller already reports. One measurement under two names reads as
+ * two measurements.
+ */
+export interface QueenPulse {
+  rounds?: number
+  bees?: number
+  verdicts?: number
+}
+
 export interface QueenBoard {
   reachable: boolean
   repo?: string
   /** Her columns, in her order, each with its count. */
   columns?: QueenColumn[]
+  /** Present only when she publishes it -- absence is not three zeros. */
+  pulse?: QueenPulse
   /** A few cards awaiting judgement, because that is the column that blocks. */
   waiting?: Array<{ issue: number; title: string }>
   why?: string
+}
+
+/**
+ * Carry only the counters she actually published, and only as numbers.
+ *
+ * A missing pulse returns `undefined`, never `{rounds: 0, bees: 0}` -- zeros
+ * would assert she did nothing, which is a different claim from her not saying.
+ * A field that is not a number is dropped for the same reason: `NaN` on a panel
+ * is a number-shaped absence.
+ */
+function pulseOf(raw: unknown): QueenPulse | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const src = raw as Record<string, unknown>
+  const out: QueenPulse = {}
+  for (const key of ['rounds', 'bees', 'verdicts'] as const) {
+    const n = Number(src[key])
+    if (src[key] !== null && src[key] !== undefined && Number.isFinite(n)) {
+      out[key] = n
+    }
+  }
+  return Object.keys(out).length ? out : undefined
 }
 
 export async function queenBoard(): Promise<QueenBoard> {
@@ -229,6 +277,7 @@ export async function queenBoard(): Promise<QueenBoard> {
       reachable: true,
       repo: clean(b?.repo, 60),
       columns,
+      pulse: pulseOf(b?.pulse),
       // Only the review column, and only a handful: the board runs to hundreds
       // of cards, and a dump of them is not a report, it is a wall.
       waiting: cards

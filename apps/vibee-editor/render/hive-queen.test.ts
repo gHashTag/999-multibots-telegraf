@@ -329,6 +329,109 @@ describe('her board keeps the columns she declares', () => {
   })
 })
 
+/**
+ * HER COUNTERS, CARRIED WITHOUT BEING RENAMED.
+ *
+ * `/queen/public-board` also carries a `pulse`. Measured twice, ten minutes
+ * apart on 2026-09-07:
+ *
+ *   `lastRoundAt` is EXACTLY `status.lastTick.decidedAt`, and `roundSeconds` is
+ *   exactly `scheduler.intervalSeconds` -- both already reported, so repeating
+ *   them under second names would invite the reader to think they are different
+ *   measurements;
+ *
+ *   `rounds`, `bees` and `verdicts` did not move at all across two rounds while
+ *   she stood in `waiting_for_review`. They are NOT a rate of work.
+ *
+ * Her own page does not display them, no other surface reads them, and the
+ * numbers correlate with nothing else she publishes (`bees: 133` against
+ * `workers.capacity: 4`; `verdicts: 145` against 392 dispatches and 414 cards).
+ * So they are passed through under HER names, nested, with the caveat in
+ * `how_to_read` -- inventing a label for a number nobody can explain is how a
+ * panel starts lying.
+ */
+describe('her own counters are carried, not reinterpreted', () => {
+  const WITH_PULSE = {
+    ...HER_BOARD,
+    pulse: {
+      rounds: 1,
+      bees: 133,
+      verdicts: 145,
+      lastRoundAt: '2026-09-07T17:51:18.159Z',
+      roundSeconds: 300,
+    },
+  }
+
+  it('her three counters arrive under her own names', async () => {
+    vi.stubGlobal('fetch', queenFetch(WITH_PULSE))
+    const out = await asKeeper()
+    expect(out.pulse).toEqual({ rounds: 1, bees: 133, verdicts: 145 })
+  })
+
+  /*
+   * The duplicates are deliberately NOT carried: the tool already reports the
+   * same instant as `last_tick_at` and the same interval as
+   * `tick_every_seconds`. Two names for one measurement is how a reader ends up
+   * comparing a number with itself.
+   */
+  it('the two fields that merely repeat the status are not carried twice', async () => {
+    vi.stubGlobal('fetch', queenFetch(WITH_PULSE))
+    const out = await asKeeper()
+    expect(out.pulse.lastRoundAt).toBeUndefined()
+    expect(out.pulse.roundSeconds).toBeUndefined()
+    expect(out.last_tick_at).toBeDefined()
+  })
+
+  /*
+   * The same rule the whole file is built on, one level down: if she stops
+   * publishing the counters, they must be ABSENT. Zeros would read as "she did
+   * nothing", which is a claim we would have no basis for.
+   */
+  it('no pulse at all is absence, never three zeros', async () => {
+    vi.stubGlobal('fetch', queenFetch(HER_BOARD))
+    const out = await asKeeper()
+    expect(out.pulse).toBeUndefined()
+  })
+
+  /*
+   * The realistic version of the case above: she keeps publishing a `pulse`
+   * object but stops putting counters in it. An empty `{}` would render as a
+   * present-but-blank panel; absence is the honest report.
+   */
+  it('a pulse holding only the duplicates counts as no pulse at all', async () => {
+    vi.stubGlobal(
+      'fetch',
+      queenFetch({
+        ...HER_BOARD,
+        pulse: { lastRoundAt: '2026-09-07T17:51:18.159Z', roundSeconds: 300 },
+      })
+    )
+    const out = await asKeeper()
+    expect(out.pulse).toBeUndefined()
+  })
+
+  it('a counter that is not a number does not become NaN on the way through', async () => {
+    vi.stubGlobal(
+      'fetch',
+      queenFetch({ ...HER_BOARD, pulse: { rounds: 2, bees: 'много' } })
+    )
+    const out = await asKeeper()
+    expect(out.pulse).toEqual({ rounds: 2 })
+  })
+
+  /*
+   * `bees` appears twice in this answer -- four worker slots at the top, 133
+   * here -- and they are not the same thing. Saying so is the only reason it is
+   * safe to show the second one.
+   */
+  it('the reader is warned that her bees are not the worker slots', async () => {
+    vi.stubGlobal('fetch', queenFetch(WITH_PULSE))
+    const out = await asKeeper()
+    expect(out.how_to_read).toContain('pulse')
+    expect(out.bees).toEqual({ capacity: 4, active: 0, idle: 4 })
+  })
+})
+
 describe('her titles are untrusted input', () => {
   /*
    * Titles come from another system and land in a model's context and,
