@@ -1021,7 +1021,50 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       step: 'checking_generation_limits',
     })
 
-    const generationCheck = await checkSuperheroGenerationUsage(telegramId)
+    /*
+     * THE FIRST SCREEN A NEW PERSON SEES MUST SURVIVE A DATABASE HICCUP.
+     *
+     * Both checks below were awaited unprotected, in the opening step of the
+     * only path every new arrival takes: /start -> CreateUserScene -> here.
+     * A timeout, a slow pool, a transient error, and the step threw -- so the
+     * free demo never appeared and the person's first impression of the product
+     * was nothing at all.
+     *
+     * THE TRADE, said out loud because it is a real one. Both failures now fall
+     * OPEN: the quota check that limits free generations to three a month, and
+     * the legacy check that decides whether to create the user row. Falling
+     * closed would deny the demo to everyone during any outage; falling open
+     * costs, at worst, a few extra free images while the database is unwell.
+     * 271 people have taken this demo and 44 arrived in August alone -- the
+     * asymmetry is not close.
+     *
+     * The failure is loud in the log precisely because it is silent to the
+     * person: a fail-open that nobody can see becomes a quota that quietly
+     * stopped existing.
+     */
+    let generationCheck
+    try {
+      generationCheck = await checkSuperheroGenerationUsage(telegramId)
+    } catch (error) {
+      logger.error(
+        '[AvatarTransformScene] generation-limit check failed; allowing the free demo anyway',
+        {
+          telegramId,
+          error: error instanceof Error ? error.message : String(error),
+          consequence:
+            'the monthly free quota is not enforced for this request',
+        }
+      )
+      generationCheck = {
+        canGenerate: true,
+        currentUsage: 0,
+        maxUsage: 0,
+        isAdmin: false,
+        hasUnlimitedAccess: false,
+        resetDate: null,
+        reason: 'quota check unavailable',
+      } as Awaited<ReturnType<typeof checkSuperheroGenerationUsage>>
+    }
 
     logger.info('[AvatarTransformScene] Generation limit check result', {
       telegramId,
@@ -1037,11 +1080,29 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // 🔄 BACKWARD COMPATIBILITY: Также проверяем старую систему для создания пользователя
     const botName = ctx.botInfo?.username || 'AI_STARS_bot'
-    const legacyUsageCheck = await checkAvatarTransformUsage(
-      telegramId,
-      inviteCode || undefined,
-      botName
-    )
+    let legacyUsageCheck
+    try {
+      legacyUsageCheck = await checkAvatarTransformUsage(
+        telegramId,
+        inviteCode || undefined,
+        botName
+      )
+    } catch (error) {
+      logger.error(
+        '[AvatarTransformScene] legacy usage check failed; continuing to the demo',
+        {
+          telegramId,
+          error: error instanceof Error ? error.message : String(error),
+          consequence:
+            'the user row may not have been created here; createUser runs elsewhere too',
+        }
+      )
+      legacyUsageCheck = {
+        canUse: true,
+        isAdmin: false,
+        hasUsedBefore: false,
+      } as Awaited<ReturnType<typeof checkAvatarTransformUsage>>
+    }
 
     logger.info(
       '[AvatarTransformScene] Legacy usage check (for user creation)',
