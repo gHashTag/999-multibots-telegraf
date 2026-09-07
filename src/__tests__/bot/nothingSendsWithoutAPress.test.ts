@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { Telegraf, Telegram, session } from 'telegraf'
+import { replyWitness, deadPressNet } from '@/navigation/middleware/noSilence'
 
 /**
  * NOTHING REACHES ANOTHER PERSON WITHOUT A PRESS.
@@ -27,80 +29,44 @@ const SOURCE = fs.readFileSync(
  * where the line actually is.
  */
 function handlerBody(marker: string): string {
-  const start = SOURCE.indexOf(`bot.action(/^${marker}:(.+)$/`)
+  const start = SOURCE.indexOf(`bot.action(/^${marker}:([^:]+):(.+)$/`)
   expect(start, `handler ${marker} is gone`).toBeGreaterThan(-1)
   const rest = SOURCE.slice(start + 1)
   const end = rest.indexOf('\n  bot.')
   return end > -1 ? rest.slice(0, end) : rest
 }
 
-describe('the card appears only when something is actually waiting', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    process.env.RENDER_API_KEY = 'test-key'
-  })
-  afterEach(() => {
-    vi.unstubAllGlobals()
+describe('the card appears only when a draft actually came back', () => {
+  /*
+   * The gate used to be a list of tool names in the bot (`toolsMayHaveProposed`)
+   * checked against a draft fetched over HTTP. Both are gone: the draft now
+   * arrives on the answer itself, and the server queues only what it can carry
+   * out, so the presence of `ответ.proposal` IS the gate.
+   *
+   * Those two helpers were kept for a while with tests still green -- on code
+   * nothing called. A passing test over a dead export on a path that sends
+   * messages to other people is worse than no test: it reads as cover.
+   */
+  it('no draft in the answer means no card', () => {
+    const call = SOURCE.indexOf("ctx.chat?.type === 'private' && draft")
+    expect(call, 'the card no longer depends on a draft').toBeGreaterThan(-1)
+    const decl = SOURCE.slice(0, call).lastIndexOf('const draft =')
+    expect(decl, 'draft is not taken from the answer').toBeGreaterThan(-1)
+    expect(SOURCE.slice(decl, call)).toContain('ответ.proposal')
   })
 
-  it('a reading tool does not produce a confirmation card', async () => {
+  it('the bot no longer fetches the draft over HTTP', async () => {
     /*
-     * Asking somebody to approve a thing that has already happened is how
-     * people learn to press the green button without reading it -- which is
-     * the exact habit this card exists to prevent.
+     * That route hands out no secret -- deliberately, since anything holding
+     * the shared server key can call it -- so a card built from it would carry
+     * a button that cannot confirm. Leaving the fetch in place would be a live
+     * way to build exactly that card.
      */
-    const { toolsMayHaveProposed } = await import(
-      '@/services/telegramProposals'
-    )
-    expect(toolsMayHaveProposed(['tg_dialogs', 'tg_history'])).toBe(false)
-    expect(toolsMayHaveProposed([])).toBe(false)
-  })
-
-  it('a send does', async () => {
-    const { toolsMayHaveProposed } = await import(
-      '@/services/telegramProposals'
-    )
-    expect(toolsMayHaveProposed(['tg_send'])).toBe(true)
-    expect(toolsMayHaveProposed(['tg_dialogs', 'tg_send'])).toBe(true)
-  })
-
-  it('forward and read do NOT raise a card', async () => {
-    /*
-     * Not an omission. The server queues only what `execute` can carry out,
-     * and that is `send` alone. Cards for the rest cost two real defects: the
-     * card read "Отправить сообщение в Telegram?" over an empty body whatever
-     * the action was, and -- worse -- a tg_read proposal took the person's one
-     * queue slot, evicting the send draft they were about to confirm. The
-     * agent reads a chat, and the message awaiting approval disappears.
-     */
-    const { toolsMayHaveProposed } = await import(
-      '@/services/telegramProposals'
-    )
-    expect(toolsMayHaveProposed(['tg_forward'])).toBe(false)
-    expect(toolsMayHaveProposed(['tg_read'])).toBe(false)
-  })
-
-  it('an unreachable server costs the draft, never the answer', async () => {
-    // The person asked a question and got an answer. A queue that cannot be
-    // read is not a reason to interrupt them; the draft expires by itself.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw new Error('econnrefused')
-      })
-    )
-    const { pendingProposal } = await import('@/services/telegramProposals')
-    await expect(pendingProposal('144022504')).resolves.toBeNull()
-  })
-
-  it('without a server key nothing is even asked for', async () => {
-    process.env.RENDER_API_KEY = ''
-    vi.resetModules()
-    const called = vi.fn()
-    vi.stubGlobal('fetch', called)
-    const { pendingProposal } = await import('@/services/telegramProposals')
-    expect(await pendingProposal('144022504')).toBeNull()
-    expect(called).not.toHaveBeenCalled()
+    const mod = await import('@/services/telegramProposals')
+    expect(Object.keys(mod)).not.toContain('pendingProposal')
+    expect(Object.keys(mod)).not.toContain('toolsMayHaveProposed')
+    expect(SOURCE).not.toContain('pendingProposal')
+    expect(SOURCE).not.toContain('toolsMayHaveProposed')
   })
 })
 
@@ -117,6 +83,7 @@ describe('the card shows what will actually be sent', () => {
         action: 'send',
         target: '@someone',
         what: 'Здравствуйте! Готов обсудить в четверг.',
+        secret: 's',
       },
       true
     )
@@ -129,7 +96,7 @@ describe('the card shows what will actually be sent', () => {
     const { proposalCard } = await import('@/services/telegramProposals')
     const long = 'я'.repeat(5000)
     const card = proposalCard(
-      { id: 'p1', action: 'send', target: '@x', what: long },
+      { id: 'p1', action: 'send', target: '@x', what: long, secret: 's' },
       true
     )
     expect(card.text.length).toBeLessThan(4096)
@@ -141,14 +108,36 @@ describe('the card shows what will actually be sent', () => {
       '@/services/telegramProposals'
     )
     const card = proposalCard(
-      { id: 'abc-123', action: 'send', target: '@x', what: 'hi' },
+      { id: 'abc123', action: 'send', target: '@x', what: 'hi', secret: 's3' },
       true
     )
     const data = card.markup.reply_markup.inline_keyboard
       .flat()
       .map((b: any) => b.callback_data)
-    expect(data).toContain(`${PROPOSAL_OK}abc-123`)
-    expect(data).toContain(`${PROPOSAL_NO}abc-123`)
+    expect(data).toContain(`${PROPOSAL_OK}abc123:s3`)
+    expect(data).toContain(`${PROPOSAL_NO}abc123:s3`)
+  })
+
+  it('both buttons carry the one-time secret, not just the id', async () => {
+    /*
+     * The id alone is readable by anything holding the shared server key --
+     * that was the whole hole. If the button carried only the id, the press
+     * would be no more authoritative than a key holder's HTTP request.
+     */
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      {
+        id: 'abc123',
+        action: 'send',
+        target: '@x',
+        what: 'hi',
+        secret: 'f'.repeat(32),
+      },
+      true
+    )
+    for (const b of card.markup.reply_markup.inline_keyboard.flat() as any[]) {
+      expect(b.callback_data).toContain('f'.repeat(32))
+    }
   })
 
   it('callback data fits in the 64 bytes Telegram allows', async () => {
@@ -160,16 +149,48 @@ describe('the card shows what will actually be sent', () => {
     const { proposalCard } = await import('@/services/telegramProposals')
     const card = proposalCard(
       {
-        id: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
+        // The real generated shapes: a 12-hex id and a 32-hex secret.
+        id: '3f2504e04f89',
         action: 'send',
         target: '@x',
         what: 'hi',
+        secret: 'a'.repeat(32),
       },
       true
     )
     for (const b of card.markup.reply_markup.inline_keyboard.flat() as any[]) {
       expect(Buffer.byteLength(b.callback_data, 'utf8')).toBeLessThanOrEqual(64)
     }
+  })
+})
+
+describe('a silent answer still shows the card', () => {
+  it('the card is drawn OUTSIDE the "answer has text" branch', () => {
+    /*
+     * It used to live inside `if (ответ.текст)`. A turn that called tg_send
+     * and said nothing -- which the model does -- fell straight through to the
+     * fallback path: the one-time secret had already been issued and burned,
+     * no card was ever drawn, and the prepared message sat in the queue until
+     * it expired. The person was told nothing at all.
+     *
+     * Checked by position, because that is exactly what went wrong: the code
+     * was correct and in the wrong block.
+     */
+    const card = SOURCE.indexOf("ctx.chat?.type === 'private' && draft")
+    const textBranch = SOURCE.indexOf('if (ответ.текст) {')
+    expect(card, 'the card is gone').toBeGreaterThan(-1)
+    expect(textBranch, 'the text branch is gone').toBeGreaterThan(-1)
+    expect(
+      card,
+      'карточка снова внутри ветки «в ответе есть текст» — молчаливый ход её потеряет'
+    ).toBeLessThan(textBranch)
+  })
+
+  it('and the draft is read from the answer before either path runs', () => {
+    const draft = SOURCE.indexOf('const draft = ответ.proposal')
+    const textBranch = SOURCE.indexOf('if (ответ.текст) {')
+    expect(draft).toBeGreaterThan(-1)
+    expect(draft).toBeLessThan(textBranch)
   })
 })
 
@@ -188,17 +209,15 @@ describe('the draft is never shown to a room', () => {
      * `toolsMayHaveProposed` in this file is the import line, so slicing there
      * looked at code above the gate and the check failed on healthy code.
      */
-    const call = SOURCE.indexOf('if (inPrivate')
-    expect(call, 'the card is no longer gated at all').toBeGreaterThan(-1)
-    expect(SOURCE.slice(call, call + 140)).toContain(
-      'inPrivate && toolsMayHaveProposed'
-    )
-    // ...and `inPrivate` is the chat type, not a constant somebody flipped.
-    const decl = SOURCE.slice(0, call).lastIndexOf('const inPrivate')
-    expect(decl, 'inPrivate is not declared before the gate').toBeGreaterThan(
-      -1
-    )
-    expect(SOURCE.slice(decl, call)).toContain("ctx.chat?.type === 'private'")
+    const call = SOURCE.indexOf("ctx.chat?.type === 'private' && draft")
+    expect(
+      call,
+      'the card is no longer gated on a private chat'
+    ).toBeGreaterThan(-1)
+    // The card is drawn INSIDE that gate, not merely somewhere near it.
+    const after = SOURCE.slice(call, call + 1200)
+    expect(after).toContain('proposalCard(')
+    expect(after).toContain('ctx.reply(card.text, card.markup)')
   })
 })
 
@@ -206,8 +225,8 @@ describe('both buttons are wired, and the press is what acts', () => {
   it('confirm and cancel are both registered as handlers', () => {
     // A button whose press reaches nothing is the same broken promise as the
     // tool that could never send -- one interaction later.
-    expect(SOURCE).toContain('bot.action(/^tgp:ok:(.+)$/')
-    expect(SOURCE).toContain('bot.action(/^tgp:no:(.+)$/')
+    expect(SOURCE).toContain('bot.action(/^tgp:ok:([^:]+):(.+)$/')
+    expect(SOURCE).toContain('bot.action(/^tgp:no:([^:]+):(.+)$/')
   })
 
   it('the bot never calls confirm on its own, only from a press', () => {
@@ -254,7 +273,9 @@ describe('both buttons are wired, and the press is what acts', () => {
   })
 
   it('answerCbQuery comes before the work, per the project rule', () => {
-    const ok = SOURCE.slice(SOURCE.indexOf('bot.action(/^tgp:ok:(.+)$/'))
+    const ok = SOURCE.slice(
+      SOURCE.indexOf('bot.action(/^tgp:ok:([^:]+):(.+)$/')
+    )
     const answered = ok.indexOf('answerCbQuery')
     const acted = ok.indexOf('confirmProposal')
     expect(answered).toBeGreaterThan(-1)
@@ -285,7 +306,7 @@ describe('the bot does not claim to know what it does not know', () => {
       })
     )
     const { confirmProposal } = await import('@/services/telegramProposals')
-    const r = await confirmProposal('144022504', 'p1')
+    const r = await confirmProposal('144022504', 'p1', 'secret')
     expect(r.ok).toBe(false)
     expect(r.unknown, 'a transport failure is reported as a definite one').toBe(
       true
@@ -302,7 +323,7 @@ describe('the bot does not claim to know what it does not know', () => {
       }))
     )
     const { confirmProposal } = await import('@/services/telegramProposals')
-    const r = await confirmProposal('144022504', 'p1')
+    const r = await confirmProposal('144022504', 'p1', 'secret')
     expect(r.ok).toBe(false)
     expect(r.unknown).toBeFalsy()
     expect(r.error).toContain('уже подтверждено')
@@ -318,6 +339,93 @@ describe('the bot does not claim to know what it does not know', () => {
   })
 })
 
+describe('a press inside a scene still reaches the handler', () => {
+  it('the confirm buttons are registered BEFORE the scene middleware', () => {
+    /*
+     * Scene middleware is greedy. Verified against this repo's own telegraf in
+     * the real registration order: a wizard step that handles `callback_query`
+     * and does not call next() -- neuroPhotoWizard does exactly that -- eats
+     * the press, and the confirm handler never runs. The person taps
+     * "Отправить", nothing happens, and the draft expires without a word.
+     *
+     * Reachable, not theoretical: the agent's answer carries a top-up button
+     * that enters a scene, so somebody can be inside one between seeing the
+     * card and pressing it.
+     */
+    const registered = SOURCE.indexOf('registerProposalButtons(bot)')
+    const stage = SOURCE.indexOf('bot.use(stage.middleware())')
+    expect(registered, 'the buttons are no longer registered').toBeGreaterThan(
+      -1
+    )
+    expect(stage, 'the stage middleware is gone').toBeGreaterThan(-1)
+    expect(
+      registered,
+      'сцены перехватят нажатие: кнопки регистрируются после stage'
+    ).toBeLessThan(stage)
+  })
+
+  it('and the handlers live in that function, not somewhere later', () => {
+    const fn = SOURCE.indexOf('export function registerProposalButtons')
+    expect(fn).toBeGreaterThan(-1)
+    const body = SOURCE.slice(fn, SOURCE.indexOf('\n}', fn))
+    expect(body).toContain('bot.action(/^tgp:ok:([^:]+):(.+)$/')
+    expect(body).toContain('bot.action(/^tgp:no:([^:]+):(.+)$/')
+  })
+})
+
+describe('the secret actually reaches the server', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    process.env.RENDER_API_KEY = 'test-key'
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  const capture = () => {
+    const seen: { url?: string; body?: any } = {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: any) => {
+        seen.url = String(url)
+        seen.body = JSON.parse(String(init?.body ?? '{}'))
+        return { ok: true, status: 200, json: async () => ({ ok: true }) }
+      })
+    )
+    return seen
+  }
+
+  it('confirm posts the secret, not only the id', async () => {
+    /*
+     * Dropping `secret` from the body changed NOTHING in this suite until this
+     * check existed -- and in production every press would have been refused,
+     * because the server compares against a secret it never received. Exactly
+     * the shape of the defect this morning: a body that does not carry what
+     * the other side needs, invisible to everything but a real press.
+     */
+    const seen = capture()
+    const { confirmProposal } = await import('@/services/telegramProposals')
+    await confirmProposal('144022504', 'p1', 'f'.repeat(32))
+    expect(seen.body).toEqual({ id: 'p1', secret: 'f'.repeat(32) })
+  })
+
+  it('cancel posts it too', async () => {
+    // Cancel goes through the same claim, so it needs the same proof. Without
+    // it a cancelled draft is not consumed and stays live until it expires.
+    const seen = capture()
+    const { cancelProposal } = await import('@/services/telegramProposals')
+    await cancelProposal('144022504', 'p1', 'a'.repeat(32))
+    expect(seen.body).toEqual({ id: 'p1', secret: 'a'.repeat(32) })
+  })
+
+  it('the identity still travels in the query, where the server reads it', async () => {
+    const seen = capture()
+    const { confirmProposal } = await import('@/services/telegramProposals')
+    await confirmProposal('144022504', 'p1', 's')
+    expect(seen.url).toContain('telegram_id=144022504')
+    // ...and the secret does NOT, because query strings end up in logs.
+    expect(seen.url).not.toContain('secret')
+  })
+})
+
 describe('the card does not present a bare id as a checkable address', () => {
   it('a numeric recipient is marked as unverifiable', async () => {
     /*
@@ -328,7 +436,13 @@ describe('the card does not present a bare id as a checkable address', () => {
      */
     const { proposalCard } = await import('@/services/telegramProposals')
     const card = proposalCard(
-      { id: 'p1', action: 'send', target: '6579515876', what: 'hi' },
+      {
+        id: 'p1',
+        action: 'send',
+        target: '6579515876',
+        what: 'hi',
+        secret: 's',
+      },
       true
     )
     expect(card.text).toContain('6579515876')
@@ -339,10 +453,157 @@ describe('the card does not present a bare id as a checkable address', () => {
     // A warning on every recipient is a warning on none.
     const { proposalCard } = await import('@/services/telegramProposals')
     const card = proposalCard(
-      { id: 'p1', action: 'send', target: '@ivan', what: 'hi' },
+      { id: 'p1', action: 'send', target: '@ivan', what: 'hi', secret: 's' },
       true
     )
     expect(card.text).toContain('@ivan')
     expect(card.text).not.toContain('числовой id')
+  })
+})
+
+/**
+ * THE CONFIRM PRESS UNDER THE DEAD-PRESS NET.
+ *
+ * `deadPressNet` arrived from main while this branch was open. It wraps every
+ * update and, if nothing answered the press, tells the person "that button is
+ * out of date" and posts a fresh menu.
+ *
+ * That is right for an orphaned button and wrong for this one: the message has
+ * just been SENT, and being told the button is dead immediately afterwards
+ * would make a successful send look like a failure -- the person re-sends.
+ *
+ * Reasoning says the handlers are safe because they call `answerCbQuery` first
+ * and the witness marks the press. Reasoning is not a check: this drives a real
+ * Telegraf with the real middleware, in the real registration order.
+ */
+const realCallApi = (Telegram.prototype as any).callApi
+
+function press(data: string, chatType = 'private') {
+  return {
+    update_id: 1,
+    callback_query: {
+      id: 'cb1',
+      from: { id: 144022504, is_bot: false, first_name: 'o' },
+      chat_instance: 'ci',
+      data,
+      message: {
+        message_id: 5,
+        date: 0,
+        chat: { id: 144022504, type: chatType },
+      },
+    },
+  }
+}
+
+describe('a confirmed send is not then called a dead button', () => {
+  let sink: Array<{ method: string; payload: any }> = []
+
+  beforeEach(() => {
+    sink = []
+    ;(Telegram.prototype as any).callApi = async (
+      method: string,
+      payload: any
+    ) => {
+      sink.push({ method, payload })
+      return method === 'sendMessage' ? { message_id: 6 } : true
+    }
+  })
+  afterEach(() => {
+    ;(Telegram.prototype as any).callApi = realCallApi
+    vi.unstubAllGlobals()
+  })
+
+  const botWithRealHandlers = async () => {
+    const bot = new Telegraf('111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
+    ;(bot as any).botInfo = {
+      id: 111,
+      is_bot: true,
+      username: 'probe',
+      first_name: 'p',
+    }
+    const errors: string[] = []
+    bot.catch((e: any) => errors.push(String((e && e.message) || e)))
+    // The order registerCommands uses: witness, net, THEN the confirm buttons,
+    // which sit ahead of the scene middleware.
+    bot.use(replyWitness)
+    bot.use(session())
+    bot.use(deadPressNet as any)
+    const { registerProposalButtons } = await import(
+      '@/navigation/registerCommands'
+    )
+    registerProposalButtons(bot as never)
+    return { bot, errors }
+  }
+
+  it('a successful confirm answers the press and says nothing about dead buttons', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      }))
+    )
+    process.env.RENDER_API_KEY = 'test-key'
+    const { bot, errors } = await botWithRealHandlers()
+    await bot.handleUpdate(press(`tgp:ok:abc123456789:${'f'.repeat(32)}`) as never)
+
+    expect(errors).toEqual([])
+    const said = sink
+      .filter(s => s.method === 'sendMessage')
+      .map(s => String(s.payload?.text ?? ''))
+      .join(' | ')
+    /*
+     * Language-agnostic: `isRussianFromState` answers English without a stored
+     * language, and pinning one wording would make this test about the
+     * dictionary rather than about the net.
+     */
+    const saysSent = said.includes('Отправлено') || said.includes('Sent')
+    const saysDead =
+      said.includes('устарела') || said.includes('out of date')
+    expect(saysSent, 'подтверждение не отчиталось человеку').toBe(true)
+    expect(saysDead, 'после отправки бот назвал кнопку устаревшей').toBe(false)
+    // Exactly one answer: the net must not add a second on top of the handler.
+    expect(
+      sink.filter(s => s.method === 'answerCallbackQuery'),
+      'нажатие отвечено дважды'
+    ).toHaveLength(1)
+  })
+
+  it('a cancel is treated the same way', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      }))
+    )
+    process.env.RENDER_API_KEY = 'test-key'
+    const { bot } = await botWithRealHandlers()
+    await bot.handleUpdate(press(`tgp:no:abc123456789:${'f'.repeat(32)}`) as never)
+    const said = sink
+      .filter(s => s.method === 'sendMessage')
+      .map(s => String(s.payload?.text ?? ''))
+      .join(' | ')
+    expect(said.includes('Отменено') || said.includes('Cancelled')).toBe(true)
+    expect(said.includes('устарела') || said.includes('out of date')).toBe(
+      false
+    )
+  })
+
+  it('and a genuinely orphaned press still gets the net', async () => {
+    // The other direction, so the check above cannot pass by the net being
+    // broken rather than by the handler working.
+    const { bot } = await botWithRealHandlers()
+    await bot.handleUpdate(press('act:long_dead_button') as never)
+    const said = sink
+      .filter(s => s.method === 'sendMessage')
+      .map(s => String(s.payload?.text ?? ''))
+      .join(' | ')
+    expect(
+      said.includes('устарела') || said.includes('out of date'),
+      'сеть перестала ловить осиротевшие нажатия'
+    ).toBe(true)
   })
 })

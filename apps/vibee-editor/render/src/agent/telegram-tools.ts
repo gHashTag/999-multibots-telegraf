@@ -125,6 +125,22 @@ export interface Proposal {
 /** Actions `execute` can actually carry out. Keep in step with it. */
 const EXECUTABLE = new Set<Proposal['action']>(['send'])
 
+/**
+ * Surfaces that can actually SHOW a confirmation and take a press.
+ *
+ * Only the bot chat has the card and the two buttons. The mini app and iOS
+ * read the same agent stream and ignore the proposal event; a direct /mcp call
+ * has no screen at all.
+ *
+ * Queueing a draft for those was a promise nothing kept -- worse, it BURNED
+ * the draft's one-time secret on a client that had nowhere to use it, so the
+ * message could never be confirmed from anywhere, and the person was told it
+ * was prepared. Refusing out loud, with the place to go, is the honest answer.
+ *
+ * Add a surface here only together with a confirmation screen on it.
+ */
+const CAN_CONFIRM = new Set(['bot'])
+
 function propose(
   action: Proposal['action'],
   target: string,
@@ -133,7 +149,20 @@ function propose(
   ctx?: ToolContext
 ): Proposal & { id: string } {
   requireOwner(ctx)
-  const id = crypto.randomUUID()
+  /*
+   * A SHORT ID, BECAUSE THE BUTTON HAS 64 BYTES.
+   *
+   * Telegram's callback data must hold "tgp:ok:" + id + ":" + a 32-char
+   * secret. A 36-char UUID leaves 20 bytes, which is not enough for a secret
+   * worth having -- and over the limit Telegram rejects the whole message, so
+   * the card would simply not appear and the failure would read as "the agent
+   * did nothing".
+   *
+   * 12 hex characters is 48 bits, which is plenty for a lookup key inside a
+   * map that holds at most 200 entries for ten minutes. The authorisation is
+   * the secret, not this.
+   */
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
   /*
    * ONLY WHAT CAN ACTUALLY BE CARRIED OUT TAKES THE QUEUE SLOT.
    *
@@ -152,14 +181,34 @@ function propose(
    * the action was not performed -- they simply do not occupy the human
    * queue. When forward becomes executable it is added here, in one place.
    */
-  if (EXECUTABLE.has(action)) {
+  if (EXECUTABLE.has(action) && CAN_CONFIRM.has(String(ctx?.surface ?? ''))) {
     remember({
       id,
       telegramId: String(ctx?.telegramId ?? ''),
       action,
       target,
       what,
+      // The turn this draft belongs to. Only that turn's answer may carry its
+      // secret; a draft made outside a chat turn is never handed to anybody.
+      turn: ctx?.turn,
     })
+  }
+  /*
+   * Say where it can be confirmed when it cannot be confirmed here. The model
+   * relays this, so the person is sent to the bot chat instead of waiting for
+   * something that will never appear.
+   */
+  if (!CAN_CONFIRM.has(String(ctx?.surface ?? ''))) {
+    return {
+      proposal: true,
+      id,
+      action,
+      target,
+      what,
+      why:
+        'Подтвердить это можно только в чате бота — там есть кнопки ' +
+        '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
+    }
   }
   return { proposal: true, id, action, target, what, why }
 }

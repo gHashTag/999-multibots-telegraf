@@ -56,35 +56,6 @@ function apiKey(): string {
 }
 
 /**
- * What is waiting for this person, if anything.
- *
- * Returns null on any failure. A confirmation card that cannot be fetched is
- * not an error worth interrupting the conversation with -- the person asked a
- * question and got an answer; the draft simply expires unsent, which is the
- * safe direction for this particular thing to fail in.
- */
-export async function pendingProposal(
-  telegramId: string
-): Promise<Proposal | null> {
-  if (!apiKey()) return null
-  try {
-    const r = await fetch(
-      `${BASE}/api/tg/proposal?telegram_id=${encodeURIComponent(telegramId)}`,
-      { headers: { 'X-Api-Key': apiKey() } }
-    )
-    if (!r.ok) return null
-    const d = (await r.json()) as { proposal?: Proposal | null }
-    return d.proposal ?? null
-  } catch (e) {
-    logger.warn('proposal fetch failed', {
-      telegram_id: telegramId,
-      error: (e as Error)?.message,
-    })
-    return null
-  }
-}
-
-/**
  * Confirm: the server claims the draft and carries it out.
  *
  * Three outcomes, not two. `unknown` is the one that matters: the request left
@@ -98,23 +69,26 @@ export async function pendingProposal(
  */
 export async function confirmProposal(
   telegramId: string,
-  id: string
+  id: string,
+  secret: string
 ): Promise<{ ok: boolean; unknown?: boolean; error?: string }> {
-  return post('/api/tg/proposal/confirm', telegramId, id)
+  return post('/api/tg/proposal/confirm', telegramId, id, secret)
 }
 
 /** Cancel: the same claim, so a cancelled draft can no longer be sent. */
 export async function cancelProposal(
   telegramId: string,
-  id: string
+  id: string,
+  secret: string
 ): Promise<{ ok: boolean; error?: string }> {
-  return post('/api/tg/proposal/cancel', telegramId, id)
+  return post('/api/tg/proposal/cancel', telegramId, id, secret)
 }
 
 async function post(
   path: string,
   telegramId: string,
-  id: string
+  id: string,
+  secret: string
 ): Promise<{ ok: boolean; unknown?: boolean; error?: string }> {
   if (!apiKey()) return { ok: false, error: 'сервис не настроен' }
   try {
@@ -123,7 +97,7 @@ async function post(
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, secret }),
       }
     )
     const d = (await r.json().catch(() => ({}))) as {
@@ -167,7 +141,7 @@ async function post(
  * shown must be exactly the words sent.
  */
 export function proposalCard(
-  p: Proposal,
+  p: Proposal & { secret: string },
   isRu: boolean
 ): { text: string; markup: ReturnType<typeof Markup.inlineKeyboard> } {
   const body = p.what ?? ''
@@ -205,34 +179,23 @@ export function proposalCard(
     text: `${head}\n\n${shown}${tail}`,
     markup: Markup.inlineKeyboard([
       [
+        /*
+         * The secret rides in the button, not in our memory.
+         *
+         * Telegram stores callback data and hands it back on the press, so the
+         * bot holds no state between showing the card and the tap -- a restart
+         * between the two does not strand a draft. Budget is 64 bytes:
+         * "tgp:ok:" (7) + a 12-char id + ":" + a 32-char secret = 52.
+         */
         Markup.button.callback(
           isRu ? '✅ Отправить' : '✅ Send',
-          `${PROPOSAL_OK}${p.id}`
+          `${PROPOSAL_OK}${p.id}:${p.secret}`
         ),
         Markup.button.callback(
           isRu ? '✖️ Отмена' : '✖️ Cancel',
-          `${PROPOSAL_NO}${p.id}`
+          `${PROPOSAL_NO}${p.id}:${p.secret}`
         ),
       ],
     ]),
   }
-}
-
-/**
- * Which tools leave something waiting for confirmation.
- *
- * Read tools change nothing and must not make a card appear: asking somebody
- * to approve a thing that already happened teaches them to press the green
- * button without reading it.
- *
- * `tg_forward` and `tg_read` are not here either, and that is not an omission.
- * The server queues only what it can carry out, and `execute` performs `send`
- * alone. A card for the rest showed "Отправить сообщение в Telegram?" over an
- * empty body and answered, on the press, that the action is not wired --
- * describing one action while offering another.
- */
-const ACTING_TOOLS = ['tg_send']
-
-export function toolsMayHaveProposed(tools: string[]): boolean {
-  return tools.some(t => ACTING_TOOLS.includes(t))
 }

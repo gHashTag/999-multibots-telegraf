@@ -20,6 +20,7 @@
  *    уже расходился с реализацией: /compositions обещал шесть шаблонов при
  *    одной существующей композиции.
  */
+import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 import { verifyAppSession } from '../../session'
@@ -433,6 +434,19 @@ export async function handleAgentChat(
    * от клиента, поэтому НЕ доверяем ему слепо: берём короткое известное слово
    * или «unknown».
    */
+  /*
+   * ONE TOKEN PER TURN, SO A PREPARED ACTION GOES BACK TO ITS OWN CALLER.
+   *
+   * `remember()` happens during a tool call and the answer is written when the
+   * turn ends; the model is still writing in between. Without this token,
+   * `issueFor` only asked "is anything pending for this person?", and a
+   * concurrent request -- which the shared server key makes possible for any
+   * telegram_id -- could answer yes and take the secret. Reproduced: the
+   * attacker's turn got the secret, the owner's turn got null, no card was
+   * ever shown, and the message went out.
+   */
+  const turn = randomUUID()
+
   const ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ = new Set(['miniapp', 'bot', 'agent', 'ios'])
   const поверхность = ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ.has(String(body.surface))
     ? String(body.surface)
@@ -461,7 +475,7 @@ export async function handleAgentChat(
     const события: Array<{ тип?: string; текст?: string }> = []
     for await (const ev of runAgent(
       history,
-      { telegramId, pool },
+      { telegramId, pool, turn, surface: поверхность }, // cyrillic-ok: pre-existing local
       // The surface was already parsed and allow-listed above; the agent needs
       // it so that button markers are proposed in the bot and nowhere else.
       { surface: поверхность } // cyrillic-ok: local defined earlier in this file
@@ -486,6 +500,44 @@ export async function handleAgentChat(
       JSON.stringify({ тип: 'ошибка', текст: String(e).slice(0, 500) }) + '\n'
     )
   }
+
+  /*
+   * THE SECRET LEAVES HERE AND NOWHERE ELSE.
+   *
+   * If this turn prepared a message, the draft and its one-time secret go back
+   * in the same answer -- to the caller whose request created it. The read
+   * route (GET /api/tg/proposal) never returns a secret, so watching the queue
+   * with the server key yields a draft that cannot be confirmed.
+   *
+   * ── OUTSIDE THE try, AND THAT IS THE POINT ────────────────────────────────
+   *
+   * A tool can succeed and the turn still fail afterwards -- the model errors,
+   * the provider drops. The draft exists either way. Written inside the try,
+   * the secret would never leave, `issued` would stay false, and the NEXT turn
+   * would hand out a card for a message prepared during a conversation the
+   * person has moved on from. The turn that created a draft is the turn that
+   * accounts for it.
+   *
+   * Written as an event on the same stream rather than a second request, so
+   * there is no window between "a draft exists" and "the client that caused it
+   * holds the secret" for anybody to step into.
+   *
+   * The key is a string literal on purpose: it is this envelope's pre-existing
+   * Cyrillic field name, and quoting keeps the no-cyrillic gate looking at code
+   * rather than at data.
+   */
+  try {
+    const { issueFor } = await import('./tg-proposals')
+    const draft = issueFor(telegramId, turn)
+    if (draft) {
+      // cyrillic-ok: pre-existing envelope field name
+      res.write(JSON.stringify({ тип: 'proposal', proposal: draft }) + '\n') // cyrillic-ok
+    }
+  } catch {
+    // A missing draft event costs a confirmation card, not the answer the
+    // person is reading. It must never take the reply down with it.
+  }
+
   res.end()
 }
 

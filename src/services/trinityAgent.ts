@@ -38,6 +38,21 @@ export interface ОтветАгента {
   текст: string
   /** Имена вызванных инструментов — для журнала, не для показа человеку. */
   инструменты: string[]
+  /**
+   * A prepared message waiting for this person, WITH its one-time secret.
+   *
+   * It arrives on the same stream as the answer, from the turn that created
+   * it. Fetching it separately would have meant a window in which the draft
+   * existed and its secret was still up for grabs -- and the read route is
+   * reachable by anything holding the shared server key.
+   */
+  proposal?: {
+    id: string
+    action: string
+    target: string
+    what?: string
+    secret: string
+  }
 }
 
 /**
@@ -174,6 +189,7 @@ export async function спроситьАгента(
     const части: string[] = []
     const инструменты: string[] = []
     let ошибка = ''
+    let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
 
     const строку = (s: string) => {
       const t = s.trim()
@@ -183,11 +199,17 @@ export async function спроситьАгента(
           тип?: string
           текст?: string
           имя?: string
+          proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
         if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
         else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
         else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
+        // A prepared message and its one-time secret, from this same turn.
+        // Bracket access with a string literal: the envelope's field name is
+        // pre-existing and Cyrillic, and quoting keeps it data, not code.
+        else if (ev['тип'] === 'proposal' && ev.proposal?.secret)
+          proposal = ev.proposal
       } catch {
         // Неразобранная строка — не повод терять остальные.
       }
@@ -218,7 +240,7 @@ export async function спроситьАгента(
       длина: собрано.length,
     })
 
-    return { текст: собрано, инструменты }
+    return { текст: собрано, инструменты, proposal } // cyrillic-ok: fields of ОтветАгента
   } finally {
     clearTimeout(таймер)
   }

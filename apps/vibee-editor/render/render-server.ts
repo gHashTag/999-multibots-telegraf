@@ -7511,53 +7511,61 @@ const server = createServer(async (req, res) => {
    * the player and the bot found no reader at all, so those tools could not
    * reach anybody, ever. This is the other half.
    *
-   * Identity comes from `resolveIdentity`, the same as every other route that
-   * acts for a person, and `claim` checks it again against the proposal's own
-   * owner -- so the id in the body is a claim, not a credential.
+   * ── THREE THINGS HAVE TO LINE UP, NOT ONE ─────────────────────────────────
    *
-   * ── WHAT THAT DOES *NOT* BUY, STATED PLAINLY ──────────────────────────────
+   * 1. Identity, from `resolveIdentity`, as on every route that acts for a
+   *    person.
+   * 2. Ownership: `claim` checks the draft belongs to that same person.
+   * 3. A ONE-TIME SECRET, which is the one that carries the weight.
    *
-   * The two checks are not independent. `resolveIdentity`'s server-key branch
-   * returns whatever `telegram_id` the caller typed, and `claim` then compares
-   * the draft's owner against that same caller-chosen string. Anyone holding
-   * RENDER_API_KEY can therefore read a prepared message and make it go out
-   * from the owner's real Telegram: no press, no card. Verified by execution,
-   * with a `getPool` that throws if touched -- no database, session or
-   * signature is consulted on that path.
+   * The first two are not independent, and it is worth saying why rather than
+   * letting somebody discover it. `resolveIdentity`'s server-key branch returns
+   * whatever `telegram_id` the caller typed, so checks 1 and 2 compare a
+   * caller-chosen string against itself. For a while that was the whole gate:
+   * anyone holding RENDER_API_KEY could read a waiting draft from a GET route
+   * and post it straight back here, and a prepared message left the owner's
+   * real account with nobody touching a button. Verified by execution, with a
+   * `getPool` that threw if touched -- no database, session or signature was
+   * consulted on that path.
    *
-   * The key HAS to be accepted here, because the presser is a person in the
-   * bot chat and the bot is what carries the press; it holds only this key.
-   * So the property is "nothing sends without a press" for everyone EXCEPT the
-   * trusted services, and for those it is "nothing sends without the key".
+   * The secret is what closed it. It is minted when the draft is filed, never
+   * returned by any read route -- there is no read route any more -- and handed
+   * out exactly once, in the answer to the turn that created the draft, to that
+   * turn alone. A key holder watching the queue now sees nothing it can use.
    *
-   * That is a widening: before this route, the key could read the owner's
-   * Telegram through the tools but could not send, because every acting tool
-   * only proposed. It is worth knowing rather than discovering. Narrowing it
-   * needs a secret the key-holder does not have -- a nonce minted when the
-   * card is shown and burned on use -- which is a design change, not a line.
+   * ── WHAT IS STILL TRUE, AND MUST STAY WRITTEN DOWN ────────────────────────
    *
-   * Until then the confirm is LOGGED, so a send nobody remembers pressing
+   * The key HAS to be accepted here: the presser is a person in the bot chat,
+   * the bot carries the press, and the bot holds only this key. So a key holder
+   * can still drive a WHOLE agent turn as the owner and be handed a secret of
+   * their own. What is gone is the quiet path -- taking over a draft the owner
+   * was about to approve, leaving no trace anywhere. Driving a turn writes to
+   * the conversation the owner reads.
+   *
+   * Closing the rest needs a credential the key holder does not have: a confirm
+   * key issued only to the bot service. That is an ops decision, not a line of
+   * code, and it is not made here.
+   *
+   * The confirm is LOGGED either way, so a send nobody remembers pressing
    * leaves a trace to find.
    */
   {
     const route = req.url?.split('?')[0] || ''
     const NO_IDENTITY = 'нужна проверенная личность'
 
-    if (route === '/api/tg/proposal' && req.method === 'GET') {
-      const who = await resolveIdentity(req, getPool)
-      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { pendingFor } = await import('./src/agent/tg-proposals')
-      const p = pendingFor(who)
-      return sendJson(res, 200, {
-        ok: true,
-        // The full text goes back so the person confirms what will actually be
-        // sent, not a summary of it.
-        proposal: p
-          ? { id: p.id, action: p.action, target: p.target, what: p.what }
-          : null,
-      })
-    }
-
+    /*
+     * THERE IS NO READ ROUTE, AND THAT IS THE POINT.
+     *
+     * GET /api/tg/proposal used to answer with the full text of a waiting
+     * draft for any telegram_id a caller named -- and the shared server key is
+     * enough to name any of them. So a private message somebody had not yet
+     * approved was readable by anything holding that key, and, before the
+     * one-time secret, postable straight back to /confirm.
+     *
+     * Nothing needs it any more: the draft reaches the bot on the answer to
+     * the turn that created it, together with its secret. A route that exists
+     * only to be polled is a route that will be.
+     */
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
@@ -7566,7 +7574,8 @@ const server = createServer(async (req, res) => {
       )
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
-      const taken = claim(who, idFromBody(await readBody(req)))
+      const asked = idFromBody(await readBody(req))
+      const taken = claim(who, asked.id, asked.secret)
       if (!taken.ok) return sendJson(res, 409, { ok: false, error: taken.why })
       // The trace. Not the text -- that is somebody's private message and does
       // not belong in a log -- but enough to answer "who sent what to whom".
@@ -7587,7 +7596,8 @@ const server = createServer(async (req, res) => {
       const { claim, idFromBody } = await import('./src/agent/tg-proposals')
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
-      const taken = claim(who, idFromBody(await readBody(req)))
+      const asked = idFromBody(await readBody(req))
+      const taken = claim(who, asked.id, asked.secret)
       return sendJson(res, taken.ok ? 200 : 409, {
         ok: taken.ok,
         error: taken.ok ? undefined : taken.why,
