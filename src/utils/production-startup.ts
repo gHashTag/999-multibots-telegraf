@@ -153,6 +153,32 @@ export class ProductionStartupManager {
       botLogger.warn('StartupManager', '⚠️ NODE_ENV is not set to production')
     }
 
+    /*
+     * THE THREE VARIABLES ABOVE ARE ENOUGH TO COME UP, AND NOT ENOUGH TO
+     * DELIVER ANYTHING.
+     *
+     * Owner: "clients want to pay and we cannot give them the service". The
+     * check demanded NODE_ENV, WEBHOOK_DOMAIN and BOT_TOKEN_1 -- and not one
+     * provider key. The bot reported a successful start, offered photos,
+     * video and voice, walked the person to payment, and found out about the
+     * missing key inside the handler: after the charge.
+     *
+     * The report is printed, and startup is NOT stopped. Some services are
+     * switched off on purpose, and dying because of one provider would take
+     * the bot away from everyone whose setup is fine. An unavailable PAID
+     * service goes to error -- that is a sale that cannot happen, not a note.
+     */
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { reportAtStartup } = require('@/services/capabilityPreflight')
+      reportAtStartup()
+    } catch (e: any) {
+      botLogger.warn(
+        'StartupManager',
+        `preflight did not run: ${e?.message ?? e}`
+      )
+    }
+
     botLogger.info('StartupManager', '✅ Environment validation passed')
     return true
   }

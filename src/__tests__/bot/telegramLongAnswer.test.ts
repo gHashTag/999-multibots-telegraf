@@ -31,10 +31,14 @@ describe('длинный ответ доходит целиком', () => {
   })
 
   it('каждая часть влезает в предел Telegram', () => {
-    const длинный = Array.from({ length: 400 }, (_, i) => `Абзац номер ${i}. ${'слово '.repeat(20)}`).join('\n\n')
+    const длинный = Array.from(
+      { length: 400 },
+      (_, i) => `Абзац номер ${i}. ${'слово '.repeat(20)}`
+    ).join('\n\n')
     const части = разбитьДлинное(длинный)
     expect(части.length).toBeGreaterThan(1)
-    for (const ч of части) expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ)
+    for (const ч of части)
+      expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ)
   })
 
   it('ничего не теряется и порядок сохраняется', () => {
@@ -46,7 +50,9 @@ describe('длинный ответ доходит целиком', () => {
     const части = разбитьДлинное(абзацы.join('\n\n'))
     const собрано = части.join('\n\n')
     for (const а of абзацы) expect(собрано).toContain(а)
-    expect(собрано.indexOf('часть-0')).toBeLessThan(собрано.indexOf('часть-299'))
+    expect(собрано.indexOf('часть-0')).toBeLessThan(
+      собрано.indexOf('часть-299')
+    )
   })
 
   it('строка длиннее предела режется, а не теряется', () => {
@@ -54,7 +60,8 @@ describe('длинный ответ доходит целиком', () => {
     // деление по абзацам вернуло бы кусок длиннее предела.
     const монолит = 'я'.repeat(ПРЕДЕЛ_СООБЩЕНИЯ * 3)
     const части = разбитьДлинное(монолит)
-    for (const ч of части) expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ)
+    for (const ч of части)
+      expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ)
     expect(части.join('').length).toBe(монолит.length)
   })
 })
@@ -80,7 +87,9 @@ describe('«печатает…» держится, пока идёт работ
      * Брошенное исключение из фонового таймера обрушило бы обработчик.
      */
     vi.useFakeTimers()
-    const ctx = { sendChatAction: vi.fn().mockRejectedValue(new Error('нет прав')) }
+    const ctx = {
+      sendChatAction: vi.fn().mockRejectedValue(new Error('нет прав')),
+    }
     const стоп = держатьПечатает(ctx as any, 1000)
     expect(() => vi.advanceTimersByTime(5000)).not.toThrow()
     стоп()
@@ -88,7 +97,7 @@ describe('«печатает…» держится, пока идёт работ
 })
 
 describe('обработчик бота этим пользуется', () => {
-  const КОД = fs
+  const CODE = fs
     .readFileSync(
       path.join(__dirname, '..', '..', 'navigation', 'registerCommands.ts'),
       'utf8'
@@ -98,11 +107,28 @@ describe('обработчик бота этим пользуется', () => {
 
   it('индикатор гасится в finally, а не только при успехе', () => {
     // Иначе после ошибки агента «печатает…» осталось бы висеть.
-    expect(КОД).toContain('const стоп = держатьПечатает')
-    expect(КОД).toMatch(/finally \{\s*стоп\(\)/)
+    expect(CODE).toContain('const стоп = держатьПечатает')
+    expect(CODE.replace(/\s+/g, ' ')).toContain('finally { стоп()')
   })
 
+  /*
+   * THE SPLITTING IS PINNED, NOT THE SHAPE OF THE LOOP.
+   *
+   * This asserted the exact line `for (const часть of разбитьДлинное(...))`.
+   * The loop was rewritten to an indexed one -- so that the LAST part carries
+   * the buttons and the others do not -- and the test went red against code
+   * doing the same thing slightly better. The loop form was never the thing
+   * worth guarding.
+   */
   it('ответ отправляется частями', () => {
-    expect(КОД).toContain('for (const часть of разбитьДлинное(ответ.текст))')
+    // A long answer is cut up...
+    expect(CODE).toContain('разбитьДлинное(')
+    // ...and every part reaches the person, not just the first.
+    const window = CODE.slice(
+      CODE.indexOf('разбитьДлинное('),
+      CODE.indexOf('разбитьДлинное(') + 400
+    )
+    expect(window).toMatch(/for \(|\.forEach\(|for await/)
+    expect(window).toContain('ctx.reply(')
   })
 })
