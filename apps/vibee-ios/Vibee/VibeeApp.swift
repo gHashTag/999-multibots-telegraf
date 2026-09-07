@@ -82,6 +82,21 @@ struct RootView: View {
      * «похоже нарисовано», а один источник: система рисует их сама, поэтому
      * они сходятся по весу, оптическому размеру и поведению при Dynamic Type.
      */
+    /*
+     * THE WHOLE BAR IS LOCALISED, NOT JUST THE NEW TAB.
+     *
+     * Adding the hive with `say()` while its four neighbours stayed hard-coded
+     * Russian produced a bar reading "Лента · Агент · ИИ · Hive · Профиль" on an
+     * English phone. One English word among four Russian ones does not read as
+     * bilingual, it reads as a bug.
+     *
+     * The bar is the app's frame and is a coherent unit, so it is done whole.
+     * The SCREENS are still hard-coded Russian -- there is no .strings file in
+     * this project and not one NSLocalizedString. That is a separate piece of
+     * work (issue #2136); until it lands, an English phone gets an English bar
+     * over Russian screens, which is visibly "partly translated" rather than
+     * visibly broken.
+     */
     TabView {
       FeedView()
         /**
@@ -92,7 +107,7 @@ struct RootView: View {
          * Лента: `house` КОНТУРНЫЙ. Здесь стоял `house.fill` — залитый,
          * то есть единственная вкладка, выглядевшая всегда выбранной.
          */
-        .tabItem { Label("Лента", systemImage: "house") }
+        .tabItem { Label(say("Feed", "Лента"), systemImage: "house") }
       AgentChatView()
         /**
          * Агент: в вебе робот (`lucide-bot`). В SF Symbols робота НЕТ, поэтому
@@ -104,7 +119,7 @@ struct RootView: View {
          * значком помечена вкладка «ИИ». Один значок означал РАЗНОЕ в двух
          * клиентах, и человек, переходящий между ними, читал их наоборот.
          */
-        .tabItem { Label("Агент", systemImage: "cpu") }
+        .tabItem { Label(say("Agent", "Агент"), systemImage: "cpu") }
       /**
        * РЕДАКТОРА ЗДЕСЬ БОЛЬШЕ НЕТ, И ЭТО НЕ ПОТЕРЯ ФУНКЦИИ.
        *
@@ -136,10 +151,24 @@ struct RootView: View {
       GenerateScreen()
         // ИИ: `sparkles` — точное совпадение с вебом. Освободилось после
         // того, как «Агент» перестал занимать чужой значок.
-        .tabItem { Label("ИИ", systemImage: "sparkles") }
+        .tabItem { Label(say("AI", "ИИ"), systemImage: "sparkles") }
+      /*
+       * The hive: the game. It sits BEFORE the profile, not after it.
+       *
+       * The last tab is the one a thumb reaches without looking, and the
+       * profile has earned that place -- people open it constantly. The hive
+       * is a destination somebody goes to on purpose, so it goes where the eye
+       * lands rather than where the thumb rests. Same order as the web bar,
+       * which is the point: two clients, one map.
+       *
+       * `hexagon` because the comb is her own metaphor for the board, and it
+       * matches the web tab's Lucide `Hexagon` outline.
+       */
+      HiveScreen()
+        .tabItem { Label(say("Hive", "Улей"), systemImage: "hexagon") }
       ProfileView()
         // Профиль: `person` = `lucide-user`, совпадало и раньше.
-        .tabItem { Label("Профиль", systemImage: "person") }
+        .tabItem { Label(say("Profile", "Профиль"), systemImage: "person") }
     }
     // #00ff88 — TelegramTabBar.css:66 через Тема.ТабБар.активная.
     // Системный `.green` (≈#34C759) не совпадал с вебом ни одним каналом.
