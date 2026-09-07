@@ -47,6 +47,21 @@ enum Space {
   static let md = Тема.Отступ.md  // cyrillic-ok: alias
   /// The horizontal padding a chat bubble uses; chips reuse it so they line up.
   static let chip = Тема.Отступ.пузырьЧата  // cyrillic-ok: alias
+
+  /**
+   * How much a scrolling screen must keep clear of the floating tab bar.
+   *
+   * The bar hovers OVER the content rather than sitting beside it, so a
+   * ScrollView that runs to the bottom of the window puts its last rows behind
+   * it. Measured on the simulator: the pill occupies roughly 54pt and sits
+   * about 27pt above the bottom edge. 72 leaves a readable gap under the last
+   * row instead of ending flush against the glass.
+   *
+   * A named constant rather than a number at each call site: the next screen
+   * that scrolls needs the same clearance, and two different magic numbers is
+   * how one of them ends up wrong.
+   */
+  static let aboveTabBar: CGFloat = 72
 }
 
 enum Corner {

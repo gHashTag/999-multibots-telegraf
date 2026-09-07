@@ -21,7 +21,7 @@ import SwiftUI
 
  The rest of this app is hard-coded Russian: there is no `.strings` file, no
  `NSLocalizedString`, not one `Locale.current` in any screen. Introducing app
- wide localisation is a separate piece of work (issue #2136). This screen does
+ wide localisation is a separate piece of work (issue #2137). This screen does
  the contained version -- its own small dictionary, English unless the phone
  asks for Russian -- so the tab matches the web, where English is already the
  default, instead of inheriting a hard-coded language it would then have to be
@@ -195,46 +195,201 @@ private struct Panel<T, Content: View>: View {
 
 // MARK: - The six panels
 
-private struct CombPanel: View {
-  @StateObject private var loader = HiveLoader<[HiveAPI.Mark]>()
+/**
+ A HEXAGON, BECAUSE THE COMB IS HER OWN METAPHOR.
 
-  var body: some View {
-    Panel(loader: loader) { marks in
-      VStack(spacing: Space.sm) {
-        if marks.isEmpty {
-          Note(text: say("No marks — the board is quiet.", "Отметок нет — на доске тихо."))
-        }
-        ForEach(marks) { m in
-          HStack(alignment: .top, spacing: Space.sm) {
-            Text(m.kind)
-              .font(Typeface.style(.caption2))
-              .padding(.horizontal, 7)
-              .padding(.vertical, 2)
-              .background(
-                m.state == "refused"
-                  ? Palette.warning.opacity(0.3) : Palette.secondary,
-                in: Capsule()
-              )
-            Text(m.title)
-              .font(Typeface.style(.caption))
-              .frame(maxWidth: .infinity, alignment: .leading)
-            if m.issue > 0 {
-              Text("#\(m.issue)")
-                .font(Typeface.style(.caption2))
-                .foregroundStyle(Palette.textMuted)
-                .monospacedDigit()
-            }
-          }
-          .foregroundStyle(Palette.text)
-          .padding(Space.md)
-          .background(Palette.surface, in: RoundedRectangle(cornerRadius: Corner.lg))
-        }
-      }
-    }
-    .task { await loader.load { try await HiveAPI.marks() } }
+ Drawn rather than an SF Symbol: a symbol cannot tessellate. The flat-top
+ orientation is what lets rows interlock with a half-cell offset, which is what
+ makes the grid read as a comb instead of a table of icons.
+ */
+private struct Hexagon: Shape {
+  func path(in rect: CGRect) -> Path {
+    var p = Path()
+    let w = rect.width, h = rect.height
+    let points = [
+      CGPoint(x: w * 0.5, y: 0),
+      CGPoint(x: w, y: h * 0.25), CGPoint(x: w, y: h * 0.75),
+      CGPoint(x: w * 0.5, y: h),
+      CGPoint(x: 0, y: h * 0.75), CGPoint(x: 0, y: h * 0.25),
+    ]
+    p.move(to: points[0])
+    for pt in points.dropFirst() { p.addLine(to: pt) }
+    p.closeSubpath()
+    return p
   }
 }
 
+/**
+ THE MAP: ONE CELL PER MODULE, 115 OF THEM.
+
+ What the colours mean is chosen from what can be KNOWN, not from what would
+ look impressive. Her 3-D board colours cells "covered by t27 / hand-written",
+ and that split cannot be reproduced here -- spec names and repository paths do
+ not join (13 of 115 match). Inventing a coverage colour would be a lie the eye
+ believes instantly.
+
+ So the map shows what modules.json actually carries:
+
+   filled amber  -- the Queen has open issues on this module: she is working
+                    here now, and the issue numbers are the same ones on the
+                    kanban board
+   dim           -- quiet
+   brightness    -- how much code the module holds, on a log scale, because a
+                    23 880-line module beside a 61-line one is otherwise the
+                    only thing visible
+
+ Tapping a cell names it. A map that cannot be interrogated is wallpaper.
+ */
+private struct CombMap: View {
+  let modules: [HiveAPI.Module]
+  @Binding var picked: HiveAPI.Module?
+
+  /// Cells per row. Chosen so a 402pt phone gets a cell wide enough to touch.
+  private let perRow = 7
+  private let cell: CGFloat = 46
+
+  private var maxLines: Int { max(modules.map(\.lines).max() ?? 1, 1) }
+
+  /// Log scale: linear made everything but the top three modules invisible.
+  private func weight(_ lines: Int) -> Double {
+    let t = log(Double(max(lines, 1))) / log(Double(maxLines))
+    return 0.25 + 0.75 * min(max(t, 0), 1)
+  }
+
+  var body: some View {
+    let rows = stride(from: 0, to: modules.count, by: perRow).map {
+      Array(modules[$0..<min($0 + perRow, modules.count)])
+    }
+    VStack(spacing: -cell * 0.25) {
+      ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+        HStack(spacing: 1) {
+          ForEach(row) { m in
+            Button { picked = (picked?.id == m.id) ? nil : m } label: {
+              Hexagon()
+                .fill(
+                  (m.busy ? Palette.warning : Palette.accent)
+                    .opacity(weight(m.lines) * (m.busy ? 0.9 : 0.5))
+                )
+                .overlay(
+                  Hexagon().stroke(
+                    picked?.id == m.id ? Palette.text : Color.clear, lineWidth: 2)
+                )
+                .frame(width: cell, height: cell)
+            }
+            .accessibilityLabel(m.path)
+          }
+        }
+        // Odd rows shift half a cell, which is what interlocks them.
+        .offset(x: index % 2 == 1 ? cell * 0.5 : 0)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct CombPanel: View {
+  @StateObject private var comb = HiveLoader<HiveAPI.Comb>()
+  @StateObject private var marks = HiveLoader<[HiveAPI.Mark]>()
+  @State private var picked: HiveAPI.Module?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: Space.md) {
+      Panel(loader: comb) { c in
+        VStack(alignment: .leading, spacing: Space.sm) {
+          CombMap(modules: c.modules, picked: $picked)
+
+          // The legend is not decoration: without it amber and dim are just
+          // two colours, and a reader invents a meaning for them.
+          HStack(spacing: Space.md) {
+            LegendDot(colour: Palette.warning, text: say("the Queen is working", "королева работает"))
+            LegendDot(colour: Palette.accent, text: say("quiet", "тихо"))
+          }
+
+          if let m = picked {
+            ModuleCard(module: m)
+          } else {
+            let busy = c.busyCount
+            let quiet = c.modules.count - busy
+            Note(
+              text: say("\(c.modules.count) modules · \(busy) with open issues · \(quiet) quiet · tap a cell",
+                        "\(c.modules.count) модулей · \(busy) с задачами · \(quiet) тихих · нажмите клетку"))
+          }
+        }
+      }
+
+      Panel(loader: marks) { list in
+        VStack(spacing: Space.sm) {
+          if list.isEmpty {
+            Note(text: say("No marks — the board is quiet.", "Отметок нет — на доске тихо."))
+          }
+          ForEach(list.prefix(12)) { m in
+            HStack(alignment: .top, spacing: Space.sm) {
+              Text(m.kind)
+                .font(Typeface.style(.caption2))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(
+                  m.state == "refused" ? Palette.warning.opacity(0.3) : Palette.secondary,
+                  in: Capsule()
+                )
+              Text(m.title)
+                .font(Typeface.style(.caption))
+                .frame(maxWidth: .infinity, alignment: .leading)
+              if m.issue > 0 {
+                Text("#\(m.issue)")
+                  .font(Typeface.style(.caption2))
+                  .foregroundStyle(Palette.textMuted)
+                  .monospacedDigit()
+              }
+            }
+            .foregroundStyle(Palette.text)
+            .padding(Space.md)
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Corner.lg))
+          }
+        }
+      }
+    }
+    .task { await comb.load { try await HiveAPI.comb() } }
+    .task { await marks.load { try await HiveAPI.marks() } }
+  }
+}
+
+private struct LegendDot: View {
+  let colour: Color
+  let text: String
+  var body: some View {
+    HStack(spacing: 5) {
+      Circle().fill(colour).frame(width: 9, height: 9)
+      Text(text).font(Typeface.style(.caption2)).foregroundStyle(Palette.textMuted)
+    }
+  }
+}
+
+/// What a tapped cell says. Numbers only -- no invented score.
+private struct ModuleCard: View {
+  let module: HiveAPI.Module
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(module.path.isEmpty ? "." : module.path)
+        .font(Typeface.style(.subheadline, .semibold))
+        .foregroundStyle(Palette.text)
+      Note(
+        text: "\(module.language) · \(module.lines) "
+          + say("lines", "строк") + " · \(module.files) "
+          + say("files", "файлов") + " · \(module.functions) "
+          + say("functions", "функций"))
+      if module.busy {
+        Note(
+          text: say("open issues: ", "открытые задачи: ")
+            + module.openIssues.prefix(6).map { "#\($0)" }.joined(separator: " "))
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(Space.md)
+    .background(Palette.surface, in: RoundedRectangle(cornerRadius: Corner.lg))
+  }
+}
 private struct KanbanPanel: View {
   @StateObject private var loader = HiveLoader<HiveAPI.Board>()
 
@@ -507,6 +662,18 @@ struct HiveScreen: View {
           .frame(minHeight: Touch.minimum)
         }
         .padding(Space.md)
+      }
+      /*
+       * Keep the last row clear of the floating tab bar.
+       *
+       * Seen on the simulator before this existed: on Comb, Kanban and Mission
+       * the final card ran under the bar and its text was unreadable -- and on
+       * Specs, whose content is short, everything looked fine. That is the
+       * trap: the defect only appears once there is enough to scroll, which is
+       * exactly when somebody is reading.
+       */
+      .safeAreaInset(edge: .bottom) {
+        Color.clear.frame(height: Space.aboveTabBar)
       }
     }
     .background(Palette.background.ignoresSafeArea())

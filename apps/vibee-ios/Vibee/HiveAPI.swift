@@ -277,6 +277,59 @@ enum HiveAPI {
     )
   }
 
+  // MARK: - Modules (the comb itself)
+
+  /**
+   One cell of the comb.
+
+   `openIssues` carries the SAME issue numbers as the kanban board, which is
+   what makes the map worth drawing rather than decorative: a cell with issues
+   is a place the Queen is working right now, and the number leads to her
+   verdict.
+   */
+  struct Module: Identifiable {
+    var id: String { path }
+    let path: String
+    let language: String
+    let lines: Int
+    let files: Int
+    let functions: Int
+    let openIssues: [Int]
+
+    var busy: Bool { !openIssues.isEmpty }
+  }
+
+  struct Comb {
+    let repo: String
+    let modules: [Module]
+    var totalLines: Int { modules.reduce(0) { $0 + $1.lines } }
+    var busyCount: Int { modules.filter(\.busy).count }
+  }
+
+  static func comb() async throws -> Comb {
+    let d = try await get("\(t27)/queen/modules.json")
+    let raw = d["modules"] as? [[String: Any]] ?? []
+    let modules = raw.map { m -> Module in
+      Module(
+        path: clean(m["path"], 60),
+        language: clean(m["language"], 20),
+        lines: int(m["lines"]),
+        files: int(m["files"]),
+        functions: int(m["functions"]),
+        openIssues: (m["openIssues"] as? [Any] ?? []).compactMap { int($0) }
+      )
+    }
+    /*
+     Biggest first, so the eye lands on the modules that carry the most code.
+     A honeycomb has no natural reading order, and leaving it in file order
+     would make the map look shuffled every time the generator runs.
+     */
+    return Comb(
+      repo: clean(d["repo"], 60),
+      modules: modules.sorted { $0.lines > $1.lines }
+    )
+  }
+
   // MARK: - Specs
 
   struct Engine: Identifiable {
