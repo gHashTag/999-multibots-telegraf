@@ -55,8 +55,29 @@ export function scrubCallbackSecrets(text: string): string {
  * Passed to `Telegraf.log` in place of a bare `console.log`, so the whole
  * update dump goes through the same filter.
  */
+/**
+ * A customer's words in the owner's private chat are not ours to keep in a
+ * log. `Telegraf.log` dumps every update as pretty-printed JSON, so a business
+ * message would print the customer's text and caption verbatim; the business
+ * service itself logs only `textLength`. Cut the values here, keep the keys,
+ * and leave every other update untouched.
+ */
+const BUSINESS_UPDATE = /"(business_message|edited_business_message)"/
+const TEXT_VALUE = /("(?:text|caption)":\s*")((?:[^"\\]|\\.)*)(")/g
+
+export function scrubBusinessText(text: string): string {
+  if (typeof text !== 'string' || !BUSINESS_UPDATE.test(text)) return text
+  return text.replace(
+    TEXT_VALUE,
+    (_m, open: string, value: string, close: string) =>
+      `${open}<${value.length} chars hidden>${close}`
+  )
+}
+
 export function scrubbedLog(...parts: unknown[]): void {
   console.log(
-    ...parts.map(p => (typeof p === 'string' ? scrubCallbackSecrets(p) : p))
+    ...parts.map(p =>
+      typeof p === 'string' ? scrubBusinessText(scrubCallbackSecrets(p)) : p
+    )
   )
 }
