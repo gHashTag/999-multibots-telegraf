@@ -541,6 +541,9 @@ export const generateFluxKontext = async (
     })
 
     let errorMessageToUser = '❌ Произошла ошибка при редактировании.'
+    // Set only on the money branch below, so the button is offered where it
+    // helps and not on every failure.
+    let refusedForMoney = false
     if (error instanceof Error) {
       if (error.message && error.message.includes('NSFW content detected')) {
         errorMessageToUser = params.is_ru
@@ -550,6 +553,7 @@ export const generateFluxKontext = async (
         errorMessageToUser = params.is_ru
           ? '❌ Недостаточно звёзд для редактирования изображения.'
           : '❌ Not enough stars for image editing.'
+        refusedForMoney = true
       } else if (error.message) {
         const match = error.message.match(/{"detail":"(.*?)"/)
         if (match) {
@@ -587,9 +591,13 @@ export const generateFluxKontext = async (
     if (!params.suppressUserErrors) {
       // Проверяем наличие контекста перед отправкой сообщения об ошибке
       if (params.ctx && params.ctx.telegram) {
+        // A money refusal is the moment of highest intent in the product, and
+        // this one went out with NO keyboard at all -- the opposite of a next
+        // step. standardButtons puts top-up first.
         await params.ctx.telegram.sendMessage(
           params.telegram_id,
-          errorMessageToUser
+          errorMessageToUser,
+          refusedForMoney ? standardButtons(params.is_ru) : undefined
         )
       } else {
         console.error(
@@ -1080,6 +1088,7 @@ export const generateAdvancedFluxKontext = async (
     }
 
     let errorMessageToUser = '❌ Произошла ошибка при обработке изображения.'
+    let refusedForMoney = false
     if (error instanceof Error) {
       if (error.message && error.message.includes('NSFW content detected')) {
         errorMessageToUser = params.is_ru
@@ -1089,6 +1098,7 @@ export const generateAdvancedFluxKontext = async (
         errorMessageToUser = params.is_ru
           ? '❌ Недостаточно звёзд для обработки изображения.'
           : '❌ Not enough stars for image processing.'
+        refusedForMoney = true
       } else if (
         error.message &&
         error.message.includes('flagged as sensitive')
@@ -1134,11 +1144,16 @@ export const generateAdvancedFluxKontext = async (
     }
 
     if (params.ctx && params.ctx.telegram) {
+      // replyMarkup defaults to remove_keyboard and only becomes a retry
+      // keyboard for NSFW/interrupted. On a money refusal that left the person
+      // with the keyboard REMOVED and nowhere to go.
       await params.ctx.telegram.sendMessage(
         params.telegram_id,
         errorMessageToUser,
         {
-          reply_markup: replyMarkup,
+          reply_markup: refusedForMoney
+            ? standardButtons(params.is_ru).reply_markup
+            : replyMarkup,
         }
       )
     } else {
@@ -1382,11 +1397,13 @@ export const upscaleFluxKontextImage = async (params: {
     }
 
     let errorMessageToUser = '❌ Произошла ошибка при увеличении качества.'
+    let refusedForMoney = false
     if (error instanceof Error) {
       if (error.message && error.message.includes('Not enough stars')) {
         errorMessageToUser = params.is_ru
           ? '❌ Недостаточно звёзд для увеличения качества изображения.'
           : '❌ Not enough stars for image upscaling.'
+        refusedForMoney = true
       } else if (error.message) {
         const match = error.message.match(/{"detail":"(.*?)"/)
         if (match) {
@@ -1401,11 +1418,15 @@ export const upscaleFluxKontextImage = async (params: {
     }
 
     if (params.ctx && params.ctx.telegram) {
+      // Same as above: removing the keyboard is right for a generic failure
+      // and wrong for "you have not got enough stars".
       await params.ctx.telegram.sendMessage(
         params.telegram_id,
         errorMessageToUser,
         {
-          reply_markup: { remove_keyboard: true },
+          reply_markup: refusedForMoney
+            ? standardButtons(params.is_ru).reply_markup
+            : { remove_keyboard: true },
         }
       )
     } else {
