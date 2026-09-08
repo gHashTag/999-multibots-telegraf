@@ -21,6 +21,27 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const probeTimeoutMs = (): number =>
   Number(process.env.HEALTH_PROBE_TIMEOUT_MS) || 10_000
 
+/**
+ * WHAT TO DO ABOUT A PROVIDER, GIVEN WHAT IT WAS DOING BEFORE.
+ *
+ * Pure on purpose: inside the polling loop these four branches can only be
+ * exercised by an actual outage, and an outage cannot be summoned on demand.
+ *
+ *   'page'      down, and it was not before -- the owner learns once
+ *   'still'     down again -- the log keeps the record, nobody is woken
+ *   'recovered' back up after being down
+ *   'ok'        up, and it was up
+ */
+export type HealthAction = 'page' | 'still' | 'recovered' | 'ok'
+
+export function healthAction(
+  prev: { available: boolean } | undefined,
+  now: { available: boolean }
+): HealthAction {
+  if (!now.available) return !prev || prev.available ? 'page' : 'still'
+  return prev && !prev.available ? 'recovered' : 'ok'
+}
+
 async function notifyAdmin(message: string) {
   const chatId = process.env.ADMIN_CHAT_ID
   const token = process.env.BOT_TOKEN_1
@@ -222,11 +243,29 @@ export async function checkAllProviders(): Promise<
     providerStatuses[status.name] = status
 
     if (!status.available) {
-      logger.error(`🚨 Provider ${status.name} is DOWN`, {
-        reason: status.reason,
-      })
-      if (!prev || prev.available) {
+      /*
+       * THE LEVEL IS A ROUTING DECISION NOW, NOT A MOOD.
+       *
+       * This line ran on EVERY poll -- 288 times a day for a provider that has
+       * been down for weeks -- and that was harmless while `error` only reached
+       * a log file. It stopped being harmless the moment the owner's alert
+       * channel was switched on (#2235/#2236): winston forwards every `error`
+       * to their private chat, so a console line for whoever reads logs became
+       * a push notification every five minutes.
+       *
+       * The alert two lines below was ALREADY right: it fires on the
+       * transition only. So the fix is not to add deduplication, it is to stop
+       * a second, undesigned channel from shouting past the designed one.
+       *
+       * Nothing is lost from the log: still down is still recorded, at `warn`,
+       * with the same reason. Only the paging stops.
+       */
+      const line = `🚨 Provider ${status.name} is DOWN`
+      if (healthAction(prev, status) === 'page') {
+        logger.error(line, { reason: status.reason })
         alerts.push(`🔴 <b>${status.name}</b> — ${status.reason}`)
+      } else {
+        logger.warn(`${line} (still)`, { reason: status.reason })
       }
     } else if (prev && !prev.available) {
       logger.info(`✅ Provider ${status.name} recovered`)
