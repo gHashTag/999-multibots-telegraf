@@ -157,8 +157,14 @@ describe("it proposes, and the press is somebody else's", () => {
     expect(q.pendingCount()).toBe(0)
   })
 
-  it('outside the bot chat nothing is queued, and the answer says where to go', async () => {
-    stubNet()
+  it('outside the bot chat nothing is queued, NOTHING IS MINTED, and the answer says where to go', async () => {
+    /*
+     * The surface gate lived only in propose(). A call from the mini app or
+     * /mcp had by then already minted a real, payable invoice link and written
+     * a pending row -- for a draft that was dropped one line later. Found by
+     * the pre-merge probe; the gate now runs before any money moves.
+     */
+    const posted = stubNet()
     const { tool, q } = await seller()
     const r: any = await tool.handler(
       { chat: '@playom' },
@@ -166,6 +172,19 @@ describe("it proposes, and the press is somebody else's", () => {
     )
     expect(q.pendingCount()).toBe(0)
     expect(String(r.why)).toContain('чате бота')
+    expect(
+      posted.filter(p => p.url.includes('createInvoiceLink')),
+      'инвойс выпущен для черновика, который тут же выброшен'
+    ).toHaveLength(0)
+  })
+
+  it('a negative chat id is refused before anything is minted', async () => {
+    const posted = stubNet()
+    const { tool } = await seller()
+    await expect(
+      tool.handler({ chat: '-1001234567890' }, ownerCtx())
+    ).rejects.toThrow('не человек')
+    expect(posted.filter(p => p.url.includes('createInvoiceLink'))).toHaveLength(0)
   })
 })
 
@@ -204,6 +223,70 @@ describe('the touch follows the send, not the model', () => {
     expect(r.proposal).toBe(true)
     expect(q.pendingCount()).toBe(1)
     expect(r.touch).toContain('не запишется')
+  })
+
+  it('a stalled touch write does not hold up the owner\'s "sent"', async () => {
+    /*
+     * The message has already left. A pool that never answers must not turn
+     * a delivered message into a minute of spinner -- or, worse, into an
+     * "unknown outcome" the bot reports as possibly-not-sent.
+     */
+    vi.useFakeTimers()
+    vi.doMock('./src/agent/crm-touches', () => ({
+      recordTouch: () => new Promise(() => {}), // never resolves
+    }))
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() { return {} },
+        async getDialogs() { return [] },
+        async disconnect() {},
+      }),
+    }))
+    const { execute } = await import('./src/agent/tg-proposals')
+    const warned: string[] = []
+    const real = console.warn
+    console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(' ')) }
+    try {
+      const p = execute(
+        { id: 'p1', telegramId: OWNER, action: 'send', target: '@x', what: 'hi', lead: LEAD, createdAt: Date.now() } as any,
+        { telegramId: OWNER, pool: { query: async () => ({ rows: [] }) } }
+      )
+      await vi.advanceTimersByTimeAsync(3100)
+      const r = await p
+      expect(r.done, 'отправленное письмо отчитано как неотправленное').toBe(true)
+      expect(warned.join(' ')).toContain('timed out')
+    } finally {
+      console.warn = real
+      vi.useRealTimers()
+      vi.doUnmock('./src/agent/crm-touches')
+    }
+  })
+
+  it('a touch that was not recorded is said out loud, not swallowed', async () => {
+    vi.doMock('./src/agent/crm-touches', () => ({
+      recordTouch: async () => 'not recorded',
+    }))
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() { return {} },
+        async getDialogs() { return [] },
+        async disconnect() {},
+      }),
+    }))
+    const { execute } = await import('./src/agent/tg-proposals')
+    const warned: string[] = []
+    const real = console.warn
+    console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(' ')) }
+    try {
+      await execute(
+        { id: 'p1', telegramId: OWNER, action: 'send', target: '@x', what: 'hi', lead: LEAD, createdAt: Date.now() } as any,
+        { telegramId: OWNER, pool: { query: async () => ({ rows: [] }) } }
+      )
+    } finally {
+      console.warn = real
+      vi.doUnmock('./src/agent/crm-touches')
+    }
+    expect(warned.join(' ')).toContain('not recorded')
   })
 
   it('a confirmed send with a lead writes a "written" touch; without one, nothing', async () => {

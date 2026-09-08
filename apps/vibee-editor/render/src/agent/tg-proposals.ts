@@ -129,6 +129,9 @@ export type PublicProposal = Omit<PendingProposal, 'secret' | 'issued' | 'turn'>
  * field is gone.
  */
 
+/** How long a touch write may hold up the owner's "sent" after a real send. */
+const TOUCH_WRITE_MS = 3000
+
 /** How long an unconfirmed proposal survives. */
 const LIFETIME_MS = 10 * 60 * 1000
 
@@ -467,17 +470,36 @@ export async function execute(
          * failure -- the person would send it again.
          */
         if (p.lead && ctx.pool) {
+          /*
+           * BOUNDED, AND LOUD WHEN LOST.
+           *
+           * The message has left. A stalled pool must not hold the owner's
+           * "sent" for a minute after the fact, and a touch that failed to
+           * write must not vanish without a line -- the waiting list would be
+           * wrong with nobody knowing why.
+           */
           try {
             const { recordTouch } = await import('./crm-touches')
-            await recordTouch(ctx.pool as never, {
+            const write = recordTouch(ctx.pool as never, {
               owner: String(ctx.telegramId),
               lead: String(p.lead),
               botName: p.bot ?? null,
               kind: 'written',
               note: `отправлено из личного продавца: ${(p.what ?? '').slice(0, 80)}`,
             })
-          } catch {
-            // Memory is a convenience; delivery is the fact.
+            const outcome = await Promise.race([
+              write,
+              new Promise<'timed out'>(r => setTimeout(() => r('timed out'), TOUCH_WRITE_MS)),
+            ])
+            if (outcome !== 'recorded') {
+              console.warn(
+                `[proposal] touch not recorded (${String(outcome)}) lead=${p.lead} who=${String(ctx.telegramId)}`
+              )
+            }
+          } catch (e) {
+            console.warn(
+              `[proposal] touch write threw lead=${p.lead}: ${String(e).slice(0, 120)}`
+            )
           }
         }
         return { done: true, action: 'send' }

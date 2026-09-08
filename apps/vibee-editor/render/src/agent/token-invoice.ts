@@ -65,6 +65,11 @@ export async function mintTokenInvoice(
     throw new Error('касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан')
   }
   const forId = String(input.forTelegramId ?? '').trim()
+  if (/^-/.test(forId)) {
+    // Bot-API style: negative is a group or a channel. Tokens are credited to
+    // a PERSON, and stripping the sign would credit a random positive id.
+    throw new Error('это чат или канал, а не человек — токены зачисляются человеку')
+  }
   if (!/^\d{5,15}$/.test(forId)) {
     throw new Error('нужен числовой telegram_id получателя, а не имя')
   }
@@ -118,6 +123,12 @@ export async function mintTokenInvoice(
         [forId, tokens, stars]
       )
     } catch (e) {
+      // The console line stays: the journal lives in the same database that
+      // just failed, so when it matters most this may be the only trace.
+      console.warn(
+        '[STARS] pending-чек не записался:', // cyrillic-ok: pre-existing log text
+        String(e).slice(0, 120)
+      )
       try {
         void record(input.pool as never, {
           kind: 'payment',

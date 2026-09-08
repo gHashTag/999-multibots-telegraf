@@ -37,7 +37,8 @@ import { reachable } from './crm-touch-tools'
 /** The middle pack: enough to feel real, small enough to say yes to. */
 const DEFAULT_TOKENS = 50
 
-const NUMERIC = /^-?\d{5,15}$/
+/** A person's id. Negative is Bot-API style for a group or channel: refused. */
+const NUMERIC = /^\d{5,15}$/
 
 /**
  * A username or a numeric id, turned into the numeric id the payload needs.
@@ -51,7 +52,10 @@ export async function resolveLeadId(
   chat: string
 ): Promise<string> {
   const raw = String(chat ?? '').trim()
-  if (NUMERIC.test(raw)) return raw.replace(/^-/, '')
+  if (NUMERIC.test(raw)) return raw
+  if (/^-\d+$/.test(raw)) {
+    throw new Error('это чат или канал, а не человек — предложение адресуется человеку')
+  }
   if (!raw) throw new Error('не сказано, кому предлагать')
   const c = (await client(ctx)) as {
     getEntity?: (x: string) => Promise<{ id?: { toString(): string } }>
@@ -143,6 +147,25 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
       const tokens =
         Number(a?.tokens) > 0 ? Math.floor(Number(a.tokens)) : DEFAULT_TOKENS
 
+      /*
+       * SURFACE FIRST, BEFORE ANY MONEY MOVES.
+       *
+       * propose() queues only where a press is possible. Checking that only
+       * inside propose() meant a call from the mini app or /mcp had already
+       * minted a real, payable invoice link and written a pending row -- for
+       * a draft that was then dropped. Same words the queue would have used,
+       * one step earlier.
+       */
+      if (String(ctx?.surface ?? '') !== 'bot') {
+        return {
+          proposal: true,
+          action: 'send',
+          target: chat,
+          why:
+            'Подтвердить это можно только в чате бота — там есть кнопки ' +
+            '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
+        }
+      }
       // Owner-only, and the same refusal wording as every Telegram tool: this
       // sends from the owner's account, whatever the model was told.
       const leadId = await resolveLeadId(ctx, chat)

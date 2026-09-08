@@ -188,3 +188,47 @@ describe('the pending row', () => {
     expect(m.url).toContain('t.me')
   })
 })
+
+describe('a group or channel is not a person', () => {
+  it('a negative id is refused, not sign-stripped into a random user', async () => {
+    /*
+     * Bot-API style: -100… is a channel, -… a group. The first version
+     * accepted /^-?\d+$/ and stripped the sign, so tokens for a channel would
+     * have been credited to whichever PERSON happened to hold that positive
+     * id. Found by the pre-merge probe.
+     */
+    const { posted, f } = recorder()
+    await expect(
+      mintTokenInvoice({ forTelegramId: '-1001234567890', tokens: 10, fetchImpl: f, botToken: 't' })
+    ).rejects.toThrow('не человек')
+    expect(posted).toHaveLength(0)
+  })
+})
+
+describe('a failed pending row leaves a line where somebody can find it', () => {
+  it('console.warn fires even when the journal shares the broken database', async () => {
+    /*
+     * The journal lives in the same database as the row. When the row fails
+     * because the database is down, the journal fails too, and the first
+     * extraction of this helper dropped the console line -- leaving a DB
+     * outage with no trace anywhere. Reproduced by the pre-merge probe.
+     */
+    const warned: string[] = []
+    const real = console.warn
+    console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(' ')) }
+    try {
+      const { f } = recorder()
+      await mintTokenInvoice({
+        forTelegramId: '6579515876',
+        tokens: 10,
+        pool: { query: async () => { throw new Error('connection refused') } },
+        fetchImpl: f,
+        botToken: 't',
+      })
+    } finally {
+      console.warn = real
+    }
+    expect(warned.join(' ')).toContain('pending')
+    expect(warned.join(' ')).toContain('connection refused')
+  })
+})

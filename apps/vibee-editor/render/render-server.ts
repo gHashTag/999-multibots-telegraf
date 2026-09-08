@@ -7941,10 +7941,19 @@ const server = createServer(async (req, res) => {
            * rule and its status codes; only the minting moved.
            */
           const { mintTokenInvoice } = await import('./src/agent/token-invoice')
+          /*
+           * THE POOL IS BEST-EFFORT, LIKE THE ROW IT WRITES.
+           *
+           * The first delegation did `pool: await getPool()` and a database
+           * outage became a 500 with no link: a cashier that stops selling
+           * because bookkeeping is down. The route it replaced minted first
+           * and wrote the row inside its own try. Reproduced by the pre-merge
+           * probe with DATABASE_URL unset.
+           */
           const minted = await mintTokenInvoice({
             forTelegramId: String(who),
             tokens: запрошено,
-            pool: await getPool(),
+            pool: await getPool().catch(() => undefined),
             botToken: PAY_BOT,
           })
           res.writeHead(200, { 'Content-Type': 'application/json' })

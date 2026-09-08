@@ -84,3 +84,23 @@ describe('an invoice we cannot reconcile is visible, and still sold', () => {
     )
   })
 })
+
+describe('the cashier keeps selling when the database is down', () => {
+  it('the pool it hands the mint is best-effort, not a precondition', () => {
+    /*
+     * The first delegation did `pool: await getPool()` before minting, and a
+     * database outage became a 500 with no link -- a cashier that stops
+     * selling because bookkeeping is down, which the route it replaced never
+     * did. Reproduced by the pre-merge probe with DATABASE_URL unset.
+     */
+    const server = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'render-server.ts'),
+      'utf8'
+    )
+    const at = server.indexOf("feedPath === '/api/tokens/invoice'")
+    expect(at).toBeGreaterThan(-1)
+    const route = server.slice(at, at + 3000)
+    expect(route).toContain('getPool().catch(() => undefined)')
+    expect(route).not.toMatch(/pool:\s*await getPool\(\),/)
+  })
+})
