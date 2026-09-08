@@ -105,6 +105,8 @@ async function main() {
     '--train',
     `${dataset}/train.jsonl`
   )
+  const answersDir = arg('--answers-dir', null)
+  if (answersDir) flags.push('--answers-dir', answersDir)
   const score = await instrument('score-spec-answers.mjs', flags)
   const exec = await instrument('score-by-execution.mjs', flags)
 

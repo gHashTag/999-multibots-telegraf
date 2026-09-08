@@ -138,6 +138,45 @@ async function scoreAll(pairs, label) {
   return { valid: valid / n, relevant: relevant / n, substance: substance / n }
 }
 
+/**
+ * ANSWERS ARE MATCHED BY TASK NUMBER, NOT BY MODULE NAME.
+ *
+ * The module-name path exists above and is kept, but it has a failure mode that
+ * looks exactly like a bad model: an answer declaring the WRONG module never
+ * matches, is scored as empty, and the panel reports a low number with no hint
+ * that the harness -- not the model -- dropped it.
+ *
+ * A directory of `NN.t27` files keyed to the eval row index cannot do that. And
+ * because a silent zero-match would read as "the model wrote nothing", the
+ * count of matched answers is printed and asserted on: zero matched is a BROKEN
+ * HARNESS, not a score of zero.
+ */
+async function loadAnswerDir(dir, n) {
+  const { readdir } = await import('node:fs/promises')
+  const files = (await readdir(dir)).filter(f => /^\d+\./.test(f))
+  const byIndex = new Array(n).fill('')
+  let matched = 0
+  for (const f of files) {
+    const i = parseInt(f, 10)
+    if (!Number.isInteger(i) || i < 0 || i >= n) continue
+    byIndex[i] = await readFile(`${dir}/${f}`, 'utf8')
+    if (byIndex[i].trim()) matched++
+  }
+  console.log(`  ответов найдено: ${matched} из ${n}`)
+  if (matched === 0) {
+    console.log(
+      '\n⛔ НИ ОДИН ответ не сцепился с задачей. Это поломка сцепки, а не ' +
+        'оценка модели:\n   файлы обязаны называться NN.t27, где NN — номер ' +
+        'задачи от 00.'
+    )
+    process.exit(1)
+  }
+  if (matched < n) {
+    console.log(`  (${n - matched} задач без ответа считаются пустыми)`)
+  }
+  return byIndex
+}
+
 async function main() {
   const evalPath = arg('--eval', 'spec-dataset/eval.jsonl')
   const trainPath = arg('--train', 'spec-dataset/train.jsonl')
@@ -205,10 +244,20 @@ async function main() {
     return
   }
 
+  const answersDir = arg('--answers-dir', null)
+  if (answersDir) {
+    const answers = await loadAnswerDir(answersDir, references.length)
+    await scoreAll(
+      references.map((r, i) => ({ reference: r, answer: answers[i] })),
+      'модель'
+    )
+    return
+  }
+
   if (!answersPath) {
     console.error(
       'Нужен --answers <файл.jsonl> со строками {module_path, spec}, ' +
-        'или --self-test.'
+        '--answers-dir <каталог с NN.t27>, или --self-test.'
     )
     process.exit(2)
   }
