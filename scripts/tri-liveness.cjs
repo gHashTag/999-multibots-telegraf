@@ -20,23 +20,30 @@ const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
+/**
+ * Commands this sweep must not run, each with the reason it is skipped.
+ *
+ * KEYED BY THE NAME THE SWEEP ACTUALLY RUNS -- the FIRST alias of a branch,
+ * because that is what subcommands() returns. Half of an earlier version of
+ * this list named the Russian aliases, which the sweep never runs: nine
+ * entries that matched nothing and looked exactly like coverage. The test
+ * beside this file now fails if a key names no real subcommand, so a skip
+ * cannot quietly stop skipping.
+ */
 const SKIP = {
-  mutate: 'edits source to check a test bites',
-  мутация: 'edits source to check a test bites',
+  mutate: 'edits source to check that a test bites',
   lock: 'takes a shared lock other sessions wait on',
-  лок: 'takes a shared lock other sessions wait on',
   unlock: 'releases a lock this run never took',
-  раслок: 'releases a lock this run never took',
-  funnel: 'runs inside Railway, bills a remote service',
-  воронка: 'runs inside Railway, bills a remote service',
+  funnel: 'runs inside Railway and bills a remote service',
   stuck: 'runs inside Railway',
-  платежи: 'runs inside Railway',
   events: 'runs inside Railway',
-  события: 'runs inside Railway',
   keys: 'runs inside Railway and probes paid providers',
-  ключи: 'runs inside Railway and probes paid providers',
   lesson: 'appends to a skill file from stdin',
-  опыт: 'appends to a skill file from stdin',
+  // Killed mid-run it leaves probe-zzz-selfcheck-tmp.cjs in scripts/. The
+  // command cleans up when allowed to finish; this sweep gives each command a
+  // few seconds and then kills it, so the debris is the SWEEP's doing. A
+  // checker that dirties the tree it checks is not a checker.
+  'probes-check': 'writes a temp probe a killed run would leave behind',
 }
 
 function subcommands(triPath) {
@@ -50,8 +57,21 @@ function subcommands(triPath) {
   return out
 }
 
+/**
+ * BROKEN NEEDS BOTH A FAILING EXIT AND A FAILING MESSAGE.
+ *
+ * The message alone is not enough, and the first run of this sweep proved it:
+ * `tri status` prints a JSON report that CONTAINS "no such file or directory"
+ * -- as data, describing a file it looked for and did not find. It exits 0 and
+ * did exactly what it should. Matching the phrase alone called a working
+ * command broken.
+ *
+ * A command that fails says so with its exit code. Requiring both means a tool
+ * that REPORTS an error is no longer mistaken for a tool that IS one.
+ */
 function classify(out, code) {
   if (
+    code !== 0 &&
     /command not found|No such file|SyntaxError|Cannot find module|is not a function/i.test(
       out
     )
