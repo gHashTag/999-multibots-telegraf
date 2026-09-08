@@ -10,6 +10,7 @@
 import { Telegraf } from 'telegraf'
 import { logger } from '@/utils/logger'
 import { chatWithAI, ChatMessage } from '@/services/aiChatService'
+import { спроситьАгента, recordTurns } from '@/services/trinityAgent' // cyrillic-ok: pre-existing identifiers
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
 
 // --- Types (Telegraf 4.16.3 lacks native business event types) ---
@@ -260,29 +261,31 @@ function ensureToday(): void {
 
 // --- Sales system prompt ---
 
-const SALES_PROMPT = `Ты — личный ассистент владельца AI-бота. Отвечаешь от его имени в личных сообщениях.
-Твоя задача — помочь клиенту и предложить услуги бота.
-
-Услуги:
-- Генерация фото (NeuroPhoto, AI Photoshop, Face Swap)
-- Генерация видео (Text-to-Video, Image-to-Video, AI Reels)
-- Цифровое тело (Digital Avatar, LipSync)
-- Голос и озвучка (Text-to-Speech, Voice Clone)
-- AI Чат (GPT-4, Claude, DeepSeek)
-- Музыка (AI Cover, Music Generation)
-
-Тарифы:
-- Free: 3 генерации/день бесплатно
-- Basic: 299 руб/мес — 50 генераций
-- Pro: 699 руб/мес — безлимит
-- Studio: 1999 руб/мес — всё + API
-
-Правила:
-- Будь дружелюбным и кратким (2-4 предложения).
-- Отвечай на языке клиента.
-- Если спрашивают о функции — предложи попробовать в боте.
-- Если не знаешь ответ — скажи что передашь вопрос владельцу.
-- Не выдумывай цены и функции которых нет в списке.`
+const SALES_PROMPT = [
+  'Ты — личный ассистент владельца AI-бота. Отвечаешь от его имени в личных сообщениях.',
+  'Твоя задача — помочь клиенту и предложить услуги бота.',
+  '',
+  'Услуги:',
+  '- Генерация фото (NeuroPhoto, AI Photoshop, Face Swap)',
+  '- Генерация видео (Text-to-Video, Image-to-Video, AI Reels)',
+  '- Цифровое тело (Digital Avatar, LipSync)',
+  '- Голос и озвучка (Text-to-Speech, Voice Clone)',
+  '- AI Чат (GPT-4, Claude, DeepSeek)',
+  '- Музыка (AI Cover, Music Generation)',
+  '',
+  'Оплата:',
+  '- Тарифов и подписок НЕТ. Оплата — токенами за звёзды Telegram, счёт приходит',
+  '  прямо в этот чат. Не называй сумм по памяти: если человек хочет оплатить или',
+  '  спрашивает цену — скажи, что счёт придёт следующим сообщением, и предложи',
+  '  открыть бота (кнопка ниже).',
+  '',
+  'Правила:',
+  '- Будь дружелюбным и кратким (2-4 предложения).',
+  '- Отвечай на языке клиента.',
+  '- Если спрашивают о функции — предложи попробовать в боте.',
+  '- Если не знаешь ответ — скажи что передашь вопрос владельцу.',
+  '- Не выдумывай цены и функции которых нет в списке.',
+].join('\n')
 
 /**
  * The customer's Telegram display name is untrusted input (they choose it, up to
@@ -307,6 +310,43 @@ export function sanitizeSenderName(name: string | undefined): string {
  * and message go in a user role, where they are data the model answers rather
  * than instructions it obeys.
  */
+/**
+ * THE AGENT ANSWERS THE CLIENT, with its tools: an invoice when the client
+ * asks to pay (tokens_invoice), a picture when asked for one (the client's
+ * own tokens), the balance when they say they have paid. The old
+ * prompt-only responder stays as the fallback for the minute the render
+ * service is unreachable -- it can talk, it cannot bill, and it must never
+ * invent a tariff.
+ */
+export async function answerClient(
+  chatId: string,
+  text: string,
+  fallback: () => Promise<string>
+): Promise<string> {
+  try {
+    const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
+    const said = (answer.текст ?? '').trim() // cyrillic-ok: pre-existing field
+    if (said) {
+      void recordTurns(
+        chatId,
+        [
+          { role: 'user', content: text },
+          { role: 'assistant', content: said },
+        ],
+        'business'
+      )
+      return said
+    }
+    logger.warn('[Business] agent answered nothing, falling back', { chatId })
+  } catch (error) {
+    logger.warn('[Business] agent unreachable, falling back', {
+      chatId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+  return fallback()
+}
+
 export function buildBusinessMessages(
   text: string,
   senderName: string | undefined,
@@ -496,10 +536,12 @@ export async function handleBusinessMessage(
       } as any)
       .catch(() => undefined)
 
-    const reply = await chatWithAI(messages, undefined, {
-      telegramId: String(chatId),
-      botName: `business_${botUsername}`,
-    })
+    const reply = await answerClient(String(chatId), text, () =>
+      chatWithAI(messages, undefined, {
+        telegramId: String(chatId),
+        botName: `business_${botUsername}`,
+      })
+    )
 
     await sendAsOwner(reply, {
       reply_markup: {
