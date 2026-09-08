@@ -11,10 +11,11 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 114. Без заголовка: 0.
+Ратчетов: 115. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `aRefusalIsNotAnnouncedAsSuccess.test.ts`              | a refusal is shown as a refusal                                                               |
 | `aiCoverRefundChecked.test.ts`                         | aiCover refund result is checked and reported truthfully                                      |
 | `aiPhotoshopAllModelsConsumeInput.test.ts`             | aiPhotoshopScene all_models branch consumes input before returning (no stale re-charge)       |
 | `aiPhotoshopBatchRefundReconciled.test.ts`             | aiPhotoshopScene batch skipBalanceCheck calls reconcile refunds to the charge                 |

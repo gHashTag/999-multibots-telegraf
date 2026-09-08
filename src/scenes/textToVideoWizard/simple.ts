@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { getModelPriceStars } from '@/config/unified-video-models.config'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Простой wizard без коллбэков
 export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
@@ -262,8 +263,26 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
             ? '✅ Видео успешно сгенерировано!'
             : '✅ Video generated successfully!'
         )
+      } else if (response.error) {
+        /*
+         * A REFUSAL WAS BEING REPORTED AS A SUCCESS.
+         *
+         * This branch ran for every non-success result and printed
+         * `✅ ${response.message || 'Video generation started!'}`. A money
+         * refusal sets `error` and leaves `message` undefined, so somebody who
+         * had just been told they were short of stars saw a green tick and the
+         * words "generation started". The text of the refusal was never shown
+         * at all.
+         *
+         * Now the error is what goes out, with a way to pay when -- and only
+         * when -- money is what is missing.
+         */
+        await ctx.reply(
+          response.error,
+          response.insufficientFunds ? standardButtons(isRu) : undefined
+        )
       } else {
-        // Если есть только сообщение
+        // A result with neither a video nor an error: the job was accepted.
         await ctx.reply(
           isRu
             ? `✅ ${response.message || 'Генерация видео запущена!'}`
