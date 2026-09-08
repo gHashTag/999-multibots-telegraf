@@ -53,7 +53,114 @@ async function ensureTable(pool: Pool): Promise<void> {
     `CREATE INDEX IF NOT EXISTS crm_messages_lead_at
        ON crm_messages (owner_id, lead_id, at DESC)`
   )
+  // Who the ids are, as Telegram shows them. Without this a list of leads
+  // is a list of numbers, and the owner cannot tell who is who.
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS crm_people (
+       owner_id   text NOT NULL,
+       lead_id    text NOT NULL,
+       first_name text,
+       last_name  text,
+       username   text,
+       seen_at    timestamptz NOT NULL DEFAULT now(),
+       PRIMARY KEY (owner_id, lead_id)
+     )`
+  )
   tableReady = true
+}
+
+export interface PersonName {
+  firstName: string | null
+  lastName: string | null
+  username: string | null
+}
+
+const cut = (v: unknown, max: number): string | null => {
+  const s = String(v ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+  return s || null
+}
+
+/**
+ * Who this id is: first name, last name, username, as Telegram shows them.
+ * Written at ingest from the dialog's entity and REPLACED every time --
+ * people rename themselves, and the list must show the current name, not
+ * the one from the first sweep. Third-party text; cut to a name's length.
+ */
+export async function rememberPerson(
+  pool: Pool,
+  owner: string,
+  lead: string,
+  p: Partial<PersonName>
+): Promise<void> {
+  await ensureTable(pool)
+  await pool.query(
+    `INSERT INTO crm_people (owner_id, lead_id, first_name, last_name, username, seen_at)
+     VALUES ($1, $2, $3, $4, $5, now())
+     ON CONFLICT (owner_id, lead_id) DO UPDATE
+       SET first_name = EXCLUDED.first_name,
+           last_name  = EXCLUDED.last_name,
+           username   = EXCLUDED.username,
+           seen_at    = now()`,
+    [
+      owner,
+      lead,
+      cut(p.firstName, 64),
+      cut(p.lastName, 64),
+      cut(p.username, 32),
+    ]
+  )
+}
+
+/** Everybody the owner's ingest has named, by id. */
+export async function peopleFor(
+  pool: Pool,
+  owner: string
+): Promise<Map<string, PersonName>> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `SELECT lead_id, first_name, last_name, username FROM crm_people
+      WHERE owner_id = $1`,
+    [owner]
+  )
+  const map = new Map<string, PersonName>()
+  for (const x of r.rows as any[]) {
+    map.set(String(x.lead_id), {
+      firstName: x.first_name ?? null,
+      lastName: x.last_name ?? null,
+      username: x.username ?? null,
+    })
+  }
+  return map
+}
+
+/** One person by id, or null when the ingest never met them. */
+export async function personOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<PersonName | null> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `SELECT first_name, last_name, username FROM crm_people
+      WHERE owner_id = $1 AND lead_id = $2`,
+    [owner, lead]
+  )
+  const x = (r.rows as any[])[0]
+  if (!x) return null
+  return {
+    firstName: x.first_name ?? null,
+    lastName: x.last_name ?? null,
+    username: x.username ?? null,
+  }
+}
+
+/** "First Last", or null when neither is known. */
+export function fullName(p: PersonName | null | undefined): string | null {
+  const s = [p?.firstName, p?.lastName].filter(Boolean).join(' ').trim()
+  return s || null
 }
 
 /**
@@ -301,6 +408,11 @@ export type NextStep = 'reply' | 'deliver' | 'offer' | 'wait'
 
 export interface LeadCandidate {
   lead: string
+  /** As Telegram shows them; null until an ingest has met them. */
+  name: string | null
+  username: string | null
+  /** Their last message to the owner, raw third-party text. */
+  lastWords: string | null
   score: number
   signals: string[]
   total: number
@@ -349,6 +461,19 @@ export async function leadCandidates(
       ORDER BY at DESC`,
     [owner, new Date(now.getTime() - 90 * 86400_000)]
   )
+  const people = await peopleFor(pool, owner)
+  // Their last word, whenever it was: the line the owner reads to remember
+  // who this is before deciding anything.
+  const last = await pool.query(
+    `SELECT DISTINCT ON (lead_id) lead_id, text FROM crm_messages
+      WHERE owner_id = $1 AND NOT "out"
+      ORDER BY lead_id, at DESC`,
+    [owner]
+  )
+  const words = new Map<string, string>()
+  for (const r of last.rows as any[]) {
+    words.set(String(r.lead_id), String(r.text ?? ''))
+  }
   const texts = new Map<string, string[]>()
   for (const r of recent.rows) {
     const list = texts.get(String(r.lead_id)) ?? []
@@ -421,6 +546,9 @@ export async function leadCandidates(
     if (touch?.kind === 'refused' && score < 0 && !unanswered) next = 'wait'
     out.push({
       lead,
+      name: fullName(people.get(lead)),
+      username: people.get(lead)?.username ?? null,
+      lastWords: words.get(lead) || null,
       score,
       signals,
       total: Number(r.total),

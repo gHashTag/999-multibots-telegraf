@@ -1,10 +1,15 @@
 import type { AgentTool, ToolContext } from './tools'
 import { client, requireOwner, foreignText } from './telegram-tools'
-import { resolveLead } from './crm-offer-tool'
+import { resolveLead, displayOf, oneLine } from './crm-offer-tool'
+import { whoPaid, askSupabase } from './crm-tools'
+import { stageOf } from './crm-stages'
 import { balanceOf } from './billing-shared'
 import { touchedSince, touchesFor } from './crm-touches'
 import {
   rememberMessagesFresh,
+  rememberPerson,
+  personOf,
+  fullName,
   leadContext,
   leadCandidates,
   type StoredMessage,
@@ -56,6 +61,7 @@ interface DialogLike {
     support?: boolean
     deleted?: boolean
     firstName?: string
+    lastName?: string
     username?: string
   }
 }
@@ -121,6 +127,13 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           if (d.entity?.support || d.entity?.deleted) continue
           const lead = d.id?.toString() ?? ''
           if (!NUMERIC.test(lead) || SERVICE_IDS.has(lead)) continue
+          // The name as Telegram shows it, kept even when there is nothing
+          // new to read: a list of leads must say who is who.
+          await rememberPerson(pool, owner, lead, {
+            firstName: d.entity?.firstName ?? null,
+            lastName: d.entity?.lastName ?? null,
+            username: d.entity?.username ?? null,
+          }).catch(() => undefined)
           let raw: MessageLike[]
           try {
             raw = (await c.getMessages(lead, { limit: depth })) as MessageLike[]
@@ -192,9 +205,12 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       // A bare id we have messages for is a person we already know: no
       // Telegram round-trip. A @username goes through the owner's session.
       const lead = NUMERIC.test(raw)
-        ? { id: raw, display: null }
+        ? { id: raw, display: null as string | null }
         : await resolveLead(ctx, raw)
       const limit = clamp(a?.limit, 30, 100)
+      const person = await personOf(pool, owner, lead.id).catch(() => null)
+      const display =
+        lead.display ?? displayOf(fullName(person), person?.username) ?? null
       const story = await leadContext(pool, owner, lead.id, limit)
       const [touches, balance, zep] = await Promise.all([
         touchesFor(pool, owner, lead.id, 10).catch(() => []),
@@ -203,7 +219,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       ])
       return {
         lead: lead.id,
-        display: lead.display ?? undefined,
+        display: display ?? undefined,
+        name: fullName(person),
+        username: person?.username ?? null,
         messages_kept: story.total,
         waiting_for_reply: story.unanswered,
         last_inbound: story.lastInboundAt?.toISOString() ?? null,
@@ -255,18 +273,72 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         limit: clamp(a?.limit, 15, 50),
         touched,
       })
+      /*
+       * FULL DATA, NOT A LIST OF NUMBERS.
+       *
+       * The owner asked who these people were: the first version showed
+       * ids and a score. Names come from the ingest (Telegram, current), and
+       * for people the ingest has not met yet, from the bot's own base. The
+       * stage is derived from money and touches, as everywhere else in the
+       * CRM -- never a column somebody has to remember to update.
+       */
+      const paid = await whoPaid().catch(() => new Set<string>())
+      const nameless = list
+        .filter(l => !l.name && !l.username)
+        .map(l => l.lead)
+        .slice(0, 50)
+      const fromBase = new Map<
+        string,
+        { first_name?: string | null; username?: string | null }
+      >()
+      if (nameless.length) {
+        try {
+          const rows = await askSupabase<{
+            telegram_id: string | number
+            first_name?: string | null
+            username?: string | null
+          }>(
+            `users?select=telegram_id,first_name,username&telegram_id=in.(${nameless.join(',')})`
+          )
+          for (const r of rows) fromBase.set(String(r.telegram_id), r)
+        } catch {
+          // The base is optional here: the list still shows ids.
+        }
+      }
       return {
-        candidates: list.map(l => ({
-          lead: l.lead,
-          score: l.score,
-          next: l.next,
-          because: l.because,
-          signals: l.signals,
-          waiting_for_reply: l.unanswered,
-          days_since_their_last_word: l.daysSinceInbound,
-          messages: l.total,
-          last_touch: l.lastTouch,
-        })),
+        candidates: list.map(l => {
+          const base = fromBase.get(l.lead)
+          const name = l.name ?? base?.first_name ?? null
+          const username = l.username ?? base?.username ?? null
+          const st = stageOf({
+            paid: paid.has(l.lead),
+            touches: (l.lastTouch ? [l.lastTouch] : []) as never,
+            quietDays: l.daysSinceInbound,
+          })
+          return {
+            lead: l.lead,
+            name: name ? oneLine(name, 40) || null : null,
+            username: username ? oneLine(username, 32) || null : null,
+            display: displayOf(name, username),
+            score: l.score,
+            next: l.next,
+            because: l.because,
+            stage: st.stage,
+            stage_because: st.because,
+            paid: paid.has(l.lead),
+            signals: l.signals,
+            waiting_for_reply: l.unanswered,
+            days_since_their_last_word: l.daysSinceInbound,
+            last_inbound: l.lastInboundAt?.toISOString() ?? null,
+            messages: l.total,
+            inbound: l.inbound,
+            // Their words, framed: data for the model, a quote for the owner.
+            last_words: l.lastWords
+              ? foreignText(oneLine(l.lastWords, 160))
+              : null,
+            last_touch: l.lastTouch,
+          }
+        }),
         how_to_read:
           'reply — человек ждёт ответа: ответь по сути, потом продажа. deliver — просил услугу ' +
           'и спрашивал цену: crm_deliver_photo. offer — crm_offer. wait — не трогать. ' +
