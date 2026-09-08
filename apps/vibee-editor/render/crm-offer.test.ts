@@ -51,12 +51,21 @@ function stubNet(opts: { leadInBase?: boolean; telegramOk?: boolean } = {}) {
 }
 
 /** The owner's session: knows the username, hands back the numeric id. */
-function ownerSession(entities: Record<string, string> = { '@playom': LEAD }) {
+function ownerSession(
+  entities: Record<string, string> = { '@playom': LEAD },
+  shape: Record<string, { className?: string; bot?: boolean }> = {}
+) {
   return {
     async getEntity(x: string) {
       const id = entities[x]
       if (!id) throw new Error('Could not find the input entity')
-      return { id: { toString: () => id } }
+      // Real GramJS entities carry className; a User by default, as a person
+      // would resolve to.
+      return {
+        id: { toString: () => id },
+        className: 'User',
+        ...(shape[x] ?? {}),
+      }
     },
     async disconnect() {},
   }
@@ -418,5 +427,57 @@ describe("somebody else's words cannot outrank the payment link", () => {
       url: 'https://t.me/$inv',
     })
     expect(text.split('\n\n')[0].length).toBeLessThan(60)
+  })
+})
+
+describe('a person, not a place', () => {
+  it.each([
+    ['@ourcommunity', 'Channel', 'канал'],
+    ['https://t.me/joinchat/abcINVITE', 'Chat', 'группа'],
+  ])(
+    '%s resolves to a %s and is refused before any mint',
+    async (chat, className, word) => {
+      /*
+       * A channel's or group's .id is a BARE positive integer in the same
+       * range as user ids. It passed the numeric check and went into the
+       * payload; a member who paid would credit a phantom row or an unrelated
+       * person holding that number. Reproduced by the pre-merge probe.
+       */
+      const posted = stubNet()
+      const { tool } = await seller(
+        ownerSession({ [chat]: '1234567890' }, { [chat]: { className } })
+      )
+      await expect(tool.handler({ chat }, ownerCtx())).rejects.toThrow(word)
+      expect(
+        posted.filter(p => p.url.includes('createInvoiceLink'))
+      ).toHaveLength(0)
+    }
+  )
+
+  it('a bot is refused: it cannot pay an invoice', async () => {
+    const posted = stubNet()
+    const { tool } = await seller(
+      ownerSession(
+        { '@somebot': '777000777' },
+        { '@somebot': { className: 'User', bot: true } }
+      )
+    )
+    await expect(
+      tool.handler({ chat: '@somebot' }, ownerCtx())
+    ).rejects.toThrow('бот')
+    expect(
+      posted.filter(p => p.url.includes('createInvoiceLink'))
+    ).toHaveLength(0)
+  })
+
+  it('a number with a leading zero is not an id', async () => {
+    const posted = stubNet()
+    const { tool } = await seller()
+    await expect(
+      tool.handler({ chat: '000123456' }, ownerCtx())
+    ).rejects.toThrow('нуля')
+    expect(
+      posted.filter(p => p.url.includes('createInvoiceLink'))
+    ).toHaveLength(0)
   })
 })

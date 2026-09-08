@@ -57,6 +57,9 @@ export async function resolveLeadId(
   chat: string
 ): Promise<string> {
   const raw = String(chat ?? '').trim()
+  if (/^0\d+$/.test(raw)) {
+    throw new Error('telegram_id не начинается с нуля — это не id')
+  }
   if (NUMERIC.test(raw)) {
     /*
      * A BARE NUMBER IS ACCEPTED ONLY FOR A PERSON WE ALREADY KNOW.
@@ -88,7 +91,12 @@ export async function resolveLeadId(
   }
   if (!raw) throw new Error('не сказано, кому предлагать')
   const c = (await client(ctx)) as {
-    getEntity?: (x: string) => Promise<{ id?: { toString(): string } }>
+    getEntity?: (x: string) => Promise<{
+      id?: { toString(): string }
+      className?: string
+      bot?: boolean
+      self?: boolean
+    }>
     disconnect?: () => Promise<unknown>
   }
   try {
@@ -99,11 +107,33 @@ export async function resolveLeadId(
      * the numeric id that tg_dialogs already shows.
      */
     let id: string | undefined
+    let kind: string | undefined
+    let isBot = false
     try {
       const entity = await c.getEntity?.(raw)
       id = entity?.id?.toString()
+      kind = entity?.className
+      isBot = Boolean(entity?.bot)
     } catch {
       id = undefined
+    }
+    /*
+     * A PERSON, NOT A PLACE.
+     *
+     * `@ourcommunity` and a t.me/joinchat link resolve to an Api.Channel or
+     * Api.Chat whose `.id` is a BARE positive integer -- the same shape as a
+     * user id, in an overlapping range. It passes the numeric check, goes into
+     * the payload, and any member who pays sends their Stars to a phantom row
+     * or to an unrelated real person who happens to hold that number.
+     * Reproduced by the pre-merge probe against the installed GramJS.
+     */
+    if (id && kind && kind !== 'User') {
+      throw new Error(
+        `${raw} — это ${kind === 'Channel' ? 'канал' : 'группа'}, а не человек; предложение адресуется человеку`
+      )
+    }
+    if (id && isBot) {
+      throw new Error(`${raw} — это бот, он не может оплатить счёт`)
     }
     if (!id || !NUMERIC.test(id)) {
       throw new Error(
