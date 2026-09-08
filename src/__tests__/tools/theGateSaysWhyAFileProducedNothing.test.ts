@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /*
  * "COULD NOT ENUMERATE" AND "CANNOT BE LOADED HERE" ARE DIFFERENT FACTS.
@@ -44,8 +46,7 @@ describe('the gate says why a file produced no tests', () => {
   it('actually captures stderr, rather than discarding it as before', () => {
     // The bug was not the parsing, it was that stderr went to 'ignore'. A
     // perfect extractor over a discarded stream returns null forever.
-    const at = SRC.indexOf('function collectedNames')
-    const block = SRC.slice(at, at + 900)
+    const block = sliceFrom(SRC, 'function collectedNames', 900)
     expect(block).toContain("stdio: ['ignore', 'pipe', 'pipe']")
     expect(block).not.toContain("stdio: ['ignore', 'pipe', 'ignore']")
   })

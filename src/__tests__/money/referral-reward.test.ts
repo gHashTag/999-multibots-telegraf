@@ -32,6 +32,8 @@ import {
   referralInvoiceId,
   REFERRAL_BONUS_STARS,
 } from '@/core/referral/rewardInviter'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 beforeEach(() => {
   directPaymentProcessor.mockReset()
@@ -71,7 +73,7 @@ describe('награда за приглашение', () => {
     // Проверяем сам исходник: `Date.now()` или uuid здесь означали бы, что
     // повтор пройдёт как новая выплата.
     const src = fs.readFileSync('src/core/referral/rewardInviter.ts', 'utf8')
-    const fn = src.slice(src.indexOf('export function referralInvoiceId'))
+    const fn = sliceFrom(src, 'export function referralInvoiceId')
     const body = fn.slice(0, fn.indexOf('\n}'))
     expect(body).not.toMatch(/Date\.now|Math\.random|uuid/i)
   })

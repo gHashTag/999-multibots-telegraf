@@ -51,9 +51,33 @@ describe('a missing anchor must fail loudly', () => {
     expect(() => sliceFrom(SRC, 'epsilon')).toThrow()
   })
 
-  it('sliceBetween stops at the closing anchor, or runs to the end', () => {
+  it('sliceBetween stops at the closing anchor', () => {
     expect(sliceBetween(SRC, 'beta', 'delta')).toBe('beta\ngamma\n')
-    expect(sliceBetween(SRC, 'gamma', 'omega')).toBe('gamma\ndelta')
-    expect(() => sliceBetween(SRC, 'omega', 'delta')).toThrow()
+    expect(() => sliceBetween(SRC, 'omega', 'delta')).toThrow(
+      /anchor not found/
+    )
+  })
+
+  it('a missing CLOSING anchor throws too -- the region must not grow silently', () => {
+    /*
+     * The same defect wearing the opposite face, and I shipped it hours ago
+     * documented as a convenience.
+     *
+     * A region that cannot find its END does not shrink to nothing: it grows
+     * from the opening anchor to the end of the file. Measured on the real
+     * subject, a 517-character function became 5,990 characters and every
+     * POSITIVE assertion over it still passed, because what they looked for was
+     * somewhere in those 5,990 characters.
+     *
+     * So a vacuous pass is reachable through positive assertions too, and
+     * "negative assertions are the dangerous ones" was too narrow a rule.
+     */
+    expect(() => sliceBetween(SRC, 'gamma', 'omega')).toThrowError(
+      /closing anchor not found.*omega/
+    )
+    // the shape it replaces: silently the whole tail, and a positive assertion
+    // over it is satisfied by anything that happens to be down there
+    const grown = SRC.slice(SRC.indexOf('gamma'))
+    expect(grown).toContain('delta')
   })
 })

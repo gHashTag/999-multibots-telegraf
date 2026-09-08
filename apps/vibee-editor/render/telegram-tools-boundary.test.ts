@@ -11,6 +11,8 @@ import {
   pendingFor,
   pendingCount,
 } from './src/agent/tg-proposals'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * The boundary, asserted rather than trusted.
@@ -364,7 +366,7 @@ describe('читать можно только свой аккаунт', () => {
       path.join(__dirname, 'src', 'agent', 'telegram-tools.ts'),
       'utf8'
     )
-    const body = src.slice(src.indexOf('function propose('))
+    const body = sliceFrom(src, 'function propose(')
     const before = body.slice(0, body.indexOf('remember('))
     expect(before).toContain('requireIdentity(')
   })

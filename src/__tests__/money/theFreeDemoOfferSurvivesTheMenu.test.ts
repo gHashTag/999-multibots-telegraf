@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /*
  * The end of the free demo is the one moment in this funnel where a person has
@@ -67,14 +69,14 @@ describe('the offer at the end of the free demo survives the menu that follows',
     const scene = strip(read(SCENE))
     const block = limitReply()
     const cb = /'([a-z_]+)'\s*\)\s*,?\s*\]/.exec(
-      block.slice(block.indexOf('Markup.button.callback'))
+      sliceFrom(block, 'Markup.button.callback')
     )
     expect(cb, 'the offer must carry a callback id').not.toBeNull()
     const id = cb![1]
 
     // This path leaves the scene before the menu is shown, so a scene-scoped
     // handler would never see the press.
-    expect(scene.slice(scene.indexOf('ctx.reply(limitMessage'))).toContain(
+    expect(sliceFrom(scene, 'ctx.reply(limitMessage')).toContain(
       'scene.leave()'
     )
 

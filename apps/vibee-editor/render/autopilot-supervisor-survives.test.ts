@@ -2,6 +2,11 @@ import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { EventEmitter } from 'events'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const {
+  sliceBetween,
+  sliceFrom,
+} = require('../../../scripts/lib/anchored-slice.cjs')
 
 /*
  * THE FACTORY HAS PUBLISHED NOTHING FOR 382 HOURS AND NOTHING SAID SO.
@@ -41,9 +46,7 @@ describe('a supervised autopilot cannot take the server down, and cannot stop qu
   })
 
   it('the autopilot child listens for both endings', () => {
-    const at = SRC.indexOf('const startAutopilot = ')
-    expect(at, 'the supervisor must still exist').toBeGreaterThan(-1)
-    const block = SRC.slice(at, at + 2500)
+    const block = sliceFrom(SRC, 'const startAutopilot = ', 2500)
     expect(block, 'a spawn that cannot start would crash the server').toContain(
       "child.on('error'"
     )
@@ -51,16 +54,16 @@ describe('a supervised autopilot cannot take the server down, and cannot stop qu
   })
 
   it('both endings reach the journal, not only the console', () => {
-    const at = SRC.indexOf('const startAutopilot = ')
-    const block = SRC.slice(at, at + 2500)
+    const block = sliceFrom(SRC, 'const startAutopilot = ', 2500)
     const calls = [...block.matchAll(/noteAutopilotStop\(/g)]
     expect(
       calls.length,
       'each ending must record, not just log'
     ).toBeGreaterThanOrEqual(2)
-    const note = SRC.slice(
-      SRC.indexOf('const noteAutopilotStop'),
-      SRC.indexOf('const startAutopilot')
+    const note = sliceBetween(
+      SRC,
+      'const noteAutopilotStop',
+      'const startAutopilot'
     )
     expect(note).toContain("severity: 'attention'")
   })
@@ -68,9 +71,18 @@ describe('a supervised autopilot cannot take the server down, and cannot stop qu
   it('recording a stop can never itself become the failure', () => {
     // The journal lives in the same database the autopilot needs. A write that
     // threw here would replace one silent failure with two.
-    const note = SRC.slice(
-      SRC.indexOf('const noteAutopilotStop'),
-      SRC.indexOf('const startAutopilot')
+    /*
+     * The closing anchor matters more here than the opening one. `try {` and
+     * `catch` occur all over a 410KB file, so if `const startAutopilot` ever
+     * disappeared the region would run from noteAutopilotStop to end of file
+     * -- measured at 5,990 characters instead of 517 -- and BOTH assertions
+     * below would still pass, on text that is not this function. sliceBetween
+     * refuses that.
+     */
+    const note = sliceBetween(
+      SRC,
+      'const noteAutopilotStop',
+      'const startAutopilot'
     )
     expect(note).toContain('try {')
     expect(note).toContain('catch')

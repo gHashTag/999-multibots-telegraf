@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Telegraf, Telegram, session } from 'telegraf'
 import { replyWitness, deadPressNet } from '@/navigation/middleware/noSilence'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * NOTHING REACHES ANOTHER PERSON WITHOUT A PRESS.
@@ -268,14 +270,12 @@ describe('both buttons are wired, and the press is what acts', () => {
         `${marker} no longer clears its buttons`
       ).toContain('stripButtons(ctx)')
     }
-    const strip = SOURCE.slice(SOURCE.indexOf('const stripButtons'))
+    const strip = sliceFrom(SOURCE, 'const stripButtons')
     expect(strip.slice(0, 200)).toContain('editMessageReplyMarkup(undefined)')
   })
 
   it('answerCbQuery comes before the work, per the project rule', () => {
-    const ok = SOURCE.slice(
-      SOURCE.indexOf('bot.action(/^tgp:ok:([^:]+):(.+)$/')
-    )
+    const ok = sliceFrom(SOURCE, 'bot.action(/^tgp:ok:([^:]+):(.+)$/')
     const answered = ok.indexOf('answerCbQuery')
     const acted = ok.indexOf('confirmProposal')
     expect(answered).toBeGreaterThan(-1)
@@ -735,8 +735,11 @@ describe('a photo card shows the service under the same two buttons', () => {
 
   it('the bot sends a photo card as a photo, and falls back to the link', () => {
     // Source-level: the handler that draws the card is not bootable here.
-    const gate = SOURCE.indexOf("ctx.chat?.type === 'private' && draft")
-    const block = SOURCE.slice(gate, gate + 1400)
+    const block = sliceFrom(
+      SOURCE,
+      "ctx.chat?.type === 'private' && draft",
+      1400
+    )
     expect(block).toContain('if (!card.photo)')
     expect(block).toContain('sendPhotoWithFallback(ctx, card.photo')
     expect(block).toContain('reply_markup: card.markup.reply_markup')
