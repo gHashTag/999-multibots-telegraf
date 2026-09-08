@@ -3,17 +3,8 @@ import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { telegramLogService } from '@/services/telegram-log.service'
 
-// Заглушка для supportRequest (заменена на telegramLogService)
-const supportRequest = (message: string, data: any) => {
-  // Отправляем в группу НейроМентор
-  telegramLogService
-    .logError({
-      error: message,
-      context: data.method || 'supportRequest',
-      botName: data.bot_name,
-    })
-    .catch(err => logger.warn('Failed to send error to log group:', err))
-}
+// supportRequest is gone with its only call site: it existed to reach the
+// owner, and winston's transport now does that for every logger.error, once.
 
 // Интерфейс для типизации ошибки Telegram API
 interface TelegramError {
@@ -96,18 +87,26 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         update_id: ctx?.update?.update_id,
       })
 
-      // Отправляем уведомление в канал поддержки
-      supportRequest('🚨 Ошибка авторизации Telegram API', {
-        bot_name: ctx?.botInfo?.username || 'unknown',
-        error: error.message,
-        token_prefix: ctx?.telegram?.token
-          ? ctx.telegram.token.substring(0, 10) + '...'
-          : 'unknown',
-        method: error.on?.method || 'unknown',
-        time: new Date().toISOString(),
-      })
+      /*
+       * The second delivery is gone here too. `logger.error` above already
+       * carries this to the owner, and the duplicate restated the same four
+       * fields with a timestamp appended -- one event, two pushes.
+       */
     } else if (isForbiddenError) {
-      logger.warn('🔒 Ошибка доступа Telegram API:', {
+      /*
+       * ONE LINE, AT THE LEVEL THAT MATCHES WHERE IT GOES.
+       *
+       * This branch wrote a `warn` for the file and then called the service
+       * directly for the owner -- two statements for one event, and the direct
+       * call is the one path that bypasses the transport's throttle, so a 403
+       * storm arrived unthrottled. The information in both was identical.
+       *
+       * `error` rather than `warn`, because the level is now a routing decision
+       * and this DOES reach the owner: a 403 that is not "the user blocked the
+       * bot" (handled above, deliberately unreported) means the bot cannot act
+       * for somebody, which is worth knowing once.
+       */
+      logger.error('🔒 Ошибка доступа Telegram API:', {
         description: 'Telegram API Forbidden Error',
         bot_name: ctx?.botInfo?.username || 'unknown',
         user_id: userId,
@@ -117,17 +116,6 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         method: error.on?.method || 'unknown',
         update_id: ctx?.update?.update_id,
       })
-
-      // Логируем в группу НейроМентор
-      telegramLogService
-        .logError({
-          telegramId: userId?.toString(),
-          username: username,
-          error: error.message || 'Forbidden Error',
-          context: `403 Forbidden: ${error.on?.method || 'unknown'}`,
-          botName: ctx?.botInfo?.username,
-        })
-        .catch(() => {})
     } else {
       logger.error('❌ Ошибка Telegram API:', {
         description: 'Telegram API Error',
@@ -141,16 +129,13 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         update_id: ctx?.update?.update_id,
       })
 
-      // Логируем критические ошибки в группу НейроМентор
-      telegramLogService
-        .logError({
-          telegramId: userId?.toString(),
-          username: username,
-          error: error.message || 'Unknown Telegram API Error',
-          context: `${error.on?.method || 'unknown'} (code: ${error_code || 'N/A'})`,
-          botName: ctx?.botInfo?.username,
-        })
-        .catch(() => {})
+      /*
+       * The direct call that used to sit here is gone: `logger.error` above
+       * already reaches the owner through winston's transport, so this was a
+       * SECOND copy of one event -- and the copy skipped the throttle, which is
+       * why a broken dependency in a shared handler produced two pushes per
+       * failing update instead of one per window.
+       */
     }
 
     // Возвращаем Promise<void> вместо boolean
@@ -182,7 +167,19 @@ export const setupGlobalErrorHandlers = (): void => {
   globalHandlersRegistered = true
 
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled promise rejection', {
+    /*
+     * THE DISCRIMINATOR BELONGS IN THE MESSAGE, NOT ONLY IN THE META.
+     *
+     * Alerts are deduplicated by their message text, and this one was the same
+     * constant string for every rejection in the process -- so two DIFFERENT
+     * failures would have been reported as one incident and the second would
+     * never be seen. The first line of the reason is enough to tell them apart
+     * and short enough not to turn every repeat into a new incident.
+     */
+    const why = (
+      reason instanceof Error ? reason.message : String(reason)
+    ).split('\n')[0]
+    logger.error(`Unhandled promise rejection: ${why.slice(0, 120)}`, {
       reason: reason instanceof Error ? reason.stack : String(reason),
       promise: String(promise),
     })
