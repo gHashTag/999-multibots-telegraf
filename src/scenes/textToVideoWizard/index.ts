@@ -24,7 +24,12 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const keyboardRows = generateModelKeyboard('text', isRu)
 
       if (keyboardRows.length === 0) {
-        console.error('🎬 [WIZARD] Step 1: NO TEXT MODELS FOUND!')
+        // Same outage on the text side, and it was equally invisible: see the
+        // comment in imageToVideoWizard.
+        logger.error(
+          '[T2V] model catalog is EMPTY — text-to-video is down for every user',
+          { scene: 'textToVideoWizard', step: 0 }
+        )
         await ctx.reply('❌ Модели не найдены. Попробуйте позже.')
         return ctx.scene.leave()
       }
