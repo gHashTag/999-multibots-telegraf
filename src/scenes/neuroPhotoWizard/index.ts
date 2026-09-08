@@ -29,6 +29,8 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 // ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
 import { getBotNameByToken } from '@/core/bot'
+import { ACTION_PREFIX } from '@/navigation/helpers/actionButtons'
+import { track } from '@/services/trackEvent'
 
 interface NeuroPhotoWizardSession extends Scenes.WizardSessionData {
   userModels?: ModelTraining[]
@@ -686,6 +688,26 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   if (callbackData === 'change_size') {
     console.log('🔄 [CALLBACK] Изменить размер')
     await ctx.scene.enter(ModeEnum.SizeWizard)
+    return
+  }
+
+  /*
+   * THE ONE SCENE THAT SWALLOWS WHAT IT DOES NOT KNOW.
+   *
+   * This handler's fallback is a console.log and no next(), so a bot-level
+   * button pressed inside this wizard is answered and then dropped. It is the
+   * only scene in the tree with a catch-all callback handler, measured -- every
+   * other scene lets an unrecognised press through to the bot.
+   *
+   * So the top-up button drawn on the result keyboard has to be recognised HERE
+   * or it would be exactly the dead button this project keeps fixing. Mirrors
+   * bot.action(`${ACTION_PREFIX}topup`) in registerCommands: record the funnel
+   * step without making anybody wait for it, then open the payment scene. The
+   * press is already answered at the top of this handler.
+   */
+  if (callbackData === `${ACTION_PREFIX}topup`) {
+    void track(ctx as any, 'topup_opened')
+    await ctx.scene.enter(ModeEnum.StarPaymentScene)
     return
   }
 
