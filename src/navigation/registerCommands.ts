@@ -626,7 +626,10 @@ If not, continue on your own and click the "I myself" button`
         `📊 Telegram Business Stats\n\n` +
           `Active connections: ${s.activeConnections}\n` +
           `Messages today: ${s.todayMessages}\n` +
-          `Unique users today: ${s.todayUniqueUsers}\n\n` +
+          `Unique users today: ${s.todayUniqueUsers}\n` +
+          `Leads sent to owner today: ${s.todayLeads}\n` +
+          `Non-text messages today: ${s.todayNonText}\n` +
+          `Skipped (owner replied): ${s.todayTakeoverSkipped}\n\n` +
           `Connections:\n${connList}`
       )
     })
