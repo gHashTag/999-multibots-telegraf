@@ -7977,10 +7977,42 @@ const server = createServer(async (req, res) => {
               [who, pack.tokens, pack.stars]
             )
           } catch (e) {
+            /*
+             * A PAYMENT LINK WE CANNOT RECONCILE IS STILL HANDED OUT -- SO SAY SO.
+             *
+             * Two nets catch a Stars payment: the webhook credits it directly,
+             * and this pending row lets the verify route find it later by
+             * matching the person's star transactions, webhook-independently.
+             * The row is written best-effort and the link is returned either
+             * way, which is the right call -- refusing to sell because a
+             * bookkeeping row failed would block payments the webhook handles
+             * perfectly well.
+             *
+             * What was wrong is that the two nets could fail together in
+             * silence: console.warn goes to a log nobody reads, and the moment
+             * the fallback matters is exactly the moment the webhook did not
+             * fire. The journal is where this service already puts money
+             * events that need a human (a credit arriving without a charge id
+             * is filed the same way), so it goes there, naming the person and
+             * the amount, at attention.
+             */
             console.warn(
-              '[STARS] pending-чек не записался:',
+              '[STARS] pending-чек не записался:', // cyrillic-ok: existing log text
               String(e).slice(0, 120)
             )
+            try {
+              void record(await getPool(), {
+                kind: 'payment',
+                who: String(who),
+                amount: pack.stars,
+                what: 'счёт выдан без pending-строки: сверка по звёздам его не найдёт', // cyrillic-ok: journal text, read by the owner in Russian
+                severity: 'attention',
+              })
+            } catch {
+              // The journal lives in the same database. If it is down too,
+              // the console line above is all there is, and saying that here
+              // is better than a second unexplained failure.
+            }
           }
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true, link: tgd.result }))
