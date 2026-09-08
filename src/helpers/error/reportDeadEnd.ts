@@ -38,10 +38,39 @@ export function shouldReport(
   return true
 }
 
-/** Session field names present right now. Names only. */
+/**
+ * Session field names present right now. Names only -- and whether each one
+ * actually holds anything.
+ *
+ * "PRESENT" AND "HAS A VALUE" ARE DIFFERENT, AND THE REPORT CONTRADICTED ITSELF
+ * OVER IT. `defaultSession` in src/store/index.ts sets `imageUrl: ''`, the
+ * wizard guards with `if (!imageUrl)`, and the empty string is falsy -- so after
+ * any /start reset the branch fires with the key sitting right there. The first
+ * version of this reporter then said, in one message:
+ *
+ *   "session has no imageUrl -- session held (27): ..., imageUrl, ..."
+ *
+ * A reader believes the second half and stops. The evidence has to survive being
+ * read by someone who did not write it.
+ *
+ * `(empty)` is a shape, not a value: '' , null, undefined, [] and {} are all
+ * "the key exists and carries nothing". Values themselves never appear here --
+ * these fields hold prompts and file links that carry a bot token.
+ */
 export function sessionKeysOf(session: unknown): string[] {
   if (!session || typeof session !== 'object') return []
-  return Object.keys(session as Record<string, unknown>).sort()
+  const obj = session as Record<string, unknown>
+  return Object.keys(obj)
+    .sort()
+    .map(k => (isEmpty(obj[k]) ? `${k}(empty)` : k))
+}
+
+/** Carries nothing, whatever its type says. */
+export function isEmpty(v: unknown): boolean {
+  if (v === undefined || v === null || v === '') return true
+  if (Array.isArray(v)) return v.length === 0
+  if (typeof v === 'object') return Object.keys(v as object).length === 0
+  return false
 }
 
 export async function reportDeadEnd(
