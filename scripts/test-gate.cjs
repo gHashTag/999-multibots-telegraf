@@ -256,6 +256,86 @@ function filesWithoutAssertions(report) {
     }))
 }
 
+/**
+ * Files this run could not LOAD, mapped to the package each one blames.
+ *
+ * A file that throws on import contributes neither a pass nor a failure, so
+ * every name it used to produce goes missing from the passing set -- which is
+ * indistinguishable, from the set alone, from a test somebody deleted. The
+ * distinction cannot be recovered later, so it is drawn here, while the run's
+ * own message is still at hand.
+ *
+ * THE EXEMPTION IS DELIBERATELY NARROW, because it is an exemption: it excuses
+ * a missing name, and an excuse that is too wide is how a detector stops
+ * detecting.
+ *
+ *   - zero assertions from the file, never a file that merely failed some;
+ *   - the loader must NAME a module it could not find, so a SyntaxError still
+ *     reads as a real loss of tests;
+ *   - the name must be a BARE specifier. `Cannot find module './helpers'` is
+ *     this repository's own code, and a change that deletes a local module
+ *     must stay red. Only a package nobody installed here is the environment's
+ *     fault rather than the change's.
+ */
+function unloadableFiles(report) {
+  const out = new Map()
+  for (const { file, reason } of filesWithoutAssertions(report)) {
+    const pkg = missingModuleFrom(reason)
+    if (!pkg || pkg.startsWith('.') || pkg.startsWith('/')) continue
+    out.set(file, pkg)
+  }
+  return out
+}
+
+/**
+ * Suspects split by whether this run could measure them at all.
+ *
+ * `unmeasured` is not a regression and not a rename: it is a question the run
+ * did not get to ask. Merging it into either answer states as a fact something
+ * nobody observed.
+ */
+function splitUnmeasured(suspects, unloadable) {
+  return {
+    unmeasured: suspects.filter(id => unloadable.has(fileOf(id))),
+    measured: suspects.filter(id => !unloadable.has(fileOf(id))),
+  }
+}
+
+/**
+ * THE SNAPSHOT MUST NOT FORGET WHAT THE RUN COULD NOT MEASURE.
+ *
+ * `--save` wrote the passing set and nothing else, so saving on a machine
+ * missing one package DELETED that file's names from the repository's memory
+ * -- and the deletion looks, in review, exactly like eighteen tests somebody
+ * legitimately removed. It was one command away today: the snapshot holds 18
+ * names for provider-registry.test.ts, which cannot be loaded here at all.
+ *
+ * Prior art agrees in both directions. Codecov's carryforward flags exist so
+ * that a job which did not run is carried forward from the last commit that
+ * did, rather than recorded as zero coverage. ESLint's bulk suppressions never
+ * drop an entry as a side effect of a normal run: removing stale ones needs an
+ * explicit --prune-suppressions. This gate did the opposite of both.
+ *
+ * A name is carried forward ONLY when its file could not be loaded. A name
+ * whose file loaded fine and stopped passing is still dropped -- that is the
+ * honest prune, and freezing it would turn the snapshot into a ratchet nobody
+ * can lower.
+ */
+function nextBaseline(previous, now, unloadable) {
+  const carried = previous.filter(
+    id => !now.has(id) && unloadable.has(fileOf(id))
+  )
+  return { lines: [...new Set([...now, ...carried])].sort(), carried }
+}
+
+function readBaseline() {
+  if (!fs.existsSync(BASELINE)) return null
+  return fs
+    .readFileSync(BASELINE, 'utf8')
+    .split('\n')
+    .filter(line => line && !line.startsWith('#'))
+}
+
 function main() {
   console.log('Прогон…')
   const report = runVitest()
@@ -271,14 +351,35 @@ function main() {
     console.log('')
   }
 
+  const unloadable = unloadableFiles(report)
+
   if (SAVE) {
     const header =
       '# Зелёные тесты на момент снимка. Обновлять: npm run test:gate:save\n' +
       '# Проверять: npm run test:gate — покажет тесты, которые проходили и перестали.\n'
-    fs.writeFileSync(BASELINE, header + [...now].sort().join('\n') + '\n')
+    const { lines, carried } = nextBaseline(
+      readBaseline() || [],
+      now,
+      unloadable
+    )
+    fs.writeFileSync(BASELINE, header + lines.join('\n') + '\n')
     console.log(
       `Запомнено в ${path.relative(REPO, BASELINE)}: ${now.size} зелёных.`
     )
+    if (carried.length) {
+      const byFile = [...new Set(carried.map(fileOf))]
+      console.log(
+        `\n📌 сохранено, хотя этот прогон их НЕ ИЗМЕРЯЛ: ${carried.length} имён в ${byFile.length} файл(ах)`
+      )
+      console.log(
+        '   Файл не загружается здесь, значит его тесты не зелёные и не красные.'
+      )
+      console.log(
+        '   Забыть их — то же самое, что списать покрытие, которого никто не удалял.'
+      )
+      for (const f of byFile)
+        console.log(`   ${f} — нет пакета ${unloadable.get(f)}`)
+    }
     return
   }
 
@@ -287,18 +388,33 @@ function main() {
     process.exit(2)
   }
 
-  const before = new Set(
-    fs
-      .readFileSync(BASELINE, 'utf8')
-      .split('\n')
-      .filter(line => line && !line.startsWith('#'))
-  )
+  const before = new Set(readBaseline())
 
-  const suspects = [...before].filter(id => !now.has(id))
+  const allSuspects = [...before].filter(id => !now.has(id))
   const ranFirst = ranSet(report)
   const gained = [...now].filter(id => !before.has(id))
 
   console.log(`стало зелёных больше на: ${gained.length}`)
+
+  // Said BEFORE the verdict, and kept out of it: a name whose file cannot be
+  // loaded here was not measured, and re-running it would only fail to load a
+  // second time. Calling it a regression would blame the change for the
+  // machine; calling it nothing would hide that the coverage is not running.
+  const { unmeasured, measured } = splitUnmeasured(allSuspects, unloadable)
+  if (unmeasured.length) {
+    const byFile = [...new Set(unmeasured.map(fileOf))]
+    console.log(
+      `\n📌 НЕ ИЗМЕРЕНО: ${unmeasured.length} имён в ${byFile.length} файл(ах) — не регрессия и не потеря`
+    )
+    for (const f of byFile) {
+      console.log(`   ${f}: нет пакета ${unloadable.get(f)} — это установка`)
+    }
+    console.log(
+      '   Эти тесты здесь не выполняются вовсе. Вердикт их не считает.'
+    )
+  }
+
+  const suspects = measured
   if (!suspects.length) {
     console.log('\n✅ Ни один проходивший тест не перестал проходить.')
     return
@@ -450,6 +566,9 @@ module.exports = {
   classifySuspects,
   filesWithoutAssertions,
   missingModuleFrom,
+  unloadableFiles,
+  splitUnmeasured,
+  nextBaseline,
 }
 
 if (require.main === module) main()
