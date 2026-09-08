@@ -1,3 +1,5 @@
+import { priceFor } from './billing-shared'
+
 /**
  * ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ: что бесплатно, что платно, как настроить провайдеров,
  * тарифы клуба. Отсюда берут и агент (инструменты pricing/provider_setup/club),
@@ -28,27 +30,52 @@ export const FREE = [
   { что: 'Сборка рилса', как: 'локальный Remotion/ffmpeg' },
 ]
 
-/** Платно — стоит токены (покупаются за Telegram Stars) и деньги провайдеру. */
+/**
+ * Paid work: costs the person tokens (bought with Telegram Stars) and costs
+ * us money at the provider.
+ *
+ * THE PRICE HERE IS NOT TYPED BY HAND, AND THAT IS NOT PEDANTRY. It used to
+ * read 1 / 6 / 20 / 1 -- EXACTLY HALF of what `spendTokens` takes. The
+ * owner's markup constant (x2, billing-shared) reached the charge and
+ * reached no shop window at all: the agent said "video 20" and the wallet
+ * paid 40. Measured by running the code on 2026-09-08: all FOUR rows
+ * disagreed, each by exactly the markup.
+ *
+ * So the number comes from the same `priceFor` the charge does. The next
+ * change of markup or cost travels into the conversation by itself -- there
+ * is no hand left to forget it.
+ */
 export const PAID = [
   {
     функция: 'image_generate',
-    токенов: 1,
+    токенов: priceFor('image_generate'),
     провайдер: 'Replicate flux-schnell (или FAL при оплате)',
   },
   {
     функция: 'audio_generate',
-    токенов: 6,
+    токенов: priceFor('audio_generate'),
     провайдер: 'Replicate minimax / ElevenLabs',
   },
   {
     функция: 'video_generate',
-    токенов: 20,
+    токенов: priceFor('video_generate'),
     провайдер: 'Replicate seedance-1-lite',
   },
   {
     функция: 'reel_render',
-    токенов: 1,
+    токенов: priceFor('reel_render'),
     провайдер: 'локальный Remotion (в проде дом-аккаунту бесплатно)',
+  },
+  /**
+   * Lipsync is charged PER SECOND of audio, and it was missing from the
+   * price list entirely -- the one operation whose bill grows with the
+   * length of the input was the one nobody was quoted before pressing.
+   */
+  {
+    функция: 'lipsync_generate', // cyrillic-ok: existing field name
+    токенов: priceFor('lipsync_generate'),
+    единица: 'за секунду звука', // cyrillic-ok: existing field name
+    провайдер: 'Kie infinitalk (from-audio)',
   },
 ]
 
