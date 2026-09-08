@@ -5,13 +5,14 @@ description: Enforces code quality standards including modular file policy (200-
 
 # 🛡️ Code Quality Guardian - Хранитель Качества Кода
 
-**Sanskrit Wisdom**: 🕉️ *"सरलता परमं बलम्"* (Saralata Paramam Balam) - "Простота - высшая сила"
+**Sanskrit Wisdom**: 🕉️ _"सरलता परमं बलम्"_ (Saralata Paramam Balam) - "Простота - высшая сила"
 
 **Философия**: "Complex code = technical debt. Simple code = long-term maintainability."
 
 ## 🎯 Core Knowledge
 
 Этот Skill обеспечивает качество кода через:
+
 - 📏 Modular File Policy (200-300 lines max)
 - 🧩 Complexity limits (Cyclomatic complexity ≤10)
 - 🏗️ Architectural patterns enforcement
@@ -24,7 +25,7 @@ description: Enforces code quality standards including modular file policy (200-
 ### The 200-300 Lines Rule
 
 ```yaml
-Правило: "Файл должен помещаться на один экран"
+Правило: 'Файл должен помещаться на один экран'
 
 Limits:
   Soft Limit: 200 lines (warning)
@@ -37,11 +38,19 @@ Reasoning:
   - Better testability
 ```
 
-### File Size Check Script
+### File Size Check Script (template - NOT installed)
+
+This repository has **no automated file-size gate**. `scripts/check-file-size.sh`
+does not exist and never has: nothing in `lefthook.yml`, `.eslintrc.cjs` or
+`.github/workflows/` measures file length. The 200/300-line limits above are a
+review convention enforced by people reading the diff, not by a command you can
+run. The listing below is a template to copy if you decide to build that gate -
+save it to `scripts/check-file-size.sh` first, and wire it into `lefthook.yml`
+(the real pre-commit gate) rather than into `.git/hooks/`.
 
 ```bash
 #!/bin/bash
-# scripts/check-file-size.sh
+# Template only. Not present in the repository - save before running.
 
 echo "📏 Checking file sizes..."
 
@@ -81,7 +90,7 @@ exit 0
 // ❌ BEFORE: 450-line wizard file (too large)
 // src/scenes/heygenWizard/heygen-wizard.ts (450 lines)
 
-export const heygenWizard = new WizardScene<MyContext>('heygen-wizard');
+export const heygenWizard = new WizardScene<MyContext>('heygen-wizard')
 
 // ... 50 lines of state interface ...
 // ... 100 lines of validation logic ...
@@ -93,9 +102,9 @@ export const heygenWizard = new WizardScene<MyContext>('heygen-wizard');
 
 // 1. src/scenes/heygenWizard/types.ts (50 lines)
 export interface HeyGenWizardState {
-  avatarId?: string;
-  text?: string;
-  voiceId?: string;
+  avatarId?: string
+  text?: string
+  voiceId?: string
 }
 
 // 2. src/scenes/heygenWizard/validation.ts (100 lines)
@@ -108,9 +117,9 @@ export function validateText(text: string): boolean {
 }
 
 // 3. src/scenes/heygenWizard/steps/index.ts (150 lines)
-export { selectAvatarStep } from './select-avatar';
-export { enterTextStep } from './enter-text';
-export { selectVoiceStep } from './select-voice';
+export { selectAvatarStep } from './select-avatar'
+export { enterTextStep } from './enter-text'
+export { selectVoiceStep } from './select-voice'
 
 // 4. src/scenes/heygenWizard/helpers.ts (100 lines)
 export function formatAvatarMessage(avatar: Avatar): string {
@@ -118,8 +127,8 @@ export function formatAvatarMessage(avatar: Avatar): string {
 }
 
 // 5. src/scenes/heygenWizard/index.ts (50 lines)
-import { heygenWizard } from './wizard';
-export { heygenWizard };
+import { heygenWizard } from './wizard'
+export { heygenWizard }
 ```
 
 ### Module Organization Pattern
@@ -143,7 +152,7 @@ src/scenes/heygenWizard/
 ### Cyclomatic Complexity
 
 ```yaml
-Правило: "Функция с complexity >10 слишком сложна"
+Правило: 'Функция с complexity >10 слишком сложна'
 
 Limits:
   Low: 1-5 (simple, good)
@@ -166,11 +175,14 @@ Reasoning:
     "complexity": ["error", { "max": 10 }],
     "max-depth": ["error", { "max": 3 }],
     "max-nested-callbacks": ["error", { "max": 3 }],
-    "max-lines-per-function": ["warn", {
-      "max": 50,
-      "skipBlankLines": true,
-      "skipComments": true
-    }]
+    "max-lines-per-function": [
+      "warn",
+      {
+        "max": 50,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ]
   }
 }
 ```
@@ -184,35 +196,36 @@ export async function processPayment(
   amount: number,
   currency: string
 ): Promise<PaymentResult> {
-  if (!userId) throw new Error('Invalid user');
-  if (amount <= 0) throw new Error('Invalid amount');
-  if (!['USD', 'EUR', 'RUB'].includes(currency)) throw new Error('Invalid currency');
+  if (!userId) throw new Error('Invalid user')
+  if (amount <= 0) throw new Error('Invalid amount')
+  if (!['USD', 'EUR', 'RUB'].includes(currency))
+    throw new Error('Invalid currency')
 
-  const user = await getUser(userId);
-  if (!user) throw new Error('User not found');
-  if (user.balance < amount) throw new Error('Insufficient balance');
-  if (user.status === 'banned') throw new Error('User banned');
+  const user = await getUser(userId)
+  if (!user) throw new Error('User not found')
+  if (user.balance < amount) throw new Error('Insufficient balance')
+  if (user.status === 'banned') throw new Error('User banned')
 
   try {
-    const payment = await createPayment({ userId, amount, currency });
+    const payment = await createPayment({ userId, amount, currency })
     if (payment.status === 'success') {
-      await updateUserBalance(userId, -amount);
-      await notifyUser(userId, 'Payment successful');
-      return { success: true, paymentId: payment.id };
+      await updateUserBalance(userId, -amount)
+      await notifyUser(userId, 'Payment successful')
+      return { success: true, paymentId: payment.id }
     } else if (payment.status === 'pending') {
-      await scheduleRetry(payment.id);
-      return { success: false, pending: true };
+      await scheduleRetry(payment.id)
+      return { success: false, pending: true }
     } else {
-      await refundPayment(payment.id);
-      return { success: false, error: 'Payment failed' };
+      await refundPayment(payment.id)
+      return { success: false, error: 'Payment failed' }
     }
   } catch (error) {
     if (error.code === 'NETWORK_ERROR') {
-      await scheduleRetry(userId, amount);
+      await scheduleRetry(userId, amount)
     } else if (error.code === 'INVALID_CARD') {
-      await notifyUser(userId, 'Invalid card');
+      await notifyUser(userId, 'Invalid card')
     }
-    throw error;
+    throw error
   }
 }
 
@@ -223,31 +236,34 @@ export async function processPayment(
   currency: string
 ): Promise<PaymentResult> {
   // Validation (complexity: 1)
-  validatePaymentParams({ userId, amount, currency });
+  validatePaymentParams({ userId, amount, currency })
 
   // User checks (complexity: 1)
-  const user = await getUserForPayment(userId, amount);
+  const user = await getUserForPayment(userId, amount)
 
   // Payment processing (complexity: 1)
-  return await executePayment(user, amount, currency);
+  return await executePayment(user, amount, currency)
 }
 
 // Extracted validation (complexity: 3)
 function validatePaymentParams(params: PaymentParams): void {
-  if (!params.userId) throw new Error('Invalid user');
-  if (params.amount <= 0) throw new Error('Invalid amount');
+  if (!params.userId) throw new Error('Invalid user')
+  if (params.amount <= 0) throw new Error('Invalid amount')
   if (!VALID_CURRENCIES.includes(params.currency)) {
-    throw new Error('Invalid currency');
+    throw new Error('Invalid currency')
   }
 }
 
 // Extracted user checks (complexity: 3)
-async function getUserForPayment(userId: string, amount: number): Promise<User> {
-  const user = await getUser(userId);
-  if (!user) throw new Error('User not found');
-  if (user.balance < amount) throw new Error('Insufficient balance');
-  if (user.status === 'banned') throw new Error('User banned');
-  return user;
+async function getUserForPayment(
+  userId: string,
+  amount: number
+): Promise<User> {
+  const user = await getUser(userId)
+  if (!user) throw new Error('User not found')
+  if (user.balance < amount) throw new Error('Insufficient balance')
+  if (user.status === 'banned') throw new Error('User banned')
+  return user
 }
 
 // Extracted payment execution (complexity: 4)
@@ -257,10 +273,10 @@ async function executePayment(
   currency: string
 ): Promise<PaymentResult> {
   try {
-    const payment = await createPayment({ userId: user.id, amount, currency });
-    return await handlePaymentStatus(payment, user.id, amount);
+    const payment = await createPayment({ userId: user.id, amount, currency })
+    return await handlePaymentStatus(payment, user.id, amount)
   } catch (error) {
-    return await handlePaymentError(error, user.id, amount);
+    return await handlePaymentError(error, user.id, amount)
   }
 }
 ```
@@ -295,46 +311,46 @@ Dependency Rule:
 
 ```typescript
 // ❌ BAD - business logic in Telegram scene
-heygenWizard.action('generate', async (ctx) => {
-  const state = ctx.scene.state as HeyGenWizardState;
+heygenWizard.action('generate', async ctx => {
+  const state = ctx.scene.state as HeyGenWizardState
 
   // ❌ Business logic in UI layer!
   if (!state.text || state.text.length < 10) {
-    await ctx.answerCbQuery('Text too short!');
-    return;
+    await ctx.answerCbQuery('Text too short!')
+    return
   }
 
   if (state.text.length > 500) {
-    await ctx.answerCbQuery('Text too long!');
-    return;
+    await ctx.answerCbQuery('Text too long!')
+    return
   }
 
   const user = await ctx.db
     .from('users')
     .select('balance')
     .eq('telegram_id', ctx.from.id)
-    .single();
+    .single()
 
   if (user.data.balance < 50) {
-    await ctx.answerCbQuery('Insufficient balance!');
-    return;
+    await ctx.answerCbQuery('Insufficient balance!')
+    return
   }
 
   // ... more business logic ...
-});
+})
 
 // ✅ GOOD - thin UI layer, business logic in domain
-heygenWizard.action('generate', async (ctx) => {
-  const state = ctx.scene.state as HeyGenWizardState;
+heygenWizard.action('generate', async ctx => {
+  const state = ctx.scene.state as HeyGenWizardState
 
   try {
     // UI only coordinates, doesn't implement business rules
-    await generateHeyGenAvatar(ctx, state);
-    await ctx.answerCbQuery('Generation started!');
+    await generateHeyGenAvatar(ctx, state)
+    await ctx.answerCbQuery('Generation started!')
   } catch (error) {
-    await handleHeyGenError(ctx, error);
+    await handleHeyGenError(ctx, error)
   }
-});
+})
 
 // Business logic in domain layer
 // src/domain/heygen/generate-avatar.ts
@@ -343,14 +359,14 @@ export async function generateHeyGenAvatar(
   state: HeyGenWizardState
 ): Promise<void> {
   // Business rules
-  validateAvatarParams(state);
+  validateAvatarParams(state)
 
-  const user = await getUserByTelegramId(ctx.from.id);
-  checkUserBalance(user, HEYGEN_PRICE);
+  const user = await getUserByTelegramId(ctx.from.id)
+  checkUserBalance(user, HEYGEN_PRICE)
 
   // Orchestrate use case
-  await deductUserBalance(user.id, HEYGEN_PRICE);
-  await triggerHeyGenGeneration(user.id, state);
+  await deductUserBalance(user.id, HEYGEN_PRICE)
+  await triggerHeyGenGeneration(user.id, state)
 }
 ```
 
@@ -365,25 +381,25 @@ export class HeyGenService {
       .from('users')
       .select('balance')
       .eq('id', params.userId)
-      .single();
+      .single()
 
     // Direct dependency on HeyGen API
     const response = await fetch('https://api.heygen.com/v1/generate', {
       // ...
-    });
+    })
 
-    return response.video_id;
+    return response.video_id
   }
 }
 
 // ✅ GOOD - dependency injection
 export interface UserRepository {
-  getById(id: string): Promise<User>;
-  updateBalance(id: string, amount: number): Promise<void>;
+  getById(id: string): Promise<User>
+  updateBalance(id: string, amount: number): Promise<void>
 }
 
 export interface HeyGenClient {
-  generateAvatar(params: AvatarParams): Promise<string>;
+  generateAvatar(params: AvatarParams): Promise<string>
 }
 
 export class HeyGenService {
@@ -394,10 +410,10 @@ export class HeyGenService {
 
   async generateAvatar(params: AvatarParams): Promise<string> {
     // Dependencies injected, easy to test and swap
-    const user = await this.userRepo.getById(params.userId);
-    const videoId = await this.heygenClient.generateAvatar(params);
-    await this.userRepo.updateBalance(user.id, -HEYGEN_PRICE);
-    return videoId;
+    const user = await this.userRepo.getById(params.userId)
+    const videoId = await this.heygenClient.generateAvatar(params)
+    await this.userRepo.updateBalance(user.id, -HEYGEN_PRICE)
+    return videoId
   }
 }
 
@@ -406,19 +422,19 @@ describe('HeyGenService', () => {
   it('should generate avatar', async () => {
     const mockUserRepo = {
       getById: jest.fn().mockResolvedValue({ id: '1', balance: 100 }),
-      updateBalance: jest.fn()
-    };
+      updateBalance: jest.fn(),
+    }
     const mockHeyGenClient = {
-      generateAvatar: jest.fn().mockResolvedValue('video_123')
-    };
+      generateAvatar: jest.fn().mockResolvedValue('video_123'),
+    }
 
-    const service = new HeyGenService(mockUserRepo, mockHeyGenClient);
-    const result = await service.generateAvatar({ userId: '1' });
+    const service = new HeyGenService(mockUserRepo, mockHeyGenClient)
+    const result = await service.generateAvatar({ userId: '1' })
 
-    expect(result).toBe('video_123');
-    expect(mockUserRepo.updateBalance).toHaveBeenCalledWith('1', -50);
-  });
-});
+    expect(result).toBe('video_123')
+    expect(mockUserRepo.updateBalance).toHaveBeenCalledWith('1', -50)
+  })
+})
 ```
 
 ## 📝 Naming Conventions
@@ -429,30 +445,30 @@ describe('HeyGenService', () => {
 // ✅ GOOD - clear, descriptive names
 async function getUserByTelegramId(telegramId: string): Promise<User | null>
 function validateAvatarParams(params: AvatarParams): void
-const isUserBanned = user.status === 'banned';
-const hasEnoughBalance = user.balance >= price;
+const isUserBanned = user.status === 'banned'
+const hasEnoughBalance = user.balance >= price
 
 // ❌ BAD - vague, abbreviated names
-async function get(id: string)  // Get what?
-function validate(p: any)  // Validate what? What's p?
-const b = user.status === 'banned';  // What's b?
-const x = user.balance >= price;  // What's x?
+async function get(id: string) // Get what?
+function validate(p: any) // Validate what? What's p?
+const b = user.status === 'banned' // What's b?
+const x = user.balance >= price // What's x?
 ```
 
 ### Classes and Interfaces
 
 ```typescript
 // ✅ GOOD - PascalCase, descriptive
-interface HeyGenWizardState { }
-interface UserRepository { }
-class PaymentService { }
-class HeyGenClient { }
+interface HeyGenWizardState {}
+interface UserRepository {}
+class PaymentService {}
+class HeyGenClient {}
 
 // ❌ BAD - unclear, wrong case
-interface heygen { }  // Wrong case
-interface Data { }  // Too generic
-class Service { }  // Which service?
-class Client { }  // Which client?
+interface heygen {} // Wrong case
+interface Data {} // Too generic
+class Service {} // Which service?
+class Client {} // Which client?
 ```
 
 ### Files and Directories
@@ -478,33 +494,33 @@ src/stuff/thing.ts  # Meaningless
 ```typescript
 // ❌ BAD - one class does everything (500+ lines)
 class UserManager {
-  async createUser() { }
-  async deleteUser() { }
-  async updateUserProfile() { }
-  async processPayment() { }
-  async generateAvatar() { }
-  async sendNotification() { }
-  async validateEmail() { }
-  async hashPassword() { }
+  async createUser() {}
+  async deleteUser() {}
+  async updateUserProfile() {}
+  async processPayment() {}
+  async generateAvatar() {}
+  async sendNotification() {}
+  async validateEmail() {}
+  async hashPassword() {}
   // ... 50 more methods ...
 }
 
 // ✅ GOOD - single responsibility
 class UserService {
-  async createUser() { }
-  async deleteUser() { }
+  async createUser() {}
+  async deleteUser() {}
 }
 
 class PaymentService {
-  async processPayment() { }
+  async processPayment() {}
 }
 
 class AvatarService {
-  async generateAvatar() { }
+  async generateAvatar() {}
 }
 
 class NotificationService {
-  async sendNotification() { }
+  async sendNotification() {}
 }
 ```
 
@@ -542,29 +558,29 @@ if (text.length > MAX_TEXT_LENGTH) {
 
 ```typescript
 // ❌ BAD - nested callbacks (pyramid of doom)
-getUser(userId, (user) => {
-  checkBalance(user, (balance) => {
+getUser(userId, user => {
+  checkBalance(user, balance => {
     if (balance > 50) {
-      processPayment(user, (payment) => {
-        updateBalance(user.id, (result) => {
-          sendNotification(user.id, (sent) => {
-            console.log('Done');
-          });
-        });
-      });
+      processPayment(user, payment => {
+        updateBalance(user.id, result => {
+          sendNotification(user.id, sent => {
+            console.log('Done')
+          })
+        })
+      })
     }
-  });
-});
+  })
+})
 
 // ✅ GOOD - async/await (flat, readable)
 async function processUserPayment(userId: string): Promise<void> {
-  const user = await getUser(userId);
-  const balance = await checkBalance(user);
+  const user = await getUser(userId)
+  const balance = await checkBalance(user)
 
   if (balance > 50) {
-    const payment = await processPayment(user);
-    await updateBalance(user.id);
-    await sendNotification(user.id);
+    const payment = await processPayment(user)
+    await updateBalance(user.id)
+    await sendNotification(user.id)
   }
 }
 ```
@@ -579,19 +595,19 @@ async function processUserPayment(userId: string): Promise<void> {
 
 echo "🛡️ Running code quality checks..."
 
-# 1. File size check
-./scripts/check-file-size.sh || exit 1
+# No file size check: this repo has no such script (see "File Size Check
+# Script" above). File length is reviewed by hand.
 
-# 2. ESLint (complexity, style)
+# 1. ESLint (complexity, style)
 npm run lint || exit 1
 
-# 3. TypeScript type check
+# 2. TypeScript type check
 npm run typecheck || exit 1
 
-# 4. Tests
+# 3. Tests
 npm test || exit 1
 
-# 5. Check for TODO/FIXME in production code
+# 4. Check for TODO/FIXME in production code
 TODOS=$(git diff --cached --name-only | \
   grep "^src/" | \
   xargs grep -n "TODO\|FIXME" 2>/dev/null || true)
@@ -623,8 +639,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check file sizes
-        run: ./scripts/check-file-size.sh
+      # No "check file sizes" step: the script it would call does not exist
+      # (see "File Size Check Script" above).
 
       - name: Lint code
         run: npm run lint
@@ -754,19 +770,22 @@ Together: Only quality code reaches production
 ## 🕉️ Sanskrit Wisdom for Code Quality
 
 ### On Simplicity
-*"सरलता परमं बलम्"* (Saralata Paramam Balam)
+
+_"सरलता परमं बलम्"_ (Saralata Paramam Balam)
 "Простота - высшая сила"
 
 → Простой код сильнее сложного
 
 ### On Modularity
-*"विभागेन सिद्धिः"* (Vibhagena Siddhih)
+
+_"विभागेन सिद्धिः"_ (Vibhagena Siddhih)
 "Успех достигается через разделение"
 
 → Разделяй большие файлы на модули
 
 ### On Naming
-*"नाम रूपे व्यवस्थिते"* (Nama Rupe Vyavasthite)
+
+_"नाम रूपे व्यवस्थिते"_ (Nama Rupe Vyavasthite)
 "Имя определяет суть"
 
 → Хорошее имя раскрывает назначение

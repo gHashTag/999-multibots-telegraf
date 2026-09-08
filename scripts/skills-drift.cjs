@@ -88,7 +88,8 @@ function citations(text) {
   const out = []
   const lines = text.split('\n')
   let fence = null
-  for (const line of lines) {
+  for (let at = 0; at < lines.length; at++) {
+    const line = lines[at]
     const open = /^\s*```+\s*(\w+)?/.exec(line)
     if (open) {
       fence = fence ? null : (open[1] || '').toLowerCase()
@@ -120,15 +121,106 @@ function citations(text) {
           .slice(0, m.index + (m[0].length - ref.length))
           .trim()
         const invoked = /^[.~/]/.test(ref) || before.length > 0
-        if (invoked) out.push({ ref, runnable: true })
+        if (invoked) out.push({ ref, runnable: true, at })
       }
       continue
     }
     if (fence !== null) continue // some other language: not our paths
     for (const m of line.matchAll(QUOTED))
-      out.push({ ref: m[1], runnable: false })
+      out.push({ ref: m[1], runnable: false, at })
   }
-  return out
+  return { cites: out, lines }
+}
+
+/**
+ * A PATH THE TEXT ITSELF CALLS ABSENT IS NOT A BROKEN ADDRESS.
+ *
+ * When the broken addresses were fixed, seven of them had no replacement: the
+ * script had been deleted, or had never been written. The honest fix is not to
+ * invent a path -- it is to say so, and the agents did:
+ *
+ *     ### Script 1: tdd-cycle.sh - TEMPLATE ONLY, NOT IN THIS REPOSITORY
+ *     > Neither ./tdd-cycle.sh nor ./scripts/tdd-cycle.sh exists or ever did.
+ *     > Copy the block into scripts/tdd-cycle.sh yourself and chmod +x it.
+ *
+ * That made the documentation truthful and made THIS CHECKER'S NUMBER GO UP,
+ * from 11 to 16 -- because saying "copy this into scripts/tdd-cycle.sh" cites
+ * the path one more time.
+ *
+ * A measure that worsens when the text improves is worse than no measure: it
+ * argues for reverting the fix. So a citation whose surrounding text declares
+ * the file absent is counted apart, as DOCUMENTED ABSENCE.
+ *
+ * This is prose-marker matching and therefore fragile. It is deliberately
+ * narrow: only explicit, unambiguous declarations of absence count, and the
+ * window is small enough that a marker three sections away cannot launder an
+ * unrelated broken path.
+ */
+const ABSENCE = [
+  'TEMPLATE',
+  'does NOT exist',
+  'does not exist',
+  'NOT installed',
+  'not installed',
+  'never did',
+  'never was',
+  'never existed',
+  'no such file',
+  'No such file',
+  'yourself',
+  'copy this',
+  'Copy this',
+  'copy the block',
+  'Copy the block',
+  // This repository documents in Russian as well as English, and the checker
+  // that only knows English markers calls an honest Russian "there is no such
+  // file, and never was" a broken address.
+  'нет и не было',
+  'не существует',
+  'никогда не сущест',
+  'скопируй',
+  'создай сам',
+  // A historical statement is not a promise either: "formerly scripts/deploy.sh,
+  // moved in 0fc05b4a" is true, and rewriting it would erase the record.
+  'formerly',
+  'moved in',
+  'Created `',
+  'ранее',
+  'переехал',
+]
+
+/** Do the lines around a citation declare the file absent? */
+function declaredAbsent(lines, at) {
+  const from = Math.max(0, at - 25)
+  const window = lines.slice(from, at + 3).join('\n')
+  if (ABSENCE.some(m => window.includes(m))) return true
+
+  /*
+   * A FENCED BLOCK INHERITS THE DECLARATION ABOVE IT.
+   *
+   * The tdd-automation template is 95 lines long and its usage line sits at the
+   * bottom, far outside any window measured from the citation. The header three
+   * screens up says the file does not exist -- and everything between the
+   * fences is that same template.
+   *
+   * So walk back to the fence that opened this block and test the window before
+   * IT. Widening the plain window instead would let a marker in one section
+   * launder a broken path in the next.
+   */
+  let open = -1
+  let inside = false
+  for (let i = at; i >= 0; i--) {
+    if (/^\s*```/.test(lines[i])) {
+      if (!inside) {
+        open = i
+        inside = true
+        break
+      }
+    }
+  }
+  if (open < 0) return false
+  const before = lines.slice(Math.max(0, open - 25), open).join('\n')
+  return ABSENCE.some(m => before.includes(m))
 }
 
 /** Where else in the tree does a file with this basename live? */
@@ -183,7 +275,8 @@ function main() {
 
     for (const file of walkMd(skill, [])) {
       const text = fs.readFileSync(file, 'utf8')
-      for (const { ref, runnable } of citations(text)) {
+      const { cites, lines } = citations(text)
+      for (const { ref, runnable, at } of cites) {
         // A bare filename is a mention, not a path: checking it would flag
         // every prose reference to a file the reader is expected to find.
         if (!ref.includes('/')) continue
@@ -197,8 +290,11 @@ function main() {
           skill: dir,
           where: path.relative(skill, file),
           ref,
-          // An address is what the reader executes or resolves literally.
-          address: runnable || ROOTED.test(ref),
+          // An address is what the reader executes or resolves literally --
+          // unless the text around it declares the file absent, in which case
+          // the citation is documentation, not a promise.
+          address: (runnable || ROOTED.test(ref)) && !declaredAbsent(lines, at),
+          absent: declaredAbsent(lines, at),
           kind:
             alt.length === 1
               ? 'ПЕРЕЕХАЛ'
@@ -212,8 +308,11 @@ function main() {
     }
   }
 
+  const absentRows = rows.filter(r => r.absent)
   const addr = rows.filter(r => r.address)
-  const name = rows.filter(r => !r.address)
+  // Disjoint on purpose: a documented absence counted in BOTH buckets
+  // would let the same citation be read as two different things.
+  const name = rows.filter(r => !r.address && !r.absent)
 
   console.log(`[скиллы] путей в описаниях : ${seen}`)
   console.log(
@@ -222,6 +321,12 @@ function main() {
   console.log(
     `[скиллы] имён в прозе      : ${name.length}  (текст не сломан, править не надо)`
   )
+  const absent = absentRows
+  if (absent.length) {
+    console.log(
+      `[скиллы] честно "его нет"   : ${absent.length}  (текст сам предупреждает — это ХОРОШО)`
+    )
+  }
 
   if (addr.length) {
     console.log('\n— адреса, которые не разрешаются —')
@@ -319,7 +424,7 @@ function selfTest() {
     'import x from "src/not-a-citation.ts"',
     '```',
   ].join('\n')
-  const got = citations(doc)
+  const got = citations(doc).cites
   const run = got.filter(c => c.runnable).map(c => c.ref)
   const prose = got.filter(c => !c.runnable).map(c => c.ref)
   if (!run.includes('scripts/check-infisical-keys.ts'))
@@ -333,7 +438,7 @@ function selfTest() {
     ['```bash', '# BAD', 'src/stuff/thing.ts', './scripts/real.sh', '```'].join(
       '\n'
     )
-  ).map(c => c.ref)
+  ).cites.map(c => c.ref)
   if (listing.includes('src/stuff/thing.ts'))
     fail('перечень имён принят за команду — прибор требует овеществить пример')
   if (!listing.includes('./scripts/real.sh')) fail('вызов ./script потерян')
@@ -345,6 +450,45 @@ function selfTest() {
   // Cyrillic inside string literals and rejects it in a regex literal.
   const announces = new RegExp('НЕ ПОКАЗАНО')
   if (!announces.test(src)) fail('обрезка вывода снова молчит о хвосте')
+
+  // Documented absence must NOT count as breakage: the honest fix cites the
+  // missing path one extra time, and a measure that rises when the text
+  // improves argues for reverting the fix.
+  const honest = [
+    '> TEMPLATE ONLY. scripts/tdd-cycle.sh does NOT exist in this repository.',
+    '',
+    '```bash',
+    'cp block scripts/tdd-cycle.sh',
+    '```',
+  ]
+  const hc = citations(honest.join('\n'))
+  const flagged = hc.cites.filter(
+    c => c.ref.includes('tdd-cycle') && !declaredAbsent(hc.lines, c.at)
+  )
+  if (flagged.length) fail('честное "файла нет" засчитано как поломка')
+
+  // The usage line at the bottom of a 95-line template: too far from the header
+  // for any window measured from the citation, but inside the same fence.
+  const far = [
+    '> TEMPLATE ONLY. scripts/tdd-cycle.sh does NOT exist here.',
+    '',
+    '```bash',
+    ...Array(60).fill('# filler line'),
+    'echo "Usage: scripts/tdd-cycle.sh [red|green]"',
+    '```',
+  ]
+  const fc = citations(far.join('\n'))
+  const missed = fc.cites.filter(
+    c => c.ref.includes('tdd-cycle') && !declaredAbsent(fc.lines, c.at)
+  )
+  if (missed.length)
+    fail('дальняя строка шаблона не унаследовала пометку шапки')
+
+  // Russian is not a second-class language here.
+  const ru = ['Скрипта `scripts/nope.sh` в дереве нет и не было.'].join('\n')
+  const rc = citations(ru)
+  if (rc.cites.some(c => !declaredAbsent(rc.lines, c.at)))
+    fail('русская пометка отсутствия не понята')
 
   if (!ROOTED.test('src/registerCommands.ts'))
     fail('укоренённый путь не опознан')

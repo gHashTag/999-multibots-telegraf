@@ -5,13 +5,14 @@ description: Git workflow patterns with branch strategy enforcement (feat/, fix/
 
 # 🌳 Git Workflow - Branch Strategy & Commit Discipline
 
-**Sanskrit Wisdom**: 🕉️ *"क्रमशः सर्वं सिद्ध्यति"* (Kramashah Sarvam Siddhyati) - "Всё достигается постепенно, шаг за шагом"
+**Sanskrit Wisdom**: 🕉️ _"क्रमशः सर्वं सिद्ध्यति"_ (Kramashah Sarvam Siddhyati) - "Всё достигается постепенно, шаг за шагом"
 
 **Философия**: "Clean git history = clear project evolution. Chaos in git = chaos in project."
 
 ## 🎯 Core Knowledge
 
 Этот Skill обеспечивает дисциплину Git workflow:
+
 - 🌿 Branch naming strategy (feat/, fix/, refactor/, chore/)
 - 📝 Conventional Commits format
 - 🚫 Protection от прямых коммитов в production/main
@@ -636,7 +637,10 @@ git checkout -b fix/session-crash
 # ... write test, fix bug ...
 
 # 3. Commit with clear message
-git add src/scenes/common/session.ts
+# Stage only the files this fix touched. Note: this repo has no dedicated
+# session module - session state comes from Telegraf's built-in session(),
+# wired in src/bot.ts.
+git add <files changed by the fix>
 git commit -m "fix(session): prevent crash on undefined user
 
 Check user existence before accessing properties
@@ -674,14 +678,14 @@ npm test
 npm test
 
 # 5. Commit
-git add src/helpers/validation.ts
-git add src/scenes/*/wizard.ts
+git add src/helpers/textValidation.ts
+git add src/scenes/*/index.ts
 git commit -m "refactor(wizard): extract validation to helper
 
 Extract repeated validation logic to shared helper
 for better maintainability and testability.
 
-- Create src/helpers/validation.ts
+- Extract shared checks into src/helpers/textValidation.ts
 - Update all wizards to use helper
 - Tests still pass (no functionality change)"
 
@@ -847,7 +851,7 @@ git commit -m "feat(heygen): add avatar generation wizard"
 # ❌ Bad - one commit with multiple unrelated changes
 git add src/scenes/heygenWizard/
 git add src/scenes/soraWizard/
-git add src/helpers/validation.ts
+git add src/helpers/textValidation.ts
 git commit -m "add features and fix bugs"
 
 # ✅ Good - separate commits per logical change
@@ -857,7 +861,7 @@ git commit -m "feat(heygen): add wizard"
 git add src/scenes/soraWizard/
 git commit -m "feat(sora): add wizard"
 
-git add src/helpers/validation.ts
+git add src/helpers/textValidation.ts
 git commit -m "refactor(helpers): extract validation"
 ```
 
@@ -893,12 +897,14 @@ git stash drop              # Удаляет последние изменени
 ```
 
 **Почему git reset опасен**:
+
 1. **Невосстановимость**: `git reset --hard` удаляет изменения навсегда
 2. **Конфликты с командой**: Если кто-то pull-нул до reset, возникает хаос
 3. **Потеря работы**: Удаляет Skills, документацию, код без возможности вернуть
 4. **Нарушение истории**: Ломает git history для всей команды
 
 **Реальный кейс** (2025-11-11):
+
 ```bash
 # ❌ Агент сделал:
 git reset --hard HEAD~50
@@ -911,6 +917,7 @@ git reset --hard HEAD~50
 ```
 
 **ПРАВИЛО ДЛЯ АГЕНТОВ**:
+
 - ✅ Всегда используй `git revert` вместо `git reset`
 - ✅ Всегда создавай ветку для экспериментов
 - ✅ Используй `git stash` для временных изменений
@@ -919,6 +926,7 @@ git reset --hard HEAD~50
 - ❌ НИКОГДА не удаляй коммиты из истории
 
 **Исключение**: `git reset` разрешён ТОЛЬКО для unstaged изменений:
+
 ```bash
 # ✅ OK - откат unstaged файлов (не удаляет коммиты!)
 git reset HEAD file.ts       # Убирает файл из staging area
@@ -928,19 +936,22 @@ git checkout -- file.ts      # Откатывает изменения в фай
 ## 🕉️ Sanskrit Wisdom for Git Discipline
 
 ### On Clean Commits
-*"एकं सत्यं बहुधा वदन्ति"* (Ekam Satyam Bahudha Vadanti)
+
+_"एकं सत्यं बहुधा वदन्ति"_ (Ekam Satyam Bahudha Vadanti)
 "Одна истина, много путей к ней" - Ригведа
 
 → Один коммит = одна логическая единица изменений
 
 ### On Branch Strategy
-*"विभागेन व्यवस्थिता"* (Vibhagena Vyavasthita)
+
+_"विभागेन व्यवस्थिता"_ (Vibhagena Vyavasthita)
 "Организация через разделение"
 
 → Разделяй concerns через ветки
 
 ### On Commit Messages
-*"वाक्यं रसात्मकं काव्यम्"* (Vakyam Rasatmakam Kavyam)
+
+_"वाक्यं रसात्मकं काव्यम्"_ (Vakyam Rasatmakam Kavyam)
 "Слово должно быть наполнено смыслом"
 
 → Каждое сообщение коммита несет смысл
