@@ -21,6 +21,10 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const {
+  enclosingStatements,
+} = require('../../../scripts/lib/enclosing-statement.cjs')
 import { ENV_NAMES } from './src/channel-delivery'
 import { PORTRAIT_ENV } from './src/talking-portrait'
 
@@ -232,37 +236,16 @@ describe('the deploy name is read FIRST, the legacy name only as a fallback', ()
 })
 
 /**
- * THE ENV GATE THAT ENCLOSES A DECLARATION, BY BLOCK, NOT BY ADJACENCY.
+ * The env gate a declaration lives inside, or nothing.
  *
- * The previous version of this check demanded that `if (process.env.X === '1')
- * {` be followed IMMEDIATELY by `const startAutopilot`. That held until #2220
- * put a journalling helper between them -- a legitimate edit -- and the test
- * went red on main for four days. Nobody looked, because the snapshot gate was
- * red anyway (#2227).
- *
- * An anchor that requires two lines to touch is a claim about formatting, not
- * about the program. So containment is established the way the language
- * establishes it: walk back from the declaration until a line is less indented
- * than it, and that line is the statement it lives in. If that statement is not
- * an env gate, there is no gate -- which is the case this must still fail on,
- * and the reason it does not simply grab the nearest `=== '1'` in the file.
+ * This was a private copy of the walk in scripts/lib/enclosing-statement.cjs,
+ * written here first because this is where the defect was found. A second copy
+ * of a rule drifts from the first, so it now asks the shared one.
  */
 function enclosingEnvGate(src: string, needle: string): string | null {
-  const lines = src.split('\n')
-  const at = lines.findIndex(l => l.includes(needle))
-  if (at === -1) return null
-  const indent = (l: string) => l.length - l.trimStart().length
-  const inner = indent(lines[at])
-  for (let i = at - 1; i >= 0; i--) {
-    const line = lines[i]
-    if (!line.trim()) continue
-    if (indent(line) >= inner) continue
-    const m = line.match(
-      /^\s*if \(process\.env\.([A-Z][A-Z0-9_]*) === '1'\) \{/
-    )
-    return m ? m[1] : null
-  }
-  return null
+  const [line] = enclosingStatements(src, needle)
+  const m = line?.match(/^if \(process\.env\.([A-Z][A-Z0-9_]*) === '1'\) \{/)
+  return m ? m[1] : null
 }
 
 describe('the switch that starts the autopilot at all', () => {

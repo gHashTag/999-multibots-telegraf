@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { enclosedBy } = require('../../../scripts/lib/enclosing-statement.cjs')
 
 // The async-lipsync fallback poller runs on a 30s setInterval. A provider status
 // check can hang longer than that, so without a re-entrancy guard a second tick
@@ -37,8 +39,9 @@ describe('async-lipsync fallback poller is re-entrancy guarded', () => {
   })
 
   it('checkInFlight is reset after the tick settles (finally)', () => {
-    expect(SRC).toMatch(
-      /pollTick\(\)\s*\.finally\(\(\) => \{\s*checkInFlight = false/
-    )
+    expect(
+      enclosedBy(SRC, 'checkInFlight = false', /pollTick\(\)\.finally\(/),
+      'the flag must be reset in the tick finally, not somewhere after it'
+    ).toBe(true)
   })
 })

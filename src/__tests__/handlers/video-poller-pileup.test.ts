@@ -14,6 +14,8 @@
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { enclosedBy } = require('../../../scripts/lib/enclosing-statement.cjs')
 
 describe('video status poller does not pile up requests', () => {
   it('skips a tick while a check is still in flight', () => {
@@ -25,7 +27,10 @@ describe('video status poller does not pile up requests', () => {
     expect(src).toMatch(/let checkInFlight = false/)
     expect(src).toMatch(/if \(checkInFlight\) return/)
     // and it must reset the flag so polling continues after a check returns
-    expect(src).toMatch(/finally\s*\{\s*checkInFlight = false/)
+    expect(
+      enclosedBy(src, 'checkInFlight = false', /^\}?\s*finally\s*\{$/),
+      'the flag must be reset in a finally, or one throw stops the polling'
+    ).toBe(true)
   })
 
   it('bounds the status request with a timeout so it cannot hang forever', () => {
