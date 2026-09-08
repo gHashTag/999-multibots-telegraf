@@ -81,9 +81,28 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           : '🎬 Continuing AI Reels creation with your data...'
       )
 
-      // Пропускаем к Step 2 (генерация первого видео)
+      /*
+       * THE RESUME NOW LANDS ON THE STEP IT NAMES.
+       *
+       * `next()` is `selectStep(cursor + 1)`, so `selectStep(2); next()` set the
+       * cursor to 3 and Step 2 -- the first video generation -- never ran. The
+       * comment above said Step 2 all along; the code went past it.
+       *
+       * veed-fabric was fixed for exactly this and its test docstring recorded
+       * the twin here as "owner-routed", which is where it stayed, because
+       * landing on Step 2 ADDS A CHARGE that does not happen today: Step 2
+       * calls updateUserBalance(MONEY_OUTCOME) for the first render. That is
+       * the owner's decision and they made it (2026-09-08).
+       *
+       * Direct invocation rather than another selectStep dance: the wizard's own
+       * resume pattern (ai-reels-render-wizard, veed-fabric-wizard). Step 2 is
+       * written for this -- on the resume path it reads text and imageUrl from
+       * the session and never touches ctx.message, and both are preconditions
+       * of the branch above.
+       */
       ctx.wizard.selectStep(2)
-      return ctx.wizard.next()
+      // @ts-ignore steps is private; direct invocation is the wizard's resume pattern
+      return await (ctx.wizard as any).steps[ctx.wizard.cursor](ctx)
     }
 
     // Обычный флоу: инициализируем сессию

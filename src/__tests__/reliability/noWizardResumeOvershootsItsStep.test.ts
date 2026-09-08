@@ -40,13 +40,16 @@ const stripComments = (s: string) =>
 const OVERSHOOT =
   /\.selectStep\s*\([^)]*\)\s*;?\s*return\s+(?:await\s+)?ctx\.wizard\.next\s*\(\s*\)/
 
-/** Files that overshoot on purpose, with the decision that is pending. */
-const OWNER_ROUTED: Record<string, string> = {
-  'src/scenes/lipSyncWizard/ai-reels-wizard.ts':
-    'Step 2 generates the first video, i.e. it SPENDS. Landing the resume on it ' +
-    'as the comment intends would add a charge that does not happen today, and ' +
-    'adding a charge is the owner call. Reported on the owner dashboard.',
-}
+/**
+ * Files that overshoot on purpose, with the decision that is pending.
+ *
+ * EMPTY, AND THAT IS THE POINT OF THE THIRD TEST BELOW. ai-reels-wizard was the
+ * only entry: its Step 2 spends, so landing the resume there added a charge and
+ * the decision was the owner's. They took it on 2026-09-08 and the file was
+ * fixed, so the entry had to go -- which is what a deferral list is for. A list
+ * that only grows is an excuse.
+ */
+const OWNER_ROUTED: Record<string, string> = {}
 
 function scan() {
   const withSelectStep: string[] = []
@@ -81,6 +84,22 @@ describe('no wizard resume overshoots its step', () => {
       f => !overshooting.includes(f)
     )
     expect(gone).toEqual([])
+  })
+
+  it('the two paid resumes INVOKE their step, they do not just avoid overshooting', () => {
+    // Absence of the bug is not presence of the fix. Both of these resume after
+    // the person has already paid for a voice, and both must actually run the
+    // step they name -- veed-fabric's Step 2 recomputes the cost, ai-reels'
+    // Step 2 renders the first video and charges for it.
+    for (const f of [
+      'src/scenes/lipSyncWizard/veed-fabric-wizard.ts',
+      'src/scenes/lipSyncWizard/ai-reels-wizard.ts',
+    ]) {
+      const code = stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8'))
+      expect(code, `${f} no longer invokes its resume step directly`).toMatch(
+        /\.steps\[\s*ctx\.wizard\.cursor\s*\]\s*\(\s*ctx\s*\)/
+      )
+    }
   })
 
   it('self-check: the matcher sees an overshoot and clears the resume pattern', () => {
