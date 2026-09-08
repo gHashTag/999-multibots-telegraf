@@ -549,6 +549,39 @@ sys.stderr.write(str(len(ts)))
         echo "  $ID -> $ANSWER"
       done
     echo "готово. вернуть можно повторной публикацией — скрытие обратимо" ;;
+  crm-waiting)
+    # Who is waiting for an answer, from production, as the owner. Read-only.
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
+    curl -s "https://vibee-render-production.up.railway.app/mcp?telegram_id=144022504" \
+      -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"crm_waiting","arguments":{}}}' \
+      | python3 - <<'PYEOF'
+import json, sys
+r = json.load(sys.stdin); res = r.get('result', {})
+s = res.get('structuredContent') or json.loads(res['content'][0]['text'])
+print(f"ждут: {s.get('total')}  ours={s.get('ours')} due={s.get('due')} theirs={s.get('theirs')}")
+for w in s.get('waiting', [])[:20]:
+    who = w.get('name') or w.get('telegram_id')
+    print(f"  [{w.get('waiting')}] {w.get('days')}д  {who}  {w.get('stage')}  — {w.get('because')}")
+print(s.get('what_to_do', ''))
+PYEOF
+    ;;
+  crm-pitch)
+    # What the personal seller would say, LOCALLY: no network, no invoice
+    # minted, no row written. Price from the one scale; the link is a
+    # placeholder. Usage: tri crm-pitch <name> [tokens] [note]
+    NAME="${2:-}"; TOK="${3:-50}"; NOTE="${4:-}"
+    (cd "$RENDER" && npx tsx -e '
+      const { composePitch } = require("./src/agent/crm-offer-tool.ts");
+      const { ценаТокенов } = require("./src/agent/token-packs.ts");
+      const [name, tok, note] = process.argv.slice(1);
+      const p = ценаТокенов(Number(tok));
+      console.log(composePitch({ name: name || null, tokens: p.токенов, stars: p.звёзд, url: "https://t.me/$invoice-link-here", note: note || undefined }));
+      console.log("\n— цена по шкале:", p.токенов, "токенов =", p.звёзд, "⭐️");
+    ' -- "$NAME" "$TOK" "$NOTE")
+    ;;
   open)     sed -n '/^## Открыто/,/^## Не переоткрывать/p' "$LOOP/pipeline-STATUS.md" ;;
   tests)
     (cd "$RENDER" && npx vitest run src/agent/billing-prices.test.ts miniapp-receipt miniapp-billing) ;;
