@@ -84,8 +84,27 @@ async function main() {
     process.exit(1)
   }
 
-  // The instruments. Each carries its own battery; --self-test runs them.
+  /*
+   * THE DATASET PATH MUST REACH THE INSTRUMENTS, NOT JUST THE HEADER.
+   *
+   * The first version read --dataset itself, printed "train 207, eval 34" from
+   * it, and then ran the instruments with no path at all -- so they looked for
+   * the default `spec-dataset/` in the working directory.
+   *
+   * Here that directory was absent and both instruments failed loudly, which is
+   * how this was noticed. Had a STALE `spec-dataset/` been lying there, the
+   * panel would have printed its numbers under the header of a different
+   * dataset, and nothing would have said so.
+   *
+   * A panel that names one source and measures another is worse than no panel.
+   */
   const flags = selfTest ? ['--self-test'] : []
+  flags.push(
+    '--eval',
+    `${dataset}/eval.jsonl`,
+    '--train',
+    `${dataset}/train.jsonl`
+  )
   const score = await instrument('score-spec-answers.mjs', flags)
   const exec = await instrument('score-by-execution.mjs', flags)
 

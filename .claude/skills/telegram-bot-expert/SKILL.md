@@ -80,12 +80,12 @@ export interface MyContext extends Context {
 
 Scenes must be registered in:
 
-- `src/sceneFactory/index.ts` - scene creation
+- `src/scenes/sceneFactory/index.ts` - scene creation
 - `src/bot.ts` - bot initialization
 
 #### 5. Command Registration
 
-Commands defined in `src/registerCommands.ts` and `src/setCommands.ts`
+Commands defined in `src/navigation/registerCommands.ts` and `src/setCommands.ts`
 
 ### Project-Specific Patterns
 
