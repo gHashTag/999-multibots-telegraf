@@ -331,6 +331,31 @@ async function main() {
      * comment strip it scored 100%. It is built per reference, so it cannot
      * pass by luck the way a fixed constant might.
      */
+    /*
+     * THE SHUFFLED CONTROL: THE ONLY HONEST FLOOR FOR NEAR AND SUBSTANCE.
+     *
+     * The constant cheat scores 0 on both, which made them look like columns
+     * with a floor at zero. They are not. Give every task its NEIGHBOUR's
+     * reference answer -- plausible, well-formed, and wrong -- and the same
+     * columns read:
+     *
+     *     VALID 100%   RELEVANT 0%   NEAR 35%   SUBSTANCE 20%
+     *
+     * That is the level chance reaches. A model scoring NEAR 29% is BELOW it,
+     * which is invisible while the only floor on display is a constant answer
+     * sharing no name-parts with anything.
+     *
+     * The derangement is `i + 1`, not a shuffle: no randomness, so the number
+     * is the same on every run and can be asserted on.
+     */
+    const shuffled = await scoreAll(
+      references.map((r, i) => ({
+        reference: r,
+        answer: references[(i + 1) % references.length],
+      })),
+      'ПЕРЕМЕШАНО (чужой эталон)'
+    )
+
     const commentCheat = await scoreAll(
       references.map(r => ({
         reference: r,
@@ -378,6 +403,19 @@ async function main() {
     if (perfect.near < 0.98) bad.push('эталон не близок сам себе')
     if (empty.near > 0) bad.push('пустой ответ признан близким')
     if (empty.valid > 0) bad.push('пустой ответ признан валидным')
+    // The columns must beat chance, not merely beat a constant string.
+    if (perfect.near - shuffled.near < 0.4)
+      bad.push(
+        `NEAR почти не отличает свой ответ от чужого: эталон ` +
+          `${(perfect.near * 100).toFixed(0)}%, перемешано ${(shuffled.near * 100).toFixed(0)}%`
+      )
+    if (perfect.substance - shuffled.substance < 0.4)
+      bad.push(
+        `SUBSTANCE почти не отличает свой ответ от чужого: эталон ` +
+          `${(perfect.substance * 100).toFixed(0)}%, перемешано ${(shuffled.substance * 100).toFixed(0)}%`
+      )
+    if (shuffled.relevant > 0)
+      bad.push('перемешанный ответ признан РЕЛЕВАНТНЫМ')
     // The floor. Without it the whole column passes with no compiler at all.
     if (garbage.valid > 0)
       bad.push(

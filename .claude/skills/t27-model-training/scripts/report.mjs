@@ -145,6 +145,12 @@ async function main() {
       'пустые ответы[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+NEAR\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
     )
   )
+  const shf = pick(
+    score.out,
+    P(
+      'ПЕРЕМЕШАНО[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+NEAR\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
+    )
+  )
   const gar = pick(
     score.out,
     P(
@@ -176,6 +182,17 @@ async function main() {
     console.log(
       `  МУСОР (проза) VALID ${gar[0]}%  RELEVANT ${gar[1]}%  NEAR ${gar[2]}%  SUBSTANCE ${gar[3]}%`
     )
+  if (shf) {
+    console.log(
+      `  ПЕРЕМЕШАНО    VALID ${shf[0]}%  RELEVANT ${shf[1]}%  NEAR ${shf[2]}%  SUBSTANCE ${shf[3]}%`
+    )
+    console.log(
+      `                ↑ ЭТО УРОВЕНЬ СЛУЧАЙНОСТИ. NEAR ниже ${shf[2]}% и SUBSTANCE`
+    )
+    console.log(
+      `                  ниже ${shf[3]}% значат «хуже, чем чужой готовый ответ».`
+    )
+  }
   if (!emp || !gar)
     console.log(
       '  ⚠️  строки ПОЛА не найдены в выводе прибора — панель показывает\n' +
