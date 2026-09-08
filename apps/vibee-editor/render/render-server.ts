@@ -10736,6 +10736,26 @@ async function main() {
    * booting a render service.
    */
   if (process.env.AUTOPILOT_LOOP === '1') {
+    /**
+     * Say it where somebody looks, and never let saying it be the thing that
+     * fails: the journal lives in the same database the autopilot needs, so a
+     * write that throws here would replace one silent failure with two.
+     */
+    const noteAutopilotStop = (why: string) => {
+      try {
+        void record(getPool(), {
+          // An existing kind rather than a new one: widening EventKind for a
+          // single caller would put a word in a shared vocabulary that only
+          // one place ever says.
+          kind: 'failure',
+          who: 'house',
+          what: `autopilot: ${why}`,
+          severity: 'attention',
+        })
+      } catch {
+        // Already logged to the console above; nothing further to try.
+      }
+    }
     const startAutopilot = () => {
       const child = spawn(
         path.join(__dirname, 'node_modules/.bin/tsx'),
@@ -10752,8 +10772,33 @@ async function main() {
           },
         }
       )
+      /*
+       * A SPAWN THAT FAILS MUST NOT TAKE THE WEB SERVER WITH IT.
+       *
+       * ChildProcess emits 'error' when the binary cannot be executed at all
+       * -- a missing tsx after a dependency change, EAGAIN, EMFILE. An 'error'
+       * event with no listener is thrown, and there was none: a failure to
+       * start the autopilot would have crashed the render service that hosts
+       * it. The supervisor existed for exactly the opposite reason.
+       */
+      child.on('error', err => {
+        console.error(
+          `[autopilot] child failed to start: ${err.message} — respawn in 60s`
+        )
+        noteAutopilotStop(`failed to start: ${err.message}`)
+        setTimeout(startAutopilot, 60_000)
+      })
       child.on('exit', code => {
         console.log(`[autopilot] child exited (${code}) — respawn in 60s`)
+        /*
+         * AND A STOPPED FACTORY LEAVES A TRACE SOMEWHERE A PERSON LOOKS.
+         *
+         * The feed has gone 382 hours without a post while this line was the
+         * only record of why -- in a container log nobody reads. The journal
+         * is where this service already files money events that need a human;
+         * a factory that has stopped producing is the same kind of fact.
+         */
+        noteAutopilotStop(`exited with code ${code}`)
         setTimeout(startAutopilot, 60_000)
       })
     }
