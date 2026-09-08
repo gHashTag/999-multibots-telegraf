@@ -43,6 +43,8 @@ export const PROPOSAL_NO = 'tgp:no:'
  * far above any real message written in a chat.
  */
 const SHOWN_CHARS = 3000
+/** A photo caption is capped at 1024 by Telegram; the head and price line need room. */
+const PHOTO_CHARS = 700
 
 export interface Proposal {
   id: string
@@ -51,6 +53,10 @@ export interface Proposal {
   what?: string
   /** The recipient in words, from the server; shown beside the id only. */
   display?: string
+  /** A photo that IS the service; the card shows it before anything leaves. */
+  media?: { kind: 'photo'; url: string }
+  /** Who is charged at the press, and how much. */
+  charge?: { telegramId: string; op: string; tokens: number }
 }
 
 function apiKey(): string {
@@ -145,10 +151,16 @@ async function post(
 export function proposalCard(
   p: Proposal & { secret: string },
   isRu: boolean
-): { text: string; markup: ReturnType<typeof Markup.inlineKeyboard> } {
+): {
+  text: string
+  markup: ReturnType<typeof Markup.inlineKeyboard>
+  photo?: string
+} {
+  const photo = p.media?.kind === 'photo' ? p.media.url : undefined
+  const limit = photo ? PHOTO_CHARS : SHOWN_CHARS
   const body = p.what ?? ''
-  const cut = body.length > SHOWN_CHARS
-  const shown = cut ? body.slice(0, SHOWN_CHARS) : body
+  const cut = body.length > limit
+  const shown = cut ? body.slice(0, limit) : body
 
   /*
    * A BARE ID IS NOT AN ADDRESS A PERSON CAN CHECK.
@@ -192,17 +204,29 @@ export function proposalCard(
         ? `${p.target} (числовой id — не могу показать имя)`
         : `${p.target} (numeric id — no name to show)`
       : p.target
-  const head = isRu
-    ? `Отправить сообщение в Telegram?\n\nКому: ${to}`
-    : `Send this Telegram message?\n\nTo: ${to}`
+  const ask = photo
+    ? isRu
+      ? 'Отправить это фото в Telegram?'
+      : 'Send this photo on Telegram?'
+    : isRu
+      ? 'Отправить сообщение в Telegram?'
+      : 'Send this Telegram message?'
+  // The price is on the card because the press is what charges it.
+  const price = p.charge
+    ? isRu
+      ? `\nСпишется у получателя: ${p.charge.tokens} токенов`
+      : `\nThe recipient will be charged: ${p.charge.tokens} tokens`
+    : ''
+  const head = `${ask}\n\n${isRu ? 'Кому' : 'To'}: ${to}${price}`
   const tail = cut
     ? isRu
-      ? `\n\n(показано ${SHOWN_CHARS} из ${body.length} символов — отправится целиком)`
-      : `\n\n(showing ${SHOWN_CHARS} of ${body.length} characters — all of it will be sent)`
+      ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`
+      : `\n\n(showing ${limit} of ${body.length} characters — all of it will be sent)`
     : ''
 
   return {
-    text: `${head}\n\n${shown}${tail}`,
+    ...(photo ? { photo } : {}),
+    text: shown ? `${head}\n\n${shown}${tail}` : head,
     markup: Markup.inlineKeyboard([
       [
         /*

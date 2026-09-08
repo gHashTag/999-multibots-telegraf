@@ -388,6 +388,27 @@ export function владелец(tid: string): boolean {
   return ВЛАДЕЛЬЦЫ.has(String(tid))
 }
 
+/**
+ * Read-only: what a person has, or null when they have no row yet. A null
+ * is not zero -- the first charge creates the row with the free grant
+ * (`ensureRow`), so a caller deciding "can they afford it" must know the
+ * difference.
+ */
+export async function balanceOf(
+  pool: Pool,
+  tid: string
+): Promise<number | null> {
+  const r = await pool.query(
+    `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
+    [tid]
+  )
+  const b = r.rows[0]?.balance
+  return b === undefined || b === null ? null : Number(b)
+}
+
+/** The free grant a first charge creates the row with. See `ensureRow`. */
+export const FIRST_ROW_GRANT = 20
+
 export async function spendByTid(
   pool: Pool,
   tid: string,

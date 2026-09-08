@@ -32,6 +32,7 @@
 import crypto from 'node:crypto'
 import type { AgentTool, ToolContext } from './tools'
 import { remember } from './tg-proposals'
+import type { ProposalMedia, ProposalCharge } from './tg-proposals'
 
 /**
  * WHOSE ACCOUNT THIS IS -- and why every reading tool below asks.
@@ -137,12 +138,16 @@ export interface Proposal {
   why: string
   /** The recipient in words, beside the id. See PendingProposal.display. */
   display?: string
+  media?: ProposalMedia
+  charge?: ProposalCharge
 }
 
 /** What a caller may attach to a draft beyond the message itself. */
 export interface ProposalExtras {
   display?: string
   invoiceId?: number
+  media?: ProposalMedia
+  charge?: ProposalCharge
 }
 
 /**
@@ -186,7 +191,11 @@ function propose(
   extra?: ProposalExtras
 ): Proposal & { id: string } {
   requireIdentity(ctx)
-  const named = extra?.display ? { display: extra.display } : {}
+  const named = {
+    ...(extra?.display ? { display: extra.display } : {}),
+    ...(extra?.media ? { media: extra.media } : {}),
+    ...(extra?.charge ? { charge: extra.charge } : {}),
+  }
   /*
    * A SHORT ID, BECAUSE THE BUTTON HAS 64 BYTES.
    *
@@ -233,6 +242,8 @@ function propose(
       bot,
       display: extra?.display,
       invoiceId: extra?.invoiceId,
+      media: extra?.media,
+      charge: extra?.charge,
     })
   }
   /*

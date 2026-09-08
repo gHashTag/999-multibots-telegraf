@@ -33,6 +33,23 @@
 
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 
+/** A file that IS the service: made on the owner's turn, shown on the card. */
+export interface ProposalMedia {
+  kind: 'photo'
+  url: string
+}
+
+/**
+ * Who pays for the service and how much. Charged at EXECUTE -- after the
+ * owner's press, never on the model's say-so -- and refunded exactly if the
+ * send then fails. `op` is the price-list key (billing-shared TOKEN_PRICES).
+ */
+export interface ProposalCharge {
+  telegramId: string
+  op: string
+  tokens: number
+}
+
 export interface PendingProposal {
   id: string
   telegramId: string
@@ -124,6 +141,8 @@ export interface PendingProposal {
    * minted for.
    */
   invoiceId?: number
+  media?: ProposalMedia
+  charge?: ProposalCharge
 }
 
 /** What may leave this module. Never the secret, except through `issueFor`. */
@@ -433,6 +452,15 @@ interface SendingClient {
     to: string,
     opts: { message: string; parseMode: false }
   ) => Promise<unknown>
+  /**
+   * GramJS `sendFile`: `file` may be a direct URL, which Telegram fetches
+   * itself (photo by URL is capped at 10 MB). Same parseMode rule as text:
+   * the approved caption must be the sent caption.
+   */
+  sendFile?: (
+    to: string,
+    opts: { file: string; caption?: string; parseMode: false }
+  ) => Promise<unknown>
   getDialogs: (opts: { limit: number }) => Promise<unknown>
   disconnect?: () => Promise<unknown>
 }
@@ -492,25 +520,66 @@ const LOOKS_NUMERIC = /^-?\d+$/
  * extra round trip, taken ONLY when the first attempt fails, so a @username
  * send stays a single call.
  */
-async function sendWithAddressBook(
+async function withAddressBook(
   c: SendingClient,
   target: string,
-  message: string
+  attempt: () => Promise<unknown>
 ): Promise<void> {
   try {
-    await c.sendMessage(target, { message, ...VERBATIM })
+    await attempt()
     return
   } catch (e) {
     const text = e instanceof Error ? e.message : String(e)
     const unresolved = /input entity|Could not find/i.test(text)
     if (!unresolved || !LOOKS_NUMERIC.test(target)) throw e
   }
-  /*
-   * Warm and retry ONCE. A loop here would turn one bad address into a stream
-   * of dialog fetches against Telegram, which is how an account gets limited.
-   */
   await c.getDialogs({ limit: 200 })
-  await c.sendMessage(target, { message, ...VERBATIM })
+  await attempt()
+}
+
+async function sendWithAddressBook(
+  c: SendingClient,
+  target: string,
+  message: string
+): Promise<void> {
+  await withAddressBook(c, target, () =>
+    c.sendMessage(target, { message, ...VERBATIM })
+  )
+}
+
+async function sendFileWithAddressBook(
+  c: SendingClient,
+  target: string,
+  media: ProposalMedia,
+  caption: string | undefined
+): Promise<void> {
+  if (!c.sendFile) throw new Error('этот клиент не умеет отправлять файлы')
+  const send = c.sendFile
+  await withAddressBook(c, target, () =>
+    send(target, { file: media.url, caption: caption ?? '', ...VERBATIM })
+  )
+}
+
+/** Best-effort, bounded: the journal must never hold or fail a send. */
+async function noteInJournal(
+  pool: unknown,
+  e: {
+    kind: 'tokens-spent' | 'tokens-refunded' | 'failure'
+    who: string
+    amount: number
+    what: string
+    severity?: 'normal' | 'attention' | 'alarm'
+  }
+): Promise<void> {
+  try {
+    const { record } = await import('../hive/journal')
+    await Promise.race([
+      record(pool as never, e),
+      new Promise<void>(r => setTimeout(r, TOUCH_WRITE_MS)),
+    ])
+  } catch (err) {
+    console.warn('[proposal] journal note failed:', String(err).slice(0, 120))
+  }
 }
 
 export async function execute(
@@ -522,34 +591,93 @@ export async function execute(
   try {
     c = (await client(ctx as never)) as SendingClient
     switch (p.action) {
-      case 'send':
-        if (!p.what)
+      case 'send': {
+        if (!p.what && !p.media)
           return { done: false, why: 'нечего отправлять: текст пуст' }
-        await sendWithAddressBook(c, p.target, p.what)
         /*
-         * THE TOUCH IS RECORDED HERE, AFTER THE SEND, AND NOWHERE ELSE.
-         *
-         * Only this line knows the message left. Best-effort: a touch that
-         * failed to write must not turn a delivered message into a reported
-         * failure -- the person would send it again.
+         * THE MONEY, AFTER THE PRESS AND BEFORE THE SEND. A charge on the
+         * proposal is the recipient's -- a service they asked for in the DM
+         * and the owner approved with a button. Charging here, not at tool
+         * time, means the model's word alone never moves anybody's balance,
+         * and a cancelled or expired card costs the recipient nothing.
          */
+        let paid: number | null = null
+        if (p.charge) {
+          if (!ctx.pool)
+            return {
+              done: false,
+              why: 'списать не с чего: база недоступна — услуга не отправлена',
+            }
+          const { spendByTid } = await import('./billing-shared')
+          const r = await spendByTid(
+            ctx.pool as never,
+            p.charge.telegramId,
+            p.charge.op
+          )
+          if (!r.ok)
+            return {
+              done: false,
+              why:
+                `у получателя не хватает токенов (${r.причина ?? 'баланс мал'}) — ` +
+                'предложи пополнить счёт (crm_offer) и повтори',
+            }
+          paid = r.списано ?? 0 // cyrillic-ok: public API field
+          await noteInJournal(ctx.pool, {
+            kind: 'tokens-spent',
+            who: p.charge.telegramId,
+            amount: paid,
+            what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
+          })
+        }
+        try {
+          if (p.media)
+            await sendFileWithAddressBook(c, p.target, p.media, p.what)
+          else await sendWithAddressBook(c, p.target, p.what ?? '')
+        } catch (e) {
+          if (paid !== null && p.charge && ctx.pool) {
+            // Not delivered: give back exactly what was taken, and say so
+            // either way -- a refund that failed is the owner's problem now.
+            const { refundByTid } = await import('./billing-shared')
+            const back = await refundByTid(
+              ctx.pool as never,
+              p.charge.telegramId,
+              p.charge.op,
+              1,
+              undefined,
+              paid
+            )
+            await noteInJournal(ctx.pool, {
+              kind: back.ok ? 'tokens-refunded' : 'failure',
+              who: p.charge.telegramId,
+              amount: paid,
+              what: back.ok
+                ? `услуга не доставлена, ${paid} возвращено: ${inPlainWords(e).slice(0, 80)}`
+                : `ВОЗВРАТ НЕ ПРОШЁЛ ${paid} токенов: ${back.why}`,
+              severity: back.ok ? 'attention' : 'alarm',
+            })
+            return {
+              done: false,
+              why:
+                inPlainWords(e) +
+                (back.ok
+                  ? `; списанные ${paid} токенов возвращены получателю`
+                  : `; ВОЗВРАТ ${paid} токенов НЕ ПРОШЁЛ — проверь баланс получателя`),
+            }
+          }
+          throw e
+        }
         if (p.lead && ctx.pool) {
-          /*
-           * BOUNDED, AND LOUD WHEN LOST.
-           *
-           * The message has left. A stalled pool must not hold the owner's
-           * "sent" for a minute after the fact, and a touch that failed to
-           * write must not vanish without a line -- the waiting list would be
-           * wrong with nobody knowing why.
-           */
           try {
             const { recordTouch } = await import('./crm-touches')
             const write = recordTouch(ctx.pool as never, {
               owner: String(ctx.telegramId),
               lead: String(p.lead),
               botName: p.bot ?? null,
-              kind: 'written',
-              note: `отправлено из личного продавца: ${(p.what ?? '').slice(0, 80)}`,
+              // A paid, delivered service is a purchase; a message is a touch.
+              kind: p.charge ? 'bought' : 'written',
+              note: p.charge
+                ? `услуга в личке: ${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
+                : `отправлено из личного продавца: ${(p.what ?? '').slice(0, 80)}`,
             })
             const outcome = await Promise.race([
               write,
@@ -569,6 +697,7 @@ export async function execute(
           }
         }
         return { done: true, action: 'send' }
+      }
       default:
         /*
          * Only sending is carried out for now. The other actions -- forward,

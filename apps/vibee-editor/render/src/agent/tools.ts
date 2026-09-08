@@ -507,6 +507,7 @@ import { ценаТокенов, названиеСчёта } from './token-pack
 import { CRM_TOOLS } from './crm-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
+import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { HIVE_TOOLS } from './hive-tools'
 import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS } from './telegram-tools'
@@ -2310,6 +2311,9 @@ TOOLS.push(...TELEGRAM_TOOLS)
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
+// Delivery borrows image_generate through the registry, not an import: the
+// generator lives in this file, and a module cycle would be the alternative.
+TOOLS.push(...makeCrmDeliverTools(n => TOOLS.find(t => t.name === n)))
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project

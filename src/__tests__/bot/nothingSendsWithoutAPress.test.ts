@@ -676,3 +676,70 @@ describe('the card names the person beside the id', () => {
     expect(SOURCE).not.toContain('secret: draft.secret')
   })
 })
+
+describe('a photo card shows the service under the same two buttons', () => {
+  const card = async (p: Record<string, unknown>) => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    return proposalCard(
+      {
+        id: 'p9',
+        action: 'send',
+        target: '6579515876',
+        secret: 's9',
+        ...p,
+      } as never,
+      true
+    )
+  }
+  const photo = {
+    media: { kind: 'photo', url: 'https://s3.example/pic.png' },
+    charge: { telegramId: '6579515876', op: 'image_generate', tokens: 2 },
+    display: 'Ольга (@playom)',
+    what: 'Ваш котик готов!',
+  }
+
+  it("returns the photo, names the price, and keeps the caption under Telegram's cap", async () => {
+    const c = await card(photo)
+    expect(c.photo).toBe('https://s3.example/pic.png')
+    expect(c.text).toContain('Отправить это фото')
+    expect(c.text).toContain('Спишется у получателя: 2 токенов')
+    expect(c.text).toContain('6579515876 — Ольга (@playom)')
+    expect(c.text).toContain('Ваш котик готов!')
+    expect(c.text.length).toBeLessThanOrEqual(1024)
+  })
+
+  it('a long caption is cut to fit the photo, and the cut is stated', async () => {
+    const c = await card({ ...photo, what: 'я'.repeat(3000) })
+    expect(c.text.length).toBeLessThanOrEqual(1024)
+    expect(c.text).toContain('3000')
+  })
+
+  it("the buttons carry this draft's id and secret, photo or not", async () => {
+    const { PROPOSAL_OK, PROPOSAL_NO } = await import(
+      '@/services/telegramProposals'
+    )
+    const c = await card(photo)
+    const data = c.markup.reply_markup.inline_keyboard
+      .flat()
+      .map((b: any) => b.callback_data)
+    expect(data).toContain(`${PROPOSAL_OK}p9:s9`)
+    expect(data).toContain(`${PROPOSAL_NO}p9:s9`)
+  })
+
+  it('a text draft has no photo and no price line', async () => {
+    const c = await card({ what: 'привет' })
+    expect(c.photo).toBeUndefined()
+    expect(c.text).not.toContain('Спишется')
+    expect(c.text).toContain('Отправить сообщение')
+  })
+
+  it('the bot sends a photo card as a photo, and falls back to the link', () => {
+    // Source-level: the handler that draws the card is not bootable here.
+    const gate = SOURCE.indexOf("ctx.chat?.type === 'private' && draft")
+    const block = SOURCE.slice(gate, gate + 1400)
+    expect(block).toContain('if (!card.photo)')
+    expect(block).toContain('sendPhotoWithFallback(ctx, card.photo')
+    expect(block).toContain('reply_markup: card.markup.reply_markup')
+    expect(block).toContain('${card.photo}')
+  })
+})

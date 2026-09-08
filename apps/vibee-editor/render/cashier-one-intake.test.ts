@@ -175,7 +175,10 @@ describe('два пути зачисления — один замок', () => {
      * Дефект был спящим, пока приём апдейтов не работал. Починка приёма его
      * разбудила бы — поэтому оба пути сведены к одной функции с одним замком.
      */
-    const хвост = СЕРВЕР.slice(СЕРВЕР.indexOf('UPDATE token_invoices SET redeemed'))
+    // The statement, not one spelling of it: prettier wraps it. cyrillic-ok: pre-existing identifiers
+    const at = СЕРВЕР.search(/UPDATE token_invoices\s+SET redeemed = TRUE/) // cyrillic-ok: pre-existing identifiers
+    expect(at, 'the redeem UPDATE is gone').toBeGreaterThan(-1)
+    const хвост = СЕРВЕР.slice(at) // cyrillic-ok: pre-existing identifiers
     const доКонцаВетки = хвост.slice(0, 2500)
     expect(доКонцаВетки).toContain('await creditStarsPayment(pool, {')
     expect(доКонцаВетки).toContain('chargeId: String(match.id)')
