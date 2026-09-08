@@ -337,13 +337,21 @@ describe('the number of money refusals with nothing to press does not grow', () 
       // somebody else renders (balance.interface), or the nearby reply is a
       // different message entirely (the statusMessage shapes).
       //
+      // 17 -> 14: three services that refuse for want of stars now hand over
+      // the button (NanoBanana, Seedream45Replicate, NanoBananaProReplicate).
+      // Only three, although five carry that exact refusal: the other two,
+      // generateGeminiImage and generateNanoBananaKie, are files nothing calls
+      // -- chargeSiteCensus already declares them unreferenced. Repairing them
+      // would move this number without moving anything a person can reach, and
+      // a count that credits dead code is worth less than a smaller honest one.
+      //
       // TIGHT, and it has to be: a ceiling one above the real figure cannot see
       // a regression of one. Bisected with the CORRECTED classifier on both
       // sides -- clean main fails at 42, this branch fails at 37 and passes at
       // 38. Measuring the two sides with different instruments is how the first
       // version of this claim came out wrong.
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(17)
+    ).toBeLessThanOrEqual(14)
   })
 
   /**
