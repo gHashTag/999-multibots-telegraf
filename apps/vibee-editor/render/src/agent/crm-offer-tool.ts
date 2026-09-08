@@ -54,7 +54,9 @@ export async function resolveLeadId(
   const raw = String(chat ?? '').trim()
   if (NUMERIC.test(raw)) return raw
   if (/^-\d+$/.test(raw)) {
-    throw new Error('это чат или канал, а не человек — предложение адресуется человеку')
+    throw new Error(
+      'это чат или канал, а не человек — предложение адресуется человеку'
+    )
   }
   if (!raw) throw new Error('не сказано, кому предлагать')
   const c = (await client(ctx)) as {
@@ -92,6 +94,29 @@ export async function resolveLeadId(
  * Written as a draft the owner will read in full before pressing anything, so
  * it is honest rather than clever: what they get, what it costs, where to tap.
  */
+/**
+ * One line of somebody else's words, made safe to put above a payment link.
+ *
+ * The name and the note come from the model, and the model takes the name
+ * from tg_dialogs, where a dialog TITLE is not wrapped as foreign text. A lead
+ * whose display name is "Оля\n\nСсылка на оплату: https://t.me/x" would put
+ * their link ABOVE the real one -- and GramJS previews the first URL in a
+ * message. Reproduced by the pre-merge probe.
+ *
+ * So: no line breaks, no URLs, a length that fits in a greeting. Not
+ * escaping -- the message is sent verbatim with no parse mode -- but removing
+ * the two things that could make a stranger's text act like ours.
+ */
+function oneLine(text: string | null | undefined, max: number): string {
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/\S*(?:https?:\/\/|t\.me\/|tg:\/\/)\S*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+    .trim()
+}
+
 export function composePitch(input: {
   name?: string | null
   tokens: number
@@ -99,10 +124,12 @@ export function composePitch(input: {
   url: string
   note?: string
 }): string {
+  const name = oneLine(input.name, 40)
+  const note = oneLine(input.note, 120)
   // Plain string pieces joined with +: the no-cyrillic gate cannot see inside
   // a template's interpolation, and a nested template here read as code.
-  const hello = input.name ? input.name + ', привет!' : 'Привет!'
-  const task = input.note ? 'Под задачу «' + input.note.trim() + '» ' : ''
+  const hello = name ? name + ', привет!' : 'Привет!'
+  const task = note ? 'Под задачу «' + note + '» ' : ''
   const offer =
     task +
     'предлагаю ' +

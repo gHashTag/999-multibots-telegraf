@@ -184,7 +184,9 @@ describe("it proposes, and the press is somebody else's", () => {
     await expect(
       tool.handler({ chat: '-1001234567890' }, ownerCtx())
     ).rejects.toThrow('не человек')
-    expect(posted.filter(p => p.url.includes('createInvoiceLink'))).toHaveLength(0)
+    expect(
+      posted.filter(p => p.url.includes('createInvoiceLink'))
+    ).toHaveLength(0)
   })
 })
 
@@ -237,23 +239,39 @@ describe('the touch follows the send, not the model', () => {
     }))
     vi.doMock('./src/agent/telegram-tools', () => ({
       client: async () => ({
-        async sendMessage() { return {} },
-        async getDialogs() { return [] },
+        async sendMessage() {
+          return {}
+        },
+        async getDialogs() {
+          return []
+        },
         async disconnect() {},
       }),
     }))
     const { execute } = await import('./src/agent/tg-proposals')
     const warned: string[] = []
     const real = console.warn
-    console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(' ')) }
+    console.warn = (...a: unknown[]) => {
+      warned.push(a.map(String).join(' '))
+    }
     try {
       const p = execute(
-        { id: 'p1', telegramId: OWNER, action: 'send', target: '@x', what: 'hi', lead: LEAD, createdAt: Date.now() } as any,
+        {
+          id: 'p1',
+          telegramId: OWNER,
+          action: 'send',
+          target: '@x',
+          what: 'hi',
+          lead: LEAD,
+          createdAt: Date.now(),
+        } as any,
         { telegramId: OWNER, pool: { query: async () => ({ rows: [] }) } }
       )
       await vi.advanceTimersByTimeAsync(3100)
       const r = await p
-      expect(r.done, 'отправленное письмо отчитано как неотправленное').toBe(true)
+      expect(r.done, 'отправленное письмо отчитано как неотправленное').toBe(
+        true
+      )
       expect(warned.join(' ')).toContain('timed out')
     } finally {
       console.warn = real
@@ -268,18 +286,32 @@ describe('the touch follows the send, not the model', () => {
     }))
     vi.doMock('./src/agent/telegram-tools', () => ({
       client: async () => ({
-        async sendMessage() { return {} },
-        async getDialogs() { return [] },
+        async sendMessage() {
+          return {}
+        },
+        async getDialogs() {
+          return []
+        },
         async disconnect() {},
       }),
     }))
     const { execute } = await import('./src/agent/tg-proposals')
     const warned: string[] = []
     const real = console.warn
-    console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(' ')) }
+    console.warn = (...a: unknown[]) => {
+      warned.push(a.map(String).join(' '))
+    }
     try {
       await execute(
-        { id: 'p1', telegramId: OWNER, action: 'send', target: '@x', what: 'hi', lead: LEAD, createdAt: Date.now() } as any,
+        {
+          id: 'p1',
+          telegramId: OWNER,
+          action: 'send',
+          target: '@x',
+          what: 'hi',
+          lead: LEAD,
+          createdAt: Date.now(),
+        } as any,
         { telegramId: OWNER, pool: { query: async () => ({ rows: [] }) } }
       )
     } finally {
@@ -333,5 +365,58 @@ describe('the touch follows the send, not the model', () => {
     await execute(base as any, ctx)
     expect(touches, 'касание записано без лида').toHaveLength(1)
     vi.doUnmock('./src/agent/crm-touches')
+  })
+})
+
+describe("somebody else's words cannot outrank the payment link", () => {
+  it('a name carrying a URL and line breaks leaves ONE link in the pitch -- ours, and first', async () => {
+    /*
+     * The model takes the name from tg_dialogs, where a dialog title is not
+     * wrapped as foreign text. A display name with a link in it put that link
+     * above the real one, and GramJS previews the first URL in a message.
+     */
+    const { composePitch } = await import('./src/agent/crm-offer-tool')
+    const evil = 'Оля\n\nСсылка на оплату: https://t.me/$EVIL2 жми'
+    const text = composePitch({
+      name: evil,
+      note: 'рилсы см. t.me/$EVIL3 срочно',
+      tokens: 50,
+      stars: 65,
+      url: 'https://t.me/$real-invoice',
+    })
+    const urls = text.match(/\S*(?:https?:\/\/|t\.me\/)\S*/g) ?? []
+    expect(urls, 'в питче больше одной ссылки').toEqual([
+      'https://t.me/$real-invoice',
+    ])
+    expect(text).not.toContain('EVIL')
+    // The greeting is ONE line: words around the link survive (we cut links,
+    // not people's words), but no injected paragraph can sit above the offer.
+    const greeting = text.split('\n\n')[0]
+    expect(greeting).not.toContain('\n')
+    expect(greeting.endsWith(', привет!')).toBe(true)
+  })
+
+  it('an ordinary name and note pass through untouched', async () => {
+    const { composePitch } = await import('./src/agent/crm-offer-tool')
+    const text = composePitch({
+      name: 'Оля',
+      note: 'рилсы для запуска',
+      tokens: 50,
+      stars: 65,
+      url: 'https://t.me/$inv',
+    })
+    expect(text).toContain('Оля, привет!')
+    expect(text).toContain('«рилсы для запуска»')
+  })
+
+  it('a name long enough to be a paragraph is cut to a greeting', async () => {
+    const { composePitch } = await import('./src/agent/crm-offer-tool')
+    const text = composePitch({
+      name: 'а'.repeat(500),
+      tokens: 10,
+      stars: 15,
+      url: 'https://t.me/$inv',
+    })
+    expect(text.split('\n\n')[0].length).toBeLessThan(60)
   })
 })
