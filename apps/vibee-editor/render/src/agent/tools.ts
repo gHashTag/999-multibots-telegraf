@@ -49,6 +49,13 @@ export interface ToolContext {
    * message on one that cannot is a promise nothing keeps.
    */
   surface?: string
+  /**
+   * The caller will charge somebody ELSE for this work at a later, confirmed
+   * moment (a service delivered in a DM: the recipient pays at the owner's
+   * press). spendTokens then leaves the caller's wallet alone. Set only by
+   * code, never from arguments.
+   */
+  chargeLater?: boolean
 }
 
 export interface AgentTool {
@@ -336,6 +343,15 @@ async function spendTokens(
   // real users is a product decision, not a bug fix.
   if (HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)) {
     console.log(`[токены] дом не платит себе: «${tool}» для ${ctx.telegramId}`) // cyrillic-ok: log text
+    return { ok: true, потрачено: 0 } // cyrillic-ok: existing return field
+  }
+  // Somebody else pays later, once, at a confirmed moment (see ToolContext).
+  // Without this the picture for a DM was paid twice: here by the owner,
+  // then by the recipient at the press.
+  if (ctx.chargeLater) {
+    console.log(
+      `[токены] отложено на получателя: «${tool}» для ${ctx.telegramId}`
+    ) // cyrillic-ok: log text
     return { ok: true, потрачено: 0 } // cyrillic-ok: existing return field
   }
 

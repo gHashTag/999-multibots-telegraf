@@ -200,7 +200,9 @@ export function onOrphaned(fn: OrphanListener | null): void {
  * the draft has already left the queue, so there is nothing left to drop.
  */
 export function reportOrphan(p: PublicProposal, reason: OrphanReason): void {
-  if (p.invoiceId === undefined || !orphanListener) return
+  // An invoice to un-pend, or a picture already made and never sent: both
+  // are worth a line somewhere. A plain text draft is not.
+  if ((p.invoiceId === undefined && !p.media) || !orphanListener) return
   try {
     orphanListener(p, reason)
   } catch (e) {
@@ -625,7 +627,8 @@ export async function execute(
           await noteInJournal(ctx.pool, {
             kind: 'tokens-spent',
             who: p.charge.telegramId,
-            amount: paid,
+            // Negative, as every other tokens-spent line: money leaving.
+            amount: -paid,
             what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
           })
         }

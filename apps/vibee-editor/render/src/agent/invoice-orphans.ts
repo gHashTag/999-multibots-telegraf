@@ -60,9 +60,21 @@ export async function markOrphaned(
   p: PublicProposal,
   reason: OrphanReason
 ): Promise<boolean> {
-  if (p.invoiceId === undefined) return false
+  if (p.invoiceId === undefined && !p.media) return false
   try {
     const pool = await getPool()
+    if (p.invoiceId === undefined) {
+      // A picture was made (provider cost, a gallery row, a cap slot) and
+      // left unsent. Nothing to un-pend; somebody should still see it.
+      const { record } = await import('../hive/journal')
+      await record(pool as never, {
+        kind: 'failure',
+        who: p.telegramId,
+        what: `фото-черновик ${p.id} ${reason}: картинка сделана, но не отправлена`,
+        severity: 'attention',
+      })
+      return true
+    }
     await ensureInvoiceColumns(pool)
     await pool.query(
       `UPDATE token_invoices
