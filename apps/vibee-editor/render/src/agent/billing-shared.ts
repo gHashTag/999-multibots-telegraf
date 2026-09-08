@@ -1,7 +1,4 @@
-import {
-  СЕБЕСТОИМОСТЬ_USD,
-  ЕДИНИЦА_ЦЕНЫ,
-} from './kie-prices.generated'
+import { СЕБЕСТОИМОСТЬ_USD, ЕДИНИЦА_ЦЕНЫ } from './kie-prices.generated'
 // Контракты моделей: `needs` решает, задаём ли длину МЫ. Модуль без импортов,
 // цикла не создаёт.
 import { KIE_MODELS } from './kie-models'
@@ -262,7 +259,9 @@ export function длинуЗадаётЧеловек(needs: string[] | undefined
  * его модель с таким контрактом продаётся посекундно.
  */
 export function длинуЗадаётФайл(needs: string[] | undefined): boolean {
-  return (needs ?? []).some(поле => поле === 'audio_url' || поле === 'video_url')
+  return (needs ?? []).some(
+    поле => поле === 'audio_url' || поле === 'video_url'
+  )
 }
 
 /**
@@ -465,13 +464,40 @@ export async function spendByTid(
  * формулы, а ЧИСЛА»). Между клиентом и сервером её починили; между списанием
  * и возвратом — нет, потому что обе функции по отдельности «считают верно».
  */
+/**
+ * The outcome of a refund, because void could not tell three cases apart.
+ *
+ * refundByTid used to return void on all three: it gave the money back, it
+ * silently gave nothing back (no price for the op/model -- `if (!price)
+ * return`), or it threw and swallowed. The caller awaited it and learned
+ * nothing, so a refund that never happened looked exactly like one that did.
+ */
+export type RefundOutcome =
+  | { ok: true; refunded: number }
+  | { ok: false; why: string; wanted?: number }
+
 export async function refundByTid(
   pool: Pool,
   tid: string,
   op: string,
   quantity = 1,
-  modelId?: string
-): Promise<void> {
+  modelId?: string,
+  /**
+   * WHAT THE CHARGE ACTUALLY TOOK, WHEN THE CALLER KEPT IT.
+   *
+   * Everything below this line re-derives the amount from the price table,
+   * which is the mechanism that already went wrong once: the note above this
+   * function records omnihuman-1-5 at 10 seconds, charged 540 and refunded 60,
+   * because the refund priced by kind while the charge priced by model. Adding
+   * modelId and quantity closed that instance and left the class open -- the
+   * two numbers are still computed twice, from a table that moves, at two
+   * different moments.
+   *
+   * spendByTid MEASURES what it took and returns it. Handing that number back
+   * is the only version that cannot drift: there is one number, not two.
+   */
+  exact?: number
+): Promise<RefundOutcome> {
   /*
    * ОСВОБОЖДЕНИЕ ВЛАДЕЛЬЦА ДЕЙСТВУЕТ И ЗДЕСЬ. С него не списывают (см.
    * `chargeMiniAppUser`), а возвращали полную цену — то есть каждый сбой
@@ -479,23 +505,36 @@ export async function refundByTid(
    * agent/tools.ts: «освобождение обязано держаться с ОБЕИХ сторон, иначе это
    * не освобождение, а кран».
    */
-  if (владелец(tid)) return
+  if (владелец(tid)) return { ok: true, refunded: 0 } // cyrillic-ok: existing helper name
 
-  const кие =
-    typeof modelId === 'string' && modelId.startsWith('kie/')
-      ? priceForKieModel(modelId.slice(4))
-      : null
-  const unitPrice = кие ?? TOKEN_PRICES[op]
-  const price = (unitPrice ?? 0) * quantity
-  if (!price) return
+  let price = typeof exact === 'number' && exact > 0 ? exact : 0
+  if (!price) {
+    const кие = // cyrillic-ok: existing local name
+      typeof modelId === 'string' && modelId.startsWith('kie/')
+        ? priceForKieModel(modelId.slice(4))
+        : null
+    const unitPrice = кие ?? TOKEN_PRICES[op] // cyrillic-ok: existing local name
+    price = (unitPrice ?? 0) * quantity
+  }
+  // No price and no receipt is not "nothing to do": somebody was charged and
+  // this is the path that was meant to give it back. Say so instead of
+  // returning as though the work were done.
+  if (!price)
+    return { ok: false, why: `no price for op=${op} model=${modelId ?? '-'}` }
   try {
     await pool.query(
       `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
        WHERE telegram_id = $1`,
       [tid, price]
     )
-    console.log(`[токены] возврат ${price} за «${op}»`)
+    console.log(`[токены] возврат ${price} за «${op}»`) // cyrillic-ok: existing log line
+    return { ok: true, refunded: price }
   } catch (e) {
-    console.error('[токены] возврат не прошёл:', e)
+    console.error('[токены] возврат не прошёл:', e) // cyrillic-ok: existing log line
+    return {
+      ok: false,
+      why: e instanceof Error ? e.message : String(e),
+      wanted: price,
+    }
   }
 }

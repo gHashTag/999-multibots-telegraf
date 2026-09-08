@@ -2235,13 +2235,45 @@ async function refundMiniAppUser(
   tid: string | undefined,
   op: string,
   quantity = 1,
-  modelId?: string
-): Promise<void> {
-  if (!tid) return
+  modelId?: string,
+  /**
+   * The amount the charge reported taking, when the caller kept the receipt.
+   *
+   * Passing it makes the refund equal the charge by construction. Without it
+   * the amount is re-derived from the price table at a later moment, which is
+   * how a 540 charge once produced a 60 refund.
+   */
+  exact?: number
+): Promise<boolean> {
+  if (!tid) return false
   try {
-    await refundByTid(getPool() as never, tid, op, quantity, modelId)
+    const outcome = await refundByTid(
+      getPool() as never,
+      tid,
+      op,
+      quantity,
+      modelId,
+      exact
+    )
+    if (!outcome.ok) {
+      /*
+       * A refund that did not happen used to be indistinguishable from one
+       * that did: this helper returned void on success, on a silent no-price
+       * skip, and on a thrown error alike. Nobody claims to the person that
+       * the tokens came back, so the harm is not a false promise -- it is that
+       * somebody paid for nothing and no line anywhere says so. This line does,
+       * with the amount and the person, so it can be made good by hand.
+       */
+      console.error(
+        `[REFUND FAILED] tid=${tid} op=${op} qty=${quantity} model=${modelId ?? '-'} ` +
+          `wanted=${'wanted' in outcome ? outcome.wanted : (exact ?? '?')} why=${outcome.why}`
+      )
+      return false
+    }
+    return true
   } catch (e) {
-    console.error('[токены] возврат не прошёл:', e)
+    console.error('[токены] возврат не прошёл:', e) // cyrillic-ok: existing log line
+    return false
   }
 }
 
@@ -3528,7 +3560,13 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('❌ [Generate] Image error:', error)
         // Nothing was delivered, so the tokens go back.
-        await refundMiniAppUser(billedTid, 'image_generate', 1, requestedModel)
+        await refundMiniAppUser(
+          billedTid,
+          'image_generate',
+          1,
+          requestedModel,
+          receipt.charged
+        )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -3814,7 +3852,8 @@ const server = createServer(async (req, res) => {
               billedTid,
               'video_generate',
               секунды,
-              requestedModel
+              requestedModel,
+              receipt.charged
             )
             res.writeHead(400, { 'Content-Type': 'application/json' })
             res.end(
@@ -3942,7 +3981,8 @@ const server = createServer(async (req, res) => {
             billedTid,
             'video_generate',
             секунды,
-            requestedModel
+            requestedModel,
+            receipt.charged
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -3990,7 +4030,8 @@ const server = createServer(async (req, res) => {
             billedTid,
             'video_generate',
             секунды,
-            requestedModel
+            requestedModel,
+            receipt.charged
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -4519,7 +4560,8 @@ const server = createServer(async (req, res) => {
           billedTid,
           'audio_generate',
           оплаченныеТысячи,
-          requestedModel
+          requestedModel,
+          receipt.charged
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -4955,7 +4997,8 @@ const server = createServer(async (req, res) => {
           billedTid,
           'lipsync_generate',
           billedSeconds || 1,
-          requestedModel
+          requestedModel,
+          receipt.charged
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
