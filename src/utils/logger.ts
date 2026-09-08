@@ -15,6 +15,52 @@ import {
 /**
  * Custom Winston Transport для отправки ошибок в Telegram группу НейроМентор
  */
+/** Routed by the transport itself; everything else in `meta` IS the detail. */
+const ROUTED_META_KEYS = new Set([
+  'context',
+  'function',
+  'telegramId',
+  'telegram_id',
+  'username',
+  'botName',
+  'bot_name',
+])
+const ALERT_DETAILS_MAX = 1200
+
+/**
+ * The owner's alert used to carry only the message title -- the `meta` object
+ * with the status code, the provider's error text, the model, the stack was
+ * dropped on the floor. "[answerAi] xAI Grok API error" reached the owner; the
+ * 400 and "Model not found: grok-2-latest" did not. Render the remaining meta
+ * as compact JSON, redact bot tokens and API keys, cap the size.
+ */
+export function detailsForAlert(meta: unknown): string | undefined {
+  if (!meta || typeof meta !== 'object') return undefined
+  const rest: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(meta as Record<string, unknown>)) {
+    if (ROUTED_META_KEYS.has(k) || v === undefined) continue
+    rest[k] =
+      v instanceof Error
+        ? `${v.message}${v.stack ? `\n${v.stack.split('\n').slice(1, 4).join('\n')}` : ''}`
+        : Buffer.isBuffer(v)
+          ? `<Buffer ${v.length} bytes>`
+          : v
+  }
+  if (Object.keys(rest).length === 0) return undefined
+  let text: string
+  try {
+    text = JSON.stringify(rest, null, 1)
+  } catch {
+    text = String(rest)
+  }
+  text = redactBotToken(text)
+    .replace(/\b\d{8,10}:[A-Za-z0-9_-]{30,}/g, '<bot token>')
+    .replace(/\b(sk|xai|r8|ghp|glpat|sk-proj)[-_][A-Za-z0-9_-]{6,}/g, '<key>')
+  return text.length > ALERT_DETAILS_MAX
+    ? `${text.slice(0, ALERT_DETAILS_MAX)}…`
+    : text
+}
+
 class TelegramLogTransport extends Transport {
   private telegramLogService: any = null
   private isInitialized = false
@@ -57,6 +103,7 @@ class TelegramLogTransport extends Transport {
         telegramId: meta?.telegramId || meta?.telegram_id,
         username: meta?.username,
         botName: meta?.botName || meta?.bot_name,
+        details: detailsForAlert(meta),
       })
     } catch {
       // Игнорируем ошибки отправки чтобы не создавать бесконечный цикл
