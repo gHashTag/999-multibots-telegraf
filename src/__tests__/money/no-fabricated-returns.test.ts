@@ -37,9 +37,32 @@ const strip = (s: string) =>
 
 /**
  * Возврат строкового литерала, который выглядит как адрес или как заглушка.
+ *
+ * A SUBSTITUTION IS A CONSTRUCTION, NOT A FABRICATION. The rule also matched
+ * `return `https://t.me/${username}?start=${key}`` -- the only way to write a
+ * REAL link to our own bot (#2238) -- and turned the gate red on clean main.
+ *
+ * The first fix was to put that file in ALLOWED. A control refuted it: the
+ * allow-list works PER FILE, so the entry would have hidden a genuine stub in
+ * the same file. I dropped `return 'https://stub.example.com/x'` next to it and
+ * the test still passed. So the matcher is narrowed rather than the list
+ * widened: an exception is as wide as its unit, and the unit here is a file.
+ *
+ * Stubs do not hide from this. They have their own rule, FABRICATED_HOST, which
+ * looks for stub/fake/dummy/placeholder/example/mock INSIDE the address and
+ * cares about neither `return` nor substitutions.
  */
-const FABRICATED =
-  /return\s+['"`](https?:\/\/[^'"`]*|[a-z0-9_-]*(?:stub|fake|dummy|placeholder|example)[a-z0-9_-]*)['"`]/i
+const STUBWORD = String.raw`[a-z0-9_-]*(?:stub|fake|dummy|placeholder|example)[a-z0-9_-]*`
+const FABRICATED = new RegExp(
+  String.raw`return\s+(?:` +
+    // a quoted literal: exactly as before
+    String.raw`['"](?:https?://[^'"]*|${STUBWORD})['"]` +
+    '|' +
+    // a template with NO substitution: still a literal, just spelled with backticks
+    String.raw`\`(?:https?://[^\`$]*|${STUBWORD})\`` +
+    ')',
+  'i'
+)
 
 /**
  * The same fabrication, returned as a PROPERTY rather than as the whole value.
@@ -58,9 +81,18 @@ const FABRICATED_HOST =
  */
 const ALLOWED: Record<string, string> = {
   'src/core/x402/index.ts': 'публичные адреса сетей Base — это и есть значения',
-  'src/handlers/getPhotoUrl.ts': 'ссылки на наше же хранилище',
-  'src/inngest_app/functions/render/renderAvatarVideo.ts':
-    'адрес собирается ПОСЛЕ успешной загрузки, не вместо неё',
+  /*
+   * TWO ENTRIES REMOVED, AND THAT IS A STRENGTHENING.
+   *
+   * getPhotoUrl.ts and renderAvatarVideo.ts built their addresses by template
+   * too (`${step}`, `${bucket}/${key}`). With the matcher narrowed they are no
+   * longer fabrications, so they no longer need excusing -- and both files are
+   * FULLY guarded again, where the allow-list entry had been covering
+   * everything in them, because it works per file.
+   *
+   * The list demanded this itself: its own "no stale entries" check went red on
+   * exactly those two.
+   */
 }
 
 /**
