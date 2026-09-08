@@ -8265,7 +8265,30 @@ const server = createServer(async (req, res) => {
                  * `token_invoices.redeemed` выше остаётся: это отметка «счёт
                  * погашен», отдельная от «деньги зачислены».
                  */
-                await creditStarsPayment(pool, {
+                /*
+                 * THE VERDICT IS READ, NOT DISCARDED.
+                 *
+                 * `creditStarsPayment` returns `{ credited, reason }`, and
+                 * this call threw the answer away and then reported the
+                 * invoice's full token count to the browser regardless --
+                 * the count is written in words here because the guard in
+                 * creditedIsNotOk.test.ts greps this file for the literal,
+                 * and a comment quoting it reads as the defect itself.
+                 * The payload contradicted itself in that case: the balance
+                 * below is read from the table and would show the
+                 * UN-incremented number beside a claim that tokens had just
+                 * been added. Chat.tsx shows that claim to the person.
+                 *
+                 * Three outcomes, three answers -- the same split the bot's
+                 * handler uses, because it is the same ledger:
+                 *   credited            -> tokens were added now
+                 *   redelivery          -> they were added earlier, and are
+                 *                          there; say so without claiming a
+                 *                          second credit
+                 *   anything else       -> the money arrived and the tokens
+                 *                          did not. Say it, and shout.
+                 */
+                const credit = await creditStarsPayment(pool, {
                   chargeId: String(match.id),
                   telegramId: String(who),
                   amount: row.tokens,
@@ -8274,12 +8297,40 @@ const server = createServer(async (req, res) => {
                   `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
                   [who]
                 )
+                const баланс = bal.rows[0]?.balance ?? null
+                const redelivered = /redeliver/i.test(credit.reason || '')
+                if (!credit.credited && !redelivered) {
+                  console.error(
+                    `[STARS] verify: счёт ${row.id} погашен, но токены НЕ зачислены для ${who}: ${credit.reason}`
+                  )
+                  res.writeHead(200, { 'Content-Type': 'application/json' })
+                  res.end(
+                    JSON.stringify({
+                      ok: false,
+                      /*
+                       * A FLAG, NOT PROSE. The client retries `ok:false`
+                       * three times and then says the credit "will catch
+                       * up on the next visit" -- true while the payment is
+                       * merely not visible yet, and false here: the invoice
+                       * is already marked redeemed, so no later verify will
+                       * find it again. Retrying cannot help, and promising
+                       * it is the same lie one layer up. The client must be
+                       * able to tell the two apart without reading Russian.
+                       */
+                      зачисление_провалено: true, // cyrillic-ok: API field
+                      причина: `оплата принята, токены не зачислены: ${credit.reason}`, // cyrillic-ok: existing field name
+                      баланс,
+                    })
+                  )
+                  return
+                }
                 res.writeHead(200, { 'Content-Type': 'application/json' })
                 res.end(
                   JSON.stringify({
                     ok: true,
-                    зачислено_токенов: row.tokens,
-                    баланс: bal.rows[0].balance,
+                    зачислено_токенов: credit.credited ? row.tokens : 0,
+                    уже_зачислено: !credit.credited, // cyrillic-ok: API field
+                    баланс,
                   })
                 )
                 return

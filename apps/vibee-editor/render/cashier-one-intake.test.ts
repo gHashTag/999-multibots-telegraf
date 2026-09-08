@@ -3,7 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { isPublic, authenticate } from './auth'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
+const {
+  sliceFrom,
+  sliceBetween,
+} = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * ОДИН ПРИЁМНИК АПДЕЙТОВ НА БОТА — И ЭТО ОПРОС.
@@ -190,7 +193,23 @@ describe('два пути зачисления — один замок', () => {
      * same '\n' passes vacuously and for ever. So a missing anchor is now a
      * loud error naming the anchor, not an empty string.
      */
-    const доКонцаВетки = sliceFrom(СЕРВЕР, 'SET redeemed = TRUE', 2500)
+    /*
+     * AND THEN THE WINDOW SHRANK INSTEAD OF THE ANCHOR MOVING.
+     *
+     * This read `sliceFrom(..., 2500)`. On 2026-09-09 a comment was added
+     * inside the branch and pushed the call past 2500 characters: the
+     * assertion went red while the property it guards was untouched. A byte
+     * count is a promise about formatting, not about code.
+     *
+     * `sliceBetween` ends the region at the branch's own next landmark and
+     * THROWS when that landmark is missing -- so the region can neither
+     * shrink silently nor run to end of file.
+     */
+    const доКонцаВетки = sliceBetween(
+      СЕРВЕР,
+      'SET redeemed = TRUE',
+      'оплаты пока не видно'
+    )
     expect(доКонцаВетки).toContain('await creditStarsPayment(pool, {')
     expect(доКонцаВетки).toContain('chargeId: String(match.id)')
     // Свой INSERT в user_tokens в этой ветке остаться не должен.

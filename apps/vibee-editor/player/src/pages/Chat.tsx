@@ -155,6 +155,15 @@ function ChatPage() {
                 setTopUpNote(
                   `Зачислено ${vd['зачислено_токенов']} токенов! Баланс: ${vd['баланс']}`
                 )
+              } else if (vd['зачисление_провалено']) {
+                // Not "not visible yet" but "not credited": the invoice is
+                // already marked redeemed, so a retry cannot find it again.
+                // Promising it will catch up here is the same lie this
+                // change repairs one layer down.
+                setTokens(vd['баланс'] ?? null)
+                setTopUpNote(
+                  'Оплата прошла, но токены не зачислены. Мы уже знаем — напишите в поддержку, вернём или начислим руками.'
+                )
               } else {
                 setTopUpNote(
                   'Оплата прошла — проверяю зачисление ещё пару раз…'
