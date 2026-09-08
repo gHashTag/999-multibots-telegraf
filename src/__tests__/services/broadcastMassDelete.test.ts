@@ -60,9 +60,30 @@ describe('broadcast does not mass-delete users on a parse-error 400', () => {
 
   it('scopes the delete by bot_name so it cannot cross bots', () => {
     const s = code()
-    const del = s.indexOf(".from('users')\n          .delete()")
-    // find the delete chain and assert both telegram_id and bot_name filters
-    const chain = s.slice(s.indexOf('.delete()'), s.indexOf('.delete()') + 200)
+    /*
+     * THIS GUARD WAS READING WHICHEVER DELETE CAME FIRST.
+     *
+     * Two problems sat here. `const del = s.indexOf(".from('users')\n          .delete()")`
+     * was computed and never used, and its anchor no longer matched anything --
+     * the real chain is indented twenty spaces, not ten. A reader saw that line
+     * and believed the region was pinned to the users table.
+     *
+     * It was not: the slice used `s.indexOf('.delete()')`, the FIRST delete
+     * anywhere in the file. That works today only because the subject contains
+     * exactly one. Add a delete to any other table above it and this guard --
+     * which exists to stop a broadcast wiping rows across bots -- quietly starts
+     * checking the wrong chain and passes.
+     *
+     * So the anchor is now the users delete itself, whitespace-tolerant, and
+     * sliceFrom throws when it is gone instead of handing back the last
+     * character of the file.
+     */
+    const at = s.search(/\.from\('users'\)\s*\.delete\(\)/)
+    expect(
+      at,
+      'the users delete chain was not found -- re-anchor this check'
+    ).toBeGreaterThan(-1)
+    const chain = s.slice(at, at + 240)
     expect(
       /\.eq\('telegram_id'/.test(chain),
       'delete is not filtered by telegram_id'
@@ -71,5 +92,13 @@ describe('broadcast does not mass-delete users on a parse-error 400', () => {
       /\.eq\('bot_name'/.test(chain),
       'delete is not scoped by bot_name (can delete other bots rows)'
     ).toBe(true)
+  })
+
+  it('there is exactly one delete chain, which is what the check above assumed', () => {
+    // Said out loud rather than relied on. If a second delete appears, this
+    // fails and whoever adds it has to decide which one the guard should read,
+    // instead of the guard silently picking the first.
+    const s = code()
+    expect((s.match(/\.delete\(\)/g) || []).length).toBe(1)
   })
 })
