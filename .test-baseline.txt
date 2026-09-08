@@ -163,6 +163,21 @@ apps/vibee-editor/render/a2a-tasks-get-owner.test.ts :: A2A tasks/get is owner-s
 apps/vibee-editor/render/a2a-tasks-get-owner.test.ts :: A2A tasks/get is owner-scoped (#901) evicts the owner alongside the task, keeping the maps in step
 apps/vibee-editor/render/a2a-tasks-get-owner.test.ts :: A2A tasks/get is owner-scoped (#901) remembers each task with its owner
 apps/vibee-editor/render/a2a-tasks-get-owner.test.ts :: A2A tasks/get is owner-scoped (#901) the tasks/get block is found
+apps/vibee-editor/render/agent-chat-hands-over-the-secret.test.ts :: the answer carries the draft and its secret ANOTHER REQUEST CANNOT TAKE IT, even as the same person
+apps/vibee-editor/render/agent-chat-hands-over-the-secret.test.ts :: the answer carries the draft and its secret and the draft is marked issued either way, so no later turn repeats it
+apps/vibee-editor/render/agent-chat-hands-over-the-secret.test.ts :: the answer carries the draft and its secret and when the turn FAILS after the tool ran
+apps/vibee-editor/render/agent-chat-hands-over-the-secret.test.ts :: the answer carries the draft and its secret no draft, no event -- an ordinary answer stays ordinary
+apps/vibee-editor/render/agent-chat-hands-over-the-secret.test.ts :: the answer carries the draft and its secret on the ordinary path
+apps/vibee-editor/render/agent-chat-hands-over-the-secret.test.ts :: the answer carries the draft and its secret somebody else never receives it
+apps/vibee-editor/render/agent-chat-hands-over-the-secret.test.ts :: the answer carries the draft and its secret the SURFACE reaches the tool, or no draft is ever queued
+apps/vibee-editor/render/agent-history-append.test.ts :: what gets stored a lone assistant turn is appended
+apps/vibee-editor/render/agent-history-append.test.ts :: what gets stored a question and its answer are stored in that order
+apps/vibee-editor/render/agent-history-append.test.ts :: what gets stored an unknown surface is stored as unknown rather than believed
+apps/vibee-editor/render/agent-history-append.test.ts :: what it refuses a system role is refused
+apps/vibee-editor/render/agent-history-append.test.ts :: what it refuses a telegram_id in the body is ignored
+apps/vibee-editor/render/agent-history-append.test.ts :: what it refuses an empty or missing turns array is refused
+apps/vibee-editor/render/agent-history-append.test.ts :: what it refuses an empty turn is refused rather than silently skipped
+apps/vibee-editor/render/agent-history-append.test.ts :: what it refuses more than a pair is refused: this is not a route for rewriting history
 apps/vibee-editor/render/agent-key-resolve.test.ts :: ключ, выданный через /api/agent/keys, разрешается ОТОЗВАННЫЙ ключ не даёт никого
 apps/vibee-editor/render/agent-key-resolve.test.ts :: ключ, выданный через /api/agent/keys, разрешается в таблице лежит ХЕШ, а не сам ключ
 apps/vibee-editor/render/agent-key-resolve.test.ts :: ключ, выданный через /api/agent/keys, разрешается живой ключ даёт своего владельца
@@ -170,10 +185,19 @@ apps/vibee-editor/render/agent-key-resolve.test.ts :: ключ, выданный
 apps/vibee-editor/render/agent-key-resolve.test.ts :: разрешение не повышает права без заголовка в базу вообще не ходим
 apps/vibee-editor/render/agent-key-resolve.test.ts :: разрешение не повышает права запрос к базе спрашивает только неотозванные
 apps/vibee-editor/render/agent-key-resolve.test.ts :: разрешение не повышает права недоступная база — это ОТКАЗ, а не проход
+apps/vibee-editor/render/agent-proposes-buttons.test.ts :: the marker rule is bound to the surface that can render it changes nothing else: the two prompts differ only by the rule
+apps/vibee-editor/render/agent-proposes-buttons.test.ts :: the marker rule is bound to the surface that can render it is absent for the mini app, which would show it as text
+apps/vibee-editor/render/agent-proposes-buttons.test.ts :: the marker rule is bound to the surface that can render it is absent when no surface is given at all
+apps/vibee-editor/render/agent-proposes-buttons.test.ts :: the marker rule is bound to the surface that can render it is present for the bot
+apps/vibee-editor/render/agent-proposes-buttons.test.ts :: the route hands the surface to the agent passes the validated surface into runAgent, not the raw body field
 apps/vibee-editor/render/agent-routes-contract.test.ts :: seam between agent/routes.ts and render-server.ts both files are parsed — otherwise the checks below are empty
 apps/vibee-editor/render/agent-routes-contract.test.ts :: seam between agent/routes.ts and render-server.ts every exported handler is wired into the server, or named as known debt
 apps/vibee-editor/render/agent-routes-contract.test.ts :: seam between agent/routes.ts and render-server.ts every name imported from routes.ts is actually exported there
 apps/vibee-editor/render/agent-routes-contract.test.ts :: seam between agent/routes.ts and render-server.ts the known-debt list has no stale entries
+apps/vibee-editor/render/agent-voice-honesty.test.ts :: the agent is never told about a voice it does not have does not point at a content plan that is not in the prompt
+apps/vibee-editor/render/agent-voice-honesty.test.ts :: the agent is never told about a voice it does not have tells the agent to produce the plan itself instead of asking
+apps/vibee-editor/render/agent-voice-honesty.test.ts :: the file is found by walking up, not by counting finds the repository's own SOUL.md with no environment variable set
+apps/vibee-editor/render/agent-voice-honesty.test.ts :: when the voice is there, the prompt says where it is carries the voice and the pointer together, never one without the other
 apps/vibee-editor/render/analyze-face-bounded.test.ts :: адрес выбирает не тело запроса нелокальный mediaUrl проходит через assertFetchable
 apps/vibee-editor/render/analyze-face-bounded.test.ts :: адрес выбирает не тело запроса проверка стоит ДО обращения к медиа, а не после
 apps/vibee-editor/render/analyze-face-bounded.test.ts :: извлечение кадра не морозит общий процесс ffmpeg запускается асинхронно, а не блокирующим execFileSync
@@ -296,6 +320,10 @@ apps/vibee-editor/render/autopilot-talking-portrait.test.ts :: the switch on wit
 apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: дозаполнение обложек — только владельцу владельца из ADMIN_IDS пускает
 apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: дозаполнение обложек — только владельцу постороннего не пускает, и подстрока id не помогает
 apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: дозаполнение обложек — только владельцу пустой ADMIN_IDS не делает владельцем никого
+apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: сторож стоит НА МАРШРУТЕ, а не только в помощнике личность берётся и сверяется со списком владельцев
+apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: сторож стоит НА МАРШРУТЕ, а не только в помощнике маршрут вообще существует — иначе проверка пуста
+apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: сторож стоит НА МАРШРУТЕ, а не только в помощнике отказ стоит ДО работы: сначала return, потом ffmpeg
+apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: сторож стоит НА МАРШРУТЕ, а не только в помощнике посторонний получает 403, а не тихий пропуск
 apps/vibee-editor/render/branding-auth-contract.test.ts :: branding identity transport accepts Telegram initData only from headers, never from the URL
 apps/vibee-editor/render/broll-spend.test.ts :: в автопилоте заявка стоит ДО платного вызова claimBroll вызывается РАНЬШЕ, чем уходит запрос к провайдеру
 apps/vibee-editor/render/broll-spend.test.ts :: в автопилоте заявка стоит ДО платного вызова находит блок — иначе проверка пустая
@@ -320,6 +348,22 @@ apps/vibee-editor/render/broll-spend.test.ts :: оплаченное возвр�
 apps/vibee-editor/render/broll-spend.test.ts :: оплаченное возвращается, а не теряется мёртвый адрес НЕ переиспользуется
 apps/vibee-editor/render/broll-spend.test.ts :: оплаченное возвращается, а не теряется не отдаёт мусор вместо адреса
 apps/vibee-editor/render/broll-spend.test.ts :: оплаченное возвращается, а не теряется перечитывает адрес только у ЗАКРЫТОЙ заявки
+apps/vibee-editor/render/cashier-one-intake.test.ts :: два пути зачисления — один замок verify зачисляет через creditStarsPayment, а не своим INSERT
+apps/vibee-editor/render/cashier-one-intake.test.ts :: зачисление нельзя вызвать от имени пользователя гвард действительно различает ключ сервера и прочие способы
+apps/vibee-editor/render/cashier-one-intake.test.ts :: зачисление нельзя вызвать от имени пользователя маршрут требует именно ключ сервера, а не любую опознанную личность
+apps/vibee-editor/render/cashier-one-intake.test.ts :: зачисление нельзя вызвать от имени пользователя пустой chargeId отвергается, а не зачисляется без дедупликации
+apps/vibee-editor/render/cashier-one-intake.test.ts :: рендер не ставит вебхук боту в render-server.ts нет ни одного вызова setWebhook
+apps/vibee-editor/render/cashier-one-intake.test.ts :: рендер не ставит вебхук боту нет периодического восстановления вебхука
+apps/vibee-editor/render/cashier-one-intake.test.ts :: служебный маршрут зачисления звёзд закрыт общим гвардом — без ключа он не публичен
+apps/vibee-editor/render/cashier-one-intake.test.ts :: служебный маршрут зачисления звёзд кривое тело получает 400, а не молчаливое «ок»
+apps/vibee-editor/render/cashier-one-intake.test.ts :: служебный маршрут зачисления звёзд передаёт chargeId — на нём держится идемпотентность
+apps/vibee-editor/render/cashier-one-intake.test.ts :: служебный маршрут зачисления звёзд сверяется с ПУТЁМ, а не с полным адресом
+apps/vibee-editor/render/cashier-one-intake.test.ts :: старый вебхук кассира убран целиком маршрут /api/telegram/stars-wh больше не обрабатывается
+apps/vibee-editor/render/cashier-one-intake.test.ts :: старый вебхук кассира убран целиком оплата больше не читается с верхнего уровня апдейта
+apps/vibee-editor/render/catalogue-teaches-the-shape.test.ts :: каталог называет форму, а не только ярлык каталог доезжает до агента целиком
+apps/vibee-editor/render/catalogue-teaches-the-shape.test.ts :: каталог называет форму, а не только ярлык названная форма ПРОХОДИТ настоящую схему
+apps/vibee-editor/render/catalogue-teaches-the-shape.test.ts :: каталог называет форму, а не только ярлык у сегментов есть форма и пример
+apps/vibee-editor/render/catalogue-teaches-the-shape.test.ts :: каталог называет форму, а не только ярлык форма перечисляет поля, которые схема требует
 apps/vibee-editor/render/channel-autopost-startable.test.ts :: the autopost CLI credentials without a database are still a dry run, not a crash
 apps/vibee-editor/render/channel-autopost-startable.test.ts :: the autopost CLI loads, speaks for itself and exits 0 with nothing configured
 apps/vibee-editor/render/channel-autopost-startable.test.ts :: the autopost CLI sends nothing and says so
@@ -370,8 +414,82 @@ apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired in
 apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired into what production runs the live publish path stamps the same ledger the drain reads
 apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired into what production runs the module exports the entry point the callers use
 apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired into what production runs the server spawns the autopilot -- the last link of the chain
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода iOS не обрезает ввод по числу, взятому из воздуха
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода iOS не сверяет ввод с точным числом цифр
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода границы iOS шире серверной длины — иначе код снова не набрать
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода мини-апп берёт число цифр из самого кода
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода мини-апп группирует код по его длине, а не по тройкам
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода подсказка поля не рисует цифры по числу
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода срок жизни кода тоже не назван словами в мини-аппе
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода тексты бота не называют число цифр ни на одном языке
+apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода файлы прочитаны, а не пусты
+apps/vibee-editor/render/conversation-shared.test.ts :: кнопка «Новый разговор» чистит и сервер маршрут удаления смонтирован и опознаёт так же, как чтение
+apps/vibee-editor/render/conversation-shared.test.ts :: маршрут истории достижим личность берётся из проверенной, а не из запроса
+apps/vibee-editor/render/conversation-shared.test.ts :: маршрут истории достижим пропущен общим гвардом — иначе 401 до обработчика
+apps/vibee-editor/render/conversation-shared.test.ts :: маршрут истории достижим чат записывает обе стороны разговора
+apps/vibee-editor/render/conversation-shared.test.ts :: ответ собирается из потока ошибка не записывается ответом
+apps/vibee-editor/render/conversation-shared.test.ts :: ответ собирается из потока размышление в историю НЕ идёт
+apps/vibee-editor/render/conversation-shared.test.ts :: ответ собирается из потока склеивает куски текста
+apps/vibee-editor/render/conversation-shared.test.ts :: переписку можно править — но только свою «начать заново» стирает ТОЛЬКО свой разговор
+apps/vibee-editor/render/conversation-shared.test.ts :: переписку можно править — но только свою ЧУЖАЯ реплика не удаляется, даже зная её номер
+apps/vibee-editor/render/conversation-shared.test.ts :: переписку можно править — но только свою несуществующий номер отличим от удалённого
+apps/vibee-editor/render/conversation-shared.test.ts :: переписку можно править — но только свою своя реплика удаляется
+apps/vibee-editor/render/conversation-shared.test.ts :: разговор хранится на сервере записанное читается в хронологическом порядке
+apps/vibee-editor/render/conversation-shared.test.ts :: разговор хранится на сервере номер реплики доходит до клиента — иначе удалить её нечем
+apps/vibee-editor/render/conversation-shared.test.ts :: разговор хранится на сервере отдаётся ХВОСТ разговора, а не начало
+apps/vibee-editor/render/conversation-shared.test.ts :: разговор хранится на сервере поверхность сохраняется — видно, где человек писал
+apps/vibee-editor/render/conversation-shared.test.ts :: разговор хранится на сервере пустая реплика не пишется
+apps/vibee-editor/render/conversation-shared.test.ts :: разговор хранится на сервере чужой разговор не отдаётся
+apps/vibee-editor/render/credential-precedence-contract.test.ts :: договор проверяется целиком, а не по половине правило клиента ОБОСНОВАНО текущим порядком сервера
+apps/vibee-editor/render/credential-precedence-contract.test.ts :: клиент считается с этим порядком без подписи Bearer ставится — опора, без неё правило пустое
+apps/vibee-editor/render/credential-precedence-contract.test.ts :: клиент считается с этим порядком при подписи Bearer НЕ ставится
+apps/vibee-editor/render/credential-precedence-contract.test.ts :: порядок удостоверений на сервере отказ по Bearer НЕ проваливается в проверку подписи
+apps/vibee-editor/render/credential-precedence-contract.test.ts :: порядок удостоверений на сервере разобран — иначе всё ниже проверяет пустоту
+apps/vibee-editor/render/credential-precedence-contract.test.ts :: порядок удостоверений на сервере сессия спрашивается РАНЬШЕ подписи
+apps/vibee-editor/render/crm-tools.test.ts :: CRM ничего не рассылает среди инструментов нет отправки
+apps/vibee-editor/render/crm-tools.test.ts :: каждый видит только свою аудиторию crm_hot_leads отказывает тому, за кем ботов нет
+apps/vibee-editor/render/crm-tools.test.ts :: каждый видит только свою аудиторию crm_overview отказывает тому, за кем ботов нет
+apps/vibee-editor/render/crm-tools.test.ts :: каждый видит только свою аудиторию crm_winback отказывает тому, за кем ботов нет
+apps/vibee-editor/render/crm-tools.test.ts :: каждый видит только свою аудиторию владелец бота видит ТОЛЬКО своих людей — фильтр уходит в запрос
+apps/vibee-editor/render/crm-tools.test.ts :: каждый видит только свою аудиторию отказывает и при ОТСУТСТВИИ контекста
+apps/vibee-editor/render/crm-tools.test.ts :: считаем по данным, а не по ощущениям вернуть — ПЛАТИВШИЙ и замолчавший
+apps/vibee-editor/render/crm-tools.test.ts :: считаем по данным, а не по ощущениям горячий лид — недавний И НЕПЛАТИВШИЙ
+apps/vibee-editor/render/crm-tools.test.ts :: считаем по данным, а не по ощущениям незавершённый платёж НЕ делает человека покупателем
+apps/vibee-editor/render/crm-tools.test.ts :: считаем по данным, а не по ощущениям сводка считает платящих и долю
+apps/vibee-editor/render/crm-tools.test.ts :: считаем по данным, а не по ощущениям человек без username отдаётся без ссылки, а не с битой
+apps/vibee-editor/render/crm-tools.test.ts :: читаем всю базу, а не первую страницу каждый запрос уходит С заголовком Range
+apps/vibee-editor/render/crm-tools.test.ts :: читаем всю базу, а не первую страницу страницы склеиваются, пока не придёт короткая
+apps/vibee-editor/render/delete-own-photo.test.ts :: маршрут пользуется вынесенным условием, а не своей копией второй копии запроса на удаление в сервере не осталось
+apps/vibee-editor/render/delete-own-photo.test.ts :: маршрут пользуется вынесенным условием, а не своей копией обработчик зовёт удалитьСвоёФото
+apps/vibee-editor/render/delete-own-photo.test.ts :: удаляется только своё фото аватара ЧУЖОЕ — НЕ УДАЛЯЕТСЯ, и ответ честный
+apps/vibee-editor/render/delete-own-photo.test.ts :: удаляется только своё фото аватара в запросе есть все три условия
+apps/vibee-editor/render/delete-own-photo.test.ts :: удаляется только своё фото аватара владелец идёт ПАРАМЕТРОМ, а не склейкой в текст запроса
+apps/vibee-editor/render/delete-own-photo.test.ts :: удаляется только своё фото аватара несуществующий id — «не найдено», а не «удалено»
+apps/vibee-editor/render/delete-own-photo.test.ts :: удаляется только своё фото аватара свой файл ДРУГОГО типа не удаляется этим маршрутом
+apps/vibee-editor/render/delete-own-photo.test.ts :: удаляется только своё фото аватара своё — удаляется
+apps/vibee-editor/render/device-binding.test.ts :: записанный ключ устройства теперь работает несовпадение — отказ, а не тихий пропуск
+apps/vibee-editor/render/device-binding.test.ts :: записанный ключ устройства теперь работает обмен требует совпадения, если ключ у сессии записан
+apps/vibee-editor/render/device-binding.test.ts :: записанный ключ устройства теперь работает правило ОДНОСТОРОННЕЕ: без записанного ключа ничего не требуем
+apps/vibee-editor/render/device-binding.test.ts :: записанный ключ устройства теперь работает честно назван предел: это не доказательство владения
+apps/vibee-editor/render/device-binding.test.ts :: токен не притворяется привязанным к устройству комментарий больше не обещает привязку
+apps/vibee-editor/render/device-binding.test.ts :: токен не притворяется привязанным к устройству проверка токена по-прежнему НЕ смотрит на dkt — и это сказано вслух
 apps/vibee-editor/render/dockerfile-lock.test.ts :: render Docker reproducible install copies the lockfile before npm ci
-apps/vibee-editor/render/error-disclosure-ratchet.test.ts :: render server does not leak raw error strings to clients no response embeds error: String(error)
+apps/vibee-editor/render/entry-throttle.test.ts :: за одним прокси люди не запирают дверь друг другу исчерпавший лимит сосед не мешает другому за тем же адресом
+apps/vibee-editor/render/entry-throttle.test.ts :: за одним прокси люди не запирают дверь друг другу отказ по лимиту клиента всё равно стоит места в потолке канала
+apps/vibee-editor/render/entry-throttle.test.ts :: за одним прокси люди не запирают дверь друг другу потолок канала держит того, кто крутит заголовок
+apps/vibee-editor/render/entry-throttle.test.ts :: за одним прокси люди не запирают дверь друг другу потолок канала шире, чем лимит человека, — иначе он бы и был лимитом
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику без X-Forwarded-For узкий лимит не применяется — только потолок
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику в пределах окна пускает ровно столько, сколько объявлено
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику говорит, сколько ждать, а не просто «нет»
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику канал считается по соединению — этот ключ не подделать
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику клиент считается по левому X-Forwarded-For, иначе по соединению
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику один источник не запирает другого
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику окно кончается — попытки возвращаются
+apps/vibee-editor/render/entry-throttle.test.ts :: перебор ограничен по источнику память не растёт без предела
+apps/vibee-editor/render/entry-throttle.test.ts :: промах больше не гасит чужие коды нет гашения кодов по общему счётчику
+apps/vibee-editor/render/entry-throttle.test.ts :: промах больше не гасит чужие коды нет начисления попыток всем живым кодам
+apps/vibee-editor/render/entry-throttle.test.ts :: промах больше не гасит чужие коды тормоз стоит на маршруте и ДО разбора тела
+apps/vibee-editor/render/error-disclosure-ratchet.test.ts :: render server does not leak raw error strings to clients no response embeds a raw error string, under ANY variable name
 apps/vibee-editor/render/face-availability.test.ts :: недоступность кадрирования по лицу не молчит оба обработчика различают состояние сервиса и событие кадра
 apps/vibee-editor/render/face-availability.test.ts :: недоступность кадрирования по лицу не молчит признак уезжает в задание, а не остаётся в логе
 apps/vibee-editor/render/face-availability.test.ts :: недоступность кадрирования по лицу не молчит разовый сбой распознавания по-прежнему тихий
@@ -406,6 +524,20 @@ apps/vibee-editor/render/face-source.test.ts :: the shapes that already shipped 
 apps/vibee-editor/render/face-source.test.ts :: the title is the cap on republishing one fixed clip a source without a title is refused
 apps/vibee-editor/render/face-source.test.ts :: the title is the cap on republishing one fixed clip the refusal explains WHY, so nobody adds a rolling title instead
 apps/vibee-editor/render/face-source.test.ts :: the title is the cap on republishing one fixed clip the title comes back out, trimmed, for the caller to dedupe on
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо «ждут одобрения» отдаёт ТОЛЬКО свои и только скрытые
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо видимость — параметр запроса, а не константа в SQL
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо вызов агента просит скрытую публикацию
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо до раздела доходит и внутренний ключ с явным telegram_id
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо маршрут сверяется с ПУТЁМ, а не со всем адресом
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо одобрить можно только СВОЙ пост
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо скрытый пост не уходит в Telegram-канал
+apps/vibee-editor/render/feed-approval.test.ts :: агент публикует скрыто, человек — видимо умолчание — видимо: прежние вызывающие поля не передают
+apps/vibee-editor/render/feed-approval.test.ts :: лента показывает шаблоны, а не каждую генерацию берётся одна запись на композицию
+apps/vibee-editor/render/feed-approval.test.ts :: лента показывает шаблоны, а не каждую генерацию записи без композиции остаются собой
+apps/vibee-editor/render/feed-approval.test.ts :: лента показывает шаблоны, а не каждую генерацию профиль отдаёт композицию, иначе группировать нечем
+apps/vibee-editor/render/feed-approval.test.ts :: чужое неодобренное не читается по общему префиксу GET /api/feed/pending НЕ публичен
+apps/vibee-editor/render/feed-approval.test.ts :: чужое неодобренное не читается по общему префиксу запись в ленту не публична ни в каком виде
+apps/vibee-editor/render/feed-approval.test.ts :: чужое неодобренное не читается по общему префиксу сама лента при этом остаётся публичной на чтение
 apps/vibee-editor/render/feed-like-owner.test.ts :: feed/:id/like records the like for the verified caller derives the liker from the signature, not the body
 apps/vibee-editor/render/feed-like-owner.test.ts :: feed/:id/like records the like for the verified caller the handler is found — otherwise the checks below are empty
 apps/vibee-editor/render/feed-like-owner.test.ts :: feed/:id/like records the like for the verified caller the telegramId written to template_likes is the verified one
@@ -438,6 +570,86 @@ apps/vibee-editor/render/generate-jobs.test.ts :: write-through, proved at the w
 apps/vibee-editor/render/generate-jobs.test.ts :: write-through, proved at the write and not at the read starting a job writes it before the provider is ever called
 apps/vibee-editor/render/generation-owner-contract.test.ts :: generation job owner contract never stores a raw internal key as the owner
 apps/vibee-editor/render/generation-owner-contract.test.ts :: generation job owner contract uses one verified owner namespace for native, web, and internal callers
+apps/vibee-editor/render/hive-emission.test.ts :: emission cannot break the thing it observes nothing awaits the journal
+apps/vibee-editor/render/hive-emission.test.ts :: emission cannot break the thing it observes the spend is recorded AFTER the balance actually moved
+apps/vibee-editor/render/hive-emission.test.ts :: the journal has writers at every chokepoint a refund emits, and a FAILED refund is an alarm
+apps/vibee-editor/render/hive-emission.test.ts :: the journal has writers at every chokepoint crediting stars emits -- one place for both crediting routes
+apps/vibee-editor/render/hive-emission.test.ts :: the journal has writers at every chokepoint publishing emits -- the single door into public
+apps/vibee-editor/render/hive-emission.test.ts :: the journal has writers at every chokepoint sign-in, code claimed and code refused all emit
+apps/vibee-editor/render/hive-emission.test.ts :: the journal has writers at every chokepoint token spend emits -- this covers every paid agent tool at once
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: mutations drop "who = $2" -- an owner would lose their own bot-less events (caught)
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: mutations drop the bot-list check -- other bots would leak in (caught)
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: mutations drop the filter entirely -- an owner would see another bot (caught)
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: mutations the fake refuses a SELECT with no WHERE -- a leak must not pass quietly
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: mutations turn "who" into "is not empty" -- a bee would see everyone (caught)
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: pulse counts within the same visibility as the feed
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: pulse the window is capped: a month, not an arbitrary number
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: who sees what a bee does not see another bee inside the same bot
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: who sees what a bee sees only their own events
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: who sees what an owner does NOT see nobody's events -- those are the keeper's
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: who sees what an owner sees their own and themselves, but NOT another bot
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: who sees what an unidentified caller sees nothing
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: who sees what the keeper sees everything, including events with no subject
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: writing a broken database does NOT take the caller down: the payment matters more
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: writing an empty bot becomes null rather than an empty string
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: writing an event with no subject is recorded -- code guessing names nobody
+apps/vibee-editor/render/hive-journal.test.ts :: hive journal: writing the note is trimmed -- the journal is no place for a prompt
+apps/vibee-editor/render/hive-queen.test.ts :: her board keeps the columns she declares a board with no cards at all is six empty columns, not an empty answer
+apps/vibee-editor/render/hive-queen.test.ts :: her board keeps the columns she declares a column she declares but nobody is in still appears, holding zero
+apps/vibee-editor/render/hive-queen.test.ts :: her board keeps the columns she declares a column she did not declare still shows up rather than losing its cards
+apps/vibee-editor/render/hive-queen.test.ts :: her board keeps the columns she declares a column with no title of its own falls back to her key
+apps/vibee-editor/render/hive-queen.test.ts :: her board keeps the columns she declares her order is kept, not the order cards happen to arrive in
+apps/vibee-editor/render/hive-queen.test.ts :: her board keeps the columns she declares if she publishes no columns at all, the cards still produce a board
+apps/vibee-editor/render/hive-queen.test.ts :: her board keeps the columns she declares she carries the blurb that says what the column MEANS
+apps/vibee-editor/render/hive-queen.test.ts :: her own counters are carried, not reinterpreted a counter that is not a number does not become NaN on the way through
+apps/vibee-editor/render/hive-queen.test.ts :: her own counters are carried, not reinterpreted a pulse holding only the duplicates counts as no pulse at all
+apps/vibee-editor/render/hive-queen.test.ts :: her own counters are carried, not reinterpreted her three counters arrive under her own names
+apps/vibee-editor/render/hive-queen.test.ts :: her own counters are carried, not reinterpreted no pulse at all is absence, never three zeros
+apps/vibee-editor/render/hive-queen.test.ts :: her own counters are carried, not reinterpreted the reader is warned that her bees are not the worker slots
+apps/vibee-editor/render/hive-queen.test.ts :: her own counters are carried, not reinterpreted the two fields that merely repeat the status are not carried twice
+apps/vibee-editor/render/hive-queen.test.ts :: her titles are untrusted input a long title is trimmed rather than filling the screen
+apps/vibee-editor/render/hive-queen.test.ts :: her titles are untrusted input a missing title becomes an empty string, not "undefined"
+apps/vibee-editor/render/hive-queen.test.ts :: her titles are untrusted input newlines cannot forge a continuation
+apps/vibee-editor/render/hive-queen.test.ts :: the Queen is keeper-only a BOT OWNER is refused too -- this is platform state, not their bot
+apps/vibee-editor/render/hive-queen.test.ts :: the Queen is keeper-only an ordinary person is refused, and the refusal names the role
+apps/vibee-editor/render/hive-queen.test.ts :: the Queen is keeper-only an unidentified caller does not even reach the role check
+apps/vibee-editor/render/hive-queen.test.ts :: when the Queen is silent she is not reported as quiet a keeper sees her numbers when she answers
+apps/vibee-editor/render/hive-queen.test.ts :: when the Queen is silent she is not reported as quiet an unreachable Queen answers reachable:false and says what it means
+apps/vibee-editor/render/hive-report.test.ts :: queen report: a person reads the text Russian numerals agree: 1 event, 2 events, 5 events
+apps/vibee-editor/render/hive-report.test.ts :: queen report: a person reads the text a long alarm list is capped at five and says how many are left
+apps/vibee-editor/render/hive-report.test.ts :: queen report: a person reads the text alarms are pulled out separately, otherwise they cannot be found
+apps/vibee-editor/render/hive-report.test.ts :: queen report: a person reads the text kinds are named in words, not in log fragments
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor NOT delivered -- the cursor stays put and the events are not lost
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor after a report about several events the next report is empty
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor every keeper carries their own cursor
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor once the link is repaired the lost event arrives with the new one
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor silence is not sent -- otherwise the channel becomes noise
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor the first run sends nothing -- otherwise a wall of text on day one
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor the second time only the new arrives
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the cursor without HIVE_KEEPERS there is nobody to report to, and it says so
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the gap "too soon" does not move the cursor -- the event arrives later, not never
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the gap an alarm does not wait for the gap
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the gap an unreadable timestamp does not switch reports off forever
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the gap ordinary events wait for the gap rather than flying out at once
+apps/vibee-editor/render/hive-report.test.ts :: queen report: the gap when the gap has passed everything accumulated arrives
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles A DATABASE FAILURE CLOSES RATHER THAN OPENS
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles AN OWNER DOES NOT READ ANOTHER PROFILE BY ID
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles AN UNIDENTIFIED CALLER GETS NOTHING
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles a keeper sees the whole farm
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles an empty bot name does not pass as "any"
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles an ordinary person is a bee: sees THEMSELVES and nothing more
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles an owner sees THEIR bots and does NOT see other ones
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles the filter tells "everything" apart from "nothing"
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles there may be more than one keeper
+apps/vibee-editor/render/hive-roles.test.ts :: hive roles with no keeper configured, NOBODY becomes one
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: identity hive_events: an id in the argument does NOT replace the identity
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: identity hive_pulse: an id in the argument does NOT turn a bee into a keeper
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: identity without a verified identity it refuses rather than showing a general view
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: shape alarms_only narrows the output rather than widening it
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: shape every tool is named with the hive_ prefix
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: the scope is named in the answer a bee does not see nobody-alarms -- those are the keeper business
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: the scope is named in the answer a keeper is told it is the whole farm
+apps/vibee-editor/render/hive-tools.test.ts :: hive pulse: the scope is named in the answer an owner gets THEIR bots listed, and no other events
 apps/vibee-editor/render/house-refund-symmetry.test.ts :: дом не платит себе и не возвращает себе домашний кошелёк: провайдер упал — ни списания, ни возврата
 apps/vibee-editor/render/house-refund-symmetry.test.ts :: дом не платит себе и не возвращает себе обычный кошелёк: списание есть, и при отказе провайдера есть возврат
 apps/vibee-editor/render/house-refund-symmetry.test.ts :: дом не платит себе и не возвращает себе пустой список дома: никто не освобождён
@@ -512,6 +724,19 @@ apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider route
 apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider routes keeps the provider key inside the server-side transport helper
 apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider routes rejects arbitrary paid model ids at the server boundary
 apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider routes никогда не допускает опасную модель и модель без цены
+apps/vibee-editor/render/known-phone.test.ts :: номер приводится к одному виду мусор не становится номером
+apps/vibee-editor/render/known-phone.test.ts :: номер приводится к одному виду разные записи одного номера дают одно значение
+apps/vibee-editor/render/known-phone.test.ts :: обещания на экранах не разошлись с делом ни один экран больше не обещает, что телефон НЕ хранится
+apps/vibee-editor/render/known-phone.test.ts :: обещания на экранах не разошлись с делом оба говорят, ОТКУДА взялся номер
+apps/vibee-editor/render/known-phone.test.ts :: обещания на экранах не разошлись с делом оба клиента подставляют номер, но НЕ отправляют его сами
+apps/vibee-editor/render/known-phone.test.ts :: хранение номера ОТКЛЮЧЕНИЕ ЗАБЫВАЕТ НОМЕР
+apps/vibee-editor/render/known-phone.test.ts :: хранение номера мусор не сохраняется
+apps/vibee-editor/render/known-phone.test.ts :: хранение номера сохранён — и читается
+apps/vibee-editor/render/known-phone.test.ts :: хранение номера чужого номера не видно
+apps/vibee-editor/render/launch-family.test.ts :: вход по initData: одна строка — одна семья ПОВТОР той же строки не заводит вторую семью
+apps/vibee-editor/render/launch-family.test.ts :: вход по initData: одна строка — одна семья РАЗНЫЕ строки — разные семьи
+apps/vibee-editor/render/launch-family.test.ts :: вход по initData: одна строка — одна семья первый вход заводит сессию, семью и запись о запуске
+apps/vibee-editor/render/launch-family.test.ts :: вход по initData: одна строка — одна семья после отзыва сессии та же строка заводит НОВУЮ семью
 apps/vibee-editor/render/medallion.test.ts :: how long the medallion stays on screen a 6-second talking portrait leaves after 6 seconds, not after 15.6
 apps/vibee-editor/render/medallion.test.ts :: how long the medallion stays on screen a clip longer than the window is clamped, never run under the colophon
 apps/vibee-editor/render/medallion.test.ts :: how long the medallion stays on screen an unmeasured clip gets the whole window, as it always did
@@ -524,22 +749,74 @@ apps/vibee-editor/render/medallion.test.ts :: whether the medallion is allowed t
 apps/vibee-editor/render/medallion.test.ts :: whether the medallion is allowed to make a sound a still poster is never given a volume to argue about
 apps/vibee-editor/render/medallion.test.ts :: whether the medallion is allowed to make a sound a talking portrait asks for volume and gets it
 apps/vibee-editor/render/medallion.test.ts :: whether the medallion is allowed to make a sound silent by default: every reel published so far wanted that
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message a hostile file name cannot forge the url field
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message a video or a document stays text
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message an attached image becomes a part, and the text is kept
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message at most four images travel
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message only the LAST turn is converted
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message plain text is returned untouched, same array
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message the input array is never mutated
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message the last turn is not converted when it is the assistant’s
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message the marker line is not stripped out of the text
+apps/vibee-editor/render/media-parts.test.ts :: building the wire message the same URL twice travels once
+apps/vibee-editor/render/media-parts.test.ts :: hearing an attached recording a voice message becomes an audio part
+apps/vibee-editor/render/media-parts.test.ts :: hearing an attached recording an image and a recording travel as their own part types
+apps/vibee-editor/render/media-parts.test.ts :: hearing an attached recording an untested audio format is refused rather than hoped for
+apps/vibee-editor/render/media-parts.test.ts :: hearing an attached recording somebody else’s host is refused for audio too
+apps/vibee-editor/render/media-parts.test.ts :: hearing an attached recording the kinds do not borrow each other’s extensions
+apps/vibee-editor/render/media-parts.test.ts :: hearing an attached recording the tested audio formats are accepted
+apps/vibee-editor/render/media-parts.test.ts :: which URLs may be handed to a provider PUBLIC_URL moves the allowed origin with the deployment
+apps/vibee-editor/render/media-parts.test.ts :: which URLs may be handed to a provider a key with no image extension is refused
+apps/vibee-editor/render/media-parts.test.ts :: which URLs may be handed to a provider garbage is refused rather than thrown on
+apps/vibee-editor/render/media-parts.test.ts :: which URLs may be handed to a provider our host but outside the public shelf is refused
+apps/vibee-editor/render/media-parts.test.ts :: which URLs may be handed to a provider our own shelf with an image extension
+apps/vibee-editor/render/media-parts.test.ts :: which URLs may be handed to a provider somebody else’s host is refused
+apps/vibee-editor/render/media-parts.test.ts :: which kinds of media a turn would send a photo and a recording together report both kinds
+apps/vibee-editor/render/media-parts.test.ts :: which kinds of media a turn would send a voice message is reported as audio
+apps/vibee-editor/render/media-parts.test.ts :: which kinds of media a turn would send an image is reported, and only when it would really travel
+apps/vibee-editor/render/media-routing.test.ts :: who can see a provider with no key does not appear at all
+apps/vibee-editor/render/media-routing.test.ts :: who can see at least one configured provider can hear, or voice is dead
+apps/vibee-editor/render/media-routing.test.ts :: who can see at least one configured provider can see, or the feature is dead
+apps/vibee-editor/render/media-routing.test.ts :: who can see hearing is its own flag, not implied by sight
+apps/vibee-editor/render/media-routing.test.ts :: who can see the capability is recorded per provider, measured not guessed
+apps/vibee-editor/render/media-routing.test.ts :: who can see the sighted provider is NOT the first by order
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed answers 402 when the balance is short
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed audio: charges with the shared price id before generating
+apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed every paid kind registers a job, so a dropped connection can be rescued
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed image: charges with the shared price id before generating
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed lipsync: charges with the shared price id before generating
+apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed quantity is measured, not a literal, wherever the provider bills per unit
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed refuses instead of giving the generation away when billing cannot run
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed skips the agent path only on the VALIDATED key, not a spoofable header
+apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed the balance answer says whether this wallet is exempt
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed uses signed Telegram or the verified app session owner for billing
 apps/vibee-editor/render/miniapp-billing.test.ts :: mini-app generation is billed video: charges with the shared price id before generating
 apps/vibee-editor/render/miniapp-billing.test.ts :: prices come from the shared table, not from render-server prices are derived from cost, not hand-set
 apps/vibee-editor/render/miniapp-billing.test.ts :: prices come from the shared table, not from render-server render-server does not define its own prices
 apps/vibee-editor/render/miniapp-billing.test.ts :: prices come from the shared table, not from render-server uses the same ids the agent tools bill
+apps/vibee-editor/render/miniapp-receipt.test.ts :: every success body carries the receipt audio: no success answer is silent about the money
+apps/vibee-editor/render/miniapp-receipt.test.ts :: every success body carries the receipt image: no success answer is silent about the money
+apps/vibee-editor/render/miniapp-receipt.test.ts :: every success body carries the receipt lipsync: no success answer is silent about the money
+apps/vibee-editor/render/miniapp-receipt.test.ts :: every success body carries the receipt the receipt is declared before the try, so the catch can answer with it
+apps/vibee-editor/render/miniapp-receipt.test.ts :: every success body carries the receipt video: no success answer is silent about the money
+apps/vibee-editor/render/miniapp-receipt.test.ts :: the charge produces numbers spendByTid reports what it took and what it left
+apps/vibee-editor/render/miniapp-receipt.test.ts :: the numbers survive the charge helper chargeMiniAppUser forwards both, instead of narrowing them away
+apps/vibee-editor/render/miniapp-receipt.test.ts :: the numbers survive the charge helper names the remaining balance the way /api/balance already names it
+apps/vibee-editor/render/miniapp-receipt.test.ts :: the numbers survive the charge helper states nothing rather than zero for the already-paid agent caller
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged money fixes are still in main #1047: the Mini App generation paths are billed
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged money fixes are still in main #873: the token-purchase webhook is idempotent
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged money fixes are still in main #874: /api/tokens/verify compares dates numerically
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged security fixes are still in main #878: the agent key is compared in constant time
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged security fixes are still in main the agent key is never compared with a plain ===
+apps/vibee-editor/render/notify-sign-in.test.ts :: the code sign-in route sends the notification does NOT await it: the sign-in must not depend on somebody else network
+apps/vibee-editor/render/notify-sign-in.test.ts :: the code sign-in route sends the notification the call is there
+apps/vibee-editor/render/notify-sign-in.test.ts :: the code sign-in route sends the notification the notification goes out AFTER the session, not instead of it
+apps/vibee-editor/render/notify-sign-in.test.ts :: the device name arrives from outside and is defanged a long name is trimmed rather than stretching the message across a screen
+apps/vibee-editor/render/notify-sign-in.test.ts :: the device name arrives from outside and is defanged an empty name does not become an empty string in the text
+apps/vibee-editor/render/notify-sign-in.test.ts :: the device name arrives from outside and is defanged newlines cannot forge a continuation of the message
+apps/vibee-editor/render/notify-sign-in.test.ts :: the sign-in message A SEND FAILURE DOES NOT THROW: the sign-in already happened
+apps/vibee-editor/render/notify-sign-in.test.ts :: the sign-in message names the device and the time
+apps/vibee-editor/render/notify-sign-in.test.ts :: the sign-in message says WHAT TO DO if it was not them
 apps/vibee-editor/render/owner-billing.test.ts :: владельцы не платят внутренней квотой НЕ пускает того, кого нет в списке
 apps/vibee-editor/render/owner-billing.test.ts :: владельцы не платят внутренней квотой узнаёт владельца из ADMIN_IDS — той же переменной, что у бота
 apps/vibee-editor/render/owner-billing.test.ts :: владельцы не платят внутренней квотой число и строка означают одного человека
@@ -554,15 +831,35 @@ apps/vibee-editor/render/pairing-e2e.test.ts :: вход по коду: скво
 apps/vibee-editor/render/pairing-e2e.test.ts :: вход по коду: сквозной путь подпись читается из ЗАГОЛОВКА — так ходит весь мини-апп
 apps/vibee-editor/render/pairing-e2e.test.ts :: вход по коду: сквозной путь подпись → код → сессия: код, выданный одним запросом, принимает другой
 apps/vibee-editor/render/pairing.test.ts :: спаривание по коду второй обмен тем же кодом не проходит
-apps/vibee-editor/render/pairing.test.ts :: спаривание по коду до исчерпания бюджета верный код ещё работает
+apps/vibee-editor/render/pairing.test.ts :: спаривание по коду длина кода задана одним местом и берётся оттуда
 apps/vibee-editor/render/pairing.test.ts :: спаривание по коду истёкший код не принимается
-apps/vibee-editor/render/pairing.test.ts :: спаривание по коду исчерпанный код помечается погашенным, а не просто отклоняется
 apps/vibee-editor/render/pairing.test.ts :: спаривание по коду код обменивается на тот telegram_id, которому выдан
 apps/vibee-editor/render/pairing.test.ts :: спаривание по коду коды разных людей не смешиваются
-apps/vibee-editor/render/pairing.test.ts :: спаривание по коду перебор гасит код после MAX_ATTEMPTS неверных догадок
 apps/vibee-editor/render/pairing.test.ts :: спаривание по коду повторная выдача гасит прошлый код: живым остаётся ровно один
+apps/vibee-editor/render/pairing.test.ts :: спаривание по коду промах НЕ гасит ни свой код, ни чужие
 apps/vibee-editor/render/pairing.test.ts :: спаривание по коду сырой код нигде не хранится — только его отпечаток
 apps/vibee-editor/render/pairing.test.ts :: спаривание по коду чужой код не выдаёт чужую личность
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля JSON-RPC ошибка не превращается в пустой план
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля SOUL.md есть в обоих клиентах и берётся одним адресом
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля iOS ПОКАЗЫВАЕТ счётчики, а не только разбирает
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля iOS РАЗБИРАЕТ те же пять полей
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля iOS разбирает id и строкой, и числом
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля iOS читает ответ той формы, что отдаёт инструмент
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля iOS читает ответ той формы, что отдаёт сервер
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля «Ждут одобрения» есть в обоих и берёт те же адреса
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля веб действительно строит ряд из этих пяти — иначе список устарел
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля вид файла определяется одинаково: по расширению ИЛИ по типу
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля карточка исчезает ТОЛЬКО после успеха — в обоих клиентах
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля круг статусов одинаковый: замысел → в работе → вышло → замысел
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля план берётся ТЕМИ ЖЕ инструментами, что у агента
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля подключение Telegram есть в обоих, и согласие идёт ДО телефона
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля подписи и ПОРЯДОК совпадают с вебом
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля поля счётчиков в iOS НЕОБЯЗАТЕЛЬНЫЕ
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля пустое @имя не роняет профиль на iOS
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля свёртка SOUL одинаковая: шесть строк и та же кнопка
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля сокращение тысяч одинаковое: 1.2K и 3.4M
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля счётчик «сделано» считает одно и то же
+apps/vibee-editor/render/profile-parity.test.ts :: оба клиента читают одни и те же поля профиля файлы берутся тем же инструментом my_assets
 apps/vibee-editor/render/profile-update-owner.test.ts :: profile update is owner-bound establishes server-verified identity before reading the body
 apps/vibee-editor/render/profile-update-owner.test.ts :: profile update is owner-bound permits the browser PUT preflight
 apps/vibee-editor/render/profile-update-owner.test.ts :: profile update is owner-bound returns authoritative template counters after the update
@@ -590,6 +887,21 @@ apps/vibee-editor/render/readbody-bounded.test.ts :: readBody is bounded (#901) 
 apps/vibee-editor/render/readbody-bounded.test.ts :: readBody is bounded (#901) rejects on a stream error instead of hanging
 apps/vibee-editor/render/readbody-bounded.test.ts :: readBody is bounded (#901) rejects on client abort instead of hanging
 apps/vibee-editor/render/readbody-bounded.test.ts :: readBody is bounded (#901) resolves with the concatenated body on a normal stream
+apps/vibee-editor/render/refresh-race.test.ts :: iOS не выкидывает человека за гонку 409 разбирается по тому же коду, что шлёт сервер
+apps/vibee-editor/render/refresh-race.test.ts :: iOS не выкидывает человека за гонку в ветке гонки Keychain перечитывается, а не стирается
+apps/vibee-editor/render/refresh-race.test.ts :: iOS не выкидывает человека за гонку ветка обновления вообще найдена
+apps/vibee-editor/render/refresh-race.test.ts :: iOS не выкидывает человека за гонку разбор гонки стоит ДО guard, который стирает сессию
+apps/vibee-editor/render/refresh-race.test.ts :: выход гасит семью, а не одну сессию гашение по семье остаётся, и оно широкое
+apps/vibee-editor/render/refresh-race.test.ts :: выход гасит семью, а не одну сессию поиск семьи стоит ДО выбора ветки гашения
+apps/vibee-editor/render/refresh-race.test.ts :: выход гасит семью, а не одну сессию семья определяется даже когда пришли с живым access-токеном
+apps/vibee-editor/render/refresh-race.test.ts :: клиент на гонку перечитывает хранилище 409 разбирается отдельно от общей ветки отказа
+apps/vibee-editor/render/refresh-race.test.ts :: клиент на гонку перечитывает хранилище в ветке гонки сессия не стирается
+apps/vibee-editor/render/refresh-race.test.ts :: клиент на гонку перечитывает хранилище ветка гонки стоит ДО общей ветки, которая чистит сессию
+apps/vibee-editor/render/refresh-race.test.ts :: клиент на гонку перечитывает хранилище повтор ровно один, без цикла
+apps/vibee-editor/render/refresh-race.test.ts :: клиент на гонку перечитывает хранилище прочитанное записывается обратно — иначе таймер не заводится
+apps/vibee-editor/render/refresh-race.test.ts :: сервер отличает гонку от кражи гонка отвечает 409, а не 401
+apps/vibee-editor/render/refresh-race.test.ts :: сервер отличает гонку от кражи ответ на гонку не отзывает сессии
+apps/vibee-editor/render/refresh-race.test.ts :: сервер отличает гонку от кражи у гонки свой код ответа, не общий отказ
 apps/vibee-editor/render/render-duration.test.ts :: an override is only legitimate when something was measured honours a non-default fps and falls back to 30
 apps/vibee-editor/render/render-duration.test.ts :: an override is only legitimate when something was measured returns null -- not 900, not 0 -- when nothing was measured
 apps/vibee-editor/render/render-duration.test.ts :: an override is only legitimate when something was measured turns measured seconds into frames, rounding up
@@ -611,6 +923,23 @@ apps/vibee-editor/render/render-quota.test.ts :: authoritative render quota keep
 apps/vibee-editor/render/render-quota.test.ts :: authoritative render quota refunds a failed render and reports the server count
 apps/vibee-editor/render/render-quota.test.ts :: authoritative render quota refunds the exact reserved month after a UTC rollover
 apps/vibee-editor/render/render-quota.test.ts :: authoritative render quota reserves atomically up to the configured free limit
+apps/vibee-editor/render/render-quota.test.ts :: authoritative render quota ВОЗВРАТ ИМЕННОЙ: в запросе есть привязка к владельцу
+apps/vibee-editor/render/render-reaches-the-buyer.test.ts :: a finished render reaches the buyer does not report success when the group copy alone succeeded
+apps/vibee-editor/render/render-reaches-the-buyer.test.ts :: a finished render reaches the buyer reports a failed delivery to the buyer as an error, not a note
+apps/vibee-editor/render/render-reaches-the-buyer.test.ts :: a finished render reaches the buyer sends the video to the telegram id on the job
+apps/vibee-editor/render/render-reaches-the-buyer.test.ts :: a finished render reaches the buyer serves the buyer before the courtesy copy
+apps/vibee-editor/render/render-reaches-the-buyer.test.ts :: a finished render reaches the buyer still finds the completion block
+apps/vibee-editor/render/schema-honesty.test.ts :: записи о запусках не копятся вечно уборка стоит в уже существующем опросе, а не в новом таймере
+apps/vibee-editor/render/schema-honesty.test.ts :: схема входа не описывает того, чего нет каждая заведённая таблица где-то используется
+apps/vibee-editor/render/schema-honesty.test.ts :: схема входа не описывает того, чего нет колонка NOT NULL без умолчания обязана заполняться вставкой
+apps/vibee-editor/render/schema-honesty.test.ts :: схема входа не описывает того, чего нет таблицы вообще разобраны
+apps/vibee-editor/render/server-key-on-public-route.test.ts :: ключ сервера отличим от «просто пустили» authenticate НА НЁМ отвечает public даже с верным ключом
+apps/vibee-editor/render/server-key-on-public-route.test.ts :: ключ сервера отличим от «просто пустили» hasServerKey отвечает по КЛЮЧУ, а не по публичности
+apps/vibee-editor/render/server-key-on-public-route.test.ts :: ключ сервера отличим от «просто пустили» ПРЕФИКС верного ключа не подходит
+apps/vibee-editor/render/server-key-on-public-route.test.ts :: ключ сервера отличим от «просто пустили» маршрут агента действительно публичный — иначе повода нет
+apps/vibee-editor/render/server-key-on-public-route.test.ts :: ключ сервера отличим от «просто пустили» пустой настроенный ключ никого не пускает
+apps/vibee-editor/render/server-key-on-public-route.test.ts :: опознавание вызывающего пользуется правильной проверкой id называется ЯВНО и проверяется на форму
+apps/vibee-editor/render/server-key-on-public-route.test.ts :: опознавание вызывающего пользуется правильной проверкой resolveIdentity спрашивает hasServerKey, а не authenticate().via
 apps/vibee-editor/render/session-logout-contract.test.ts :: logout revokes long-lived credentials accepts refresh proof when the access token is expired
 apps/vibee-editor/render/session-logout-contract.test.ts :: logout revokes long-lived credentials fails closed when neither credential proves a session
 apps/vibee-editor/render/session-revocation-runtime.test.ts :: cross-replica session revocation fails closed when the database-backed revocation view goes stale
@@ -631,9 +960,75 @@ apps/vibee-editor/render/session.test.ts :: refresh rotation refuses an expired 
 apps/vibee-editor/render/session.test.ts :: refresh rotation reuse revokes the WHOLE family, not just the presented token
 apps/vibee-editor/render/session.test.ts :: refresh rotation rotates once and refuses the old token afterwards
 apps/vibee-editor/render/session.test.ts :: refresh rotation stores only the hash, never the token
+apps/vibee-editor/render/session.test.ts :: refresh rotation граница окна — не «примерно», а именно REUSE_GRACE_SECONDS
+apps/vibee-editor/render/session.test.ts :: refresh rotation повтор в первые секунды — гонка вкладок, а НЕ кража
+apps/vibee-editor/render/session.test.ts :: refresh rotation проигрыш гонки ВНУТРИ базы не гасит семью
+apps/vibee-editor/render/soul-public.test.ts :: правка закрыта агент может найти человека по имени, а не только себя
+apps/vibee-editor/render/soul-public.test.ts :: правка закрыта инструмент чужого SOUL — только чтение
+apps/vibee-editor/render/soul-public.test.ts :: правка закрыта маршрут SOUL отвечает только на GET
+apps/vibee-editor/render/soul-public.test.ts :: чтение открыто GET /api/soul/<имя> публичен
+apps/vibee-editor/render/soul-public.test.ts :: чтение открыто пустой SOUL и отсутствующий человек — разные ответы
+apps/vibee-editor/render/split-needs-segments.test.ts :: заявка на сплит БЕЗ сегментов тоже отвергается
+apps/vibee-editor/render/split-needs-segments.test.ts :: заявка на сплит ФОРМА сегментов проверяется, а не только их наличие
+apps/vibee-editor/render/split-needs-segments.test.ts :: заявка на сплит обе копии композиции держат одно правило
+apps/vibee-editor/render/split-needs-segments.test.ts :: заявка на сплит с сегментом принимается
+apps/vibee-editor/render/split-needs-segments.test.ts :: схема ПРИМЕНЯЕТСЯ, а не только описана заявка сверяется со схемой ДО рендера
+apps/vibee-editor/render/split-needs-segments.test.ts :: схема ПРИМЕНЯЕТСЯ, а не только описана отказ называет ПОЛЕ, а не «неверная форма»
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: перегенерация не снимает сторожа единица остаётся там, где провайдер её назвал, а цену взять нельзя
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: разрешение выбирает тот, кто назначает цену липсинк просит ТО разрешение, с чьей строки взята цена
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены ВОЗВРАТ РАВЕН СПИСАНИЮ у каждой модели
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены акционная строка прайса не становится ценой модели
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены в списке только те модели, счёт за которые сервер УМНОЖАЕТ
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены за секунды платим только там, где сами их задаём
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены кривая длительность даёт секунду, а не ноль и не отказ
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены липсинк остаётся посекундным ВИДОМ работы, раз ушёл из списка моделей
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены модели одного семейства НЕ делят цену самой дешёвой
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены модель без своей цены роняет ОБЕ стороны на цену вида
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены модель, чью единицу не перевести в вызов, НЕ ПРОДАЁТСЯ
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены названная цена совпадает со списываемой у КАЖДОЙ модели
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены наценка действует на ВСЕ операции, а не только на модели
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены ни одна цена не равна нулю: бесплатных генераций нет
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены озвучка считается по знакам, а не за вызов
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены посекундность не выводится из ВИДА работы
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены список посекундных моделей назван теми же именами, что шлёт клиент
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены таблица цен ОДНА на все пути продажи
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены точное деление не даёт лишнего токена
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: цены цена видео привязана к ТОМУ разрешению, которое просит маршрут
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: чип длительности не назначает счёт там, где не доходит до провайдера topaz считается по замеру, а не по чипу
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: чип длительности не назначает счёт там, где не доходит до провайдера длину задаёт файл при `video_url` или `audio_url`
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: чип длительности не назначает счёт там, где не доходит до провайдера длину задаёт человек ТОЛЬКО при `duration` в контракте
+apps/vibee-editor/render/src/agent/billing-prices.test.ts :: чип длительности не назначает счёт там, где не доходит до провайдера маршрут видео СЧИТАЕТ длину файла, а не берёт её с экрана
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: в запасном списке липсинка нет того, что не проходит допуск каждое имя из KIE_LIPSYNC сервер обслуживает
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: генератор выдаёт то, что компилируется структура объявляет каждое поле, которое передаёт вызов
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: модель, которую показывает приложение, сервер обслуживает каждая показанная платная модель проходит допуск
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: модель, которую показывает приложение, сервер обслуживает разбор нашёл каталог, а не пустоту
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: модель, которую показывает приложение, сервер обслуживает цена в приложении не расходится с серверной себестоимостью
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: перечни имён, из которых выбирают, сверены с тем, кто отвечает ответ сценария называет модель, которая ОТВЕТИЛА
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: перечни имён, из которых выбирают, сверены с тем, кто отвечает сценарные модели приложения есть у какого-то провайдера
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: чип показывают только под поле, которое доедет десять видеомоделей из двенадцати не получают ни длительности, ни кадра
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: чип показывают только под поле, которое доедет допущенная модель получает ВЕСЬ свой контракт
+apps/vibee-editor/render/src/agent/ios-catalogue-servable.test.ts :: чип показывают только под поле, которое доедет оба клиента спрашивают сервер, а не заводят свой список
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: голос и скорость доходят до провайдера ЧУЖОЙ голос не уходит вовсе, а не ломает запрос
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: голос и скорость доходят до провайдера единица не шлётся: это и есть значение провайдера по умолчанию
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: голос и скорость доходят до провайдера известный голос уходит дословно
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: голос и скорость доходят до провайдера русские голоса есть, и их восемь — все, что даёт провайдер
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: голос и скорость доходят до провайдера скорость уходит и прижимается к границам провайдера
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: имя голоса уходит тому, кто его узнает мусор и пустота дают голос по умолчанию, а не отказ
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: имя голоса уходит тому, кто его узнает нога KieAI берёт имя через отбор, а не как есть
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: имя голоса уходит тому, кто его узнает русская подпись НЕ уходит в ElevenLabs
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: проводка, а не только помощник /api/voices не отвечает 500, когда озвучить всё равно есть кем
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: проводка, а не только помощник маршрут озвучки передаёт выбор человека в эту ногу
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: проводка, а не только помощник нога Replicate собирает тело через входМиниМакс
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: скорость доходит до КАЖДОЙ ноги, а не до одной единица не шлётся ни одной ноге: это и есть значение по умолчанию
+apps/vibee-editor/render/src/agent/minimax-voices.test.ts :: скорость доходит до КАЖДОЙ ноги, а не до одной нога ElevenLabs кладёт скорость в voice_settings
 apps/vibee-editor/render/src/agent/project-tools.test.ts :: owner-scoped project tools lists and reads only with the verified context owner
 apps/vibee-editor/render/src/agent/project-tools.test.ts :: owner-scoped project tools rejects invalid ids and compositions before the database
 apps/vibee-editor/render/src/agent/project-tools.test.ts :: owner-scoped project tools saves a draft without accepting ownership from arguments
+apps/vibee-editor/render/src/agent/web-models-are-servable.test.ts :: витрина веба и допуск сервера — про одни и те же модели audio: kie/elevenlabs/text-to-speech-multilingual-v2 допущена сервером
+apps/vibee-editor/render/src/agent/web-models-are-servable.test.ts :: витрина веба и допуск сервера — про одни и те же модели image: kie/google/nano-banana допущена сервером
+apps/vibee-editor/render/src/agent/web-models-are-servable.test.ts :: витрина веба и допуск сервера — про одни и те же модели lipsync: kie/infinitalk/from-audio допущена сервером
+apps/vibee-editor/render/src/agent/web-models-are-servable.test.ts :: витрина веба и допуск сервера — про одни и те же модели video: kie/grok-imagine/text-to-video допущена сервером
+apps/vibee-editor/render/src/agent/web-models-are-servable.test.ts :: витрина веба и допуск сервера — про одни и те же модели витрина не пуста ни на одной вкладке
 apps/vibee-editor/render/src/lib/boundedUpload.test.ts :: bounded upload stream aborts a chunked stream as soon as the byte limit is crossed
 apps/vibee-editor/render/src/lib/boundedUpload.test.ts :: bounded upload stream streams chunks with backpressure and counts bytes without concatenating
 apps/vibee-editor/render/src/lib/boundedUpload.test.ts :: upload concurrency gate rejects parallel work above the cap and releases idempotently
@@ -652,9 +1047,9 @@ apps/vibee-editor/render/stars-credit.test.ts :: it refuses rather than guessing
 apps/vibee-editor/render/stars-credit.test.ts :: it refuses rather than guessing no recipient means no credit
 apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог вырезан и когда рядом есть query — query тут ни при чём
 apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог логгер зовёт редактор, а не сырой путь
+apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог маршрута с секретом в пути больше нет — маска пережила его намеренно
 apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог обычные пути не искажаются — маска узкая, а не «прячь всё»
 apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог секрет из ПУТИ вебхука вырезан
-apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог секрет сравнивается с сегментом пути — то есть он и есть охрана
 apps/vibee-editor/render/sync-from-telegram-verify.test.ts :: sync-from-telegram verifies initData before believing it a browser session can only read the profile persisted at verified login
 apps/vibee-editor/render/sync-from-telegram-verify.test.ts :: sync-from-telegram verifies initData before believing it checks the signature before reading a user out of the header
 apps/vibee-editor/render/sync-from-telegram-verify.test.ts :: sync-from-telegram verifies initData before believing it the handler is found — otherwise the checks below are empty
@@ -690,10 +1085,26 @@ apps/vibee-editor/render/talking-portrait.test.ts :: what the owner must supply,
 apps/vibee-editor/render/talking-portrait.test.ts :: what the owner must supply, refused before a single credit a relative portrait path is refused: the provider fetches it itself
 apps/vibee-editor/render/talking-portrait.test.ts :: what the owner must supply, refused before a single credit an audio value that is not a file is caught here, not by the provider
 apps/vibee-editor/render/talking-portrait.test.ts :: what the owner must supply, refused before a single credit names the two variables it needs, and the key
+apps/vibee-editor/render/telegram-session-honest.test.ts :: вход проверяется, а не предполагается отказ называет, ЧТО сделать и ГДЕ
+apps/vibee-editor/render/telegram-session-honest.test.ts :: вход проверяется, а не предполагается после подключения спрашивается авторизация
+apps/vibee-editor/render/telegram-session-honest.test.ts :: вход проверяется, а не предполагается три состояния различимы, а не слиты в одно
+apps/vibee-editor/render/telegram-session-honest.test.ts :: скрипт входа существует и не делает лишнего называет сервис, в который класть строку
+apps/vibee-editor/render/telegram-session-honest.test.ts :: скрипт входа существует и не делает лишнего предупреждает, что строка сильнее пароля
+apps/vibee-editor/render/telegram-session-honest.test.ts :: скрипт входа существует и не делает лишнего спрашивает код у человека, а не берёт его откуда-то
+apps/vibee-editor/render/telegram-session-honest.test.ts :: чужой текст остаётся данными длинный чужой текст обрезается, но обрамление остаётся
+apps/vibee-editor/render/telegram-session-honest.test.ts :: чужой текст остаётся данными обрамление называет происхождение прямо в тексте
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_forward возвращает proposal, а не результат
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_forward отказывает вызову без подтверждённой личности
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_forward отказывает постороннему
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_read возвращает proposal, а не результат
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_read отказывает вызову без подтверждённой личности
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_read отказывает постороннему
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_send возвращает proposal, а не результат
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_send отказывает вызову без подтверждённой личности
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами tg_send отказывает постороннему
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами ни один действующий инструмент не зовёт клиента напрямую
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами предложение попадает в очередь владельца, а не только в ответ
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: действующие инструменты не действуют сами чужому в очередь ничего не кладётся
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: опасное не подключено в наборе нет ничего кроме перечисленного явно
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: опасное не подключено удаление, выход из каналов и деньги отсутствуют в наборе
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец tg_contacts отказывает вызову без подтверждённой личности
@@ -708,14 +1119,108 @@ apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать акк�
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец tg_search отказывает вызову без подтверждённой личности
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец tg_search отказывает постороннему
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец tg_search пропускает владельца дальше гварда
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец tg_unanswered отказывает вызову без подтверждённой личности
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец tg_unanswered отказывает постороннему
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец tg_unanswered пропускает владельца дальше гварда
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец каждый инструмент, трогающий живой аккаунт, спрашивает владельца
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читать аккаунт владельца может только владелец очередь предложений закрыта тем же гвардом
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читающие инструменты объявляют природу содержимого tg_contacts предупреждает модель в своём описании
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читающие инструменты объявляют природу содержимого tg_dialogs предупреждает модель в своём описании
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читающие инструменты объявляют природу содержимого tg_history предупреждает модель в своём описании
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читающие инструменты объявляют природу содержимого tg_search предупреждает модель в своём описании
+apps/vibee-editor/render/telegram-tools-boundary.test.ts :: читающие инструменты объявляют природу содержимого tg_unanswered предупреждает модель в своём описании
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: чужой text помечен как данные длинный text обрезан — чужое сообщение не вытеснит контекст
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: чужой text помечен как данные закрывающая метка есть всегда, иначе граница односторонняя
 apps/vibee-editor/render/telegram-tools-boundary.test.ts :: чужой text помечен как данные обёртка называет источник и отрицает исполнение
+apps/vibee-editor/render/tg-connect.test.ts :: маршруты подключения: личность строже, чем у соседей без подписи — 401, и текст объясняет почему
+apps/vibee-editor/render/tg-connect.test.ts :: маршруты подключения: личность строже, чем у соседей все пути объявлены и достижимы через общий гвард
+apps/vibee-editor/render/tg-connect.test.ts :: маршруты подключения: личность строже, чем у соседей статус не выдумывает подключение
+apps/vibee-editor/render/tg-connect.test.ts :: маршруты подключения: личность строже, чем у соседей строка сессии НИКОГДА не возвращается клиенту
+apps/vibee-editor/render/tg-connect.test.ts :: сессия принадлежит человеку ЧУЖАЯ сессия не читается
+apps/vibee-editor/render/tg-connect.test.ts :: сессия принадлежит человеку не смогли выйти — всё равно забываем у себя
+apps/vibee-editor/render/tg-connect.test.ts :: сессия принадлежит человеку отключение СНАЧАЛА выходит в Telegram, потом забывает
+apps/vibee-editor/render/tg-connect.test.ts :: сессия принадлежит человеку повторное подключение ЗАМЕНЯЕТ, а не плодит вторую
+apps/vibee-editor/render/tg-connect.test.ts :: сессия принадлежит человеку сохранённая читается своим владельцем
+apps/vibee-editor/render/tg-connect.test.ts :: телефон и код приводятся к виду, который примет Telegram код принимается с пробелами и дефисами
+apps/vibee-editor/render/tg-connect.test.ts :: телефон и код приводятся к виду, который примет Telegram мусор отвергается с внятной подсказкой
+apps/vibee-editor/render/tg-connect.test.ts :: телефон и код приводятся к виду, который примет Telegram человеческие разделители убираются
+apps/vibee-editor/render/tg-connect.test.ts :: чужой вход нельзя завершить handle сам по себе не пропуск: чужой не завершит
+apps/vibee-editor/render/tg-connect.test.ts :: чужой вход нельзя завершить двухфакторный пароль спрашивается отдельным шагом
+apps/vibee-editor/render/tg-connect.test.ts :: чужой вход нельзя завершить законченный вход забывается — повтор невозможен
+apps/vibee-editor/render/tg-connect.test.ts :: чужой вход нельзя завершить несуществующий handle не притворяется начатым входом
+apps/vibee-editor/render/tg-proposals.test.ts :: a draft is only prepared where it can be confirmed agent does NOT queue it
+apps/vibee-editor/render/tg-proposals.test.ts :: a draft is only prepared where it can be confirmed and says WHERE it can be confirmed, instead of going quiet
+apps/vibee-editor/render/tg-proposals.test.ts :: a draft is only prepared where it can be confirmed ios does NOT queue it
+apps/vibee-editor/render/tg-proposals.test.ts :: a draft is only prepared where it can be confirmed miniapp does NOT queue it
+apps/vibee-editor/render/tg-proposals.test.ts :: a draft is only prepared where it can be confirmed no surface does NOT queue it
+apps/vibee-editor/render/tg-proposals.test.ts :: a draft is only prepared where it can be confirmed the bot chat queues it
+apps/vibee-editor/render/tg-proposals.test.ts :: a draft is only prepared where it can be confirmed unknown does NOT queue it
+apps/vibee-editor/render/tg-proposals.test.ts :: a proposal belongs to one person a refusal does not reveal whether the id exists
+apps/vibee-editor/render/tg-proposals.test.ts :: a proposal belongs to one person somebody else cannot confirm it, even holding the id
+apps/vibee-editor/render/tg-proposals.test.ts :: a proposal belongs to one person the owner can confirm their own
+apps/vibee-editor/render/tg-proposals.test.ts :: a wrong secret is visible, not merely counted it is written to the log
+apps/vibee-editor/render/tg-proposals.test.ts :: a wrong secret is visible, not merely counted the dead counter is gone from the record
+apps/vibee-editor/render/tg-proposals.test.ts :: confirming consumes the proposal a second press cannot send the same message twice
+apps/vibee-editor/render/tg-proposals.test.ts :: confirming consumes the proposal cancelling also consumes it, so a cancelled draft cannot be sent
+apps/vibee-editor/render/tg-proposals.test.ts :: every readBody in the server is parsed before use no caller treats the raw string as an object
+apps/vibee-editor/render/tg-proposals.test.ts :: nothing waits for a person who has nothing pendingFor is null rather than somebody else draft
+apps/vibee-editor/render/tg-proposals.test.ts :: one pending proposal per person a new draft replaces the old one
+apps/vibee-editor/render/tg-proposals.test.ts :: one pending proposal per person two different people keep their own
+apps/vibee-editor/render/tg-proposals.test.ts :: only an executable action takes the one queue slot a non-executable action still answers the model with a proposal
+apps/vibee-editor/render/tg-proposals.test.ts :: only an executable action takes the one queue slot a read proposal does not evict the send waiting for approval
+apps/vibee-editor/render/tg-proposals.test.ts :: the approved bytes are the sent bytes markdown parsing is switched OFF explicitly
+apps/vibee-editor/render/tg-proposals.test.ts :: the approved bytes are the sent bytes the retry after warming the address book is verbatim too
+apps/vibee-editor/render/tg-proposals.test.ts :: the button has 64 bytes and the payload must fit id and secret together leave room for the prefix
+apps/vibee-editor/render/tg-proposals.test.ts :: the id is not a pass -- the one-time secret is a refused secret does not consume the draft -- one wrong tap is not fatal
+apps/vibee-editor/render/tg-proposals.test.ts :: the id is not a pass -- the one-time secret is and a run of wrong secrets does NOT destroy it
+apps/vibee-editor/render/tg-proposals.test.ts :: the id is not a pass -- the one-time secret is no secret at all confirms nothing
+apps/vibee-editor/render/tg-proposals.test.ts :: the id is not a pass -- the one-time secret is the refusal does not say WHICH thing was wrong
+apps/vibee-editor/render/tg-proposals.test.ts :: the id is not a pass -- the one-time secret is the right id with the wrong secret confirms nothing
+apps/vibee-editor/render/tg-proposals.test.ts :: the id survives the trip through an HTTP body a JSON string body yields id AND secret, and the draft is claimed
+apps/vibee-editor/render/tg-proposals.test.ts :: the id survives the trip through an HTTP body a malformed body refuses instead of throwing
+apps/vibee-editor/render/tg-proposals.test.ts :: the id survives the trip through an HTTP body a non-string id is refused rather than coerced
+apps/vibee-editor/render/tg-proposals.test.ts :: the id survives the trip through an HTTP body an already-parsed object still works, defensively
+apps/vibee-editor/render/tg-proposals.test.ts :: the id survives the trip through an HTTP body the raw string is NOT treated as an object
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door a claimed proposal carries no secret either
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door a new draft opens the door again
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door an empty turn matches nothing, including a draft that has none
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door an issued draft is still confirmable -- issuing is not consuming
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door issueFor is the door, and it opens for the owner and the right turn
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door pendingFor carries no secret
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door remember hands back a COPY, not the live record
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door the door opens ONCE per proposal, not once per turn
+apps/vibee-editor/render/tg-proposals.test.ts :: the secret comes out of exactly one door two proposals never share a secret
+apps/vibee-editor/render/tg-proposals.test.ts :: the send reaches an address the model actually holds a @username costs ONE call, not two
+apps/vibee-editor/render/tg-proposals.test.ts :: the send reaches an address the model actually holds a bare id gets the address book fetched, then goes through
+apps/vibee-editor/render/tg-proposals.test.ts :: the send reaches an address the model actually holds an unknown failure passes through untouched
+apps/vibee-editor/render/tg-proposals.test.ts :: the send reaches an address the model actually holds it does not retry forever on an address that never resolves
+apps/vibee-editor/render/tg-proposals.test.ts :: the send reaches an address the model actually holds the failure is said in words, not in protocol
+apps/vibee-editor/render/tg-proposals.test.ts :: the socket does not stay open a FAILED send closes it too
+apps/vibee-editor/render/tg-proposals.test.ts :: the socket does not stay open a client without disconnect does not crash the send
+apps/vibee-editor/render/tg-proposals.test.ts :: the socket does not stay open a successful send closes its client
+apps/vibee-editor/render/tg-proposals.test.ts :: there is no route that simply hands drafts out GET /api/tg/proposal no longer exists
+apps/vibee-editor/render/tg-unanswered.test.ts :: долг считается по последнему слову чужую переписку не отдаём
+apps/vibee-editor/render/tg-unanswered.test.ts :: инструмент объявлен честно он читающий и не отправляет
+apps/vibee-editor/render/tg-unanswered.test.ts :: инструмент объявлен честно чужой текст помечен как данные, а не поручение
+apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора дольше всех ждущий — первым
+apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора каналы не превращают список долгов в список подписок
+apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора мой собственный последний ответ долгом не считается
+apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора прочитанное без ответа — ТОЖЕ долг
+apps/vibee-editor/render/token-packs.test.ts :: границы названы, а не подразумеваются дробное количество не создаёт дробных звёзд
+apps/vibee-editor/render/token-packs.test.ts :: границы названы, а не подразумеваются название счёта одно на всех
+apps/vibee-editor/render/token-packs.test.ts :: границы названы, а не подразумеваются ноль и отрицательное отвергаются
+apps/vibee-editor/render/token-packs.test.ts :: границы названы, а не подразумеваются слишком большой счёт отказывается ПОНЯТНО, а не ошибкой Telegram
+apps/vibee-editor/render/token-packs.test.ts :: пакеты выводятся из шкалы, а не живут рядом с ней витрина и шкала описывают одни и те же пакеты
+apps/vibee-editor/render/token-packs.test.ts :: пакеты выводятся из шкалы, а не живут рядом с ней пакет 10 стоит столько же, сколько стоил
+apps/vibee-editor/render/token-packs.test.ts :: пакеты выводятся из шкалы, а не живут рядом с ней пакет 150 стоит столько же, сколько стоил
+apps/vibee-editor/render/token-packs.test.ts :: пакеты выводятся из шкалы, а не живут рядом с ней пакет 50 стоит столько же, сколько стоил
+apps/vibee-editor/render/token-packs.test.ts :: скидка за объём сохраняется больше токенов никогда не стоит меньше звёзд
+apps/vibee-editor/render/token-packs.test.ts :: скидка за объём сохраняется на границе ступени цена не подскакивает выше соседней
+apps/vibee-editor/render/token-packs.test.ts :: скидка за объём сохраняется токен дешевеет с ростом количества
+apps/vibee-editor/render/token-packs.test.ts :: ставка верхней ступени записана дробью в исходнике нет десятичного приближения 1.16
+apps/vibee-editor/render/tool-registry-unique.test.ts :: the agent tool registry lists every tool exactly once
+apps/vibee-editor/render/tool-registry-unique.test.ts :: the agent tool registry no tool has an empty or whitespace name
+apps/vibee-editor/render/tool-registry-unique.test.ts :: the agent tool registry the array and the lookup map hold the same number of tools
 apps/vibee-editor/render/tts-timed-captions.test.ts :: TTS timed caption contract does not fabricate timed captions in the provider fallback
 apps/vibee-editor/render/tts-timed-captions.test.ts :: TTS timed caption contract keeps script captions separate from media timing
 apps/vibee-editor/render/tts-timed-captions.test.ts :: TTS timed caption contract returns timing from the same ElevenLabs response as the audio
@@ -746,6 +1251,63 @@ scripts/tests/pagination.test.ts :: Pagination Tests Should handle empty result 
 scripts/tests/pagination.test.ts :: Pagination Tests Should handle pagination with mock data
 scripts/tests/pagination.test.ts :: Pagination Tests Should maintain consistent telegram_id across pagination
 scripts/tests/pagination.test.ts :: Pagination Tests Should simulate production scenario (16217 records)
+src/__tests__/agent-attachments.test.ts :: fetching the bytes a failed download is a message, never a thrown error
+src/__tests__/agent-attachments.test.ts :: fetching the bytes a failed upload is a message too
+src/__tests__/agent-attachments.test.ts :: fetching the bytes an UNDECLARED oversized file is caught after download
+src/__tests__/agent-attachments.test.ts :: fetching the bytes an empty file is refused rather than stored
+src/__tests__/agent-attachments.test.ts :: fetching the bytes over the Telegram ceiling: refused with a sentence, not silence
+src/__tests__/agent-attachments.test.ts :: fetching the bytes the Telegram link with the token never reaches the agent
+src/__tests__/agent-attachments.test.ts :: one turn out of a whole album a failed part does not lose the rest or the caption
+src/__tests__/agent-attachments.test.ts :: one turn out of a whole album a single message is the same path with one part
+src/__tests__/agent-attachments.test.ts :: one turn out of a whole album an album with no caption is still a turn
+src/__tests__/agent-attachments.test.ts :: one turn out of a whole album every photo gets a line, under ONE caption
+src/__tests__/agent-attachments.test.ts :: one turn out of a whole album two failures are both reported, not just the first
+src/__tests__/agent-attachments.test.ts :: recognising what was sent a document with no mime at all is still accepted
+src/__tests__/agent-attachments.test.ts :: recognising what was sent a message with no file at all yields nothing
+src/__tests__/agent-attachments.test.ts :: recognising what was sent a photo takes the LARGEST size, not the thumbnail
+src/__tests__/agent-attachments.test.ts :: recognising what was sent a static sticker is an image, an animated one is not
+src/__tests__/agent-attachments.test.ts :: recognising what was sent a track prefers its own title over a generated name
+src/__tests__/agent-attachments.test.ts :: recognising what was sent a video note carries no mime and no name, and still becomes a video
+src/__tests__/agent-attachments.test.ts :: recognising what was sent a voice message is audio
+src/__tests__/agent-attachments.test.ts :: recognising what was sent an animation is a video, not the document it also looks like
+src/__tests__/agent-attachments.test.ts :: recognising what was sent an unknown format arrives as a file rather than being dropped
+src/__tests__/agent-attachments.test.ts :: the line handed to the agent a name with a bracket or a newline cannot break the marker
+src/__tests__/agent-attachments.test.ts :: the line handed to the agent matches the mini app byte for byte
+src/__tests__/agent-attachments.test.ts :: what the agent actually receives a failed file keeps the caption alive
+src/__tests__/agent-attachments.test.ts :: what the agent actually receives a failed file with no caption leaves nothing to send
+src/__tests__/agent-attachments.test.ts :: what the agent actually receives a file with no caption still becomes a turn
+src/__tests__/agent-attachments.test.ts :: what the agent actually receives plain text passes through untouched
+src/__tests__/agent-attachments.test.ts :: what the agent actually receives the caption and the file arrive together
+src/__tests__/agent-chat-wiring.test.ts :: a photo reaches the agent the global photo handler hands the chain onward
+src/__tests__/agent-chat-wiring.test.ts :: a photo reaches the agent the handler declares next, or it could not pass anything on
+src/__tests__/agent-chat-wiring.test.ts :: an album becomes one turn a part that was absorbed stops instead of answering
+src/__tests__/agent-chat-wiring.test.ts :: an album becomes one turn the buffer is keyed by chat, so two people do not share an album
+src/__tests__/agent-chat-wiring.test.ts :: an album becomes one turn the middleware gathers parts before building the turn
+src/__tests__/agent-chat-wiring.test.ts :: an album becomes one turn the turn is built from all the parts, not from one message
+src/__tests__/agent-chat-wiring.test.ts :: the agent middleware takes files, not only text a refusal is spoken to the person rather than swallowed
+src/__tests__/agent-chat-wiring.test.ts :: the agent middleware takes files, not only text it builds the agent message through the shared builder
+src/__tests__/agent-chat-wiring.test.ts :: the agent middleware takes files, not only text it no longer rejects everything that is not text up front
+src/__tests__/agent-chat-wiring.test.ts :: the fallback answer is recorded it tracks whether the question already reached the server
+src/__tests__/agent-chat-wiring.test.ts :: the fallback answer is recorded recording never blocks or breaks the reply
+src/__tests__/agent-chat-wiring.test.ts :: the fallback answer is recorded the fallback path writes the turn back
+src/__tests__/agent-surface.test.ts :: marking where a user turn came from an assistant turn is never marked, whatever its surface says
+src/__tests__/agent-surface.test.ts :: marking where a user turn came from another surface is named
+src/__tests__/agent-surface.test.ts :: marking where a user turn came from the bot itself is never marked -- it would be on every single line
+src/__tests__/agent-surface.test.ts :: marking where a user turn came from the text itself is untouched
+src/__tests__/agent-surface.test.ts :: marking where a user turn came from unknown and missing are left exactly as they are
+src/__tests__/album-buffer.test.ts :: a message that is not part of an album passes straight through, alone and immediately
+src/__tests__/album-buffer.test.ts :: gathering an album a late straggler starts a new group instead of vanishing
+src/__tests__/album-buffer.test.ts :: gathering an album at the ceiling it flushes at once instead of waiting again
+src/__tests__/album-buffer.test.ts :: gathering an album later parts resolve null, so the album is answered once
+src/__tests__/album-buffer.test.ts :: gathering an album nothing is left pending once the window passes
+src/__tests__/album-buffer.test.ts :: gathering an album the first part waits and returns every part
+src/__tests__/album-buffer.test.ts :: gathering an album the window restarts on every part, so a slow album stays whole
+src/__tests__/album-buffer.test.ts :: gathering an album two albums in one chat do not mix
+src/__tests__/album-buffer.test.ts :: gathering an album two chats sending albums at once do not mix
+src/__tests__/album-buffer.test.ts :: the caption an album carries a plain text message is its own caption
+src/__tests__/album-buffer.test.ts :: the caption an album carries an album with no caption yields an empty string, not undefined
+src/__tests__/album-buffer.test.ts :: the caption an album carries an empty caption does not shadow a real one
+src/__tests__/album-buffer.test.ts :: the caption an album carries is found wherever it sits
 src/__tests__/api/protected-routes.test.ts :: внутренние маршруты закрыты manual-fix route inside the open autofixer router is gated by the key
 src/__tests__/api/protected-routes.test.ts :: внутренние маршруты закрыты в списке открытых нет тех, кого уже закрыли
 src/__tests__/api/protected-routes.test.ts :: внутренние маршруты закрыты каждый открытый роутер назван с причиной
@@ -855,9 +1417,131 @@ src/__tests__/billingFilters.test.ts :: isRealClientIncome отсекает си
 src/__tests__/billingFilters.test.ts :: isRealClientIncome пропускает платежи реальными методами
 src/__tests__/billingFilters.test.ts :: toStars конвертирует TON через USD
 src/__tests__/billingFilters.test.ts :: toStars не трогает звёздные валюты
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land does not claim a handler that is not there
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land drops a button the agent invented, and keeps the ones that work
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land has actions to check at all
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land offers payment after /start, through the menu every path ends at
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land offers the app through an inline web_app button, never a reply key
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land puts top-up first, because that is the step a paying person wants
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land registers a handler for every action it offers
+src/__tests__/bot/actionButtonsAreLive.test.ts :: a rendered button always has somewhere to land still offers the standard set when the agent proposed nothing
+src/__tests__/bot/agentPromptMatchesOurButtons.test.ts :: the agent is told exactly the buttons this bot can render found a rule to check at all
+src/__tests__/bot/agentPromptMatchesOurButtons.test.ts :: the agent is told exactly the buttons this bot can render names every registered action
+src/__tests__/bot/agentPromptMatchesOurButtons.test.ts :: the agent is told exactly the buttons this bot can render names no id the parser would drop
+src/__tests__/bot/agentPromptMatchesOurButtons.test.ts :: the agent is told exactly the buttons this bot can render states the label limit the parser actually enforces
+src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели доходит до человека в ветке отказа есть ответ, а не только запись в журнал
+src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели доходит до человека падение самой отправки не роняет обработчик
+src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели доходит до человека причина различает перегрузку и недействительный ключ
+src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели доходит до человека человеку предлагают, что делать сейчас
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe does not find a key that is not there
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe has capabilities to describe at all
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe names only keys the file really reads
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe points every row at a file that exists
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe reports a missing key, and stops reporting it once set
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe says nothing when every paid service is available
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe treats an any-of list as satisfied by one member
+src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe warns the fallback model off services it cannot perform
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: ни один бот не остаётся без приёма апдейтов вебхук по-прежнему удаляется перед опросом
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: ни один бот не остаётся без приёма апдейтов нет ветки, пропускающей запуск опроса для кассира
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: оплата не может быть съедена сценой выход из сцены зовётся безопасно — до stage её ещё нет
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: оплата не может быть съедена сценой обработчики оплаты зарегистрированы ДО сцен
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: покупка токенов мини-приложения payload разбирается на сумму и получателя
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: покупка токенов мини-приложения ветка tokens: стоит ДО общего разбора тарифов
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: покупка токенов мини-приложения зачисление идёт с ключом и с chargeId
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: покупка токенов мини-приложения нулевая и отрицательная сумма отвергаются
+src/__tests__/bot/cashierPollsLikeEveryone.test.ts :: покупка токенов мини-приложения чужие форматы не притворяются покупкой токенов
+src/__tests__/bot/confirmSecretNeverReachesTheLogs.test.ts :: no logging site prints callback data raw Telegraf.log is given the scrubbing logger everywhere
+src/__tests__/bot/confirmSecretNeverReachesTheLogs.test.ts :: no logging site prints callback data raw the incoming-update log scrubs the callback field
+src/__tests__/bot/confirmSecretNeverReachesTheLogs.test.ts :: the secret is cut out, the id is not a bare callback string is scrubbed
+src/__tests__/bot/confirmSecretNeverReachesTheLogs.test.ts :: the secret is cut out, the id is not a whole serialised update is scrubbed
+src/__tests__/bot/confirmSecretNeverReachesTheLogs.test.ts :: the secret is cut out, the id is not cancel is scrubbed too, not only confirm
+src/__tests__/bot/confirmSecretNeverReachesTheLogs.test.ts :: the secret is cut out, the id is not scrubbedLog prints the scrubbed form
+src/__tests__/bot/confirmSecretNeverReachesTheLogs.test.ts :: the secret is cut out, the id is not unrelated text is untouched, including other callbacks
+src/__tests__/bot/connectTelegramHasAWayOnwards.test.ts :: sharing the number leads to the connect screen does NOT request the login code on the person behalf
+src/__tests__/bot/connectTelegramHasAWayOnwards.test.ts :: sharing the number leads to the connect screen lands on the tab the connect screen actually lives on
+src/__tests__/bot/connectTelegramHasAWayOnwards.test.ts :: sharing the number leads to the connect screen offers a web_app button, not a bare link
+src/__tests__/bot/connectTelegramHasAWayOnwards.test.ts :: sharing the number leads to the connect screen still refuses a contact that is not the sender own
+src/__tests__/bot/connectTelegramHasAWayOnwards.test.ts :: sharing the number leads to the connect screen the button is offered after saving AND to somebody already saved
 src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling drops pending updates at every call
 src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling still deletes the webhook somewhere
 src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling still launches in polling, so the backlog has somewhere to land
+src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press does not try to put both a removal and buttons on one message
+src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press follows with buttons, top-up first
+src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press sends the greeting at all (the control for everything below)
+src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press still clears a stale wizard keyboard on the greeting
+src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press stops telling the person to choose a category that is not offered
+src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press survives a failing follow-up
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: no message is met with silence answers a message shape with no text at all
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: no message is met with silence answers text that every handler declined
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: no message is met with silence puts buttons under the answer, so there is something to press
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the harness can tell an answer from silence a handler that answers produces exactly one send
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the harness can tell an answer from silence registers a direct send, so a count of zero means something
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody lets a handler registered AFTER it answer first, and then says nothing
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody passes the update on, so handlers registered after it still run
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody sees an answer sent as a photo, not only as text
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody stays quiet for a successful payment, answered by a later handler
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody stays quiet in a group, where it sees everybody else"s messages too
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody stays quiet when a handler already replied and stopped
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody stays quiet when a handler replied and then called next()
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the net does not talk over anybody still answers when a downstream handler throws
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the pair is wired at the two ends of the chain each net awaits the chain before it decides
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the pair is wired at the two ends of the chain registers both nets before anything that could answer
+src/__tests__/bot/noMessageGoesUnanswered.test.ts :: the pair is wired at the two ends of the chain registers the witness before anything else can reply
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: no press is met with a spinner that never stops answers a press nobody caught, so the clock stops
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: no press is met with a spinner that never stops clears the clock silently when a handler replied but forgot to answer
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: no press is met with a spinner that never stops says the button is out of date, and offers live ones
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: the harness can tell a handled press from a lost one a handler that answers the press produces exactly one answer
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: the press net does not talk over anybody clears the clock in a group but does not post there
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: the press net does not talk over anybody ignores a plain message, which is the other net"s job
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: the press net does not talk over anybody lets a handler registered AFTER it answer first
+src/__tests__/bot/noPressGoesUnanswered.test.ts :: the press net does not talk over anybody stays silent when the press was properly answered
+src/__tests__/bot/noTariffsInAiPrompt.test.ts :: системная подсказка ИИ-ответчика запрещает выдумывать цену и баланс
+src/__tests__/bot/noTariffsInAiPrompt.test.ts :: системная подсказка ИИ-ответчика называет настоящую модель: токены, а не подписка
+src/__tests__/bot/noTariffsInAiPrompt.test.ts :: системная подсказка ИИ-ответчика не называет ни одного тарифа
+src/__tests__/bot/noTariffsInAiPrompt.test.ts :: системная подсказка ИИ-ответчика не называет цен — они живут в прайсе, а не в тексте
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a confirmed send is not then called a dead button a cancel is treated the same way
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a confirmed send is not then called a dead button a successful confirm answers the press and says nothing about dead buttons
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a confirmed send is not then called a dead button and a genuinely orphaned press still gets the net
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a press inside a scene still reaches the handler and the handlers live in that function, not somewhere later
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a press inside a scene still reaches the handler the confirm buttons are registered BEFORE the scene middleware
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a silent answer still shows the card and the draft is read from the answer before either path runs
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a silent answer still shows the card the card is drawn OUTSIDE the "answer has text" branch
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: both buttons are wired, and the press is what acts answerCbQuery comes before the work, per the project rule
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: both buttons are wired, and the press is what acts confirm and cancel are both registered as handlers
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: both buttons are wired, and the press is what acts the bot never calls confirm on its own, only from a press
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: both buttons are wired, and the press is what acts the buttons are removed once pressed
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the bot does not claim to know what it does not know a dropped connection is reported as UNKNOWN, not as "not sent"
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the bot does not claim to know what it does not know a server answer is NOT unknown -- that one really did not send
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the bot does not claim to know what it does not know the three states reach three different sentences
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card appears only when a draft actually came back no draft in the answer means no card
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card appears only when a draft actually came back the bot no longer fetches the draft over HTTP
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card does not present a bare id as a checkable address a @username is shown plainly, with no warning bolted on
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card does not present a bare id as a checkable address a numeric recipient is marked as unverifiable
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent a cut is stated rather than hidden
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent both buttons carry the one-time secret, not just the id
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent callback data fits in the 64 bytes Telegram allows
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent the recipient and the whole text, not a summary
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent the two buttons carry the id of THIS draft
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the draft is never shown to a room the card is gated on a private chat
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the secret actually reaches the server cancel posts it too
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the secret actually reaches the server confirm posts the secret, not only the id
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the secret actually reaches the server the identity still travels in the query, where the server reads it
+src/__tests__/bot/proposalSurvivesTheStream.test.ts :: the draft and its secret survive every chunk boundary an answer with no draft leaves proposal undefined, not a stale one
+src/__tests__/bot/proposalSurvivesTheStream.test.ts :: the draft and its secret survive every chunk boundary an event without a secret is ignored rather than half-trusted
+src/__tests__/bot/proposalSurvivesTheStream.test.ts :: the draft and its secret survive every chunk boundary arrives intact: a split exactly on the newline
+src/__tests__/bot/proposalSurvivesTheStream.test.ts :: the draft and its secret survive every chunk boundary arrives intact: a split inside the proposal JSON
+src/__tests__/bot/proposalSurvivesTheStream.test.ts :: the draft and its secret survive every chunk boundary arrives intact: every line terminated
+src/__tests__/bot/proposalSurvivesTheStream.test.ts :: the draft and its secret survive every chunk boundary arrives intact: one byte at a time
+src/__tests__/bot/proposalSurvivesTheStream.test.ts :: the draft and its secret survive every chunk boundary arrives intact: the last line unterminated
+src/__tests__/bot/telegramLongAnswer.test.ts :: «печатает…» держится, пока идёт работа отказ индикатора не роняет ответ
+src/__tests__/bot/telegramLongAnswer.test.ts :: «печатает…» держится, пока идёт работа повторяется, а не гаснет через пять секунд
+src/__tests__/bot/telegramLongAnswer.test.ts :: длинный ответ доходит целиком каждая часть влезает в предел Telegram
+src/__tests__/bot/telegramLongAnswer.test.ts :: длинный ответ доходит целиком короткий не трогаем
+src/__tests__/bot/telegramLongAnswer.test.ts :: длинный ответ доходит целиком ничего не теряется и порядок сохраняется
+src/__tests__/bot/telegramLongAnswer.test.ts :: длинный ответ доходит целиком пустой не превращается в пустое сообщение
+src/__tests__/bot/telegramLongAnswer.test.ts :: длинный ответ доходит целиком строка длиннее предела режется, а не теряется
+src/__tests__/bot/telegramLongAnswer.test.ts :: обработчик бота этим пользуется индикатор гасится в finally, а не только при успехе
+src/__tests__/bot/telegramLongAnswer.test.ts :: обработчик бота этим пользуется ответ отправляется частями
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success back_to_main_config calls answerCbQuery before its catch (no hanging spinner)
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success configure_fix_types calls answerCbQuery before its catch (no hanging spinner)
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success save_and_exit calls answerCbQuery before its catch (no hanging spinner)
@@ -890,6 +1574,11 @@ src/__tests__/config/parseModelButton.test.ts :: parseModelButton returns null f
 src/__tests__/config/parseModelButton.test.ts :: parseModelButton round-trips EVERY button the wizards actually offer
 src/__tests__/config/paymentUrl.test.ts :: BASE_PAYMENT_URL: цепочка не должна падать на мёртвый домен API_SERVER_URL по-прежнему имеет приоритет — прежнее поведение не сломано
 src/__tests__/config/paymentUrl.test.ts :: BASE_PAYMENT_URL: цепочка не должна падать на мёртвый домен в проде берёт BASE_WEBHOOK_URL, когда трёх других переменных нет
+src/__tests__/content-factory-storage.test.ts :: the file name in the header a Cyrillic name is percent-encoded, not thrown on
+src/__tests__/content-factory-storage.test.ts :: the file name in the header an ASCII name survives a round trip unchanged
+src/__tests__/content-factory-storage.test.ts :: the shelf address a bare Railway host still produces a usable URL
+src/__tests__/content-factory-storage.test.ts :: the shelf address a trailing slash does not become a double slash
+src/__tests__/content-factory-storage.test.ts :: the shelf address an address that already has a scheme is left alone
 src/__tests__/core/ai-server/lipsync-adapter.test.ts :: AiServer LipSync Adapter generateLipSyncViaAiServer должен использовать fallback через Replicate если ai-server недоступен
 src/__tests__/core/ai-server/lipsync-adapter.test.ts :: AiServer LipSync Adapter generateLipSyncViaAiServer должен успешно отправить запрос на ai-server
 src/__tests__/core/ai-server/lipsync-adapter.test.ts :: AiServer LipSync Adapter getLipSyncStatusFromAiServer должен получить статус задачи от ai-server
@@ -1459,6 +2148,9 @@ src/__tests__/integration/cancelButtonIntegration.test.ts :: handleHelpCancel In
 src/__tests__/integration/cancelButtonIntegration.test.ts :: handleHelpCancel Integration Tests должна обрабатывать отмену на русском
 src/__tests__/integration/cancelButtonIntegration.test.ts :: handleHelpCancel Integration Tests должна обрабатывать справку на английском
 src/__tests__/integration/cancelButtonIntegration.test.ts :: handleHelpCancel Integration Tests должна обрабатывать справку на русском
+src/__tests__/money/aRefusalIsNotAnnouncedAsSuccess.test.ts :: a refusal is shown as a refusal the button is offered only when money is what is missing
+src/__tests__/money/aRefusalIsNotAnnouncedAsSuccess.test.ts :: a refusal is shown as a refusal the error is what goes out, before any success wording
+src/__tests__/money/aRefusalIsNotAnnouncedAsSuccess.test.ts :: a refusal is shown as a refusal the service says when the failure was about money
 src/__tests__/money/aiCoverRefundChecked.test.ts :: aiCover refund result is checked and reported truthfully assigns the REFUND result instead of discarding it
 src/__tests__/money/aiCoverRefundChecked.test.ts :: aiCover refund result is checked and reported truthfully tells the user "funds refunded" only when the refund actually succeeded
 src/__tests__/money/aiPhotoshopAllModelsConsumeInput.test.ts :: aiPhotoshopScene all_models branch consumes input before returning (no stale re-charge) floor: the all_models charge loop and its returning branch still exist
@@ -1469,12 +2161,21 @@ src/__tests__/money/aiPhotoshopBatchRefundReconciled.test.ts :: aiPhotoshopScene
 src/__tests__/money/aiPhotoshopBatchRefundReconciled.test.ts :: aiPhotoshopScene batch skipBalanceCheck calls reconcile refunds to the charge matcher is not stale: the batch dispatch still exists
 src/__tests__/money/aiPhotoshopBatchRefundReconciled.test.ts :: aiPhotoshopScene batch skipBalanceCheck calls reconcile refunds to the charge mutation: stripping a real chargedCostOverride turns the check RED
 src/__tests__/money/aiPhotoshopBatchRefundReconciled.test.ts :: aiPhotoshopScene batch skipBalanceCheck calls reconcile refunds to the charge self-check: detector distinguishes reconciled from unreconciled calls
+src/__tests__/money/aiPhotoshopPriceCommentsMatch.test.ts :: AI Photoshop price comments state what the code computes points every entry at its own USD cost
+src/__tests__/money/aiPhotoshopPriceCommentsMatch.test.ts :: AI Photoshop price comments state what the code computes quotes the USD figure the table actually holds
+src/__tests__/money/aiPhotoshopPriceCommentsMatch.test.ts :: AI Photoshop price comments state what the code computes reads the table and the annotated entries
+src/__tests__/money/aiPhotoshopPriceCommentsMatch.test.ts :: AI Photoshop price comments state what the code computes states the star price the function really returns
 src/__tests__/money/aiPhotoshopUpscaleLastConsumeBeforeCharge.test.ts :: ai_photoshop_upscale_last consumes the photo before charging (no stale-tap replay) floor: the ai_photoshop_upscale_last handler still charges via upscaleImage
 src/__tests__/money/aiPhotoshopUpscaleLastConsumeBeforeCharge.test.ts :: ai_photoshop_upscale_last consumes the photo before charging (no stale-tap replay) marks the photo consumed before the upscale charge, with a refuse guard
 src/__tests__/money/aiPhotoshopUpscaleLastConsumeBeforeCharge.test.ts :: ai_photoshop_upscale_last consumes the photo before charging (no stale-tap replay) mutation: removing the real consume assignment turns the check RED
 src/__tests__/money/aiPhotoshopUpscaleLastConsumeBeforeCharge.test.ts :: ai_photoshop_upscale_last consumes the photo before charging (no stale-tap replay) self-check: a handler that charges without consuming first is detected
 src/__tests__/money/aiReelsCallbackDeliveryIdempotency.test.ts :: ai-reels callback video delivery is idempotent per job claims delivery BEFORE sendVideo in handleCompletedRender
 src/__tests__/money/aiReelsCallbackDeliveryIdempotency.test.ts :: ai-reels callback video delivery is idempotent per job sources the shared delivery claimer from the util (bound tested there)
+src/__tests__/money/aiReelsCallbackReleasesClaimOnPreSendFailure.test.ts :: AI Reels callback releases its delivery claim on a pre-send failure floor: the callback claims + tracks deliveryAttempted
+src/__tests__/money/aiReelsCallbackReleasesClaimOnPreSendFailure.test.ts :: AI Reels callback releases its delivery claim on a pre-send failure mutation: dropping the deliveryAttempted guard on the real release turns it RED
+src/__tests__/money/aiReelsCallbackReleasesClaimOnPreSendFailure.test.ts :: AI Reels callback releases its delivery claim on a pre-send failure self-check: an unguarded or absent release is detected
+src/__tests__/money/aiReelsCallbackReleasesClaimOnPreSendFailure.test.ts :: AI Reels callback releases its delivery claim on a pre-send failure the callback releases the claim, guarded by deliveryAttempted
+src/__tests__/money/aiReelsCallbackReleasesClaimOnPreSendFailure.test.ts :: AI Reels callback releases its delivery claim on a pre-send failure the claimer exposes a release() method
 src/__tests__/money/aiReelsChargeChecked.test.ts :: ai-reels render charges before dispatch (no unbilled free render) captures the updateUserBalance result and guards the render dispatch on it
 src/__tests__/money/aiReelsDeliveryWebhookThrows.test.ts :: generateAIReelsFunction delivery handoff surfaces a non-2xx (no silent charged-not-delivered) every !response.ok block throws (does not swallow the failure)
 src/__tests__/money/aiReelsDeliveryWebhookThrows.test.ts :: generateAIReelsFunction delivery handoff surfaces a non-2xx (no silent charged-not-delivered) floor: the function still checks the delivery response (!response.ok)
@@ -1583,6 +2284,10 @@ src/__tests__/money/instagramParserChargeChecked.test.ts :: instagramParser char
 src/__tests__/money/instagramSceneChargeChecked.test.ts :: instagramParserScene checks its charge result (no silent discard) assigns the MONEY_OUTCOME charge result and reacts to a failure
 src/__tests__/money/instagramSceneChargeChecked.test.ts :: instagramParserScene checks its charge result (no silent discard) does not claim a charge that did not happen (#1393 honesty)
 src/__tests__/money/inv-id-update.test.ts :: updateUserBalance с существующим inv_id возвращает true: строка уже переведена в COMPLETED, звёзды начислены
+src/__tests__/money/invariantsMapPointsAtRealThings.test.ts :: the money invariants map points at real things every named test file exists
+src/__tests__/money/invariantsMapPointsAtRealThings.test.ts :: the money invariants map points at real things every quoted describe title is really in its file
+src/__tests__/money/invariantsMapPointsAtRealThings.test.ts :: the money invariants map points at real things every recommended tri verb is in the dispatcher
+src/__tests__/money/invariantsMapPointsAtRealThings.test.ts :: the money invariants map points at real things the map is parsed, not merely present
 src/__tests__/money/kie-webhook-charge.test.ts :: chargeForDeliveredVideo behaviour 'sora-2-image-to-video' is not a priceable model
 src/__tests__/money/kie-webhook-charge.test.ts :: chargeForDeliveredVideo behaviour the real Sora keys ARE priceable
 src/__tests__/money/kie-webhook-charge.test.ts :: kie webhook billing charges in the task-found branch of the Sora handler
@@ -1594,6 +2299,9 @@ src/__tests__/money/kieWebhookDeliveryIdempotency.test.ts :: kie/sora webhook vi
 src/__tests__/money/lipSyncRefundChecked.test.ts :: lipSyncWizard missing-URLs refund checks its result (refundAndTell) refunds via refundAndTell, not a raw MONEY_INCOME credit
 src/__tests__/money/lipsyncRefundIdempotent.test.ts :: async-lipsync refund is idempotent per job (no double refund) a refund that actually failed can be retried (flag reset)
 src/__tests__/money/lipsyncRefundIdempotent.test.ts :: async-lipsync refund is idempotent per job (no double refund) two concurrent refunds of the same job credit the user only once
+src/__tests__/money/lipsyncWebhookCannotContradictASettledJob.test.ts :: a webhook cannot contradict a job the poller already settled does not deliver to a job already failed and refunded
+src/__tests__/money/lipsyncWebhookCannotContradictASettledJob.test.ts :: a webhook cannot contradict a job the poller already settled does not re-deliver to a job already completed
+src/__tests__/money/lipsyncWebhookCannotContradictASettledJob.test.ts :: a webhook cannot contradict a job the poller already settled still delivers to a job that is genuinely in flight
 src/__tests__/money/marketplace-deduct-guarded.test.ts :: marketplace purchaseItem checks item existence before deducting a not-found guard returns between the fetch and the deduct
 src/__tests__/money/marketplace-deduct-guarded.test.ts :: marketplace purchaseItem checks item existence before deducting getItem is called before updateUserBalance
 src/__tests__/money/marketplace-deduct-guarded.test.ts :: marketplace purchaseItem checks item existence before deducting the function is found — otherwise the checks below are empty
@@ -1617,6 +2325,8 @@ src/__tests__/money/money-invariants.test.ts :: карта денег: типы 
 src/__tests__/money/moneyMapKnowsBothCreditSpellings.test.ts :: money-map knows both spellings of giving money back classifies a REFUND-typed balance call as a refund, not as unknown
 src/__tests__/money/moneyMapKnowsBothCreditSpellings.test.ts :: money-map knows both spellings of giving money back the classifier itself tests REFUND for the balance primitive
 src/__tests__/money/moneyMapKnowsBothCreditSpellings.test.ts :: money-map knows both spellings of giving money back what remains unclassified really is unclassifiable from the call
+src/__tests__/money/moneyRatchetsIndexIsCurrent.test.ts :: the money ratchet index is current reads a title written as describe.each, not only describe
+src/__tests__/money/moneyRatchetsIndexIsCurrent.test.ts :: the money ratchet index is current the generator sees a real population, not an empty one
 src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement detects a write by its own samples, in both directions
 src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement keeps the gap between the vocabulary and the population known
 src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement lists every file that writes the payments table
@@ -1641,6 +2351,9 @@ src/__tests__/money/no-invented-price.test.ts :: цена не выдумыва�
 src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается в денежных путях не появилось новых выдуманных цен
 src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается перед списанием цена проверяется, а не подставляется
 src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается разбор ловит выдуманную цену на заведомом образце
+src/__tests__/money/oneEventOneCharger.test.ts :: one event, at most one registered charger no event has two registered handlers that both move money
+src/__tests__/money/oneEventOneCharger.test.ts :: one event, at most one registered charger the registry census is real, not empty
+src/__tests__/money/oneEventOneCharger.test.ts :: one event, at most one registered charger the unregistered duplicate of the paid photo flow stays unregistered
 src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments does NOT report payments_known when the query errors
 src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments reports payments_known when the table answers
 src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments the debt computed without that figure is an upper bound, not a fact
@@ -1655,6 +2368,14 @@ src/__tests__/money/payment-record-not-silent.test.ts :: запись плате
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа успешная вставка не бросает
 src/__tests__/money/paymentHandlerInvIdDeterministic.test.ts :: handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry) every InvId is derived from the invoice payload, not a fresh id
 src/__tests__/money/paymentHandlerInvIdDeterministic.test.ts :: handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry) finds the InvId assignments (a broken matcher fails, not passes)
+src/__tests__/money/paymentMethodCensus.test.ts :: no payment method takes money it cannot deliver every method that takes money either credits it or says why not
+src/__tests__/money/paymentMethodCensus.test.ts :: no payment method takes money it cannot deliver the census can see both sides, and says so
+src/__tests__/money/paymentPairAtomicInsert.test.ts :: paired income+outcome payments are one atomic insert each paired outcome is written in ONE array call together with its income
+src/__tests__/money/paymentPairAtomicInsert.test.ts :: paired income+outcome payments are one atomic insert floor: both paired outcome service_types still exist in the handler
+src/__tests__/money/paymentPairAtomicInsert.test.ts :: paired income+outcome payments are one atomic insert mutation (handler): removing the income from the foundry array turns the check RED
+src/__tests__/money/paymentPairAtomicInsert.test.ts :: paired income+outcome payments are one atomic insert mutation (setPayments): dropping the array acceptance turns the check RED
+src/__tests__/money/paymentPairAtomicInsert.test.ts :: paired income+outcome payments are one atomic insert self-check: two separate object calls are detected; one array call passes
+src/__tests__/money/paymentPairAtomicInsert.test.ts :: paired income+outcome payments are one atomic insert setPayments accepts an array (one multi-row insert)
 src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census anchors the enum name so another enum ending in it cannot match
 src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census classifies every member of the PaymentType enum
 src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census counts REFUND as a credit, not as nothing
@@ -1711,10 +2432,39 @@ src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is 
 src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is announced too still says the amount in the failure message, not just "an error"
 src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is announced too the matchers recognise both halves
 src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is announced too the two fixed wizards branch on the result both ways
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow counts messages to a person, and not throws, conditions or fixtures
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow does not grow the number that offer nothing
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow finds the refusals it claims to count
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow scores a removed keyboard as no keyboard, and a real one as a keyboard
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow still scans a population of the expected size
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow the shared helper is no longer one of them
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow the three flux refusals send the button instead of removing the keyboard
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the number of money refusals with nothing to press does not grow the wizards where somebody is refused to their face now offer the button
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the shared money refusal hands over the button, not directions no longer sends the person somewhere by hand
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the shared money refusal hands over the button, not directions passes a keyboard, which it did not before
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the shared money refusal hands over the button, not directions puts topping up first, because that is the obstacle it just named
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the shared money refusal hands over the button, not directions sends the message at all (the control for everything below)
+src/__tests__/money/refusalOffersAWayToPay.test.ts :: the shared money refusal hands over the button, not directions works in English too, and still carries the button
+src/__tests__/money/refusalReachesTheCaller.test.ts :: a refusal that is returned still reaches somebody with a button both callers that show it to a person consult the flag
+src/__tests__/money/refusalReachesTheCaller.test.ts :: a refusal that is returned still reaches somebody with a button the button is decided BEFORE the message goes out
+src/__tests__/money/refusalReachesTheCaller.test.ts :: a refusal that is returned still reaches somebody with a button the helper says which failure it was
+src/__tests__/money/refusalReachesTheCaller.test.ts :: a refusal that is returned still reaches somebody with a button the third caller is a webhook with nobody to answer
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result every result path that shows a cost also shows what is left
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result reads the balance BEFORE the send loop, not once per photo
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result says nothing rather than throwing when it returns Infinity
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result says nothing rather than throwing when it returns NaN
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result says nothing rather than throwing when it returns a string
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result says nothing rather than throwing when it returns null
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result says nothing rather than throwing when it returns undefined
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result says nothing rather than throwing when the read throws
+src/__tests__/money/remainingBalanceNeverCostsTheResult.test.ts :: the remaining balance is shown, and never costs the result shows what is left when the balance reads cleanly
 src/__tests__/money/replicateWrapperTimeout.test.ts :: shared replicate.run wrapper bounds client.run with a timeout every client.run is bounded by a Promise.race timeout
 src/__tests__/money/replicateWrapperTimeout.test.ts :: shared replicate.run wrapper bounds client.run with a timeout floor: the wrapper still delegates to client.run
 src/__tests__/money/replicateWrapperTimeout.test.ts :: shared replicate.run wrapper bounds client.run with a timeout mutation: unwrapping the real Promise.race turns the check RED
 src/__tests__/money/replicateWrapperTimeout.test.ts :: shared replicate.run wrapper bounds client.run with a timeout self-check: detector distinguishes a bare client.run from a raced one
+src/__tests__/money/resultKeyboardOffersAPrice.test.ts :: a result keyboard shows what more of this costs every inline result keyboard offers a way to pay
+src/__tests__/money/resultKeyboardOffersAPrice.test.ts :: a result keyboard shows what more of this costs no OTHER scene has grown a callback catch-all that would swallow it
+src/__tests__/money/resultKeyboardOffersAPrice.test.ts :: a result keyboard shows what more of this costs the one scene that swallows unknown presses recognises it
 src/__tests__/money/robokassa-claim-once.test.ts :: robokassa ResultURL credits a payment once has a completion update followed by a credit
 src/__tests__/money/robokassa-claim-once.test.ts :: robokassa ResultURL credits a payment once reads the affected rows with .select()
 src/__tests__/money/robokassa-claim-once.test.ts :: robokassa ResultURL credits a payment once skips the credit when the claim was already taken
@@ -1725,6 +2475,15 @@ src/__tests__/money/robokassa-order.test.ts :: порядок обработки
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты подпись проверяется раньше любых изменений
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты разбор находит ключевые шаги — иначе тест пустой
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты человеку сообщают об успехе ПОСЛЕ отметки
+src/__tests__/money/robokassa-result-url-is-mounted.test.ts :: the ResultURL handed to Robokassa is a path this app answers does not double the prefix when the base already carries it
+src/__tests__/money/robokassa-result-url-is-mounted.test.ts :: the ResultURL handed to Robokassa is a path this app answers points at a path the real router actually serves
+src/__tests__/money/robokassa-result-url-is-mounted.test.ts :: the ResultURL handed to Robokassa is a path this app answers yields an empty string when nothing is configured, so the refusal can fire
+src/__tests__/money/robokassa-webhook-behaviour.test.ts :: вебхук Робокассы: поведение, а не форма ПОДДЕЛЬНАЯ ПОДПИСЬ НЕ ЗАЧИСЛЯЕТ И ПОЛУЧАЕТ 400
+src/__tests__/money/robokassa-webhook-behaviour.test.ts :: вебхук Робокассы: поведение, а не форма СТАРЫЙ адрес защищён так же, как новый
+src/__tests__/money/robokassa-webhook-behaviour.test.ts :: вебхук Робокассы: поведение, а не форма без подписи — 400 и ни одного начисления
+src/__tests__/money/robokassa-webhook-behaviour.test.ts :: вебхук Робокассы: поведение, а не форма верная подпись — деньги зачисляются
+src/__tests__/money/robokassa-webhook-behaviour.test.ts :: вебхук Робокассы: поведение, а не форма неизвестный счёт — 404 и ни одного начисления
+src/__tests__/money/robokassa-webhook-behaviour.test.ts :: вебхук Робокассы: поведение, а не форма подпись от ДРУГОЙ суммы не подходит
 src/__tests__/money/sessionPaymentAmountNeverUnbacked.test.ts :: the session field the cancel button refunds is never given a non-zero value anywhere in production code
 src/__tests__/money/sessionPaymentAmountNeverUnbacked.test.ts :: the session field the cancel button refunds is not written by the price validator, which runs before any charge
 src/__tests__/money/sessionPaymentAmountNeverUnbacked.test.ts :: the session field the cancel button refunds still zeroes the field after refunding, so a refund cannot repeat
@@ -1745,6 +2504,14 @@ src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее об
 src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку при отказе базы возвращается пусто, а не падение
 src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку свежее обучение застрявшим не считается
 src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку сцены действительно показывают это сообщение
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero counts only real top-ups, not refunds
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero exits 2 without credentials instead of saying nothing is stuck
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero gates on fresh stuck top-ups and only reports the backlog
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero never credits anybody: the money direction stays with the owner
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero offers the reconciliation list only on request, never in the summary
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero refuses if no top-up has ever completed — a broken filter, not a fact
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero refuses if the status filter selects everything
+src/__tests__/money/stuckPaymentsWatchdog.test.ts :: the stuck-payment watchdog cannot report a comfortable zero says plainly that a pending row is not proof of a lost payment
 src/__tests__/money/superheroQuotaCounterAccumulates.test.ts :: superhero generation quota counter accumulates (no upsert-overwrite) floor: the file still increments generation_count
 src/__tests__/money/superheroQuotaCounterAccumulates.test.ts :: superhero generation quota counter accumulates (no upsert-overwrite) mutation: breaking the existing+1 increment turns the check RED
 src/__tests__/money/superheroQuotaCounterAccumulates.test.ts :: superhero generation quota counter accumulates (no upsert-overwrite) self-check: detector distinguishes accumulate from upsert-overwrite
@@ -1796,6 +2563,10 @@ src/__tests__/money/unifiedModelPriceFailClosed.test.ts :: getUnifiedModelPrice 
 src/__tests__/money/unlockedDeductionLocked.test.ts :: every updateUserBalanceUnlocked call is inside withUserBalanceLock (#999 double-spend) detector distinguishes locked from unlocked (control can fail)
 src/__tests__/money/unlockedDeductionLocked.test.ts :: every updateUserBalanceUnlocked call is inside withUserBalanceLock (#999 double-spend) has no unlocked deduction (every call holds withUserBalanceLock)
 src/__tests__/money/unlockedDeductionLocked.test.ts :: every updateUserBalanceUnlocked call is inside withUserBalanceLock (#999 double-spend) the escape hatch still exists (matcher is not stale)
+src/__tests__/money/unregisteredChargers.test.ts :: unregistered money handlers are a known, fixed set no NEW unregistered handler carries money
+src/__tests__/money/unregisteredChargers.test.ts :: unregistered money handlers are a known, fixed set none of the three has been registered
+src/__tests__/money/unregisteredChargers.test.ts :: unregistered money handlers are a known, fixed set the census still sees every file it judges
+src/__tests__/money/unregisteredChargers.test.ts :: unregistered money handlers are a known, fixed set the registered training handler still carries no charge
 src/__tests__/money/upscaleImageConsumeBeforeCharge.test.ts :: upscale_image consumes the image before charging (no stale-tap replay) floor: the upscale_image handler still charges via upscaleFluxKontextImage
 src/__tests__/money/upscaleImageConsumeBeforeCharge.test.ts :: upscale_image consumes the image before charging (no stale-tap replay) marks the image consumed before the upscale charge, with a refuse guard
 src/__tests__/money/upscaleImageConsumeBeforeCharge.test.ts :: upscale_image consumes the image before charging (no stale-tap replay) mutation: removing the real consume assignment turns the check RED
@@ -1806,6 +2577,10 @@ src/__tests__/money/upscaleNeuroPhotoConsumeBeforeCharge.test.ts :: upscale_neur
 src/__tests__/money/upscaleNeuroPhotoConsumeBeforeCharge.test.ts :: upscale_neurophoto_image consumes the image before charging (no stale-tap replay) self-check: a handler that charges without consuming first is detected
 src/__tests__/money/veedFabricOuterRefund.test.ts :: veed-fabric outer catch refunds a post-charge failure (no charged-no-refund) guards the outer refund against double-refund (refundHandled set before inner refunds)
 src/__tests__/money/veedFabricOuterRefund.test.ts :: veed-fabric outer catch refunds a post-charge failure (no charged-no-refund) refunds in the Step 3 outer catch, gated on charged && !refundHandled
+src/__tests__/money/veo3FastCostSplit.test.ts :: the two Veo 3 Fast costs are a known, recorded divergence holds the charged side at the value recorded in the owner queue
+src/__tests__/money/veo3FastCostSplit.test.ts :: the two Veo 3 Fast costs are a known, recorded divergence holds the config side at the price its own arithmetic gives
+src/__tests__/money/veo3FastCostSplit.test.ts :: the two Veo 3 Fast costs are a known, recorded divergence keeps the markup applied after the component costs, not before
+src/__tests__/money/veo3FastCostSplit.test.ts :: the two Veo 3 Fast costs are a known, recorded divergence still reads both sides
 src/__tests__/money/videoChargeChecked.test.ts :: handleVideoReady checks its charge result (no silent free video) assigns the MONEY_OUTCOME charge result and reacts to a failure
 src/__tests__/money/videoDoubleChargeIdempotency.test.ts :: video delivery is idempotent per job (no double charge) claims delivery by immutable jobId (returns on duplicate) BEFORE the charge
 src/__tests__/money/videoDoubleChargeIdempotency.test.ts :: video delivery is idempotent per job (no double charge) handleVideoReady accepts an optional jobId claim token
@@ -1830,6 +2605,10 @@ src/__tests__/money/voiceAvatarFallbackNotPersisted.test.ts :: createVoiceAvatar
 src/__tests__/money/voiceAvatarFallbackNotPersisted.test.ts :: createVoiceAvatar does not persist the stock fallback voice (no clone overwrite) self-check: an unguarded update/level-bump is detected
 src/__tests__/money/voiceAvatarFallbackNotPersisted.test.ts :: createVoiceAvatar does not persist the stock fallback voice (no clone overwrite) the quest level bump is gated by !isCloudflareBlocked
 src/__tests__/money/voiceAvatarFallbackNotPersisted.test.ts :: createVoiceAvatar does not persist the stock fallback voice (no clone overwrite) the voice_id_elevenlabs update is gated by !isCloudflareBlocked
+src/__tests__/money/x402-is-not-offered-while-it-cannot-credit.test.ts :: x402 is not offered while nothing can credit it a perfectly configured wallet still cannot credit
+src/__tests__/money/x402-is-not-offered-while-it-cannot-credit.test.ts :: x402 is not offered while nothing can credit it no place that offers x402 decides it by asking whether a wallet is configured
+src/__tests__/money/x402-is-not-offered-while-it-cannot-credit.test.ts :: x402 is not offered while nothing can credit it the handler that writes the payment row is guarded before it writes
+src/__tests__/money/x402-is-not-offered-while-it-cannot-credit.test.ts :: x402 is not offered while nothing can credit it the refusal hands over a live way to pay instead of naming one in prose
 src/__tests__/navigation-complete.test.ts :: ⚡ ИНТЕГРАЦИОННЫЕ ТЕСТЫ 1️⃣ СИМУЛЯЦИЯ НАЖАТИЯ КНОПОК ✅ Все кнопки должны иметь текст для обработки
 src/__tests__/navigation-complete.test.ts :: ⚡ ИНТЕГРАЦИОННЫЕ ТЕСТЫ 2️⃣ ПРОВЕРКА ТИПИЗАЦИИ ✅ Mode должен быть совместим с ModeEnum | string
 src/__tests__/navigation-complete.test.ts :: 🎬 ПРОВЕРКА СЦЕН И ОБРАБОТЧИКОВ 1️⃣ ПРОВЕРКА SCENE-SPECIFIC HANDLERS ✅ Сцены должны иметь обработчики для кнопок меню
@@ -1888,6 +2667,12 @@ src/__tests__/navigation/access.config.test.ts :: access.config isSuperAdmin() �
 src/__tests__/navigation/access.config.test.ts :: access.config isSuperAdmin() возвращает false для пустой строки
 src/__tests__/navigation/access.config.test.ts :: access.config isSuperAdmin() возвращает true для super admin (number)
 src/__tests__/navigation/access.config.test.ts :: access.config isSuperAdmin() возвращает true для super admin (string)
+src/__tests__/navigation/adminButtonsVisibleToAdmins.test.ts :: isAdmin отвечает по списку, а не всем подряд в списке — да, вне списка — нет
+src/__tests__/navigation/adminButtonsVisibleToAdmins.test.ts :: админский пункт скрыт от не-админа, а не от всех нет безусловного отбрасывания adminOnly
+src/__tests__/navigation/adminButtonsVisibleToAdmins.test.ts :: админский пункт скрыт от не-админа, а не от всех обе версии построителя спрашивают про админа
+src/__tests__/navigation/adminButtonsVisibleToAdmins.test.ts :: админский пункт скрыт от не-админа, а не от всех список админов ОДИН и уже существующий
+src/__tests__/navigation/adminButtonsVisibleToAdmins.test.ts :: одна сцена — одна регистрация neuroPhotoWizard больше не регистрируется рядом со своей V2
+src/__tests__/navigation/adminButtonsVisibleToAdmins.test.ts :: одна сцена — одна регистрация обе версии по-прежнему объявлены под одним id — иначе повод исчез
 src/__tests__/navigation/buttonUtils.test.ts :: buttonUtils Edge cases NAVIGATION_BUTTONS возвращает объект с ru и en для всех кнопок
 src/__tests__/navigation/buttonUtils.test.ts :: buttonUtils Edge cases findItemByText не находит частичные совпадения
 src/__tests__/navigation/buttonUtils.test.ts :: buttonUtils Edge cases функции работают с категориями без items
@@ -2027,7 +2812,7 @@ src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard Edge cases обр�
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard Edge cases обрабатывает undefined scene
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard Edge cases обрабатывает отсутствие from
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard Edge cases обрабатывает пустую категорию
-src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard Keyboard structure главное меню содержит корректные тексты кнопок
+src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard Keyboard structure главное меню не содержит кнопок вовсе
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard Keyboard structure клавиатура категории содержит функции категории
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createCategoryKeyboard() возвращает главное меню для несуществующей категории
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createCategoryKeyboard() группирует кнопки по 3 в ряд
@@ -2036,11 +2821,9 @@ src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createCategoryKeyb
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createCategoryKeyboard() не добавляет кнопку "Главное меню" при includeBack: false
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createCategoryKeyboard() не показывает админские кнопки
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createCategoryKeyboard() создаёт клавиатуру для существующей категории
-src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() группирует кнопки по 3 в ряд
-src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() имеет resize: true
-src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() содержит все категории
-src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() создаёт клавиатуру для английского языка
-src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() создаёт клавиатуру для русского языка
+src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() в снятии нет ни одной кнопки — ни текстовой, ни web_app
+src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() снимает клавиатуру, а не рисует пустую
+src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard createMainMenuKeyboard() язык на снятие не влияет
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard navigateToCategory() выходит из текущей сцены
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard navigateToCategory() показывает главное меню при ошибке
 src/__tests__/navigation/menuKeyboard.test.ts :: menuKeyboard navigateToCategory() показывает меню даже если нет текущей сцены
@@ -2098,17 +2881,15 @@ src/__tests__/navigation/messages.test.ts :: messages sendPromptImprovementFailu
 src/__tests__/navigation/messages.test.ts :: messages sendPromptImprovementFailureMessage() отправляет сообщение об ошибке на русском
 src/__tests__/navigation/messages.test.ts :: messages sendPromptImprovementMessage() отправляет сообщение на английском
 src/__tests__/navigation/messages.test.ts :: messages sendPromptImprovementMessage() отправляет сообщение на русском
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — главное меню английская локаль даёт английскую подпись
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — главное меню в группе кнопки НЕТ — иначе Telegram вернёт BUTTON_TYPE_INVALID
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — главное меню в личке кнопка есть и ведёт на мини-апп
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — главное меню категории меню не потерялись при добавлении кнопки
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — главное меню кнопка стоит отдельной строкой в конце
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — конфигурация URL мини-аппа — https (Telegram требует https для web_app)
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — конфигурация buildMiniAppUrl без startParam возвращает базовый URL
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — конфигурация buildMiniAppUrl прокидывает startParam как tgWebAppStartParam
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — конфигурация buildMiniAppUrl экранирует startParam
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — конфигурация canShowMiniAppButton — только приватные чаты
-src/__tests__/navigation/miniAppButton.test.ts :: Mini App button — конфигурация createMiniAppButton локализует подпись
+src/__tests__/navigation/miniAppButton.test.ts :: главное меню не предлагает reply-кнопок в группе — то же самое
+src/__tests__/navigation/miniAppButton.test.ts :: главное меню не предлагает reply-кнопок кнопки мини-аппа в клавиатуре НЕТ — она ломает вход
+src/__tests__/navigation/miniAppButton.test.ts :: главное меню не предлагает reply-кнопок меню СНИМАЕТ клавиатуру, а не рисует пустую
+src/__tests__/navigation/miniAppButton.test.ts :: конфигурация мини-аппа осталась рабочей web_app по-прежнему разрешён только в личке
+src/__tests__/navigation/miniAppButton.test.ts :: конфигурация мини-аппа осталась рабочей адрес приложения задан
+src/__tests__/navigation/miniAppButton.test.ts :: конфигурация мини-аппа осталась рабочей без start_param адрес остаётся базовым
+src/__tests__/navigation/miniAppButton.test.ts :: конфигурация мини-аппа осталась рабочей диплинк добавляет start_param
+src/__tests__/navigation/miniAppButton.test.ts :: конфигурация мини-аппа осталась рабочей диплинк экранирует start_param
+src/__tests__/navigation/miniAppButton.test.ts :: конфигурация мини-аппа осталась рабочей подпись кнопки локализована
 src/__tests__/navigation/ownerMenuButton.test.ts :: ownerOnly Menu Button Button text matching should NOT match incorrect text
 src/__tests__/navigation/ownerMenuButton.test.ts :: ownerOnly Menu Button Button text matching should match English button text
 src/__tests__/navigation/ownerMenuButton.test.ts :: ownerOnly Menu Button Button text matching should match Russian button text
@@ -2245,6 +3026,13 @@ src/__tests__/navigation/sceneTransition.test.ts :: SceneTransition safeEnterSce
 src/__tests__/navigation/staffListResolution.test.ts :: the staff list production receives contains no placeholder id
 src/__tests__/navigation/staffListResolution.test.ts :: the staff list production receives is the real list, not the placeholder one
 src/__tests__/navigation/staffListResolution.test.ts :: the staff list production receives still has a competing definition, so this test still has a subject
+src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь ЗНАКОМЫЙ человек в сцену регистрации НЕ попадает
+src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь НЕЗНАКОМЫЙ человек попадает в сцену регистрации
+src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь в группе — ответ, и НИ ОДНОГО входа в сцену
+src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь обработчик вообще зарегистрирован
+src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь падение базы не роняет обработчик и объясняет человеку
+src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь реферальный код из ссылки доживает до сессии
+src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь ссылка клуба доживает до сессии, а не до локальной переменной
 src/__tests__/navigation/z-buttonMatcher.test.ts :: ButtonMatcher ButtonMatchResult structure normalizedText содержит нормализованный текст
 src/__tests__/navigation/z-buttonMatcher.test.ts :: ButtonMatcher ButtonMatchResult structure originalText сохраняет оригинальный текст
 src/__tests__/navigation/z-buttonMatcher.test.ts :: ButtonMatcher ButtonMatchResult structure содержит все необходимые поля
@@ -2408,6 +3196,11 @@ src/__tests__/reliability/aiReelsVoiceCheckGraceful.test.ts :: ai-reels voice ch
 src/__tests__/reliability/avatarBrainNoHtmlParse.test.ts :: avatarBrainWizard sends no parse_mode:HTML floor: the scene still sends replies this ratchet guards
 src/__tests__/reliability/avatarBrainNoHtmlParse.test.ts :: avatarBrainWizard sends no parse_mode:HTML no parse_mode:HTML in the scene
 src/__tests__/reliability/avatarBrainNoHtmlParse.test.ts :: avatarBrainWizard sends no parse_mode:HTML self-check: detector flags parse_mode:HTML but not a plain reply
+src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched with a bounded retry on 409 Conflict floor: the helper exists and the call site goes through it
+src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched with a bounded retry on 409 Conflict mutation: bypassing the helper at the call site turns the check RED
+src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched with a bounded retry on 409 Conflict no bare bot.launch().then().catch() chain remains at the call site
+src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched with a bounded retry on 409 Conflict self-check: the old shape is detected as a bare chain
+src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched with a bounded retry on 409 Conflict the helper retries only on 409 and gives up on anything else
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) floor: menuScene still has a positive callback-handling block
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) floor: subscriptionScene still has a positive callback-handling block
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) menuScene: every callback block answers before branching
@@ -2454,6 +3247,10 @@ src/__tests__/reliability/inngestStepIdStaticInLoop.test.ts :: inngest steps use
 src/__tests__/reliability/inngestStepIdStaticInLoop.test.ts :: inngest steps use no static id inside a loop self-check: detector flags static-in-loop but not dynamic-in-loop nor static-outside-loop
 src/__tests__/reliability/kieProviderStreamDestroy.test.ts :: kie provider: availability-check streams are destroyed destroys both success-path streams (image + audio)
 src/__tests__/reliability/kieProviderStreamDestroy.test.ts :: kie provider: availability-check streams are destroyed every responseType:stream GET has a matching .data.destroy()
+src/__tests__/reliability/kieRenderStatusUsesConfiguredKey.test.ts :: Kie render-status client reads KIE_AI_API_KEY floor: the client is still constructed in steps.ts
+src/__tests__/reliability/kieRenderStatusUsesConfiguredKey.test.ts :: Kie render-status client reads KIE_AI_API_KEY mutation: reverting to the stray name turns the check RED
+src/__tests__/reliability/kieRenderStatusUsesConfiguredKey.test.ts :: Kie render-status client reads KIE_AI_API_KEY no construction reads the stray KIE_API_KEY without KIE_AI_API_KEY first
+src/__tests__/reliability/kieRenderStatusUsesConfiguredKey.test.ts :: Kie render-status client reads KIE_AI_API_KEY self-check: a bare KIE_API_KEY construction is detected
 src/__tests__/reliability/kieVeedFabricStatusFields.test.ts :: KieVeedFabricProvider.getStatus reads the taskStatus query shape does not gate on the webhook-only successFlag field
 src/__tests__/reliability/kieVeedFabricStatusFields.test.ts :: KieVeedFabricProvider.getStatus reads the taskStatus query shape keys terminal detection off data.state (success + fail)
 src/__tests__/reliability/kieVeedFabricStatusFields.test.ts :: KieVeedFabricProvider.getStatus reads the taskStatus query shape reads the result URL from data.resultJson
@@ -2713,6 +3510,7 @@ src/__tests__/scenes/cancelPredictionsRefundOnce.test.ts :: cancelPredictionsWiz
 src/__tests__/scenes/charge-result-checked-ratchet.test.ts :: charge results are never discarded in live scenes (unbilled-paid)  every charge call in a live scene captures its result
 src/__tests__/scenes/charge-result-checked-ratchet.test.ts :: charge results are never discarded in live scenes (unbilled-paid)  finds a non-trivial number of charge calls (a broken matcher fails, not passes)
 src/__tests__/scenes/charge-result-checked-ratchet.test.ts :: charge results are never discarded in live scenes (unbilled-paid)  no allowlist entry is stale (each still exists and still discards a charge)
+src/__tests__/scenes/charge-result-checked-ratchet.test.ts :: charge results are never discarded in live scenes (unbilled-paid)  the narrow scope is complete: no discarded charge lives outside src/scenes
 src/__tests__/scenes/chatWithAvatarWizard.test.ts :: chatWithAvatarWizard (Chat with AI Avatar) 1. Шаг 1: Приветствие должен определять язык пользователя
 src/__tests__/scenes/chatWithAvatarWizard.test.ts :: chatWithAvatarWizard (Chat with AI Avatar) 1. Шаг 1: Приветствие должен переходить к следующему шагу
 src/__tests__/scenes/chatWithAvatarWizard.test.ts :: chatWithAvatarWizard (Chat with AI Avatar) 1. Шаг 1: Приветствие должен показывать приветственное сообщение на английском
@@ -2891,6 +3689,11 @@ src/__tests__/scenes/falRenderWizard.test.ts :: falRenderWizard (Fal Avatar Vide
 src/__tests__/scenes/falRenderWizard.test.ts :: falRenderWizard (Fal Avatar Video Generation) 9. Обработка отмены должен вызывать answerCbQuery
 src/__tests__/scenes/falRenderWizard.test.ts :: falRenderWizard (Fal Avatar Video Generation) 9. Обработка отмены должен очищать сессию aiReelsRender
 src/__tests__/scenes/falRenderWizard.test.ts :: falRenderWizard (Fal Avatar Video Generation) 9. Обработка отмены должен показывать сообщение отмены
+src/__tests__/scenes/firstScreenSurvivesAHiccup.test.ts :: the opening step of the new-user demo cannot be thrown out of falls open on the legacy check too, and says what that costs
+src/__tests__/scenes/firstScreenSurvivesAHiccup.test.ts :: the opening step of the new-user demo cannot be thrown out of falls open on the quota check, and says so in the log
+src/__tests__/scenes/firstScreenSurvivesAHiccup.test.ts :: the opening step of the new-user demo cannot be thrown out of found the step it claims to check
+src/__tests__/scenes/firstScreenSurvivesAHiccup.test.ts :: the opening step of the new-user demo cannot be thrown out of leaves no database call outside a try
+src/__tests__/scenes/firstScreenSurvivesAHiccup.test.ts :: the opening step of the new-user demo cannot be thrown out of would catch an unprotected call
 src/__tests__/scenes/fluxKontextScene.test.ts :: fluxKontextScene (FLUX Kontext AI Image Editing) 1. Вход в сцену должен определять язык пользователя
 src/__tests__/scenes/fluxKontextScene.test.ts :: fluxKontextScene (FLUX Kontext AI Image Editing) 1. Вход в сцену должен показывать заголовок на русском
 src/__tests__/scenes/fluxKontextScene.test.ts :: fluxKontextScene (FLUX Kontext AI Image Editing) 1. Вход в сцену должен проверять наличие from.id
@@ -3570,6 +4373,9 @@ src/__tests__/scenes/scene-registration.test.ts :: Telegraf scene registration a
 src/__tests__/scenes/scene-registration.test.ts :: Telegraf scene registration every imported scene is registered or listed with a reason
 src/__tests__/scenes/scene-registration.test.ts :: Telegraf scene registration no exception names a scene that is already registered
 src/__tests__/scenes/scene-registration.test.ts :: Telegraf scene registration parsing finds scene imports and the register array
+src/__tests__/scenes/sceneIdContention.test.ts :: no two scenes claim the same id by accident only the known pair shares an id
+src/__tests__/scenes/sceneIdContention.test.ts :: no two scenes claim the same id by accident the census resolves real ids, not expression text
+src/__tests__/scenes/sceneIdContention.test.ts :: no two scenes claim the same id by accident the deliberate pair still resolves to the intended winner
 src/__tests__/scenes/sceneIdUniquenessRatchet.test.ts :: scene ids are unique (no silent Stage shadowing) allowlist has no stale entries (each must still be a real duplicate)
 src/__tests__/scenes/sceneIdUniquenessRatchet.test.ts :: scene ids are unique (no silent Stage shadowing) collects a non-trivial number of scenes (barrel import works)
 src/__tests__/scenes/sceneIdUniquenessRatchet.test.ts :: scene ids are unique (no silent Stage shadowing) no duplicate scene id outside the documented allowlist
@@ -3923,6 +4729,7 @@ src/__tests__/security/getRuBillNoErrorLeak.test.ts :: getRuBillWizard does not 
 src/__tests__/security/neuroPhotoNoUnboundedMap.test.ts :: generateNeuroPhotoDirect has no unbounded module-scope Map any module-scope Map that is set is also evicted
 src/__tests__/security/neuroPhotoNoUnboundedMap.test.ts :: generateNeuroPhotoDirect has no unbounded module-scope Map the dead idemCache is gone
 src/__tests__/security/no-secret-in-logs.test.ts :: no production log leaks a secret value every console/logger call logs the key NAME / a flag, never the value
+src/__tests__/security/no-secret-in-logs.test.ts :: no production log leaks a secret value still catches a bare secret value, and no longer accuses the scrubber
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов в списке долга нет файлов, которые уже вычищены
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов каждый шаблон закрыт образцом самопроверки
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов нет секретов в файлах вне списка известного долга
@@ -3950,6 +4757,9 @@ src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep
 src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep parses the guard's table instead of restating it
 src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep separates a value from a reference to a value
 src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep still calls a quoted opaque value a literal
+src/__tests__/security/routesAreMounted.test.ts :: every route file is mounted, or knowingly is not no route file declares endpoints that nothing mounts
+src/__tests__/security/routesAreMounted.test.ts :: every route file is mounted, or knowingly is not the census sees real route files and real mounts
+src/__tests__/security/routesAreMounted.test.ts :: every route file is mounted, or knowingly is not the known-unmounted list has no stale entry
 src/__tests__/security/sanitizeUrlSsrf.test.ts :: sanitizeUrl blocks SSRF hosts (metadata, loopback, private) allows https://api.telegram.org/file/bot123/x.ogg
 src/__tests__/security/sanitizeUrlSsrf.test.ts :: sanitizeUrl blocks SSRF hosts (metadata, loopback, private) allows https://example.com/video.mp4
 src/__tests__/security/sanitizeUrlSsrf.test.ts :: sanitizeUrl blocks SSRF hosts (metadata, loopback, private) allows https://fcbarcelona.com/x
@@ -4011,6 +4821,9 @@ src/__tests__/security/tonPaymentOwnershipGuard.test.ts :: TON top-up check cred
 src/__tests__/security/trainingPhotosInvalidated.test.ts :: LoRA training photos are invalidated between trainings self-check: detector separates an unconditional reset from an init-guarded one
 src/__tests__/security/trainingPhotosInvalidated.test.ts :: LoRA training photos are invalidated between trainings trainFluxModelWizard resets ctx.session.images unconditionally (fresh start)
 src/__tests__/security/trainingPhotosInvalidated.test.ts :: LoRA training photos are invalidated between trainings uploadTrainFluxModelScene clears ctx.session.images after consuming it
+src/__tests__/security/urlReachabilityCensus.test.ts :: every URL we build on our own host lands on a route we serve no URL we hand out is left undeclared
+src/__tests__/security/urlReachabilityCensus.test.ts :: every URL we build on our own host lands on a route we serve the census can see, and says how much it saw
+src/__tests__/security/urlReachabilityCensus.test.ts :: every URL we build on our own host lands on a route we serve the script it runs is the one in the repository
 src/__tests__/security/voiceAvatarClearsVeedReturnFlag.test.ts :: voiceAvatarWizard clears the veed-fabric return flag on leave a scene leave() handler deletes returnToVeedFabricAfterVoice
 src/__tests__/security/voiceAvatarClearsVeedReturnFlag.test.ts :: voiceAvatarWizard clears the veed-fabric return flag on leave self-check: the analyzer requires the delete to live inside a leave() handler
 src/__tests__/security/voiceAvatarClearsVeedReturnFlag.test.ts :: voiceAvatarWizard clears the veed-fabric return flag on leave the veed-fabric return-flag mechanism still exists
@@ -4220,18 +5033,68 @@ src/__tests__/services/temp-file-cleanup.test.ts :: image generators clean up th
 src/__tests__/services/transcription-temp-cleanup.test.ts :: transcription cleans up the temp file on failure deletes the downloaded file when transcription fails
 src/__tests__/services/ttv-no-raw-error-leak.test.ts :: generateTextToVideo does not leak a raw provider error to the user returns a curated message, not the raw upstream error body
 src/__tests__/setCommands.test.ts :: setBotCommands treats a missing optional bot owner as an ordinary empty result
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the array trigger matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the bot.action matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the callback gate, narrowed back matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the callback gate, opened to everything matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the named comparison matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the scene.action matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the startsWith matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the switch/case matcher stops matching
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher runs and reports on the real repository
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the buttons repaired here land somewhere does not let the remaining debt grow
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the buttons repaired here land somewhere no longer counts any of them as unreachable
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the buttons repaired here land somewhere no longer offers a button and then abandons it
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the buttons repaired here land somewhere scanned a population of the expected size
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the census sees a keyboard drawn just before the scene leaves does not flag every scene-caught site
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the census sees a keyboard drawn just before the scene leaves exits 2 if the leave-finder starts flagging everything
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the census sees a keyboard drawn just before the scene leaves exits 2 when the leave-finder goes blind to a same-path leave
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the census sees a keyboard drawn just before the scene leaves exits 2 when the leave-finder goes counting a quoted leave
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the census sees a keyboard drawn just before the scene leaves exits 2 when the leave-finder goes deaf to a catch boundary
+src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the census sees a keyboard drawn just before the scene leaves reports a leave that comes AFTER the render, never before
+src/__tests__/tools/commentArithmeticHolds.test.ts :: a comment that states its own sum states it correctly finds arithmetic claims to judge at all
+src/__tests__/tools/commentArithmeticHolds.test.ts :: a comment that states its own sum states it correctly has no mismatch outside the four with a recorded reason
+src/__tests__/tools/commentArithmeticHolds.test.ts :: a comment that states its own sum states it correctly still reports every known one, so the list cannot rot unnoticed
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/gate-liveness.cjs' does not get less accurate
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/gate-liveness.cjs' has a census to be judged against
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/gate-liveness.cjs' passes its own self-check
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/gate-liveness.cjs' reports both error directions
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/gate-liveness.cjs' still compares against most of its census
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/negative-controls.cjs' does not get less accurate
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/negative-controls.cjs' has a census to be judged against
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/negative-controls.cjs' passes its own self-check
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/negative-controls.cjs' reports both error directions
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted 'scripts/negative-controls.cjs' still compares against most of its census
+src/__tests__/tools/detectorsAreCalibrated.test.ts :: detectors are measured against a reading, not trusted has a row for every census in the repository
+src/__tests__/tools/everyCountingGateHasAFloor.test.ts :: a counting gate says whether it found anything accounts for every gate in one of the two buckets
+src/__tests__/tools/everyCountingGateHasAFloor.test.ts :: a counting gate says whether it found anything finds the gates at all
+src/__tests__/tools/everyCountingGateHasAFloor.test.ts :: a counting gate says whether it found anything has no gate that a dead matcher would pass
+src/__tests__/tools/funnelRefusesWithoutCredentials.test.ts :: the funnel refuses to print a number it did not measure counts with head:true rather than by reading rows
+src/__tests__/tools/funnelRefusesWithoutCredentials.test.ts :: the funnel refuses to print a number it did not measure exits 2 with no credentials, instead of printing zeros
+src/__tests__/tools/funnelRefusesWithoutCredentials.test.ts :: the funnel refuses to print a number it did not measure pages every table by a declared key, and checks that key is unique
+src/__tests__/tools/funnelRefusesWithoutCredentials.test.ts :: the funnel refuses to print a number it did not measure recognises the row ceiling and still accepts a legitimate count
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure calls nothing flaky when the retry passes nothing
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure counts every assertion the run produced, whatever its status
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure counts only passing assertions as passing
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure does not confuse an all-skipped file with one that never ran
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure keeps the id spelling identical in both sets
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure names a file that produced no assertion at all
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure puts every suspect in exactly one bucket
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure reads an empty report as nothing having run, not as everything passing
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure reports nothing on a report with no files
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure separates a failed test from one that never ran
 src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure splits suspects into regression, flaky, and never-ran
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure treats a missing assertion list the same as an empty one
 src/__tests__/tools/global-error-handlers.test.ts :: global error handlers are armed is idempotent — a second call does not stack listeners
 src/__tests__/tools/global-error-handlers.test.ts :: global error handlers are armed registers an unhandledRejection listener and an uncaughtException one
 src/__tests__/tools/global-error-handlers.test.ts :: index.ts arms the handlers once, before the bot loop arms them before the per-bot loop, so it runs once
 src/__tests__/tools/global-error-handlers.test.ts :: index.ts arms the handlers once, before the bot loop calls setupGlobalErrorHandlers()
+src/__tests__/tools/negativeControlsRatchet.test.ts :: detectors are measured against samples they must not accuse agrees with itself on the split
+src/__tests__/tools/negativeControlsRatchet.test.ts :: detectors are measured against samples they must not accuse does not get less accurate against that census
+src/__tests__/tools/negativeControlsRatchet.test.ts :: detectors are measured against samples they must not accuse has a census to be judged against
+src/__tests__/tools/negativeControlsRatchet.test.ts :: detectors are measured against samples they must not accuse keeps the count without a negative control from growing
+src/__tests__/tools/negativeControlsRatchet.test.ts :: detectors are measured against samples they must not accuse reads a real population
+src/__tests__/tools/negativeControlsRatchet.test.ts :: detectors are measured against samples they must not accuse reports both error directions, not a single score
 src/__tests__/tools/no-cyrillic-guard.test.ts :: no-cyrillic guard: cyrillicOutsideStrings allows Cyrillic inside a string literal (UI text)
 src/__tests__/tools/no-cyrillic-guard.test.ts :: no-cyrillic guard: cyrillicOutsideStrings allows a pure-ASCII comment
 src/__tests__/tools/no-cyrillic-guard.test.ts :: no-cyrillic guard: cyrillicOutsideStrings does not treat // inside a string as a comment
@@ -4245,13 +5108,25 @@ src/__tests__/tools/no-phantom-setup.test.ts :: no phantom setup/register/init i
 src/__tests__/tools/no-phantom-setup.test.ts :: no phantom setup/register/init imports in index.ts finds the setup imports — otherwise the check is empty
 src/__tests__/tools/no-phantom-setup.test.ts :: no phantom setup/register/init imports in index.ts the allowlist has no stale entries
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча в src нет исходников с расширением, которое обходы не смотрят
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча в списке разрешённых на индекс нет записей, переживших причину
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча в списке разрешённых нет инструментов, которые так уже не делают
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча все файлы .ts в src читаются как текст
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча ни один инструмент не перечисляет файлы без -z
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча ни одна охрана не берёт популяцию из одного лишь индекса
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление БЕЗ -z действительно теряет файлы — иначе проверка выше пустая
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление через git с -z открывается целиком
+src/__tests__/tools/noBareBuiltinInMockFactory.test.ts :: no bare builtin dynamic import inside a mock factory no test file has one
+src/__tests__/tools/noBareBuiltinInMockFactory.test.ts :: no bare builtin dynamic import inside a mock factory the population it scans is real, not an empty list
+src/__tests__/tools/noBareBuiltinInMockFactory.test.ts :: no bare builtin dynamic import inside a mock factory the reader can tell the hazardous shape from the four lookalikes
 src/__tests__/tools/noBareStreamImport.test.ts :: the stream builtin is imported as node:stream no file imports it bare
+src/__tests__/tools/noBareStreamImport.test.ts :: the stream builtin is imported as node:stream prose that quotes the forbidden spelling is not an import
 src/__tests__/tools/noBareStreamImport.test.ts :: the stream builtin is imported as node:stream the matcher sees the bare form and spares the prefixed one
+src/__tests__/tools/providerLivenessVerdict.test.ts :: the verdict rule is checked before it accuses anybody does not read my own wrong method as a dead key
+src/__tests__/tools/providerLivenessVerdict.test.ts :: the verdict rule is checked before it accuses anybody exits 2 when the rule goes blind to a 401
+src/__tests__/tools/providerLivenessVerdict.test.ts :: the verdict rule is checked before it accuses anybody exits 2 when the rule goes blind to an auth refusal in the body
+src/__tests__/tools/providerLivenessVerdict.test.ts :: the verdict rule is checked before it accuses anybody exits 2 when the rule goes calling a network failure a verdict
+src/__tests__/tools/providerLivenessVerdict.test.ts :: the verdict rule is checked before it accuses anybody never prints a key, only its length and the provider answer
+src/__tests__/tools/providerLivenessVerdict.test.ts :: the verdict rule is checked before it accuses anybody runs its own self-check and says so
 src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory recognises a liveness note and refuses an ordinary comment
 src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory recognises a registry name and refuses an ordinary constant
 src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory still finds them, so the map is not measuring an empty set
@@ -4262,6 +5137,18 @@ src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-
 src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why every unconditional skip carries a reason
 src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why floor: the census still finds the skips, so it is not measuring nothing
 src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why the detector agrees with its own samples
+src/__tests__/tools/tonVerifySelfCheck.test.ts :: tri ton-verify is wired and honest imports the REAL parser and carries no cell-parsing copy
+src/__tests__/tools/tonVerifySelfCheck.test.ts :: tri ton-verify is wired and honest is registered in ./tri: cmd function, case entry, help text
+src/__tests__/tools/tonVerifySelfCheck.test.ts :: tri ton-verify is wired and honest mutation: dropping the real-parser import turns the check RED
+src/__tests__/tools/tonVerifySelfCheck.test.ts :: tri ton-verify is wired and honest offline --self-check passes (exit 0, SELF-CHECK OK)
+src/__tests__/tools/tonVerifySelfCheck.test.ts :: tri ton-verify is wired and honest self-check of the detector: a copied loadCoins parser is refused
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: every call site is fire-and-forget finds the call sites it claims to check
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: every call site is fire-and-forget never awaits a step, at any of them
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: every call site is fire-and-forget records the six steps the reader counts, and no others
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: the reader will not print a funnel it did not measure exits 2 without credentials rather than showing an empty funnel
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: the reader will not print a funnel it did not measure treats a non-numeric count as a refusal, not as data
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never reaches the caller, whatever happens resolves even when the insert throws
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never reaches the caller, whatever happens resolves when there is no person to attribute the step to
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing defines a FLAKY_RETRY set
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing retries both test:bun and audit
 src/__tests__/tools/viteCacheNotShared.test.ts :: the vite cache is not shared between worktrees the cache directory is ignored by git

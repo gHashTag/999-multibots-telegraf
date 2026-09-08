@@ -596,8 +596,19 @@ describe('aiReelsWizard (AI Reels Creation)', () => {
 
       await step2(mockContext)
 
+      /*
+       * The refusal now carries a keyboard, so the call has a SECOND argument.
+       * Asserting the text alone would have to be loosened to pass -- instead
+       * it is tightened: a person told they are short of stars must be handed
+       * the way to add some. The old single-argument form pinned the defect.
+       */
       expect(mockContext.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Недостаточно средств')
+        expect.stringContaining('Недостаточно средств'),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            inline_keyboard: expect.any(Array),
+          }),
+        })
       )
       expect(mockContext.scene.leave).toHaveBeenCalled()
     })
@@ -869,11 +880,14 @@ describe('aiReelsWizard (AI Reels Creation)', () => {
 
       await step2(mockContext)
 
+      // Second argument: the top-up keyboard that now travels with the price.
       expect(mockContext.reply).toHaveBeenCalledWith(
-        expect.stringContaining('240⭐')
+        expect.stringContaining('240⭐'),
+        expect.objectContaining({ reply_markup: expect.anything() })
       )
       expect(mockContext.reply).toHaveBeenCalledWith(
-        expect.stringContaining('$2.40')
+        expect.stringContaining('$2.40'),
+        expect.objectContaining({ reply_markup: expect.anything() })
       )
     })
   })

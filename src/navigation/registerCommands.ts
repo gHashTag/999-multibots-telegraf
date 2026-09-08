@@ -15,6 +15,7 @@ import {
   silenceNet,
   deadPressNet,
 } from '@/navigation/middleware/noSilence'
+import { track } from '@/services/trackEvent'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
@@ -1968,6 +1969,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
    * promise as a service with no provider key, one interaction later.
    */
   bot.action(`${ACTION_PREFIX}topup`, async ctx => {
+    // Fire-and-forget: the funnel step is recorded, the person is not made to
+    // wait for it, and a failed write cannot cost them the screen.
+    void track(ctx as any, 'topup_opened')
     // answerCbQuery first: Telegram shows a spinner on the button until it is
     // answered, and a scene transition can take a moment.
     await ctx.answerCbQuery().catch(() => undefined)
@@ -2019,6 +2023,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
   // Команда /start - полная логика авторизации и показа главного меню
   bot.command('start', async ctx => {
+    void track(ctx as any, 'start')
     console.log('🔴 [DEBUG /start] ========== /start COMMAND FIRED ==========')
     console.log('🔴 [DEBUG /start] chatType:', ctx.chat.type)
     console.log('🔴 [DEBUG /start] telegramId:', ctx.from?.id)

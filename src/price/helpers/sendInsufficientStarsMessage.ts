@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { track } from '@/services/trackEvent'
 
 export const sendInsufficientStarsMessage = async (
   ctx: MyContext,
@@ -36,6 +37,8 @@ export const sendInsufficientStarsMessage = async (
       ? `Недостаточно звезд. Ваш баланс: ${currentBalance} ⭐. Пополните — и продолжим.`
       : `Not enough stars. Your balance: ${currentBalance} ⭐. Top up and we continue.`
 
+    // The moment of highest intent to pay: worth counting, never worth waiting for.
+    void track(ctx as any, 'refused_no_balance', { balance: currentBalance })
     await ctx.telegram.sendMessage(chatId, message, standardButtons(isRu))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

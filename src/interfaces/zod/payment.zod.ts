@@ -51,25 +51,49 @@ export const PaymentV2Schema = z.object({
 export type PaymentV2 = z.infer<typeof PaymentV2Schema>
 
 // Схема для создания нового платежа
+/**
+ * THE SIGN IS SET BY `type`, NOT BY THE NUMBER -- ON EVERY VALIDATED WRITE.
+ *
+ * The balance is not a column: get_user_balance SUMS payments_v2, so a row
+ * with negative stars and type MONEY_OUTCOME is a CREDIT. Not theoretical --
+ * 114 rows at -9 stars credited 1026 where they should have debited, and
+ * updateUserBalance grew a guard because of it. That guard stayed inside that
+ * one function while six other places write the same table.
+ *
+ * The constraint goes on the CREATE schema and not on PaymentV2Schema, which
+ * also reads rows back: those negative rows are still in the table, and a read
+ * schema that refuses history would turn a past accounting error into a
+ * present outage.
+ *
+ * Refusal rather than Math.abs, for the reason already written in
+ * updateUserBalance: normalising silently turns a broken debit into a working
+ * credit, and whoever wrote it never learns.
+ */
 export const CreatePaymentV2Schema = PaymentV2Schema.omit({
   id: true,
   created_at: true,
   payment_date: true,
-}).partial({
-  amount: true,
-  metadata: true,
-  stars: true,
-  currency: true,
-  inv_id: true,
-  invoice_url: true,
-  operation_id: true,
-  language: true,
-  payment_method: true,
-  subscription_type: true,
-  is_system_payment: true,
-  cost: true,
-  category: true,
 })
+  .extend({
+    stars: z
+      .number()
+      .nonnegative('stars must not be negative: the sign is set by type'),
+  })
+  .partial({
+    amount: true,
+    metadata: true,
+    stars: true,
+    currency: true,
+    inv_id: true,
+    invoice_url: true,
+    operation_id: true,
+    language: true,
+    payment_method: true,
+    subscription_type: true,
+    is_system_payment: true,
+    cost: true,
+    category: true,
+  })
 
 export type CreatePaymentV2 = z.infer<typeof CreatePaymentV2Schema>
 

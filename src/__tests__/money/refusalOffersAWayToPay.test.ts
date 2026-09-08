@@ -96,7 +96,35 @@ describe('the number of money refusals with nothing to press does not grow', () 
   )
   const NOISE =
     /logger\.|console\.|^\s*\/\/|^\s*\*|description:\s*'Insufficient/
-  const isRefusal = (line: string) => PHRASE.test(line) && !NOISE.test(line)
+  /*
+   * A THROWN STRING IS NOT A MESSAGE, AND NEITHER IS A CONDITION.
+   *
+   * Classified all 34 by hand on 2026-09-08: ten are not messages to anybody.
+   * Five are `throw new Error('Not enough stars')` -- a signal to the caller,
+   * which then decides what to tell the person. Two are conditions testing
+   * whether an error WAS that (`error.message.includes('Not enough stars')`).
+   * Two are fixtures. Counting them as "refusals with nothing to press" is how
+   * this number stayed loose enough to absorb three real repairs without
+   * moving, twice.
+   *
+   * Narrowing is the dangerous direction, so every exclusion below has a
+   * fixture in both directions in the test named after it, and the population
+   * floor stays where it is.
+   */
+  const THROWN = /\bthrow\s+new\s+\w*Error\s*\(/
+  const CONDITION =
+    /^\s*(?:\}\s*else\s+)?if\s*\(|\.includes\s*\(|^\s*[!&|]{1,2}\s*\w/
+  const isRefusal = (line: string) =>
+    PHRASE.test(line) &&
+    !NOISE.test(line) &&
+    !THROWN.test(line) &&
+    !CONDITION.test(line)
+
+  /** Blank out comments, keeping newlines so the window still lines up. */
+  const stripComments = (text: string) =>
+    text
+      .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+      .replace(/^([^'"`\n]*?)\/\/.*$/gm, (_m, keep) => keep)
 
   const measure = () => {
     const files = execSync(
@@ -107,6 +135,13 @@ describe('the number of money refusals with nothing to press does not grow', () 
       .split('\n')
       .filter(Boolean)
       .filter(f => !f.includes('__tests__') && !f.endsWith('.test.ts'))
+      // Fixtures describe payments that never happened; `test/fixtures` does
+      // not match the `__tests__` filter above.
+      .filter(
+        f =>
+          !/\/(?:test|__fixtures__)\/fixtures?\//.test(f) &&
+          !/fixtures?\.ts$/.test(f)
+      )
 
     const sites: Array<{ file: string; line: number; keyboard: boolean }> = []
     for (const file of files) {
@@ -121,14 +156,77 @@ describe('the number of money refusals with nothing to press does not grow', () 
           continue
         }
         prev = i
-        const window = lines.slice(Math.max(0, i - 8), i + 15).join('\n')
+        /*
+         * THE WINDOW IS READ AS CODE, NOT AS PROSE.
+         *
+         * This asked whether the word `standardButtons` appears near the
+         * refusal. It does not distinguish a call from a COMMENT -- and the
+         * comments added while fixing four of these sites each explain that
+         * standardButtons now carries the button, so every site in those files
+         * flipped to "has keyboard" on the strength of the explanation. The
+         * count fell from 43 to 38 and reverting any single fix changed
+         * nothing, which is how the prose was caught.
+         *
+         * A quotation is not an invocation. Comments are blanked first.
+         */
+        /*
+         * FOLLOW THE VARIABLE TO WHERE IT IS SENT.
+         *
+         * A window around the refusal line only sees the keyboard when the
+         * message is built and sent in the same breath. In generateFluxKontext
+         * the text is assigned at :552 and sent at :590 -- thirty-eight lines
+         * away, in a shared error handler. Attaching standardButtons there is
+         * a real repair that this matcher could not see: three fixes moved the
+         * count by ZERO, which is the tell.
+         *
+         * So when the refusal is assigned to a name, the windows around every
+         * send of that name join the search. Still an upper bound, and now a
+         * tighter one.
+         */
+        // The assignment can sit three lines up: `x = isRu` / `? 'ru'` / `: 'en'`,
+        // and the adjacent-line rule lands this loop on either half. Looking
+        // back one line found nothing and the count did not move -- the tell
+        // that the lookback, not the idea, was wrong.
+        let assigned = null
+        for (let back = 0; back <= 3 && !assigned; back++)
+          assigned = /(\w+)\s*=\s*(?:$|[`'"]|\w)/.exec(lines[i - back] || '')
+        let window = stripComments(
+          lines.slice(Math.max(0, i - 8), i + 15).join('\n')
+        )
+        const name = assigned && (assigned[1] || assigned[2])
+        if (name) {
+          for (let k = 0; k < lines.length; k++) {
+            if (
+              !new RegExp(`sendMessage\\([\\s\\S]{0,120}?\\b${name}\\b`).test(
+                lines.slice(k, k + 6).join('\n')
+              )
+            )
+              continue
+            window +=
+              '\n' +
+              stripComments(lines.slice(Math.max(0, k - 4), k + 12).join('\n'))
+          }
+        }
         sites.push({
           file,
           line: i + 1,
-          keyboard:
-            /reply_markup|Markup\.|inline_keyboard|standardButtons|keyboard\(/.test(
-              window
-            ),
+          /*
+           * REMOVING A KEYBOARD IS NOT OFFERING ONE, and the old predicate
+           * could not tell them apart: `reply_markup: { remove_keyboard: true }`
+           * contains the string `reply_markup`, so a message that strips the
+           * keyboard counted as answering. That is how three real repairs in
+           * generateFluxKontext moved this number by ZERO -- the sites were
+           * already scored as answered while the person had nothing to press.
+           */
+          keyboard: (() => {
+            const w = window.replace(
+              /reply_markup:\s*\{\s*remove_keyboard[\s\S]{0,40}?\}/g,
+              ' '
+            )
+            return /reply_markup|Markup\.|inline_keyboard|standardButtons|keyboard\(/.test(
+              w
+            )
+          })(),
         })
       }
     }
@@ -142,11 +240,79 @@ describe('the number of money refusals with nothing to press does not grow', () 
     expect(isRefusal("await ctx.reply('Балан пополнен')")).toBe(false)
   })
 
+  it('counts messages to a person, and not throws, conditions or fixtures', () => {
+    /*
+     * EVERY EXCLUSION, IN BOTH DIRECTIONS. Narrowing a population is how a
+     * number is made to look better without anything improving, so each thing
+     * dropped is named here with a counter-example that must stay.
+     */
+    // A thrown string is a signal to the caller, not a message to anybody.
+    expect(isRefusal("        throw new Error('Not enough stars')")).toBe(false)
+    // A test for whether an error WAS that is not the refusal either.
+    expect(
+      isRefusal(
+        "      if (error.message && error.message.includes('Not enough stars')) {"
+      )
+    ).toBe(false)
+    expect(
+      isRefusal("        !errorMessageToUser.includes('Not enough stars')")
+    ).toBe(false)
+
+    // AND THE THINGS THAT MUST SURVIVE. Without these the rules above would be
+    // satisfied by a matcher that dropped everything.
+    expect(isRefusal('      ? `❌ Недостаточно звезд для генерации.`')).toBe(
+      true
+    )
+    expect(
+      isRefusal("        : '❌ Not enough stars for image editing.'")
+    ).toBe(true)
+    expect(
+      isRefusal('      const errorMsg = `Недостаточно средств. Баланс: ${b}`')
+    ).toBe(true)
+  })
+
+  it('scores a removed keyboard as no keyboard, and a real one as a keyboard', () => {
+    /*
+     * A CEILING CANNOT CATCH A LOOSENED DETECTOR: scoring more sites as
+     * "answered" only makes the number smaller, and smaller passes. This is the
+     * control that can fail.
+     *
+     * It exists because the predicate matched the literal `reply_markup`, and
+     * `reply_markup: { remove_keyboard: true }` contains it -- so a message
+     * that STRIPS the keyboard scored as offering one. Three real repairs in
+     * generateFluxKontext therefore moved the count by zero.
+     */
+    const score = (w: string) =>
+      /reply_markup|Markup\.|inline_keyboard|standardButtons|keyboard\(/.test(
+        w.replace(/reply_markup:\s*\{\s*remove_keyboard[\s\S]{0,40}?\}/g, ' ')
+      )
+    expect(
+      score(
+        'await ctx.telegram.sendMessage(id, msg, { reply_markup: { remove_keyboard: true } })'
+      ),
+      'removing the keyboard is not offering one'
+    ).toBe(false)
+    expect(
+      score('await ctx.telegram.sendMessage(id, msg, standardButtons(isRu))'),
+      'the shared top-up keyboard must still score as answered'
+    ).toBe(true)
+    expect(
+      score(
+        'await ctx.reply(msg, { reply_markup: { inline_keyboard: rows } })'
+      ),
+      'a real inline keyboard must still score as answered'
+    ).toBe(true)
+  })
+
   it('still scans a population of the expected size', () => {
     const sites = measure()
     // A floor, not a ceiling: a matcher that stopped matching would satisfy
     // the debt ceiling below by finding nothing at all.
-    expect(sites.length).toBeGreaterThanOrEqual(55)
+    // Was 55, when the population still counted throws, conditions and
+    // fixtures. Narrowing to real messages took it to 49, and the floor moves
+    // with it ONCE, together with the fixtures below that pin what was excluded
+    // and what was not. A floor lowered every time it fires is not a floor.
+    expect(sites.length).toBeGreaterThanOrEqual(45)
   })
 
   it('does not grow the number that offer nothing', () => {
@@ -154,8 +320,119 @@ describe('the number of money refusals with nothing to press does not grow', () 
     const mute = sites.filter(s => !s.keyboard)
     expect(
       mute.length,
+      // 17, bisected: fails at 16, passes at 17. Was 25, and this time the
+      // drop is REPAIRS -- seven sites that sent a refusal with no keyboard now
+      // send standardButtons. The first iteration in three where fixing things
+      // moved the number, which is what a population of real messages buys.
+      //
+      // A LIMIT WORTH STATING: this follows a message to a send in the SAME
+      // file. When the refusal is RETURNED and sent two files away, a real
+      // repair leaves this number untouched -- see
+      // refusalReachesTheCaller.test.ts, which pins one by name because the
+      // count could not.
+      //
+      // What is left is three shapes, none of which a keyboard argument fixes:
+      // the text is RETURNED to a caller (directPayment, balanceHelpers,
+      // bot-adapter, priceHelper x2, generateTextToVideo), it is a CONSTANT
+      // somebody else renders (balance.interface), or the nearby reply is a
+      // different message entirely (the statusMessage shapes).
+      //
+      // 17 -> 14: three services that refuse for want of stars now hand over
+      // the button (NanoBanana, Seedream45Replicate, NanoBananaProReplicate).
+      // Only three, although five carry that exact refusal: the other two,
+      // generateGeminiImage and generateNanoBananaKie, are files nothing calls
+      // -- chargeSiteCensus already declares them unreferenced. Repairing them
+      // would move this number without moving anything a person can reach, and
+      // a count that credits dead code is worth less than a smaller honest one.
+      //
+      // TIGHT, and it has to be: a ceiling one above the real figure cannot see
+      // a regression of one. Bisected with the CORRECTED classifier on both
+      // sides -- clean main fails at 42, this branch fails at 37 and passes at
+      // 38. Measuring the two sides with different instruments is how the first
+      // version of this claim came out wrong.
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(53)
+    ).toBeLessThanOrEqual(14)
+  })
+
+  /**
+   * The wizards a paying person actually reaches, closed one batch at a time.
+   * Named individually rather than trusted to the count: a ceiling that drops
+   * says the number moved, not that these particular screens did.
+   */
+  it('the wizards where somebody is refused to their face now offer the button', () => {
+    const sites = measure()
+    const fixed = [
+      // Closed 2026-09-08. All four named "the main menu" IN WORDS and sent no
+      // keyboard -- the same shape the shared helper had. The copy no longer
+      // names a destination, because standardButtons puts one under the message.
+      'processBalanceOperation',
+      'generateSeeDream4',
+      'generateSeeDream45',
+      'aiCoverWizard',
+      'faceSwapWizard',
+      'musicGenerationWizard',
+      'videoTranscriptionWizard',
+      'voiceTrainingWizard',
+      'ai-reels-inngest-wizard',
+      'ai-reels-render-wizard',
+      'veed-fabric-wizard',
+    ]
+    const still = fixed.filter(name =>
+      sites.some(s => s.file.includes(name) && !s.keyboard)
+    )
+    expect(
+      still,
+      `still refusing with nothing to press: ${still.join(', ')}`
+    ).toEqual([])
+  })
+
+  it('the three flux refusals send the button instead of removing the keyboard', () => {
+    /*
+     * NAMED, BECAUSE THE COUNT CANNOT SEE THEM. All three build the message in
+     * a shared error handler and send it thirty-odd lines later, where
+     * replyMarkup defaults to `{ remove_keyboard: true }` -- so a person short
+     * of stars was left with the keyboard STRIPPED. The repair sets a flag on
+     * the money branch and swaps that default for standardButtons.
+     *
+     * Order is the property: a flag set after the send guards nothing.
+     */
+    const src = fs
+      .readFileSync(
+        path.join(ROOT, 'src/services/generateFluxKontext.ts'),
+        'utf8'
+      )
+      .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+      .replace(/^([^'"`\n]*?)\/\/.*$/gm, (_m, keep) => keep)
+
+    const flags = (src.match(/refusedForMoney = true/g) || []).length
+    expect(flags, 'each money branch must raise the flag').toBe(3)
+
+    const uses = (src.match(/refusedForMoney\s*\?/g) || []).length
+    expect(uses, 'each send must consult it').toBe(3)
+
+    expect(
+      (src.match(/standardButtons\(params\.is_ru\)/g) || []).length,
+      'and each must lead to the shared top-up keyboard'
+    ).toBe(3)
+
+    // The flag must be raised before it is read, in every handler.
+    // A literal search fails here: prettier puts the `?` on its own line, so
+    // 'refusedForMoney ?' never appears as typed. Search the shape, not the text.
+    const nextMatch = (re: RegExp, at: number) => {
+      const m = re.exec(src.slice(at))
+      return m ? at + m.index : -1
+    }
+    let from = 0
+    for (let n = 0; n < 3; n++) {
+      const set = src.indexOf('refusedForMoney = true', from)
+      const use = nextMatch(/refusedForMoney\s*\?/, set)
+      expect(set, `handler ${n + 1}: flag not set`).toBeGreaterThan(-1)
+      expect(
+        use,
+        `handler ${n + 1}: flag never read after being set`
+      ).toBeGreaterThan(set)
+      from = use
+    }
   })
 
   it('the shared helper is no longer one of them', () => {

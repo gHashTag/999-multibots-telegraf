@@ -248,7 +248,28 @@ const BASE_PAYMENT_URL = isDev
     process.env.BASE_WEBHOOK_URL ||
     ''
 
-export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
+// Robokassa confirms a payment by calling this URL back, and the router that
+// serves it is mounted at '/api' (api_server/index.ts). Appending only
+// '/payment-success' pointed the provider at a path that does not exist.
+// Measured live against production on 2026-09-08:
+//   GET /payment-success      -> 404
+//   GET /api/payment-success  -> 200 {"status":"ok"}
+// Since November 2025 not one Robokassa top-up has been credited: 164 rows sit
+// PENDING, and the only one ever repaired was patched by hand in February.
+//
+// The base may ALREADY end in '/api' -- the RESULT_URL2 branch above derives it
+// by cutting a full callback URL in half -- so the suffix is stripped before it
+// is appended. Fixing this in one direction only would turn a correctly
+// configured RESULT_URL2 into '/api/api/payment-success'.
+//
+// The empty case is spelled out instead of interpolated, because
+// `${''}/payment-success` is '/payment-success', which is TRUTHY. The "missing
+// or empty" refusals (helper.ts and the startup check below) could therefore
+// never fire: an unconfigured deployment handed Robokassa a relative URL rather
+// than stopping and saying so.
+export const UNIFIED_RESULT_URL = BASE_PAYMENT_URL
+  ? `${BASE_PAYMENT_URL.replace(/\/+$/, '').replace(/\/api$/, '')}/api/payment-success`
+  : ''
 
 // Логируем tunnel URL если используется
 if (isDev && CLOUDFLARE_TUNNEL_URL) {

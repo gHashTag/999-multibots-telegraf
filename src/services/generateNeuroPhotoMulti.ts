@@ -9,6 +9,12 @@ import { getUserBalance } from '@/core/supabase'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
+import {
+  ACTION_PREFIX,
+  topupButtonLabel,
+  standardButtons,
+} from '@/navigation/helpers/actionButtons'
+import { remainingBalanceLine } from '@/price/helpers/remainingBalanceLine'
 
 // Enhanced keyboard for multi-image results
 const createMultiNeuroPhotoResultKeyboard = (
@@ -65,6 +71,12 @@ const createMultiNeuroPhotoResultKeyboard = (
   ])
 
   buttons.push([
+    // The one place a person has just seen what this is worth. Measured
+    // 2026-09-08: of everyone who ever generates, about one in five ever
+    // reaches a price. act:topup is caught at bot level, and inside
+    // neuroPhotoWizard -- the only scene that swallows unknown presses -- by
+    // an explicit branch.
+    Markup.button.callback(topupButtonLabel(is_ru), `${ACTION_PREFIX}topup`),
     Markup.button.callback(
       is_ru ? '🏠 Главное меню' : '🏠 Main menu',
       'go_main_menu'
@@ -154,7 +166,9 @@ export async function generateNeuroPhotoMulti(
     await ctx.reply(
       isRu
         ? `Недостаточно звёзд для серии из ${actualImageCount} фото: нужно ${exactTotalCost} ⭐, на балансе ${currentBalance} ⭐.`
-        : `Not enough stars for a series of ${actualImageCount} photos: need ${exactTotalCost} ⭐, you have ${currentBalance} ⭐.`
+        : `Not enough stars for a series of ${actualImageCount} photos: need ${exactTotalCost} ⭐, you have ${currentBalance} ⭐.`,
+      // The refusal hands over the way to pay; standardButtons puts top-up first.
+      standardButtons(isRu)
     )
     return null
   }
@@ -262,12 +276,17 @@ export async function generateNeuroPhotoMulti(
       }
 
       // Send photos with enhanced navigation
+      // Read once, before the send loop: a photo each would be a query each.
+      // Returns '' on any failure, so a balance read can never cost somebody
+      // the result they already paid for.
+      const leftLine = await remainingBalanceLine(telegram_id, isRu)
+
       for (let i = 0; i < response.data.urls.length; i++) {
         const url = response.data.urls[i]
         try {
           const caption = isRu
-            ? `✨ Нейрофото ${i + 1}/${response.data.urls.length}\n\nСтоимость за изображение: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto ${i + 1}/${response.data.urls.length}\n\nCost per image: ${exactCostPerImage} ⭐`
+            ? `✨ Нейрофото ${i + 1}/${response.data.urls.length}\n\nСтоимость за изображение: ${exactCostPerImage} ⭐${leftLine}`
+            : `✨ Neurophoto ${i + 1}/${response.data.urls.length}\n\nCost per image: ${exactCostPerImage} ⭐${leftLine}`
 
           await ctx.telegram.sendPhoto(
             telegram_id,

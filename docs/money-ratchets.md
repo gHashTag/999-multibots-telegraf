@@ -11,10 +11,11 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 107. Без заголовка: 0.
+Ратчетов: 115. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `aRefusalIsNotAnnouncedAsSuccess.test.ts`              | a refusal is shown as a refusal                                                               |
 | `aiCoverRefundChecked.test.ts`                         | aiCover refund result is checked and reported truthfully                                      |
 | `aiPhotoshopAllModelsConsumeInput.test.ts`             | aiPhotoshopScene all_models branch consumes input before returning (no stale re-charge)       |
 | `aiPhotoshopBatchRefundReconciled.test.ts`             | aiPhotoshopScene batch skipBalanceCheck calls reconcile refunds to the charge                 |
@@ -82,6 +83,7 @@
 | `paidServicesTableUnread.test.ts`                      | the two dollar-cost tables                                                                    |
 | `payment-record-not-silent.test.ts`                    | запись платежа                                                                                |
 | `paymentHandlerInvIdDeterministic.test.ts`             | handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry)               |
+| `paymentMethodCensus.test.ts`                          | no payment method takes money it cannot deliver                                               |
 | `paymentPairAtomicInsert.test.ts`                      | paired income+outcome payments are one atomic insert                                          |
 | `paymentTypeVocabularyComplete.test.ts`                | the money vocabulary of the refund census                                                     |
 | `processBalanceOperationNonPositive.test.ts`           | processBalanceOperation refuses a non-positive price before charging                          |
@@ -95,13 +97,18 @@
 | `refund-reason.test.ts`                                | возврат денег называет причину                                                                |
 | `refundFailureIsAnnounced.test.ts`                     | a refund that failed is announced too                                                         |
 | `refusalOffersAWayToPay.test.ts`                       | the shared money refusal hands over the button, not directions                                |
+| `refusalReachesTheCaller.test.ts`                      | a refusal that is returned still reaches somebody with a button                               |
+| `remainingBalanceNeverCostsTheResult.test.ts`          | the remaining balance is shown, and never costs the result                                    |
 | `replicateWrapperTimeout.test.ts`                      | shared replicate.run wrapper bounds client.run with a timeout                                 |
+| `resultKeyboardOffersAPrice.test.ts`                   | a result keyboard shows what more of this costs                                               |
 | `robokassa-claim-once.test.ts`                         | robokassa ResultURL credits a payment once                                                    |
 | `robokassa-order.test.ts`                              | порядок обработки оплаты                                                                      |
+| `robokassa-result-url-is-mounted.test.ts`              | the ResultURL handed to Robokassa is a path this app answers                                  |
 | `robokassa-webhook-behaviour.test.ts`                  | вебхук Робокассы: поведение, а не форма                                                       |
 | `sessionPaymentAmountNeverUnbacked.test.ts`            | the session field the cancel button refunds                                                   |
 | `sibling-batch-double-refund.test.ts`                  | sibling image services refund a batch failure at most once                                    |
 | `stuck-trainings-visible.test.ts`                      | застрявшее обучение видно человеку                                                            |
+| `stuckPaymentsWatchdog.test.ts`                        | the stuck-payment watchdog cannot report a comfortable zero                                   |
 | `superheroQuotaCounterAccumulates.test.ts`             | superhero generation quota counter accumulates (no upsert-overwrite)                          |
 | `ton-payment-claim-once.test.ts`                       | %s credits a TON payment once                                                                 |
 | `tonAmountVerificationParity.test.ts`                  | the two on-chain payment finders                                                              |
@@ -122,3 +129,4 @@
 | `videoWizardsInflightGuard.test.ts`                    | video wizards guard against concurrent double-generate                                        |
 | `voiceAvatarFallbackNotCharged.test.ts`                | voice-avatar Cloudflare fallback is not charged as a clone                                    |
 | `voiceAvatarFallbackNotPersisted.test.ts`              | createVoiceAvatar does not persist the stock fallback voice (no clone overwrite)              |
+| `x402-is-not-offered-while-it-cannot-credit.test.ts`   | x402 is not offered while nothing can credit it                                               |

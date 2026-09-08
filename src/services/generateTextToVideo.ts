@@ -43,6 +43,12 @@ interface TextToVideoResponse {
   jobId?: string
   message?: string
   error?: string
+  /**
+   * The failure was "not enough stars", not a provider error. Callers that
+   * show `error` to a person can then offer a way to pay; on any other failure
+   * a top-up button would send somebody to pay for a problem money cannot fix.
+   */
+  insufficientFunds?: boolean
 }
 
 /**
@@ -400,6 +406,7 @@ export async function generateTextToVideo(
           error: is_ru
             ? 'Недостаточно средств для генерации видео.'
             : 'Insufficient funds for video generation.',
+          insufficientFunds: true,
         }
       }
 

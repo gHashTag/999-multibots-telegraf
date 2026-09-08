@@ -15,6 +15,7 @@ import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
 import * as path from 'path'
 import { getModelsByInputType } from '@/config/unified-video-models.config'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // ✅ ПОЛУЧАЕМ МОДЕЛИ МОРФИНГА ИЗ ЕДИНОГО КОНФИГА
 const getMorphingModels = () => getModelsByInputType('morph')
@@ -1188,9 +1189,13 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
         telegramId: ctx.from?.id,
         error: balanceResult.error,
       })
+      // Only when the failure IS "not enough stars": the same error field
+      // carries "unknown model" too, and a top-up button on that is worse than
+      // none. The helper says which, so the caller does not have to guess.
       await ctx.reply(
         balanceResult.error ||
-          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
+          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed'),
+        balanceResult.insufficientFunds ? standardButtons(isRu) : undefined
       )
       return
     }

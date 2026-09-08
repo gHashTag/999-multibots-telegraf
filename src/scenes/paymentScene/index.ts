@@ -10,7 +10,7 @@ import { handleSelectStars } from '@/handlers/handleSelectStars'
 import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { starAmounts } from '@/price/helpers/starAmounts'
 import { getMainMenuText } from '@/navigation'
-import { isX402Configured } from '@/core/x402'
+import { canX402Credit } from '@/core/x402'
 import { TON_PAYMENT_SCENE_ID } from '@/scenes/tonPaymentScene'
 import { TON_NATIVE_PAYMENT_SCENE_ID } from '@/scenes/tonNativePaymentScene'
 
@@ -49,7 +49,6 @@ paymentScene.enter(async ctx => {
 
   try {
     const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
-    const showCryptoButton = isX402Configured()
 
     // Первая строка: все способы оплаты в одну линию
     const paymentRow = [Markup.button.text(isRu ? '⭐ Звездами' : '⭐ Stars')]
@@ -255,7 +254,10 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
 // Переход к выбору криптовалюты (показываем inline-меню)
 paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
   const isRu = isRussian(ctx)
-  const showX402 = isX402Configured()
+  // Not `isX402Configured`: a configured wallet does not mean a payment made
+  // this way can be credited. Settlement verification does not exist, so
+  // offering this button collected twelve payments and credited none of them.
+  const showX402 = canX402Credit()
 
   logger.info(
     `[${ModeEnum.PaymentScene}] User chose Crypto. Showing crypto selection menu.`,

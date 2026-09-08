@@ -10,6 +10,7 @@ import {
   updateUserLevelPlusOne,
 } from '@/core/supabase'
 import Replicate from 'replicate'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 /**
  * Nano Banana Pro (Google Gemini 3 Pro) API Schema via Replicate
@@ -236,7 +237,11 @@ export async function generateNanoBananaProReplicate(
         await ctx.reply(
           is_ru
             ? `❌ Недостаточно звезд для генерации\n\nТребуется: ${totalCost}⭐\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\n\nПополните баланс через /start → 💎 Пополнить баланс`
-            : `❌ Insufficient stars for generation\n\nRequired: ${totalCost}⭐\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`
+            : `❌ Insufficient stars for generation\n\nRequired: ${totalCost}⭐\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`,
+          // The refusal hands over the way to pay; standardButtons puts top-up first.
+          // Reached the moment the balance runs out, which is the only moment a
+          // price is worth showing at all.
+          standardButtons(is_ru)
         )
         return null
       }

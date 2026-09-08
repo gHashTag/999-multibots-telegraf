@@ -28,6 +28,14 @@ const strip = (s: string) =>
  * молча прикроет следующую ошибку.
  */
 const KNOWN_MISSING = new Set([
+  // Written by src/services/trackEvent.ts and created by
+  // sql/migrations/20260908_user_events.sql, which the owner applies. Until
+  // then the writes fail silently by design -- a missing funnel row must never
+  // cost somebody their reply -- and the reader (scripts/events.cjs) exits 3
+  // saying the migration has not been applied rather than printing a screen of
+  // zeros. Listed here deliberately, which is what this gate asks for: a new
+  // name has to be either in the database or in this list, never unnoticed.
+  'user_events',
   'ai_requests',
   'avatar_videos',
   'bot_skills',

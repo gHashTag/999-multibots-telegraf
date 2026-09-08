@@ -13,6 +13,11 @@ import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
+import {
+  ACTION_PREFIX,
+  topupButtonLabel,
+} from '@/navigation/helpers/actionButtons'
+import { remainingBalanceLine } from '@/price/helpers/remainingBalanceLine'
 
 // Функция для отправки уведомления админу о проблеме с сервером
 // ✅ ИСПРАВЛЕНО: Не отправляем сообщение пользователю, который инициировал запрос
@@ -93,6 +98,12 @@ const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
       ),
     ],
     [
+      // The one place a person has just seen what this is worth. Measured
+      // 2026-09-08: of everyone who ever generates, about one in five ever
+      // reaches a price. act:topup is caught at bot level, and inside
+      // neuroPhotoWizard -- the only scene that swallows unknown presses -- by
+      // an explicit branch.
+      Markup.button.callback(topupButtonLabel(is_ru), `${ACTION_PREFIX}topup`),
       Markup.button.callback(
         is_ru ? '🏠 Главное меню' : '🏠 Main menu',
         'go_main_menu'
@@ -298,11 +309,19 @@ export async function generateNeuroPhotoHybrid(
       }
 
       // Отправляем все фотографии с клавиатурой
+      // Read once, before the send loop: a photo each would be a query each.
+      // Returns '' on any failure, so a balance read can never cost somebody
+      // the result they already paid for.
+      const leftLine = await remainingBalanceLine(
+        telegram_id,
+        isRussianFromState(ctx)
+      )
+
       for (const url of response.data.urls) {
         try {
           const caption = isRussianFromState(ctx)
-            ? `✨ Нейрофото сгенерировано!\n\n💎 Стоимость: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto generated!\n\n Cost: ${exactCostPerImage} ⭐`
+            ? `✨ Нейрофото сгенерировано!\n\n💎 Стоимость: ${exactCostPerImage} ⭐${leftLine}`
+            : `✨ Neurophoto generated!\n\n Cost: ${exactCostPerImage} ⭐${leftLine}`
 
           await ctx.telegram.sendPhoto(
             telegram_id,

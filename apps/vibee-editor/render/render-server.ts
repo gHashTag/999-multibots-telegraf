@@ -2235,13 +2235,45 @@ async function refundMiniAppUser(
   tid: string | undefined,
   op: string,
   quantity = 1,
-  modelId?: string
-): Promise<void> {
-  if (!tid) return
+  modelId?: string,
+  /**
+   * The amount the charge reported taking, when the caller kept the receipt.
+   *
+   * Passing it makes the refund equal the charge by construction. Without it
+   * the amount is re-derived from the price table at a later moment, which is
+   * how a 540 charge once produced a 60 refund.
+   */
+  exact?: number
+): Promise<boolean> {
+  if (!tid) return false
   try {
-    await refundByTid(getPool() as never, tid, op, quantity, modelId)
+    const outcome = await refundByTid(
+      getPool() as never,
+      tid,
+      op,
+      quantity,
+      modelId,
+      exact
+    )
+    if (!outcome.ok) {
+      /*
+       * A refund that did not happen used to be indistinguishable from one
+       * that did: this helper returned void on success, on a silent no-price
+       * skip, and on a thrown error alike. Nobody claims to the person that
+       * the tokens came back, so the harm is not a false promise -- it is that
+       * somebody paid for nothing and no line anywhere says so. This line does,
+       * with the amount and the person, so it can be made good by hand.
+       */
+      console.error(
+        `[REFUND FAILED] tid=${tid} op=${op} qty=${quantity} model=${modelId ?? '-'} ` +
+          `wanted=${'wanted' in outcome ? outcome.wanted : (exact ?? '?')} why=${outcome.why}`
+      )
+      return false
+    }
+    return true
   } catch (e) {
-    console.error('[токены] возврат не прошёл:', e)
+    console.error('[токены] возврат не прошёл:', e) // cyrillic-ok: existing log line
+    return false
   }
 }
 
@@ -3528,7 +3560,13 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('❌ [Generate] Image error:', error)
         // Nothing was delivered, so the tokens go back.
-        await refundMiniAppUser(billedTid, 'image_generate', 1, requestedModel)
+        await refundMiniAppUser(
+          billedTid,
+          'image_generate',
+          1,
+          requestedModel,
+          receipt.charged
+        )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -3814,7 +3852,8 @@ const server = createServer(async (req, res) => {
               billedTid,
               'video_generate',
               секунды,
-              requestedModel
+              requestedModel,
+              receipt.charged
             )
             res.writeHead(400, { 'Content-Type': 'application/json' })
             res.end(
@@ -3942,7 +3981,8 @@ const server = createServer(async (req, res) => {
             billedTid,
             'video_generate',
             секунды,
-            requestedModel
+            requestedModel,
+            receipt.charged
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -3990,7 +4030,8 @@ const server = createServer(async (req, res) => {
             billedTid,
             'video_generate',
             секунды,
-            requestedModel
+            requestedModel,
+            receipt.charged
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -4519,7 +4560,8 @@ const server = createServer(async (req, res) => {
           billedTid,
           'audio_generate',
           оплаченныеТысячи,
-          requestedModel
+          requestedModel,
+          receipt.charged
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -4955,7 +4997,8 @@ const server = createServer(async (req, res) => {
           billedTid,
           'lipsync_generate',
           billedSeconds || 1,
-          requestedModel
+          requestedModel,
+          receipt.charged
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -7934,10 +7977,42 @@ const server = createServer(async (req, res) => {
               [who, pack.tokens, pack.stars]
             )
           } catch (e) {
+            /*
+             * A PAYMENT LINK WE CANNOT RECONCILE IS STILL HANDED OUT -- SO SAY SO.
+             *
+             * Two nets catch a Stars payment: the webhook credits it directly,
+             * and this pending row lets the verify route find it later by
+             * matching the person's star transactions, webhook-independently.
+             * The row is written best-effort and the link is returned either
+             * way, which is the right call -- refusing to sell because a
+             * bookkeeping row failed would block payments the webhook handles
+             * perfectly well.
+             *
+             * What was wrong is that the two nets could fail together in
+             * silence: console.warn goes to a log nobody reads, and the moment
+             * the fallback matters is exactly the moment the webhook did not
+             * fire. The journal is where this service already puts money
+             * events that need a human (a credit arriving without a charge id
+             * is filed the same way), so it goes there, naming the person and
+             * the amount, at attention.
+             */
             console.warn(
-              '[STARS] pending-чек не записался:',
+              '[STARS] pending-чек не записался:', // cyrillic-ok: existing log text
               String(e).slice(0, 120)
             )
+            try {
+              void record(await getPool(), {
+                kind: 'payment',
+                who: String(who),
+                amount: pack.stars,
+                what: 'счёт выдан без pending-строки: сверка по звёздам его не найдёт', // cyrillic-ok: journal text, read by the owner in Russian
+                severity: 'attention',
+              })
+            } catch {
+              // The journal lives in the same database. If it is down too,
+              // the console line above is all there is, and saying that here
+              // is better than a second unexplained failure.
+            }
           }
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true, link: tgd.result }))
