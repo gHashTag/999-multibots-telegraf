@@ -533,6 +533,7 @@ import {
   владелец,
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
+import { installGracefulShutdown } from './src/graceful-shutdown'
 import {
   ClientErrorGate,
   formatClientErrorAlert,
@@ -11003,6 +11004,11 @@ async function main() {
     console.warn('[STARS] orphan wiring failed:', String(e).slice(0, 120))
   }
 
+  // A deploy must not cut a stream in half: on SIGTERM stop accepting, let
+  // in-flight requests finish (bounded), then exit. See src/graceful-shutdown.ts.
+  installGracefulShutdown(server, {
+    drainMs: Number(process.env.SHUTDOWN_DRAIN_MS) || 25_000,
+  })
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)
     console.log(
