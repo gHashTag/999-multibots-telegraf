@@ -18,7 +18,7 @@ def check(label, method, path, body=None, ok=lambda d: True):
     except Exception as e:
         failed.append((label, str(e)[:80]))
 
-# ── 32 инструмента агента (MCP tools/call) ──
+# ── the agent tools, one call each (MCP tools/call) ──
 tools = json.loads(json.dumps(req("POST","/mcp",{"jsonrpc":"2.0","id":1,"method":"tools/list"})))["result"]["tools"]
 for t in tools:
     n = t["name"]
@@ -28,11 +28,15 @@ for t in tools:
 
 # ── MCP протокол ──
 check("MCP:initialize","POST","/mcp",{"jsonrpc":"2.0","id":1,"method":"initialize"}, ok=lambda d:"result" in d)
-check("MCP:tools/list","POST","/mcp",{"jsonrpc":"2.0","id":1,"method":"tools/list"}, ok=lambda d:len(d["result"]["tools"])==35)
+# 35 -> 34: the `club` tool is gone. It sold a subscription that has never
+# been charged for, so it had no billing path to unwind -- see the PR that
+# removed it from all four surfaces. The count is checked BY NAME too, so a
+# tool leaving and another arriving cannot cancel out in the total.
+check("MCP:tools/list","POST","/mcp",{"jsonrpc":"2.0","id":1,"method":"tools/list"}, ok=lambda d:len(d["result"]["tools"])==34 and "club" not in [t["name"] for t in d["result"]["tools"]])
 check("MCP:card(GET)","GET","/mcp")
 
 # ── A2A ──
-check("A2A:agent-card","GET","/.well-known/agent-card.json", ok=lambda d: len(d.get("skills",[]))==35)
+check("A2A:agent-card","GET","/.well-known/agent-card.json", ok=lambda d: len(d.get("skills",[]))==34 and "club" not in [s.get("id") or s.get("name") for s in d.get("skills",[])])
 check("A2A:message/send(текст)","POST","/a2a",{"jsonrpc":"2.0","id":1,"method":"message/send","params":{"message":{"parts":[{"kind":"text","text":"привет"}]}}}, ok=lambda d:"result" in d)
 check("A2A:message/send(skill)","POST","/a2a",{"jsonrpc":"2.0","id":1,"method":"message/send","params":{"message":{"metadata":{"skill":"feed_stats"}}}}, ok=lambda d:"result" in d)
 
