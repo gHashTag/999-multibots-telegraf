@@ -18,6 +18,15 @@ import path from 'node:path'
 const ROOT = path.join(process.cwd(), 'apps/vibee-editor/player/src')
 const DOOR = 'lib/s3Upload.ts'
 
+/** Blank comments so a comment that names a forbidden token is not an offender. */
+const code = (src: string) =>
+  src
+    .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+    .replace(
+      /(^|[^:])\/\/.*$/gm,
+      (m, p1) => p1 + ' '.repeat(m.length - p1.length)
+    )
+
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
     const p = path.join(dir, e.name)
@@ -33,7 +42,7 @@ describe('mini app uploads are signed', () => {
     const offenders = files
       .filter(f => !f.endsWith(DOOR))
       .filter(f => {
-        const src = fs.readFileSync(f, 'utf8')
+        const src = code(fs.readFileSync(f, 'utf8'))
         return /fetch\([^)]*\/upload/.test(src.replace(/\s+/g, ' '))
       })
       .map(f => path.relative(ROOT, f))
@@ -41,9 +50,21 @@ describe('mini app uploads are signed', () => {
   })
 
   it('the door signs every request', () => {
-    const src = fs.readFileSync(path.join(ROOT, DOOR), 'utf8')
+    const src = code(fs.readFileSync(path.join(ROOT, DOOR), 'utf8'))
     const call = src.slice(src.indexOf('/upload`'), src.indexOf('body:'))
     expect(call).toContain('authHeaders(')
+  })
+
+  it('nothing in the player reads VITE_RENDER_SERVER_URL: the deploy has no such variable and the fallback was localhost', () => {
+    const offenders = files
+      .filter(f =>
+        code(fs.readFileSync(f, 'utf8')).includes('VITE_RENDER_SERVER_URL')
+      )
+      .map(f => path.relative(ROOT, f))
+    expect(offenders).toEqual([])
+    const door = code(fs.readFileSync(path.join(ROOT, DOOR), 'utf8'))
+    expect(door).toContain("import { RENDER_SERVER_URL } from './mediaUrl'")
+    expect(door).not.toContain('localhost:3333')
   })
 
   it('the two former offenders now import the door (a rename cannot dodge the first test)', () => {
@@ -51,7 +72,7 @@ describe('mini app uploads are signed', () => {
       'components/Panels/AssetsPanel.tsx',
       'components/Timeline/Timeline.tsx',
     ]) {
-      const src = fs.readFileSync(path.join(ROOT, f), 'utf8')
+      const src = code(fs.readFileSync(path.join(ROOT, f), 'utf8'))
       expect(src, f).toContain("from '@/lib/s3Upload'")
       expect(src, f).not.toContain('new FormData()')
     }

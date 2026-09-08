@@ -22,8 +22,6 @@ import { uploadToS3 } from '@/lib/s3Upload'
 import './AssetsPanel.css'
 
 // Render server URL (for S3 uploads)
-const RENDER_SERVER_URL =
-  import.meta.env.VITE_RENDER_SERVER_URL || 'http://localhost:3333'
 
 interface UploadProgress {
   fileName: string

@@ -1,12 +1,16 @@
 // ===============================
 
 import { authHeaders } from './apiFetch'
+import { RENDER_SERVER_URL } from './mediaUrl'
 // S3 Upload Utility
 // ===============================
 
-// Render server URL
-const RENDER_SERVER_URL =
-  import.meta.env.VITE_RENDER_SERVER_URL || 'http://localhost:3333'
+// The render server address comes from the ONE shared source (config.ts:
+// VITE_RENDER_URL or the atoms default). This file used to read its own
+// VITE_RENDER_SERVER_URL, which the vibee-editor service never had, so every
+// production build compiled the localhost:3333 fallback into the upload path:
+// the request died in the Telegram WebView and never reached the server --
+// no server log, no alert, just "upload failed" for the person.
 
 /**
  * Upload a file or blob to S3 via the render server
