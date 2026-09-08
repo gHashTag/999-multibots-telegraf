@@ -420,6 +420,18 @@ apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired in
 apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired into what production runs the live publish path stamps the same ledger the drain reads
 apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired into what production runs the module exports the entry point the callers use
 apps/vibee-editor/render/channel-seam.test.ts :: the delivery module is wired into what production runs the server spawns the autopilot -- the last link of the chain
+apps/vibee-editor/render/chat-memory.test.ts :: a word is a word, not a prefix of another the commonest conjunction is not an objection, a centre is not a price, bathing is not buying
+apps/vibee-editor/render/chat-memory.test.ts :: the story of one person an answered person is not waiting
+apps/vibee-editor/render/chat-memory.test.ts :: the story of one person comes newest last, knows they are waiting, and reads their words only
+apps/vibee-editor/render/chat-memory.test.ts :: what is kept cuts a text to the cap and creates the table once
+apps/vibee-editor/render/chat-memory.test.ts :: what is kept nothing to write touches nothing
+apps/vibee-editor/render/chat-memory.test.ts :: what is kept writes every non-empty message once, idempotently, and reports only the new ones
+apps/vibee-editor/render/chat-memory.test.ts :: what is new rememberMessagesFresh hands back only the rows the database took
+apps/vibee-editor/render/chat-memory.test.ts :: what the words say price and buying intent score high, an objection scores negative, each group once
+apps/vibee-editor/render/chat-memory.test.ts :: who next a refuser who writes AGAIN is answered: their word is the last one
+apps/vibee-editor/render/chat-memory.test.ts :: who next a service wish with a price question is a delivery; a buyer is invited again
+apps/vibee-editor/render/chat-memory.test.ts :: who next an unanswered price question comes first; a fresh refusal sinks below zero and waits
+apps/vibee-editor/render/chat-memory.test.ts :: who next quiet people are last, and the limit holds
 apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода iOS не обрезает ввод по числу, взятому из воздуха
 apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода iOS не сверяет ввод с точным числом цифр
 apps/vibee-editor/render/code-length-agreement.test.ts :: клиенты не держат собственную копию длины кода границы iOS шире серверной длины — иначе код снова не набрать
@@ -452,10 +464,24 @@ apps/vibee-editor/render/credential-precedence-contract.test.ts :: клиент 
 apps/vibee-editor/render/credential-precedence-contract.test.ts :: порядок удостоверений на сервере отказ по Bearer НЕ проваливается в проверку подписи
 apps/vibee-editor/render/credential-precedence-contract.test.ts :: порядок удостоверений на сервере разобран — иначе всё ниже проверяет пустоту
 apps/vibee-editor/render/credential-precedence-contract.test.ts :: порядок удостоверений на сервере сессия спрашивается РАНЬШЕ подписи
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_ingest_chats Telegram's own accounts are not people: 777000, support, deleted
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_ingest_chats a FLOOD_WAIT stops the sweep, keeps what was read, and says where
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_ingest_chats a second ingest mirrors NOTHING to Zep: the same dialog is not posted twice
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_ingest_chats a second ingest with ONE new message mirrors exactly that one
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_ingest_chats keeps people only: no bots, no channels, not the owner; empty texts skipped; hangs up
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_ingest_chats refuses anybody but the owner before touching Telegram
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_ingest_chats with Zep configured the same messages are mirrored into the person's thread
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_lead_context a known numeric id needs no Telegram; their words are framed, the owner's are plain
+apps/vibee-editor/render/crm-memory-tools.test.ts :: crm_leads returns scored people with a next step and how to read it
+apps/vibee-editor/render/crm-memory-tools.test.ts :: the playbook is the owner's is empty for anybody else, on any surface
 apps/vibee-editor/render/crm-offer.test.ts :: a person, not a place @ourcommunity resolves to a Channel and is refused before any mint
 apps/vibee-editor/render/crm-offer.test.ts :: a person, not a place a bot is refused: it cannot pay an invoice
 apps/vibee-editor/render/crm-offer.test.ts :: a person, not a place a number with a leading zero is not an id
 apps/vibee-editor/render/crm-offer.test.ts :: a person, not a place https://t.me/joinchat/abcINVITE resolves to a Chat and is refused before any mint
+apps/vibee-editor/render/crm-offer.test.ts :: displayOf a bare domain in a name is a link too, and goes
+apps/vibee-editor/render/crm-offer.test.ts :: displayOf a long name is cut, a multi-line one is one line
+apps/vibee-editor/render/crm-offer.test.ts :: displayOf a username keeps only what Telegram allows in one
+apps/vibee-editor/render/crm-offer.test.ts :: displayOf name and username together, either alone, nothing at all
 apps/vibee-editor/render/crm-offer.test.ts :: it proposes, and the press is somebody else's a negative chat id is refused before anything is minted
 apps/vibee-editor/render/crm-offer.test.ts :: it proposes, and the press is somebody else's a stranger cannot sell from the owner account
 apps/vibee-editor/render/crm-offer.test.ts :: it proposes, and the press is somebody else's outside the bot chat nothing is queued, NOTHING IS MINTED, and the answer says where to go
@@ -463,6 +489,11 @@ apps/vibee-editor/render/crm-offer.test.ts :: it proposes, and the press is some
 apps/vibee-editor/render/crm-offer.test.ts :: somebody else's words cannot outrank the payment link a name carrying a URL and line breaks leaves ONE link in the pitch -- ours, and first
 apps/vibee-editor/render/crm-offer.test.ts :: somebody else's words cannot outrank the payment link a name long enough to be a paragraph is cut to a greeting
 apps/vibee-editor/render/crm-offer.test.ts :: somebody else's words cannot outrank the payment link an ordinary name and note pass through untouched
+apps/vibee-editor/render/crm-offer.test.ts :: the card names the person, beside the id a @username draft carries the first name and the username from the owner session
+apps/vibee-editor/render/crm-offer.test.ts :: the card names the person, beside the id a name is one short line: no newline, no link, no second sentence for the owner to obey
+apps/vibee-editor/render/crm-offer.test.ts :: the card names the person, beside the id a numeric id draft takes the name from the base
+apps/vibee-editor/render/crm-offer.test.ts :: the card names the person, beside the id nobody knows the name: the card falls back to the id, and the draft still files
+apps/vibee-editor/render/crm-offer.test.ts :: the card names the person, beside the id the invoice row id rides on the draft so a cancel can find the row
 apps/vibee-editor/render/crm-offer.test.ts :: the credit lands on the lead, never on the owner a @username is resolved through the owner session and the LEAD id goes in the payload
 apps/vibee-editor/render/crm-offer.test.ts :: the credit lands on the lead, never on the owner an unknown username mints NOTHING and says how to name the person
 apps/vibee-editor/render/crm-offer.test.ts :: the touch follows the send, not the model a confirmed send with a lead writes a "written" touch; without one, nothing
@@ -529,6 +560,27 @@ apps/vibee-editor/render/device-binding.test.ts :: записанный ключ
 apps/vibee-editor/render/device-binding.test.ts :: записанный ключ устройства теперь работает честно назван предел: это не доказательство владения
 apps/vibee-editor/render/device-binding.test.ts :: токен не притворяется привязанным к устройству комментарий больше не обещает привязку
 apps/vibee-editor/render/device-binding.test.ts :: токен не притворяется привязанным к устройству проверка токена по-прежнему НЕ смотрит на dkt — и это сказано вслух
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody a caption is one line with no link in it
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody a generation that fails files nothing
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody a person who cannot afford it gets no picture made, and a way forward
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody a person with no row yet is treated as holding the first-row grant
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody a surface without a button is refused BEFORE anything is generated
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody an owner-side recipient is not charged, and the card does not say otherwise
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody somebody other than the owner is refused
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody the draft carries the photo, the RECIPIENT's charge, and the name
+apps/vibee-editor/render/dm-delivery.test.ts :: crm_deliver_photo asks the provider last and charges nobody the picture is made on the OWNER's turn, with the charge deferred to the recipient
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund a bare id gets the address book fetched, then the file goes
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund a delivered, paid service is recorded as a PURCHASE, a message as a touch
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund a refund that fails is said out loud, not swallowed
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund a send that fails after the charge refunds EXACTLY the receipt
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund a text draft without a charge touches no balance
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund no balance: nothing is sent, nothing is refunded, and the owner is told what to do
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund the charge is journaled as money leaving: a negative amount, like every other tokens-spent
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund the client is hung up on every path
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund the photo goes out as a FILE with the approved caption and no parse mode
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund the recipient is charged BEFORE the send, once, for the op on the draft
+apps/vibee-editor/render/dm-delivery.test.ts :: execute: the money after the press, the file, the refund without a database a charged draft is not sent: nobody pays, nothing leaves
+apps/vibee-editor/render/dm-delivery.test.ts :: the real generator honours chargeLater with chargeLater the owner wallet is not touched; without it, it is
 apps/vibee-editor/render/dockerfile-lock.test.ts :: render Docker reproducible install copies the lockfile before npm ci
 apps/vibee-editor/render/entry-throttle.test.ts :: за одним прокси люди не запирают дверь друг другу исчерпавший лимит сосед не мешает другому за тем же адресом
 apps/vibee-editor/render/entry-throttle.test.ts :: за одним прокси люди не запирают дверь друг другу отказ по лимиту клиента всё равно стоит места в потолке канала
@@ -723,6 +775,24 @@ apps/vibee-editor/render/image-chain.test.ts :: the route actually uses the chai
 apps/vibee-editor/render/image-chain.test.ts :: the route actually uses the chain does not gate the whole route on one provider key any more
 apps/vibee-editor/render/image-chain.test.ts :: the route actually uses the chain imports and calls the shared chain rather than re-inlining a loop
 apps/vibee-editor/render/image-chain.test.ts :: the route actually uses the chain offers all three providers, cheapest-that-works first, funded one last
+apps/vibee-editor/render/invoice-orphans.test.ts :: a cancelled draft marks its invoice a database failure is logged with the row and the reason, and does not throw
+apps/vibee-editor/render/invoice-orphans.test.ts :: a cancelled draft marks its invoice a draft without an invoice touches nothing
+apps/vibee-editor/render/invoice-orphans.test.ts :: a cancelled draft marks its invoice a failed ALTER is retried next time, not remembered as done
+apps/vibee-editor/render/invoice-orphans.test.ts :: a cancelled draft marks its invoice a photo draft without an invoice is journaled, not un-pended
+apps/vibee-editor/render/invoice-orphans.test.ts :: a cancelled draft marks its invoice a server without a database does not throw either
+apps/vibee-editor/render/invoice-orphans.test.ts :: a cancelled draft marks its invoice adds the columns once per process, not once per cancel
+apps/vibee-editor/render/invoice-orphans.test.ts :: a cancelled draft marks its invoice stamps when and why, only on a row nobody has paid
+apps/vibee-editor/render/invoice-orphans.test.ts :: the server is wired (source-level: no test boots render-server) redeeming a row clears its cancellation
+apps/vibee-editor/render/invoice-orphans.test.ts :: the server is wired (source-level: no test boots render-server) startup wires the queue to a pool BEFORE listening, and waits for it
+apps/vibee-editor/render/invoice-orphans.test.ts :: the server is wired (source-level: no test boots render-server) the cancel route claims with the cancel intent
+apps/vibee-editor/render/invoice-orphans.test.ts :: the server is wired (source-level: no test boots render-server) the confirm route does NOT use the cancel intent, and reports a failed send
+apps/vibee-editor/render/invoice-orphans.test.ts :: the server is wired (source-level: no test boots render-server) the credit path (verify) looks at cancelled rows too: redemption wins
+apps/vibee-editor/render/invoice-orphans.test.ts :: the server is wired (source-level: no test boots render-server) the morning summary counts cancelled separately from waiting
+apps/vibee-editor/render/invoice-orphans.test.ts :: the server is wired (source-level: no test boots render-server) verify adds the columns through the once-per-process helper, not inline
+apps/vibee-editor/render/invoice-orphans.test.ts :: wired into the queue a cancel press reaches the database through the queue
+apps/vibee-editor/render/invoice-orphans.test.ts :: wired into the queue a confirm press leaves the invoice alone
+apps/vibee-editor/render/invoice-orphans.test.ts :: wired into the queue a slow database does not hold the press: the note is started, not awaited
+apps/vibee-editor/render/invoice-orphans.test.ts :: wired into the queue the first wiring wins; a second pool is ignored
 apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts :: хранилище заданий подключено на старте main() подключает хранилище, а не только маршрут чтения
 apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts :: хранилище заданий подключено на старте вызов на старте предшествует запуску сервера
 apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts :: хранилище заданий подключено на старте находит boot-функцию и обёртку — иначе проверка пустая
@@ -937,6 +1007,14 @@ apps/vibee-editor/render/project-routes.test.ts :: проекты: приват�
 apps/vibee-editor/render/project-routes.test.ts :: проекты: приватность и запись чужой проект не отдаётся и не подтверждается его существование
 apps/vibee-editor/render/project-routes.test.ts :: проекты: приватность и запись чужой проект нельзя перезаписать, зная его идентификатор
 apps/vibee-editor/render/project-routes.test.ts :: проекты: приватность и запись чужой путь не наш: обработчик возвращает false и молчит
+apps/vibee-editor/render/provider.test.ts :: what a small model is shown the real compact kit fits a 16k window beside the seller prompt
+apps/vibee-editor/render/provider.test.ts :: what a small model is shown the seller kit only: CRM, Telegram, SOUL, one generator
+apps/vibee-editor/render/provider.test.ts :: who is in the chain AGENT_MODEL renames the paid model, never the Ollama tag; OLLAMA_MODEL does
+apps/vibee-editor/render/provider.test.ts :: who is in the chain AGENT_PROVIDER=ollama puts our model first, with the paid one still behind it
+apps/vibee-editor/render/provider.test.ts :: who is in the chain a 16k window is still compact; a 32k one is not
+apps/vibee-editor/render/provider.test.ts :: who is in the chain a missing model on our side says how to pull it
+apps/vibee-editor/render/provider.test.ts :: who is in the chain inside the project our model is the safety net: last, keyless, on the private domain
+apps/vibee-editor/render/provider.test.ts :: who is in the chain nothing configured: nobody, and the error names our model too
 apps/vibee-editor/render/readbody-bounded.test.ts :: readBody is bounded (#901) ignores events after it has already settled
 apps/vibee-editor/render/readbody-bounded.test.ts :: readBody is bounded (#901) rejects and destroys the request when the body exceeds the cap
 apps/vibee-editor/render/readbody-bounded.test.ts :: readBody is bounded (#901) rejects and destroys the request when the client never finishes
@@ -1251,6 +1329,17 @@ apps/vibee-editor/render/tg-proposals.test.ts :: a proposal belongs to one perso
 apps/vibee-editor/render/tg-proposals.test.ts :: a proposal belongs to one person the owner can confirm their own
 apps/vibee-editor/render/tg-proposals.test.ts :: a wrong secret is visible, not merely counted it is written to the log
 apps/vibee-editor/render/tg-proposals.test.ts :: a wrong secret is visible, not merely counted the dead counter is gone from the record
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft a draft without an invoice never wakes the listener
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft a listener that throws does not break the press
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft a new draft reports the one it replaces
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft a photo draft evicted or expired is reported too: the picture was made
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft a second registration replaces the first, and null removes it
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft a send that failed AFTER the press reports the invoice as failed
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft an expired draft is reported the next time the queue looks
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft cancelling reports the invoice as orphaned, with the reason
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft confirming reports nothing: the message goes out and the invoice stands
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft reportOrphan on a draft without an invoice is silent
+apps/vibee-editor/render/tg-proposals.test.ts :: an invoice does not outlive its draft the listener receives the public shape: no secret, no turn
 apps/vibee-editor/render/tg-proposals.test.ts :: confirming consumes the proposal a second press cannot send the same message twice
 apps/vibee-editor/render/tg-proposals.test.ts :: confirming consumes the proposal cancelling also consumes it, so a cancelled draft cannot be sent
 apps/vibee-editor/render/tg-proposals.test.ts :: every readBody in the server is parsed before use no caller treats the raw string as an object
@@ -1302,10 +1391,16 @@ apps/vibee-editor/render/token-invoice.test.ts :: a group or channel is not a pe
 apps/vibee-editor/render/token-invoice.test.ts :: no link is invented a Telegram refusal is a refusal, not an empty link
 apps/vibee-editor/render/token-invoice.test.ts :: no link is invented without a bot token it refuses, and posts nothing
 apps/vibee-editor/render/token-invoice.test.ts :: price comes from the one scale 50 tokens is 65 stars, as in token-packs
+apps/vibee-editor/render/token-invoice.test.ts :: the cancel columns are added once per process a refused ALTER is retried next time, and never throws
+apps/vibee-editor/render/token-invoice.test.ts :: the cancel columns are added once per process two mints, one ALTER: the lock is taken once, not per open of the app
 apps/vibee-editor/render/token-invoice.test.ts :: the payload names the person who will be credited a numeric recipient goes into the payload verbatim
 apps/vibee-editor/render/token-invoice.test.ts :: the payload names the person who will be credited a username is REFUSED rather than written into the payload
 apps/vibee-editor/render/token-invoice.test.ts :: the pending row a row that fails to write does not withhold a real link
 apps/vibee-editor/render/token-invoice.test.ts :: the pending row a row that fails to write is JOURNALED, naming the person and the amount
+apps/vibee-editor/render/token-invoice.test.ts :: the pending row id travels with the draft RETURNING id becomes invoiceId
+apps/vibee-editor/render/token-invoice.test.ts :: the pending row id travels with the draft a database that answers without an id leaves invoiceId absent, not NaN
+apps/vibee-editor/render/token-invoice.test.ts :: the pending row id travels with the draft a failed ALTER does not cost the pending row or the link
+apps/vibee-editor/render/token-invoice.test.ts :: the pending row id travels with the draft a string id from the driver is a number on the draft
 apps/vibee-editor/render/token-invoice.test.ts :: the pending row is written for the RECIPIENT, so the later reconcile finds their payment
 apps/vibee-editor/render/token-packs.test.ts :: границы названы, а не подразумеваются дробное количество не создаёт дробных звёзд
 apps/vibee-editor/render/token-packs.test.ts :: границы названы, а не подразумеваются название счёта одно на всех
@@ -1337,6 +1432,21 @@ apps/vibee-editor/render/ws-bounds.test.ts :: анонимный peer огран
 apps/vibee-editor/render/ws-bounds.test.ts :: анонимный peer ограничен в цене размер кадра ограничен (иначе 100 МБ по умолчанию)
 apps/vibee-editor/render/ws-bounds.test.ts :: анонимный peer ограничен в цене рассылка пропускает отставшего, и проверка стоит ДО send
 apps/vibee-editor/render/ws-bounds.test.ts :: анонимный peer ограничен в цене число клиентов ограничено, и отказ стоит ДО добавления в набор
+apps/vibee-editor/render/zep-memory.test.ts :: the self-hosted dialect (Zep community server) a ready JWT in ZEP_API_KEY is used as it is
+apps/vibee-editor/render/zep-memory.test.ts :: the self-hosted dialect (Zep community server) has no graph: a business fact stays in Postgres, nothing is called
+apps/vibee-editor/render/zep-memory.test.ts :: the self-hosted dialect (Zep community server) is chosen by the address, and can be forced either way
+apps/vibee-editor/render/zep-memory.test.ts :: the self-hosted dialect (Zep community server) messages go to the session memory with role_type for the side, role for the name
+apps/vibee-editor/render/zep-memory.test.ts :: the self-hosted dialect (Zep community server) signs its own bearer token with the secret: three parts, HS256, verifiable
+apps/vibee-editor/render/zep-memory.test.ts :: the self-hosted dialect (Zep community server) the context is the summary and the facts, or nothing
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent "already exists" is success, for the user and the thread
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent a network failure is a false, logged once, never a throw
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent a plain 400 is our mistake, not "exists", and a refusal is logged once
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent a self-hosted base URL is honoured, trailing slash and all
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent a slice that fails stops the mirror and reports what went through
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent a user, with the API key in the header and the telegram id in the metadata
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent messages go oldest first, in slices, the owner as the assistant side
+apps/vibee-editor/render/zep-memory.test.ts :: what is sent the context block comes back as text, or null
+apps/vibee-editor/render/zep-memory.test.ts :: when Zep is not configured nothing is called and every answer is the empty one
 scripts/tests/excel-generation.test.ts :: Excel Generation Tests Should create Excel workbook with all 11 sheets
 scripts/tests/excel-generation.test.ts :: Excel Generation Tests Should handle large datasets (500+ rows)
 scripts/tests/excel-generation.test.ts :: Excel Generation Tests Should handle special characters in bot names
@@ -1534,6 +1644,8 @@ src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели дохо
 src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели доходит до человека падение самой отправки не роняет обработчик
 src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели доходит до человека причина различает перегрузку и недействительный ключ
 src/__tests__/bot/botNeverGoesSilent.test.ts :: отказ модели доходит до человека человеку предлагают, что делать сейчас
+src/__tests__/bot/businessDmThroughRegisterCommands.test.ts :: business DM through registerCommands control: a connection without can_reply sends nothing and calls no LLM
+src/__tests__/bot/businessDmThroughRegisterCommands.test.ts :: business DM through registerCommands one reply through the connection with the deep-link button, one owner DM, nothing thrown
 src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe does not find a key that is not there
 src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe has capabilities to describe at all
 src/__tests__/bot/capabilityPreflightIsHonest.test.ts :: the preflight describes the code it claims to describe names only keys the file really reads
@@ -1566,6 +1678,13 @@ src/__tests__/bot/connectTelegramHasAWayOnwards.test.ts :: sharing the number le
 src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling drops pending updates at every call
 src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling still deletes the webhook somewhere
 src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling still launches in polling, so the backlog has somewhere to land
+src/__tests__/bot/inlineQueryCards.test.ts :: inline mode: service cards answers an empty query with every card, each deep-linking to this bot, plus the open-bot button
+src/__tests__/bot/inlineQueryCards.test.ts :: inline mode: service cards filters by the query and still answers (with the button) when nothing matches
+src/__tests__/bot/inlineQueryCards.test.ts :: inline mode: service cards matchCards is case-insensitive and matches a keyword inside a sentence
+src/__tests__/bot/inlineQueryCards.test.ts :: inline mode: service cards serviceFromStartParam accepts only svc_<known key>
+src/__tests__/bot/inlineQueryCards.test.ts :: inline mode: wiring every card with a scene lands in a scene that registerCommands registers
+src/__tests__/bot/inlineQueryCards.test.ts :: inline mode: wiring every launch site subscribes to inline_query (4 allowedUpdates blocks)
+src/__tests__/bot/inlineQueryCards.test.ts :: inline mode: wiring registerCommands calls the registrar and /start routes svc_ into the scene
 src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press does not try to put both a removal and buttons on one message
 src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press follows with buttons, top-up first
 src/__tests__/bot/mainMenuOffersSomethingToPress.test.ts :: the main menu leaves the person something to press sends the greeting at all (the control for everything below)
@@ -1603,6 +1722,11 @@ src/__tests__/bot/noTariffsInAiPrompt.test.ts :: системная подска
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a confirmed send is not then called a dead button a cancel is treated the same way
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a confirmed send is not then called a dead button a successful confirm answers the press and says nothing about dead buttons
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a confirmed send is not then called a dead button and a genuinely orphaned press still gets the net
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a photo card shows the service under the same two buttons a long caption is cut to fit the photo, and the cut is stated
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a photo card shows the service under the same two buttons a text draft has no photo and no price line
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a photo card shows the service under the same two buttons returns the photo, names the price, and keeps the caption under Telegram's cap
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a photo card shows the service under the same two buttons the bot sends a photo card as a photo, and falls back to the link
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a photo card shows the service under the same two buttons the buttons carry this draft's id and secret, photo or not
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a press inside a scene still reaches the handler and the handlers live in that function, not somewhere later
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a press inside a scene still reaches the handler the confirm buttons are registered BEFORE the scene middleware
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: a silent answer still shows the card and the draft is read from the answer before either path runs
@@ -1618,6 +1742,12 @@ src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card appears only whe
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card appears only when a draft actually came back the bot no longer fetches the draft over HTTP
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card does not present a bare id as a checkable address a @username is shown plainly, with no warning bolted on
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card does not present a bare id as a checkable address a numeric recipient is marked as unverifiable
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card names the person beside the id a @username draft is not labelled "id", and the name is not repeated
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card names the person beside the id a display name is shown next to the id, never instead of it
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card names the person beside the id a name from the wire is cut to one line here again
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card names the person beside the id the bot hands the WHOLE draft to the card, not a hand-picked list of fields
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card names the person beside the id the trusted part comes first: a name cannot put a false id in front of the real one
+src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card names the person beside the id without a name a numeric id is still called what it is
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent a cut is stated rather than hidden
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent both buttons carry the one-time secret, not just the id
 src/__tests__/bot/nothingSendsWithoutAPress.test.ts :: the card shows what will actually be sent callback data fits in the 64 bytes Telegram allows
@@ -1886,7 +2016,7 @@ src/__tests__/helpers/downloadTelegramFile.test.ts :: downloadTelegramFileBuffer
 src/__tests__/helpers/downloadTelegramFile.test.ts :: downloadTelegramFileBuffer returns the bytes on a 200 response
 src/__tests__/helpers/downloadTelegramFile.test.ts :: downloadTelegramFileBuffer throws on a non-OK response instead of returning the error body
 src/__tests__/helpers/error/errorHandler.test.ts :: setupErrorHandler error handling should handle 401 Unauthorized error
-src/__tests__/helpers/error/errorHandler.test.ts :: setupErrorHandler error handling should handle 403 Forbidden error (not blocked)
+src/__tests__/helpers/error/errorHandler.test.ts :: setupErrorHandler error handling should handle 403 Forbidden error (not blocked) AT A LEVEL THE OWNER RECEIVES
 src/__tests__/helpers/error/errorHandler.test.ts :: setupErrorHandler error handling should handle blocked user error
 src/__tests__/helpers/error/errorHandler.test.ts :: setupErrorHandler error handling should handle generic errors
 src/__tests__/helpers/error/errorHandler.test.ts :: setupErrorHandler error handling should handle missing context gracefully
@@ -3333,6 +3463,22 @@ src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot Интеграционный тест промо-ссылок полный цикл обработки neurovideo промо-ссылки
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot Конфигурация промо-ссылок проверка URL промо-ссылок
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot Конфигурация промо-ссылок проверка ожидаемых бонусов
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself a failed payments read is an error; an absent row stays a warning
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself a key that is PRESENT BUT EMPTY is not reported as present
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself a stuck person taps more than once, so it is once a minute per place
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself an empty or absent session is said in words, not as an empty list
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself an outage for EVERY user is reported at a level the owner receives
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself empty is a shape, not a type: null, [], {} and undefined all count
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself every dead end the owner reported is wired to it
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself never carries a session VALUE into the report
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself reports what was missing AND what the session still held
+src/__tests__/reliability/aDeadEndMustReportItself.test.ts :: a dead end must report itself the report of a missing key says so even when the key is there but empty
+src/__tests__/reliability/aRepeatingErrorLogIsNowAPager.test.ts :: a repeating error log is now a pager a provider the owner parked is not watched, and the list is explicit
+src/__tests__/reliability/aRepeatingErrorLogIsNowAPager.test.ts :: a repeating error log is now a pager an unknown provider that is UP is not announced as a recovery
+src/__tests__/reliability/aRepeatingErrorLogIsNowAPager.test.ts :: a repeating error log is now a pager nothing is parked by default: silence must be chosen, never inherited
+src/__tests__/reliability/aRepeatingErrorLogIsNowAPager.test.ts :: a repeating error log is now a pager pages once when a provider goes down
+src/__tests__/reliability/aRepeatingErrorLogIsNowAPager.test.ts :: a repeating error log is now a pager says nothing new while it stays down -- the record, not the alarm
+src/__tests__/reliability/aRepeatingErrorLogIsNowAPager.test.ts :: a repeating error log is now a pager says so when it comes back, and stays quiet while it is fine
 src/__tests__/reliability/aiPhotoshopDialogReplyGuarded.test.ts :: AI Photoshop dialog status reply cannot 400 the edit into a lockout every messageText-embedding parse_mode reply is inside a try block
 src/__tests__/reliability/aiPhotoshopDialogReplyGuarded.test.ts :: AI Photoshop dialog status reply cannot 400 the edit into a lockout floor: a messageText-embedding parse_mode reply still exists
 src/__tests__/reliability/aiPhotoshopDialogReplyGuarded.test.ts :: AI Photoshop dialog status reply cannot 400 the edit into a lockout self-check: an unguarded raw-text parse_mode reply is detected
@@ -3364,6 +3510,10 @@ src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/men
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) menuScene: every callback block answers before branching
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) self-check: an answer nested only inside a data-branch is detected
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) subscriptionScene: every callback block answers before branching
+src/__tests__/reliability/canAWriteBeLostBetweenUpdates.test.ts :: can a write be lost between two updates a write that lands while Redis is refusing is still readable afterwards
+src/__tests__/reliability/canAWriteBeLostBetweenUpdates.test.ts :: can a write be lost between two updates overlapping updates share one session, so neither erases the other
+src/__tests__/reliability/canAWriteBeLostBetweenUpdates.test.ts :: can a write be lost between two updates the guard: a session that never wrote reads back empty, so the test can fail
+src/__tests__/reliability/canAWriteBeLostBetweenUpdates.test.ts :: can a write be lost between two updates the ordinary case: step 2 writes, step 3 reads it back
 src/__tests__/reliability/chatWithAvatarDeliveryFallback.test.ts :: chatWithAvatarWizard image delivery has a fallback every replyWithPhoto has a try/catch document fallback
 src/__tests__/reliability/chatWithAvatarDeliveryFallback.test.ts :: chatWithAvatarWizard image delivery has a fallback matcher is not stale: the scene actually delivers a photo
 src/__tests__/reliability/chatWithAvatarDeliveryFallback.test.ts :: chatWithAvatarWizard image delivery has a fallback self-check: detector distinguishes guarded from unguarded delivery
@@ -3433,6 +3583,23 @@ src/__tests__/reliability/morphingSetTimeoutGuarded.test.ts :: morphingWizard se
 src/__tests__/reliability/neuroPhotoDirectTempFileCleanup.test.ts :: generateNeuroPhotoDirect cleans up its orphaned local copy self-check: a save with no unlink is detected
 src/__tests__/reliability/neuroPhotoDirectTempFileCleanup.test.ts :: generateNeuroPhotoDirect cleans up its orphaned local copy still saves a local file (floor)
 src/__tests__/reliability/neuroPhotoDirectTempFileCleanup.test.ts :: generateNeuroPhotoDirect cleans up its orphaned local copy unlinks the saved local copy
+src/__tests__/reliability/noWizardResumeOvershootsItsStep.test.ts :: no wizard resume overshoots its step nothing overshoots except what is listed with its reason
+src/__tests__/reliability/noWizardResumeOvershootsItsStep.test.ts :: no wizard resume overshoots its step self-check: the matcher sees an overshoot and clears the resume pattern
+src/__tests__/reliability/noWizardResumeOvershootsItsStep.test.ts :: no wizard resume overshoots its step the list has no stale entries: a fixed file must leave it
+src/__tests__/reliability/noWizardResumeOvershootsItsStep.test.ts :: no wizard resume overshoots its step the population is real: wizards do resume with selectStep
+src/__tests__/reliability/noWizardResumeOvershootsItsStep.test.ts :: no wizard resume overshoots its step the two paid resumes INVOKE their step, they do not just avoid overshooting
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message a 403 that is not "the user blocked us" reaches the owner at all
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message a full table evicts the coldest, never stops alerting
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message a repeat inside the window is held back and counted
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message a retry counter inside the text is not a new incident
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message after the window it goes out AGAIN, carrying what was held back
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message an unhandled rejection carries WHAT failed in its message
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message bot.catch delivers one event ONCE, not once per channel
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message the count resets after it is reported, so it is a rate and not a total
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message the first of its kind goes out
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message the same text from different places stays separate
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message the transport actually asks before sending
+src/__tests__/reliability/oneIncidentIsOneMessage.test.ts :: one incident is one message two different failures are two incidents
 src/__tests__/reliability/paidUploadGetFileGuarded.test.ts :: paid photo-upload getFile is guarded (no silent drop) faceSwapWizard: every getFile is inside a try block
 src/__tests__/reliability/paidUploadGetFileGuarded.test.ts :: paid photo-upload getFile is guarded (no silent drop) floor: faceSwapWizard still calls getFile on an upload
 src/__tests__/reliability/paidUploadGetFileGuarded.test.ts :: paid photo-upload getFile is guarded (no silent drop) floor: morphingWizard still calls getFile on an upload
@@ -3475,6 +3642,13 @@ src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id self-check: detector flags .single() on telegram_id, not order+limit
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id self-check: scoped detector isolates the target function
 src/__tests__/reliability/stream-source-error.test.ts :: every response.data.pipe() guards its source stream has a source-error listener for each response.data.pipe (no whole-process crash)
+src/__tests__/reliability/theErrorChannelToTheOwnerIsWired.test.ts :: the error channel to the owner is wired an explicit LOG_GROUP_ID still wins: setting it is a decision
+src/__tests__/reliability/theErrorChannelToTheOwnerIsWired.test.ts :: the error channel to the owner is wired an unwired channel SAYS it is unwired, instead of returning quietly
+src/__tests__/reliability/theErrorChannelToTheOwnerIsWired.test.ts :: the error channel to the owner is wired installing the catcher also opens the channel it writes to
+src/__tests__/reliability/theErrorChannelToTheOwnerIsWired.test.ts :: the error channel to the owner is wired silent:true is still silent -- the complaint is about the channel, not the caller
+src/__tests__/reliability/theErrorChannelToTheOwnerIsWired.test.ts :: the error channel to the owner is wired the legacy group is the LAST resort and says so
+src/__tests__/reliability/theErrorChannelToTheOwnerIsWired.test.ts :: the error channel to the owner is wired the sender is chosen once, not re-bound by each of the eleven bots
+src/__tests__/reliability/theErrorChannelToTheOwnerIsWired.test.ts :: the error channel to the owner is wired with nothing configured, alerts go to the OWNER, not to a group nobody checked
 src/__tests__/reliability/ttsFallbackRecursionBounded.test.ts :: createAudioFileFromText bounds its 404 fallback recursion a voice_id === fallbackVoiceId throw-guard precedes the recursion
 src/__tests__/reliability/ttsFallbackRecursionBounded.test.ts :: createAudioFileFromText bounds its 404 fallback recursion floor: the function still recurses with the fallback voice
 src/__tests__/reliability/ttsFallbackRecursionBounded.test.ts :: createAudioFileFromText bounds its 404 fallback recursion mutation: neutralizing the real base-case condition turns the check RED
@@ -4875,6 +5049,9 @@ src/__tests__/security/avatarTransformQuotaGuard.test.ts :: avatarTransform free
 src/__tests__/security/avatarTransformQuotaGuard.test.ts :: avatarTransform free-superhero generation is quota-race-guarded matcher is not stale: the scene still calls a paid generator
 src/__tests__/security/avatarTransformQuotaGuard.test.ts :: avatarTransform free-superhero generation is quota-race-guarded self-check: detector finds the in-flight set and gen positions
 src/__tests__/security/avatarTransformQuotaGuard.test.ts :: avatarTransform free-superhero generation is quota-race-guarded the quota is re-checked between the in-flight set and the generation
+src/__tests__/security/businessTextNotLogged.test.ts :: business text never reaches the log blanks text and caption inside a business update, keeps the keys and the rest
+src/__tests__/security/businessTextNotLogged.test.ts :: business text never reaches the log leaves a plain message update untouched
+src/__tests__/security/businessTextNotLogged.test.ts :: business text never reaches the log scrubbedLog applies it to what Telegraf.log hands over
 src/__tests__/security/callback-protection.test.ts :: обратные вызовы закрыты меткой no :telegramId branch sends to the raw telegramId from the URL
 src/__tests__/security/callback-protection.test.ts :: обратные вызовы закрыты меткой the :telegramId handler checks the signature before the provider switch
 src/__tests__/security/callback-protection.test.ts :: обратные вызовы закрыты меткой каждый опасный обработчик проверяет метку
@@ -5016,9 +5193,22 @@ src/__tests__/services/broadcastCaptionEscaped.test.ts :: broadcast MarkdownV2 c
 src/__tests__/services/broadcastDeleteGuardedRetry.test.ts :: broadcast user-cleanup delete cannot abort the send step (idempotent retry) wraps the send-loop delete in its own try/catch
 src/__tests__/services/broadcastMassDelete.test.ts :: broadcast does not mass-delete users on a parse-error 400 never deletes on a bare 400 (guards deletion behind a chat-gone check)
 src/__tests__/services/broadcastMassDelete.test.ts :: broadcast does not mass-delete users on a parse-error 400 scopes the delete by bot_name so it cannot cross bots
+src/__tests__/services/broadcastMassDelete.test.ts :: broadcast does not mass-delete users on a parse-error 400 there is exactly one delete chain, which is what the check above assumed
 src/__tests__/services/business-autoreply-single-flight.test.ts :: business auto-reply is single-flight per sender checks .has() before .add(), and .add() before chatWithAI
 src/__tests__/services/business-autoreply-single-flight.test.ts :: business auto-reply is single-flight per sender declares a module-scope in-flight set
 src/__tests__/services/business-autoreply-single-flight.test.ts :: business auto-reply is single-flight per sender releases the key in a finally block
+src/__tests__/services/businessDmSeller.test.ts :: messages that must never be answered a photo gets the text-only reply and is counted; a sticker gets nothing; neither reaches the LLM
+src/__tests__/services/businessDmSeller.test.ts :: messages that must never be answered is_from_offline and sender_business_bot: no reply, no LLM, no lead
+src/__tests__/services/businessDmSeller.test.ts :: messages that must never be answered the owner typing in the chat silences the AI there for OWNER_TAKEOVER_MS, then it resumes
+src/__tests__/services/businessDmSeller.test.ts :: owner lead notification a failed notification never blocks the reply and is retried on the next message
+src/__tests__/services/businessDmSeller.test.ts :: owner lead notification goes once per chat per day to user_chat_id, without business_connection_id, HTML-escaped
+src/__tests__/services/businessDmSeller.test.ts :: reply button deep-links to the service the customer asked about, or to the bot itself
+src/__tests__/services/businessDmSurvivesDeploy.test.ts :: business DM through the production middleware chain one reply with business_connection_id, nothing else sent, prompt names the bot filled after registration
+src/__tests__/services/businessDmSurvivesDeploy.test.ts :: business DM: Bot API 9+ connection shape answers a DM when the connection carries rights.can_reply and no can_reply
+src/__tests__/services/businessDmSurvivesDeploy.test.ts :: business DM: Bot API 9+ connection shape canReplyOf accepts both API shapes and refuses everything else
+src/__tests__/services/businessDmSurvivesDeploy.test.ts :: business DM: Bot API 9+ connection shape control: rights without can_reply, or a disabled connection, is not answered
+src/__tests__/services/businessDmSurvivesDeploy.test.ts :: business DM: after a redeploy the registry is empty a failed lookup drops the message: no reply, no LLM call, no throw
+src/__tests__/services/businessDmSurvivesDeploy.test.ts :: business DM: after a redeploy the registry is empty resolves an unknown connection id via getBusinessConnection once, then answers from cache
 src/__tests__/services/businessPromptInjection.test.ts :: business bot: an untrusted sender name cannot become a system instruction caps an overlong name and falls back to a default when empty
 src/__tests__/services/businessPromptInjection.test.ts :: business bot: an untrusted sender name cannot become a system instruction carries the name only in a user-role message
 src/__tests__/services/businessPromptInjection.test.ts :: business bot: an untrusted sender name cannot become a system instruction flattens a multi-line / control-char name to a single safe line
@@ -5093,6 +5283,20 @@ src/__tests__/services/createModelTrainingLocal.test.ts :: createModelTrainingLo
 src/__tests__/services/createModelTrainingLocal.test.ts :: createModelTrainingLocal (Replicate API) 8. Очистка ZIP файла должен удалить ZIP файл после тренировки
 src/__tests__/services/createModelTrainingLocal.test.ts :: createModelTrainingLocal (Replicate API) 9. Сообщения об успехе должен вернуть сообщение на английском языке
 src/__tests__/services/createModelTrainingLocal.test.ts :: createModelTrainingLocal (Replicate API) 9. Сообщения об успехе должен вернуть сообщение на русском языке
+src/__tests__/services/crmProactive.test.ts :: a card nobody pressed is not evicted holds the next sweep, and a press frees it
+src/__tests__/services/crmProactive.test.ts :: a card nobody pressed is not evicted the hold expires by itself
+src/__tests__/services/crmProactive.test.ts :: never two at once a sweep started while one runs is busy, not a second turn
+src/__tests__/services/crmProactive.test.ts :: one sweep a failing agent is a failed sweep, and the next sweep still runs
+src/__tests__/services/crmProactive.test.ts :: one sweep a failing ingest does not silence the person who is waiting
+src/__tests__/services/crmProactive.test.ts :: one sweep a proposal becomes a card in the owner chat, and the turn is written down
+src/__tests__/services/crmProactive.test.ts :: one sweep memory first, then the turn: ingest runs before ask
+src/__tests__/services/crmProactive.test.ts :: one sweep no proposal is a quiet sweep: nothing is pushed
+src/__tests__/services/crmProactive.test.ts :: the brief asks for memory, at most one action, and forbids sending
+src/__tests__/services/crmProactive.test.ts :: the card in the owner chat a photo draft is a photo with the caption and the same buttons
+src/__tests__/services/crmProactive.test.ts :: the card in the owner chat a photo that cannot be shown becomes a message with the link
+src/__tests__/services/crmProactive.test.ts :: the card in the owner chat a text draft is a message with the two buttons
+src/__tests__/services/crmProactive.test.ts :: wired (source-level: the bot is not booted here) both presses free the next sweep
+src/__tests__/services/crmProactive.test.ts :: wired (source-level: the bot is not booted here) the ENTRY THAT RUNS starts the sweep unless CRM_PROACTIVE_MINUTES is zero
 src/__tests__/services/fluxkontextpro-refund.test.ts :: FLUX Kontext Pro refunds a post-charge delivery failure arms `charged` only on a real charge (success), true in batch mode
 src/__tests__/services/fluxkontextpro-refund.test.ts :: FLUX Kontext Pro refunds a post-charge delivery failure hoists totalCost/refunded/charged so the outer catch can refund safely
 src/__tests__/services/fluxkontextpro-refund.test.ts :: FLUX Kontext Pro refunds a post-charge delivery failure imports refundUser and actually calls it
@@ -5205,6 +5409,12 @@ src/__tests__/services/temp-file-cleanup.test.ts :: image generators clean up th
 src/__tests__/services/transcription-temp-cleanup.test.ts :: transcription cleans up the temp file on failure deletes the downloaded file when transcription fails
 src/__tests__/services/ttv-no-raw-error-leak.test.ts :: generateTextToVideo does not leak a raw provider error to the user returns a curated message, not the raw upstream error body
 src/__tests__/setCommands.test.ts :: setBotCommands treats a missing optional bot owner as an ordinary empty result
+src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly THROWS when the anchor is gone, and names it
+src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly a missing CLOSING anchor throws too -- the region must not grow silently
+src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly sliceBetween stops at the closing anchor
+src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly slices a bounded window
+src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly slices from the anchor to the end
+src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly the failure is not a vacuous pass: the old shape would go green here
 src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout answers for EVERY occurrence, and enclosedBy asks whether ANY qualifies
 src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout does NOT reach past the block that really encloses the line
 src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout is unmoved by a comment and a blank line at the top of the block

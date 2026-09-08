@@ -293,11 +293,36 @@ describe('aiReelsWizard (AI Reels Creation)', () => {
       )
       const step0 = (aiReelsWizard as any).steps[0]
 
+      /*
+       * THIS TEST PINNED THE BUG.
+       *
+       * It asserted `wizard.next()` was called, and that call was the defect:
+       * next() is selectStep(cursor + 1), so selectStep(2) followed by next()
+       * landed on Step 3 and the first video render -- the step that CHARGES --
+       * never ran. The comment in the wizard named Step 2 the whole time.
+       *
+       * Fixed on the owner's decision (adding a charge is theirs to make), so
+       * this now pins the opposite, and pins it harder: not merely that next()
+       * is absent, but that Step 2 was actually INVOKED. Absence of the bug is
+       * not presence of the fix.
+       */
+      const step2 = vi.fn()
+      mockContext.wizard.steps = [vi.fn(), vi.fn(), step2, vi.fn()]
+      mockContext.wizard.selectStep = vi.fn((n: number) => {
+        mockContext.wizard.cursor = n
+      }) as any
+
       await step0(mockContext)
 
       expect(mockContext.session.aiReels.needsVoiceCreation).toBe(false)
       expect(mockContext.wizard.selectStep).toHaveBeenCalledWith(2)
-      expect(mockContext.wizard.next).toHaveBeenCalled()
+      expect(step2, 'Step 2 was selected but never run').toHaveBeenCalledWith(
+        mockContext
+      )
+      expect(
+        mockContext.wizard.next,
+        'next() would overshoot to Step 3 again'
+      ).not.toHaveBeenCalled()
     })
 
     it('should handle missing telegram ID', async () => {
