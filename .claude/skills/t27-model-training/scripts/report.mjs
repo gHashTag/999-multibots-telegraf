@@ -164,6 +164,7 @@ async function main() {
     )
   )
   const be = pick(exec.out, P('подвёл БЭКЕНД\\s+(\\d+)'))
+  const execFloor = P('ПЕРЕМЕШАННЫЙ КОНТРОЛЬ РАВЕН ЭТАЛОНУ').test(exec.out)
 
   console.log('')
   if (s)
@@ -206,6 +207,18 @@ async function main() {
     console.log(
       `                из не пошедших ${be[0]} — вина БЭКЕНДА, не модели`
     )
+  /*
+   * The execution column's floor equals its ceiling, and the panel must say so
+   * where the number is printed. Measured at full size: every task given its
+   * NEIGHBOUR's reference scores 16 runnable / 18 blocked / 97 of 97 -- the
+   * reference row digit for digit. This file judges an answer by ITS OWN tests,
+   * so any coherent spec passes whatever question it was meant to answer.
+   */
+  if (execFloor)
+    console.log(
+      `                ↑ ПОЛ РАВЕН ПОТОЛКУ: чужой эталон даёт ровно столько же.\n` +
+        `                  Столбец отличает связное от сломанного, и ничего тоньше.`
+    )
 
   console.log('\n── как это читать ──')
   console.log('  Ни одно число здесь не значит ничего в одиночку:')
@@ -214,6 +227,27 @@ async function main() {
   console.log('    исполнение жульник ИСПОЛНИМЫМ спеком даёт 100% на 34 из 34')
   console.log(
     '  Постоянный ответ ловится ТОЛЬКО пересечением RELEVANT и остальных.'
+  )
+  /*
+   * SUBSTANCE MEASURES NAMING, NOT MEANING, AND THE PANEL HAS TO SAY SO.
+   *
+   * Measured 08.09.2026 on eval task 0: the reference declares
+   * `debouncer_init`, `debouncer_should_exec`; the answer declares
+   * `debounce_init`, `window_open`, `decide`. Zero overlap -- and the answer
+   * plainly understood the task, phi scaling and tiered delays included. What
+   * differs is the corpus's naming convention.
+   *
+   * On task 5 the whole overlap is the ALL-CAPS constants of the AXI standard,
+   * which any implementer writes. Not one function name agrees.
+   *
+   * So this column measures the same thing NEAR measures, and it is exactly
+   * what 207 training examples teach. Calling it SUBSTANCE promises meaning and
+   * delivers convention; the number is fine, the name is not, and the reader is
+   * told which.
+   */
+  console.log(
+    '    SUBSTANCE это СОГЛАСИЕ ПО ИМЕНАМ, а не по смыслу: два верных решения\n' +
+      '      с разными именами дают 0. Мерит то же, чему учат примеры.'
   )
 
   console.log('\n── чего здесь не измерить ──')

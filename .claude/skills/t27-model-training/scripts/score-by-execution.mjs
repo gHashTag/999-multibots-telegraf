@@ -333,6 +333,62 @@ async function main() {
       'ЖУЛЬНИК (одно на всё)'
     )
 
+    /*
+     * THE FLOOR EQUALS THE CEILING, AND THAT IS THIS COLUMN'S WHOLE STORY.
+     *
+     * Give every task its NEIGHBOUR's reference -- a perfect spec, attached to
+     * the wrong question -- and measured 08.09.2026 it scores:
+     *
+     *     runnable 16   blocked 18   tests 97   passed 97   = 100%
+     *
+     * Identical to the reference row, digit for digit. Inevitable in hindsight:
+     * this file judges an answer by ITS OWN tests, so a well-formed spec passes
+     * whatever question it was meant to answer.
+     *
+     * The header already said the score "can be gamed" and must be read beside
+     * RELEVANT. The number makes it exact: against any coherent answer this
+     * column has NO discriminating power at all. It separates coherent from
+     * broken, and nothing finer.
+     */
+    /*
+     * ON A SAMPLE, BECAUSE THIS BATTERY IS PART OF `tri doctor`.
+     *
+     * The full control was a third pass over 34 specs, each compiling Zig. It
+     * tripled the battery's cost and filled the disk on its first run. The
+     * finding needs nothing like 34: floor-equals-ceiling is structural here,
+     * and eight show it as plainly as thirty-four.
+     *
+     * Measured at full size before the cut, so the sample is a saving and not
+     * a guess: shuffled scored 16 runnable / 18 blocked / 97 of 97, identical
+     * to the reference row digit for digit.
+     */
+    const SAMPLE = 8
+    const sample = refs.slice(0, SAMPLE)
+    const shuffled = await scoreAll(
+      sample.map((r, i) => ({
+        reference: r,
+        answer: sample[(i + 1) % SAMPLE],
+      })),
+      `ПЕРЕМЕШАНО (выборка ${SAMPLE})`
+    )
+    const perfectSample = await scoreAll(
+      sample.map(r => ({ reference: r, answer: r })),
+      `эталон (та же выборка ${SAMPLE})`
+    )
+    // Compared against the SAME sample: two different denominators would make
+    // an equality claim meaningless.
+    if (
+      shuffled.runnable === perfectSample.runnable &&
+      shuffled.tests === perfectSample.tests
+    ) {
+      console.log(
+        '\n  ⚠️  ПЕРЕМЕШАННЫЙ КОНТРОЛЬ РАВЕН ЭТАЛОНУ.\n' +
+          '      Это не поломка прибора, а его предел: он судит ответ ЕГО ЖЕ\n' +
+          '      тестами, поэтому любой связный спек проходит. Отличает\n' +
+          '      связное от сломанного — и ничего тоньше.'
+      )
+    }
+
     const bad = []
     if (perfect.rate < 0.98) {
       bad.push(
