@@ -12,6 +12,7 @@ import { Markup } from 'telegraf'
 import {
   ACTION_PREFIX,
   topupButtonLabel,
+  standardButtons,
 } from '@/navigation/helpers/actionButtons'
 import { remainingBalanceLine } from '@/price/helpers/remainingBalanceLine'
 
@@ -165,7 +166,9 @@ export async function generateNeuroPhotoMulti(
     await ctx.reply(
       isRu
         ? `Недостаточно звёзд для серии из ${actualImageCount} фото: нужно ${exactTotalCost} ⭐, на балансе ${currentBalance} ⭐.`
-        : `Not enough stars for a series of ${actualImageCount} photos: need ${exactTotalCost} ⭐, you have ${currentBalance} ⭐.`
+        : `Not enough stars for a series of ${actualImageCount} photos: need ${exactTotalCost} ⭐, you have ${currentBalance} ⭐.`,
+      // The refusal hands over the way to pay; standardButtons puts top-up first.
+      standardButtons(isRu)
     )
     return null
   }

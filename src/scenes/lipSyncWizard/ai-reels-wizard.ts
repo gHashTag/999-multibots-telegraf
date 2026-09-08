@@ -19,6 +19,7 @@ import {
 } from '@/config/lipsync-models.config'
 import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Интерфейс для aiReels теперь определен в MySession interface
 
@@ -640,7 +641,8 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
                 `💳 У вас: ${currentBalance.toFixed(2)}⭐`
             : `💰 Insufficient funds for AI Reels creation\n\n` +
                 `📊 Template 1 cost: ${totalCost}⭐ ($${(totalCost / 100).toFixed(2)})\n` +
-                `💳 You have: ${currentBalance.toFixed(2)}⭐`
+                `💳 You have: ${currentBalance.toFixed(2)}⭐`,
+          standardButtons(isRu)
         )
         return ctx.scene.leave()
       }

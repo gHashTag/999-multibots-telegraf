@@ -31,6 +31,7 @@ import {
   calculateAIReelsPrice,
   formatPriceMessage,
 } from '@/helpers/ai-reels-pricing'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 logger.info('📦 [HEYGEN RENDER WIZARD] Module loaded')
 
@@ -716,7 +717,8 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
             ? `💰 Недостаточно средств\n\n${formatPriceMessage(priceBreakdown, isRu)}\n\n❌ У вас: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Необходимо пополнить: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
             : `💰 Insufficient funds\n\n${formatPriceMessage(priceBreakdown, false)}\n\n❌ You have: ${(currentBalance || 0).toFixed(0)}⭐\n💳 Need to top up: ${(estimatedCost - (currentBalance || 0)).toFixed(0)}⭐`
 
-          await ctx.reply(insufficientMessage)
+          // The refusal hands over the way to pay; standardButtons puts top-up first.
+          await ctx.reply(insufficientMessage, standardButtons(isRu))
           return ctx.scene.leave()
         }
 

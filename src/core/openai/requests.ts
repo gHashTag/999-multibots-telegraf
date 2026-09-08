@@ -1,6 +1,7 @@
 import { openai } from '.'
 import { GLMProvider } from './glm-provider'
 import { logger } from '@/utils/logger'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 /**
  * Цена одной картинки Nano Banana Pro — или `null`, если её нет в прайсе.
@@ -162,7 +163,11 @@ export const answerAi = async (
             : `❌ Insufficient stars for image generation\n\nRequired: ${costPerImage}⭐\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`
 
         if (ctx) {
-          await ctx.reply(errorMessage)
+          // The refusal hands over the way to pay; standardButtons puts top-up first.
+          await ctx.reply(
+            errorMessage,
+            standardButtons(Boolean(isRu || languageCode === 'ru'))
+          )
         }
         return errorMessage
       }
