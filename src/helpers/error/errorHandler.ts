@@ -36,6 +36,22 @@ interface TelegramError {
  * @param bot Экземпляр бота Telegraf
  */
 export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
+  /*
+   * THE SUBSCRIBER AND ITS CHANNEL COME UP IN ONE MOVE.
+   *
+   * Everything `bot.catch` below catches is sent through telegramLogService --
+   * and NOBODY called its `initialize()`, not one line in the repository. The
+   * service returned from `log()` silently, so the owner received not a single
+   * incident in all that time, and nothing said so: the calls are in place,
+   * nothing throws, and the Telegram group is empty.
+   *
+   * The wiring sits here rather than at a startup point for exactly that
+   * reason: a startup point can be forgotten, but installing the error catcher
+   * without raising its delivery channel is now impossible -- it is one
+   * function.
+   */
+  telegramLogService.initializeOnce(bot)
+
   bot.catch((err, ctx) => {
     // Типизируем ошибку
     const error = err as TelegramError
