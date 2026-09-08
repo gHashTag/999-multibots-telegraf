@@ -14,8 +14,7 @@ import {
 import { verifyCallbackToken } from '@/utils/callbackToken'
 import { getUserLanguageFromDB } from '@/core/supabase'
 import { sanitizeUrl } from '@/utils/sanitize'
-// ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
-// import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
+import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
 const router: Router = express.Router()
 
@@ -2148,9 +2147,21 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
         hasTaskContext: !!taskContext,
       })
 
-      // Fallback: используем asyncLipSyncManager если он доступен (для lip-sync задач)
-      // ✅ EMERGENCY DISABLE: asyncLipSyncManager causing TypeScript errors
-      // const updated = await asyncLipSyncManager.completeJobByTaskId(taskId, result)
+      // Fallback for lip-sync jobs: videoTaskStore holds no context for jobs
+      // started through asyncLipSyncManager (only ai-reels-render-wizard saves
+      // there), so without this the webhook does nothing and delivery waits on
+      // the 30s poller. Restored after testing the "causing TypeScript errors"
+      // note that disabled it: the project typechecks clean with it back.
+      // completeJobByTaskId refuses a job the poller already settled, so this
+      // cannot re-deliver to somebody who was already refunded.
+      const updated = await asyncLipSyncManager.completeJobByTaskId(
+        taskId,
+        result
+      )
+      logger.info('[KIE.AI WEBHOOK] asyncLipSyncManager fallback applied', {
+        taskId,
+        updated,
+      })
     }
   } catch (error) {
     logger.error('❌ [KIE.AI WEBHOOK] Error notifying job completion', {

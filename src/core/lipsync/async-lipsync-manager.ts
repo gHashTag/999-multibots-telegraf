@@ -679,6 +679,29 @@ export class AsyncLipSyncManager {
       return false
     }
 
+    // A settled job has already told the person what happened and, on a
+    // failure, already moved money (see refundIssued). The fallback poller
+    // gives up 12 minutes in; a webhook arriving after that would flip a
+    // refunded job to 'completed' and send the video anyway, so the person
+    // would keep the refund AND get the product. Refuse to contradict a
+    // settled outcome; record it instead, because the generation was paid for
+    // upstream and the owner needs to see how often it is thrown away.
+    if (job.status === 'completed' || job.status === 'failed') {
+      logger.warn(
+        '[ASYNC LIPSYNC] Webhook arrived for an already settled job, not re-delivering',
+        {
+          jobId: job.id,
+          taskId,
+          telegramId: job.telegramId,
+          settledStatus: job.status,
+          refundIssued: job.refundIssued === true,
+          webhookReportsSuccess: 'id' in result,
+          ageMs: Date.now() - job.startTime,
+        }
+      )
+      return false
+    }
+
     // Определяем статус на основе результата
     const isSuccess = 'id' in result
     job.status = isSuccess ? 'completed' : 'failed'
