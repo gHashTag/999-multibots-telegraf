@@ -130,17 +130,42 @@ function classifySuspects(suspects, ranFirst, recheckPassing) {
  * instead of an answer. null here means "could not ask" and an empty set means
  * "the file does not collect"; those are different news and are kept apart.
  */
+/**
+ * The module a loader failure names, if it names one.
+ *
+ * "Could not enumerate this file" and "this file cannot be LOADED on this
+ * machine" are different facts, and the gate printed the first for both. It
+ * spent a day reporting provider-registry.test.ts as an unexplained loss of 18
+ * test names, when the whole reason is that io-ts cannot resolve fp-ts here --
+ * an install, not a deleted test. Somebody reading that line looks for a
+ * commit that removed tests, and there is none.
+ */
+function missingModuleFrom(stderr) {
+  const m = /Cannot find (?:module|package) '([^']+)'/.exec(
+    String(stderr || '')
+  )
+  return m ? m[1] : null
+}
+
 function collectedNames(file) {
   let out
   try {
     out = execFileSync('npx', ['vitest', 'list', file], {
       cwd: REPO,
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: 32 * 1024 * 1024,
     })
-  } catch {
-    return null
+  } catch (e) {
+    // Keep the reason instead of discarding it: stderr was piped to nowhere
+    // and the answer was in it the whole time.
+    const missing = missingModuleFrom(`${e.stderr || ''}${e.stdout || ''}`)
+    return {
+      names: null,
+      why: missing
+        ? `file cannot be LOADED here — '${missing}' is not installed; an install, not a lost test`
+        : 'could not enumerate the tests of this file',
+    }
   }
   const base = path.basename(file)
   const marker = `${base} > `
@@ -156,7 +181,7 @@ function collectedNames(file) {
         .trim()
     )
   }
-  return names
+  return { names, why: null }
 }
 
 /**
@@ -189,9 +214,9 @@ function explainConfirmed(confirmed) {
   const vanished = []
   const unknown = []
   for (const [file, ids] of byFile) {
-    const now = collectedNames(file)
+    const { names: now, why } = collectedNames(file)
     if (now === null) {
-      unknown.push([file, ids, 'не смог перечислить тесты файла'])
+      unknown.push([file, ids, why])
       continue
     }
     if (now.size === 0) {
@@ -424,6 +449,7 @@ module.exports = {
   fileOf,
   classifySuspects,
   filesWithoutAssertions,
+  missingModuleFrom,
 }
 
 if (require.main === module) main()
