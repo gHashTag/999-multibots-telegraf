@@ -629,6 +629,7 @@ If not, continue on your own and click the "I myself" button`
           `Unique users today: ${s.todayUniqueUsers}\n` +
           `Leads sent to owner today: ${s.todayLeads}\n` +
           `Non-text messages today: ${s.todayNonText}\n` +
+          `Media relayed to owner today: ${s.todayMediaRelayed}\n` +
           `Skipped (owner replied): ${s.todayTakeoverSkipped}\n\n` +
           `Connections:\n${connList}`
       )
