@@ -2,6 +2,7 @@
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import { запомнитьНомер } from './src/agent/known-phone'
+import { soul } from './src/agent/chat'
 import { удалитьСвоёФото } from './src/assets/delete-own-photo'
 import { KIE_MODELS } from './src/agent/kie-models'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
@@ -3038,6 +3039,22 @@ const server = createServer(async (req, res) => {
         // Из каких исходников этот экземпляр рисует. Разошёлся с репозиторием
         // — крутится не тот образ, сколько бы деплой ни рапортовал SUCCESS.
         compositions: compositionsFingerprint,
+        /**
+         * IS THE OWNER'S VOICE LOADED?
+         *
+         * SOUL.md sets the agent's tone, and it is absent from this image:
+         * the build context is apps/vibee-editor and Docker cannot COPY above
+         * its own root, so the repository-root file never enters. The agent
+         * says so once, to console.warn, on the first turn after a restart --
+         * a line nobody reads, about a capability that is off for every answer
+         * the agent gives.
+         *
+         * Reported here because /health is the one place anything already
+         * looks. It is a fact, not an alarm: `false` means answers are being
+         * produced without the owner's voice, which is worth knowing when
+         * judging their quality.
+         */
+        ownerVoiceLoaded: Boolean(soul()),
         /**
          * Коммит, из которого собран этот экземпляр.
          *

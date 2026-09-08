@@ -189,7 +189,7 @@ ${MONEY_AND_PLAN}
  * запуск из исходников и Railway, где репо лежит целиком.
  */
 let soulCache: string | null | undefined
-function soul(): string | null {
+export function soul(): string | null {
   if (soulCache !== undefined) return soulCache
   const here = dirname(fileURLToPath(import.meta.url))
   /*
