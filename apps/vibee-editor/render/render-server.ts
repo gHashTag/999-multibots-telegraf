@@ -11055,6 +11055,26 @@ async function main() {
     console.warn('[STARS] orphan wiring failed:', String(e).slice(0, 120))
   }
 
+  /*
+   * And the queue itself is mirrored to a table, so a deploy stops eating the
+   * cards the owner has not pressed yet.
+   *
+   * AFTER the orphan wiring and awaited, both deliberately. The load reports
+   * drafts that expired while the process was down, and drafts that were
+   * never issued and therefore can never be confirmed -- those reports must
+   * reach the listener registered just above, or their Stars invoices stay
+   * pending for a card nobody can press.
+   */
+  try {
+    const store = await import('./src/agent/proposal-store')
+    await store.wireProposalStore(() => getPool())
+  } catch (e) {
+    console.error(
+      '[proposal-store] wiring failed — cards will not survive a restart:',
+      String(e).slice(0, 160)
+    )
+  }
+
   // A deploy must not cut a stream in half: on SIGTERM stop accepting, let
   // in-flight requests finish (bounded), then exit. See src/graceful-shutdown.ts.
   installGracefulShutdown(server, {
