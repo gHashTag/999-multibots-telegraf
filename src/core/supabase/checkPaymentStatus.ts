@@ -17,8 +17,10 @@ import { isDev } from '@/config'
  * the table holding the defect cannot see the defect.
  *
  * Answering "did this person actually pay" needs an INDEPENDENT channel --
- * Robokassa's OpStateExt, called with the merchant credentials. That is a
- * separate tool and it does not exist yet.
+ * Robokassa's OpStateExt, called with the merchant credentials. That tool now
+ * exists: scripts/robokassa-reconcile.cjs, or `tri сверка`. It reads both
+ * sides and writes to neither, and it refuses to run without
+ * ROBOKASSA_PASSWORD_2 rather than reporting an empty list.
  *
  * Nothing calls this today (only the barrel re-exports it). Left in place
  * rather than deleted: the shape is a reasonable base for the real thing.
