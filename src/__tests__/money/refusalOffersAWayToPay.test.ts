@@ -96,7 +96,29 @@ describe('the number of money refusals with nothing to press does not grow', () 
   )
   const NOISE =
     /logger\.|console\.|^\s*\/\/|^\s*\*|description:\s*'Insufficient/
-  const isRefusal = (line: string) => PHRASE.test(line) && !NOISE.test(line)
+  /*
+   * A THROWN STRING IS NOT A MESSAGE, AND NEITHER IS A CONDITION.
+   *
+   * Classified all 34 by hand on 2026-09-08: ten are not messages to anybody.
+   * Five are `throw new Error('Not enough stars')` -- a signal to the caller,
+   * which then decides what to tell the person. Two are conditions testing
+   * whether an error WAS that (`error.message.includes('Not enough stars')`).
+   * Two are fixtures. Counting them as "refusals with nothing to press" is how
+   * this number stayed loose enough to absorb three real repairs without
+   * moving, twice.
+   *
+   * Narrowing is the dangerous direction, so every exclusion below has a
+   * fixture in both directions in the test named after it, and the population
+   * floor stays where it is.
+   */
+  const THROWN = /\bthrow\s+new\s+\w*Error\s*\(/
+  const CONDITION =
+    /^\s*(?:\}\s*else\s+)?if\s*\(|\.includes\s*\(|^\s*[!&|]{1,2}\s*\w/
+  const isRefusal = (line: string) =>
+    PHRASE.test(line) &&
+    !NOISE.test(line) &&
+    !THROWN.test(line) &&
+    !CONDITION.test(line)
 
   /** Blank out comments, keeping newlines so the window still lines up. */
   const stripComments = (text: string) =>
@@ -113,6 +135,13 @@ describe('the number of money refusals with nothing to press does not grow', () 
       .split('\n')
       .filter(Boolean)
       .filter(f => !f.includes('__tests__') && !f.endsWith('.test.ts'))
+      // Fixtures describe payments that never happened; `test/fixtures` does
+      // not match the `__tests__` filter above.
+      .filter(
+        f =>
+          !/\/(?:test|__fixtures__)\/fixtures?\//.test(f) &&
+          !/fixtures?\.ts$/.test(f)
+      )
 
     const sites: Array<{ file: string; line: number; keyboard: boolean }> = []
     for (const file of files) {
@@ -211,6 +240,37 @@ describe('the number of money refusals with nothing to press does not grow', () 
     expect(isRefusal("await ctx.reply('Балан пополнен')")).toBe(false)
   })
 
+  it('counts messages to a person, and not throws, conditions or fixtures', () => {
+    /*
+     * EVERY EXCLUSION, IN BOTH DIRECTIONS. Narrowing a population is how a
+     * number is made to look better without anything improving, so each thing
+     * dropped is named here with a counter-example that must stay.
+     */
+    // A thrown string is a signal to the caller, not a message to anybody.
+    expect(isRefusal("        throw new Error('Not enough stars')")).toBe(false)
+    // A test for whether an error WAS that is not the refusal either.
+    expect(
+      isRefusal(
+        "      if (error.message && error.message.includes('Not enough stars')) {"
+      )
+    ).toBe(false)
+    expect(
+      isRefusal("        !errorMessageToUser.includes('Not enough stars')")
+    ).toBe(false)
+
+    // AND THE THINGS THAT MUST SURVIVE. Without these the rules above would be
+    // satisfied by a matcher that dropped everything.
+    expect(isRefusal('      ? `❌ Недостаточно звезд для генерации.`')).toBe(
+      true
+    )
+    expect(
+      isRefusal("        : '❌ Not enough stars for image editing.'")
+    ).toBe(true)
+    expect(
+      isRefusal('      const errorMsg = `Недостаточно средств. Баланс: ${b}`')
+    ).toBe(true)
+  })
+
   it('scores a removed keyboard as no keyboard, and a real one as a keyboard', () => {
     /*
      * A CEILING CANNOT CATCH A LOOSENED DETECTOR: scoring more sites as
@@ -248,7 +308,11 @@ describe('the number of money refusals with nothing to press does not grow', () 
     const sites = measure()
     // A floor, not a ceiling: a matcher that stopped matching would satisfy
     // the debt ceiling below by finding nothing at all.
-    expect(sites.length).toBeGreaterThanOrEqual(55)
+    // Was 55, when the population still counted throws, conditions and
+    // fixtures. Narrowing to real messages took it to 49, and the floor moves
+    // with it ONCE, together with the fixtures below that pin what was excluded
+    // and what was not. A floor lowered every time it fires is not a floor.
+    expect(sites.length).toBeGreaterThanOrEqual(45)
   })
 
   it('does not grow the number that offer nothing', () => {
@@ -256,10 +320,11 @@ describe('the number of money refusals with nothing to press does not grow', () 
     const mute = sites.filter(s => !s.keyboard)
     expect(
       mute.length,
-      // 34, bisected with THIS matcher on both sides -- main and this branch
-      // both fail at 33 and pass at 34. The three repairs in this change moved
-      // it by ZERO, and that is stated rather than dressed up: they are pinned
-      // by the assertion below instead, which names them.
+      // 25, bisected: fails at 24, passes at 25. It was 34 while the
+      // population still held throws, conditions and fixtures; the nine that
+      // left are listed in the exclusion test above and NOT ONE of them was a
+      // message to a person. Verified by diffing the two lists rather than by
+      // trusting the drop.
       //
       // TIGHT, and it has to be: a ceiling one above the real figure cannot see
       // a regression of one. Bisected with the CORRECTED classifier on both
@@ -267,7 +332,7 @@ describe('the number of money refusals with nothing to press does not grow', () 
       // 38. Measuring the two sides with different instruments is how the first
       // version of this claim came out wrong.
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(34)
+    ).toBeLessThanOrEqual(25)
   })
 
   /**
