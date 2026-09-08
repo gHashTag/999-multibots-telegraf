@@ -33,11 +33,12 @@
  * and finding out here costs a minute instead of a training run.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join, relative } from 'node:path'
 import { readdirSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 const run = promisify(execFile)
 const T27C = process.env.T27C || 't27c'
@@ -295,6 +296,60 @@ async function main() {
 
   const tiny = rows.filter(r => r.messages[2].content.length < 120)
   console.log(`[spec] подозрительно коротких ответов: ${tiny.length}`)
+
+  /*
+   * A QUARTER OF THE CORPUS CONTAINS TEXT THE COMPILER IGNORES.
+   *
+   * `t27c parse-complete` answers "does the parser consume the whole file".
+   * Measured 09.09.2026 over this dataset: 61 of 241 specs -- 25% -- parse
+   * successfully while DISCARDING top-level tokens. 22 425 of them.
+   *
+   * Not a truncation at the end: on specs/isa/registers.t27 the parser reaches
+   * line 590 of 594 and still drops 39 tokens somewhere inside.
+   *
+   * It matters here because those specs are the TARGETS. Training on them
+   * teaches the model to write material that does not count, and `spec-status`
+   * calls them IMPLEMENTED on the strength of the part that was read.
+   *
+   * Reported rather than excluded: dropping 61 of 241 is a quarter of the
+   * corpus and the decision belongs to whoever runs the training, not to this
+   * script. The number is printed so the choice is deliberate.
+   */
+  let discarding = 0
+  try {
+    const probe = await mkdtemp(join(tmpdir(), 'spec-complete-'))
+    await Promise.all(
+      rows.map((r, i) =>
+        writeFile(
+          join(probe, String(i).padStart(4, '0') + '.t27'),
+          r.messages[2].content
+        )
+      )
+    )
+    const { stdout } = await run(
+      T27C,
+      ['parse-complete', '--specs-dir', probe],
+      {
+        timeout: 600_000,
+        maxBuffer: 256 * 1024 * 1024,
+      }
+    )
+    await rm(probe, { recursive: true, force: true })
+    discarding = Number(
+      (/parse but DISCARD\s+(\d+)/.exec(stdout) || [])[1] || 0
+    )
+  } catch {
+    discarding = -1
+  }
+  if (discarding < 0) {
+    console.log('[spec] полнота разбора    : ⚠️ не проверена (t27c не ответил)')
+  } else {
+    const pct = Math.round((discarding / rows.length) * 100)
+    console.log(
+      `[spec] разбор ТЕРЯЕТ токены: ${discarding} из ${rows.length} спеков (${pct}%)` +
+        (discarding ? ' — эти цели учат писать то, что не считается' : '')
+    )
+  }
 
   /*
    * A NUMBER PRINTED AND NOT ASSERTED ON IS DECORATION.
