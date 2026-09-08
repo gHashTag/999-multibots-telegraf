@@ -7639,7 +7639,7 @@ const server = createServer(async (req, res) => {
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
-      const taken = claim(who, asked.id, asked.secret)
+      const taken = claim(who, asked.id, asked.secret, 'cancel')
       return sendJson(res, taken.ok ? 200 : 409, {
         ok: taken.ok,
         error: taken.ok ? undefined : taken.why,
@@ -8007,9 +8007,15 @@ const server = createServer(async (req, res) => {
                redeemed boolean NOT NULL DEFAULT false
              )`
           )
+          await pool.query(
+            `ALTER TABLE token_invoices
+               ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
+               ADD COLUMN IF NOT EXISTS cancel_reason text`
+          )
+          // A cancelled draft's invoice is not "unpaid": nobody was asked.
           const pend = await pool.query(
             `SELECT id, tokens, stars, created_at FROM token_invoices
-             WHERE telegram_id = $1 AND redeemed = FALSE
+             WHERE telegram_id = $1 AND redeemed = FALSE AND cancelled_at IS NULL
              ORDER BY created_at DESC LIMIT 10`,
             [who]
           )
@@ -10805,6 +10811,14 @@ async function main() {
     console.log('🤖 Autopilot: supervised child starting (AUTOPILOT_LOOP=1)')
     startAutopilot()
   }
+
+  // A draft that leaves the proposal queue unsent marks its Stars invoice.
+  // The queue has no database; it is handed one here, once, at startup.
+  import('./src/agent/invoice-orphans')
+    .then(m => m.wireInvoiceOrphans(() => getPool()))
+    .catch(e =>
+      console.warn('[STARS] orphan wiring failed:', String(e).slice(0, 120))
+    )
 
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)

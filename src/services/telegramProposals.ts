@@ -49,6 +49,8 @@ export interface Proposal {
   action: string
   target: string
   what?: string
+  /** The recipient in words, from the server; shown beside the id only. */
+  display?: string
 }
 
 function apiKey(): string {
@@ -161,11 +163,23 @@ export function proposalCard(
    * proposal itself and is filed separately.
    */
   const opaque = /^-?\d+$/.test(p.target)
-  const to = opaque
-    ? isRu
-      ? `${p.target} (числовой id — не могу показать имя)`
-      : `${p.target} (numeric id — no name to show)`
-    : p.target
+  /*
+   * A name the owner recognises, NEXT TO the id the message goes to. Never
+   * instead of it: the name is third-party text (whatever the person typed
+   * into Telegram), so it is cut to one line here again, and the id stays
+   * in view for the owner to check.
+   */
+  const name = String(p.display ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 64)
+  const to = name
+    ? `${name}, id ${p.target}`
+    : opaque
+      ? isRu
+        ? `${p.target} (числовой id — не могу показать имя)`
+        : `${p.target} (numeric id — no name to show)`
+      : p.target
   const head = isRu
     ? `Отправить сообщение в Telegram?\n\nКому: ${to}`
     : `Send this Telegram message?\n\nTo: ${to}`

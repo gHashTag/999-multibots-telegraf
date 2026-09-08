@@ -39,6 +39,8 @@ function daysSince(iso: string | null | undefined): number | null {
 interface LeadRow {
   telegram_id: string | number
   bot_name?: string | null
+  first_name?: string | null
+  username?: string | null
 }
 
 /**
@@ -54,10 +56,18 @@ interface LeadRow {
 export async function reachable(
   ctx: ToolContext | undefined,
   leadId: string
-): Promise<{ ok: true; botName: string | null } | { ok: false; why: string }> {
+): Promise<
+  | {
+      ok: true
+      botName: string | null
+      name: string | null
+      username: string | null
+    }
+  | { ok: false; why: string }
+> {
   const scope = await visibleScope(ctx)
   const rows = await askSupabase<LeadRow>(
-    `users?select=telegram_id,bot_name&telegram_id=eq.${encodeURIComponent(leadId)}&limit=1`
+    `users?select=telegram_id,bot_name,first_name,username&telegram_id=eq.${encodeURIComponent(leadId)}&limit=1`
   )
   const found = rows[0]
   if (!found) return { ok: false, why: 'такого человека нет' }
@@ -66,7 +76,14 @@ export async function reachable(
   if (scope !== null && (!botName || !scope.includes(botName))) {
     return { ok: false, why: 'такого человека нет' }
   }
-  return { ok: true, botName }
+  return {
+    ok: true,
+    botName,
+    // What the owner recognises on the card. Third-party text; the caller
+    // cuts it to one line before it goes anywhere.
+    name: found.first_name || null,
+    username: found.username || null,
+  }
 }
 
 export const CRM_TOUCH_TOOLS: AgentTool[] = [

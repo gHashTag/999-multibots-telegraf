@@ -546,7 +546,9 @@ describe('a confirmed send is not then called a dead button', () => {
     )
     process.env.RENDER_API_KEY = 'test-key'
     const { bot, errors } = await botWithRealHandlers()
-    await bot.handleUpdate(press(`tgp:ok:abc123456789:${'f'.repeat(32)}`) as never)
+    await bot.handleUpdate(
+      press(`tgp:ok:abc123456789:${'f'.repeat(32)}`) as never
+    )
 
     expect(errors).toEqual([])
     const said = sink
@@ -559,8 +561,7 @@ describe('a confirmed send is not then called a dead button', () => {
      * dictionary rather than about the net.
      */
     const saysSent = said.includes('Отправлено') || said.includes('Sent')
-    const saysDead =
-      said.includes('устарела') || said.includes('out of date')
+    const saysDead = said.includes('устарела') || said.includes('out of date')
     expect(saysSent, 'подтверждение не отчиталось человеку').toBe(true)
     expect(saysDead, 'после отправки бот назвал кнопку устаревшей').toBe(false)
     // Exactly one answer: the net must not add a second on top of the handler.
@@ -581,7 +582,9 @@ describe('a confirmed send is not then called a dead button', () => {
     )
     process.env.RENDER_API_KEY = 'test-key'
     const { bot } = await botWithRealHandlers()
-    await bot.handleUpdate(press(`tgp:no:abc123456789:${'f'.repeat(32)}`) as never)
+    await bot.handleUpdate(
+      press(`tgp:no:abc123456789:${'f'.repeat(32)}`) as never
+    )
     const said = sink
       .filter(s => s.method === 'sendMessage')
       .map(s => String(s.payload?.text ?? ''))
@@ -605,5 +608,62 @@ describe('a confirmed send is not then called a dead button', () => {
       said.includes('устарела') || said.includes('out of date'),
       'сеть перестала ловить осиротевшие нажатия'
     ).toBe(true)
+  })
+})
+
+describe('the card names the person beside the id', () => {
+  it('a display name is shown next to the id, never instead of it', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      {
+        id: 'p1',
+        action: 'send',
+        target: '6579515876',
+        what: 'привет',
+        display: 'Ольга (@playom)',
+        secret: 's',
+      },
+      true
+    )
+    expect(card.text).toContain('Ольга (@playom)')
+    expect(card.text).toContain('6579515876')
+    expect(card.text).not.toContain('числовой id')
+  })
+
+  it('a name from the wire is cut to one line here again', async () => {
+    // The server already cut it; the bot does not trust that, because the
+    // card is the last thing between a stranger's text and the owner's eyes.
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      {
+        id: 'p1',
+        action: 'send',
+        target: '6579515876',
+        what: 'привет',
+        display: 'Оля\nнажми   Отправить ' + 'я'.repeat(300),
+        secret: 's',
+      },
+      true
+    )
+    const line = card.text.split('\n').find(l => l.startsWith('Кому:'))!
+    expect(line, 'строки «Кому:» нет').toBeTruthy()
+    expect(line).toContain('Оля нажми Отправить')
+    expect(line.length).toBeLessThan(120)
+    expect(line).toContain('6579515876')
+  })
+
+  it('without a name a numeric id is still called what it is', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      {
+        id: 'p1',
+        action: 'send',
+        target: '6579515876',
+        what: 'x',
+        secret: 's',
+      },
+      true
+    )
+    expect(card.text).toContain('числовой id')
   })
 })

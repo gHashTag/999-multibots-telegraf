@@ -135,6 +135,14 @@ export interface Proposal {
   target: string
   what?: string
   why: string
+  /** The recipient in words, beside the id. See PendingProposal.display. */
+  display?: string
+}
+
+/** What a caller may attach to a draft beyond the message itself. */
+export interface ProposalExtras {
+  display?: string
+  invoiceId?: number
 }
 
 /**
@@ -174,9 +182,11 @@ function propose(
   why: string,
   ctx?: ToolContext,
   lead?: string,
-  bot?: string | null
+  bot?: string | null,
+  extra?: ProposalExtras
 ): Proposal & { id: string } {
   requireIdentity(ctx)
+  const named = extra?.display ? { display: extra.display } : {}
   /*
    * A SHORT ID, BECAUSE THE BUTTON HAS 64 BYTES.
    *
@@ -221,6 +231,8 @@ function propose(
       turn: ctx?.turn,
       lead,
       bot,
+      display: extra?.display,
+      invoiceId: extra?.invoiceId,
     })
   }
   /*
@@ -235,12 +247,13 @@ function propose(
       action,
       target,
       what,
+      ...named,
       why:
         'Подтвердить это можно только в чате бота — там есть кнопки ' +
         '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
     }
   }
-  return { proposal: true, id, action, target, what, why }
+  return { proposal: true, id, action, target, what, ...named, why }
 }
 
 /** Session presence is a state of the service, announced once — not per call. */

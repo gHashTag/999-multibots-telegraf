@@ -199,7 +199,12 @@ describe('a group or channel is not a person', () => {
      */
     const { posted, f } = recorder()
     await expect(
-      mintTokenInvoice({ forTelegramId: '-1001234567890', tokens: 10, fetchImpl: f, botToken: 't' })
+      mintTokenInvoice({
+        forTelegramId: '-1001234567890',
+        tokens: 10,
+        fetchImpl: f,
+        botToken: 't',
+      })
     ).rejects.toThrow('не человек')
     expect(posted).toHaveLength(0)
   })
@@ -215,13 +220,19 @@ describe('a failed pending row leaves a line where somebody can find it', () => 
      */
     const warned: string[] = []
     const real = console.warn
-    console.warn = (...a: unknown[]) => { warned.push(a.map(String).join(' ')) }
+    console.warn = (...a: unknown[]) => {
+      warned.push(a.map(String).join(' '))
+    }
     try {
       const { f } = recorder()
       await mintTokenInvoice({
         forTelegramId: '6579515876',
         tokens: 10,
-        pool: { query: async () => { throw new Error('connection refused') } },
+        pool: {
+          query: async () => {
+            throw new Error('connection refused')
+          },
+        },
         fetchImpl: f,
         botToken: 't',
       })
@@ -230,5 +241,60 @@ describe('a failed pending row leaves a line where somebody can find it', () => 
     }
     expect(warned.join(' ')).toContain('pending')
     expect(warned.join(' ')).toContain('connection refused')
+  })
+})
+
+describe('the pending row id travels with the draft', () => {
+  /*
+   * A cancel has to find the row it un-pends. The INSERT asks the database
+   * for the id and the mint hands it back; everything that can go wrong on
+   * that path must leave the link and the row intact.
+   */
+  const poolAnswering = (rows: unknown[], failOn?: string) => {
+    const queries: Array<{ sql: string; params: unknown[] }> = []
+    return {
+      queries,
+      query: async (sql: string, params: unknown[] = []) => {
+        const flat = sql.replace(/\s+/g, ' ').trim()
+        queries.push({ sql: flat, params })
+        if (failOn && flat.startsWith(failOn)) throw new Error('nope')
+        return { rows: flat.startsWith('INSERT') ? rows : [] }
+      },
+    }
+  }
+  const mint = (pool: ReturnType<typeof poolAnswering>) =>
+    mintTokenInvoice({
+      forTelegramId: '6579515876',
+      tokens: 10,
+      pool,
+      fetchImpl: recorder().f,
+      botToken: 't',
+    })
+
+  it('RETURNING id becomes invoiceId', async () => {
+    const pool = poolAnswering([{ id: 42 }])
+    const minted = await mint(pool)
+    expect(minted.invoiceId).toBe(42)
+    expect(pool.queries.find(q => q.sql.startsWith('INSERT'))!.sql).toContain(
+      'RETURNING id'
+    )
+  })
+
+  it('a database that answers without an id leaves invoiceId absent, not NaN', async () => {
+    const minted = await mint(poolAnswering([]))
+    expect(minted).not.toHaveProperty('invoiceId')
+  })
+
+  it('a string id from the driver is a number on the draft', async () => {
+    const minted = await mint(poolAnswering([{ id: '42' }]))
+    expect(minted.invoiceId).toBe(42)
+  })
+
+  it('a failed ALTER does not cost the pending row or the link', async () => {
+    const pool = poolAnswering([{ id: 5 }], 'ALTER')
+    const minted = await mint(pool)
+    expect(pool.queries.some(q => q.sql.startsWith('INSERT'))).toBe(true)
+    expect(minted.invoiceId).toBe(5)
+    expect(minted.url).toContain('t.me')
   })
 })

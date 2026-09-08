@@ -56,6 +56,35 @@ export async function resolveLeadId(
   ctx: ToolContext | undefined,
   chat: string
 ): Promise<string> {
+  return (await resolveLead(ctx, chat)).id
+}
+
+/**
+ * The recipient in words, for the card: "Ольга (@playom)". Both parts are
+ * third-party text -- a first name is whatever the person typed into
+ * Telegram -- so each is cut to one short line, and the username keeps only
+ * the characters Telegram allows in one. Nothing here is ever shown INSTEAD
+ * of the id: the card prints both, and the message goes to the id.
+ */
+export function displayOf(
+  name?: string | null,
+  username?: string | null
+): string | null {
+  const n = oneLine(name, 40)
+  const u = oneLine(username, 32)
+    .replace(/^@+/, '')
+    .replace(/[^A-Za-z0-9_]/g, '')
+  if (n && u) return `${n} (@${u})`
+  if (n) return n
+  if (u) return `@${u}`
+  return null
+}
+
+/** The id the payload needs, and the name the owner will recognise. */
+export async function resolveLead(
+  ctx: ToolContext | undefined,
+  chat: string
+): Promise<{ id: string; display: string | null }> {
   const raw = String(chat ?? '').trim()
   if (/^0\d+$/.test(raw)) {
     throw new Error('telegram_id не начинается с нуля — это не id')
@@ -82,7 +111,7 @@ export async function resolveLeadId(
         `человека с id ${raw} нет в вашей базе — назовите его по @username, чтобы Telegram разрешил адрес`
       )
     }
-    return raw
+    return { id: raw, display: displayOf(known.name, known.username) }
   }
   if (/^-\d+$/.test(raw)) {
     throw new Error(
@@ -96,6 +125,8 @@ export async function resolveLeadId(
       className?: string
       bot?: boolean
       self?: boolean
+      firstName?: string
+      username?: string
     }>
     disconnect?: () => Promise<unknown>
   }
@@ -109,11 +140,15 @@ export async function resolveLeadId(
     let id: string | undefined
     let kind: string | undefined
     let isBot = false
+    let firstName: string | undefined
+    let username: string | undefined
     try {
       const entity = await c.getEntity?.(raw)
       id = entity?.id?.toString()
       kind = entity?.className
       isBot = Boolean(entity?.bot)
+      firstName = entity?.firstName
+      username = entity?.username
     } catch {
       id = undefined
     }
@@ -145,7 +180,7 @@ export async function resolveLeadId(
     // owner's own Stars, sent to Saved Messages.
     if (id === OWNER_TELEGRAM_ID)
       throw new Error('предложение самому себе не имеет смысла')
-    return id
+    return { id, display: displayOf(firstName, username) }
   } finally {
     await c.disconnect?.().catch?.(() => undefined)
   }
@@ -266,7 +301,8 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
             '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
         }
       }
-      const leadId = await resolveLeadId(ctx, chat)
+      const lead = await resolveLead(ctx, chat)
+      const leadId = lead.id
 
       /*
        * The invoice is minted BEFORE the proposal, so the draft the owner reads
@@ -305,12 +341,17 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
         'Предложение ждёт подтверждения владельца. Покажи текст целиком и ссылку — он нажмёт «Отправить» в боте.',
         ctx,
         may.ok ? leadId : undefined,
-        may.ok ? may.botName : undefined
+        may.ok ? may.botName : undefined,
+        {
+          display: lead.display ?? undefined,
+          invoiceId: minted.invoiceId,
+        }
       )
 
       return {
         ...p,
         invoice: {
+          id: minted.invoiceId,
           tokens: minted.tokens,
           stars: minted.stars,
           url: minted.url,

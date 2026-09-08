@@ -60,6 +60,11 @@ tri — оболочка Trinity S³AI
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
   tri worktrees  брошенные копии репозитория (могут хранить несохранённое)
+
+  CRM и личный продавец
+  tri crm-waiting          кто ждёт ответа (прод, от имени владельца, только чтение)
+  tri crm-pitch <name> [tokens] [note]  текст предложения, локально, без счёта
+  tri tg-as <telegram_id> [tool]  что инструменты Telegram отвечают ЭТОМУ человеку на проде
 U
 }
 
@@ -583,6 +588,41 @@ PYEOF
       console.log(composePitch({ name: name || null, tokens: p.токенов, stars: p.звёзд, url: "https://t.me/$invoice-link-here", note: note || undefined }));
       console.log("\n— цена по шкале:", p.токенов, "токенов =", p.звёзд, "⭐️");
     ' -- "$NAME" "$TOK" "$NOTE")
+    ;;
+  tg-as)
+    # What the Telegram tools answer to THIS person on production. The live
+    # check for "clients get their own tools": a stranger with no session must
+    # hear "not connected" (their own fix), never "belongs to the owner", and
+    # never anything from the owner's account. Read-only: tg_dialogs by
+    # default. Usage: tri tg-as <telegram_id> [tool]
+    ID="${2:-}"; TOOL="${3:-tg_dialogs}"
+    [ -z "$ID" ] && { echo "usage: tri tg-as <telegram_id> [tool]"; exit 64; }
+    case "$TOOL" in
+      tg_dialogs|tg_unanswered|tg_contacts) ;;
+      *) echo "only reading tools here: tg_dialogs, tg_unanswered, tg_contacts"; exit 64 ;;
+    esac
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
+    ANSWER=$(curl -s "https://vibee-render-production.up.railway.app/mcp?telegram_id=$ID" \
+      -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
+      -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$TOOL\",\"arguments\":{\"limit\":3}}}")
+    ANSWER="$ANSWER" TOOL="$TOOL" ID="$ID" python3 - <<'PYEOF'
+import json, os
+r = json.loads(os.environ['ANSWER'])
+if 'error' in r:
+    # A thrown tool error arrives as a JSON-RPC error, not as isError content.
+    print(f"{os.environ['TOOL']} as {os.environ['ID']}: refused -> {r['error'].get('message','')[:220]}"); raise SystemExit(0)
+res = r.get('result', {})
+text = (res.get('content') or [{}])[0].get('text', '')
+if res.get('isError'):
+    print(f"{os.environ['TOOL']} as {os.environ['ID']}: refused -> {text[:200]}")
+else:
+    try: s = res.get('structuredContent') or json.loads(text)
+    except Exception: s = {}
+    n = len(s.get('dialogs') or s.get('contacts') or s.get('диалоги') or [])
+    print(f"{os.environ['TOOL']} as {os.environ['ID']}: ok, {n} item(s) on THEIR account")
+PYEOF
     ;;
   open)     sed -n '/^## Открыто/,/^## Не переоткрывать/p' "$LOOP/pipeline-STATUS.md" ;;
   tests)

@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { onOrphaned } from './src/agent/tg-proposals'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
@@ -866,5 +867,125 @@ describe('a wrong secret is visible, not merely counted', () => {
     forgetProposals()
     const kept = remember(draft('p1', '144022504'))
     expect(Object.keys(kept)).not.toContain('wrong')
+  })
+})
+
+describe('an invoice does not outlive its draft', () => {
+  /*
+   * A crm_offer mints a Stars link and writes a token_invoices row BEFORE the
+   * owner sees the card. Until 2026-09-08 a cancelled draft left that row
+   * pending forever, and the reconcile kept listing a sale nobody was asked
+   * to make. The queue owns no database, so it reports instead: every draft
+   * that leaves unsent with an invoice attached, and why.
+   */
+  const WHO = '144022504'
+  let seen: Array<{ id: string; invoiceId?: number; reason: string }> = []
+  beforeEach(() => {
+    forgetProposals()
+    seen = []
+    onOrphaned((p, reason) =>
+      seen.push({ id: p.id, invoiceId: p.invoiceId, reason })
+    )
+  })
+  afterEach(() => onOrphaned(null))
+  const draft = (id: string, invoiceId?: number, who = WHO) =>
+    remember({
+      id,
+      telegramId: who,
+      action: 'send',
+      target: '1',
+      what: 'x',
+      invoiceId,
+    })
+
+  it('cancelling reports the invoice as orphaned, with the reason', () => {
+    const d = draft('d1', 42)
+    expect(claim(WHO, 'd1', d.secret, 'cancel').ok).toBe(true)
+    expect(seen).toEqual([{ id: 'd1', invoiceId: 42, reason: 'cancelled' }])
+  })
+
+  it('confirming reports nothing: the message goes out and the invoice stands', () => {
+    const d = draft('d2', 42)
+    expect(claim(WHO, 'd2', d.secret).ok).toBe(true)
+    expect(seen).toEqual([])
+  })
+
+  it('a new draft reports the one it replaces', () => {
+    draft('old', 7)
+    draft('new', 8)
+    expect(seen).toEqual([{ id: 'old', invoiceId: 7, reason: 'replaced' }])
+    expect(pendingFor(WHO)?.id).toBe('new')
+  })
+
+  it('an expired draft is reported the next time the queue looks', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-09-08T10:00:00Z'))
+      draft('e1', 9)
+      vi.setSystemTime(new Date('2026-09-08T10:11:00Z'))
+      // Somebody else's draft makes the queue sweep. The listener must not
+      // depend on the OWNER coming back to ask.
+      draft('other', undefined, '999')
+      expect(pendingFor(WHO)).toBeNull()
+      expect(seen).toEqual([{ id: 'e1', invoiceId: 9, reason: 'expired' }])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a draft without an invoice never wakes the listener', () => {
+    const d = draft('n1')
+    claim(WHO, 'n1', d.secret, 'cancel')
+    draft('n2')
+    draft('n3')
+    expect(seen).toEqual([])
+  })
+
+  it('a listener that throws does not break the press', () => {
+    const warned: string[] = []
+    const spy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation((...a: unknown[]) => {
+        warned.push(a.map(String).join(' '))
+      })
+    try {
+      onOrphaned(() => {
+        throw new Error('db is on fire')
+      })
+      const d = draft('t1', 5)
+      expect(claim(WHO, 't1', d.secret, 'cancel').ok).toBe(true)
+      expect(pendingFor(WHO)).toBeNull()
+      expect(warned.join('\n')).toContain('orphan listener failed')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('a second registration replaces the first, and null removes it', () => {
+    const other: string[] = []
+    onOrphaned(p => {
+      other.push(p.id)
+    })
+    const d = draft('r1', 3)
+    claim(WHO, 'r1', d.secret, 'cancel')
+    expect(seen).toEqual([])
+    expect(other).toEqual(['r1'])
+    onOrphaned(null)
+    const d2 = draft('r2', 4)
+    claim(WHO, 'r2', d2.secret, 'cancel')
+    expect(other).toEqual(['r1'])
+  })
+
+  it('the listener receives the public shape: no secret, no turn', () => {
+    let got: Record<string, unknown> | null = null
+    onOrphaned(p => {
+      got = p as never
+    })
+    const d = draft('s1', 6)
+    claim(WHO, 's1', d.secret, 'cancel')
+    expect(got).not.toBeNull()
+    expect(got!).not.toHaveProperty('secret')
+    expect(got!).not.toHaveProperty('issued')
+    expect(got!).not.toHaveProperty('turn')
   })
 })
