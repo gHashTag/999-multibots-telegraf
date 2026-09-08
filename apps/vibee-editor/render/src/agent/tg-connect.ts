@@ -38,6 +38,7 @@
  */
 
 import { узнатьНомер, забытьНомер } from './known-phone'
+import { ingestAfterConnect } from './crm-ingest-on-connect'
 
 /** Сколько живёт незаконченный вход. Дольше и не нужно: код Telegram тоже. */
 const ЖИЗНЬ_ПОПЫТКИ_МС = 10 * 60 * 1000
@@ -457,6 +458,9 @@ export async function обработатьПодключение(
         return { код: 200, тело: { ok: true, нужен_пароль: true } }
       }
       await сохранитьСессию(pool, кто, r.сессия as string, r.phone)
+      // The memory starts now: every dialog into Postgres and Zep, in the
+      // background. The route does not wait for a walk over dozens of chats.
+      void ingestAfterConnect(pool, кто) // cyrillic-ok: pre-existing local name
       // Сама строка сессии НЕ возвращается: она сильнее пароля, и клиенту
       // она не нужна ни для чего.
       return { код: 200, тело: { ok: true, подключено: true } }
@@ -469,6 +473,7 @@ export async function обработатьПодключение(
         String(тело.password ?? '')
       )
       await сохранитьСессию(pool, кто, r.сессия, r.phone)
+      void ingestAfterConnect(pool, кто) // cyrillic-ok: pre-existing local name
       return { код: 200, тело: { ok: true, подключено: true } }
     }
   } catch (e) {

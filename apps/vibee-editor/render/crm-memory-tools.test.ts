@@ -319,6 +319,8 @@ describe('crm_leads', () => {
     expect(r.candidates[0].next).toBe('reply')
     expect(r.candidates[0].because).toContain('ждёт ответа')
     expect(r.how_to_read).toContain('crm_ingest_chats')
+    expect(r.how_to_read).toContain('talk')
+    expect(r.how_to_read).toContain('Не предлагай оплату первым')
   })
 
   it('every candidate says who they are, what they last said, and their stage', async () => {

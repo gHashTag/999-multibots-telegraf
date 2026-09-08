@@ -819,3 +819,85 @@ export async function handleAgentKeys(
 
   return json(res, 405, { ok: false, error: 'метод не поддержан' })
 }
+
+/**
+ * POST /api/crm/mirror — the bot puts a DM exchange into the memory AT ONCE.
+ *
+ * The business DM is served by the bot as the owner; the render never sees
+ * the client's message or the answer as Telegram messages. The bot sends
+ * both here with Telegram's own message ids, so the ingest that reads the
+ * same dialog later keeps nothing twice, and Zep has the exchange before the
+ * next question arrives.
+ *
+ * The identity comes verified from the dispatcher: the owner whose memory
+ * this is. The body names the lead, an optional name, and the messages.
+ */
+export async function handleCrmMirror(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  const answer = (code: number, body: unknown) => {
+    res.writeHead(code, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(body))
+  }
+  let body: any = {}
+  try {
+    const chunks: Buffer[] = []
+    for await (const chunk of req as AsyncIterable<Buffer | string>) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+      if (chunks.reduce((n, c) => n + c.length, 0) > 256_000) break
+    }
+    body = chunks.length
+      ? JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      : {}
+  } catch {
+    return answer(400, { error: 'body: JSON' })
+  }
+  const lead = String(body?.lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(lead)) {
+    return answer(400, { error: 'lead: числовой telegram_id человека' })
+  }
+  if (lead === String(telegramId)) {
+    return answer(400, { error: 'lead: это вы сами' })
+  }
+  const raw: unknown[] = Array.isArray(body?.messages) ? body.messages : []
+  const when = (v: unknown): Date => {
+    if (typeof v === 'string') {
+      const t = Date.parse(v)
+      return Number.isFinite(t) ? new Date(t) : new Date()
+    }
+    const n = Number(v)
+    if (!Number.isFinite(n) || n <= 0) return new Date()
+    return new Date(n > 1e12 ? n : n * 1000)
+  }
+  const msgs = raw
+    .map((m: any) => ({
+      msgId: Number(m?.msg_id),
+      at: when(m?.at),
+      out: Boolean(m?.out),
+      text: String(m?.text ?? ''),
+    }))
+    .filter(m => Number.isFinite(m.msgId) && m.text.trim())
+    .slice(0, 50)
+  if (!msgs.length) {
+    return answer(400, {
+      error: 'messages: [{ msg_id, at, out, text }] — хотя бы одно с текстом',
+    })
+  }
+  try {
+    const { mirrorNow } = await import('./crm-mirror')
+    const pool = await getPool()
+    const r = await mirrorNow(
+      pool,
+      String(telegramId),
+      lead,
+      msgs,
+      body?.name ? String(body.name).slice(0, 64) : null
+    )
+    return answer(200, { ok: true, ...r })
+  } catch (e) {
+    return answer(500, { error: String(e).slice(0, 200) })
+  }
+}

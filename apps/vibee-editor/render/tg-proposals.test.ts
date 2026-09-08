@@ -1019,3 +1019,87 @@ describe('an invoice does not outlive its draft', () => {
     expect(got!).not.toHaveProperty('turn')
   })
 })
+
+describe('the sent message goes into the memory at once', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock('./src/agent/telegram-tools')
+    vi.doUnmock('./src/agent/crm-mirror')
+  })
+
+  it('after a send, mirrorNow gets the owner, the lead, the Telegram id and the text', async () => {
+    const mirrorNow = vi.fn(async () => ({ fresh: 1, zep: 1 }))
+    vi.doMock('./src/agent/crm-mirror', () => ({ mirrorNow }))
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() {
+          return { id: 77, date: 1757348157 }
+        },
+      }),
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const pool = { query: async () => ({ rows: [] }) }
+    const r = await exec(
+      {
+        id: 'p9',
+        telegramId: '144022504',
+        action: 'send',
+        target: '@playom',
+        what: 'привет, как дела',
+        lead: '435572800',
+        display: 'Geya (@playom)',
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504', pool }
+    )
+    expect(r.done).toBe(true)
+    expect(mirrorNow).toHaveBeenCalledTimes(1)
+    const [p, owner, lead, msgs, name] = mirrorNow.mock.calls[0] as unknown as [
+      unknown,
+      string,
+      string,
+      any[],
+      string,
+    ]
+    expect(p).toBe(pool)
+    expect(owner).toBe('144022504')
+    expect(lead).toBe('435572800')
+    expect(name).toBe('Geya')
+    expect(msgs).toEqual([
+      {
+        msgId: 77,
+        at: new Date(1757348157000),
+        out: true,
+        text: 'привет, как дела',
+      },
+    ])
+  })
+
+  it('no lead, or a client that returns no id: nothing is mirrored and the send still counts', async () => {
+    const mirrorNow = vi.fn(async () => ({ fresh: 0, zep: 0 }))
+    vi.doMock('./src/agent/crm-mirror', () => ({ mirrorNow }))
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async sendMessage() {
+          return {}
+        },
+      }),
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const pool = { query: async () => ({ rows: [] }) }
+    const r = await exec(
+      {
+        id: 'p10',
+        telegramId: '144022504',
+        action: 'send',
+        target: '@x',
+        what: 'x',
+        lead: '5',
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504', pool }
+    )
+    expect(r.done).toBe(true)
+    expect(mirrorNow).not.toHaveBeenCalled()
+  })
+})
