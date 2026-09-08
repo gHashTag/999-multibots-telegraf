@@ -383,6 +383,9 @@ OTHER
   tri способы [--gate]    payment methods that take money against ones that can credit it
   tri ушедшие [--detail]  people who once paid and stopped -- the only segment that
                           has already answered the hard question (reads, sends nothing)
+  tri первый-визит        where a first visit ends: the two cohorts read APART,
+                          because the imported one continues BETTER and an average
+                          over both describes nobody
   tri учёт [--gate]       invariants of the ledger itself: a credit recorded twice, a
                           negative amount, a charge of zero, a credit nothing can
                           deduplicate. Reads rows, not code; --gate fails only on a
@@ -3773,6 +3776,7 @@ case "$action" in
   reconcile|сверка)    node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
   lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
   ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
+  first-visit|первый-визит) node "$ROOT/scripts/first-visit.cjs" "$@" ;;
   dashboard|витрина)   node "$ROOT/scripts/dashboard-audit.cjs" "$@" ;;
   funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
   stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
