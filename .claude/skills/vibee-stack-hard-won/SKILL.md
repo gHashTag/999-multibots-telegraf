@@ -5290,15 +5290,28 @@ Rules that follow:
 
 ## PRICE IS DERIVED FROM COST — CHANGE THEM TOGETHER
 
-`billing-shared.ts`: `price = ceil(OPERATION_COST_USD / 0.005)`. Swapping
-`KIE_WEB_MODEL.lipsync` from `veed/fabric-1` ($0.09/s) to `infinitalk/from-audio`
-($0.015/s) without touching the cost would have charged **18 tokens for a
-3-token operation** — six times over. The cost entry must name the same provider
-that sits in the allowlist.
+`billing-shared.ts`: `price = ceil(OPERATION_COST_USD × НАЦЕНКА / 0.005)`, and
+**the markup belongs in that formula**. It is stated here with the markup
+because this page carried the same formula WITHOUT the markup for as long as
+the markup existed (the literal is not repeated here: the guard greps these
+pages for a formula that omits it, and a quotation reads exactly like the
+defect), and this is the page an agent is told to read _before_ touching
+billing. Anybody recomputing a price from the old line got exactly half, which
+is the defect PR #2283 was opened to remove: every shop window quoted half of
+what the wallet paid. A document that teaches the wrong arithmetic reinfects the
+code it was written to protect, and cites itself as authority while doing it.
 
-And some prices are **per second**: lipsync bills `3 × ceil(audio duration)`
+Swapping `KIE_WEB_MODEL.lipsync` from `veed/fabric-1` ($0.09/s) to
+`infinitalk/from-audio` ($0.015/s) without touching the cost would have charged
+**36 tokens for a 6-token operation** — six times over. The cost entry must name
+the same provider that sits in the allowlist.
+
+And some prices are **per second**: lipsync bills `6 × ceil(audio duration)`
 (`billedSeconds`). A client that compares a balance against the unit price will
 promise "enough" and be refused. State the unit.
+
+Never restate a price as a number here. Read it from `TOKEN_PRICES`, which is
+built by calling `priceFor` — the same function the charge uses.
 
 ## ONE ALLOWLIST, NOT TWO
 

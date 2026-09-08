@@ -38,7 +38,10 @@ export const OPERATION_COST_USD: Record<string, number> = {
    * себестоимости, а не назначается, — значит источник обязан быть тем же
    * провайдером, что стоит в KIE_WEB_MODEL.lipsync.
    *
-   * 0.015 / 0.005 = 3 токена вместо 18.
+   * Price = ceil(cost x markup / base) = 6 tokens instead of 36. This line
+   * said "3 instead of 18" -- the same arithmetic WITHOUT the markup that the
+   * skill page carried. The comment outlived the constant's arrival while
+   * standing two lines away from it.
    */
   lipsync_generate: 0.015,
   reel_render: 0.005,
