@@ -129,7 +129,18 @@ describe('the DM stance', () => {
 
   it('runAgent adds the block only on the business surface', async () => {
     const { readFileSync } = await import('node:fs')
-    const src = readFileSync('src/agent/chat.ts', 'utf8')
+    /*
+     * READ RELATIVE TO THIS FILE, NOT TO THE WORKING DIRECTORY.
+     *
+     * This path was CWD-relative, so the test passed under the package's own
+     * runner and threw ENOENT under any runner started from the repository
+     * root -- `vitest related`, which the pre-push guard uses. The guard then
+     * reported it as "broken by your change" to whoever happened to touch a
+     * neighbouring file. A test whose verdict depends on the working
+     * directory accuses the innocent.
+     */
+    const { join } = await import('node:path')
+    const src = readFileSync(join(__dirname, 'src', 'agent', 'chat.ts'), 'utf8')
     expect(src).toMatch(
       /opts\?\.surface === 'business' \? await dmHistoryBlock\(ctx\) : ''/
     )

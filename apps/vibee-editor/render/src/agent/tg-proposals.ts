@@ -167,8 +167,43 @@ export type PublicProposal = Omit<PendingProposal, 'secret' | 'issued' | 'turn'>
 /** How long a touch write may hold up the owner's "sent" after a real send. */
 const TOUCH_WRITE_MS = 3000
 
-/** How long an unconfirmed proposal survives. */
-const LIFETIME_MS = 10 * 60 * 1000
+/**
+ * How long an unconfirmed proposal survives.
+ *
+ * IT WAS TEN MINUTES, AND THAT IS A DEADLINE ON A PERSON LOOKING AT THEIR
+ * PHONE, not a security parameter. Authorisation here is the 128-bit secret
+ * minted in `remember`; a shorter window buys nothing against a secret that
+ * cannot be searched, and costs the one thing the queue exists for.
+ *
+ * The sweep that produces these cards runs every thirty minutes by default
+ * (CRM_PROACTIVE_MINUTES, src/index.ts), so a card was usually already gone
+ * before the next one arrived. An owner who looked at their phone after
+ * lunch pressed Send and was told the draft had expired -- and the wording
+ * of that refusal is deliberately ambiguous for a prober's benefit, so it
+ * did not even say which.
+ *
+ * Measured in production 2026-09-09, while this was written: five invoices
+ * ever minted, none paid, and not one card ever sent. This window is part of
+ * why.
+ *
+ * Twelve hours by default: long enough to cover a working day's attention,
+ * short enough that a sales draft naming a person and a price does not go
+ * out a week stale. PROPOSAL_LIFETIME_MINUTES overrides it.
+ *
+ * The env value is checked with Number.isFinite, not truthiness: a typo
+ * would otherwise make this NaN, every comparison against it false, and
+ * nothing would ever expire.
+ */
+function lifetimeMinutes(): number {
+  const raw = Number(process.env.PROPOSAL_LIFETIME_MINUTES)
+  return Number.isFinite(raw) && raw > 0 ? raw : 720
+}
+/**
+ * Exported so a test can advance past it without restating the number. A test
+ * that hard-codes "eleven minutes" is a second copy of the constant, and it
+ * went red for that reason the moment this value moved.
+ */
+export const LIFETIME_MS = lifetimeMinutes() * 60 * 1000
 
 /** A ceiling, so a stuck agent cannot grow this without bound. */
 const MAX_PENDING = 200

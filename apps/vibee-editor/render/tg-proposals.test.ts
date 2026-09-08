@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { onOrphaned, reportOrphan } from './src/agent/tg-proposals'
+import { onOrphaned, reportOrphan, LIFETIME_MS } from './src/agent/tg-proposals'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
@@ -920,9 +920,13 @@ describe('an invoice does not outlive its draft', () => {
   it('an expired draft is reported the next time the queue looks', () => {
     vi.useFakeTimers()
     try {
-      vi.setSystemTime(new Date('2026-09-08T10:00:00Z'))
+      const t0 = new Date('2026-09-08T10:00:00Z').getTime()
+      vi.setSystemTime(new Date(t0))
       draft('e1', 9)
-      vi.setSystemTime(new Date('2026-09-08T10:11:00Z'))
+      // Past the lifetime, whatever the lifetime is. Restating it here as
+      // "eleven minutes" made this test a second copy of the constant, and
+      // it went red the moment the real one moved.
+      vi.setSystemTime(new Date(t0 + LIFETIME_MS + 60_000))
       // Somebody else's draft makes the queue sweep. The listener must not
       // depend on the OWNER coming back to ask.
       draft('other', undefined, '999')
