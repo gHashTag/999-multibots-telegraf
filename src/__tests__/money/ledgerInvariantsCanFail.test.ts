@@ -39,6 +39,14 @@ const PLANTED: Record<string, any[]> = {
   'a credit carries a key that can deduplicate it': [
     { ...clean, id: 6, inv_id: null, operation_id: null },
   ],
+  'the words agree with the direction': [
+    {
+      ...clean,
+      id: 7,
+      type: 'MONEY_OUTCOME',
+      description: 'Пополнение баланса',
+    }, // cyrillic-ok: the description under test
+  ],
 }
 
 describe('every ledger invariant can actually fail', () => {
@@ -60,6 +68,26 @@ describe('every ledger invariant can actually fail', () => {
       expect(inv.find([clean]).length).toBe(0)
     })
   }
+
+  it('does not call a bought subscription a mistyped row', () => {
+    /*
+     * The false positive the first version of this rule produced, locked so it
+     * cannot come back. A subscription is BOUGHT with stars, so it belongs on
+     * an OUTCOME row; putting 'subscription' in the money-in word list gave two
+     * false hits out of three, and a meaning check that cries wolf gets
+     * switched off faster than one that misses.
+     */
+    const inv = INVARIANTS.find(
+      (i: any) => i.name === 'the words agree with the direction'
+    )
+    const bought = {
+      ...clean,
+      id: 9,
+      type: 'MONEY_OUTCOME',
+      description: 'Auto-activated subscription: NEUROPHOTO',
+    }
+    expect(inv.find([bought]).length).toBe(0)
+  })
 
   it('a duplicate needs BOTH rows completed, not merely present', () => {
     // A pending row beside a completed one is the ordinary shape of a payment

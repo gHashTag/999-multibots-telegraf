@@ -53,6 +53,37 @@ const INVARIANTS = [
     why: 'work recorded as paid for, at a price of zero',
   },
   {
+    /*
+     * THE ONLY ONE OF THESE THAT CHECKS MEANING RATHER THAN SHAPE.
+     *
+     * The other four would all pass a row that says "balance top-up" and is
+     * typed as a spend: the sign is positive, the amount is not zero, the key
+     * is present, nothing is duplicated. Only the words disagree with the
+     * type, and in a table that IS the balance, that row debits somebody for
+     * paying.
+     *
+     * THE WORD LIST IS NARROW ON PURPOSE, AND THE FIRST VERSION WAS NOT.
+     * "subscription" was in it, and it produced two false positives out of
+     * three hits: a subscription is BOUGHT with stars, so it is an outflow and
+     * belongs on an OUTCOME row. "payment" is absent for the same reason --
+     * this table uses it in both directions. Anything ambiguous stays out: a
+     * check on meaning that cries wolf gets switched off faster than one that
+     * misses, and there is exactly one real violation in 17140 rows to find.
+     */
+    name: 'the words agree with the direction',
+    find: rows => {
+      const IN = /пополнени|top ?up|refund|возврат|purchase and sale/i // cyrillic-ok: matches Russian descriptions in the data
+      const OUT = /generation|генерац|image to prompt|render|списан/i // cyrillic-ok: matches Russian descriptions in the data
+      return rows.filter(r => {
+        const d = String(r.description || '')
+        if (r.type === 'MONEY_OUTCOME') return IN.test(d) && !OUT.test(d)
+        if (r.type === 'MONEY_INCOME') return OUT.test(d) && !IN.test(d)
+        return false
+      })
+    },
+    why: 'the row says one direction and is typed as the other',
+  },
+  {
     name: 'a credit carries a key that can deduplicate it',
     find: rows =>
       rows.filter(
@@ -85,6 +116,14 @@ function selfCheck() {
     ],
     [{ ...clean, id: 4, type: 'MONEY_OUTCOME', stars: -9 }],
     [{ ...clean, id: 5, type: 'MONEY_OUTCOME', stars: 0 }],
+    [
+      {
+        ...clean,
+        id: 7,
+        type: 'MONEY_OUTCOME',
+        description: 'Пополнение баланса',
+      },
+    ], // cyrillic-ok: the fixture text under test
     [{ ...clean, id: 6, inv_id: null, operation_id: null }],
   ]
   const problems = []
