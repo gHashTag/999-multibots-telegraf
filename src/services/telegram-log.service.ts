@@ -273,8 +273,10 @@ class TelegramLogService {
     error: Error | string
     context?: string
     botName?: string
+    /** Compact JSON of the log call's meta (status, provider error, model...). */
+    details?: string
   }): Promise<void> {
-    const { telegramId, username, error, context, botName } = data
+    const { telegramId, username, error, context, botName, details } = data
 
     const errorMessage = error instanceof Error ? error.message : error
     const stack = error instanceof Error ? error.stack : undefined
@@ -292,7 +294,15 @@ class TelegramLogService {
     if (telegramId) {
       message += ` у пользователя ${username ? `@${username}` : `ID:${telegramId}`}`
     }
-    message += `\n\n${truncatedError}`
+    // The message is sent with parse_mode HTML: an unescaped '<' or '&' in an
+    // error text (a JSON body, a URL) makes Telegram reject the whole alert.
+    message += `
+
+${this.escapeHtml(truncatedError)}`
+    if (details) {
+      message += `
+<pre>${this.escapeHtml(details)}</pre>`
+    }
 
     await this.log('error', message, {
       telegramId,
