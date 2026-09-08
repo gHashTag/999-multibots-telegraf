@@ -67,7 +67,7 @@ describe('an invoice we cannot reconcile is visible, and still sold', () => {
     // The sale itself: the helper hands the link back to whichever caller
     // asked -- the cashier answers `ok: true, link` from it, the seller puts
     // it into the message.
-    const link = block.indexOf('return { url, payload')
+    const link = block.search(/return \{\s*url,\s*payload/)
     expect(catchAt).toBeGreaterThan(-1)
     expect(link, 'the link response must still be reachable').toBeGreaterThan(
       catchAt

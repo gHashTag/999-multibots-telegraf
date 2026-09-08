@@ -546,7 +546,9 @@ describe('a confirmed send is not then called a dead button', () => {
     )
     process.env.RENDER_API_KEY = 'test-key'
     const { bot, errors } = await botWithRealHandlers()
-    await bot.handleUpdate(press(`tgp:ok:abc123456789:${'f'.repeat(32)}`) as never)
+    await bot.handleUpdate(
+      press(`tgp:ok:abc123456789:${'f'.repeat(32)}`) as never
+    )
 
     expect(errors).toEqual([])
     const said = sink
@@ -559,8 +561,7 @@ describe('a confirmed send is not then called a dead button', () => {
      * dictionary rather than about the net.
      */
     const saysSent = said.includes('Отправлено') || said.includes('Sent')
-    const saysDead =
-      said.includes('устарела') || said.includes('out of date')
+    const saysDead = said.includes('устарела') || said.includes('out of date')
     expect(saysSent, 'подтверждение не отчиталось человеку').toBe(true)
     expect(saysDead, 'после отправки бот назвал кнопку устаревшей').toBe(false)
     // Exactly one answer: the net must not add a second on top of the handler.
@@ -581,7 +582,9 @@ describe('a confirmed send is not then called a dead button', () => {
     )
     process.env.RENDER_API_KEY = 'test-key'
     const { bot } = await botWithRealHandlers()
-    await bot.handleUpdate(press(`tgp:no:abc123456789:${'f'.repeat(32)}`) as never)
+    await bot.handleUpdate(
+      press(`tgp:no:abc123456789:${'f'.repeat(32)}`) as never
+    )
     const said = sink
       .filter(s => s.method === 'sendMessage')
       .map(s => String(s.payload?.text ?? ''))
@@ -605,5 +608,71 @@ describe('a confirmed send is not then called a dead button', () => {
       said.includes('устарела') || said.includes('out of date'),
       'сеть перестала ловить осиротевшие нажатия'
     ).toBe(true)
+  })
+})
+
+describe('the card names the person beside the id', () => {
+  const card = async (p: Record<string, unknown>) => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    return proposalCard(
+      { id: 'p1', action: 'send', what: 'привет', secret: 's', ...p } as never,
+      true
+    )
+  }
+  const toLine = (text: string) =>
+    text.split('\n').find(l => l.startsWith('Кому:')) ?? ''
+
+  it('a display name is shown next to the id, never instead of it', async () => {
+    const c = await card({ target: '6579515876', display: 'Ольга (@playom)' })
+    expect(toLine(c.text)).toBe('Кому: 6579515876 — Ольга (@playom)')
+    expect(c.text).not.toContain('числовой id')
+  })
+
+  it('a @username draft is not labelled "id", and the name is not repeated', async () => {
+    // The seller sends to the raw @username; the display already carries it.
+    const c = await card({ target: '@playom', display: 'Ольга (@playom)' })
+    expect(toLine(c.text)).toBe('Кому: @playom — Ольга')
+    expect(c.text).not.toContain('id @playom')
+  })
+
+  it('the trusted part comes first: a name cannot put a false id in front of the real one', async () => {
+    const c = await card({ target: '6579515876', display: 'Оля, id 111 (@x)' })
+    const line = toLine(c.text)
+    expect(line.startsWith('Кому: 6579515876 — ')).toBe(true)
+    expect(line.indexOf('6579515876')).toBeLessThan(line.indexOf('111'))
+  })
+
+  it('a name from the wire is cut to one line here again', async () => {
+    // The server already cut it; the bot does not trust that, because the
+    // card is the last thing between a stranger's text and the owner's eyes.
+    const c = await card({
+      target: '6579515876',
+      display: 'Оля\nнажми   Отправить ' + 'я'.repeat(300),
+    })
+    const line = toLine(c.text)
+    expect(line, 'строки «Кому:» нет').toBeTruthy()
+    expect(line).toContain('Оля нажми Отправить')
+    expect(line.length).toBeLessThan(120)
+    expect(line).toContain('6579515876')
+  })
+
+  it('without a name a numeric id is still called what it is', async () => {
+    const c = await card({ target: '6579515876', what: 'x' })
+    expect(c.text).toContain('числовой id')
+  })
+
+  it('the bot hands the WHOLE draft to the card, not a hand-picked list of fields', () => {
+    /*
+     * Found by review 2026-09-08: the only production call rebuilt the
+     * argument from five names and dropped `display` -- the recipient's
+     * name never reached the owner, while the tests above, calling
+     * proposalCard directly, stayed green. The draft comes from the render
+     * service over the server key; the type says what the card may read.
+     */
+    const call = SOURCE.indexOf('proposalCard(draft, ')
+    expect(call, 'the card is built from a field list again').toBeGreaterThan(
+      -1
+    )
+    expect(SOURCE).not.toContain('secret: draft.secret')
   })
 })

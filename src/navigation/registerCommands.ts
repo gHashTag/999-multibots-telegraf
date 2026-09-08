@@ -1360,16 +1360,9 @@ If not, continue on your own and click the "I myself" button`
              * between "a draft exists" and "the client that caused it holds
              * the secret".
              */
-            const card = proposalCard(
-              {
-                id: draft.id,
-                action: draft.action,
-                target: draft.target,
-                what: draft.what,
-                secret: draft.secret,
-              },
-              isRuOtvet
-            )
+            // The whole draft: a hand-picked field list once dropped the recipient's
+            // name on the floor. The server sent it; the card may read it.
+            const card = proposalCard(draft, isRuOtvet)
             await ctx.reply(card.text, card.markup)
           }
         } catch (e: any) {

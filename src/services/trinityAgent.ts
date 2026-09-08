@@ -52,6 +52,7 @@ export interface ОтветАгента {
     target: string
     what?: string
     secret: string
+    display?: string
   }
 }
 

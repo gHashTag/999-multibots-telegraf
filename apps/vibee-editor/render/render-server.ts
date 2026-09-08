@@ -7629,6 +7629,12 @@ const server = createServer(async (req, res) => {
         telegramId: who,
         pool: await getPool(),
       })
+      if (!outcome.done && taken.proposal.invoiceId !== undefined) {
+        // The draft is consumed either way. A send that failed after the
+        // press leaves its invoice as unasked-for as a cancel does.
+        const { reportOrphan } = await import('./src/agent/tg-proposals')
+        reportOrphan(taken.proposal, 'failed')
+      }
       return sendJson(res, outcome.done ? 200 : 502, outcomeToBody(outcome))
     }
 
@@ -7639,7 +7645,7 @@ const server = createServer(async (req, res) => {
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
-      const taken = claim(who, asked.id, asked.secret)
+      const taken = claim(who, asked.id, asked.secret, 'cancel')
       return sendJson(res, taken.ok ? 200 : 409, {
         ok: taken.ok,
         error: taken.ok ? undefined : taken.why,
@@ -8007,6 +8013,20 @@ const server = createServer(async (req, res) => {
                redeemed boolean NOT NULL DEFAULT false
              )`
           )
+          // Once per process, not per open of the mini-app: the ALTER takes
+          // an exclusive lock even when it has nothing to add.
+          const { ensureInvoiceColumns } = await import(
+            './src/agent/token-invoice'
+          )
+          await ensureInvoiceColumns(pool)
+          /*
+           * EVERY unredeemed row, cancelled ones included. This is the only
+           * code that matches a Stars transaction to an invoice and credits
+           * the tokens; the bot's own path never touches token_invoices. A
+           * cancelled draft's link stays payable (Telegram cannot revoke it),
+           * so a person who pays it must still be credited here: redemption
+           * wins over cancellation. Reports, not this query, skip cancelled.
+           */
           const pend = await pool.query(
             `SELECT id, tokens, stars, created_at FROM token_invoices
              WHERE telegram_id = $1 AND redeemed = FALSE
@@ -8059,8 +8079,10 @@ const server = createServer(async (req, res) => {
             })
             if (match) {
               const upd = await pool.query(
-                `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = $2
-                 WHERE id = $1 AND redeemed = FALSE RETURNING id`,
+                `UPDATE token_invoices
+                    SET redeemed = TRUE, star_tx_id = $2,
+                        cancelled_at = NULL, cancel_reason = NULL
+                  WHERE id = $1 AND redeemed = FALSE RETURNING id`,
                 [row.id, match.id]
               )
               if (upd.rows.length) {
@@ -10804,6 +10826,16 @@ async function main() {
     }
     console.log('🤖 Autopilot: supervised child starting (AUTOPILOT_LOOP=1)')
     startAutopilot()
+  }
+
+  // A draft that leaves the proposal queue unsent marks its Stars invoice.
+  // The queue has no database; it is handed one here, once, BEFORE the
+  // first request can drop anything -- awaited, so the order is a fact.
+  try {
+    const orphans = await import('./src/agent/invoice-orphans')
+    orphans.wireInvoiceOrphans(() => getPool())
+  } catch (e) {
+    console.warn('[STARS] orphan wiring failed:', String(e).slice(0, 120))
   }
 
   server.listen(Number(PORT), '0.0.0.0', () => {

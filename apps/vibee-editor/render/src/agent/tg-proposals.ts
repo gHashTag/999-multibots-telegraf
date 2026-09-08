@@ -108,6 +108,22 @@ export interface PendingProposal {
    * because /mcp has no screen to confirm on.
    */
   turn?: string
+  /**
+   * Who the message is for, in words a person recognises -- "Ольга (@playom)"
+   * -- beside the bare id the card used to show alone. Third-party text:
+   * cut to one short line at the source, and shown to the owner only ever
+   * NEXT TO the id, never instead of it.
+   */
+  display?: string
+  /**
+   * The token_invoices row minted for this draft, if one was. A draft that
+   * leaves the queue unsent -- cancelled, replaced, expired -- marks that
+   * row, so the owner's reconcile stops waiting for a payment nobody was
+   * asked for. The Stars link itself stays payable: Telegram offers no way
+   * to revoke one, and a payment on it still credits the person it was
+   * minted for.
+   */
+  invoiceId?: number
 }
 
 /** What may leave this module. Never the secret, except through `issueFor`. */
@@ -140,6 +156,47 @@ const MAX_PENDING = 200
 
 const pending = new Map<string, PendingProposal>()
 
+/**
+ * Why a draft carrying an invoice will never be sent. `failed` is the one
+ * that happens AFTER the queue: the press consumed the draft, `execute`
+ * did not deliver, and the invoice is as unasked-for as after a cancel.
+ */
+export type OrphanReason = 'cancelled' | 'replaced' | 'expired' | 'failed'
+type OrphanListener = (p: PublicProposal, reason: OrphanReason) => void
+let orphanListener: OrphanListener | null = null
+
+/**
+ * The queue owns no database. Whoever does (render-server, at startup)
+ * registers here, and the queue reports every draft that leaves unsent with
+ * an invoice attached. One listener: a second registration replaces the
+ * first, so a test can install its own and take it away.
+ */
+export function onOrphaned(fn: OrphanListener | null): void {
+  orphanListener = fn
+}
+
+/**
+ * Tell the listener about a draft that will never be sent. Public because
+ * the confirm route needs it too: by the time `execute` reports a failure
+ * the draft has already left the queue, so there is nothing left to drop.
+ */
+export function reportOrphan(p: PublicProposal, reason: OrphanReason): void {
+  if (p.invoiceId === undefined || !orphanListener) return
+  try {
+    orphanListener(p, reason)
+  } catch (e) {
+    // The listener is bookkeeping. The draft is gone whether or not the
+    // note about it lands.
+    console.warn('[proposal] orphan listener failed:', String(e).slice(0, 120))
+  }
+}
+
+/** Remove a draft that will never be sent, telling the listener why. */
+function drop(p: PendingProposal, reason: OrphanReason): void {
+  pending.delete(p.id)
+  reportOrphan(redact(p), reason)
+}
+
 /** Strip what must never leave. Copies, so a caller cannot reach the original. */
 function redact(p: PendingProposal): PublicProposal {
   const { secret: _secret, issued: _issued, turn: _turn, ...rest } = p
@@ -167,8 +224,8 @@ function sameSecret(a: string, b: string): boolean {
 
 function dropExpired(): void {
   const edge = Date.now() - LIFETIME_MS
-  for (const [id, p] of pending) {
-    if (p.createdAt < edge) pending.delete(id)
+  for (const p of pending.values()) {
+    if (p.createdAt < edge) drop(p, 'expired')
   }
 }
 
@@ -205,8 +262,8 @@ export function remember(
    * buttons look identical and the chat has moved on. A new proposal replaces
    * the previous, and the previous can no longer be confirmed by its id.
    */
-  for (const [id, old] of pending) {
-    if (old.telegramId === p.telegramId) pending.delete(id)
+  for (const old of pending.values()) {
+    if (old.telegramId === p.telegramId) drop(old, 'replaced')
   }
   const saved: PendingProposal = {
     ...p,
@@ -323,7 +380,13 @@ export function forget(id: string): void {
 export function claim(
   telegramId: string,
   id: string,
-  secret: string
+  secret: string,
+  /**
+   * What the press meant. Both consume the draft; only a cancel reports an
+   * attached invoice as orphaned. The default keeps every existing caller
+   * on the confirm path.
+   */
+  intent: 'execute' | 'cancel' = 'execute'
 ): { ok: true; proposal: PublicProposal } | { ok: false; why: string } {
   dropExpired()
   const p = pending.get(id)
@@ -352,7 +415,8 @@ export function claim(
     )
     return { ok: false, why: 'это действие уже подтверждено или истекло' }
   }
-  pending.delete(id)
+  if (intent === 'cancel') drop(p, 'cancelled')
+  else pending.delete(id)
   return { ok: true, proposal: redact(p) }
 }
 
@@ -489,7 +553,9 @@ export async function execute(
             })
             const outcome = await Promise.race([
               write,
-              new Promise<'timed out'>(r => setTimeout(() => r('timed out'), TOUCH_WRITE_MS)),
+              new Promise<'timed out'>(r =>
+                setTimeout(() => r('timed out'), TOUCH_WRITE_MS)
+              ),
             ])
             if (outcome !== 'recorded') {
               console.warn(

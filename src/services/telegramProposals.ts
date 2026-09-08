@@ -49,6 +49,8 @@ export interface Proposal {
   action: string
   target: string
   what?: string
+  /** The recipient in words, from the server; shown beside the id only. */
+  display?: string
 }
 
 function apiKey(): string {
@@ -161,11 +163,35 @@ export function proposalCard(
    * proposal itself and is filed separately.
    */
   const opaque = /^-?\d+$/.test(p.target)
-  const to = opaque
-    ? isRu
-      ? `${p.target} (числовой id — не могу показать имя)`
-      : `${p.target} (numeric id — no name to show)`
-    : p.target
+  /*
+   * THE TRUSTED PART FIRST. `target` is where the message actually goes --
+   * an id or a @username the server resolved. `display` is third-party
+   * text: whatever the person typed into Telegram as their name, cut to
+   * one line on the server and again here. Printing the target first and
+   * the name after a dash means a name like "Оля, id 111" cannot put a
+   * false id in front of the real one, and a @username draft is not
+   * labelled "id @playom".
+   */
+  const name = String(p.display ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 64)
+  const sameAsTarget = new RegExp(
+    '\\(?' + p.target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\)?',
+    'i'
+  )
+  const rest = name
+    .replace(sameAsTarget, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,]+|[\s,]+$/g, '')
+    .trim()
+  const to = rest
+    ? `${p.target} — ${rest}`
+    : opaque
+      ? isRu
+        ? `${p.target} (числовой id — не могу показать имя)`
+        : `${p.target} (numeric id — no name to show)`
+      : p.target
   const head = isRu
     ? `Отправить сообщение в Telegram?\n\nКому: ${to}`
     : `Send this Telegram message?\n\nTo: ${to}`
