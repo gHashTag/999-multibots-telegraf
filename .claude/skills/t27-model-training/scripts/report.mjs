@@ -121,13 +121,34 @@ async function main() {
   const s = pick(
     score.out,
     P(
-      'эталон[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
+      'эталон[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+NEAR\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
     )
   )
   const c = pick(
     score.out,
     P(
-      'ЖУЛЬНИК[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
+      'ЖУЛЬНИК[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+NEAR\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
+    )
+  )
+  /*
+   * THE FLOOR ROWS BELONG ON THE PANEL, NOT ONLY IN THE CHILD'S OUTPUT.
+   *
+   * The panel showed the reference and the cheat, and dropped every other row
+   * the scorer printed -- empty answers, and prose. Those two are the FLOOR:
+   * they are what proves a compiler was consulted at all. A reader who cannot
+   * see them has to take "все приборы поверены" on faith, which is exactly the
+   * posture this panel exists to refuse.
+   */
+  const emp = pick(
+    score.out,
+    P(
+      'пустые ответы[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+NEAR\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
+    )
+  )
+  const gar = pick(
+    score.out,
+    P(
+      'мусор[^\\n]*VALID\\s+(\\d+)%\\s+RELEVANT\\s+(\\d+)%\\s+NEAR\\s+(\\d+)%\\s+SUBSTANCE\\s+(\\d+)%'
     )
   )
   const e = pick(
@@ -141,11 +162,24 @@ async function main() {
   console.log('')
   if (s)
     console.log(
-      `  эталон        VALID ${s[0]}%  RELEVANT ${s[1]}%  SUBSTANCE ${s[2]}%`
+      `  эталон        VALID ${s[0]}%  RELEVANT ${s[1]}%  NEAR ${s[2]}%  SUBSTANCE ${s[3]}%`
     )
   if (c)
     console.log(
-      `  ЖУЛЬНИК       VALID ${c[0]}%  RELEVANT ${c[1]}%  SUBSTANCE ${c[2]}%`
+      `  ЖУЛЬНИК       VALID ${c[0]}%  RELEVANT ${c[1]}%  NEAR ${c[2]}%  SUBSTANCE ${c[3]}%`
+    )
+  if (emp)
+    console.log(
+      `  пустота       VALID ${emp[0]}%  RELEVANT ${emp[1]}%  NEAR ${emp[2]}%  SUBSTANCE ${emp[3]}%`
+    )
+  if (gar)
+    console.log(
+      `  МУСОР (проза) VALID ${gar[0]}%  RELEVANT ${gar[1]}%  NEAR ${gar[2]}%  SUBSTANCE ${gar[3]}%`
+    )
+  if (!emp || !gar)
+    console.log(
+      '  ⚠️  строки ПОЛА не найдены в выводе прибора — панель показывает\n' +
+        '      верх шкалы и не показывает низ; без них «поверено» ничем не подкреплено'
     )
   if (e)
     console.log(

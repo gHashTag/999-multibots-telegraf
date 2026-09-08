@@ -199,6 +199,34 @@ async function scoreAll(pairs, label) {
 async function loadAnswerDir(dir, n) {
   const { readdir } = await import('node:fs/promises')
   const files = (await readdir(dir)).filter(f => /^\d+\./.test(f))
+
+  /*
+   * NUMBERING FROM 1 IS THE MISTAKE A PERSON MAKES ONCE, AND IT LOOKS LIKE A BAD MODEL.
+   *
+   * Measured with the 34 REFERENCE answers, renamed 01..34 instead of 00..33:
+   *
+   *     RELEVANT 0%   NEAR 35%   SUBSTANCE 20%
+   *
+   * Perfect answers, scored as a failing model. The only hint was a line
+   * reading "33 of 34", which reads as one missing answer rather than as every
+   * answer being attached to the wrong question.
+   *
+   * A contiguous run 1..n against n tasks is not ambiguous -- it is off by one,
+   * and it must stop the run rather than shift it.
+   */
+  const nums = files
+    .map(f => parseInt(f, 10))
+    .filter(Number.isInteger)
+    .sort((a, b) => a - b)
+  if (nums.length === n && nums[0] === 1 && nums[nums.length - 1] === n) {
+    console.log(
+      `\n⛔ ФАЙЛЫ ПРОНУМЕРОВАНЫ С 01, А ЗАДАЧИ С 00 — сдвиг на единицу.\n` +
+        `   Так каждый ответ достаётся ЧУЖОЙ задаче, и эталонные ответы\n` +
+        `   получают RELEVANT 0%. Переименуйте в 00..${String(n - 1).padStart(2, '0')}.`
+    )
+    process.exit(1)
+  }
+
   const byIndex = new Array(n).fill('')
   let matched = 0
   for (const f of files) {
@@ -255,6 +283,29 @@ async function main() {
     )
 
     /*
+     * VALID NEEDED A FLOOR THAT ONLY A REAL COMPILER CAN PRODUCE.
+     *
+     * Measured 08.09.2026: with `t27c` replaced by a script that answers
+     * IMPLEMENTED to everything, this battery still printed "прибор поверен".
+     * The reference scores 100 either way, the cheat is a valid spec so it
+     * scores 100 either way, and the empty row is rejected before the compiler
+     * is ever called. Not one row could tell the two compilers apart.
+     *
+     * This row can. It is prose -- non-empty, so the empty-check does not catch
+     * it, and not a spec, so a real t27c refuses it. A stub that approves
+     * everything turns this column green and the battery red, which is the
+     * only arrangement that makes VALID mean anything.
+     */
+    const GARBAGE =
+      'This paragraph is prose, not a specification.\n' +
+      'It has several lines and no module declaration at all.\n' +
+      'A compiler that calls this valid is not being consulted.\n'
+    const garbage = await scoreAll(
+      references.map(r => ({ reference: r, answer: GARBAGE })),
+      'мусор (не спек)'
+    )
+
+    /*
      * ASSERT ON EVERY NUMBER THE BATTERY PRINTS.
      *
      * The maxBuffer bug was VISIBLE here before it was found: the reference row
@@ -285,6 +336,12 @@ async function main() {
     if (perfect.near < 0.98) bad.push('эталон не близок сам себе')
     if (empty.near > 0) bad.push('пустой ответ признан близким')
     if (empty.valid > 0) bad.push('пустой ответ признан валидным')
+    // The floor. Without it the whole column passes with no compiler at all.
+    if (garbage.valid > 0)
+      bad.push(
+        'ПРОЗА признана валидным спеком — компилятор либо подставной, ' +
+          'либо не вызывается вовсе'
+      )
     if (bad.length) {
       console.log(`\n[score] ⚠️  ПРИБОР НЕ ГОДЕН: ${bad.join('; ')}`)
       process.exit(1)

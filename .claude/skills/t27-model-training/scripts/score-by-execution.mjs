@@ -227,6 +227,34 @@ async function scoreAll(pairs, label) {
 async function loadAnswerDir(dir, n) {
   const { readdir } = await import('node:fs/promises')
   const files = (await readdir(dir)).filter(f => /^\d+\./.test(f))
+
+  /*
+   * NUMBERING FROM 1 IS THE MISTAKE A PERSON MAKES ONCE, AND IT LOOKS LIKE A BAD MODEL.
+   *
+   * Measured with the 34 REFERENCE answers, renamed 01..34 instead of 00..33:
+   *
+   *     RELEVANT 0%   NEAR 35%   SUBSTANCE 20%
+   *
+   * Perfect answers, scored as a failing model. The only hint was a line
+   * reading "33 of 34", which reads as one missing answer rather than as every
+   * answer being attached to the wrong question.
+   *
+   * A contiguous run 1..n against n tasks is not ambiguous -- it is off by one,
+   * and it must stop the run rather than shift it.
+   */
+  const nums = files
+    .map(f => parseInt(f, 10))
+    .filter(Number.isInteger)
+    .sort((a, b) => a - b)
+  if (nums.length === n && nums[0] === 1 && nums[nums.length - 1] === n) {
+    console.log(
+      `\n⛔ ФАЙЛЫ ПРОНУМЕРОВАНЫ С 01, А ЗАДАЧИ С 00 — сдвиг на единицу.\n` +
+        `   Так каждый ответ достаётся ЧУЖОЙ задаче, и эталонные ответы\n` +
+        `   получают RELEVANT 0%. Переименуйте в 00..${String(n - 1).padStart(2, '0')}.`
+    )
+    process.exit(1)
+  }
+
   const byIndex = new Array(n).fill('')
   let matched = 0
   for (const f of files) {
