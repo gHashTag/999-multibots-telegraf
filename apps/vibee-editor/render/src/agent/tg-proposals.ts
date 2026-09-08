@@ -31,7 +31,7 @@
  * person's account.
  */
 
-import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 
 /** A file that IS the service: made on the owner's turn, shown on the card. */
 export interface ProposalMedia {
@@ -96,6 +96,24 @@ export interface PendingProposal {
    */
   secret: string
   /**
+   * SHA-256 of the secret, and the ONLY form that is ever written down.
+   *
+   * The queue is mirrored to a table so a deploy stops eating cards, and a
+   * live authorisation secret has no business sitting in a table that other
+   * tooling reads. The digest is enough for the check -- `claim` compares
+   * digests -- and it cannot be handed out, so a row is not a card.
+   *
+   * A restored row therefore carries a digest and an EMPTY secret. That is
+   * correct rather than lossy: a row is only restored when it was already
+   * issued, meaning its plaintext is on the owner's phone and this process
+   * never needs to say it again.
+   *
+   * Comparing digests also removes the length pre-check the raw compare
+   * needed: two SHA-256 buffers are always 32 bytes, so `timingSafeEqual`
+   * can be reached unconditionally.
+   */
+  secretDigest: string
+  /**
    * Has the secret already been handed to a client?
    *
    * `issueFor` answers once per proposal, not once per turn. Without this it
@@ -146,7 +164,10 @@ export interface PendingProposal {
 }
 
 /** What may leave this module. Never the secret, except through `issueFor`. */
-export type PublicProposal = Omit<PendingProposal, 'secret' | 'issued' | 'turn'>
+export type PublicProposal = Omit<
+  PendingProposal,
+  'secret' | 'secretDigest' | 'issued' | 'turn'
+>
 
 /*
  * THERE IS NO WRONG-ATTEMPT LIMIT, AND THAT IS DELIBERATE.
@@ -230,6 +251,149 @@ export function onOrphaned(fn: OrphanListener | null): void {
 }
 
 /**
+ * A DURABLE MIRROR OF THE QUEUE.
+ *
+ * `pending` is a Map in one process, so every deploy dropped every card the
+ * owner had not yet pressed -- and this repository deploys several times a
+ * day. The owner asked for the cards to be kept.
+ *
+ * The queue still owns no database, exactly as the orphan listener above owns
+ * none: the server hands it a store at startup. Without one the module
+ * behaves as it always did, in memory only, which is why every existing test
+ * keeps passing untouched.
+ *
+ * Writes are fire-and-forget for the same reason the orphan note is: a slow
+ * database must not hold up the button press that caused it. What this buys
+ * is survival of a RESTART, not exactly-once durability -- a crash in the
+ * microseconds between the press and the write loses the same card it would
+ * have lost before.
+ */
+export interface ProposalStore {
+  save: (p: PendingProposal) => void
+  remove: (id: string) => void
+}
+let store: ProposalStore | null = null
+
+/** One store: a second registration replaces the first, and null removes it. */
+export function onPersist(s: ProposalStore | null): void {
+  store = s
+}
+
+function persistSave(p: PendingProposal): void {
+  if (!store) return
+  try {
+    store.save(p)
+  } catch (e) {
+    console.warn('[proposal] store.save failed:', String(e).slice(0, 120))
+  }
+}
+
+function persistRemove(id: string): void {
+  if (!store) return
+  try {
+    store.remove(id)
+  } catch (e) {
+    console.warn('[proposal] store.remove failed:', String(e).slice(0, 120))
+  }
+}
+
+/**
+ * Put rows back after a restart.
+ *
+ * ONLY ISSUED DRAFTS COME BACK, and the rule is not an optimisation. A draft
+ * that was never issued has a plaintext secret that died with the process, so
+ * nobody could ever confirm it; restoring it would put an unpressable card in
+ * the queue and, worse, hold its invoice open. Those are reported as orphans
+ * instead, which un-pends the invoice the same way an expiry does.
+ *
+ * Expired rows are reported too. That case is new: the Map could never notice
+ * a draft that expired while the process was down, because there was no draft
+ * any more.
+ *
+ * Returns what happened, so the caller can log one honest line instead of
+ * guessing.
+ */
+export function restoreProposals(rows: PendingProposal[]): {
+  restored: number
+  expired: number
+  unissued: number
+  replaced: number
+} {
+  const edge = Date.now() - LIFETIME_MS
+  let restored = 0
+  let expired = 0
+  let unissued = 0
+  let replaced = 0
+
+  // First pass: the rows that could come back at all.
+  const alive: PendingProposal[] = []
+  for (const row of rows) {
+    if (pending.has(row.id)) continue
+    if (row.createdAt < edge) {
+      expired++
+      reportOrphan(redact(row), 'expired')
+      persistRemove(row.id)
+      continue
+    }
+    if (!row.issued) {
+      unissued++
+      reportOrphan(redact(row), 'expired')
+      persistRemove(row.id)
+      continue
+    }
+    alive.push(row)
+  }
+
+  /*
+   * ONE PENDING PROPOSAL PER PERSON SURVIVES THE RESTART TOO.
+   *
+   * `remember` enforces it live by dropping the previous draft, so the table
+   * should never hold two for one person -- but a restore that simply put
+   * every row back would DEPEND on that rather than assert it, and the
+   * invariant's own reason (two identical-looking buttons, the wrong one
+   * pressed) is at its sharpest right after a deploy, when the chat has
+   * scrolled. The newest wins; the others leave as `replaced`, exactly as
+   * they would have live.
+   *
+   * Chosen in a second pass rather than inside the first: deciding a winner
+   * while also inserting made the count of what was restored include the ones
+   * immediately replaced, which is the kind of number that reads as success.
+   */
+  const newest = new Map<string, PendingProposal>()
+  for (const row of alive) {
+    const held = newest.get(row.telegramId)
+    if (!held || row.createdAt > held.createdAt) {
+      if (held) {
+        replaced++
+        reportOrphan(redact(held), 'replaced')
+        persistRemove(held.id)
+      }
+      newest.set(row.telegramId, row)
+      continue
+    }
+    replaced++
+    reportOrphan(redact(row), 'replaced')
+    persistRemove(row.id)
+  }
+  for (const row of newest.values()) {
+    // A draft already waiting for this person beats anything from the table:
+    // it was made by THIS process and its plaintext is still in hand.
+    const live = [...pending.values()].find(
+      q => q.telegramId === row.telegramId
+    )
+    if (live) {
+      replaced++
+      reportOrphan(redact(row), 'replaced')
+      persistRemove(row.id)
+      continue
+    }
+    pending.set(row.id, row)
+    restored++
+  }
+  return { restored, expired, unissued, replaced }
+}
+
+/**
  * Tell the listener about a draft that will never be sent. Public because
  * the confirm route needs it too: by the time `execute` reports a failure
  * the draft has already left the queue, so there is nothing left to drop.
@@ -250,13 +414,21 @@ export function reportOrphan(p: PublicProposal, reason: OrphanReason): void {
 /** Remove a draft that will never be sent, telling the listener why. */
 function drop(p: PendingProposal, reason: OrphanReason): void {
   pending.delete(p.id)
+  persistRemove(p.id)
   reportOrphan(redact(p), reason)
 }
 
 /** Strip what must never leave. Copies, so a caller cannot reach the original. */
 function redact(p: PendingProposal): PublicProposal {
-  const { secret: _secret, issued: _issued, turn: _turn, ...rest } = p
+  const {
+    secret: _secret,
+    secretDigest: _digest,
+    issued: _issued,
+    turn: _turn,
+    ...rest
+  } = p
   void _secret
+  void _digest
   void _issued
   void _turn
   return rest
@@ -269,11 +441,28 @@ function redact(p: PendingProposal): PublicProposal {
  * is a thin channel and an entirely avoidable one on the check that stands
  * between a stranger and somebody else's Telegram.
  */
-function sameSecret(a: string, b: string): boolean {
-  const x = Buffer.from(String(a ?? ''), 'utf8')
-  const y = Buffer.from(String(b ?? ''), 'utf8')
-  // timingSafeEqual throws on a length mismatch, which would leak the length
-  // by exception. Compare a fixed-size digest of each instead.
+export function digestOf(secret: string): string {
+  return createHash('sha256')
+    .update(String(secret ?? ''), 'utf8')
+    .digest('hex')
+}
+
+/**
+ * The presented secret against the stored DIGEST.
+ *
+ * This used to compare the two plaintexts, with a length pre-check in front
+ * of `timingSafeEqual` -- the comment beside it already said a digest was the
+ * right shape, and the code had not caught up. Now both sides are 32-byte
+ * digests, so there is no length to leak and no branch before the constant-
+ * time compare.
+ *
+ * An empty stored digest never matches: a restored draft whose plaintext died
+ * with the process is unconfirmable, which is the honest outcome.
+ */
+function sameSecret(storedDigest: string, presented: string): boolean {
+  if (!storedDigest) return false
+  const x = Buffer.from(storedDigest, 'utf8')
+  const y = Buffer.from(digestOf(presented), 'utf8')
   if (x.length !== y.length) return false
   return timingSafeEqual(x, y)
 }
@@ -303,7 +492,7 @@ export function pendingCount(): number {
  * that owns it, so no caller can supply a weak one or reuse an old one.
  */
 export function remember(
-  p: Omit<PendingProposal, 'createdAt' | 'secret' | 'issued'>
+  p: Omit<PendingProposal, 'createdAt' | 'secret' | 'secretDigest' | 'issued'>
 ): PendingProposal {
   dropExpired()
   if (pending.size >= MAX_PENDING) {
@@ -321,14 +510,17 @@ export function remember(
   for (const old of pending.values()) {
     if (old.telegramId === p.telegramId) drop(old, 'replaced')
   }
+  const minted = randomBytes(16).toString('hex')
   const saved: PendingProposal = {
     ...p,
     createdAt: Date.now(),
     // 128 bits. The id is only a lookup key now; this is the authorisation.
-    secret: randomBytes(16).toString('hex'),
+    secret: minted,
+    secretDigest: digestOf(minted),
     issued: false,
   }
   pending.set(p.id, saved)
+  persistSave(saved)
   // A COPY. Handing back the live record is a second door onto the one-time
   // flag: a caller could set `issued` back to false and re-open it.
   return { ...saved }
@@ -362,6 +554,9 @@ export function issueFor(
   for (const p of pending.values()) {
     if (p.telegramId !== mine || p.issued || p.turn !== turn) continue
     p.issued = true
+    // The flag is the difference between a card that comes back after a
+    // restart and one that cannot: persist it the moment it flips.
+    persistSave(p)
     return { ...redact(p), secret: p.secret }
   }
   return null
@@ -424,6 +619,7 @@ export function pendingFor(telegramId: string): PublicProposal | null {
 
 export function forget(id: string): void {
   pending.delete(id)
+  persistRemove(id)
 }
 
 /**
@@ -452,7 +648,7 @@ export function claim(
     // not learn whether somebody else has a draft waiting.
     return { ok: false, why: 'это действие предложено не вам' }
   }
-  if (!sameSecret(p.secret, secret)) {
+  if (!sameSecret(p.secretDigest, secret)) {
     /*
      * The id alone is not a pass, and this is the line that makes that true.
      *
@@ -472,7 +668,10 @@ export function claim(
     return { ok: false, why: 'это действие уже подтверждено или истекло' }
   }
   if (intent === 'cancel') drop(p, 'cancelled')
-  else pending.delete(id)
+  else {
+    pending.delete(id)
+    persistRemove(id)
+  }
   return { ok: true, proposal: redact(p) }
 }
 
