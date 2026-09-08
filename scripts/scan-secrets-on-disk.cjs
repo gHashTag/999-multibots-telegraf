@@ -42,9 +42,41 @@ const SHAPES = [
   ['private key block', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g],
 ]
 
-/** A dump of environment variables, recognised by shape rather than by name. */
-const ENV_DUMP = /(?:^|\n)\s*"?[A-Z][A-Z0-9_]{4,}"?\s*[:=]\s*"?[^\n"]{8,}/g
+/**
+ * A dump of environment variables, recognised by shape rather than by name.
+ *
+ * THE SEPARATOR IS THE WHOLE DISCRIMINATOR, and the first version got it wrong.
+ * Allowing a bare `NAME: value` made every TypeScript enum, interface and
+ * config object look like a dump: measured on this repository, 44 matches of
+ * which almost all were source files doing nothing wrong. A scanner that cries
+ * wolf gets switched off, and then it is not a scanner.
+ *
+ * The two shapes a real dump actually takes are `NAME=value` (shell, dotenv,
+ * `railway variables --kv`) and `"NAME": "value"` (JSON, which is what
+ * `railway variables --json` writes -- the form that leaked). A quoted key or
+ * an equals sign is the difference between a dump and a program.
+ */
+const ENV_DUMP =
+  /(?:^|\n)\s*(?:[A-Z][A-Z0-9_]{4,}=[^\n]{8,}|"[A-Z][A-Z0-9_]{4,}"\s*:\s*"[^\n"]{8,}")/g
 const ENV_DUMP_MIN = 15
+
+/**
+ * Files whose JOB is to contain these shapes.
+ *
+ * Narrow and named on purpose: three secret scanners and this file's own test.
+ * An ignore list is a hole, so it stays a list of specific paths rather than a
+ * pattern that could grow to cover something real.
+ */
+const SELF_REFERENTIAL = [
+  'scripts/probe-secrets-in-db.cjs',
+  'scripts/probe-secrets-in-history.cjs',
+  'scripts/security-token-guard.sh',
+  'src/__tests__/security/no-secrets-in-repo.test.ts',
+  'src/__tests__/tools/aSecretOnDiskMustBeFound.test.ts',
+  'scripts/scan-secrets-on-disk.cjs',
+]
+const isSelfReferential = f =>
+  SELF_REFERENTIAL.some(p => f === p || f.endsWith('/' + p) || f.endsWith(p))
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next'])
 const MAX_BYTES = 8 * 1024 * 1024
@@ -67,6 +99,7 @@ function* walk(dir) {
 }
 
 function scanFile(file) {
+  if (isSelfReferential(file)) return []
   let text
   try {
     if (fs.statSync(file).size > MAX_BYTES) return []
@@ -96,12 +129,28 @@ function main() {
   }
   let files = 0
   const found = []
+  /*
+   * A ROOT THAT DOES NOT EXIST MUST NOT READ AS CLEAN.
+   *
+   * walk() swallows a bad path and yields nothing, so scanning a typo produced
+   * "no known credential SHAPE matched" -- the empty search wearing the shape
+   * of a good result, which is the defect this whole tool exists to fight.
+   */
+  const missing = roots.filter(r => !fs.existsSync(r))
+  if (missing.length) {
+    console.error(`these roots do not exist: ${missing.join(', ')}`)
+    process.exit(2)
+  }
   for (const root of roots)
     for (const f of walk(root)) {
       files++
       for (const h of scanFile(f)) found.push({ file: f, ...h })
     }
   console.log(`scanned ${files} file(s) under ${roots.length} root(s)`)
+  if (!files) {
+    console.error('scanned NOTHING -- refusing to call that clean')
+    process.exit(2)
+  }
   if (!found.length) {
     console.log('no known credential SHAPE matched.')
     console.log(
