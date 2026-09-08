@@ -40,6 +40,24 @@ const SHAPES = [
   ['url with a password', /\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:[^\s@/]+@/g],
   ['github token', /\bgh[pousr]_[A-Za-z0-9]{20,}/g],
   ['private key block', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g],
+  /*
+   * A SHAPE THIS SCANNER MISSED, ADDED THE DAY IT MISSED IT.
+   *
+   * Two Inngest signing keys sit in this repository in plaintext -- in a
+   * markdown file and a helper script, across sixteen commits of history --
+   * and their values match what is deployed today, confirmed by comparing
+   * sha256 fingerprints rather than the values. One of the two is a live
+   * fallback (src/inngest_app/client.ts:26).
+   *
+   * The scanner walked those files and said nothing, because it knew tokens,
+   * JWTs and `sk-` keys and not this. That is the honest limit of a
+   * shape-matcher, and the only useful response to a miss is to teach it the
+   * shape and say which miss taught it.
+   */
+  ['inngest signing key', /\bsignkey-[a-z]+-[A-Za-z0-9]{20,}/g],
+  ['inngest event key', /\bevtkey-[a-z]+-[A-Za-z0-9]{20,}/g],
+  ['slack token', /\bxox[baprs]-[A-Za-z0-9-]{10,}/g],
+  ['stripe key', /\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}/g],
 ]
 
 /**
