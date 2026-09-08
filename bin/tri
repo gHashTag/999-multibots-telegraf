@@ -645,5 +645,7 @@ PYEOF
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
     echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3) ;;
-  *) usage ;;
+  # 64 = "not mine", so the root tri can tell an unknown command from a
+  # command that ran and failed. Any other exit code is the command's own.
+  *) usage; exit 64 ;;
 esac

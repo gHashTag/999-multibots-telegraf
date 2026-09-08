@@ -3851,5 +3851,12 @@ case "$action" in
   health|здоровье)     curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
   factory|фабрика)     factory_fact ;;
   help|помощь|-h|--help) usage ;;
-  *)          bad "unknown command: $action"; echo; usage; exit 1 ;;
+  # THE OTHER tri. bin/tri is the loop tooling -- crm-source, hive, feed,
+  # crm-waiting, crm-pitch and thirty more -- and for four cycles it was
+  # reachable only by its full path: this file knew nothing of it, and every
+  # command added there was invisible to `tri`. Unknown here is tried there
+  # first; 64 is its "not mine", everything else is the command's own result.
+  *)          "$ROOT/bin/tri" "$action" "$@"; rc=$?
+              if [ "$rc" -ne 64 ]; then exit "$rc"; fi
+              bad "unknown command: $action"; echo; usage; exit 1 ;;
 esac
