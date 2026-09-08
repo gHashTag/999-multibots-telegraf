@@ -1998,6 +1998,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     // answerCbQuery first: Telegram shows a spinner on the button until it is
     // answered, and a scene transition can take a moment.
     await ctx.answerCbQuery().catch(() => undefined)
+    // "Top up" means buy stars, never the plan somebody selected earlier and
+    // abandoned: a stale selectedPayment would hijack this press.
+    ctx.session.selectedPayment = undefined
     await ctx.scene.enter(ModeEnum.StarPaymentScene)
   })
 
