@@ -116,6 +116,64 @@ function selfCheck() {
   }
 }
 
+/**
+ * TRIAGE: WHAT THE PENDING ROWS ARE, BEFORE THE PROVIDER IS ASKED.
+ *
+ * A pending row is an INVOICE, not a theft. It is written when the payment
+ * link is generated, so an abandoned checkout leaves exactly the same trace as
+ * a payment that vanished. Calling all 164 of them "money owed" would be an
+ * accusation the data does not support.
+ *
+ * What the ledger CAN separate is what the person did next:
+ *
+ *   paid within three days   an abandoned attempt followed by a working one.
+ *                            Nothing is owed.
+ *   kept spending after      they had stars from elsewhere, so a payment that
+ *                            disappeared would most likely have been noticed
+ *                            and complained about.
+ *   nothing after at all     the only group where "paid and got nothing" fits
+ *                            the evidence -- and still an UPPER BOUND, because
+ *                            somebody who simply changed their mind looks the
+ *                            same from here.
+ *
+ * Only OpStateExt settles it. This runs WITHOUT the merchant password so the
+ * size of that question is known before anyone goes looking for it.
+ */
+function triage(rows) {
+  const DAY = 864e5
+  const byUser = new Map()
+  for (const r of rows) {
+    if (!byUser.has(r.telegram_id)) byUser.set(r.telegram_id, [])
+    byUser.get(r.telegram_id).push(r)
+  }
+  for (const [, v] of byUser)
+    v.sort((a, b) =>
+      String(a.payment_date).localeCompare(String(b.payment_date))
+    )
+  const out = { retried: [], keptSpending: [], silent: [] }
+  const pending = rows.filter(
+    r =>
+      /robokassa/i.test(r.payment_method || '') &&
+      String(r.status).toUpperCase() === 'PENDING'
+  )
+  for (const p of pending) {
+    const after = (byUser.get(p.telegram_id) || []).filter(
+      r => r.payment_date > p.payment_date
+    )
+    const creditedSoon = after.find(
+      r =>
+        r.type === 'MONEY_INCOME' &&
+        String(r.status).toUpperCase() === 'COMPLETED' &&
+        new Date(r.payment_date) - new Date(p.payment_date) < 3 * DAY
+    )
+    if (creditedSoon) out.retried.push(p)
+    else if (after.find(r => r.type === 'MONEY_OUTCOME'))
+      out.keptSpending.push(p)
+    else out.silent.push(p)
+  }
+  return out
+}
+
 async function main() {
   selfCheck()
   const login =
@@ -124,6 +182,59 @@ async function main() {
   const url = process.env.SUPABASE_URL
   const key =
     process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (process.argv.includes('--triage')) {
+    if (!url || !key) {
+      console.error(
+        'Triage needs SUPABASE_URL and SUPABASE_SERVICE_KEY (it reads only).'
+      )
+      process.exit(2)
+    }
+    const H = { apikey: key, Authorization: `Bearer ${key}` }
+    const rows = []
+    let last = null
+    for (;;) {
+      const f = last === null ? '' : `&id=gt.${last}`
+      const r = await fetch(
+        `${url}/rest/v1/payments_v2?select=id,telegram_id,payment_date,type,status,stars,amount,inv_id,payment_method${f}&order=id.asc&limit=1000`,
+        { headers: H }
+      )
+      const page = await r.json()
+      if (!Array.isArray(page) || page.length === 0) break
+      rows.push(...page)
+      last = page[page.length - 1].id
+      if (page.length < 1000) break
+    }
+    const ids = new Set(rows.map(r => r.id))
+    if (ids.size !== rows.length) {
+      console.error('unstable paging, refusing')
+      process.exit(2)
+    }
+    const t = triage(rows)
+    const money = a =>
+      Math.round(a.reduce((s, r) => s + (Number(r.amount) || 0), 0))
+    const people = a => new Set(a.map(r => r.telegram_id)).size
+    const total = t.retried.length + t.keptSpending.length + t.silent.length
+    console.log(
+      `pending Robokassa rows: ${total}, held by ${people([...t.retried, ...t.keptSpending, ...t.silent])} people\n`
+    )
+    console.log(
+      `  ${String(t.retried.length).padStart(4)} rows  ${String(people(t.retried)).padStart(3)} people  ${String(money(t.retried)).padStart(7)}   paid within 3 days - nothing owed`
+    )
+    console.log(
+      `  ${String(t.keptSpending.length).padStart(4)} rows  ${String(people(t.keptSpending)).padStart(3)} people  ${String(money(t.keptSpending)).padStart(7)}   no credit, but kept spending`
+    )
+    console.log(
+      `  ${String(t.silent.length).padStart(4)} rows  ${String(people(t.silent)).padStart(3)} people  ${String(money(t.silent)).padStart(7)}   no credit, nothing after - the upper bound`
+    )
+    console.log(
+      `\nOnly OpStateExt settles which of those ${t.silent.length} actually paid.`
+    )
+    console.log(
+      'Run without --triage, with ROBOKASSA_PASSWORD_2, to ask the provider.'
+    )
+    return
+  }
+
   const missing = []
   if (!login) missing.push('ROBOKASSA_MERCHANT_LOGIN (or MERCHANT_LOGIN)')
   if (!pw2) missing.push('ROBOKASSA_PASSWORD_2')
@@ -226,7 +337,7 @@ async function ask(login, pw2, invId) {
   }
 }
 
-module.exports = { classify, readCode, signature, PAID, UNPAID, HUMAN }
+module.exports = { classify, readCode, signature, triage, PAID, UNPAID, HUMAN }
 if (require.main === module)
   main().catch(e => {
     console.error(e)
