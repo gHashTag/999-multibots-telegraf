@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { ADMIN_IDS_ARRAY } from '@/config'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
 import { webhookSecretFor } from '@/utils/webhookSecret'
 import { logger } from '@/utils/enhancedLogger'
@@ -370,6 +371,27 @@ async function initializeBots() {
     // Устанавливаем первый бот как основной для отправки сообщений
     if (botInstances.length > 0) {
       asyncLipSyncManager.setBotInstance(botInstances[0])
+      /*
+       * The seller that works without being asked: one agent turn for the
+       * owner every N minutes, a card in the owner's chat when it prepares
+       * something. CRM_PROACTIVE_MINUTES=0 switches it off; CRM_PROACTIVE_BOT
+       * names the bot whose chat the owner actually uses (a bot cannot open
+       * a chat with a person who never started it).
+       */
+      const proactiveMinutes = Number(process.env.CRM_PROACTIVE_MINUTES ?? '30')
+      if (proactiveMinutes > 0) {
+        const wanted = (process.env.CRM_PROACTIVE_BOT || '').replace(/^@/, '')
+        const carrier =
+          botInstances.find(b => b.botInfo?.username === wanted) ??
+          botInstances[0]
+        const { startCrmProactive } = await import('@/services/crmProactive')
+        startCrmProactive(carrier, {
+          ownerId:
+            process.env.CRM_PROACTIVE_OWNER ||
+            String(ADMIN_IDS_ARRAY[0] || '144022504'),
+          everyMs: proactiveMinutes * 60_000,
+        })
+      }
       logger.info('✅ Асинхронный LipSync менеджер инициализирован')
     }
   } catch (error) {
