@@ -28,6 +28,7 @@ import {
   reportDeadEnd,
   shouldReport,
   sessionKeysOf,
+  isEmpty,
 } from '@/helpers/error/reportDeadEnd'
 
 const ROOT = path.resolve(__dirname, '../../..')
@@ -94,6 +95,46 @@ describe('a dead end must report itself', () => {
   it('an empty or absent session is said in words, not as an empty list', () => {
     expect(sessionKeysOf(undefined)).toEqual([])
     expect(sessionKeysOf({ b: 1, a: 2 })).toEqual(['a', 'b'])
+  })
+
+  it('a key that is PRESENT BUT EMPTY is not reported as present', () => {
+    // defaultSession sets `imageUrl: ''` and the wizard guards `if (!imageUrl)`,
+    // so the branch fires with the key sitting right there. The first version of
+    // this reporter said "session has no imageUrl" and then listed imageUrl
+    // among what the session held -- a contradiction inside one message, and a
+    // reader believes the second half and stops looking.
+    expect(sessionKeysOf({ imageUrl: '', cursor: 3 })).toEqual([
+      'cursor',
+      'imageUrl(empty)',
+    ])
+  })
+
+  it('empty is a shape, not a type: null, [], {} and undefined all count', () => {
+    expect(isEmpty('')).toBe(true)
+    expect(isEmpty(null)).toBe(true)
+    expect(isEmpty(undefined)).toBe(true)
+    expect(isEmpty([])).toBe(true)
+    expect(isEmpty({})).toBe(true)
+    // and things that DO carry something are not empty -- including the falsy
+    // ones, because `cursor: 0` and `paid: false` are answers, not absences.
+    expect(isEmpty(0)).toBe(false)
+    expect(isEmpty(false)).toBe(false)
+    expect(isEmpty('x')).toBe(false)
+    expect(isEmpty([1])).toBe(false)
+  })
+
+  it('the report of a missing key says so even when the key is there but empty', async () => {
+    // A place of its own: the rate limiter is module-level and shared, so
+    // reusing an earlier test's `where` would suppress this call -- which is
+    // the limiter working, not the report failing.
+    await reportDeadEnd(
+      ctxWith({ imageUrl: '', selectedVideoModel: 'kling' }),
+      'imageToVideoWizard step 3 (empty-key case)',
+      ['imageUrl']
+    )
+    const arg = logError.mock.calls[0][0] as { error: string }
+    expect(arg.error).toContain('imageUrl(empty)')
+    expect(arg.error).toContain('selectedVideoModel')
   })
 
   it('every dead end the owner reported is wired to it', () => {
