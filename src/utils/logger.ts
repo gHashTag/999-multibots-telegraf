@@ -5,6 +5,12 @@ import path from 'path'
 import fs from 'fs'
 
 import { redactBotToken } from './redactBotToken'
+import {
+  decide,
+  fingerprint,
+  withSuppressedCount,
+  type ThrottleState,
+} from './alertThrottle'
 
 /**
  * Custom Winston Transport для отправки ошибок в Telegram группу НейроМентор
@@ -13,6 +19,8 @@ class TelegramLogTransport extends Transport {
   private telegramLogService: any = null
   private isInitialized = false
   private pendingLogs: Array<{ level: string; message: string; meta: any }> = []
+  /** One incident is one message: repeats are counted, not resent. */
+  private seen = new Map<string, ThrottleState>()
 
   constructor(opts?: Transport.TransportStreamOptions) {
     super(opts)
@@ -75,12 +83,32 @@ class TelegramLogTransport extends Transport {
       delete meta.message
       delete meta.timestamp
 
+      /*
+       * THE THROTTLE LIVES HERE, NOT AT THIRTEEN CALL SITES.
+       *
+       * Every alert to the owner passes through this one function, so a rule
+       * here cannot be forgotten by whoever writes the next logger.error --
+       * and about 250 error sites were never classified. Nothing is dropped
+       * silently: the repeats are counted and the next message that gets
+       * through says how many were held back.
+       */
+      const verdict = decide(
+        this.seen,
+        fingerprint(message, meta?.context || meta?.function),
+        Date.now()
+      )
+      if (!verdict.send) {
+        callback()
+        return
+      }
+      const text = withSuppressedCount(message, verdict.suppressed)
+
       if (this.isInitialized) {
-        this.sendToTelegram(info.level, message, meta)
+        this.sendToTelegram(info.level, text, meta)
       } else {
         // Сохраняем для отправки после инициализации (max 50)
         if (this.pendingLogs.length < 50) {
-          this.pendingLogs.push({ level: info.level, message, meta })
+          this.pendingLogs.push({ level: info.level, message: text, meta })
         }
       }
     }
