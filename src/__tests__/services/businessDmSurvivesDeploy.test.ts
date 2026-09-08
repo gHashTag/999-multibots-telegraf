@@ -53,13 +53,25 @@ const dm = (text = 'How much is it?', chatId = 555) => ({
   business_connection_id: CONN,
 })
 
+/** Replies to the customer go through the connection; the owner lead DM does not. */
+const customerSends = (bot: {
+  telegram: { sendMessage: { mock: { calls: any[][] } } }
+}) =>
+  bot.telegram.sendMessage.mock.calls.filter(
+    c => c[2] && c[2].business_connection_id === CONN
+  )
+
 function fakeBot(lookup: () => Promise<unknown> = async () => connection()) {
   const sendMessage = vi.fn(async () => ({ message_id: 1 }))
+  const sendChatAction = vi.fn(async () => true)
   const callApi = vi.fn(async (method: string) => {
     if (method === 'getBusinessConnection') return lookup()
     throw new Error(`unexpected api call ${method}`)
   })
-  return { botInfo: { username: BOT }, telegram: { sendMessage, callApi } }
+  return {
+    botInfo: { username: BOT },
+    telegram: { sendMessage, sendChatAction, callApi },
+  }
 }
 
 async function freshService() {
@@ -79,8 +91,8 @@ describe('business DM: Bot API 9+ connection shape', () => {
 
     await svc.handleBusinessMessage(dm() as any, bot as any, BOT)
 
-    expect(bot.telegram.sendMessage).toHaveBeenCalledTimes(1)
-    expect(bot.telegram.sendMessage.mock.calls[0][2]).toEqual({
+    expect(customerSends(bot)).toHaveLength(1)
+    expect(customerSends(bot)[0][2]).toMatchObject({
       business_connection_id: CONN,
     })
     expect(bot.telegram.callApi).not.toHaveBeenCalled()
@@ -120,7 +132,7 @@ describe('business DM: after a redeploy the registry is empty', () => {
     expect(bot.telegram.callApi).toHaveBeenCalledWith('getBusinessConnection', {
       business_connection_id: CONN,
     })
-    expect(bot.telegram.sendMessage).toHaveBeenCalledTimes(1)
+    expect(customerSends(bot)).toHaveLength(1)
 
     await svc.handleBusinessMessage(
       dm('and video?', 556) as any,
@@ -128,7 +140,7 @@ describe('business DM: after a redeploy the registry is empty', () => {
       BOT
     )
     expect(bot.telegram.callApi).toHaveBeenCalledTimes(1)
-    expect(bot.telegram.sendMessage).toHaveBeenCalledTimes(2)
+    expect(customerSends(bot)).toHaveLength(2)
     expect(svc.getBusinessStats().activeConnections).toBe(1)
   })
 
@@ -187,16 +199,31 @@ describe('business DM through the production middleware chain', () => {
 
       await bot.handleUpdate({ update_id: 1, business_message: dm() } as any)
 
-      const sends = sink.filter(s => s.method === 'sendMessage')
+      const sends = sink.filter(
+        s => s.method === 'sendMessage' && s.payload.business_connection_id
+      )
       expect(sends).toHaveLength(1)
       expect(sends[0].payload).toMatchObject({
         chat_id: 555,
         text: 'ok reply',
         business_connection_id: CONN,
       })
+      // The owner is told about the lead in their own chat, not through the connection.
+      const ownerDm = sink.filter(
+        s => s.method === 'sendMessage' && !s.payload.business_connection_id
+      )
+      expect(ownerDm).toHaveLength(1)
+      expect(ownerDm[0].payload.chat_id).toBe(144022504)
       const other = sink
         .map(s => s.method)
-        .filter(m => m !== 'sendMessage' && m !== 'getBusinessConnection')
+        .filter(
+          m =>
+            ![
+              'sendMessage',
+              'getBusinessConnection',
+              'sendChatAction',
+            ].includes(m)
+        )
       expect(other).toEqual([])
 
       expect(chatWithAI).toHaveBeenCalledTimes(1)
