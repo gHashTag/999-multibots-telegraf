@@ -3856,7 +3856,7 @@ case "$action" in
   # reachable only by its full path: this file knew nothing of it, and every
   # command added there was invisible to `tri`. Unknown here is tried there
   # first; 64 is its "not mine", everything else is the command's own result.
-  *)          "$ROOT/bin/tri" "$action" "$@"; rc=$?
+  *)          TRI_BRIDGE=1 "$ROOT/bin/tri" "$action" "$@"; rc=$?
               if [ "$rc" -ne 64 ]; then exit "$rc"; fi
               bad "unknown command: $action"; echo; usage; exit 1 ;;
 esac

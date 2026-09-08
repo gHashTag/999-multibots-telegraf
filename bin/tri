@@ -647,5 +647,6 @@ PYEOF
     echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3) ;;
   # 64 = "not mine", so the root tri can tell an unknown command from a
   # command that ran and failed. Any other exit code is the command's own.
-  *) usage; exit 64 ;;
+  # Under the bridge the root prints the one usage; two for one typo is noise.
+  *) [ -n "${TRI_BRIDGE:-}" ] || usage; exit 64 ;;
 esac
