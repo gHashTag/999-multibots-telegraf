@@ -98,7 +98,21 @@ async function resultUrlFor(base: string | undefined) {
     SERVER_PUBLIC_URL: process.env.SERVER_PUBLIC_URL,
     BASE_WEBHOOK_URL: process.env.BASE_WEBHOOK_URL,
   }
-  for (const k of Object.keys(keep)) delete (process.env as any)[k]
+  /*
+   * SET TO EMPTY, DO NOT DELETE.
+   *
+   * `src/config/index.ts` calls `dotenv.config()` on every fresh import, and
+   * dotenv fills in variables that are ABSENT from process.env from `.env` on
+   * disk. Deleting a key here therefore did nothing on any machine with a
+   * `.env` -- the module re-import put RESULT_URL2 straight back, and the
+   * "nothing configured" case read a real Railway URL and failed. It passed
+   * in CI, where there is no `.env`, which is how it went unnoticed.
+   *
+   * dotenv does not override a variable that is PRESENT, and the code under
+   * test treats '' and undefined identically (an `||` chain), so an empty
+   * string drives the same branch on every machine.
+   */
+  for (const k of Object.keys(keep)) (process.env as any)[k] = ''
   if (base !== undefined) process.env.BASE_WEBHOOK_URL = base
   try {
     const mod = await import('@/config')

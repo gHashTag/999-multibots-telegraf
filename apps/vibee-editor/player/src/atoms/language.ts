@@ -17,6 +17,41 @@ interface Translations {
 // ===============================
 
 const en: Translations = {
+  // ── CRM ───────────────────────────────────────────────────────────────────
+  'crm.title': 'CRM',
+  'crm.refresh': 'Refresh',
+  'crm.refreshing': 'Refreshing…',
+  'crm.unreachable': 'Could not load',
+  'crm.waiting.title': 'Waiting for an answer',
+  'crm.waiting.none':
+    'Nobody is waiting for an answer. That is good news, not an empty screen.',
+  'crm.waiting.counts':
+    'waiting on us: {ours} · time to return: {due} · awaiting reply: {theirs}',
+  'crm.leads.title': 'Hot leads',
+  'crm.leads.counts': 'found {found}',
+  'crm.leads.setAside': 'set aside, touched recently: {n}',
+  'crm.leads.quiet': 'quiet for {days} d',
+  'crm.audience.title': 'Audience',
+  'crm.audience.total': 'total',
+  'crm.audience.paying': 'paying',
+  'crm.audience.came7': 'last 7 days',
+  'crm.audience.came30': 'last 30 days',
+  'crm.act.written': 'Wrote',
+  'crm.act.replied': 'Replied',
+  'crm.act.refused': 'Refused',
+  'crm.note':
+    'These buttons record what already happened — they send nothing to anybody. Sending is confirmed one message at a time in the bot chat.',
+  'crm.stage.client': 'client',
+  'crm.stage.refused': 'refused',
+  'crm.stage.later': 'asked for later',
+  'crm.stage.talking': 'talking',
+  'crm.stage.written': 'written to',
+  'crm.stage.winback': 'win back',
+  'crm.stage.new': 'new',
+  'crm.wait.ours': 'waiting on US',
+  'crm.wait.theirs': 'awaiting reply',
+  'crm.wait.due': 'time to return',
+
   // ── Connecting a personal Telegram account ────────────────────────────────
   // The login is the front door of the product: a personal assistant and a CRM
   // that can do nothing at all until this screen succeeds. It is written to be
@@ -1776,6 +1811,41 @@ types:
 }
 
 const ru: Translations = {
+  // cyrillic-ok: UI dictionary, Russian half
+  'crm.title': 'CRM',
+  'crm.refresh': 'Обновить',
+  'crm.refreshing': 'Обновляю…',
+  'crm.unreachable': 'Не удалось загрузить',
+  'crm.waiting.title': 'Ждут ответа',
+  'crm.waiting.none':
+    'Никто не ждёт ответа. Это хорошая новость, а не пустой экран.',
+  'crm.waiting.counts':
+    'ждут нас: {ours} · пора вернуться: {due} · ждём ответа: {theirs}',
+  'crm.leads.title': 'Горячие лиды',
+  'crm.leads.counts': 'найдено {found}',
+  'crm.leads.setAside': 'отложено недавно тронутых: {n}',
+  'crm.leads.quiet': 'молчит {days} дн',
+  'crm.audience.title': 'Аудитория',
+  'crm.audience.total': 'всего',
+  'crm.audience.paying': 'платят',
+  'crm.audience.came7': 'за 7 дней',
+  'crm.audience.came30': 'за 30 дней',
+  'crm.act.written': 'Написал',
+  'crm.act.replied': 'Ответил',
+  'crm.act.refused': 'Отказался',
+  'crm.note':
+    'Кнопки записывают, что уже произошло, — они ничего никому не отправляют. Отправка подтверждается по одному сообщению в чате бота.',
+  'crm.stage.client': 'клиент',
+  'crm.stage.refused': 'отказался',
+  'crm.stage.later': 'просил позже',
+  'crm.stage.talking': 'разговариваем',
+  'crm.stage.written': 'написали',
+  'crm.stage.winback': 'вернуть',
+  'crm.stage.new': 'новый',
+  'crm.wait.ours': 'ждёт НАС',
+  'crm.wait.theirs': 'ждём ответа',
+  'crm.wait.due': 'пора вернуться',
+
   // cyrillic-ok: UI dictionary, Russian half
   'connect.title': 'Подключить Telegram',
   'connect.lead':

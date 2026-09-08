@@ -28,6 +28,7 @@ const BlogPage = lazy(() => import('@/pages/Blog'))
 const SearchPage = lazy(() => import('@/pages/Search'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
+const CrmPage = lazy(() => import('@/pages/Crm'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
 const TemplatesPage = lazy(() => import('@/pages/Templates'))
 const InstagramCallbackPage = lazy(() => import('@/pages/InstagramCallback'))
@@ -282,6 +283,7 @@ function App() {
                         element={<Navigate to="/hive/comb" replace />}
                       />
                       <Route path="/hive/:tab" element={<HivePage />} />
+                      <Route path="/crm" element={<CrmPage />} />
                       <Route path="/templates" element={<TemplatesPage />} />
                       <Route path="/chat" element={<ChatPage />} />
                       <Route

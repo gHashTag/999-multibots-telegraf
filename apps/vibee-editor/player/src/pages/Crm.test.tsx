@@ -1,0 +1,289 @@
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/hooks/useLanguage', () => ({
+  useLanguage: () => ({
+    // The key is returned, so these checks never depend on the wording in the
+    // dictionary -- only on which key the screen decided to show.
+    t: (key: string, vars?: Record<string, unknown>) =>
+      vars ? `${key}:${Object.values(vars).join(',')}` : key,
+  }),
+}))
+
+/**
+ * THE CRM SCREEN.
+ *
+ * Two properties are worth a test here, and both are about not lying to the
+ * person reading it:
+ *
+ *   1. A panel that could not load says so. Rendering zeros for an unreachable
+ *      server tells an owner their business is dead.
+ *   2. The buttons record what happened and send nothing. The screen must not
+ *      offer a shortcut around the one-message-at-a-time confirmation that
+ *      lives in the bot.
+ */
+;(
+  globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
+const answers: Record<string, unknown> = {
+  crm_overview: { ['всего_людей']: 2380, ['платящих']: 327 }, // cyrillic-ok: server keys
+  crm_waiting: {
+    total: 2,
+    ours: 1,
+    due: 0,
+    theirs: 1,
+    waiting: [
+      {
+        telegram_id: '111',
+        name: 'Ivan',
+        link: null,
+        bot: 'b',
+        waiting: 'ours',
+        days: 2,
+        stage: 'talking',
+        because: 'ответил, а мы молчим',
+      },
+      {
+        telegram_id: '333',
+        name: 'Pyotr',
+        link: null,
+        bot: 'b',
+        waiting: 'theirs',
+        days: 9,
+        stage: 'written',
+        because: 'написали, ответа нет',
+      },
+    ],
+    what_to_do: 'x',
+  },
+  // cyrillic-ok: server keys
+  crm_hot_leads: {
+    ['найдено']: 12,
+    ['показано']: 1,
+    set_aside_touched: 4,
+    ['люди']: [
+      {
+        telegram_id: '444',
+        ['имя']: 'LeadOnlyName',
+        ['ссылка']: 'https://t.me/p',
+        ['бот']: 'b1',
+        ['молчит_дней']: 3,
+      },
+    ],
+  },
+  crm_touch: { saved: true },
+}
+
+let calls: Array<{ name: string; args: Record<string, unknown> }> = []
+
+function serve(opts: { fail?: string[] } = {}) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_u: string, init: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}'))
+      const name = body?.params?.name
+      calls.push({ name, args: body?.params?.arguments ?? {} })
+      if (opts.fail?.includes(name)) {
+        /*
+         * A 500 WITH A BODY, which is what a real server sends. The first
+         * version of this fake returned a bare `{ok:false}` with no `json`, so
+         * the code fell into its own catch and looked correct -- and deleting
+         * the status check changed nothing. A fake that cannot fail the way the
+         * world fails is not a test.
+         */
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ result: { structuredContent: { total: 0 } } }),
+        }
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          jsonrpc: '2.0',
+          id: 1,
+          result: { structuredContent: answers[name] ?? {} },
+        }),
+      }
+    })
+  )
+}
+
+let host: HTMLDivElement
+let root: Root
+
+beforeEach(() => {
+  calls = []
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+})
+afterEach(() => {
+  act(() => root.unmount())
+  host.remove()
+  vi.unstubAllGlobals()
+})
+
+async function draw() {
+  const { default: CrmPage } = await import('./Crm')
+  await act(async () => {
+    root.render(<CrmPage />)
+  })
+  // Let the three parallel loads settle.
+  await act(async () => {
+    await new Promise(r => setTimeout(r, 0))
+  })
+}
+
+describe('the screen puts the costly thing first', () => {
+  it('somebody who answered us is rendered before somebody we chased', async () => {
+    /*
+     * The ordering is the product. Server-side sorting puts "ours" first; if
+     * the screen re-sorted or reversed, the one item that costs money every day
+     * it is ignored would sit at the bottom.
+     */
+    serve()
+    await draw()
+    const names = [...host.querySelectorAll('.crm__who')].map(n =>
+      String(n.textContent)
+    )
+    expect(names[0]).toContain('Ivan')
+    expect(host.querySelector('.crm__row--ours')?.textContent).toContain('Ivan')
+  })
+
+  it('an empty waiting list is stated as good news, not left blank', async () => {
+    // A blank panel reads as broken. This one is a result.
+    answers.crm_waiting = { total: 0, ours: 0, due: 0, theirs: 0, waiting: [] }
+    serve()
+    await draw()
+    expect(host.textContent).toContain('crm.waiting.none')
+    answers.crm_waiting = {
+      total: 2,
+      ours: 1,
+      due: 0,
+      theirs: 1,
+      waiting: [
+        {
+          telegram_id: '111',
+          name: 'Ivan',
+          link: null,
+          bot: 'b',
+          waiting: 'ours',
+          days: 2,
+          stage: 'talking',
+          because: 'x',
+        },
+        {
+          telegram_id: '333',
+          name: 'Pyotr',
+          link: null,
+          bot: 'b',
+          waiting: 'theirs',
+          days: 9,
+          stage: 'written',
+          because: 'y',
+        },
+      ],
+      what_to_do: 'x',
+    }
+  })
+})
+
+describe('a panel that could not load says so', () => {
+  it('an unreachable waiting list does not render as zero', async () => {
+    /*
+     * Zeros for a server that did not answer tell the owner nobody is waiting
+     * and nobody is buying. That is a worse lie than an empty screen, and it is
+     * indistinguishable from a quiet week.
+     */
+    serve({ fail: ['crm_waiting'] })
+    await draw()
+    expect(host.textContent).toContain('crm.unreachable')
+    expect(host.textContent).not.toContain('crm.waiting.none')
+  })
+
+  it('one broken panel does not take the others down', async () => {
+    // Three independent loads. Losing the audience numbers must not cost the
+    // waiting list, which is the reason the screen exists.
+    serve({ fail: ['crm_overview'] })
+    await draw()
+    expect(host.textContent).toContain('Ivan')
+  })
+})
+
+describe('the server speaks Russian keys and the screen does not have to', () => {
+  it('a lead arrives with its name, link and quiet days intact', async () => {
+    /*
+     * The translation happens once, at the boundary in `lib/crm.ts`. Caught by
+     * mutation: the waiting rows were NOT translated, so every row key and
+     * every touch id would have been undefined in production -- and the test
+     * had gone green because its fixture was written to match the component
+     * instead of the server. A fake that agrees with the code proves nothing.
+     */
+    serve()
+    await draw()
+    const text = String(host.textContent)
+    /*
+     * A name that appears NOWHERE ELSE in the fixtures. The first version used
+     * a name the waiting list also carried, so the assertion was satisfied by
+     * the wrong row and the mutation that blanked the lead name survived.
+     */
+    expect(text, 'имя лида потерялось при переводе ключей').toContain(
+      'LeadOnlyName'
+    )
+    expect(text).toContain('crm.leads.quiet:3')
+    expect(text).toContain('crm.leads.setAside:4')
+    const link = [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    expect(link).toContain('https://t.me/p')
+  })
+})
+
+describe('the buttons record, they do not send', () => {
+  it('a press calls crm_touch and nothing that reaches a person', async () => {
+    serve()
+    await draw()
+    calls = []
+    const btn = [
+      ...host.querySelectorAll<HTMLButtonElement>('.crm__row--ours .crm__acts button'),
+    ].find(b => b.textContent?.trim() === 'crm.act.replied')!
+    await act(async () => {
+      btn.click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    const names = calls.map(c => c.name)
+    expect(names).toContain('crm_touch')
+    // The tools that reach another human being are not reachable from here.
+    for (const forbidden of ['tg_send', 'tg_forward', 'crm_send']) {
+      expect(names).not.toContain(forbidden)
+    }
+    expect(calls.find(c => c.name === 'crm_touch')?.args).toEqual({
+      telegram_id: '111',
+      kind: 'replied',
+    })
+  })
+
+  it('after recording it RE-READS rather than guessing the new stage', async () => {
+    /*
+     * The stage and the waiting kind are derived on the server. Patching the
+     * row in place would put a second copy of that rule in the browser, and two
+     * copies of a rule are how one gets fixed and the other forgotten.
+     */
+    serve()
+    await draw()
+    calls = []
+    const btn = host.querySelector<HTMLButtonElement>('.crm__acts button')!
+    await act(async () => {
+      btn.click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+    expect(calls.map(c => c.name)).toContain('crm_waiting')
+  })
+
+  it('the screen says out loud that nothing is sent', async () => {
+    serve()
+    await draw()
+    expect(host.textContent).toContain('crm.note')
+  })
+})

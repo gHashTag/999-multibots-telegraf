@@ -1,0 +1,196 @@
+/*
+ * THE CRM SCREEN.
+ *
+ * Read on a phone, between other things, usually to answer one question: who
+ * is waiting for me. So the waiting panel is first, the person's name is the
+ * biggest thing in a row, and the reason sits under it in one line.
+ *
+ * Colours are the app's own tokens. Only one thing is coloured on purpose --
+ * a person who answered us and got silence -- because if everything is
+ * highlighted, nothing is.
+ */
+
+.crm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md, 16px);
+  padding: var(--space-md, 16px);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.crm__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crm__top h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+}
+
+.crm__top button {
+  min-height: var(--touch-target, 44px);
+  padding: 10px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+  background: var(--vibee-green, #00ff88);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.crm__top button:disabled {
+  background: rgba(0, 255, 136, 0.28);
+  color: rgba(0, 0, 0, 0.55);
+  cursor: not-allowed;
+}
+
+.crm__panel {
+  background: var(--color-bg-elevated, #1a1a1a);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: var(--space-md, 16px);
+}
+
+.crm__panel-title {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+}
+
+/* An unreachable panel says so. Zeros for a server that did not answer would
+   tell the owner their business is dead. */
+.crm__unreachable {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--vibee-gold, #ffd700);
+  overflow-wrap: anywhere;
+}
+
+.crm__empty,
+.crm__counts,
+.crm__note {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-muted, #888);
+}
+
+.crm__note {
+  margin: 0;
+  padding: 0 4px;
+}
+
+.crm__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crm__row {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/*
+ * THE ONE THING THAT IS COLOURED.
+ *
+ * Somebody who answered us and got silence. It is the only row on this screen
+ * that costs money every day it is ignored, and if every kind were tinted the
+ * distinction would carry nothing.
+ */
+.crm__row--ours {
+  border-color: rgba(0, 255, 136, 0.45);
+  background: rgba(0, 255, 136, 0.06);
+}
+
+.crm__who {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.crm__who a {
+  color: var(--vibee-green, #00ff88);
+  text-decoration: none;
+}
+
+.crm__stage {
+  flex: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted, #888);
+}
+
+.crm__why {
+  margin: 4px 0 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-muted, #888);
+}
+
+.crm__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Recording a fact, not sending anything -- so these are quiet outline
+   buttons, not the green one that means "do the thing". */
+.crm__acts button {
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 15px;
+  color: var(--text-primary, #fff);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.crm__acts button:active {
+  transform: translateY(1px);
+}
+
+.crm__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.crm__stats dt {
+  font-size: 13px;
+  color: var(--text-muted, #888);
+}
+
+.crm__stats dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #fff);
+}
+
+.crm__muted {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted, #888);
+}

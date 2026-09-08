@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vibee-prod",
+      "url": "https://app.t27.ai"
+    },
+    {
+      "name": "vibee-tma",
+      "runtimeExecutable": "/Users/playom/.nvm/versions/node/v20.19.0/bin/node",
+      "runtimeArgs": ["../../../node_modules/vite/bin/vite.js"],
+      "cwd": "apps/vibee-editor/player",
+      "autoPort": true
+    }
+  ]
+}

@@ -33,6 +33,7 @@
  */
 
 import { visibilityOf, botFilter } from '../hive/roles'
+import { touchedSince } from './crm-touches'
 import type { AgentTool, ToolContext } from './tools'
 
 /**
@@ -74,7 +75,12 @@ async function myBots(telegramId: string): Promise<string[]> {
  * отвечает за платформу целиком, и разбивка по ботам в сводке — его рабочий
  * инструмент. Всем остальным возвращается конкретный список их ботов.
  */
-async function областьВидимости(ctx?: ToolContext): Promise<string[] | null> {
+/**
+ * Exported so `crm-touch-tools.ts` uses THIS rule rather than a second copy. A
+ * duplicated "who may see whom" is how one gets fixed and the other forgotten,
+ * and the price here is a stranger's clients on a stranger's screen.
+ */
+export async function областьВидимости(ctx?: ToolContext): Promise<string[] | null> { // cyrillic-ok: pre-existing name
   const who = ctx ? String(ctx.telegramId ?? '') : ''
   if (!who) {
     throw new Error(
@@ -140,7 +146,7 @@ const СТРАНИЦА = 1000
  * Пагинация идёт до КОРОТКОЙ страницы: ждать пустую — лишний запрос, а
  * «до потолка попыток» молча обрезало бы базу ровно так же, как PostgREST.
  */
-async function запрос<T>(путь: string): Promise<T[]> {
+export async function запрос<T>(путь: string): Promise<T[]> { // cyrillic-ok: pre-existing name
   const { url, key } = настройки()
   const всё: T[] = []
   for (let начало = 0; ; начало += СТРАНИЦА) {
@@ -230,6 +236,20 @@ function карточка(ч: Человек) {
   }
 }
 
+/**
+ * English aliases for the two helpers newer modules need.
+ *
+ * The rest of this file is older code with Russian identifiers throughout.
+ * Renaming it wholesale to add a feature would rewrite working code for no
+ * behavioural reason; exporting under the names new code can use costs two
+ * lines and keeps every new file free of them.
+ */
+export const visibleScope = областьВидимости // cyrillic-ok: pre-existing name
+export const whoPaid = платившие // cyrillic-ok: pre-existing name
+export const audienceOf = люди // cyrillic-ok: pre-existing name
+export type Person = Человек // cyrillic-ok: pre-existing name
+export const askSupabase = запрос // cyrillic-ok: pre-existing name
+
 export const CRM_TOOLS: AgentTool[] = [
   {
     name: 'crm_overview',
@@ -293,6 +313,11 @@ export const CRM_TOOLS: AgentTool[] = [
           type: 'number',
           description: 'считать недавним заход за столько дней (по умолчанию 14)',
         },
+        quiet_days: {
+          type: 'number',
+          description:
+            'сколько дней после касания не предлагать человека снова (по умолчанию 30)',
+        },
       },
     },
     async handler(a: any, ctx) {
@@ -307,11 +332,29 @@ export const CRM_TOOLS: AgentTool[] = [
         .sort(
           (x, y) => (днейНазад(x.updated_at) ?? 1e9) - (днейНазад(y.updated_at) ?? 1e9)
         )
+      /*
+       * ALREADY-TOUCHED LEADS ARE SET ASIDE, AND THE COUNT IS STATED.
+       *
+       * Without this the same names come back every day, so the same people get
+       * written to twice -- the fastest way to have an account limited and to
+       * lose somebody who was only still thinking.
+       *
+       * Set aside, not hidden: the number is reported, because a list that
+       * quietly shrinks is a list nobody can trust.
+       */
+      const quietDays =
+        Number(a?.quiet_days) > 0 ? Math.floor(Number(a.quiet_days)) : 30
+      const touched = ctx?.pool
+        ? await touchedSince(ctx.pool as never, String(ctx.telegramId), quietDays)
+        : new Map()
+      const fresh = лиды.filter(p => !touched.has(String(p.telegram_id))) // cyrillic-ok
       return {
         окно_дней: окно,
         найдено: лиды.length,
-        показано: Math.min(лиды.length, ПОТОЛОК_СПИСКА),
-        люди: лиды.slice(0, ПОТОЛОК_СПИСКА).map(карточка),
+        set_aside_touched: лиды.length - fresh.length, // cyrillic-ok
+        quiet_days: quietDays,
+        показано: Math.min(fresh.length, ПОТОЛОК_СПИСКА), // cyrillic-ok
+        люди: fresh.slice(0, ПОТОЛОК_СПИСКА).map(карточка), // cyrillic-ok
         что_делать:
           'Предложи владельцу написать им — с конкретным поводом (новый шаблон, разбор их темы), ' +
           'а не с «здравствуйте, у нас акция». Отправку он подтверждает сам.',
