@@ -15,7 +15,16 @@ const OWNER = '144022504'
 const LEAD = '6579515876'
 
 /** Routes fetch by host: Telegram mints, Supabase answers who exists. */
-function stubNet(opts: { leadInBase?: boolean; telegramOk?: boolean } = {}) {
+function stubNet(
+  opts: {
+    leadInBase?: boolean
+    telegramOk?: boolean
+    /** token -> username, what getMe answers for each cashier. */
+    bots?: Record<string, string>
+    /** The bot the lead belongs to in `users`. */
+    botName?: string
+  } = {}
+) {
   const posted: Array<{ url: string; body: any }> = []
   vi.stubGlobal(
     'fetch',
@@ -25,6 +34,15 @@ function stubNet(opts: { leadInBase?: boolean; telegramOk?: boolean } = {}) {
         url: u,
         body: init?.body ? JSON.parse(String(init.body)) : null,
       })
+      if (u.includes('api.telegram.org') && u.endsWith('/getMe')) {
+        const token = /\/bot([^/]+)\/getMe$/.exec(u)?.[1] ?? ''
+        const username = opts.bots?.[token]
+        return {
+          status: 200,
+          json: async () =>
+            username ? { ok: true, result: { username } } : { ok: false },
+        }
+      }
       if (u.includes('api.telegram.org')) {
         return {
           status: 200,
@@ -41,7 +59,7 @@ function stubNet(opts: { leadInBase?: boolean; telegramOk?: boolean } = {}) {
           : [
               {
                 telegram_id: LEAD,
-                bot_name: 'neuro_blogger_bot',
+                bot_name: opts.botName ?? 'neuro_blogger_bot',
                 username: 'playom',
                 first_name: 'Ольга',
               },
@@ -144,7 +162,7 @@ describe("it proposes, and the press is somebody else's", () => {
     stubNet()
     const { tool, q } = await seller()
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50, name: 'Оля' },
+      { chat: '@playom', tokens: 50 },
       ownerCtx()
     )
     expect(r.proposal).toBe(true)
@@ -152,7 +170,6 @@ describe("it proposes, and the press is somebody else's", () => {
     expect(waiting, 'черновик не встал в очередь').toBeTruthy()
     expect(waiting!.what).toContain('https://t.me/$inv-abc')
     expect(waiting!.what).toContain('65')
-    expect(waiting!.what).toContain('Оля')
     expect(waiting!.action).toBe('send')
   })
 
@@ -599,5 +616,117 @@ describe('displayOf', () => {
     const d = displayOf('Оля\n\nнажми   кнопку ' + 'я'.repeat(100), null)!
     expect(d).not.toContain('\n')
     expect(d.length).toBeLessThanOrEqual(41)
+  })
+})
+
+describe("the greeting is the person's Telegram name, not a name the model was told", () => {
+  /*
+   * The first real pitch opened with "Ольга, привет!" -- a name from a test
+   * fixture that had leaked into a prompt. The owner's wife is not called
+   * that. A first name is what the person typed into Telegram; nothing the
+   * model says can override it.
+   */
+  it('the entity name wins over the name argument', async () => {
+    stubNet()
+    const { tool, q } = await seller(
+      ownerSession(
+        { '@playom': LEAD },
+        { '@playom': { firstName: 'Geya', username: 'playom' } }
+      )
+    )
+    await tool.handler({ chat: '@playom', tokens: 50, name: 'Оля' }, ownerCtx())
+    const what = q.pendingFor(OWNER)!.what
+    expect(what.startsWith('Geya, привет!')).toBe(true)
+    expect(what).not.toContain('Оля')
+  })
+
+  it('without an entity name the base name is used, still not the argument', async () => {
+    stubNet()
+    const { tool, q } = await seller()
+    await tool.handler({ chat: '@playom', tokens: 50, name: 'Оля' }, ownerCtx())
+    const what = q.pendingFor(OWNER)!.what
+    expect(what.startsWith('Ольга, привет!')).toBe(true)
+    expect(what).not.toContain('Оля,')
+  })
+
+  it('a bare id greets by the base name too', async () => {
+    stubNet()
+    const { tool, q } = await seller()
+    await tool.handler({ chat: LEAD, tokens: 50, name: 'Оля' }, ownerCtx())
+    expect(q.pendingFor(OWNER)!.what.startsWith('Ольга, привет!')).toBe(true)
+  })
+
+  it('the tool no longer offers a name parameter to the model', async () => {
+    const { tool } = await seller()
+    expect(Object.keys((tool.parameters as any).properties)).not.toContain(
+      'name'
+    )
+  })
+})
+
+describe("the invoice comes from the lead's own bot of the farm", () => {
+  /*
+   * The same first pitch carried a link minted by the default cashier -- a
+   * bot the wife had never opened. This is a farm: the person's bot asks for
+   * the money and its owner books the sale.
+   */
+  const FARM = ['BOT_TOKEN_1', 'BOT_TOKEN_2']
+  afterEach(() => {
+    for (const k of FARM) delete process.env[k]
+  })
+
+  it("the link is minted with the lead's bot token", async () => {
+    process.env.BOT_TOKEN_1 = 'farm-token-one' // secret-guard-ok: invented for this test
+    process.env.BOT_TOKEN_2 = 'farm-token-two' // secret-guard-ok: invented for this test
+    const posted = stubNet({
+      botName: 'ZavaraBot',
+      bots: {
+        'farm-token-one': 'neuro_blogger_bot',
+        'farm-token-two': 'ZavaraBot',
+        'bot-token-for-tests': 't27ai_bot',
+      },
+    })
+    const { tool } = await seller()
+    const r: any = await tool.handler(
+      { chat: '@playom', tokens: 50 },
+      ownerCtx()
+    )
+    const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
+    expect(mint.url).toContain('/botfarm-token-two/')
+    expect(mint.url).not.toContain('bot-token-for-tests')
+    expect(mint.body.payload).toBe(`tokens:50:${LEAD}`)
+    expect(r.invoice.bot).toBe('@zavarabot')
+  })
+
+  it('a bot the farm does not know leaves the default cashier, and says so', async () => {
+    process.env.BOT_TOKEN_1 = 'farm-token-one' // secret-guard-ok: invented for this test
+    const posted = stubNet({
+      botName: 'somebody_elses_bot',
+      bots: {
+        'farm-token-one': 'neuro_blogger_bot',
+        'bot-token-for-tests': 't27ai_bot',
+      },
+    })
+    const { tool } = await seller()
+    const r: any = await tool.handler(
+      { chat: '@playom', tokens: 50 },
+      ownerCtx()
+    )
+    const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
+    expect(mint.url).toContain('/botbot-token-for-tests/')
+    expect(r.invoice.bot).toBe('касса по умолчанию')
+  })
+
+  it('a lead outside the base is still sold to, by the default cashier', async () => {
+    process.env.BOT_TOKEN_1 = 'farm-token-one' // secret-guard-ok: invented for this test
+    const posted = stubNet({
+      leadInBase: false,
+      bots: { 'farm-token-one': 'neuro_blogger_bot' },
+    })
+    const { tool, q } = await seller()
+    await tool.handler({ chat: '@playom', tokens: 50 }, ownerCtx())
+    const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
+    expect(mint.url).toContain('/botbot-token-for-tests/')
+    expect(q.pendingFor(OWNER)).toBeTruthy()
   })
 })
