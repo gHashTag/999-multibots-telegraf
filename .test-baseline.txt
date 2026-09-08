@@ -2353,7 +2353,7 @@ src/__tests__/money/geminiChargedNoRefund.test.ts :: generateGeminiImage refunds
 src/__tests__/money/geminiChargedNoRefund.test.ts :: generateGeminiImage refunds a failed paid generation (no charged-no-refund) refunds via refundAndTell on a generation error
 src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process railway.toml still pins a single replica
 src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the guards this protects are still the ones counted here
-src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the session is still the in-memory default, with no store
+src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the session store is shared (Redis) -- session-held guards are durable; the marketplace Set is not
 src/__tests__/money/hedraRefundChecked.test.ts :: hedra-render refund result is checked (no silent unrefunded charge) assigns the MONEY_INCOME refund result and reacts to a failure
 src/__tests__/money/heygenRefundChecked.test.ts :: heygen-render refund result is checked and reported truthfully assigns the MONEY_INCOME refund result
 src/__tests__/money/heygenRefundChecked.test.ts :: heygen-render refund result is checked and reported truthfully tells the user "funds refunded" only when the refund actually succeeded
@@ -3453,6 +3453,17 @@ src/__tests__/reliability/routesJsonParseGuarded.test.ts :: every JSON.parse in 
 src/__tests__/reliability/routesJsonParseGuarded.test.ts :: every JSON.parse in api_server routes is try-guarded (charged-not-delivered class) finds the known JSON.parse population (matcher is not stale)
 src/__tests__/reliability/routesJsonParseGuarded.test.ts :: every JSON.parse in api_server routes is try-guarded (charged-not-delivered class) has no unguarded JSON.parse at the HTTP/webhook boundary
 src/__tests__/reliability/routesJsonParseGuarded.test.ts :: every JSON.parse in api_server routes is try-guarded (charged-not-delivered class) routes directory exists and is populated (a broken path fails, not passes)
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store a failing Redis degrades to memory for the affected keys and never throws
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store after an outage the fallback value wins over the stale Redis snapshot, then writes through
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store every bot installs sessionMiddleware() and no bare session() remains
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store every session field whose type carries a Buffer is volatile (never written to Redis)
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store keys are bot-scoped: two bots do not share one private chat
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store morphingImages (Buffers + a token-bearing url) is never written to Redis
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store mutation: reverting one call site to session() turns the check RED
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store never writes Buffer-bearing images to Redis, but returns them from the side map
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store round-trips a wizard session through JSON, with prefix and TTL
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store self-check: splitVolatile separates exactly the volatile fields
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store the client disables the offline queue so a down Redis rejects instead of hanging
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id each migrated function is present and off .single()-on-telegram_id
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id floor: each migrated file still queries users by telegram_id
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id mutation: reverting a migrated reader to .single() turns the check RED
@@ -5191,6 +5202,11 @@ src/__tests__/services/temp-file-cleanup.test.ts :: image generators clean up th
 src/__tests__/services/transcription-temp-cleanup.test.ts :: transcription cleans up the temp file on failure deletes the downloaded file when transcription fails
 src/__tests__/services/ttv-no-raw-error-leak.test.ts :: generateTextToVideo does not leak a raw provider error to the user returns a curated message, not the raw upstream error body
 src/__tests__/setCommands.test.ts :: setBotCommands treats a missing optional bot owner as an ordinary empty result
+src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout answers for EVERY occurrence, and enclosedBy asks whether ANY qualifies
+src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout does NOT reach past the block that really encloses the line
+src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout is unmoved by a comment and a blank line at the top of the block
+src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout names the statement a line lives in
+src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout reports nothing for a line at the top level
 src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the array trigger matcher stops matching
 src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the bot.action matcher stops matching
 src/__tests__/tools/buttonCensusSelfCheck.test.ts :: the button census refuses to report through a broken matcher exits 2 when the callback gate, narrowed back matcher stops matching
