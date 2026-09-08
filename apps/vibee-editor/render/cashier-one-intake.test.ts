@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { isPublic, authenticate } from './auth'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * ОДИН ПРИЁМНИК АПДЕЙТОВ НА БОТА — И ЭТО ОПРОС.
@@ -175,11 +177,20 @@ describe('два пути зачисления — один замок', () => {
      * Дефект был спящим, пока приём апдейтов не работал. Починка приёма его
      * разбудила бы — поэтому оба пути сведены к одной функции с одним замком.
      */
-    // The statement, not one spelling of it: prettier wraps it. cyrillic-ok: pre-existing identifiers
-    const at = СЕРВЕР.search(/UPDATE token_invoices\s+SET redeemed = TRUE/) // cyrillic-ok: pre-existing identifiers
-    expect(at, 'the redeem UPDATE is gone').toBeGreaterThan(-1)
-    const хвост = СЕРВЕР.slice(at) // cyrillic-ok: pre-existing identifiers
-    const доКонцаВетки = хвост.slice(0, 2500)
+    /*
+     * THE ANCHOR STOPPED EXISTING AND THE TEST DID NOT SAY SO.
+     *
+     * This was `slice(indexOf('UPDATE token_invoices SET redeemed'))`. #2226
+     * reformatted that SQL so `UPDATE token_invoices` and `SET redeemed` landed
+     * on separate lines; indexOf returned -1 and slice(-1) returned THE LAST
+     * CHARACTER of the file. Production is fine -- only the anchor was gone,
+     * and the gate went red on a clean tree.
+     *
+     * The other direction would have been worse: a NEGATIVE assertion over that
+     * same '\n' passes vacuously and for ever. So a missing anchor is now a
+     * loud error naming the anchor, not an empty string.
+     */
+    const доКонцаВетки = sliceFrom(СЕРВЕР, 'SET redeemed = TRUE', 2500)
     expect(доКонцаВетки).toContain('await creditStarsPayment(pool, {')
     expect(доКонцаВетки).toContain('chargeId: String(match.id)')
     // Свой INSERT в user_tokens в этой ветке остаться не должен.
