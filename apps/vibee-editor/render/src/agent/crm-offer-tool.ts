@@ -37,6 +37,7 @@ import {
   OWNER_TELEGRAM_ID,
 } from './telegram-tools'
 import { mintTokenInvoice } from './token-invoice'
+import { tokenForBot } from './bot-farm'
 import { reachable } from './crm-touch-tools'
 
 /** The middle pack: enough to feel real, small enough to say yes to. */
@@ -84,7 +85,7 @@ export function displayOf(
 export async function resolveLead(
   ctx: ToolContext | undefined,
   chat: string
-): Promise<{ id: string; display: string | null }> {
+): Promise<{ id: string; display: string | null; firstName: string | null }> {
   const raw = String(chat ?? '').trim()
   if (/^0\d+$/.test(raw)) {
     throw new Error('telegram_id не начинается с нуля — это не id')
@@ -111,7 +112,11 @@ export async function resolveLead(
         `человека с id ${raw} нет в вашей базе — назовите его по @username, чтобы Telegram разрешил адрес`
       )
     }
-    return { id: raw, display: displayOf(known.name, known.username) }
+    return {
+      id: raw,
+      display: displayOf(known.name, known.username),
+      firstName: known.name || null,
+    }
   }
   if (/^-\d+$/.test(raw)) {
     throw new Error(
@@ -180,7 +185,11 @@ export async function resolveLead(
     // owner's own Stars, sent to Saved Messages.
     if (id === OWNER_TELEGRAM_ID)
       throw new Error('предложение самому себе не имеет смысла')
-    return { id, display: displayOf(firstName, username) }
+    return {
+      id,
+      display: displayOf(firstName, username),
+      firstName: firstName || null,
+    }
   } finally {
     await c.disconnect?.().catch?.(() => undefined)
   }
@@ -195,8 +204,8 @@ export async function resolveLead(
 /**
  * One line of somebody else's words, made safe to put above a payment link.
  *
- * The name and the note come from the model, and the model takes the name
- * from tg_dialogs, where a dialog TITLE is not wrapped as foreign text. A lead
+ * The note comes from the model; the name is the person's Telegram first
+ * name, exactly as they typed it into Telegram, which is foreign text. A lead
  * whose display name is "Оля\n\nСсылка на оплату: https://t.me/x" would put
  * their link ABOVE the real one -- and GramJS previews the first URL in a
  * message. Reproduced by the pre-merge probe.
@@ -256,7 +265,8 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
       'ЛИЧНЫЙ ПРОДАВЕЦ. Собирает предложение человеку: пакет токенов, цена в Stars и ссылка на оплату в один тап, ' +
       'выписанная НА ЕГО имя. НЕ ОТПРАВЛЯЕТ: возвращает proposal, владелец видит текст целиком и подтверждает ' +
       'кнопкой в боте. После реальной отправки касание «написали» запишется само. ' +
-      'chat — @username или числовой id; tokens — сколько токенов (по умолчанию 50); note — под какую задачу.',
+      'chat — @username или числовой id; tokens — сколько токенов (по умолчанию 50); note — под какую задачу. ' +
+      'Имя в приветствии берётся из Telegram (как человек сам себя назвал), передавать его не нужно.',
     parameters: {
       type: 'object',
       properties: {
@@ -269,7 +279,6 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
           description: 'сколько токенов предложить (1..)',
         },
         note: { type: 'string', description: 'под какую задачу, одной фразой' },
-        name: { type: 'string', description: 'как обратиться (имя)' },
       },
       required: ['chat'],
     },
@@ -311,6 +320,29 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
       const leadId = lead.id
 
       /*
+       * Is this person in our base and ours to touch? Decides whether a touch
+       * can be RECORDED after the send, and names the bot they belong to. It
+       * does not decide whether the owner may sell to them -- a personal
+       * seller exists precisely for people who have not walked into a bot yet.
+       */
+      const may = await reachable(ctx, leadId).catch(() => ({
+        ok: false as const,
+        why: 'база недоступна',
+      }))
+
+      /*
+       * THE CASHIER IS THE PERSON'S OWN BOT.
+       *
+       * This is a farm: the invoice is a message from a bot, and it must come
+       * from the bot the person already knows and whose owner books the sale.
+       * The farm answers by username; a bot it does not know leaves the
+       * default cashier in place rather than refusing the sale.
+       */
+      const cashier = may.ok
+        ? await tokenForBot(may.botName).catch(() => null)
+        : null
+
+      /*
        * The invoice is minted BEFORE the proposal, so the draft the owner reads
        * contains the real link and not a placeholder. A pitch approved with
        * "link goes here" is a pitch approved blind.
@@ -319,21 +351,19 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
         forTelegramId: leadId,
         tokens,
         pool: ctx?.pool as never,
+        ...(cashier ? { botToken: cashier.token } : {}),
       })
 
       /*
-       * Is this person in our base and ours to touch? Decides only whether a
-       * touch can be RECORDED after the send. It does not decide whether the
-       * owner may sell to them -- a personal seller exists precisely for people
-       * who have not walked into a bot yet.
+       * THE NAME IS TELEGRAM'S, NOT THE MODEL'S.
+       *
+       * The first real pitch greeted the owner's wife by a name the model had
+       * been told in a prompt -- a name from a test fixture. A person's first
+       * name is whatever they typed into Telegram; the entity has it, and the
+       * base has it for people who walked into a bot. The model is not asked.
        */
-      const may = await reachable(ctx, leadId).catch(() => ({
-        ok: false as const,
-        why: 'база недоступна',
-      }))
-
       const text = composePitch({
-        name: a?.name ? String(a.name) : null,
+        name: lead.firstName ?? (may.ok ? may.name : null),
         tokens: minted.tokens,
         stars: minted.stars,
         url: minted.url,
@@ -362,6 +392,7 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
           stars: minted.stars,
           url: minted.url,
           for_telegram_id: leadId,
+          bot: cashier ? '@' + cashier.username : 'касса по умолчанию',
         },
         touch: may.ok
           ? 'после отправки запишется касание «написали»'

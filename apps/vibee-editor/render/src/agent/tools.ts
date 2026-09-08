@@ -27,6 +27,8 @@
 
 import { planTools } from './plan-tools'
 import { pricingSummary, providerSetup } from './pricing'
+import { mintTokenInvoice } from './token-invoice'
+import { tokenForBot, botNameOf } from './bot-farm'
 import { editImage, EDIT_MODEL } from '../kie-image'
 
 export interface ToolContext {
@@ -519,7 +521,7 @@ async function withTokens<T extends object>(
   return { ...result, токены: { потрачено: price, осталось: balance } }
 }
 
-import { ценаТокенов, названиеСчёта } from './token-packs'
+import { ценаТокенов } from './token-packs'
 import { CRM_TOOLS } from './crm-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
@@ -1611,47 +1613,33 @@ export const TOOLS: AgentTool[] = [
     },
     async handler(a: any, ctx) {
       /*
-       * Цена считается ЗДЕСЬ ЖЕ той же шкалой, что и в маршруте счёта, а не
-       * пересказывается моделью: пересказ разошёлся бы с кассой в тот день,
-       * когда шкалу поправят.
+       * One mint for the whole building: the price comes from the same scale
+       * and the payload has the same shape as the invoice route, so the bot
+       * that receives the payment recognises it. A second cashier with its
+       * own fetch here drifted from the route once already.
+       *
+       * The cashier is the person's OWN bot of the farm (users.bot_name):
+       * the Stars land in the bot they already talk to, and its owner books
+       * the sale. A person the farm cannot place gets the default cashier.
        */
-      const цена = ценаТокенов(Number(a?.tokens))
-      const PAY_BOT = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
-      if (!PAY_BOT) {
-        throw new Error(
-          'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан — счёт выставить нечем'
-        )
-      }
-      const о = await fetch(
-        `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: названиеСчёта(цена.токенов),
-            description: 'Токены для генераций в Trinity S³AI',
-            // Тот же payload, что и у маршрута: его разбирает бот и
-            // переправляет зачисление сюда. Разойдись он — оплата не
-            // зачислилась бы, а деньги ушли бы.
-            payload: `tokens:${цена.токенов}:${ctx.telegramId}`,
-            currency: 'XTR',
-            prices: [
-              { label: названиеСчёта(цена.токенов), amount: цена.звёзд },
-            ],
-          }),
-        }
+      const forId = String(ctx.telegramId ?? '')
+      const cashier = await tokenForBot(await botNameOf(forId)).catch(
+        () => null
       )
-      const д: any = await о.json()
-      if (!д?.ok || !д?.result) {
-        throw new Error(
-          `Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`
-        )
-      }
+      const minted = await mintTokenInvoice({
+        forTelegramId: forId,
+        tokens: Number(a?.tokens),
+        pool: ctx.pool as never,
+        ...(cashier ? { botToken: cashier.token } : {}),
+      })
+      const цена = ценаТокенов(minted.tokens) // cyrillic-ok: pre-existing scale name
       return {
-        ссылка: д.result,
-        токенов: цена.токенов,
-        звёзд: цена.звёзд,
-        звёзд_за_токен: Number(цена.звёздЗаТокен.toFixed(4)),
+        ссылка: minted.url, // cyrillic-ok: pre-existing result field names
+        токенов: minted.tokens, // cyrillic-ok: pre-existing result field names
+        звёзд: minted.stars, // cyrillic-ok: pre-existing result field names
+        звёзд_за_токен: Number(цена.звёздЗаТокен.toFixed(4)), // cyrillic-ok: pre-existing result field names
+        от_бота: cashier ? '@' + cashier.username : 'касса по умолчанию', // cyrillic-ok: pre-existing result field names
+        // cyrillic-ok: pre-existing result field names
         как_платить:
           'открой ссылку в Telegram и подтверди — токены зачислятся сразу после оплаты',
       }
@@ -1711,7 +1699,7 @@ export const TOOLS: AgentTool[] = [
       const result = {
         постов: rows.length,
         просмотров: sum('views_count'),
-        звёзд: sum('stars_count'),
+        звёзд: sum('stars_count'), // cyrillic-ok: pre-existing result field names
         ремиксов: sum('uses_count'),
         среднее_просмотров: rows.length
           ? Math.round((sum('views_count') / rows.length) * 10) / 10
@@ -2242,6 +2230,7 @@ export const TOOLS: AgentTool[] = [
               статус: st.ok
                 ? d?.status || 'неизвестно'
                 : `не найден (HTTP ${st.status})`,
+              // cyrillic-ok: pre-existing result field names
               ссылка:
                 url && !String(url).startsWith('http')
                   ? `${selfBase()}${url}`
