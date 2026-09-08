@@ -84,14 +84,19 @@ describe('who is in the chain', () => {
     expect(m.allProviders()[0]).toMatchObject({ id: 'zai', model: 'glm-4.7' })
   })
 
-  it('a bigger window switches the compact kit off', async () => {
+  it('a 16k window is still compact; a 32k one is not', async () => {
     process.env.OLLAMA_ENABLED = '1'
     process.env.OLLAMA_CONTEXT_LENGTH = '16384'
-    const m = await load()
-    const ours = m.allProviders()[0]
-    expect(ours.context).toBe(16384)
-    expect(ours.compact).toBe(false)
-    expect(m.COMPACT_BELOW).toBeGreaterThan(8000)
+    let m = await load()
+    expect(m.allProviders()[0]).toMatchObject({ context: 16384, compact: true })
+    vi.resetModules()
+    process.env.OLLAMA_CONTEXT_LENGTH = '32768'
+    m = await load()
+    expect(m.allProviders()[0]).toMatchObject({
+      context: 32768,
+      compact: false,
+    })
+    expect(m.COMPACT_BELOW).toBeGreaterThan(16384)
   })
 
   it('a missing model on our side says how to pull it', async () => {
