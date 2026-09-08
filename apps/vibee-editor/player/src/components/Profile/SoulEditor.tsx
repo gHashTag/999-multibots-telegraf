@@ -44,14 +44,22 @@ export function SoulEditor() {
   const loaded = useAtomValue(soulLoadedAtom)
   const saving = useAtomValue(soulSavingAtom)
   const error = useAtomValue(soulErrorAtom)
+  /*
+   * The translate button's catch called setError, which is defined NOWHERE in
+   * this file: the failure path threw ReferenceError instead of showing the
+   * message, and the comment above that call says the refusal is shown rather
+   * than swallowed. It was neither. The atom is writable and already rendered
+   * a few lines below, so the setter is all that was missing.
+   */
+  const setError = useSetAtom(soulErrorAtom)
   const loadSoul = useSetAtom(loadSoulAtom)
   const saveSoul = useSetAtom(saveSoulAtom)
 
   const [draft, setDraft] = useState('')
   const [savedFlash, setSavedFlash] = useState(false)
-  const [tools, setTools] = useState<{ name: string; description: string }[] | null>(
-    null
-  )
+  const [tools, setTools] = useState<
+    { name: string; description: string }[] | null
+  >(null)
 
   /**
    * Список возможностей читается С СЕРВЕРА, а не пишется здесь руками.
