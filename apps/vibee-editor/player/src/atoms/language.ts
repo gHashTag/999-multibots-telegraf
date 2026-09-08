@@ -983,6 +983,9 @@ const en: Translations = {
   'soul.skill.soul_get': 'read your SOUL',
   'soul.skill.soul_edit': 'edit your SOUL on request — like a skill',
   'profile.not_found_desc': "This profile doesn't exist or has been deleted",
+  'profile.gate.title': 'Connect your Telegram to open the profile',
+  'profile.gate.body':
+    'The agent writes and reads on your behalf, so it needs your own Telegram signed in by phone. One time; you can disconnect from the Agent tab later.',
   'profile.edit_profile': 'Edit Profile',
   'profile.display_name': 'Display Name',
   'profile.display_name_placeholder': 'Your name',
@@ -2761,6 +2764,9 @@ const ru: Translations = {
   'soul.skill.soul_get': 'прочитать твой SOUL',
   'soul.skill.soul_edit': 'править твой SOUL по просьбе — как скилл',
   'profile.not_found_desc': 'Этот профиль не существует или был удалён',
+  'profile.gate.title': 'Подключите Telegram, чтобы открыть профиль',
+  'profile.gate.body':
+    'Агент пишет и читает от вашего имени, поэтому ему нужен ваш Telegram, вход по номеру телефона. Один раз; отключить можно потом во вкладке «Агент».',
   'profile.edit_profile': 'Редактировать профиль',
   'profile.display_name': 'Отображаемое имя',
   'profile.display_name_placeholder': 'Ваше имя',

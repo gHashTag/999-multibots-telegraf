@@ -13,6 +13,12 @@ import { Header } from '@/components/Header'
 import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
+import { ProfileConnectGate } from '@/components/Profile/ProfileConnectGate'
+import { profileScreen } from '@/components/Profile/profileGate'
+import {
+  agentTelegramConnectedAtom,
+  loadAgentTelegramStatusAtom,
+} from '@/atoms/agentTelegram'
 import '@/components/Profile/Profile.css'
 
 export function ProfilePage() {
@@ -21,10 +27,13 @@ export function ProfilePage() {
 
   const profile = useAtomValue(viewedProfileAtom)
   const своя = useIsOwnProfile()
+  const isOwn = своя // cyrillic-ok: the existing identifier of this file
   const loading = useAtomValue(profileLoadingAtom)
   const error = useAtomValue(profileErrorAtom)
   const loadProfile = useSetAtom(loadProfileAtom)
   const [showEdit, setShowEdit] = useState(false)
+  const connected = useAtomValue(agentTelegramConnectedAtom)
+  const loadConnected = useSetAtom(loadAgentTelegramStatusAtom)
 
   useEffect(() => {
     if (username) {
@@ -32,7 +41,29 @@ export function ProfilePage() {
     }
   }, [username, loadProfile])
 
-  if (loading) {
+  /*
+   * CONNECT FIRST, THEN THE PROFILE.
+   *
+   * Owner, 2026-09-09: "the profile must not show until the person signed in
+   * by phone — a mandatory step, otherwise the agent does not work". The status
+   * is asked once per session, only for your own profile; ConnectTelegram
+   * flips the same atom when the person finishes or disconnects. Which screen
+   * that yields is decided in profileGate.ts, with its reasons.
+   */
+  useEffect(() => {
+    if (isOwn && connected === null) void loadConnected()
+  }, [isOwn, connected, loadConnected])
+
+  const screen = profileScreen({
+    loading,
+    own: isOwn,
+    connected,
+    devBypass:
+      import.meta.env.DEV &&
+      new URLSearchParams(window.location.search).has('свой'),
+  })
+
+  if (screen === 'skeleton') {
     return (
       <>
         <Header />
@@ -108,6 +139,19 @@ export function ProfilePage() {
                 {t('common.go_home')}
               </Link>
             </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  if (screen === 'connect') {
+    return (
+      <>
+        <Header />
+        <div className="profile-page">
+          <div className="profile-page__container">
+            <ProfileConnectGate />
           </div>
         </div>
       </>
