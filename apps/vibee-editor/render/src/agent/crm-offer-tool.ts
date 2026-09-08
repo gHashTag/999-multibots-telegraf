@@ -206,13 +206,19 @@ export async function resolveLead(
  * the two things that could make a stranger's text act like ours.
  */
 function oneLine(text: string | null | undefined, max: number): string {
-  return String(text ?? '')
-    .replace(/\s+/g, ' ')
-    .replace(/\S*(?:https?:\/\/|t\.me\/|tg:\/\/)\S*/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max)
-    .trim()
+  return (
+    String(text ?? '')
+      .replace(/\s+/g, ' ')
+      .replace(/\S*(?:https?:\/\/|t\.me\/|tg:\/\/)\S*/gi, '')
+      // A bare domain is a link too: Telegram auto-links "evil.example" with
+      // no scheme and no parse mode. ASCII labels only, so a Cyrillic name
+      // with an initial and a dot in it is left alone.
+      .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/\S*)?/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max)
+      .trim()
+  )
 }
 
 export function composePitch(input: {

@@ -164,17 +164,29 @@ export function proposalCard(
    */
   const opaque = /^-?\d+$/.test(p.target)
   /*
-   * A name the owner recognises, NEXT TO the id the message goes to. Never
-   * instead of it: the name is third-party text (whatever the person typed
-   * into Telegram), so it is cut to one line here again, and the id stays
-   * in view for the owner to check.
+   * THE TRUSTED PART FIRST. `target` is where the message actually goes --
+   * an id or a @username the server resolved. `display` is third-party
+   * text: whatever the person typed into Telegram as their name, cut to
+   * one line on the server and again here. Printing the target first and
+   * the name after a dash means a name like "Оля, id 111" cannot put a
+   * false id in front of the real one, and a @username draft is not
+   * labelled "id @playom".
    */
   const name = String(p.display ?? '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 64)
-  const to = name
-    ? `${name}, id ${p.target}`
+  const sameAsTarget = new RegExp(
+    '\\(?' + p.target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\)?',
+    'i'
+  )
+  const rest = name
+    .replace(sameAsTarget, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,]+|[\s,]+$/g, '')
+    .trim()
+  const to = rest
+    ? `${p.target} — ${rest}`
     : opaque
       ? isRu
         ? `${p.target} (числовой id — не могу показать имя)`

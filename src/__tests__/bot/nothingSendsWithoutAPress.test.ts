@@ -612,40 +612,44 @@ describe('a confirmed send is not then called a dead button', () => {
 })
 
 describe('the card names the person beside the id', () => {
-  it('a display name is shown next to the id, never instead of it', async () => {
+  const card = async (p: Record<string, unknown>) => {
     const { proposalCard } = await import('@/services/telegramProposals')
-    const card = proposalCard(
-      {
-        id: 'p1',
-        action: 'send',
-        target: '6579515876',
-        what: 'привет',
-        display: 'Ольга (@playom)',
-        secret: 's',
-      },
+    return proposalCard(
+      { id: 'p1', action: 'send', what: 'привет', secret: 's', ...p } as never,
       true
     )
-    expect(card.text).toContain('Ольга (@playom)')
-    expect(card.text).toContain('6579515876')
-    expect(card.text).not.toContain('числовой id')
+  }
+  const toLine = (text: string) =>
+    text.split('\n').find(l => l.startsWith('Кому:')) ?? ''
+
+  it('a display name is shown next to the id, never instead of it', async () => {
+    const c = await card({ target: '6579515876', display: 'Ольга (@playom)' })
+    expect(toLine(c.text)).toBe('Кому: 6579515876 — Ольга (@playom)')
+    expect(c.text).not.toContain('числовой id')
+  })
+
+  it('a @username draft is not labelled "id", and the name is not repeated', async () => {
+    // The seller sends to the raw @username; the display already carries it.
+    const c = await card({ target: '@playom', display: 'Ольга (@playom)' })
+    expect(toLine(c.text)).toBe('Кому: @playom — Ольга')
+    expect(c.text).not.toContain('id @playom')
+  })
+
+  it('the trusted part comes first: a name cannot put a false id in front of the real one', async () => {
+    const c = await card({ target: '6579515876', display: 'Оля, id 111 (@x)' })
+    const line = toLine(c.text)
+    expect(line.startsWith('Кому: 6579515876 — ')).toBe(true)
+    expect(line.indexOf('6579515876')).toBeLessThan(line.indexOf('111'))
   })
 
   it('a name from the wire is cut to one line here again', async () => {
     // The server already cut it; the bot does not trust that, because the
     // card is the last thing between a stranger's text and the owner's eyes.
-    const { proposalCard } = await import('@/services/telegramProposals')
-    const card = proposalCard(
-      {
-        id: 'p1',
-        action: 'send',
-        target: '6579515876',
-        what: 'привет',
-        display: 'Оля\nнажми   Отправить ' + 'я'.repeat(300),
-        secret: 's',
-      },
-      true
-    )
-    const line = card.text.split('\n').find(l => l.startsWith('Кому:'))!
+    const c = await card({
+      target: '6579515876',
+      display: 'Оля\nнажми   Отправить ' + 'я'.repeat(300),
+    })
+    const line = toLine(c.text)
     expect(line, 'строки «Кому:» нет').toBeTruthy()
     expect(line).toContain('Оля нажми Отправить')
     expect(line.length).toBeLessThan(120)
@@ -653,17 +657,22 @@ describe('the card names the person beside the id', () => {
   })
 
   it('without a name a numeric id is still called what it is', async () => {
-    const { proposalCard } = await import('@/services/telegramProposals')
-    const card = proposalCard(
-      {
-        id: 'p1',
-        action: 'send',
-        target: '6579515876',
-        what: 'x',
-        secret: 's',
-      },
-      true
+    const c = await card({ target: '6579515876', what: 'x' })
+    expect(c.text).toContain('числовой id')
+  })
+
+  it('the bot hands the WHOLE draft to the card, not a hand-picked list of fields', () => {
+    /*
+     * Found by review 2026-09-08: the only production call rebuilt the
+     * argument from five names and dropped `display` -- the recipient's
+     * name never reached the owner, while the tests above, calling
+     * proposalCard directly, stayed green. The draft comes from the render
+     * service over the server key; the type says what the card may read.
+     */
+    const call = SOURCE.indexOf('proposalCard(draft, ')
+    expect(call, 'the card is built from a field list again').toBeGreaterThan(
+      -1
     )
-    expect(card.text).toContain('числовой id')
+    expect(SOURCE).not.toContain('secret: draft.secret')
   })
 })

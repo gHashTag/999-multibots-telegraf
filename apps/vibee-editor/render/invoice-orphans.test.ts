@@ -188,11 +188,15 @@ describe('wired into the queue', () => {
     expect(second.queries).toEqual([])
   })
 
-  it('a slow database does not hold the press', async () => {
-    // The button answers from the queue; the note lands whenever it lands.
+  it('a slow database does not hold the press: the note is started, not awaited', async () => {
+    // The button answers from the queue. What the press must do is START
+    // the note; what it must not do is wait for it. A wiring that never
+    // touches the pool would also "not hold" -- so the start is asserted.
+    let started = 0
     let release: () => void = () => {}
     const pool = {
       query: async () => {
+        started++
         await new Promise<void>(r => {
           release = r
         })
@@ -201,54 +205,96 @@ describe('wired into the queue', () => {
     }
     wireInvoiceOrphans(() => pool)
     const d = file('w4', 4)
-    const before = Date.now()
     expect(claim(OWNER, 'w4', d.secret, 'cancel').ok).toBe(true)
-    expect(Date.now() - before).toBeLessThan(100)
+    await tick()
+    expect(started, 'the note was never started').toBe(1)
     release()
   })
 })
 
 describe('the server is wired (source-level: no test boots render-server)', () => {
   /*
-   * Everything above proves the parts. These three lines prove the parts are
-   * connected in the file that runs, which no behavioural test here reaches:
-   * the cancel route must say "cancel" (a plain claim would drop the draft
-   * and tell nobody), the startup must hand the queue a pool, and the
-   * "unpaid invoices" listing must skip what was cancelled.
+   * Everything above proves the parts. These prove the parts are connected
+   * in the file that runs, which no behavioural test here reaches. Each
+   * anchor is asserted to exist first: a slice from -1 is an empty string,
+   * and an empty string contains nothing -- which once made a check of
+   * "does NOT contain 'cancel'" pass on a route that had disappeared.
    */
   const src = () =>
     fs.readFileSync(path.join(__dirname, 'render-server.ts'), 'utf8')
+  const at = (s: string, needle: string) => {
+    const i = s.indexOf(needle)
+    expect(i, `anchor missing: ${needle}`).toBeGreaterThan(-1)
+    return i
+  }
 
   it('the cancel route claims with the cancel intent', () => {
     const s = src()
-    const a = s.indexOf("route === '/api/tg/proposal/cancel'")
-    expect(a).toBeGreaterThan(-1)
+    const a = at(s, "route === '/api/tg/proposal/cancel'")
     const block = s.slice(a, s.indexOf('sendJson(res, taken.ok', a))
     expect(block).toContain("claim(who, asked.id, asked.secret, 'cancel')")
   })
 
-  it('the confirm route does NOT use the cancel intent', () => {
+  it('the confirm route does NOT use the cancel intent, and reports a failed send', () => {
     const s = src()
-    const a = s.indexOf("route === '/api/tg/proposal/confirm'")
-    const block = s.slice(a, s.indexOf('execute(taken.proposal', a))
+    const a = at(s, "route === '/api/tg/proposal/confirm'")
+    const end = at(s, 'outcomeToBody(outcome)')
+    const block = s.slice(a, end)
     expect(block).not.toContain("'cancel'")
+    // A press that ended in "not sent" leaves the invoice as unasked-for as
+    // a cancel does; by then the draft has left the queue, so the route
+    // must say so itself.
+    expect(block).toContain("reportOrphan(taken.proposal, 'failed')")
+    expect(block).toContain('!outcome.done')
   })
 
-  it('startup hands the queue a pool before listening', () => {
+  it('startup wires the queue to a pool BEFORE listening, and waits for it', () => {
     const s = src()
-    const wire = s.indexOf('wireInvoiceOrphans(')
-    const listen = s.indexOf('server.listen(Number(PORT)')
-    expect(wire).toBeGreaterThan(-1)
+    const wire = at(s, "await import('./src/agent/invoice-orphans')")
+    const listen = at(s, 'server.listen(Number(PORT)')
     expect(listen).toBeGreaterThan(wire)
+    expect(s.slice(wire, listen)).toContain('wireInvoiceOrphans(')
   })
 
-  it('the unpaid-invoices listing skips cancelled rows', () => {
+  it('the credit path (verify) looks at cancelled rows too: redemption wins', () => {
+    /*
+     * /api/tokens/verify is the ONLY code that matches a Stars payment to a
+     * row and credits tokens. A cancelled draft's link stays payable, so the
+     * query must not hide cancelled rows from it -- the first version did,
+     * and a person who paid a cancelled link would have lost their Stars.
+     */
     const s = src()
-    const a = s.indexOf(
-      'SELECT id, tokens, stars, created_at FROM token_invoices'
+    const a = at(s, 'SELECT id, tokens, stars, created_at FROM token_invoices')
+    const stmt = s.slice(a, at(s, 'ORDER BY created_at DESC LIMIT 10'))
+    expect(stmt).not.toContain('cancelled_at')
+    expect(stmt).toContain('redeemed = FALSE')
+  })
+
+  it('redeeming a row clears its cancellation', () => {
+    const s = src()
+    const a = at(s, 'SET redeemed = TRUE')
+    const stmt = s.slice(a, a + 220)
+    expect(stmt).toContain('cancelled_at = NULL')
+    expect(stmt).toContain('redeemed = FALSE RETURNING id')
+  })
+
+  it('verify adds the columns through the once-per-process helper, not inline', () => {
+    const s = src()
+    const a = at(s, "'/api/tokens/verify'")
+    const block = s.slice(
+      a,
+      at(s, 'SELECT id, tokens, stars, created_at FROM token_invoices')
     )
-    expect(a).toBeGreaterThan(-1)
-    const stmt = s.slice(a, s.indexOf('ORDER BY', a))
-    expect(stmt).toContain('cancelled_at IS NULL')
+    expect(block).toContain('ensureInvoiceColumns(pool)')
+    expect(block).not.toContain('ADD COLUMN IF NOT EXISTS')
+  })
+
+  it('the morning summary counts cancelled separately from waiting', () => {
+    const m = fs.readFileSync(
+      path.join(__dirname, 'scripts', 'morning-summary.ts'),
+      'utf8'
+    )
+    expect(m).toContain('cancelled_at IS NOT NULL')
+    expect(m).toContain('cancelled_at IS NULL')
   })
 })

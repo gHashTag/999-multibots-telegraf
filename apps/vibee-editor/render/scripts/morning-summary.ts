@@ -20,7 +20,8 @@ if (!KEY) {
   console.error('[morning] нет AGENT_KEYS')
   process.exit(1)
 }
-const LOOP_DIR = process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../loop')
+const LOOP_DIR =
+  process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../loop')
 const OUT = path.join(LOOP_DIR, 'MORNING.md')
 const LOG = path.join(LOOP_DIR, 'LOOP_STATE.md')
 
@@ -31,9 +32,17 @@ async function cashierSection(): Promise<string[]> {
   const { Pool } = await import('pg')
   const pool = new Pool({ connectionString: process.env.DATABASE_URL })
   try {
+    // The stamp a cancelled draft leaves; idempotent, same as the server.
+    await pool.query(
+      `ALTER TABLE token_invoices
+         ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
+         ADD COLUMN IF NOT EXISTS cancel_reason text`
+    )
     const inv = await pool.query(
       `SELECT count(*)::int AS total,
               count(*) FILTER (WHERE redeemed)::int AS paid,
+              count(*) FILTER (WHERE NOT redeemed AND cancelled_at IS NOT NULL)::int AS cancelled,
+              count(*) FILTER (WHERE NOT redeemed AND cancelled_at IS NULL)::int AS waiting,
               coalesce(sum(stars) FILTER (WHERE redeemed), 0)::int AS stars
          FROM token_invoices
         WHERE created_at > now() - interval '24 hours'`
@@ -41,10 +50,12 @@ async function cashierSection(): Promise<string[]> {
     const r = inv.rows[0]
     return [
       `## Касса звёзд (24 ч)`,
-      `- инвойсов: ${r.total}, оплачено: ${r.paid}, звёзд получено: ${r.stars}`,
+      `- инвойсов: ${r.total}, оплачено: ${r.paid}, ждут: ${r.waiting}, отменено: ${r.cancelled}, звёзд получено: ${r.stars}`,
       r.paid > 0
         ? `- экономика живая: покупки прошли, токены зачислены (вебхук + verify)`
-        : `- покупок пока нет — инвойс живёт в чате агента, напомни человеку`,
+        : r.waiting > 0
+          ? `- покупок пока нет — ${r.waiting} счёт(а) ждут, напомни человеку`
+          : `- покупок и ожидающих счетов нет: отменённые в счёт не идут`,
     ]
   } finally {
     await pool.end()
@@ -86,7 +97,9 @@ async function main() {
     if (a['заголовки_AB']) {
       lines.push(`- A/B заголовков:`)
       for (const row of a['заголовки_AB']) {
-        lines.push(`  - стиль ${row.style}: ${row['постов']} постов, ${row['просмотров']} просмотров`)
+        lines.push(
+          `  - стиль ${row.style}: ${row['постов']} постов, ${row['просмотров']} просмотров`
+        )
       }
     }
   } catch (e) {
@@ -131,7 +144,8 @@ async function main() {
         `- «${x.name}» (id ${x.id}): просмотров ${x.views_count}, звёзд ${x.likes_count} — ${x.video_url}`
       )
     }
-    if (!fresh.length) lines.push('- публикаций не было (лимит/интервал/очередь — см. журнал)')
+    if (!fresh.length)
+      lines.push('- публикаций не было (лимит/интервал/очередь — см. журнал)')
   } catch (e) {
     lines.push(`## За 12 часов — не собралось: ${String(e).slice(0, 160)}`)
   }
@@ -146,7 +160,8 @@ async function main() {
     })
     lines.push(`## Журнал цикла (12 ч, ${recent.length} записей)`)
     lines.push(...recent)
-    if (!recent.length) lines.push('- записи за 12 часов: см. LOOP_STATE.md целиком')
+    if (!recent.length)
+      lines.push('- записи за 12 часов: см. LOOP_STATE.md целиком')
   } catch {
     lines.push('## Журнал — не прочитался')
   }

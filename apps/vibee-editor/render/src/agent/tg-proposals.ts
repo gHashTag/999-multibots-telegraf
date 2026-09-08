@@ -156,8 +156,12 @@ const MAX_PENDING = 200
 
 const pending = new Map<string, PendingProposal>()
 
-/** Why a draft carrying an invoice left the queue unsent. */
-export type OrphanReason = 'cancelled' | 'replaced' | 'expired'
+/**
+ * Why a draft carrying an invoice will never be sent. `failed` is the one
+ * that happens AFTER the queue: the press consumed the draft, `execute`
+ * did not deliver, and the invoice is as unasked-for as after a cancel.
+ */
+export type OrphanReason = 'cancelled' | 'replaced' | 'expired' | 'failed'
 type OrphanListener = (p: PublicProposal, reason: OrphanReason) => void
 let orphanListener: OrphanListener | null = null
 
@@ -171,17 +175,26 @@ export function onOrphaned(fn: OrphanListener | null): void {
   orphanListener = fn
 }
 
-/** Remove a draft that will never be sent, telling the listener why. */
-function drop(p: PendingProposal, reason: OrphanReason): void {
-  pending.delete(p.id)
+/**
+ * Tell the listener about a draft that will never be sent. Public because
+ * the confirm route needs it too: by the time `execute` reports a failure
+ * the draft has already left the queue, so there is nothing left to drop.
+ */
+export function reportOrphan(p: PublicProposal, reason: OrphanReason): void {
   if (p.invoiceId === undefined || !orphanListener) return
   try {
-    orphanListener(redact(p), reason)
+    orphanListener(p, reason)
   } catch (e) {
     // The listener is bookkeeping. The draft is gone whether or not the
     // note about it lands.
     console.warn('[proposal] orphan listener failed:', String(e).slice(0, 120))
   }
+}
+
+/** Remove a draft that will never be sent, telling the listener why. */
+function drop(p: PendingProposal, reason: OrphanReason): void {
+  pending.delete(p.id)
+  reportOrphan(redact(p), reason)
 }
 
 /** Strip what must never leave. Copies, so a caller cannot reach the original. */

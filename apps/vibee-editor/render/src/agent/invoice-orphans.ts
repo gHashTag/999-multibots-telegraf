@@ -1,5 +1,9 @@
 import { onOrphaned } from './tg-proposals'
 import type { OrphanReason, PublicProposal } from './tg-proposals'
+import {
+  ensureInvoiceColumns,
+  forgetInvoiceColumnsForTests,
+} from './token-invoice'
 
 /**
  * A draft that leaves the queue unsent takes its invoice out of "pending".
@@ -10,11 +14,12 @@ import type { OrphanReason, PublicProposal } from './tg-proposals'
  * that lists "unpaid invoices" then kept showing a sale nobody was asked to
  * make, and a second offer to the same person doubled it.
  *
- * What this does: on cancel / replace / expiry, stamp the row with when and
- * why. What it does NOT do: revoke the link. Telegram has no such call; a
- * payment on a cancelled link still credits the person it was minted for,
- * and the row's `redeemed` flips as before. "Cancelled" here means "we no
- * longer expect it", not "it cannot happen".
+ * What this does: on cancel / replace / expiry / failed send, stamp the row
+ * with when and why. What it does NOT do: revoke the link. Telegram has no
+ * such call, so /api/tokens/verify -- the ONE place that matches a Stars
+ * payment to a row and credits the tokens -- keeps looking at cancelled
+ * rows too, and clears the stamp when it redeems one. Redemption wins.
+ * "Cancelled" here means "we no longer expect it", not "it cannot happen".
  */
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>
@@ -22,7 +27,6 @@ type Pool = {
 type GetPool = () => Pool | Promise<Pool>
 
 let wired = false
-let schemaReady = false
 
 /**
  * Register once per process. The queue module has no database of its own;
@@ -42,7 +46,7 @@ export function wireInvoiceOrphans(getPool: GetPool): void {
 /** For tests: forget the registration so the next wire takes effect. */
 export function unwireInvoiceOrphans(): void {
   wired = false
-  schemaReady = false
+  forgetInvoiceColumnsForTests()
   onOrphaned(null)
 }
 
@@ -59,14 +63,7 @@ export async function markOrphaned(
   if (p.invoiceId === undefined) return false
   try {
     const pool = await getPool()
-    if (!schemaReady) {
-      await pool.query(
-        `ALTER TABLE token_invoices
-           ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
-           ADD COLUMN IF NOT EXISTS cancel_reason text`
-      )
-      schemaReady = true
-    }
+    await ensureInvoiceColumns(pool)
     await pool.query(
       `UPDATE token_invoices
          SET cancelled_at = now(), cancel_reason = $2

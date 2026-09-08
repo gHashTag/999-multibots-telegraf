@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { onOrphaned } from './src/agent/tg-proposals'
+import { onOrphaned, reportOrphan } from './src/agent/tg-proposals'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
@@ -974,6 +974,24 @@ describe('an invoice does not outlive its draft', () => {
     const d2 = draft('r2', 4)
     claim(WHO, 'r2', d2.secret, 'cancel')
     expect(other).toEqual(['r1'])
+  })
+
+  it('a send that failed AFTER the press reports the invoice as failed', () => {
+    // The press consumed the draft; execute() did not deliver. The confirm
+    // route has only the public shape left, and that is enough.
+    const d = draft('f1', 11)
+    const taken = claim(WHO, 'f1', d.secret)
+    expect(taken.ok).toBe(true)
+    expect(seen).toEqual([])
+    reportOrphan((taken as { proposal: never }).proposal, 'failed')
+    expect(seen).toEqual([{ id: 'f1', invoiceId: 11, reason: 'failed' }])
+  })
+
+  it('reportOrphan on a draft without an invoice is silent', () => {
+    const d = draft('f2')
+    const taken = claim(WHO, 'f2', d.secret)
+    reportOrphan((taken as { proposal: never }).proposal, 'failed')
+    expect(seen).toEqual([])
   })
 
   it('the listener receives the public shape: no secret, no turn', () => {

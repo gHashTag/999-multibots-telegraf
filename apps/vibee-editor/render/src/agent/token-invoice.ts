@@ -63,6 +63,39 @@ export function paymentBotToken(): string {
  * journaled rather than fatal -- refusing to sell because a bookkeeping row did
  * not write would block payments the bot's handler processes perfectly well.
  */
+let invoiceColumnsReady = false
+
+/**
+ * The two columns a cancelled draft stamps, added ONCE per process.
+ *
+ * `ADD COLUMN IF NOT EXISTS` is a no-op on the data but not on the lock: it
+ * takes ACCESS EXCLUSIVE on token_invoices every time it runs, and the
+ * first version ran it on every /api/tokens/verify -- which the mini-app
+ * calls on every open. Never throws: an older grant leaves the columns
+ * missing and the caller's own statement says so in its own words.
+ */
+export async function ensureInvoiceColumns(pool: {
+  query: (sql: string, params?: unknown[]) => Promise<unknown>
+}): Promise<boolean> {
+  if (invoiceColumnsReady) return true
+  try {
+    await pool.query(
+      `ALTER TABLE token_invoices
+         ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
+         ADD COLUMN IF NOT EXISTS cancel_reason text`
+    )
+    invoiceColumnsReady = true
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** For tests: the next call runs the ALTER again. */
+export function forgetInvoiceColumnsForTests(): void {
+  invoiceColumnsReady = false
+}
+
 export async function mintTokenInvoice(
   input: MintInput
 ): Promise<MintedInvoice> {
@@ -127,17 +160,9 @@ export async function mintTokenInvoice(
            redeemed boolean NOT NULL DEFAULT false
          )`
       )
-      try {
-        // The columns a cancelled draft stamps. Their absence must not cost
-        // the pending row below: the row is what the reconcile needs.
-        await input.pool.query(
-          `ALTER TABLE token_invoices
-             ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
-             ADD COLUMN IF NOT EXISTS cancel_reason text`
-        )
-      } catch {
-        // Older grant, older Postgres: the row still gets written.
-      }
+      // The columns a cancelled draft stamps. Their absence must not cost
+      // the pending row below: the row is what the reconcile needs.
+      await ensureInvoiceColumns(input.pool)
       const inserted = (await input.pool.query(
         `INSERT INTO token_invoices (telegram_id, tokens, stars) VALUES ($1, $2, $3) RETURNING id`,
         [forId, tokens, stars]

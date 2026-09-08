@@ -7629,6 +7629,12 @@ const server = createServer(async (req, res) => {
         telegramId: who,
         pool: await getPool(),
       })
+      if (!outcome.done && taken.proposal.invoiceId !== undefined) {
+        // The draft is consumed either way. A send that failed after the
+        // press leaves its invoice as unasked-for as a cancel does.
+        const { reportOrphan } = await import('./src/agent/tg-proposals')
+        reportOrphan(taken.proposal, 'failed')
+      }
       return sendJson(res, outcome.done ? 200 : 502, outcomeToBody(outcome))
     }
 
@@ -8007,15 +8013,23 @@ const server = createServer(async (req, res) => {
                redeemed boolean NOT NULL DEFAULT false
              )`
           )
-          await pool.query(
-            `ALTER TABLE token_invoices
-               ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
-               ADD COLUMN IF NOT EXISTS cancel_reason text`
+          // Once per process, not per open of the mini-app: the ALTER takes
+          // an exclusive lock even when it has nothing to add.
+          const { ensureInvoiceColumns } = await import(
+            './src/agent/token-invoice'
           )
-          // A cancelled draft's invoice is not "unpaid": nobody was asked.
+          await ensureInvoiceColumns(pool)
+          /*
+           * EVERY unredeemed row, cancelled ones included. This is the only
+           * code that matches a Stars transaction to an invoice and credits
+           * the tokens; the bot's own path never touches token_invoices. A
+           * cancelled draft's link stays payable (Telegram cannot revoke it),
+           * so a person who pays it must still be credited here: redemption
+           * wins over cancellation. Reports, not this query, skip cancelled.
+           */
           const pend = await pool.query(
             `SELECT id, tokens, stars, created_at FROM token_invoices
-             WHERE telegram_id = $1 AND redeemed = FALSE AND cancelled_at IS NULL
+             WHERE telegram_id = $1 AND redeemed = FALSE
              ORDER BY created_at DESC LIMIT 10`,
             [who]
           )
@@ -8065,8 +8079,10 @@ const server = createServer(async (req, res) => {
             })
             if (match) {
               const upd = await pool.query(
-                `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = $2
-                 WHERE id = $1 AND redeemed = FALSE RETURNING id`,
+                `UPDATE token_invoices
+                    SET redeemed = TRUE, star_tx_id = $2,
+                        cancelled_at = NULL, cancel_reason = NULL
+                  WHERE id = $1 AND redeemed = FALSE RETURNING id`,
                 [row.id, match.id]
               )
               if (upd.rows.length) {
@@ -10813,12 +10829,14 @@ async function main() {
   }
 
   // A draft that leaves the proposal queue unsent marks its Stars invoice.
-  // The queue has no database; it is handed one here, once, at startup.
-  import('./src/agent/invoice-orphans')
-    .then(m => m.wireInvoiceOrphans(() => getPool()))
-    .catch(e =>
-      console.warn('[STARS] orphan wiring failed:', String(e).slice(0, 120))
-    )
+  // The queue has no database; it is handed one here, once, BEFORE the
+  // first request can drop anything -- awaited, so the order is a fact.
+  try {
+    const orphans = await import('./src/agent/invoice-orphans')
+    orphans.wireInvoiceOrphans(() => getPool())
+  } catch (e) {
+    console.warn('[STARS] orphan wiring failed:', String(e).slice(0, 120))
+  }
 
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mintTokenInvoice } from './src/agent/token-invoice'
+import {
+  mintTokenInvoice,
+  ensureInvoiceColumns,
+  forgetInvoiceColumnsForTests,
+} from './src/agent/token-invoice'
 
 /**
  * ONE MINT, TWO CALLERS, ONE TRUTH ABOUT MONEY.
@@ -296,5 +300,48 @@ describe('the pending row id travels with the draft', () => {
     expect(pool.queries.some(q => q.sql.startsWith('INSERT'))).toBe(true)
     expect(minted.invoiceId).toBe(5)
     expect(minted.url).toContain('t.me')
+  })
+})
+
+describe('the cancel columns are added once per process', () => {
+  const recording = (failAlter = false) => {
+    const sqls: string[] = []
+    return {
+      sqls,
+      query: async (sql: string) => {
+        const flat = sql.replace(/\s+/g, ' ').trim()
+        sqls.push(flat)
+        if (failAlter && flat.startsWith('ALTER')) throw new Error('no grant')
+        return { rows: [] }
+      },
+    }
+  }
+
+  it('two mints, one ALTER: the lock is taken once, not per open of the app', async () => {
+    forgetInvoiceColumnsForTests()
+    const pool = recording()
+    for (let i = 0; i < 2; i++) {
+      await mintTokenInvoice({
+        forTelegramId: '6579515876',
+        tokens: 10,
+        pool,
+        fetchImpl: recorder().f,
+        botToken: 't',
+      })
+    }
+    expect(
+      pool.sqls.filter(q => q.startsWith('ALTER TABLE token_invoices')).length
+    ).toBe(1)
+    expect(pool.sqls.filter(q => q.startsWith('INSERT')).length).toBe(2)
+  })
+
+  it('a refused ALTER is retried next time, and never throws', async () => {
+    forgetInvoiceColumnsForTests()
+    expect(await ensureInvoiceColumns(recording(true))).toBe(false)
+    const ok = recording()
+    expect(await ensureInvoiceColumns(ok)).toBe(true)
+    expect(ok.sqls.length).toBe(1)
+    expect(await ensureInvoiceColumns(ok)).toBe(true)
+    expect(ok.sqls.length, 'a second ALTER after success').toBe(1)
   })
 })

@@ -587,6 +587,11 @@ describe('displayOf', () => {
     expect(displayOf(null, null)).toBeNull()
     expect(displayOf('', '')).toBeNull()
   })
+  it('a bare domain in a name is a link too, and goes', () => {
+    expect(displayOf('Оля evil.example', null)).toBe('Оля')
+    expect(displayOf('evil.example/x?y=1', null)).toBeNull()
+    expect(displayOf('О.Иванова', null)).toBe('О.Иванова')
+  })
   it('a username keeps only what Telegram allows in one', () => {
     expect(displayOf(null, 'pl@y om!<b>')).toBe('@plyomb')
   })
