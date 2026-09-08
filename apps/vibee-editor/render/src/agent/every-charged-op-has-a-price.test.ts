@@ -38,7 +38,7 @@ function chargedOps(): Map<string, string[]> {
   for (const f of files) {
     const t = fs.readFileSync(f, 'utf8')
     for (const m of t.matchAll(
-      /(?:spendByTid|chargeMiniAppUser)\s*\(([\s\S]{0,200}?)\)/g
+      /(?:spendByTid|chargeMiniAppUser|spendTokens)\s*\(([\s\S]{0,200}?)\)/g
     )) {
       for (const s of m[1].matchAll(/'([a-z_]{3,30})'/g)) {
         const op = s[1]
@@ -66,6 +66,57 @@ describe('an operation without a price is refused, not given away', () => {
     const r = await spendByTid(pool as never, '999', 'image_generate', 1)
     expect(r.ok).toBe(true)
     expect(Number(r.списано)).toBeGreaterThan(0) // cyrillic-ok: public API field
+  })
+
+  it('no price in the table computes to zero', () => {
+    /*
+     * The second way in, and the likelier one. TOKEN_PRICES entries are
+     * priceFor(op), and priceFor returns 0 when the cost table has no row for
+     * that op. The key is then present and the table looks complete, while the
+     * work is free. A missing key is loud; a zero value is not.
+     */
+    const zero = Object.entries(TOKEN_PRICES).filter(([, v]) => !v || v <= 0)
+    expect(Object.keys(TOKEN_PRICES).length).toBeGreaterThan(0)
+    expect(
+      zero.map(([k]) => k),
+      'priced at zero'
+    ).toEqual([])
+  })
+
+  it('the agent refuses an unpriced tool too, not only the other implementation', () => {
+    /*
+     * spendTokens is private, so the decision is pinned by shape. It matters
+     * that this is asserted separately from spendByTid: the identical branch
+     * was closed in billing-shared first and did NOT travel here, and this
+     * file is the one with daily traffic.
+     */
+    const src = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
+    const at = src.indexOf('const price = TOKEN_PRICES[tool]')
+    expect(at, 'the agent charge must still read a price').toBeGreaterThan(-1)
+    const branch = src.slice(at, at + 700)
+    expect(branch).toMatch(/if \(!price\)[\s\S]{0,200}ok: false/)
+    expect(branch).not.toMatch(/if \(!price\) return \{ ok: true \}/)
+  })
+
+  it('the agent refunds what it took, at every one of its refund sites', () => {
+    /*
+     * refundTokens is module-private, so this is pinned by source rather than
+     * by call -- and by SHAPE, not by name: the decision under test is
+     * "prefer the measured amount over the table", and the population under
+     * test is "every refund site carries it". A new site added without the
+     * amount is the way this comes back, and a count would not see it.
+     */
+    const src = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
+    expect(src).toContain("typeof exact === 'number' && exact > 0 ? exact :")
+    const calls = [...src.matchAll(/await refundTokens\(([\s\S]{0,300}?)\)/g)]
+    expect(
+      calls.length,
+      'no refund sites found — the matcher, not the code'
+    ).toBeGreaterThan(0)
+    const withoutAmount = calls.filter(m => !m[1].includes('потрачено')).length // cyrillic-ok: the API field carried
+    expect(withoutAmount, 'refund sites not carrying the charged amount').toBe(
+      0
+    )
   })
 
   it('every op the code actually charges has a price', () => {

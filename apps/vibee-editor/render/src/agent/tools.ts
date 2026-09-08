@@ -307,7 +307,18 @@ async function spendTokens(
   причина?: string
 }> {
   const price = TOKEN_PRICES[tool]
-  if (!price) return { ok: true }
+  /*
+   * A TOOL WITHOUT A PRICE IS REFUSED, NOT GIVEN AWAY.
+   *
+   * The same branch was closed in billing-shared's spendByTid (#2206) and did
+   * not travel here, which is the point: this file is the SECOND implementation
+   * of a charge, and it is the one with daily traffic. Two ways in, not one:
+   * a tool added without a price, and -- more likely -- a price that computes
+   * to zero, because TOKEN_PRICES entries are priceFor(op) and priceFor returns
+   * 0 when the cost table has no row. The key is present, the table looks
+   * complete, and the work is free.
+   */
+  if (!price) return { ok: false, причина: `нет цены для «${tool}»` } // cyrillic-ok: existing API field and log text
 
   // THE HOUSE DOES NOT BILL ITSELF.
   //
@@ -395,10 +406,28 @@ async function spendTokens(
 async function refundTokens(
   ctx: ToolContext,
   tool: string,
-  why: string
+  why: string,
+  /**
+   * What the charge actually took, when the caller kept it.
+   *
+   * spendTokens MEASURES the deduction and returns it. Re-deriving the price
+   * here is a second computation from a table that moves, and the same shape
+   * already went wrong in the sibling implementation: 540 charged, 60 given
+   * back. One number cannot drift from itself.
+   */
+  exact?: number
 ): Promise<void> {
-  const price = TOKEN_PRICES[tool]
-  if (!price) return
+  const price =
+    typeof exact === 'number' && exact > 0 ? exact : TOKEN_PRICES[tool]
+  if (!price) {
+    // Not "nothing to do": somebody was charged and this is the path meant to
+    // give it back. Silence here is the difference between a refund that did
+    // not happen and one that never was attempted.
+    console.error(
+      `[токены] ВОЗВРАТ НЕВОЗМОЖЕН: нет суммы для «${tool}» (${why})` // cyrillic-ok: existing log text
+    )
+    return
+  }
 
   /**
    * THE HOUSE IS NOT PAID BY ITSELF EITHER -- the mirror of spendTokens.
@@ -958,7 +987,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'image_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return { done: false, reason: edited.reason }
       }
@@ -971,7 +1001,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'image_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           done: false,
@@ -993,7 +1024,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'image_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           done: false,
@@ -1120,7 +1152,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'image_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           сделано: false,
@@ -1148,7 +1181,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'image_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           сделано: false,
@@ -1182,7 +1216,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'image_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           сделано: false,
@@ -1274,7 +1309,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'audio_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           сделано: false,
@@ -1298,7 +1334,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'audio_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           сделано: false,
@@ -1371,7 +1408,8 @@ export const TOOLS: AgentTool[] = [
         await refundTokens(
           ctx,
           'video_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          charge['потрачено']
         )
         return {
           сделано: false,
@@ -1431,7 +1469,12 @@ export const TOOLS: AgentTool[] = [
       })
       const startData: any = await start.json().catch(() => null)
       if (!start.ok || !startData?.renderId) {
-        await refundTokens(ctx, 'reel_render', 'провайдер не выполнил работу')
+        await refundTokens(
+          ctx,
+          'reel_render',
+          'провайдер не выполнил работу',
+          charge['потрачено']
+        )
         return {
           началось: false,
           причина: `рендер не стартовал: HTTP ${start.status} ${String(startData?.error || '')}`,
