@@ -199,9 +199,23 @@ async function main() {
       '  ⚠️  строки ПОЛА не найдены в выводе прибора — панель показывает\n' +
         '      верх шкалы и не показывает низ; без них «поверено» ничем не подкреплено'
     )
+  /*
+   * EXECUTION IS A GATE, NOT A SCORE, AND PRINTING A PERCENTAGE INVITED THE
+   * WRONG READING.
+   *
+   * The rate is 100% for the reference, 100% for a neighbour's reference, and
+   * 100% once the 33 comptime invariants are removed as well -- 64 of 64 both
+   * ways. Tests travel WITH the answer, so any coherent spec passes its own
+   * checks whatever question it was meant to answer. No arithmetic on the
+   * number fixes that; it is not a grade.
+   *
+   * What it does answer, and answers well: did this compile and do its own
+   * checks hold. That is worth printing as a count of specs, not a percent.
+   */
   if (e)
     console.log(
-      `  исполнение    исполнимо ${e[0]}, не пошло ${e[1]}, тестов ${e[2]}, прошло ${e[3]}`
+      `  ВОРОТА связности  прошло ${e[0]} из ${Number(e[0]) + Number(e[1])} ` +
+        `(тестов ${e[2]}, из них прошло ${e[3]})`
     )
   if (be)
     console.log(
@@ -224,7 +238,10 @@ async function main() {
   console.log('  Ни одно число здесь не значит ничего в одиночку:')
   console.log('    VALID     постоянный чужой ответ даёт 100%')
   console.log('    RELEVANT  назван тот модуль — про содержимое молчит')
-  console.log('    исполнение жульник ИСПОЛНИМЫМ спеком даёт 100% на 34 из 34')
+  console.log(
+    '    ВОРОТА связности — НЕ оценка: чужой эталон даёт ровно столько же,\n' +
+      '      и после отбрасывания инвариантов тоже (64 из 64 в обе стороны).'
+  )
   console.log(
     '  Постоянный ответ ловится ТОЛЬКО пересечением RELEVANT и остальных.'
   )
