@@ -7,6 +7,8 @@ import {
   describeProvider,
   fetchLeads,
   fetchLead,
+  ingestChats,
+  mirrorDm,
   formatLeads,
   formatLead,
   unframe,
@@ -292,5 +294,54 @@ describe('/lead: one person in depth', () => {
   it('an empty dialog says what to do; no argument is refused before any call', async () => {
     expect(formatLead({ lead: '1', dialog: [] })).toContain('Диалог пуст')
     await expect(fetchLead(OWNER, '')).rejects.toThrow('кого показать')
+  })
+})
+
+describe('the memory calls from the bot', () => {
+  it('ingestChats asks crm_ingest_chats as the owner, every dialog, deep', async () => {
+    const calls = fakeFetch(() => ({
+      ok: true,
+      status: 200,
+      body: { result: { structuredContent: { people: 3, messages_new: 12 } } },
+    }))
+    const r = await ingestChats(OWNER)
+    expect(calls[0].url).toContain('/mcp?telegram_id=' + OWNER)
+    expect(calls[0].body.params.name).toBe('crm_ingest_chats')
+    expect(calls[0].body.params.arguments).toEqual({ limit: 100, depth: 200 })
+    expect(r.messages_new).toBe(12)
+  })
+
+  it('mirrorDm posts the exchange to /api/crm/mirror as the owner, and reports refusals', async () => {
+    const calls = fakeFetch(() => ({
+      ok: true,
+      status: 200,
+      body: { ok: true, fresh: 2, zep: 2 },
+    }))
+    const msgs = [
+      { msg_id: 41, at: 1757348157, out: false, text: 'привет' },
+      { msg_id: 42, at: 1757348160, out: true, text: 'и тебе' },
+    ]
+    const r = await mirrorDm(OWNER, '435572800', 'Geya', msgs)
+    expect(r).toEqual({ ok: true, fresh: 2, zep: 2 })
+    expect(calls[0].url).toBe(
+      'https://vibee-render-production.up.railway.app/api/crm/mirror?telegram_id=' +
+        OWNER
+    )
+    expect(calls[0].method).toBe('POST')
+    expect(calls[0].headers['X-Api-Key']).toBeTruthy()
+    expect(calls[0].body).toEqual({
+      lead: '435572800',
+      name: 'Geya',
+      messages: msgs,
+    })
+    fakeFetch(() => ({
+      ok: false,
+      status: 400,
+      body: { error: 'lead: числовой telegram_id' },
+    }))
+    expect(await mirrorDm(OWNER, 'x', null, msgs)).toEqual({
+      ok: false,
+      error: 'lead: числовой telegram_id',
+    })
   })
 })
