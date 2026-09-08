@@ -48,6 +48,25 @@ describe('reporting an error is not being one', () => {
     expect(names).toContain('who')
   })
 
+  it('a command killed for being slow is not called broken', () => {
+    /*
+     * macOS has no `timeout`, so this sweep uses perl's alarm, which exits
+     * 128+14 = 142. The classifier carried 124 -- GNU timeout's code, borrowed
+     * from a machine this never runs on -- so a killed command fell through to
+     * the broken branch. secrets-audit reads 3783 files and finishes fine when
+     * given the time; it was reported broken twice.
+     *
+     * The output of a killed command is truncated and non-zero, which is
+     * exactly the shape the broken test matches, so SLOW has to be decided
+     * FIRST. Both codes are accepted in case this ever runs where timeout
+     * exists.
+     */
+    expect(classify('partial output, killed mid-sentence', 142)).toBe('SLOW')
+    expect(classify('partial output, killed mid-sentence', 124)).toBe('SLOW')
+    // and the shape that fooled it: a killed run whose tail happens to look broken
+    expect(classify('bash: something: command not found', 142)).toBe('SLOW')
+  })
+
   it('every skip names a subcommand that exists', () => {
     /*
      * Nine of an earlier eighteen named Russian aliases, which the sweep never
