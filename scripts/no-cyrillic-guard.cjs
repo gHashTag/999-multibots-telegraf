@@ -152,6 +152,43 @@ function rangeDiffCommand() {
   return 'git diff --cached --unified=0 --no-color'
 }
 
+/**
+ * Maximal runs of Cyrillic letters on a line: the units a reflow preserves.
+ * "const \u0441\u043b\u043e\u0432\u0430\u043c\u0438 =" yields one run; a new sentence yields several.
+ */
+function cyrillicRuns(line) {
+  return line.match(/[\u0400-\u04FF]+/g) || []
+}
+
+/**
+ * A LINE THE FORMATTER REWROTE IS NOT A NEW VIOLATION.
+ *
+ * This is a ratchet on what a commit ADDS, and a reflowed line is an added
+ * line. One file in apps/vibee-editor/player predates the current prettier
+ * config; the pre-commit hook formats every staged file, so ANY edit to it
+ * rewrites 74 untouched lines, twelve of which carry Cyrillic identifiers
+ * (\u043f\u043e\u0447\u0435\u043c\u0443\u041d\u0435\u043b\u044c\u0437\u044f and friends) that predate this guard. The result was a file
+ * that could not be modified at all: the identifiers are used across other
+ * files so renaming them is not a local change, and the offending lines are
+ * JSX, where a // marker cannot go.
+ *
+ * So: exempt an added line when EVERY Cyrillic run on it also appears among
+ * the lines this same commit REMOVES from that same file. A reflow removes
+ * the old line and adds the new one, so its runs are all present. Genuinely
+ * new Cyrillic brings at least one run that nothing is replacing -- a pure
+ * insertion has no removed lines at all and is never exempt.
+ *
+ * The loosening this admits, stated rather than hidden: a new comment whose
+ * every Cyrillic word also occurs on some line the commit deletes would pass.
+ * That is narrow, and it is the price of not having a file the gates lock.
+ */
+function isReflowOfExistingCyrillic(line, removedText) {
+  if (!removedText) return false
+  const runs = cyrillicRuns(line)
+  if (!runs.length) return false
+  return runs.every(r => removedText.includes(r))
+}
+
 function checkStaged(mode = 'staged') {
   if (mergeInProgress()) {
     console.log(
@@ -171,6 +208,27 @@ function checkStaged(mode = 'staged') {
   } catch (err) {
     console.error(`no-cyrillic-guard: failed to read the ${mode} diff`)
     process.exit(2)
+  }
+
+  // First pass: what this commit REMOVES, per file. Needed before the added
+  // lines are judged, so it cannot be folded into the loop below.
+  const removedByFile = new Map()
+  {
+    let f = null
+    for (const raw of diff.split('\n')) {
+      const m = raw.startsWith('+++ ') && raw.match(/^\+\+\+ b\/(.*)$/)
+      if (m) {
+        f = m[1]
+        continue
+      }
+      if (raw.startsWith('diff --git')) {
+        f = null
+        continue
+      }
+      if (f && raw.startsWith('-') && !raw.startsWith('---')) {
+        removedByFile.set(f, (removedByFile.get(f) || '') + raw.slice(1) + '\n')
+      }
+    }
   }
 
   const violations = []
@@ -222,6 +280,7 @@ function checkStaged(mode = 'staged') {
       }
       if (line.includes(MARKER)) continue
       if (cyrillicOutsideStrings(line, swift)) {
+        if (isReflowOfExistingCyrillic(line, removedByFile.get(file))) continue
         violations.push({ file, text: line.trim() })
       }
     }
@@ -289,4 +348,10 @@ if (require.main === module) {
   }
 }
 
-module.exports = { stripStrings, lineCommentStart, cyrillicOutsideStrings }
+module.exports = {
+  stripStrings,
+  lineCommentStart,
+  cyrillicOutsideStrings,
+  cyrillicRuns,
+  isReflowOfExistingCyrillic,
+}
