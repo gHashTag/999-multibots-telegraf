@@ -70,6 +70,9 @@ function subcommands(triPath) {
  * that REPORTS an error is no longer mistaken for a tool that IS one.
  */
 function classify(out, code) {
+  // Order matters: a command killed by the alarm has a non-zero code and a
+  // truncated message, which is exactly the shape the broken test looks for.
+  if (code === 142 || code === 124) return 'SLOW'
   if (
     code !== 0 &&
     /command not found|No such file|SyntaxError|Cannot find module|is not a function/i.test(
@@ -78,7 +81,19 @@ function classify(out, code) {
   )
     return 'BROKEN'
   if (/Needs |usage:|укажите|нужно указать/i.test(out)) return 'asks' // cyrillic-ok: the tools answer in Russian
-  if (code === 124) return 'SLOW'
+  /*
+   * 142, NOT 124.
+   *
+   * 124 is what GNU `timeout` returns, and macOS does not have it -- this
+   * sweep uses `perl -e 'alarm shift; exec @ARGV'`, which dies on SIGALRM and
+   * exits 128+14. Keeping the borrowed constant meant a command killed for
+   * being slow fell through to the broken branch, and secrets-audit -- which
+   * reads 3783 tracked files and finishes fine when given the time -- was
+   * reported as broken twice.
+   *
+   * Both are accepted: the sweep may one day run somewhere that has timeout.
+   */
+  if (code === 142 || code === 124) return 'SLOW'
   return 'runs'
 }
 
