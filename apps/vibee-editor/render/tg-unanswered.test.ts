@@ -60,15 +60,19 @@ describe('долг считается по последнему слову', () 
     process.env.TELEGRAM_API_HASH = прежние.h
   })
 
-  it('чужую переписку не отдаём', async () => {
+  it('чужую переписку не отдаём: клиент без своей строки не получает сессию владельца', async () => {
     /*
-     * Проверяем ИМЕННО отказ владельческого гварда. Без этого мутация,
-     * снимающая гвард, оставалась зелёной: посторонний всё равно упирался в
-     * «Telegram не подключён», и тест принимал чужую ошибку за свою.
+     * The owner's env session is set above, and the caller is NOT the owner.
+     * What must refuse them is the SESSION lookup ("not connected"), never a
+     * fallback to the env string. Until 2026-09-08 this asserted an owner-only
+     * gate instead; that gate is gone -- a session is per caller now -- and
+     * this is the property that actually keeps the owner's dialogs the owner's.
+     * A mutation handing everyone the env string would not say "not connected":
+     * it would try to open a client on a garbage session and fail elsewhere.
      */
     await expect(
       инструмент.handler({}, { telegramId: '999', pool: {} } as any)
-    ).rejects.toThrow(/принадлежит владельцу|только он сам/)
+    ).rejects.toThrow('не подключён')
   })
 })
 
@@ -109,7 +113,13 @@ describe('правило отбора', () => {
   it('каналы не превращают список долгов в список подписок', () => {
     // В канале последнее слово всегда чужое — иначе список забился бы им.
     const r = отобрать([
-      диалог({ id: '1', title: 'Канал', out: false, часовНазад: 1, channel: true }),
+      диалог({
+        id: '1',
+        title: 'Канал',
+        out: false,
+        часовНазад: 1,
+        channel: true,
+      }),
       диалог({ id: '2', title: 'Глеб', out: false, часовНазад: 2 }),
     ])
     expect(r.map(x => x.собеседник)).toEqual(['Глеб'])
