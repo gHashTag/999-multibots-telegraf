@@ -18,7 +18,9 @@ export interface BusinessConnection {
   user: { id: number; first_name: string; username?: string }
   user_chat_id: number
   date: number
-  can_reply: boolean
+  /** Bot API < 9.0 shape; since 9.0 the flag lives in `rights.can_reply`. */
+  can_reply?: boolean
+  rights?: { can_reply?: boolean }
   is_enabled: boolean
 }
 
@@ -137,19 +139,55 @@ export function buildBusinessMessages(
   ]
 }
 
+/**
+ * Bot API 9.0 replaced `BusinessConnection.can_reply` with `rights.can_reply`
+ * (BusinessBotRights). Reading only the old field yields `undefined` on every
+ * connection Telegram sends today, which the reply path treats as "cannot
+ * reply" -- so every business DM was dropped. Accept both shapes.
+ */
+export function canReplyOf(connection: BusinessConnection): boolean {
+  return connection.rights?.can_reply === true || connection.can_reply === true
+}
+
+/**
+ * The registry is process memory: after a redeploy it is empty, and Telegram
+ * only sends `business_connection` when the link changes, not on restart. A
+ * business_message from an unknown connection id is resolved through
+ * getBusinessConnection and cached exactly like a live update would be.
+ */
+async function lookupConnection(
+  connId: string,
+  bot: Telegraf<any>
+): Promise<ConnectionInfo | undefined> {
+  try {
+    const fetched = (await (bot.telegram as any).callApi(
+      'getBusinessConnection',
+      { business_connection_id: connId }
+    )) as BusinessConnection
+    handleBusinessConnection(fetched)
+    return connections.get(connId)
+  } catch (error) {
+    logger.warn('[Business] getBusinessConnection failed', {
+      connId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
+}
+
 // --- Handlers ---
 
 export function handleBusinessConnection(connection: BusinessConnection): void {
   if (connection.is_enabled) {
     connections.set(connection.id, {
       userId: connection.user.id,
-      canReply: connection.can_reply,
+      canReply: canReplyOf(connection),
       connectedAt: connection.date,
     })
     logger.info('[Business] Connection established', {
       connectionId: connection.id,
       userId: connection.user.id,
-      canReply: connection.can_reply,
+      canReply: canReplyOf(connection),
     })
   } else {
     connections.delete(connection.id)
@@ -166,7 +204,7 @@ export async function handleBusinessMessage(
   botUsername: string
 ): Promise<void> {
   const connId = msg.business_connection_id
-  const conn = connections.get(connId)
+  const conn = connections.get(connId) ?? (await lookupConnection(connId, bot))
 
   if (!conn || !conn.canReply) {
     logger.warn('[Business] No active connection or cannot reply', { connId })
@@ -227,8 +265,6 @@ export async function handleBusinessMessage(
 // --- Raw middleware (Telegraf 4.16.3 doesn't support business events natively) ---
 
 export function createBusinessMiddleware(bot: Telegraf<any>) {
-  const botUsername = bot.botInfo?.username || ''
-
   bot.use(async (ctx: any, next: () => Promise<void>) => {
     const update = ctx.update
 
@@ -238,10 +274,12 @@ export function createBusinessMiddleware(bot: Telegraf<any>) {
     }
 
     if (update.business_message) {
+      // botInfo is filled by launch(), after this middleware is registered:
+      // read the username per message or the sales prompt names an empty bot.
       await handleBusinessMessage(
         update.business_message as BusinessMessage,
         bot,
-        botUsername
+        bot.botInfo?.username || ''
       )
       return
     }
