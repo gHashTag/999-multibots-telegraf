@@ -10,7 +10,30 @@ import { priceFor } from './billing-shared'
  * оплата их оживит. Replicate уже оплачен и отдаёт реальный вывод.
  */
 
-/** Бесплатно — в производстве ничего не стоит. */
+/**
+ * Бесплатно — в производстве ничего не стоит.
+ *
+ * TWO ENTRIES HERE WERE CHARGED, AND ONE NAMED A PROVIDER THE CODE NEVER CALLS.
+ *
+ *  - "Сборка рилса" sat here while `reel_render` charges 2 tokens
+ *    (tools.ts, `spendTokens(ctx, 'reel_render')`) -- and while the very
+ *    same file listed reel_render under PAID. The list contradicted itself.
+ *  - "img2img-сцены из фото — Pollinations FLUX — keyless, $0" was false in
+ *    both halves. That provider's HOST appears in no runtime code at all --
+ *    only its name, in the provider_setup reference, and a name is not a
+ *    call. The img2img that does exist runs on Kie `google/nano-banana-edit`
+ *    and charges 2 tokens through `image_generate`. (The host is spelled out
+ *    nowhere in this file on purpose: the guard greps these sources for it,
+ *    and a comment quoting it reads exactly like a call.)
+ *
+ * Searched with a positive control before saying "nowhere": the same grep
+ * finds `replicate.com` in three runtime files, so it was not silently empty.
+ *
+ * A free list that names a charged feature is worse than no list: the person
+ * reads it, presses, and is billed. Nothing about what is CHARGED changed
+ * here -- only what is claimed. The guard is
+ * nothing-free-is-charged.test.ts.
+ */
 export const FREE = [
   {
     что: 'Лента: смотреть, лайкать, ремиксить из готовых файлов',
@@ -18,15 +41,17 @@ export const FREE = [
   },
   {
     что: 'Агент-чат, сценарии, тексты',
-    как: 'GLM флэт-рейт (кодерская подписка)',
+    // Not one flat-rate provider: DEFAULT_ORDER in provider.ts is a chain,
+    // and its fallbacks are not all flat-rate. Free to the person either
+    // way -- no charge sits on the chat path -- but the reason is a chain,
+    // not a subscription.
+    как: 'цепочка провайдеров, для человека — бесплатно', // cyrillic-ok: field name
   },
   { что: 'SOUL (голос владельца), скиллы, план', как: 'БД' },
   {
     что: 'Блог-рил: текст + барочная гравюра (TrinityBlogReel)',
     как: 'локальный Remotion, без платных генераций',
   },
-  { что: 'img2img-сцены из фото', как: 'Pollinations FLUX — keyless, $0' },
-  { что: 'Сборка рилса', как: 'локальный Remotion/ffmpeg' },
 ]
 
 /**
