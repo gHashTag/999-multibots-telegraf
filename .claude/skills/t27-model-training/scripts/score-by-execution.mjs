@@ -23,7 +23,7 @@
  * spec that failed.
  */
 
-import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises'
+import { readFile, writeFile, mkdtemp, rm, mkdir } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
@@ -101,8 +101,32 @@ function graft(candidate) {
   return candidate
 }
 
+/**
+ * THE SPEC MUST BE COMPILED INSIDE THE SPECS TREE, OR THE HARNESS CHANGES THE ANSWER.
+ *
+ * This ran from the system temp directory for its whole life, and that quietly
+ * rewrote what it measured. `use_resolve::find_specs_root` walks up from the
+ * spec looking for `specs/`; from /tmp it finds nothing, and every `use` is
+ * dropped WITHOUT AN ERROR. The spec then fails on the missing symbol.
+ *
+ * Measured on specs/isa/registers.t27, the same file, twice:
+ *
+ *   from the tree   type '[5]u8' does not support struct initialization syntax
+ *   from /tmp       use of undeclared identifier 'TernaryWord'
+ *
+ * Different class, different diagnosis, same spec. Three of the nine failures
+ * filed under "undeclared identifier" were this harness, not the backend -- so
+ * the instrument was manufacturing the very category it reported.
+ *
+ * T27_SPECS points at a checkout's specs/ directory; the temp file is written
+ * inside it so imports resolve as they do for a real spec.
+ */
+const SPECS_ROOT = process.env.T27_SPECS || null
+
 async function testReport(specText) {
-  const dir = await mkdtemp(join(tmpdir(), 't27exec-'))
+  const base = SPECS_ROOT ? join(SPECS_ROOT, '.eval-tmp') : tmpdir()
+  if (SPECS_ROOT) await mkdir(base, { recursive: true })
+  const dir = await mkdtemp(join(base, 't27exec-'))
   try {
     const f = join(dir, 'spec.t27')
     await writeFile(f, specText)
@@ -262,6 +286,15 @@ async function main() {
       }
     }
 
+    if (!SPECS_ROOT) {
+      console.log(
+        '  ⚠️  T27_SPECS НЕ ЗАДАН: спеки компилируются вне дерева, импорты\n' +
+          '      молча отбрасываются, и класс отказа МЕНЯЕТСЯ. Замерено на\n' +
+          '      specs/isa/registers.t27: из дерева — ошибка инициализации\n' +
+          '      массива, из /tmp — «undeclared identifier». Числа ниже\n' +
+          '      описывают стенд, а не бэкенд.'
+      )
+    }
     console.log(`  эталонов: ${refs.length}\n`)
     const perfect = await scoreAll(
       refs.map(r => ({ reference: r, answer: r })),
