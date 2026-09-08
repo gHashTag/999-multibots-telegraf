@@ -13,6 +13,7 @@ import {
   ACTION_PREFIX,
   topupButtonLabel,
 } from '@/navigation/helpers/actionButtons'
+import { remainingBalanceLine } from '@/price/helpers/remainingBalanceLine'
 
 // Enhanced keyboard for multi-image results
 const createMultiNeuroPhotoResultKeyboard = (
@@ -272,12 +273,17 @@ export async function generateNeuroPhotoMulti(
       }
 
       // Send photos with enhanced navigation
+      // Read once, before the send loop: a photo each would be a query each.
+      // Returns '' on any failure, so a balance read can never cost somebody
+      // the result they already paid for.
+      const leftLine = await remainingBalanceLine(telegram_id, isRu)
+
       for (let i = 0; i < response.data.urls.length; i++) {
         const url = response.data.urls[i]
         try {
           const caption = isRu
-            ? `✨ Нейрофото ${i + 1}/${response.data.urls.length}\n\nСтоимость за изображение: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto ${i + 1}/${response.data.urls.length}\n\nCost per image: ${exactCostPerImage} ⭐`
+            ? `✨ Нейрофото ${i + 1}/${response.data.urls.length}\n\nСтоимость за изображение: ${exactCostPerImage} ⭐${leftLine}`
+            : `✨ Neurophoto ${i + 1}/${response.data.urls.length}\n\nCost per image: ${exactCostPerImage} ⭐${leftLine}`
 
           await ctx.telegram.sendPhoto(
             telegram_id,

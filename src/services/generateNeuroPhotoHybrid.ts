@@ -17,6 +17,7 @@ import {
   ACTION_PREFIX,
   topupButtonLabel,
 } from '@/navigation/helpers/actionButtons'
+import { remainingBalanceLine } from '@/price/helpers/remainingBalanceLine'
 
 // Функция для отправки уведомления админу о проблеме с сервером
 // ✅ ИСПРАВЛЕНО: Не отправляем сообщение пользователю, который инициировал запрос
@@ -308,11 +309,19 @@ export async function generateNeuroPhotoHybrid(
       }
 
       // Отправляем все фотографии с клавиатурой
+      // Read once, before the send loop: a photo each would be a query each.
+      // Returns '' on any failure, so a balance read can never cost somebody
+      // the result they already paid for.
+      const leftLine = await remainingBalanceLine(
+        telegram_id,
+        isRussianFromState(ctx)
+      )
+
       for (const url of response.data.urls) {
         try {
           const caption = isRussianFromState(ctx)
-            ? `✨ Нейрофото сгенерировано!\n\n💎 Стоимость: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto generated!\n\n Cost: ${exactCostPerImage} ⭐`
+            ? `✨ Нейрофото сгенерировано!\n\n💎 Стоимость: ${exactCostPerImage} ⭐${leftLine}`
+            : `✨ Neurophoto generated!\n\n Cost: ${exactCostPerImage} ⭐${leftLine}`
 
           await ctx.telegram.sendPhoto(
             telegram_id,
