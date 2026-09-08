@@ -25,6 +25,7 @@ import {
   KEY_PREFIX,
   TTL_SECONDS,
   VOLATILE_FIELDS,
+  isVolatileField,
   type KvClient,
 } from '@/core/session/sessionStore'
 
@@ -220,6 +221,51 @@ describe('Redis session store', () => {
         /bot\.use\(session\(\)\)/
       )
     }
+  })
+
+  it('a mutual-exclusion flag is never written to Redis', async () => {
+    // 27 scenes hold a paid generation with <x>InProgress. All 27 release it
+    // in a finally or a .leave() -- and none of those run when the process
+    // dies. Written to Redis, the flag has nobody left to clear it and the TTL
+    // is refreshed by every later write, so the person is locked out of that
+    // scene for good.
+    const { client, setCalls } = fakeClient()
+    const store = createRedisSessionStore(client)
+    await store.set('7:7:7', {
+      cursor: 2,
+      neuroPhotoInProgress: true,
+      lastUpscaledUrl: 'https://x/y.png',
+    } as never)
+    const written = JSON.parse(setCalls[0].value)
+    expect(written).not.toHaveProperty('neuroPhotoInProgress')
+    // and nothing else was taken away: the position and the consume-once mark
+    // are exactly what the move to Redis came for.
+    expect(written.cursor).toBe(2)
+    expect(written.lastUpscaledUrl).toBe('https://x/y.png')
+  })
+
+  it('the flag survives inside one process, and dies with it', async () => {
+    const { client } = fakeClient()
+    const live = createRedisSessionStore(client)
+    await live.set('7:7:7', { cursor: 2, faceSwapInProgress: true } as never)
+    // same process: the guard must still see the lock it took
+    expect(await live.get('7:7:7')).toMatchObject({ faceSwapInProgress: true })
+
+    // a redeploy: a new store over the same Redis
+    const afterRestart = createRedisSessionStore(client)
+    const revived = (await afterRestart.get('7:7:7')) as Record<string, unknown>
+    expect(revived).not.toHaveProperty('faceSwapInProgress')
+    expect(revived.cursor, 'the wizard position must still survive').toBe(2)
+  })
+
+  it('self-check: the lock family is recognised and ordinary fields are not', () => {
+    expect(isVolatileField('neuroPhotoInProgress')).toBe(true)
+    expect(isVolatileField('images')).toBe(true)
+    // The consume-once marks are money guards and MUST persist: a restart that
+    // forgot them would let a paid result be consumed twice.
+    expect(isVolatileField('lastUpscaledUrl')).toBe(false)
+    expect(isVolatileField('cursor')).toBe(false)
+    expect(isVolatileField('mode')).toBe(false)
   })
 
   it('mutation: reverting one call site to session() turns the check RED', () => {

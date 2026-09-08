@@ -31,10 +31,12 @@ import path from 'node:path'
  * that is currently invisible: raise the replica count, or give the session a
  * shared store, and this fails with the list of what must be re-examined first.
  *
- * ADDING A SHARED SESSION STORE MAKES THIS FAIL TOO, and that is deliberate. A
- * Redis-backed session would make the guards durable -- an improvement -- but
- * the registries that describe them say "in-memory", and someone has to update
- * that description rather than let it quietly become false.
+ * ADDING A SHARED SESSION STORE MAKES THIS FAIL TOO, and that is deliberate.
+ * It fired: #2230 gave the session a Redis store, and the answer turned out to
+ * be neither "durable now, relax" nor "revert". The wizard POSITION and the
+ * consume-once marks should persist; the in-progress LOCKS should not, because
+ * a lock nobody can release is worse than a lock that dies with its process.
+ * They are excluded by name in sessionStore.isVolatileField.
  */
 
 const ROOT = path.resolve(__dirname, '../../..')
@@ -56,13 +58,19 @@ describe('the money guards assume exactly one process', () => {
     ).toBe(1)
   })
 
-  it('the session store is shared (Redis) -- session-held guards are durable; the marketplace Set is not', () => {
-    // 2026-09-08: sessions moved to Redis (src/core/session/sessionStore.ts)
-    // because 15 redeploys in 3 hours wiped every wizard. The 18 in-progress
-    // flags and 3 consume-once marks live in the session, so they now survive
-    // a restart and would be shared between replicas. The marketplace in-flight
-    // Set is still module state in one process -- which is why numReplicas
-    // above must stay 1 until it gets a durable claim.
+  it('the session store is shared (Redis), and the locks deliberately are NOT', () => {
+    // 2026-09-08, two changes on one day. #2230 moved sessions to Redis because
+    // 15 redeploys in 3 hours wiped every wizard mid-dialogue. That made the
+    // wizard position and the 3 consume-once marks durable, which is right.
+    //
+    // It also made the 27 <x>InProgress locks durable, which is not: every one
+    // of them is released in a `finally` or a `.leave()`, and neither runs when
+    // the process dies. A person who tapped twice during a generation had the
+    // flag written to Redis by the guard's own rejection; the redeploy then
+    // killed the handler, and nothing was left to clear it. So the lock family
+    // is excluded from the store (isVolatileField) and lives per process,
+    // exactly as before -- while the marketplace in-flight Set was always
+    // module state. Both are why numReplicas above must stay 1.
     const bot = read('src/bot.ts')
     const index = read('src/index.ts')
     for (const src of [bot, index]) {
@@ -71,6 +79,11 @@ describe('the money guards assume exactly one process', () => {
         /bot\.use\(session\(\)\)/
       )
     }
+    const store = read('src/core/session/sessionStore.ts')
+    expect(
+      store,
+      'the lock family must stay out of Redis: a lock outliving its holder locks the person out for good'
+    ).toMatch(/LOCK_FIELD\s*=\s*\/InProgress\$\//)
   })
 
   it('the guards this protects are still the ones counted here', () => {

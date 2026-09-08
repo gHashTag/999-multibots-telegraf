@@ -34,6 +34,45 @@ export const VOLATILE_FIELDS: ReadonlySet<string> = new Set([
   // .url carries the bot token -- neither may ever reach Redis.
   'morphingImages',
 ])
+
+/**
+ * A MUTUAL-EXCLUSION FLAG MUST NOT OUTLIVE THE PROCESS THAT HOLDS IT.
+ *
+ * 27 scenes guard a paid generation with `ctx.session.<x>InProgress`. All 27
+ * release it -- 21 in a `finally`, 6 in `.leave()` -- so within a living
+ * process the flag is sound.
+ *
+ * Nothing releases it when the process DIES, and that is the whole difference
+ * this store made. The sequence needs no exotic timing:
+ *
+ *   1. a generation starts, the flag goes true;
+ *   2. the person taps again -- normal, nothing has happened on screen yet --
+ *      and the guard's own early `return` still TOUCHED the session, so the
+ *      middleware writes it, flag and all, to Redis;
+ *   3. a redeploy kills the generating handler; its `finally` never runs.
+ *
+ * The flag is now true in Redis with nobody left to clear it, and the TTL is
+ * refreshed by every later write, so it does not expire for an active user.
+ * The person is locked out of that scene permanently. Before this store, the
+ * same restart cleared the session and the next tap simply worked -- and the
+ * bot was redeployed fifteen times in three hours the day the store landed.
+ *
+ * So these flags stay per-process, exactly as they were. What #2230 came for --
+ * the wizard's POSITION and the consume-once marks -- still goes to Redis; only
+ * the lock does not. That is what every distributed lock does differently from
+ * a plain flag: it carries an expiry, because the holder can vanish.
+ *
+ * WHAT THIS DOES NOT FIX, said plainly: a restart during a dispatched
+ * generation now lets the person start (and pay for) another one. That was the
+ * behaviour before this store existed; a stuck flag does not prevent the second
+ * charge either, it only replaces it with silence.
+ */
+const LOCK_FIELD = /InProgress$/
+
+/** Fields that must never be written to Redis: Buffers, and process-held locks. */
+export function isVolatileField(key: string): boolean {
+  return VOLATILE_FIELDS.has(key) || LOCK_FIELD.test(key)
+}
 export const KEY_PREFIX = 'tg:session:'
 export const TTL_SECONDS = 7 * 24 * 3600
 
@@ -79,7 +118,7 @@ export function splitVolatile(value: SessionShape): {
   const persisted: SessionShape = {}
   const volatile: SessionShape = {}
   for (const [k, v] of Object.entries(value)) {
-    if (VOLATILE_FIELDS.has(k)) volatile[k] = v
+    if (isVolatileField(k)) volatile[k] = v
     else persisted[k] = v
   }
   return { persisted, volatile }

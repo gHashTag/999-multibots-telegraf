@@ -2353,7 +2353,7 @@ src/__tests__/money/geminiChargedNoRefund.test.ts :: generateGeminiImage refunds
 src/__tests__/money/geminiChargedNoRefund.test.ts :: generateGeminiImage refunds a failed paid generation (no charged-no-refund) refunds via refundAndTell on a generation error
 src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process railway.toml still pins a single replica
 src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the guards this protects are still the ones counted here
-src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the session store is shared (Redis) -- session-held guards are durable; the marketplace Set is not
+src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the session store is shared (Redis), and the locks deliberately are NOT
 src/__tests__/money/hedraRefundChecked.test.ts :: hedra-render refund result is checked (no silent unrefunded charge) assigns the MONEY_INCOME refund result and reacts to a failure
 src/__tests__/money/heygenRefundChecked.test.ts :: heygen-render refund result is checked and reported truthfully assigns the MONEY_INCOME refund result
 src/__tests__/money/heygenRefundChecked.test.ts :: heygen-render refund result is checked and reported truthfully tells the user "funds refunded" only when the refund actually succeeded
@@ -3454,6 +3454,7 @@ src/__tests__/reliability/routesJsonParseGuarded.test.ts :: every JSON.parse in 
 src/__tests__/reliability/routesJsonParseGuarded.test.ts :: every JSON.parse in api_server routes is try-guarded (charged-not-delivered class) has no unguarded JSON.parse at the HTTP/webhook boundary
 src/__tests__/reliability/routesJsonParseGuarded.test.ts :: every JSON.parse in api_server routes is try-guarded (charged-not-delivered class) routes directory exists and is populated (a broken path fails, not passes)
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store a failing Redis degrades to memory for the affected keys and never throws
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store a mutual-exclusion flag is never written to Redis
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store after an outage the fallback value wins over the stale Redis snapshot, then writes through
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store every bot installs sessionMiddleware() and no bare session() remains
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store every session field whose type carries a Buffer is volatile (never written to Redis)
@@ -3463,7 +3464,9 @@ src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store mutat
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store never writes Buffer-bearing images to Redis, but returns them from the side map
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store round-trips a wizard session through JSON, with prefix and TTL
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store self-check: splitVolatile separates exactly the volatile fields
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store self-check: the lock family is recognised and ordinary fields are not
 src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store the client disables the offline queue so a down Redis rejects instead of hanging
+src/__tests__/reliability/sessionStoreRedis.test.ts :: Redis session store the flag survives inside one process, and dies with it
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id each migrated function is present and off .single()-on-telegram_id
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id floor: each migrated file still queries users by telegram_id
 src/__tests__/reliability/singleTelegramMigratedFiles.test.ts :: migrated users-readers stay off .single()-on-telegram_id mutation: reverting a migrated reader to .single() turns the check RED
