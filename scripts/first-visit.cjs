@@ -24,7 +24,71 @@
  * table. A hardcoded timestamp would quietly stop matching after the next
  * import and put everybody in one bucket again.
  */
+const { requireColumns } = require('./lib/require-columns.cjs')
+
 const HOUR = 36e5
+
+/**
+ * A model trained FOR one person, as opposed to one everybody shares.
+ *
+ * The shape is owner/name:hash -- a Replicate version of a model trained on
+ * somebody's own photographs -- plus the legacy 'neurophoto' marker. Shared
+ * models are the catalogue: flux-kontext-max, SeeDream, Nano Banana.
+ */
+function isPersonalModel(model) {
+  const m = String(model || '')
+  return (
+    /^[a-z0-9_-]+\/[a-z0-9_-]+:[0-9a-f]{6,}/i.test(m) || /^neurophoto$/i.test(m)
+  )
+}
+
+/**
+ * WHAT THE FIRST GENERATION WAS ON, AND WHETHER THEY CAME BACK.
+ *
+ * Measured 2026-09-08 over the organic cohort:
+ *
+ *   started on a personal model     7 people, 7 came back   (100%)
+ *   started on a shared model     136 people, 15 came back  (11%)
+ *
+ * Not one of the 121 who generated exactly once had started on a personal one.
+ *
+ * WHAT THIS DOES NOT ESTABLISH, and the number is worthless without it: seven
+ * is a small group, and training a model costs money and photographs, so those
+ * people had already committed before they generated anything. The association
+ * is total; the direction is not shown. It says where to look, not what to do.
+ */
+function byFirstModel(users, prompts, importSecond) {
+  const byUser = new Map()
+  for (const p of prompts) {
+    const u = String(p.telegram_id)
+    if (!p.created_at) continue
+    if (!byUser.has(u)) byUser.set(u, [])
+    byUser.get(u).push(p)
+  }
+  const organic = new Set(
+    users
+      .filter(
+        u => !importSecond || String(u.created_at).slice(0, 19) !== importSecond
+      )
+      .map(u => String(u.telegram_id))
+  )
+  const out = {
+    personal: { people: 0, returned: 0 },
+    shared: { people: 0, returned: 0 },
+  }
+  for (const [u, rows] of byUser) {
+    if (!organic.has(u)) continue
+    const first = rows
+      .slice()
+      .sort((a, b) =>
+        String(a.created_at).localeCompare(String(b.created_at))
+      )[0]
+    const g = isPersonalModel(first.model_type) ? 'personal' : 'shared'
+    out[g].people++
+    if (rows.length > 1) out[g].returned++
+  }
+  return out
+}
 
 /** Cohort split and continuation, from rows alone. Pure, so it is testable. */
 function analyse(users, prompts) {
@@ -161,9 +225,17 @@ async function main() {
     url,
     key,
     'prompts_history',
-    'prompt_id,telegram_id,created_at',
+    'prompt_id,telegram_id,created_at,model_type',
     'prompt_id'
   )
+  // model_type decides personal-versus-shared below; without it every row
+  // reads as shared and the finding inverts itself in silence.
+  requireColumns(
+    prompts,
+    ['telegram_id', 'created_at', 'model_type'],
+    'first generations'
+  )
+  requireColumns(users, ['telegram_id', 'created_at'], 'arrivals')
   const r = analyse(users, prompts)
   console.log(`users ${users.length}, generations ${prompts.length}`)
   if (r.importSecond)
@@ -196,12 +268,30 @@ async function main() {
     )
     console.log()
   }
+  const m = byFirstModel(users, prompts, r.importSecond)
+  console.log('what the first generation was on (organic only):')
+  for (const g of ['personal', 'shared']) {
+    const v = m[g]
+    if (!v.people) continue
+    const pc = ((100 * v.returned) / v.people).toFixed(0)
+    console.log(
+      `  ${g.padEnd(9)} ${String(v.people).padStart(4)} people, ${String(v.returned).padStart(3)} came back  (${pc}%)`
+    )
+  }
+  console.log('  personal = trained for that person; shared = the catalogue')
+  console.log(
+    '  SMALL GROUP AND THE DIRECTION IS NOT SHOWN: training costs money and'
+  )
+  console.log(
+    '  photographs, so those people had committed before generating anything.'
+  )
+  console.log()
   console.log(
     'Read the two cohorts apart: an average over them describes nobody.'
   )
 }
 
-module.exports = { analyse, selfCheck }
+module.exports = { analyse, selfCheck, byFirstModel, isPersonalModel }
 if (require.main === module)
   main().catch(e => {
     console.error(e)
