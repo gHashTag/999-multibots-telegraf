@@ -554,12 +554,14 @@ sys.stderr.write(str(len(ts)))
     KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
-    curl -s "https://vibee-render-production.up.railway.app/mcp?telegram_id=144022504" \
+    # The answer travels in an env var, not on stdin: `python3 -` takes its
+    # script from stdin, so a heredoc there would displace the pipe.
+    ANSWER=$(curl -s "https://vibee-render-production.up.railway.app/mcp?telegram_id=144022504" \
       -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
-      -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"crm_waiting","arguments":{}}}' \
-      | python3 - <<'PYEOF'
-import json, sys
-r = json.load(sys.stdin); res = r.get('result', {})
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"crm_waiting","arguments":{}}}')
+    ANSWER="$ANSWER" python3 - <<'PYEOF'
+import json, os
+r = json.loads(os.environ['ANSWER']); res = r.get('result', {})
 s = res.get('structuredContent') or json.loads(res['content'][0]['text'])
 print(f"ждут: {s.get('total')}  ours={s.get('ours')} due={s.get('due')} theirs={s.get('theirs')}")
 for w in s.get('waiting', [])[:20]:
