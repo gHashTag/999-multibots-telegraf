@@ -125,6 +125,12 @@ describe('the DM stance', () => {
     expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     expect(p).toContain('next=talk')
     expect(p).not.toContain('Цена сразу')
+    // Selective work, taught: one person, or a group by the memory's fields.
+    expect(p).toContain('crm_summary')
+    expect(p).toContain('Выборочно')
+    expect(p).toContain('crm_leads с limit 50')
+    expect(p).toContain('после его кнопки')
+    expect(p).toContain('«никого»')
   })
 
   it('runAgent adds the block only on the business surface', async () => {

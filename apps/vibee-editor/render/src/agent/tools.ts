@@ -527,6 +527,7 @@ import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
+import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { HIVE_TOOLS } from './hive-tools'
 import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS } from './telegram-tools'
@@ -2308,6 +2309,7 @@ TOOLS.push(...CRM_OFFER_TOOLS)
 // generator lives in this file, and a module cycle would be the alternative.
 TOOLS.push(...makeCrmDeliverTools(n => TOOLS.find(t => t.name === n)))
 TOOLS.push(...CRM_MEMORY_TOOLS)
+TOOLS.push(...CRM_SUMMARY_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
