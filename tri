@@ -3740,6 +3740,44 @@ action="${1:-помощь}"
 # so the flag whose red path was proven a day earlier never arrived.
 shift 2>/dev/null || true
 
+# --- tri secrets ---------------------------------------------------------
+#
+# SCAN THE PLACES NOTHING ELSE LOOKS.
+#
+# Two credential leaks landed on one machine on one day, and NEITHER was in the
+# repository: one was a session log, the other two `railway variables` dumps in
+# a scratchpad. Every guard we own reads the repo or the diff, so both were
+# invisible to all of them.
+#
+# Deliberately NOT a pre-push hook. Measured on this repository: 44 matches,
+# tightened to 16, and every one of the 16 is a placeholder in a doc, an
+# .example file or a deploy script -- zero real. A gate that stops a push
+# sixteen times for nothing gets removed in a day, and a scanner people have
+# removed catches nothing at all.
+#
+# NAMED secrets-on-disk, NOT secrets: the short Russian alias was already taken
+# by secrets-audit further down the same `case`, and an arm placed earlier steals
+# it silently -- the dispatcher takes the first match and says nothing.
+#
+#   tri secrets-on-disk            scans the temp roots where dumps land
+#   tri secrets-on-disk <dir>...   scans what you name
+cmd_secrets() {
+  local roots=("$@")
+  if [ ${#roots[@]} -eq 0 ]; then
+    # Where an agent's working files actually live on this machine.
+    roots=()
+    [ -n "${TMPDIR:-}" ] && roots+=("${TMPDIR%/}")
+    [ -d /tmp ] && roots+=(/tmp)
+    if [ ${#roots[@]} -eq 0 ]; then
+      bad "нечего сканировать: задайте каталог явно"
+      return 2
+    fi
+    say "каталоги по умолчанию: ${roots[*]}"
+    say "репозиторий сюда НЕ входит — там смотрят другие охраны"
+  fi
+  node "$ROOT/scripts/scan-secrets-on-disk.cjs" "${roots[@]}"
+}
+
 case "$action" in
   # English is the primary name; the Russian one stays as an alias because loop
   # scripts, skills and the journal already call it. Renaming without the alias
@@ -3749,6 +3787,7 @@ case "$action" in
   in-tsc|в-tsc)        cmd_in_tsc "$@" ;;
   alive|жив)           cmd_alive "$@" ;;
   mutate|мутация)      cmd_mutate "$@" ;;
+  secrets-on-disk|на-диске) cmd_secrets "$@" ;;
   deployed|выложен)    cmd_deployed ;;
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
@@ -3781,7 +3820,7 @@ case "$action" in
   funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
   stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
   events|события)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
-  keys|ключи)         railway run -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;
+  keys|ключи-провайдеров) railway run -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;   # the short alias belongs to idempotency-keys above
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
@@ -3799,14 +3838,14 @@ case "$action" in
   trust-all|доверие-всем)  cmd_trust_all "$@" ;;
   timers|таймеры)      cmd_timers "$@" ;;
   optional|необязательные)      cmd_optional "$@" ;;
-  events|события)      cmd_events "$@" ;;
+  event-sinks|стоки)   cmd_events "$@" ;;   # both former aliases were taken 19 lines above: unreachable
   shell|оболочка)      cmd_shell "$@" ;;
   twins|двойники)      cmd_twins "$@" ;;
   splits|расхождения)  cmd_splits "$@" ;;
   fallbacks|запасные)  cmd_fallbacks "$@" ;;
-  refunds|возвраты)    cmd_refunds "$@" ;;
+  refunds|возвраты-список) cmd_refunds "$@" ;;   # the short alias belongs to batch-refunds above
   registries|реестры)  cmd_registries "$@" ;;
-  worktrees|деревья)  cmd_worktrees "$@" ;;
+  worktrees|деревья-список) cmd_worktrees "$@" ;;   # the short alias belongs to wt above
   cache|кэш)  cmd_cache "$@" ;;
   skips|пропуски)  cmd_skips "$@" ;;
   silent-reds|тихие-красные)  cmd_silent_reds "$@" ;;
