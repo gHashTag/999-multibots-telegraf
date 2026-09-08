@@ -1,6 +1,7 @@
 // ===============================
 
 import { authHeaders } from './apiFetch'
+import { reportClientError } from './clientErrorBeacon'
 import { RENDER_SERVER_URL } from './mediaUrl'
 // S3 Upload Utility
 // ===============================
@@ -79,6 +80,11 @@ export async function uploadToS3(
     )
   } catch (error) {
     console.error('[S3 Upload] Error:', error)
+    reportClientError({
+      kind: 'upload_failed',
+      message: error instanceof Error ? error.message : String(error),
+      context: `file=${filename.slice(0, 80)} size=${file.size}`,
+    })
     // Бросаем дальше, а не возвращаем null: все вызывающие уже стоят внутри
     // try, и им нужна причина, а не пустота.
     throw error instanceof Error ? error : new Error(String(error))

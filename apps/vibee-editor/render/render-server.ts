@@ -533,6 +533,11 @@ import {
   владелец,
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
+import {
+  ClientErrorGate,
+  formatClientErrorAlert,
+  parseClientError,
+} from './src/client-errors'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -921,6 +926,7 @@ async function startSessionRevocationSync(): Promise<void> {
 // Telegram Notification Configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const TELEGRAM_OWNER_ID = '144022504'
+const clientErrorGate = new ClientErrorGate()
 const TELEGRAM_RENDERS_GROUP = '-1002737186844'
 
 // Send text message to Telegram
@@ -3088,6 +3094,53 @@ const server = createServer(async (req, res) => {
         startedAt: startedAtIso,
       })
     )
+    return
+  }
+
+  // The browser's failure reaches the owner. The mini app POSTs what the
+  // person saw (see player/src/lib/clientErrorBeacon.ts); the gate collapses
+  // a storm into one alert per error per ten minutes, twenty an hour at most;
+  // the line below is also the server-side trace of a failure the server
+  // never saw as a request (08.09.2026: "Load failed" during a redeploy).
+  if (req.url?.split('?')[0] === '/api/client-error' && req.method === 'POST') {
+    let body = ''
+    let size = 0
+    req.on('data', chunk => {
+      size += chunk.length
+      if (size <= 8192) body += chunk
+    })
+    req.on('end', async () => {
+      try {
+        const report = parseClientError(JSON.parse(body || '{}'))
+        const who = verifiedTelegramId(req)
+        const decision = clientErrorGate.decide(report, Date.now())
+        console.error(
+          '[client-error]',
+          JSON.stringify({ ...report, who, decision }).slice(0, 700)
+        )
+        if (decision === 'notify') {
+          await sendTelegramMessage(
+            TELEGRAM_OWNER_ID,
+            formatClientErrorAlert(report, who)
+          ).catch(e =>
+            console.error(
+              '[client-error] owner alert failed:',
+              String(e).slice(0, 160)
+            )
+          )
+        }
+        res.writeHead(202, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, decision }))
+      } catch (error) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            error: 'bad report',
+            detail: String(error).slice(0, 120),
+          })
+        )
+      }
+    })
     return
   }
 
