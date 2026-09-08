@@ -59,6 +59,8 @@ const FABRICATED_HOST =
 const ALLOWED: Record<string, string> = {
   'src/core/x402/index.ts': 'публичные адреса сетей Base — это и есть значения',
   'src/handlers/getPhotoUrl.ts': 'ссылки на наше же хранилище',
+  'src/handlers/inlineQuery.ts':
+    'deep link t.me/<бот>?start=svc_… — адрес и есть результат, вызова нет',
   'src/inngest_app/functions/render/renderAvatarVideo.ts':
     'адрес собирается ПОСЛЕ успешной загрузки, не вместо неё',
 }
