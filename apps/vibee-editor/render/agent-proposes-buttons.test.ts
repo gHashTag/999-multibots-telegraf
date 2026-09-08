@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { systemPrompt } from './src/agent/chat.ts'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * THE AGENT MAY PROPOSE A BUTTON — IN THE BOT, AND NOWHERE ELSE.
@@ -61,7 +63,7 @@ describe('the route hands the surface to the agent', () => {
    * allow-listed in this file long before this change and went nowhere.
    */
   it('passes the validated surface into runAgent, not the raw body field', () => {
-    const call = ROUTES.slice(ROUTES.indexOf('runAgent('))
+    const call = sliceFrom(ROUTES, 'runAgent(')
     const head = call.slice(0, 400)
     expect(head).toContain('surface:')
     expect(head).not.toContain('body.surface')

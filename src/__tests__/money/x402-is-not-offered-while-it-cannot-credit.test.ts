@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * A PAYMENT METHOD MAY BE OFFERED ONLY IF SOMETHING CAN CREDIT IT.
@@ -112,9 +114,7 @@ describe('x402 is not offered while nothing can credit it', () => {
       path.join(REPO, 'src/scenes/cryptoPaymentScene.ts'),
       'utf8'
     )
-    const handler = src.slice(
-      src.indexOf('cryptoPaymentScene.action(/crypto_topup_')
-    )
+    const handler = sliceFrom(src, 'cryptoPaymentScene.action(/crypto_topup_')
     const guardAt = handler.indexOf('canX402Credit()')
     const writeAt = handler.indexOf('setPayments(')
 
@@ -140,7 +140,7 @@ describe('x402 is not offered while nothing can credit it', () => {
     // The defect being ratcheted is a refusal sent with no keyboard. The reply
     // that follows the guard must carry standardButtons -- the same helper the
     // shared money refusal uses, which puts top-up first.
-    const guard = src.slice(src.indexOf('if (!canX402Credit())'))
+    const guard = sliceFrom(src, 'if (!canX402Credit())')
     const reply = guard.slice(0, guard.indexOf('return ctx.scene.leave()'))
     expect(
       reply.includes('standardButtons(isRu)'),

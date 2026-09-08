@@ -22,6 +22,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 const RENDER = __dirname
 const MODULE = path.join(RENDER, 'src', 'channel-delivery.ts')
@@ -87,7 +89,7 @@ describe('the delivery module is wired into what production runs', () => {
     // failure). A step placed after feed_publish would run only at the moment
     // the live path has already delivered -- i.e. never for the backlog.
     const src = read(AUTOPILOT)
-    const once = src.slice(src.indexOf('async function once()'))
+    const once = sliceFrom(src, 'async function once()')
     expect(once.length).toBeGreaterThan(100)
     expect(once).toMatch(/channelTick\s*\(/)
   })

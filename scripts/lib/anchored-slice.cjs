@@ -36,11 +36,34 @@ function sliceFrom(src, needle, length) {
   return length === undefined ? src.slice(at) : src.slice(at, at + length)
 }
 
-/** Between two anchors; the second is optional and falls back to the end. */
+/**
+ * Between two anchors. BOTH must exist.
+ *
+ * The first version let the closing anchor fall back to end-of-file, and that
+ * was the same defect wearing the opposite face. A region that cannot find its
+ * END does not shrink to nothing -- it silently GROWS, from the opening anchor
+ * to the end of the file. Measured on the real subject: a 517-character
+ * function became 5,990 characters, and every POSITIVE assertion over it still
+ * passed, because what they looked for was somewhere in those 5,990. The test
+ * went green while proving nothing about the function it named.
+ *
+ * So this is the vacuous pass reached through positive assertions, which is why
+ * "negative assertions are the dangerous ones" was too narrow a rule: what
+ * matters is whether a broken anchor can leave the assertion satisfiable.
+ *
+ * Found by the verification pass over this very helper, hours after I wrote it
+ * and documented the fallback as a convenience.
+ */
 function sliceBetween(src, from, to) {
   const region = sliceFrom(src, from)
   const end = region.indexOf(to, from.length)
-  return end === -1 ? region : region.slice(0, end)
+  if (end === -1)
+    throw new Error(
+      `closing anchor not found: ${JSON.stringify(to)} after ` +
+        `${JSON.stringify(from)} — without it the region runs to end of file ` +
+        `and assertions pass on text that is not the subject`
+    )
+  return region.slice(0, end)
 }
 
 module.exports = { sliceFrom, sliceBetween }

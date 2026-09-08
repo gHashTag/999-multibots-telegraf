@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import path from 'node:path'
 import fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * Ratchet: money-map must recognise BOTH spellings of giving money back.
@@ -76,7 +78,7 @@ describe('money-map knows both spellings of giving money back', () => {
     // could be satisfied by a repository that happens to contain no REFUND call
     // in the awkward position, and the rule could rot unnoticed.
     const src = fs.readFileSync(MAP, 'utf8')
-    const balanceBranch = src.slice(src.indexOf('name === BALANCE_FN'))
+    const balanceBranch = sliceFrom(src, 'name === BALANCE_FN')
     const branch = balanceBranch.slice(0, balanceBranch.indexOf('return null'))
     expect(
       /REFUND/.test(branch),

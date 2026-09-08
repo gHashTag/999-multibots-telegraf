@@ -9,6 +9,8 @@ import {
   MAX_TRACKED,
   type ThrottleState,
 } from '@/utils/alertThrottle'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceBetween } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /*
  * THE OWNER'S CHANNEL WENT LIVE THIS MORNING AND WOULD BE BURIED BY THE FIRST
@@ -131,12 +133,13 @@ describe('one incident is one message', () => {
     // because warn is not forwarded -- so the level had to move with it. A
     // mutant that put `warn` back survived until this test existed.
     const code = codeOf('src/helpers/error/errorHandler.ts')
-    const forbidden = code.slice(code.indexOf('} else if (isForbiddenError) {'))
-    expect(
-      code.indexOf('} else if (isForbiddenError) {'),
-      'the branch was renamed; re-anchor this check'
-    ).toBeGreaterThan(-1)
-    const branch = forbidden.slice(0, forbidden.indexOf('} else {'))
+    // My own site, written this morning with the guard AFTER the slice. Same
+    // helper as everywhere else now: the anchor names itself when it goes.
+    const branch = sliceBetween(
+      code,
+      '} else if (isForbiddenError) {',
+      '} else {'
+    )
     expect(branch, 'a 403 is logged where the owner will never see it').toMatch(
       /logger\.error\('🔒/
     )

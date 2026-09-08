@@ -35,6 +35,8 @@ import {
   DEFAULT_CHAIN_BUDGET_MS,
   type ImageLeg,
 } from './src/image-chain'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * Source with comments removed, so an assertion about CODE cannot be satisfied
@@ -294,7 +296,7 @@ describe('the route actually uses the chain', () => {
     expect(SERVER).toMatch(/provider: outcome\.provider/)
     // On failure too: a 500 with no `tried` is the silence this whole change
     // exists to end.
-    const failure = SERVER.slice(SERVER.indexOf('no image provider delivered'))
+    const failure = sliceFrom(SERVER, 'no image provider delivered')
     expect(failure.slice(0, 900)).toMatch(/tried,/)
   })
 

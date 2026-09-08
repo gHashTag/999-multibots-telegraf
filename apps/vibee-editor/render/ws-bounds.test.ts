@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * What an anonymous WebSocket peer may cost us.
@@ -67,7 +69,7 @@ describe('анонимный peer ограничен в цене', () => {
 
   it('рассылка пропускает отставшего, и проверка стоит ДО send', () => {
     const s = wsSection()
-    const body = s.slice(s.indexOf('function broadcastWS'))
+    const body = sliceFrom(s, 'function broadcastWS')
     const guard = body.search(/bufferedAmount\s*>\s*WS_MAX_BUFFERED_BYTES/)
     const send = body.indexOf('client.send(data)')
     expect(guard, 'нет проверки очереди').toBeGreaterThan(-1)

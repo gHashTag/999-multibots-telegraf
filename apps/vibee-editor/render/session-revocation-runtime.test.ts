@@ -7,6 +7,8 @@ import {
   signAccessToken,
   verifyAppSession,
 } from './session'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 const KEY = 'test-signing-key-long-enough-for-the-check-0123456789'
 
@@ -42,7 +44,9 @@ describe('cross-replica session revocation', () => {
         const т = String(sql).replace(/\s+/g, ' ')
         const отозванные =
           /revoked_at IS NOT NULL/.test(т) && /revoked_at >/.test(т)
-        return { rows: отозванные ? [{ id: 'revoked-on-another-replica' }] : [] }
+        return {
+          rows: отозванные ? [{ id: 'revoked-on-another-replica' }] : [],
+        }
       },
     }
     expect(await pollRevocations(pool)).toBe(1)
@@ -54,7 +58,7 @@ describe('cross-replica session revocation', () => {
       path.join(__dirname, 'render-server.ts'),
       'utf8'
     )
-    const main = server.slice(server.indexOf('async function main()'))
+    const main = sliceFrom(server, 'async function main()')
     expect(main.indexOf('await startSessionRevocationSync()')).toBeGreaterThan(
       -1
     )
