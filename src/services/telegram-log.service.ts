@@ -9,8 +9,39 @@ import { logger } from '@/utils/logger'
  * Chat ID: -1002737186844 (supergroup с префиксом -100)
  */
 
-// НейроМентор - основной чат для всех логов
+// NeuroMentor - the legacy group, kept only as the last resort
 const DEFAULT_LOG_GROUP_ID = '-1002737186844'
+
+/**
+ * WHERE ALERTS GO, AND WHY IT IS NOT A HARD-CODED GROUP.
+ *
+ * The destination was `LOG_GROUP_ID || '-1002737186844'`. LOG_GROUP_ID is not
+ * set in production, so every alert -- had any ever been sent -- would have
+ * gone to a group nobody verified the bot belongs to. The owner asked for them
+ * in their own chat, and their id is already in the deploy under
+ * ADMIN_TELEGRAM_ID (and hard-coded in eight files besides).
+ *
+ * Order: an explicit LOG_GROUP_ID wins, because someone who sets it means it.
+ * Otherwise the FIRST admin id -- a direct message the owner cannot miss. The
+ * legacy group stays last, and says out loud that it is a guess.
+ *
+ * A bot may only write to a person who has started it. That failure is a 403
+ * and it is now reported with the bot's name, so the remedy ("open that bot,
+ * press Start") is in the message rather than in somebody's memory.
+ */
+export function resolveAlertDestination(env: NodeJS.ProcessEnv = process.env): {
+  chatId: string
+  via: 'LOG_GROUP_ID' | 'ADMIN_TELEGRAM_ID' | 'legacy-group'
+} {
+  const explicit = (env.LOG_GROUP_ID || '').trim()
+  if (explicit) return { chatId: explicit, via: 'LOG_GROUP_ID' }
+  const admin = (env.ADMIN_TELEGRAM_ID || '')
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean)[0]
+  if (admin) return { chatId: admin, via: 'ADMIN_TELEGRAM_ID' }
+  return { chatId: DEFAULT_LOG_GROUP_ID, via: 'legacy-group' }
+}
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'system' | 'payment' | 'user'
 
@@ -29,8 +60,13 @@ class TelegramLogService {
   /** So the complaint about a dead channel is once a minute, not once an error. */
   private lastNotWiredWarnAt = 0
 
+  /** How the destination was chosen, for the startup line and for failures. */
+  private destinationVia: string
+
   constructor() {
-    this.logGroupId = process.env.LOG_GROUP_ID || DEFAULT_LOG_GROUP_ID
+    const d = resolveAlertDestination()
+    this.logGroupId = d.chatId
+    this.destinationVia = d.via
   }
 
   /**
@@ -59,8 +95,12 @@ class TelegramLogService {
   initialize(bot: Telegraf<MyContext>): void {
     this.bot = bot
     this.isInitialized = true
-    logger.info('[TelegramLogService] Initialized with bot', {
-      logGroupId: this.logGroupId,
+    // The destination is named out loud, because "alerts are on" and "alerts
+    // arrive" are different claims and only the second one matters.
+    logger.info('[TelegramLogService] alerts ON', {
+      chatId: this.logGroupId,
+      via: this.destinationVia,
+      sender: bot.botInfo?.username || 'bot (username not yet known)',
     })
   }
 
@@ -120,8 +160,24 @@ class TelegramLogService {
         link_preview_options: { is_disabled: true },
       })
     } catch (error) {
-      logger.error('[TelegramLogService] Failed to send log to Telegram', {
-        error: error instanceof Error ? error.message : String(error),
+      /*
+       * THE REMEDY BELONGS IN THE MESSAGE.
+       *
+       * A bot may only write to a person who has started it; the refusal is a
+       * 403 and it is the likeliest way this channel stays quiet after being
+       * switched on. Saying which bot and which chat turns "alerts do not
+       * arrive" into one action: open that bot and press Start.
+       */
+      const detail = error instanceof Error ? error.message : String(error)
+      const sender = this.bot?.botInfo?.username
+      logger.error('[TelegramLogService] alert NOT delivered', {
+        error: detail,
+        chatId: this.logGroupId,
+        via: this.destinationVia,
+        sender,
+        hint: /403|blocked|initiate/i.test(detail)
+          ? `open @${sender || 'the sending bot'} and press Start, or set LOG_GROUP_ID to a chat it can write to`
+          : undefined,
         level,
         message,
       })
