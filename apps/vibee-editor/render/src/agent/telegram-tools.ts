@@ -725,4 +725,4 @@ export const NOT_WIRED = [
 ] as const
 
 /** For the personal seller, which composes a message and then proposes it. */
-export { propose }
+export { propose, requireOwner, OWNER_TELEGRAM_ID }

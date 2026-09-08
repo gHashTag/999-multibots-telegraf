@@ -30,7 +30,12 @@
  * refuses rather than mint a link that would credit nobody -- or the owner.
  */
 import type { AgentTool, ToolContext } from './tools'
-import { propose, client } from './telegram-tools'
+import {
+  propose,
+  client,
+  requireOwner,
+  OWNER_TELEGRAM_ID,
+} from './telegram-tools'
 import { mintTokenInvoice } from './token-invoice'
 import { reachable } from './crm-touch-tools'
 
@@ -52,7 +57,30 @@ export async function resolveLeadId(
   chat: string
 ): Promise<string> {
   const raw = String(chat ?? '').trim()
-  if (NUMERIC.test(raw)) return raw
+  if (NUMERIC.test(raw)) {
+    /*
+     * A BARE NUMBER IS ACCEPTED ONLY FOR A PERSON WE ALREADY KNOW.
+     *
+     * The payload credits whatever id is in it, and the payer is not the id:
+     * a mistyped number means the lead's Stars land on a stranger. A fresh
+     * GramJS client cannot resolve a bare id either (no entity cache), so
+     * "look it up in the session" is not a check. What IS a check: the id is
+     * in `users` and within this owner's visibility. Somebody not in the base
+     * is named by @username, which Telegram resolves for real.
+     */
+    if (raw === OWNER_TELEGRAM_ID)
+      throw new Error('предложение самому себе не имеет смысла')
+    const known = await reachable(ctx, raw).catch(() => ({
+      ok: false as const,
+      why: 'база недоступна',
+    }))
+    if (!known.ok) {
+      throw new Error(
+        `человека с id ${raw} нет в вашей базе — назовите его по @username, чтобы Telegram разрешил адрес`
+      )
+    }
+    return raw
+  }
   if (/^-\d+$/.test(raw)) {
     throw new Error(
       'это чат или канал, а не человек — предложение адресуется человеку'
@@ -82,6 +110,11 @@ export async function resolveLeadId(
         `не нашёл ${raw} в вашем Telegram — назовите по числовому id из tg_dialogs`
       )
     }
+    // 'me' and 'this' are GramJS aliases for the caller's own account, so
+    // they resolve to the owner: a link that would pay the owner with the
+    // owner's own Stars, sent to Saved Messages.
+    if (id === OWNER_TELEGRAM_ID)
+      throw new Error('предложение самому себе не имеет смысла')
     return id
   } finally {
     await c.disconnect?.().catch?.(() => undefined)
@@ -170,6 +203,16 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
       required: ['chat'],
     },
     async handler(a: Record<string, any>, ctx) {
+      /*
+       * THE OWNER WALL IS THE OUTER WALL.
+       *
+       * It used to live only inside propose(), the LAST step -- after a real
+       * invoice link had been minted and a pending row written for whoever
+       * asked. Any bot user could cause that through the agent and only then
+       * be refused. Reproduced by the pre-merge probe. Nothing here moves
+       * before this line.
+       */
+      requireOwner(ctx)
       const chat = String(a?.chat ?? '').trim()
       const tokens =
         Number(a?.tokens) > 0 ? Math.floor(Number(a.tokens)) : DEFAULT_TOKENS
@@ -193,8 +236,6 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
             '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
         }
       }
-      // Owner-only, and the same refusal wording as every Telegram tool: this
-      // sends from the owner's account, whatever the model was told.
       const leadId = await resolveLeadId(ctx, chat)
 
       /*
