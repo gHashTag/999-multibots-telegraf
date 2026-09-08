@@ -420,8 +420,24 @@ export async function spendByTid(
     typeof modelId === 'string' && modelId.startsWith('kie/')
       ? priceForKieModel(modelId.slice(4))
       : null
-  const unitPrice = кие ?? TOKEN_PRICES[op]
-  if (!unitPrice) return { ok: true }
+  const unitPrice = кие ?? TOKEN_PRICES[op] // cyrillic-ok: existing local name
+  /*
+   * AN OPERATION WITHOUT A PRICE IS REFUSED, NOT GIVEN AWAY.
+   *
+   * This used to return { ok: true } with no amount: the generation ran, the
+   * receipt was empty, and nothing anywhere said it had been free. Today every
+   * op that reaches a charge is priced, so the branch is unreachable -- which
+   * is exactly when it is worth closing, because the way it becomes reachable
+   * is somebody adding a fifth operation and forgetting the table. That is not
+   * hypothetical: the bot half of this repository lost months to two of these
+   * (a settlement route that credited without a receiver, and a payment kind
+   * that failed validation and charged nothing), and both looked like success
+   * from the caller.
+   *
+   * Refusing is the safe direction. It can never take more money than the
+   * price says, and the reason names the op so the fix is obvious.
+   */
+  if (!unitPrice) return { ok: false, причина: `no price for op=${op}` } // cyrillic-ok: public API field
   if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 3600) {
     return { ok: false, причина: 'invalid billing quantity' } // cyrillic-ok: public API field
   }
