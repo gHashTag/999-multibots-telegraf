@@ -17,6 +17,8 @@
  * переменной и командой, которой её взять.
  */
 
+import { chosenProvider } from './provider-choice'
+
 export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'ollama'
 
 export interface Provider {
@@ -207,7 +209,12 @@ function available(id: ProviderId): { key: string } | null {
  * the front; the rest keep their order behind it.
  */
 export function providerOrder(): ProviderId[] {
-  const wanted = (process.env.AGENT_PROVIDER || '').toLowerCase() as ProviderId
+  // The owner's choice from the bot, then the deploy-time variable.
+  const wanted = (
+    chosenProvider() ||
+    process.env.AGENT_PROVIDER ||
+    ''
+  ).toLowerCase() as ProviderId
   const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'nemotron', 'ollama']
   return DEFAULT_ORDER.includes(wanted)
     ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
