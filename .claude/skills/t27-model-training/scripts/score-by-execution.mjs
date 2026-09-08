@@ -167,7 +167,22 @@ async function testReport(specText) {
     const m = /tests\s+(\d+)\s+pass\s+(\d+)\s+FAIL\s+(\d+)/.exec(out)
     if (!m) return { blocked: true, why: 'вывод не разобран' }
     const [, total, pass, fail] = m.map(Number)
-    return { blocked: false, total, pass, fail }
+    /*
+     * A THIRD OF THE "TESTS" CANNOT FAIL IF THE SPEC COMPILED.
+     *
+     * t27c prints it in every run and it went unread for weeks:
+     *
+     *     invariants  11   proved -- comptime, so compiling IS the check
+     *
+     * Measured across the 16 runnable references: 97 tests, of which 33 (34%)
+     * are compile-time invariants. For those, "passed" restates "compiled".
+     *
+     * And only 2 of the 16 specs carry an author-written `test "..."` block at
+     * all -- the rest of the count is derived. Reporting one figure hides both
+     * facts, so the invariant share is carried out and printed.
+     */
+    const inv = Number((/invariants\s+(\d+)/.exec(out) || [])[1] || 0)
+    return { blocked: false, total, pass, fail, inv }
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -179,6 +194,7 @@ async function scoreAll(pairs, label) {
   const why = { spec: 0, invariant: 0, backend: 0 }
   let tests = 0
   let passed = 0
+  let invariants = 0
   for (const { reference, answer } of pairs) {
     const spec = graft(answer)
     if (!spec) {
@@ -194,6 +210,7 @@ async function scoreAll(pairs, label) {
     runnable++
     tests += r.total
     passed += r.pass
+    invariants += r.inv || 0
   }
   const rate = tests ? (passed / tests) * 100 : 0
   console.log(
@@ -201,6 +218,13 @@ async function scoreAll(pairs, label) {
       `не пошло ${String(blocked).padStart(2)}  тестов ${String(tests).padStart(3)}  ` +
       `прошло ${String(passed).padStart(3)}  = ${rate.toFixed(0).padStart(3)}%`
   )
+  if (tests) {
+    const share = Math.round((invariants / tests) * 100)
+    console.log(
+      `  ${''.padEnd(26)} из ${tests} тестов ${invariants} — ИНВАРИАНТЫ (${share}%): ` +
+        `доказаны компиляцией, упасть не могут`
+    )
+  }
   if (blocked) {
     console.log(
       `  ${''.padEnd(26)} из не пошедших: спек негоден ${why.spec}, ` +
@@ -208,7 +232,7 @@ async function scoreAll(pairs, label) {
         `подвёл БЭКЕНД ${why.backend} (не вина модели)`
     )
   }
-  return { runnable, blocked, tests, passed, rate: rate / 100 }
+  return { runnable, blocked, tests, passed, invariants, rate: rate / 100 }
 }
 
 /**
