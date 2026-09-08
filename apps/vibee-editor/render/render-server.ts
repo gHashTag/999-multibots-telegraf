@@ -7950,10 +7950,18 @@ const server = createServer(async (req, res) => {
            * and wrote the row inside its own try. Reproduced by the pre-merge
            * probe with DATABASE_URL unset.
            */
+          // getPool() is synchronous and THROWS when DATABASE_URL is unset;
+          // a .catch on it neither compiles nor catches. Try, and sell anyway.
+          let pool: ReturnType<typeof getPool> | undefined
+          try {
+            pool = getPool()
+          } catch {
+            pool = undefined
+          }
           const minted = await mintTokenInvoice({
             forTelegramId: String(who),
             tokens: запрошено,
-            pool: await getPool().catch(() => undefined),
+            pool,
             botToken: PAY_BOT,
           })
           res.writeHead(200, { 'Content-Type': 'application/json' })

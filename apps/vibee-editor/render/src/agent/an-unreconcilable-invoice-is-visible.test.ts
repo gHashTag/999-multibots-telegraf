@@ -99,8 +99,20 @@ describe('the cashier keeps selling when the database is down', () => {
     )
     const at = server.indexOf("feedPath === '/api/tokens/invoice'")
     expect(at).toBeGreaterThan(-1)
-    const route = server.slice(at, at + 3000)
-    expect(route).toContain('getPool().catch(() => undefined)')
-    expect(route).not.toMatch(/pool:\s*await getPool\(\),/)
+    // This route only: a fixed 3000-char window reached into the next route,
+    // which legitimately awaits its own pool, and the negative check failed
+    // on a line that was not this route's.
+    const next = server.indexOf('feedPath ===', at + 1)
+    const route = server.slice(at, next > at ? next : at + 3000)
+    // getPool() is synchronous and throws when DATABASE_URL is unset, so the
+    // only shape that keeps selling is a try around it -- not a .catch, which
+    // does not compile on a Pool and would not catch a synchronous throw.
+    expect(route).toMatch(/try \{\s*pool = getPool\(\)\s*\} catch/)
+    // Code, not prose: the route's own comment quotes the old shape by name,
+    // and a check over the raw text failed on its own explanation.
+    const code = route
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+    expect(code).not.toMatch(/pool:\s*await getPool\(\)/)
   })
 })
