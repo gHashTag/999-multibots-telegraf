@@ -53,6 +53,10 @@ function fakeBot() {
     telegram: {
       sendMessage: vi.fn(async () => ({ message_id: 1 })),
       sendChatAction: vi.fn(async () => true),
+      sendPhoto: vi.fn(async () => ({ message_id: 3 })),
+      sendVideo: vi.fn(async () => ({ message_id: 3 })),
+      sendDocument: vi.fn(async () => ({ message_id: 3 })),
+      sendVoice: vi.fn(async () => ({ message_id: 3 })),
       callApi: vi.fn(async () => connection()),
     },
   }
@@ -197,16 +201,28 @@ describe('messages that must never be answered', () => {
     expect(chatWithAI).toHaveBeenCalledTimes(2)
   })
 
-  it('a photo gets the text-only reply and is counted; a sticker gets nothing; neither reaches the LLM', async () => {
+  it('a photo is relayed to the owner and answered with a service offer; a sticker gets nothing; neither reaches the LLM', async () => {
     const svc = await fresh()
     const bot = fakeBot()
     await svc.handleBusinessMessage(
-      dm({ text: undefined, photo: [{ file_id: 'x' }] }) as any,
+      dm({
+        text: undefined,
+        photo: [{ file_id: 'small' }, { file_id: 'big' }],
+      }) as any,
       bot as any,
       BOT
     )
+    expect(bot.telegram.sendPhoto).toHaveBeenCalledTimes(1)
+    const [to, fileId, extra] = bot.telegram.sendPhoto.mock.calls[0] as any[]
+    expect(to).toBe(OWNER_CHAT)
+    expect(fileId).toBe('big')
+    expect(extra.caption).toContain('Customer')
+    expect(extra.caption).toContain('tg://user?id=555')
     expect(customerSends(bot)).toHaveLength(1)
-    expect(customerSends(bot)[0][1]).toContain('текст')
+    expect(customerSends(bot)[0][1]).toContain('передал')
+    expect(
+      customerSends(bot)[0][2].reply_markup.inline_keyboard[0][0].url
+    ).toBe(`https://t.me/${BOT}?start=svc_image2video`)
     await svc.handleBusinessMessage(
       dm({ text: undefined, sticker: { file_id: 's' } }, 556) as any,
       bot as any,
@@ -215,5 +231,6 @@ describe('messages that must never be answered', () => {
     expect(customerSends(bot)).toHaveLength(1)
     expect(chatWithAI).not.toHaveBeenCalled()
     expect(svc.getBusinessStats().todayNonText).toBe(2)
+    expect(svc.getBusinessStats().todayMediaRelayed).toBe(1)
   })
 })
