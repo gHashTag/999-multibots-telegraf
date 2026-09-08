@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const {
+  repoFiles,
+  selfCheck,
+} = require('../../../scripts/lib/repo-sources.cjs')
 
 /*
  * THE CLASS IS CLOSED, AND THIS IS WHAT KEEPS IT CLOSED.
@@ -51,12 +55,21 @@ const GUARD =
   /toBeGreaterThan\(-1\)|!== *-1|=== *-1|>= *0|toBeGreaterThanOrEqual\(0\)/
 
 function census() {
-  const files = execFileSync('git', ['ls-files', '-z', '*.test.ts'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  })
-    .split('\0')
-    .filter(Boolean)
+  /*
+   * repoFiles, NOT `git ls-files`.
+   *
+   * The first version asked git for TRACKED files, so a brand-new test with a
+   * blind slice was invisible to this census until somebody committed it --
+   * exactly the silent blindness the repository already guards against, and
+   * no-silent-blindness.test.ts caught it on the first run after this file
+   * became tracked. selfCheck refuses to proceed with a reader that sees too
+   * little, because an emptied population reports "no offenders" in the same
+   * words a healthy repository does.
+   */
+  selfCheck(ROOT)
+  const files = (repoFiles(ROOT) as string[]).filter(f =>
+    f.endsWith('.test.ts')
+  )
   const found: Record<string, number> = {}
   for (const f of files) {
     const lines = fs.readFileSync(path.join(ROOT, f), 'utf8').split('\n')
