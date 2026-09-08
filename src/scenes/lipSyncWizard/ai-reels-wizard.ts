@@ -20,6 +20,7 @@ import {
 import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { reportDeadEnd } from '@/helpers/error/reportDeadEnd'
 
 // Интерфейс для aiReels теперь определен в MySession interface
 
@@ -365,6 +366,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         imageUrl = ctx.session.aiReels?.imageUrl || ''
 
         if (!imageUrl) {
+          await reportDeadEnd(ctx, 'ai-reels-wizard', ['aiReels.imageUrl'])
           await ctx.reply(
             isRu
               ? '❌ Ошибка: изображение не найдено. Начните заново.'
