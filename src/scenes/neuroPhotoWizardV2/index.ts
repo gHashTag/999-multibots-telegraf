@@ -36,6 +36,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 // ✅ ИМПОРТИРУЕМ getBotNameByToken ДЛЯ ОПРЕДЕЛЕНИЯ ТЕКУЩЕГО БОТА
 import { getBotNameByToken } from '@/core/bot'
+import { reportDeadEnd } from '@/helpers/error/reportDeadEnd'
 
 const neuroPhotoConversationStep = async (ctx: MyContext) => {
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
@@ -215,6 +216,12 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
       // userModel straight away, which throws and kills the step when no trained
       // model is in the session (#1027 class). Guard it like V1 does.
       if (!ctx.session.userModel || !ctx.session.userModel.trigger_word) {
+        // The prompt was just written into the session and dies with the scene.
+        // This guard replaced a throw (#1027 class); the throw at least reached
+        // bot.catch, so without a report the fix removed the owner's only signal.
+        await reportDeadEnd(ctx, 'neuroPhotoWizardV2 prompt step', [
+          'userModel.trigger_word',
+        ])
         await ctx.reply(
           isRu
             ? '❌ Модель не выбрана. Пожалуйста, начните заново.'
@@ -462,6 +469,9 @@ neuroPhotoWizardV2.action(/^select_model:(.+)$/, async ctx => {
   // Находим выбранную модель из сохраненного списка
   const availableModels = ctx.session.availableModels
   if (!availableModels || availableModels.length === 0) {
+    await reportDeadEnd(ctx, 'neuroPhotoWizardV2 model selection', [
+      'availableModels',
+    ])
     await ctx.reply(
       isRu
         ? '❌ Ошибка: список моделей не найден. Попробуйте начать заново.'
@@ -474,6 +484,11 @@ neuroPhotoWizardV2.action(/^select_model:(.+)$/, async ctx => {
     (m: any) => m.id.toString() === modelId
   )
   if (!selectedModel) {
+    // The bot rendered this keyboard itself, so a miss means the list and
+    // the buttons disagree -- worth knowing about, not just apologising for.
+    await reportDeadEnd(ctx, 'neuroPhotoWizardV2 model lookup', [
+      'the selected id is not in availableModels',
+    ])
     await ctx.reply(
       isRu
         ? '❌ Ошибка: модель не найдена. Попробуйте выбрать другую.'

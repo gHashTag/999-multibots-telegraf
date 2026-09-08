@@ -48,7 +48,18 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const keyboardRows = generateModelKeyboard('image', isRu)
 
       if (keyboardRows.length === 0) {
-        console.error('🎬 [I2V WIZARD] Step 0: NO IMAGE MODELS FOUND!')
+        /*
+         * AN EMPTY CATALOG IS AN OUTAGE, NOT ONE PERSON'S BAD LUCK.
+         *
+         * Nobody can start an image-to-video generation while this holds, and
+         * it was said only to console.error -- which bypasses winston, so it
+         * never reached the owner's channel at all. logger.error does, and the
+         * throttle keeps a persistent outage to one message per window.
+         */
+        logger.error(
+          '[I2V] model catalog is EMPTY — image-to-video is down for every user',
+          { scene: 'imageToVideoWizard', step: 0 }
+        )
         await ctx.reply('❌ Модели не найдены. Попробуйте позже.')
         return ctx.scene.leave()
       }

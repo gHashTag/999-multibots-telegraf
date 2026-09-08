@@ -137,6 +137,39 @@ describe('a dead end must report itself', () => {
     expect(arg.error).toContain('selectedVideoModel')
   })
 
+  it('an outage for EVERY user is reported at a level the owner receives', () => {
+    // An empty model catalog stops image-to-video and text-to-video for
+    // everyone. Both said so with console.error, which bypasses winston
+    // entirely -- so the one failure that affects all users was the one the
+    // owner could not learn about.
+    for (const f of [
+      'src/scenes/imageToVideoWizard/index.ts',
+      'src/scenes/textToVideoWizard/index.ts',
+    ]) {
+      const code = codeOf(f)
+      expect(code, `${f} still whispers an outage to console.error`).toMatch(
+        /logger\.error\(\s*'\[(?:I2V|T2V)\] model catalog is EMPTY/
+      )
+    }
+  })
+
+  it('a failed payments read is an error; an absent row stays a warning', () => {
+    // warn is not forwarded to the owner. Reporting both at warn meant a
+    // payments_v2 read that FAILED -- money, and the person told their payment
+    // does not exist -- was invisible.
+    for (const f of [
+      'src/scenes/tonPaymentScene/index.ts',
+      'src/scenes/tonNativePaymentScene/index.ts',
+    ]) {
+      const code = codeOf(f)
+      expect(
+        code,
+        `${f} does not separate a DB fault from a missing row`
+      ).toMatch(/if \(fetchError\)\s*\n?\s*logger\.error\(/)
+      expect(code, `${f} lost the ordinary case`).toMatch(/logger\.warn\(/)
+    }
+  })
+
   it('every dead end the owner reported is wired to it', () => {
     // Structural, because these branches cannot be reached without a wizard:
     // the risk is that one of the four is added back without a witness.
@@ -145,6 +178,13 @@ describe('a dead end must report itself', () => {
       'src/scenes/lipSyncWizard/ai-reels-wizard.ts',
       'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts',
       'src/scenes/lipSyncWizard/veed-fabric-wizard.ts',
+      // Seven more, each verified adversarially before being wired: an
+      // uploaded photo set found empty, a paid-for model list missing at the
+      // selection callback, a selected id absent from the list the bot itself
+      // rendered, and a prompt written into the session one line before the
+      // model turns out to be gone.
+      'src/scenes/aiPhotoshopScene/index.ts',
+      'src/scenes/neuroPhotoWizardV2/index.ts',
     ]
     for (const f of wired) {
       expect(

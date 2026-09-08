@@ -283,6 +283,13 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async ctx => {
       .single()
 
     if (fetchError || !payment) {
+      // The same split as tonPaymentScene: a read that failed is money news,
+      // an absent row is not. warn is not forwarded to the owner; error is.
+      if (fetchError)
+        logger.error(
+          '[TON NATIVE PAYMENT] payments_v2 read FAILED for a payment',
+          { telegramId, invId, error: fetchError.message }
+        )
       logger.warn(
         '[TON NATIVE PAYMENT] Payment not found or already processed',
         {
