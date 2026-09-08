@@ -39,6 +39,35 @@ function buildPaymentRow(p: PaymentParams) {
   const amount = parseFloat(p.OutSum)
   const normalizedId = normalizeTelegramId(p.telegram_id).toString()
 
+  /*
+   * THE SIGN IS SET BY `type`, NOT BY THE NUMBER.
+   *
+   * This function writes payments_v2 directly and validates against no schema,
+   * so the guard that CreatePaymentV2Schema now carries does not reach it.
+   * That matters because the balance is not a column: get_user_balance SUMS
+   * these rows, so negative stars on a MONEY_OUTCOME row is a CREDIT. It has
+   * happened -- 114 rows at -9 stars credited 1026 -- and updateUserBalance
+   * was hardened against it while this writer, with nineteen call sites, was
+   * not.
+   *
+   * Thrown rather than normalised, and thrown rather than returned quietly:
+   * this file already throws on a failed insert, and a caller that passed a
+   * negative amount has a bug that a silent Math.abs would hide by turning a
+   * broken debit into a working credit.
+   */
+  if (typeof p.stars === 'number' && p.stars < 0) {
+    logger.error('❌ setPayments: отрицательные звёзды — запись отклонена', {
+      description: 'Negative stars rejected: the sign is set by type',
+      telegram_id: normalizedId,
+      stars: p.stars,
+      type: p.type,
+      inv_id: p.InvId,
+    })
+    throw new Error(
+      `setPayments: negative stars (${p.stars}) — the sign is set by type, not by the number`
+    )
+  }
+
   if (!p.InvId) {
     logger.warn(
       '⚠️ setPayments: InvId is empty or null. Using placeholder logic if necessary or allowing NULL.'
