@@ -15,6 +15,7 @@ import {
 
 // ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
 import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
+import { reportDeadEnd } from '@/helpers/error/reportDeadEnd'
 
 console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 
@@ -310,6 +311,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         console.log(
           '🎬 [I2V WIZARD] Step 3: No model selected - returning to step 0'
         )
+        await reportDeadEnd(ctx, 'imageToVideoWizard step 3', [
+          'selectedVideoModel',
+        ])
         await ctx.reply(
           isRu
             ? 'Модель не выбрана. Начинаем заново.'
@@ -323,6 +327,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         console.log(
           '🎬 [I2V WIZARD] Step 3: No image URL - returning to step 0'
         )
+        await reportDeadEnd(ctx, 'imageToVideoWizard step 3', ['imageUrl'])
         await ctx.reply(
           isRu
             ? 'Изображение не найдено. Начинаем заново.'

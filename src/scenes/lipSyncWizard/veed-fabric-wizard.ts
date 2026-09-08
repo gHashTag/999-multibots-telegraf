@@ -9,6 +9,7 @@ import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
 import { logger } from '@/utils/logger'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { reportDeadEnd } from '@/helpers/error/reportDeadEnd'
 import {
   LIPSYNC_MODELS,
   getAvailableLipSyncModels,
@@ -310,6 +311,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         imageUrl = ctx.session.veedFabric?.imageUrl || ''
 
         if (!imageUrl) {
+          await reportDeadEnd(ctx, 'veed-fabric-wizard', [
+            'veedFabric.imageUrl',
+          ])
           await ctx.reply(
             isRu
               ? '❌ Ошибка: изображение не найдено. Начните заново.'

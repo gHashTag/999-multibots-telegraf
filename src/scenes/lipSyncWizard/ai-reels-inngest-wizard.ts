@@ -20,6 +20,7 @@ import { calculateLipSyncCostStars } from '@/config/lipsync-models.config'
 import { WAN25ModelType, calculateWAN25CostStars } from '@/config/wan25-config'
 import { PUBLIC_URL } from '@/config'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { reportDeadEnd } from '@/helpers/error/reportDeadEnd'
 
 export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_inngest_wizard',
@@ -212,6 +213,9 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
       const imageUrl = ctx.session.aiReels?.imageUrl
 
       if (!imageUrl) {
+        await reportDeadEnd(ctx, 'ai-reels-inngest-wizard', [
+          'aiReels.imageUrl',
+        ])
         await ctx.reply(
           isRu ? '❌ Изображение не найдено.' : '❌ Image not found.'
         )
