@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /*
  * THE GUARD HAS TO LOOK WHERE THE LEAK WAS.
@@ -68,7 +70,7 @@ describe('tri secrets scans where nothing else looks', () => {
 
   it('its default roots are the temp dirs, and NOT the repository', () => {
     // Pointing it at the repo is the version that gets switched off.
-    const fn = code.slice(code.indexOf('cmd_secrets()'))
+    const fn = sliceFrom(code, 'cmd_secrets()')
     const body = fn.slice(0, fn.indexOf('\n}'))
     expect(body).toMatch(/TMPDIR/)
     expect(body).toMatch(/\/tmp/)
@@ -79,7 +81,7 @@ describe('tri secrets scans where nothing else looks', () => {
   })
 
   it('it refuses to guess when there is nothing to scan', () => {
-    const fn = code.slice(code.indexOf('cmd_secrets()'))
+    const fn = sliceFrom(code, 'cmd_secrets()')
     const body = fn.slice(0, fn.indexOf('\n}'))
     expect(body).toMatch(/return 2/)
   })
