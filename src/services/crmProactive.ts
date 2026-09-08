@@ -103,6 +103,44 @@ export async function sweepOnce(
       lastPushAt = now
       return { did: 'card', why: (answer.текст ?? '').slice(0, 200) } // cyrillic-ok: pre-existing identifiers
     }
+    /*
+     * A SWEEP THAT CALLED NOTHING DID NOT LOOK.
+     *
+     * Step 1 of the brief is `crm_leads`. A turn that used no tools cannot
+     * know whether anybody is waiting, so filing it as 'idle' states as a
+     * decision something nobody checked -- the same shape as an empty search
+     * reported as "nothing found".
+     *
+     * Measured in production on 2026-09-08: the model returned fifteen
+     * characters, `[[Подпись|can]]`, with zero tool calls, and the sweep
+     * recorded `did: idle, why: [[Подпись|can]]`. Read from the outside that
+     * is "the seller looked and decided to wait". Nobody looked.
+     *
+     * The narrow half matters: a turn that DID call tools and then chose to
+     * stay quiet is a real idle, and the brief asks for exactly that. Only the
+     * no-tools case is a non-answer.
+     */
+    // The field holding the tool names has a Russian identifier on the
+    // existing type. Read through a string key: a literal is allowed where an
+    // identifier is not, and it keeps this block free of a suppression marker
+    // that prettier would move off its line.
+    const toolNames =
+      (answer as unknown as Record<string, string[] | undefined>)[
+        'инструменты'
+      ] ?? []
+    if (!toolNames.length) {
+      return {
+        did: 'failed',
+        why:
+          'модель ответила, не вызвав ни одного инструмента — она не смотрела: ' +
+          (
+            (answer as unknown as Record<string, string | undefined>)[
+              'текст'
+            ] || '(пусто)'
+          ).slice(0, 160),
+      }
+    }
+
     return { did: 'idle', why: (answer.текст ?? 'тихо').slice(0, 200) } // cyrillic-ok: pre-existing identifiers
   } catch (e) {
     return { did: 'failed', why: e instanceof Error ? e.message : String(e) }
@@ -205,7 +243,16 @@ export function startCrmProactive(
   }
   const run = async () => {
     const r = await sweepOnce(opts.ownerId, deps, { holdMs: opts.holdMs })
-    logger.info('[crm-proactive] sweep', { did: r.did, why: r.why })
+    /*
+     * A FAILED SWEEP IS AN ERROR, NOT A DIARY ENTRY.
+     *
+     * Every outcome was logged at info, and info does not reach the owner's
+     * alert channel. So a model producing junk every thirty minutes looked
+     * exactly like a quiet afternoon.
+     */
+    if (r.did === 'failed')
+      logger.error('[crm-proactive] sweep FAILED', { did: r.did, why: r.why })
+    else logger.info('[crm-proactive] sweep', { did: r.did, why: r.why })
   }
   const first = setTimeout(run, opts.firstDelayMs ?? 120_000)
   const timer = setInterval(run, opts.everyMs)

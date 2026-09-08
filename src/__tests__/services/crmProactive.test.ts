@@ -83,10 +83,38 @@ describe('one sweep', () => {
   })
 
   it('no proposal is a quiet sweep: nothing is pushed', async () => {
-    const { d, calls } = deps({ answer: { текст: 'тихо' } }) // cyrillic-ok: pre-existing identifiers
+    // The fixture now carries the tool the brief opens with, because a REAL
+    // quiet sweep called it -- that is what makes "quiet" a finding rather
+    // than an absence. Written without it, this case was indistinguishable
+    // from a model that never looked.
+    const { d, calls } = deps({
+      answer: { текст: 'тихо', инструменты: ['crm_leads'] }, // cyrillic-ok: pre-existing identifiers
+    })
     const r = await sweepOnce(OWNER, d)
     expect(r.did).toBe('idle')
     expect(calls).not.toContain('push')
+  })
+
+  it('a sweep that called NOTHING did not look, and is not idle', async () => {
+    /*
+     * Measured in production on 2026-09-08: the model returned fifteen
+     * characters, `[[Подпись|can]]`, with zero tool calls, and the sweep
+     * recorded `did: idle, why: [[Подпись|can]]`. From the outside that reads
+     * as "the seller looked and decided to wait". Nobody looked.
+     */
+    const { d, calls } = deps({
+      answer: { текст: '[[Подпись|can]]', инструменты: [] }, // cyrillic-ok: pre-existing identifiers
+    })
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('failed')
+    expect(r.why).toContain('[[Подпись|can]]')
+    expect(calls).not.toContain('push')
+  })
+
+  it('an empty answer with no tools is also a failure, and says so', async () => {
+    const { d } = deps({ answer: { текст: '', инструменты: [] } }) // cyrillic-ok: pre-existing identifiers
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('failed')
   })
 
   it('a failing ingest does not silence the person who is waiting', async () => {
@@ -145,7 +173,9 @@ describe('never two at once', () => {
         await new Promise(res => {
           release = res
         })
-        return { текст: 'тихо' } as never // cyrillic-ok: pre-existing identifiers
+        // carries the tool the brief opens with: this case is about
+        // concurrency, not about a model that failed to look
+        return { текст: 'тихо', инструменты: ['crm_leads'] } as never // cyrillic-ok: pre-existing identifiers
       },
     })
     const first = sweepOnce(OWNER, d)
