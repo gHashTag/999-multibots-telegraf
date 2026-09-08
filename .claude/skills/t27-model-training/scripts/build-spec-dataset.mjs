@@ -52,6 +52,24 @@ function walk(dir, out = []) {
     const p = join(dir, e)
     if (statSync(p).isDirectory()) {
       if (e === 'scratch') continue
+      /*
+       * A DOT-DIRECTORY IS NOT CORPUS, AND THIS ONE BIT US.
+       *
+       * Skipping only `scratch` was fine until the instruments started writing
+       * INSIDE the spec tree. score-by-execution now compiles candidates in
+       * `specs/.eval-tmp` (it has to -- from outside the tree t27c drops every
+       * `use` silently), and `tri igla blocked` lays specs out in
+       * `specs/.depth`. Both are walked by this function.
+       *
+       * Measured: a candidate answer planted in either directory, given a
+       * two-line comment header, lands in train.jsonl. The area count rises to
+       * 34 with strata named `.depth` and `.eval-tmp`, and the run exits 0.
+       * The model's own answers become its training data, silently.
+       *
+       * Named directories would be a whitelist to forget; the dot is the
+       * convention both writers already follow.
+       */
+      if (e.startsWith('.')) continue
       walk(p, out)
     } else if (p.endsWith('.t27')) out.push(p)
   }
@@ -208,12 +226,53 @@ async function main() {
    * was just handed. That is what makes copying the cheapest way to lower the
    * loss.
    */
-  const copyable = train.filter(r => {
-    const ask = r.messages[1].content
-    const ans = r.messages[2].content
-    const desc = ask.split('\n').slice(2).join('\n').trim()
-    return desc.length > 40 && ans.includes(desc.slice(0, 60))
-  })
+  /*
+   * THE LEAK CHECK USED TO DEPEND ON THE LENGTH OF ONE LINE.
+   *
+   * It was `ans.includes(desc.slice(0, 60))`, and `desc` has already had its
+   * comment markers stripped. When the first 60 characters cross a newline, the
+   * answer holds `\n// ` where the description holds `\n`, and nothing matches.
+   *
+   * Measured against a deliberate mutation that copies the header back into the
+   * answer: 58 of 207 rows caught -- 28% sensitivity. On a corpus whose specs
+   * open with a short title line, 0 of 107, and the run reported "leak: 0".
+   *
+   * Now every description LINE long enough to be distinctive is looked for, and
+   * eval is checked as well as train: a mutation that leaked into eval only was
+   * invisible, because the old check never looked there.
+   */
+  /*
+   * A LINE THAT APPEARS IN MANY SPECS IS BOILERPLATE, NOT A LEAK.
+   *
+   * The first version of the stricter check reported 32 leaks and refused the
+   * dataset. Twenty-six of them were one string: `phi^2 + 1/phi^2 = 3 |
+   * TRINITY`, the project's banner, which sits in the header AND as a footer
+   * comment inside almost every spec.
+   *
+   * Copying a constant present in every answer teaches nothing and gives the
+   * model nothing to cheat with. A leak is a line DISTINCTIVE to its own spec,
+   * so lines shared across the corpus are counted first and excluded.
+   */
+  const lineUse = new Map()
+  for (const r of [...train, ...evalSet]) {
+    const desc = r.messages[1].content.split('\n').slice(2).join('\n').trim()
+    for (const l of new Set(desc.split('\n').map(x => x.trim()))) {
+      if (l.length >= 24) lineUse.set(l, (lineUse.get(l) || 0) + 1)
+    }
+  }
+  const leaks = rows =>
+    rows.filter(r => {
+      const ask = r.messages[1].content
+      const ans = r.messages[2].content
+      const desc = ask.split('\n').slice(2).join('\n').trim()
+      if (desc.length <= 40) return false
+      return desc
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length >= 24 && (lineUse.get(l) || 0) <= 2)
+        .some(l => ans.includes(l))
+    })
+  const copyable = [...leaks(train), ...leaks(evalSet)]
   console.log(
     `[spec] запрос содержит ответ: ${copyable.length} ` +
       `${copyable.length ? '⚠️ УТЕЧКА' : '(нет)'}`
