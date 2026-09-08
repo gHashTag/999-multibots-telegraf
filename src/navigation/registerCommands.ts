@@ -1913,6 +1913,8 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     const [, id, secret] = ctx.match as RegExpMatchArray
     const { confirmProposal } = await import('@/services/telegramProposals')
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id, secret)
+    // Either press frees the proactive sweep to prepare the next card.
+    void import('@/services/crmProactive').then(m => m.noteResolved())
     /*
      * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
      *
@@ -1950,6 +1952,8 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     const [, id, secret] = ctx.match as RegExpMatchArray
     const { cancelProposal } = await import('@/services/telegramProposals')
     await cancelProposal(String(ctx.from?.id ?? ''), id, secret)
+    // Either press frees the proactive sweep to prepare the next card.
+    void import('@/services/crmProactive').then(m => m.noteResolved())
     /*
      * Said plainly, and said even when the cancel call failed. The draft is
      * consumed by the same claim either way, and a proposal that expires
