@@ -112,6 +112,31 @@ describe('конфигурация мини-аппа осталась рабоч
     expect(u).toContain('abc')
   })
 
+  it('без start_param адрес остаётся базовым', () => {
+    /*
+     * The second assertion lost in the file rewrite. Nothing guarded the
+     * `if (!startParam) return MINI_APP_URL` branch: replacing that return
+     * with an empty string left all 43 navigation tests green. The menu
+     * button calls buildMiniAppUrl with no argument, so an empty URL here
+     * is a dead door on the main screen.
+     */
+    expect(buildMiniAppUrl()).toBe(MINI_APP_URL)
+  })
+
+  it('диплинк экранирует start_param', () => {
+    /*
+     * This assertion was in the file before the #2077 rewrite and vanished
+     * with the old names, although encodeURIComponent is still in
+     * buildMiniAppUrl. The neighbouring test does not replace it: it looks
+     * for 'abc' as a substring, which passes with or without escaping. An
+     * unescaped space or '&' in startParam breaks the query and the mini
+     * app opens on the wrong route.
+     */
+    expect(buildMiniAppUrl('a b&c')).toBe(
+      `${MINI_APP_URL}/?tgWebAppStartParam=a%20b%26c`
+    )
+  })
+
   it('web_app по-прежнему разрешён только в личке', () => {
     /*
      * Знание не устарело: вне приватного чата Telegram отклоняет web_app в
