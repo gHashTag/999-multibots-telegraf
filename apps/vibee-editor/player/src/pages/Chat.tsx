@@ -51,8 +51,16 @@ const WELCOME: Message = {
   text:
     'Привет! Я агент Trinity S³AI. Я не просто отвечаю — я смотрю в приложение ' +
     'своими инструментами: читаю ленту, твои файлы и шаблоны, публикую рилсы.\n\n' +
-    '💰 Цены: картинка — 1 токен, рилс — 1, озвучка — 6, видео — 20. ' +
-    'Баланс виден вверху. Бесплатно: лента, файлы, SOUL, аналитика, публикация.\n\n' +
+    // THE SAME LESSON AS THE PROMISE BELOW, AND IT COST MORE. This line
+    // spelled out four prices by hand -- 1 / 1 / 6 / 20 -- and every one was
+    // half of what the server charges: the owner's markup reached the charge
+    // and never reached this greeting. A static string cannot know a price,
+    // so it no longer names one -- the balance in the header and the price on
+    // each button come from the server, and the agent quotes my_balance.
+    '💰 Платные — генерации: картинка, рилс, озвучка, видео. Цена каждой ' +
+    'стоит на её кнопке, баланс виден вверху, а точный прайс я назову ' +
+    'по первому вопросу. Бесплатно: лента, файлы, SOUL, аналитика, ' +
+    'публикация.\n\n' +
     // ЗДЕСЬ БЫЛО ОБЕЩАНИЕ: «Могу сразу сделать картинку за 1 токен — только
     // скажи тему». Замер 2026-08-26: у FAL кончился баланс, картинки не
     // выходят вовсе. То есть первый же текст, который человек читает, врал —

@@ -64,13 +64,33 @@ echo "$desc" | grep -q 'ТОЛЬКО при валидном ключе' && say 
 echo "$desc" | grep -q 'flux-schnell' && say "  ✅ image_generate называет реальную модель" || { say "  ❌ image_generate не упоминает flux-schnell"; fail=1; }
 
 say "— Инварианты прайса (PRICING.md) —"
+# ЖДАННЫЕ ЦЕНЫ БЕРУТСЯ ИЗ КОДА, А НЕ ПИШУТСЯ ЗДЕСЬ ЧИСЛАМИ.
+#
+# Здесь стояло «ожидалось 1/1/6/20» — и ровно эти числа устарели, когда
+# владелец назначил наценку: живой сервис отдавал 2/2/12/40, витрины
+# продолжали обещать половину, а проверка, которая должна была это поймать,
+# сама была четвёртой копией устаревшего прайса. Список литералов в стороже
+# стареет вместе с тем, что он стережёт.
+#
+# Теперь сверяются ДВА ЖИВЫХ ИСТОЧНИКА: таблица в выложенном сервисе и
+# таблица в этом чекауте. Расхождение значит либо несвежий прод, либо
+# разъехавшиеся цены — оба случая надо видеть.
+expected=$(cd apps/vibee-editor/render 2>/dev/null && npx --no-install tsx -e "import { TOKEN_PRICES } from './src/agent/billing-shared'; console.log(JSON.stringify(TOKEN_PRICES))" 2>/dev/null | tail -1)
 printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_balance","arguments":{}}}' > /tmp/rc-req.json
-prices_ok=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "
+live=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "
 import json,sys
-p=json.load(sys.stdin)['result']['structuredContent']['прайс']
-ok = p.get('image_generate')==1 and p.get('reel_render')==1 and p.get('audio_generate')==6 and p.get('video_generate')==20
-print('ok' if ok else 'bad')" 2>/dev/null)
-[ "$prices_ok" = "ok" ] && say "  ✅ цены от себестоимости: картинка 1 · рилс 1 · озвучка 6 · видео 20" || { say "  ❌ прайс нарушает инвариант (ожидалось 1/1/6/20)"; fail=1; }
+print(json.dumps(json.load(sys.stdin)['result']['structuredContent']['прайс'], sort_keys=True))" 2>/dev/null)
+if [ -z "$expected" ]; then
+  # Не «ок по умолчанию»: не смог посчитать — значит не проверил.
+  say "  ❌ не удалось вычислить прайс из кода (tsx не установлен?) — прайс НЕ ПРОВЕРЕН"; fail=1
+elif [ -z "$live" ]; then
+  say "  ❌ прод не отдал прайс — НЕ ПРОВЕРЕН"; fail=1
+else
+  same=$(python3 -c "
+import json,sys
+print('ok' if json.loads(sys.argv[1]) == json.loads(sys.argv[2]) else 'bad')" "$expected" "$live" 2>/dev/null)
+  [ "$same" = "ok" ] && say "  ✅ прайс прода совпадает с прайсом кода: $live" || { say "  ❌ прайс разошёлся — код: $expected, прод: $live"; fail=1; }
+fi
 
 say "— Прокси блога —"
 # RSS t27.ai бывает медленным (7с+): одна повторная попытка зонда

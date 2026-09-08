@@ -21,6 +21,7 @@
  */
 import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
 import { salesPlaybook } from './crm-playbook'
+import { TOKEN_PRICES } from './billing-shared'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { readFileSync } from 'node:fs'
@@ -60,6 +61,45 @@ export type AgentEvent =
  * every edited line reads as code, and the marker that would satisfy the gate
  * would end up inside the prompt itself.
  */
+/**
+ * THE PRICE THE AGENT SAYS IS THE PRICE THE WALLET PAYS.
+ *
+ * This rule used to carry four hand-typed numbers -- 1 / 1 / 6 / 20 -- and
+ * every one of them was half of what `spendTokens` actually takes. The
+ * owner's markup (x2, billing-shared) reached the charge and reached no shop
+ * window at all: the agent quoted 20 for a video and the person was billed
+ * 40. Measured 2026-09-08 by running the code: four rows of four disagreed,
+ * each by exactly the markup.
+ *
+ * The numbers now come from TOKEN_PRICES -- the same table the charge reads
+ * -- so the next markup change travels into the conversation by itself.
+ *
+ * It lives OUTSIDE the SYSTEM template for the same reason MONEY_AND_PLAN
+ * does: the `cyrillic-ok` marker that a template line would need is not a
+ * comment there, it is text the customer would be read aloud.
+ */
+const TOKEN_PRICE_LINE: string = [
+  ['картинка', TOKEN_PRICES.image_generate, ''], // cyrillic-ok: prompt copy
+  ['рилс', TOKEN_PRICES.reel_render, ''], // cyrillic-ok: prompt copy
+  ['озвучка', TOKEN_PRICES.audio_generate, ''], // cyrillic-ok: prompt copy
+  ['видео', TOKEN_PRICES.video_generate, ''], // cyrillic-ok: prompt copy
+  ['липсинк', TOKEN_PRICES.lipsync_generate, ' за секунду звука'], // cyrillic-ok: prompt copy
+]
+  .map(([what, price, unit]) => `${what} ${price}${unit}`)
+  .join(', ')
+
+const TOKENS_RULE =
+  '- ТОКЕНЫ: генерации платные для человека — ' + // cyrillic-ok: prompt copy
+  TOKEN_PRICE_LINE +
+  '. Цена = себестоимость × наценка владельца, и она считается кодом: ' + // cyrillic-ok: prompt copy
+  'точный прайс всегда приходит полем «прайс» в my_balance — сомневаешься, ' + // cyrillic-ok: prompt copy
+  'назови число оттуда, а не по памяти, и никогда не занижай его. ' + // cyrillic-ok: prompt copy
+  'Баланс приходит полем «токены» в каждом результате: ВСЕГДА называй ' + // cyrillic-ok: prompt copy
+  'вслух «−N токенов, осталось M» после платной операции — человек должен ' + // cyrillic-ok: prompt copy
+  'видеть цену своих желаний. Кончились — скажи честно и сразу предложи ' + // cyrillic-ok: prompt copy
+  'пополнить баланс пакетом токенов, назвав цену; пока не пополнил — ' + // cyrillic-ok: prompt copy
+  'бесплатные действия (лента, SOUL, ремикс готовых файлов, аналитика).' // cyrillic-ok: prompt copy
+
 const MONEY_AND_PLAN =
   '- Про деньги — честно: рилсы помогают зарабатывать, когда выходят ' + // cyrillic-ok: prompt copy
   'регулярно (3–4 в неделю минимум). Обещать доход нельзя — можно ' + // cyrillic-ok: prompt copy
@@ -142,11 +182,7 @@ const SYSTEM = `Ты — агент внутри приложения Trinity S�
 - К каждому видео идёт текст поста с хештегами. Инструмент публикации сам
   отклонит текст без хештегов — это канон, а не придирка.
 - Название компании пишется ровно так: Trinity S³AI.
-- ТОКЕНЫ: генерации платные для человека — картинка 1, рилс 1, озвучка 6,
-  видео 20 (цены из себестоимости, loop/PRICING.md — не занижай их в разговоре). Баланс приходит полем «токены» в каждом результате: ВСЕГДА
-  называй вслух «−N токенов, осталось M» после платной операции — человек
-  должен видеть цену своих желаний. Кончились — честно скажи и предложи
-  бесплатные действия (лента, SOUL, ремикс готовых файлов, аналитика).
+${TOKENS_RULE}
 - СКИЛЛЫ ЧЕЛОВЕКА: у человека есть папка правил (skills_list) — тон
   рилсов, запрещённые приёмы, каноны ниши. Перед тем как писать текст
   поста или заголовок — посмотри скиллы и применяй их буквально:

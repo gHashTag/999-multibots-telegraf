@@ -56,14 +56,20 @@ export function ProfileFilesGrid() {
   }, [])
 
   if (error) {
-    return <div className="profile-files__empty">Файлы не загрузились: {error}</div>
+    return (
+      <div className="profile-files__empty">Файлы не загрузились: {error}</div>
+    )
   }
 
   if (!items) {
     return (
       <div className="profile-files">
         {[1, 2, 3, 4].map(i => (
-          <div key={i} className="skeleton" style={{ aspectRatio: '1', borderRadius: 12 }} />
+          <div
+            key={i}
+            className="skeleton"
+            style={{ aspectRatio: '1', borderRadius: 12 }}
+          />
         ))}
       </div>
     )
@@ -74,8 +80,14 @@ export function ProfileFilesGrid() {
       <div className="profile-files__empty">
         <Sparkles size={32} />
         <p>Здесь появятся твои картинки, видео и озвучка.</p>
+        {/*
+          The price was typed here as "1 токен" and the server charges twice
+          that: the owner's markup reached the charge and never reached this
+          call to action. A static link cannot know a price -- the agent
+          names it from my_balance when asked.
+        */}
         <Link to="/chat" className="profile-files__cta">
-          Попроси агента — первая картинка стоит 1 токен
+          {'Попроси агента — он сделает первую и назовёт цену'}
         </Link>
       </div>
     )
@@ -85,16 +97,28 @@ export function ProfileFilesGrid() {
     <div className="profile-files">
       {items.map(f => {
         const url = f.public_url || ''
-        const isImage = /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url) || f.type === 'generated_image'
-        const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url) || f.type === 'generated_video'
+        const isImage =
+          /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url) ||
+          f.type === 'generated_image'
+        const isVideo =
+          /\.(mp4|webm|mov)(\?|$)/i.test(url) || f.type === 'generated_video'
         return (
-          <div key={f.id} className="profile-files__item" title={`${f.type} · ${f.created_at?.slice(0, 10) ?? ''}`}>
+          <div
+            key={f.id}
+            className="profile-files__item"
+            title={`${f.type} · ${f.created_at?.slice(0, 10) ?? ''}`}
+          >
             {isImage && url ? (
               <a href={url} target="_blank" rel="noopener noreferrer">
                 <img src={url} alt="" loading="lazy" />
               </a>
             ) : isVideo && url ? (
-              <a href={url} target="_blank" rel="noopener noreferrer" className="profile-files__media">
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="profile-files__media"
+              >
                 <Film size={28} />
               </a>
             ) : (
@@ -103,7 +127,13 @@ export function ProfileFilesGrid() {
               </div>
             )}
             <span className="profile-files__type">
-              {isImage ? <ImageIcon size={12} /> : isVideo ? <Film size={12} /> : <Mic size={12} />}
+              {isImage ? (
+                <ImageIcon size={12} />
+              ) : isVideo ? (
+                <Film size={12} />
+              ) : (
+                <Mic size={12} />
+              )}
             </span>
           </div>
         )
