@@ -447,7 +447,13 @@ export async function handleAgentChat(
    */
   const turn = randomUUID()
 
-  const ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ = new Set(['miniapp', 'bot', 'agent', 'ios'])
+  const ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ = new Set([
+    'miniapp',
+    'bot',
+    'agent',
+    'ios',
+    'business',
+  ]) // cyrillic-ok: pre-existing name
   const поверхность = ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ.has(String(body.surface))
     ? String(body.surface)
     : 'unknown'
@@ -697,7 +703,7 @@ export async function handleAgentHistoryAppend(
   }
 
   // Same check as the chat route: a word from the client, but only a known one.
-  const KNOWN_SURFACES = new Set(['miniapp', 'bot', 'agent', 'ios'])
+  const KNOWN_SURFACES = new Set(['miniapp', 'bot', 'agent', 'ios', 'business'])
   const surface = KNOWN_SURFACES.has(String(body.surface))
     ? String(body.surface)
     : 'unknown'

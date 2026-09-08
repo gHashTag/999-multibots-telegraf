@@ -32,7 +32,8 @@ describe('business auto-reply is single-flight per sender', () => {
   it('checks .has() before .add(), and .add() before chatWithAI', () => {
     const hasIdx = src.search(/businessReplyInFlight\.has\(flightKey\)/)
     const addIdx = src.search(/businessReplyInFlight\.add\(flightKey\)/)
-    const callIdx = src.search(/await chatWithAI\(/)
+    // The reply call: the agent first (answerClient), chatWithAI as its fallback.
+    const callIdx = src.search(/await (answerClient|chatWithAI)\(/)
     expect(hasIdx, 'no .has() guard').toBeGreaterThan(-1)
     expect(addIdx, 'no .add()').toBeGreaterThan(-1)
     expect(callIdx, 'chatWithAI call not found').toBeGreaterThan(-1)
