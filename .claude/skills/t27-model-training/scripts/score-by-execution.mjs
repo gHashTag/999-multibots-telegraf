@@ -356,6 +356,28 @@ async function main() {
     }
     if (perfect.runnable < 5)
       bad.push('исполнимых эталонов слишком мало для вывода')
+
+    /*
+     * THE FLOOR: SOMETHING A REAL COMPILER REFUSES.
+     *
+     * This battery passed with t27c replaced by a stub answering
+     * "tests 1 pass 1 FAIL 0" to everything -- caught by `tri igla floor` on
+     * 08.09.2026. Both its assertions are satisfied by a stub: the reference
+     * rate is 100% and 34 specs are runnable.
+     *
+     * "Some references must BLOCK" would work today (18 of 34 do) and become
+     * wrong the moment the backend is fixed. Prose does not: it is not a spec,
+     * so a real compiler refuses it whatever the backend's health.
+     */
+    const PROSE =
+      'This paragraph is prose, not a specification.\n' +
+      'There is no module declaration anywhere in it.\n'
+    const proseRun = await testReport(PROSE)
+    if (!proseRun.blocked) {
+      bad.push(
+        'ПРОЗА исполнилась — компилятор подставной или не вызывается вовсе'
+      )
+    }
     if (bad.length) {
       console.log(`\n[exec] ⚠️  ПРИБОР НЕ ГОДЕН: ${bad.join('; ')}`)
       process.exit(1)
