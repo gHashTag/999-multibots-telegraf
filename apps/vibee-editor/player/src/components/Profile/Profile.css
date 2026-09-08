@@ -2171,7 +2171,6 @@
   cursor: default;
 }
 
-
 /*
  * ГРУППЫ ШАБЛОНОВ. Свёрнутая группа — одна строка: имя и число роликов.
  * Вкладка «Шаблоны» показывала 46 карточек подряд, а шаблонов три.
@@ -2327,4 +2326,36 @@
   border: 1px solid rgba(255, 200, 0, 0.35);
   font-size: 0.8rem;
   line-height: 1.4;
+}
+
+/* Connect-first gate: shown on your own profile until Telegram is connected */
+.profile-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem 1rem 2rem;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.profile-gate__why {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+  color: var(--text-secondary, #888);
+}
+
+.profile-gate__why h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.profile-gate__why p {
+  margin: 0;
+  max-width: 420px;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }

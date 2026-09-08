@@ -4,6 +4,8 @@ import { API_BASE } from '../../config'
 import { authHeaders } from '@/lib/apiFetch'
 import { useLanguage } from '@/hooks/useLanguage'
 import { ConnectCode } from './ConnectCode'
+import { useSetAtom } from 'jotai'
+import { agentTelegramConnectedAtom } from '@/atoms/agentTelegram'
 
 /**
  * CONNECTING YOUR OWN TELEGRAM — A SCREEN THAT DOES NOT LIE ABOUT WHAT HAPPENS.
@@ -50,6 +52,8 @@ export function ConnectTelegram() {
   const [busy, setBusy] = useState(false)
   /** Number filled in, not typed. Affects only the caption under the field. */
   const [phoneFromTelegram, setPhoneFromTelegram] = useState(false)
+  // Shared with the profile gate: it opens the profile the moment this is true.
+  const setConnected = useSetAtom(agentTelegramConnectedAtom)
 
   const ask = useCallback(
     async (path: string, method: string, body?: unknown) => {
@@ -87,17 +91,21 @@ export function ConnectTelegram() {
           setPhone(p => p || String(d.phone))
           setPhoneFromTelegram(true)
         }
+        setConnected(!!d['подключено'])
         setStep(d['подключено'] ? 'connected' : 'phone')
       })
       .catch(() => {
         // Could not ask -- show the form. Claiming "not connected" would be a
         // guess, while offering to connect is always safe.
-        if (alive) setStep('phone')
+        if (alive) {
+          setConnected(false)
+          setStep('phone')
+        }
       })
     return () => {
       alive = false
     }
-  }, [ask])
+  }, [ask, setConnected])
 
   /**
    * Turn Telegram's own wording into something a person can act on.
@@ -170,6 +178,7 @@ export function ConnectTelegram() {
           onClick={() =>
             void run(async () => {
               await ask('/api/tg/connect', 'DELETE')
+              setConnected(false)
               setStep('phone')
             })
           }
@@ -202,6 +211,7 @@ export function ConnectTelegram() {
               code,
             })
             setCode('')
+            if (!d['нужен_пароль']) setConnected(true)
             setStep(d['нужен_пароль'] ? 'password' : 'connected')
           })
         }
@@ -231,6 +241,7 @@ export function ConnectTelegram() {
                 password,
               })
               setPassword('')
+              setConnected(true)
               setStep('connected')
             })
           }
