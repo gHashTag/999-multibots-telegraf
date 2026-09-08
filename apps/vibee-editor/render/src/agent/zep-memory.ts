@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import type { StoredMessage } from './chat-memory'
 
 /**
@@ -22,7 +23,54 @@ const TIMEOUT_MS = 8000
 export const ZEP_BATCH = 30
 
 export function zepConfigured(): boolean {
-  return Boolean((process.env.ZEP_API_KEY || '').trim())
+  return Boolean(
+    (process.env.ZEP_API_KEY || '').trim() ||
+      (process.env.ZEP_AUTH_SECRET || '').trim()
+  )
+}
+
+/**
+ * TWO DIALECTS, ONE MEMORY.
+ *
+ * Zep Cloud speaks /api/v2 (users, threads, a context block) behind an
+ * Api-Key. The self-hosted community server -- the one deployed as `zep` +
+ * `zep-nlp` + `pgvector` on this Railway project, 2026-09-08 -- speaks
+ * /api/v1 (users, sessions, memory with a summary and facts) behind a JWT
+ * that its ZEP_AUTH_SECRET signs. The dialect follows the address unless
+ * ZEP_FLAVOR says otherwise; the secret never leaves this process, and the
+ * token is minted here rather than pasted anywhere.
+ */
+export type ZepFlavor = 'cloud' | 'ce'
+export function zepFlavor(): ZepFlavor {
+  const f = (process.env.ZEP_FLAVOR || '').toLowerCase()
+  if (f === 'cloud' || f === 'ce') return f
+  return /getzep\.com/i.test(base()) ? 'cloud' : 'ce'
+}
+
+const b64url = (s: string) => Buffer.from(s).toString('base64url')
+let mintedFor: { secret: string; token: string } | null = null
+/** HS256, no expiry: the community server checks the signature, nothing more. */
+export function mintZepToken(secret: string, now = Date.now()): string {
+  if (mintedFor && mintedFor.secret === secret) return mintedFor.token
+  const head = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const body = b64url(
+    JSON.stringify({ iss: 'vibee-render', iat: Math.floor(now / 1000) })
+  )
+  const sig = createHmac('sha256', secret)
+    .update(`${head}.${body}`)
+    .digest('base64url')
+  const token = `${head}.${body}.${sig}`
+  mintedFor = { secret, token }
+  return token
+}
+
+function authHeader(): string {
+  const key = (process.env.ZEP_API_KEY || '').trim()
+  if (zepFlavor() === 'cloud') return `Api-Key ${key}`
+  // A ready JWT is used as it is; otherwise one is signed with the secret.
+  if (key && key.split('.').length === 3) return `Bearer ${key}`
+  const secret = (process.env.ZEP_AUTH_SECRET || '').trim()
+  return `Bearer ${secret ? mintZepToken(secret) : key}`
 }
 
 function base(): string {
@@ -51,15 +99,14 @@ async function call(
   init: { method: string; body?: unknown },
   fetchImpl: FetchLike = fetch as unknown as FetchLike
 ): Promise<{ ok: boolean; status: number; body: any }> {
-  const key = (process.env.ZEP_API_KEY || '').trim()
-  if (!key) return { ok: false, status: 0, body: null }
+  if (!zepConfigured()) return { ok: false, status: 0, body: null }
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS)
   try {
     const res = await fetchImpl(`${base()}${path}`, {
       method: init.method,
       headers: {
-        Authorization: `Api-Key ${key}`,
+        Authorization: authHeader(),
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
@@ -99,7 +146,7 @@ export async function zepEnsureUser(
 ): Promise<boolean> {
   if (!zepConfigured()) return false
   const r = await call(
-    '/api/v2/users',
+    zepFlavor() === 'cloud' ? '/api/v2/users' : '/api/v1/user',
     {
       method: 'POST',
       body: {
@@ -120,14 +167,31 @@ export async function zepEnsureThread(
   fetchImpl?: FetchLike
 ): Promise<boolean> {
   if (!zepConfigured()) return false
-  const r = await call(
-    '/api/v2/threads',
-    {
-      method: 'POST',
-      body: { thread_id: zepThreadId(owner, lead), user_id: zepUserId(lead) },
-    },
-    fetchImpl
-  )
+  const r =
+    zepFlavor() === 'cloud'
+      ? await call(
+          '/api/v2/threads',
+          {
+            method: 'POST',
+            body: {
+              thread_id: zepThreadId(owner, lead),
+              user_id: zepUserId(lead),
+            },
+          },
+          fetchImpl
+        )
+      : await call(
+          '/api/v1/sessions',
+          {
+            method: 'POST',
+            body: {
+              session_id: zepThreadId(owner, lead),
+              user_id: zepUserId(lead),
+              metadata: { owner, lead, source: 'telegram-dm' },
+            },
+          },
+          fetchImpl
+        )
   return r.ok || alreadyThere(r)
 }
 
@@ -147,17 +211,32 @@ export async function zepAddMessages(
   let sent = 0
   for (let i = 0; i < ordered.length; i += ZEP_BATCH) {
     const slice = ordered.slice(i, i + ZEP_BATCH)
+    const tid = encodeURIComponent(zepThreadId(owner, lead))
+    const cloud = zepFlavor() === 'cloud'
     const r = await call(
-      `/api/v2/threads/${encodeURIComponent(zepThreadId(owner, lead))}/messages`,
+      cloud
+        ? `/api/v2/threads/${tid}/messages`
+        : `/api/v1/sessions/${tid}/memory`,
       {
         method: 'POST',
         body: {
-          messages: slice.map(m => ({
-            role: m.out ? 'assistant' : 'user',
-            name: m.out ? 'owner' : 'person',
-            content: m.text,
-            created_at: m.at.toISOString(),
-          })),
+          messages: slice.map(m =>
+            cloud
+              ? {
+                  role: m.out ? 'assistant' : 'user',
+                  name: m.out ? 'owner' : 'person',
+                  content: m.text,
+                  created_at: m.at.toISOString(),
+                }
+              : {
+                  // The community server: `role` is a display name, the
+                  // side of the conversation is `role_type`.
+                  role: m.out ? 'owner' : 'person',
+                  role_type: m.out ? 'assistant' : 'user',
+                  content: m.text,
+                  created_at: m.at.toISOString(),
+                }
+          ),
         },
       },
       fetchImpl
@@ -175,13 +254,35 @@ export async function zepContext(
   fetchImpl?: FetchLike
 ): Promise<string | null> {
   if (!zepConfigured()) return null
+  const tid = encodeURIComponent(zepThreadId(owner, lead))
+  if (zepFlavor() === 'cloud') {
+    const r = await call(
+      `/api/v2/threads/${tid}/context?mode=basic`,
+      { method: 'GET' },
+      fetchImpl
+    )
+    const ctx = r.ok ? r.body?.context : null
+    return typeof ctx === 'string' && ctx.trim() ? ctx.slice(0, 4000) : null
+  }
+  // The community server keeps a rolling summary and extracted facts on the
+  // session; the block is composed here in the shape the model reads.
   const r = await call(
-    `/api/v2/threads/${encodeURIComponent(zepThreadId(owner, lead))}/context?mode=basic`,
+    `/api/v1/sessions/${tid}/memory?lastn=1`,
     { method: 'GET' },
     fetchImpl
   )
-  const ctx = r.ok ? r.body?.context : null
-  return typeof ctx === 'string' && ctx.trim() ? ctx.slice(0, 4000) : null
+  if (!r.ok || !r.body || typeof r.body !== 'object') return null
+  const facts: string[] = Array.isArray(r.body.facts)
+    ? r.body.facts.filter((f: unknown) => typeof f === 'string' && f.trim())
+    : []
+  const summary =
+    typeof r.body.summary?.content === 'string'
+      ? r.body.summary.content.trim()
+      : ''
+  const parts: string[] = []
+  if (facts.length) parts.push('FACTS:\n' + facts.map(f => `- ${f}`).join('\n'))
+  if (summary) parts.push('SUMMARY:\n' + summary)
+  return parts.length ? parts.join('\n\n').slice(0, 4000) : null
 }
 
 /** Business facts (a purchase, an invoice, a touch) into the person's graph. */
@@ -191,6 +292,8 @@ export async function zepGraphAdd(
   fetchImpl?: FetchLike
 ): Promise<boolean> {
   if (!zepConfigured()) return false
+  // The community server has no graph endpoint; the fact lives in Postgres.
+  if (zepFlavor() !== 'cloud') return false
   const r = await call(
     '/api/v2/graph',
     {

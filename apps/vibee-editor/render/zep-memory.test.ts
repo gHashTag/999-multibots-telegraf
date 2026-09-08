@@ -7,7 +7,10 @@ import {
   zepContext,
   zepGraphAdd,
   ZEP_BATCH,
+  zepFlavor,
+  mintZepToken,
 } from './src/agent/zep-memory'
+import { createHmac } from 'node:crypto'
 
 /** A mirror that never throws: what it sends, and what it does when Zep is not there. */
 const OWNER = '144022504'
@@ -47,14 +50,23 @@ const msg = (i: number, out = false) => ({
   text: `m${i}`,
 })
 
-const prev = { k: process.env.ZEP_API_KEY, u: process.env.ZEP_API_URL }
+const prev = {
+  k: process.env.ZEP_API_KEY,
+  u: process.env.ZEP_API_URL,
+  s: process.env.ZEP_AUTH_SECRET,
+  f: process.env.ZEP_FLAVOR,
+}
 beforeEach(() => {
   process.env.ZEP_API_KEY = 'z-key' // secret-guard-ok: invented for this test
   delete process.env.ZEP_API_URL
+  delete process.env.ZEP_AUTH_SECRET
+  delete process.env.ZEP_FLAVOR
 })
 afterEach(() => {
   process.env.ZEP_API_KEY = prev.k
   process.env.ZEP_API_URL = prev.u
+  process.env.ZEP_AUTH_SECRET = prev.s
+  process.env.ZEP_FLAVOR = prev.f
 })
 
 describe('when Zep is not configured', () => {
@@ -151,6 +163,8 @@ describe('what is sent', () => {
 
   it('a self-hosted base URL is honoured, trailing slash and all', async () => {
     process.env.ZEP_API_URL = 'http://zep.railway.internal:8000/'
+    // The graph is a cloud feature; this case is about the address only.
+    process.env.ZEP_FLAVOR = 'cloud'
     const { calls, f } = fakeFetch()
     await zepGraphAdd(LEAD, { bought: 'photo' }, f)
     expect(calls[0].url).toBe('http://zep.railway.internal:8000/api/v2/graph')
@@ -168,5 +182,101 @@ describe('what is sent', () => {
     } finally {
       spy.mockRestore()
     }
+  })
+})
+
+describe('the self-hosted dialect (Zep community server)', () => {
+  const selfHosted = () => {
+    delete process.env.ZEP_API_KEY
+    process.env.ZEP_API_URL = 'http://zep.railway.internal:8000'
+    process.env.ZEP_AUTH_SECRET = 's3cret-for-tests' // secret-guard-ok: invented for this test
+  }
+
+  it('is chosen by the address, and can be forced either way', () => {
+    selfHosted()
+    expect(zepFlavor()).toBe('ce')
+    expect(zepConfigured()).toBe(true)
+    process.env.ZEP_FLAVOR = 'cloud'
+    expect(zepFlavor()).toBe('cloud')
+    delete process.env.ZEP_FLAVOR
+    process.env.ZEP_API_URL = 'https://api.getzep.com'
+    expect(zepFlavor()).toBe('cloud')
+  })
+
+  it('signs its own bearer token with the secret: three parts, HS256, verifiable', async () => {
+    selfHosted()
+    const { calls, f } = fakeFetch()
+    expect(await zepEnsureUser(LEAD, 'Оля', f)).toBe(true)
+    expect(calls[0].url).toBe('http://zep.railway.internal:8000/api/v1/user')
+    const auth = calls[0].headers.Authorization
+    expect(auth.startsWith('Bearer ')).toBe(true)
+    const [h, b, sig] = auth.slice(7).split('.')
+    expect(sig).toBe(
+      createHmac('sha256', 's3cret-for-tests')
+        .update(`${h}.${b}`)
+        .digest('base64url')
+    )
+    expect(JSON.parse(Buffer.from(h, 'base64url').toString()).alg).toBe('HS256')
+    expect(mintZepToken('s3cret-for-tests')).toBe(auth.slice(7))
+  })
+
+  it('a ready JWT in ZEP_API_KEY is used as it is', async () => {
+    selfHosted()
+    process.env.ZEP_API_KEY = 'aaa.bbb.ccc' // secret-guard-ok: invented for this test
+    const { calls, f } = fakeFetch()
+    await zepEnsureThread(OWNER, LEAD, f)
+    expect(calls[0].headers.Authorization).toBe('Bearer aaa.bbb.ccc')
+    expect(calls[0].url).toBe(
+      'http://zep.railway.internal:8000/api/v1/sessions'
+    )
+    expect(calls[0].body.session_id).toBe('tg-144022504-555')
+    expect(calls[0].body.user_id).toBe('tg-555')
+  })
+
+  it('messages go to the session memory with role_type for the side, role for the name', async () => {
+    selfHosted()
+    const { calls, f } = fakeFetch()
+    expect(await zepAddMessages(OWNER, LEAD, [msg(2, true), msg(1)], f)).toBe(2)
+    expect(calls[0].url).toBe(
+      'http://zep.railway.internal:8000/api/v1/sessions/tg-144022504-555/memory'
+    )
+    expect(calls[0].body.messages[0]).toMatchObject({
+      role: 'person',
+      role_type: 'user',
+      content: 'm1',
+    })
+    expect(calls[0].body.messages[1]).toMatchObject({
+      role: 'owner',
+      role_type: 'assistant',
+      content: 'm2',
+    })
+  })
+
+  it('the context is the summary and the facts, or nothing', async () => {
+    selfHosted()
+    const { calls, f } = fakeFetch(() => ({
+      status: 200,
+      body: {
+        summary: { content: 'wants a reel' },
+        facts: ['asked the price', ''],
+      },
+    }))
+    const ctx = await zepContext(OWNER, LEAD, f)
+    expect(calls[0].url).toContain(
+      '/api/v1/sessions/tg-144022504-555/memory?lastn=1'
+    )
+    expect(ctx).toBe('FACTS:\n- asked the price\n\nSUMMARY:\nwants a reel')
+    const { f: empty } = fakeFetch(() => ({
+      status: 200,
+      body: { messages: [] },
+    }))
+    expect(await zepContext(OWNER, LEAD, empty)).toBeNull()
+  })
+
+  it('has no graph: a business fact stays in Postgres, nothing is called', async () => {
+    selfHosted()
+    const { calls, f } = fakeFetch()
+    expect(await zepGraphAdd(LEAD, { bought: 'photo' }, f)).toBe(false)
+    expect(calls).toEqual([])
   })
 })
