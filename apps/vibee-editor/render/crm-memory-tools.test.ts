@@ -79,7 +79,7 @@ const ctxFor = (who = OWNER, pool = fakePool()) =>
 
 function fakeClient(o: { floodOn?: string; laterExtra?: boolean } = {}) {
   const calls: string[] = []
-  let reads = 0
+  const readsByChat = new Map<string, number>()
   const dialog = (id: string, extra: Record<string, unknown>) => ({
     id: { toString: () => id },
     ...extra,
@@ -107,7 +107,8 @@ function fakeClient(o: { floodOn?: string; laterExtra?: boolean } = {}) {
     async getMessages(chat: string) {
       calls.push(`getMessages:${chat}`)
       if (o.floodOn === chat) throw new Error('FLOOD_WAIT_30')
-      reads += 1
+      const reads = (readsByChat.get(chat) ?? 0) + 1
+      readsByChat.set(chat, reads)
       const extra =
         o.laterExtra && reads > 1
           ? [{ id: 4, date: 1757300000, out: false, message: 'ну что там?' }]
