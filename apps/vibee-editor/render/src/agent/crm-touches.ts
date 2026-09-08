@@ -241,3 +241,78 @@ export async function touchesByLead(
     return out
   }
 }
+
+/**
+ * The notes the confirmed-send path writes. Named once so the summary can
+ * count "how many of the recent 'написали' were the seller's own cards"
+ * without guessing at the wording.
+ */
+export { SELLER_NOTE_PREFIXES } from './crm-notes'
+import { SELLER_NOTE_PREFIXES } from './crm-notes'
+
+const clampDays = (d: unknown): number =>
+  Math.min(90, Math.max(1, Math.floor(Number(d) || 7)))
+
+/** Every kind at once: how many ever, how many in the window, the last one. */
+export async function touchesByKind(
+  pool: Pool,
+  owner: string,
+  days = 7
+): Promise<
+  Array<{
+    kind: TouchKind
+    total: number
+    recent: number
+    last_at: string | null
+  }>
+> {
+  try {
+    if (!owner) return []
+    await ensureTable(pool)
+    const r = await pool.query(
+      `SELECT kind,
+              count(*)::int AS total,
+              count(*) FILTER (WHERE at > now() - ($2 || ' days')::interval)::int AS recent,
+              max(at) AS last_at
+         FROM crm_touches
+        WHERE owner_id = $1
+        GROUP BY kind`,
+      [String(owner), String(clampDays(days))]
+    )
+    return (r.rows ?? []).map((row: any) => ({
+      kind: row.kind as TouchKind,
+      total: Number(row.total ?? 0),
+      recent: Number(row.recent ?? 0),
+      last_at: row.last_at ? String(row.last_at) : null,
+    }))
+  } catch {
+    return []
+  }
+}
+
+/** How many of the window's sends came out of the seller's own cards. */
+export async function sellerSendsSince(
+  pool: Pool,
+  owner: string,
+  days = 7
+): Promise<number> {
+  try {
+    if (!owner) return 0
+    await ensureTable(pool)
+    const r = await pool.query(
+      `SELECT count(*)::int AS n FROM crm_touches
+        WHERE owner_id = $1 AND kind IN ('written', 'bought')
+          AND at > now() - ($2 || ' days')::interval
+          AND (note LIKE $3 OR note LIKE $4)`,
+      [
+        String(owner),
+        String(clampDays(days)),
+        SELLER_NOTE_PREFIXES.message + '%',
+        SELLER_NOTE_PREFIXES.service + '%',
+      ]
+    )
+    return Number(r.rows?.[0]?.n ?? 0)
+  } catch {
+    return 0
+  }
+}

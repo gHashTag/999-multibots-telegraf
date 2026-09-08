@@ -719,6 +719,7 @@ export async function execute(
         if (p.lead && ctx.pool) {
           try {
             const { recordTouch } = await import('./crm-touches')
+            const { SELLER_NOTE_PREFIXES } = await import('./crm-notes')
             const write = recordTouch(ctx.pool as never, {
               owner: String(ctx.telegramId),
               lead: String(p.lead),
@@ -726,8 +727,9 @@ export async function execute(
               // A paid, delivered service is a purchase; a message is a touch.
               kind: p.charge ? 'bought' : 'written',
               note: p.charge
-                ? `услуга в личке: ${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
-                : `отправлено из личного продавца: ${(p.what ?? '').slice(0, 80)}`,
+                ? SELLER_NOTE_PREFIXES.service +
+                  `${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
+                : SELLER_NOTE_PREFIXES.message + (p.what ?? '').slice(0, 80),
             })
             const outcome = await Promise.race([
               write,
