@@ -61,7 +61,7 @@ describe('ingestAfterConnect', () => {
     await ingestAfterConnect(pool, '144022504')
     expect(handler).toHaveBeenCalledTimes(1)
     const [args, ctx] = handler.mock.calls[0] as unknown as [any, any]
-    expect(args).toEqual({ limit: 100, depth: 200 })
+    expect(args).toEqual({ limit: 2000, depth: 500 })
     expect(ctx.telegramId).toBe('144022504')
     expect(ctx.pool).toBe(pool)
     expect(ctx.surface).toBe('bot')

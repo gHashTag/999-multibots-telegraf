@@ -307,7 +307,7 @@ describe('the memory calls from the bot', () => {
     const r = await ingestChats(OWNER)
     expect(calls[0].url).toContain('/mcp?telegram_id=' + OWNER)
     expect(calls[0].body.params.name).toBe('crm_ingest_chats')
-    expect(calls[0].body.params.arguments).toEqual({ limit: 100, depth: 200 })
+    expect(calls[0].body.params.arguments).toEqual({ limit: 2000, depth: 500 })
     expect(r.messages_new).toBe(12)
   })
 

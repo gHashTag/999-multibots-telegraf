@@ -42,7 +42,9 @@ const SERVICE_IDS = new Set([
   '136817688',
 ])
 const DIALOGS_DEFAULT = 30
-const DIALOGS_MAX = 200
+// The owner asked for ALL dialogs. GramJS pages getDialogs itself; a
+// FLOOD_WAIT stops the walk and says where, and the next run resumes.
+const DIALOGS_MAX = 2000
 const DEPTH_DEFAULT = 100
 const DEPTH_MAX = 500
 

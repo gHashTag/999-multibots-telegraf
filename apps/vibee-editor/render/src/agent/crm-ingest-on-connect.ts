@@ -5,7 +5,7 @@
  * for an ingest or the half-hour sweep ran. An owner who had just connected
  * their Telegram and opened a client's DM was answered by an agent that knew
  * nothing of a year of conversation. So the ingest runs by itself, right
- * after the session is saved: every dialog, deep, into Postgres and Zep.
+ * after the session is saved: every dialog the account has, deep, into Postgres and Zep.
  *
  * Fire-and-forget: the connect route answers at once; the walk over dozens
  * of dialogs takes minutes and its failure is logged, not shown -- the
@@ -28,7 +28,7 @@ async function runIngest(
   const { CRM_MEMORY_TOOLS } = await import('./crm-memory-tools')
   const tool = CRM_MEMORY_TOOLS.find(t => t.name === 'crm_ingest_chats')
   if (!tool) throw new Error('crm_ingest_chats is not registered')
-  return (await tool.handler({ limit: 100, depth: 200 }, {
+  return (await tool.handler({ limit: 2000, depth: 500 }, {
     telegramId,
     pool,
     surface: 'bot',
