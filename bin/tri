@@ -608,9 +608,16 @@ case "${1:-}" in
     # уронили цикл в ENOSPC ДВАЖДЫ. Прошлая версия списка их не знала, поэтому
     # команда показывала «всё в порядке» ровно тогда, когда всё было не в
     # порядке. Диск забивает не только сборка.
+    # Каталог сборки cargo добавлен 08.09.2026: 686 МБ, оставленные в
+    # песочнице, за шесть итераций довели диск до ENOSPC в ТРЕТИЙ раз. Список
+    # снова не знал виновника -- как не знал стенограмм накануне. Он растёт
+    # только задним числом, и это его главное ограничение: он видит то, чем
+    # диск забивали ПРОШЛЫЙ раз.
     for D in "$ROOT/apps/vibee-ios/build2" /tmp/dd "$ROOT/.vite-cache" \
              "$ROOT/.claude/worktrees" "$HOME/Library/Developer/Xcode/DerivedData" \
              "/private/tmp/claude-501" \
+             "$HOME/.cache/t27-build" "$HOME/.cargo/registry" \
+             "${TMPDIR:-/tmp}" \
              "$HOME/.claude/projects"; do
       [ -e "$D" ] && printf "  %-52s %s\n" "$D" "$(du -sh "$D" 2>/dev/null | cut -f1)"
     done
