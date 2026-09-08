@@ -107,6 +107,7 @@ const GUARDS = [
   'src/__tests__/tools/tonVerifySelfCheck.test.ts', // tri ton-verify stays wired (help/cmd/case) and honest: offline --self-check passes, and it imports the REAL parser src/core/ton/jettonBody.ts (no loadCoins copy that could drift) -- the one-command chain proof for the #2147 class (parser sees 0 payments while TON Center v3 sees them)
   'src/__tests__/reliability/botLaunchRetriesOn409.test.ts', // hotfix 2026-09-08: bots launch via launchWithConflictRetry -- a redeploy overlap gives the newcomer 409 Conflict; it used to be logged once and the bot stayed DEAD until the next deploy (neuro_blogger_bot, MetaMuse_Manifest_bot); bounded retry, 409 only
   'src/__tests__/reliability/kieRenderStatusUsesConfiguredKey.test.ts', // hotfix 2026-09-08: render/steps.ts built KieAIService with process.env.KIE_API_KEY (set nowhere) -> empty key -> every Kie render status poll 401; reads KIE_AI_API_KEY like the other 44 sites
+  'src/__tests__/reliability/sessionStoreRedis.test.ts', // 2026-09-08 Telegraf sessions in Redis (15 redeploys/3h wiped every wizard): JSON round-trip, Buffer images never persisted, bot-scoped keys (11 bots, private chat.id==from.id), memory fallback on Redis failure, every bot installs sessionMiddleware() (mutation: bare session() -> RED)
 ]
 
 const ROOT = process.cwd()

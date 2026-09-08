@@ -1,6 +1,6 @@
 /**
  * trainFluxModelWizard collects training photos as full Buffers in
- * ctx.session.images — the same Telegraf in-memory session (bot.ts calls
+ * ctx.session.images — the same per-process volatile map of sessionStore (Buffers never reach Redis; bot.ts calls
  * session() with no store / TTL / eviction) shared by the one process that runs
  * every bot. It caps each image's SIZE (10MB) and the /done step enforces a
  * MINIMUM of 10 images, but the photo handler had NO maximum on the COUNT — a

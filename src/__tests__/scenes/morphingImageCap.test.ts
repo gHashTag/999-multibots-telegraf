@@ -1,6 +1,6 @@
 /**
  * The morphing image collector keeps every uploaded photo as a full Buffer in
- * Telegraf's default in-memory session (bot.ts calls session() with no store /
+ * the per-process volatile map of sessionStore (Buffers are never written to Redis /
  * TTL / eviction), shared by the one process that runs every bot. It caps each
  * image's SIZE (10MB) but used to have no cap on the COUNT — a subscriber could
  * keep sending photos (the step returns to itself and collection is free until

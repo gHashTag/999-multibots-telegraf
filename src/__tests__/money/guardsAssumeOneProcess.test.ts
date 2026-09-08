@@ -56,20 +56,21 @@ describe('the money guards assume exactly one process', () => {
     ).toBe(1)
   })
 
-  it('the session is still the in-memory default, with no store', () => {
-    // If this starts failing because a store was added, the guards became
-    // durable and the registries that call them "in-memory" are now wrong.
-    // That is a good change and still needs a person: update the descriptions
-    // and this test together.
+  it('the session store is shared (Redis) -- session-held guards are durable; the marketplace Set is not', () => {
+    // 2026-09-08: sessions moved to Redis (src/core/session/sessionStore.ts)
+    // because 15 redeploys in 3 hours wiped every wizard. The 18 in-progress
+    // flags and 3 consume-once marks live in the session, so they now survive
+    // a restart and would be shared between replicas. The marketplace in-flight
+    // Set is still module state in one process -- which is why numReplicas
+    // above must stay 1 until it gets a durable claim.
     const bot = read('src/bot.ts')
-    expect(bot).toMatch(/session\(\)/)
-    const configured = /session\(\s*\{/.test(bot)
-    expect(
-      configured,
-      'session() now takes options -- if that is a shared store, the guards are ' +
-        'no longer per-process; update this test and the census headers that ' +
-        'describe them as in-memory'
-    ).toBe(false)
+    const index = read('src/index.ts')
+    for (const src of [bot, index]) {
+      expect(src).toMatch(/bot\.use\(sessionMiddleware\(\)\)/)
+      expect(src, 'a bare in-memory session() came back').not.toMatch(
+        /bot\.use\(session\(\)\)/
+      )
+    }
   })
 
   it('the guards this protects are still the ones counted here', () => {

@@ -19,7 +19,7 @@ import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands, createStage } from './navigation'
 import { MyContext } from './interfaces'
-import { session } from 'telegraf'
+import { sessionMiddleware } from './core/session/sessionStore'
 import {
   handleSuccessfulPayment,
   handlePreCheckoutQuery,
@@ -142,7 +142,7 @@ async function initializeBots() {
     )
     //
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
-    bot.use(session()) // 1. Сессия (из bot.ts)
+    bot.use(sessionMiddleware()) // 1. Session: Redis-backed when REDIS_URL is set (survives redeploys)
     bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
     bot.use(Telegraf.log(scrubbedLog)) // 3. Log all Telegraf updates and middleware flow
 
@@ -230,7 +230,7 @@ async function initializeBots() {
         bot.use(Telegraf.log(scrubbedLog)) // Log all Telegraf updates and middleware flow
 
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
-        bot.use(session()) // 1. Сессия (из bot.ts)
+        bot.use(sessionMiddleware()) // 1. Session: Redis-backed when REDIS_URL is set (survives redeploys)
         bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
 
         // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
