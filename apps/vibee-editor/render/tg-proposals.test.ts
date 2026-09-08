@@ -933,6 +933,18 @@ describe('an invoice does not outlive its draft', () => {
     }
   })
 
+  it('a photo draft evicted or expired is reported too: the picture was made', () => {
+    remember({
+      id: 'ph1',
+      telegramId: WHO,
+      action: 'send',
+      target: '1',
+      media: { kind: 'photo', url: 'https://s3/x.png' },
+    })
+    draft('after', 5)
+    expect(seen.map(s => [s.id, s.reason])).toEqual([['ph1', 'replaced']])
+  })
+
   it('a draft without an invoice never wakes the listener', () => {
     const d = draft('n1')
     claim(WHO, 'n1', d.secret, 'cancel')

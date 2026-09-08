@@ -1360,10 +1360,22 @@ If not, continue on your own and click the "I myself" button`
              * between "a draft exists" and "the client that caused it holds
              * the secret".
              */
-            // The whole draft: a hand-picked field list once dropped the recipient's
-            // name on the floor. The server sent it; the card may read it.
+            // The whole draft (a field list once dropped the name); a photo
+            // card shows the service under the same two buttons.
             const card = proposalCard(draft, isRuOtvet)
-            await ctx.reply(card.text, card.markup)
+            if (!card.photo) {
+              await ctx.reply(card.text, card.markup)
+            } else {
+              const { sendPhotoWithFallback } = await import(
+                '@/helpers/sendPhotoWithFallback'
+              )
+              const shown = await sendPhotoWithFallback(ctx, card.photo, {
+                caption: card.text,
+                reply_markup: card.markup.reply_markup,
+              })
+              if (!shown)
+                await ctx.reply(`${card.text}\n\n${card.photo}`, card.markup)
+            }
           }
         } catch (e: any) {
           // The answer is already delivered. A failure here costs an unsent

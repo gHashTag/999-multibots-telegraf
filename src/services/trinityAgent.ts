@@ -53,6 +53,8 @@ export interface ОтветАгента {
     what?: string
     secret: string
     display?: string
+    media?: { kind: 'photo'; url: string }
+    charge?: { telegramId: string; op: string; tokens: number }
   }
 }
 

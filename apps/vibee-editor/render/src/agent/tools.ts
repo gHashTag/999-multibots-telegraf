@@ -49,6 +49,13 @@ export interface ToolContext {
    * message on one that cannot is a promise nothing keeps.
    */
   surface?: string
+  /**
+   * The caller will charge somebody ELSE for this work at a later, confirmed
+   * moment (a service delivered in a DM: the recipient pays at the owner's
+   * press). spendTokens then leaves the caller's wallet alone. Set only by
+   * code, never from arguments.
+   */
+  chargeLater?: boolean
 }
 
 export interface AgentTool {
@@ -338,6 +345,15 @@ async function spendTokens(
     console.log(`[токены] дом не платит себе: «${tool}» для ${ctx.telegramId}`) // cyrillic-ok: log text
     return { ok: true, потрачено: 0 } // cyrillic-ok: existing return field
   }
+  // Somebody else pays later, once, at a confirmed moment (see ToolContext).
+  // Without this the picture for a DM was paid twice: here by the owner,
+  // then by the recipient at the press.
+  if (ctx.chargeLater) {
+    console.log(
+      `[токены] отложено на получателя: «${tool}» для ${ctx.telegramId}`
+    ) // cyrillic-ok: log text
+    return { ok: true, потрачено: 0 } // cyrillic-ok: existing return field
+  }
 
   // Проверка баланса и списание — ОДНИМ атомарным запросом.
   //
@@ -507,6 +523,7 @@ import { ценаТокенов, названиеСчёта } from './token-pack
 import { CRM_TOOLS } from './crm-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
+import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { HIVE_TOOLS } from './hive-tools'
 import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS } from './telegram-tools'
@@ -2310,6 +2327,9 @@ TOOLS.push(...TELEGRAM_TOOLS)
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
+// Delivery borrows image_generate through the registry, not an import: the
+// generator lives in this file, and a module cycle would be the alternative.
+TOOLS.push(...makeCrmDeliverTools(n => TOOLS.find(t => t.name === n)))
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project

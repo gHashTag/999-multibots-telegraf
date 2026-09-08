@@ -205,7 +205,7 @@ export async function resolveLead(
  * escaping -- the message is sent verbatim with no parse mode -- but removing
  * the two things that could make a stranger's text act like ours.
  */
-function oneLine(text: string | null | undefined, max: number): string {
+export function oneLine(text: string | null | undefined, max: number): string {
   return (
     String(text ?? '')
       .replace(/\s+/g, ' ')
