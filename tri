@@ -364,6 +364,8 @@ OTHER
   tri кнопки [--json]     rendered callback ids against every catcher, both ways
   tri адреса [--gate]     URLs we build on our own host against routes we serve
   tri способы [--gate]    payment methods that take money against ones that can credit it
+  tri ушедшие [--detail]  people who once paid and stopped -- the only segment that
+                          has already answered the hard question (reads, sends nothing)
   tri сверка              who actually paid, among the invoices we still call PENDING
                           (independent channel: Robokassa OpStateExt, read-only,
                           credits nobody -- needs ROBOKASSA_PASSWORD_2)
@@ -3737,6 +3739,7 @@ case "$action" in
   urls|адреса)         node "$ROOT/scripts/url-reachability.cjs" "${@:2}" ;;
   methods|способы)     node "$ROOT/scripts/payment-method-census.cjs" "${@:2}" ;;
   reconcile|сверка)    node "$ROOT/scripts/robokassa-reconcile.cjs" "${@:2}" ;;
+  lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "${@:2}" ;;
   funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "${@:2}" ;;
   stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "${@:2}" ;;
   events|события)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "${@:2}" ;;
