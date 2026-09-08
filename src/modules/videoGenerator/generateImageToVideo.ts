@@ -26,6 +26,7 @@ import { isAxiosError } from 'axios'
 import { PUBLIC_URL, SECRET_API_KEY } from '@/config'
 import { safeSendMessage, markUserAsBlocked } from '@/utils/blockedUsersCheck'
 import { videoTaskCache } from './taskCache'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Константа для директории uploads (используем /tmp для Docker совместимости)
 const UPLOADS_DIR = process.env.UPLOADS_DIR || '/tmp/uploads'
@@ -341,10 +342,20 @@ export const generateImageToVideo = async (
         telegramId,
         error: balanceResult.error,
       })
+      // Only when the failure IS "not enough stars": the same error field
+      // carries "unknown model" too, and a top-up button on that is worse than
+      // none. The helper says which, so the caller does not have to guess.
       await telegramInstance.sendMessage(
         chatId,
         balanceResult.error ||
-          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed')
+          (isRu ? '❌ Ошибка проверки баланса' : '❌ Balance check failed'),
+        // `{ app: false }`: this sends to chatId, which may be a group, and
+        // Telegram rejects a web_app button outside a private chat. The test
+        // mock is what surfaced it -- Markup.button.webApp is not a function
+        // there -- but the constraint is real in production too.
+        balanceResult.insufficientFunds
+          ? standardButtons(isRu, { app: false })
+          : undefined
       )
       return
     }

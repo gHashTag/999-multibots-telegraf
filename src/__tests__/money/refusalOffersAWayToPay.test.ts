@@ -325,6 +325,12 @@ describe('the number of money refusals with nothing to press does not grow', () 
       // send standardButtons. The first iteration in three where fixing things
       // moved the number, which is what a population of real messages buys.
       //
+      // A LIMIT WORTH STATING: this follows a message to a send in the SAME
+      // file. When the refusal is RETURNED and sent two files away, a real
+      // repair leaves this number untouched -- see
+      // refusalReachesTheCaller.test.ts, which pins one by name because the
+      // count could not.
+      //
       // What is left is three shapes, none of which a keyboard argument fixes:
       // the text is RETURNED to a caller (directPayment, balanceHelpers,
       // bot-adapter, priceHelper x2, generateTextToVideo), it is a CONSTANT
