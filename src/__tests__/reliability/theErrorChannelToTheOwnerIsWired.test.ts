@@ -23,6 +23,7 @@ import { setupErrorHandler } from '@/helpers/error/errorHandler'
 import {
   telegramLogService,
   TelegramLogService,
+  resolveAlertDestination,
 } from '@/services/telegram-log.service'
 
 const fakeBot = () => {
@@ -58,6 +59,30 @@ describe('the error channel to the owner is wired', () => {
     svc.initializeOnce(second.bot)
     void svc.logError({ error: 'probe' })
     expect(second.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('with nothing configured, alerts go to the OWNER, not to a group nobody checked', () => {
+    // LOG_GROUP_ID is unset in production, so the old default sent every alert
+    // to a hard-coded group the bot may not even belong to. The owner's id is
+    // already in the deploy.
+    expect(
+      resolveAlertDestination({ ADMIN_TELEGRAM_ID: '144022504,1047716284' })
+    ).toEqual({ chatId: '144022504', via: 'ADMIN_TELEGRAM_ID' })
+  })
+
+  it('an explicit LOG_GROUP_ID still wins: setting it is a decision', () => {
+    expect(
+      resolveAlertDestination({
+        LOG_GROUP_ID: '-100777',
+        ADMIN_TELEGRAM_ID: '144022504',
+      })
+    ).toEqual({ chatId: '-100777', via: 'LOG_GROUP_ID' })
+  })
+
+  it('the legacy group is the LAST resort and says so', () => {
+    const d = resolveAlertDestination({})
+    expect(d.via).toBe('legacy-group')
+    expect(d.chatId).toBe('-1002737186844')
   })
 
   it('an unwired channel SAYS it is unwired, instead of returning quietly', async () => {
