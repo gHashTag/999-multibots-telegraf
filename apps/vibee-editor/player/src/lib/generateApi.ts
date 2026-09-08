@@ -159,6 +159,17 @@ export interface GenerateResult {
   url?: string
   id?: string
   error?: string
+  /**
+   * The server refused for want of tokens (HTTP 402), as opposed to failing.
+   *
+   * The status used to be dropped here: every non-ok response became a bare
+   * string, so a refusal that a top-up would fix was indistinguishable from a
+   * provider error that it would not. The paywall opens BEFORE generation when
+   * the free quota is gone, and never after -- so the person who used the free
+   * renders, bought tokens and ran out mid-session got a raw line of Russian
+   * and no way to buy more. That is the most engaged person in the product.
+   */
+  insufficientTokens?: boolean
   /** Actual media alignment; absent when the provider cannot supply timing. */
   timed_captions?: unknown
 }
@@ -198,7 +209,13 @@ export async function generateImage(
 
   if (!response.ok) {
     const text = await response.text()
-    return { success: false, error: text || 'Image generation failed' }
+    return {
+      // 402 is this server's "not enough tokens"; every other status is a
+      // failure a top-up would not fix.
+      insufficientTokens: response.status === 402,
+      success: false,
+      error: text || 'Image generation failed',
+    }
   }
 
   return response.json()
@@ -320,7 +337,13 @@ export async function generateVideo(
 
   if (!response.ok) {
     const text = await response.text()
-    return { success: false, error: text || 'Video generation failed' }
+    return {
+      // 402 is this server's "not enough tokens"; every other status is a
+      // failure a top-up would not fix.
+      insufficientTokens: response.status === 402,
+      success: false,
+      error: text || 'Video generation failed',
+    }
   }
 
   return response.json()
@@ -346,7 +369,13 @@ export async function generateAudio(
 
   if (!response.ok) {
     const text = await response.text()
-    return { success: false, error: text || 'Audio generation failed' }
+    return {
+      // 402 is this server's "not enough tokens"; every other status is a
+      // failure a top-up would not fix.
+      insufficientTokens: response.status === 402,
+      success: false,
+      error: text || 'Audio generation failed',
+    }
   }
 
   return response.json()
@@ -372,7 +401,13 @@ export async function generateLipsync(
 
   if (!response.ok) {
     const text = await response.text()
-    return { success: false, error: text || 'Lipsync generation failed' }
+    return {
+      // 402 is this server's "not enough tokens"; every other status is a
+      // failure a top-up would not fix.
+      insufficientTokens: response.status === 402,
+      success: false,
+      error: text || 'Lipsync generation failed',
+    }
   }
 
   return response.json()
