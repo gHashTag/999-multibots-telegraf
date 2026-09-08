@@ -13,6 +13,10 @@ import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
+import {
+  ACTION_PREFIX,
+  topupButtonLabel,
+} from '@/navigation/helpers/actionButtons'
 
 // Функция для отправки уведомления админу о проблеме с сервером
 // ✅ ИСПРАВЛЕНО: Не отправляем сообщение пользователю, который инициировал запрос
@@ -93,6 +97,12 @@ const createNeuroPhotoResultKeyboard = (is_ru: boolean) => {
       ),
     ],
     [
+      // The one place a person has just seen what this is worth. Measured
+      // 2026-09-08: of everyone who ever generates, about one in five ever
+      // reaches a price. act:topup is caught at bot level, and inside
+      // neuroPhotoWizard -- the only scene that swallows unknown presses -- by
+      // an explicit branch.
+      Markup.button.callback(topupButtonLabel(is_ru), `${ACTION_PREFIX}topup`),
       Markup.button.callback(
         is_ru ? '🏠 Главное меню' : '🏠 Main menu',
         'go_main_menu'

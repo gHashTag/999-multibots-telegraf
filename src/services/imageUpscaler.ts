@@ -18,6 +18,10 @@ import path from 'path'
 import fs from 'fs'
 import { Markup } from 'telegraf'
 import { getMainMenuText } from '@/navigation'
+import {
+  ACTION_PREFIX,
+  topupButtonLabel,
+} from '@/navigation/helpers/actionButtons'
 
 // Простая клавиатура только для upscaler'а
 const createUpscalerResultKeyboard = (is_ru: boolean) => {
@@ -28,7 +32,15 @@ const createUpscalerResultKeyboard = (is_ru: boolean) => {
         'upscale_another_photo'
       ),
     ],
-    [Markup.button.callback(getMainMenuText(is_ru), 'go_main_menu')],
+    [
+      // The one place a person has just seen what this is worth. Measured
+      // 2026-09-08: of everyone who ever generates, about one in five ever
+      // reaches a price. act:topup is caught at bot level, and inside
+      // neuroPhotoWizard -- the only scene that swallows unknown presses -- by
+      // an explicit branch.
+      Markup.button.callback(topupButtonLabel(is_ru), `${ACTION_PREFIX}topup`),
+      Markup.button.callback(getMainMenuText(is_ru), 'go_main_menu'),
+    ],
   ])
 }
 

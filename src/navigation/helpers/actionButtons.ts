@@ -46,6 +46,16 @@ export const ACTIONS: Action[] = [
   { id: 'can', ru: '✨ Что ты умеешь', en: '✨ What can you do' },
 ]
 
+/**
+ * The top-up label, so a keyboard built elsewhere cannot drift from the one the
+ * menu shows. Callers pair it with `${ACTION_PREFIX}topup`.
+ */
+export const topupButtonLabel = (isRu: boolean): string => {
+  const a = ACTIONS.find(x => x.id === 'topup')
+  if (!a) throw new Error('the topup action is missing from ACTIONS')
+  return isRu ? a.ru : a.en
+}
+
 export const isKnownAction = (id: string): boolean =>
   ACTIONS.some(a => a.id === id)
 
