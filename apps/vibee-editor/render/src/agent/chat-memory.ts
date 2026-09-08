@@ -67,10 +67,25 @@ export async function rememberMessages(
   lead: string,
   msgs: StoredMessage[]
 ): Promise<number> {
+  return (await rememberMessagesFresh(pool, owner, lead, msgs)).length
+}
+
+/**
+ * The same write, returning the messages that were actually NEW -- so a
+ * mirror (Zep) gets exactly those and never the whole dialog again. The
+ * first version handed the mirror everything it had read, and every sweep
+ * re-posted every message.
+ */
+export async function rememberMessagesFresh(
+  pool: Pool,
+  owner: string,
+  lead: string,
+  msgs: StoredMessage[]
+): Promise<StoredMessage[]> {
   const rows = msgs.filter(
     m => m.text && m.text.trim() && Number.isFinite(m.msgId)
   )
-  if (!rows.length) return 0
+  if (!rows.length) return []
   await ensureTable(pool)
   const values: string[] = []
   const params: unknown[] = []
@@ -86,7 +101,8 @@ export async function rememberMessages(
      RETURNING msg_id`,
     params
   )
-  return r.rows.length
+  const fresh = new Set(r.rows.map((x: any) => Number(x.msg_id)))
+  return rows.filter(m => fresh.has(m.msgId))
 }
 
 /**
@@ -94,22 +110,37 @@ export async function rememberMessages(
  * once, in the two languages the correspondence is in. Deliberately dumb:
  * a model reads the brief afterwards; this only decides WHO gets read first.
  */
-// `\\b` is ASCII-only in JS and never matches before a Cyrillic letter; the
-// `\\b` is ASCII-only in JS and never matches before a Cyrillic letter; the
-// lookbehind with the unicode flag is the boundary that works in both
-// alphabets. Built from strings: the stems are UI-language data.
+// `\\b` is ASCII-only in JS and never matches before a Cyrillic letter, so
+// the boundaries are spelled out with \\p{L}. A plain entry is a whole word
+// (no letter on either side); an entry ending in `*` is a prefix. The first
+// version had prefixes only, and the commonest Russian conjunction
+// ("because") scored as an objection through the stem for "later".
+const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const stems = (words: string[]) =>
-  new RegExp('(?<!\\p{L})(' + words.join('|') + ')', 'iu')
+  new RegExp(
+    '(?<!\\p{L})(' +
+      words
+        .map(w =>
+          w.endsWith('*') ? esc(w.slice(0, -1)) : esc(w) + '(?!\\p{L})'
+        )
+        .join('|') +
+      ')',
+    'iu'
+  )
 const SIGNALS: Array<{ name: string; score: number; re: RegExp }> = [
   {
     name: 'price',
     score: 3,
     re: stems([
-      'цен',
+      'цена',
+      'цены',
+      'цену',
+      'ценой',
+      'ценник',
       'сколько стоит',
-      'стоимост',
-      'прайс',
-      'тариф',
+      'стоимост*',
+      'прайс*',
+      'тариф*',
       'price',
       'cost',
       'how much',
@@ -119,11 +150,14 @@ const SIGNALS: Array<{ name: string; score: number; re: RegExp }> = [
     name: 'buy',
     score: 3,
     re: stems([
-      'куп',
-      'оплат',
-      'заказ',
+      'купить',
+      'куплю',
+      'покупк*',
+      'оплат*',
+      'оплач*',
+      'заказ*',
       'хочу',
-      'нужн',
+      'нужн*',
       'давай',
       'buy',
       'order',
@@ -137,16 +171,16 @@ const SIGNALS: Array<{ name: string; score: number; re: RegExp }> = [
     re: stems([
       'видео',
       'фото',
-      'рилс',
+      'рилс*',
       'reels',
-      'аватар',
-      'липсинк',
+      'аватар*',
+      'липсинк*',
       'lipsync',
-      'озвуч',
-      'монтаж',
-      'нейро',
-      'картинк',
-      'обложк',
+      'озвуч*',
+      'монтаж*',
+      'нейро*',
+      'картинк*',
+      'обложк*',
       'voice',
       'video',
       'photo',

@@ -80,6 +80,42 @@ describe('a cancelled draft marks its invoice', () => {
     expect(pool.queries.filter(q => q.sql.startsWith('UPDATE')).length).toBe(2)
   })
 
+  it('a photo draft without an invoice is journaled, not un-pended', async () => {
+    const pool = fakePool()
+    vi.doMock('./src/hive/journal', () => ({
+      record: async (_p: unknown, e: Record<string, unknown>) => {
+        pool.queries.push({
+          sql: `JOURNAL ${e.kind} ${e.what}`,
+          params: [e.who],
+        })
+        return 'recorded'
+      },
+    }))
+    try {
+      vi.resetModules()
+      const { markOrphaned: mark } = await import('./src/agent/invoice-orphans')
+      expect(
+        await mark(
+          () => pool,
+          {
+            ...draft({ id: 'ph' }),
+            media: { kind: 'photo', url: 'u' },
+          } as never,
+          'replaced'
+        )
+      ).toBe(true)
+      expect(
+        pool.queries.some(
+          q => q.sql.startsWith('JOURNAL failure') && q.sql.includes('replaced')
+        )
+      ).toBe(true)
+      expect(pool.queries.some(q => q.sql.startsWith('UPDATE'))).toBe(false)
+    } finally {
+      vi.doUnmock('./src/hive/journal')
+      vi.resetModules()
+    }
+  })
+
   it('a draft without an invoice touches nothing', async () => {
     const pool = fakePool()
     expect(

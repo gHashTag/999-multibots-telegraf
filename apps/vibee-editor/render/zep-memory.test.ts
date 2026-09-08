@@ -83,6 +83,37 @@ describe('what is sent', () => {
     const { f } = fakeFetch(() => ({ status: 409 }))
     expect(await zepEnsureUser(LEAD, null, f)).toBe(true)
     expect(await zepEnsureThread(OWNER, LEAD, f)).toBe(true)
+    const { f: said } = fakeFetch(() => ({
+      status: 400,
+      body: { message: 'user already exists' },
+    }))
+    expect(await zepEnsureUser(LEAD, null, said)).toBe(true)
+  })
+
+  it('a plain 400 is our mistake, not "exists", and a refusal is logged once', async () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { f } = fakeFetch(() => ({
+        status: 400,
+        body: { message: 'invalid body' },
+      }))
+      expect(await zepEnsureUser(LEAD, null, f)).toBe(false)
+      const { f: denied } = fakeFetch(() => ({
+        status: 401,
+        body: { message: 'bad key' },
+      }))
+      expect(await zepEnsureThread(OWNER, LEAD, denied)).toBe(false)
+      expect(await zepEnsureThread(OWNER, LEAD, denied)).toBe(false)
+      const lines = spy.mock.calls.map(c => c.map(String).join(' '))
+      expect(
+        lines.some(l => l.includes('/api/v2/threads') && l.includes('401'))
+      ).toBe(true)
+      expect(
+        lines.filter(l => l.includes('POST /api/v2/threads ')).length
+      ).toBe(1)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('messages go oldest first, in slices, the owner as the assistant side', async () => {

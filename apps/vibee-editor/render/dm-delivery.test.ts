@@ -84,16 +84,20 @@ async function deliverer(
   const { makeCrmDeliverTools } = await import('./src/agent/crm-deliver-tool')
   const q = await import('./src/agent/tg-proposals')
   q.forgetProposals()
-  const calls: Array<{ args: Record<string, unknown>; who: string }> = []
+  const calls: Array<{
+    args: Record<string, unknown>
+    who: string
+    chargeLater?: boolean
+  }> = []
   const gen = {
     name: 'image_generate',
     description: '',
     parameters: {},
     handler: async (
       args: Record<string, unknown>,
-      ctx: { telegramId: string }
+      ctx: { telegramId: string; chargeLater?: boolean }
     ) => {
-      calls.push({ args, who: ctx.telegramId })
+      calls.push({ args, who: ctx.telegramId, chargeLater: ctx.chargeLater })
       return opts.gen ? opts.gen(args) : { url: PIC }
     },
   }
@@ -146,13 +150,15 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     expect(r.lead_balance).toBe(20)
   })
 
-  it("the picture is made on the OWNER's turn, not billed to the recipient", async () => {
+  it("the picture is made on the OWNER's turn, with the charge deferred to the recipient", async () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const pool = poolWith([{ balance: 50 }])
     await tool.handler({ chat: '@playom', prompt: 'кот' }, ctxWith(pool))
     expect(calls[0].who).toBe(OWNER)
     expect(calls[0].args.prompt).toBe('кот')
+    // The generator is told the owner's wallet is not the one that pays.
+    expect(calls[0].chargeLater).toBe(true)
     expect(
       pool.sqls.some(q => /UPDATE user_tokens/i.test(q)),
       'the tool moved a balance by itself'
@@ -193,6 +199,19 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     expect(r.preview).toBe(PIC)
     expect(r.price).toBe(2)
     expect(r.media).toEqual({ kind: 'photo', url: PIC })
+  })
+
+  it('an owner-side recipient is not charged, and the card does not say otherwise', async () => {
+    stubSupabase([leadRow])
+    process.env.ADMIN_IDS = LEAD
+    const { tool, q } = await deliverer()
+    const r: any = await tool.handler(
+      { chat: '@playom', prompt: 'кот' },
+      ctxWith(poolWith([]))
+    )
+    expect(r.proposal).toBe(true)
+    expect(q.pendingFor(OWNER)!.charge).toBeUndefined()
+    expect(String(r.lead_balance)).toContain('бесплатно')
   })
 
   it('a caption is one line with no link in it', async () => {
@@ -267,11 +286,18 @@ async function executor(
       timeline.push(`spend:${tid}:${op}`)
       return bill.spend
         ? bill.spend(tid, op)
-        : { ok: true, списано: 2, осталось: 48 } // cyrillic-ok: public API field
+        : { ok: true, списано: 3, осталось: 47 } // cyrillic-ok: public API field
     },
     refundByTid: async (...a: unknown[]) => {
       timeline.push(`refund:${String(a[1])}:${String(a[5])}`)
       return bill.refund ? bill.refund(...a) : { ok: true, refunded: 2 }
+    },
+  }))
+  const journal: Array<Record<string, unknown>> = []
+  vi.doMock('./src/hive/journal', () => ({
+    record: async (_p: unknown, e: Record<string, unknown>) => {
+      journal.push(e)
+      return 'recorded'
     },
   }))
   const touches: Array<Record<string, unknown>> = []
@@ -282,7 +308,7 @@ async function executor(
     },
   }))
   const { execute } = await import('./src/agent/tg-proposals')
-  return { execute, timeline, touches }
+  return { execute, timeline, touches, journal }
 }
 const pool = { query: async () => ({ rows: [] }) }
 const draft = (over: Record<string, unknown> = {}) => ({
@@ -345,9 +371,19 @@ describe('execute: the money after the press, the file, the refund', () => {
     expect(r.done).toBe(false)
     expect(timeline).toEqual([
       `spend:${LEAD}:image_generate`,
-      `refund:${LEAD}:2`,
+      `refund:${LEAD}:3`,
     ])
     expect((r as { why: string }).why).toContain('возвращены')
+  })
+
+  it('the charge is journaled as money leaving: a negative amount, like every other tokens-spent', async () => {
+    const f = fakeClient()
+    const { execute, journal } = await executor(f.client)
+    await execute(draft(), { telegramId: OWNER, pool })
+    const spent = journal.find(e => e.kind === 'tokens-spent')!
+    expect(spent, 'no tokens-spent line').toBeTruthy()
+    expect(spent.amount).toBe(-3)
+    expect(spent.who).toBe(LEAD)
   })
 
   it('a refund that fails is said out loud, not swallowed', async () => {
@@ -398,7 +434,7 @@ describe('execute: the money after the press, the file, the refund', () => {
       }
     )
     expect(touches.map(t => t.kind)).toEqual(['bought', 'written'])
-    expect(String(touches[0].note)).toContain('2')
+    expect(String(touches[0].note)).toContain('3')
   })
 
   it('without a database a charged draft is not sent: nobody pays, nothing leaves', async () => {
@@ -422,5 +458,65 @@ describe('execute: the money after the press, the file, the refund', () => {
     ).execute(draft(), { telegramId: OWNER, pool })
     expect(ok.timeline.at(-1)).toBe('disconnect')
     expect(bad.timeline.at(-1)).toBe('disconnect')
+  })
+})
+
+describe('the real generator honours chargeLater', () => {
+  /*
+   * Everything above fakes the generator. This runs the real image_generate
+   * against a recording pool, with no house exemption, and looks only at
+   * whether the owner's wallet moved before the provider was even asked.
+   * The provider call itself is stubbed to fail fast.
+   */
+  const recordingPool = () => {
+    const sqls: string[] = []
+    return {
+      sqls,
+      query: async (sql: string) => {
+        sqls.push(sql.replace(/\s+/g, ' ').trim())
+        return { rows: [{ balance: 50, n: 0, count: 0 }] }
+      },
+    }
+  }
+  const prevHouse = process.env.HOUSE_TELEGRAM_IDS
+  beforeEach(() => {
+    process.env.HOUSE_TELEGRAM_IDS = ''
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+        text: async () => 'down',
+      }))
+    )
+  })
+  afterEach(() => {
+    process.env.HOUSE_TELEGRAM_IDS = prevHouse
+  })
+
+  it('with chargeLater the owner wallet is not touched; without it, it is', async () => {
+    const { TOOLS } = await import('./src/agent/tools')
+    const gen = TOOLS.find(t => t.name === 'image_generate')!
+    const deferred = recordingPool()
+    await gen.handler({ prompt: 'кот' }, {
+      telegramId: OWNER,
+      pool: deferred,
+      chargeLater: true,
+    } as never)
+    // A charge is `balance - price`; the failure path may still refund a zero.
+    expect(
+      deferred.sqls.filter(q => /balance = balance - /i.test(q)),
+      'the owner paid for a deferred charge'
+    ).toEqual([])
+    const paid = recordingPool()
+    await gen.handler({ prompt: 'кот' }, {
+      telegramId: OWNER,
+      pool: paid,
+    } as never)
+    expect(
+      paid.sqls.some(q => /balance = balance - /i.test(q)),
+      'the plain path stopped charging'
+    ).toBe(true)
   })
 })

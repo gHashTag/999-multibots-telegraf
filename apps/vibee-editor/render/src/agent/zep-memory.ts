@@ -36,6 +36,16 @@ export const zepUserId = (lead: string) => `tg-${lead}`
 export const zepThreadId = (owner: string, lead: string) =>
   `tg-${owner}-${lead}`
 
+/** 409, or a 400 that says so: the thing exists. Any other 400 is a mistake of ours. */
+function alreadyThere(r: { status: number; body: any }): boolean {
+  if (r.status === 409) return true
+  const text =
+    typeof r.body === 'string' ? r.body : JSON.stringify(r.body ?? '')
+  return r.status === 400 && /exist/i.test(text)
+}
+
+const warnedPaths = new Set<string>()
+
 async function call(
   path: string,
   init: { method: string; body?: unknown },
@@ -62,6 +72,15 @@ async function call(
       body = text ? JSON.parse(text) : null
     } catch {
       body = text
+    }
+    if (!res.ok && res.status !== 409) {
+      // Once per path per process: a wrong key or URL must show up in the
+      // log, not as a silent zero in the report.
+      const key = `${init.method} ${path.split('?')[0].replace(/\/tg-[^/]+/g, '/tg-*')}`
+      if (!warnedPaths.has(key)) {
+        warnedPaths.add(key)
+        console.warn(`[zep] ${key} -> ${res.status}: ${text.slice(0, 160)}`)
+      }
     }
     return { ok: res.ok, status: res.status, body }
   } catch (e) {
@@ -91,7 +110,7 @@ export async function zepEnsureUser(
     },
     fetchImpl
   )
-  return r.ok || r.status === 400 || r.status === 409
+  return r.ok || alreadyThere(r)
 }
 
 /** The dialog in Zep. "Already exists" is success. */
@@ -109,7 +128,7 @@ export async function zepEnsureThread(
     },
     fetchImpl
   )
-  return r.ok || r.status === 400 || r.status === 409
+  return r.ok || alreadyThere(r)
 }
 
 /**

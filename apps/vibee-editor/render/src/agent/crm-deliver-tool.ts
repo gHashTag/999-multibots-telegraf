@@ -91,7 +91,12 @@ export function makeCrmDeliverTools(
         const gen = lookup('image_generate')
         if (!gen)
           throw new Error('генерация картинок недоступна на этом сервере')
-        const made = (await gen.handler({ prompt }, ctx as ToolContext)) as {
+        // The owner's turn makes the picture, but the owner's wallet is not
+        // the one that pays: the recipient does, once, at the press.
+        const made = (await gen.handler(
+          { prompt },
+          { ...(ctx as ToolContext), chargeLater: true }
+        )) as {
           url?: string
           причина?: string // cyrillic-ok: public API field
         }
@@ -115,14 +120,19 @@ export function makeCrmDeliverTools(
           chat,
           caption || undefined,
           'Фото готово и ждёт подтверждения владельца. Покажи ссылку на превью. ' +
-            'Токены спишутся с получателя при нажатии «Отправить», не сейчас.',
+            'Токены спишутся с получателя при нажатии «Отправить», не сейчас. ' +
+            'Пока карточка не нажата, не готовь этому владельцу других предложений: новое вытеснит фото.',
           ctx,
           may.ok ? lead.id : undefined,
           may.ok ? may.botName : undefined,
           {
             display: lead.display ?? undefined,
             media: { kind: 'photo', url: made.url },
-            charge: { telegramId: lead.id, op: OP, tokens: price },
+            // An owner-side recipient is never charged (spendByTid says 0),
+            // so the card must not promise a charge either.
+            charge: free
+              ? undefined
+              : { telegramId: lead.id, op: OP, tokens: price },
           }
         )
         return {

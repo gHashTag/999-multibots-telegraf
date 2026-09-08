@@ -6,8 +6,19 @@
  * the person's own words as the hook, value before the invoice, a follow-up
  * cascade that stops, and nothing sent without the owner's button.
  */
-export function salesPlaybook(surface?: string): string {
-  void surface
+import { OWNER_TELEGRAM_ID } from './telegram-tools'
+
+/**
+ * The owner's playbook, for the owner. Everybody else on the platform --
+ * clients, other bots' owners -- would be told to call tools that refuse
+ * them, and would start their turns with a refusal. So: empty for anyone
+ * who is not the seller.
+ */
+export function salesPlaybook(who: {
+  surface?: string
+  telegramId?: string
+}): string {
+  if (String(who.telegramId ?? '') !== OWNER_TELEGRAM_ID) return ''
   return (
     '\n\nПРОДАЖИ В ЛИЧКЕ (когда помогаешь владельцу писать людям):\n' +
     '1. Сначала контекст: перед любым предложением человеку вызови crm_lead_context — ' +

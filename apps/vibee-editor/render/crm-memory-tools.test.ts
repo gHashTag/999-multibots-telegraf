@@ -10,17 +10,23 @@ const A = '6579515876'
 
 function fakePool() {
   const queries: Array<{ sql: string; params: unknown[] }> = []
+  const seen = new Set<string>()
   return {
     queries,
     query: async (sql: string, params: unknown[] = []) => {
       const flat = sql.replace(/\s+/g, ' ').trim()
       queries.push({ sql: flat, params })
-      if (flat.startsWith('INSERT INTO crm_messages'))
-        return {
-          rows: Array.from({ length: params.length / 6 }, (_, i) => ({
-            msg_id: i,
-          })),
+      if (flat.startsWith('INSERT INTO crm_messages')) {
+        // ON CONFLICT DO NOTHING, faithfully: a row seen before returns nothing.
+        const rows: Array<{ msg_id: unknown }> = []
+        for (let i = 0; i < params.length; i += 6) {
+          const key = `${params[i + 1]}:${params[i + 2]}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          rows.push({ msg_id: params[i + 2] })
         }
+        return { rows }
+      }
       if (/SELECT balance/.test(flat)) return { rows: [{ balance: 7 }] }
       if (/^SELECT msg_id, at/.test(flat))
         return {
@@ -71,8 +77,9 @@ function fakePool() {
 const ctxFor = (who = OWNER, pool = fakePool()) =>
   ({ telegramId: who, pool, surface: 'bot', turn: 't' }) as never
 
-function fakeClient(o: { floodOn?: string } = {}) {
+function fakeClient(o: { floodOn?: string; laterExtra?: boolean } = {}) {
   const calls: string[] = []
+  let reads = 0
   const dialog = (id: string, extra: Record<string, unknown>) => ({
     id: { toString: () => id },
     ...extra,
@@ -88,13 +95,25 @@ function fakeClient(o: { floodOn?: string } = {}) {
         dialog('777', { isUser: true, entity: { bot: true } }),
         dialog('-1001', { isChannel: true, entity: {} }),
         dialog(OWNER, { isUser: true, entity: { self: true } }),
+        dialog('777000', {
+          isUser: true,
+          entity: { firstName: 'Telegram', verified: true },
+        }),
+        dialog('4242424242', { isUser: true, entity: { support: true } }),
+        dialog('5353535353', { isUser: true, entity: { deleted: true } }),
         dialog('88888888', { isUser: true, entity: { firstName: 'Пётр' } }),
       ]
     },
     async getMessages(chat: string) {
       calls.push(`getMessages:${chat}`)
       if (o.floodOn === chat) throw new Error('FLOOD_WAIT_30')
+      reads += 1
+      const extra =
+        o.laterExtra && reads > 1
+          ? [{ id: 4, date: 1757300000, out: false, message: 'ну что там?' }]
+          : []
       return [
+        ...extra,
         { id: 3, date: 1757200000, out: false, message: 'а цена?' },
         { id: 2, date: 1757100000, out: true, message: 'могу рилс' },
         { id: 1, date: 1757000000, out: false, message: '' },
@@ -174,6 +193,63 @@ describe('crm_ingest_chats', () => {
     expect(f.calls.at(-1)).toBe('disconnect')
   })
 
+  it('a second ingest mirrors NOTHING to Zep: the same dialog is not posted twice', async () => {
+    process.env.ZEP_API_KEY = 'z' // secret-guard-ok: invented for this test
+    const posts: number[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: { body?: string }) => {
+        if (String(url).includes('/messages'))
+          posts.push(JSON.parse(String(init?.body)).messages.length)
+        return { ok: true, status: 200, text: async () => '{}' }
+      })
+    )
+    const f = fakeClient()
+    const pool = fakePool()
+    const { ingest } = await tools(f.client)
+    const first: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    const second: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(first.zep_mirrored).toBe(4)
+    expect(second.messages_new).toBe(0)
+    expect(second.zep_mirrored).toBe(0)
+    expect(posts.reduce((a, b) => a + b, 0)).toBe(4)
+  })
+
+  it('a second ingest with ONE new message mirrors exactly that one', async () => {
+    // The guard "only when something is fresh" is not the property; the
+    // property is that old messages never travel again beside a new one.
+    process.env.ZEP_API_KEY = 'z' // secret-guard-ok: invented for this test
+    const posts: number[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: { body?: string }) => {
+        if (String(url).includes('/messages'))
+          posts.push(JSON.parse(String(init?.body)).messages.length)
+        return { ok: true, status: 200, text: async () => '{}' }
+      })
+    )
+    const f = fakeClient({ laterExtra: true })
+    const pool = fakePool()
+    const { ingest } = await tools(f.client)
+    await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    posts.length = 0
+    const second: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(second.messages_new).toBe(2)
+    expect(second.zep_mirrored).toBe(2)
+    expect(posts).toEqual([1, 1])
+  })
+
+  it("Telegram's own accounts are not people: 777000, support, deleted", async () => {
+    const f = fakeClient()
+    const { ingest } = await tools(f.client)
+    const r: any = await ingest.handler({ limit: 10 }, ctxFor())
+    expect(r.people).toBe(2)
+    expect(f.calls.some(c => c.includes('777000'))).toBe(false)
+    expect(
+      f.calls.some(c => c.includes('4242424242') || c.includes('5353535353'))
+    ).toBe(false)
+  })
+
   it("with Zep configured the same messages are mirrored into the person's thread", async () => {
     process.env.ZEP_API_KEY = 'z' // secret-guard-ok: invented for this test
     const urls: string[] = []
@@ -222,5 +298,16 @@ describe('crm_leads', () => {
     expect(r.candidates[0].next).toBe('reply')
     expect(r.candidates[0].because).toContain('ждёт ответа')
     expect(r.how_to_read).toContain('crm_ingest_chats')
+  })
+})
+
+describe("the playbook is the owner's", () => {
+  it('is empty for anybody else, on any surface', async () => {
+    const { salesPlaybook } = await import('./src/agent/crm-playbook')
+    expect(salesPlaybook({ surface: 'bot', telegramId: OWNER })).toContain(
+      'crm_leads'
+    )
+    expect(salesPlaybook({ surface: 'bot', telegramId: '999' })).toBe('')
+    expect(salesPlaybook({ surface: 'web', telegramId: undefined })).toBe('')
   })
 })
