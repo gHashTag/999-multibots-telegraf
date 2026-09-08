@@ -224,7 +224,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     // («· 6/с»), но во фразе давала «не хватит: 6 за с» — по-русски это не
     // читается. Мобильное приложение говорит «за секунду звука» с самого
     // начала, и до липсинка эта ветка в вебе просто не встречалась.
-    const словами = мера === 'с' ? 'секунду звука' : мера === '1000 зн.' ? '1000 знаков' : мера
+    const словами =
+      мера === 'с'
+        ? 'секунду звука'
+        : мера === '1000 зн.'
+          ? '1000 знаков'
+          : мера
     return словами && количество === 1
       ? `не хватит: ${ц} за ${словами}, есть ${баланс.balance}`
       : `не хватит токенов: нужно ${всего}, есть ${баланс.balance}`
@@ -698,6 +703,11 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         // Clear form
         setImagePrompt('')
       } else {
+        // A refusal for want of tokens is the one failure with an answer, so it
+        // opens the same paywall the pre-flight quota check opens. Without this
+        // the offer existed only BEFORE the free renders ran out and never
+        // after somebody had actually started paying.
+        if (result.insufficientTokens) setShowPaywall(true)
         setError(result.error || t('generate.error'))
       }
     } catch (err) {
@@ -1021,9 +1031,19 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {почемуНельзя('image_generate', imageModel, !imagePrompt.trim(), 'Опишите картинку — без описания генерировать нечего') && (
+            {почемуНельзя(
+              'image_generate',
+              imageModel,
+              !imagePrompt.trim(),
+              'Опишите картинку — без описания генерировать нечего'
+            ) && (
               <div className="generate-hint">
-                {почемуНельзя('image_generate', imageModel, !imagePrompt.trim(), 'Опишите картинку — без описания генерировать нечего')}
+                {почемуНельзя(
+                  'image_generate',
+                  imageModel,
+                  !imagePrompt.trim(),
+                  'Опишите картинку — без описания генерировать нечего'
+                )}
               </div>
             )}
             {чек && activeTab === 'image' && (
@@ -1175,40 +1195,40 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             */}
             <div className="form-row">
               {полеДоходит(баланс, 'duration', videoModel) && (
-              <div className="form-group">
-                <label>{t('generate.duration')}</label>
-                <div className="form-chips">
-                  {(videoModel.startsWith('kie/')
-                    ? KIE_VIDEO_DURATIONS
-                    : DURATIONS
-                  ).map(dur => (
-                    <button
-                      key={dur}
-                      className={`form-chip ${videoDuration === dur ? 'active' : ''}`}
-                      onClick={() => setVideoDuration(dur)}
-                    >
-                      {dur}
-                    </button>
-                  ))}
+                <div className="form-group">
+                  <label>{t('generate.duration')}</label>
+                  <div className="form-chips">
+                    {(videoModel.startsWith('kie/')
+                      ? KIE_VIDEO_DURATIONS
+                      : DURATIONS
+                    ).map(dur => (
+                      <button
+                        key={dur}
+                        className={`form-chip ${videoDuration === dur ? 'active' : ''}`}
+                        onClick={() => setVideoDuration(dur)}
+                      >
+                        {dur}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
               )}
 
               {полеДоходит(баланс, 'aspect_ratio', videoModel) && (
-              <div className="form-group">
-                <label>{t('generate.aspectRatio')}</label>
-                <div className="form-chips">
-                  {ASPECT_RATIOS.slice(0, 3).map(ratio => (
-                    <button
-                      key={ratio}
-                      className={`form-chip ${videoAspect === ratio ? 'active' : ''}`}
-                      onClick={() => setVideoAspect(ratio)}
-                    >
-                      {ratio}
-                    </button>
-                  ))}
+                <div className="form-group">
+                  <label>{t('generate.aspectRatio')}</label>
+                  <div className="form-chips">
+                    {ASPECT_RATIOS.slice(0, 3).map(ratio => (
+                      <button
+                        key={ratio}
+                        className={`form-chip ${videoAspect === ratio ? 'active' : ''}`}
+                        onClick={() => setVideoAspect(ratio)}
+                      >
+                        {ratio}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
               )}
             </div>
 
@@ -1238,9 +1258,19 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
             {/* Причина ТЕКСТОМ, а не подсказкой: `title` на телефоне не
                 показывается вовсе, и кнопка выглядела бы сломанной. */}
-            {почемуНельзя('video_generate', videoModel, !videoPrompt.trim(), 'Опишите видео — без описания генерировать нечего') && (
+            {почемуНельзя(
+              'video_generate',
+              videoModel,
+              !videoPrompt.trim(),
+              'Опишите видео — без описания генерировать нечего'
+            ) && (
               <div className="generate-hint">
-                {почемуНельзя('video_generate', videoModel, !videoPrompt.trim(), 'Опишите видео — без описания генерировать нечего')}
+                {почемуНельзя(
+                  'video_generate',
+                  videoModel,
+                  !videoPrompt.trim(),
+                  'Опишите видео — без описания генерировать нечего'
+                )}
               </div>
             )}
             {чек && activeTab === 'video' && (
@@ -1437,9 +1467,21 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести', тысячиОзвучки) && (
+            {почемуНельзя(
+              'audio_generate',
+              audioModel,
+              !audioText.trim(),
+              'Введите текст, который надо произнести',
+              тысячиОзвучки
+            ) && (
               <div className="generate-hint">
-                {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести', тысячиОзвучки)}
+                {почемуНельзя(
+                  'audio_generate',
+                  audioModel,
+                  !audioText.trim(),
+                  'Введите текст, который надо произнести',
+                  тысячиОзвучки
+                )}
               </div>
             )}
             {чек && activeTab === 'audio' && (
