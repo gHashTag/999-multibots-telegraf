@@ -44,7 +44,12 @@ const path = require('node:path')
 const { execFileSync } = require('node:child_process')
 
 const ROOT = path.resolve(__dirname, '..')
-const SKILLS = path.join(ROOT, '.claude', 'skills')
+/*
+ * Overridable so the battery can scan a FIXTURE with a known answer. Without
+ * that, the battery only ever tested helper functions -- and "0 broken
+ * addresses" rested on nothing that could fail.
+ */
+const SKILLS = process.env.DRIFT_SKILLS || path.join(ROOT, '.claude', 'skills')
 
 /**
  * Bases a skill may be writing relative to.
@@ -192,7 +197,16 @@ const ABSENCE = [
 /** Do the lines around a citation declare the file absent? */
 function declaredAbsent(lines, at) {
   const from = Math.max(0, at - 25)
-  const window = lines.slice(from, at + 3).join('\n')
+  /*
+   * FORWARD BY ONE LINE, NOT THREE.
+   *
+   * Three was enough to reach the NEXT section: in the battery's fixture a
+   * legitimate prose name was laundered by a `TEMPLATE ONLY` line two lines
+   * below it, about an unrelated file. A marker explains what comes AFTER it;
+   * one line of lookahead covers the case where the citation and its warning
+   * share a sentence, and nothing beyond that.
+   */
+  const window = lines.slice(from, at + 2).join('\n')
   if (ABSENCE.some(m => window.includes(m))) return true
 
   /*
@@ -489,6 +503,63 @@ function selfTest() {
   const rc = citations(ru)
   if (rc.cites.some(c => !declaredAbsent(rc.lines, c.at)))
     fail('русская пометка отсутствия не понята')
+
+  /*
+   * END TO END, ON A TREE WHOSE ANSWER IS KNOWN.
+   *
+   * Everything above tests a helper in isolation. The number the tool actually
+   * prints -- "0 broken addresses" -- came from a scan no case exercised, so it
+   * could have been zero because the scan found nothing to look at.
+   *
+   * This fixture contains exactly one broken address, one that resolves, one
+   * prose name and one documented absence. If the scan returns anything else,
+   * the walk itself is at fault, whatever the helpers do.
+   */
+  {
+    const os = require('node:os')
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drift-fix-'))
+    const skill = path.join(tmp, 'fixture-skill')
+    fs.mkdirSync(skill, { recursive: true })
+    fs.writeFileSync(
+      path.join(skill, 'SKILL.md'),
+      [
+        '# Fixture',
+        '',
+        '```bash',
+        'node scripts/definitely-not-here.cjs   # BROKEN: one address',
+        'node scripts/skills-drift.cjs          # resolves: this very file',
+        '```',
+        '',
+        'Prose names `render/steps.ts` without promising a path.',
+        '',
+        '> TEMPLATE ONLY. `scripts/never-written.sh` does NOT exist here.',
+        '',
+        '```bash',
+        './scripts/never-written.sh',
+        '```',
+      ].join('\n')
+    )
+    const out = execFileSync(process.execPath, [__filename], {
+      cwd: ROOT,
+      env: { ...process.env, DRIFT_SKILLS: tmp },
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    fs.rmSync(tmp, { recursive: true, force: true })
+    const num = label => {
+      const m = new RegExp(label + '[^0-9]*(\\d+)').exec(out)
+      return m ? Number(m[1]) : -1
+    }
+    const broken = num('СЛОМАННЫХ АДРЕСОВ')
+    const absent = num('честно')
+    if (broken !== 1) fail(`проход целиком: сломанных ждали 1, вышло ${broken}`)
+    if (absent !== 2)
+      fail(`проход целиком: честных «его нет» ждали 2, вышло ${absent}`)
+    const prose = num('имён в прозе')
+    // The prose name must NOT be laundered by a marker below it.
+    if (prose !== 1)
+      fail(`проход целиком: имён в прозе ждали 1, вышло ${prose}`)
+  }
 
   if (!ROOTED.test('src/registerCommands.ts'))
     fail('укоренённый путь не опознан')
