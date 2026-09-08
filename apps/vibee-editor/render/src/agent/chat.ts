@@ -20,6 +20,7 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
+import { salesPlaybook } from './crm-playbook'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { readFileSync } from 'node:fs'
@@ -497,13 +498,14 @@ export async function* runAgent(
       role: 'system',
       content: personalSoul
         ? systemPrompt(opts?.surface) +
+          salesPlaybook(opts?.surface) +
           '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
           'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
           'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' +
           'голосом — решает этот SOUL. Человек может просить править его ' +
           'через soul_edit — это его скилл, помогай с этим.\n\n' +
           personalSoul
-        : systemPrompt(opts?.surface),
+        : systemPrompt(opts?.surface) + salesPlaybook(opts?.surface),
     },
     ...history,
   ]

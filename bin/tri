@@ -65,6 +65,8 @@ tri — оболочка Trinity S³AI
   tri crm-waiting          кто ждёт ответа (прод, от имени владельца, только чтение)
   tri crm-pitch <name> [tokens] [note]  текст предложения, локально, без счёта
   tri tg-as <telegram_id> [tool]  что инструменты Telegram отвечают ЭТОМУ человеку на проде
+  tri crm-ingest [dialogs] [depth]  переписки владельца в память CRM (и в Zep, если задан)
+  tri crm-leads [n]        кому писать следующему, со счётом и причиной
 U
 }
 
@@ -622,6 +624,37 @@ else:
     except Exception: s = {}
     n = len(s.get('dialogs') or s.get('contacts') or s.get('диалоги') or [])
     print(f"{os.environ['TOOL']} as {os.environ['ID']}: ok, {n} item(s) on THEIR account")
+PYEOF
+    ;;
+  crm-ingest|crm-leads)
+    # crm-ingest [dialogs] [depth]: the owner's DMs into the CRM memory.
+    # crm-leads [n]: who to write to next, scored, from that memory. Both
+    # read-only on Telegram; both as the owner, on production.
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
+    if [ "$action" = "crm-ingest" ]; then
+      TOOL=crm_ingest_chats; ARGS="{\"limit\":${2:-30},\"depth\":${3:-100}}"
+    else
+      TOOL=crm_leads; ARGS="{\"limit\":${2:-15}}"
+    fi
+    ANSWER=$(curl -s --max-time 170 "https://vibee-render-production.up.railway.app/mcp?telegram_id=144022504" \
+      -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' \
+      -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$TOOL\",\"arguments\":$ARGS}}")
+    ANSWER="$ANSWER" TOOL="$TOOL" python3 - <<'PYEOF'
+import json, os
+r = json.loads(os.environ['ANSWER'])
+if 'error' in r: print('refused ->', str(r['error'].get('message',''))[:300]); raise SystemExit(1)
+res = r.get('result', {}); text = (res.get('content') or [{}])[0].get('text', '')
+try: s = res.get('structuredContent') or json.loads(text)
+except Exception: s = {'raw': text[:400]}
+if os.environ['TOOL'] == 'crm_ingest_chats':
+    print(f"dialogs={s.get('dialogs_seen')} people={s.get('people')} read={s.get('messages_read')} new={s.get('messages_new')} zep={s.get('zep_mirrored')} stopped={s.get('stopped')}")
+    print(s.get('zep',''))
+else:
+    for c in s.get('candidates', []):
+        print(f"  [{c.get('score'):>3}] {c.get('next'):<8} {c.get('lead')}  {c.get('because')}")
+    print(s.get('how_to_read',''))
 PYEOF
     ;;
   open)     sed -n '/^## Открыто/,/^## Не переоткрывать/p' "$LOOP/pipeline-STATUS.md" ;;
