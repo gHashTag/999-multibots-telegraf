@@ -27,6 +27,7 @@ import {
   validateQwenImageEditPlusInput,
   extractImageUrlsFromQwenResponse,
 } from '@/schemas/qwenImageEditPlus.schema'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Service parameters interface
 // ✅ REFACTOR: inputImageUrl FIRST (what to edit), then prompt (how to edit)
@@ -211,7 +212,8 @@ export const generateQwenImageEditPlus = async (
         ? `❌ Недостаточно звезд для генерации\n\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\n\nПополните баланс через /start → 💎 Пополнить баланс`
         : `❌ Insufficient stars for generation\n\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`
 
-      await ctx.reply(errorMessage)
+      // The refusal hands over the way to pay; standardButtons puts top-up first.
+      await ctx.reply(errorMessage, standardButtons(is_ru))
       return { image: '', prompt_id: 0 }
     }
 

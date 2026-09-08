@@ -320,11 +320,16 @@ describe('the number of money refusals with nothing to press does not grow', () 
     const mute = sites.filter(s => !s.keyboard)
     expect(
       mute.length,
-      // 25, bisected: fails at 24, passes at 25. It was 34 while the
-      // population still held throws, conditions and fixtures; the nine that
-      // left are listed in the exclusion test above and NOT ONE of them was a
-      // message to a person. Verified by diffing the two lists rather than by
-      // trusting the drop.
+      // 17, bisected: fails at 16, passes at 17. Was 25, and this time the
+      // drop is REPAIRS -- seven sites that sent a refusal with no keyboard now
+      // send standardButtons. The first iteration in three where fixing things
+      // moved the number, which is what a population of real messages buys.
+      //
+      // What is left is three shapes, none of which a keyboard argument fixes:
+      // the text is RETURNED to a caller (directPayment, balanceHelpers,
+      // bot-adapter, priceHelper x2, generateTextToVideo), it is a CONSTANT
+      // somebody else renders (balance.interface), or the nearby reply is a
+      // different message entirely (the statusMessage shapes).
       //
       // TIGHT, and it has to be: a ceiling one above the real figure cannot see
       // a regression of one. Bisected with the CORRECTED classifier on both
@@ -332,7 +337,7 @@ describe('the number of money refusals with nothing to press does not grow', () 
       // 38. Measuring the two sides with different instruments is how the first
       // version of this claim came out wrong.
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(25)
+    ).toBeLessThanOrEqual(17)
   })
 
   /**
