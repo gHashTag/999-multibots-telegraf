@@ -62,7 +62,7 @@ tri — оболочка Trinity S³AI
   Обучение под t27 — УСТАРЕЛО (путь спек→Verilog, годных пар ноль)
   tri igla pairs                 сбор пар спек→код
   tri igla dataset               датасет из пар
-  tri igla audit                 годен ли Verilog-корпус (сегодня 0 из 31)
+  tri igla audit                 годен ли Verilog-корпус (счёт печатает сам)
   tri igla status                узкое место корпуса пар (Verilog-путь)
   tri igla bench <задачи.json>   поверка на VerilogEval v2 (нужен iverilog)
 
@@ -318,9 +318,29 @@ case "${1:-}" in
         help=$("$ROOT/bin/tri" 2>&1 | grep -oE 'tri igla [a-z-]+' | awk '{print $3}' | sort -u)
         miss=$(comm -23 <(echo "$code") <(echo "$help"))
         extra=$(comm -13 <(echo "$code") <(echo "$help"))
-        [ -n "$miss" ] && { echo "⛔ в коде есть, в справке нет: $miss"; exit 1; }
-        [ -n "$extra" ] && { echo "⛔ в справке есть, в коде нет: $extra"; exit 1; }
-        echo "✅ справка и код совпадают ($(echo "$code" | wc -w | tr -d ' ') подкоманд)"
+        [ -n "$miss" ] && { echo "⛔ igla: в коде есть, в справке нет: $miss"; exit 1; }
+        [ -n "$extra" ] && { echo "⛔ igla: в справке есть, в коде нет: $extra"; exit 1; }
+
+        # ВЕРХНИЙ УРОВЕНЬ ТОЖЕ. Дрейф нашёлся в igla, но ничто не охраняло
+        # остальные двадцать пять команд -- они совпали по счастливой
+        # случайности, а не потому, что кто-то следил.
+        tcode=$(awk '/^case "\$\{1:-\}" in/,/^esac/' "$ROOT/bin/tri" \
+                | grep -oE '^  [a-z][a-z-]*\)' | tr -d ' )' | sort -u)
+        thelp=$("$ROOT/bin/tri" 2>&1 | grep -oE '^  tri [a-z][a-z-]*' \
+                | awk '{print $2}' | sort -u)
+        tmiss=$(comm -23 <(echo "$tcode") <(echo "$thelp"))
+        textra=$(comm -13 <(echo "$tcode") <(echo "$thelp"))
+        [ -n "$tmiss" ] && { echo "⛔ верхний уровень: в коде есть, в справке нет: $tmiss"; exit 1; }
+        [ -n "$textra" ] && { echo "⛔ верхний уровень: в справке есть, в коде нет: $textra"; exit 1; }
+
+        # ИЗМЕНЧИВЫЕ ЧИСЛА В СПРАВКЕ. Строка «сегодня 0 из 31» устаревала уже
+        # дважды: справка обязана говорить, ЧТО команда делает, а не что она
+        # сейчас отвечает. Числа-пороги (Node 20, AST > 1 МБ) остаются -- они
+        # свойства инструмента, а не его вывод.
+        stale=$("$ROOT/bin/tri" 2>&1 | grep -nE 'сегодня|сейчас [0-9]|уже [0-9]+ из' || true)
+        [ -n "$stale" ] && { echo "⛔ справка цитирует результат, а он устареет:"; echo "$stale"; exit 1; }
+
+        echo "✅ справка и код совпадают: $(echo "$code" | wc -w | tr -d ' ') подкоманд igla, $(echo "$tcode" | wc -w | tr -d ' ') команд верхнего уровня"
         ;;
       rivals)
         # КТО УЖЕ РЕШАЕТ ЭТУ ЗАДАЧУ.
