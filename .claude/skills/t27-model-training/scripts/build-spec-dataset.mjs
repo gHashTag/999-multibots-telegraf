@@ -182,13 +182,28 @@ async function main() {
     process.exit(1)
   }
 
-  await mkdir(outDir, { recursive: true })
+  /*
+   * NOTHING IS WRITTEN UNTIL THE VERDICT. A BAD RUN USED TO DESTROY A GOOD SET.
+   *
+   * The three files were written here and the verdict came 120 lines later, so
+   * a run that ended in "ДАТАСЕТ НЕ ГОДЕН" had already overwritten the dataset
+   * that was fine. There is no undo: the corpus is re-walked from scratch each
+   * time, and the previous split is gone.
+   *
+   * This was nearly paid for on 08.09.2026, when a stricter leak check reported
+   * 32 leaks and exited 1 -- it only missed the real dataset because the run
+   * happened to be pointed at a scratch directory.
+   *
+   * The contents are held in memory (4.7 MB) and land only if every check
+   * passes. A refusal now leaves the previous dataset exactly where it was.
+   */
   const jsonl = rs =>
     rs.map(r => JSON.stringify({ messages: r.messages })).join('\n') + '\n'
-  await writeFile(join(outDir, 'train.jsonl'), jsonl(train))
-  await writeFile(join(outDir, 'eval.jsonl'), jsonl(evalSet))
-  await writeFile(
-    join(outDir, 'REPORT.json'),
+  const pending = []
+  pending.push(['train.jsonl', jsonl(train)])
+  pending.push(['eval.jsonl', jsonl(evalSet)])
+  pending.push([
+    'REPORT.json',
     JSON.stringify(
       {
         specs_dir: specsDir,
@@ -201,8 +216,8 @@ async function main() {
       },
       null,
       2
-    )
-  )
+    ),
+  ])
 
   console.log(`[spec] файлов просмотрено : ${files.length}`)
   console.log(
@@ -306,8 +321,15 @@ async function main() {
   if (!evalSet.length) problems.push('оценочная выборка пуста')
   if (problems.length) {
     console.error(`[spec] ⛔ ДАТАСЕТ НЕ ГОДЕН: ${problems.join('; ')}`)
+    console.error(
+      `[spec] ничего не записано — прежний датасет в ${outDir} не тронут`
+    )
     process.exit(1)
   }
+
+  // Every check passed: only now does anything land on disk.
+  await mkdir(outDir, { recursive: true })
+  for (const [name, body] of pending) await writeFile(join(outDir, name), body)
 }
 
 main().catch(e => {

@@ -133,11 +133,53 @@ s=io.open(p,encoding="utf-8").read()
 if было not in s:
     print("МУТАЦИЯ НЕ ПРИМЕНЕНА: искомого текста нет в файле"); sys.exit(1)
 io.open(p,"w",encoding="utf-8").write(s.replace(было,стало,1))' || { cp /tmp/tri-blind.bak "$f"; return 1; }
+  cp /tmp/tri-blind.bak "$f"   # run the BEFORE pass on the unmutated file
+
+  # ТЕСТ ОБЯЗАН БЫТЬ ЗЕЛЁНЫМ ДО МУТАЦИИ.
+  #
+  # Без этого «красный после» ничего не значит: он мог быть красным всегда, и
+  # тогда мутация здесь ни при чём. Проверка «до» — половина опыта, и её тут
+  # не было.
+  run_probe() {
+    case "$t" in
+      *.test.ts|*.test.js|*.spec.ts)
+        ( cd "$(dirname "$t")" 2>/dev/null || cd .
+          PATH="$HOME/.nvm/versions/node/v20.19.0/bin:$PATH" \
+            npx vitest run "$(basename "$t")" >/dev/null 2>&1 )
+        ;;
+      *)
+        # Любая команда: вердикт — её КОД ВОЗВРАТА. Так проверяются батареи
+        # приборов, которые тестами vitest не являются.
+        ( eval "$t" ) >/dev/null 2>&1
+        ;;
+    esac
+  }
+
+  run_probe; before=$?
+  if [ $before -ne 0 ]; then
+    echo "⛔ тест КРАСНЫЙ ещё до мутации (код $before) — опыт бессмыслен"
+    echo "   почините тест, потом возвращайтесь"
+    return 2
+  fi
+
+  # Re-apply the mutation for the AFTER pass.
+  BLIND_FILE="$f" BLIND_OLD="$old" BLIND_NEW="$new" python3 -c 'import io,os
+p=os.environ["BLIND_FILE"]
+s=io.open(p,encoding="utf-8").read()
+io.open(p,"w",encoding="utf-8").write(s.replace(os.environ["BLIND_OLD"],os.environ["BLIND_NEW"],1))'
   echo "— мутация применена, гоняю тест —"
-  ( cd "$(dirname "$t")" 2>/dev/null || cd .
-    PATH="$HOME/.nvm/versions/node/v20.19.0/bin:$PATH" npx vitest run "$(basename "$t")" 2>&1 | grep -E "Tests +[0-9]" | tail -1 )
+  run_probe; after=$?
   cp /tmp/tri-blind.bak "$f"
   echo "— файл восстановлен —"
+
+  # ВЕРДИКТ. Прошлая версия печатала строку vitest и молчала о смысле, а
+  # выходила всегда нулём: инструмент, заведённый отвечать на один вопрос,
+  # на него не отвечал.
+  if [ $after -eq 0 ]; then
+    echo "⛔ МУТАЦИЯ ВЫЖИЛА: тест зелёный и до, и после. Он этого не проверяет."
+    return 1
+  fi
+  echo "✅ мутация поймана: было 0, стало $after"
 }
 
 case "${1:-}" in
@@ -955,6 +997,17 @@ sys.stderr.write(str(len(ts)))
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
-    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3) ;;
+    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3)
+    # ПОЛ ПРИБОРОВ. Смысл держать его здесь: проверяют его ровно тогда, когда
+    # уже подозревают, а подозрение приходит поздно. 08.09.2026 батарея
+    # `score-spec-answers` восемь итераций печатала «поверен» с подставным
+    # компилятором, и никому не приходило в голову подставить компилятор.
+    #
+    # Мягко: без t27c или без датасета мерить нечем, и это не повод краснеть
+    # доктору. Молчание тут честнее выдуманного вердикта.
+    if [ -x "${T27C:-$(command -v t27c)}" ] && [ -f "$HOME/.cache/igla-spec-dataset/eval.jsonl" ]; then
+      echo; echo "── пол приборов ──"; "$0" igla floor 2>&1 | tail -3
+    fi
+    ;;
   *) usage ;;
 esac

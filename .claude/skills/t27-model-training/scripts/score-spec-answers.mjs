@@ -99,7 +99,26 @@ function nearModule(want, got) {
 }
 
 /** Names the spec declares: functions, structs, constants. */
+/**
+ * A NAME IN A COMMENT IS NOT A DECLARATION.
+ *
+ * These patterns ran over the raw text, so `// fn step does the thing` counted
+ * as declaring `step`. Measured 08.09.2026 against eval task 0: an answer that
+ * declares NOTHING and merely lists the reference's twelve names in comments
+ * scored SUBSTANCE 100% -- ten times the threshold at which the battery
+ * disqualifies a cheat.
+ *
+ * Comments are stripped first. Block comments before line comments, so a `//`
+ * inside a block does not truncate the line and leave its tail as code.
+ */
+function stripComments(text) {
+  return (text || '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+}
+
 function declared(text) {
+  text = stripComments(text)
   const names = new Set()
   for (const re of [
     /\bfn\s+([A-Za-z0-9_]+)/g,
@@ -306,6 +325,24 @@ async function main() {
     )
 
     /*
+     * THE COMMENT CHEAT: every right name, nothing declared.
+     *
+     * This is the strongest attack SUBSTANCE has to survive, and before the
+     * comment strip it scored 100%. It is built per reference, so it cannot
+     * pass by luck the way a fixed constant might.
+     */
+    const commentCheat = await scoreAll(
+      references.map(r => ({
+        reference: r,
+        answer:
+          'module not_the_right_one;\n' +
+          [...declared(r)].map(n => `// fn ${n} is only mentioned`).join('\n') +
+          '\n',
+      })),
+      'имена ТОЛЬКО в комментариях'
+    )
+
+    /*
      * ASSERT ON EVERY NUMBER THE BATTERY PRINTS.
      *
      * The maxBuffer bug was VISIBLE here before it was found: the reference row
@@ -326,6 +363,11 @@ async function main() {
     if (perfect.substance < 0.98)
       bad.push('эталон не совпал сам с собой по существу')
     if (cheater.substance > 0.1) bad.push('ЖУЛЬНИК набирает существо')
+    if (commentCheat.substance > 0.1)
+      bad.push(
+        'имена в КОММЕНТАРИЯХ засчитаны как объявления — SUBSTANCE ' +
+          `набрал ${(commentCheat.substance * 100).toFixed(0)}% без единого объявления`
+      )
     if (empty.relevant > 0) bad.push('пустой ответ признан релевантным')
     if (perfect.relevant < 0.95) bad.push('эталон не признан релевантным')
     if (cheater.relevant > 0.1) bad.push('ЖУЛЬНИК проходит по релевантности')
