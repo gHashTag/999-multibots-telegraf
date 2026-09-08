@@ -14,6 +14,8 @@ import {
   Sparkles,
   Loader2,
   Copy,
+  ChevronUp,
+  ChevronDown,
   Check,
   ChevronRight,
   Mic,
@@ -125,7 +127,15 @@ function ScriptContent() {
   const [newTemplateName, setNewTemplateName] = useState('')
   const [isEditingVoiceover, setIsEditingVoiceover] = useState(false)
   const [editedVoiceover, setEditedVoiceover] = useState('')
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false)
+  // Mobile bottom sheet with the input form. Open while there is nothing to
+  // show yet (the form IS the invitation), closed once a script exists so the
+  // result is what the person sees; desktop ignores the class.
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(
+    () => !data?.output
+  )
+  useEffect(() => {
+    if (data?.output) setIsSidebarExpanded(false)
+  }, [data?.output])
 
   // Calculate estimated duration from word count (average 130 words per minute)
   const estimateDuration = useCallback(
@@ -349,9 +359,17 @@ ${caption?.hashtags?.join(' ') || ''}
           <Sparkles size={48} />
           <p>
             {lang === 'ru'
-              ? 'Введите тему и нажмите "Генерировать"'
-              : 'Enter topic and click "Generate"'}
+              ? 'Опишите тему видео — получите сценарий, озвучку, обложку и посты'
+              : 'Describe the video topic to get a script, voiceover, cover and posts'}
           </p>
+          <button
+            type="button"
+            className="script-output-cta"
+            onClick={() => setIsSidebarExpanded(true)}
+          >
+            <Sparkles size={16} />
+            {lang === 'ru' ? 'Написать тему' : 'Write a topic'}
+          </button>
         </div>
       )
     }
@@ -376,300 +394,305 @@ ${caption?.hashtags?.join(' ') || ''}
      * функцию четырежды.
      */
     const одинВывод = (tab: ScriptOutputTab) => {
-    switch (tab) {
-      case 'voiceover':
-        return (
-          <div className="script-output-section">
-            <div className="script-output-header">
-              <h3>
-                {lang === 'ru' ? 'Текст для озвучки' : 'Voiceover Script'}
-              </h3>
-              <div className="script-header-badges">
-                <span className="script-word-count">
-                  {currentWordCount} {lang === 'ru' ? 'слов' : 'words'}
-                </span>
-                <span className="script-duration-badge">
-                  <Clock size={12} />
-                  {estimateDuration(currentWordCount)}
-                </span>
-              </div>
-            </div>
-            <div className="script-output-content">
-              {isEditingVoiceover ? (
-                <textarea
-                  className="script-voiceover-edit"
-                  value={editedVoiceover}
-                  onChange={e => setEditedVoiceover(e.target.value)}
-                  autoFocus
-                />
-              ) : (
-                <pre className="script-voiceover-text">{voiceoverText}</pre>
-              )}
-            </div>
-            <div className="script-output-actions">
-              {isEditingVoiceover ? (
-                <>
-                  <button
-                    className="script-action-btn"
-                    onClick={handleCancelEditVoiceover}
-                  >
-                    <RotateCcw size={16} />
-                    {lang === 'ru' ? 'Отмена' : 'Cancel'}
-                  </button>
-                  <button
-                    className="script-action-btn primary"
-                    onClick={handleSaveVoiceover}
-                  >
-                    <Save size={16} />
-                    {lang === 'ru' ? 'Сохранить' : 'Save'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    className="script-action-btn"
-                    onClick={handleStartEditVoiceover}
-                  >
-                    <Edit3 size={16} />
-                    {lang === 'ru' ? 'Редактировать' : 'Edit'}
-                  </button>
-                  <button
-                    className="script-action-btn"
-                    onClick={() => copyToClipboard(voiceoverText, 'voiceover')}
-                  >
-                    {copiedField === 'voiceover' ? (
-                      <Check size={16} />
-                    ) : (
-                      <Copy size={16} />
-                    )}
-                    {copiedField === 'voiceover'
-                      ? lang === 'ru'
-                        ? 'Скопировано'
-                        : 'Copied'
-                      : lang === 'ru'
-                        ? 'Копировать'
-                        : 'Copy'}
-                  </button>
-                  <button
-                    className="script-action-btn primary"
-                    onClick={handleUseInAvatar}
-                  >
-                    <ChevronRight size={16} />
-                    {lang === 'ru' ? 'Озвучить' : 'Generate Audio'}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )
-
-      case 'cover':
-        return (
-          <div className="script-output-section">
-            <div className="script-output-header">
-              <h3>{lang === 'ru' ? 'Промпт для обложки' : 'Cover Prompt'}</h3>
-            </div>
-            <div className="script-output-content">
-              <pre className="script-cover-prompt">{output.coverPrompt}</pre>
-            </div>
-            <div className="script-output-actions">
-              <button
-                className="script-action-btn"
-                onClick={() => copyToClipboard(output.coverPrompt, 'cover')}
-              >
-                {copiedField === 'cover' ? (
-                  <Check size={16} />
-                ) : (
-                  <Copy size={16} />
-                )}
-                {copiedField === 'cover'
-                  ? lang === 'ru'
-                    ? 'Скопировано'
-                    : 'Copied'
-                  : lang === 'ru'
-                    ? 'Копировать'
-                    : 'Copy'}
-              </button>
-              <button
-                className="script-action-btn primary"
-                onClick={handleUseInImage}
-              >
-                <ChevronRight size={16} />
-                {lang === 'ru' ? 'Сгенерировать' : 'Generate Image'}
-              </button>
-            </div>
-          </div>
-        )
-
-      case 'broll': {
-        // Safely get broll array
-        const brollSegments = Array.isArray(output.broll) ? output.broll : []
-        return (
-          <div className="script-output-section">
-            <div className="script-output-header">
-              <h3>{lang === 'ru' ? 'B-Roll сегменты' : 'B-Roll Segments'}</h3>
-              <span className="script-segment-count">
-                {brollSegments.length} {lang === 'ru' ? 'клипов' : 'clips'}
-              </span>
-            </div>
-            {brollSegments.length === 0 ? (
-              <div className="script-output-empty-section">
-                <Film size={32} />
-                <p>
-                  {lang === 'ru'
-                    ? 'B-Roll сегменты не сгенерированы'
-                    : 'No B-Roll segments generated'}
-                </p>
-              </div>
-            ) : (
-              <div className="script-broll-list">
-                {brollSegments.map((segment, index) => (
-                  <div key={index} className="script-broll-item">
-                    <div className="script-broll-timing">
-                      {segment.startSec ?? 0}s - {segment.endSec ?? 5}s
-                    </div>
-                    <div className="script-broll-prompt">
-                      {segment.prompt || ''}
-                    </div>
-                    <div className="script-broll-keywords">
-                      {(segment.keywords || []).map((kw, i) => (
-                        <span key={i} className="script-keyword">
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
-                    <button
-                      className="script-broll-copy"
-                      onClick={() =>
-                        copyToClipboard(segment.prompt || '', `broll-${index}`)
-                      }
-                    >
-                      {copiedField === `broll-${index}` ? (
-                        <Check size={14} />
-                      ) : (
-                        <Copy size={14} />
-                      )}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="script-output-actions">
-              <button
-                className="script-action-btn"
-                onClick={() =>
-                  copyToClipboard(
-                    JSON.stringify(brollSegments, null, 2),
-                    'broll-json'
-                  )
-                }
-                disabled={brollSegments.length === 0}
-              >
-                {copiedField === 'broll-json' ? (
-                  <Check size={16} />
-                ) : (
-                  <Copy size={16} />
-                )}
-                {lang === 'ru' ? 'Копировать JSON' : 'Copy JSON'}
-              </button>
-              <button
-                className="script-action-btn primary"
-                onClick={handleUseBrollInVideo}
-                disabled={brollSegments.length === 0}
-              >
-                <ChevronRight size={16} />
-                {lang === 'ru' ? 'Сгенерировать видео' : 'Generate Video'}
-              </button>
-            </div>
-          </div>
-        )
-      }
-
-      case 'captions': {
-        const caption = output.captions?.[selectedPlatform]
-        const captionText = caption?.text || ''
-        const captionHashtags = Array.isArray(caption?.hashtags)
-          ? caption.hashtags
-          : []
-        const captionLimit =
-          caption?.charLimit || PLATFORM_LIMITS[selectedPlatform]
-        return (
-          <div className="script-output-section">
-            <div className="script-platform-tabs">
-              {PLATFORM_CONFIG.map(platform => (
-                <button
-                  key={platform.id}
-                  className={`script-platform-tab ${selectedPlatform === platform.id ? 'active' : ''}`}
-                  onClick={() => setSelectedPlatform(platform.id)}
-                >
-                  <span>{platform.emoji}</span>
-                  <span>{platform.label}</span>
-                </button>
-              ))}
-            </div>
-            {captionText ? (
-              <>
-                <div className="script-output-content">
-                  <pre className="script-caption-text">{captionText}</pre>
-                  {captionHashtags.length > 0 && (
-                    <div className="script-hashtags">
-                      {captionHashtags.map((tag, i) => (
-                        <span key={i} className="script-hashtag">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="script-caption-meta">
-                  <span
-                    className={
-                      captionText.length > captionLimit ? 'over-limit' : ''
-                    }
-                  >
-                    {captionText.length}/{captionLimit}
+      switch (tab) {
+        case 'voiceover':
+          return (
+            <div className="script-output-section">
+              <div className="script-output-header">
+                <h3>
+                  {lang === 'ru' ? 'Текст для озвучки' : 'Voiceover Script'}
+                </h3>
+                <div className="script-header-badges">
+                  <span className="script-word-count">
+                    {currentWordCount} {lang === 'ru' ? 'слов' : 'words'}
+                  </span>
+                  <span className="script-duration-badge">
+                    <Clock size={12} />
+                    {estimateDuration(currentWordCount)}
                   </span>
                 </div>
-                <div className="script-output-actions">
-                  <button
-                    className="script-action-btn"
-                    onClick={() =>
-                      copyToClipboard(
-                        captionHashtags.length > 0
-                          ? `${captionText}\n\n${captionHashtags.join(' ')}`
-                          : captionText,
-                        `caption-${selectedPlatform}`
-                      )
-                    }
-                  >
-                    {copiedField === `caption-${selectedPlatform}` ? (
-                      <Check size={16} />
-                    ) : (
-                      <Copy size={16} />
-                    )}
-                    {lang === 'ru'
-                      ? 'Копировать с хештегами'
-                      : 'Copy with hashtags'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="script-output-empty-section">
-                <MessageSquare size={32} />
-                <p>
-                  {lang === 'ru'
-                    ? 'Пост не сгенерирован'
-                    : 'Caption not generated'}
-                </p>
               </div>
-            )}
-          </div>
-        )
-      }
+              <div className="script-output-content">
+                {isEditingVoiceover ? (
+                  <textarea
+                    className="script-voiceover-edit"
+                    value={editedVoiceover}
+                    onChange={e => setEditedVoiceover(e.target.value)}
+                    autoFocus
+                  />
+                ) : (
+                  <pre className="script-voiceover-text">{voiceoverText}</pre>
+                )}
+              </div>
+              <div className="script-output-actions">
+                {isEditingVoiceover ? (
+                  <>
+                    <button
+                      className="script-action-btn"
+                      onClick={handleCancelEditVoiceover}
+                    >
+                      <RotateCcw size={16} />
+                      {lang === 'ru' ? 'Отмена' : 'Cancel'}
+                    </button>
+                    <button
+                      className="script-action-btn primary"
+                      onClick={handleSaveVoiceover}
+                    >
+                      <Save size={16} />
+                      {lang === 'ru' ? 'Сохранить' : 'Save'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="script-action-btn"
+                      onClick={handleStartEditVoiceover}
+                    >
+                      <Edit3 size={16} />
+                      {lang === 'ru' ? 'Редактировать' : 'Edit'}
+                    </button>
+                    <button
+                      className="script-action-btn"
+                      onClick={() =>
+                        copyToClipboard(voiceoverText, 'voiceover')
+                      }
+                    >
+                      {copiedField === 'voiceover' ? (
+                        <Check size={16} />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                      {copiedField === 'voiceover'
+                        ? lang === 'ru'
+                          ? 'Скопировано'
+                          : 'Copied'
+                        : lang === 'ru'
+                          ? 'Копировать'
+                          : 'Copy'}
+                    </button>
+                    <button
+                      className="script-action-btn primary"
+                      onClick={handleUseInAvatar}
+                    >
+                      <ChevronRight size={16} />
+                      {lang === 'ru' ? 'Озвучить' : 'Generate Audio'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )
 
-      default:
-        return null
-    }
+        case 'cover':
+          return (
+            <div className="script-output-section">
+              <div className="script-output-header">
+                <h3>{lang === 'ru' ? 'Промпт для обложки' : 'Cover Prompt'}</h3>
+              </div>
+              <div className="script-output-content">
+                <pre className="script-cover-prompt">{output.coverPrompt}</pre>
+              </div>
+              <div className="script-output-actions">
+                <button
+                  className="script-action-btn"
+                  onClick={() => copyToClipboard(output.coverPrompt, 'cover')}
+                >
+                  {copiedField === 'cover' ? (
+                    <Check size={16} />
+                  ) : (
+                    <Copy size={16} />
+                  )}
+                  {copiedField === 'cover'
+                    ? lang === 'ru'
+                      ? 'Скопировано'
+                      : 'Copied'
+                    : lang === 'ru'
+                      ? 'Копировать'
+                      : 'Copy'}
+                </button>
+                <button
+                  className="script-action-btn primary"
+                  onClick={handleUseInImage}
+                >
+                  <ChevronRight size={16} />
+                  {lang === 'ru' ? 'Сгенерировать' : 'Generate Image'}
+                </button>
+              </div>
+            </div>
+          )
+
+        case 'broll': {
+          // Safely get broll array
+          const brollSegments = Array.isArray(output.broll) ? output.broll : []
+          return (
+            <div className="script-output-section">
+              <div className="script-output-header">
+                <h3>{lang === 'ru' ? 'B-Roll сегменты' : 'B-Roll Segments'}</h3>
+                <span className="script-segment-count">
+                  {brollSegments.length} {lang === 'ru' ? 'клипов' : 'clips'}
+                </span>
+              </div>
+              {brollSegments.length === 0 ? (
+                <div className="script-output-empty-section">
+                  <Film size={32} />
+                  <p>
+                    {lang === 'ru'
+                      ? 'B-Roll сегменты не сгенерированы'
+                      : 'No B-Roll segments generated'}
+                  </p>
+                </div>
+              ) : (
+                <div className="script-broll-list">
+                  {brollSegments.map((segment, index) => (
+                    <div key={index} className="script-broll-item">
+                      <div className="script-broll-timing">
+                        {segment.startSec ?? 0}s - {segment.endSec ?? 5}s
+                      </div>
+                      <div className="script-broll-prompt">
+                        {segment.prompt || ''}
+                      </div>
+                      <div className="script-broll-keywords">
+                        {(segment.keywords || []).map((kw, i) => (
+                          <span key={i} className="script-keyword">
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        className="script-broll-copy"
+                        onClick={() =>
+                          copyToClipboard(
+                            segment.prompt || '',
+                            `broll-${index}`
+                          )
+                        }
+                      >
+                        {copiedField === `broll-${index}` ? (
+                          <Check size={14} />
+                        ) : (
+                          <Copy size={14} />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="script-output-actions">
+                <button
+                  className="script-action-btn"
+                  onClick={() =>
+                    copyToClipboard(
+                      JSON.stringify(brollSegments, null, 2),
+                      'broll-json'
+                    )
+                  }
+                  disabled={brollSegments.length === 0}
+                >
+                  {copiedField === 'broll-json' ? (
+                    <Check size={16} />
+                  ) : (
+                    <Copy size={16} />
+                  )}
+                  {lang === 'ru' ? 'Копировать JSON' : 'Copy JSON'}
+                </button>
+                <button
+                  className="script-action-btn primary"
+                  onClick={handleUseBrollInVideo}
+                  disabled={brollSegments.length === 0}
+                >
+                  <ChevronRight size={16} />
+                  {lang === 'ru' ? 'Сгенерировать видео' : 'Generate Video'}
+                </button>
+              </div>
+            </div>
+          )
+        }
+
+        case 'captions': {
+          const caption = output.captions?.[selectedPlatform]
+          const captionText = caption?.text || ''
+          const captionHashtags = Array.isArray(caption?.hashtags)
+            ? caption.hashtags
+            : []
+          const captionLimit =
+            caption?.charLimit || PLATFORM_LIMITS[selectedPlatform]
+          return (
+            <div className="script-output-section">
+              <div className="script-platform-tabs">
+                {PLATFORM_CONFIG.map(platform => (
+                  <button
+                    key={platform.id}
+                    className={`script-platform-tab ${selectedPlatform === platform.id ? 'active' : ''}`}
+                    onClick={() => setSelectedPlatform(platform.id)}
+                  >
+                    <span>{platform.emoji}</span>
+                    <span>{platform.label}</span>
+                  </button>
+                ))}
+              </div>
+              {captionText ? (
+                <>
+                  <div className="script-output-content">
+                    <pre className="script-caption-text">{captionText}</pre>
+                    {captionHashtags.length > 0 && (
+                      <div className="script-hashtags">
+                        {captionHashtags.map((tag, i) => (
+                          <span key={i} className="script-hashtag">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="script-caption-meta">
+                    <span
+                      className={
+                        captionText.length > captionLimit ? 'over-limit' : ''
+                      }
+                    >
+                      {captionText.length}/{captionLimit}
+                    </span>
+                  </div>
+                  <div className="script-output-actions">
+                    <button
+                      className="script-action-btn"
+                      onClick={() =>
+                        copyToClipboard(
+                          captionHashtags.length > 0
+                            ? `${captionText}\n\n${captionHashtags.join(' ')}`
+                            : captionText,
+                          `caption-${selectedPlatform}`
+                        )
+                      }
+                    >
+                      {copiedField === `caption-${selectedPlatform}` ? (
+                        <Check size={16} />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                      {lang === 'ru'
+                        ? 'Копировать с хештегами'
+                        : 'Copy with hashtags'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="script-output-empty-section">
+                  <MessageSquare size={32} />
+                  <p>
+                    {lang === 'ru'
+                      ? 'Пост не сгенерирован'
+                      : 'Caption not generated'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        default:
+          return null
+      }
     }
 
     return (
@@ -696,9 +719,31 @@ ${caption?.hashtags?.join(' ') || ''}
         {/* Left: Input Panel */}
         <aside
           className={`script-sidebar ${isSidebarExpanded ? 'expanded' : ''}`}
-          onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+          onClick={() => {
+            // A tap on the collapsed peek opens the sheet; taps inside the
+            // open form (chips, fields) must never close it.
+            if (!isSidebarExpanded) setIsSidebarExpanded(true)
+          }}
         >
           <div className="script-panel">
+            <button
+              type="button"
+              className="script-sheet-handle"
+              aria-expanded={isSidebarExpanded}
+              onClick={e => {
+                e.stopPropagation()
+                setIsSidebarExpanded(v => !v)
+              }}
+            >
+              <span>
+                {lang === 'ru' ? 'Создать сценарий' : 'Create a script'}
+              </span>
+              {isSidebarExpanded ? (
+                <ChevronDown size={18} />
+              ) : (
+                <ChevronUp size={18} />
+              )}
+            </button>
             <h2 className="script-panel-title">
               {lang === 'ru' ? 'Сценарий' : 'Script'}
             </h2>
