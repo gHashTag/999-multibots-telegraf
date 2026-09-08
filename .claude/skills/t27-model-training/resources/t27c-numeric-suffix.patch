@@ -1,0 +1,91 @@
+diff --git a/bootstrap/src/compiler.rs b/bootstrap/src/compiler.rs
+index 8736028..482b463 100644
+--- a/bootstrap/src/compiler.rs
++++ b/bootstrap/src/compiler.rs
+@@ -2341,8 +2341,16 @@ impl Parser {
+                         let lit = self.parse_expr()?;
+                         decl.children.push(lit);
+                     } else {
++                        // The lexer KEEPS a Rust type suffix inside the number
++                        // lexeme and relies on it being split back off wherever
++                        // an ExprLiteral is built. Its comment says there are
++                        // two such places; there are four, and this was one of
++                        // the two that did not split. `const V : i8 = -7i8;`
++                        // reached Zig as `-7i8` -> "invalid digit 'i'".
++                        let (val, suffix) = split_number_suffix(&lexeme);
+                         let mut val_node = Node::new(NodeKind::ExprLiteral);
+-                        val_node.value = format!("-{}", lexeme);
++                        val_node.value = format!("-{}", val);
++                        val_node.extra_type = suffix;
+                         decl.children.push(val_node);
+                     }
+                 } else {
+@@ -2355,8 +2363,16 @@ impl Parser {
+                     let lit = self.parse_expr()?;
+                     decl.children.push(lit);
+                 } else {
++                    // Same omission as the negative path just above: the type
++                    // suffix has to come back off here too. Measured before the
++                    // fix, every suffixed initializer failed, and the Zig text
++                    // differed by spelling alone -- `0u8` "has leading zero",
++                    // `7u8` "invalid digit 'u'", `0.5_f64` "invalid digit 'f'".
++                    // Three error classes, one defect.
++                    let (val, suffix) = split_number_suffix(&self.current.lexeme);
+                     let mut val_node = Node::new(NodeKind::ExprLiteral);
+-                    val_node.value = self.current.lexeme.clone();
++                    val_node.value = val;
++                    val_node.extra_type = suffix;
+                     decl.children.push(val_node);
+                     self.advance();
+                 }
+@@ -5535,7 +5551,18 @@ impl Parser {
+                     TokenKind::RBracket => depth -= 1,
+                     _ => {}
+                 }
+-                text.push_str(&self.current.lexeme);
++                if self.current.kind == TokenKind::Number {
++                    // Element text is emitted into Zig verbatim, so a Rust type
++                    // suffix survives all the way to the backend and is rejected
++                    // there -- `[0u8; 4]` became `.{ 0u8 } ** 4`, and Zig reads
++                    // `0u8` as a decimal with a leading zero. The suffix carries
++                    // no information here: the array's own type already fixes
++                    // the element width.
++                    let (val, _suffix) = split_number_suffix(&self.current.lexeme);
++                    text.push_str(&val);
++                } else {
++                    text.push_str(&self.current.lexeme);
++                }
+                 self.advance();
+             }
+             text
+@@ -5633,7 +5660,17 @@ impl Parser {
+                         TokenKind::RBracket => depth -= 1,
+                         _ => {}
+                     }
+-                    bracket_content.push_str(&self.current.lexeme);
++                    if self.current.kind == TokenKind::Number {
++                        // Same reason as parse_bare_array_literal above: this
++                        // text is emitted into Zig verbatim, and the REPEAT
++                        // form `[0u8; 4]` comes through here, not through the
++                        // list scanner -- which is why fixing only that one
++                        // left `.{ 0u8 } ** 4` standing.
++                        let (val, _suffix) = split_number_suffix(&self.current.lexeme);
++                        bracket_content.push_str(&val);
++                    } else {
++                        bracket_content.push_str(&self.current.lexeme);
++                    }
+                     self.advance();
+                 }
+                 dims.push(bracket_content.trim().to_string());
+@@ -21335,6 +21372,11 @@ fn split_number_suffix(lexeme: &str) -> (String, String) {
+     for suf in SUFFIXES {
+         if let Some(head) = lexeme.strip_suffix(suf) {
+             if !head.is_empty() && head.starts_with(|c: char| c.is_ascii_digit()) {
++                // Rust allows a digit separator before the suffix -- `0.5_f64`
++                // -- and leaving it makes Zig reject the literal it never saw a
++                // suffix on: "trailing digit separator". Only the separators
++                // that end the head go; interior ones are meaningful (`1_000`).
++                let head = head.trim_end_matches('_');
+                 return (head.to_string(), (*suf).to_string());
+             }
+         }
