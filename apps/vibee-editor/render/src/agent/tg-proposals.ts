@@ -39,6 +39,17 @@ export interface PendingProposal {
   action: 'send' | 'forward' | 'delete' | 'join' | 'leave' | 'read'
   target: string
   what?: string
+  /**
+   * The lead this message is for, as a numeric telegram_id, when known.
+   *
+   * Set by the personal seller so that a CONFIRMED send records a `written`
+   * touch on the server -- the one place that knows the message actually
+   * went. Leaving that to the model means the touch is written when the
+   * model remembers to, which is not the same day the message left.
+   */
+  lead?: string
+  /** Whose bot the lead belongs to, for the touch's own visibility scope. */
+  bot?: string | null
   createdAt: number
   /**
    * THE ONE-TIME SECRET, AND WHY THE ID IS NOT ENOUGH.
@@ -117,6 +128,9 @@ export type PublicProposal = Omit<PendingProposal, 'secret' | 'issued' | 'turn'>
  * is written to the log where somebody can actually find it, and the dead
  * field is gone.
  */
+
+/** How long a touch write may hold up the owner's "sent" after a real send. */
+const TOUCH_WRITE_MS = 3000
 
 /** How long an unconfirmed proposal survives. */
 const LIFETIME_MS = 10 * 60 * 1000
@@ -448,6 +462,46 @@ export async function execute(
         if (!p.what)
           return { done: false, why: 'нечего отправлять: текст пуст' }
         await sendWithAddressBook(c, p.target, p.what)
+        /*
+         * THE TOUCH IS RECORDED HERE, AFTER THE SEND, AND NOWHERE ELSE.
+         *
+         * Only this line knows the message left. Best-effort: a touch that
+         * failed to write must not turn a delivered message into a reported
+         * failure -- the person would send it again.
+         */
+        if (p.lead && ctx.pool) {
+          /*
+           * BOUNDED, AND LOUD WHEN LOST.
+           *
+           * The message has left. A stalled pool must not hold the owner's
+           * "sent" for a minute after the fact, and a touch that failed to
+           * write must not vanish without a line -- the waiting list would be
+           * wrong with nobody knowing why.
+           */
+          try {
+            const { recordTouch } = await import('./crm-touches')
+            const write = recordTouch(ctx.pool as never, {
+              owner: String(ctx.telegramId),
+              lead: String(p.lead),
+              botName: p.bot ?? null,
+              kind: 'written',
+              note: `отправлено из личного продавца: ${(p.what ?? '').slice(0, 80)}`,
+            })
+            const outcome = await Promise.race([
+              write,
+              new Promise<'timed out'>(r => setTimeout(() => r('timed out'), TOUCH_WRITE_MS)),
+            ])
+            if (outcome !== 'recorded') {
+              console.warn(
+                `[proposal] touch not recorded (${String(outcome)}) lead=${p.lead} who=${String(ctx.telegramId)}`
+              )
+            }
+          } catch (e) {
+            console.warn(
+              `[proposal] touch write threw lead=${p.lead}: ${String(e).slice(0, 120)}`
+            )
+          }
+        }
         return { done: true, action: 'send' }
       default:
         /*

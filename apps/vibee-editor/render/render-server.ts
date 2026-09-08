@@ -63,7 +63,6 @@ import {
   resolveIdentity,
   readBody,
 } from './src/agent/routes'
-import { ценаТокенов, названиеСчёта } from './src/agent/token-packs'
 import {
   этоПутьПодключения,
   обработатьПодключение,
@@ -7934,88 +7933,39 @@ const server = createServer(async (req, res) => {
               : PACKS[String(body.pack)]?.tokens
           if (!запрошено)
             throw new Error('нужно поле tokens или известный pack')
-          const цена = ценаТокенов(запрошено)
-          const pack = {
-            tokens: цена.токенов,
-            stars: цена.звёзд,
-            title: названиеСчёта(цена.токенов),
-          }
-          const tg = await fetch(
-            `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                title: pack.title,
-                description: 'Токены для генераций в Trinity S³AI',
-                payload: `tokens:${pack.tokens}:${who}`,
-                currency: 'XTR',
-                prices: [{ label: pack.title, amount: pack.stars }],
-              }),
-            }
-          )
-          const tgd = await tg.json()
-          if (!tgd.ok)
-            throw new Error('Bot API: ' + JSON.stringify(tgd).slice(0, 200))
-          // Pending-чек: verify потом ищет звёзд-транзакцию от этого
-          // человека на эту сумму после этого момента (вебхук-независимо).
+          /*
+           * ONE MINT FOR TWO CALLERS. The personal seller (`crm_offer`) issues
+           * the same link for a lead; the price, the payload and the pending
+           * row live in token-invoice.ts so that neither caller can drift
+           * from the other. This route keeps its request shape, its identity
+           * rule and its status codes; only the minting moved.
+           */
+          const { mintTokenInvoice } = await import('./src/agent/token-invoice')
+          /*
+           * THE POOL IS BEST-EFFORT, LIKE THE ROW IT WRITES.
+           *
+           * The first delegation did `pool: await getPool()` and a database
+           * outage became a 500 with no link: a cashier that stops selling
+           * because bookkeeping is down. The route it replaced minted first
+           * and wrote the row inside its own try. Reproduced by the pre-merge
+           * probe with DATABASE_URL unset.
+           */
+          // getPool() is synchronous and THROWS when DATABASE_URL is unset;
+          // a .catch on it neither compiles nor catches. Try, and sell anyway.
+          let pool: ReturnType<typeof getPool> | undefined
           try {
-            const pool = await getPool()
-            await pool.query(
-              `CREATE TABLE IF NOT EXISTS token_invoices (
-                 id serial PRIMARY KEY,
-                 telegram_id text NOT NULL,
-                 tokens int NOT NULL,
-                 stars int NOT NULL,
-                 created_at timestamptz NOT NULL DEFAULT now(),
-                 redeemed boolean NOT NULL DEFAULT false
-               )`
-            )
-            await pool.query(
-              `INSERT INTO token_invoices (telegram_id, tokens, stars)
-               VALUES ($1, $2, $3)`,
-              [who, pack.tokens, pack.stars]
-            )
-          } catch (e) {
-            /*
-             * A PAYMENT LINK WE CANNOT RECONCILE IS STILL HANDED OUT -- SO SAY SO.
-             *
-             * Two nets catch a Stars payment: the webhook credits it directly,
-             * and this pending row lets the verify route find it later by
-             * matching the person's star transactions, webhook-independently.
-             * The row is written best-effort and the link is returned either
-             * way, which is the right call -- refusing to sell because a
-             * bookkeeping row failed would block payments the webhook handles
-             * perfectly well.
-             *
-             * What was wrong is that the two nets could fail together in
-             * silence: console.warn goes to a log nobody reads, and the moment
-             * the fallback matters is exactly the moment the webhook did not
-             * fire. The journal is where this service already puts money
-             * events that need a human (a credit arriving without a charge id
-             * is filed the same way), so it goes there, naming the person and
-             * the amount, at attention.
-             */
-            console.warn(
-              '[STARS] pending-чек не записался:', // cyrillic-ok: existing log text
-              String(e).slice(0, 120)
-            )
-            try {
-              void record(await getPool(), {
-                kind: 'payment',
-                who: String(who),
-                amount: pack.stars,
-                what: 'счёт выдан без pending-строки: сверка по звёздам его не найдёт', // cyrillic-ok: journal text, read by the owner in Russian
-                severity: 'attention',
-              })
-            } catch {
-              // The journal lives in the same database. If it is down too,
-              // the console line above is all there is, and saying that here
-              // is better than a second unexplained failure.
-            }
+            pool = getPool()
+          } catch {
+            pool = undefined
           }
+          const minted = await mintTokenInvoice({
+            forTelegramId: String(who),
+            tokens: запрошено,
+            pool,
+            botToken: PAY_BOT,
+          })
           res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: true, link: tgd.result }))
+          res.end(JSON.stringify({ ok: true, link: minted.url }))
         } catch (e) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
           console.error('[render] ошибка обработчика:', e)

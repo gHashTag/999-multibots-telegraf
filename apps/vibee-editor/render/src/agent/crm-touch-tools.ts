@@ -51,7 +51,7 @@ interface LeadRow {
  * A refusal is worded as "no such person" rather than "not yours", so a probe
  * cannot learn whose client somebody is by being told off.
  */
-async function reachable(
+export async function reachable(
   ctx: ToolContext | undefined,
   leadId: string
 ): Promise<{ ok: true; botName: string | null } | { ok: false; why: string }> {
@@ -86,12 +86,12 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
         },
         kind: {
           type: 'string',
-          description:
-            'written | replied | later | refused | bought | note',
+          description: 'written | replied | later | refused | bought | note',
         },
         note: {
           type: 'string',
-          description: 'своими словами: о чём договорились, что человек ответил',
+          description:
+            'своими словами: о чём договорились, что человек ответил',
         },
       },
       required: ['telegram_id', 'kind'],
@@ -179,11 +179,13 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       properties: {
         no_answer_after_days: {
           type: 'number',
-          description: 'через сколько дней тишины считать, что ответа нет (по умолчанию 3)',
+          description:
+            'через сколько дней тишины считать, что ответа нет (по умолчанию 3)',
         },
         later_after_days: {
           type: 'number',
-          description: 'через сколько дней возвращать тех, кто просил позже (по умолчанию 14)',
+          description:
+            'через сколько дней возвращать тех, кто просил позже (по умолчанию 14)',
         },
       },
     },
@@ -266,5 +268,4 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       }
     },
   },
-
 ]

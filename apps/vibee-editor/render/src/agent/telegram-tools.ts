@@ -146,7 +146,9 @@ function propose(
   target: string,
   what: string | undefined,
   why: string,
-  ctx?: ToolContext
+  ctx?: ToolContext,
+  lead?: string,
+  bot?: string | null
 ): Proposal & { id: string } {
   requireOwner(ctx)
   /*
@@ -191,6 +193,8 @@ function propose(
       // The turn this draft belongs to. Only that turn's answer may carry its
       // secret; a draft made outside a chat turn is never handed to anybody.
       turn: ctx?.turn,
+      lead,
+      bot,
     })
   }
   /*
@@ -719,3 +723,6 @@ export const NOT_WIRED = [
   'payments',
   'account_settings',
 ] as const
+
+/** For the personal seller, which composes a message and then proposes it. */
+export { propose, requireOwner, OWNER_TELEGRAM_ID }

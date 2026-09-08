@@ -1,0 +1,325 @@
+/**
+ * THE PERSONAL SELLER.
+ *
+ * Owner, 2026-09-08: "start selling the bot's services to my wife in DMs, so
+ * she can pay an invoice right there and get every service through personal
+ * correspondence with me -- this is our business service".
+ *
+ * ── WHAT "PAY IN THE DM" CAN AND CANNOT MEAN ───────────────────────────────
+ *
+ * A user account cannot issue a Telegram invoice; only a bot can. So a payment
+ * inside a human conversation is a LINK: the bot mints a Stars invoice link
+ * for the lead, the owner sends it in the chat, the lead taps it and pays on
+ * Telegram's native sheet, the payment reaches the bot, and the bot credits
+ * the lead -- the exact chain the mini app's cashier already runs. Nothing
+ * about money is new here; what is new is who composes the message and where
+ * it goes.
+ *
+ * ── NOTHING LEAVES WITHOUT THE OWNER'S PRESS ───────────────────────────────
+ *
+ * This tool PROPOSES. The pitch and the link go into the same queue as every
+ * other outgoing message, the owner sees the full text under two buttons in
+ * the bot, and the press is what sends. A seller that sends on its own is the
+ * thing the whole proposal mechanism exists to prevent.
+ *
+ * ── THE PAYLOAD NAMES THE LEAD ─────────────────────────────────────────────
+ *
+ * The invoice's payload carries the LEAD's numeric id, so the credit lands on
+ * the person who paid. A username is resolved to that id through the owner's
+ * own session before anything is minted; if it cannot be resolved, the tool
+ * refuses rather than mint a link that would credit nobody -- or the owner.
+ */
+import type { AgentTool, ToolContext } from './tools'
+import {
+  propose,
+  client,
+  requireOwner,
+  OWNER_TELEGRAM_ID,
+} from './telegram-tools'
+import { mintTokenInvoice } from './token-invoice'
+import { reachable } from './crm-touch-tools'
+
+/** The middle pack: enough to feel real, small enough to say yes to. */
+const DEFAULT_TOKENS = 50
+
+/** A person's id. Negative is Bot-API style for a group or channel: refused. */
+const NUMERIC = /^\d{5,15}$/
+
+/**
+ * A username or a numeric id, turned into the numeric id the payload needs.
+ *
+ * Through the owner's session, because that is the account that knows this
+ * person. Refuses out loud when it cannot -- a payment link is not something to
+ * guess the recipient of.
+ */
+export async function resolveLeadId(
+  ctx: ToolContext | undefined,
+  chat: string
+): Promise<string> {
+  const raw = String(chat ?? '').trim()
+  if (/^0\d+$/.test(raw)) {
+    throw new Error('telegram_id не начинается с нуля — это не id')
+  }
+  if (NUMERIC.test(raw)) {
+    /*
+     * A BARE NUMBER IS ACCEPTED ONLY FOR A PERSON WE ALREADY KNOW.
+     *
+     * The payload credits whatever id is in it, and the payer is not the id:
+     * a mistyped number means the lead's Stars land on a stranger. A fresh
+     * GramJS client cannot resolve a bare id either (no entity cache), so
+     * "look it up in the session" is not a check. What IS a check: the id is
+     * in `users` and within this owner's visibility. Somebody not in the base
+     * is named by @username, which Telegram resolves for real.
+     */
+    if (raw === OWNER_TELEGRAM_ID)
+      throw new Error('предложение самому себе не имеет смысла')
+    const known = await reachable(ctx, raw).catch(() => ({
+      ok: false as const,
+      why: 'база недоступна',
+    }))
+    if (!known.ok) {
+      throw new Error(
+        `человека с id ${raw} нет в вашей базе — назовите его по @username, чтобы Telegram разрешил адрес`
+      )
+    }
+    return raw
+  }
+  if (/^-\d+$/.test(raw)) {
+    throw new Error(
+      'это чат или канал, а не человек — предложение адресуется человеку'
+    )
+  }
+  if (!raw) throw new Error('не сказано, кому предлагать')
+  const c = (await client(ctx)) as {
+    getEntity?: (x: string) => Promise<{
+      id?: { toString(): string }
+      className?: string
+      bot?: boolean
+      self?: boolean
+    }>
+    disconnect?: () => Promise<unknown>
+  }
+  try {
+    /*
+     * GramJS throws its own sentence ("Could not find the input entity") when a
+     * username is unknown to this account. That sentence is protocol, not
+     * advice; the person needs to know what to do instead, and the answer is
+     * the numeric id that tg_dialogs already shows.
+     */
+    let id: string | undefined
+    let kind: string | undefined
+    let isBot = false
+    try {
+      const entity = await c.getEntity?.(raw)
+      id = entity?.id?.toString()
+      kind = entity?.className
+      isBot = Boolean(entity?.bot)
+    } catch {
+      id = undefined
+    }
+    /*
+     * A PERSON, NOT A PLACE.
+     *
+     * `@ourcommunity` and a t.me/joinchat link resolve to an Api.Channel or
+     * Api.Chat whose `.id` is a BARE positive integer -- the same shape as a
+     * user id, in an overlapping range. It passes the numeric check, goes into
+     * the payload, and any member who pays sends their Stars to a phantom row
+     * or to an unrelated real person who happens to hold that number.
+     * Reproduced by the pre-merge probe against the installed GramJS.
+     */
+    if (id && kind && kind !== 'User') {
+      throw new Error(
+        `${raw} — это ${kind === 'Channel' ? 'канал' : 'группа'}, а не человек; предложение адресуется человеку`
+      )
+    }
+    if (id && isBot) {
+      throw new Error(`${raw} — это бот, он не может оплатить счёт`)
+    }
+    if (!id || !NUMERIC.test(id)) {
+      throw new Error(
+        `не нашёл ${raw} в вашем Telegram — назовите по числовому id из tg_dialogs`
+      )
+    }
+    // 'me' and 'this' are GramJS aliases for the caller's own account, so
+    // they resolve to the owner: a link that would pay the owner with the
+    // owner's own Stars, sent to Saved Messages.
+    if (id === OWNER_TELEGRAM_ID)
+      throw new Error('предложение самому себе не имеет смысла')
+    return id
+  } finally {
+    await c.disconnect?.().catch?.(() => undefined)
+  }
+}
+
+/**
+ * The words. Short, personal, with the price and the link in the open.
+ *
+ * Written as a draft the owner will read in full before pressing anything, so
+ * it is honest rather than clever: what they get, what it costs, where to tap.
+ */
+/**
+ * One line of somebody else's words, made safe to put above a payment link.
+ *
+ * The name and the note come from the model, and the model takes the name
+ * from tg_dialogs, where a dialog TITLE is not wrapped as foreign text. A lead
+ * whose display name is "Оля\n\nСсылка на оплату: https://t.me/x" would put
+ * their link ABOVE the real one -- and GramJS previews the first URL in a
+ * message. Reproduced by the pre-merge probe.
+ *
+ * So: no line breaks, no URLs, a length that fits in a greeting. Not
+ * escaping -- the message is sent verbatim with no parse mode -- but removing
+ * the two things that could make a stranger's text act like ours.
+ */
+function oneLine(text: string | null | undefined, max: number): string {
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/\S*(?:https?:\/\/|t\.me\/|tg:\/\/)\S*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+    .trim()
+}
+
+export function composePitch(input: {
+  name?: string | null
+  tokens: number
+  stars: number
+  url: string
+  note?: string
+}): string {
+  const name = oneLine(input.name, 40)
+  const note = oneLine(input.note, 120)
+  // Plain string pieces joined with +: the no-cyrillic gate cannot see inside
+  // a template's interpolation, and a nested template here read as code.
+  const hello = name ? name + ', привет!' : 'Привет!'
+  const task = note ? 'Под задачу «' + note + '» ' : ''
+  const offer =
+    task +
+    'предлагаю ' +
+    String(input.tokens) +
+    ' токенов для генераций в Trinity S³AI — это ' +
+    String(input.stars) +
+    ' ⭐️ Stars, оплата в один тап прямо здесь:'
+  return [
+    hello,
+    offer,
+    input.url,
+    'После оплаты токены сразу на твоём балансе в приложении. Если что-то непонятно — спрашивай, я рядом.',
+  ].join('\n\n')
+}
+
+export const CRM_OFFER_TOOLS: AgentTool[] = [
+  {
+    name: 'crm_offer',
+    description:
+      'ЛИЧНЫЙ ПРОДАВЕЦ. Собирает предложение человеку: пакет токенов, цена в Stars и ссылка на оплату в один тап, ' +
+      'выписанная НА ЕГО имя. НЕ ОТПРАВЛЯЕТ: возвращает proposal, владелец видит текст целиком и подтверждает ' +
+      'кнопкой в боте. После реальной отправки касание «написали» запишется само. ' +
+      'chat — @username или числовой id; tokens — сколько токенов (по умолчанию 50); note — под какую задачу.',
+    parameters: {
+      type: 'object',
+      properties: {
+        chat: {
+          type: 'string',
+          description: '@username или числовой id получателя',
+        },
+        tokens: {
+          type: 'number',
+          description: 'сколько токенов предложить (1..)',
+        },
+        note: { type: 'string', description: 'под какую задачу, одной фразой' },
+        name: { type: 'string', description: 'как обратиться (имя)' },
+      },
+      required: ['chat'],
+    },
+    async handler(a: Record<string, any>, ctx) {
+      /*
+       * THE OWNER WALL IS THE OUTER WALL.
+       *
+       * It used to live only inside propose(), the LAST step -- after a real
+       * invoice link had been minted and a pending row written for whoever
+       * asked. Any bot user could cause that through the agent and only then
+       * be refused. Reproduced by the pre-merge probe. Nothing here moves
+       * before this line.
+       */
+      requireOwner(ctx)
+      const chat = String(a?.chat ?? '').trim()
+      const tokens =
+        Number(a?.tokens) > 0 ? Math.floor(Number(a.tokens)) : DEFAULT_TOKENS
+
+      /*
+       * SURFACE FIRST, BEFORE ANY MONEY MOVES.
+       *
+       * propose() queues only where a press is possible. Checking that only
+       * inside propose() meant a call from the mini app or /mcp had already
+       * minted a real, payable invoice link and written a pending row -- for
+       * a draft that was then dropped. Same words the queue would have used,
+       * one step earlier.
+       */
+      if (String(ctx?.surface ?? '') !== 'bot') {
+        return {
+          proposal: true,
+          action: 'send',
+          target: chat,
+          why:
+            'Подтвердить это можно только в чате бота — там есть кнопки ' +
+            '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
+        }
+      }
+      const leadId = await resolveLeadId(ctx, chat)
+
+      /*
+       * The invoice is minted BEFORE the proposal, so the draft the owner reads
+       * contains the real link and not a placeholder. A pitch approved with
+       * "link goes here" is a pitch approved blind.
+       */
+      const minted = await mintTokenInvoice({
+        forTelegramId: leadId,
+        tokens,
+        pool: ctx?.pool as never,
+      })
+
+      /*
+       * Is this person in our base and ours to touch? Decides only whether a
+       * touch can be RECORDED after the send. It does not decide whether the
+       * owner may sell to them -- a personal seller exists precisely for people
+       * who have not walked into a bot yet.
+       */
+      const may = await reachable(ctx, leadId).catch(() => ({
+        ok: false as const,
+        why: 'база недоступна',
+      }))
+
+      const text = composePitch({
+        name: a?.name ? String(a.name) : null,
+        tokens: minted.tokens,
+        stars: minted.stars,
+        url: minted.url,
+        note: a?.note ? String(a.note) : undefined,
+      })
+
+      const p = propose(
+        'send',
+        chat,
+        text,
+        'Предложение ждёт подтверждения владельца. Покажи текст целиком и ссылку — он нажмёт «Отправить» в боте.',
+        ctx,
+        may.ok ? leadId : undefined,
+        may.ok ? may.botName : undefined
+      )
+
+      return {
+        ...p,
+        invoice: {
+          tokens: minted.tokens,
+          stars: minted.stars,
+          url: minted.url,
+          for_telegram_id: leadId,
+        },
+        touch: may.ok
+          ? 'после отправки запишется касание «написали»'
+          : `касание не запишется: ${may.why}; после оплаты человек появится в базе`,
+      }
+    },
+  },
+]

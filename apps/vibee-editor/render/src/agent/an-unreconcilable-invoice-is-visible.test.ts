@@ -18,10 +18,14 @@ import path from 'path'
  * Both halves are pinned, because either one alone is the wrong behaviour:
  * the failure must be journalled, AND the link must still be handed out.
  */
-const SRC = fs.readFileSync(
-  path.join(__dirname, '..', '..', 'render-server.ts'),
-  'utf8'
-)
+/*
+ * The minting moved out of render-server.ts into token-invoice.ts on
+ * 2026-09-08, so that the mini app's cashier and the personal seller issue the
+ * same link from the same price and the same payload. The properties pinned
+ * here did not move; the file they live in did, and the check follows it.
+ * A grep left pointing at the old file would have passed on an empty route.
+ */
+const SRC = fs.readFileSync(path.join(__dirname, 'token-invoice.ts'), 'utf8')
 
 /** The invoice-creation handler, from its INSERT to the response. */
 function invoiceBlock(): string {
@@ -56,7 +60,10 @@ describe('an invoice we cannot reconcile is visible, and still sold', () => {
     // The response comes AFTER the catch: a failed row must not become a
     // refusal to sell, which would block payments the webhook handles.
     const catchAt = block.indexOf('} catch (e) {')
-    const link = block.indexOf('ok: true, link:')
+    // The sale itself: the helper hands the link back to whichever caller
+    // asked -- the cashier answers `ok: true, link` from it, the seller puts
+    // it into the message.
+    const link = block.indexOf('return { url, payload')
     expect(catchAt).toBeGreaterThan(-1)
     expect(link, 'the link response must still be reachable').toBeGreaterThan(
       catchAt
@@ -75,5 +82,37 @@ describe('an invoice we cannot reconcile is visible, and still sold', () => {
     expect(between, 'something throws before the link is sent').not.toMatch(
       /\n\s*throw\b/
     )
+  })
+})
+
+describe('the cashier keeps selling when the database is down', () => {
+  it('the pool it hands the mint is best-effort, not a precondition', () => {
+    /*
+     * The first delegation did `pool: await getPool()` before minting, and a
+     * database outage became a 500 with no link -- a cashier that stops
+     * selling because bookkeeping is down, which the route it replaced never
+     * did. Reproduced by the pre-merge probe with DATABASE_URL unset.
+     */
+    const server = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'render-server.ts'),
+      'utf8'
+    )
+    const at = server.indexOf("feedPath === '/api/tokens/invoice'")
+    expect(at).toBeGreaterThan(-1)
+    // This route only: a fixed 3000-char window reached into the next route,
+    // which legitimately awaits its own pool, and the negative check failed
+    // on a line that was not this route's.
+    const next = server.indexOf('feedPath ===', at + 1)
+    const route = server.slice(at, next > at ? next : at + 3000)
+    // getPool() is synchronous and throws when DATABASE_URL is unset, so the
+    // only shape that keeps selling is a try around it -- not a .catch, which
+    // does not compile on a Pool and would not catch a synchronous throw.
+    expect(route).toMatch(/try \{\s*pool = getPool\(\)\s*\} catch/)
+    // Code, not prose: the route's own comment quotes the old shape by name,
+    // and a check over the raw text failed on its own explanation.
+    const code = route
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+    expect(code).not.toMatch(/pool:\s*await getPool\(\)/)
   })
 })
