@@ -370,6 +370,8 @@ OTHER
                           negative amount, a charge of zero, a credit nothing can
                           deduplicate. Reads rows, not code; --gate fails only on a
                           violation inside the window (LEDGER_SINCE, default this year)
+  tri витрина <f.html>    re-measure what the owner dashboard CLAIMS against the ledger;
+                          the claimed values are read from the artifact, never hardcoded
   tri сверка              who actually paid, among the invoices we still call PENDING
                           (independent channel: Robokassa OpStateExt, read-only,
                           credits nobody -- needs ROBOKASSA_PASSWORD_2)
@@ -3707,6 +3709,15 @@ cmd_disk() {
 }
 
 action="${1:-помощь}"
+# THE SHIFT IS WHY SUBCOMMANDS FORWARD "$@" AND NOT "${@:2}".
+#
+# After it, $1 is already the first argument AFTER the subcommand, so "${@:2}"
+# drops that argument. Twelve subcommands did exactly that, and it was invisible
+# because every one of them was TESTED BY CALLING ITS SCRIPT DIRECTLY: the flag
+# reached the script every time it was tried, and never when it was used.
+#
+# Measured cost: `tri ledger --gate` shipped as a gate and forwarded nothing,
+# so the flag whose red path was proven a day earlier never arrived.
 shift 2>/dev/null || true
 
 case "$action" in
@@ -3739,16 +3750,17 @@ case "$action" in
   mint|минт)           cmd_mint "$@" ;;
   stepjump|шаг)        cmd_stepjump "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
-  buttons|кнопки)      node "$ROOT/scripts/button-census.cjs" "${@:2}" ;;
-  urls|адреса)         node "$ROOT/scripts/url-reachability.cjs" "${@:2}" ;;
-  methods|способы)     node "$ROOT/scripts/payment-method-census.cjs" "${@:2}" ;;
-  reconcile|сверка)    node "$ROOT/scripts/robokassa-reconcile.cjs" "${@:2}" ;;
-  lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "${@:2}" ;;
-  ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "${@:2}" ;;
-  funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "${@:2}" ;;
-  stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "${@:2}" ;;
-  events|события)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "${@:2}" ;;
-  keys|ключи)         railway run -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "${@:2}" ;;
+  buttons|кнопки)      node "$ROOT/scripts/button-census.cjs" "$@" ;;
+  urls|адреса)         node "$ROOT/scripts/url-reachability.cjs" "$@" ;;
+  methods|способы)     node "$ROOT/scripts/payment-method-census.cjs" "$@" ;;
+  reconcile|сверка)    node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
+  lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
+  ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
+  dashboard|витрина)   node "$ROOT/scripts/dashboard-audit.cjs" "$@" ;;
+  funnel|воронка)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/funnel.cjs" "$@" ;;
+  stuck|платежи)      railway run -s 999-multibots-telegraf node "$ROOT/scripts/stuck-payments.cjs" "$@" ;;
+  events|события)     railway run -s 999-multibots-telegraf node "$ROOT/scripts/events.cjs" "$@" ;;
+  keys|ключи)         railway run -s 999-multibots-telegraf node "$ROOT/scripts/provider-liveness.cjs" "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
@@ -3827,7 +3839,7 @@ case "$action" in
   # nothing, so deliberately invalid input separates "the model exists" from
   # "the id is wrong" for free. Two seconds, and the balance is read before and
   # after so "it cost nothing" is measured rather than claimed.
-  kie)                 node "$ROOT/scripts/kie-probe.mjs" "${@:2}" ;;
+  kie)                 node "$ROOT/scripts/kie-probe.mjs" "$@" ;;
   # MEASURE FIRST, THEN DRAW. Building the board without a fresh snapshot is
   # how it came to show only my end-of-cycle prose. --quick skips the merge gate
   # (a full tsc, vitest and an Xcode build); `tri status` runs the slow one.
