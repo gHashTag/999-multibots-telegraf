@@ -32,6 +32,35 @@ const probeTimeoutMs = (): number =>
  *   'recovered' back up after being down
  *   'ok'        up, and it was up
  */
+/**
+ * A PROVIDER THE OWNER HAS PARKED IS NOT AN INCIDENT.
+ *
+ * ElevenLabs answers 400 to its probe and has done for weeks. The owner was
+ * asked directly and answered: not needed now, maybe later. So the code that
+ * calls it stays -- deleting a path somebody intends to return to is a worse
+ * mistake than a noisy alarm -- but the alarm about it is not news. Today
+ * proved what noise costs: a genuine regression sat behind a red gate for four
+ * days because everything was red anyway.
+ *
+ * A LIST, NOT A DELETED CHECK. Parking is a decision that changes, and it
+ * changes in the deploy rather than in a commit: set HEALTH_SKIP_PROVIDERS and
+ * the probe stops; clear it and the alarm is back, unchanged. A check deleted
+ * in code would have to be remembered and rewritten.
+ *
+ * The parked list is PRINTED at startup, so "we are not watching this" is a
+ * visible state rather than a forgotten one.
+ */
+export function parkedProviders(
+  env: NodeJS.ProcessEnv = process.env
+): Set<string> {
+  return new Set(
+    (env.HEALTH_SKIP_PROVIDERS || '')
+      .split(',')
+      .map(v => v.trim().toLowerCase())
+      .filter(Boolean)
+  )
+}
+
 export type HealthAction = 'page' | 'still' | 'recovered' | 'ok'
 
 export function healthAction(
@@ -219,12 +248,16 @@ async function checkElevenLabs(): Promise<ProviderStatus> {
 export async function checkAllProviders(): Promise<
   Record<string, ProviderStatus>
 > {
-  const checks = await Promise.allSettled([
-    checkFalAi(),
-    checkReplicate(),
-    checkZai(),
-    checkElevenLabs(),
-  ])
+  const parked = parkedProviders()
+  const probes: Array<[string, () => Promise<ProviderStatus>]> = [
+    ['fal.ai', checkFalAi],
+    ['replicate', checkReplicate],
+    ['zai', checkZai],
+    ['elevenlabs', checkElevenLabs],
+  ]
+  const checks = await Promise.allSettled(
+    probes.filter(([name]) => !parked.has(name)).map(([, run]) => run())
+  )
 
   const results = checks.map(r =>
     r.status === 'fulfilled'
@@ -302,6 +335,12 @@ let monitorInterval: ReturnType<typeof setInterval> | null = null
 export function startProviderMonitor(intervalMs = CHECK_INTERVAL_MS) {
   logger.info('🔍 Starting provider health monitor', { intervalMs })
   checkAllProviders()
+  const parked = parkedProviders()
+  if (parked.size)
+    logger.info('[health] not watching parked providers', {
+      parked: [...parked].join(', '),
+      hint: 'clear HEALTH_SKIP_PROVIDERS to bring the alarm back',
+    })
   monitorInterval = setInterval(checkAllProviders, intervalMs)
 }
 
