@@ -66,7 +66,24 @@ export function paymentBotToken(): string {
 let invoiceColumnsReady = false
 
 /**
- * The two columns a cancelled draft stamps, added ONCE per process.
+ * The columns the code uses beyond the original CREATE TABLE, added ONCE per
+ * process.
+ *
+ * `star_tx_id` WAS MISSING FROM THIS LIST AND FROM EVERY OTHER DDL IN THE
+ * REPOSITORY. /api/tokens/verify both reads it (render-server.ts, the
+ * `usedTxIds` query) and writes it (the UPDATE that marks a row redeemed),
+ * and nothing anywhere created it -- verified by grep across every file and
+ * by a read-only query against production on 2026-09-09, where
+ * token_invoices carried id, telegram_id, tokens, stars, created_at,
+ * redeemed, cancelled_at, cancel_reason and no star_tx_id (control: the same
+ * query finds cancel_reason).
+ *
+ * The consequence is not cosmetic. `verify` is the mini-app's answer to "did
+ * my payment arrive?", and its FIRST query names that column, so the whole
+ * route threw for anybody with an unredeemed invoice. That is every one of
+ * the five invoices this product has ever minted -- all still
+ * `redeemed = false`, which is exactly what a route that cannot run leaves
+ * behind. The path was going to fail on the first real sale.
  *
  * `ADD COLUMN IF NOT EXISTS` is a no-op on the data but not on the lock: it
  * takes ACCESS EXCLUSIVE on token_invoices every time it runs, and the
@@ -82,7 +99,8 @@ export async function ensureInvoiceColumns(pool: {
     await pool.query(
       `ALTER TABLE token_invoices
          ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
-         ADD COLUMN IF NOT EXISTS cancel_reason text`
+         ADD COLUMN IF NOT EXISTS cancel_reason text,
+         ADD COLUMN IF NOT EXISTS star_tx_id text`
     )
     invoiceColumnsReady = true
     return true

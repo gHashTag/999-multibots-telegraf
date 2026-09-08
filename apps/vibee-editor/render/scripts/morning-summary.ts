@@ -36,7 +36,8 @@ async function cashierSection(): Promise<string[]> {
     await pool.query(
       `ALTER TABLE token_invoices
          ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
-         ADD COLUMN IF NOT EXISTS cancel_reason text`
+         ADD COLUMN IF NOT EXISTS cancel_reason text,
+         ADD COLUMN IF NOT EXISTS star_tx_id text`
     )
     const inv = await pool.query(
       `SELECT count(*)::int AS total,
