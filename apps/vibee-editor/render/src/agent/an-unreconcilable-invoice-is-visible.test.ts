@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const {
+  enclosedBy,
+} = require('../../../../../scripts/lib/enclosing-statement.cjs')
 
 /*
  * TWO NETS CATCH A STARS PAYMENT, AND THEY COULD FAIL TOGETHER IN SILENCE.
@@ -107,7 +111,14 @@ describe('the cashier keeps selling when the database is down', () => {
     // getPool() is synchronous and throws when DATABASE_URL is unset, so the
     // only shape that keeps selling is a try around it -- not a .catch, which
     // does not compile on a Pool and would not catch a synchronous throw.
-    expect(route).toMatch(/try \{\s*pool = getPool\(\)\s*\} catch/)
+    // Containment, not layout: the previous form demanded that `try {` and the
+    // assignment TOUCH, so a log line added at the top of the block would have
+    // reported the try missing. `try` is only writable with a catch or a
+    // finally, so nothing is given up by dropping `} catch` from the pattern.
+    expect(
+      enclosedBy(route, 'pool = getPool()', /^try \{/),
+      'getPool() must sit inside a try: it throws synchronously'
+    ).toBe(true)
     // Code, not prose: the route's own comment quotes the old shape by name,
     // and a check over the raw text failed on its own explanation.
     const code = route

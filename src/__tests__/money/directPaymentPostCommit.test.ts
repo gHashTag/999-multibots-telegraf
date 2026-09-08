@@ -13,6 +13,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { enclosedBy } = require('../../../scripts/lib/enclosing-statement.cjs')
 
 const SRC = path.join(
   __dirname,
@@ -27,7 +29,7 @@ const code = () => fs.readFileSync(SRC, 'utf8')
 describe('directPayment isolates post-commit side-effects from the committed return (#1397)', () => {
   it('wraps invalidateBalanceCache in its own try (a throw must not flip success)', () => {
     expect(
-      /try\s*\{\s*await invalidateBalanceCache/.test(code()),
+      enclosedBy(code(), 'await invalidateBalanceCache', /^try\s*\{/),
       'invalidateBalanceCache is not isolated in its own try'
     ).toBe(true)
   })
@@ -39,7 +41,7 @@ describe('directPayment isolates post-commit side-effects from the committed ret
       'newBalance is a const (a read throw cannot fall back)'
     ).toBe(true)
     expect(
-      /try\s*\{\s*newBalance = await getUserBalance/.test(s),
+      enclosedBy(s, 'newBalance = await getUserBalance', /^try\s*\{/),
       'the newBalance getUserBalance read is not isolated in its own try'
     ).toBe(true)
   })
