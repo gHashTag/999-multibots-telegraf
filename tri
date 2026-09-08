@@ -111,8 +111,25 @@ print(f\"{age:.1f}|{str(t[0].get('name',''))[:44]}\")
     good "last post ${age}h ago — «${name}»"
     return 0
   fi
-  bad "FACTORY STALLED: ${age}h with no post — «${name}»"
-  paint '31' '       check: autopilot daemon (AUTOPILOT_LOOP), tokens, topic queue'
+  # THE ALARM WAS WRONG, NOT THE FACTORY.
+  #
+  # This printed FACTORY STALLED for sixteen days and named three suspects,
+  # none of which was the answer. The logs say it plainly: the daemon is alive,
+  # the queue refills, and delivery refuses because TG_POST_MAX_PER_DAY is
+  # unset -- a quota of zero. That zero is DELIBERATE and documented in
+  # channel-delivery.ts: the drain stays off until somebody raises it, because
+  # there is a backlog of unposted reels and about a dozen of them are already
+  # in the channel, so a flood would repost them.
+  #
+  # An alarm that calls a deliberate configuration a fault teaches people to
+  # ignore alarms. It still says something -- sixteen days of silence is worth
+  # seeing -- but it says the true thing, and it names the likeliest cause
+  # FIRST, because that cause is the default state of the system.
+  warn "no post for ${age}h — «${name}»"
+  paint '33' '       FIRST: TG_POST_MAX_PER_DAY. It defaults to 0 and delivery is OFF'
+  paint '33' '       until it is raised. If that is intended, this line is expected.'
+  paint '33' '       Only then: autopilot daemon (AUTOPILOT_LOOP), tokens, topic queue.'
+  paint '33' '       Raising it needs the ledger seeded first — see channel-delivery.ts.'
   return 1
 }
 
