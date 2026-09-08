@@ -506,6 +506,7 @@ async function withTokens<T extends object>(
 import { ценаТокенов, названиеСчёта } from './token-packs'
 import { CRM_TOOLS } from './crm-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
+import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { HIVE_TOOLS } from './hive-tools'
 import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS } from './telegram-tools'
@@ -2308,6 +2309,7 @@ TOOLS.push(...TELEGRAM_TOOLS)
  */
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
+TOOLS.push(...CRM_OFFER_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project

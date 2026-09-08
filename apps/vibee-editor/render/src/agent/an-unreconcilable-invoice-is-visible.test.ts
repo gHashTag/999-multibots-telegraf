@@ -18,10 +18,14 @@ import path from 'path'
  * Both halves are pinned, because either one alone is the wrong behaviour:
  * the failure must be journalled, AND the link must still be handed out.
  */
-const SRC = fs.readFileSync(
-  path.join(__dirname, '..', '..', 'render-server.ts'),
-  'utf8'
-)
+/*
+ * The minting moved out of render-server.ts into token-invoice.ts on
+ * 2026-09-08, so that the mini app's cashier and the personal seller issue the
+ * same link from the same price and the same payload. The properties pinned
+ * here did not move; the file they live in did, and the check follows it.
+ * A grep left pointing at the old file would have passed on an empty route.
+ */
+const SRC = fs.readFileSync(path.join(__dirname, 'token-invoice.ts'), 'utf8')
 
 /** The invoice-creation handler, from its INSERT to the response. */
 function invoiceBlock(): string {
@@ -56,7 +60,10 @@ describe('an invoice we cannot reconcile is visible, and still sold', () => {
     // The response comes AFTER the catch: a failed row must not become a
     // refusal to sell, which would block payments the webhook handles.
     const catchAt = block.indexOf('} catch (e) {')
-    const link = block.indexOf('ok: true, link:')
+    // The sale itself: the helper hands the link back to whichever caller
+    // asked -- the cashier answers `ok: true, link` from it, the seller puts
+    // it into the message.
+    const link = block.indexOf('return { url, payload')
     expect(catchAt).toBeGreaterThan(-1)
     expect(link, 'the link response must still be reachable').toBeGreaterThan(
       catchAt

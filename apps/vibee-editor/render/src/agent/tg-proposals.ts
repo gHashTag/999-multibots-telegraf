@@ -39,6 +39,17 @@ export interface PendingProposal {
   action: 'send' | 'forward' | 'delete' | 'join' | 'leave' | 'read'
   target: string
   what?: string
+  /**
+   * The lead this message is for, as a numeric telegram_id, when known.
+   *
+   * Set by the personal seller so that a CONFIRMED send records a `written`
+   * touch on the server -- the one place that knows the message actually
+   * went. Leaving that to the model means the touch is written when the
+   * model remembers to, which is not the same day the message left.
+   */
+  lead?: string
+  /** Whose bot the lead belongs to, for the touch's own visibility scope. */
+  bot?: string | null
   createdAt: number
   /**
    * THE ONE-TIME SECRET, AND WHY THE ID IS NOT ENOUGH.
@@ -448,6 +459,27 @@ export async function execute(
         if (!p.what)
           return { done: false, why: 'нечего отправлять: текст пуст' }
         await sendWithAddressBook(c, p.target, p.what)
+        /*
+         * THE TOUCH IS RECORDED HERE, AFTER THE SEND, AND NOWHERE ELSE.
+         *
+         * Only this line knows the message left. Best-effort: a touch that
+         * failed to write must not turn a delivered message into a reported
+         * failure -- the person would send it again.
+         */
+        if (p.lead && ctx.pool) {
+          try {
+            const { recordTouch } = await import('./crm-touches')
+            await recordTouch(ctx.pool as never, {
+              owner: String(ctx.telegramId),
+              lead: String(p.lead),
+              botName: p.bot ?? null,
+              kind: 'written',
+              note: `отправлено из личного продавца: ${(p.what ?? '').slice(0, 80)}`,
+            })
+          } catch {
+            // Memory is a convenience; delivery is the fact.
+          }
+        }
         return { done: true, action: 'send' }
       default:
         /*
