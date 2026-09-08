@@ -207,6 +207,22 @@ body[data-tabbar='visible'] .editor-main {
  * значило бы оставить под редактором полосу пустоты в 56px — ровно тот
  * класс, который здесь уже чинили с расхождением 64px против 57.
  */
+/* Under an open keyboard the bar is unreachable and only covers the composer
+   (see styles/telegram.css). --tabbar-actual-h is republished by the
+   ResizeObserver as 0 when the bar is display:none, so --app-tabbar-total
+   follows; --app-tabbar-height is zeroed for the same reason as the desktop
+   rule below. */
+html[data-keyboard='open'] .tma-tabbar {
+  display: none;
+}
+html[data-keyboard='open'] {
+  --app-tabbar-height: 0px;
+  /* The bar is gone, so nothing may reserve its height: the :root total is
+     overridden here (an attribute selector beats :root), which also drops the
+     #root bottom padding while the keyboard is up. */
+  --app-tabbar-total: 0px;
+}
+
 @media (min-width: 1024px) {
   .tma-tabbar {
     display: none;
