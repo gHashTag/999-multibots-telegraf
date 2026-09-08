@@ -88,17 +88,37 @@ describe('setupErrorHandler', () => {
       )
     })
 
-    it('should handle 403 Forbidden error (not blocked)', async () => {
+    it('should handle 403 Forbidden error (not blocked) AT A LEVEL THE OWNER RECEIVES', async () => {
+      /*
+       * This asserted `logger.warn` until 2026-09-08, and it was right at the
+       * time: the branch wrote a warn for the file and reached the owner by
+       * calling telegramLogService directly.
+       *
+       * That direct call was one of three duplicate delivery paths, and the
+       * only one that bypassed the alert throttle. Removing it from a
+       * warn-only branch would have silenced the branch completely, because
+       * winston forwards `error` and nothing else -- so the level moved with
+       * the call. A 403 that is NOT "the user blocked the bot" (handled
+       * separately and deliberately unreported) means the bot cannot act for
+       * somebody, which is worth knowing once.
+       *
+       * So this now pins the OPPOSITE of what it used to, on purpose, and the
+       * old assertion is kept below as the thing that must not come back.
+       */
       const ctx = createMockContext()
       const error = new Error('403: Forbidden: chat not found')
 
       await catchHandler(error, ctx)
 
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(logger.error).toHaveBeenCalledWith(
         '🔒 Ошибка доступа Telegram API:',
         expect.objectContaining({
           description: 'Telegram API Forbidden Error',
         })
+      )
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        '🔒 Ошибка доступа Telegram API:',
+        expect.anything()
       )
     })
 

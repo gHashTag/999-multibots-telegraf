@@ -112,6 +112,48 @@ describe('one incident is one message', () => {
     expect(decide(seen, 'brand new', T0 + MAX_TRACKED + 1).send).toBe(false)
   })
 
+  it('bot.catch delivers one event ONCE, not once per channel', () => {
+    // The catch-all branch logged at error AND called the service directly.
+    // logger.error already reaches the owner through the transport, so the
+    // direct call was a second copy of one event -- and the copy bypassed the
+    // throttle entirely, which is the shape that makes a shared broken
+    // dependency page once per failing update.
+    const code = codeOf('src/helpers/error/errorHandler.ts')
+    const direct = (
+      code.match(/telegramLogService\s*\n?\s*\.logError\(/g) || []
+    ).length
+    expect(direct, 'a delivery path that skips the throttle came back').toBe(0)
+  })
+
+  it('a 403 that is not "the user blocked us" reaches the owner at all', () => {
+    // This branch wrote a warn for the file and called the service directly for
+    // the owner. Removing the direct call would have silenced it completely,
+    // because warn is not forwarded -- so the level had to move with it. A
+    // mutant that put `warn` back survived until this test existed.
+    const code = codeOf('src/helpers/error/errorHandler.ts')
+    const forbidden = code.slice(code.indexOf('} else if (isForbiddenError) {'))
+    expect(
+      code.indexOf('} else if (isForbiddenError) {'),
+      'the branch was renamed; re-anchor this check'
+    ).toBeGreaterThan(-1)
+    const branch = forbidden.slice(0, forbidden.indexOf('} else {'))
+    expect(branch, 'a 403 is logged where the owner will never see it').toMatch(
+      /logger\.error\('🔒/
+    )
+    expect(branch).not.toMatch(/logger\.warn\('🔒/)
+  })
+
+  it('an unhandled rejection carries WHAT failed in its message', () => {
+    // Deduplication is by message text. A constant message collapses every
+    // rejection in the process into one incident, so the second distinct
+    // failure is never seen.
+    const code = codeOf('src/helpers/error/errorHandler.ts')
+    expect(code).toMatch(/Unhandled promise rejection: \$\{why/)
+    expect(fingerprint('Unhandled promise rejection: fetch failed')).not.toBe(
+      fingerprint('Unhandled promise rejection: pool is closed')
+    )
+  })
+
   it('the transport actually asks before sending', () => {
     // A perfect throttle nobody calls suppresses nothing -- the same shape as
     // the extractor over a discarded stream that cost a day (#2225).
