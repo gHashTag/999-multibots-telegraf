@@ -194,6 +194,10 @@ describe('the brief', () => {
     expect(SWEEP_PROMPT).toContain('crm_lead_context')
     expect(SWEEP_PROMPT).toContain('ОДНО')
     expect(SWEEP_PROMPT).toContain('НИЧЕГО НЕ ОТПРАВЛЯЙ')
+    // The owner: the client must want to buy by themselves.
+    expect(SWEEP_PROMPT).toContain('next=talk')
+    expect(SWEEP_PROMPT).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
+    expect(SWEEP_PROMPT).toContain('САМ спрашивал цену')
   })
 })
 

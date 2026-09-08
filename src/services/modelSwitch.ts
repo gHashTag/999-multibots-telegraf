@@ -232,3 +232,62 @@ export async function fetchLead(
   const s = await callTool(telegramId, 'crm_lead_context', { chat, limit: 8 })
   return { text: formatLead(s) }
 }
+
+/**
+ * THE MEMORY STARTS WHEN THE BUSINESS CONNECTION IS MADE.
+ *
+ * The owner connected their account to the bot; from now on the bot answers
+ * their clients as them. It must know the history first: every dialog, deep,
+ * into Postgres and Zep. Runs as the owner over the server key; the walk
+ * takes minutes, so the caller does not wait.
+ */
+export async function ingestChats(
+  telegramId: string,
+  o: { limit?: number; depth?: number } = {}
+): Promise<Record<string, unknown>> {
+  return callTool(telegramId, 'crm_ingest_chats', {
+    limit: o.limit ?? 100,
+    depth: o.depth ?? 200,
+  })
+}
+
+export interface DmMirrorMessage {
+  msg_id: number
+  /** Unix seconds, as Telegram gives it. */
+  at: number
+  out: boolean
+  text: string
+}
+
+/**
+ * THE DM EXCHANGE GOES INTO THE MEMORY AT ONCE.
+ *
+ * The client's message and the answer sent as the owner, with Telegram's own
+ * message ids, so the render keeps nothing twice when its ingest reads the
+ * same dialog later -- and Zep has the exchange before the next question.
+ */
+export async function mirrorDm(
+  owner: string,
+  lead: string,
+  name: string | null,
+  messages: DmMirrorMessage[]
+): Promise<{ ok: boolean; fresh?: number; zep?: number; error?: string }> {
+  if (!apiKey()) return { ok: false, error: 'RENDER_API_KEY не задан' }
+  const r = await fetch(
+    `${BASE}/api/crm/mirror?telegram_id=${encodeURIComponent(owner)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
+      body: JSON.stringify({ lead, name, messages }),
+    }
+  )
+  const data = (await r.json().catch(() => ({}))) as {
+    ok?: boolean
+    fresh?: number
+    zep?: number
+    error?: string
+  }
+  return r.ok && data.ok
+    ? { ok: true, fresh: data.fresh, zep: data.zep }
+    : { ok: false, error: data.error || `HTTP ${r.status}` }
+}

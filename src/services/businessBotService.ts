@@ -275,7 +275,8 @@ const SALES_PROMPT = [
   '',
   'Оплата:',
   '- Тарифов и подписок НЕТ. Оплата — токенами за звёзды Telegram, счёт приходит',
-  '  прямо в этот чат. Не называй сумм по памяти: если человек хочет оплатить или',
+  '  прямо в этот чат. НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ — клиент должен захотеть сам.',
+  '  Не называй сумм по памяти: только если человек САМ хочет оплатить или',
   '  спрашивает цену — скажи, что счёт придёт следующим сообщением, и предложи',
   '  открыть бота (кнопка ниже).',
   '',
@@ -395,6 +396,66 @@ async function lookupConnection(
   }
 }
 
+const ingestedConnections = new Set<string>()
+
+async function mirrorExchange(
+  owner: number,
+  lead: number,
+  name: string,
+  messages: Array<{ msg_id: number; at: number; out: boolean; text: string }>
+): Promise<void> {
+  try {
+    const { mirrorDm } = await import('@/services/modelSwitch')
+    const r = await mirrorDm(String(owner), String(lead), name, messages)
+    if (!r.ok) {
+      logger.warn('[Business] DM not mirrored', { lead, error: r.error })
+    }
+  } catch (error) {
+    logger.warn('[Business] DM mirror threw', {
+      lead,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+async function ingestOnConnect(owner: string, connId: string): Promise<void> {
+  try {
+    const { ingestChats } = await import('@/services/modelSwitch')
+    const r = await ingestChats(owner)
+    logger.info('[Business] correspondence ingested on connect', {
+      connId,
+      owner,
+      people: r.people,
+      new: r.messages_new,
+      zep: r.zep_mirrored,
+    })
+  } catch (error) {
+    logger.warn('[Business] ingest on connect failed', {
+      connId,
+      owner,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+/**
+ * THE LINK AND THE BUTTON AT ONCE -- but only when the client asked to pay.
+ *
+ * A Stars invoice link in the answer opens the payment sheet when tapped;
+ * a button under the message makes that one tap obvious. The answer carries
+ * a link only after the person themselves asked to pay or buy (the agent's
+ * prompt forbids offering first), so the button never appears uninvited.
+ */
+export function payButton(reply: string): { text: string; url: string } | null {
+  const m = /https:\/\/t\.me\/\$[A-Za-z0-9_-]+/.exec(reply)
+  if (!m) return null
+  const stars = /(\d+)\s*⭐/.exec(reply)
+  return {
+    text: stars ? `Оплатить ${stars[1]} ⭐` : 'Оплатить ⭐',
+    url: m[0],
+  }
+}
+
 // --- Handlers ---
 
 export function handleBusinessConnection(connection: BusinessConnection): void {
@@ -410,6 +471,16 @@ export function handleBusinessConnection(connection: BusinessConnection): void {
       userId: connection.user.id,
       canReply: canReplyOf(connection),
     })
+    /*
+     * THE MEMORY STARTS NOW. The owner connected their account so the bot
+     * answers their clients as them; before the first answer the agent must
+     * know the history. Every dialog, deep, into Postgres and Zep -- once
+     * per connection per process, in the background.
+     */
+    if (!ingestedConnections.has(connection.id)) {
+      ingestedConnections.add(connection.id)
+      void ingestOnConnect(String(connection.user.id), connection.id)
+    }
   } else {
     connections.delete(connection.id)
     logger.info('[Business] Connection disabled', {
@@ -543,9 +614,11 @@ export async function handleBusinessMessage(
       })
     )
 
-    await sendAsOwner(reply, {
+    const pay = payButton(reply)
+    const sentAsOwner = (await sendAsOwner(reply, {
       reply_markup: {
         inline_keyboard: [
+          ...(pay ? [[pay]] : []),
           [
             {
               text: '🚀 Открыть в боте',
@@ -554,7 +627,26 @@ export async function handleBusinessMessage(
           ],
         ],
       },
-    })
+    })) as { message_id?: number } | undefined
+
+    /*
+     * THE EXCHANGE GOES INTO THE MEMORY AT ONCE: their message and the
+     * answer, with Telegram's own ids, so the next question is answered
+     * from a memory that already has this one. Best effort, off the path.
+     */
+    void mirrorExchange(conn.userId, chatId, senderName, [
+      { msg_id: msg.message_id, at: msg.date, out: false, text },
+      ...(sentAsOwner?.message_id
+        ? [
+            {
+              msg_id: sentAsOwner.message_id,
+              at: Math.floor(Date.now() / 1000),
+              out: true,
+              text: reply,
+            },
+          ]
+        : []),
+    ])
 
     ensureToday()
     stats.messagesHandled++
