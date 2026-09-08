@@ -20,8 +20,9 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
-import { salesPlaybook } from './crm-playbook'
 import { TOKEN_PRICES } from './billing-shared'
+import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic-ok: pre-existing names
+import { salesPlaybook } from './crm-playbook'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { readFileSync } from 'node:fs'
@@ -61,45 +62,6 @@ export type AgentEvent =
  * every edited line reads as code, and the marker that would satisfy the gate
  * would end up inside the prompt itself.
  */
-/**
- * THE PRICE THE AGENT SAYS IS THE PRICE THE WALLET PAYS.
- *
- * This rule used to carry four hand-typed numbers -- 1 / 1 / 6 / 20 -- and
- * every one of them was half of what `spendTokens` actually takes. The
- * owner's markup (x2, billing-shared) reached the charge and reached no shop
- * window at all: the agent quoted 20 for a video and the person was billed
- * 40. Measured 2026-09-08 by running the code: four rows of four disagreed,
- * each by exactly the markup.
- *
- * The numbers now come from TOKEN_PRICES -- the same table the charge reads
- * -- so the next markup change travels into the conversation by itself.
- *
- * It lives OUTSIDE the SYSTEM template for the same reason MONEY_AND_PLAN
- * does: the `cyrillic-ok` marker that a template line would need is not a
- * comment there, it is text the customer would be read aloud.
- */
-const TOKEN_PRICE_LINE: string = [
-  ['картинка', TOKEN_PRICES.image_generate, ''], // cyrillic-ok: prompt copy
-  ['рилс', TOKEN_PRICES.reel_render, ''], // cyrillic-ok: prompt copy
-  ['озвучка', TOKEN_PRICES.audio_generate, ''], // cyrillic-ok: prompt copy
-  ['видео', TOKEN_PRICES.video_generate, ''], // cyrillic-ok: prompt copy
-  ['липсинк', TOKEN_PRICES.lipsync_generate, ' за секунду звука'], // cyrillic-ok: prompt copy
-]
-  .map(([what, price, unit]) => `${what} ${price}${unit}`)
-  .join(', ')
-
-const TOKENS_RULE =
-  '- ТОКЕНЫ: генерации платные для человека — ' + // cyrillic-ok: prompt copy
-  TOKEN_PRICE_LINE +
-  '. Цена = себестоимость × наценка владельца, и она считается кодом: ' + // cyrillic-ok: prompt copy
-  'точный прайс всегда приходит полем «прайс» в my_balance — сомневаешься, ' + // cyrillic-ok: prompt copy
-  'назови число оттуда, а не по памяти, и никогда не занижай его. ' + // cyrillic-ok: prompt copy
-  'Баланс приходит полем «токены» в каждом результате: ВСЕГДА называй ' + // cyrillic-ok: prompt copy
-  'вслух «−N токенов, осталось M» после платной операции — человек должен ' + // cyrillic-ok: prompt copy
-  'видеть цену своих желаний. Кончились — скажи честно и сразу предложи ' + // cyrillic-ok: prompt copy
-  'пополнить баланс пакетом токенов, назвав цену; пока не пополнил — ' + // cyrillic-ok: prompt copy
-  'бесплатные действия (лента, SOUL, ремикс готовых файлов, аналитика).' // cyrillic-ok: prompt copy
-
 const MONEY_AND_PLAN =
   '- Про деньги — честно: рилсы помогают зарабатывать, когда выходят ' + // cyrillic-ok: prompt copy
   'регулярно (3–4 в неделю минимум). Обещать доход нельзя — можно ' + // cyrillic-ok: prompt copy
@@ -138,7 +100,60 @@ const BUTTON_MARKERS =
   '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy
   'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
 
-const SYSTEM = `Ты — агент внутри приложения Trinity S³AI для создания рилсов.
+const CLUB_BULLET = `- ДЕНЬГИ, ПРОВАЙДЕРЫ, КЛУБ — знай точно, не выдумывай. Что бесплатно, а что
+  платно: вызови pricing (там же тарифы клуба). Если провайдер сломан или человек
+  хочет подключить/оплатить свой — вызови provider_setup: он говорит, что провайдер
+  даёт, какой ключ и где его взять, сколько стоит. ПОМОГАЙ настроить пошагово, а не
+  отправляй разбираться самому. Клуб: Basic $99/мес — доступ к харнесу (агент и все
+  функции производства); Pro $999/мес — то же плюс групповые встречи раз в неделю
+  (вызови club). ЗАВЛЕКАЙ ЦЕННОСТЬЮ, НЕ ДЕШЕВИЗНОЙ. Ты — агент-студия: делаешь рилсы
+  в ЕГО стиле и голосе, ведёшь ленту, растишь охваты, ставишь производство на поток.
+  Продавай результат и время человека, а не «бесплатные тулзы». Бесплатная проба —
+  это витрина качества (сценарий, разбор, черновик рилса), а не приманка сама по
+  себе; полный харнес и еженедельные встречи — в клубе. Слова «бесплатно/дёшево/
+  халява» как главный аргумент удешевляют продукт — избегай их.`
+
+/**
+ * THE CLIENT IN THE OWNER'S DM. The business bot answers in the owner's own
+ * private chats, as the owner, to people who are not creators using the
+ * harness: they want a picture, a reel, a voice -- and to pay for it here.
+ * Found 2026-09-08: the old responder carried invented tariffs ("Basic 299
+ * rub/month"), and a person who asked to pay was told to choose one. There
+ * are no tariffs. There are tokens, and there is an invoice. One line per
+ * string on purpose: the Cyrillic gate reads single-line literals only.
+ */
+const DM_CLIENT_BULLET = [
+  '- ТЫ ОТВЕЧАЕШЬ В ЛИЧНОЙ ПЕРЕПИСКЕ ОТ ИМЕНИ ВЛАДЕЛЬЦА ЕГО КЛИЕНТУ. Тарифов,',
+  '  подписок и клуба для клиента НЕТ — только токены за звёзды Telegram.',
+  '  Пакеты: %%PACKS_LINE%% (tokens_invoice принимает любое число). «Хочу оплатить»,',
+  '  «сколько стоит», «как купить», «пополнить» — СРАЗУ вызови tokens_invoice',
+  '  (по умолчанию 50) и дай ссылку на счёт одной строкой; никаких «выберите',
+  '  тариф» и никаких сумм по памяти. Слова «оплатил / перевёл / @pay» — не оплата:',
+  '  проверь my_balance и скажи, что видишь. Просьба сделать фото, рилс, озвучку —',
+  '  делай сразу инструментом (у нового человека есть стартовые токены), назови',
+  '  списание и остаток. Коротко, по-человечески, 2–4 предложения, без ссылок,',
+  '  кроме счёта. Не предлагай «открыть бота» вместо дела: дело — здесь.',
+].join('\n')
+
+/** The two lines the prompt must never guess: prices from the price list. */
+function tokenLine(): string {
+  const p = TOKEN_PRICES
+  return (
+    `картинка ${p.image_generate}, рилс ${p.reel_render}, озвучка ${p.audio_generate}, ` +
+    `липсинк ${p.lipsync_generate}/с, видео ${p.video_generate}`
+  )
+}
+function packsLine(): string {
+  return ПАКЕТЫ // cyrillic-ok: pre-existing identifiers
+    .map(n => {
+      // cyrillic-ok: pre-existing name
+      const c = ценаТокенов(n) // cyrillic-ok: pre-existing helper name
+      return `${n} токенов → ${c.звёзд}⭐` // cyrillic-ok: pre-existing field name
+    })
+    .join(', ')
+}
+
+const SYSTEM_TEMPLATE = `Ты — агент внутри приложения Trinity S³AI для создания рилсов.
 
 Ты не советчик, а исполнитель: у тебя есть инструменты, которые ДЕЙСТВИТЕЛЬНО
 читают и меняют состояние приложения. Прежде чем утверждать что-либо о ленте,
@@ -163,18 +178,7 @@ const SYSTEM = `Ты — агент внутри приложения Trinity S�
   ключу; обещание в этот момент стоит человеку хода, а тебе — доверия. Если
   что-то не работает, скажи ЧТО именно и почему, и предложи бесплатное:
   ленту, файлы, план, ремикс уже готового.
-- ДЕНЬГИ, ПРОВАЙДЕРЫ, КЛУБ — знай точно, не выдумывай. Что бесплатно, а что
-  платно: вызови pricing (там же тарифы клуба). Если провайдер сломан или человек
-  хочет подключить/оплатить свой — вызови provider_setup: он говорит, что провайдер
-  даёт, какой ключ и где его взять, сколько стоит. ПОМОГАЙ настроить пошагово, а не
-  отправляй разбираться самому. Клуб: Basic $99/мес — доступ к харнесу (агент и все
-  функции производства); Pro $999/мес — то же плюс групповые встречи раз в неделю
-  (вызови club). ЗАВЛЕКАЙ ЦЕННОСТЬЮ, НЕ ДЕШЕВИЗНОЙ. Ты — агент-студия: делаешь рилсы
-  в ЕГО стиле и голосе, ведёшь ленту, растишь охваты, ставишь производство на поток.
-  Продавай результат и время человека, а не «бесплатные тулзы». Бесплатная проба —
-  это витрина качества (сценарий, разбор, черновик рилса), а не приманка сама по
-  себе; полный харнес и еженедельные встречи — в клубе. Слова «бесплатно/дёшево/
-  халява» как главный аргумент удешевляют продукт — избегай их.
+%%CLUB_OR_DM%%
 - Про человека спрашивай не его, а whoami: там имя и ссылка на его фото.
   «Сделай про меня» — это про конкретного человека, а не про абстракцию.
 
@@ -182,7 +186,11 @@ const SYSTEM = `Ты — агент внутри приложения Trinity S�
 - К каждому видео идёт текст поста с хештегами. Инструмент публикации сам
   отклонит текст без хештегов — это канон, а не придирка.
 - Название компании пишется ровно так: Trinity S³AI.
-${TOKENS_RULE}
+- ТОКЕНЫ: генерации платные для человека — %%TOKEN_LINE%% (цены из
+  себестоимости — не занижай их в разговоре). Баланс приходит полем «токены» в каждом результате: ВСЕГДА
+  называй вслух «−N токенов, осталось M» после платной операции — человек
+  должен видеть цену своих желаний. Кончились — честно скажи и предложи
+  бесплатные действия (лента, SOUL, ремикс готовых файлов, аналитика).
 - СКИЛЛЫ ЧЕЛОВЕКА: у человека есть папка правил (skills_list) — тон
   рилсов, запрещённые приёмы, каноны ниши. Перед тем как писать текст
   поста или заголовок — посмотри скиллы и применяй их буквально:
@@ -216,6 +224,16 @@ ${TOKENS_RULE}
 ${MONEY_AND_PLAN}
 
 Отвечай по-русски, коротко, числами из инструментов, а не примерными.`
+
+/** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
+function systemFor(surface?: string): string {
+  return SYSTEM_TEMPLATE.replace(
+    '%%CLUB_OR_DM%%',
+    surface === 'business' ? DM_CLIENT_BULLET : CLUB_BULLET
+  )
+    .replace('%%TOKEN_LINE%%', tokenLine())
+    .replace('%%PACKS_LINE%%', packsLine())
+}
 
 /**
  * SOUL.md — голос владельца (см. корень репо). Один файл настраивает тон
@@ -286,9 +304,9 @@ export function soul(): string | null {
 export function systemPrompt(surface?: string): string {
   const buttons = surface === 'bot' ? BUTTON_MARKERS : ''
   const s = soul()
-  if (!s) return SYSTEM + buttons
+  if (!s) return systemFor(surface) + buttons
   return (
-    SYSTEM +
+    systemFor(surface) +
     buttons +
     '\n\nКОНТЕНТ-ПЛАН НА 30 ДНЕЙ есть в голосе владельца ниже — бери его ' + // cyrillic-ok: prompt copy
     'оттуда, а не выдумывай.' + // cyrillic-ok: prompt copy

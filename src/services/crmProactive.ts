@@ -226,6 +226,24 @@ async function ingestViaRender(telegramId: string): Promise<unknown> {
  * Wire the sweep to a bot. Returns a stop function. The first run waits two
  * minutes so a redeploy does not fire a turn before the bot is up.
  */
+/** The real wiring: the agent, the render's ingest, the bot's own chat. */
+export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
+  return {
+    ask: спроситьАгента, // cyrillic-ok: pre-existing identifiers
+    ingest: ingestViaRender,
+    push: (owner, draft) => pushCard(bot.telegram as never, owner, draft),
+    record: recordTurns,
+  }
+}
+
+/** One sweep, now, because the owner asked (/sweep). Same guards as the timer. */
+export function runSweepNow(
+  bot: Telegraf<MyContext>,
+  ownerId: string
+): Promise<SweepOutcome> {
+  return sweepOnce(ownerId, liveDeps(bot))
+}
+
 export function startCrmProactive(
   bot: Telegraf<MyContext>,
   opts: {
@@ -235,12 +253,7 @@ export function startCrmProactive(
     firstDelayMs?: number
   }
 ): () => void {
-  const deps: SweepDeps = {
-    ask: спроситьАгента, // cyrillic-ok: pre-existing identifiers
-    ingest: ingestViaRender,
-    push: (owner, draft) => pushCard(bot.telegram as never, owner, draft),
-    record: recordTurns,
-  }
+  const deps = liveDeps(bot)
   const run = async () => {
     const r = await sweepOnce(opts.ownerId, deps, { holdMs: opts.holdMs })
     /*

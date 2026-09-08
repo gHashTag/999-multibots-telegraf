@@ -7625,6 +7625,71 @@ const server = createServer(async (req, res) => {
      * the turn that created it, together with its secret. A route that exists
      * only to be polled is a route that will be.
      */
+    /*
+     * The model, from the bot. GET says which provider answers now and what
+     * stands behind it; POST (owner only) puts one of them first. The choice
+     * survives a restart through agent_settings; AGENT_PROVIDER stays the
+     * deploy-time default underneath it.
+     */
+    if (
+      route === '/api/agent/provider' &&
+      (req.method === 'GET' || req.method === 'POST')
+    ) {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      if (who !== TELEGRAM_OWNER_ID)
+        return sendJson(res, 403, { error: 'только владелец' })
+      const { allProviders } = await import('./src/agent/provider')
+      const { chooseProvider, chosenProvider, isProviderId } = await import(
+        './src/agent/provider-choice'
+      )
+      if (req.method === 'POST') {
+        let asked: unknown = null
+        try {
+          asked = (JSON.parse(await readBody(req)) as { provider?: unknown })
+            .provider
+        } catch {
+          asked = null
+        }
+        if (!isProviderId(asked))
+          return sendJson(res, 400, {
+            error: 'provider: zai | zai-lite | nemotron | ollama',
+          })
+        if (!allProviders().some(p => p.id === asked)) {
+          return sendJson(res, 409, {
+            error: `${asked}: не настроен на этом сервисе (нет ключа или адреса)`,
+          })
+        }
+        let pool: unknown = null
+        try {
+          pool = getPool()
+        } catch {
+          pool = null
+        }
+        await chooseProvider(pool as never, asked)
+        console.log(`[agent] provider chosen from the bot by ${who}: ${asked}`)
+      }
+      const chain = allProviders()
+      const first = chain[0]
+      return sendJson(res, 200, {
+        current: first
+          ? {
+              id: first.id,
+              model: first.model,
+              context: first.context,
+              compact: first.compact,
+            }
+          : null,
+        chosen: chosenProvider(),
+        env: process.env.AGENT_PROVIDER || null,
+        chain: chain.map(p => ({
+          id: p.id,
+          model: p.model,
+          context: p.context,
+        })),
+      })
+    }
+
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
@@ -10843,6 +10908,18 @@ async function main() {
     }
     console.log('🤖 Autopilot: supervised child starting (AUTOPILOT_LOOP=1)')
     startAutopilot()
+  }
+
+  // The owner's last model choice, before the first request can ask.
+  try {
+    const { loadProviderChoice } = await import('./src/agent/provider-choice')
+    const chosen = await loadProviderChoice(getPool())
+    if (chosen) console.log(`[agent] provider choice restored: ${chosen}`)
+  } catch (e) {
+    console.warn(
+      '[agent] provider choice not restored:',
+      String(e).slice(0, 120)
+    )
   }
 
   // A draft that leaves the proposal queue unsent marks its Stars invoice.

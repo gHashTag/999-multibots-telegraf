@@ -146,7 +146,9 @@ async function readConversation(
  */
 export async function спроситьАгента(
   telegramId: string,
-  текст: string
+  текст: string,
+  /** Where the answer will be shown; the server shapes the prompt by it. */
+  opts: { surface?: 'bot' | 'business' } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
     throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
@@ -173,7 +175,7 @@ export async function спроситьАгента(
           'X-Api-Key': apiKey(),
         },
         // surface: 'bot' — сервер сохранит реплику с пометкой, откуда она.
-        body: JSON.stringify({ messages, surface: 'bot' }),
+        body: JSON.stringify({ messages, surface: opts.surface ?? 'bot' }),
         signal: прерыватель.signal,
       }
     )
@@ -271,7 +273,8 @@ export async function спроситьАгента(
  */
 export async function recordTurns(
   telegramId: string,
-  turns: Array<{ role: 'user' | 'assistant'; content: string }>
+  turns: Array<{ role: 'user' | 'assistant'; content: string }>,
+  surface: 'bot' | 'business' = 'bot'
 ): Promise<'recorded' | 'not recorded'> {
   const usable = turns.filter(turn => (turn.content || '').trim())
   if (!apiKey() || !telegramId || !usable.length) return 'not recorded'
@@ -281,7 +284,7 @@ export async function recordTurns(
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
-        body: JSON.stringify({ turns: usable, surface: 'bot' }),
+        body: JSON.stringify({ turns: usable, surface }),
       }
     )
     if (!response.ok) {

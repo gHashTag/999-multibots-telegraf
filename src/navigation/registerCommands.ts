@@ -5,7 +5,7 @@
  * Создаёт полную архитектуру: middleware → navigation → commands → actions.
  */
 
-import { Telegraf } from 'telegraf'
+import { Telegraf, Markup } from 'telegraf'
 import { scrubCallbackSecrets } from '@/utils/scrubCallbackSecrets'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
@@ -257,6 +257,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      * state, and a press that is not theirs falls through untouched.
      */
     registerProposalButtons(bot)
+    registerCrmCommands(bot)
 
     // 3. Добавляем Stage middleware - теперь ctx.scene доступен!
     bot.use(stage.middleware())
@@ -2567,4 +2568,103 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
   })
 
   logger.info('✅ [Navigation] Registered special handlers')
+}
+
+/**
+ * THE MODEL AND THE SELLER, FROM THE BOT. Owner only.
+ *
+ * /model  -- which provider answers now, and buttons to put another first
+ * /leads  -- who to write to next, from the correspondence memory
+ * /sweep  -- one proactive sweep right now; a card follows if there is one
+ */
+export function registerCrmCommands(bot: Telegraf<MyContext>): void {
+  const ownerOnly = (ctx: MyContext) =>
+    Boolean(ctx.from?.id && ADMIN_IDS_ARRAY.includes(ctx.from.id))
+  const modelKeyboard = (current: string | null) =>
+    Markup.inlineKeyboard([
+      [
+        Markup.button.callback(
+          (current === 'ollama' ? '✅ ' : '') + 'Наша',
+          'mdl:ollama'
+        ),
+        Markup.button.callback(
+          (current === 'zai' ? '✅ ' : '') + 'Платная',
+          'mdl:zai'
+        ),
+      ],
+      [
+        Markup.button.callback(
+          (current === 'nemotron' ? '✅ ' : '') + 'Nemotron',
+          'mdl:nemotron'
+        ),
+        Markup.button.callback(
+          (current === 'zai-lite' ? '✅ ' : '') + 'GLM lite',
+          'mdl:zai-lite'
+        ),
+      ],
+    ])
+
+  bot.command('model', requireAdmin(), async ctx => {
+    try {
+      const { getProviderStatus, describeProvider } = await import(
+        '@/services/modelSwitch'
+      )
+      const s = await getProviderStatus(String(ctx.from?.id ?? ''))
+      await ctx.reply(describeProvider(s), modelKeyboard(s.current?.id ?? null))
+    } catch (e: any) {
+      await ctx.reply(`Не получилось узнать модель: ${e?.message ?? e}`)
+    }
+  })
+
+  bot.action(/^mdl:(zai|zai-lite|nemotron|ollama)$/, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    if (!ownerOnly(ctx)) return
+    const id = ctx.match[1] as 'zai' | 'zai-lite' | 'nemotron' | 'ollama'
+    try {
+      const { chooseProvider, describeProvider } = await import(
+        '@/services/modelSwitch'
+      )
+      const s = await chooseProvider(String(ctx.from?.id ?? ''), id)
+      await ctx
+        .editMessageText(
+          describeProvider(s),
+          modelKeyboard(s.current?.id ?? null)
+        )
+        .catch(() =>
+          ctx.reply(describeProvider(s), modelKeyboard(s.current?.id ?? null))
+        )
+    } catch (e: any) {
+      await ctx.reply(`Не переключилось: ${e?.message ?? e}`)
+    }
+  })
+
+  bot.command('leads', requireAdmin(), async ctx => {
+    try {
+      const { fetchLeads } = await import('@/services/modelSwitch')
+      const { text } = await fetchLeads(String(ctx.from?.id ?? ''))
+      await ctx.reply(text)
+    } catch (e: any) {
+      await ctx.reply(`Не получилось: ${e?.message ?? e}`)
+    }
+  })
+
+  bot.command('sweep', requireAdmin(), async ctx => {
+    await ctx.reply(
+      'Обход пошёл: загружаю переписку, спрашиваю агента. Если есть что предложить — карточка придёт сюда.'
+    )
+    try {
+      const { runSweepNow } = await import('@/services/crmProactive')
+      const r = await runSweepNow(bot, String(ctx.from?.id ?? ''))
+      const said: Record<string, string> = {
+        card: 'Готово — карточка выше, кнопки твои.',
+        idle: `Тихо: ${r.why}`,
+        held: 'Прошлая карточка ещё ждёт нажатия — нажми «Отправить» или «Отмена».',
+        busy: 'Обход уже идёт, подожди минуту.',
+        failed: `Не вышло: ${r.why}`,
+      }
+      await ctx.reply(said[r.did] ?? r.did)
+    } catch (e: any) {
+      await ctx.reply(`Не вышло: ${e?.message ?? e}`)
+    }
+  })
 }
