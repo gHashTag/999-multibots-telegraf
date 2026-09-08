@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 /**
  * The memory starts the moment the account is connected: the ingest runs by
@@ -69,7 +70,20 @@ describe('ingestAfterConnect', () => {
   })
 
   it('the connect route fires it after BOTH ways of saving a session', () => {
-    const src = readFileSync('src/agent/tg-connect.ts', 'utf8')
+    /*
+     * READ RELATIVE TO THIS FILE, NOT TO THE WORKING DIRECTORY.
+     *
+     * This path was CWD-relative, so the test passed under the package's own
+     * runner and threw ENOENT under any runner started from the repository
+     * root -- `vitest related`, which the pre-push guard uses. The guard then
+     * reported it as "broken by your change" to whoever happened to touch a
+     * neighbouring file. A test whose verdict depends on the working
+     * directory accuses the innocent.
+     */
+    const src = readFileSync(
+      join(__dirname, 'src', 'agent', 'tg-connect.ts'),
+      'utf8'
+    )
     const saves = src.split('await сохранитьСессию(').length - 1 // cyrillic-ok: pre-existing identifier
     const fires = src.split('void ingestAfterConnect(pool, кто)').length - 1 // cyrillic-ok: pre-existing local
     expect(saves).toBeGreaterThanOrEqual(2)
