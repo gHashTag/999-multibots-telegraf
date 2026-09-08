@@ -3,19 +3,22 @@
 ## 2025-11-12 - Initial Release
 
 ### Problem Solved
+
 Empty API keys in render-riddle payload:
+
 ```json
 {
-  "eleven_labs_api_key": "",  // ❌ Empty
+  "eleven_labs_api_key": "", // ❌ Empty
   "avatar_settings": {
     "heygen": {
-      "api_key": ""  // ❌ Empty
+      "api_key": "" // ❌ Empty
     }
   }
 }
 ```
 
 ### Root Cause
+
 API keys existed in Infisical but were not loaded into `process.env` at application startup because they were missing from the loading list in `src/index.ts`.
 
 ### Solution Implemented
@@ -59,6 +62,7 @@ API keys existed in Infisical but were not loaded into `process.env` at applicat
 ### Manual Steps Required
 
 User must add missing HeyGen keys to Infisical:
+
 - `HEYGEN_COCOAGE_API_KEY` → Infisical dev/prod environment
 - `HEYGEN_HAIM_API_KEY` → Infisical dev/prod environment
 
@@ -66,7 +70,7 @@ User must add missing HeyGen keys to Infisical:
 
 ```bash
 # Verify fix
-npx tsx scripts/check-infisical-keys.ts
+npx tsx scripts/infisical/check-infisical-keys.ts
 
 # Expected output:
 # ✅ ELEVENLABS_API_KEY: ... (51 символов)

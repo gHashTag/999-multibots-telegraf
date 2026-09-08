@@ -1,6 +1,6 @@
 ---
-name: "Version Management & Snapshots"
-description: "Automated semantic versioning, git tagging, and production snapshot management with rollback capability"
+name: 'Version Management & Snapshots'
+description: 'Automated semantic versioning, git tagging, and production snapshot management with rollback capability'
 ---
 
 # Version Management & Snapshots
@@ -8,6 +8,7 @@ description: "Automated semantic versioning, git tagging, and production snapsho
 ## When to Use This Skill
 
 Automatically activate when detecting:
+
 - User mentions "создать версию", "сохранить snapshot", "version", "release"
 - Successful production deployment completion
 - Request to tag or snapshot current state
@@ -39,6 +40,7 @@ v0.0.6
 ### Step 1: Determine Version Number
 
 **When to increment:**
+
 - **Patch (0.0.X)**: Bug fixes, config changes, minor updates
 - **Minor (0.X.0)**: New features, API additions (backward compatible)
 - **Major (X.0.0)**: Breaking changes, architecture overhaul
@@ -194,6 +196,7 @@ ssh prod999 "docker logs -f --tail 50 999-multibots"
 ## Verification Checklist
 
 After creating version, verify:
+
 - [ ] Git tag created: `git tag -l | grep v0.0.6`
 - [ ] Tag pushed to remote: Check GitHub tags
 - [ ] Production snapshot exists: `ssh prod999 "ls -lah /root/bot-farm/.snapshots/"`
@@ -205,11 +208,39 @@ After creating version, verify:
 
 ## Automation Script
 
-Create helper script for version management:
+> ⚠️ **TEMPLATE ONLY — `scripts/create-version.sh` does NOT exist in this repo.
+> There is nothing here to run.**
+>
+> It existed once: added 2025-11-12 by commit `141095d07` (the same commit that
+> created this skill) and deleted 2025-12-06 by commit `0fc05b4aa`
+> ("Major cleanup and reorganization of project structure"). It was removed
+> outright, not moved — `git ls-files` finds no `create-version.sh` anywhere in
+> the tree today, and no other script replaced it.
+>
+> Two ways forward:
+>
+> 1. **Recover the real script from git history.** The deleted 112-line version
+>    is still in the object store, and it is better than the sketch below
+>    (argument validation, `vX.Y.Z` format check, duplicate-tag check, 5-step
+>    progress log):
+>    ```bash
+>    git show 0fc05b4aa^:scripts/create-version.sh > scripts/create-version.sh
+>    chmod +x scripts/create-version.sh
+>    ```
+> 2. **Or copy the abridged template below into `scripts/create-version.sh`
+>    yourself** and `chmod +x` it. It is a shortened sketch, not the deleted
+>    script, and it has not been executed from this tree — expect to debug it
+>    before pointing it at production.
+>
+> Either way, review it against the current infrastructure first: the snapshot
+> steps assume the `prod999` SSH host and the `/root/bot-farm` layout described
+> above. Once you have saved the file, the `./scripts/create-version.sh` usage
+> line it prints becomes accurate; until then it refers to nothing.
 
 ```bash
-# scripts/create-version.sh
 #!/bin/bash
+# TEMPLATE — this file is NOT in the repo. Save it as scripts/create-version.sh
+# before any of the usage below works.
 
 VERSION=$1
 MESSAGE=$2
@@ -296,16 +327,25 @@ ssh prod999 "cd /root/bot-farm && tar -xzf .snapshots/v0.0.5-*.tar.gz"
 - **GitHub Releases**: https://github.com/gHashTag/999-multibots-telegraf/tags
 - **Production Server**: 212.86.115.30 (ssh alias: prod999)
 - **Snapshots Directory**: `/root/bot-farm/.snapshots/`
+- **Rollback script** — the only script this skill actually ships:
+  `.claude/skills/version-management/scripts/rollback.sh`. Its own header says
+  `./scripts/rollback.sh`, but there is no such file at the repo root; invoke it
+  from the skill path above.
+- **Version-creation script**: none. See the "Automation Script" section — the
+  former `scripts/create-version.sh` was deleted in December 2025 and only
+  survives in git history.
 
 ## Safety Notes
 
 **Before creating new version:**
+
 1. Ensure all tests pass
 2. Verify production deployment successful
 3. Check logs for errors
 4. Confirm all services operational
 
 **Before rollback:**
+
 1. Create snapshot of current state (safety backup)
 2. Notify team about rollback
 3. Document reason for rollback
@@ -314,6 +354,7 @@ ssh prod999 "cd /root/bot-farm && tar -xzf .snapshots/v0.0.5-*.tar.gz"
 ## Next Version Prediction
 
 Based on current pattern (v0.0.6):
+
 - **Next patch**: v0.0.7 (bug fixes, minor improvements)
 - **Next minor**: v0.1.0 (new features, backward compatible)
 - **Next major**: v1.0.0 (production-ready milestone)
@@ -321,6 +362,7 @@ Based on current pattern (v0.0.6):
 ## Success Indicators
 
 After version creation:
+
 ```bash
 # Verify tag exists
 git tag | grep v0.0.6

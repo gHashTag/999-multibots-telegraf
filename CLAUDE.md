@@ -834,6 +834,8 @@ description: 'When and how to use this skill'
 
 - `fix-empty-api-keys/` - Исправление пустых API ключей в payload (ElevenLabs, HeyGen)
 - `restore-env-from-infisical/` - Восстановление .env из Infisical
+- `t27-model-training/` - Что можно обучать под t27: почему LoRA а не с нуля,
+  почему не на Railway (нет GPU), и сборщик парного корпуса IGLA CODER
 - `telegram-scene-builder/` - Создание Telegram wizards
 - `deployment-automation/` - Production deployment
 - ... (и другие по мере создания)
