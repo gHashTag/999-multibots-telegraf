@@ -4,7 +4,7 @@ import { resolveLead } from './crm-offer-tool'
 import { balanceOf } from './billing-shared'
 import { touchedSince, touchesFor } from './crm-touches'
 import {
-  rememberMessages,
+  rememberMessagesFresh,
   leadContext,
   leadCandidates,
   type StoredMessage,
@@ -29,6 +29,19 @@ import {
  * sees here is framed as foreign content first.
  */
 const NUMERIC = /^\d{5,15}$/
+/**
+ * Telegram's own accounts look like people to a dialog filter: 777000 (the
+ * service notifications, login codes included), 42777 (verification codes),
+ * 333000 and the two bot-shaped system peers. None of them is a lead, and
+ * 777000 is the one chat that must never leave the account.
+ */
+const SERVICE_IDS = new Set([
+  '777000',
+  '42777',
+  '333000',
+  '1087968824',
+  '136817688',
+])
 const DIALOGS_DEFAULT = 30
 const DIALOGS_MAX = 200
 const DEPTH_DEFAULT = 100
@@ -40,6 +53,8 @@ interface DialogLike {
   entity?: {
     bot?: boolean
     self?: boolean
+    support?: boolean
+    deleted?: boolean
     firstName?: string
     username?: string
   }
@@ -103,8 +118,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         report.dialogs_seen = dialogs.length
         for (const d of dialogs) {
           if (!d.isUser || d.entity?.bot || d.entity?.self) continue
+          if (d.entity?.support || d.entity?.deleted) continue
           const lead = d.id?.toString() ?? ''
-          if (!NUMERIC.test(lead)) continue
+          if (!NUMERIC.test(lead) || SERVICE_IDS.has(lead)) continue
           let raw: MessageLike[]
           try {
             raw = (await c.getMessages(lead, { limit: depth })) as MessageLike[]
@@ -123,11 +139,14 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             }))
           report.people += 1
           report.messages_read += msgs.length
-          report.messages_new += await rememberMessages(pool, owner, lead, msgs)
-          if (zepConfigured() && msgs.length) {
+          // Only what is NEW reaches the mirror: the same dialog read again
+          // must not be posted to Zep again.
+          const fresh = await rememberMessagesFresh(pool, owner, lead, msgs)
+          report.messages_new += fresh.length
+          if (zepConfigured() && fresh.length) {
             await zepEnsureUser(lead, d.entity?.firstName ?? null)
             await zepEnsureThread(owner, lead)
-            report.zep_mirrored += await zepAddMessages(owner, lead, msgs)
+            report.zep_mirrored += await zepAddMessages(owner, lead, fresh)
           }
         }
       } finally {

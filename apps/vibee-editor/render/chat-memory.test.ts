@@ -116,6 +116,36 @@ describe('what the words say', () => {
   })
 })
 
+describe('a word is a word, not a prefix of another', () => {
+  it('the commonest conjunction is not an objection, a centre is not a price, bathing is not buying', () => {
+    expect(
+      intentSignals(['потому что мне понравился ваш рилс']).signals
+    ).toEqual(['service'])
+    expect(intentSignals(['мы в центре города']).signals).toEqual([])
+    expect(intentSignals(['вчера купались']).signals).toEqual([])
+    expect(intentSignals(['какая цена?']).signals).toEqual(['price'])
+    expect(intentSignals(['хочу купить видео']).signals).toEqual([
+      'buy',
+      'service',
+    ])
+    expect(intentSignals(['подумаю, потом']).signals).toEqual(['objection'])
+  })
+})
+
+describe('what is new', () => {
+  it('rememberMessagesFresh hands back only the rows the database took', async () => {
+    const { rememberMessagesFresh } = await import('./src/agent/chat-memory')
+    const pool = fakePool([
+      { when: /^INSERT INTO crm_messages/, rows: () => [{ msg_id: 2 }] },
+    ])
+    const fresh = await rememberMessagesFresh(pool, OWNER, '555', [
+      { msgId: 1, at: D('2026-09-01T10:00:00Z'), out: false, text: 'a' },
+      { msgId: 2, at: D('2026-09-01T10:01:00Z'), out: false, text: 'b' },
+    ])
+    expect(fresh.map(m => m.msgId)).toEqual([2])
+  })
+})
+
 describe('the story of one person', () => {
   const rows = [
     { msg_id: 3, at: '2026-09-07T10:00:00Z', out: false, text: 'а цена?' },
