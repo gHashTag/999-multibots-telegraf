@@ -140,16 +140,64 @@ describe('the number of money refusals with nothing to press does not grow', () 
          *
          * A quotation is not an invocation. Comments are blanked first.
          */
-        const window = stripComments(
+        /*
+         * FOLLOW THE VARIABLE TO WHERE IT IS SENT.
+         *
+         * A window around the refusal line only sees the keyboard when the
+         * message is built and sent in the same breath. In generateFluxKontext
+         * the text is assigned at :552 and sent at :590 -- thirty-eight lines
+         * away, in a shared error handler. Attaching standardButtons there is
+         * a real repair that this matcher could not see: three fixes moved the
+         * count by ZERO, which is the tell.
+         *
+         * So when the refusal is assigned to a name, the windows around every
+         * send of that name join the search. Still an upper bound, and now a
+         * tighter one.
+         */
+        // The assignment can sit three lines up: `x = isRu` / `? 'ru'` / `: 'en'`,
+        // and the adjacent-line rule lands this loop on either half. Looking
+        // back one line found nothing and the count did not move -- the tell
+        // that the lookback, not the idea, was wrong.
+        let assigned = null
+        for (let back = 0; back <= 3 && !assigned; back++)
+          assigned = /(\w+)\s*=\s*(?:$|[`'"]|\w)/.exec(lines[i - back] || '')
+        let window = stripComments(
           lines.slice(Math.max(0, i - 8), i + 15).join('\n')
         )
+        const name = assigned && (assigned[1] || assigned[2])
+        if (name) {
+          for (let k = 0; k < lines.length; k++) {
+            if (
+              !new RegExp(`sendMessage\\([\\s\\S]{0,120}?\\b${name}\\b`).test(
+                lines.slice(k, k + 6).join('\n')
+              )
+            )
+              continue
+            window +=
+              '\n' +
+              stripComments(lines.slice(Math.max(0, k - 4), k + 12).join('\n'))
+          }
+        }
         sites.push({
           file,
           line: i + 1,
-          keyboard:
-            /reply_markup|Markup\.|inline_keyboard|standardButtons|keyboard\(/.test(
-              window
-            ),
+          /*
+           * REMOVING A KEYBOARD IS NOT OFFERING ONE, and the old predicate
+           * could not tell them apart: `reply_markup: { remove_keyboard: true }`
+           * contains the string `reply_markup`, so a message that strips the
+           * keyboard counted as answering. That is how three real repairs in
+           * generateFluxKontext moved this number by ZERO -- the sites were
+           * already scored as answered while the person had nothing to press.
+           */
+          keyboard: (() => {
+            const w = window.replace(
+              /reply_markup:\s*\{\s*remove_keyboard[\s\S]{0,40}?\}/g,
+              ' '
+            )
+            return /reply_markup|Markup\.|inline_keyboard|standardButtons|keyboard\(/.test(
+              w
+            )
+          })(),
         })
       }
     }
@@ -161,6 +209,39 @@ describe('the number of money refusals with nothing to press does not grow', () 
     expect(isRefusal('      ? `❌ Недостаточно средств.`')).toBe(true)
     expect(isRefusal("  logger.error('❌ Недостаточно средств', {")).toBe(false)
     expect(isRefusal("await ctx.reply('Балан пополнен')")).toBe(false)
+  })
+
+  it('scores a removed keyboard as no keyboard, and a real one as a keyboard', () => {
+    /*
+     * A CEILING CANNOT CATCH A LOOSENED DETECTOR: scoring more sites as
+     * "answered" only makes the number smaller, and smaller passes. This is the
+     * control that can fail.
+     *
+     * It exists because the predicate matched the literal `reply_markup`, and
+     * `reply_markup: { remove_keyboard: true }` contains it -- so a message
+     * that STRIPS the keyboard scored as offering one. Three real repairs in
+     * generateFluxKontext therefore moved the count by zero.
+     */
+    const score = (w: string) =>
+      /reply_markup|Markup\.|inline_keyboard|standardButtons|keyboard\(/.test(
+        w.replace(/reply_markup:\s*\{\s*remove_keyboard[\s\S]{0,40}?\}/g, ' ')
+      )
+    expect(
+      score(
+        'await ctx.telegram.sendMessage(id, msg, { reply_markup: { remove_keyboard: true } })'
+      ),
+      'removing the keyboard is not offering one'
+    ).toBe(false)
+    expect(
+      score('await ctx.telegram.sendMessage(id, msg, standardButtons(isRu))'),
+      'the shared top-up keyboard must still score as answered'
+    ).toBe(true)
+    expect(
+      score(
+        'await ctx.reply(msg, { reply_markup: { inline_keyboard: rows } })'
+      ),
+      'a real inline keyboard must still score as answered'
+    ).toBe(true)
   })
 
   it('still scans a population of the expected size', () => {
@@ -175,13 +256,18 @@ describe('the number of money refusals with nothing to press does not grow', () 
     const mute = sites.filter(s => !s.keyboard)
     expect(
       mute.length,
+      // 34, bisected with THIS matcher on both sides -- main and this branch
+      // both fail at 33 and pass at 34. The three repairs in this change moved
+      // it by ZERO, and that is stated rather than dressed up: they are pinned
+      // by the assertion below instead, which names them.
+      //
       // TIGHT, and it has to be: a ceiling one above the real figure cannot see
       // a regression of one. Bisected with the CORRECTED classifier on both
       // sides -- clean main fails at 42, this branch fails at 37 and passes at
       // 38. Measuring the two sides with different instruments is how the first
       // version of this claim came out wrong.
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(38)
+    ).toBeLessThanOrEqual(34)
   })
 
   /**
@@ -214,6 +300,55 @@ describe('the number of money refusals with nothing to press does not grow', () 
       still,
       `still refusing with nothing to press: ${still.join(', ')}`
     ).toEqual([])
+  })
+
+  it('the three flux refusals send the button instead of removing the keyboard', () => {
+    /*
+     * NAMED, BECAUSE THE COUNT CANNOT SEE THEM. All three build the message in
+     * a shared error handler and send it thirty-odd lines later, where
+     * replyMarkup defaults to `{ remove_keyboard: true }` -- so a person short
+     * of stars was left with the keyboard STRIPPED. The repair sets a flag on
+     * the money branch and swaps that default for standardButtons.
+     *
+     * Order is the property: a flag set after the send guards nothing.
+     */
+    const src = fs
+      .readFileSync(
+        path.join(ROOT, 'src/services/generateFluxKontext.ts'),
+        'utf8'
+      )
+      .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+      .replace(/^([^'"`\n]*?)\/\/.*$/gm, (_m, keep) => keep)
+
+    const flags = (src.match(/refusedForMoney = true/g) || []).length
+    expect(flags, 'each money branch must raise the flag').toBe(3)
+
+    const uses = (src.match(/refusedForMoney\s*\?/g) || []).length
+    expect(uses, 'each send must consult it').toBe(3)
+
+    expect(
+      (src.match(/standardButtons\(params\.is_ru\)/g) || []).length,
+      'and each must lead to the shared top-up keyboard'
+    ).toBe(3)
+
+    // The flag must be raised before it is read, in every handler.
+    // A literal search fails here: prettier puts the `?` on its own line, so
+    // 'refusedForMoney ?' never appears as typed. Search the shape, not the text.
+    const nextMatch = (re: RegExp, at: number) => {
+      const m = re.exec(src.slice(at))
+      return m ? at + m.index : -1
+    }
+    let from = 0
+    for (let n = 0; n < 3; n++) {
+      const set = src.indexOf('refusedForMoney = true', from)
+      const use = nextMatch(/refusedForMoney\s*\?/, set)
+      expect(set, `handler ${n + 1}: flag not set`).toBeGreaterThan(-1)
+      expect(
+        use,
+        `handler ${n + 1}: flag never read after being set`
+      ).toBeGreaterThan(set)
+      from = use
+    }
   })
 
   it('the shared helper is no longer one of them', () => {
