@@ -23,6 +23,8 @@
  * within a week. `--gate` fails on violations INSIDE the window (default: this
  * year), so an old scar stays visible without drowning a new one.
  */
+const fs = require('fs')
+
 const WINDOW_FROM = process.env.LEDGER_SINCE || '2026-01-01'
 
 /** The invariants, each a pure function over rows so they can be self-checked. */
@@ -169,43 +171,97 @@ async function pageAll(url, key) {
   return out
 }
 
+/**
+ * THE VERDICT, SEPARATED FROM THE FETCH.
+ *
+ * It used to be computed inside main(), between a network call and a
+ * console.log, which meant the only way to see this gate go red was for
+ * production to actually break. Five invariants, every violation historical:
+ * the branch that fails the build had never executed once.
+ *
+ * As a pure function over rows it can be SHOWN failing on a planted row, which
+ * is the difference between a gate and a decoration.
+ */
+function judge(rows, since) {
+  return INVARIANTS.map(inv => {
+    const all = inv.find(rows)
+    const recent = all.filter(r => String(r.payment_date) >= since)
+    return {
+      name: inv.name,
+      why: inv.why,
+      all,
+      recent,
+      newest: all.length
+        ? all
+            .map(r => r.payment_date)
+            .sort()
+            .slice(-1)[0]
+            .slice(0, 10)
+        : null,
+    }
+  })
+}
+
+/** How many rows break an invariant inside the window. The gate reads this. */
+function brokenInWindow(verdict) {
+  return verdict.reduce((n, v) => n + v.recent.length, 0)
+}
+
 async function main() {
   selfCheck()
   const url = process.env.SUPABASE_URL
   const key =
     process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) {
+    /*
+     * Exit 2, never 0. A ledger check that cannot reach the ledger has not
+     * found a clean ledger -- it has not looked. That distinction is why this
+     * exit differs from a violation's 1: a caller can tell "nothing is wrong"
+     * from "nothing was checked", and neither of them is silence.
+     */
     console.error('Needs SUPABASE_URL and SUPABASE_SERVICE_KEY. Reads only.')
+    console.error('Exiting 2 (could not check) — not the 1 of a violation.')
     process.exit(2)
   }
   const gate = process.argv.includes('--gate')
-  const rows = await pageAll(url, key)
+
+  /*
+   * A SEAM SO THE RED PATH CAN BE SHOWN WORKING.
+   *
+   * The exit code is the whole product of a gate, and this one's failing
+   * branch had never run: production has no violation inside the window, so
+   * every execution has taken the green path. A gate proven only on green is
+   * a gate nobody has seen work.
+   *
+   * With LEDGER_ROWS_FILE the rows come from a file instead of the ledger,
+   * which lets a test plant one violation and watch the process exit 1. It is
+   * read-only either way -- this script writes nothing anywhere -- and it says
+   * out loud which source it used, so a run against a file can never be
+   * mistaken for a run against production.
+   */
+  const fromFile = process.env.LEDGER_ROWS_FILE
+  const rows = fromFile
+    ? JSON.parse(fs.readFileSync(fromFile, 'utf8'))
+    : await pageAll(url, key)
+  if (fromFile)
+    console.log(`ROWS FROM A FILE (${fromFile}), NOT FROM THE LEDGER\n`)
   console.log(`payments_v2: ${rows.length} rows, window from ${WINDOW_FROM}\n`)
 
-  let recentTotal = 0
-  for (const inv of INVARIANTS) {
-    const bad = inv.find(rows)
-    const recent = bad.filter(r => String(r.payment_date) >= WINDOW_FROM)
-    recentTotal += recent.length
-    const newest = bad.length
-      ? bad
-          .map(r => r.payment_date)
-          .sort()
-          .slice(-1)[0]
-          .slice(0, 10)
-      : '—'
-    const mark = recent.length ? 'BROKEN' : bad.length ? 'healed' : 'clean '
-    console.log(`  ${mark}  ${inv.name}`)
+  const verdict = judge(rows, WINDOW_FROM)
+  const recentTotal = brokenInWindow(verdict)
+  for (const v of verdict) {
+    const mark = v.recent.length ? 'BROKEN' : v.all.length ? 'healed' : 'clean '
+    console.log(`  ${mark}  ${v.name}`)
     console.log(
-      `          all time ${String(bad.length).padStart(5)}   in window ${String(recent.length).padStart(4)}   newest ${newest}`
+      `          all time ${String(v.all.length).padStart(5)}   in window ${String(v.recent.length).padStart(4)}   newest ${v.newest ?? '-'}`
     )
-    if (bad.length && !recent.length)
-      console.log(`          (${inv.why} — historical, nothing since)`)
-    if (recent.length) {
-      console.log(`          ${inv.why}`)
-      for (const r of recent.slice(0, 5)) {
+    if (v.all.length && !v.recent.length)
+      console.log(`          (${v.why} - historical, nothing since)`)
+    if (v.recent.length) {
+      console.log(`          ${v.why}`)
+      for (const r of v.recent.slice(0, 5)) {
         console.log(
-          `            id=${r.id} tg=${r.telegram_id} ${String(r.payment_date).slice(0, 10)} ${r.type} ${r.stars}⭐ inv=${r.inv_id ?? '-'}`
+          `            id=${r.id} tg=${r.telegram_id} ${String(r.payment_date).slice(0, 10)} ${r.type} ${r.stars} inv=${r.inv_id ?? '-'}`
         )
       }
     }
@@ -216,7 +272,7 @@ async function main() {
   if (gate && recentTotal > 0) process.exit(1)
 }
 
-module.exports = { INVARIANTS, selfCheck }
+module.exports = { INVARIANTS, selfCheck, judge, brokenInWindow }
 if (require.main === module)
   main().catch(e => {
     console.error(e)
