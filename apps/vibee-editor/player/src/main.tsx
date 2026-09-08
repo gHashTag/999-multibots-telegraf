@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { installGlobalClientErrorReporting } from '@/lib/clientErrorBeacon'
 import './index.css'
 import './styles/design-system.css'
 // Declares the open-web defaults for every --app-* property, so the Telegram
@@ -35,10 +36,10 @@ if (import.meta.env.DEV) {
 // Storage Version — force reset when defaults change
 // Bump this value whenever production defaults are updated
 // ===============================
-const STORAGE_VERSION = '4';
-const VERSION_KEY = 'vibee-storage-version';
+const STORAGE_VERSION = '4'
+const VERSION_KEY = 'vibee-storage-version'
 
-const storedVersion = localStorage.getItem(VERSION_KEY);
+const storedVersion = localStorage.getItem(VERSION_KEY)
 if (storedVersion !== STORAGE_VERSION) {
   // Clear all VIBEE storage keys so new defaults take effect
   /**
@@ -59,22 +60,26 @@ if (storedVersion !== STORAGE_VERSION) {
     'vibee-agent-chat-draft',
     'vibee-last-route',
     'vibee-soul',
-  ]);
-  const keysToRemove: string[] = [];
+  ])
+  const keysToRemove: string[] = []
   for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
+    const key = localStorage.key(i)
     if (
       key &&
       !KEEP.has(key) &&
-      (key.startsWith('vibee-') || key.startsWith('@vibee/') || key.startsWith('editor:'))
+      (key.startsWith('vibee-') ||
+        key.startsWith('@vibee/') ||
+        key.startsWith('editor:'))
     ) {
-      keysToRemove.push(key);
+      keysToRemove.push(key)
     }
   }
-  keysToRemove.forEach((key) => localStorage.removeItem(key));
-  localStorage.setItem(VERSION_KEY, STORAGE_VERSION);
+  keysToRemove.forEach(key => localStorage.removeItem(key))
+  localStorage.setItem(VERSION_KEY, STORAGE_VERSION)
   if (keysToRemove.length > 0) {
-    console.log(`[VIBEE] Storage reset (v${storedVersion} → v${STORAGE_VERSION}), cleared ${keysToRemove.length} keys`);
+    console.log(
+      `[VIBEE] Storage reset (v${storedVersion} → v${STORAGE_VERSION}), cleared ${keysToRemove.length} keys`
+    )
   }
 }
 
@@ -83,14 +88,16 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     // Video Cache Service Worker (Phase 12 optimization)
     // Provides persistent video caching across sessions
-    navigator.serviceWorker.register('/sw-video-cache.js').catch((error) => {
-      console.log('Video Cache SW registration failed:', error);
-    });
-  });
+    navigator.serviceWorker.register('/sw-video-cache.js').catch(error => {
+      console.log('Video Cache SW registration failed:', error)
+    })
+  })
 }
+
+installGlobalClientErrorReporting()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
-  </StrictMode>,
+  </StrictMode>
 )

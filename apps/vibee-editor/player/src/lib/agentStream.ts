@@ -25,6 +25,7 @@ import { agentMessagesAtom } from '@/atoms/agentChat'
 import type { AgentAttachment, Message } from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
+import { reportClientError } from '@/lib/clientErrorBeacon'
 
 /** Идёт ли ответ прямо сейчас. В атоме, а не в useState: переживает уход. */
 export const agentBusyAtom = atom(false)
@@ -90,7 +91,18 @@ export async function sendToAgent(
 
   editorStore.set(agentMessagesAtom, prev => [...prev, userMsg, agentMsg])
 
-  try {
+  /**
+   * A network drop before the first byte is retried once. 08.09.2026 the
+   * render container was replaced mid-conversation (SIGTERM, ~5 min until the
+   * next one answered) and the person saw "Network unavailable: TypeError:
+   * Load failed" twice with no explanation; a second attempt a few seconds
+   * later is what they would do by hand. Once text has arrived the stream is
+   * not retried: the answer would be sent twice.
+   */
+  const MAX_ATTEMPTS = 2
+  const startedAt = Date.now()
+  let receivedText = false
+  const attempt = async (): Promise<void> => {
     // Личность: обычно подпись Telegram (authHeaders ставит
     // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
     // задан VITE_AGENT_KEY, идём ключом агента. Ветка ТОЛЬКО для
@@ -173,7 +185,10 @@ export async function sendToAgent(
            * сходил и проверил. Разрыв ставим один раз на границе — не на
            * каждой дельте, иначе получим лесенку из пустых строк.
            */
-          if (chunk) былТекст = true
+          if (chunk) {
+            былТекст = true
+            receivedText = true
+          }
           const разрыв = послеИнструмента ? '\n\n' : ''
           послеИнструмента = false
           patch(agentId, m => ({
@@ -226,11 +241,38 @@ export async function sendToAgent(
       // человек понимал, почему мысль не закончена.
       patch(agentId, m => ({ ...m, text: `${m.text}\n\n⚠️ ${текстОбрыва}` }))
     }
+  }
+  try {
+    for (let n = 1; n <= MAX_ATTEMPTS; n++) {
+      try {
+        await attempt()
+        break
+      } catch (e) {
+        const networkDrop = e instanceof TypeError
+        if (networkDrop && !receivedText && n < MAX_ATTEMPTS) {
+          patch(agentId, m => ({
+            ...m,
+            text: 'Соединение прервалось (сеть или обновление сервера), повторяю…',
+          }))
+          await new Promise(r => setTimeout(r, 2500))
+          continue
+        }
+        throw e
+      }
+    }
   } catch (e) {
+    const detail = String(e).slice(0, 160)
     patch(agentId, m => ({
       ...m,
-      text: `Сеть недоступна: ${String(e).slice(0, 160)}`,
+      text:
+        (receivedText && m.text ? `${m.text}\n\n` : '') +
+        `Не удалось связаться с сервером: ${detail}. Нажмите «Повтори» через минуту.`,
     }))
+    reportClientError({
+      kind: 'agent_stream_failed',
+      message: detail,
+      context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText}`,
+    })
   } finally {
     inFlight = false
     editorStore.set(agentBusyAtom, false)
