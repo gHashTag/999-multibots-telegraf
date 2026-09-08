@@ -1826,6 +1826,9 @@ src/__tests__/core/openai/answerAiPromptInjection.test.ts :: answerAi does not i
 src/__tests__/core/openai/answerAiPromptInjection.test.ts :: answerAi does not inject untrusted profile data into the system prompt keeps only the language directive in the system prompt (no user context)
 src/__tests__/core/openai/answerAiPromptInjection.test.ts :: answerAi does not inject untrusted profile data into the system prompt never stringifies raw userData (only the sanitized copy)
 src/__tests__/core/openai/answerAiPromptInjection.test.ts :: answerAi does not inject untrusted profile data into the system prompt sanitizes each profile field (strip control chars, cap length)
+src/__tests__/core/openai/answerAiReplicateFallback.test.ts :: answerAi: Replicate is the last link of the chain a failing Replicate call is reported, not swallowed into an empty answer
+src/__tests__/core/openai/answerAiReplicateFallback.test.ts :: answerAi: Replicate is the last link of the chain control: without the token the chain still ends in the honest throw
+src/__tests__/core/openai/answerAiReplicateFallback.test.ts :: answerAi: Replicate is the last link of the chain with every keyed provider gone and REPLICATE_API_TOKEN set, the answer comes from chatWithAI
 src/__tests__/core/openai/glm-provider.test.ts :: GLMProvider uses the Z.AI coding endpoint and coder model
 src/__tests__/core/openai/requests.test.ts :: answerAi 1. Gemini модель + запрос на изображение должна возвращать текстовую ошибку если Nano Banana Pro не удалось
 src/__tests__/core/openai/requests.test.ts :: answerAi 1. Gemini модель + запрос на изображение должна извлекать промпт из запроса (убирать ключевые слова)
@@ -5197,7 +5200,15 @@ src/__tests__/services/broadcastMassDelete.test.ts :: broadcast does not mass-de
 src/__tests__/services/business-autoreply-single-flight.test.ts :: business auto-reply is single-flight per sender checks .has() before .add(), and .add() before chatWithAI
 src/__tests__/services/business-autoreply-single-flight.test.ts :: business auto-reply is single-flight per sender declares a module-scope in-flight set
 src/__tests__/services/business-autoreply-single-flight.test.ts :: business auto-reply is single-flight per sender releases the key in a finally block
-src/__tests__/services/businessDmSeller.test.ts :: messages that must never be answered a photo gets the text-only reply and is counted; a sticker gets nothing; neither reaches the LLM
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM a failed relay degrades to a text pointer for the owner; the customer is still answered
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM a photo WITH a caption is relayed and the caption is answered by the LLM with a media note
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM a video note has no caption: the file goes first, the text pointer second
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM animation is relayed to the owner and answered with an offer
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM document is relayed to the owner and answered with an offer
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM the owner's own media inside a customer chat only pauses the AI, nothing is relayed
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM video is relayed to the owner and answered with an offer
+src/__tests__/services/businessDmMedia.test.ts :: customer media in the owner DM voice is relayed to the owner and answered with an offer
+src/__tests__/services/businessDmSeller.test.ts :: messages that must never be answered a photo is relayed to the owner and answered with a service offer; a sticker gets nothing; neither reaches the LLM
 src/__tests__/services/businessDmSeller.test.ts :: messages that must never be answered is_from_offline and sender_business_bot: no reply, no LLM, no lead
 src/__tests__/services/businessDmSeller.test.ts :: messages that must never be answered the owner typing in the chat silences the AI there for OWNER_TAKEOVER_MS, then it resumes
 src/__tests__/services/businessDmSeller.test.ts :: owner lead notification a failed notification never blocks the reply and is retried on the next message
@@ -5415,6 +5426,11 @@ src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor mus
 src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly slices a bounded window
 src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly slices from the anchor to the end
 src/__tests__/tools/aMissingAnchorMustFailLoudly.test.ts :: a missing anchor must fail loudly the failure is not a vacuous pass: the old shape would go green here
+src/__tests__/tools/aSecretOnDiskMustBeFound.test.ts :: a secret on disk must be found before it is copied NEVER returns the value, only where and how long
+src/__tests__/tools/aSecretOnDiskMustBeFound.test.ts :: a secret on disk must be found before it is copied a handful of settings is a config file, not a dump
+src/__tests__/tools/aSecretOnDiskMustBeFound.test.ts :: a secret on disk must be found before it is copied does not cry wolf over ordinary source and config
+src/__tests__/tools/aSecretOnDiskMustBeFound.test.ts :: a secret on disk must be found before it is copied finds the shapes that actually leaked here
+src/__tests__/tools/aSecretOnDiskMustBeFound.test.ts :: a secret on disk must be found before it is copied recognises a whole env dump by shape, not by any single value
 src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout answers for EVERY occurrence, and enclosedBy asks whether ANY qualifies
 src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout does NOT reach past the block that really encloses the line
 src/__tests__/tools/anchorsMustNotAssertLayout.test.ts :: anchors must not assert layout is unmoved by a comment and a blank line at the top of the block
@@ -5542,6 +5558,10 @@ src/__tests__/tools/theAlarmNamesTheLikeliestCauseFirst.test.ts :: the factory a
 src/__tests__/tools/theAlarmNamesTheLikeliestCauseFirst.test.ts :: the factory alarm names the likeliest cause first says the zero is a choice, not a fault
 src/__tests__/tools/theAlarmNamesTheLikeliestCauseFirst.test.ts :: the factory alarm names the likeliest cause first still returns non-zero, so a caller can act on it
 src/__tests__/tools/theAlarmNamesTheLikeliestCauseFirst.test.ts :: the factory alarm names the likeliest cause first warns rather than failing, since silence may be intended
+src/__tests__/tools/theBlindSliceCensusIsClosed.test.ts :: the blind slice census is closed every entry carries a reason, not just a name
+src/__tests__/tools/theBlindSliceCensusIsClosed.test.ts :: the blind slice census is closed every unguarded site was examined, or this fails naming the file
+src/__tests__/tools/theBlindSliceCensusIsClosed.test.ts :: the blind slice census is closed the census still finds sites, so the matcher has not gone blind
+src/__tests__/tools/theBlindSliceCensusIsClosed.test.ts :: the blind slice census is closed the registry has no stale entries: a converted file must leave it
 src/__tests__/tools/theGateSaysWhyAFileProducedNothing.test.ts :: the gate says why a file produced no tests actually captures stderr, rather than discarding it as before
 src/__tests__/tools/theGateSaysWhyAFileProducedNothing.test.ts :: the gate says why a file produced no tests claims nothing when the failure is not a missing module
 src/__tests__/tools/theGateSaysWhyAFileProducedNothing.test.ts :: the gate says why a file produced no tests names it in the ESM wording too, which is a different sentence
@@ -5568,6 +5588,11 @@ src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never rea
 src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never reaches the caller, whatever happens resolves when there is no person to attribute the step to
 src/__tests__/tools/triForwardsItsArguments.test.ts :: tri forwards the arguments it was given does not forward with ${@:2}, which skips one after the shift
 src/__tests__/tools/triForwardsItsArguments.test.ts :: tri forwards the arguments it was given really passes a file argument through to the script
+src/__tests__/tools/triSecretsScansWhereNothingElseLooks.test.ts :: tri secrets scans where nothing else looks NO alias is claimed twice: the dispatcher takes the first and says nothing
+src/__tests__/tools/triSecretsScansWhereNothingElseLooks.test.ts :: tri secrets scans where nothing else looks it is NOT wired into a git hook
+src/__tests__/tools/triSecretsScansWhereNothingElseLooks.test.ts :: tri secrets scans where nothing else looks it refuses to guess when there is nothing to scan
+src/__tests__/tools/triSecretsScansWhereNothingElseLooks.test.ts :: tri secrets scans where nothing else looks its default roots are the temp dirs, and NOT the repository
+src/__tests__/tools/triSecretsScansWhereNothingElseLooks.test.ts :: tri secrets scans where nothing else looks the subcommand exists and is dispatched
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing defines a FLAKY_RETRY set
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing retries both test:bun and audit
 src/__tests__/tools/viteCacheNotShared.test.ts :: the vite cache is not shared between worktrees the cache directory is ignored by git
