@@ -62,6 +62,42 @@ function moduleOf(text) {
   return m ? m[1].replace(/;$/, '') : null
 }
 
+/**
+ * NEAR-RELEVANCE: DID THE ANSWER IDENTIFY THE SUBJECT, EVEN IF NOT THE NAME?
+ *
+ * RELEVANT is exact module equality, and that is the right gate -- but measured
+ * against real answers it turned out to have no middle at all.
+ *
+ * Measured 08.09.2026 on 34 eval tasks, two tiers of honest attempt:
+ *
+ *   no examples shown   exact  0%   near 74%   miss 26%
+ *   three examples      exact 15%   near 59%   miss 26%
+ *   constant cheat      exact  0%   near  0%   miss 100%
+ *
+ * Asked for `base/debounce.t27`, the answer declared `module debounce` while
+ * the reference declares `module base-debounce`. The subject is right; the path
+ * prefix convention is not knowable from the description, and is exactly what
+ * 207 training examples teach.
+ *
+ * Binary RELEVANT reported all three rows above as 0% -- so it could not tell a
+ * model that found the subject in three cases out of four from a constant
+ * unrelated answer. That is the range a base measurement lives in.
+ *
+ * NEAR is not free: the cheat scores 0 on it, which the battery asserts. It
+ * shares a name-part of length > 2, so `axi4` matches `fpga-axi4` and nothing
+ * matches `debounce` by accident.
+ */
+function nearModule(want, got) {
+  if (!want || !got) return false
+  const a = want.toLowerCase()
+  const b = got.toLowerCase()
+  if (a === b) return true
+  const parts = n => new Set(n.split(/[-:_.]+/).filter(x => x.length > 2))
+  const A = parts(a)
+  for (const x of parts(b)) if (A.has(x)) return true
+  return false
+}
+
 /** Names the spec declares: functions, structs, constants. */
 function declared(text) {
   const names = new Set()
@@ -109,6 +145,7 @@ export async function scoreOne(reference, answer) {
   const wantModule = moduleOf(reference)
   const gotModule = moduleOf(answer)
   const relevant = Boolean(wantModule && gotModule && wantModule === gotModule)
+  const near = relevant || nearModule(wantModule, gotModule)
 
   const want = declared(reference)
   const got = declared(answer)
@@ -116,26 +153,34 @@ export async function scoreOne(reference, answer) {
   for (const n of want) if (got.has(n)) hit++
   const substance = want.size ? hit / want.size : 0
 
-  return { valid, relevant, substance }
+  return { valid, relevant, near, substance }
 }
 
 async function scoreAll(pairs, label) {
   let valid = 0
   let relevant = 0
+  let near = 0
   let substance = 0
   for (const { reference, answer } of pairs) {
     const s = await scoreOne(reference, answer)
     if (s.valid) valid++
     if (s.relevant) relevant++
+    if (s.near) near++
     substance += s.substance
   }
   const n = pairs.length || 1
   const pct = x => ((x / n) * 100).toFixed(0).padStart(3)
   console.log(
     `  ${label.padEnd(26)} VALID ${pct(valid)}%  RELEVANT ${pct(relevant)}%  ` +
+      `NEAR ${pct(near)}%  ` +
       `SUBSTANCE ${((substance / n) * 100).toFixed(0).padStart(3)}%`
   )
-  return { valid: valid / n, relevant: relevant / n, substance: substance / n }
+  return {
+    valid: valid / n,
+    relevant: relevant / n,
+    near: near / n,
+    substance: substance / n,
+  }
 }
 
 /**
@@ -233,6 +278,12 @@ async function main() {
     if (empty.relevant > 0) bad.push('пустой ответ признан релевантным')
     if (perfect.relevant < 0.95) bad.push('эталон не признан релевантным')
     if (cheater.relevant > 0.1) bad.push('ЖУЛЬНИК проходит по релевантности')
+    // NEAR was added because RELEVANT had no middle. If the cheat can
+    // score on it, it has no floor either, and the whole column is noise.
+    if (cheater.near > 0.1)
+      bad.push('ЖУЛЬНИК набирает БЛИЗОСТЬ — мера бесплатна')
+    if (perfect.near < 0.98) bad.push('эталон не близок сам себе')
+    if (empty.near > 0) bad.push('пустой ответ признан близким')
     if (empty.valid > 0) bad.push('пустой ответ признан валидным')
     if (bad.length) {
       console.log(`\n[score] ⚠️  ПРИБОР НЕ ГОДЕН: ${bad.join('; ')}`)

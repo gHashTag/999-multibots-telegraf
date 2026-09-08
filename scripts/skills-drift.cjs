@@ -225,7 +225,19 @@ function main() {
 
   if (addr.length) {
     console.log('\n— адреса, которые не разрешаются —')
-    for (const r of addr.slice(0, 25)) {
+    /*
+     * NO SILENT CAP.
+     *
+     * The first version printed `.slice(0, 25)` and said nothing about the
+     * rest. A work-list was then built from what it DISPLAYED, and three skills
+     * -- tdd-automation, telegram-bot-expert, version-management -- were never
+     * assigned, because the report had hidden them behind the cut.
+     *
+     * A truncated report reads exactly like a complete one. If the tail is not
+     * printed, the count of what was dropped must be.
+     */
+    const SHOW = process.argv.includes('--all') ? addr.length : 25
+    for (const r of addr.slice(0, SHOW)) {
       // Built without nesting templates: the no-cyrillic guard does not
       // parse a template inside a template, and reads the inner string as a
       // comment. Restructuring is honest; silencing it with cyrillic-ok is not.
@@ -234,6 +246,14 @@ function main() {
 
       console.log(`  ${r.skill}/${r.where}\n      ${r.ref}${tail}`)
     }
+  }
+  if (addr.length > 25 && !process.argv.includes('--all')) {
+    const rest = addr.slice(25)
+    const skills = [...new Set(rest.map(r => r.skill))]
+    console.log(
+      `\n  … и ещё ${rest.length} НЕ ПОКАЗАНО, в скиллах: ${skills.join(', ')}`
+    )
+    console.log('  (полный список: node scripts/skills-drift.cjs --all)')
   }
   if (name.length) {
     console.log('\n— имена в прозе: короткий путь тут намеренный —')
@@ -317,6 +337,14 @@ function selfTest() {
   if (listing.includes('src/stuff/thing.ts'))
     fail('перечень имён принят за команду — прибор требует овеществить пример')
   if (!listing.includes('./scripts/real.sh')) fail('вызов ./script потерян')
+
+  // A report that truncates without saying so reads as complete. This is the
+  // bug that left three skills unassigned, so the cap is a fixed case now.
+  const src = require('node:fs').readFileSync(__filename, 'utf8')
+  // Built from a string, not a regex literal: the no-cyrillic guard allows
+  // Cyrillic inside string literals and rejects it in a regex literal.
+  const announces = new RegExp('НЕ ПОКАЗАНО')
+  if (!announces.test(src)) fail('обрезка вывода снова молчит о хвосте')
 
   if (!ROOTED.test('src/registerCommands.ts'))
     fail('укоренённый путь не опознан')
