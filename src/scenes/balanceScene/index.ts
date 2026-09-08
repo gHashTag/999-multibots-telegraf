@@ -15,6 +15,7 @@ import {
   getUserBalanceStatsOptimized,
   OptimizedBalanceStats,
 } from '@/core/supabase/getUserBalanceStatsOptimized'
+import { getSpendingBreakdown } from '@/core/supabase/getSpendingBreakdown'
 
 /**
  * Функция для получения детализации трат пользователя
@@ -187,6 +188,14 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
           { parse_mode: 'HTML' }
         )
       } else {
+        // The RPC groups spend by the service_type column, which a database
+        // trigger collapses ('other' for AI Photoshop, face swap, avatar
+        // transform). The rows carry the real service in their description;
+        // regroup from them, and keep the RPC grouping only if they are
+        // unreadable. See getSpendingBreakdown.
+        const breakdown = await getSpendingBreakdown(userId)
+        if (breakdown) spendingDetails.allServices = breakdown
+
         // Формируем детальное сообщение
         let message = isRu
           ? `💰 <b>Ваш баланс и статистика</b>\n\n`
@@ -349,7 +358,8 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
             )
             const stars = Math.floor((payment.stars || 0) * 100) / 100
             const serviceEmoji = getServiceEmoji(
-              payment.service_type || 'unknown'
+              payment.service_type || 'unknown',
+              payment.description || undefined
             )
             const serviceTitle = getServiceDisplayTitle(
               (payment.service_type || 'unknown') as UserService,

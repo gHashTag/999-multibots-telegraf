@@ -3,6 +3,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult, MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { SERVICE_DESCRIPTION_PREFIX } from '@/utils/serviceMapping'
 type BalanceOperationProps = {
   ctx?: MyContext
   model?: string
@@ -150,20 +151,29 @@ export const processBalanceOperation = async ({
     const newBalance = Number(currentBalance) - Number(paymentAmount)
 
     // Обновляем баланс в БД, передавая все необходимые аргументы
+    //
+    // The description names the session mode on purpose. A database trigger
+    // rewrites service_type into a short whitelist ('other' for AI Photoshop,
+    // face swap, avatar transform; 'neuro_photo' for Flux Kontext and the
+    // upscaler), so the column cannot say what the money bought — and the old
+    // constant description said nothing either. Measured 2026-09-09:
+    // 4005 expense rows carried that constant, 949 of the owner's own. The
+    // trigger leaves description alone; resolveUserService reads it back.
+    const serviceMode = ctx?.session?.mode || 'unknown_mode'
     console.log('Updating balance with details:', {
       telegram_id,
       paymentAmount,
       bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
-      service_type: ctx?.session?.mode || 'unknown_mode',
+      service_type: serviceMode,
     })
     const updateSuccess = await updateUserBalance(
       telegram_id.toString(),
       paymentAmount,
       PaymentType.MONEY_OUTCOME,
-      'Payment operation',
+      `${SERVICE_DESCRIPTION_PREFIX}${serviceMode}`,
       {
         bot_name: ctx?.botInfo?.username || bot_name || 'unknown_bot',
-        service_type: ctx?.session?.mode || 'unknown_mode',
+        service_type: serviceMode,
         modePrice: paymentAmount,
         currentBalance: currentBalance,
       },

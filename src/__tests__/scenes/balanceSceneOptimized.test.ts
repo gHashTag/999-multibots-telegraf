@@ -29,6 +29,12 @@ vi.mock('@/core/supabase/getUserBalanceStatsOptimized', () => ({
   getUserBalanceStatsOptimized: vi.fn(),
 }))
 
+// The scene regroups spend from the ledger rows when it can; this suite checks
+// the RPC path, so the ledger is "unreadable" here and the RPC grouping stays.
+vi.mock('@/core/supabase/getSpendingBreakdown', () => ({
+  getSpendingBreakdown: vi.fn().mockResolvedValue(null),
+}))
+
 vi.mock('@/utils/excelReportGenerator', () => ({
   generateUserExcelReport: vi.fn(),
 }))
