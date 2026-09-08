@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 115. Без заголовка: 0.
+Ратчетов: 126. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -40,6 +40,7 @@
 | `creditGuardsHold.test.ts`                             | the guard each credit site is described as having still exists                                |
 | `creditNotInLoop.test.ts`                              | user credits are not called inside a loop (scalar-credit mint #1468/#1470)                    |
 | `creditSiteCensus.test.ts`                             | credit-site census: no unreviewed mint surface                                                |
+| `creditedIsNotOk.test.ts`                              | ok is not credited                                                                            |
 | `directPaymentPostCommit.test.ts`                      | directPayment isolates post-commit side-effects from the committed return (#1397)             |
 | `emailWizardPriceAllowlist.test.ts`                    | emailWizard setPayments is allowlist-guarded                                                  |
 | `fluxKontextSendRefund.test.ts`                        | generateFluxKontext refunds a send failure (no charged-no-refund)                             |
@@ -61,8 +62,12 @@
 | `invariantsMapPointsAtRealThings.test.ts`              | the money invariants map points at real things                                                |
 | `kie-webhook-charge.test.ts`                           | kie webhook billing                                                                           |
 | `kieWebhookDeliveryIdempotency.test.ts`                | kie/sora webhook video delivery is idempotent per job                                         |
+| `lapsedPayersCannotCountSeedingAsMoney.test.ts`        | the lapsed-payer segment cannot count seeded credit as money                                  |
+| `ledgerGateActuallyGoesRed.test.ts`                    | the ledger gate goes red on a violation, and only then                                        |
+| `ledgerInvariantsCanFail.test.ts`                      | every ledger invariant can actually fail                                                      |
 | `lipSyncRefundChecked.test.ts`                         | lipSyncWizard missing-URLs refund checks its result (refundAndTell)                           |
 | `lipsyncRefundIdempotent.test.ts`                      | async-lipsync refund is idempotent per job (no double refund)                                 |
+| `lipsyncWebhookCannotContradictASettledJob.test.ts`    | a webhook cannot contradict a job the poller already settled                                  |
 | `marketplace-deduct-guarded.test.ts`                   | marketplace purchaseItem checks item existence before deducting                               |
 | `marketplaceAuthorPayout.test.ts`                      | marketplace author payout is checked (no silent unpaid author)                                |
 | `marketplaceInFlightReleased.test.ts`                  | marketplace purchase releases its in-flight key                                               |
@@ -86,6 +91,7 @@
 | `paymentMethodCensus.test.ts`                          | no payment method takes money it cannot deliver                                               |
 | `paymentPairAtomicInsert.test.ts`                      | paired income+outcome payments are one atomic insert                                          |
 | `paymentTypeVocabularyComplete.test.ts`                | the money vocabulary of the refund census                                                     |
+| `pendingRowsAreTriagedNotAccused.test.ts`              | a pending row is triaged, not accused                                                         |
 | `processBalanceOperationNonPositive.test.ts`           | processBalanceOperation refuses a non-positive price before charging                          |
 | `processBalanceVideoHelperNonPositive.test.ts`         | processBalanceVideoOperationHelper refuses a non-positive price before charging               |
 | `promoBonusIdempotent.test.ts`                         | promo bonus grant is idempotent (no star mint on concurrent /start)                           |
@@ -105,11 +111,15 @@
 | `robokassa-order.test.ts`                              | порядок обработки оплаты                                                                      |
 | `robokassa-result-url-is-mounted.test.ts`              | the ResultURL handed to Robokassa is a path this app answers                                  |
 | `robokassa-webhook-behaviour.test.ts`                  | вебхук Робокассы: поведение, а не форма                                                       |
+| `robokassaReconcileNeverSaysUnpaid.test.ts`            | did not pay                                                                                   |
 | `sessionPaymentAmountNeverUnbacked.test.ts`            | the session field the cancel button refunds                                                   |
 | `sibling-batch-double-refund.test.ts`                  | sibling image services refund a batch failure at most once                                    |
 | `stuck-trainings-visible.test.ts`                      | застрявшее обучение видно человеку                                                            |
 | `stuckPaymentsWatchdog.test.ts`                        | the stuck-payment watchdog cannot report a comfortable zero                                   |
 | `superheroQuotaCounterAccumulates.test.ts`             | superhero generation quota counter accumulates (no upsert-overwrite)                          |
+| `theFreeDemoOfferSurvivesTheMenu.test.ts`              | the offer at the end of the free demo survives the menu that follows                          |
+| `theSignIsSetByTypeOnEveryWriter.test.ts`              | the sign is set by type, on every writer                                                      |
+| `theTwoCohortsAreReadApart.test.ts`                    | the two cohorts are read apart                                                                |
 | `ton-payment-claim-once.test.ts`                       | %s credits a TON payment once                                                                 |
 | `tonAmountVerificationParity.test.ts`                  | the two on-chain payment finders                                                              |
 | `tonCheckAtomicCreditGuard.test.ts`                    | TON check credits only after an atomic status CAS (no double-credit mint)                     |
@@ -129,4 +139,5 @@
 | `videoWizardsInflightGuard.test.ts`                    | video wizards guard against concurrent double-generate                                        |
 | `voiceAvatarFallbackNotCharged.test.ts`                | voice-avatar Cloudflare fallback is not charged as a clone                                    |
 | `voiceAvatarFallbackNotPersisted.test.ts`              | createVoiceAvatar does not persist the stock fallback voice (no clone overwrite)              |
+| `whatTheFirstGenerationWasOn.test.ts`                  | what the first generation was on                                                              |
 | `x402-is-not-offered-while-it-cannot-credit.test.ts`   | x402 is not offered while nothing can credit it                                               |
