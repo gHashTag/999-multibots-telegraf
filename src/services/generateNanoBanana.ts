@@ -21,6 +21,7 @@ import {
   NANO_BANANA_PROMPT_TEMPLATES,
   extractImageUrlFromReplicateResponse,
 } from '@/schemas/nanoBanana.schema'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Service parameters interface
 export interface NanoBananaServiceParams {
@@ -203,7 +204,11 @@ export async function generateNanoBanana(
         await ctx.reply(
           is_ru
             ? `❌ Недостаточно звезд для генерации\n\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\n\nПополните баланс через /start → 💎 Пополнить баланс`
-            : `❌ Insufficient stars for generation\n\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`
+            : `❌ Insufficient stars for generation\n\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`,
+          // The refusal hands over the way to pay; standardButtons puts top-up first.
+          // Reached the moment the balance runs out, which is the only moment a
+          // price is worth showing at all.
+          standardButtons(is_ru)
         )
         return null
       }
