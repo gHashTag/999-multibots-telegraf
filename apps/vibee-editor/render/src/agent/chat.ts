@@ -322,7 +322,7 @@ async function* streamModel(
 
   if (!providers.length) {
     throw new Error(
-      'Ключ модели не задан. Нужен GLM_API_KEY или OPENAI_API_KEY. ' +
+      'Ключ модели не задан. Нужен GLM_API_KEY, NVIDIA_API_KEY или OLLAMA_BASE_URL. ' +
         'Взять: railway variables --kv | grep -E "GLM_API_KEY|OPENAI_API_KEY"'
     )
   }
@@ -335,7 +335,7 @@ async function* streamModel(
     const body: Record<string, unknown> = {
       model: p.model,
       messages: useParts ? withMediaParts(messages) : messages,
-      tools: toOpenAITools(),
+      tools: toOpenAITools(p),
       tool_choice: 'auto',
       temperature: 0.3,
       stream: true,

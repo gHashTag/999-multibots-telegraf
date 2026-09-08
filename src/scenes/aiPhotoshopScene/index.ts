@@ -34,6 +34,7 @@ function validateUserInput(input: any): {
 }
 import { promisify } from 'util'
 import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
+import { reportDeadEnd } from '@/helpers/error/reportDeadEnd'
 
 const writeFile = promisify(fs.writeFile)
 const mkdir = promisify(fs.mkdir)
@@ -2169,6 +2170,9 @@ aiPhotoshopScene.on('text', async ctx => {
           !ctx.session?.morphingImages ||
           ctx.session.morphingImages.length === 0
         ) {
+          await reportDeadEnd(ctx, 'aiPhotoshopScene all_models', [
+            'morphingImages',
+          ])
           await ctx.reply(
             isRu
               ? '❌ Фото не найдено. Отправьте фото сначала.'

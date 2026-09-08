@@ -279,6 +279,21 @@ tonPaymentScene.action(/^ton_check_(.+)$/, async ctx => {
       .single()
 
     if (fetchError || !payment) {
+      /*
+       * A DATABASE FAULT AND "ALREADY PROCESSED" ARE DIFFERENT NEWS.
+       *
+       * Both were reported at warn, and warn does not reach the owner's channel
+       * (only `error` is forwarded). So a payments_v2 read that FAILS -- money,
+       * and the person is told their payment does not exist -- was invisible.
+       * A row that is simply absent or already settled is ordinary and stays at
+       * warn; a fetch error is not.
+       */
+      if (fetchError)
+        logger.error('[TON PAYMENT] payments_v2 read FAILED for a payment', {
+          telegramId,
+          invId,
+          error: fetchError.message,
+        })
       logger.warn('[TON PAYMENT] Payment not found or already processed', {
         telegramId,
         invId,

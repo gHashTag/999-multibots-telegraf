@@ -2368,8 +2368,40 @@ for (const t of TOOLS) {
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 
 /** Формат OpenAI tool-calling. Схема ОДНА и та же, что уходит наружу по MCP. */
-export function toOpenAITools() {
-  return TOOLS.map(t => ({
+/** The seller's kit for a model with a small context: CRM, Telegram, SOUL, one generator. */
+export const COMPACT_TOOLS = /^(crm_|tg_|soul_)/
+
+/**
+ * Which tools a provider is shown. The full catalogue is ~9k tokens of
+ * schemas; a model with a 4k-16k window cannot hold it beside the prompt
+ * and the conversation, so a compact provider gets the seller's kit only.
+ */
+export function toolsForProvider<T extends { name: string }>(
+  p: { compact?: boolean } | undefined,
+  all: T[]
+): T[] {
+  if (!p?.compact) return all
+  return all.filter(
+    t => COMPACT_TOOLS.test(t.name) || t.name === 'image_generate'
+  )
+}
+
+let compactWarned = false
+
+export function toOpenAITools(p?: {
+  id?: string
+  compact?: boolean
+  context?: number
+}) {
+  const chosen = toolsForProvider(p, TOOLS)
+  if (p?.compact && !compactWarned) {
+    compactWarned = true
+    console.warn(
+      `[agent] small context on ${p.id ?? 'provider'} (${p.context ?? '?'} tokens): ` +
+        `${chosen.length} tools shown instead of ${TOOLS.length}`
+    )
+  }
+  return chosen.map(t => ({
     type: 'function' as const,
     function: {
       name: t.name,
