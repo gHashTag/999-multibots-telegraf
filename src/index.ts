@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { ADMIN_IDS_ARRAY } from './config'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
 import { setupSafeConsoleLogging } from './utils/logger'
 
@@ -1002,6 +1003,30 @@ async function startApplication() {
     // Теперь запускаем боты - секреты уже в памяти
     await initializeBots()
     console.log('✅ Все боты успешно инициализированы')
+    /*
+     * The seller that works without being asked -- wired HERE, in the entry
+     * that runs in production. src/bot.ts carries its own initializer and
+     * its own copy of this block; that file is not what Railway starts, and
+     * the first version of the sweep sat there for an hour doing nothing.
+     */
+    const proactiveMinutes = Number(process.env.CRM_PROACTIVE_MINUTES ?? '30')
+    if (proactiveMinutes > 0 && botInstances.length > 0) {
+      const wanted = (process.env.CRM_PROACTIVE_BOT || '').replace(/^@/, '')
+      const carrier =
+        botInstances.find(b => b.botInfo?.username === wanted) ??
+        botInstances[0]
+      const ownerId =
+        process.env.CRM_PROACTIVE_OWNER ||
+        String(ADMIN_IDS_ARRAY[0] || '144022504')
+      const { startCrmProactive } = await import('@/services/crmProactive')
+      startCrmProactive(carrier, {
+        ownerId,
+        everyMs: proactiveMinutes * 60_000,
+      })
+      console.log(
+        `🕵️ [crm-proactive] started: every ${proactiveMinutes} min, owner ${ownerId}, bot @${carrier.botInfo?.username ?? '?'}`
+      )
+    }
   } catch (error) {
     console.error('❌ Критическая ошибка при запуске приложения:', error)
     process.exit(1)

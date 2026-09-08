@@ -228,10 +228,15 @@ describe('wired (source-level: the bot is not booted here)', () => {
     expect(s.slice(ok, no)).toContain('noteResolved()')
     expect(s.slice(no, no + 1500)).toContain('noteResolved()')
   })
-  it('the bot starts the sweep unless CRM_PROACTIVE_MINUTES is zero', () => {
-    const s = read('bot.ts')
+  it('the ENTRY THAT RUNS starts the sweep unless CRM_PROACTIVE_MINUTES is zero', () => {
+    // src/index.ts is what Railway starts; src/bot.ts has its own initializer
+    // and is not it. The first wiring sat in bot.ts for an hour doing nothing.
+    const s = read('index.ts')
+    expect(s.indexOf('startCrmProactive(carrier')).toBeGreaterThan(
+      s.indexOf('await initializeBots()')
+    )
     expect(s).toContain("process.env.CRM_PROACTIVE_MINUTES ?? '30'")
-    expect(s).toContain('if (proactiveMinutes > 0)')
+    expect(s).toMatch(/if \(proactiveMinutes > 0/)
     expect(s).toContain('startCrmProactive(carrier')
   })
 })

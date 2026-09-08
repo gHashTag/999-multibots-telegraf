@@ -633,7 +633,7 @@ PYEOF
     KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
            | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
     [ -z "$KEY" ] && { echo "RENDER_API_KEY not readable"; exit 1; }
-    if [ "$action" = "crm-ingest" ]; then
+    if [ "${1:-}" = "crm-ingest" ]; then
       TOOL=crm_ingest_chats; ARGS="{\"limit\":${2:-30},\"depth\":${3:-100}}"
     else
       TOOL=crm_leads; ARGS="{\"limit\":${2:-15}}"
