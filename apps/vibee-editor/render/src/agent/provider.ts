@@ -17,7 +17,7 @@
  * переменной и командой, которой её взять.
  */
 
-export type ProviderId = 'zai' | 'zai-lite' | 'nemotron'
+export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'ollama'
 
 export interface Provider {
   id: ProviderId
@@ -53,6 +53,36 @@ export interface Provider {
    * word from ogg, mp3, wav and m4a. The z.ai models refuse any non-text part.
    */
   audio: boolean
+  /** Tokens the model can hold at once; decides how many tools it is shown. */
+  context: number
+  /** A small context: the seller's tools only, not all sixty-odd. */
+  compact: boolean
+}
+
+/** Below this, the full tool catalogue (~9k tokens) would not fit beside the prompt. */
+export const COMPACT_BELOW = 12_000
+
+/**
+ * OUR OWN MODEL. queen-ollama on the project's private network, spoken to
+ * over Ollama's OpenAI-compatible /v1 -- no key, no bill. It is always in
+ * the chain (last, the safety net when every paid provider is down) and
+ * first when AGENT_PROVIDER=ollama. Present only where it is reachable:
+ * OLLAMA_BASE_URL says so explicitly, and inside the Railway project the
+ * reference variable to the service says so implicitly.
+ */
+const OLLAMA_PRIVATE = 'http://queen-ollama.railway.internal:11434/v1'
+function ollamaEnabled(): boolean {
+  return Boolean(
+    process.env.OLLAMA_BASE_URL ||
+      process.env.RAILWAY_SERVICE_QUEEN_OLLAMA_URL ||
+      process.env.OLLAMA_ENABLED
+  )
+}
+function ollamaContext(): number {
+  const n = Number(
+    process.env.OLLAMA_CONTEXT_LENGTH || process.env.OLLAMA_NUM_CTX
+  )
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 4096
 }
 
 const CATALOG: Record<
@@ -64,6 +94,7 @@ const CATALOG: Record<
     thinking: boolean
     vision: boolean
     audio: boolean
+    context: number
   }
 > = {
   // z.ai — КОДЕРСКИЙ эндпоинт, а не обычный pay-as-you-go.
@@ -82,6 +113,7 @@ const CATALOG: Record<
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
     vision: false,
     audio: false,
+    context: 128_000,
   },
   /**
    * Запасной — ТОЖЕ z.ai, только более лёгкой моделью.
@@ -103,6 +135,7 @@ const CATALOG: Record<
     // Same endpoint, same refusal.
     vision: false,
     audio: false,
+    context: 128_000,
   },
   /**
    * NVIDIA NIM — запасной, когда z.ai упирается в лимит.
@@ -129,6 +162,16 @@ const CATALOG: Record<
     // Transcribes ogg, mp3, wav and m4a -- but ONLY via `audio_url`.
     // `input_audio` returns 200 and silently ignores the sound.
     audio: true,
+    context: 128_000,
+  },
+  ollama: {
+    base: (process.env.OLLAMA_BASE_URL || OLLAMA_PRIVATE).replace(/\/+$/, ''),
+    env: '',
+    model: process.env.OLLAMA_MODEL || 'qwen3:1.7b',
+    thinking: false,
+    vision: false,
+    audio: false,
+    context: ollamaContext(),
   },
 }
 
@@ -144,56 +187,57 @@ const CATALOG: Record<
  * а человек увидел бы «агент не отвечает» без единой подсказки почему.
  * Поэтому петля перебирает их и собирает причины отказа по каждому.
  */
-export function allProviders(): Provider[] {
+/** Where a provider is available at all, key or not. */
+function available(id: ProviderId): { key: string } | null {
+  const c = CATALOG[id]
+  if (id === 'ollama') return ollamaEnabled() ? { key: 'ollama' } : null
+  const key = c.env ? process.env[c.env] : undefined
+  return key ? { key } : null
+}
+
+/**
+ * The order providers are tried in: the paid ones first by default, our
+ * own model last as the safety net. AGENT_PROVIDER moves any of them to
+ * the front; the rest keep their order behind it.
+ */
+export function providerOrder(): ProviderId[] {
   const wanted = (process.env.AGENT_PROVIDER || '').toLowerCase() as ProviderId
-  /**
-   * Порядок: z.ai, затем его же лёгкая модель, и только потом OpenAI.
-   *
-   * OpenAI остался последним НАМЕРЕННО, а не удалён: если однажды туда
-   * положат рабочий ключ, путь сработает. Но полагаться на него нельзя —
-   * сейчас он отвечает 401, а раньше был единственным запасным вариантом.
-   */
-  // Nemotron ПЕРЕД openai: у openai ключ недействителен (замер 06.09.2026),
-  // и держать его выше живого провайдера значит тратить виток на отказ.
-  /*
-   * OPENAI УБРАН ПО РЕШЕНИЮ ВЛАДЕЛЬЦА.
-   *
-   * Его ключ недействителен — замерено дважды (2026-08-26 и 06.09.2026,
-   * ответ 401 «Incorrect API key provided»). Провайдер, который заведомо
-   * откажет, стоит витка на каждом обращении и засоряет диагностику строкой
-   * «ключ недействителен», рядом с настоящими причинами отказа.
-   *
-   * Мёртвый запасной путь хуже отсутствующего: он создаёт впечатление, что
-   * запас есть.
-   */
-  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'nemotron']
-  const order: ProviderId[] = DEFAULT_ORDER.includes(wanted)
+  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'nemotron', 'ollama']
+  return DEFAULT_ORDER.includes(wanted)
     ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
     : DEFAULT_ORDER
+}
+
+function build(id: ProviderId, first: boolean, key: string): Provider {
+  const c = CATALOG[id]
+  // Our model's name comes from OLLAMA_MODEL; AGENT_MODEL is the paid
+  // providers' override and must not rename an Ollama tag by accident.
+  const model =
+    id === 'ollama' ? c.model : (first && process.env.AGENT_MODEL) || c.model
+  return {
+    id,
+    base: c.base,
+    model,
+    key,
+    thinking: c.thinking,
+    vision: c.vision,
+    audio: c.audio,
+    context: c.context,
+    compact: c.context < COMPACT_BELOW,
+  }
+}
+
+export function allProviders(): Provider[] {
+  const order = providerOrder()
   const out: Provider[] = []
   for (const id of order) {
-    const c = CATALOG[id]
-    const key = process.env[c.env]
-    if (!key) continue
-    out.push({
-      id,
-      base: c.base,
-      model: (id === order[0] && process.env.AGENT_MODEL) || c.model,
-      key,
-      thinking: c.thinking,
-      vision: c.vision,
-      audio: c.audio,
-    })
+    const have = available(id)
+    if (!have) continue
+    out.push(build(id, id === order[0], have.key))
   }
   return out
 }
 
-/**
- * Человеческий диагноз по ответу провайдера.
- *
- * «429» и «401» сами по себе ничего не говорят владельцу. Нулевой баланс и
- * протухший ключ чинятся совершенно по-разному, и путать их дорого.
- */
 export function diagnose(id: ProviderId, status: number, body: string): string {
   const b = body.toLowerCase()
   if (b.includes('insufficient balance') || b.includes('1113')) {
@@ -207,44 +251,20 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
     return `${id}: ключ недействителен — перевыпустите и обновите переменную`
   }
   if (status === 404 && b.includes('model')) {
-    return `${id}: такой модели нет — проверьте AGENT_MODEL`
+    return id === 'ollama'
+      ? `${id}: такой модели нет на queen-ollama — ollama pull ${process.env.OLLAMA_MODEL || 'qwen3:1.7b'} или поправьте OLLAMA_MODEL`
+      : `${id}: такой модели нет — проверьте AGENT_MODEL`
   }
   if (status === 429) return `${id}: превышен лимит запросов`
   return `${id}: ответил ${status} — ${body.slice(0, 200)}`
 }
 
 export function resolveProvider(): Provider {
-  const wanted = (process.env.AGENT_PROVIDER || '').toLowerCase() as ProviderId
-  /*
-   * Явно названный провайдер идёт первым, остальные — за ним по порядку
-   * предпочтения. Прежняя версия перечисляла пару вручную и после удаления
-   * openai назвала бы несуществующего.
-   */
-  const известные: ProviderId[] = ['zai', 'zai-lite', 'nemotron']
-  const order: ProviderId[] = известные.includes(wanted)
-    ? [wanted, ...известные.filter(id => id !== wanted)]
-    : известные
-
-  for (const id of order) {
-    const c = CATALOG[id]
-    const key = process.env[c.env]
-    if (key) {
-      return {
-        id,
-        base: c.base,
-        // AGENT_MODEL перекрывает умолчание, но только если провайдер тот,
-        // для которого имя модели имеет смысл: glm-4.6 у OpenAI не существует,
-        // и подставить его туда — верный способ получить 404 вместо ответа.
-        model: (id === order[0] && process.env.AGENT_MODEL) || c.model,
-        key,
-        vision: c.vision,
-        audio: c.audio,
-        thinking: c.thinking,
-      }
-    }
-  }
-
-  const names = order.map(id => CATALOG[id].env).join(' или ')
+  const first = allProviders()[0]
+  if (first) return first
+  const names = providerOrder()
+    .map(id => (id === 'ollama' ? 'OLLAMA_BASE_URL' : CATALOG[id].env))
+    .join(' или ')
   throw new Error(
     `Ключ модели не задан. Нужен ${names}. ` +
       'Взять: railway variables --kv | grep -E "GLM_API_KEY|OPENAI_API_KEY"'
