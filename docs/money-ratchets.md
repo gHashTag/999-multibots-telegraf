@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 112. Без заголовка: 0.
+Ратчетов: 113. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -96,6 +96,7 @@
 | `refund-reason.test.ts`                                | возврат денег называет причину                                                                |
 | `refundFailureIsAnnounced.test.ts`                     | a refund that failed is announced too                                                         |
 | `refusalOffersAWayToPay.test.ts`                       | the shared money refusal hands over the button, not directions                                |
+| `remainingBalanceNeverCostsTheResult.test.ts`          | the remaining balance is shown, and never costs the result                                    |
 | `replicateWrapperTimeout.test.ts`                      | shared replicate.run wrapper bounds client.run with a timeout                                 |
 | `resultKeyboardOffersAPrice.test.ts`                   | a result keyboard shows what more of this costs                                               |
 | `robokassa-claim-once.test.ts`                         | robokassa ResultURL credits a payment once                                                    |

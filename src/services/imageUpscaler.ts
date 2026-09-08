@@ -22,6 +22,7 @@ import {
   ACTION_PREFIX,
   topupButtonLabel,
 } from '@/navigation/helpers/actionButtons'
+import { remainingBalanceLine } from '@/price/helpers/remainingBalanceLine'
 
 // Простая клавиатура только для upscaler'а
 const createUpscalerResultKeyboard = (is_ru: boolean) => {
@@ -230,13 +231,17 @@ export const upscaleImage = async (
       willSendAsDocument: fileSize > MAX_PHOTO_SIZE,
     })
 
+    // Read once, before the caption is built: returns '' on any failure, so a
+    // balance read can never cost somebody the result they already paid for.
+    const leftLine = await remainingBalanceLine(telegram_id, is_ru)
+
     const caption = is_ru
       ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
           originalPrompt ? `\n📝 Исходное изображение: ${originalPrompt}` : ''
-        }${fileSize > MAX_PHOTO_SIZE ? '\n\n📦 Файл отправлен как документ из-за большого размера' : ''}`
+        }${fileSize > MAX_PHOTO_SIZE ? '\n\n📦 Файл отправлен как документ из-за большого размера' : ''}${leftLine}`
       : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${
           originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''
-        }${fileSize > MAX_PHOTO_SIZE ? '\n\n📦 Sent as document due to large file size' : ''}`
+        }${fileSize > MAX_PHOTO_SIZE ? '\n\n📦 Sent as document due to large file size' : ''}${leftLine}`
 
     try {
       // If file is too large for photo (>10 MB), send as document
