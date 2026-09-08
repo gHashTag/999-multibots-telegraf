@@ -24,8 +24,17 @@ starPaymentScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx)
 
   // Проверяем, пришли ли мы сюда для покупки КОНКРЕТНОЙ подписки
-  if (ctx.session.selectedPayment && ctx.session.selectedPayment.subscription) {
-    const subscriptionToBuy = ctx.session.selectedPayment.subscription
+  // A plan is chosen only when it carries a positive star amount. The default
+  // session ships selectedPayment as { stars: 0, subscription: 'STARS' }, so
+  // testing the subscription field alone sent every fresh session (right after
+  // /start) into handleBuySubscription with 0 stars: the person pressed
+  // "top up" and read "invalid star amount" instead of the star packages
+  // (owner, 08.09.2026 18:46Z, three times in a row).
+  const chosen = ctx.session.selectedPayment
+  const hasPaidPlan =
+    !!chosen && !!chosen.subscription && Number(chosen.stars) > 0
+  if (hasPaidPlan && chosen) {
+    const subscriptionToBuy = chosen.subscription
     logger.info(
       `[${ModeEnum.StarPaymentScene}] Entered scene to buy subscription: ${subscriptionToBuy}`,
       {
