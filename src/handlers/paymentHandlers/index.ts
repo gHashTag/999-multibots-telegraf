@@ -111,6 +111,34 @@ export async function postStarsCredit(payment: {
   }
 }
 
+/**
+ * WHAT THE BUYER MAY BE TOLD, given the ledger's answer.
+ *
+ * `ok` and `credited` are different facts and the caller used to read only
+ * the first: a `{ ok: true, credited: false }` answer -- the render's own
+ * "[STARS] not credited" case -- reached the buyer as "Зачислено N токенов",
+ * with no throw and no owner alert.
+ *
+ * A REDELIVERY IS NOT A FAILURE. Telegram redelivers successful payments,
+ * and the ledger's idempotency lock answers `credited: false` with the
+ * redelivery reason; the tokens are there from the first delivery. Treating
+ * that as an error would fire a scary message on an ordinary event.
+ *
+ * Everything else -- including `credited` missing -- is `failed`. Fail
+ * closed: better to alarm the owner over an oddity than to tell somebody
+ * their money bought something it did not.
+ */
+export function starsCreditVerdict(outcome: {
+  ok: boolean
+  credited?: boolean
+  reason?: string
+}): 'credited' | 'already' | 'failed' {
+  if (!outcome.ok) return 'failed'
+  if (outcome.credited === true) return 'credited'
+  if (/redeliver/i.test(outcome.reason ?? '')) return 'already'
+  return 'failed'
+}
+
 /** Разобрать payload покупки токенов мини-приложения: `tokens:<сумма>:<id>`. */
 export function parseTokensPayload(
   payload: string
@@ -207,8 +235,12 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         telegramId: токены.telegramId,
         amount: токены.amount,
       })
-      if (!outcome.ok) {
-        throw new Error(`рендер отказал: ${outcome.reason ?? 'без причины'}`)
+      // The rule lives in starsCreditVerdict, beside the call that asks the
+      // ledger; `ok` alone used to decide, and `ok` is not `credited`.
+      if (starsCreditVerdict(outcome) === 'failed') {
+        throw new Error(
+          `рендер не зачислил: ${outcome.reason ?? 'поле credited не пришло'}`
+        )
       }
       logger.info('[handleSuccessfulPayment] mini-app tokens credited', {
         telegram_id: токены.telegramId,
