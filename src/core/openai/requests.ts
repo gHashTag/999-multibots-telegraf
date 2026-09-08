@@ -28,7 +28,7 @@ type UserData = {
 
 /**
  * ✅ ОСНОВНАЯ МОДЕЛЬ: xAI Grok (grok-2-latest)
- * Fallback цепочка: Grok → GLM-4.7 → DeepSeek → OpenAI
+ * Fallback цепочка: Grok → GLM-4.7 → DeepSeek → OpenAI → Replicate (chatWithAI)
  * Все текстовые запросы идут через AI API с fallback.
  * Gemini + изображения → Nano Banana Pro (как раньше)
  */
@@ -441,7 +441,41 @@ export const answerAi = async (
     }
   }
 
+  // Last resort: the pay-per-use Replicate chat the business DM already answers
+  // with (aiChatService.chatWithAI goes straight to Replicate when the token is
+  // set, no DB, no monthly key). On 2026-09-08 every keyed provider above was
+  // dead at once -- Grok out of credits, GLM out of balance, DeepSeek and
+  // OpenAI keys invalid -- and the bot's main chat fell silent while the owner
+  // DM kept answering. A dead key set must degrade to this, not to silence.
+  if (process.env.REPLICATE_API_TOKEN) {
+    try {
+      const { chatWithAI } = await import('@/services/aiChatService')
+      const content = await chatWithAI([
+        {
+          role: 'system',
+          content: systemPrompt
+            ? `${initialPrompt}\n\n${systemPrompt}`
+            : initialPrompt,
+        },
+        { role: 'user', content: userMessage },
+      ])
+      if (content) {
+        logger.info('[answerAi] Replicate fallback answered', {
+          contentLength: content.length,
+        })
+        return content
+      }
+      throw new Error('Empty response from Replicate fallback')
+    } catch (replicateError) {
+      logger.error('[answerAi] Replicate fallback also failed', {
+        error:
+          replicateError instanceof Error
+            ? replicateError.message
+            : String(replicateError),
+      })
+    }
+  }
   throw new Error(
-    'All AI providers failed (Grok, Z.AI coder, DeepSeek, OpenAI). Check API keys and balances.'
+    'All AI providers failed (Grok, Z.AI coder, DeepSeek, OpenAI, Replicate). Check API keys and balances.'
   )
 }
