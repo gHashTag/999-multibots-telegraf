@@ -143,6 +143,7 @@ import {
 } from '@/lib/buildCompositionProps'
 import { DEFAULT_COMPOSITION_ID } from '@/shared/compositions'
 import { logExport } from '@/lib/logger'
+import { uploadToS3 } from '@/lib/s3Upload'
 import {
   STORAGE_KEYS,
   DEFAULT_MUSIC_VOLUME,
@@ -706,20 +707,13 @@ export function Timeline({
 
   // File upload handler
   const uploadFile = useCallback(async (file: File): Promise<Asset | null> => {
-    const formData = new FormData()
-    formData.append('file', file)
-
     try {
-      const response = await fetch(`${RENDER_SERVER_URL}/upload`, {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status}`)
+      // Signed upload through the one shared door; the server reads a raw body
+      // with X-Filename, so multipart FormData here never matched it anyway.
+      const uploadedUrl = await uploadToS3(file, file.name)
+      if (!uploadedUrl) {
+        throw new Error('Upload failed: no url returned')
       }
-
-      const data = await response.json()
       const type = file.type.startsWith('video/')
         ? 'video'
         : file.type.startsWith('audio/')
@@ -730,8 +724,7 @@ export function Timeline({
         id: crypto.randomUUID(),
         type,
         name: file.name.replace(/\.[^.]+$/, ''),
-        url: data.url || data.path,
-        thumbnail: data.thumbnail,
+        url: uploadedUrl,
         duration: type === 'video' ? 150 : undefined,
         fileSize: file.size,
       }
