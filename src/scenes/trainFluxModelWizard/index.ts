@@ -179,7 +179,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         )
 
         // Cap the collected-image count. Each push holds a full Buffer (up to
-        // 10MB) in ctx.session.images, which lives in the shared in-memory
+        // 10MB) in ctx.session.images, which lives in sessionStore's per-process volatile map (never Redis)
         // MemorySessionStore of the whole multi-bot process. The /done check
         // only enforces a MINIMUM of 10 images; nothing stopped a user from
         // sending photos past that, so RSS climbed until the container
