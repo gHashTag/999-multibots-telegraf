@@ -504,17 +504,18 @@ describe('the real generator honours chargeLater', () => {
       pool: deferred,
       chargeLater: true,
     } as never)
+    // A charge is `balance - price`; the failure path may still refund a zero.
     expect(
-      deferred.sqls.some(q => /UPDATE user_tokens/i.test(q)),
+      deferred.sqls.filter(q => /balance = balance - /i.test(q)),
       'the owner paid for a deferred charge'
-    ).toBe(false)
+    ).toEqual([])
     const paid = recordingPool()
     await gen.handler({ prompt: 'кот' }, {
       telegramId: OWNER,
       pool: paid,
     } as never)
     expect(
-      paid.sqls.some(q => /UPDATE user_tokens/i.test(q)),
+      paid.sqls.some(q => /balance = balance - /i.test(q)),
       'the plain path stopped charging'
     ).toBe(true)
   })
