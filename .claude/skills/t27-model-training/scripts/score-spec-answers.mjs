@@ -136,23 +136,36 @@ async function validity(text) {
   try {
     const f = join(dir, 'a.t27')
     await writeFile(f, text || '')
-    if (!(text || '').trim()) return false
+    if (!(text || '').trim()) return { ok: false, cls: 'ПУСТО' }
     try {
       await run(T27C, ['parse', f], {
         timeout: 60_000,
         maxBuffer: 256 * 1024 * 1024,
       })
     } catch {
-      return false
+      return { ok: false, cls: 'NOPARSE' }
     }
     try {
       const { stdout } = await run(T27C, ['spec-status', f], {
         timeout: 60_000,
         maxBuffer: 256 * 1024 * 1024,
       })
-      return REAL.has(stdout.trim().split(/\s+/).pop())
+      /*
+       * THE CLASS IS FETCHED AND THEN THROWN AWAY.
+       *
+       * `spec-status` answers with one of five words and this collapsed it to a
+       * boolean. Measured on today's answers the loss is nil -- they are only
+       * IMPLEMENTED or NOPARSE -- but that is a property of untrained answers.
+       *
+       * A trained model produces exactly the classes a boolean hides: UNWRITTEN
+       * skeletons and PARTIAL bodies. The skill's own warning is that those
+       * "parse, look like clean examples, and teach the model to answer with
+       * nothing". Returning the word costs nothing and the caller can tally it.
+       */
+      const cls = stdout.trim().split(/\s+/).pop()
+      return { ok: REAL.has(cls), cls }
     } catch {
-      return false
+      return { ok: false, cls: 'ОШИБКА' }
     }
   } finally {
     await rm(dir, { recursive: true, force: true })
@@ -160,7 +173,9 @@ async function validity(text) {
 }
 
 export async function scoreOne(reference, answer) {
-  const valid = await validity(answer)
+  const v = await validity(answer)
+  const valid = v.ok
+  const cls = v.cls
   const wantModule = moduleOf(reference)
   const gotModule = moduleOf(answer)
   const relevant = Boolean(wantModule && gotModule && wantModule === gotModule)
@@ -172,19 +187,21 @@ export async function scoreOne(reference, answer) {
   for (const n of want) if (got.has(n)) hit++
   const substance = want.size ? hit / want.size : 0
 
-  return { valid, relevant, near, substance }
+  return { valid, cls, relevant, near, substance }
 }
 
 async function scoreAll(pairs, label) {
   let valid = 0
   let relevant = 0
   let near = 0
+  const classes = new Map()
   let substance = 0
   for (const { reference, answer } of pairs) {
     const s = await scoreOne(reference, answer)
     if (s.valid) valid++
     if (s.relevant) relevant++
     if (s.near) near++
+    classes.set(s.cls, (classes.get(s.cls) || 0) + 1)
     substance += s.substance
   }
   const n = pairs.length || 1
@@ -194,6 +211,12 @@ async function scoreAll(pairs, label) {
       `NEAR ${pct(near)}%  ` +
       `SUBSTANCE ${((substance / n) * 100).toFixed(0).padStart(3)}%`
   )
+  // The five-word breakdown behind VALID's single figure.
+  const spread = [...classes.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${k} ${v}`)
+    .join(', ')
+  console.log(`  ${''.padEnd(26)} по классам: ${spread}`)
   return {
     valid: valid / n,
     relevant: relevant / n,
