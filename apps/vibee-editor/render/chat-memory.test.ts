@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   rememberMessages,
+  rememberPerson,
+  personOf,
+  fullName,
   leadContext,
   leadCandidates,
   intentSignals,
@@ -82,9 +85,10 @@ describe('what is kept', () => {
       q.sql.startsWith('INSERT INTO crm_messages')
     )
     expect(String(ins[0].params[5]).length).toBe(4000)
+    // Two tables, each created once per process: the messages and the people.
     expect(
       pool.queries.filter(q => q.sql.startsWith('CREATE TABLE')).length
-    ).toBe(1)
+    ).toBe(2)
   })
 
   it('nothing to write touches nothing', async () => {
@@ -297,5 +301,109 @@ describe('who next', () => {
     const list = await leadCandidates(pool(), OWNER, { now, limit: 2 })
     expect(list.length).toBe(2)
     expect(list.map(l => l.lead)).not.toContain('old')
+  })
+})
+
+describe('who they are', () => {
+  it('a person is written once per id and replaced on the next ingest, cut to a name', async () => {
+    const pool = fakePool()
+    await rememberPerson(pool, OWNER, '555', {
+      firstName: '  Ольга\n\nСсылка ' + 'x'.repeat(100),
+      lastName: null,
+      username: 'playom',
+    })
+    const ins = pool.queries.find(q =>
+      q.sql.startsWith('INSERT INTO crm_people')
+    )!
+    expect(ins.sql).toContain('ON CONFLICT (owner_id, lead_id) DO UPDATE')
+    expect(ins.sql).toContain('first_name = EXCLUDED.first_name')
+    expect(ins.params.slice(0, 2)).toEqual([OWNER, '555'])
+    expect(String(ins.params[2])).not.toContain('\n')
+    expect(String(ins.params[2]).length).toBeLessThanOrEqual(64)
+    expect(ins.params[3]).toBeNull()
+    expect(ins.params[4]).toBe('playom')
+  })
+
+  it('personOf reads them back; fullName joins what is known', async () => {
+    const pool = fakePool([
+      {
+        when: /FROM crm_people WHERE owner_id = \$1 AND lead_id = \$2/,
+        rows: p =>
+          p[1] === '555'
+            ? [
+                {
+                  first_name: 'Ольга',
+                  last_name: 'Иванова',
+                  username: 'playom',
+                },
+              ]
+            : [],
+      },
+    ])
+    const p = await personOf(pool, OWNER, '555')
+    expect(p).toEqual({
+      firstName: 'Ольга',
+      lastName: 'Иванова',
+      username: 'playom',
+    })
+    expect(fullName(p)).toBe('Ольга Иванова')
+    expect(
+      fullName({ firstName: 'Ольга', lastName: null, username: null })
+    ).toBe('Ольга')
+    expect(fullName(null)).toBeNull()
+    expect(await personOf(pool, OWNER, '556')).toBeNull()
+  })
+
+  it('a candidate carries the name, the username and their last words', async () => {
+    const pool = fakePool([
+      {
+        when: /GROUP BY lead_id/,
+        rows: [
+          {
+            lead_id: '555',
+            total: 3,
+            inbound: 2,
+            last_in: '2026-09-07T10:00:00Z',
+            last_out: '2026-09-06T10:00:00Z',
+          },
+          {
+            lead_id: '556',
+            total: 1,
+            inbound: 1,
+            last_in: '2026-08-01T10:00:00Z',
+            last_out: null,
+          },
+        ],
+      },
+      {
+        when: /FROM crm_people WHERE owner_id = \$1$/,
+        rows: [
+          {
+            lead_id: '555',
+            first_name: 'Ольга',
+            last_name: 'Иванова',
+            username: 'playom',
+          },
+        ],
+      },
+      {
+        when: /SELECT DISTINCT ON \(lead_id\)/,
+        rows: [
+          { lead_id: '555', text: 'сколько стоит фото?' },
+          { lead_id: '556', text: 'привет' },
+        ],
+      },
+    ])
+    const list = await leadCandidates(pool, OWNER, {
+      now: D('2026-09-08T00:00:00Z'),
+    })
+    const olga = list.find(l => l.lead === '555')!
+    expect(olga.name).toBe('Ольга Иванова')
+    expect(olga.username).toBe('playom')
+    expect(olga.lastWords).toBe('сколько стоит фото?')
+    const other = list.find(l => l.lead === '556')!
+    expect(other.name).toBeNull()
+    expect(other.username).toBeNull()
+    expect(other.lastWords).toBe('привет')
   })
 })

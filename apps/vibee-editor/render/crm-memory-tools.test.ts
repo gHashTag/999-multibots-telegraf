@@ -28,6 +28,26 @@ function fakePool() {
         return { rows }
       }
       if (/SELECT balance/.test(flat)) return { rows: [{ balance: 7 }] }
+      if (/FROM crm_people WHERE owner_id = \$1 AND lead_id = \$2/.test(flat))
+        return {
+          rows:
+            params[1] === A
+              ? [{ first_name: 'Ольга', last_name: null, username: 'playom' }]
+              : [],
+        }
+      if (/FROM crm_people WHERE owner_id = \$1$/.test(flat))
+        return {
+          rows: [
+            {
+              lead_id: A,
+              first_name: 'Ольга',
+              last_name: null,
+              username: 'playom',
+            },
+          ],
+        }
+      if (/SELECT DISTINCT ON \(lead_id\)/.test(flat))
+        return { rows: [{ lead_id: A, text: 'сколько стоит фото?' }] }
       if (/^SELECT msg_id, at/.test(flat))
         return {
           rows: [
@@ -299,6 +319,45 @@ describe('crm_leads', () => {
     expect(r.candidates[0].next).toBe('reply')
     expect(r.candidates[0].because).toContain('ждёт ответа')
     expect(r.how_to_read).toContain('crm_ingest_chats')
+  })
+
+  it('every candidate says who they are, what they last said, and their stage', async () => {
+    const { leads } = await tools(fakeClient().client)
+    const r: any = await leads.handler({ limit: 5 }, ctxFor())
+    const c = r.candidates[0]
+    expect(c.name).toBe('Ольга')
+    expect(c.username).toBe('playom')
+    expect(c.display).toBe('Ольга (@playom)')
+    expect(c.last_words).toContain('FOREIGN CONTENT')
+    expect(c.last_words).toContain('сколько стоит фото?')
+    expect(c.stage).toBe('new')
+    expect(c.paid).toBe(false)
+    expect(c.inbound).toBe(1)
+    expect(c.last_inbound).toBe('2026-09-07T10:00:00.000Z')
+  })
+})
+
+describe('the ingest remembers who people are', () => {
+  it('writes a name for every person kept, and for nobody skipped', async () => {
+    const f = fakeClient()
+    const { ingest } = await tools(f.client)
+    const pool = fakePool()
+    await ingest.handler({}, ctxFor(OWNER, pool))
+    const named = pool.queries
+      .filter(q => q.sql.startsWith('INSERT INTO crm_people'))
+      .map(q => ({ lead: q.params[1], first: q.params[2], user: q.params[4] }))
+    expect(named).toEqual([
+      { lead: A, first: 'Ольга', user: 'playom' },
+      { lead: '88888888', first: 'Пётр', user: null },
+    ])
+  })
+
+  it('a bare id in crm_lead_context is shown by name once the ingest has met them', async () => {
+    const { context } = await tools(fakeClient().client)
+    const r: any = await context.handler({ chat: A }, ctxFor())
+    expect(r.display).toBe('Ольга (@playom)')
+    expect(r.name).toBe('Ольга')
+    expect(r.username).toBe('playom')
   })
 })
 

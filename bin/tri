@@ -652,8 +652,13 @@ if os.environ['TOOL'] == 'crm_ingest_chats':
     print(f"dialogs={s.get('dialogs_seen')} people={s.get('people')} read={s.get('messages_read')} new={s.get('messages_new')} zep={s.get('zep_mirrored')} stopped={s.get('stopped')}")
     print(s.get('zep',''))
 else:
+    import re
     for c in s.get('candidates', []):
-        print(f"  [{c.get('score'):>3}] {c.get('next'):<8} {c.get('lead')}  {c.get('because')}")
+        who = c.get('display') or f"id {c.get('lead')}"
+        words = re.sub(r'\[(?:END )?FOREIGN CONTENT[^\]]*\]', '', str(c.get('last_words') or '')).strip()
+        print(f"  [{c.get('score'):>3}] {c.get('next'):<8} {who} · {c.get('lead')} · {c.get('stage')}{' · платил' if c.get('paid') else ''}")
+        print(f"        {c.get('because')}")
+        if words: print(f"        «{words[:100]}» · {c.get('messages')} сообщ., последнее {c.get('days_since_their_last_word')} дн. назад")
     print(s.get('how_to_read',''))
 PYEOF
     ;;

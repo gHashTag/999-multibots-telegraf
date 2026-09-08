@@ -2575,6 +2575,7 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
  *
  * /model  -- which provider answers now, and buttons to put another first
  * /leads  -- who to write to next, from the correspondence memory
+ * /lead   -- one person in depth: name, waiting, signals, touches, dialog
  * /sweep  -- one proactive sweep right now; a card follows if there is one
  */
 export function registerCrmCommands(bot: Telegraf<MyContext>): void {
@@ -2643,6 +2644,22 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       const { fetchLeads } = await import('@/services/modelSwitch')
       const { text } = await fetchLeads(String(ctx.from?.id ?? ''))
       await ctx.reply(text)
+    } catch (e: any) {
+      await ctx.reply(`Не получилось: ${e?.message ?? e}`)
+    }
+  })
+
+  bot.command('lead', requireAdmin(), async ctx => {
+    const text = (ctx.message as { text?: string } | undefined)?.text ?? ''
+    const who = text.split(/\s+/).slice(1)[0] ?? ''
+    if (!who) {
+      await ctx.reply('Кого показать? /lead 435572800 или /lead @username')
+      return
+    }
+    try {
+      const { fetchLead } = await import('@/services/modelSwitch')
+      const r = await fetchLead(String(ctx.from?.id ?? ''), who)
+      await ctx.reply(r.text)
     } catch (e: any) {
       await ctx.reply(`Не получилось: ${e?.message ?? e}`)
     }
