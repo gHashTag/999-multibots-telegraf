@@ -14,6 +14,8 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceBetween } = require('../../../scripts/lib/anchored-slice.cjs')
 
 const ROOT = path.join(process.cwd(), 'apps/vibee-editor/player/src')
 const DOOR = 'lib/s3Upload.ts'
@@ -51,7 +53,16 @@ describe('mini app uploads are signed', () => {
 
   it('the door signs every request', () => {
     const src = code(fs.readFileSync(path.join(ROOT, DOOR), 'utf8'))
-    const call = src.slice(src.indexOf('/upload`'), src.indexOf('body:'))
+    /*
+     * Both ends were unguarded, and they fail in opposite directions. A
+     * missing OPENING anchor gives slice(-1, n) -- effectively nothing, and
+     * the assertion fails unreadably. A missing CLOSING anchor gives
+     * slice(x, -1): the region silently GROWS to almost the whole file, and
+     * `toContain('authHeaders(')` then passes on somebody else's call. That
+     * second one is the dangerous half: a guard over the upload door going
+     * green while looking at the wrong code.
+     */
+    const call = sliceBetween(src, '/upload`', 'body:')
     expect(call).toContain('authHeaders(')
   })
 
