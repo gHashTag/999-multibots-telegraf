@@ -79,8 +79,8 @@ export const checkBalanceVideoOperationHelper = async (
 
     if (currentBalance < paymentAmount) {
       const message = isRu
-        ? 'Недостаточно средств на балансе. Пополните баланс в главном меню.'
-        : 'Insufficient funds. Top up your balance in the main menu.'
+        ? 'Недостаточно средств на балансе. Пополните — и продолжим.'
+        : 'Insufficient funds. Top up and we continue.'
       logger.warn('checkBalanceVideoOperationHelper: Insufficient funds', {
         telegramId,
         currentBalance,
@@ -88,6 +88,8 @@ export const checkBalanceVideoOperationHelper = async (
         modelId,
       })
       return {
+        // Tells the caller WHICH failure this is, so it can offer the button.
+        insufficientFunds: true,
         success: false,
         error: message,
         newBalance: currentBalance,
@@ -303,8 +305,8 @@ export const processBalanceVideoOperationHelper = async (
 
     if (currentBalanceAtStart < paymentAmount) {
       const message = isRu
-        ? 'Недостаточно средств на балансе. Пополните баланс в главном меню.'
-        : 'Insufficient funds. Top up your balance in the main menu.'
+        ? 'Недостаточно средств на балансе. Пополните — и продолжим.'
+        : 'Insufficient funds. Top up and we continue.'
       logger.warn('processBalanceVideoOperationHelper: Insufficient funds', {
         telegramId,
         currentBalance: currentBalanceAtStart,
@@ -312,6 +314,8 @@ export const processBalanceVideoOperationHelper = async (
         modelId,
       })
       return {
+        // Tells the caller WHICH failure this is, so it can offer the button.
+        insufficientFunds: true,
         success: false,
         error: message,
         newBalance: currentBalanceAtStart,

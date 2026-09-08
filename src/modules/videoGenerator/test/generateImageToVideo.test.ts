@@ -79,11 +79,19 @@ vi.mock('telegraf', () => {
   // Код зовёт и Markup.keyboard (обычная клавиатура в финальном сообщении),
   // и Markup.inlineKeyboard. Прежний мок отдавал только второй, поэтому
   // поток падал на «Markup.keyboard is not a function» уже после генерации.
+  // ...and the second extension, same reason: inlineKeyboard returned a stub
+  // with no `reply_markup`, so a keyboard attached to a money refusal was
+  // invisible to any assertion. Real Markup.inlineKeyboard carries it, and a
+  // mock that does not is a mock that describes a different library.
   const keyboardStub = { resize: vi.fn(() => 'mock_keyboard') }
+  const inlineStub = (rows: unknown[]) => ({
+    ...keyboardStub,
+    reply_markup: { inline_keyboard: rows },
+  })
   return {
     Markup: {
       keyboard: vi.fn(() => keyboardStub),
-      inlineKeyboard: vi.fn(() => keyboardStub),
+      inlineKeyboard: vi.fn((rows: unknown[]) => inlineStub(rows ?? [])),
       button: {
         callback: vi.fn((text: string, data: string) => ({
           text,
@@ -320,6 +328,7 @@ describe('generateImageToVideo', () => {
       ;(checkBalanceVideoOperationHelper as any).mockResolvedValue({
         success: false,
         error: 'Insufficient balance',
+        insufficientFunds: true,
         balance: 10,
         price: 40,
       })
@@ -339,9 +348,20 @@ describe('generateImageToVideo', () => {
         123456789
       )
 
+      /*
+       * Third argument: the top-up keyboard. The helper now reports WHICH
+       * failure this was, so the caller offers a way to pay only for the money
+       * one. Asserting two arguments pinned the old behaviour -- a refusal
+       * with nothing to press -- so this is tightened, not loosened.
+       */
       expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
         123456789,
-        expect.stringContaining('Insufficient balance')
+        expect.stringContaining('Insufficient balance'),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            inline_keyboard: expect.any(Array),
+          }),
+        })
       )
     })
 
@@ -593,6 +613,7 @@ describe('generateImageToVideo', () => {
       ;(checkBalanceVideoOperationHelper as any).mockResolvedValue({
         success: false,
         error: 'Insufficient balance',
+        insufficientFunds: true,
         balance: 10,
         price: 40,
       })
@@ -612,9 +633,20 @@ describe('generateImageToVideo', () => {
         123456789
       )
 
+      /*
+       * Third argument: the top-up keyboard. The helper now reports WHICH
+       * failure this was, so the caller offers a way to pay only for the money
+       * one. Asserting two arguments pinned the old behaviour -- a refusal
+       * with nothing to press -- so this is tightened, not loosened.
+       */
       expect(mockTelegramInstance.sendMessage).toHaveBeenCalledWith(
         123456789,
-        expect.stringContaining('Insufficient balance')
+        expect.stringContaining('Insufficient balance'),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            inline_keyboard: expect.any(Array),
+          }),
+        })
       )
     })
 

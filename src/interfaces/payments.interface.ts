@@ -192,6 +192,18 @@ export interface BalanceOperationResult {
   modePrice: number
   /** Текущий баланс до операции */
   currentBalance?: number
+  /**
+   * The failure was "not enough stars", not "unknown model" or a database
+   * hiccup. Callers send `error` for ANY failure, so without this they cannot
+   * tell which of them deserves a top-up button -- and attaching one to
+   * "unknown model" would be worse than attaching none.
+   *
+   * NOTE for the next reader: this interface is declared twice in this file
+   * (line 15 and here) and once more in balance.interface.ts. TypeScript merges
+   * same-name interfaces in one scope, so it works; it still reads like a
+   * mistake. Left alone -- unifying them is a separate change.
+   */
+  insufficientFunds?: boolean
 }
 
 export interface SessionPayment {
