@@ -42,10 +42,37 @@ describe('the client in the owner DM (surface business)', () => {
 })
 
 describe('the creator in the app (other surfaces)', () => {
-  it('keeps the club, and does not get the DM client rules', () => {
+  /**
+   * THIS ASSERTION WAS INVERTED ON PURPOSE, AND THAT IS THE CHANGE.
+   *
+   * It used to read `expect(o).toContain('$99')` -- the creator surface was
+   * SUPPOSED to sell a club at ninety-nine and nine-hundred-ninety-nine
+   * dollars a month. The owner's word on 2026-09-08:
+   * "Мы продаем токены и все: текст, видео, фото. Всё привязывается к токену" (cyrillic-ok: the owner's own words)
+   * There is no club, no subscription, no tariff, and there never was a
+   * billing path for one -- so an agent quoting it was promising something
+   * nobody could buy, in breach of its own playbook rule against promises
+   * that are not in the price list.
+   *
+   * Weakening a test to let a change through is a smell; this is the other
+   * case -- the test pinned the defect, so the fix has to move it.
+   */
+  it('sells tokens, not a club, and does not get the DM client rules', () => {
     const o = systemPrompt('bot')
-    expect(o).toContain('$99')
+    expect(o).not.toContain('$99')
+    expect(o).not.toContain('$999')
+    expect(o).not.toContain('Trinity Club')
+    expect(o).toContain('ТАРИФОВ, ПОДПИСОК И КЛУБА НЕТ')
+    expect(o).toContain('tokens_invoice')
     expect(o).not.toContain('ЕГО КЛИЕНТУ')
     expect(o).toContain(`картинка ${TOKEN_PRICES.image_generate}`)
+  })
+
+  it('names the packs to the creator too, from the price list', () => {
+    const o = systemPrompt('bot')
+    for (const n of ПАКЕТЫ /* cyrillic-ok */) {
+      const c = ценаТокенов(n) // cyrillic-ok: pre-existing helper name
+      expect(o).toContain(`${n} токенов → ${c.звёзд}⭐`) // cyrillic-ok: field name
+    }
   })
 })

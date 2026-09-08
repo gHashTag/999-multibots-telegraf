@@ -26,7 +26,7 @@
  */
 
 import { planTools } from './plan-tools'
-import { pricingSummary, providerSetup, CLUB } from './pricing'
+import { pricingSummary, providerSetup } from './pricing'
 import { editImage, EDIT_MODEL } from '../kie-image'
 
 export interface ToolContext {
@@ -2263,9 +2263,10 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'pricing',
     description:
-      'Что БЕСПЛАТНО и что ПЛАТНО в Trinity S³AI, и тарифы клуба. Зови, когда ' +
-      'человек спрашивает про деньги, токены, стоимость, «сколько стоит», ' +
-      'подписку или клуб. Бесплатно.',
+      'Что БЕСПЛАТНО и что ПЛАТНО в Trinity S³AI, в токенах. Тарифов, подписок ' +
+      'и клуба НЕТ — есть баланс токенов. Зови, когда человек спрашивает про ' +
+      'деньги, токены, стоимость, «сколько стоит», подписку или тариф; счёт на ' +
+      'пополнение выписывает tokens_invoice. Бесплатно.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     async handler() {
       return pricingSummary()
@@ -2274,11 +2275,12 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'provider_setup',
     description:
-      'Как настроить/оплатить провайдера (replicate/fal/elevenlabs/glm/openai/' +
+      'СПРАВОЧНИК ВЛАДЕЛЬЦА по провайдерам (replicate/fal/elevenlabs/glm/openai/' +
       'pollinations): что даёт, статус (работает/нужна оплата/нужен ключ), какая ' +
-      'переменная, где взять ключ, сколько стоит. Зови, когда человек хочет ' +
-      'подключить провайдера или спрашивает, почему что-то не работает и что ' +
-      'сделать. Без аргумента — все провайдеры. Бесплатно.',
+      'переменная, где взять ключ, сколько стоит. Ключи держим МЫ — гостю свой ' +
+      'провайдер не нужен и подключать его не предлагай: он платит токенами. ' +
+      'Зови, чтобы узнать, ЧТО именно сломано, и назвать рабочую замену. ' +
+      'Без аргумента — все провайдеры. Бесплатно.',
     parameters: {
       type: 'object',
       properties: {
@@ -2292,21 +2294,6 @@ export const TOOLS: AgentTool[] = [
     },
     async handler(args: Record<string, any>) {
       return providerSetup(args?.provider)
-    },
-  },
-  {
-    name: 'club',
-    description:
-      'Тарифы клуба Trinity S³AI: Basic $99/мес (доступ к харнесу — агент и все ' +
-      'функции производства) и Pro $999/мес (всё из Basic + групповые встречи раз ' +
-      'в неделю). Зови на вопросы про клуб, доступ, подписку, участие. Бесплатно.',
-    parameters: { type: 'object', properties: {}, additionalProperties: false },
-    async handler() {
-      return {
-        тарифы: CLUB,
-        как_вступить:
-          'Оплата подписки — в мини-аппе или боте через Telegram Stars.',
-      }
     },
   },
 

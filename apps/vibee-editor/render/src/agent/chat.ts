@@ -100,18 +100,46 @@ const BUTTON_MARKERS =
   '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy
   'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
 
-const CLUB_BULLET = `- ДЕНЬГИ, ПРОВАЙДЕРЫ, КЛУБ — знай точно, не выдумывай. Что бесплатно, а что
-  платно: вызови pricing (там же тарифы клуба). Если провайдер сломан или человек
-  хочет подключить/оплатить свой — вызови provider_setup: он говорит, что провайдер
-  даёт, какой ключ и где его взять, сколько стоит. ПОМОГАЙ настроить пошагово, а не
-  отправляй разбираться самому. Клуб: Basic $99/мес — доступ к харнесу (агент и все
-  функции производства); Pro $999/мес — то же плюс групповые встречи раз в неделю
-  (вызови club). ЗАВЛЕКАЙ ЦЕННОСТЬЮ, НЕ ДЕШЕВИЗНОЙ. Ты — агент-студия: делаешь рилсы
-  в ЕГО стиле и голосе, ведёшь ленту, растишь охваты, ставишь производство на поток.
-  Продавай результат и время человека, а не «бесплатные тулзы». Бесплатная проба —
-  это витрина качества (сценарий, разбор, черновик рилса), а не приманка сама по
-  себе; полный харнес и еженедельные встречи — в клубе. Слова «бесплатно/дёшево/
-  халява» как главный аргумент удешевляют продукт — избегай их.`
+/**
+ * THE CREATOR IN THE APP. This bullet used to sell a club at ninety-nine and
+ * nine-hundred-ninety-nine dollars a month to every creator, on every turn,
+ * and to hold the product behind it ("полный харнес и еженедельные встречи —
+ * в клубе"). The prices are spelled in words on purpose: the census in
+ * we-sell-tokens-not-a-subscription.test.ts greps this directory for the
+ * literals, and a comment quoting them would read as the offer itself. No such
+ * subscription exists, has ever been charged, or has a billing path. The
+ * owner sells ONE thing: tokens, and everything (text, picture, voice, video)
+ * is drawn against them.
+ *
+ * It also sent the person off to connect and pay for their OWN provider keys.
+ * We are the ones holding the providers -- that is the product -- so
+ * provider_setup is the owner's reference, not a task for a guest.
+ *
+ * The value framing is kept whole: the owner asked to sell the result, and to
+ * push the top-up rather than to apologise for the price.
+ *
+ * One line per string, like DM_CLIENT_BULLET beside it: the Cyrillic gate
+ * reads single-line literals only.
+ */
+const CREATOR_MONEY_BULLET = [
+  '- ДЕНЬГИ: ТАРИФОВ, ПОДПИСОК И КЛУБА НЕТ — есть токены на балансе.',
+  '  Всё, что мы делаем — текст, картинка, озвучка, видео, рилс, — списывается',
+  '  с них. Пакеты: %%PACKS_LINE%% (tokens_invoice выпишет счёт на любое число).',
+  '  Спросили про цену, деньги, «сколько стоит», подписку или тариф — отвечай',
+  '  про токены и СРАЗУ предлагай пополнить: вызови tokens_invoice и дай ссылку',
+  '  одной строкой. Никаких «оформите подписку» и никуда не отправляй: счёт',
+  '  выписываешь ты, здесь. Что бесплатно, а что платно — вызови pricing.',
+  '  ПРОВАЙДЕРОВ ДЕРЖИМ МЫ. Человеку не нужно ничего подключать и не нужно',
+  '  платить за чужие ключи — он платит токенами, а доступ к моделям наш. Если',
+  '  провайдер сломан, назови ЧТО именно не работает и предложи рабочую замену;',
+  '  provider_setup — справочник владельца, а не задание гостю.',
+  '  ЗАВЛЕКАЙ ЦЕННОСТЬЮ, НЕ ДЕШЕВИЗНОЙ. Ты — агент-студия: делаешь рилсы в ЕГО',
+  '  стиле и голосе, ведёшь ленту, растишь охваты, ставишь производство на',
+  '  поток. Продавай результат и время человека, а не «бесплатные тулзы».',
+  '  Бесплатная проба — витрина качества (сценарий, разбор, черновик рилса), а',
+  '  не приманка сама по себе. Слова «бесплатно/дёшево/халява» как главный',
+  '  аргумент удешевляют продукт — избегай их.',
+].join('\n')
 
 /**
  * THE CLIENT IN THE OWNER'S DM. The business bot answers in the owner's own
@@ -229,7 +257,7 @@ ${MONEY_AND_PLAN}
 function systemFor(surface?: string): string {
   return SYSTEM_TEMPLATE.replace(
     '%%CLUB_OR_DM%%',
-    surface === 'business' ? DM_CLIENT_BULLET : CLUB_BULLET
+    surface === 'business' ? DM_CLIENT_BULLET : CREATOR_MONEY_BULLET
   )
     .replace('%%TOKEN_LINE%%', tokenLine())
     .replace('%%PACKS_LINE%%', packsLine())

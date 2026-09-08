@@ -14,6 +14,7 @@
  * НЕ для прода. Только локальная эмуляция.
  */
 import { createServer } from 'node:http'
+import { priceFor } from './src/agent/billing-shared'
 
 const PORT = Number(process.env.MOCK_PORT || 3336)
 
@@ -241,15 +242,13 @@ const TOOL: Record<string, (a: any) => any> = {
     бесплатно: [
       { что: 'Лента, сценарии, SOUL, блог-рилы, img2img (Pollinations)' },
     ],
+    // Even the mock reads the price list: the service charged 2/12/40/2 while
+    // this taught 1/6/20/1 -- a sixth copy of one table, drifting in silence.
     платно: [
-      { функция: 'image_generate', токенов: 1 },
-      { функция: 'audio_generate', токенов: 6 },
-      { функция: 'video_generate', токенов: 20 },
-      { функция: 'reel_render', токенов: 1 },
-    ],
-    клуб: [
-      { id: 'basic', цена: '$99/мес', даёт: 'доступ к харнесу' },
-      { id: 'pro', цена: '$999/мес', даёт: 'харнес + встречи раз в неделю' },
+      { функция: 'image_generate', токенов: priceFor('image_generate') }, // cyrillic-ok: field names
+      { функция: 'audio_generate', токенов: priceFor('audio_generate') }, // cyrillic-ok: field names
+      { функция: 'video_generate', токенов: priceFor('video_generate') }, // cyrillic-ok: field names
+      { функция: 'reel_render', токенов: priceFor('reel_render') }, // cyrillic-ok: field names
     ],
     режим: 'MOCK',
   }),
@@ -258,13 +257,6 @@ const TOOL: Record<string, (a: any) => any> = {
     статус: 'работает (mock)',
     env: 'MOCK_KEY',
     как: 'В mock настройка не нужна — образец',
-  }),
-  club: () => ({
-    тарифы: [
-      { id: 'basic', название: 'Trinity Club — Basic', цена: '$99/мес' },
-      { id: 'pro', название: 'Trinity Club — Pro', цена: '$999/мес' },
-    ],
-    как_вступить: 'Telegram Stars (mock)',
   }),
   // голос владельца
   soul_get: () => ({
