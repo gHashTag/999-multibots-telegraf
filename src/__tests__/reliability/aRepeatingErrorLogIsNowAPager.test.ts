@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { healthAction } from '@/services/provider-health-monitor'
+import {
+  healthAction,
+  parkedProviders,
+} from '@/services/provider-health-monitor'
 
 /*
  * `logger.error` STOPPED BEING A LOG LINE AND BECAME A PUSH NOTIFICATION.
@@ -31,6 +34,24 @@ describe('a repeating error log is now a pager', () => {
       'recovered'
     )
     expect(healthAction({ available: true }, { available: true })).toBe('ok')
+  })
+
+  it('a provider the owner parked is not watched, and the list is explicit', () => {
+    // The owner was asked whether ElevenLabs is still needed and answered "not
+    // now, maybe later". So the calling code stays and the alarm stops -- a
+    // decision that lives in the deploy, because it is the kind that changes.
+    expect([
+      ...parkedProviders({ HEALTH_SKIP_PROVIDERS: 'elevenlabs' }),
+    ]).toEqual(['elevenlabs'])
+    expect([
+      ...parkedProviders({ HEALTH_SKIP_PROVIDERS: ' ElevenLabs , zai ' }),
+    ]).toEqual(['elevenlabs', 'zai'])
+  })
+
+  it('nothing is parked by default: silence must be chosen, never inherited', () => {
+    expect(parkedProviders({}).size).toBe(0)
+    expect(parkedProviders({ HEALTH_SKIP_PROVIDERS: '' }).size).toBe(0)
+    expect(parkedProviders({ HEALTH_SKIP_PROVIDERS: ' , , ' }).size).toBe(0)
   })
 
   it('an unknown provider that is UP is not announced as a recovery', () => {
