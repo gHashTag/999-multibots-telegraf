@@ -246,8 +246,8 @@ export async function ingestChats(
   o: { limit?: number; depth?: number } = {}
 ): Promise<Record<string, unknown>> {
   return callTool(telegramId, 'crm_ingest_chats', {
-    limit: o.limit ?? 100,
-    depth: o.depth ?? 200,
+    limit: o.limit ?? 2000,
+    depth: o.depth ?? 500,
   })
 }
 

@@ -523,7 +523,8 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       requireIdentity(ctx)
       return withClient(ctx, async c => {
         const dialogs = await c.getDialogs({
-          limit: Math.min(args.limit ?? 20, 100),
+          // The owner asked for all dialogs: the cap follows the ingest's.
+          limit: Math.min(args.limit ?? 20, 1000),
         })
         return {
           dialogs: dialogs.map(d => {
