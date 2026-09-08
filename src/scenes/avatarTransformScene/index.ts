@@ -1208,10 +1208,32 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply(limitMessage, {
         parse_mode: 'HTML',
-        reply_markup: Markup.keyboard([
-          [isRu ? '💫 Оформить подписку' : '💫 Subscribe'],
-          [getMainMenuText(isRu)],
-        ]).resize().reply_markup,
+        /*
+         * THE OFFER HAS TO BE INLINE, AND THIS IS THE ONE PLACE IT MATTERS MOST.
+         *
+         * This is the end of the free demo -- the single moment in the funnel
+         * where a person has just been told what they get and what it costs.
+         * The offer used to be a reply keyboard, and showMainMenu() four lines
+         * below sends a greeting carrying remove_keyboard (deliberately: it is
+         * what clears a stale wizard keyboard). So "Оформить подписку" was
+         * wiped within a second of appearing, and what replaced it was the
+         * generic "top up" follow-up two messages later, detached from the
+         * reason for asking.
+         *
+         * An inline keyboard belongs to its own message and survives that
+         * removal. go_to_subscription_scene is handled at BOT level in
+         * registerCommands, not only inside menuScene, so the press still works
+         * after the two scene.leave() calls below -- a scene-scoped handler
+         * would have been swallowed here.
+         */
+        reply_markup: Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+              'go_to_subscription_scene'
+            ),
+          ],
+        ]).reply_markup,
       })
 
       // Возвращаемся в главное меню
