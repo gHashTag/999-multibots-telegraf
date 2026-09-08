@@ -46,13 +46,25 @@ tri — оболочка Trinity S³AI
                  (тест, который не может упасть, — не защита, а её изображение)
   tri entry      двери входа: чем отвечают на мусор, есть ли тормоз
 
-  Обучение под t27
-  tri igla pairs    собрать пары «спек → код» из t27 (подтверждая шапкой t27c)
-  tri igla dataset  из пар сделать train/eval для LoRA (без обрезки, со стратификацией)
-  tri igla status   где узкое место корпуса прямо сейчас
-  tri igla rivals   кто уже решает эту задачу и насколько мы отстаём
-  tri igla bench    поверить измеритель на 156 задачах VerilogEval (нужен iverilog)
-  tri igla audit    компилируется ли наш собственный корпус (сегодня 2 из 31)
+  Обучение под t27 — живой путь (писать .t27)
+  tri igla report [--self-test]  ВСЯ панель оценки с правилом чтения
+  tri igla dataset-specs [кат] [вых]  собрать train/eval для написания .t27
+  tri igla count <каталог>       честный размер корпуса по spec-status
+  tri igla specs [каталог]       classify + статус реализации
+  tri igla config [каталог]      совпадает ли конфигурация обучения с данными
+  tri igla validate <спек>       годен ли спек (разбирается И не пуст)
+  tri igla gate <большой.t27>    поверить ворота (нужен вход с AST > 1 МБ)
+  tri igla score [--self-test]   валидность / релевантность / существо
+  tri igla blocked [каталог]     глубина дефектов: что чинится одной правкой
+  tri igla rivals                кто ещё решает эту задачу и наш разрыв
+  tri igla selfcheck             не разошлись ли справка и код
+
+  Обучение под t27 — УСТАРЕЛО (путь спек→Verilog, годных пар ноль)
+  tri igla pairs                 сбор пар спек→код
+  tri igla dataset               датасет из пар
+  tri igla audit                 годен ли Verilog-корпус (сегодня 0 из 31)
+  tri igla status                узкое место корпуса пар (Verilog-путь)
+  tri igla bench <задачи.json>   поверка на VerilogEval v2 (нужен iverilog)
 
   Улей и наблюдение
   tri hive       смотритель, журнал событий, отчёты королевы
@@ -141,7 +153,7 @@ case "${1:-}" in
     S="$ROOT/.claude/skills/t27-model-training/scripts"
     export PATH="$HOME/.nvm/versions/node/v20.19.0/bin:$PATH"
     export GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null)}"
-    case "${2:-status}" in
+    case "${2:-report}" in
       pairs)   node "$S/harvest-igla-pairs.mjs" ;;
       dataset)
         [ -f igla-pairs-manifest.json ] || node "$S/harvest-igla-pairs.mjs"
@@ -287,6 +299,28 @@ case "${1:-}" in
         B="${3:-verilogeval.json}"
         [ -f "$B" ] || { echo "нет $B -- сначала скачайте задачи (см. скилл)"; exit 2; }
         node "$S/verilogeval-score.mjs" --self-test --bench "$B"
+        ;;
+      selfcheck)
+        # СПРАВКА И КОД РАСХОДЯТСЯ МОЛЧА -- ЭТО ПРОВЕРЯЕТСЯ, А НЕ ПОМНИТСЯ.
+        #
+        # За ночь igla оброс с нуля до пятнадцати подкоманд, и справка отстала:
+        # описаны были ШЕСТЬ, причём именно устаревшие, а девять живых не
+        # значились вовсе. Хуже: подкомандой по умолчанию оставалась `status`
+        # из мёртвого Verilog-пути, так что `tri igla` без аргументов запускал
+        # не то, что нужно.
+        # Диапазон закрывается ЗАКРЫВАЮЩИМ esac с отступом, а не словом
+        # где угодно: этот самый блок содержит слово в строке awk, и первая
+        # версия стража обрывала разбор на собственном исходнике, объявляя
+        # `rivals` отсутствующей в коде. Проверяющий, сломанный тем, что
+        # проверяет, -- ровно тот класс, что ловился всю смену.
+        code=$(awk '/case "\$\{2:-report\}"/,/^    esac/' "$ROOT/bin/tri" \
+               | grep -oE '^      [a-z-]+\)' | tr -d ' )' | sort -u)
+        help=$("$ROOT/bin/tri" 2>&1 | grep -oE 'tri igla [a-z-]+' | awk '{print $3}' | sort -u)
+        miss=$(comm -23 <(echo "$code") <(echo "$help"))
+        extra=$(comm -13 <(echo "$code") <(echo "$help"))
+        [ -n "$miss" ] && { echo "⛔ в коде есть, в справке нет: $miss"; exit 1; }
+        [ -n "$extra" ] && { echo "⛔ в справке есть, в коде нет: $extra"; exit 1; }
+        echo "✅ справка и код совпадают ($(echo "$code" | wc -w | tr -d ' ') подкоманд)"
         ;;
       rivals)
         # КТО УЖЕ РЕШАЕТ ЭТУ ЗАДАЧУ.
