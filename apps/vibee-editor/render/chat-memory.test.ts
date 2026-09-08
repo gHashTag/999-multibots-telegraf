@@ -297,6 +297,81 @@ describe('who next', () => {
     expect(r.next).toBe('reply')
   })
 
+  it('no intent in their words: a recent person gets TALK, not an offer; a fresh answer waits', async () => {
+    /*
+     * The score alone used to become an offer. The owner: the client must
+     * want to buy by themselves -- so without a price or buy word there is
+     * no invoice, only a continuation of the conversation, and not the
+     * morning after the owner's own last word.
+     */
+    const rows = (lastOut: string) => [
+      {
+        lead_id: 'chatty',
+        total: 12,
+        inbound: 9,
+        last_in: '2026-09-05T09:00:00Z',
+        last_out: lastOut,
+      },
+    ]
+    const words = [{ lead_id: 'chatty', text: 'как дела, что нового' }]
+    const twoDaysAgo = fakePool([
+      { when: /GROUP BY lead_id/, rows: rows('2026-09-06T09:00:00Z') },
+      { when: /^SELECT lead_id, text FROM crm_messages/, rows: words },
+    ])
+    const [t] = await leadCandidates(twoDaysAgo, OWNER, { now })
+    expect(t.signals).toEqual([])
+    expect(t.next).toBe('talk')
+    const yesterday = fakePool([
+      { when: /GROUP BY lead_id/, rows: rows('2026-09-07T20:00:00Z') },
+      { when: /^SELECT lead_id, text FROM crm_messages/, rows: words },
+    ])
+    const [y] = await leadCandidates(yesterday, OWNER, { now })
+    expect(y.next).toBe('wait')
+    const askedLater = fakePool([
+      { when: /GROUP BY lead_id/, rows: rows('2026-09-06T09:00:00Z') },
+      { when: /^SELECT lead_id, text FROM crm_messages/, rows: words },
+    ])
+    const [l] = await leadCandidates(askedLater, OWNER, {
+      now,
+      touched: new Map([
+        ['chatty', { kind: 'later', at: '2026-09-06T10:00:00Z' }],
+      ]),
+    })
+    expect(l.next).toBe('wait')
+  })
+
+  it('a high score without a price or buy word is NOT an offer: it is talk', async () => {
+    const busy = fakePool([
+      {
+        when: /GROUP BY lead_id/,
+        rows: [
+          {
+            lead_id: 'active',
+            total: 20,
+            inbound: 15,
+            last_in: '2026-09-05T09:00:00Z',
+            last_out: '2026-09-05T12:00:00Z',
+          },
+        ],
+      },
+      {
+        when: /^SELECT lead_id, text FROM crm_messages/,
+        rows: [{ lead_id: 'active', text: 'как дела, что нового' }],
+      },
+    ])
+    // this week (+3), a live thread (+1), bought before (+2): six points and
+    // not one word about price or buying -- a conversation, not an invoice.
+    const [a] = await leadCandidates(busy, OWNER, {
+      now,
+      touched: new Map([
+        ['active', { kind: 'bought', at: '2026-08-01T00:00:00Z' }],
+      ]),
+    })
+    expect(a.score).toBeGreaterThanOrEqual(4)
+    expect(a.signals).not.toContain('price')
+    expect(a.next).toBe('talk')
+  })
+
   it('quiet people are last, and the limit holds', async () => {
     const list = await leadCandidates(pool(), OWNER, { now, limit: 2 })
     expect(list.length).toBe(2)

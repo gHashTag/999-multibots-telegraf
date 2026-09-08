@@ -59,6 +59,7 @@ import {
   handleAgentHistory,
   handleAgentHistoryAppend,
   handleAgentHistoryDelete,
+  handleCrmMirror,
   handleAgentKeys,
   chatIdentity,
   resolveIdentity,
@@ -7865,6 +7866,23 @@ const server = createServer(async (req, res) => {
    * resolveIdentity, что у чтения и у чата: три маршрута об одном и том же
    * разговоре обязаны понимать личность одинаково.
    */
+  if (req.url?.split('?')[0] === '/api/crm/mirror' && req.method === 'POST') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    await handleCrmMirror(req, res, String(who), getPool)
+    return
+  }
+
   if (
     req.url?.split('?')[0] === '/api/agent/history' &&
     req.method === 'DELETE'

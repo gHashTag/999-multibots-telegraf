@@ -29,7 +29,8 @@ describe('the client in the owner DM (surface business)', () => {
   it('denies tariffs and the club, and sends the invoice first', () => {
     expect(p).toContain('Тарифов,')
     expect(p).toContain('подписок и клуба для клиента НЕТ')
-    expect(p).toContain('СРАЗУ вызови tokens_invoice')
+    expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ')
+    expect(p).toContain('tokens_invoice')
     expect(p).toContain('my_balance')
     expect(p).not.toContain('$99')
     expect(p).not.toContain('Basic')

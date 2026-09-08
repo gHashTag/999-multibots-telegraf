@@ -522,31 +522,76 @@ const LOOKS_NUMERIC = /^-?\d+$/
  * extra round trip, taken ONLY when the first attempt fails, so a @username
  * send stays a single call.
  */
-async function withAddressBook(
+async function withAddressBook<T>(
   c: SendingClient,
   target: string,
-  attempt: () => Promise<unknown>
-): Promise<void> {
+  attempt: () => Promise<T>
+): Promise<T> {
   try {
-    await attempt()
-    return
+    return await attempt()
   } catch (e) {
     const text = e instanceof Error ? e.message : String(e)
     const unresolved = /input entity|Could not find/i.test(text)
     if (!unresolved || !LOOKS_NUMERIC.test(target)) throw e
   }
   await c.getDialogs({ limit: 200 })
-  await attempt()
+  return attempt()
 }
 
 async function sendWithAddressBook(
   c: SendingClient,
   target: string,
   message: string
-): Promise<void> {
-  await withAddressBook(c, target, () =>
+): Promise<unknown> {
+  return withAddressBook(c, target, () =>
     c.sendMessage(target, { message, ...VERBATIM })
   )
+}
+
+/**
+ * THE SENT MESSAGE GOES INTO THE MEMORY AT ONCE.
+ *
+ * Postgres by Telegram's own message id, so the next ingest keeps nothing
+ * twice, and Zep, so the agent's picture of this person includes what the
+ * owner just said -- not half an hour later. Best effort: a memory that is
+ * down does not un-send a message.
+ */
+async function mirrorSent(
+  ctx: { telegramId: string; pool?: unknown },
+  p: PublicProposal,
+  sent: unknown
+): Promise<void> {
+  if (!p.lead || !ctx.pool) return
+  const m = sent as { id?: unknown; date?: unknown } | null | undefined
+  const id = Number(m?.id)
+  if (!Number.isFinite(id)) return
+  const date = Number(m?.date)
+  const text = p.what ?? ''
+  if (!text.trim()) return
+  try {
+    const { mirrorNow } = await import('./crm-mirror')
+    await mirrorNow(
+      ctx.pool as never,
+      String(ctx.telegramId),
+      String(p.lead),
+      [
+        {
+          msgId: id,
+          at:
+            Number.isFinite(date) && date > 0
+              ? new Date(date * 1000)
+              : new Date(),
+          out: true,
+          text,
+        },
+      ],
+      p.display ? p.display.split(' (@')[0] : null
+    )
+  } catch (e) {
+    console.warn(
+      `[proposal] sent message not mirrored lead=${p.lead}: ${String(e).slice(0, 120)}`
+    )
+  }
 }
 
 async function sendFileWithAddressBook(
@@ -632,10 +677,11 @@ export async function execute(
             what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
           })
         }
+        let sent: unknown = null
         try {
           if (p.media)
             await sendFileWithAddressBook(c, p.target, p.media, p.what)
-          else await sendWithAddressBook(c, p.target, p.what ?? '')
+          else sent = await sendWithAddressBook(c, p.target, p.what ?? '')
         } catch (e) {
           if (paid !== null && p.charge && ctx.pool) {
             // Not delivered: give back exactly what was taken, and say so
@@ -669,6 +715,7 @@ export async function execute(
           }
           throw e
         }
+        if (sent !== null) await mirrorSent(ctx, p, sent)
         if (p.lead && ctx.pool) {
           try {
             const { recordTouch } = await import('./crm-touches')

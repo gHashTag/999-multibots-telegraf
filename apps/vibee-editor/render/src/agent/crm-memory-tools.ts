@@ -6,7 +6,6 @@ import { stageOf } from './crm-stages'
 import { balanceOf } from './billing-shared'
 import { touchedSince, touchesFor } from './crm-touches'
 import {
-  rememberMessagesFresh,
   rememberPerson,
   personOf,
   fullName,
@@ -14,13 +13,8 @@ import {
   leadCandidates,
   type StoredMessage,
 } from './chat-memory'
-import {
-  zepConfigured,
-  zepEnsureUser,
-  zepEnsureThread,
-  zepAddMessages,
-  zepContext,
-} from './zep-memory'
+import { mirrorNow } from './crm-mirror'
+import { zepConfigured, zepContext } from './zep-memory'
 
 /**
  * THE SELLER'S MEMORY, AS TOOLS.
@@ -154,13 +148,15 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           report.messages_read += msgs.length
           // Only what is NEW reaches the mirror: the same dialog read again
           // must not be posted to Zep again.
-          const fresh = await rememberMessagesFresh(pool, owner, lead, msgs)
-          report.messages_new += fresh.length
-          if (zepConfigured() && fresh.length) {
-            await zepEnsureUser(lead, d.entity?.firstName ?? null)
-            await zepEnsureThread(owner, lead)
-            report.zep_mirrored += await zepAddMessages(owner, lead, fresh)
-          }
+          const mirrored = await mirrorNow(
+            pool,
+            owner,
+            lead,
+            msgs,
+            d.entity?.firstName ?? null
+          )
+          report.messages_new += mirrored.fresh
+          report.zep_mirrored += mirrored.zep
         }
       } finally {
         await c.disconnect?.().catch?.(() => undefined)
@@ -340,9 +336,10 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           }
         }),
         how_to_read:
-          'reply — человек ждёт ответа: ответь по сути, потом продажа. deliver — просил услугу ' +
-          'и спрашивал цену: crm_deliver_photo. offer — crm_offer. wait — не трогать. ' +
-          'Если список пуст — сначала crm_ingest_chats.',
+          'reply — человек ждёт ответа: ответь по сути его слов, без продажи. deliver — просил услугу ' +
+          'и спрашивал цену: crm_deliver_photo. offer — САМ спрашивал цену или хотел купить: crm_offer. ' +
+          'talk — продолжить разговор по его последним словам и памяти (crm_lead_context), без цены и ' +
+          'счёта. wait — не трогать. Не предлагай оплату первым. Если список пуст — сначала crm_ingest_chats.',
       }
     },
   },

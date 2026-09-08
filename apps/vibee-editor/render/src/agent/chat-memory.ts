@@ -404,7 +404,7 @@ export async function leadContext(
   }
 }
 
-export type NextStep = 'reply' | 'deliver' | 'offer' | 'wait'
+export type NextStep = 'reply' | 'deliver' | 'offer' | 'talk' | 'wait'
 
 export interface LeadCandidate {
   lead: string
@@ -533,6 +533,23 @@ export async function leadCandidates(
         why.push('только что писали, дать подумать')
       }
     }
+    /*
+     * THE CLIENT MUST WANT TO BUY BY THEMSELVES.
+     *
+     * An offer -- an invoice -- is proposed only to somebody whose own words
+     * asked for a price or said they want to buy. Everybody else who wrote
+     * recently gets `talk`: a continuation of the conversation from its
+     * context, no price, no link. The score used to turn into an offer on
+     * its own (score >= 4), which pushed invoices on people who had merely
+     * been active; the owner said no to that.
+     *
+     * `talk` waits two days after the owner's last word: following up the
+     * next morning is nagging, and the playbook's cascade says two days.
+     */
+    const daysSinceOut =
+      lastOut === null
+        ? null
+        : Math.floor((now.getTime() - lastOut.getTime()) / 86400_000)
     let next: NextStep = 'wait'
     if (unanswered) next = 'reply'
     else if (
@@ -540,8 +557,16 @@ export async function leadCandidates(
       (signals.includes('price') || signals.includes('buy'))
     )
       next = 'deliver'
-    else if (signals.includes('price') || signals.includes('buy') || score >= 4)
+    else if (signals.includes('price') || signals.includes('buy'))
       next = 'offer'
+    else if (
+      days !== null &&
+      days <= 14 &&
+      (daysSinceOut === null || daysSinceOut >= 2) &&
+      touch?.kind !== 'refused' &&
+      touch?.kind !== 'later'
+    )
+      next = 'talk'
     // A refusal parks the pitch, never the reply: their last word is answered.
     if (touch?.kind === 'refused' && score < 0 && !unanswered) next = 'wait'
     out.push({
