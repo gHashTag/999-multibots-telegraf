@@ -26,9 +26,30 @@ class TelegramLogService {
   private bot: Telegraf<MyContext> | null = null
   private logGroupId: string
   private isInitialized = false
+  /** So the complaint about a dead channel is once a minute, not once an error. */
+  private lastNotWiredWarnAt = 0
 
   constructor() {
     this.logGroupId = process.env.LOG_GROUP_ID || DEFAULT_LOG_GROUP_ID
+  }
+
+  /**
+   * OPEN THE CHANNEL ONCE, FROM THE PLACE THAT INSTALLS bot.catch.
+   *
+   * `initialize()` was called from NOWHERE -- not one line in this repository
+   * -- and `log()` on an uninitialised service simply returned, silently. So
+   * every error that reached `bot.catch` and every payment report went nowhere
+   * from the very beginning: the owner never saw a single incident, and
+   * nothing said so.
+   *
+   * The wiring therefore lives NEXT TO THE SUBSCRIBER (setupErrorHandler)
+   * rather than at a startup point that can be forgotten: whoever installs the
+   * error catcher raises its delivery channel in the same move. Idempotent --
+   * eleven bots share the process and one sender is enough.
+   */
+  initializeOnce(bot: Telegraf<MyContext>): void {
+    if (this.isInitialized) return
+    this.initialize(bot)
   }
 
   /**
@@ -65,8 +86,30 @@ class TelegramLogService {
     // Всегда логируем в winston
     this.logToWinston(level, message, options)
 
-    // Если silent или бот не инициализирован - не отправляем в Telegram
-    if (options.silent || !this.isInitialized || !this.bot) {
+    if (options.silent) return
+
+    /*
+     * A DISCONNECTED CHANNEL MUST SAY THAT IT IS DISCONNECTED.
+     *
+     * A silent `return` sat here, on the ONLY path errors take to the owner.
+     * While nobody called `initialize()`, everything looked healthy from every
+     * angle a reader has: the calls exist, nothing throws, and the Telegram
+     * group is empty -- absence of signal reading as absence of incidents.
+     *
+     * Once a minute rather than once an error: an incident produces hundreds,
+     * and a log full of complaints about the log would bury the incident.
+     */
+    if (!this.isInitialized || !this.bot) {
+      const now = Date.now()
+      if (now - this.lastNotWiredWarnAt > 60_000) {
+        this.lastNotWiredWarnAt = now
+        logger.error(
+          '[TelegramLogService] НЕ ПОДКЛЮЧЁН: ни одна ошибка не доедет до владельца',
+          {
+            hint: 'setupErrorHandler must call telegramLogService.initializeOnce(bot)',
+          }
+        )
+      }
       return
     }
 
