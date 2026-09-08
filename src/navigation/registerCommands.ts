@@ -134,6 +134,12 @@ import {
   getBusinessStats,
 } from '@/services/businessBotService'
 import { registerMultiPhotoActions } from '@/handlers/multiPhotoActions'
+import {
+  registerInlineQuery,
+  serviceFromStartParam,
+  START_PARAM_PREFIX,
+} from '@/handlers/inlineQuery'
+import type { ServiceCard } from '@/handlers/inlineQuery'
 import { handleHelpCommand } from '@/commands/helpCommand'
 import { get100Command } from '@/commands/get100Command'
 import { handleTechSupport } from '@/commands/handleTechSupport'
@@ -591,6 +597,9 @@ If not, continue on your own and click the "I myself" button`
     // 7. ✅ РЕГИСТРИРУЕМ MULTI-PHOTO ACTION HANDLERS
     logger.info('🔧 [MULTI-PHOTO] Registering multi-photo action handlers')
     registerMultiPhotoActions(bot)
+
+    // 7b. INLINE MODE: @bot <query> in any chat -> service cards with deep links
+    registerInlineQuery(bot)
 
     // 8. ✅ РЕГИСТРИРУЕМ AUTONOMOUS MONITOR КОМАНДЫ
     logger.info(
@@ -2060,6 +2069,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
       // Handle start parameters (invite code / клуб)
       let wantsFoundryClub = false
+      let inlineService: ServiceCard | undefined
       if (ctx.message && 'text' in ctx.message) {
         const parts = ctx.message.text.split(' ')
         if (parts.length > 1) {
@@ -2080,6 +2090,15 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             wantsFoundryClub = true
             ctx.session.foundryDeepLink = true
             logger.info('Foundry deep-link', { telegramId, startParam })
+          } else if (startParam.startsWith(START_PARAM_PREFIX)) {
+            // Inline card "open in the bot" (src/handlers/inlineQuery.ts):
+            // an existing user lands straight in that service's scene.
+            inlineService = serviceFromStartParam(startParam)
+            logger.info('Inline deep-link', {
+              telegramId,
+              startParam,
+              found: !!inlineService,
+            })
           }
         }
       }
@@ -2098,6 +2117,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
         console.log('🔴 [DEBUG /start] CreateUserScene entered')
+      } else if (inlineService?.mode) {
+        ctx.session.mode = inlineService.mode
+        await ctx.scene.enter(inlineService.mode)
       } else if (wantsFoundryClub) {
         console.log('🔴 [DEBUG /start] Foundry deep-link, showing club...')
         await handleClubCommand(ctx)

@@ -553,6 +553,7 @@ async function initializeBots() {
         'chat_member',
         'business_connection',
         'business_message',
+        'inline_query',
       ])
 
       botPromises.push(botPromise)

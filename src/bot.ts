@@ -200,6 +200,7 @@ async function initializeBots() {
         'successful_payment' as any,
         'business_connection' as any,
         'business_message' as any,
+        'inline_query',
       ],
     })
     logger.debug(
@@ -308,6 +309,7 @@ async function initializeBots() {
               'successful_payment' as any,
               'business_connection' as any,
               'business_message' as any,
+              'inline_query',
             ],
           })
           logger.debug(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
@@ -337,6 +339,7 @@ async function initializeBots() {
               'successful_payment' as any,
               'business_connection' as any,
               'business_message' as any,
+              'inline_query',
             ],
           })
           logger.debug(
