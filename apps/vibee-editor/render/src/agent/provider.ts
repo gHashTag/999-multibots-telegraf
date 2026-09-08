@@ -59,8 +59,14 @@ export interface Provider {
   compact: boolean
 }
 
-/** Below this, the full tool catalogue (~9k tokens) would not fit beside the prompt. */
-export const COMPACT_BELOW = 12_000
+/**
+ * Below this window the full tool catalogue is shown to nobody. Measured on
+ * the live service, 2026-09-08: prompt ~4.8k tokens + all 63 tool schemas
+ * ~8.8k + the owner's conversation = past 16k, and a 16k qwen3 answered a
+ * one-line question in 68 seconds, most of it reading the catalogue. The
+ * seller's kit (~3k) beside the prompt leaves room for the conversation.
+ */
+export const COMPACT_BELOW = 24_000
 
 /**
  * OUR OWN MODEL. queen-ollama on the project's private network, spoken to
