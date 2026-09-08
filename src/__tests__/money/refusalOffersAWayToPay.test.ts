@@ -98,6 +98,12 @@ describe('the number of money refusals with nothing to press does not grow', () 
     /logger\.|console\.|^\s*\/\/|^\s*\*|description:\s*'Insufficient/
   const isRefusal = (line: string) => PHRASE.test(line) && !NOISE.test(line)
 
+  /** Blank out comments, keeping newlines so the window still lines up. */
+  const stripComments = (text: string) =>
+    text
+      .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+      .replace(/^([^'"`\n]*?)\/\/.*$/gm, (_m, keep) => keep)
+
   const measure = () => {
     const files = execSync(
       "grep -rl --include='*.ts' -E 'Недостаточно|Insufficient|Not enough stars' src 2>/dev/null || true",
@@ -121,7 +127,22 @@ describe('the number of money refusals with nothing to press does not grow', () 
           continue
         }
         prev = i
-        const window = lines.slice(Math.max(0, i - 8), i + 15).join('\n')
+        /*
+         * THE WINDOW IS READ AS CODE, NOT AS PROSE.
+         *
+         * This asked whether the word `standardButtons` appears near the
+         * refusal. It does not distinguish a call from a COMMENT -- and the
+         * comments added while fixing four of these sites each explain that
+         * standardButtons now carries the button, so every site in those files
+         * flipped to "has keyboard" on the strength of the explanation. The
+         * count fell from 43 to 38 and reverting any single fix changed
+         * nothing, which is how the prose was caught.
+         *
+         * A quotation is not an invocation. Comments are blanked first.
+         */
+        const window = stripComments(
+          lines.slice(Math.max(0, i - 8), i + 15).join('\n')
+        )
         sites.push({
           file,
           line: i + 1,
@@ -154,8 +175,13 @@ describe('the number of money refusals with nothing to press does not grow', () 
     const mute = sites.filter(s => !s.keyboard)
     expect(
       mute.length,
+      // TIGHT, and it has to be: a ceiling one above the real figure cannot see
+      // a regression of one. Bisected with the CORRECTED classifier on both
+      // sides -- clean main fails at 42, this branch fails at 37 and passes at
+      // 38. Measuring the two sides with different instruments is how the first
+      // version of this claim came out wrong.
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(43)
+    ).toBeLessThanOrEqual(38)
   })
 
   /**
@@ -166,6 +192,12 @@ describe('the number of money refusals with nothing to press does not grow', () 
   it('the wizards where somebody is refused to their face now offer the button', () => {
     const sites = measure()
     const fixed = [
+      // Closed 2026-09-08. All four named "the main menu" IN WORDS and sent no
+      // keyboard -- the same shape the shared helper had. The copy no longer
+      // names a destination, because standardButtons puts one under the message.
+      'processBalanceOperation',
+      'generateSeeDream4',
+      'generateSeeDream45',
       'aiCoverWizard',
       'faceSwapWizard',
       'musicGenerationWizard',

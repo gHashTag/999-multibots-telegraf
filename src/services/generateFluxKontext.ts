@@ -22,6 +22,7 @@ import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
 import fs from 'fs'
 import { Markup } from 'telegraf'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Больше не нужна функция createEditResultKeyboard для лид-магнета
 // Убрана чтобы упростить интерфейс
@@ -696,11 +697,17 @@ export const generateAdvancedFluxKontext = async (
 
     if (currentBalance < cost) {
       const message = is_ru
-        ? `❌ Недостаточно звёзд.\n\n💰 Ваш баланс: ${currentBalance.toFixed(1)} ⭐\n💎 Требуется: ${cost} ⭐\n\n🔋 Пополните баланс в главном меню.`
-        : `❌ Insufficient stars.\n\n💰 Your balance: ${currentBalance.toFixed(1)} ⭐\n💎 Required: ${cost} ⭐\n\n🔋 Top up in the main menu.`
+        ? `❌ Недостаточно звёзд.\n\n💰 Ваш баланс: ${currentBalance.toFixed(1)} ⭐\n💎 Требуется: ${cost} ⭐\n\n🔋 Пополните — и продолжим.`
+        : `❌ Insufficient stars.\n\n💰 Your balance: ${currentBalance.toFixed(1)} ⭐\n💎 Required: ${cost} ⭐\n\n🔋 Top up and we continue.`
 
       if (ctx && ctx.telegram) {
-        await ctx.telegram.sendMessage(telegram_id, message)
+        // The refusal carries the way to pay: standardButtons puts top-up first.
+        // Rationale in price/helpers/sendInsufficientStarsMessage.ts.
+        await ctx.telegram.sendMessage(
+          telegram_id,
+          message,
+          standardButtons(is_ru)
+        )
       }
 
       throw new Error('Not enough stars')

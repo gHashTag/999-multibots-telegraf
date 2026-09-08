@@ -2,6 +2,7 @@ import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult, MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 type BalanceOperationProps = {
   ctx?: MyContext
   model?: string
@@ -126,9 +127,15 @@ export const processBalanceOperation = async ({
     // Проверяем достаточно ли средств
     if (currentBalance < paymentAmount) {
       const message = is_ru
-        ? 'Недостаточно средств на балансе. Пополните баланс в главном меню.'
-        : 'Insufficient funds. Top up your balance in the main menu.'
-      await ctx.telegram.sendMessage(telegram_id.toString(), message)
+        ? 'Недостаточно средств на балансе. Пополните — и продолжим.'
+        : 'Insufficient funds. Top up and we continue.'
+      // The refusal carries the way to pay: standardButtons puts top-up first.
+      // Rationale in price/helpers/sendInsufficientStarsMessage.ts.
+      await ctx.telegram.sendMessage(
+        telegram_id.toString(),
+        message,
+        standardButtons(is_ru)
+      )
       return {
         newBalance: currentBalance,
         success: false,

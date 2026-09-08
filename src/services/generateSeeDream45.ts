@@ -30,6 +30,7 @@ import {
   SeeDream45Size,
   SequentialImageGeneration,
 } from '@/schemas/seedream45.schema'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // Service parameters interface
 export interface SeeDream45ServiceParams {
@@ -219,10 +220,12 @@ export const generateSeeDream45 = async (
     if (!params.is_welcome_gift && currentBalance < totalCost) {
       if (!params.suppressUserErrors) {
         const message = is_ru
-          ? `❌ Недостаточно звезд на балансе.\n\n💰 Требуется: ${totalCost}⭐\n💎 У вас: ${currentBalance}⭐\n\n📱 Пополните баланс в главном меню.`
-          : `❌ Insufficient stars balance.\n\n💰 Required: ${totalCost}⭐\n💎 You have: ${currentBalance}⭐\n\n📱 Top up your balance in the main menu.`
+          ? `❌ Недостаточно звезд на балансе.\n\n💰 Требуется: ${totalCost}⭐\n💎 У вас: ${currentBalance}⭐\n\n📱 Пополните — и продолжим.`
+          : `❌ Insufficient stars balance.\n\n💰 Required: ${totalCost}⭐\n💎 You have: ${currentBalance}⭐\n\n📱 Top up and we continue.`
 
-        await ctx.reply(message)
+        // The refusal carries the way to pay: standardButtons puts top-up first.
+        // Rationale in price/helpers/sendInsufficientStarsMessage.ts.
+        await ctx.reply(message, standardButtons(is_ru))
       }
 
       logger.error('SeeDream4.5 insufficient balance', {
