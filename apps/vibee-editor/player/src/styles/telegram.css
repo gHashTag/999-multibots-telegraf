@@ -54,6 +54,17 @@ html[data-tg='1'] #root {
   overscroll-behavior-y: contain;
 }
 
+/* Keyboard open (set by useTelegramWebApp from viewportHeight vs
+   viewportStableHeight): the visible area is the LIVE height, so the document
+   follows it instead of the stable one -- otherwise the WebView scrolls the
+   taller document to reach the focused input and the fixed tab bar lands on
+   top of the composer (owner's screenshot, 08.09.2026, agent chat). */
+html[data-tg='1'][data-keyboard='open'],
+html[data-tg='1'][data-keyboard='open'] body,
+html[data-tg='1'][data-keyboard='open'] #root {
+  height: var(--app-vh, var(--app-vh-stable));
+}
+
 /* The Telegram client draws its own header; the app's own top padding has to
    clear the content safe area on fullscreen-capable clients (Bot API 8.0+). */
 html[data-tg='1'] .app-content-top {
@@ -75,6 +86,7 @@ html.sheet-open #root {
      (64px) расходится с фактическими 57px, и разница уходила в мёртвую зону
      под превью. */
   --app-tabbar-total: calc(
-    var(--tabbar-actual-h, var(--nav-height, 64px)) + var(--app-safe-bottom, 0px)
+    var(--tabbar-actual-h, var(--nav-height, 64px)) +
+      var(--app-safe-bottom, 0px)
   );
 }

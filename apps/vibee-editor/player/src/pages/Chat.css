@@ -30,13 +30,25 @@
     sans-serif;
 }
 
-/* Шапка чата: логотип t27 + название. Плоская, без градиента. */
-.chat-title {
+/* Under the keyboard the page is the live viewport (see styles/telegram.css);
+   the tab bar is hidden then, so nothing is subtracted. */
+html[data-keyboard='open'] .chat-page {
+  height: var(--app-vh, 100dvh);
+}
+/* Slim toolbar: only the two controls. The greeting used to sit here as a
+   fixed block (title + subtitle + chips) and, with the keyboard open, took
+   half of the visible screen; the agent's greeting is the first message of
+   the scrollable list, so the header repeats nothing. */
+.chat-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
+  gap: 8px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--t27-border);
+}
+.chat-toolbar:empty {
+  display: none;
 }
 .chat-title__logo {
   width: 34px;
@@ -336,10 +348,9 @@
   }
 }
 
-/* Баланс токенов в шапке чата: цена генераций видна до первого списания */
+/* Баланс токенов в панели чата: цена генераций видна до первого списания */
 .chat-tokens {
   display: inline-block;
-  margin-top: 6px;
   padding: 4px 12px;
   border: 1px solid #2a2820;
   border-radius: 999px;
@@ -359,8 +370,6 @@
    выход из состояния, а не действие, которое стоит предлагать первым. */
 .chat-reset {
   display: inline-block;
-  margin-top: 6px;
-  margin-left: 8px;
   padding: 4px 12px;
   border: 1px solid #2a2820;
   border-radius: 999px;
@@ -380,7 +389,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  width: 100%;
 }
 
 .chat-topup__pack {

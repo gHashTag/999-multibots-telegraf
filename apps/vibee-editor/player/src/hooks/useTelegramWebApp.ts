@@ -21,7 +21,35 @@ function setVar(name: string, value: string) {
   document.documentElement.style.setProperty(name, value)
 }
 
+/**
+ * Keyboard = the live viewport is much shorter than the stable one. Telegram
+ * reports viewportHeight (shrinks under the keyboard on iOS) and
+ * viewportStableHeight (does not). Below the threshold the difference is a
+ * toolbar or a rounding, not a keyboard. Pages that must stay usable while
+ * typing (the agent chat) switch to the live height and the tab bar hides
+ * -- a bottom tab bar under a keyboard only steals the composer's space.
+ */
+const KEYBOARD_THRESHOLD_PX = 120
+
+export function keyboardIsOpen(live: unknown, stable: unknown): boolean {
+  return (
+    typeof live === 'number' &&
+    typeof stable === 'number' &&
+    Number.isFinite(live) &&
+    Number.isFinite(stable) &&
+    live < stable - KEYBOARD_THRESHOLD_PX
+  )
+}
+
+function applyKeyboard(open: boolean) {
+  document.documentElement.setAttribute(
+    'data-keyboard',
+    open ? 'open' : 'closed'
+  )
+}
+
 function applyViewport(wa: TelegramWebApp) {
+  applyKeyboard(keyboardIsOpen(wa.viewportHeight, wa.viewportStableHeight))
   // viewportStableHeight excludes the transient keyboard/expanding area, so it
   // is the right basis for fixed chrome like a bottom tab bar. viewportHeight
   // is the live value, used for scrollable content.

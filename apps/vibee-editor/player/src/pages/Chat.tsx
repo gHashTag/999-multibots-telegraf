@@ -431,73 +431,68 @@ function ChatPage() {
       <Header />
       {/* Бренд (знак + Trinity S³AI) уже стоит в Header выше — здесь его
           не повторяем, иначе название дублируется на экране дважды. */}
-      <div className="chat-title">
-        <div className="chat-title__text">
-          <h1>Агент</h1>
-          <p>
-            Смотрит в приложение своими инструментами и делает, а не советует
-          </p>
-          {/* Переписка теперь переживает уход со страницы — значит нужен и
-              способ её закончить. Без этой кнопки старый разговор оставался
-              бы на экране навсегда. */}
-          {messages.length > 1 && (
-            <button
-              className="chat-reset"
-              onClick={() => {
-                /*
-                 * «Начать заново» ТЕПЕРЬ ЧИСТИТ И СЕРВЕР.
-                 *
-                 * Раньше кнопка стирала только память браузера, а общий
-                 * разговор оставался на сервере — человек нажимал «новый», а
-                 * агент продолжал помнить всё прошлое. Обещание, которого
-                 * интерфейс не выполнял; с появлением общей памяти оно стало
-                 * ещё заметнее: разговор возвращался при следующем открытии.
-                 *
-                 * Экран очищаем СРАЗУ, не дожидаясь сети: нажатие должно
-                 * ощущаться мгновенно. Отказ сервера при этом не молчаливый —
-                 * он виден в консоли, а следующий заход покажет, что история
-                 * вернулась, и это честнее, чем ложное «очищено».
-                 */
-                setMessages([WELCOME])
-                setInput('')
-                setAttachments([])
-                fetch(`${API_BASE}/api/agent/history`, {
-                  method: 'DELETE',
-                  headers: authHeaders(),
-                }).catch(e => console.error('[chat] очистка на сервере:', e))
-              }}
-            >
-              Новый разговор
-            </button>
-          )}
-          {tokens !== null && (
-            <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
-              💰 {tokens} токенов · пополнить
-            </button>
-          )}
-          {topUp && (
-            <div className="chat-topup">
-              {/* Якорная психология (2026): большой пакет первым — средний
-                  на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
-                  у десятки — честный «выгоднее всех», не маркетинговый. */}
-              {[150, 50, 10].map(p => (
-                <button
-                  key={p}
-                  className="chat-topup__pack"
-                  onClick={() => buy(String(p))}
-                >
-                  {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
-                  <span>
-                    {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
-                  </span>
-                </button>
-              ))}
-              {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
-            </div>
-          )}
-        </div>
+      {/* The greeting lives in the list as the agent's first message and
+          scrolls away with it; the toolbar keeps only the two controls. */}
+      <div className="chat-toolbar">
+        {/* Переписка теперь переживает уход со страницы — значит нужен и
+          способ её закончить. Без этой кнопки старый разговор оставался
+          бы на экране навсегда. */}
+        {messages.length > 1 && (
+          <button
+            className="chat-reset"
+            onClick={() => {
+              /*
+               * «Начать заново» ТЕПЕРЬ ЧИСТИТ И СЕРВЕР.
+               *
+               * Раньше кнопка стирала только память браузера, а общий
+               * разговор оставался на сервере — человек нажимал «новый», а
+               * агент продолжал помнить всё прошлое. Обещание, которого
+               * интерфейс не выполнял; с появлением общей памяти оно стало
+               * ещё заметнее: разговор возвращался при следующем открытии.
+               *
+               * Экран очищаем СРАЗУ, не дожидаясь сети: нажатие должно
+               * ощущаться мгновенно. Отказ сервера при этом не молчаливый —
+               * он виден в консоли, а следующий заход покажет, что история
+               * вернулась, и это честнее, чем ложное «очищено».
+               */
+              setMessages([WELCOME])
+              setInput('')
+              setAttachments([])
+              fetch(`${API_BASE}/api/agent/history`, {
+                method: 'DELETE',
+                headers: authHeaders(),
+              }).catch(e => console.error('[chat] очистка на сервере:', e))
+            }}
+          >
+            Новый разговор
+          </button>
+        )}
+        {tokens !== null && (
+          <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
+            💰 {tokens} токенов · пополнить
+          </button>
+        )}
+        {topUp && (
+          <div className="chat-topup">
+            {/* Якорная психология (2026): большой пакет первым — средний
+              на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
+              у десятки — честный «выгоднее всех», не маркетинговый. */}
+            {[150, 50, 10].map(p => (
+              <button
+                key={p}
+                className="chat-topup__pack"
+                onClick={() => buy(String(p))}
+              >
+                {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
+                <span>
+                  {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
+                </span>
+              </button>
+            ))}
+            {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
+          </div>
+        )}
       </div>
-
       <div className="chat-container" ref={scrollRef}>
         <div className="chat-messages">
           {messages.map(m => (
@@ -648,6 +643,13 @@ function ChatPage() {
             disabled={busy}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send(input)}
+            onFocus={() => {
+              // The keyboard shrinks the list; keep the latest message in view.
+              window.setTimeout(() => {
+                if (scrollRef.current)
+                  scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+              }, 350)
+            }}
           />
           <button
             className="send-btn"
