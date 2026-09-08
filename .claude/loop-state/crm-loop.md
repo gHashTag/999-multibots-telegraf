@@ -243,3 +243,24 @@ macOS не сработало). Секрет ротирован, файл уда
 `/leads` (кому писать, из памяти переписки), `/sweep` (обход сейчас; карточка
 приходит сюда же). Ревизия воркфлоу для #2280 не запускалась — покрыто 12
 тестами и 8 обратными мутациями.
+
+## Cycle 4 — 2026-09-08/09: the name, the cashier, full leads, context first
+
+Merged: #2282 (DM: no tariffs, agent-first), #2284 (name from Telegram; invoice from
+the person's own farm bot — bot-farm.ts by getMe), #2287 (/leads full data, /lead
+brief, crm_people at ingest), #2288 (render: dmHistoryBlock on surface business,
+crm-mirror.ts, POST /api/crm/mirror, ingest after tg connect, `talk` step, no
+pay-first prompts), #2289 (bot: ingest on business connection, DM mirror at once,
+pay button only with an invoice link, sweep prompt with talk).
+
+Found live: the first pitch said «Ольга» (a fixture name I put in the prompt) and was
+SENT by the owner's press 16:35 UTC; its link came from @t27ai_bot. Corrected card:
+message 146375 (draft ec95bd68e403, «Geya, привет!», @Gaia_Kamskaia_bot, 30/45⭐).
+
+Owner's stance (2026-09-09): never offer payment first; continue each client's
+history with full context; Zep filled immediately. Lessons in memory:
+fixture-name-leaked-into-prompt, wife-real-telegram-identity,
+farm-cashier-is-the-persons-own-bot, no-pay-first-context-first.
+
+Open: the proactive sweep's first live `talk` draft not yet observed; the pay button
+and the DM mirror are verified by tests + deploy, not by a live client message.
