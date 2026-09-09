@@ -15,6 +15,53 @@ Every real defect in this stack passed `npm run build`. Every one was caught by
 loading the deployed page and measuring it. If a change is not verified against
 the running service, it is not done.
 
+## ДЕНЬГИ С 09.09.2026: учёт живёт на Railway, Supabase — архив. Забудь про старое.
+
+Владелец, 2026-09-09: «старая база на Supabase, новая на Railway, там Postgres,
+своя таблица уже давно. Забудь про старое уже». Это решение, а не наблюдение.
+
+**Где новый учёт.** Railway-сервис `Postgres-NFrq` (в `vibee-render` это
+`DATABASE_URL`, хост `postgres-nfrq.railway.internal`; снаружи —
+`DATABASE_PUBLIC_URL` того же сервиса, `ballast.proxy.rlwy.net`). Таблицы:
+
+- `user_tokens` — остаток токенов человека (`telegram_id text PK, balance int`);
+- `token_ledger` — **книга записей**: каждая покупка, грант, списание, возврат
+  и корректировка одной строкой (`delta`, `balance_after`, `kind`, `reason`,
+  `ref`, `meta`). Единственный писатель `user_tokens` —
+  `apps/vibee-editor/render/src/token-ledger.ts` (`moveTokens`,
+  `grantWelcomeIfNew`); структурный тест `token-ledger.test.ts` запрещает
+  прямой `UPDATE/INSERT user_tokens` где-либо ещё. `SUM(delta) = balance`
+  проверяет `ledgerDrift`; первое движение человека с остатком, накопленным
+  до книги, пишет строку `adjustment` «opening balance before the ledger»;
+- `star_payments` — замок идемпотентности Stars-платежей (`charge_id PK`),
+  создаётся по требованию в `src/stars-credit.ts`;
+- `token_invoices` — счета мини-аппа (`/api/tokens/invoice`, `/verify`);
+- `template_stars` — звёзды-подарки авторам роликов (между людьми, не токены);
+- `autopilot_spend` — расходы фабрики контента, `hive_events` — журнал событий.
+
+**Что старое.** Supabase-проект `yuukfqcsdhkyxegfwlcb`, таблица `payments_v2`
+(17 140 строк, 629 человек, всё до 2026-09-07) — экономика ботов Telegram.
+Читать для истории можно, **строить на ней новое нельзя**. Её копия
+`payments_v2` в Railway `Postgres-NFrq` — снимок до 2026-08-27, не живая
+(бот пишет только в Supabase). В той базе есть триггер, переписывающий
+`service_type` в белый список (замер 2026-09-09: записал 2286 строк, сохранилось
+696), и RPC, которых нет в репозитории (`get_user_balance_v3`,
+`add_stars_to_balance`, `fix_user_balance`, …) — не трогай.
+
+**Правила.**
+
+1. Новая функция с деньгами пишет в `token_ledger` через `moveTokens` с
+   человеческим `reason` и `ref` (charge id, job id). Без строки в книге —
+   не сделано.
+2. «Кто платил» для нового проекта — `star_payments` / `token_invoices`, а не
+   Supabase `payments_v2` (в `src/agent/crm-tools.ts` `платившие()` ещё читает
+   старое — долг).
+3. Для запроса к Railway-базе бери `DATABASE_PUBLIC_URL` сервиса
+   `Postgres-NFrq` из `railway variables --service Postgres-NFrq --json` в
+   переменную, значение не печатай; `psql` установлен в /opt/homebrew/bin.
+4. Раздел «В боевом реестре платежей лежат ТЕСТОВЫЕ данные» ниже — про
+   архив; он верен исторически и больше не руководство к действию.
+
 ## Dead code that looks alive
 
 This codebase has a repeated pattern: a component is built, committed, and wired
@@ -1066,6 +1113,10 @@ Replicate свой CDN держит долго, поэтому проблема 
 мертва — этого вопроса я не задавал.
 
 ## В боевом реестре платежей лежат ТЕСТОВЫЕ данные
+
+> **Архив с 09.09.2026.** Речь о Supabase `payments_v2`, которая больше не
+> является учётом нового проекта — см. раздел «ДЕНЬГИ С 09.09.2026» в начале.
+> Тестовая серия владельца (12 удвоений) переведена в FAILED 2026-09-09.
 
 `payments_v2` — источник истины для баланса: баланс считается суммированием
 строк. В нём **883 строки с описанием `TEST_DATA: System/Bonus/Testing` на
