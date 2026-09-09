@@ -29,6 +29,7 @@ vi.mock('@/services/modelSwitch', () => ({
   mirrorDm: (...a: unknown[]) => mirrorDm(...(a as [])),
 }))
 
+process.env.ADMIN_IDS = '144022504'
 const CONN = 'conn-ctx-1'
 const OWNER = 144022504
 const BOT = 'neuro_blogger_bot'
@@ -178,5 +179,65 @@ describe('the fallback prompt does not push payment either', () => {
     const sys = String(buildBusinessMessages('привет', 'Гость', BOT)[0].content)
     expect(sys).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     expect(sys).toContain('Тарифов и подписок НЕТ')
+  })
+})
+
+describe("the owner's notification carries the DM menu", () => {
+  it('an admin owner gets who / mute / prepare / later / refuse under the lead notification', async () => {
+    const svc = await import('@/services/businessBotService')
+    svc.handleBusinessConnection(connection() as any)
+    const bot = fakeBot()
+    await svc.handleBusinessMessage(
+      dm('привет, а рилсы делаешь?') as any,
+      bot as any,
+      BOT
+    )
+    const toOwner = bot.telegram.sendMessage.mock.calls.find(
+      (c: any[]) => c[0] === 999000111
+    ) as any[]
+    expect(toOwner, 'no notification reached the owner').toBeTruthy()
+    expect(toOwner[2].parse_mode).toBe('HTML')
+    const data = toOwner[2].reply_markup.inline_keyboard
+      .flat()
+      .map((b: any) => b.callback_data)
+    expect(data).toEqual([
+      'crm:lead:435572800',
+      'crm:mute:435572800',
+      'crm:prep:435572800',
+      'crm:later:435572800',
+      'crm:refuse:435572800',
+    ])
+  })
+
+  it('pauseAiFor silences the AI in that chat for the connections of that owner only', async () => {
+    const svc = await import('@/services/businessBotService')
+    svc.handleBusinessConnection(connection() as any)
+    expect(svc.pauseAiFor(435572800, undefined, 999)).toBe(0)
+    expect(svc.pauseAiFor(435572800, undefined, OWNER)).toBe(1)
+    const bot = fakeBot()
+    await svc.handleBusinessMessage(dm('ещё вопрос') as any, bot as any, BOT)
+    // Paused: nothing is sent into the client chat as the owner.
+    expect(asOwner(bot)).toBeUndefined()
+  })
+})
+
+describe('a farm owner who is not an admin of this bot', () => {
+  it('gets the notification exactly as before: HTML, no buttons nobody would answer', async () => {
+    const was = process.env.ADMIN_IDS
+    process.env.ADMIN_IDS = '1'
+    try {
+      vi.resetModules()
+      const svc = await import('@/services/businessBotService')
+      svc.handleBusinessConnection(connection() as any)
+      const bot = fakeBot()
+      await svc.handleBusinessMessage(dm('привет') as any, bot as any, BOT)
+      const toOwner = bot.telegram.sendMessage.mock.calls.find(
+        (c: any[]) => c[0] === 999000111
+      ) as any[]
+      expect(toOwner).toBeTruthy()
+      expect(toOwner[2]).toEqual({ parse_mode: 'HTML' })
+    } finally {
+      process.env.ADMIN_IDS = was
+    }
   })
 })

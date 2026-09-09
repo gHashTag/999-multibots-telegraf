@@ -27,6 +27,7 @@
  * never saw.
  */
 import { Markup } from 'telegraf'
+import type { InlineKeyboardButton } from 'telegraf/types'
 import { logger } from '@/utils/logger'
 
 const BASE = 'https://vibee-render-production.up.railway.app'
@@ -57,6 +58,62 @@ export interface Proposal {
   media?: { kind: 'photo'; url: string }
   /** Who is charged at the press, and how much. */
   charge?: { telegramId: string; op: string; tokens: number }
+  /** The person in the base this draft is for, when the server knew one. */
+  lead?: string
+}
+
+const NUMERIC_LEAD = /^\d{5,15}$/
+
+/** The numeric person behind a draft: the server's lead, or a numeric target. */
+export function cardLeadOf(p: {
+  lead?: string
+  target: string
+}): string | null {
+  if (NUMERIC_LEAD.test(String(p.lead ?? ''))) return String(p.lead)
+  if (NUMERIC_LEAD.test(String(p.target ?? ''))) return String(p.target)
+  return null
+}
+
+/*
+ * THE CARD REMEMBERS WHO IT WAS FOR.
+ *
+ * The press carries an id and a secret, nothing else -- so the follow-up
+ * ("✅ Отправлено") could not offer the person's history or chat. A small
+ * bounded map, id -> lead, filled when a card is drawn and read once at the
+ * press. Fifteen minutes, two hundred entries; a restart in between simply
+ * means a follow-up without the person's buttons, never a wrong person.
+ */
+const CARD_LEAD_TTL_MS = 15 * 60_000
+const CARD_LEAD_MAX = 200
+const cardLeads = new Map<string, { lead: string; at: number }>()
+
+export function rememberCard(p: {
+  id: string
+  lead?: string
+  target: string
+}): void {
+  const lead = cardLeadOf(p)
+  if (!lead) return
+  const now = Date.now()
+  for (const [id, v] of cardLeads)
+    if (now - v.at > CARD_LEAD_TTL_MS) cardLeads.delete(id)
+  while (cardLeads.size >= CARD_LEAD_MAX) {
+    const oldest = cardLeads.keys().next().value
+    if (oldest === undefined) break
+    cardLeads.delete(oldest)
+  }
+  cardLeads.set(p.id, { lead, at: now })
+}
+
+export function takeCardLead(id: string): string | null {
+  const v = cardLeads.get(id)
+  if (!v) return null
+  cardLeads.delete(id)
+  return Date.now() - v.at > CARD_LEAD_TTL_MS ? null : v.lead
+}
+
+export function forgetCardLeadsForTests(): void {
+  cardLeads.clear()
 }
 
 function apiKey(): string {
@@ -150,7 +207,8 @@ async function post(
  */
 export function proposalCard(
   p: Proposal & { secret: string },
-  isRu: boolean
+  isRu: boolean,
+  opts: { extraRows?: InlineKeyboardButton[][] } = {}
 ): {
   text: string
   markup: ReturnType<typeof Markup.inlineKeyboard>
@@ -246,6 +304,7 @@ export function proposalCard(
           `${PROPOSAL_NO}${p.id}:${p.secret}`
         ),
       ],
+      ...(opts.extraRows ?? []),
     ]),
   }
 }

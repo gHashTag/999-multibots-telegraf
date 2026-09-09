@@ -259,8 +259,13 @@ describe('wired (source-level: the bot is not booted here)', () => {
     const no = s.indexOf('bot.action(/^tgp:no:')
     expect(ok).toBeGreaterThan(-1)
     expect(no).toBeGreaterThan(-1)
-    expect(s.slice(ok, no)).toContain('noteResolved()')
-    expect(s.slice(no, no + 1500)).toContain('noteResolved()')
+    // The press names the owner and the card, so a scoped sweep can advance.
+    expect(s.slice(ok, no)).toMatch(
+      /noteResolved\(String\(ctx\.from\?\.id \?\? ''\), id\)/
+    )
+    expect(s.slice(no, no + 1800)).toMatch(
+      /noteResolved\(String\(ctx\.from\?\.id \?\? ''\), id\)/
+    )
   })
   it('the ENTRY THAT RUNS starts the sweep unless CRM_PROACTIVE_MINUTES is zero', () => {
     // src/index.ts is what Railway starts; src/bot.ts has its own initializer

@@ -175,8 +175,12 @@ describe('wired (source-level: the bot is not booted here)', () => {
       'utf8'
     )
     expect(cp).toContain('export function runSweepNow(')
-    expect(cp).toMatch(/return sweepOnce\(ownerId, liveDeps\(bot\)\)/)
-    expect(src).toContain('runSweepNow(bot, String(ctx.from?.id')
+    expect(cp).toMatch(/return sweepOnce\(ownerId, liveDeps\(bot\), opts\)/)
+    // A press-made card is held only while the render keeps the draft.
+    expect(cp).toContain('export const MENU_HOLD_MS = 10 * 60_000')
+    expect(src).toMatch(
+      /runSweepNow\(\s*bot,\s*ownerId\(ctx\),\s*\{\s*holdMs: MENU_HOLD_MS,\s*\.\.\.opts,?\s*\}\s*\)/
+    )
   })
 })
 

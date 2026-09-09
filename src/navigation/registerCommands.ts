@@ -29,6 +29,26 @@ import {
   standardButtons,
   buttonsForAnswer,
 } from '@/navigation/helpers/actionButtons'
+import {
+  CRM_ROOT_RE,
+  CRM_LEAD_RE,
+  CRM_SCOPE_RE,
+  LEAD_ID_RE,
+  crmCallback,
+  hubRow,
+  rootMenu,
+  leadsKeyboard,
+  emptyLeadsKeyboard,
+  leadMenu,
+  cardMenuRows,
+  afterSentKeyboard,
+  afterCancelKeyboard,
+  afterTurnKeyboard,
+  failKeyboard,
+  summaryKeyboard,
+  nextOf,
+} from '@/navigation/helpers/crmMenu'
+import { scopedPrompt } from '@/services/crmSweepScope'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
@@ -1337,7 +1357,9 @@ If not, continue on your own and click the "I myself" button`
          * reading, which is the habit this card exists to prevent.
          */
         try {
-          const { proposalCard } = await import('@/services/telegramProposals')
+          const { proposalCard, rememberCard, cardLeadOf } = await import(
+            '@/services/telegramProposals'
+          )
           /*
            * PRIVATE CHATS ONLY.
            *
@@ -1364,7 +1386,12 @@ If not, continue on your own and click the "I myself" button`
              */
             // The whole draft (a field list once dropped the name); a photo
             // card shows the service under the same two buttons.
-            const card = proposalCard(draft, isRuOtvet)
+            const isAdminHere = ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id))
+            const card = proposalCard(draft, isRuOtvet, {
+              // The owner reads the person's history before approving.
+              extraRows: isAdminHere ? cardMenuRows(cardLeadOf(draft)) : [],
+            })
+            rememberCard(draft)
             if (!card.photo) {
               await ctx.reply(card.text, card.markup)
             } else {
@@ -1408,7 +1435,12 @@ If not, continue on your own and click the "I myself" button`
            */
           const { text: ochishcheno, markup } = buttonsForAnswer(
             ответ.текст, // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
-            isRuOtvet
+            isRuOtvet,
+            // The seller's hub under every owner answer, one tap away.
+            ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
+              ctx.chat?.type === 'private'
+              ? { tail: [hubRow()] }
+              : undefined
           )
           const chasti = разбитьДлинное(ochishcheno) // cyrillic-ok: helper from telegramLongAnswer.ts
           for (let i = 0; i < chasti.length; i++) {
@@ -1507,7 +1539,11 @@ If not, continue on your own and click the "I myself" button`
         const isRuFb = isRussianFromState(ctx)
         const { text: replyClean, markup: replyMarkup } = buttonsForAnswer(
           reply,
-          isRuFb
+          isRuFb,
+          ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
+            ctx.chat?.type === 'private'
+            ? { tail: [hubRow()] }
+            : undefined
         )
         await ctx.reply(replyClean, replyMarkup)
 
@@ -1913,10 +1949,16 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     await stripButtons(ctx)
     const isRu = isRussianFromState(ctx)
     const [, id, secret] = ctx.match as RegExpMatchArray
-    const { confirmProposal } = await import('@/services/telegramProposals')
+    const { confirmProposal, takeCardLead } = await import(
+      '@/services/telegramProposals'
+    )
+    const lead = takeCardLead(id)
     const r = await confirmProposal(String(ctx.from?.id ?? ''), id, secret)
-    // Either press frees the proactive sweep to prepare the next card.
-    void import('@/services/crmProactive').then(m => m.noteResolved())
+    // Either press frees the proactive sweep to prepare the next card, and
+    // moves a scoped sweep on to the next person.
+    void import('@/services/crmProactive').then(m =>
+      m.noteResolved(String(ctx.from?.id ?? ''), id)
+    )
     /*
      * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
      *
@@ -1943,7 +1985,8 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
           : // A server ANSWER: this one really did not send. The reason is
             // shown as it came, because "something went wrong" would hide the
             // only thing that says whether to retry or to rewrite.
-            (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') + (r.error ?? '')
+            (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') + (r.error ?? ''),
+      afterSentKeyboard(lead)
     )
   })
 
@@ -1952,10 +1995,16 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     await stripButtons(ctx)
     const isRu = isRussianFromState(ctx)
     const [, id, secret] = ctx.match as RegExpMatchArray
-    const { cancelProposal } = await import('@/services/telegramProposals')
+    const { cancelProposal, takeCardLead } = await import(
+      '@/services/telegramProposals'
+    )
+    const lead = takeCardLead(id)
     await cancelProposal(String(ctx.from?.id ?? ''), id, secret)
-    // Either press frees the proactive sweep to prepare the next card.
-    void import('@/services/crmProactive').then(m => m.noteResolved())
+    // Either press frees the proactive sweep to prepare the next card, and
+    // moves a scoped sweep on to the next person.
+    void import('@/services/crmProactive').then(m =>
+      m.noteResolved(String(ctx.from?.id ?? ''), id)
+    )
     /*
      * Said plainly, and said even when the cancel call failed. The draft is
      * consumed by the same claim either way, and a proposal that expires
@@ -1964,7 +2013,8 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
      * harder.
      */
     await ctx.reply(
-      isRu ? '✖️ Отменено, ничего не ушло' : '✖️ Cancelled, nothing was sent'
+      isRu ? '✖️ Отменено, ничего не ушло' : '✖️ Cancelled, nothing was sent',
+      afterCancelKeyboard(lead)
     )
   })
 }
@@ -2584,6 +2634,9 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
 export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   const ownerOnly = (ctx: MyContext) =>
     Boolean(ctx.from?.id && ADMIN_IDS_ARRAY.includes(ctx.from.id))
+  const ownerId = (ctx: MyContext) => String(ctx.from?.id ?? '')
+  const isPrivate = (ctx: MyContext) => ctx.chat?.type === 'private'
+  const hub = () => Markup.inlineKeyboard([hubRow()])
   const modelKeyboard = (current: string | null) =>
     Markup.inlineKeyboard([
       [
@@ -2606,18 +2659,236 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
           'mdl:zai-lite'
         ),
       ],
+      hubRow(),
     ])
 
-  bot.command('model', requireAdmin(), async ctx => {
+  /*
+   * EVERY OWNER MESSAGE CARRIES A MENU.
+   *
+   * Owner: send a menu with every message, so something can be done with
+   * the information right there. So nothing below is a bare reply: a
+   * list has a button per person, a brief has its actions, an outcome has a
+   * way forward, a failure has a retry. Long texts are split and the
+   * keyboard rides on the LAST chunk -- Telegram attaches one per message.
+   */
+  const sendLong = async (
+    ctx: MyContext,
+    text: string,
+    keyboard?: ReturnType<typeof Markup.inlineKeyboard>
+  ) => {
+    const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer') // cyrillic-ok: pre-existing helper name
+    const parts = разбитьДлинное(text) // cyrillic-ok: pre-existing helper name
+    for (let i = 0; i < parts.length; i++) {
+      const last = i === parts.length - 1
+      await ctx.reply(parts[i], last && keyboard ? keyboard : undefined)
+    }
+  }
+  const NO_TOOLS_SIGN = 'не вызвав ни одного инструмента'
+  const noTools = { test: (m: string) => m.includes(NO_TOOLS_SIGN) }
+  const crmFail = (
+    ctx: MyContext,
+    prefix: string,
+    err: unknown,
+    retry?: string | null
+  ) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    return sendLong(
+      ctx,
+      `${prefix}: ${msg}`,
+      failKeyboard(retry, noTools.test(msg))
+    )
+  }
+  /** A costly button pressed twice within a breath acts once. */
+  const pressed = new Map<string, number>()
+  const pressOnce = (key: string): boolean => {
+    const now = Date.now()
+    for (const [k, at] of pressed) if (now - at > 5_000) pressed.delete(k)
+    if (pressed.has(key)) return false
+    pressed.set(key, now)
+    return true
+  }
+
+  const showHome = async (ctx: MyContext) => {
+    const { scopeLine } = await import('@/services/crmProactive')
+    const line = scopeLine(ownerId(ctx))
+    await sendLong(
+      ctx,
+      'Продавец. Что делать?' + (line ? `\n\n${line}` : ''),
+      rootMenu()
+    )
+  }
+  const showLeads = async (ctx: MyContext) => {
+    try {
+      const { fetchLeads } = await import('@/services/modelSwitch')
+      const r = await fetchLeads(ownerId(ctx))
+      await sendLong(
+        ctx,
+        r.text,
+        r.rows.length ? leadsKeyboard(r.rows) : emptyLeadsKeyboard()
+      )
+    } catch (e) {
+      await crmFail(ctx, 'Не получилось', e, crmCallback('leads'))
+    }
+  }
+  const showLead = async (ctx: MyContext, who: string) => {
+    try {
+      const { fetchLead } = await import('@/services/modelSwitch')
+      const r = await fetchLead(ownerId(ctx), who)
+      const kb = r.lead
+        ? leadMenu(r.lead, {
+            next: nextOf({ waiting: r.waiting, signals: r.signals }),
+          })
+        : hub()
+      await sendLong(ctx, r.text, kb)
+    } catch (e) {
+      await crmFail(
+        ctx,
+        'Не получилось',
+        e,
+        LEAD_ID_RE.test(who) ? crmCallback('lead', who) : null
+      )
+    }
+  }
+  const showSummary = async (ctx: MyContext, days?: number) => {
+    try {
+      const { fetchSummary, formatSummary } = await import(
+        '@/services/crmSummary'
+      )
+      const { scopeLine, activeScope } = await import('@/services/crmProactive')
+      const s = await fetchSummary(ownerId(ctx), days)
+      const line = scopeLine(ownerId(ctx))
+      await sendLong(
+        ctx,
+        formatSummary(s, line),
+        summaryKeyboard(s, Boolean(activeScope(ownerId(ctx))))
+      )
+    } catch (e) {
+      await crmFail(ctx, 'Не получилось', e, crmCallback('summary'))
+    }
+  }
+  const showModel = async (ctx: MyContext) => {
     try {
       const { getProviderStatus, describeProvider } = await import(
         '@/services/modelSwitch'
       )
-      const s = await getProviderStatus(String(ctx.from?.id ?? ''))
+      const s = await getProviderStatus(ownerId(ctx))
       await ctx.reply(describeProvider(s), modelKeyboard(s.current?.id ?? null))
-    } catch (e: any) {
-      await ctx.reply(`Не получилось узнать модель: ${e?.message ?? e}`)
+    } catch (e) {
+      await crmFail(ctx, 'Не получилось узнать модель', e, crmCallback('model'))
     }
+  }
+
+  /*
+   * A TURN FROM A BUTTON. The agent prepares; the card, if any, arrives by
+   * itself through the sweep's own push, so here only the outcome is said,
+   * with the buttons that fit it. Nothing sends without the card's button.
+   */
+  const runTurn = async (
+    ctx: MyContext,
+    opts: import('@/services/crmProactive').SweepOpts,
+    lead: string | null,
+    retry: string
+  ) => {
+    const { runSweepNow, MENU_HOLD_MS } = await import(
+      '@/services/crmProactive'
+    )
+    const r = await runSweepNow(bot, ownerId(ctx), {
+      holdMs: MENU_HOLD_MS,
+      ...opts,
+    })
+    if (r.did === 'card')
+      await sendLong(
+        ctx,
+        'Готово — карточка выше, кнопки твои.',
+        afterTurnKeyboard(lead)
+      )
+    else if (r.did === 'idle')
+      await sendLong(ctx, `Тихо: ${r.why}`, afterTurnKeyboard(lead))
+    else if (r.did === 'held')
+      await sendLong(
+        ctx,
+        'Карточка ещё ждёт нажатия — нажми на ней «Отправить» или «Отмена».',
+        hub()
+      )
+    else if (r.did === 'busy')
+      await sendLong(
+        ctx,
+        'Уже готовлю, подожди минуту.',
+        failKeyboard(retry, false)
+      )
+    else
+      await sendLong(
+        ctx,
+        `Не вышло: ${r.why}`,
+        failKeyboard(retry, noTools.test(r.why))
+      )
+  }
+  const menuOnly = () =>
+    Markup.inlineKeyboard([
+      [Markup.button.callback('🏠 Меню', crmCallback('menu'))],
+    ])
+  const prepare = async (ctx: MyContext, lead: string) => {
+    await sendLong(
+      ctx,
+      `⏳ Готовлю для ${lead}: читаю переписку, спрашиваю агента (до 3 минут). Ничего не уйдёт без твоей кнопки.`,
+      menuOnly()
+    )
+    await runTurn(
+      ctx,
+      {
+        prompt: scopedPrompt({ chat: lead, display: null, next: null }),
+        ingest: false,
+        label: `[кнопка: подготовить для ${lead}]`,
+      },
+      lead,
+      crmCallback('prep', lead)
+    )
+  }
+  const sweep = async (ctx: MyContext) => {
+    await sendLong(
+      ctx,
+      'Обход пошёл: загружаю переписку, спрашиваю агента. Если есть что предложить — карточка придёт сюда.',
+      menuOnly()
+    )
+    await runTurn(ctx, { label: '[кнопка: обход]' }, null, crmCallback('sweep'))
+  }
+  const ingest = async (ctx: MyContext) => {
+    await sendLong(ctx, '📥 Загружаю переписку (до 3 минут)…', menuOnly())
+    try {
+      const { ingestChats } = await import('@/services/modelSwitch')
+      const r = await ingestChats(ownerId(ctx), { limit: 30, depth: 50 })
+      await sendLong(
+        ctx,
+        `📥 Готово: ${Number(r.people ?? 0)} людей, ${Number(r.messages_new ?? 0)} новых сообщений` +
+          (r.stopped ? `, остановился: ${String(r.stopped)}` : ''),
+        hub()
+      )
+    } catch (e) {
+      await crmFail(ctx, 'Не вышло', e, crmCallback('ingest'))
+    }
+  }
+  const scoped = async (ctx: MyContext, args: string[]) => {
+    try {
+      const { startScopedSweep } = await import('@/services/crmProactive')
+      await sendLong(
+        ctx,
+        await startScopedSweep(bot, ownerId(ctx), args),
+        hub()
+      )
+    } catch (e) {
+      await crmFail(ctx, 'Не вышло', e, null)
+    }
+  }
+  const textOf = (ctx: MyContext) =>
+    (ctx.message as { text?: string } | undefined)?.text ?? ''
+
+  bot.command('crm', requireAdmin(), async ctx => {
+    const arg = textOf(ctx).split(/\s+/)[1] ?? ''
+    await showSummary(ctx, /^\d{1,3}$/.test(arg) ? Number(arg) : undefined)
+  })
+
+  bot.command('model', requireAdmin(), async ctx => {
+    await showModel(ctx)
   })
 
   bot.action(/^mdl:(zai|zai-lite|nemotron|ollama)$/, async ctx => {
@@ -2628,7 +2899,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       const { chooseProvider, describeProvider } = await import(
         '@/services/modelSwitch'
       )
-      const s = await chooseProvider(String(ctx.from?.id ?? ''), id)
+      const s = await chooseProvider(ownerId(ctx), id)
       await ctx
         .editMessageText(
           describeProvider(s),
@@ -2637,54 +2908,118 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
         .catch(() =>
           ctx.reply(describeProvider(s), modelKeyboard(s.current?.id ?? null))
         )
-    } catch (e: any) {
-      await ctx.reply(`Не переключилось: ${e?.message ?? e}`)
+    } catch (e) {
+      await crmFail(ctx, 'Не переключилось', e, crmCallback('model'))
     }
   })
 
   bot.command('leads', requireAdmin(), async ctx => {
-    try {
-      const { fetchLeads } = await import('@/services/modelSwitch')
-      const { text } = await fetchLeads(String(ctx.from?.id ?? ''))
-      await ctx.reply(text)
-    } catch (e: any) {
-      await ctx.reply(`Не получилось: ${e?.message ?? e}`)
-    }
+    await showLeads(ctx)
   })
 
   bot.command('lead', requireAdmin(), async ctx => {
-    const text = (ctx.message as { text?: string } | undefined)?.text ?? ''
-    const who = text.split(/\s+/).slice(1)[0] ?? ''
+    const who = textOf(ctx).split(/\s+/).slice(1)[0] ?? ''
     if (!who) {
-      await ctx.reply('Кого показать? /lead 435572800 или /lead @username')
+      await sendLong(
+        ctx,
+        'Кого показать? /lead 435572800 или /lead @username',
+        hub()
+      )
       return
     }
-    try {
-      const { fetchLead } = await import('@/services/modelSwitch')
-      const r = await fetchLead(String(ctx.from?.id ?? ''), who)
-      await ctx.reply(r.text)
-    } catch (e: any) {
-      await ctx.reply(`Не получилось: ${e?.message ?? e}`)
-    }
+    await showLead(ctx, who)
   })
 
   bot.command('sweep', requireAdmin(), async ctx => {
-    await ctx.reply(
-      'Обход пошёл: загружаю переписку, спрашиваю агента. Если есть что предложить — карточка придёт сюда.'
-    )
-    try {
-      const { runSweepNow } = await import('@/services/crmProactive')
-      const r = await runSweepNow(bot, String(ctx.from?.id ?? ''))
-      const said: Record<string, string> = {
-        card: 'Готово — карточка выше, кнопки твои.',
-        idle: `Тихо: ${r.why}`,
-        held: 'Прошлая карточка ещё ждёт нажатия — нажми «Отправить» или «Отмена».',
-        busy: 'Обход уже идёт, подожди минуту.',
-        failed: `Не вышло: ${r.why}`,
+    const args = textOf(ctx).split(/\s+/).slice(1).filter(Boolean)
+    if (!args.length) await sweep(ctx)
+    else await scoped(ctx, args)
+  })
+
+  /*
+   * THE DISPATCHERS. answerCbQuery first, the owner and a private chat
+   * second, then the verb. The id in a lead callback is numeric by the
+   * regex; nothing else is ever read from callback data.
+   */
+  bot.action(CRM_ROOT_RE, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    if (!ownerOnly(ctx) || !isPrivate(ctx)) return
+    const verb = (ctx.match as RegExpMatchArray)[1]
+    if (verb === 'menu') await showHome(ctx)
+    else if (verb === 'leads') await showLeads(ctx)
+    else if (verb === 'summary') await showSummary(ctx)
+    else if (verb === 'sweep') await sweep(ctx)
+    else if (verb === 'model') await showModel(ctx)
+    else if (verb === 'ingest') await ingest(ctx)
+  })
+
+  bot.action(CRM_SCOPE_RE, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    if (!ownerOnly(ctx) || !isPrivate(ctx)) return
+    await scoped(ctx, [(ctx.match as RegExpMatchArray)[1]])
+  })
+
+  bot.action(CRM_LEAD_RE, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    if (!ownerOnly(ctx) || !isPrivate(ctx)) return
+    const [, verb, id] = ctx.match as RegExpMatchArray
+    if (verb === 'lead') return showLead(ctx, id)
+    if (verb === 'prep') {
+      if (!pressOnce(`prep:${id}`)) return
+      return prepare(ctx, id)
+    }
+    if (verb === 'refuse') {
+      // The second press is the deliberate one.
+      await ctx
+        .editMessageReplyMarkup(
+          leadMenu(id, { confirmRefuse: true }).reply_markup
+        )
+        .catch(() => undefined)
+      return
+    }
+    if (verb === 'back') {
+      await ctx
+        .editMessageReplyMarkup(leadMenu(id).reply_markup)
+        .catch(() => undefined)
+      return
+    }
+    if (verb === 'mute') {
+      const { pauseAiFor } = await import('@/services/businessBotService')
+      const n = pauseAiFor(id, undefined, Number(ctx.from?.id))
+      await sendLong(
+        ctx,
+        n
+          ? `🤫 Молчу в этом чате 30 минут — отвечаешь ты.`
+          : '🤫 Бизнес-подключения нет — в этом чате бот и так не отвечает.',
+        afterTurnKeyboard(id)
+      )
+      return
+    }
+    if (verb === 'later' || verb === 'refuse!') {
+      if (!pressOnce(`${verb}:${id}`)) return
+      const kind = verb === 'later' ? 'later' : 'refused'
+      try {
+        const { touchLead } = await import('@/services/modelSwitch')
+        const r = await touchLead(ownerId(ctx), id, kind)
+        if (!r.saved) {
+          await crmFail(
+            ctx,
+            'Не записал',
+            r.why ?? 'без причины',
+            crmCallback(verb, id)
+          )
+          return
+        }
+        await sendLong(
+          ctx,
+          kind === 'later'
+            ? `⏰ Записал: ${id} — позже. Вернётся в список через две недели.`
+            : `🚫 Записал отказ: ${id}. 30 дней не трогаем.`,
+          kind === 'later' ? leadMenu(id) : hub()
+        )
+      } catch (e) {
+        await crmFail(ctx, 'Не записал', e, crmCallback(verb, id))
       }
-      await ctx.reply(said[r.did] ?? r.did)
-    } catch (e: any) {
-      await ctx.reply(`Не вышло: ${e?.message ?? e}`)
     }
   })
 }

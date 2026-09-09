@@ -135,11 +135,21 @@ export function parseAgentButtons(
  * What to attach to an agent answer: what it proposed, and the standard set
  * underneath, so there is always something to press.
  */
-export function buttonsForAnswer(text: string, isRu: boolean) {
+export function buttonsForAnswer(
+  text: string,
+  isRu: boolean,
+  opts: { tail?: InlineKeyboardButton[][] } = {}
+) {
   const { text: cleaned, buttons } = parseAgentButtons(text, isRu)
   const standard = standardButtons(isRu).reply_markup.inline_keyboard
   return {
     text: cleaned,
-    markup: Markup.inlineKeyboard([...buttons, ...standard]),
+    // The owner's hub row rides last, after the agent's own buttons and the
+    // standard set, so the seller is one tap away from any answer.
+    markup: Markup.inlineKeyboard([
+      ...buttons,
+      ...standard,
+      ...(opts.tail ?? []),
+    ]),
   }
 }
