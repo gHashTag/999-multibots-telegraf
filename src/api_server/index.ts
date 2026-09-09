@@ -14,7 +14,10 @@ import diagnosticRouter from './routes/diagnostic.routes'
 import billingRouter from './routes/billing.routes'
 import x402Router, { setX402BotInstance } from './routes/x402.routes'
 import inngestStatusRouter from './routes/inngest-status.routes'
-import { syncInngestAppOnBoot } from '../inngest_app/status/syncOnBoot'
+import {
+  syncInngestAppOnBoot,
+  resolveInngestServeHost,
+} from '../inngest_app/status/syncOnBoot'
 import { Telegraf } from 'telegraf'
 // ✅ Inngest включен для мониторинга webhook'ов
 import { serve } from 'inngest/express'
@@ -175,9 +178,14 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
   // not swallowed by the SDK's signature check, and before any keyed mount.
   app.use(inngestStatusRouter)
 
+  // The SDK reads INNGEST_SERVE_HOST, not this repo's historical
+  // INNGEST_SERVE_ORIGIN. Without an explicit serveHost the SDK registers the
+  // Host header of whoever sent the PUT — a loopback sync registered
+  // `http://localhost:3000/api/inngest` (observed live 2026-09-09).
   const inngestHandler = serve({
     client: inngest,
     functions: allInngestFunctions,
+    serveHost: resolveInngestServeHost(),
   })
   app.use('/api/inngest', inngestHandler)
 

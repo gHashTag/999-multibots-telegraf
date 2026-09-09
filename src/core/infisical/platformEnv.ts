@@ -12,8 +12,10 @@
  * still applies (so nothing regresses for keys that only live in Infisical).
  */
 export const PLATFORM_ENV_PRECEDENCE: ReadonlySet<string> = new Set([
-  // Must match this app's public URL (Inngest register URL).
+  // Must match this app's public URL (Inngest register URL). The SDK's own
+  // name is INNGEST_SERVE_HOST; INNGEST_SERVE_ORIGIN is this repo's alias.
   'INNGEST_SERVE_ORIGIN',
+  'INNGEST_SERVE_HOST',
   // Webhook URL for Replicate callbacks — per deployment.
   'BASE_WEBHOOK_URL',
   // Where the SDK sends events / where the app reaches the Inngest server.

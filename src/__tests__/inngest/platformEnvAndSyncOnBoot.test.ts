@@ -10,12 +10,14 @@ import {
 import {
   shouldSyncOnBoot,
   syncInngestAppOnBoot,
+  resolveInngestServeHost,
 } from '@/inngest_app/status/syncOnBoot'
 
 describe('PLATFORM_ENV_PRECEDENCE', () => {
   it('lists the topology keys that Railway/Fly own', () => {
     for (const key of [
       'INNGEST_SERVE_ORIGIN',
+      'INNGEST_SERVE_HOST',
       'BASE_WEBHOOK_URL',
       'INNGEST_BASE_URL',
       'INNGEST_GQL_URL',
@@ -58,6 +60,23 @@ describe('applySecretsToEnv', () => {
     const env: Record<string, string | undefined> = { INNGEST_BASE_URL: '' }
     applySecretsToEnv(secrets, env)
     expect(env.INNGEST_BASE_URL).toBe('https://public.example/v0')
+  })
+})
+
+describe('resolveInngestServeHost', () => {
+  it('prefers the SDK name, falls back to the repo alias, strips trailing slash', () => {
+    expect(resolveInngestServeHost({} as NodeJS.ProcessEnv)).toBeUndefined()
+    expect(
+      resolveInngestServeHost({
+        INNGEST_SERVE_ORIGIN: 'https://app.example/',
+      } as NodeJS.ProcessEnv)
+    ).toBe('https://app.example')
+    expect(
+      resolveInngestServeHost({
+        INNGEST_SERVE_HOST: 'https://a',
+        INNGEST_SERVE_ORIGIN: 'https://b',
+      } as NodeJS.ProcessEnv)
+    ).toBe('https://a')
   })
 })
 
