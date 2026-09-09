@@ -201,6 +201,7 @@ describe('what each keyboard offers', () => {
     )
     expect(quiet).toEqual([
       'crm:summary',
+      'crm:plan',
       'crm:leads',
       'crm:sweep',
       'crm:model',
@@ -213,7 +214,37 @@ describe('what each keyboard offers', () => {
       .flat()
       .map(b => (b as any).text)
     expect(labels).toContain('✉️ Ответить ждущим (7)')
-    expect(labels).toContain('🔥 Обход: горячие (3)')
+    expect(labels).toContain('🔥 Горячие (3)')
+    // Segments and caps: the label says how many one press takes.
+    const seg = summaryKeyboard(
+      {
+        segments: {
+          waiting: 306,
+          hot: 10,
+          talk: 1,
+          due: 4,
+          ours: 3,
+          winback: 6,
+        },
+        caps: { waiting: 20, hot: 10, winback: 3 },
+      },
+      false
+    )
+    const segLabels = seg.reply_markup.inline_keyboard
+      .flat()
+      .map(b => (b as any).text)
+    expect(segLabels).toContain('✉️ Ответить ждущим (20 из 306)')
+    expect(segLabels).toContain('🔥 Горячие (10)')
+    expect(segLabels).toContain('⏰ Пора (4)')
+    expect(segLabels).toContain('🤝 Мы молчим (3)')
+    expect(segLabels).toContain('💎 Вернуть (3 из 6)')
+    expect(allCallbacks(seg)).toEqual(
+      expect.arrayContaining([
+        'crm:scope:due',
+        'crm:scope:ours',
+        'crm:scope:winback',
+      ])
+    )
     expect(labels).toContain('💬 Поговорить (12)')
     expect(allCallbacks(busy)).toContain('crm:scope:stop')
     expect(allCallbacks(busy)).toContain('crm:scope:status')

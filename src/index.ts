@@ -1019,10 +1019,23 @@ async function startApplication() {
         process.env.CRM_PROACTIVE_OWNER ||
         String(ADMIN_IDS_ARRAY[0] || '144022504')
       const { startCrmProactive } = await import('@/services/crmProactive')
+      // The daily plan: CRM_PLAN=0 turns it off; CRM_PLAN_HOUR and CRM_PLAN_TZ
+      // say when, in the owner's zone (default 9, Europe/Moscow).
+      const planOn = (process.env.CRM_PLAN ?? '1') !== '0'
+      const planHour = Math.min(
+        23,
+        Math.max(0, Number(process.env.CRM_PLAN_HOUR ?? '9') || 9)
+      )
+      const planTz = process.env.CRM_PLAN_TZ || 'Europe/Moscow'
       startCrmProactive(carrier, {
         ownerId,
         everyMs: proactiveMinutes * 60_000,
+        ...(planOn ? { plan: { hour: planHour, tz: planTz } } : {}),
       })
+      if (planOn)
+        console.log(
+          `🗓 [crm-plan] daily at ${planHour}:00 ${planTz}, owner ${ownerId}`
+        )
       console.log(
         `🕵️ [crm-proactive] started: every ${proactiveMinutes} min, owner ${ownerId}, bot @${carrier.botInfo?.username ?? '?'}`
       )

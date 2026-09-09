@@ -197,9 +197,13 @@ export function formatLeads(rows: Array<Record<string, unknown>>): string {
 /** The crm_leads rows as the render returns them; [] when nothing is there. */
 export async function fetchLeadRows(
   telegramId: string,
-  limit = 50
+  limit = 50,
+  o: { segment?: string } = {}
 ): Promise<Array<Record<string, unknown>>> {
-  const s = await callTool(telegramId, 'crm_leads', { limit })
+  const s = await callTool(telegramId, 'crm_leads', {
+    limit,
+    ...(o.segment ? { segment: o.segment } : {}),
+  })
   return Array.isArray(s?.candidates) ? s.candidates : []
 }
 

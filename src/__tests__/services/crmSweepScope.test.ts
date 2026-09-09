@@ -119,6 +119,7 @@ describe('parseSweepArgs', () => {
         { field: 'days', op: '<=', value: 7 },
       ],
       limit: 10,
+      limitGiven: false,
       label: 'next=reply days<=7',
     })
     expect(parseSweepArgs(['days=7'])).toMatchObject({
@@ -130,7 +131,21 @@ describe('parseSweepArgs', () => {
     })
     expect(parseSweepArgs(['ждут', 'limit=3'])).toMatchObject({
       limit: 3,
+      limitGiven: true,
       label: 'waiting limit=3',
+    })
+    expect(parseSweepArgs(['пора'])).toMatchObject({
+      predicates: [{ field: 'preset', value: 'due' }],
+    })
+    expect(parseSweepArgs(['молчим'])).toMatchObject({
+      predicates: [{ field: 'preset', value: 'ours' }],
+    })
+    expect(parseSweepArgs(['вернуть'])).toMatchObject({
+      predicates: [{ field: 'preset', value: 'winback' }],
+    })
+    expect(parseSweepArgs(['прогрев'])).toMatchObject({
+      kind: 'error',
+      message: expect.stringContaining('только пакетом'),
     })
     expect(parseSweepArgs(['limit=0'])).toMatchObject({ kind: 'error' })
     expect(parseSweepArgs(['limit=51'])).toMatchObject({ kind: 'error' })

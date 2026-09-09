@@ -36,6 +36,7 @@ export const ROOT_VERBS = [
   'sweep',
   'model',
   'ingest',
+  'plan',
 ] as const
 export const LEAD_VERBS = [
   'lead',
@@ -46,12 +47,22 @@ export const LEAD_VERBS = [
   'back',
   'mute',
 ] as const
-export const SCOPE_VERBS = ['waiting', 'hot', 'talk', 'stop', 'status'] as const
+export const SCOPE_VERBS = [
+  'waiting',
+  'hot',
+  'talk',
+  'due',
+  'ours',
+  'winback',
+  'stop',
+  'status',
+] as const
 
-export const CRM_ROOT_RE = /^crm:(menu|leads|summary|sweep|model|ingest)$/
+export const CRM_ROOT_RE = /^crm:(menu|leads|summary|sweep|model|ingest|plan)$/
 export const CRM_LEAD_RE =
   /^crm:(lead|prep|later|refuse!?|back|mute):(\d{5,15})$/
-export const CRM_SCOPE_RE = /^crm:scope:(waiting|hot|talk|stop|status)$/
+export const CRM_SCOPE_RE =
+  /^crm:scope:(waiting|hot|talk|due|ours|winback|stop|status)$/
 
 export type RootVerb = (typeof ROOT_VERBS)[number]
 export type LeadVerb = (typeof LEAD_VERBS)[number]
@@ -116,10 +127,16 @@ export function rootMenu() {
   return Markup.inlineKeyboard([
     hubRow(),
     [
+      btn('🗓 План', crmCallback('plan')),
       btn('🧠 Модель', crmCallback('model')),
       btn('📥 Загрузить переписку', crmCallback('ingest')),
     ],
   ])
+}
+
+/** '(7)' when the press takes everybody, '(20 из 306)' when it takes the cap. */
+export function takeLabel(n: number, cap?: number): string {
+  return cap !== undefined && n > cap ? `(${cap} из ${n})` : `(${n})`
 }
 
 /** The next step as the render forecasts it, worded as a button. */
@@ -284,25 +301,63 @@ export function failKeyboard(retry?: string | null, modelHint = false) {
 
 /** Under the overview: refresh, the list, and a scoped sweep per bucket that has people. */
 export function summaryKeyboard(
-  s: { by_next?: Record<string, number>; hot?: number },
+  s: {
+    by_next?: Record<string, number>
+    hot?: number
+    segments?: Record<string, number>
+    caps?: Record<string, number>
+  },
   scopeActive: boolean
 ) {
   const rows: InlineKeyboardButton[][] = [
     [
       btn('🔄 Обновить', crmCallback('summary')),
+      btn('🗓 План', crmCallback('plan')),
       btn('👥 Кому писать', crmCallback('leads')),
     ],
   ]
+  const seg = (k: string, fallback: number) =>
+    Number(s.segments?.[k] ?? fallback)
+  const cap = (k: string) =>
+    s.caps?.[k] !== undefined ? Number(s.caps[k]) : undefined
+  const reply = seg('waiting', Number(s.by_next?.reply ?? 0))
+  const hot = seg('hot', Number(s.hot ?? 0))
+  const talk = seg('talk', Number(s.by_next?.talk ?? 0))
+  const due = seg('due', 0)
+  const ours = seg('ours', 0)
+  const winback = seg('winback', 0)
   const second: InlineKeyboardButton[] = []
-  const reply = Number(s.by_next?.reply ?? 0)
-  const hot = Number(s.hot ?? 0)
-  const talk = Number(s.by_next?.talk ?? 0)
   if (reply > 0)
-    second.push(btn(`✉️ Ответить ждущим (${reply})`, crmCallback('waiting')))
+    second.push(
+      btn(
+        `✉️ Ответить ждущим ${takeLabel(reply, cap('waiting'))}`,
+        crmCallback('waiting')
+      )
+    )
   if (hot > 0)
-    second.push(btn(`🔥 Обход: горячие (${hot})`, crmCallback('hot')))
+    second.push(
+      btn(`🔥 Горячие ${takeLabel(hot, cap('hot'))}`, crmCallback('hot'))
+    )
   if (second.length) rows.push(second)
-  if (talk > 0) rows.push([btn(`💬 Поговорить (${talk})`, crmCallback('talk'))])
+  const third: InlineKeyboardButton[] = []
+  if (talk > 0)
+    third.push(
+      btn(`💬 Поговорить ${takeLabel(talk, cap('talk'))}`, crmCallback('talk'))
+    )
+  if (due > 0)
+    third.push(btn(`⏰ Пора ${takeLabel(due, cap('due'))}`, crmCallback('due')))
+  if (ours > 0)
+    third.push(
+      btn(`🤝 Мы молчим ${takeLabel(ours, cap('ours'))}`, crmCallback('ours'))
+    )
+  if (third.length) rows.push(third)
+  if (winback > 0)
+    rows.push([
+      btn(
+        `💎 Вернуть ${takeLabel(winback, cap('winback'))}`,
+        crmCallback('winback')
+      ),
+    ])
   if (scopeActive)
     rows.push([
       btn('⏹ Стоп обход', crmCallback('stop')),
