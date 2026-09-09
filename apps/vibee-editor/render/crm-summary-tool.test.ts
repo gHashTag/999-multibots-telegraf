@@ -206,6 +206,20 @@ describe('crm_summary', () => {
     })
     expect(r.pending_card).toBeNull()
     expect(r.zep).toBe('не подключён')
+    // One person, one segment: A waiting, B hot (asked a price 3 days ago), C quiet.
+    expect(r.segments).toEqual({
+      hot: 2,
+      objection: 0,
+      waiting: 0,
+      talk: 0,
+      due: 0,
+      ours: 0,
+      warm: 1,
+      winback: 0,
+      quiet: 0,
+    })
+    expect(r.objections).toEqual([])
+    expect(r.caps).toMatchObject({ hot: 10, waiting: 20, warm: 10, day: 30 })
     expect(r.how_to_read).toContain('Не предлагай оплату первым')
   })
 

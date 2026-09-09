@@ -404,6 +404,8 @@ export async function leadContext(
   }
 }
 
+import { segmentOf, type Segment } from './crm-segments'
+
 export type NextStep = 'reply' | 'deliver' | 'offer' | 'talk' | 'wait'
 
 export interface LeadCandidate {
@@ -419,9 +421,13 @@ export interface LeadCandidate {
   inbound: number
   lastInboundAt: Date | null
   daysSinceInbound: number | null
+  /** Days since our last word to them; null when we never wrote. */
+  daysSinceOut: number | null
   unanswered: boolean
   lastTouch: { kind: string; at: string } | null
   next: NextStep
+  /** The one segment this person is in; see crm-segments.ts. */
+  segment: Segment
   because: string
 }
 
@@ -441,6 +447,10 @@ export async function leadCandidates(
     limit?: number
     touched?: Map<string, { kind: string; at: string }>
     now?: Date
+    /** Who has ever paid; decides winback and keeps clients out of warming. */
+    paid?: Set<string>
+    /** Keep only this segment -- applied to the WHOLE base, before the limit. */
+    segment?: Segment
   } = {}
 ): Promise<LeadCandidate[]> {
   await ensureTable(pool)
@@ -569,6 +579,16 @@ export async function leadCandidates(
       next = 'talk'
     // A refusal parks the pitch, never the reply: their last word is answered.
     if (touch?.kind === 'refused' && score < 0 && !unanswered) next = 'wait'
+    const segment = segmentOf({
+      unanswered,
+      next,
+      signals,
+      daysSinceInbound: days,
+      daysSinceOut,
+      lastTouch: touch,
+      paid: opts.paid?.has(lead) ?? false,
+      now: now.getTime(),
+    })
     out.push({
       lead,
       name: fullName(people.get(lead)),
@@ -580,9 +600,11 @@ export async function leadCandidates(
       inbound: Number(r.inbound),
       lastInboundAt: lastIn,
       daysSinceInbound: days,
+      daysSinceOut,
       unanswered,
       lastTouch: touch,
       next,
+      segment,
       because: why.join('; ') || 'давно тихо',
     })
   }
@@ -591,5 +613,10 @@ export async function leadCandidates(
       b.score - a.score ||
       (b.lastInboundAt?.getTime() ?? 0) - (a.lastInboundAt?.getTime() ?? 0)
   )
-  return out.slice(0, opts.limit ?? 20)
+  // A segment is chosen over the whole base: a quiet warm person must be
+  // reachable past the hundreds of unanswered who fill the top of the list.
+  const chosen = opts.segment
+    ? out.filter(c => c.segment === opts.segment)
+    : out
+  return chosen.slice(0, opts.limit ?? 20)
 }

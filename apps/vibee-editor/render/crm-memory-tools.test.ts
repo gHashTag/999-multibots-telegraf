@@ -345,6 +345,25 @@ describe('crm_leads', () => {
   })
 })
 
+describe('crm_leads by segment', () => {
+  it('every row names its segment and how long we have been silent; a bad segment is refused', async () => {
+    const { leads } = await tools(fakeClient().client)
+    const r: any = await leads.handler({ limit: 5 }, ctxFor())
+    // A asked a price today: hot outranks waiting by precedence.
+    expect(r.candidates[0].segment).toBe('hot')
+    expect(r.candidates[0].days_since_our_last_word).toBeGreaterThanOrEqual(0)
+    expect(r.how_to_read).toContain('segment=warm')
+    await expect(leads.handler({ segment: 'quiet' }, ctxFor())).rejects.toThrow(
+      'segment:'
+    )
+    await expect(leads.handler({ segment: 'nope' }, ctxFor())).rejects.toThrow(
+      'segment:'
+    )
+    const none: any = await leads.handler({ segment: 'warm' }, ctxFor())
+    expect(none.candidates).toEqual([])
+  })
+})
+
 describe('the ingest remembers who people are', () => {
   it('writes a name for every person kept, and for nobody skipped', async () => {
     const f = fakeClient()

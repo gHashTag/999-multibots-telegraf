@@ -3,6 +3,7 @@ import { client, requireOwner, foreignText } from './telegram-tools'
 import { resolveLead, displayOf, oneLine } from './crm-offer-tool'
 import { whoPaid, askSupabase } from './crm-tools'
 import { stageOf } from './crm-stages'
+import { SEGMENTS, type Segment } from './crm-segments'
 import { balanceOf } from './billing-shared'
 import { touchedSince, touchesFor } from './crm-touches'
 import {
@@ -257,6 +258,12 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           type: 'number',
           description: 'сколько людей вернуть (по умолчанию 15)',
         },
+        segment: {
+          type: 'string',
+          enum: SEGMENTS.filter(s => s !== 'quiet'),
+          description:
+            'только этот сегмент, по ВСЕЙ базе: hot, objection, waiting, talk, due, ours, warm, winback',
+        },
       },
       additionalProperties: false,
     },
@@ -264,12 +271,23 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       requireOwner(ctx)
       const owner = String(ctx?.telegramId)
       const pool = ctx?.pool as never
+      const wanted = a?.segment === undefined ? undefined : String(a.segment)
+      if (
+        wanted !== undefined &&
+        (wanted === 'quiet' || !SEGMENTS.includes(wanted as Segment))
+      )
+        throw new Error(
+          'segment: hot, objection, waiting, talk, due, ours, warm, winback'
+        )
       const touched = await touchedSince(pool, owner, 60).catch(
         () => new Map<string, { kind: string; at: string }>()
       )
+      const paidSet = await whoPaid().catch(() => new Set<string>())
       const list = await leadCandidates(pool, owner, {
         limit: clamp(a?.limit, 15, 50),
         touched,
+        paid: paidSet,
+        segment: wanted as Segment | undefined,
       })
       /*
        * FULL DATA, NOT A LIST OF NUMBERS.
@@ -280,7 +298,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
        * stage is derived from money and touches, as everywhere else in the
        * CRM -- never a column somebody has to remember to update.
        */
-      const paid = await whoPaid().catch(() => new Set<string>())
+      const paid = paidSet
       const nameless = list
         .filter(l => !l.name && !l.username)
         .map(l => l.lead)
@@ -327,6 +345,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             signals: l.signals,
             waiting_for_reply: l.unanswered,
             days_since_their_last_word: l.daysSinceInbound,
+            days_since_our_last_word: l.daysSinceOut,
+            segment: l.segment,
             last_inbound: l.lastInboundAt?.toISOString() ?? null,
             messages: l.total,
             inbound: l.inbound,
@@ -341,7 +361,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           'reply — человек ждёт ответа: ответь по сути его слов, без продажи. deliver — просил услугу ' +
           'и спрашивал цену: crm_deliver_photo. offer — САМ спрашивал цену или хотел купить: crm_offer. ' +
           'talk — продолжить разговор по его последним словам и памяти (crm_lead_context), без цены и ' +
-          'счёта. wait — не трогать. Не предлагай оплату первым. Если список пуст — сначала crm_ingest_chats.',
+          'счёта. wait — не трогать. Не предлагай оплату первым. Если список пуст — сначала crm_ingest_chats. ' +
+          'segment=warm/due/ours/winback выбирает по всей базе, не по верхним 50.',
       }
     },
   },
