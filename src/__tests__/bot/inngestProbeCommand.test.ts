@@ -92,6 +92,7 @@ const report = (ok: boolean) => ({
       slug: 'telegram-bot-client-a-guard',
       expect: 'FAILED-at-guard' as const,
       guard: 'validate-input',
+      guardKind: 'step' as const,
       payload: { e2e_test: true },
       verdict: (ok ? 'match' : 'mismatch') as 'match' | 'mismatch',
       runId: 'run-1',

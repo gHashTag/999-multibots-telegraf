@@ -11,13 +11,17 @@ import {
   planProbes,
   probePayload,
   judge,
+  guardKindOf,
+  firstFailedStep,
+  FUNCTION_ERROR_SPAN,
   runProbeSuite,
   renderProbeReportText,
   renderProbePlanText,
   type ProbeClient,
   type ProbePlan,
 } from '@/inngest_app/probe/probeSuite'
-import { flattenSpans } from '@/inngest_app/probe/inngestProbeClient'
+import { topLevelSteps } from '@/inngest_app/probe/inngestProbeClient'
+import { isProbeFailureEvent } from '@/inngest_app/safeMode'
 import {
   getManifestFunctions,
   type ManifestFunction,
@@ -102,6 +106,24 @@ describe('the plan', () => {
     expect(plans[0].expect).toBe('skip')
     expect(plans[1].skipReason).toBe('no safe payload in manifest')
   })
+
+  it('guard kind comes from the manifest steps: a step name is a step, anything else is the body', () => {
+    expect(guardKindOf('validate-input', ['validate-input', 'act'])).toBe(
+      'step'
+    )
+    expect(guardKindOf('zod-schema', ['create-job-folder', 'render'])).toBe(
+      'body'
+    )
+    expect(guardKindOf('min-images', ['generate-morphing-clips'])).toBe('body')
+    expect(guardKindOf('none', ['a'])).toBe('none')
+    expect(guardKindOf('unknown', ['a'])).toBe('none')
+    // the real manifest at cddac64: of 17 FAILED-at-guard functions, 7 stop in
+    // a named step and 10 in the function body (zod parse / early throw) —
+    // matches the production run of 2026-09-09 19:11Z, 28/28
+    const failing = planProbes().filter(p => p.expect === 'FAILED-at-guard')
+    expect(failing.filter(p => p.guardKind === 'step')).toHaveLength(7)
+    expect(failing.filter(p => p.guardKind === 'body')).toHaveLength(10)
+  })
 })
 
 describe('the verdict', () => {
@@ -110,15 +132,27 @@ describe('the verdict', () => {
     slug: `${APP}-g`,
     expect: 'FAILED-at-guard',
     guard: 'validate-input',
+    guardKind: 'step',
     payload: { e2e_test: true },
   }
+  const body: ProbePlan = {
+    ...guard,
+    id: 'b',
+    guard: 'zod-schema',
+    guardKind: 'body',
+  }
   const done: ProbePlan = { ...guard, id: 'd', expect: 'COMPLETED' }
+  const FE = { name: FUNCTION_ERROR_SPAN, status: 'FAILED' }
 
-  it('FAILED at the named guard is a match; FAILED elsewhere is a mismatch', () => {
+  it('a step guard: FAILED at that step (plus the synthetic function error span) is a match', () => {
     expect(
       judge(guard, {
         status: 'FAILED',
-        steps: [{ name: 'validate-input', status: 'FAILED' }],
+        steps: [
+          { name: 'get-bot', status: 'COMPLETED' },
+          { name: 'validate-input', status: 'FAILED' },
+          FE,
+        ],
       })
     ).toEqual({ verdict: 'match', failedStep: 'validate-input' })
     expect(
@@ -127,13 +161,36 @@ describe('the verdict', () => {
         steps: [
           { name: 'validate-input', status: 'COMPLETED' },
           { name: 'act', status: 'FAILED' },
+          FE,
         ],
       })
     ).toEqual({ verdict: 'mismatch', failedStep: 'act' })
+    // the guard never ran as a step: the failure was in the body — not the promised guard
+    expect(judge(guard, { status: 'FAILED', steps: [FE] })).toEqual({
+      verdict: 'mismatch',
+      failedStep: FUNCTION_ERROR_SPAN,
+    })
+  })
+
+  it('a body guard (zod parse, early throw): only the function error span fails — that is the match', () => {
+    expect(judge(body, { status: 'FAILED', steps: [FE] })).toEqual({
+      verdict: 'match',
+      failedStep: FUNCTION_ERROR_SPAN,
+    })
+    // a step failed first: the payload got past the body guard — mismatch
+    expect(
+      judge(body, {
+        status: 'FAILED',
+        steps: [{ name: 'download-files', status: 'FAILED' }, FE],
+      })
+    ).toEqual({ verdict: 'mismatch', failedStep: 'download-files' })
   })
 
   it('a function expected to fail that completed is a mismatch — it acted on a probe', () => {
     expect(judge(guard, { status: 'COMPLETED', steps: [] }).verdict).toBe(
+      'mismatch'
+    )
+    expect(judge(body, { status: 'COMPLETED', steps: [] }).verdict).toBe(
       'mismatch'
     )
   })
@@ -141,14 +198,14 @@ describe('the verdict', () => {
   it('guard "none" accepts any FAILED; COMPLETED expectation needs COMPLETED', () => {
     expect(
       judge(
-        { ...guard, guard: 'none' },
-        { status: 'FAILED', steps: [{ name: 'q', status: 'FAILED' }] }
+        { ...guard, guard: 'none', guardKind: 'none' },
+        { status: 'FAILED', steps: [FE] }
       ).verdict
     ).toBe('match')
     expect(judge(done, { status: 'COMPLETED', steps: [] }).verdict).toBe(
       'match'
     )
-    expect(judge(done, { status: 'FAILED', steps: [] }).verdict).toBe(
+    expect(judge(done, { status: 'FAILED', steps: [FE] }).verdict).toBe(
       'mismatch'
     )
     expect(judge(done, { status: 'CANCELLED', steps: [] }).verdict).toBe(
@@ -156,26 +213,58 @@ describe('the verdict', () => {
     )
   })
 
-  it('flattenSpans walks the trace tree in order', () => {
+  it('firstFailedStep prefers a real step over the synthetic function error span', () => {
+    expect(firstFailedStep([FE, { name: 'x', status: 'FAILED' }])).toBe('x')
+    expect(firstFailedStep([{ name: 'x', status: 'COMPLETED' }, FE])).toBe(
+      FUNCTION_ERROR_SPAN
+    )
     expect(
-      flattenSpans({
-        name: 'run',
+      firstFailedStep([{ name: 'x', status: 'COMPLETED' }])
+    ).toBeUndefined()
+  })
+
+  it('topLevelSteps reads the real Inngest trace shape: RUNNING step with a FAILED attempt is FAILED', () => {
+    // shape of run 01M23SG3QAZCWB2NQDZCV6RADK (neuro-image-generate, 2026-09-09)
+    expect(
+      topLevelSteps({
+        name: 'telegram-bot-client-neuro-image-generate',
         status: 'FAILED',
         childrenSpans: [
+          { name: 'get-bot', status: 'COMPLETED', childrenSpans: [] },
           {
-            name: 'a',
-            status: 'COMPLETED',
-            childrenSpans: [{ name: 'a1', status: 'COMPLETED' }],
+            name: 'check-user',
+            status: 'RUNNING',
+            childrenSpans: [
+              { name: 'Attempt 0', status: 'FAILED' },
+              { name: 'Attempt 1', status: 'QUEUED' },
+            ],
           },
-          { name: 'b', status: 'FAILED' },
+          {
+            name: 'function error',
+            status: 'FAILED',
+            childrenSpans: [{ name: 'Attempt 0', status: 'FAILED' }],
+          },
         ],
       })
     ).toEqual([
-      { name: 'a', status: 'COMPLETED' },
-      { name: 'a1', status: 'COMPLETED' },
-      { name: 'b', status: 'FAILED' },
+      { name: 'get-bot', status: 'COMPLETED' },
+      { name: 'check-user', status: 'FAILED' },
+      { name: 'function error', status: 'FAILED' },
     ])
-    expect(flattenSpans(null)).toEqual([])
+    expect(topLevelSteps(null)).toEqual([])
+  })
+
+  it('isProbeFailureEvent reads e2e_test of the ORIGINAL event inside inngest/function.failed', () => {
+    expect(
+      isProbeFailureEvent({
+        data: { event: { data: { e2e_test: true, telegram_id: '0' } } },
+      })
+    ).toBe(true)
+    expect(
+      isProbeFailureEvent({ data: { event: { data: { telegram_id: '1' } } } })
+    ).toBe(false)
+    expect(isProbeFailureEvent({ data: { e2e_test: true } })).toBe(false)
+    expect(isProbeFailureEvent(null)).toBe(false)
   })
 })
 
@@ -236,7 +325,12 @@ function fakeClient(
         id: runId,
         status: s.status,
         endedAt: '2026-09-10T00:00:01.000Z',
-        steps: s.failedStep ? [{ name: s.failedStep, status: 'FAILED' }] : [],
+        steps: s.failedStep
+          ? [
+              { name: s.failedStep, status: 'FAILED' },
+              { name: 'function error', status: 'FAILED' },
+            ]
+          : [],
       }
     },
   }

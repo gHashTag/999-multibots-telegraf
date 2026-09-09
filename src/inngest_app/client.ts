@@ -4,6 +4,7 @@
  */
 
 import { Inngest } from 'inngest'
+import { isProbeFailureEvent } from './safeMode'
 import { logger } from '@/utils/logger'
 
 // Кэшированный экземпляр клиента
@@ -158,6 +159,18 @@ export interface InngestFailureContext {
 
 export const createInngestFailureHandler = (functionName: string) => {
   return async ({ error, event, runId }: InngestFailureContext) => {
+    // A safe-mode probe (/inngest_probe, e2e_test=true) that stopped at its
+    // guard failed as designed: one info line, no admin alert. The verdict
+    // is reported by the probe suite itself.
+    if (isProbeFailureEvent(event)) {
+      logger.info(`[INNGEST PROBE] ${functionName} failed at its guard`, {
+        functionName,
+        runId,
+        error: error?.message || String(error),
+      })
+      return
+    }
+
     // 🔥 CRITICAL: Log to application logs (visible in docker logs)
     logger.error(`❌ [INNGEST FAILURE] ${functionName}`, {
       functionName,
