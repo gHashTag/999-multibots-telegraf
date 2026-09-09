@@ -2194,6 +2194,30 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         if (parts.length > 1) {
           const startParam = parts[1]
 
+          /*
+           * The CRM deep link is read FIRST and consumed whole.
+           *
+           * It has to run before the referral branch: that one accepts any bare
+           * number, and a payload it does not recognise falls through to it
+           * silently. It also has to be admin-only -- `prepare` reads the
+           * owner's correspondence -- and private-chat-only, which the guard
+           * above has already established by this point.
+           */
+          const prepLead = crmPrepLead(startParam)
+          if (prepLead) {
+            if (
+              ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
+              preparedForOwner
+            ) {
+              logger.info('CRM prepare deep-link', { telegramId, prepLead })
+              await preparedForOwner(ctx, prepLead)
+              return
+            }
+            // Not the owner: say nothing about what the payload meant and let
+            // /start behave exactly as it does for everybody else.
+            logger.info('CRM prepare deep-link refused', { telegramId })
+          }
+
           const { extractPromoFromContext } = await import(
             '@/helpers/contextUtils'
           )
@@ -2683,6 +2707,37 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
  * /lead   -- one person in depth: name, waiting, signals, touches, dialog
  * /sweep  -- one proactive sweep right now; a card follows if there is one
  */
+/**
+ * THE ONE WAY IN FROM OUTSIDE: a deep link that PREPARES, and never sends.
+ *
+ * The owner's console on the website can show who is waiting, but it must not
+ * be able to write to anybody: the browser holds no secret, and every outward
+ * action in this farm is confirmed by a press on a card inside Telegram. So the
+ * console's only action is a link -- t.me/<bot>?start=crm-prep-<id> -- and this
+ * is what it lands on: the same `prepare` the CRM menu's own button runs.
+ *
+ * A module-level slot rather than an exported function, because `prepare`
+ * closes over the bot, the sweep and the keyboards it answers with. Lifting it
+ * out would mean threading four collaborators through a new module for no gain;
+ * assigning it here keeps ONE implementation, which is the property that
+ * matters -- a second "prepare" would eventually stop matching the first.
+ */
+let preparedForOwner: ((ctx: MyContext, lead: string) => Promise<void>) | null =
+  null
+
+/** `crm-prep-<numeric id>` and nothing else; a malformed payload never matches. */
+export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
+
+/**
+ * The lead a /start payload names, when it names one for an admin in a private
+ * chat. Exported for the test: the guard is the interesting part, not the reply.
+ */
+export function crmPrepLead(payload: string | undefined): string | null {
+  if (!payload) return null
+  const m = CRM_PREP_PAYLOAD.exec(payload)
+  return m ? m[1] : null
+}
+
 export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   const ownerOnly = (ctx: MyContext) =>
     Boolean(ctx.from?.id && ADMIN_IDS_ARRAY.includes(ctx.from.id))
@@ -2896,6 +2951,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       crmCallback('prep', lead)
     )
   }
+  preparedForOwner = prepare
   const sweep = async (ctx: MyContext) => {
     await sendLong(
       ctx,
