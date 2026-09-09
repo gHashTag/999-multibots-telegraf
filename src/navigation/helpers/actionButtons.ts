@@ -44,6 +44,9 @@ export const ACTIONS: Action[] = [
   { id: 'topup', ru: '⭐ Пополнить баланс', en: '⭐ Top up' },
   { id: 'balance', ru: '💰 Мой баланс', en: '💰 My balance' },
   { id: 'can', ru: '✨ Что ты умеешь', en: '✨ What can you do' },
+  // A person, always reachable: the one button that matters when the model
+  // is wrong, down, or simply not what somebody needs.
+  { id: 'human', ru: '🙋 Позвать человека', en: '🙋 Talk to a person' },
 ]
 
 /**
@@ -89,6 +92,12 @@ export function standardButtons(isRu: boolean, opts?: { app?: boolean }) {
         `${ACTION_PREFIX}balance`
       ),
       Markup.button.callback(label(byId('can'), isRu), `${ACTION_PREFIX}can`),
+    ],
+    [
+      Markup.button.callback(
+        label(byId('human'), isRu),
+        `${ACTION_PREFIX}human`
+      ),
     ],
   ]
   // The app button only in private chats, and only when asked for: Telegram
@@ -138,18 +147,44 @@ export function parseAgentButtons(
 export function buttonsForAnswer(
   text: string,
   isRu: boolean,
-  opts: { tail?: InlineKeyboardButton[][] } = {}
+  opts: { tail?: InlineKeyboardButton[][]; app?: boolean } = {}
 ) {
   const { text: cleaned, buttons } = parseAgentButtons(text, isRu)
-  const standard = standardButtons(isRu).reply_markup.inline_keyboard
+  const standard = standardButtons(isRu, { app: opts.app }).reply_markup
+    .inline_keyboard
+  const pay = payRow(cleaned)
   return {
     text: cleaned,
-    // The owner's hub row rides last, after the agent's own buttons and the
-    // standard set, so the seller is one tap away from any answer.
+    // A pay row first when the answer carries an invoice link; then what the
+    // agent proposed; the standard set; the owner's hub row last, so the
+    // seller is one tap away from any answer.
     markup: Markup.inlineKeyboard([
+      ...(pay ? [pay] : []),
       ...buttons,
       ...standard,
       ...(opts.tail ?? []),
     ]),
   }
+}
+
+/**
+ * A Stars invoice link in an answer becomes the first row: one tap to pay.
+ * Only when the answer already carries the link -- the agent writes one only
+ * after the person asked to pay, so the button never offers payment first.
+ */
+export function payRow(text: string): InlineKeyboardButton[] | null {
+  const m = /https:\/\/t\.me\/\$[A-Za-z0-9_-]+/.exec(text)
+  if (!m) return null
+  const stars = /(\d+)\s*⭐/.exec(text)
+  return [
+    Markup.button.url(stars ? `Оплатить ${stars[1]} ⭐` : 'Оплатить ⭐', m[0]),
+  ]
+}
+
+/** The visible text without any button markers, wherever the answer goes. */
+export function stripAgentMarkers(text: string): string {
+  return text
+    .replace(/\[\[([^\]|]{1,40})\|act:([a-z_]{1,24})\]\]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }

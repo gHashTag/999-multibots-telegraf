@@ -104,3 +104,6 @@ export function держатьПечатает(
   ;(таймер as { unref?: () => void }).unref?.()
   return () => clearInterval(таймер)
 }
+
+/** Latin alias for callers that must stay free of Cyrillic identifiers. */
+export const splitLongAnswer = разбитьДлинное // cyrillic-ok: pre-existing helper name

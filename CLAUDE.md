@@ -836,6 +836,11 @@ description: 'When and how to use this skill'
 - `restore-env-from-infisical/` - Восстановление .env из Infisical
 - `telegram-scene-builder/` - Создание Telegram wizards
 - `deployment-automation/` - Production deployment
+- `buttons-under-every-answer/` - Кнопки под каждым ответом модели, `act:*` обработчики, ряд оплаты
+- `business-dm-buttons/` - Кнопки в бизнес-личке (от имени владельца), чистка маркеров, нарезка
+- `owner-two-tap-onboarding/` - Подключение нового владельца к личному продавцу
+- `client-first-tap/` - Новый клиент до результата за одно-два нажатия
+- `two-tap-topup/` - Оплата за два нажатия, две кассы честно
 - ... (и другие по мере создания)
 
 ### 🚨 Проверка перед коммитом

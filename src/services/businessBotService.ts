@@ -9,6 +9,8 @@
 
 import { Telegraf } from 'telegraf'
 import { dmLeadMenu } from '@/navigation/helpers/crmMenu'
+import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
+import { разбитьДлинное } from '@/helpers/telegramLongAnswer' // cyrillic-ok: pre-existing helper name
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import { chatWithAI, ChatMessage } from '@/services/aiChatService'
@@ -347,7 +349,8 @@ export async function answerClient(
 ): Promise<string> {
   try {
     const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
-    const said = (answer.текст ?? '').trim() // cyrillic-ok: pre-existing field
+    // Markers are the bot chat's syntax; a client must never see bracket soup.
+    const said = stripAgentMarkers((answer.текст ?? '').trim()) // cyrillic-ok: pre-existing field
     if (said) {
       void recordTurns(
         chatId,
@@ -468,13 +471,10 @@ async function ingestOnConnect(owner: string, connId: string): Promise<void> {
  * prompt forbids offering first), so the button never appears uninvited.
  */
 export function payButton(reply: string): { text: string; url: string } | null {
-  const m = /https:\/\/t\.me\/\$[A-Za-z0-9_-]+/.exec(reply)
-  if (!m) return null
-  const stars = /(\d+)\s*⭐/.exec(reply)
-  return {
-    text: stars ? `Оплатить ${stars[1]} ⭐` : 'Оплатить ⭐',
-    url: m[0],
-  }
+  const row = payRow(reply)
+  if (!row) return null
+  const b = row[0] as { text: string; url?: string }
+  return b.url ? { text: b.text, url: b.url } : null
 }
 
 // --- Handlers ---
@@ -636,7 +636,7 @@ export async function handleBusinessMessage(
     )
 
     const pay = payButton(reply)
-    const sentAsOwner = (await sendAsOwner(reply, {
+    const keyboard = {
       reply_markup: {
         inline_keyboard: [
           ...(pay ? [[pay]] : []),
@@ -648,7 +648,17 @@ export async function handleBusinessMessage(
           ],
         ],
       },
-    })) as { message_id?: number } | undefined
+    }
+    // Telegram refuses a text over 4096 characters outright: the answer is
+    // split, and the keyboard rides on the LAST chunk.
+    const parts = разбитьДлинное(reply) // cyrillic-ok: pre-existing helper name
+    let sentAsOwner: { message_id?: number } | undefined
+    for (let i = 0; i < parts.length; i++) {
+      const last = i === parts.length - 1
+      sentAsOwner = (await sendAsOwner(parts[i], last ? keyboard : {})) as
+        | { message_id?: number }
+        | undefined
+    }
 
     /*
      * THE EXCHANGE GOES INTO THE MEMORY AT ONCE: their message and the

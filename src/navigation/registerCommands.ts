@@ -1437,10 +1437,13 @@ If not, continue on your own and click the "I myself" button`
             ответ.текст, // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
             isRuOtvet,
             // The seller's hub under every owner answer, one tap away.
-            ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
+            {
+              app: ctx.chat?.type === 'private',
+              ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
               ctx.chat?.type === 'private'
-              ? { tail: [hubRow()] }
-              : undefined
+                ? { tail: [hubRow()] }
+                : {}),
+            }
           )
           const chasti = разбитьДлинное(ochishcheno) // cyrillic-ok: helper from telegramLongAnswer.ts
           for (let i = 0; i < chasti.length; i++) {
@@ -1520,7 +1523,7 @@ If not, continue on your own and click the "I myself" button`
                 'скажи, что покажешь их перед запуском, и предложи /start. ' +
                 'Мы зарабатываем на создании рилсов и контент-плана. ' +
                 'Если уместно, предложи кнопку в конце ответа маркером ' +
-                '[[Подпись|act:id]], где id — одно из: topup, balance, can. ' +
+                '[[Подпись|act:id]], где id — одно из: topup, balance, can, human. ' +
                 'Другие id не работают, не выдумывай их.',
             },
             { role: 'user', content: text },
@@ -1540,12 +1543,26 @@ If not, continue on your own and click the "I myself" button`
         const { text: replyClean, markup: replyMarkup } = buttonsForAnswer(
           reply,
           isRuFb,
-          ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
+          {
+            app: ctx.chat?.type === 'private',
+            ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
             ctx.chat?.type === 'private'
-            ? { tail: [hubRow()] }
-            : undefined
+              ? { tail: [hubRow()] }
+              : {}),
+          }
         )
-        await ctx.reply(replyClean, replyMarkup)
+        // Telegram refuses a text over 4096 characters outright; the fallback
+        // answer is split like the agent's, keyboard on the last chunk.
+        const { splitLongAnswer: splitLong } = await import(
+          '@/helpers/telegramLongAnswer'
+        )
+        const fbParts = splitLong(replyClean)
+        for (let i = 0; i < fbParts.length; i++) {
+          await ctx.reply(
+            fbParts[i],
+            i === fbParts.length - 1 ? replyMarkup : undefined
+          )
+        }
 
         /*
          * THE FALLBACK ANSWER GOES INTO THE SHARED CONVERSATION TOO.
@@ -1609,7 +1626,9 @@ If not, continue on your own and click the "I myself" button`
           .reply(
             `${причина}\n\nПопробуйте через пару минут или откройте приложение — ` +
               'лента, файлы и профиль работают без модели.',
-            standardButtons(isRussianFromState(ctx))
+            standardButtons(isRussianFromState(ctx), {
+              app: ctx.chat?.type === 'private',
+            })
           )
           .catch(() => {
             // Если не отправляется даже это — писать больше некуда.
@@ -2093,7 +2112,40 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     const body = ready.map((v: any) => `• ${v.capability.name}`).join('\n')
     await ctx.reply(
       [head, body].filter(Boolean).join('\n'),
-      standardButtons(isRu)
+      standardButtons(isRu, { app: ctx.chat?.type === 'private' })
+    )
+  })
+
+  bot.action(`${ACTION_PREFIX}human`, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    const isRu = isRussianFromState(ctx)
+    // The support handle: the bot's avatar names one, else the house default.
+    let support = 'neuro_sage'
+    try {
+      const { avatarService } = await import('@/services/plan_b/avatar.service')
+      const avatar = await avatarService.getAvatarByTelegramId(
+        String(ctx.from?.id ?? '')
+      )
+      if (avatar?.support) support = String(avatar.support)
+    } catch {
+      // The default handle answers when the avatar cannot be read.
+    }
+    const handle = support.replace(/^@/, '')
+    const rows = [
+      [
+        Markup.button.url(
+          isRu ? `✉️ Написать @${handle}` : `✉️ Message @${handle}`,
+          `https://t.me/${handle}`
+        ),
+      ],
+      ...standardButtons(isRu, { app: ctx.chat?.type === 'private' })
+        .reply_markup.inline_keyboard,
+    ]
+    await ctx.reply(
+      isRu
+        ? `🙋 Живой человек — @${handle}. Напишите, что случилось, и вам ответят.`
+        : `🙋 A person: @${handle}. Write what happened and you will get an answer.`,
+      Markup.inlineKeyboard(rows)
     )
   })
 
