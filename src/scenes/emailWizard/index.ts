@@ -20,6 +20,7 @@ import {
   PaymentType,
 } from '@/interfaces/payments.interface'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
+import { supportMention } from '@/config/support'
 const merchantLogin = getMerchantLogin() || ''
 
 const description = 'Покупка звезд'
@@ -265,9 +266,9 @@ emailWizard.on('text', async ctx => {
         await ctx.reply(
           isRu
             ? `<b>🤑 Пополнение баланса</b>
-Теперь вы можете пополнить баланс на любое количество звезд и использовать их для различных функций бота.\nПросто выберите количество звезд, которое вы хотите добавить на свой баланс.\nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
+Теперь вы можете пополнить баланс на любое количество звезд и использовать их для различных функций бота.\nПросто выберите количество звезд, которое вы хотите добавить на свой баланс.\nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами ${supportMention()}`
             : `<b>🤑 Balance Top-Up</b>
-You can now top up your balance with any number of stars and use them for various bot features. Simply choose the number of stars you want to add to your balance.\nIn case of payment issues, please contact us @neuro_sage`,
+You can now top up your balance with any number of stars and use them for various bot features. Simply choose the number of stars you want to add to your balance.\nIn case of payment issues, please contact us ${supportMention()}`,
           {
             reply_markup: {
               inline_keyboard: inlineKeyboard,

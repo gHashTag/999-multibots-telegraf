@@ -32,7 +32,16 @@ const callbacks = (kb: any): string[] =>
 
 describe('the standard set', () => {
   it('has a person to call, in this order: pay, balance + can, human, app', () => {
-    expect(ACTIONS.map(a => a.id)).toEqual(['topup', 'balance', 'can', 'human'])
+    // pay_rub / pay_crypto are registered for the agent and the /start
+    // greeting; the standard set keeps one payment door (the chooser).
+    expect(ACTIONS.map(a => a.id)).toEqual([
+      'topup',
+      'pay_rub',
+      'pay_crypto',
+      'balance',
+      'can',
+      'human',
+    ])
     expect(callbacks(standardButtons(true))).toEqual([
       'act:topup',
       'act:balance',
@@ -145,7 +154,7 @@ describe('every answer path is wired', () => {
     )
   })
 
-  it("the render's prompt names all four ids and forbids offering payment first", () => {
+  it("the render's prompt names all six ids and forbids offering payment first", () => {
     const prompt = fs.readFileSync(
       path.join(
         __dirname,
@@ -162,6 +171,8 @@ describe('every answer path is wired', () => {
       'utf8'
     )
     expect(prompt).toContain('human (позвать человека)')
-    expect(prompt).toContain('Кнопку оплаты не предлагай')
+    expect(prompt).toContain('pay_rub')
+    expect(prompt).toContain('pay_crypto')
+    expect(prompt).toContain('Кнопки оплаты не предлагай')
   })
 })

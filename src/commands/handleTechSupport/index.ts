@@ -2,11 +2,12 @@ import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
 import { avatarService } from '@/services/plan_b/avatar.service'
+import { SUPPORT_HANDLE } from '@/config/support'
 
 export const handleTechSupport = async (ctx: MyContext) => {
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString()
-  let support = 'neuro_sage'
+  let support: string = SUPPORT_HANDLE
 
   // ✅ ЗАЩИТА: Если avatarService недоступен, используем fallback
   try {
@@ -21,7 +22,7 @@ export const handleTechSupport = async (ctx: MyContext) => {
       '⚠️ [TechSupport] avatarService недоступен, используем fallback support:',
       error
     )
-    // Оставляем support = 'neuro_sage' (fallback)
+    // The default handle stays (fallback)
   }
 
   const supportMention = support.startsWith('@') ? support : `@${support}`

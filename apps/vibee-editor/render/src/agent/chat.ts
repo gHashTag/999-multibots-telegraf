@@ -94,8 +94,9 @@ const BUTTON_MARKERS =
   '\n\nКНОПКИ. Ты отвечаешь в Telegram-боте, где человек может нажать, а не ' + // cyrillic-ok: prompt copy
   'печатать. Если у ответа есть очевидный следующий шаг — предложи его ' + // cyrillic-ok: prompt copy
   'кнопкой: поставь в конце ответа маркер [[Подпись|act:id]], где id — одно ' + // cyrillic-ok: prompt copy
-  'из ЧЕТЫРЁХ: topup (пополнить баланс), balance (показать баланс), can (что ' + // cyrillic-ok: prompt copy
-  'сейчас доступно), human (позвать человека). Кнопку оплаты не предлагай, пока ' + // cyrillic-ok: prompt copy
+  'из ШЕСТИ: topup (пополнить баланс — выбор способа), pay_rub (оплатить ' + // cyrillic-ok: prompt copy
+  'рублями), pay_crypto (оплатить криптой), balance (показать баланс), can (что ' + // cyrillic-ok: prompt copy
+  'сейчас доступно), human (позвать человека). Кнопки оплаты не предлагай, пока ' + // cyrillic-ok: prompt copy
   'человек сам не спросил про оплату. Другие id не работают и будут молча выброшены — не ' + // cyrillic-ok: prompt copy
   'выдумывай их. Подпись — до 40 символов, без символов ] и |. Не больше ' + // cyrillic-ok: prompt copy
   '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy

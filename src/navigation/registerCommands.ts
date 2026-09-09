@@ -58,6 +58,9 @@ import { handleClubCommand, registerClubActions } from '@/handlers/foundryClub'
 import { handleFactoryCommand } from '@/handlers/factoryCommand'
 import { Scenes } from 'telegraf'
 import { message } from 'telegraf/filters'
+import { SUPPORT_HANDLE } from '@/config/support'
+import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+import { showStartGreeting } from '@/navigation/helpers/startGreeting'
 
 // Импорт всех сцен
 import {
@@ -2067,10 +2070,36 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     // answerCbQuery first: Telegram shows a spinner on the button until it is
     // answered, and a scene transition can take a moment.
     await ctx.answerCbQuery().catch(() => undefined)
-    // "Top up" means buy stars, never the plan somebody selected earlier and
+    // "Top up" means the balance, never the plan somebody selected earlier and
     // abandoned: a stale selectedPayment would hijack this press.
     ctx.session.selectedPayment = undefined
-    await ctx.scene.enter(ModeEnum.StarPaymentScene)
+    // The chooser, not Stars alone. Owner, 2026-09-09: "add payment in rubles,
+    // by choice, or in crypto". PaymentScene offers every method that exists:
+    // Stars, crypto (TON USDT / TON / USDC on Base when it can be credited),
+    // and rubles where the bot allows them (shouldShowRubles).
+    await ctx.scene.enter(ModeEnum.PaymentScene, {})
+  })
+
+  bot.action(`${ACTION_PREFIX}pay_rub`, async ctx => {
+    void track(ctx as any, 'topup_opened')
+    await ctx.answerCbQuery().catch(() => undefined)
+    ctx.session.selectedPayment = undefined
+    // A bot that hides rubles gets the chooser instead of a door it does not
+    // have: the same press must never dead-end.
+    if (!shouldShowRubles(ctx)) {
+      await ctx.scene.enter(ModeEnum.PaymentScene, {})
+      return
+    }
+    await ctx.scene.enter(ModeEnum.RublePaymentScene)
+  })
+
+  bot.action(`${ACTION_PREFIX}pay_crypto`, async ctx => {
+    void track(ctx as any, 'topup_opened')
+    await ctx.answerCbQuery().catch(() => undefined)
+    ctx.session.selectedPayment = undefined
+    // Into the payment scene, straight onto its crypto menu: the
+    // crypto_select_* presses are handled inside that scene only.
+    await ctx.scene.enter(ModeEnum.PaymentScene, { crypto: true })
   })
 
   bot.action(`${ACTION_PREFIX}balance`, async ctx => {
@@ -2120,7 +2149,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     await ctx.answerCbQuery().catch(() => undefined)
     const isRu = isRussianFromState(ctx)
     // The support handle: the bot's avatar names one, else the house default.
-    let support = 'neuro_sage'
+    let support: string = SUPPORT_HANDLE
     try {
       const { avatarService } = await import('@/services/plan_b/avatar.service')
       const avatar = await avatarService.getAvatarByTelegramId(
@@ -2267,9 +2296,13 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] Foundry deep-link, showing club...')
         await handleClubCommand(ctx)
       } else {
-        console.log('🔴 [DEBUG /start] User exists, showing main menu...')
-        await navShowMainMenu(ctx)
-        console.log('🔴 [DEBUG /start] Main menu shown OK')
+        console.log('🔴 [DEBUG /start] User exists, showing start greeting...')
+        // The project greeting with a door for every thing and every one,
+        // instead of the bare main menu. Every other path still ends at
+        // navShowMainMenu(ctx); /start is the one place a person arrives
+        // knowing nothing, so it is the one place that explains.
+        await showStartGreeting(ctx)
+        console.log('🔴 [DEBUG /start] Start greeting shown OK')
       }
     } catch (error) {
       console.log(

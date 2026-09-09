@@ -4,6 +4,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { Markup } from 'telegraf'
 import { avatarService } from '@/services/plan_b/avatar.service'
+import { SUPPORT_HANDLE } from '@/config/support'
 
 export const techSupportScene = new Scenes.BaseScene<MyContext>(
   'techSupportScene'
@@ -18,7 +19,7 @@ techSupportScene.enter(async ctx => {
     currentLanguage: isRu ? 'ru' : 'en',
   })
 
-  let support = 'neuro_sage'
+  let support: string = SUPPORT_HANDLE
 
   // ✅ ЗАЩИТА: Если avatarService недоступен, используем fallback
   try {
@@ -35,7 +36,7 @@ techSupportScene.enter(async ctx => {
       '⚠️ [TechSupport] avatarService недоступен, используем fallback support:',
       error
     )
-    // Оставляем support = 'neuro_sage' (fallback)
+    // The default handle stays (fallback)
   }
 
   const supportMention = support.startsWith('@') ? support : `@${support}`

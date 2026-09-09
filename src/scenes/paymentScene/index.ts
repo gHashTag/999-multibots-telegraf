@@ -36,6 +36,16 @@ paymentScene.enter(async ctx => {
     }
   )
   const isRu = isRussian(ctx)
+
+  // `act:pay_crypto` enters here asking for the crypto menu directly. The
+  // crypto_select_* actions live on this scene, so the person must be IN it
+  // for the presses to land -- that is why the button does not reply with a
+  // menu of its own.
+  if ((ctx.scene.state as { crypto?: boolean } | undefined)?.crypto) {
+    await showCryptoMenu(ctx)
+    return
+  }
+
   const showRublesButton = shouldShowRubles(ctx) // Используем хелпер
 
   logger.info(
@@ -251,8 +261,13 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   }
 })
 
-// Переход к выбору криптовалюты (показываем inline-меню)
-paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
+/**
+ * The crypto menu: TON USDT and TON always, USDC on Base only when a payment
+ * made that way can actually be credited. Shared by the "Crypto" key inside
+ * this scene and by the `act:pay_crypto` button, which enters the scene with
+ * `{ crypto: true }` and wants this menu first, not the chooser.
+ */
+export async function showCryptoMenu(ctx: MyContext): Promise<void> {
   const isRu = isRussian(ctx)
   // Not `isX402Configured`: a configured wallet does not mean a payment made
   // this way can be credited. Settlement verification does not exist, so
@@ -323,7 +338,10 @@ paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
         : '❌ An error occurred. Please try again later.'
     )
   }
-})
+}
+
+// The "Crypto" key inside the chooser opens the same menu.
+paymentScene.hears(['💎 Криптой', '💎 Crypto'], showCryptoMenu)
 
 // Action: Выбор TON USDT
 paymentScene.action('crypto_select_ton_usdt', async ctx => {
@@ -375,8 +393,10 @@ paymentScene.action('crypto_back', async ctx => {
   } catch {
     // ignore
   }
-  // Re-enter payment scene to show main payment menu
-  await ctx.scene.reenter()
+  // Back means the chooser. `reenter()` keeps the scene state, so after an
+  // `act:pay_crypto` entry (`{ crypto: true }`) it would show the crypto menu
+  // again and "Back" would lead nowhere. Enter with an empty state instead.
+  await ctx.scene.enter(ModeEnum.PaymentScene, {})
 })
 
 // УДАЛЕНО: Старые hears обработчики для TON USDT и TON

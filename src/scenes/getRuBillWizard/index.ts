@@ -30,6 +30,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from '@/interfaces/payments.interface'
+import { supportMention } from '@/config/support'
 
 export const generateInvoiceStep = async (ctx: MyContext) => {
   console.log('═══════════════════════════════════════════════════════')
@@ -62,8 +63,10 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
     const isRu = isRussian(ctx)
     await ctx.reply(
       isRu
-        ? '❌ Ошибка конфигурации платежной системы. Обратитесь в поддержку @neuro_sage'
-        : '❌ Payment system configuration error. Contact support @neuro_sage'
+        ? '❌ Ошибка конфигурации платежной системы. Обратитесь в поддержку ' +
+            supportMention()
+        : '❌ Payment system configuration error. Contact support ' +
+            supportMention()
     )
     return ctx.scene.leave()
   }
@@ -206,8 +209,8 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
 
       await ctx.reply(
         isRu
-          ? `<b>💵 Чек создан для подписки ${subTitle}</b>\nНажмите кнопку ниже, чтобы перейти к оплате.\n\nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами @neuro_sage`
-          : `<b>💵 Invoice created for subscription ${subTitle}</b>\nClick the button below to proceed with payment.\n\nIn case of payment issues, please contact us @neuro_sage`,
+          ? `<b>💵 Чек создан для подписки ${subTitle}</b>\nНажмите кнопку ниже, чтобы перейти к оплате.\n\nВ случае возникновения проблем с оплатой, пожалуйста, свяжитесь с нами ${supportMention()}`
+          : `<b>💵 Invoice created for subscription ${subTitle}</b>\nClick the button below to proceed with payment.\n\nIn case of payment issues, please contact us ${supportMention()}`,
         {
           reply_markup: {
             inline_keyboard: inlineKeyboard,
