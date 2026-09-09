@@ -48,28 +48,34 @@ turn queries GraphQL over the private network.
 
 Do these in order; each step is reversible.
 
-1. **Deploy this PR** so the app exposes `/api/inngest/functions/status`
-   and reads `INNGEST_GQL_URL` / `INNGEST_BASE_URL`.
+1. **Deploy** so the app exposes `/api/inngest/functions/status`, reads
+   `INNGEST_GQL_URL` / `INNGEST_BASE_URL`, and re-registers itself on boot
+   (`src/inngest_app/status/syncOnBoot.ts`; disable with
+   `INNGEST_SYNC_ON_BOOT=0`).
 2. **Set variables on the app service** (Railway → app → Variables):
-   - `INNGEST_BASE_URL=http://inngest.railway.internal:8288`
-     (or the existing `INNGEST_DEV_URL` if that is what the SDK uses today —
-     both are honoured by `resolveInngestGqlUrl()`).
-   - optional `INNGEST_GQL_URL=http://inngest.railway.internal:8288/v0/gql`
-     (explicit override; default is `${INNGEST_BASE_URL}/v0/gql`).
-   - keep `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` unchanged.
-3. **Point the Inngest server at the app over the private network** (Inngest
-   service → Variables): the app URL used by the server to call
-   `/api/inngest` should be `http://<app-service>.railway.internal:<PORT>/api/inngest`
-   (`INNGEST_SDK_URL` / "App URL" in the dashboard "Apps → Sync"). Re-sync the
-   app in the Inngest UI once and confirm `connected: true` via
-   `GET /api/inngest/functions/status`.
+   - `INNGEST_BASE_URL=http://inngestinngest.railway.internal:8288`
+     (the Inngest service's private hostname; its `INNGEST_PORT` is 8288).
+   - `INNGEST_GQL_URL=http://inngestinngest.railway.internal:8288/v0/gql`
+     (explicit; default would be `${INNGEST_BASE_URL}/v0/gql`).
+   - keep `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `INNGEST_SERVE_ORIGIN` unchanged.
+   - **Precedence (verified 2026-09-09):** Infisical copies every secret into
+     `process.env` at boot and *overwrote* `INNGEST_BASE_URL` with the public
+     Inngest URL, so a Railway-side value alone had no effect. Topology keys
+     (`INNGEST_SERVE_ORIGIN`, `BASE_WEBHOOK_URL`, `INNGEST_BASE_URL`,
+     `INNGEST_GQL_URL`) are now platform-owned — see
+     `src/core/infisical/platformEnv.ts`. If Infisical still holds
+     `INNGEST_BASE_URL`, it is ignored whenever Railway sets one; delete the
+     Infisical copy when convenient to avoid confusion.
+3. **Inngest server → app** keeps using the app's public URL
+   (`INNGEST_SERVE_ORIGIN`); switching it to the app's private hostname is
+   optional and independent of closing the Inngest domain.
 4. **Verify from the app** with the private URL before removing the public
-   one: `curl -s https://<app-public-url>/api/inngest/functions/status | jq .app`
-   must show `connected: true` and `functions[].deployed: true` for the 28
-   served functions.
+   one: `curl -s https://<app-public-url>/api/inngest/functions/status | jq .source,.app`
+   must show `gqlUrl` on `railway.internal`, `connected: true` and
+   `functions[].deployed: true` for the 28 served functions.
 5. **Remove the public domain from the Inngest service** (Railway → inngest
    service → Settings → Networking → delete the public domain). Keep only the
-   private `inngest.railway.internal` hostname.
+   private `inngestinngest.railway.internal` hostname.
 6. **Operators' access to the Inngest UI** afterwards: `railway ssh` /
    `railway run` port-forward, or a Tailscale/Cloudflare Access sidecar. Do
    **not** re-add a public domain "just for the UI".

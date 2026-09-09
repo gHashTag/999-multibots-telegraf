@@ -14,6 +14,7 @@ import diagnosticRouter from './routes/diagnostic.routes'
 import billingRouter from './routes/billing.routes'
 import x402Router, { setX402BotInstance } from './routes/x402.routes'
 import inngestStatusRouter from './routes/inngest-status.routes'
+import { syncInngestAppOnBoot } from '../inngest_app/status/syncOnBoot'
 import { Telegraf } from 'telegraf'
 // ✅ Inngest включен для мониторинга webhook'ов
 import { serve } from 'inngest/express'
@@ -231,6 +232,20 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
     console.log(`📍 Local: http://localhost:${PORT}/api/payment-success`)
     console.log(`📍 Direct: http://0.0.0.0:${PORT}/api/payment-success`)
     console.log('═══════════════════════════════════════════════════════')
+
+    // 🔁 Re-register the Inngest app after every deploy. The self-hosted
+    // Inngest server does not re-sync on its own (verified live 2026-09-09):
+    // without this PUT new/renamed functions stay invisible until someone
+    // runs `curl -X PUT .../api/inngest` by hand. Fire-and-forget; failures
+    // are logged and never block startup. Disable with INNGEST_SYNC_ON_BOOT=0.
+    void syncInngestAppOnBoot({
+      port: PORT,
+      log: (msg, meta) => logger.info(msg, meta),
+    }).catch(error => {
+      logger.warn('[INNGEST SYNC] unexpected error', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
 
     // 🚀 Verify webhook health on startup
     try {
