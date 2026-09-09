@@ -16,6 +16,7 @@
 
 // Правильный импорт для Infisical SDK v4
 import { InfisicalSDK } from '@infisical/sdk'
+import { applySecretsToEnv } from './platformEnv'
 
 // Simple logging function - avoid circular dependencies with esbuild
 function logInfo(message: string, meta?: any) {
@@ -156,36 +157,17 @@ async function loadAllSecrets(): Promise<void> {
     // Сохраняем в кэш И в process.env для совместимости с библиотеками
     secretCache = {}
 
-    // 🔥 Fly.io secrets that should NOT be overridden by Infisical
-    // These are set via `flyctl secrets set` and take precedence
-    const flySecrets = new Set([
-      'INNGEST_SERVE_ORIGIN', // Must match Fly.io app URL
-      'BASE_WEBHOOK_URL', // Webhook URL for Replicate callbacks
-    ])
-
-    // Save current Fly.io secret values before Infisical override
-    const flySecretValues: Record<string, string> = {}
-    for (const key of flySecrets) {
-      if (process.env[key]) {
-        flySecretValues[key] = process.env[key]!
-      }
-    }
-
+    // Topology variables (INNGEST_SERVE_ORIGIN, INNGEST_BASE_URL, ...) are
+    // owned by the platform (Railway / Fly.io) and win over Infisical.
+    // See src/core/infisical/platformEnv.ts for the list and the rule.
     for (const secret of result.secrets) {
       secretCache[secret.secretKey] = secret.secretValue
-      // 🔥 CRITICAL: Не перезаписываем Fly.io секреты
-      if (
-        flySecrets.has(secret.secretKey) &&
-        flySecretValues[secret.secretKey]
-      ) {
-        console.log(
-          `[Infisical] ⚠️ Preserving Fly.io secret: ${secret.secretKey}`
-        )
-        continue
-      }
-      // Также записываем в process.env для совместимости
-      // с библиотеками типа Inngest, которые читают напрямую из process.env
-      process.env[secret.secretKey] = secret.secretValue
+    }
+    // Also written to process.env for libraries (Inngest SDK) that read env
+    // directly — except platform-owned keys already set by the platform.
+    const { preserved } = applySecretsToEnv(result.secrets, process.env)
+    for (const key of preserved) {
+      console.log(`[Infisical] ⚠️ Preserving platform env: ${key}`)
     }
 
     // 🔥 Логируем наличие критических ключей
