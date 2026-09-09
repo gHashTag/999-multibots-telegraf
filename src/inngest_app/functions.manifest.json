@@ -302,7 +302,9 @@
       "deployed_2026_09_09": false,
       "control": "spec+code",
       "export": "checkStuckTrainings",
-      "notes": []
+      "notes": [
+        "safe mode: send-completion-events is skipped (fan-out to training-model-complete would message users)"
+      ]
     },
     {
       "id": "morph-images-generate",
@@ -928,8 +930,8 @@
       "retries": 1,
       "on_failure": "log",
       "side_effects": [
-        "messages-owners",
-        "messages-admin"
+        "messages-admin",
+        "db-write"
       ],
       "guard": "none",
       "safe_probe": "{}",
@@ -937,7 +939,9 @@
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "skillDetector",
-      "notes": []
+      "notes": [
+        "side_effects corrected: ['messages-owners','messages-admin'] -> ['messages-admin','db-write'] (only notify-admin to ADMIN_TELEGRAM_ID; writes skills table)"
+      ]
     },
     {
       "id": "webhook-generation-validate",

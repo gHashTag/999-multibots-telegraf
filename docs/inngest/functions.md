@@ -43,7 +43,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 | `monitoring-logs-analyze` | cron `0 10 * * *` (UTC) | 2 | admin-telegram | none | messages-admin | `monitoring/logMonitor.ts` |
 | `monitoring-logs-trigger` | `monitoring/logs.trigger` <br>legacy: `logs/monitor.trigger` | 1 | admin-telegram | none | messages-admin | `monitoring/logMonitor.ts` |
 | `analytics-sales-advise` | cron `0 9 * * *` (UTC) | 1 | admin-telegram | none | messages-owners, messages-admin | `analytics/dailySalesAdvisor.ts` |
-| `analytics-skills-detect` | cron `0 10 * * *` (UTC) | 1 | log | none | messages-owners, messages-admin | `analytics/skillDetector.ts` |
+| `analytics-skills-detect` | cron `0 10 * * *` (UTC) | 1 | log | none | messages-admin, db-write | `analytics/skillDetector.ts` |
 | `webhook-generation-validate` | `webhook/generation.validate` <br>legacy: `video/generation-validate-webhook` | 1 | admin-telegram | unknown | db-write | `webhookHealthGuard.ts` |
 | `welcome-avatar-generate` | `welcome/avatar.generate` <br>legacy: `user/welcome.avatar.generate` | 2 | admin-telegram | unknown | paid-api, messages-user | `welcomeAvatarGeneration.ts` |
 
@@ -202,6 +202,8 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Side effects:** `charges-balance`, `paid-api`, `messages-user`, `db-write`
 - **Steps:** `find-stuck-trainings` → `check-replicate-status` → `send-completion-events`
 - **Probe 2026-09-09:** safe=no, result=not-deployed, deployed=no
+- **Notes:**
+  - safe mode: send-completion-events is skipped (fan-out to training-model-complete would message users)
 
 ### morph-images-generate
 
@@ -506,9 +508,11 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Retries:** 1
 - **onFailure:** log
 - **Guard:** none
-- **Side effects:** `messages-owners`, `messages-admin`
+- **Side effects:** `messages-admin`, `db-write`
 - **Steps:** `load-existing-skills` → `detect-${serviceType}` → `notify-admin`
 - **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Notes:**
+  - side_effects corrected: ['messages-owners','messages-admin'] -> ['messages-admin','db-write'] (only notify-admin to ADMIN_TELEGRAM_ID; writes skills table)
 
 ### webhook-generation-validate
 
