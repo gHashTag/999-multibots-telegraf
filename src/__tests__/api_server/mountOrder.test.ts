@@ -35,6 +35,12 @@ describe('api_server mount order', () => {
     expect(lineOf(/app\.use\('\/api\/inngest'/)).toBeLessThan(firstGuard)
   })
 
+  it('read-only inngest status router is mounted before the serve handler and any keyed mount', () => {
+    const status = lineOf(/app\.use\(inngestStatusRouter\)/)
+    expect(status).toBeLessThan(lineOf(/app\.use\('\/api\/inngest'/))
+    expect(status).toBeLessThan(firstGuard)
+  })
+
   it('public competitor routes are mounted before any keyed mount', () => {
     expect(lineOf(/app\.use\('\/api', competitorRouter\)/)).toBeLessThan(
       firstGuard
