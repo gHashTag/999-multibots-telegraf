@@ -149,6 +149,7 @@ import { setupAutoFixerCommands } from '@/commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scene'
 import { requireAdmin } from '@/middleware/adminOnly'
 import { setupAutonomousMonitor } from '@/commands/autonomousMonitor'
+import { setupInngestProbeCommand } from '@/commands/inngestProbeCommand'
 import {
   createBusinessMiddleware,
   getBusinessStats,
@@ -627,6 +628,10 @@ If not, continue on your own and click the "I myself" button`
       '🤖 [AUTONOMOUS MONITOR] Registering autonomous monitor commands'
     )
     setupAutonomousMonitor(bot)
+
+    // 8b. /inngest_probe — admin-only safe probe of every served Inngest
+    // function (spec: t27 specs/automation/inngest-probe-suite.t27)
+    setupInngestProbeCommand(bot)
 
     // 9. TELEGRAM BUSINESS INTEGRATION (raw middleware — Telegraf 4.16 lacks native support)
     createBusinessMiddleware(bot as any)

@@ -30,8 +30,12 @@ export interface ManifestFunction {
   on_failure: 'admin-telegram' | 'log'
   side_effects: string[]
   guard: string
-  safe_probe: boolean
+  /** JSON object (string) sent by the 2026-09-09 probe and by /inngest_probe; "" = none known */
+  safe_probe: string
+  /** What the 2026-09-09 probe reached: COMPLETED | FAILED-at-guard | skipped | not-deployed */
   probe_result: string
+  /** What the safe probe suite expects now: COMPLETED | FAILED-at-guard | skip */
+  probe_expect: 'COMPLETED' | 'FAILED-at-guard' | 'skip'
   deployed_2026_09_09: boolean
   control: ManifestControl
   notes: string[]

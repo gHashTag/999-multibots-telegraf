@@ -29,8 +29,9 @@ type Fn = {
   on_failure: string
   side_effects: string[]
   guard: string
-  safe_probe: boolean
+  safe_probe: string
   probe_result: string
+  probe_expect?: string
   deployed_2026_09_09: boolean
   control: string
   notes: string[]
@@ -71,7 +72,7 @@ function card(f: Fn): string {
   lines.push(`- **Side effects:** ${f.side_effects.length ? f.side_effects.map(code).join(', ') : '—'}`)
   lines.push(`- **Steps:** ${f.steps.length ? f.steps.map(code).join(' → ') : '—'}`)
   lines.push(
-    `- **Probe 2026-09-09:** safe=${f.safe_probe ? 'yes' : 'no'}, result=${f.probe_result || '—'}, deployed=${f.deployed_2026_09_09 ? 'yes' : 'no'}`
+    `- **Probe 2026-09-09:** safe=${f.safe_probe ? 'yes' : 'no'}, result=${f.probe_result || '—'}, deployed=${f.deployed_2026_09_09 ? 'yes' : 'no'}; probe suite expects: ${f.probe_expect || '—'}`
   )
   if (f.notes.length) {
     lines.push(`- **Notes:**`)
