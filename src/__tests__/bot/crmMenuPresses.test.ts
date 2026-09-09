@@ -40,17 +40,17 @@ const fetchLeads = vi.fn(async () => ({
   text: 'Кому писать',
   rows: [
     {
-      lead: '435572800',
-      display: 'Geya (@playom)',
+      lead: '900000001',
+      display: 'Pilot (@pilot_client)',
       next: 'reply',
       signals: ['price'],
     },
   ],
 }))
 const fetchLead = vi.fn(async () => ({
-  text: 'Geya (@playom) · 435572800',
-  lead: '435572800',
-  display: 'Geya (@playom)',
+  text: 'Pilot (@pilot_client) · 900000001',
+  lead: '900000001',
+  display: 'Pilot (@pilot_client)',
   waiting: true,
   signals: ['price'],
 }))
@@ -165,16 +165,16 @@ const keyboardOf = (m: { payload: any }): string[] =>
 describe('every press is answered first, and only for the owner in a private chat', () => {
   it('a lead press answers the query before anything else, then shows the brief with its menu', async () => {
     const { bot, errors } = boot()
-    await bot.handleUpdate(press('crm:lead:435572800') as any)
+    await bot.handleUpdate(press('crm:lead:900000001') as any)
     expect(errors).toEqual([])
     expect(sink[0].method).toBe('answerCallbackQuery')
     const m = sent()
     expect(m).toHaveLength(1)
-    expect(m[0].payload.text).toContain('Geya')
+    expect(m[0].payload.text).toContain('Pilot')
     expect(keyboardOf(m[0])).toEqual([
-      'crm:prep:435572800',
-      'crm:later:435572800',
-      'crm:refuse:435572800',
+      'crm:prep:900000001',
+      'crm:later:900000001',
+      'crm:refuse:900000001',
       'crm:leads',
       'crm:menu',
     ])
@@ -182,7 +182,7 @@ describe('every press is answered first, and only for the owner in a private cha
 
   it('a stranger and a group get an answered query and nothing else', async () => {
     const { bot } = boot()
-    await bot.handleUpdate(press('crm:lead:435572800', 999) as any)
+    await bot.handleUpdate(press('crm:lead:900000001', 999) as any)
     await bot.handleUpdate(press('crm:leads', OWNER, 'group') as any)
     expect(sink.filter(s => s.method === 'answerCallbackQuery')).toHaveLength(2)
     expect(sent()).toHaveLength(0)
@@ -196,8 +196,8 @@ describe('what the presses do', () => {
     await bot.handleUpdate(press('crm:leads') as any)
     const m = sent()
     expect(keyboardOf(m[0])).toEqual([
-      'crm:lead:435572800',
-      'crm:prep:435572800',
+      'crm:lead:900000001',
+      'crm:prep:900000001',
       'crm:leads',
       'crm:summary',
       'crm:sweep',
@@ -206,22 +206,22 @@ describe('what the presses do', () => {
 
   it('prepare: an ack with a menu, then a bounded agent turn for that person, then the outcome with buttons', async () => {
     const { bot } = boot()
-    await bot.handleUpdate(press('crm:prep:435572800') as any)
+    await bot.handleUpdate(press('crm:prep:900000001') as any)
     expect(runSweepNow).toHaveBeenCalledTimes(1)
     const opts = (
       runSweepNow.mock.calls[0] as unknown as [unknown, string, any]
     )[2]
     expect(opts.holdMs).toBe(10 * 60_000)
     expect(opts.ingest).toBe(false)
-    expect(opts.prompt).toContain('ОДИН человек — 435572800')
+    expect(opts.prompt).toContain('ОДИН человек — 900000001')
     expect(opts.prompt).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     const m = sent()
-    expect(m[0].payload.text).toContain('Готовлю для 435572800')
+    expect(m[0].payload.text).toContain('Готовлю для 900000001')
     expect(keyboardOf(m[0])).toEqual(['crm:menu'])
     expect(m[1].payload.text).toContain('Тихо')
     expect(keyboardOf(m[1])).toEqual([
-      'crm:lead:435572800',
-      'crm:later:435572800',
+      'crm:lead:900000001',
+      'crm:later:900000001',
       'crm:leads',
       'crm:summary',
       'crm:sweep',
@@ -231,28 +231,28 @@ describe('what the presses do', () => {
   it('a double tap on prepare runs one turn', async () => {
     const { bot } = boot()
     await Promise.all([
-      bot.handleUpdate(press('crm:prep:435572800') as any),
-      bot.handleUpdate(press('crm:prep:435572800') as any),
+      bot.handleUpdate(press('crm:prep:900000001') as any),
+      bot.handleUpdate(press('crm:prep:900000001') as any),
     ])
     expect(runSweepNow).toHaveBeenCalledTimes(1)
   })
 
   it('later records a touch and says so; refuse asks twice', async () => {
     const { bot } = boot()
-    await bot.handleUpdate(press('crm:later:435572800') as any)
-    expect(touchLead).toHaveBeenCalledWith(String(OWNER), '435572800', 'later')
-    expect(sent()[0].payload.text).toContain('Записал: 435572800 — позже')
+    await bot.handleUpdate(press('crm:later:900000001') as any)
+    expect(touchLead).toHaveBeenCalledWith(String(OWNER), '900000001', 'later')
+    expect(sent()[0].payload.text).toContain('Записал: 900000001 — позже')
     sink = []
-    await bot.handleUpdate(press('crm:refuse:435572800') as any)
+    await bot.handleUpdate(press('crm:refuse:900000001') as any)
     expect(touchLead).toHaveBeenCalledTimes(1)
     const edit = sink.find(s => s.method === 'editMessageReplyMarkup')
     expect(JSON.stringify(edit?.payload.reply_markup)).toContain(
-      'crm:refuse!:435572800'
+      'crm:refuse!:900000001'
     )
-    await bot.handleUpdate(press('crm:refuse!:435572800') as any)
+    await bot.handleUpdate(press('crm:refuse!:900000001') as any)
     expect(touchLead).toHaveBeenLastCalledWith(
       String(OWNER),
-      '435572800',
+      '900000001',
       'refused'
     )
     expect(sent().at(-1)?.payload.text).toContain('30 дней')
@@ -264,16 +264,16 @@ describe('what the presses do', () => {
       why: 'такого человека нет',
     } as never)
     const { bot } = boot()
-    await bot.handleUpdate(press('crm:later:435572800') as any)
+    await bot.handleUpdate(press('crm:later:900000001') as any)
     const m = sent()[0]
     expect(m.payload.text).toContain('Не записал: такого человека нет')
-    expect(keyboardOf(m)).toContain('crm:later:435572800')
+    expect(keyboardOf(m)).toContain('crm:later:900000001')
   })
 
   it('mute pauses the AI in that chat for this owner', async () => {
     const { bot } = boot()
-    await bot.handleUpdate(press('crm:mute:435572800') as any)
-    expect(pauseAiFor).toHaveBeenCalledWith('435572800', undefined, OWNER)
+    await bot.handleUpdate(press('crm:mute:900000001') as any)
+    expect(pauseAiFor).toHaveBeenCalledWith('900000001', undefined, OWNER)
     expect(sent()[0].payload.text).toContain('Молчу')
   })
 
@@ -325,7 +325,7 @@ describe('what the presses do', () => {
       'crm:summary',
       'crm:model',
       'crm:ingest',
-      'crm:back:435572800',
+      'crm:back:900000001',
     ]) {
       await bot.handleUpdate(press(data) as any)
     }

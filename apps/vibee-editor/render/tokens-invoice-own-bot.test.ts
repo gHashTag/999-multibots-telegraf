@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  * client's OWN bot of the farm, through the one mint the invoice route uses.
  */
 
-const CLIENT = '6579515876'
+const CLIENT = '900000002'
 
 function stubNet(opts: {
   botName?: string | null

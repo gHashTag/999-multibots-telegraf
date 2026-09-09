@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  * and give back exactly what it took when the file does not go.
  */
 const OWNER = '144022504'
-const LEAD = '6579515876'
+const LEAD = '900000002'
 const PIC = 'https://s3.example/pic.png'
 
 function stubSupabase(rows: unknown[]) {
@@ -22,18 +22,19 @@ function stubSupabase(rows: unknown[]) {
 const leadRow = {
   telegram_id: LEAD,
   bot_name: 'neuro_blogger_bot',
-  username: 'playom',
+  username: 'pilot_client',
   first_name: 'Ольга',
 }
 function ownerSession(shape: Record<string, unknown> = {}) {
   return {
     async getEntity(x: string) {
-      if (x !== '@playom') throw new Error('Could not find the input entity')
+      if (x !== '@pilot_client')
+        throw new Error('Could not find the input entity')
       return {
         id: { toString: () => LEAD },
         className: 'User',
         firstName: 'Ольга',
-        username: 'playom',
+        username: 'pilot_client',
         ...shape,
       }
     },
@@ -112,7 +113,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, q, calls } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@playom', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот' },
       ctxWith(poolWith([{ balance: 50 }]), 'mcp')
     )
     expect(r.proposal).toBe(true)
@@ -126,7 +127,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@playom', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот' },
       ctxWith(poolWith([{ balance: 1 }]))
     )
     expect(r.delivered).toBe(false)
@@ -142,7 +143,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@playom', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот' },
       ctxWith(poolWith([]))
     )
     expect(r.proposal).toBe(true)
@@ -154,7 +155,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const pool = poolWith([{ balance: 50 }])
-    await tool.handler({ chat: '@playom', prompt: 'кот' }, ctxWith(pool))
+    await tool.handler({ chat: '@pilot_client', prompt: 'кот' }, ctxWith(pool))
     expect(calls[0].who).toBe(OWNER)
     expect(calls[0].args.prompt).toBe('кот')
     // The generator is told the owner's wallet is not the one that pays.
@@ -171,7 +172,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
       gen: async () => ({ сделано: false, причина: 'провайдер лёг' }), // cyrillic-ok: public API field
     })
     const r: any = await tool.handler(
-      { chat: '@playom', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот' },
       ctxWith(poolWith([{ balance: 50 }]))
     )
     expect(r.delivered).toBe(false)
@@ -183,7 +184,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, q } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@playom', prompt: 'кот', caption: 'Ваш котик готов!' },
+      { chat: '@pilot_client', prompt: 'кот', caption: 'Ваш котик готов!' },
       ctxWith(poolWith([{ balance: 50 }]))
     )
     const d = q.pendingFor(OWNER)!
@@ -194,7 +195,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
       tokens: 2,
     })
     expect(d.charge!.telegramId).not.toBe(OWNER)
-    expect(d.display).toBe('Ольга (@playom)')
+    expect(d.display).toBe('Ольга (@pilot_client)')
     expect(d.what).toBe('Ваш котик готов!')
     expect(r.preview).toBe(PIC)
     expect(r.price).toBe(2)
@@ -206,7 +207,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     process.env.ADMIN_IDS = LEAD
     const { tool, q } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@playom', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот' },
       ctxWith(poolWith([]))
     )
     expect(r.proposal).toBe(true)
@@ -219,7 +220,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     const { tool, q } = await deliverer()
     await tool.handler(
       {
-        chat: '@playom',
+        chat: '@pilot_client',
         prompt: 'кот',
         caption: 'Готово!\nЖми https://evil.example/x',
       },
@@ -235,7 +236,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     const { tool, calls } = await deliverer()
     await expect(
       tool.handler(
-        { chat: '@playom', prompt: 'кот' },
+        { chat: '@pilot_client', prompt: 'кот' },
         ctxWith(poolWith([{ balance: 50 }]), 'bot', '999')
       )
     ).rejects.toThrow('принадлежит владельцу')
@@ -257,7 +258,7 @@ function fakeClient(
     async sendFile(to: string, opts: Record<string, unknown>) {
       timeline.push(`sendFile:${to}`)
       if (o.failNumericUntilDialogs && !warmed)
-        throw new Error('Could not find the input entity for 6579515876')
+        throw new Error('Could not find the input entity for 900000002')
       if (o.failFile) throw new Error(o.failFile)
       files.push(opts)
     },

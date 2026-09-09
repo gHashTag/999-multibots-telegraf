@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  * Zep mirror that is a mirror.
  */
 const OWNER = '144022504'
-const A = '6579515876'
+const A = '900000002'
 
 function fakePool() {
   const queries: Array<{ sql: string; params: unknown[] }> = []
@@ -32,7 +32,13 @@ function fakePool() {
         return {
           rows:
             params[1] === A
-              ? [{ first_name: 'Ольга', last_name: null, username: 'playom' }]
+              ? [
+                  {
+                    first_name: 'Ольга',
+                    last_name: null,
+                    username: 'pilot_client',
+                  },
+                ]
               : [],
         }
       if (/FROM crm_people WHERE owner_id = \$1$/.test(flat))
@@ -42,7 +48,7 @@ function fakePool() {
               lead_id: A,
               first_name: 'Ольга',
               last_name: null,
-              username: 'playom',
+              username: 'pilot_client',
             },
           ],
         }
@@ -110,7 +116,7 @@ function fakeClient(o: { floodOn?: string; laterExtra?: boolean } = {}) {
       return [
         dialog(A, {
           isUser: true,
-          entity: { firstName: 'Ольга', username: 'playom' },
+          entity: { firstName: 'Ольга', username: 'pilot_client' },
         }),
         dialog('777', { isUser: true, entity: { bot: true } }),
         dialog('-1001', { isChannel: true, entity: {} }),
@@ -328,8 +334,8 @@ describe('crm_leads', () => {
     const r: any = await leads.handler({ limit: 5 }, ctxFor())
     const c = r.candidates[0]
     expect(c.name).toBe('Ольга')
-    expect(c.username).toBe('playom')
-    expect(c.display).toBe('Ольга (@playom)')
+    expect(c.username).toBe('pilot_client')
+    expect(c.display).toBe('Ольга (@pilot_client)')
     expect(c.last_words).toContain('FOREIGN CONTENT')
     expect(c.last_words).toContain('сколько стоит фото?')
     expect(c.stage).toBe('new')
@@ -349,7 +355,7 @@ describe('the ingest remembers who people are', () => {
       .filter(q => q.sql.startsWith('INSERT INTO crm_people'))
       .map(q => ({ lead: q.params[1], first: q.params[2], user: q.params[4] }))
     expect(named).toEqual([
-      { lead: A, first: 'Ольга', user: 'playom' },
+      { lead: A, first: 'Ольга', user: 'pilot_client' },
       { lead: '88888888', first: 'Пётр', user: null },
     ])
   })
@@ -357,9 +363,9 @@ describe('the ingest remembers who people are', () => {
   it('a bare id in crm_lead_context is shown by name once the ingest has met them', async () => {
     const { context } = await tools(fakeClient().client)
     const r: any = await context.handler({ chat: A }, ctxFor())
-    expect(r.display).toBe('Ольга (@playom)')
+    expect(r.display).toBe('Ольга (@pilot_client)')
     expect(r.name).toBe('Ольга')
-    expect(r.username).toBe('playom')
+    expect(r.username).toBe('pilot_client')
   })
 })
 

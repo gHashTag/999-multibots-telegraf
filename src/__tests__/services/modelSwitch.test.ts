@@ -191,8 +191,8 @@ describe('the leads list shows who people are', () => {
   it('a name, a username, the stage, their last words and the signals -- in Russian, unframed', () => {
     const text = formatLeads([
       {
-        lead: '435572800',
-        display: 'Geya (@playom)',
+        lead: '900000001',
+        display: 'Pilot (@pilot_client)',
         next: 'offer',
         score: 7,
         stage: 'talking',
@@ -217,7 +217,7 @@ describe('the leads list shows who people are', () => {
         signals: [],
       },
     ])
-    expect(text).toContain('1. Geya (@playom) · 435572800')
+    expect(text).toContain('1. Pilot (@pilot_client) · 900000001')
     expect(text).toContain(
       'offer — предложить счёт · [7] · в разговоре · платил'
     )
@@ -245,8 +245,8 @@ describe('/lead: one person in depth', () => {
       body: {
         result: {
           structuredContent: {
-            lead: '435572800',
-            display: 'Geya (@playom)',
+            lead: '900000001',
+            display: 'Pilot (@pilot_client)',
             messages_kept: 46,
             waiting_for_reply: true,
             last_inbound: '2026-09-08T16:09:43.000Z',
@@ -266,7 +266,7 @@ describe('/lead: one person in depth', () => {
               {
                 at: '2026-09-08T16:35:57Z',
                 who: 'owner',
-                text: 'Geya, привет!',
+                text: 'Pilot, привет!',
               },
             ],
             how_to_read: 'сначала ответ, потом продажа',
@@ -274,13 +274,13 @@ describe('/lead: one person in depth', () => {
         },
       },
     }))
-    const { text } = await fetchLead(OWNER, '@playom')
+    const { text } = await fetchLead(OWNER, '@pilot_client')
     expect(calls[0].body.params.name).toBe('crm_lead_context')
     expect(calls[0].body.params.arguments).toEqual({
-      chat: '@playom',
+      chat: '@pilot_client',
       limit: 8,
     })
-    expect(text).toContain('Geya (@playom) · 435572800')
+    expect(text).toContain('Pilot (@pilot_client) · 900000001')
     expect(text).toContain(
       'Ждёт ответа: ДА · от них 2026-09-08 · от меня 2026-09-08 · сообщений 46'
     )
@@ -290,7 +290,7 @@ describe('/lead: one person in depth', () => {
     expect(text).toContain('Касания: written 2026-09-08')
     expect(text).toContain('Память: хочет рилсы для запуска курса')
     expect(text).toContain('› 2026-09-08 они: сколько стоит рилс?')
-    expect(text).toContain('  2026-09-08 я: Geya, привет!')
+    expect(text).toContain('  2026-09-08 я: Pilot, привет!')
     expect(text).not.toContain('FOREIGN CONTENT')
     expect(text).toContain('Что делать: сначала ответ, потом продажа')
   })
@@ -325,7 +325,7 @@ describe('the memory calls from the bot', () => {
       { msg_id: 41, at: 1757348157, out: false, text: 'привет' },
       { msg_id: 42, at: 1757348160, out: true, text: 'и тебе' },
     ]
-    const r = await mirrorDm(OWNER, '435572800', 'Geya', msgs)
+    const r = await mirrorDm(OWNER, '900000001', 'Pilot', msgs)
     expect(r).toEqual({ ok: true, fresh: 2, zep: 2 })
     expect(calls[0].url).toBe(
       'https://vibee-render-production.up.railway.app/api/crm/mirror?telegram_id=' +
@@ -334,8 +334,8 @@ describe('the memory calls from the bot', () => {
     expect(calls[0].method).toBe('POST')
     expect(calls[0].headers['X-Api-Key']).toBeTruthy()
     expect(calls[0].body).toEqual({
-      lead: '435572800',
-      name: 'Geya',
+      lead: '900000001',
+      name: 'Pilot',
       messages: msgs,
     })
     fakeFetch(() => ({

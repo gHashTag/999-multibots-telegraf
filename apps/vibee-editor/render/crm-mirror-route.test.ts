@@ -42,8 +42,8 @@ describe('handleCrmMirror', () => {
     const r = res()
     await handleCrmMirror(
       req({
-        lead: '435572800',
-        name: 'Geya',
+        lead: '900000001',
+        name: 'Pilot',
         messages: [
           {
             msg_id: 10,
@@ -69,8 +69,8 @@ describe('handleCrmMirror', () => {
       string,
     ]
     expect(owner).toBe(OWNER)
-    expect(lead).toBe('435572800')
-    expect(name).toBe('Geya')
+    expect(lead).toBe('900000001')
+    expect(name).toBe('Pilot')
     expect(msgs.map(m => m.msgId)).toEqual([10, 11])
     expect(msgs[0].at.toISOString()).toBe('2026-09-08T16:09:43.000Z')
     expect(msgs[1].at.getTime()).toBe(1757348157000)
@@ -81,10 +81,10 @@ describe('handleCrmMirror', () => {
     const { handleCrmMirror } = await import('./src/agent/routes')
     const pool = async () => ({ query: async () => ({ rows: [] }) })
     for (const body of [
-      { lead: '@playom', messages: [{ msg_id: 1, text: 'x' }] },
+      { lead: '@pilot_client', messages: [{ msg_id: 1, text: 'x' }] },
       { lead: OWNER, messages: [{ msg_id: 1, text: 'x' }] },
-      { lead: '435572800', messages: [] },
-      { lead: '435572800', messages: [{ msg_id: 'nope', text: 'x' }] },
+      { lead: '900000001', messages: [] },
+      { lead: '900000001', messages: [{ msg_id: 'nope', text: 'x' }] },
       '{not json',
     ]) {
       const r = res()

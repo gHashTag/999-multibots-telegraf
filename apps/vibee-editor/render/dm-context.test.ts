@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * context, and continue the history; don't write 'pay' at once -- the client
  * must want to buy by themselves."
  */
-const LEAD = '435572800'
+const LEAD = '900000001'
 
 function fakePool(o: { messages?: unknown[]; unanswered?: boolean } = {}) {
   const rows = o.messages ?? []
@@ -63,7 +63,7 @@ describe('dmHistoryBlock', () => {
               msg_id: 1,
               at: '2026-09-08T10:00:00Z',
               out: true,
-              text: 'привет, Geya',
+              text: 'привет, Pilot',
             },
           ],
         })
@@ -71,7 +71,7 @@ describe('dmHistoryBlock', () => {
     )
     expect(block).toContain('ИСТОРИЯ ПЕРЕПИСКИ ВЛАДЕЛЬЦА')
     expect(block).toContain('FOREIGN CONTENT')
-    expect(block.indexOf('владелец: привет, Geya')).toBeLessThan(
+    expect(block.indexOf('владелец: привет, Pilot')).toBeLessThan(
       block.indexOf('человек: сколько стоит рилс?')
     )
     expect(block).toContain('ждёт ответа')

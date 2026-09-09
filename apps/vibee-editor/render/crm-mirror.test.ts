@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  * new. A Zep that is down is a warning, never a failure.
  */
 const OWNER = '144022504'
-const LEAD = '435572800'
+const LEAD = '900000001'
 const D = (iso: string) => new Date(iso)
 
 function fakePool(seen = new Set<string>()) {
@@ -53,7 +53,7 @@ describe('mirrorNow', () => {
     vi.stubGlobal('fetch', fetchSpy)
     const { mirrorNow } = await import('./src/agent/crm-mirror')
     const pool = fakePool()
-    const r = await mirrorNow(pool, OWNER, LEAD, msgs, 'Geya')
+    const r = await mirrorNow(pool, OWNER, LEAD, msgs, 'Pilot')
     expect(r).toEqual({ fresh: 2, zep: 0 })
     expect(fetchSpy).not.toHaveBeenCalled()
     const ins = pool.queries.find(q =>
@@ -81,12 +81,12 @@ describe('mirrorNow', () => {
     )
     const { mirrorNow } = await import('./src/agent/crm-mirror')
     const seen = new Set<string>()
-    const first = await mirrorNow(fakePool(seen), OWNER, LEAD, msgs, 'Geya')
+    const first = await mirrorNow(fakePool(seen), OWNER, LEAD, msgs, 'Pilot')
     expect(first.fresh).toBe(2)
     expect(first.zep).toBe(2)
     expect(posted.some(p => /messages/.test(p))).toBe(true)
     posted.length = 0
-    const again = await mirrorNow(fakePool(seen), OWNER, LEAD, msgs, 'Geya')
+    const again = await mirrorNow(fakePool(seen), OWNER, LEAD, msgs, 'Pilot')
     expect(again).toEqual({ fresh: 0, zep: 0 })
     expect(posted).toEqual([])
   })
