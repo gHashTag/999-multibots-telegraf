@@ -217,7 +217,8 @@ describe('the draft is never shown to a room', () => {
       'the card is no longer gated on a private chat'
     ).toBeGreaterThan(-1)
     // The card is drawn INSIDE that gate, not merely somewhere near it.
-    const after = SOURCE.slice(call, call + 1200)
+    // Wider than before: the card now carries the owner's history row.
+    const after = SOURCE.slice(call, call + 2000)
     expect(after).toContain('proposalCard(')
     expect(after).toContain('ctx.reply(card.text, card.markup)')
   })
@@ -738,7 +739,7 @@ describe('a photo card shows the service under the same two buttons', () => {
     const block = sliceFrom(
       SOURCE,
       "ctx.chat?.type === 'private' && draft",
-      1400
+      2200
     )
     expect(block).toContain('if (!card.photo)')
     expect(block).toContain('sendPhotoWithFallback(ctx, card.photo')

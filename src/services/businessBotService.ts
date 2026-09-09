@@ -8,6 +8,8 @@
  */
 
 import { Telegraf } from 'telegraf'
+import { dmLeadMenu } from '@/navigation/helpers/crmMenu'
+import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import { chatWithAI, ChatMessage } from '@/services/aiChatService'
 import { спроситьАгента, recordTurns } from '@/services/trinityAgent' // cyrillic-ok: pre-existing identifiers
@@ -74,6 +76,25 @@ const businessReplyInFlight = new Set<string>()
 /** Owner replied manually in a chat: the AI stays silent there until this time (ms). */
 export const OWNER_TAKEOVER_MS = 30 * 60 * 1000
 const ownerTakeoverUntil = new Map<string, number>()
+
+/**
+ * The owner takes a client's chat over from a button ("🤫 Отвечу сам"):
+ * the AI stays quiet there for `ms`, exactly as when the owner types in it.
+ * Returns how many connections were paused.
+ */
+export function pauseAiFor(
+  chatId: number | string,
+  ms = OWNER_TAKEOVER_MS,
+  ownerUserId?: number
+): number {
+  let paused = 0
+  for (const [connId, conn] of connections) {
+    if (ownerUserId !== undefined && conn.userId !== ownerUserId) continue
+    ownerTakeoverUntil.set(`${connId}:${chatId}`, Date.now() + ms)
+    paused += 1
+  }
+  return paused
+}
 
 /** `${connId}:${chatId}` -> UTC day the owner was told about this customer. */
 const leadNotifiedOn = new Map<string, string>()
@@ -739,11 +760,18 @@ async function notifyOwnerOfLead(
   if (leadNotifiedOn.get(chatKey) === day) return
   leadNotifiedOn.set(chatKey, day)
   try {
+    // The menu under the notification: who this is, take over, prepare a
+    // reply, later, refuse -- for an owner who is an admin of this bot (a
+    // farm owner outside ADMIN_IDS would press buttons nobody answers).
+    const menu = ADMIN_IDS_ARRAY.includes(Number(conn.userId))
+      ? dmLeadMenu(msg.chat.id)
+      : undefined
     await bot.telegram.sendMessage(
       conn.ownerChatId,
       buildLeadNotification(msg),
       {
         parse_mode: 'HTML',
+        ...(menu ? { reply_markup: menu.reply_markup } : {}),
       }
     )
     ensureToday()

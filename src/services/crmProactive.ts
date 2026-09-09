@@ -2,7 +2,24 @@ import { logger } from '@/utils/logger'
 import type { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { спроситьАгента, recordTurns, type ОтветАгента } from './trinityAgent' // cyrillic-ok: pre-existing identifiers
-import { proposalCard } from './telegramProposals'
+import { proposalCard, rememberCard, cardLeadOf } from './telegramProposals'
+import {
+  SWEEP_HEAD,
+  SWEEP_RULES,
+  SWEEP_TAIL,
+  SYNTAX,
+  parseSweepArgs,
+  filterRows,
+  itemsFromRows,
+  itemsFromChats,
+  scopedPrompt,
+  itemMarker,
+  progressLine,
+  type ScopeItem,
+} from './crmSweepScope'
+import { cardMenuRows, hubRow } from '@/navigation/helpers/crmMenu'
+import { ADMIN_IDS_ARRAY } from '@/config'
+import { Markup } from 'telegraf'
 
 /**
  * THE SELLER THAT WORKS WITHOUT BEING ASKED.
@@ -35,37 +52,56 @@ export interface SweepDeps {
 }
 
 export type SweepOutcome =
-  | { did: 'card'; why: string }
   | { did: 'idle'; why: string }
   | { did: 'held'; why: string }
+  | { did: 'card'; why: string; id: string }
   | { did: 'busy'; why: string }
   | { did: 'failed'; why: string }
 
 /** The brief. One proposal at most, nothing sent, memory first. */
-export const SWEEP_PROMPT =
-  'Проактивный обход продавца (никто не спрашивал — ты работаешь сам). ' +
-  'Шаги: 1) crm_leads с limit 5. 2) Возьми первого, у кого next не wait; ' +
-  'по нему crm_lead_context — и продолжай ИМЕННО ЭТУ переписку, по её истории ' +
-  'и памяти, а не начинай заново. 3) Ровно ОДНО действие: next=reply — короткий ' +
-  'ответ по сути его последних слов через tg_send; next=talk — короткое продолжение ' +
-  'разговора по контексту через tg_send, без цены и без счёта; next=deliver и есть ' +
-  'токены — crm_deliver_photo по его просьбе; next=offer — crm_offer, и только если ' +
-  'человек САМ спрашивал цену или хотел купить. НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ: клиент ' +
-  'должен захотеть сам. 4) Если кандидатов нет или у первого next=wait — ответь ' +
-  'одним словом «тихо» и ничего не готовь. НИЧЕГО НЕ ОТПРАВЛЯЙ САМ: только подготовь; ' +
-  'владелец нажмёт кнопку. Ответ — одна строка: кому и что подготовлено.'
+export const SWEEP_PROMPT = SWEEP_HEAD + SWEEP_RULES + SWEEP_TAIL
 
 /** How long a pushed card keeps the next sweep from evicting it. */
 export const HOLD_MS_DEFAULT = 120 * 60_000
+/**
+ * A card made by a PRESS is held only as long as the render keeps the draft
+ * alive (ten minutes): the owner is at the keyboard and a stale hold would
+ * answer "held" to somebody who just asked. The timer keeps the long hold.
+ */
+export const MENU_HOLD_MS = 10 * 60_000
+
+export interface SweepOpts {
+  holdMs?: number
+  /** The brief; the generic one when absent. */
+  prompt?: string
+  /** false: skip the memory refresh (a scoped item after the first). */
+  ingest?: boolean
+  /** The user-turn marker written to the transcript. */
+  label?: string
+}
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
 const INGEST_TIMEOUT_MS = 170_000
 
 let running = false
 let lastPushAt = 0
 
-/** A press on the card -- either button -- frees the next sweep. */
-export function noteResolved(): void {
+/**
+ * A press on the card -- either button -- frees the next sweep, and moves a
+ * scoped sweep to its next person when the pressed card was the one it
+ * waited for (a press on some other, older card frees the hold but does not
+ * skip anybody).
+ */
+export function noteResolved(owner?: string, cardId?: string): void {
   lastPushAt = 0
+  const s = owner ? scopes.get(String(owner)) : undefined
+  if (!s || !s.waiting || s.inFlight) return
+  if (s.waiting.kind === 'card') {
+    if (cardId && cardId !== s.waiting.id) return
+    s.cursor += 1
+  }
+  s.waiting = null
+  s.lastActivityAt = Date.now()
+  void advanceScope(String(owner))
 }
 
 /** For tests. */
@@ -77,7 +113,7 @@ export function resetProactiveForTests(): void {
 export async function sweepOnce(
   ownerId: string,
   deps: SweepDeps,
-  opts: { holdMs?: number } = {}
+  opts: SweepOpts = {}
 ): Promise<SweepOutcome> {
   if (running) return { did: 'busy', why: 'предыдущий обход ещё идёт' }
   running = true
@@ -88,7 +124,7 @@ export async function sweepOnce(
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
     try {
-      await deps.ingest(ownerId)
+      if (opts.ingest !== false) await deps.ingest(ownerId)
     } catch (e) {
       // Memory refresh is best-effort: a FLOOD_WAIT on ingest must not
       // silence a person who has been waiting since yesterday.
@@ -96,15 +132,19 @@ export async function sweepOnce(
         error: e instanceof Error ? e.message : String(e),
       })
     }
-    const answer = await deps.ask(ownerId, SWEEP_PROMPT)
+    const answer = await deps.ask(ownerId, opts.prompt ?? SWEEP_PROMPT)
     void deps.record?.(ownerId, [
-      { role: 'user', content: '[проактивный обход продавца]' },
+      { role: 'user', content: opts.label ?? '[проактивный обход продавца]' },
       { role: 'assistant', content: (answer.текст ?? '').slice(0, 2000) }, // cyrillic-ok: pre-existing identifiers
     ])
     if (answer.proposal) {
       await deps.push(ownerId, answer.proposal)
       lastPushAt = now
-      return { did: 'card', why: (answer.текст ?? '').slice(0, 200) } // cyrillic-ok: pre-existing identifiers
+      return {
+        did: 'card',
+        why: (answer.текст ?? '').slice(0, 200), // cyrillic-ok: pre-existing identifiers
+        id: String(answer.proposal.id),
+      }
     }
     /*
      * A SWEEP THAT CALLED NOTHING DID NOT LOOK.
@@ -167,9 +207,18 @@ export async function pushCard(
     ) => Promise<unknown>
   },
   ownerId: string,
-  draft: Draft
+  draft: Draft,
+  opts: {
+    extraRows?: Parameters<typeof proposalCard>[2] extends infer O
+      ? O extends { extraRows?: infer R }
+        ? R
+        : never
+      : never
+  } = {}
 ): Promise<void> {
-  const card = proposalCard(draft, true)
+  const card = proposalCard(draft, true, { extraRows: opts.extraRows })
+  // The press will want to know who this was for.
+  rememberCard(draft as never)
   if (card.photo) {
     try {
       await telegram.sendPhoto(ownerId, card.photo, {
@@ -234,7 +283,13 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
   return {
     ask: спроситьАгента, // cyrillic-ok: pre-existing identifiers
     ingest: ingestViaRender,
-    push: (owner, draft) => pushCard(bot.telegram as never, owner, draft),
+    push: (owner, draft) =>
+      pushCard(bot.telegram as never, owner, draft, {
+        // The owner reads the person's history before approving the words.
+        extraRows: ADMIN_IDS_ARRAY.includes(Number(owner))
+          ? cardMenuRows(cardLeadOf(draft as never))
+          : [],
+      }),
     record: recordTurns,
   }
 }
@@ -242,9 +297,10 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
 /** One sweep, now, because the owner asked (/sweep). Same guards as the timer. */
 export function runSweepNow(
   bot: Telegraf<MyContext>,
-  ownerId: string
+  ownerId: string,
+  opts: SweepOpts = {}
 ): Promise<SweepOutcome> {
-  return sweepOnce(ownerId, liveDeps(bot))
+  return sweepOnce(ownerId, liveDeps(bot), opts)
 }
 
 export function startCrmProactive(
@@ -258,6 +314,22 @@ export function startCrmProactive(
 ): () => void {
   const deps = liveDeps(bot)
   const run = async () => {
+    const active = scopes.get(String(opts.ownerId))
+    if (active) {
+      const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
+      if (!active.inFlight && Date.now() - active.lastActivityAt > holdMs) {
+        dropScope(
+          String(opts.ownerId),
+          'карточка не нажата два часа — обход остановлен'
+        )
+      } else {
+        logger.info('[crm-proactive] paused: scoped sweep active', {
+          label: active.label,
+          cursor: active.cursor,
+        })
+        return
+      }
+    }
     const r = await sweepOnce(opts.ownerId, deps, { holdMs: opts.holdMs })
     /*
      * A FAILED SWEEP IS AN ERROR, NOT A DIARY ENTRY.
@@ -281,4 +353,233 @@ export function startCrmProactive(
     clearTimeout(first)
     clearInterval(timer)
   }
+}
+
+/*
+ * THE SELLER, POINTED AT SOMEBODY -- THE QUEUE.
+ *
+ * Only one draft can wait for the owner at a time, so a group is worked as a
+ * queue: one person, one card, the owner's button, the next person. Idle and
+ * failed items move on by themselves; three failures in a row stop the walk;
+ * a card that nobody presses for two hours stops it too (the timer checks).
+ * State is process memory: a redeploy mid-queue forgets it, and the owner
+ * re-issues /sweep -- better than a queue nobody can see.
+ */
+interface Scope {
+  owner: string
+  label: string
+  items: ScopeItem[]
+  cursor: number
+  inFlight: boolean
+  waiting:
+    | null
+    | { kind: 'card'; id: string; since: number }
+    | { kind: 'foreign' }
+  failedInARow: number
+  busyAttempts: number
+  tally: { card: number; idle: number; failed: number }
+  lastActivityAt: number
+  deps: SweepDeps
+  say: (text: string) => Promise<unknown>
+}
+const scopes = new Map<string, Scope>()
+const BUSY_RETRY_MS = 30_000
+const BUSY_RETRY_MAX = 10
+const FAILED_IN_A_ROW_MAX = 3
+
+export function activeScope(
+  owner: string
+): { label: string; cursor: number; total: number } | null {
+  const s = scopes.get(String(owner))
+  return s ? { label: s.label, cursor: s.cursor, total: s.items.length } : null
+}
+
+/** One line for the owner: where the scoped sweep stands, or null. */
+export function scopeLine(owner: string): string | null {
+  const s = scopes.get(String(owner))
+  if (!s) return null
+  const at = `${Math.min(s.cursor + 1, s.items.length)} из ${s.items.length}`
+  const who = s.items[s.cursor]
+  const name = who ? (who.display ? `${who.display}` : who.chat) : ''
+  if (s.inFlight) return `Обход «${s.label}»: ${at} · думает по ${name}`
+  if (s.waiting?.kind === 'card')
+    return `Обход «${s.label}»: ${at} · жду кнопку по ${name} ${Math.round((Date.now() - s.waiting.since) / 60_000)} мин.`
+  if (s.waiting?.kind === 'foreign')
+    return `Обход «${s.label}»: ${at} · жду прошлую карточку`
+  if (s.busyAttempts)
+    return `Обход «${s.label}»: ${at} · жду, пока освободится (попытка ${s.busyAttempts} из ${BUSY_RETRY_MAX})`
+  return `Обход «${s.label}»: ${at}`
+}
+
+export function stopScope(owner: string): string {
+  const s = scopes.get(String(owner))
+  if (!s) return 'Обхода нет.'
+  scopes.delete(String(owner))
+  return `Обход «${s.label}» остановлен на ${Math.min(s.cursor + 1, s.items.length)} из ${s.items.length}.`
+}
+
+function dropScope(owner: string, why: string): void {
+  const s = scopes.get(owner)
+  if (!s) return
+  scopes.delete(owner)
+  void s.say(`Обход «${s.label}»: ${why}`).catch(() => undefined)
+}
+
+export function resetScopesForTests(): void {
+  scopes.clear()
+}
+
+/** Start a scope for this owner; a previous one is replaced and said so. */
+export async function startScope(
+  owner: string,
+  label: string,
+  items: ScopeItem[],
+  deps: SweepDeps,
+  say: (text: string) => Promise<unknown>
+): Promise<string> {
+  const key = String(owner)
+  const old = scopes.get(key)
+  if (old) {
+    scopes.delete(key)
+    await say(
+      `Прошлый обход «${old.label}» (${Math.min(old.cursor + 1, old.items.length)} из ${old.items.length}) остановлен.`
+    ).catch(() => undefined)
+  }
+  if (!items.length) return 'Никого не выбрано.'
+  const s: Scope = {
+    owner: key,
+    label,
+    items,
+    cursor: 0,
+    inFlight: false,
+    waiting: null,
+    failedInARow: 0,
+    busyAttempts: 0,
+    tally: { card: 0, idle: 0, failed: 0 },
+    lastActivityAt: Date.now(),
+    deps,
+    say,
+  }
+  scopes.set(key, s)
+  void advanceScope(key)
+  return (
+    `Обход «${label}»: ${items.length} чел. По одному: карточка → твоя кнопка → следующий. ` +
+    'Где: /sweep где · остановить: /sweep stop'
+  )
+}
+
+async function advanceScope(owner: string): Promise<void> {
+  const s = scopes.get(owner)
+  if (!s || s.inFlight || s.waiting) return
+  if (s.cursor >= s.items.length) {
+    scopes.delete(owner)
+    await s
+      .say(
+        `Обход «${s.label}» завершён: карточек ${s.tally.card}, тихо ${s.tally.idle}, не вышло ${s.tally.failed}.`
+      )
+      .catch(() => undefined)
+    return
+  }
+  const item = s.items[s.cursor]
+  s.inFlight = true
+  s.lastActivityAt = Date.now()
+  try {
+    await s
+      .say(progressLine(s.cursor, s.items.length, item))
+      .catch(() => undefined)
+    const r = await sweepOnce(owner, s.deps, {
+      prompt: scopedPrompt(item),
+      ingest: s.cursor === 0,
+      label: itemMarker(item),
+      holdMs: MENU_HOLD_MS,
+    })
+    if (!scopes.has(owner)) return
+    s.inFlight = false
+    s.lastActivityAt = Date.now()
+    switch (r.did) {
+      case 'card':
+        s.tally.card += 1
+        s.failedInARow = 0
+        s.busyAttempts = 0
+        s.waiting = { kind: 'card', id: r.id, since: Date.now() }
+        return
+      case 'idle':
+        s.tally.idle += 1
+        s.failedInARow = 0
+        s.busyAttempts = 0
+        await s.say(`тихо: ${r.why}`).catch(() => undefined)
+        s.cursor += 1
+        return advanceScope(owner)
+      case 'failed':
+        s.tally.failed += 1
+        s.failedInARow += 1
+        s.busyAttempts = 0
+        await s.say(`не вышло: ${r.why}`).catch(() => undefined)
+        if (s.failedInARow >= FAILED_IN_A_ROW_MAX) {
+          dropScope(
+            owner,
+            `три раза подряд не вышло — обход остановлен на ${s.cursor + 1} из ${s.items.length}`
+          )
+          return
+        }
+        s.cursor += 1
+        return advanceScope(owner)
+      case 'held':
+        s.waiting = { kind: 'foreign' }
+        await s
+          .say(
+            'карточка ещё ждёт нажатия — нажми на ней «Отправить» или «Отмена», и я продолжу'
+          )
+          .catch(() => undefined)
+        return
+      case 'busy':
+        s.busyAttempts += 1
+        if (s.busyAttempts > BUSY_RETRY_MAX) {
+          dropScope(
+            owner,
+            'обход уже идёт слишком долго — остановил; повтори /sweep позже'
+          )
+          return
+        }
+        if (s.busyAttempts === 1)
+          await s
+            .say('Обход уже идёт, подожду и продолжу сам.')
+            .catch(() => undefined)
+        setTimeout(() => void advanceScope(owner), BUSY_RETRY_MS)
+        return
+    }
+  } catch (e) {
+    s.inFlight = false
+    dropScope(owner, `ошибка: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
+/**
+ * /sweep with arguments, and the summary's scope buttons: parse, select,
+ * start. Returns the line the owner reads. The generic sweep (no arguments)
+ * is not handled here -- the command runs it directly.
+ */
+export async function startScopedSweep(
+  bot: Telegraf<MyContext>,
+  owner: string,
+  args: string[]
+): Promise<string> {
+  const spec = parseSweepArgs(args)
+  if (spec.kind === 'generic') return SYNTAX
+  if (spec.kind === 'error') return spec.message
+  if (spec.kind === 'status') return scopeLine(owner) ?? 'Обхода нет.'
+  if (spec.kind === 'stop') return stopScope(owner)
+  const { fetchLeadRows } = await import('./modelSwitch')
+  const rows = await fetchLeadRows(owner, 50).catch(() => [])
+  const items =
+    spec.kind === 'list'
+      ? itemsFromChats(spec.chats, rows as never)
+      : itemsFromRows(filterRows(rows as never, spec.predicates, spec.limit))
+  if (!items.length) return `Никого не подходит под «${spec.label}».`
+  const say = (text: string) =>
+    bot.telegram.sendMessage(owner, text, Markup.inlineKeyboard([hubRow()]))
+  const line = await startScope(owner, spec.label, items, liveDeps(bot), say)
+  return rows.length >= 50 && spec.kind === 'filter'
+    ? line + ' (смотрю верхние 50 по баллу)'
+    : line
 }

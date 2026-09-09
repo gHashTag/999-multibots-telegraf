@@ -66,26 +66,44 @@ export function describeProvider(s: ProviderStatus): string {
 }
 
 /** Who to write to next, from the seller's memory. */
+/** The render answers a tool call within this, or the owner is told so. */
+export const TOOL_TIMEOUT_MS = 170_000
+
 /** One tool of the render agent, called as this person over the server key. */
-async function callTool(
+export async function callTool(
   telegramId: string,
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  o: { timeoutMs?: number } = {}
 ): Promise<Record<string, any>> {
   if (!apiKey()) throw new Error('RENDER_API_KEY не задан в сервисе бота')
-  const r = await fetch(
-    `${BASE}/mcp?telegram_id=${encodeURIComponent(telegramId)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: { name, arguments: args },
-      }),
-    }
-  )
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), o.timeoutMs ?? TOOL_TIMEOUT_MS)
+  let r: Response
+  try {
+    r = await fetch(
+      `${BASE}/mcp?telegram_id=${encodeURIComponent(telegramId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name, arguments: args },
+        }),
+        signal: ac.signal,
+      }
+    )
+  } catch (e) {
+    if (ac.signal.aborted)
+      throw new Error(
+        `рендер не ответил за ${Math.round((o.timeoutMs ?? TOOL_TIMEOUT_MS) / 1000)} с — попробуй ещё раз`
+      )
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
   const data = (await r.json().catch(() => ({}))) as {
     error?: { message?: string }
     result?: { structuredContent?: unknown; content?: Array<{ text?: string }> }
@@ -113,13 +131,14 @@ export function unframe(text: unknown): string {
     .trim()
 }
 
-const NEXT_RU: Record<string, string> = {
+export const NEXT_RU: Record<string, string> = {
   reply: 'ответить',
   deliver: 'сделать и отправить',
   offer: 'предложить счёт',
+  talk: 'поговорить',
   wait: 'не трогать',
 }
-const STAGE_RU: Record<string, string> = {
+export const STAGE_RU: Record<string, string> = {
   client: 'клиент',
   refused: 'отказ',
   later: 'просил позже',
@@ -128,14 +147,14 @@ const STAGE_RU: Record<string, string> = {
   winback: 'вернуть',
   new: 'новый',
 }
-const SIGNAL_RU: Record<string, string> = {
+export const SIGNAL_RU: Record<string, string> = {
   price: 'цена',
   buy: 'покупка',
   service: 'услуга',
   urgency: 'срочно',
   objection: 'возражение',
 }
-const signalsRu = (v: unknown): string =>
+export const signalsRu = (v: unknown): string =>
   Array.isArray(v) && v.length
     ? v.map(x => SIGNAL_RU[String(x)] ?? String(x)).join(', ')
     : 'нет'
@@ -145,7 +164,8 @@ const ago = (d: unknown): string =>
     : Number(d) === 0
       ? 'сегодня'
       : `${d} дн. назад`
-const day = (iso: unknown): string => (iso ? String(iso).slice(0, 10) : '—')
+export const day = (iso: unknown): string =>
+  iso ? String(iso).slice(0, 10) : '—'
 
 /**
  * The list the owner reads: who, what to do, why, their last words. Full
@@ -174,19 +194,43 @@ export function formatLeads(rows: Array<Record<string, unknown>>): string {
   )
 }
 
+/** The crm_leads rows as the render returns them; [] when nothing is there. */
+export async function fetchLeadRows(
+  telegramId: string,
+  limit = 50
+): Promise<Array<Record<string, unknown>>> {
+  const s = await callTool(telegramId, 'crm_leads', { limit })
+  return Array.isArray(s?.candidates) ? s.candidates : []
+}
+
+/** What a button needs from a row: the id, the name, the forecast step. */
+export interface LeadButtonRow {
+  lead: string
+  display: string | null
+  next: string
+  signals: string[]
+}
+
+export const buttonRows = (
+  rows: Array<Record<string, unknown>>
+): LeadButtonRow[] =>
+  rows.map(c => ({
+    lead: String(c.lead ?? ''),
+    display: c.display ? String(c.display) : null,
+    next: String(c.next ?? ''),
+    signals: Array.isArray(c.signals) ? c.signals.map(String) : [],
+  }))
+
+export const NO_LEADS_TEXT =
+  'Кандидатов нет. Сначала загрузи переписку: агенту «загрузи переписки» или /sweep.'
+
 export async function fetchLeads(
   telegramId: string,
   limit = 8
-): Promise<{ text: string }> {
-  const s = await callTool(telegramId, 'crm_leads', { limit })
-  const rows: Array<Record<string, unknown>> = Array.isArray(s?.candidates)
-    ? s.candidates
-    : []
-  if (!rows.length)
-    return {
-      text: 'Кандидатов нет. Сначала загрузи переписку: агенту «загрузи переписки» или /sweep.',
-    }
-  return { text: formatLeads(rows) }
+): Promise<{ text: string; rows: LeadButtonRow[] }> {
+  const rows = await fetchLeadRows(telegramId, limit)
+  if (!rows.length) return { text: NO_LEADS_TEXT, rows: [] }
+  return { text: formatLeads(rows), rows: buttonRows(rows) }
 }
 
 /** One person in depth: the brief the owner reads before writing to them. */
@@ -225,12 +269,40 @@ export function formatLead(s: Record<string, any>): string {
 export async function fetchLead(
   telegramId: string,
   who: string
-): Promise<{ text: string }> {
+): Promise<{
+  text: string
+  lead: string | null
+  display: string | null
+  waiting: boolean
+  signals: string[]
+}> {
   const chat = String(who ?? '').trim()
   if (!chat)
     throw new Error('кого показать? /lead 435572800 или /lead @username')
   const s = await callTool(telegramId, 'crm_lead_context', { chat, limit: 8 })
-  return { text: formatLead(s) }
+  const lead = /^\d{5,15}$/.test(String(s.lead ?? '')) ? String(s.lead) : null
+  return {
+    text: formatLead(s),
+    lead,
+    display: s.display ? String(s.display) : null,
+    waiting: Boolean(s.waiting_for_reply),
+    signals: Array.isArray(s.signals) ? s.signals.map(String) : [],
+  }
+}
+
+/** A touch from a button: later / refused / note. Records only; sends nothing. */
+export async function touchLead(
+  telegramId: string,
+  lead: string,
+  kind: 'later' | 'refused' | 'note',
+  note = 'из меню бота'
+): Promise<{ saved: boolean; why?: string }> {
+  const s = await callTool(telegramId, 'crm_touch', {
+    telegram_id: lead,
+    kind,
+    note,
+  })
+  return { saved: Boolean(s.saved), why: s.why ? String(s.why) : undefined }
 }
 
 /**
