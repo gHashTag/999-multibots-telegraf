@@ -7,7 +7,9 @@ import {
   noteResolved,
   resetProactiveForTests,
   SWEEP_PROMPT,
+  SWEEP_RETRY_NOTE,
   HOLD_MS_DEFAULT,
+  reportSweepOutcome,
   type SweepDeps,
 } from '@/services/crmProactive'
 
@@ -108,6 +110,51 @@ describe('one sweep', () => {
     const r = await sweepOnce(OWNER, d)
     expect(r.did).toBe('failed')
     expect(r.why).toContain('[[Подпись|can]]')
+    expect(calls).not.toContain('push')
+  })
+
+  it('a no-tools answer gets exactly one retry that names the missing call', async () => {
+    /*
+     * Production 2026-09-09, 11:54-15:04: `[[Подпись|no_one_available]]`
+     * with zero tools, seven sweeps in a row. The second turn carries the
+     * rule spelled out; a model that then calls crm_leads and says quiet is
+     * a real idle.
+     */
+    const prompts: string[] = []
+    let n = 0
+    const { d, calls } = deps({
+      ask: async (_o, text) => {
+        prompts.push(text)
+        n += 1
+        return (
+          n === 1
+            ? { текст: '[[Подпись|no_one_available]]', инструменты: [] } // cyrillic-ok: pre-existing identifiers
+            : { текст: 'тихо', инструменты: ['crm_leads'] }
+        ) as never // cyrillic-ok: pre-existing identifiers
+      },
+    })
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('idle')
+    expect(prompts).toHaveLength(2)
+    expect(prompts[0]).toBe(SWEEP_PROMPT)
+    expect(prompts[1]).toBe(SWEEP_PROMPT + SWEEP_RETRY_NOTE)
+    expect(prompts[1]).toContain('crm_leads')
+    // The junk first answer is not written into the shared transcript.
+    expect(calls.filter(c => c === 'record')).toHaveLength(1)
+  })
+
+  it('two no-tools answers in a row are a failure, and nothing is recorded', async () => {
+    let n = 0
+    const { d, calls } = deps({
+      ask: async () => {
+        n += 1
+        return { текст: '[[Подпись|reply]]', инструменты: [] } as never // cyrillic-ok: pre-existing identifiers
+      },
+    })
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('failed')
+    expect(n).toBe(2)
+    expect(calls).not.toContain('record')
     expect(calls).not.toContain('push')
   })
 
@@ -277,5 +324,25 @@ describe('wired (source-level: the bot is not booted here)', () => {
     expect(s).toContain("process.env.CRM_PROACTIVE_MINUTES ?? '30'")
     expect(s).toMatch(/if \(proactiveMinutes > 0/)
     expect(s).toContain('startCrmProactive(carrier')
+  })
+})
+
+describe('alerting on failed sweeps', () => {
+  it('first failure and every sixth are errors, the rest warnings, recovery once', () => {
+    const levels: string[] = []
+    for (let i = 0; i < 7; i++)
+      levels.push(reportSweepOutcome({ did: 'failed', why: 'x' }))
+    expect(levels).toEqual([
+      'error',
+      'warn',
+      'warn',
+      'warn',
+      'warn',
+      'error',
+      'warn',
+    ])
+    expect(reportSweepOutcome({ did: 'idle', why: 'тихо' })).toBe('info')
+    // The streak is over: the next failure is fresh news again.
+    expect(reportSweepOutcome({ did: 'failed', why: 'y' })).toBe('error')
   })
 })
