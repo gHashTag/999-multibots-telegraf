@@ -12,6 +12,7 @@
 
 import { logger } from '@/utils/logger'
 import { createInngestFailureHandler } from '@/inngest_app/client'
+import { safeRecipient } from '@/inngest_app/safeMode'
 import { supabase } from '@/core/supabase'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 import { getUserLanguageFromDB } from '@/core/supabase/getUserLanguage'
@@ -37,13 +38,16 @@ interface TrainingCompletedEvent {
 export function createHandleModelTrainingCompletedFunction(inngest: any) {
   return inngest.createFunction(
     {
-      id: 'handle-model-training-completed',
+      // Canonical id (spec-first manifest). Legacy id was
+      // 'handle-model-training-completed'.
+      id: 'training-model-complete',
       name: '🤖 Training Complete',
       retries: 2, // Retry on transient errors
       // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-      onFailure: createInngestFailureHandler('Training Complete'),
+      onFailure: createInngestFailureHandler('training-model-complete'),
     },
-    { event: 'model/training.completed' },
+    // Canonical event first, legacy event kept for the Replicate webhook path.
+    [{ event: 'training/model.complete' }, { event: 'model/training.completed' }],
     async ({ event, step }) => {
       try {
         const eventData = event.data as TrainingCompletedEvent['data']
@@ -335,8 +339,11 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
             // ✅ Проверяем наличие необходимых данных для уведомления
             const botName =
               eventData.bot_name || trainingRecord.bot_name || 'AI_STARS_bot'
-            const telegramId =
+            // Safe mode: user-facing sends are redirected to ADMIN_CHAT_ID.
+            const telegramId = safeRecipient(
+              event,
               eventData.telegram_id || trainingRecord.telegram_id
+            )
             const modelName = trainingRecord.model_name
 
             if (!telegramId) {

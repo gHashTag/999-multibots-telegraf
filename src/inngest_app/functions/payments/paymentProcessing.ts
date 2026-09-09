@@ -10,7 +10,8 @@ import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from 'inngest' // For v3 migration
+import { NonRetriableError } from 'inngest'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { createInngestFailureHandler } from '@/inngest_app/client'
 
 // Константы для вариантов оплаты
@@ -63,17 +64,35 @@ const SUBSCRIPTION_AMOUNTS = SUBSCRIPTION_PLANS.reduce((acc, plan) => {
 // Функция Inngest для обработки платежей
 export const processPayment = inngest.createFunction(
   {
-    id: slugify('payment-processing-ai-server'), // v3 requires id
+    // Canonical id (spec-first manifest). Legacy id was
+    // 'payment-processing-ai-server'.
+    id: 'payment-ai-server-process',
     name: '💳 Payment Processing AI Server', // Optional display name
     retries: 3, // Автоматические повторы при сбоях
-    onFailure: createInngestFailureHandler('payment-processing-ai-server'),
+    onFailure: createInngestFailureHandler('payment-ai-server-process'),
   },
-  { event: 'payment/process-ai-server' }, // Триггерное событие
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'payment/ai-server.process' }, { event: 'payment/process-ai-server' }],
   async ({ event, step }) => {
     console.log('🎯 Получено событие платежа:', event)
     console.log('📦 Данные события:', event.data)
 
     const { IncSum, inv_id } = event.data
+
+    // Input guard: a payload without an invoice id or with a non-numeric
+    // amount cannot be processed on any retry — terminal. The amount→stars
+    // mapping below is deliberately untouched.
+    if (
+      inv_id === undefined ||
+      inv_id === null ||
+      inv_id === '' ||
+      !Number.isFinite(Number(IncSum))
+    ) {
+      throw new NonRetriableError(
+        `Invalid payment payload: inv_id=${String(inv_id)} IncSum=${String(IncSum)}`
+      )
+    }
+
     // Преобразуем строку в число и округляем до целого
     const roundedIncSum = Math.round(Number(IncSum))
 
@@ -151,6 +170,19 @@ export const processPayment = inngest.createFunction(
             groupId: botData.groupId,
           }
         })
+
+        // Safe mode: update-user-balance mutates a real balance and
+        // send-notification posts to the payments group — stop here.
+        if (isSafeMode(event)) {
+          const skipped = skippedInSafeMode(
+            'update-user-balance + send-notification'
+          )
+          logger.warn('🛡️ [PAYMENT] safe mode — balance update skipped', {
+            inv_id,
+            ...skipped,
+          })
+          return { success: false, ...skipped }
+        }
 
         // 5. Обновляем запись платежа и баланс пользователя через функцию updateUserBalance
         await step.run('update-user-balance', async () => {

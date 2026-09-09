@@ -16,7 +16,8 @@
  * 10. Trigger render
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { supabase } from '@/core/supabase'
 import { NonRetriableError } from 'inngest'
 import type { RenderRiddleEventData } from './types'
@@ -58,14 +59,25 @@ import {
  */
 export const renderRiddleFunction = inngest.createFunction(
   {
-    id: 'render-riddle',
+    // Canonical id (spec-first manifest). Legacy id was 'render-riddle'.
+    id: 'render-riddle-run',
     name: '🧩 Render Riddle Workflow',
     retries: 3,
+    // Paid HeyGen/TTS/LLM providers → admin visibility on failure.
+    onFailure: createInngestFailureHandler('render-riddle-run'),
   },
-  { event: 'render-riddle' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'render/riddle.run' }, { event: 'render-riddle' }],
   async ({ event, step, logger }) => {
     // Validate event data before processing
     const data = validateRenderRiddleEventData(event.data)
+
+    // Safe mode: the pipeline below calls paid avatar/TTS/LLM providers.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('riddle pipeline')
+      logger.warn('🛡️ [RENDER RIDDLE] safe mode — render skipped', skipped)
+      return { success: false, ...skipped }
+    }
 
     logger.info(`🚀 Starting render-riddle workflow for job ${data.job_id}`)
 

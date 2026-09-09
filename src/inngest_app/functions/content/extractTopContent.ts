@@ -1,4 +1,5 @@
 import { inngest } from '@/inngest_app/client'
+import { parseEventData } from '@/inngest_app/guards'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
 
@@ -32,12 +33,19 @@ export interface TopReelData {
  */
 export const extractTopContent = inngest.createFunction(
   {
-    id: 'extract-top-content',
+    // Canonical id (spec-first manifest). Legacy id was 'extract-top-content'.
+    id: 'instagram-top-content-extract',
     name: '📊 Extract Top Content',
   },
-  { event: 'instagram/extract-top' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'instagram/top-content.extract' }, { event: 'instagram/extract-top' }],
   async ({ event, step }) => {
-    const input = extractTopContentSchema.parse(event.data)
+    // Schema failure → NonRetriableError (never heals on retry).
+    const input = parseEventData(
+      extractTopContentSchema,
+      event.data,
+      'instagram/top-content.extract payload'
+    )
 
     // Step 1: Query top reels from database
     const topReels = await step.run('query-top-reels', async () => {

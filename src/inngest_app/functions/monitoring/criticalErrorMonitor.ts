@@ -1,7 +1,44 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { OpenAI } from 'openai'
 import { getMonitoringBot } from './monitoringBot'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
+
+/**
+ * Render whatever the sender put in `event.data.error` as readable text.
+ * Accepts `string | Error | { message } | unknown` and never yields
+ * "[object Object]". Exported for tests.
+ */
+export function renderErrorText(raw: unknown): string {
+  if (raw === undefined || raw === null || raw === '') return 'Unknown error'
+  if (typeof raw === 'string') return raw
+  if (raw instanceof Error) return raw.message || raw.name || 'Error'
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    if (typeof o.message === 'string' && o.message.trim() !== '') {
+      const name = typeof o.name === 'string' ? `${o.name}: ` : ''
+      return `${name}${o.message}`
+    }
+    if (typeof o.error === 'string' && o.error.trim() !== '') return o.error
+    try {
+      const json = JSON.stringify(raw)
+      return json && json !== '{}' ? json.slice(0, 1000) : 'Unknown error'
+    } catch {
+      return 'Unknown error (unserialisable payload)'
+    }
+  }
+  return String(raw)
+}
+
+/** Stack may arrive as a string or nested inside an Error-like object. */
+export function renderErrorStack(raw: unknown, errorField: unknown): string | undefined {
+  if (typeof raw === 'string' && raw.trim() !== '') return raw
+  if (errorField && typeof errorField === 'object') {
+    const st = (errorField as Record<string, unknown>).stack
+    if (typeof st === 'string' && st.trim() !== '') return st
+  }
+  return undefined
+}
 
 // Константы
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '144022504'
@@ -174,15 +211,21 @@ async function sendErrorNotification(
 // Функция мониторинга критических ошибок
 export const criticalErrorMonitor = inngest.createFunction(
   {
-    id: 'critical-error-monitor',
+    // Canonical id (spec-first manifest). Legacy id was 'critical-error-monitor'.
+    id: 'monitoring-error-report',
     name: '🚨 Critical Error Monitor',
     retries: 1,
+    // Paid OpenAI analysis → admin visibility if the monitor itself fails.
+    onFailure: createInngestFailureHandler('monitoring-error-report'),
   },
-  { event: 'app/error.critical' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'monitoring/error.report' }, { event: 'app/error.critical' }],
   async ({ event, step }) => {
     const errorContext: ErrorContext = {
-      error: event.data.error || 'Unknown error',
-      stack: event.data.stack,
+      // Senders pass string | Error | {message} — render safely, never
+      // "[object Object]" (see renderErrorText).
+      error: renderErrorText(event.data.error),
+      stack: renderErrorStack(event.data.stack, event.data.error),
       endpoint: event.data.endpoint,
       userId: event.data.userId,
       timestamp: event.data.timestamp || new Date().toISOString(),
@@ -192,8 +235,18 @@ export const criticalErrorMonitor = inngest.createFunction(
 
     logger.error('Critical error detected:', errorContext)
 
-    // Шаг 1: Анализ ошибки
+    // Шаг 1: Анализ ошибки (paid LLM call → skipped in safe mode)
     const analysis = await step.run('analyze-error', async () => {
+      if (isSafeMode(event)) {
+        const skipped = skippedInSafeMode('openai analyzeError')
+        logger.warn('🛡️ [ERROR MONITOR] safe mode — LLM analysis skipped', skipped)
+        return {
+          analysis: 'safe mode: analysis skipped',
+          solution: 'n/a',
+          urgency: 'normal' as const,
+          tags: ['safe-mode'],
+        }
+      }
       return await analyzeError(errorContext)
     })
 
@@ -234,7 +287,8 @@ export const criticalErrorMonitor = inngest.createFunction(
 // Функция для проверки состояния сервисов
 export const healthCheck = inngest.createFunction(
   {
-    id: 'health-check',
+    // Canonical id (spec-first manifest). Legacy id was 'health-check'.
+    id: 'monitoring-health-check',
     name: '💚 Health Check Monitor',
     retries: 2,
   },

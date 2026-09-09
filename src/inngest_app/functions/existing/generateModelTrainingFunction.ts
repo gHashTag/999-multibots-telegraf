@@ -33,11 +33,14 @@ interface ModelTrainingEvent {
 }
 
 // Import inngest client
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { NonRetriableError } from 'inngest'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 
 export const generateModelTrainingFunction = inngest.createFunction(
   {
-    id: 'generate-model-training',
+    // Canonical id (spec-first manifest). Legacy id was 'generate-model-training'.
+    id: 'training-model-start',
     name: '🧠 Model Training - Flux LoRA',
     concurrency: [
       {
@@ -45,8 +48,11 @@ export const generateModelTrainingFunction = inngest.createFunction(
       },
     ],
     retries: 0, // No retries for training - user can restart manually
+    // Paid Replicate training → admin visibility on failure.
+    onFailure: createInngestFailureHandler('training-model-start'),
   },
-  { event: 'model/training.start' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'training/model.start' }, { event: 'model/training.start' }],
   async ({ event, step }) => {
     const eventData = event.data as ModelTrainingEvent['data']
     const startTime = Date.now()
@@ -62,7 +68,9 @@ export const generateModelTrainingFunction = inngest.createFunction(
         telegram_id: eventData.telegram_id,
         steps: eventData.steps,
       })
-      throw new Error(`Invalid training steps: ${eventData.steps}`)
+      throw new NonRetriableError(
+        `Invalid training steps: ${eventData.steps}`
+      )
     }
 
     logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
@@ -127,7 +135,8 @@ export const generateModelTrainingFunction = inngest.createFunction(
     // Replicate accepts public URLs directly!
     const zipValidation = await step.run('validate-zip-url', async () => {
       if (!eventData.zipUrl) {
-        throw new Error('ZIP URL not provided in event data')
+        // Missing input cannot appear on retry — terminal.
+        throw new NonRetriableError('ZIP URL not provided in event data')
       }
 
       // Just verify URL exists, don't fetch anything
@@ -138,6 +147,16 @@ export const generateModelTrainingFunction = inngest.createFunction(
 
       return { urlValid: true }
     })
+
+    // Safe mode: create-replicate-model / start-training call a paid provider.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('create-replicate-model + training')
+      logger.warn('[INNGEST TRAINING] 🛡️ safe mode — training skipped', {
+        telegram_id: eventData.telegram_id,
+        ...skipped,
+      })
+      return { success: false, ...skipped }
+    }
 
     // ✅ STEP 4: Sanitize model name and create model on Replicate
     // 🔥 FIX: Read credentials from process.env to avoid step output size limit

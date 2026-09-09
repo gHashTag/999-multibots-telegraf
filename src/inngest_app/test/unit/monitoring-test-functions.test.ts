@@ -102,9 +102,9 @@ vi.mock('../../utils/logger', () => ({
 
 import { criticalErrorMonitor } from '../../functions/monitoring/criticalErrorMonitor'
 import { logMonitor } from '../../functions/monitoring/logMonitor'
-import { testSimpleFunction } from '../../functions/testSimpleFunction'
-import { testSimpleMessageFunction } from '../../functions/testSimpleMessageFunction'
-import { testAdvancedLoopFunction } from '../../functions/testAdvancedLoopFunction'
+import { testSimpleFunction } from '../../functions/__dev__/testSimpleFunction'
+import { testSimpleMessageFunction } from '../../functions/__dev__/testSimpleMessageFunction'
+import { testAdvancedLoopFunction } from '../../functions/__dev__/testAdvancedLoopFunction'
 
 /**
  * ⚠️ ПОЧЕМУ ЭТИ БЛОКИ ПРОПУЩЕНЫ (skip), а не починены.

@@ -1,4 +1,6 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { NonRetriableError } from 'inngest'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { assertSafePathSegment } from '@/utils/pathSegment'
 import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
@@ -29,11 +31,15 @@ interface MorphingJobData {
 
 export const morphImages = inngest.createFunction(
   {
-    id: 'morph-images',
+    // Canonical id (spec-first manifest). Legacy id was 'morph-images'.
+    id: 'morph-images-generate',
     name: '🧬 Morph Images', // Добавляем emoji и название как у других функций
     retries: 3,
+    // Paid Kling API + user-facing sends → admin visibility on failure.
+    onFailure: createInngestFailureHandler('morph-images-generate'),
   },
-  { event: 'morph/images.requested' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'morph/images.generate' }, { event: 'morph/images.requested' }],
   async ({ event, step }) => {
     const {
       telegram_id,
@@ -59,7 +65,8 @@ export const morphImages = inngest.createFunction(
       const user = await getUserByTelegramId(telegram_id)
 
       if (!user) {
-        throw new Error(`User ${telegram_id} does not exist`)
+        // Retrying cannot create the user — terminal.
+        throw new NonRetriableError(`User ${telegram_id} does not exist`)
       }
 
       logger.info('✅ User exists:', { telegram_id })
@@ -72,7 +79,10 @@ export const morphImages = inngest.createFunction(
       const requiredStars = 50 // Базовая стоимость морфинга
 
       if (balance < requiredStars) {
-        throw new Error(`Insufficient balance: ${balance} < ${requiredStars}`)
+        // Insufficient funds will not fix itself on retry — terminal.
+        throw new NonRetriableError(
+          `Insufficient balance: ${balance} < ${requiredStars}`
+        )
       }
 
       logger.info('✅ Balance sufficient:', {
@@ -82,6 +92,18 @@ export const morphImages = inngest.createFunction(
       })
       return { balance, required: requiredStars }
     })
+
+    // Safe mode: everything below messages the user and calls the paid
+    // Kling API — stop here with an explicit marker.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('notify-start + kling-morphing')
+      logger.warn('🛡️ [MORPH] safe mode — morphing skipped', {
+        telegram_id,
+        job_id,
+        ...skipped,
+      })
+      return { success: false, ...skipped }
+    }
 
     // ШАГ 3: Уведомление о начале обработки (НЕ отправляем большие данные!)
     await step.run('notify-start', async () => {

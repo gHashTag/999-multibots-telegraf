@@ -4,6 +4,8 @@
  */
 
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { NonRetriableError } from 'inngest'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { logger } from '@/utils/logger'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 import { generateSeeDream45 } from '@/services/generateSeeDream45'
@@ -107,17 +109,19 @@ interface WelcomeAvatarEventData {
 
 export const welcomeAvatarGeneration = inngest.createFunction(
   {
-    id: 'welcome-avatar-generation',
+    // Canonical id (spec-first manifest). Legacy id was 'welcome-avatar-generation'.
+    id: 'welcome-avatar-generate',
     name: '🎁 Welcome Avatar',
     retries: 2,
     // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('Welcome Avatar'),
+    onFailure: createInngestFailureHandler('welcome-avatar-generate'),
     concurrency: {
       limit: 5,
       key: 'event.data.telegram_id',
     },
   },
-  { event: 'user/welcome.avatar.generate' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'welcome/avatar.generate' }, { event: 'user/welcome.avatar.generate' }],
   async ({ event, step }) => {
     const {
       telegram_id,
@@ -126,7 +130,16 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       bot_name,
       username = 'user',
       is_ru = true,
-    } = event.data as WelcomeAvatarEventData
+    } = (event.data || {}) as WelcomeAvatarEventData
+
+    // Missing identifiers never heal on retry — terminal.
+    if (!telegram_id || !bot_name) {
+      throw new NonRetriableError(
+        `welcome/avatar.generate requires telegram_id and bot_name (got telegram_id=${String(
+          telegram_id
+        )}, bot_name=${String(bot_name)})`
+      )
+    }
 
     logger.info('🎁 [Welcome Avatar] Starting generation', {
       telegram_id,
@@ -152,6 +165,18 @@ export const welcomeAvatarGeneration = inngest.createFunction(
         error: errorMsg,
       })
       return { success: false, error: errorMsg }
+    }
+
+    // Safe mode: reserve-gift-slot consumes the daily gift budget,
+    // generate-image calls the paid SeeDream API and send-welcome messages a
+    // real user — stop here with an explicit marker.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('reserve-gift-slot + generate-image')
+      logger.warn('🎁 [Welcome Avatar] 🛡️ safe mode — generation skipped', {
+        telegram_id,
+        ...skipped,
+      })
+      return { success: false, ...skipped }
     }
 
     // Step 2: Select random hero based on gender

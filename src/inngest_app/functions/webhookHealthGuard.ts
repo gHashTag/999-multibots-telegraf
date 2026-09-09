@@ -146,16 +146,20 @@ const webhookHealthCheck = inngest.createFunction(
  */
 const validateWebhookBeforeGeneration = inngest.createFunction(
   {
-    id: 'validate-webhook-before-generation',
+    // Canonical id (spec-first manifest). Legacy id was
+    // 'validate-webhook-before-generation'.
+    id: 'webhook-generation-validate',
     name: '⚙️ System VideoCheck',
     // Критически важная функция - не ретраим слишком много раз
     retries: 1,
     // 🔥 CRITICAL: Log errors to application logs (not just Inngest dashboard)
-    onFailure: createInngestFailureHandler('System VideoCheck'),
+    onFailure: createInngestFailureHandler('webhook-generation-validate'),
   },
-  {
-    event: 'video/generation-validate-webhook',
-  },
+  // Canonical event first, legacy event kept for existing senders.
+  [
+    { event: 'webhook/generation.validate' },
+    { event: 'video/generation-validate-webhook' },
+  ],
   async ({ event, step }) => {
     const { telegramId, modelId, provider } = event.data
 

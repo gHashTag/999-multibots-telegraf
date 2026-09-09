@@ -40,9 +40,9 @@ const REGISTRY = path.join(ROOT, 'registerFunctions.ts')
  * непримонтированных роутеров и внешних событий.
  */
 const DELIBERATELY_UNREGISTERED: Record<string, string> = {
-  'functions/testSimpleFunction': 'демо-функция для проверки связи',
-  'functions/testSimpleMessageFunction': 'демо-функция для проверки связи',
-  'functions/testAdvancedLoopFunction': 'демо-функция для проверки связи',
+  'functions/__dev__/testSimpleFunction': 'демо-функция для проверки связи',
+  'functions/__dev__/testSimpleMessageFunction': 'демо-функция для проверки связи',
+  'functions/__dev__/testAdvancedLoopFunction': 'демо-функция для проверки связи',
   'functions/neuroImageGeneration':
     'старая копия; зарегистрирована generation/neuroImageGeneration',
   'functions/morphImages':

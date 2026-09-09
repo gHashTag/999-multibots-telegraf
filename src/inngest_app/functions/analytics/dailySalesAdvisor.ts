@@ -1,4 +1,6 @@
 import { inngest } from '../../inngestClient'
+import { createInngestFailureHandler } from '@/inngest_app/client'
+import { safeRecipient, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { supabaseAdmin } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
@@ -52,9 +54,15 @@ function toRub(r: any): number {
 }
 
 export const dailySalesAdvisor = inngest.createFunction(
-  { id: 'daily-sales-advisor', retries: 1 },
+  {
+    // Canonical id (spec-first manifest). Legacy id was 'daily-sales-advisor'.
+    id: 'analytics-sales-advise',
+    retries: 1,
+    // Messages every bot owner → admin visibility on failure.
+    onFailure: createInngestFailureHandler('analytics-sales-advise'),
+  },
   { cron: '0 9 * * *' },
-  async ({ step }) => {
+  async ({ event, step }) => {
     const avatars = await step.run('load-owners', async () => {
       const { data } = await supabaseAdmin
         .from('avatars')
@@ -234,9 +242,23 @@ export const dailySalesAdvisor = inngest.createFunction(
 
         report += `\n💡 <i>Для рассылки клиентам используйте Inngest broadcast</i>`
 
-        await sendTelegram(ownerId, report)
+        // Safe mode (manual invoke with {e2e_test:true} or INNGEST_SAFE_MODE=1):
+        // never message real owners — redirect to ADMIN_CHAT_ID or skip.
+        // Probe evidence: a manual invoke of this cron messaged 13 owners.
+        const recipient = safeRecipient(event, ownerId)
+        if (!recipient) {
+          const skipped = skippedInSafeMode(`report-${ownerId}`)
+          logger.warn('[DailySalesAdvisor] 🛡️ safe mode — send skipped', {
+            ownerId,
+            ...skipped,
+          })
+          return skipped
+        }
+        await sendTelegram(recipient, report)
         logger.info('[DailySalesAdvisor] Report sent', {
           ownerId,
+          recipient,
+          redirected: recipient !== ownerId,
           bots: bots.length,
         })
       })

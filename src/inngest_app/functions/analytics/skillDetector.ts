@@ -28,7 +28,11 @@ async function sendTelegram(chatId: string, text: string) {
 }
 
 export const skillDetector = inngest.createFunction(
-  { id: 'skill-detector', retries: 1 },
+  {
+    // Canonical id (spec-first manifest). Legacy id was 'skill-detector'.
+    id: 'analytics-skills-detect',
+    retries: 1,
+  },
   { cron: '0 10 * * *' },
   async ({ step }) => {
     let totalCreated = 0

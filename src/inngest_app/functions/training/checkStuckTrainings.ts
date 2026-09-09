@@ -46,9 +46,10 @@ export function trainingAgeHours(
 
 export const checkStuckTrainings = inngest.createFunction(
   {
-    id: 'check-stuck-trainings',
+    // Canonical id (spec-first manifest). Legacy id was 'check-stuck-trainings'.
+    id: 'training-stuck-check',
     name: 'Check Stuck Model Trainings',
-    onFailure: createInngestFailureHandler('Check Stuck Trainings'),
+    onFailure: createInngestFailureHandler('training-stuck-check'),
   },
   { cron: '*/30 * * * *' }, // Every 30 minutes
   async ({ step }) => {

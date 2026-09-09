@@ -1,7 +1,9 @@
 import { inngest } from '@/inngest_app/client'
 import { broadcastService } from '@/services/plan_b/broadcast.service'
 import { logger } from '@/utils/logger'
-import { slugify } from 'inngest' // For v3 migration
+import { NonRetriableError } from 'inngest'
+import { createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { toBotName } from '@/helpers/botName.helper'
 // Интерфейс для данных события
 export interface BroadcastEventData {
@@ -21,27 +23,40 @@ export interface BroadcastEventData {
 // Функция для рассылки сообщений
 export const broadcastMessage = inngest.createFunction(
   {
-    id: slugify('broadcast-message'), // v3 requires id, using slugify for existing name
+    // Canonical id (spec-first manifest). Legacy id was 'broadcast-message'.
+    id: 'broadcast-message-send',
     name: '📢 Broadcast Message', // Optional display name for v3
     retries: 3,
+    // Messages many users → admin visibility on failure.
+    onFailure: createInngestFailureHandler('broadcast-message-send'),
   },
-  { event: 'broadcast/send-message' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'broadcast/message.send' }, { event: 'broadcast/send-message' }],
   async ({ event, step }) => {
     try {
       // Шаг 1: Валидация входных данных
       const params = await step.run('validate-input', async () => {
         const data = event.data as BroadcastEventData
 
+        // Payload defects never heal on retry — terminal.
         if (!data.textRu || !data.textEn) {
-          throw new Error('Текст сообщения отсутствует на одном из языков')
+          throw new NonRetriableError(
+            'Текст сообщения отсутствует на одном из языков'
+          )
         }
 
         if (data.contentType === 'photo' && !data.imageUrl) {
-          throw new Error('URL изображения отсутствует для фото-рассылки')
+          throw new NonRetriableError(
+            'URL изображения отсутствует для фото-рассылки'
+          )
         } else if (data.contentType === 'video' && !data.videoFileId) {
-          throw new Error('ID видео отсутствует для видео-рассылки')
+          throw new NonRetriableError(
+            'ID видео отсутствует для видео-рассылки'
+          )
         } else if (data.contentType === 'post_link' && !data.postLink) {
-          throw new Error('URL поста отсутствует для рассылки ссылки')
+          throw new NonRetriableError(
+            'URL поста отсутствует для рассылки ссылки'
+          )
         }
 
         return data
@@ -56,7 +71,8 @@ export const broadcastMessage = inngest.createFunction(
             botName
           )
           if (!broadcastResult.success) {
-            throw new Error('Нет прав для выполнения рассылки')
+            // Permission denial is not transient — terminal.
+            throw new NonRetriableError('Нет прав для выполнения рассылки')
           }
         }
       })
@@ -83,6 +99,16 @@ export const broadcastMessage = inngest.createFunction(
 
         return result.users
       })
+
+      // Safe mode: never fan out to real users from a probe/e2e run.
+      if (isSafeMode(event)) {
+        const skipped = skippedInSafeMode('send-messages')
+        logger.warn('🛡️ [BROADCAST] safe mode — fan-out skipped', {
+          users: users.length,
+          ...skipped,
+        })
+        return { success: false, ...skipped, users: users.length }
+      }
 
       // Шаг 4: Отправка сообщений
       const result = await step.run('send-messages', async () => {

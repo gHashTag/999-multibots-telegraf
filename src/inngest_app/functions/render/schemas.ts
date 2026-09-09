@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod'
+import { NonRetriableError } from 'inngest'
 
 // ========================
 // Base Schemas - matching template #1 format (3 coordinates for backwards compatibility)
@@ -168,7 +169,8 @@ export function validateRenderEventData(
     const errors = result.error.errors.map(
       err => `${err.path.join('.')}: ${err.message}`
     )
-    throw new Error(`Render event validation failed:\n${errors.join('\n')}`)
+    // Schema failures never heal on retry — terminal.
+    throw new NonRetriableError(`Render event validation failed:\n${errors.join('\n')}`)
   }
 
   return result.data
@@ -186,7 +188,8 @@ export function validateRenderRiddleEventData(
     const errors = result.error.errors.map(
       err => `${err.path.join('.')}: ${err.message}`
     )
-    throw new Error(
+    // Schema failures never heal on retry — terminal.
+    throw new NonRetriableError(
       `Render-riddle event validation failed:\n${errors.join('\n')}`
     )
   }
@@ -206,7 +209,8 @@ export function validateRenderAvatarVideoEventData(
     const errors = result.error.errors.map(
       err => `${err.path.join('.')}: ${err.message}`
     )
-    throw new Error(
+    // Schema failures never heal on retry — terminal.
+    throw new NonRetriableError(
       `Render-avatar-video event validation failed:\n${errors.join('\n')}`
     )
   }
