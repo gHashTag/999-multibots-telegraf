@@ -293,6 +293,11 @@ const PUBLIC_EXACT = new Set([
   // verify — тот же принцип: личность проверяет сам хендлер (chatIdentity),
   // а звёзды сверяются с Bot API — первоисточником.
   '/api/tokens/verify',
+  // The club subscription (club-membership.ts) checks identity in its own
+  // handler, like the two token routes above.
+  '/api/club/invoice',
+  '/api/club/status',
+  '/api/club/verify',
   // POST /api/assets (сохранить фото в профиль аватара) — тот же принцип:
   // обработчик сам проверяет личность (подпись или ключ агента) и пишет
   // файл строго от проверенного владельца. Гвард здесь мешал бы dev-ключу.
