@@ -15,7 +15,9 @@ import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from 'inngest' // For v3 migration
+import { NonRetriableError } from 'inngest'
+import { createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode' // For v3 migration
 
 interface TrainingResponse {
   id: string
@@ -44,10 +46,14 @@ async function encodeFileToBase64(url: string): Promise<string> {
 // Создаем Inngest функцию
 export const modelTrainingV2 = inngest.createFunction(
   {
-    id: slugify('model-training-v2'), // v3 requires id
+    // Canonical id (spec-first manifest). Legacy id was 'model-training-v2'.
+    id: 'training-model-v2-start',
     name: '🚀 Model Training V2', // Optional display name
+    // Charges balance + paid training API → admin visibility on failure.
+    onFailure: createInngestFailureHandler('training-model-v2-start'),
   },
-  { event: 'model/training.v2.requested' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'training/model-v2.start' }, { event: 'model/training.v2.requested' }],
   async ({ event, step, runId }) => {
     logger.info('🚀 Model training initiated', {
       runId: runId, // Use runId from args
@@ -78,7 +84,10 @@ export const modelTrainingV2 = inngest.createFunction(
           telegramId: telegram_id,
           step: 'check-user-exists',
         })
-        throw new Error(`User with ID ${telegram_id} does not exist.`)
+        // Retrying cannot create the user — terminal.
+        throw new NonRetriableError(
+          `User with ID ${telegram_id} does not exist.`
+        )
       }
 
       logger.info('✅ User found', {
@@ -121,6 +130,17 @@ export const modelTrainingV2 = inngest.createFunction(
 
     // Извлекаем бота из результата функции getBotByName
     const bot = botData.bot
+
+    // Safe mode: everything below charges the balance and calls a paid
+    // training provider — stop here with an explicit marker.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('check-balance + create-training')
+      logger.warn('🛡️ [TRAINING V2] safe mode — charge and training skipped', {
+        telegramId: telegram_id,
+        ...skipped,
+      })
+      return { success: false, ...skipped }
+    }
 
     // Проверяем баланс и рассчитываем стоимость
     const { currentBalance, paymentAmount } = await step.run(
@@ -183,7 +203,10 @@ export const modelTrainingV2 = inngest.createFunction(
             }
           }
 
-          throw new Error(balanceCheck.error || 'Balance check failed')
+          // Insufficient funds will not fix itself on retry — terminal.
+          throw new NonRetriableError(
+            balanceCheck.error || 'Balance check failed'
+          )
         }
 
         logger.info('✅ Balance check successful', {

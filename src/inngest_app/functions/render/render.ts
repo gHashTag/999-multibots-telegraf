@@ -34,18 +34,28 @@ import {
 } from './helpers/renderSteps'
 import { validateRenderEventData } from './schemas'
 import { createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 
 export const renderFunction = inngest.createFunction(
   {
-    id: 'render', // Same as Python: fn_id="render"
+    // Canonical id (spec-first manifest). Legacy id was 'render' (Python fn_id).
+    id: 'render-job-run',
     name: '🎬 Render Workflow',
     retries: 3,
-    onFailure: createInngestFailureHandler('render'),
+    onFailure: createInngestFailureHandler('render-job-run'),
   },
-  { event: 'render' }, // Same as Python: event="render"
+  // Canonical event first, legacy event 'render' (Python) kept for senders.
+  [{ event: 'render/job.run' }, { event: 'render' }],
   async ({ event, step, logger }) => {
     // Validate event data before processing
     const eventData = validateRenderEventData(event.data)
+
+    // Safe mode: the pipeline below calls paid TTS/LLM/render providers.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('render pipeline')
+      logger.warn('🛡️ [RENDER] safe mode — render skipped', skipped)
+      return { success: false, ...skipped }
+    }
     const { job_id, callback_url } = eventData
 
     logger.info('Starting render workflow', {

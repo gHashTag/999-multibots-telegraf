@@ -3,7 +3,9 @@
  * Генерация детального скрипта раскадровки с положением камеры и детальными промптами
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { parseEventData } from '@/inngest_app/guards'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import OpenAI from 'openai'
 import { supabase } from '@/core/supabase'
 import { z } from 'zod'
@@ -190,13 +192,32 @@ const DETAILED_BIBLE_THEMES = {
  */
 export const generateDetailedScript = inngest.createFunction(
   {
-    id: 'generate-detailed-script',
+    // Canonical id (spec-first manifest). Legacy id was 'generate-detailed-script'.
+    id: 'content-detailed-script-generate',
     name: '📝 Generate Detailed Script',
     concurrency: [{ limit: 3 }],
+    // Paid OpenAI calls → admin visibility on failure.
+    onFailure: createInngestFailureHandler('content-detailed-script-generate'),
   },
-  { event: 'content/generate-detailed-script' },
+  // Canonical event first, legacy event kept for existing senders.
+  [
+    { event: 'content/detailed-script.generate' },
+    { event: 'content/generate-detailed-script' },
+  ],
   async ({ event, step, logger: log }) => {
-    const input = generateDetailedScriptSchema.parse(event.data)
+    // Schema failure → NonRetriableError (never heals on retry).
+    const input = parseEventData(
+      generateDetailedScriptSchema,
+      event.data,
+      'content/detailed-script.generate payload'
+    )
+
+    // Safe mode: the steps below call the paid OpenAI API.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('openai detailed script')
+      log.warn('🛡️ [DETAILED SCRIPT] safe mode — generation skipped', skipped)
+      return { success: false, ...skipped }
+    }
     const runId = event.id
 
     log.info('📝 Начинаем генерацию детального скрипта', { input, runId })

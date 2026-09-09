@@ -10,9 +10,9 @@ import { Inngest } from 'inngest'
 // === WORKING FUNCTIONS (No broken imports) ===
 
 // Test Functions (3) - Always work
-// import { testSimpleFunction } from './functions/testSimpleFunction'; // module not found
-import { testSimpleMessageFunction } from './functions/testSimpleMessageFunction'
-import { testAdvancedLoopFunction } from './functions/testAdvancedLoopFunction'
+// import { testSimpleFunction } from './functions/__dev__/testSimpleFunction'; // module not found
+import { testSimpleMessageFunction } from './functions/__dev__/testSimpleMessageFunction'
+import { testAdvancedLoopFunction } from './functions/__dev__/testAdvancedLoopFunction'
 
 // Monitoring Functions (2)
 import { criticalErrorMonitor } from './functions/monitoring/criticalErrorMonitor'

@@ -1,6 +1,8 @@
+import { NonRetriableError } from 'inngest'
 import { logger } from '@/utils/logger'
 import { assertSafePathSegment } from '@/utils/pathSegment'
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 
 /**
  * 🎬 AI REELS GENERATION FUNCTION
@@ -43,33 +45,90 @@ export interface AIReelsResult {
  */
 export const generateAIReelsFunction = inngest.createFunction(
   {
-    id: 'ai-reels-generation',
+    // Canonical id (spec-first manifest). Legacy id was 'ai-reels-generation'.
+    id: 'reels-ai-generate',
     name: '🎬 AI Reels Generation',
     retries: 2, // Повторить 2 раза при ошибке
+    // Paid providers + user webhook → admin must learn about terminal failures.
+    onFailure: createInngestFailureHandler('reels-ai-generate'),
     rateLimit: {
       limit: 5, // Максимум 5 одновременных генераций
       period: '1m',
       key: 'event.data.telegramId',
     },
   },
-  { event: 'ai-reels/generate' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'reels/ai.generate' }, { event: 'ai-reels/generate' }],
   async ({ event, step }) => {
+    // Step 0: validate input BEFORE any paid provider is touched.
+    // Invalid payloads are a caller bug → NonRetriableError (no retries).
+    const validated = await step.run('validate-input', async () => {
+      const d = (event.data ?? {}) as Partial<AIReelsPayload>
+      const problems: string[] = []
+      if (typeof d.telegramId !== 'string' || d.telegramId.trim() === '') {
+        problems.push('telegramId is required')
+      }
+      if (typeof d.imageUrl !== 'string' || !/^https?:\/\//.test(d.imageUrl)) {
+        problems.push('imageUrl must be an http(s) URL')
+      }
+      const hasText = typeof d.text === 'string' && d.text.trim() !== ''
+      const hasAudio =
+        typeof d.audioUrl === 'string' && /^https?:\/\//.test(d.audioUrl)
+      if (!hasText && !hasAudio) {
+        problems.push('either text or audioUrl is required')
+      }
+      if (
+        d.resolution !== undefined &&
+        !['480p', '720p', '1080p'].includes(d.resolution)
+      ) {
+        problems.push('resolution must be one of 480p|720p|1080p')
+      }
+      if (problems.length > 0) {
+        throw new NonRetriableError(
+          `ai-reels validate-input failed: ${problems.join('; ')}`
+        )
+      }
+      return {
+        telegramId: d.telegramId as string,
+        imageUrl: d.imageUrl as string,
+        text: hasText ? (d.text as string) : undefined,
+        audioUrl: hasAudio ? (d.audioUrl as string) : undefined,
+        resolution: (d.resolution ?? '720p') as '480p' | '720p' | '1080p',
+        botName: d.botName,
+        webhookUrl: d.webhookUrl,
+        safeMode: isSafeMode(event),
+      }
+    })
+
     const {
       telegramId,
       imageUrl,
       text,
       audioUrl,
-      resolution = '720p',
+      resolution,
       botName,
       webhookUrl,
-    } = event.data as AIReelsPayload
+      safeMode,
+    } = validated
 
     logger.info('🎬 [INNGEST AI REELS] Function started', {
       telegramId,
       hasText: !!text,
       hasAudio: !!audioUrl,
       resolution,
+      safeMode,
     })
+
+    if (safeMode) {
+      // Both generation steps call paid providers (veed_fabric lip-sync and
+      // WAN 2.5). In safe mode we stop here and report what was skipped.
+      const skipped = skippedInSafeMode('lipsync+wan25 generation')
+      logger.warn('🛡️ [INNGEST AI REELS] safe mode — paid generation skipped', {
+        telegramId,
+        ...skipped,
+      })
+      return { success: false, ...skipped, telegramId }
+    }
 
     try {
       // Step 1: Генерация lip-sync видео (30-60 сек)

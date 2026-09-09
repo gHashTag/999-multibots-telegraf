@@ -1,6 +1,8 @@
-import { Inngest } from 'inngest'
+import { Inngest, NonRetriableError } from 'inngest'
 import { assertSafePathSegment } from '@/utils/pathSegment'
 import { logger } from '@/utils/logger'
+import { createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import path from 'path'
 import fs from 'fs/promises'
 import { Telegraf } from 'telegraf'
@@ -76,14 +78,19 @@ const replicateApi = {
 
 export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
   {
-    id: 'generate-advanced-looping-video',
+    // Canonical id (spec-first manifest). Legacy id was
+    // 'generate-advanced-looping-video'.
+    id: 'reels-loop-generate',
     name: '🔄 Generate Kling Morphing Loop v7',
     retries: 2,
+    // Paid Replicate calls + Telegram delivery → admin visibility on failure.
+    onFailure: createInngestFailureHandler('reels-loop-generate'),
     concurrency: {
       limit: 1, // Run one at a time to avoid overwhelming API
     },
   },
-  { event: 'reels/generate-advanced-loop' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'reels/loop.generate' }, { event: 'reels/generate-advanced-loop' }],
   async ({ event, step }) => {
     // ✅ Деструктурируем переменные вне try блока для правильной области видимости
     const {
@@ -119,11 +126,27 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
       throw error
     }
 
-    if (image_urls.length < 2) {
-      throw new Error('This function requires at least 2 images for a loop.')
+    // Guard: a loop needs at least two images. Retrying cannot add images.
+    if (!Array.isArray(image_urls) || image_urls.length < 2) {
+      throw new NonRetriableError(
+        'This function requires at least 2 images for a loop.'
+      )
+    }
+    if (!telegram_id) {
+      throw new NonRetriableError('telegram_id is required')
     }
 
     assertSafePathSegment(String(telegram_id), 'telegram_id')
+
+    // Safe mode: Replicate (Kling) is a paid API → skip before spending.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('replicate kling morph clips')
+      logger.warn('🛡️ [KLING MORPH v7] safe mode — paid generation skipped', {
+        telegram_id,
+        ...skipped,
+      })
+      return { success: false, ...skipped }
+    }
     const filePrefix = `reels_kling_v7_${telegram_id}_${Date.now()}`
     const tempDir = path.join(process.cwd(), 'assets', 'temp_reels_images')
     await fs.mkdir(tempDir, { recursive: true })

@@ -1,4 +1,6 @@
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { parseEventData } from '@/inngest_app/guards'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { z } from 'zod'
 import { supabase } from '@/core/supabase'
 import OpenAI from 'openai'
@@ -43,12 +45,26 @@ export interface ReelData {
  */
 export const generateContentScripts = inngest.createFunction(
   {
-    id: 'generate-content-scripts',
+    // Canonical id (spec-first manifest). Legacy id was 'generate-content-scripts'.
+    id: 'content-scripts-generate',
     name: '🎬 Generate Content Scripts',
+    // Paid OpenAI calls → admin visibility on failure.
+    onFailure: createInngestFailureHandler('content-scripts-generate'),
   },
-  { event: 'instagram/generate-scripts' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'content/scripts.generate' }, { event: 'instagram/generate-scripts' }],
   async ({ event, step }) => {
-    const input = generateContentScriptsSchema.parse(event.data)
+    // Schema failure → NonRetriableError (never heals on retry).
+    const input = parseEventData(
+      generateContentScriptsSchema,
+      event.data,
+      'content/scripts.generate payload'
+    )
+
+    // Safe mode: the steps below call the paid OpenAI API.
+    if (isSafeMode(event)) {
+      return { success: false, ...skippedInSafeMode('openai script generation') }
+    }
 
     // Step 1: Get reel data from database
     const reelData = await step.run('get-reel-data', async () => {

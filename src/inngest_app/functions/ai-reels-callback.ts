@@ -7,7 +7,9 @@
  * НАЗНАЧЕНИЕ: Отправка готового видео пользователю в Telegram
  */
 
+import { NonRetriableError } from 'inngest'
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { safeRecipient, skippedInSafeMode } from '@/inngest_app/safeMode'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import { logger } from '@/utils/logger'
@@ -157,7 +159,8 @@ async function handleProcessingUpdate(
 
 export const aiReelsCallbackFunction = inngest.createFunction(
   {
-    id: 'ai-reels-callback',
+    // Canonical id (spec-first manifest). Legacy id was 'ai-reels-callback'.
+    id: 'reels-ai-callback',
     name: '🔔 AI Reels Callback Handler',
     retries: 3,
     // Without onFailure, exhausted retries silently drop the user's paid AI
@@ -166,7 +169,8 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     // this handler; this callback was the anomaly missing it.
     onFailure: createInngestFailureHandler('AI Reels Callback'),
   },
-  { event: 'ai-reels-callback' },
+  // Canonical event first, legacy event kept for the Railway render-server.
+  [{ event: 'reels/ai.callback' }, { event: 'ai-reels-callback' }],
   async ({ event, step, logger }) => {
     const startTime = Date.now()
     const payload: AIReelsCallbackPayload = event.data
@@ -186,20 +190,39 @@ export const aiReelsCallbackFunction = inngest.createFunction(
       if (match) jobId = match[1]
     }
 
-    if (!jobId) throw new Error('Cannot extract job_id')
+    // Malformed callback payloads cannot be fixed by retrying — fail fast.
+    if (!jobId) throw new NonRetriableError('Cannot extract job_id')
     if (!videoUrl && status === 'completed')
-      throw new Error('No video URL found')
+      throw new NonRetriableError('No video URL found')
 
     const telegramId =
       payload.metadata?.telegram_id ||
       payload.metadata?.chat_id ||
       extractTelegramIdFromJobId(jobId)
 
-    if (!telegramId) throw new Error('Cannot extract Telegram ID')
+    if (!telegramId) throw new NonRetriableError('Cannot extract Telegram ID')
+
+    // Safe mode: deliver only to ADMIN_CHAT_ID, never to the real user.
+    const recipient = safeRecipient(event, telegramId)
+    if (recipient === null) {
+      const skipped = skippedInSafeMode('telegram delivery (no ADMIN_CHAT_ID)')
+      logger.warn('🛡️ AI Reels callback in safe mode without ADMIN_CHAT_ID', {
+        jobId,
+        ...skipped,
+      })
+      return { success: false, jobId, status, ...skipped }
+    }
+    if (recipient !== String(telegramId)) {
+      logger.warn('🛡️ AI Reels callback in safe mode — redirected to admin', {
+        jobId,
+        intended: telegramId,
+        recipient,
+      })
+    }
 
     if (status === 'completed') {
       await step.run('send-completed-video', async () => {
-        return handleCompletedRender(telegramId, {
+        return handleCompletedRender(recipient, {
           ...payload,
           job_id: jobId!,
           result_url: videoUrl,
@@ -207,11 +230,11 @@ export const aiReelsCallbackFunction = inngest.createFunction(
       })
     } else if (status === 'failed') {
       await step.run('send-failed-message', async () => {
-        return handleFailedRender(telegramId, { ...payload, job_id: jobId! })
+        return handleFailedRender(recipient, { ...payload, job_id: jobId! })
       })
     } else if (status === 'processing') {
       await step.run('send-processing-update', async () => {
-        return handleProcessingUpdate(telegramId, {
+        return handleProcessingUpdate(recipient, {
           ...payload,
           job_id: jobId!,
         })

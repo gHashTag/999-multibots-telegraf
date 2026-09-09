@@ -19,7 +19,8 @@ import fs from 'fs'
 const API_URL = isDev ? 'http://localhost:2999' : 'https://api.999.md'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
-import { slugify } from 'inngest'
+import { NonRetriableError } from 'inngest'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { createInngestFailureHandler } from '@/inngest_app/client'
 
 /**
@@ -44,12 +45,14 @@ import { createInngestFailureHandler } from '@/inngest_app/client'
  */
 export const neuroImageGeneration = inngest.createFunction(
   {
-    id: slugify('neuro-image-generation'),
+    // Canonical id (spec-first manifest). Legacy id was 'neuro-image-generation'.
+    id: 'neuro-image-generate',
     name: '🎨 Neuro Image Generation',
     retries: 3,
-    onFailure: createInngestFailureHandler('neuro-image-generation'),
+    onFailure: createInngestFailureHandler('neuro-image-generate'),
   },
-  { event: 'neuro/photo.generate' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'neuro/image.generate' }, { event: 'neuro/photo.generate' }],
   async ({ event, step, attempt }) => {
     try {
       const {
@@ -97,7 +100,8 @@ export const neuroImageGeneration = inngest.createFunction(
           telegram_id,
         })
         const user = await getUserByTelegramId(telegram_id)
-        if (!user) throw new Error(`User ${telegram_id} not found`)
+        // Retrying cannot create the user — terminal.
+        if (!user) throw new NonRetriableError(`User ${telegram_id} not found`)
         return user
       })
 
@@ -155,6 +159,17 @@ export const neuroImageGeneration = inngest.createFunction(
         return costResult.stars
       })
 
+      // Safe mode: process-payment charges and the generate steps call a
+      // paid provider — stop here with an explicit marker.
+      if (isSafeMode(event)) {
+        const skipped = skippedInSafeMode('process-payment + generate-image')
+        logger.warn('🛡️ [NEURO] safe mode — charge and generation skipped', {
+          telegram_id,
+          ...skipped,
+        })
+        return { success: false, ...skipped }
+      }
+
       const balanceCheck = await step.run('process-payment', async () => {
         const result = await processBalanceOperation({
           telegram_id,
@@ -193,7 +208,8 @@ export const neuroImageGeneration = inngest.createFunction(
               )
             }
           }
-          throw new Error(result.error || 'Balance check failed')
+          // Insufficient funds will not fix itself on retry — terminal.
+          throw new NonRetriableError(result.error || 'Balance check failed')
         }
         logger.info('✅ Balance check successful', {
           telegramId: telegram_id,

@@ -4,7 +4,9 @@
  * Analyzes competitor reels with metrics and saves to database
  */
 
-import { slugify } from 'inngest'
+import { NonRetriableError } from 'inngest'
+import { createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import axios from 'axios'
 import { inngest } from '@/inngest_app/client'
 import {
@@ -210,11 +212,15 @@ class InstagramReelsAnalyzer {
 // Main analyzeCompetitorReels function
 export const analyzeCompetitorReels = inngest.createFunction(
   {
-    id: 'analyze-competitor-reels',
+    // Canonical id (spec-first manifest). Legacy id was 'analyze-competitor-reels'.
+    id: 'instagram-reels-analyze',
     name: '📈 Analyze Competitor Reels',
     concurrency: 2,
+    // Paid RapidAPI calls → admin visibility on failure.
+    onFailure: createInngestFailureHandler('instagram-reels-analyze'),
   },
-  { event: 'instagram/analyze-reels' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'instagram/reels.analyze' }, { event: 'instagram/analyze-reels' }],
   async ({ event, step, runId, logger }) => {
     log.info('🚀 Analyze Competitor Reels started', {
       runId,
@@ -230,20 +236,28 @@ export const analyzeCompetitorReels = inngest.createFunction(
           .map(e => `${e.path.join('.')}: ${e.message}`)
           .join(', ')}`
         log.error(errorMessage)
-        throw new Error(errorMessage)
+        // Payload defects and missing configuration never heal on retry.
+        throw new NonRetriableError(errorMessage)
       }
 
       if (!process.env.RAPIDAPI_INSTAGRAM_KEY) {
-        throw new Error('Instagram API key is not configured')
+        throw new NonRetriableError('Instagram API key is not configured')
       }
 
       if (!process.env.NEON_DATABASE_URL) {
-        throw new Error('Database URL is not configured')
+        throw new NonRetriableError('Database URL is not configured')
       }
 
       log.info(`✅ Input validated: ${result.data.username}`)
       return result.data
     })) as z.infer<typeof AnalyzeReelsEventSchema>
+
+    // Safe mode: the steps below call the paid RapidAPI Instagram endpoint.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('rapidapi reels fetch')
+      log.warn('🛡️ [ANALYZE REELS] safe mode — API call skipped', skipped)
+      return { success: false, ...skipped }
+    }
 
     // Step 2: Validate project if provided
     const projectValidation = await step.run('validate-project', async () => {

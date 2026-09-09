@@ -4,6 +4,12 @@ import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { OpenAI } from 'openai'
 import { getMonitoringBot } from './monitoringBot'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
+import { createInngestFailureHandler } from '@/inngest_app/client'
+import {
+  fetchFunctionsStatusSafe,
+  renderRunsSummaryText,
+} from '@/inngest_app/status/functionsStatus'
 
 // Константы для бота и группы
 // Токен бота больше не хардкодится: см. getMonitoringBot() в ./monitoringBot
@@ -30,7 +36,7 @@ function getOpenAI(): OpenAI {
 }
 
 // Интерфейс для результата анализа
-interface LogAnalysisResult {
+export interface LogAnalysisResult {
   status: 'healthy' | 'warning' | 'critical'
   summary: string
   errors: Array<{
@@ -55,6 +61,12 @@ interface LogAnalysisResult {
 }
 
 // Функция для чтения логов
+export function resolveLogPath(): { logDir: string; logPath: string; enabled: boolean } {
+  const logDir = process.env.LOG_DIR || '/tmp/logs'
+  const logPath = join(logDir, 'combined.log')
+  return { logDir, logPath, enabled: existsSync(logPath) }
+}
+
 async function readLogs(): Promise<string> {
   const logDir = process.env.LOG_DIR || '/tmp/logs'
   const logPath = join(logDir, 'combined.log')
@@ -348,12 +360,166 @@ async function sendTelegramNotification(message: string): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Fallback when file logging is disabled on the host (Railway: no LOG_DIR /
+// combined.log). Instead of a blind "no logs" warning we summarise the last
+// 24h of Inngest runs via the read-only GraphQL status module.
+// ---------------------------------------------------------------------------
+export const FILE_LOGGING_DISABLED_TEXT = 'file logging is disabled on this host'
+
+export async function buildInngestRunsFallbackAnalysis(
+  now: Date = new Date()
+): Promise<LogAnalysisResult> {
+  const { logDir, logPath } = resolveLogPath()
+  const where = `${FILE_LOGGING_DISABLED_TEXT} (LOG_DIR=${logDir}, ${logPath} absent)`
+  const status = await fetchFunctionsStatusSafe({ now })
+
+  if (status.ok === false) {
+    const failure = status.error
+    return {
+      status: 'warning',
+      summary: `${where}; Inngest run summary unavailable: ${failure.error}`,
+      errors: [],
+      warnings: [
+        { message: `Inngest GraphQL unreachable at ${failure.gqlUrl}`, count: 1 },
+      ],
+      statistics: {},
+      recommendations: [
+        'Set INNGEST_GQL_URL (or INNGEST_BASE_URL) to the Inngest server reachable from this host',
+        'Or enable file logging by setting LOG_DIR to a writable directory',
+      ],
+    }
+  }
+
+  const payload = status.payload
+  const totals = payload.functions.reduce(
+    (acc, f) => {
+      acc.completed += f.runs24h.completed
+      acc.failed += f.runs24h.failed
+      acc.running += f.runs24h.running
+      acc.total += f.runs24h.total
+      return acc
+    },
+    { completed: 0, failed: 0, running: 0, total: 0 }
+  )
+  const errors: LogAnalysisResult['errors'] = payload.functions
+    .filter(f => f.runs24h.failed > 0)
+    .sort((a, b) => b.runs24h.failed - a.runs24h.failed)
+    .map(f => ({
+      message: `${f.id}: ${f.runs24h.failed} failed run(s) in 24h` +
+        (f.lastError ? ` (last run ${f.lastError.runId})` : ''),
+      count: f.runs24h.failed,
+      severity: (f.runs24h.failed >= 3 ? 'high' : 'medium') as 'high' | 'medium',
+      solution: `Inspect run ${f.lastError?.runId ?? ''} in the Inngest dashboard`,
+    }))
+  const warnings: LogAnalysisResult['warnings'] = []
+  const notDeployed = payload.functions.filter(f => !f.deployed)
+  if (notDeployed.length) {
+    warnings.push({
+      message: `In manifest but not served by app ${payload.app.name}: ${notDeployed
+        .map(f => f.id)
+        .join(', ')}`,
+      count: notDeployed.length,
+    })
+  }
+  if (payload.unknownInApp.length) {
+    warnings.push({
+      message: `Served but not in manifest: ${payload.unknownInApp.join(', ')}`,
+      count: payload.unknownInApp.length,
+    })
+  }
+  const errorRate = totals.total > 0 ? Math.round((totals.failed / totals.total) * 1000) / 10 : 0
+  return {
+    status: errors.some(e => e.severity === 'high')
+      ? 'critical'
+      : errors.length || warnings.length
+        ? 'warning'
+        : 'healthy',
+    summary: `${where}; Inngest runs (24h): ${totals.completed} completed, ${totals.failed} failed, ${totals.running} running`,
+    errors,
+    warnings,
+    statistics: {
+      totalRequests: totals.total,
+      successRate: totals.total > 0 ? 100 - errorRate : undefined,
+      errorRate,
+    },
+    recommendations: errors.length
+      ? ['Open the failing runs in the Inngest dashboard; check lastError per function']
+      : [],
+    achievements: errors.length === 0 && totals.total > 0 ? ['No failed Inngest runs in 24h'] : undefined,
+  }
+}
+
+function safeModeAnalysis(logs: string): LogAnalysisResult {
+  const basic = basicLogAnalysis(logs)
+  return {
+    ...basic,
+    summary: `safe mode: AI analysis skipped; ${basic.summary}`,
+  }
+}
+
+// Minimal structural view of Inngest's `step` used by the pipeline (keeps the
+// helper testable with a mock step).
+type StepLike = { run: (name: string, fn: () => any) => Promise<any> }
+
+/**
+ * Shared pipeline for the cron and the manual trigger.
+ * Steps: read-logs → (analyze-logs | summarize-inngest-runs) → generate-message → send-notification
+ */
+async function runLogMonitorPipeline(
+  step: StepLike,
+  event: { data?: Record<string, unknown> } | undefined
+): Promise<{ analysis: LogAnalysisResult; source: 'file' | 'inngest-runs'; safeMode: boolean }> {
+  const safeMode = isSafeMode(event)
+
+  const logs = await step.run('read-logs', async () => {
+    logger.info('Reading logs from file system...')
+    return await readLogs()
+  })
+
+  let analysis: LogAnalysisResult
+  let source: 'file' | 'inngest-runs'
+  if (!logs) {
+    source = 'inngest-runs'
+    analysis = await step.run('summarize-inngest-runs', async () => {
+      logger.warn(`${FILE_LOGGING_DISABLED_TEXT} — summarising Inngest runs instead`)
+      return await buildInngestRunsFallbackAnalysis()
+    })
+  } else {
+    source = 'file'
+    analysis = await step.run('analyze-logs', async () => {
+      if (safeMode) {
+        logger.warn('🛡️ log-monitor safe mode — OpenAI analysis skipped', skippedInSafeMode('analyze-logs'))
+        return safeModeAnalysis(logs)
+      }
+      logger.info('Analyzing logs with AI...')
+      return await analyzeLogs(logs)
+    })
+  }
+
+  const message = await step.run('generate-message', async () => {
+    logger.info('Generating Telegram message...')
+    return await generateTelegramMessage(analysis as unknown as LogAnalysisResult)
+  })
+
+  // Recipient is always GROUP_CHAT_ID (= admin), so safe mode needs no redirect.
+  await step.run('send-notification', async () => {
+    logger.info('Sending Telegram notification...')
+    await sendTelegramNotification(message)
+  })
+
+  return { analysis: analysis as unknown as LogAnalysisResult, source, safeMode }
+}
+
 // Основная Inngest функция
 export const logMonitor = inngest.createFunction(
   {
-    id: 'log-monitor',
+    // Canonical id (spec-first manifest). Legacy id was 'log-monitor'.
+    id: 'monitoring-logs-analyze',
     name: '📊 Log Monitor & Reporter',
     retries: 2,
+    // Paid OpenAI/DeepSeek analysis → admin visibility on failure.
+    onFailure: createInngestFailureHandler('monitoring-logs-analyze'),
   },
   {
     // Запускаем каждые 24 часа
@@ -361,44 +527,21 @@ export const logMonitor = inngest.createFunction(
   },
   async ({ event, step }) => {
     logger.info('Starting log monitoring task...')
+    const { analysis, source, safeMode } = await runLogMonitorPipeline(step, event)
 
-    // Шаг 1: Чтение логов
-    const logs = await step.run('read-logs', async () => {
-      logger.info('Reading logs from file system...')
-      return await readLogs()
-    })
-
-    // Шаг 2: Анализ логов
-    const analysis = await step.run('analyze-logs', async () => {
-      logger.info('Analyzing logs with AI...')
-      return await analyzeLogs(logs)
-    })
-
-    // Шаг 3: Генерация сообщения
-    const message = await step.run('generate-message', async () => {
-      logger.info('Generating Telegram message...')
-      return await generateTelegramMessage(
-        analysis as unknown as LogAnalysisResult
-      )
-    })
-
-    // Шаг 4: Отправка уведомления
-    await step.run('send-notification', async () => {
-      logger.info('Sending Telegram notification...')
-      await sendTelegramNotification(message)
-    })
-
-    const typedAnalysis = analysis as unknown as LogAnalysisResult
     logger.info('Log monitoring completed successfully', {
-      status: typedAnalysis.status,
-      errors: typedAnalysis.errors.length,
-      warnings: typedAnalysis.warnings.length,
+      status: analysis.status,
+      errors: analysis.errors.length,
+      warnings: analysis.warnings.length,
+      source,
     })
 
     return {
       success: true,
       status: analysis.status,
       summary: analysis.summary,
+      source,
+      safeMode,
       timestamp: new Date().toISOString(),
     }
   }
@@ -407,40 +550,26 @@ export const logMonitor = inngest.createFunction(
 // Функция для ручного запуска мониторинга (для тестирования)
 export const triggerLogMonitor = inngest.createFunction(
   {
-    id: 'trigger-log-monitor',
+    // Canonical id (spec-first manifest). Legacy id was 'trigger-log-monitor'.
+    id: 'monitoring-logs-trigger',
     name: '🔄 Trigger Log Monitor (Manual)',
     retries: 1,
+    onFailure: createInngestFailureHandler('monitoring-logs-trigger'),
   },
-  { event: 'logs/monitor.trigger' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'monitoring/logs.trigger' }, { event: 'logs/monitor.trigger' }],
   async ({ event, step }) => {
     logger.info('Manual log monitoring triggered')
+    const { analysis, source, safeMode } = await runLogMonitorPipeline(step, event)
 
-    // Выполняем те же шаги, что и в основной функции
-    const logs = await step.run('read-logs', async () => {
-      return await readLogs()
-    })
-
-    const analysis = await step.run('analyze-logs', async () => {
-      return await analyzeLogs(logs)
-    })
-
-    const message = await step.run('generate-message', async () => {
-      return await generateTelegramMessage(
-        analysis as unknown as LogAnalysisResult
-      )
-    })
-
-    await step.run('send-notification', async () => {
-      await sendTelegramNotification(message)
-    })
-
-    const typedAnalysis2 = analysis as unknown as LogAnalysisResult
     return {
       success: true,
       manual: true,
-      status: typedAnalysis2.status,
-      summary: typedAnalysis2.summary,
-      triggeredBy: event.data?.userId || 'system',
+      status: analysis.status,
+      summary: analysis.summary,
+      source,
+      safeMode,
+      triggeredBy: (event.data as any)?.userId || 'system',
       timestamp: new Date().toISOString(),
     }
   }

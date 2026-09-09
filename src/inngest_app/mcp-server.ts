@@ -11,6 +11,11 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import axios from 'axios'
+import {
+  fetchFunctionsStatusSafe,
+  renderRunsSummaryText,
+} from './status/functionsStatus'
+import { InngestGraphqlClient } from './status/inngestGraphql'
 
 const INNGEST_DEV_URL = process.env.INNGEST_DEV_URL || 'http://127.0.0.1:8288'
 
@@ -150,6 +155,44 @@ class InngestMCPServer {
             required: ['function_id'],
           },
         },
+        // ---- read-only health tools (design: inngest-spec-first §3.9) ----
+        // These never send events or invoke functions. They read the manifest
+        // and the Inngest GraphQL API (INNGEST_GQL_URL, default
+        // `${INNGEST_BASE_URL}/v0/gql`).
+        {
+          name: 'inngest_health',
+          description:
+            'READ-ONLY. Compact 24h health summary of all served Inngest functions (completed/failed/running per function, app connectivity). Never sends events.',
+          inputSchema: { type: 'object', properties: {} },
+        },
+        {
+          name: 'inngest_functions',
+          description:
+            'READ-ONLY. List functions from the manifest joined with live status: id, slug, triggers (canonical + legacy), control, deployed, runs24h, runs7d, lastRun, lastError.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              domain: {
+                type: 'string',
+                description: 'Optional domain filter (e.g. "render", "training")',
+              },
+            },
+          },
+        },
+        {
+          name: 'inngest_failed_runs',
+          description:
+            'READ-ONLY. Functions with failed runs in the last 24h plus their last error. Pass run_id to fetch id/status/output of one run.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              run_id: {
+                type: 'string',
+                description: 'Optional run id for detail (query run(runID))',
+              },
+            },
+          },
+        },
       ],
     }))
 
@@ -185,6 +228,15 @@ class InngestMCPServer {
               args.function_id as string,
               args.limit as number
             )
+
+          case 'inngest_health':
+            return await this.inngestHealth()
+
+          case 'inngest_functions':
+            return await this.inngestFunctions(args?.domain as string | undefined)
+
+          case 'inngest_failed_runs':
+            return await this.inngestFailedRuns(args?.run_id as string | undefined)
 
           default:
             throw new Error(`Unknown tool: ${name}`)
@@ -327,17 +379,101 @@ class InngestMCPServer {
    * тестом src/__tests__/inngest/event-seams.test.ts: он проверяет, что каждое
    * значение этой карты совпадает с именем, на которое кто-то подписан.
    */
+  // ---- read-only health tools ------------------------------------------
+
+  private text(payload: unknown) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2),
+        },
+      ],
+    }
+  }
+
+  private async inngestHealth() {
+    const result = await fetchFunctionsStatusSafe()
+    if (result.ok === false) {
+      const failure = result.error
+      return this.text({ error: 'inngest-unreachable', ...failure })
+    }
+    return this.text(renderRunsSummaryText(result.payload))
+  }
+
+  private async inngestFunctions(domain?: string) {
+    const result = await fetchFunctionsStatusSafe()
+    if (result.ok === false) {
+      const failure = result.error
+      return this.text({ error: 'inngest-unreachable', ...failure })
+    }
+    const functions = domain
+      ? result.payload.functions.filter(f => f.domain === domain)
+      : result.payload.functions
+    return this.text({
+      generatedAt: result.payload.generatedAt,
+      app: result.payload.app,
+      count: functions.length,
+      functions,
+    })
+  }
+
+  private async inngestFailedRuns(runId?: string) {
+    if (runId) {
+      const run = await new InngestGraphqlClient().run(runId)
+      return this.text({ run })
+    }
+    const result = await fetchFunctionsStatusSafe()
+    if (result.ok === false) {
+      const failure = result.error
+      return this.text({ error: 'inngest-unreachable', ...failure })
+    }
+    const failed = result.payload.functions
+      .filter(f => f.runs24h.failed > 0)
+      .map(f => ({
+        id: f.id,
+        slug: f.slug,
+        failed24h: f.runs24h.failed,
+        lastRun: f.lastRun,
+        lastError: f.lastError,
+      }))
+    return this.text({
+      generatedAt: result.payload.generatedAt,
+      count: failed.length,
+      failed,
+    })
+  }
+
   private getFunctionEventName(functionId: string): string {
     const eventMap: Record<string, string> = {
-      'ai-reels-callback': 'ai-reels-callback',
-      render: 'render',
-      renderAvatarVideo: 'render/avatar-video',
-      renderRiddle: 'render-riddle',
-      modelTrainingV2: 'model/training.v2.requested',
-      morphImages: 'morph/images.requested',
-      neuroImageGeneration: 'neuro/photo.generate',
-      paymentProcessing: 'payment/process-ai-server',
-      broadcastMessage: 'broadcast/send-message',
+      // canonical function id -> canonical event (legacy names still listened)
+      'reels-ai-callback': 'reels/ai.callback',
+      'reels-ai-generate': 'reels/ai.generate',
+      'reels-loop-generate': 'reels/loop.generate',
+      'render-job-run': 'render/job.run',
+      'render-avatar-video-run': 'render/avatar-video.run',
+      'render-riddle-run': 'render/riddle.run',
+      'training-model-start': 'training/model.start',
+      'training-model-v2-start': 'training/model-v2.start',
+      'training-model-complete': 'training/model.complete',
+      'morph-images-generate': 'morph/images.generate',
+      'neuro-image-generate': 'neuro/image.generate',
+      'payment-ai-server-process': 'payment/ai-server.process',
+      'broadcast-message-send': 'broadcast/message.send',
+      'monitoring-error-report': 'monitoring/error.report',
+      'monitoring-logs-trigger': 'monitoring/logs.trigger',
+      'webhook-generation-validate': 'webhook/generation.validate',
+      'welcome-avatar-generate': 'welcome/avatar.generate',
+      // legacy aliases (camelCase keys used by older MCP clients)
+      'ai-reels-callback': 'reels/ai.callback',
+      render: 'render/job.run',
+      renderAvatarVideo: 'render/avatar-video.run',
+      renderRiddle: 'render/riddle.run',
+      modelTrainingV2: 'training/model-v2.start',
+      morphImages: 'morph/images.generate',
+      neuroImageGeneration: 'neuro/image.generate',
+      paymentProcessing: 'payment/ai-server.process',
+      broadcastMessage: 'broadcast/message.send',
     }
 
     return eventMap[functionId] || functionId

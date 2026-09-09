@@ -43,6 +43,9 @@ export const isInngestConfigured = (): boolean => {
 }
 
 // Export event names for type safety
+// Canonical event names (spec-first manifest, 2026-09). Every served function
+// also listens to its legacy name — see src/inngest_app/functions.manifest.json
+// (`legacy_events`) — so old senders keep working; new code sends canonical.
 export const INNGEST_EVENTS = {
   // Content events
   ANALYZE_COMPETITOR_REELS: 'instagram/analyze-reels',
@@ -57,31 +60,31 @@ export const INNGEST_EVENTS = {
   INSTAGRAM_SCRAPER_V2_SIMPLE: 'instagram/test-reels',
 
   // Monitoring events
-  CRITICAL_ERROR_MONITOR: 'app/error.critical',
-  LOG_MONITOR: 'logs/monitor.trigger',
+  CRITICAL_ERROR_MONITOR: 'monitoring/error.report',
+  LOG_MONITOR: 'monitoring/logs.trigger',
 
   // Training events
-  MODEL_TRAINING_V2: 'model/training.v2.requested',
-  MORPH_IMAGES: 'morph/images.requested',
+  MODEL_TRAINING_V2: 'training/model-v2.start',
+  MORPH_IMAGES: 'morph/images.generate',
 
   // Generation events
-  NEURO_IMAGE_GENERATION: 'neuro/photo.generate',
+  NEURO_IMAGE_GENERATION: 'neuro/image.generate',
 
   // Payment events
-  PAYMENT_PROCESSING: 'payment/process-ai-server',
+  PAYMENT_PROCESSING: 'payment/ai-server.process',
 
   // Broadcast events
-  BROADCAST_MESSAGE: 'broadcast/send-message',
+  BROADCAST_MESSAGE: 'broadcast/message.send',
 
   // Render events
-  RENDER: 'render',
-  RENDER_AVATAR_VIDEO: 'render/avatar-video',
-  RENDER_RIDDLE: 'render-riddle',
+  RENDER: 'render/job.run',
+  RENDER_AVATAR_VIDEO: 'render/avatar-video.run',
+  RENDER_RIDDLE: 'render/riddle.run',
 
   // Existing events
-  GENERATE_AI_REELS: 'ai-reels/generate',
-  GENERATE_ADVANCED_LOOPING: 'reels/generate-advanced-loop',
-  GENERATE_MODEL_TRAINING: 'model/training.start',
+  GENERATE_AI_REELS: 'reels/ai.generate',
+  GENERATE_ADVANCED_LOOPING: 'reels/loop.generate',
+  GENERATE_MODEL_TRAINING: 'training/model.start',
 } as const
 
 export type InngestEventName =

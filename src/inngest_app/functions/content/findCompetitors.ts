@@ -4,7 +4,9 @@
  * Extends instagramScraperV2 with new database schema and filtering
  */
 
-import { slugify } from 'inngest'
+import { NonRetriableError } from 'inngest'
+import { createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import axios from 'axios'
 import { inngest } from '@/inngest_app/client'
 import { InstagramContentAgentDB, type CompetitorData } from '@/core/instagram'
@@ -133,11 +135,15 @@ class InstagramCompetitorAPI {
 // Main findCompetitors function
 export const findCompetitors = inngest.createFunction(
   {
-    id: 'find-competitors',
+    // Canonical id (spec-first manifest). Legacy id was 'find-competitors'.
+    id: 'instagram-competitors-find',
     name: '🔍 Find Instagram Competitors',
     concurrency: 2,
+    // Paid RapidAPI calls → admin visibility on failure.
+    onFailure: createInngestFailureHandler('instagram-competitors-find'),
   },
-  { event: 'instagram/find-competitors' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'instagram/competitors.find' }, { event: 'instagram/find-competitors' }],
   async ({ event, step, runId, logger }) => {
     log.info('🚀 Find Competitors started', {
       runId,
@@ -153,20 +159,28 @@ export const findCompetitors = inngest.createFunction(
           .map(e => `${e.path.join('.')}: ${e.message}`)
           .join(', ')}`
         log.error(errorMessage)
-        throw new Error(errorMessage)
+        // Payload defects and missing configuration never heal on retry.
+        throw new NonRetriableError(errorMessage)
       }
 
       if (!process.env.RAPIDAPI_INSTAGRAM_KEY) {
-        throw new Error('Instagram API key is not configured')
+        throw new NonRetriableError('Instagram API key is not configured')
       }
 
       if (!process.env.NEON_DATABASE_URL) {
-        throw new Error('Database URL is not configured')
+        throw new NonRetriableError('Database URL is not configured')
       }
 
       log.info(`✅ Input validated: ${result.data.username_or_id}`)
       return result.data
     })) as z.infer<typeof FindCompetitorsEventSchema>
+
+    // Safe mode: the steps below call the paid RapidAPI Instagram endpoint.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('rapidapi competitors fetch')
+      log.warn('🛡️ [FIND COMPETITORS] safe mode — API call skipped', skipped)
+      return { success: false, ...skipped }
+    }
 
     // Step 2: Validate project if provided
     const projectValidation = await step.run('validate-project', async () => {

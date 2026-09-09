@@ -3,7 +3,9 @@
  * 🎬 Генерация текстовых сценариев для блогеров и цифровых творцов
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { parseEventData } from '@/inngest_app/guards'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import OpenAI from 'openai'
 import { supabase } from '@/core/supabase'
 import * as fs from 'fs'
@@ -220,12 +222,31 @@ const BIBLE_THEMES = {
  */
 export const generateScenarioClips = inngest.createFunction(
   {
-    id: 'generate-scenario-clips',
+    // Canonical id (spec-first manifest). Legacy id was 'generate-scenario-clips'.
+    id: 'content-scenario-clips-generate',
     name: '🎬 Generate Blogger Text Scenarios',
+    // Paid OpenAI calls → admin visibility on failure.
+    onFailure: createInngestFailureHandler('content-scenario-clips-generate'),
   },
-  { event: 'content/generate-scenario-clips' },
+  // Canonical event first, legacy event kept for existing senders.
+  [
+    { event: 'content/scenario-clips.generate' },
+    { event: 'content/generate-scenario-clips' },
+  ],
   async ({ event, step, runId, logger: log }) => {
-    const input = generateScenarioClipsSchema.parse(event.data)
+    // Schema failure → NonRetriableError (never heals on retry).
+    const input = parseEventData(
+      generateScenarioClipsSchema,
+      event.data,
+      'content/scenario-clips.generate payload'
+    )
+
+    // Safe mode: the steps below call the paid OpenAI API.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('openai scenario clips')
+      log.warn('🛡️ [SCENARIO CLIPS] safe mode — generation skipped', skipped)
+      return { success: false, ...skipped }
+    }
     log.info('🎬 Начинаем генерацию текстовых сценариев для блогеров', {
       input,
       runId,

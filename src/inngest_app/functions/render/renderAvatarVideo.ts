@@ -26,6 +26,7 @@ import { ElevenLabsService } from '@/services/elevenLabs'
 import { KieAIService } from '@/services/kieAI'
 import { validateRenderAvatarVideoEventData } from './schemas'
 import { createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 
 // ==================== Types ====================
 
@@ -173,15 +174,24 @@ async function uploadSettingsToS3(
 
 export const renderAvatarVideoFunction = inngest.createFunction(
   {
-    id: 'render-avatar-video',
+    // Canonical id (spec-first manifest). Legacy id was 'render-avatar-video'.
+    id: 'render-avatar-video-run',
     name: '🎥 Render Avatar Video Workflow',
     retries: 3,
-    onFailure: createInngestFailureHandler('render-avatar-video'),
+    onFailure: createInngestFailureHandler('render-avatar-video-run'),
   },
-  { event: 'render/avatar-video' },
+  // Canonical event first, legacy event kept for existing senders.
+  [{ event: 'render/avatar-video.run' }, { event: 'render/avatar-video' }],
   async ({ event, step, logger }) => {
     // Validate event data before processing
     const data = validateRenderAvatarVideoEventData(event.data)
+
+    // Safe mode: the pipeline below calls paid avatar/TTS/LLM providers.
+    if (isSafeMode(event)) {
+      const skipped = skippedInSafeMode('avatar-video pipeline')
+      logger.warn('🛡️ [RENDER AVATAR] safe mode — render skipped', skipped)
+      return { success: false, ...skipped }
+    }
 
     logger.info(
       `Starting render-avatar-video workflow for user ${data.user_id}`

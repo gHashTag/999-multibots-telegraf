@@ -11,6 +11,7 @@
 
 import Replicate from 'replicate'
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
+import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
@@ -46,12 +47,13 @@ export function trainingAgeHours(
 
 export const checkStuckTrainings = inngest.createFunction(
   {
-    id: 'check-stuck-trainings',
+    // Canonical id (spec-first manifest). Legacy id was 'check-stuck-trainings'.
+    id: 'training-stuck-check',
     name: 'Check Stuck Model Trainings',
-    onFailure: createInngestFailureHandler('Check Stuck Trainings'),
+    onFailure: createInngestFailureHandler('training-stuck-check'),
   },
   { cron: '*/30 * * * *' }, // Every 30 minutes
-  async ({ step }) => {
+  async ({ event, step }) => {
     const startTime = Date.now()
 
     // Step 1: Find stuck trainings in DB
@@ -193,14 +195,28 @@ export const checkStuckTrainings = inngest.createFunction(
       }
     }
 
-    // Step 3: Send completion events for resolved trainings
+    // Step 3: Send completion events for resolved trainings.
+    // Safe mode: the fan-out would make training-model-complete message real
+    // users / touch balances — skip it and report what would have been sent.
     const sendResults = await step.run('send-completion-events', async () => {
+      if (isSafeMode(event)) {
+        const skipped = skippedInSafeMode(
+          `send ${results.resolved.length} training/model.complete events`
+        )
+        logger.warn('🛡️ [CHECK STUCK] safe mode: completion events not sent', {
+          ...skipped,
+          training_ids: results.resolved.map(r => r.training_id),
+        })
+        return { sent: 0, ...skipped }
+      }
+
       let sent = 0
 
       for (const resolved of results.resolved) {
         try {
           await inngest.send({
-            name: 'model/training.completed',
+            // canonical name; training-model-complete also listens to the legacy one
+            name: 'training/model.complete',
             data: {
               training_id: resolved.training_id,
               status: resolved.replicate_status as
