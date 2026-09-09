@@ -264,3 +264,38 @@ farm-cashier-is-the-persons-own-bot, no-pay-first-context-first.
 
 Open: the proactive sweep's first live `talk` draft not yet observed; the pay button
 and the DM mirror are verified by tests + deploy, not by a live client message.
+
+## Cycle 5 — 2026-09-09: every dialog, the overview, a menu under every message, the seller aimed
+
+Merged: #2294 (ingest takes every dialog: cap 200 → 2000, connect-time ingests ask for
+2000×500, tg_dialogs cap 1000), #2297 (render: crm_summary — the overview; crm-touches
+touchesByKind / sellerSendsSince; SELLER_NOTE_PREFIXES in crm-notes.ts, a module nothing
+mocks; playbook rule 8 — selective work), #2307 "a menu under every owner message"
+(crmMenu.ts grammar `crm:<verb>[:<numeric id>]` / `crm:scope:<preset>`; /crm overview
+with scoped-sweep buttons; /leads and /lead keyboards; /sweep <@user | id list |
+next=… stage=… signal=… days<=… days>=… paid=… limit=… | ждут | горячие | разговор |
+где | stop> as a queue in crmProactive — one card, the owner's press advances, timer
+pauses, MENU_HOLD_MS 10 min; DM notification menu for admin owners; pauseAiFor;
+history row under proposal cards; follow-up keyboards after tgp presses; hub row under
+every owner answer).
+
+Live (crm_summary after the bot PR, 2026-09-09 03:04 UTC): 1009 people known, 855 with
+messages, 38 067 messages (20 182 theirs), 125 paid, 316 waiting for the owner's reply,
+10 hot; by next: reply 316, offer 7, deliver 2, talk 1, wait 529; the bot PR merged as
+#2307 (main eabbc9240). Zep summaries are hallucinated by qwen3:1.7b («Led
+Zeppelin» in the wife's summary) — decision on Zep's model left to the owner.
+
+Designs came from two workflows (menus: 10 agents; overview+scope: 7 agents), judged
+and synthesized; implementation inline, then reverse mutations (5 caught) and a booted-
+Telegraf press test.
+
+Lessons: other sessions merge to main concurrently (#2291–#2296 in an hour) — branch
+from fresh main and print push output in full; python edit anchors drift after
+prettier — brace-aware replacement must start at the BODY brace, not the return type's;
+the no-cyrillic guard blocks Russian in comments, regex literals and Cyrillic object
+keys (prettier strips quotes) — use English comments, string `.includes`, and
+`Object.fromEntries` for Cyrillic aliases.
+
+Open: the first live scoped sweep (`/sweep ждут`) not yet observed; the pay button and
+DM mirror verified by tests and deploy only; crm_leads / scope selections see the top
+50 by score — a bigger base needs paging.
