@@ -241,3 +241,46 @@ describe('a farm owner who is not an admin of this bot', () => {
     }
   })
 })
+
+describe('the client never sees bracket soup, and a long answer arrives whole', () => {
+  it('markers are stripped before the send, the memory and the mirror', async () => {
+    agentSays = 'Готово, держи [[Пополнить|act:topup]] и вот [[Х|act:nope]]'
+    const svc = await import('@/services/businessBotService')
+    svc.handleBusinessConnection(connection() as any)
+    const bot = fakeBot()
+    await svc.handleBusinessMessage(dm('привет') as any, bot as any, BOT)
+    await flush()
+    const reply = asOwner(bot)
+    expect(reply[1]).toBe('Готово, держи  и вот')
+    expect(reply[1]).not.toContain('[[')
+    const [, , , messages] = mirrorDm.mock.calls[0] as unknown as [
+      string,
+      string,
+      string,
+      any[],
+    ]
+    expect(messages[1].text).not.toContain('[[')
+  })
+
+  it('a 9000-character answer goes out in chunks, the keyboard on the last one only', async () => {
+    agentSays = 'слово '.repeat(1500)
+    const svc = await import('@/services/businessBotService')
+    svc.handleBusinessConnection(connection() as any)
+    const bot = fakeBot()
+    await svc.handleBusinessMessage(dm('расскажи всё') as any, bot as any, BOT)
+    const parts = bot.telegram.sendMessage.mock.calls.filter(
+      (c: any[]) => c[2]?.business_connection_id === CONN
+    )
+    expect(parts.length).toBeGreaterThanOrEqual(3)
+    for (const p of parts) expect(String(p[1]).length).toBeLessThanOrEqual(4096)
+    expect(parts.slice(0, -1).every((p: any[]) => !p[2].reply_markup)).toBe(
+      true
+    )
+    expect(
+      parts
+        .at(-1)?.[2]
+        .reply_markup.inline_keyboard.flat()
+        .map((b: any) => b.text)
+    ).toContain('🚀 Открыть в боте')
+  })
+})

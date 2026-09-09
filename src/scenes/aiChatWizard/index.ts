@@ -5,6 +5,7 @@
  * Supports model selection, persistent memory, and Hermes-style features.
  */
 
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
@@ -149,9 +150,16 @@ const conversationStep = async (ctx: MyContext) => {
       .catch(() => {})
     const modelTag = `[${getModelLabel(model)}]`
     const fullReply = `${response}\n\n_${modelTag}_`
-    await ctx.reply(fullReply, { parse_mode: 'Markdown' }).catch(async () => {
-      await ctx.reply(`${response}\n\n${modelTag}`)
-    })
+    // Buttons under every model answer: the person taps, not types.
+    const kb = standardButtons(isRu, { app: ctx.chat?.type === 'private' })
+    await ctx
+      .reply(fullReply, {
+        parse_mode: 'Markdown',
+        reply_markup: kb.reply_markup,
+      })
+      .catch(async () => {
+        await ctx.reply(`${response}\n\n${modelTag}`, kb)
+      })
   } catch (error) {
     await ctx.telegram
       .deleteMessage(ctx.chat!.id, thinkingMsg.message_id)

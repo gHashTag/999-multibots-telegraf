@@ -1,4 +1,5 @@
 import { Scenes } from 'telegraf'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
 import {
@@ -91,8 +92,13 @@ async function processUserMessage(
         ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost || 'N/A'}⭐`
         : `✨ Image generated using Nano Banana Pro\n\n💫 Cost: ${response.cost || 'N/A'}⭐`
 
+      // Buttons under every model answer, on the picture too.
+      const kb = standardButtons(isRu, { app: ctx.chat?.type === 'private' })
       try {
-        await ctx.replyWithPhoto(response.imageUrl, { caption })
+        await ctx.replyWithPhoto(response.imageUrl, {
+          caption,
+          reply_markup: kb.reply_markup,
+        })
       } catch (deliveryError) {
         // Photo-by-URL delivery can fail on an oversized/high-dimension image
         // (Telegram photo limits) even with a valid URL; fall back to document
@@ -109,12 +115,18 @@ async function processUserMessage(
                 : String(deliveryError),
           }
         )
-        await ctx.replyWithDocument(response.imageUrl, { caption })
+        await ctx.replyWithDocument(response.imageUrl, {
+          caption,
+          reply_markup: kb.reply_markup,
+        })
       }
     } else {
       const textResponse = response as string
-      // Send text first so user sees the response immediately
-      await ctx.reply(textResponse)
+      // Send text first so user sees the response immediately -- with buttons.
+      await ctx.reply(
+        textResponse,
+        standardButtons(isRussian(ctx), { app: ctx.chat?.type === 'private' })
+      )
 
       // Generate and send voice response
       let audioPath: string | null = null
