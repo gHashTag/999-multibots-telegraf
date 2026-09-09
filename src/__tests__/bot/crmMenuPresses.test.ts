@@ -26,8 +26,18 @@ const startScopedSweep = vi.fn(
   async (_b: unknown, _o: string, args: string[]) => `scoped:${args.join(' ')}`
 )
 const noteResolved = vi.fn()
+const buildPlan = vi.fn(async () => ({
+  text: 'План продавца',
+  keyboard: {
+    reply_markup: {
+      inline_keyboard: [[{ text: 'x', callback_data: 'crm:leads' }]],
+    },
+  },
+  fingerprint: '0',
+}))
 vi.mock('@/services/crmProactive', () => ({
   MENU_HOLD_MS: 10 * 60_000,
+  buildPlan: (...a: unknown[]) => buildPlan(...(a as [])),
   runSweepNow: (...a: unknown[]) => runSweepNow(...(a as [])),
   startScopedSweep: (...a: unknown[]) =>
     startScopedSweep(...(a as [unknown, string, string[]])),
@@ -333,5 +343,18 @@ describe('what the presses do', () => {
     expect(sink.every(s => s.method !== 'sendChatAction' || true)).toBe(true)
     expect(sent().length).toBeGreaterThan(0)
     for (const m of sent()) expect(keyboardOf(m).length).toBeGreaterThan(0)
+  })
+})
+
+describe('the plan from a button and from /plan', () => {
+  it('both build the plan as the owner and answer with its keyboard', async () => {
+    const { bot } = boot()
+    await bot.handleUpdate(press('crm:plan') as any)
+    await bot.handleUpdate(command('/plan') as any)
+    expect(buildPlan).toHaveBeenCalledTimes(2)
+    expect(buildPlan.mock.calls[0][0]).toBe(String(OWNER))
+    expect(sent()).toHaveLength(2)
+    expect(sent()[0].payload.text).toBe('План продавца')
+    expect(keyboardOf(sent()[0])).toEqual(['crm:leads'])
   })
 })

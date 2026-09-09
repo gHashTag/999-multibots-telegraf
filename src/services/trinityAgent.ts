@@ -118,6 +118,13 @@ function apiKey(): string {
  * Ошибку глотаем НАМЕРЕННО: недоступная история — повод ответить без
  * контекста, а не повод молчать. Человек уже написал и ждёт.
  */
+/** The shared transcript, newest last; [] when the render is unreachable. */
+export async function fetchHistory(
+  telegramId: string
+): Promise<Array<{ role: string; content: string; surface?: string }>> {
+  return readConversation(telegramId)
+}
+
 async function readConversation(
   telegramId: string
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {

@@ -15,9 +15,22 @@ import {
   scopedPrompt,
   itemMarker,
   progressLine,
+  presetOf,
+  PRESET_CAPS,
+  PRESET_NOTES,
   type ScopeItem,
 } from './crmSweepScope'
 import { cardMenuRows, hubRow } from '@/navigation/helpers/crmMenu'
+import {
+  buildPlanText,
+  planKeyboard,
+  planDue,
+  planFingerprint,
+  planMarker,
+  localDayKey,
+  isStale,
+  PLAN_MARKER_PREFIX,
+} from './crmPlan'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { Markup } from 'telegraf'
 
@@ -303,6 +316,11 @@ export function runSweepNow(
   return sweepOnce(ownerId, liveDeps(bot), opts)
 }
 
+export interface PlanOpts {
+  hour: number
+  tz: string
+}
+
 export function startCrmProactive(
   bot: Telegraf<MyContext>,
   opts: {
@@ -310,10 +328,21 @@ export function startCrmProactive(
     everyMs: number
     holdMs?: number
     firstDelayMs?: number
+    /** The daily plan: at this local hour, in this zone. Absent = no plan. */
+    plan?: PlanOpts
   }
 ): () => void {
   const deps = liveDeps(bot)
   const run = async () => {
+    // The plan first, and never deferred: a queue or a card in flight is
+    // exactly what the owner wants to see in it.
+    if (opts.plan) {
+      await maybeSendDailyPlan(bot, String(opts.ownerId), opts.plan).catch(e =>
+        logger.warn('[crm-plan] failed', {
+          error: e instanceof Error ? e.message : String(e),
+        })
+      )
+    }
     const active = scopes.get(String(opts.ownerId))
     if (active) {
       const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
@@ -570,11 +599,35 @@ export async function startScopedSweep(
   if (spec.kind === 'status') return scopeLine(owner) ?? 'Обхода нет.'
   if (spec.kind === 'stop') return stopScope(owner)
   const { fetchLeadRows } = await import('./modelSwitch')
-  const rows = await fetchLeadRows(owner, 50).catch(() => [])
+  /*
+   * A single preset is a SEGMENT: the render selects it over the whole base,
+   * so a quiet warm-up or a client to win back is reachable past the
+   * hundreds of unanswered at the top; and one press takes the segment's
+   * cap, not ten, unless the owner typed limit=.
+   */
+  const preset = spec.kind === 'filter' ? presetOf(spec.predicates) : null
+  const rows = await fetchLeadRows(
+    owner,
+    50,
+    preset ? { segment: preset } : {}
+  ).catch(() => [])
+  const limit =
+    spec.kind === 'filter' && preset && !spec.limitGiven
+      ? PRESET_CAPS[preset]
+      : spec.kind === 'filter'
+        ? spec.limit
+        : 50
   const items =
     spec.kind === 'list'
       ? itemsFromChats(spec.chats, rows as never)
-      : itemsFromRows(filterRows(rows as never, spec.predicates, spec.limit))
+      : itemsFromRows(filterRows(rows as never, spec.predicates, limit), {
+          ...(preset === 'due' || preset === 'winback'
+            ? { nextOverride: 'talk' }
+            : {}),
+          ...(preset && PRESET_NOTES[preset]
+            ? { note: PRESET_NOTES[preset] }
+            : {}),
+        })
   if (!items.length) return `Никого не подходит под «${spec.label}».`
   const say = (text: string) =>
     bot.telegram.sendMessage(owner, text, Markup.inlineKeyboard([hubRow()]))
@@ -583,3 +636,99 @@ export async function startScopedSweep(
     ? line + ' (смотрю верхние 50 по баллу)'
     : line
 }
+
+/*
+ * THE DAILY PLAN.
+ *
+ * Built from crm_summary(days=1) by plain code, pushed once per local day
+ * from the timer tick inside the window [hour, hour+11), or on /plan at any
+ * time. Dedupe: process memory first; after a redeploy the marker written
+ * to the shared transcript says whether today's plan already went out.
+ */
+const planSentOn = new Map<string, { day: string; fingerprint: string }>()
+
+export function resetPlanForTests(): void {
+  planSentOn.clear()
+}
+
+export async function buildPlan(
+  owner: string,
+  now = Date.now(),
+  tz = 'Europe/Moscow'
+): Promise<{
+  text: string
+  keyboard: ReturnType<typeof planKeyboard>
+  fingerprint: string
+}> {
+  const { fetchSummary } = await import('./crmSummary')
+  const s = await fetchSummary(owner, 1)
+  const text = buildPlanText(s, scopeLine(owner), now, tz)
+  const keyboard = planKeyboard(s, {
+    scopeActive: Boolean(activeScope(owner)),
+    stale: isStale(s, now),
+  })
+  return { text, keyboard, fingerprint: planFingerprint(s) }
+}
+
+async function alreadyPlannedToday(
+  owner: string,
+  dayKey: string
+): Promise<boolean> {
+  const mem = planSentOn.get(owner)
+  if (mem?.day === dayKey) return true
+  try {
+    const { fetchHistory } = await import('./trinityAgent')
+    const turns = await fetchHistory(owner)
+    return turns.some(
+      t =>
+        t.role === 'user' &&
+        String(t.content ?? '').startsWith(planMarker(dayKey))
+    )
+  } catch {
+    return false
+  }
+}
+
+/** Send the plan now, whatever the clock says (/plan and the plan button). */
+export async function sendPlanNow(
+  bot: Telegraf<MyContext>,
+  owner: string,
+  o: { why: 'timer' | 'command'; now?: number; tz?: string } = {
+    why: 'command',
+  }
+): Promise<{ text: string; keyboard: ReturnType<typeof planKeyboard> }> {
+  const now = o.now ?? Date.now()
+  const tz = o.tz ?? 'Europe/Moscow'
+  const plan = await buildPlan(owner, now, tz)
+  const dayKey = localDayKey(now, tz)
+  await bot.telegram.sendMessage(owner, plan.text, plan.keyboard)
+  planSentOn.set(owner, { day: dayKey, fingerprint: plan.fingerprint })
+  void recordTurns(owner, [
+    { role: 'user', content: `${planMarker(dayKey)} ${o.why}` },
+    { role: 'assistant', content: plan.text.slice(0, 2000) },
+  ]).catch(() => undefined)
+  logger.info('[crm-plan] sent', { owner, why: o.why, day: dayKey })
+  return plan
+}
+
+export async function maybeSendDailyPlan(
+  bot: Telegraf<MyContext>,
+  owner: string,
+  plan: PlanOpts,
+  now = Date.now()
+): Promise<'sent' | 'not-due' | 'already'> {
+  const dayKey = localDayKey(now, plan.tz)
+  const mem = planSentOn.get(owner)
+  if (
+    !planDue({ now, tz: plan.tz, hour: plan.hour, sentDay: mem?.day ?? null })
+  )
+    return 'not-due'
+  if (await alreadyPlannedToday(owner, dayKey)) {
+    planSentOn.set(owner, { day: dayKey, fingerprint: mem?.fingerprint ?? '' })
+    return 'already'
+  }
+  await sendPlanNow(bot, owner, { why: 'timer', now, tz: plan.tz })
+  return 'sent'
+}
+
+export { PLAN_MARKER_PREFIX }

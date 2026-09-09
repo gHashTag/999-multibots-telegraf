@@ -2882,6 +2882,20 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   const textOf = (ctx: MyContext) =>
     (ctx.message as { text?: string } | undefined)?.text ?? ''
 
+  const showPlan = async (ctx: MyContext) => {
+    try {
+      const { buildPlan } = await import('@/services/crmProactive')
+      const plan = await buildPlan(ownerId(ctx))
+      await sendLong(ctx, plan.text, plan.keyboard)
+    } catch (e) {
+      await crmFail(ctx, 'Не получилось собрать план', e, crmCallback('plan'))
+    }
+  }
+
+  bot.command('plan', requireAdmin(), async ctx => {
+    await showPlan(ctx)
+  })
+
   bot.command('crm', requireAdmin(), async ctx => {
     const arg = textOf(ctx).split(/\s+/)[1] ?? ''
     await showSummary(ctx, /^\d{1,3}$/.test(arg) ? Number(arg) : undefined)
@@ -2951,6 +2965,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     else if (verb === 'sweep') await sweep(ctx)
     else if (verb === 'model') await showModel(ctx)
     else if (verb === 'ingest') await ingest(ctx)
+    else if (verb === 'plan') await showPlan(ctx)
   })
 
   bot.action(CRM_SCOPE_RE, async ctx => {
