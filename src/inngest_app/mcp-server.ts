@@ -329,15 +329,34 @@ class InngestMCPServer {
    */
   private getFunctionEventName(functionId: string): string {
     const eventMap: Record<string, string> = {
-      'ai-reels-callback': 'ai-reels-callback',
-      render: 'render',
-      renderAvatarVideo: 'render/avatar-video',
-      renderRiddle: 'render-riddle',
-      modelTrainingV2: 'model/training.v2.requested',
-      morphImages: 'morph/images.requested',
-      neuroImageGeneration: 'neuro/photo.generate',
-      paymentProcessing: 'payment/process-ai-server',
-      broadcastMessage: 'broadcast/send-message',
+      // canonical function id -> canonical event (legacy names still listened)
+      'reels-ai-callback': 'reels/ai.callback',
+      'reels-ai-generate': 'reels/ai.generate',
+      'reels-loop-generate': 'reels/loop.generate',
+      'render-job-run': 'render/job.run',
+      'render-avatar-video-run': 'render/avatar-video.run',
+      'render-riddle-run': 'render/riddle.run',
+      'training-model-start': 'training/model.start',
+      'training-model-v2-start': 'training/model-v2.start',
+      'training-model-complete': 'training/model.complete',
+      'morph-images-generate': 'morph/images.generate',
+      'neuro-image-generate': 'neuro/image.generate',
+      'payment-ai-server-process': 'payment/ai-server.process',
+      'broadcast-message-send': 'broadcast/message.send',
+      'monitoring-error-report': 'monitoring/error.report',
+      'monitoring-logs-trigger': 'monitoring/logs.trigger',
+      'webhook-generation-validate': 'webhook/generation.validate',
+      'welcome-avatar-generate': 'welcome/avatar.generate',
+      // legacy aliases (camelCase keys used by older MCP clients)
+      'ai-reels-callback': 'reels/ai.callback',
+      render: 'render/job.run',
+      renderAvatarVideo: 'render/avatar-video.run',
+      renderRiddle: 'render/riddle.run',
+      modelTrainingV2: 'training/model-v2.start',
+      morphImages: 'morph/images.generate',
+      neuroImageGeneration: 'neuro/image.generate',
+      paymentProcessing: 'payment/ai-server.process',
+      broadcastMessage: 'broadcast/message.send',
     }
 
     return eventMap[functionId] || functionId

@@ -13,6 +13,7 @@ import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
 import billingRouter from './routes/billing.routes'
 import x402Router, { setX402BotInstance } from './routes/x402.routes'
+import inngestStatusRouter from './routes/inngest-status.routes'
 import { Telegraf } from 'telegraf'
 // ✅ Inngest включен для мониторинга webhook'ов
 import { serve } from 'inngest/express'
@@ -168,6 +169,11 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve)
   // The serve handler carries its OWN auth (Inngest request signatures) —
   // unsigned calls get its 401. It must be mounted BEFORE requireInternalKey.
+  // Public READ-ONLY status of Inngest functions (manifest × GraphQL runs).
+  // Mounted BEFORE the serve handler so `/api/inngest/functions/status` is
+  // not swallowed by the SDK's signature check, and before any keyed mount.
+  app.use(inngestStatusRouter)
+
   const inngestHandler = serve({
     client: inngest,
     functions: allInngestFunctions,
