@@ -989,8 +989,6 @@ const en: Translations = {
   // ── Welcome road on the profile (value -> club -> Telegram -> SOUL) ──────
   'welcome.step': 'Step {n} of {total}',
   'welcome.next': 'Next',
-  'welcome.skip': 'Skip the story',
-  'welcome.later': 'Later',
   'welcome.value.title': 'A digital twin that works your Telegram for you',
   'welcome.value.lead':
     'Not a chatbot in one window. An agent that speaks in your voice, keeps your feed alive and knows what you sell.',
@@ -1022,6 +1020,7 @@ const en: Translations = {
   'welcome.club.tokens':
     '{tokens} tokens land on your balance with every charge',
   'welcome.club.share': '(30% of the payment)',
+  'welcome.club.badge': 'Club',
   'welcome.club.renew':
     'Renews inside Telegram every 30 days — no cards, no forms',
   'welcome.club.topup':
@@ -1069,7 +1068,6 @@ const en: Translations = {
     'What the twin must never write: topics, words, promises',
   'welcome.soul.save': 'Save and continue',
   'welcome.soul.saving': 'Saving…',
-  'welcome.soul.later': 'I will fill it in the editor later',
   'welcome.done.title': 'The twin is ready',
   'welcome.done.body':
     'Club, Telegram and SOUL are in place. From here the agent works; you steer.',
@@ -2862,8 +2860,6 @@ const ru: Translations = {
   // ── Welcome road on the profile (value -> club -> Telegram -> SOUL) ──────
   'welcome.step': 'Шаг {n} из {total}',
   'welcome.next': 'Дальше',
-  'welcome.skip': 'Пропустить рассказ',
-  'welcome.later': 'Позже',
   'welcome.value.title':
     'Цифровой двойник, который ведёт твой Telegram за тебя',
   'welcome.value.lead':
@@ -2895,6 +2891,7 @@ const ru: Translations = {
   'welcome.club.tokens':
     '{tokens} токенов приходят на баланс с каждого платежа',
   'welcome.club.share': '(30% от платежа)',
+  'welcome.club.badge': 'Клуб',
   'welcome.club.renew':
     'Продление внутри Telegram каждые 30 дней — без карт и форм',
   'welcome.club.topup':
@@ -2941,7 +2938,6 @@ const ru: Translations = {
     'Чего двойник не должен писать никогда: темы, слова, обещания',
   'welcome.soul.save': 'Сохранить и продолжить',
   'welcome.soul.saving': 'Сохраняю…',
-  'welcome.soul.later': 'Заполню в редакторе позже',
   'welcome.done.title': 'Двойник готов',
   'welcome.done.body':
     'Клуб, Telegram и SOUL на месте. Дальше работает агент, а ты рулишь.',

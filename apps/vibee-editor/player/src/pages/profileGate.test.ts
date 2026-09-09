@@ -34,9 +34,11 @@ describe('profileScreen', () => {
     // The welcome road (owner, 2026-09-09: value -> club -> Telegram -> SOUL).
     [{ loading: false, own: true, connected: true, club: null }, 'skeleton'],
     [{ loading: false, own: true, connected: true, club: false }, 'welcome'],
+    // No "later": a connected person without the club stays on the road
+    // whatever this session already saw (owner, 2026-09-09, evening).
     [
-      { loading: false, own: true, connected: true, club: false, left: true },
-      'profile',
+      { loading: false, own: true, connected: true, club: false, onRoad: true },
+      'welcome',
     ],
     [
       { loading: false, own: true, connected: true, club: true, soul: null },
@@ -61,6 +63,7 @@ describe('profileScreen', () => {
       },
       'welcome',
     ],
+    // Only the finished road (onRoad dropped by the page) opens the profile.
     [
       {
         loading: false,
@@ -69,9 +72,8 @@ describe('profileScreen', () => {
         club: true,
         soul: true,
         onRoad: true,
-        left: true,
       },
-      'profile',
+      'welcome',
     ],
     // Somebody else's profile never sees the road, whatever the facts.
     [{ loading: false, own: false, connected: false, club: false }, 'profile'],
@@ -89,7 +91,7 @@ describe('the gate is wired, not decorative', () => {
   it('the page decides through profileScreen and renders the road for "welcome"', () => {
     expect(page).toContain('const screen = profileScreen({')
     expect(page).toMatch(
-      /if \(screen === 'welcome'\) \{[\s\S]*<WelcomeOnboarding[\s\S]*onLeave=\{leaveWelcome\}/
+      /if \(screen === 'welcome'\) \{[\s\S]*<WelcomeOnboarding[\s\S]*onDone=\{finishWelcome\}/
     )
     expect(page).toContain("if (screen === 'skeleton')")
     expect(page).not.toMatch(/\n\s*if \(loading\) \{/)

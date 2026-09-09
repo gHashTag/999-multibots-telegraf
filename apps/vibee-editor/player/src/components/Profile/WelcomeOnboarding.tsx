@@ -12,6 +12,16 @@
  * not know the price; if the server changes it, the screen follows. What we
  * promise is only what the server does: N Stars per M days, K tokens back per
  * charge, cancel inside Telegram. No reach figures, no "first", no "best".
+ *
+ * No step has a "later" or a "skip" (owner, 2026-09-09, evening: "until paid
+ * the profile does not open; every step is mandatory; we do not move on until
+ * the step is done"). Each card has one button of ours, the step itself; the
+ * only way out is Telegram's own back button. The profile opens on the last
+ * card, when club, Telegram and SOUL are all in place.
+ *
+ * Look: the same language as the landing (components/landing/Hero.css,
+ * Pricing.css): green glow on black, a pill badge, gradient title, a
+ * highlighted price card, a glowing green CTA. Same tokens, no new colours.
  */
 import { useState, type ChangeEvent, type ReactNode } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
@@ -40,8 +50,6 @@ import {
   WELCOME_STEPS,
   composeSoul,
   soulHasSubstance,
-  welcomeCanLeave,
-  welcomeCanSkip,
   welcomeIndex,
   welcomeNext,
   welcomeStart,
@@ -52,11 +60,11 @@ import './WelcomeOnboarding.css'
 
 interface WelcomeOnboardingProps {
   facts: WelcomeFacts
-  /** The person leaves the road for the profile (finished or "later"). */
-  onLeave: () => void
+  /** The last card was pressed: club, Telegram and SOUL are all in place. */
+  onDone: () => void
 }
 
-export function WelcomeOnboarding({ facts, onLeave }: WelcomeOnboardingProps) {
+export function WelcomeOnboarding({ facts, onDone }: WelcomeOnboardingProps) {
   const { t } = useLanguage()
   const [step, setStep] = useState<WelcomeStep>(() => welcomeStart(facts))
   const connected = useAtomValue(agentTelegramConnectedAtom)
@@ -69,12 +77,15 @@ export function WelcomeOnboarding({ facts, onLeave }: WelcomeOnboardingProps) {
     setStep(facts.soul ? 'done' : 'soul')
   }
 
-  const canLeave = welcomeCanLeave({ ...facts, connected: connected === true })
   const total = WELCOME_STEPS.length
   const n = welcomeIndex(step)
 
   return (
     <section className="welcome" data-testid="welcome-onboarding">
+      <div className="welcome__bg" aria-hidden="true">
+        <div className="welcome__glow" />
+        <div className="welcome__grid" />
+      </div>
       <header className="welcome__top">
         <span className="welcome__step">{t('welcome.step', { n, total })}</span>
         <ol className="welcome__dots" aria-hidden="true">
@@ -106,9 +117,7 @@ export function WelcomeOnboarding({ facts, onLeave }: WelcomeOnboardingProps) {
           ]}
           note={t('welcome.value.note')}
           onNext={() => setStep(welcomeNext(step))}
-          onSkip={welcomeCanSkip(step) ? () => setStep('club') : undefined}
           nextLabel={t('welcome.next')}
-          skipLabel={t('welcome.skip')}
         />
       )}
 
@@ -124,9 +133,7 @@ export function WelcomeOnboarding({ facts, onLeave }: WelcomeOnboardingProps) {
           ]}
           note={t('welcome.how.note')}
           onNext={() => setStep(welcomeNext(step))}
-          onSkip={welcomeCanSkip(step) ? () => setStep('club') : undefined}
           nextLabel={t('welcome.next')}
-          skipLabel={t('welcome.skip')}
         />
       )}
 
@@ -137,7 +144,6 @@ export function WelcomeOnboarding({ facts, onLeave }: WelcomeOnboardingProps) {
               connected === true ? (facts.soul ? 'done' : 'soul') : 'connect'
             )
           }
-          onLater={canLeave ? onLeave : undefined}
         />
       )}
 
@@ -160,12 +166,7 @@ export function WelcomeOnboarding({ facts, onLeave }: WelcomeOnboardingProps) {
         </div>
       )}
 
-      {step === 'soul' && (
-        <SoulStep
-          onSaved={() => setStep('done')}
-          onLater={canLeave ? onLeave : undefined}
-        />
-      )}
+      {step === 'soul' && <SoulStep onSaved={() => setStep('done')} />}
 
       {step === 'done' && (
         <div className="welcome__card welcome__card--center">
@@ -189,7 +190,7 @@ export function WelcomeOnboarding({ facts, onLeave }: WelcomeOnboardingProps) {
           <button
             type="button"
             className="welcome__btn welcome__btn--primary"
-            onClick={onLeave}
+            onClick={onDone}
           >
             {t('welcome.done.go')}
           </button>
@@ -208,9 +209,7 @@ function StoryStep(props: {
   bullets: string[]
   note: string
   nextLabel: string
-  skipLabel: string
   onNext: () => void
-  onSkip?: () => void
 }) {
   return (
     <div className="welcome__card">
@@ -236,15 +235,6 @@ function StoryStep(props: {
         >
           {props.nextLabel}
         </button>
-        {props.onSkip && (
-          <button
-            type="button"
-            className="welcome__btn welcome__btn--ghost"
-            onClick={props.onSkip}
-          >
-            {props.skipLabel}
-          </button>
-        )}
       </div>
     </div>
   )
@@ -252,7 +242,7 @@ function StoryStep(props: {
 
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function ClubStep(props: { onJoined: () => void; onLater?: () => void }) {
+function ClubStep(props: { onJoined: () => void }) {
   const { t } = useLanguage()
   const status = useAtomValue(clubStatusAtom)
   const busy = useAtomValue(clubBusyAtom)
@@ -282,6 +272,9 @@ function ClubStep(props: { onJoined: () => void; onLater?: () => void }) {
 
       {status ? (
         <div className="welcome__price" data-testid="welcome-price">
+          <span className="welcome__price-badge">
+            {t('welcome.club.badge')}
+          </span>
           <div className="welcome__price-main">
             <span className="welcome__price-stars">
               {stars.toLocaleString('ru-RU')}
@@ -352,15 +345,6 @@ function ClubStep(props: { onJoined: () => void; onLater?: () => void }) {
             t('welcome.club.join', { stars: stars.toLocaleString('ru-RU') })
           )}
         </button>
-        {props.onLater && (
-          <button
-            type="button"
-            className="welcome__btn welcome__btn--ghost"
-            onClick={props.onLater}
-          >
-            {t('welcome.later')}
-          </button>
-        )}
       </div>
     </div>
   )
@@ -368,7 +352,7 @@ function ClubStep(props: { onJoined: () => void; onLater?: () => void }) {
 
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function SoulStep(props: { onSaved: () => void; onLater?: () => void }) {
+function SoulStep(props: { onSaved: () => void }) {
   const { t } = useLanguage()
   const save = useSetAtom(saveSoulAtom)
   const saving = useAtomValue(soulSavingAtom)
@@ -450,15 +434,6 @@ function SoulStep(props: { onSaved: () => void; onLater?: () => void }) {
             t('welcome.soul.save')
           )}
         </button>
-        {props.onLater && (
-          <button
-            type="button"
-            className="welcome__btn welcome__btn--ghost"
-            onClick={props.onLater}
-          >
-            {t('welcome.soul.later')}
-          </button>
-        )}
       </div>
     </div>
   )
