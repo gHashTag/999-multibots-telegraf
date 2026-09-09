@@ -58,6 +58,9 @@ Do these in order; each step is reversible.
    - `INNGEST_GQL_URL=http://inngestinngest.railway.internal:8288/v0/gql`
      (explicit; default would be `${INNGEST_BASE_URL}/v0/gql`).
    - keep `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `INNGEST_SERVE_ORIGIN` unchanged.
+     Note: the SDK's own variable is `INNGEST_SERVE_HOST`; the app passes
+     `serveHost` to `serve()` from either name, so the registered app URL is
+     always the public origin regardless of who sends the sync `PUT`.
    - **Precedence (verified 2026-09-09):** Infisical copies every secret into
      `process.env` at boot and *overwrote* `INNGEST_BASE_URL` with the public
      Inngest URL, so a Railway-side value alone had no effect. Topology keys

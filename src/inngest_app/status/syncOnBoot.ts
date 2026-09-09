@@ -8,9 +8,20 @@
  * the registration when it receives a PUT, so the app can trigger it itself
  * right after it starts listening.
  *
- * The request goes to the loopback interface; the SDK computes the public
- * URL it registers from `INNGEST_SERVE_ORIGIN`, so no public DNS is needed.
+ * The request goes to the loopback interface. The SDK registers the URL it
+ * is given via `serveHost` (env `INNGEST_SERVE_HOST`); this repo historically
+ * names that value `INNGEST_SERVE_ORIGIN`, so `resolveInngestServeHost()`
+ * accepts both and `serve()` receives it explicitly. Without it the SDK would
+ * register the loopback Host header (`http://localhost:3000/...`).
  */
+
+/** Public origin of this app as the Inngest server must call it. */
+export function resolveInngestServeHost(
+  env: NodeJS.ProcessEnv = process.env
+): string | undefined {
+  const v = (env.INNGEST_SERVE_HOST || env.INNGEST_SERVE_ORIGIN || '').trim()
+  return v === '' ? undefined : v.replace(/\/+$/, '')
+}
 
 type FetchLike = (
   input: string,
@@ -48,8 +59,8 @@ export function shouldSyncOnBoot(env: NodeJS.ProcessEnv = process.env): {
     return { sync: false, reason: 'INNGEST_SYNC_ON_BOOT=0' }
   }
   if (env.NODE_ENV === 'test') return { sync: false, reason: 'NODE_ENV=test' }
-  if (!env.INNGEST_SERVE_ORIGIN) {
-    return { sync: false, reason: 'INNGEST_SERVE_ORIGIN not set' }
+  if (!resolveInngestServeHost(env)) {
+    return { sync: false, reason: 'INNGEST_SERVE_HOST/INNGEST_SERVE_ORIGIN not set' }
   }
   return { sync: true }
 }
