@@ -39,16 +39,17 @@ export async function handleFunctionsStatus(req: any, res: any): Promise<void> {
   applyCors(req, res)
   res.setHeader('Cache-Control', 'public, max-age=30')
   const result = await fetchFunctionsStatusSafe()
-  if (result.ok) {
-    res.status(200).json(result.payload)
+  if (result.ok === false) {
+    const failure = result.error
+    res.status(503).json({
+      generatedAt: failure.generatedAt,
+      error: 'inngest-unreachable',
+      detail: failure.error,
+      gqlUrl: failure.gqlUrl,
+    })
     return
   }
-  res.status(503).json({
-    generatedAt: result.error.generatedAt,
-    error: 'inngest-unreachable',
-    detail: result.error.error,
-    gqlUrl: result.error.gqlUrl,
-  })
+  res.status(200).json(result.payload)
 }
 
 export function handleFunctionsStatusOptions(req: any, res: any): void {
