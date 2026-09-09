@@ -69,6 +69,11 @@ import {
   этоПутьПодключения,
   обработатьПодключение,
 } from './src/agent/tg-connect'
+import {
+  isClubPath,
+  handleClub,
+  sweepClubRenewals,
+} from './src/agent/club-membership'
 // A2A: the open protocol for external agents. Imported here because this file
 // is the only place that mounts routes, and until now nothing imported it at
 // all -- see the block comment at the mount site.
@@ -2307,6 +2312,47 @@ setInterval(() => {
     }
   }
 }, 60 * 1000)
+
+/*
+ * CLUB RENEWALS ARRIVE WITHOUT ANYONE ASKING.
+ *
+ * Telegram charges a subscription every 30 days and issues no invoice of
+ * ours, so nobody calls verify for it. This sweep reads the cashier's recent
+ * Stars transactions once an hour and books every club charge that is not on
+ * file yet: tokens credited, membership extended. Idempotent on the
+ * transaction id, so the same charge can never be booked twice. See
+ * club-membership.ts. Without this timer a paid month could pass uncredited,
+ * which is the worst thing a subscription product can do.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      const token = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
+      if (!token) return
+      try {
+        const pool = (await getPool()) as any
+        const booked = await sweepClubRenewals(pool, token, c =>
+          creditStarsPayment(pool, {
+            chargeId: c.chargeId,
+            telegramId: c.telegramId,
+            amount: c.tokens,
+          })
+        )
+        if (booked.length) {
+          console.log(
+            `[club] sweep booked ${booked.length} period(s): ` +
+              booked
+                .map(b => `${b.telegramId}→${b.until.slice(0, 10)}`)
+                .join(', ')
+          )
+        }
+      } catch (e) {
+        console.warn('[club] sweep error:', String(e).slice(0, 160))
+      }
+    })()
+  },
+  60 * 60 * 1000
+)
 
 /*
  * THE QUEEN'S REPORT -- THE ONLY READER OF THE JOURNAL THAT ARRIVES BY ITSELF.
@@ -7696,9 +7742,8 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, chosenProvider, isProviderId } = await import(
-        './src/agent/provider-choice'
-      )
+      const { chooseProvider, chosenProvider, isProviderId } =
+        await import('./src/agent/provider-choice')
       if (req.method === 'POST') {
         let asked: unknown = null
         try {
@@ -7749,9 +7794,8 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claim, execute, idFromBody } = await import(
-        './src/agent/tg-proposals'
-      )
+      const { claim, execute, idFromBody } =
+        await import('./src/agent/tg-proposals')
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
@@ -7789,6 +7833,23 @@ const server = createServer(async (req, res) => {
         error: taken.ok ? undefined : taken.why,
       })
     }
+  }
+
+  if (isClubPath(req.url?.split('?')[0] || '')) {
+    const out = await handleClub(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      botToken: process.env.TOKENS_PAYMENT_BOT_TOKEN || '',
+      credit: async c =>
+        creditStarsPayment((await getPool()) as any, {
+          chargeId: c.chargeId,
+          telegramId: c.telegramId,
+          amount: c.tokens,
+        }),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
   }
 
   if (этоПутьПодключения(req.url?.split('?')[0] || '')) {
@@ -8198,9 +8259,8 @@ const server = createServer(async (req, res) => {
           )
           // Once per process, not per open of the mini-app: the ALTER takes
           // an exclusive lock even when it has nothing to add.
-          const { ensureInvoiceColumns } = await import(
-            './src/agent/token-invoice'
-          )
+          const { ensureInvoiceColumns } =
+            await import('./src/agent/token-invoice')
           await ensureInvoiceColumns(pool)
           /*
            * EVERY unredeemed row, cancelled ones included. This is the only
@@ -8255,6 +8315,8 @@ const server = createServer(async (req, res) => {
               const txMs = Number(t.date) * 1000
               return (
                 !usedTxIds.has(String(t.id)) &&
+                // A subscription charge belongs to club-membership.ts.
+                !t.source?.subscription_period &&
                 Number(t.amount) === row.stars &&
                 t.source?.user?.id === Number(who) &&
                 txMs > invoiceMs - 60_000

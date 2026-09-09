@@ -1,4 +1,4 @@
-export type ProfileScreen = 'skeleton' | 'connect' | 'profile'
+export type ProfileScreen = 'skeleton' | 'welcome' | 'profile'
 
 /**
  * WHICH SCREEN THE PROFILE ROUTE SHOWS.
@@ -9,13 +9,30 @@ export type ProfileScreen = 'skeleton' | 'connect' | 'profile'
  * to live on the seventh tab of the profile; a person who never scrolled there
  * never connected, and the agent stayed inert without anyone knowing why.
  *
+ * Later the same day: "on the profile screen we need a welcome onboarding that
+ * step by step opens the value of the product and leads to payment; after
+ * payment we help enter the Telegram password; then a slide for SOUL.md".
+ * The bare connect gate became one step of that road (welcomeSteps.ts), so
+ * this function now answers 'welcome' where it used to answer 'connect'.
+ *
  * Rules, in order:
  *  - the profile is still loading → skeleton (nothing to decide yet);
  *  - somebody else's profile → profile (there is no phone of theirs to ask for);
- *  - own profile, status not asked yet → skeleton (a gate that flashes for a
- *    connected person and then vanishes is a lie for half a second);
- *  - own profile, not connected → connect;
- *  - connected → profile.
+ *  - own profile, connect status not asked yet → skeleton (a gate that flashes
+ *    for a connected person and then vanishes is a lie for half a second);
+ *  - own profile, not connected → welcome (the road is mandatory here: the
+ *    profile does not work without the phone login);
+ *  - connected, club status not asked yet → skeleton, same reason as above;
+ *  - connected, but no club or no SOUL yet → welcome, unless the person said
+ *    "later" this session (`left`): they have passed the mandatory step and
+ *    may look at their profile; the road returns next session;
+ *  - the road is already on screen (`onRoad`) → it stays until the person
+ *    leaves it, so paying mid-road does not drop them into the profile;
+ *  - everything in place → profile.
+ *
+ * `soul === null` (not loaded yet) does not hold the page: the SOUL check is
+ * an agent tool call, slower than the two HTTP statuses, and a half-second
+ * skeleton on every visit for it would cost more than a rare late nudge.
  *
  * `devBypass` is the existing developer flag (the Cyrillic "own" query key,
  * see useIsOwnProfile): it fakes ownership
@@ -28,9 +45,28 @@ export function profileScreen(input: {
   own: boolean
   connected: boolean | null
   devBypass?: boolean
+  /** Club membership active; null = not asked yet. Omitted = not known to caller. */
+  club?: boolean | null
+  /** A SOUL.md exists; null = not asked yet. */
+  soul?: boolean | null
+  /** The person chose "later" on the welcome road this session. */
+  left?: boolean
+  /**
+   * The road is already on screen. It keeps the screen until the person
+   * leaves it (finished or "later"): joining the club mid-road must not
+   * flip the page to the profile before the Telegram and SOUL steps.
+   */
+  onRoad?: boolean
 }): ProfileScreen {
   if (input.loading) return 'skeleton'
   if (!input.own || input.devBypass) return 'profile'
   if (input.connected === null) return 'skeleton'
-  return input.connected ? 'profile' : 'connect'
+  if (!input.connected) return 'welcome'
+  if (input.club === undefined) return 'profile'
+  if (input.club === null) return 'skeleton'
+  if (input.onRoad && !input.left) return 'welcome'
+  if (!input.club || input.soul === false) {
+    return input.left ? 'profile' : 'welcome'
+  }
+  return 'profile'
 }

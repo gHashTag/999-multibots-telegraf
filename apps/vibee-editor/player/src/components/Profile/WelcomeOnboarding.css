@@ -1,0 +1,292 @@
+/*
+ * THE WELCOME ROAD: ONE CARD PER STEP.
+ *
+ * Same tokens as ConnectTelegram.css (--vibee-green for the one action that
+ * moves forward, --vibee-gold for the price, 16px+ body text because this is
+ * read on a phone inside Telegram). Nothing here is decoration for its own
+ * sake: the dots say how long the road is, the note says what we do NOT
+ * promise, the ghost button is the honest "later".
+ */
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1rem 2rem;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.welcome__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.welcome__step {
+  font-size: 14px;
+  color: var(--text-muted, #888);
+  font-variant-numeric: tabular-nums;
+}
+
+.welcome__dots {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.welcome__dot {
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.welcome__dot--past {
+  background: rgba(0, 255, 136, 0.45);
+}
+
+.welcome__dot--now {
+  background: var(--vibee-green, #00ff88);
+}
+
+.welcome__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.25rem 1rem;
+  border-radius: 16px;
+  background: var(--color-bg-elevated, #1a1a1a);
+}
+
+.welcome__card--center {
+  align-items: center;
+  text-align: center;
+}
+
+.welcome__why {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+  color: var(--text-secondary, #aaa);
+}
+
+.welcome__why h2,
+.welcome__card--center h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.25;
+  color: var(--text-primary, #fff);
+}
+
+.welcome__why p,
+.welcome__lead {
+  margin: 0;
+  max-width: 440px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text-primary, #fff);
+}
+
+.welcome__bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.welcome__bullets li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--text-primary, #fff);
+}
+
+.welcome__bullets li svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--vibee-green, #00ff88);
+}
+
+/* What we do not promise. Muted on purpose, but present on purpose too. */
+.welcome__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted, #888);
+}
+
+.welcome__warn {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--vibee-gold, #ffd700);
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.welcome__error {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #ff6b6b;
+}
+
+.welcome__consent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-secondary, #aaa);
+}
+
+/* THE PRICE IS THE LARGEST THING ON THE PAYWALL. A person who has to hunt
+   for the number assumes it is hidden for a reason. */
+.welcome__price {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+}
+
+.welcome__price--loading {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted, #888);
+  font-size: 15px;
+}
+
+.welcome__price-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  color: var(--vibee-gold, #ffd700);
+}
+
+.welcome__price-stars {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.welcome__price-main svg {
+  align-self: center;
+}
+
+.welcome__price-period {
+  font-size: 16px;
+  color: var(--text-primary, #fff);
+}
+
+.welcome__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.welcome__field span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+/* 16px minimum: iOS Safari zooms the page on smaller inputs and does not
+   zoom back cleanly inside a Mini App (see ConnectTelegram.css). */
+.welcome__field textarea {
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--text-primary, #fff);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  resize: vertical;
+}
+
+.welcome__field textarea:focus {
+  outline: none;
+  border-color: var(--vibee-green, #00ff88);
+}
+
+.welcome__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.welcome__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--touch-target, 44px);
+  padding: 12px 20px;
+  font-size: 17px;
+  font-weight: 600;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.welcome__btn--primary {
+  color: #000;
+  background: var(--vibee-green, #00ff88);
+}
+
+.welcome__btn--primary:active {
+  transform: translateY(1px);
+}
+
+.welcome__btn--primary:disabled {
+  background: rgba(0, 255, 136, 0.28);
+  color: rgba(0, 0, 0, 0.55);
+  cursor: not-allowed;
+}
+
+.welcome__btn--ghost {
+  color: var(--text-muted, #888);
+  background: transparent;
+}
+
+.welcome__done-icon {
+  color: var(--vibee-green, #00ff88);
+}
+
+.welcome__spin {
+  animation: welcome-spin 0.9s linear infinite;
+}
+
+@keyframes welcome-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome__spin {
+    animation: none;
+  }
+}

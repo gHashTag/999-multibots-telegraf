@@ -25,12 +25,56 @@ describe('profileScreen', () => {
     [{ loading: false, own: false, connected: null }, 'profile'],
     [{ loading: false, own: false, connected: false }, 'profile'],
     [{ loading: false, own: true, connected: null }, 'skeleton'],
-    [{ loading: false, own: true, connected: false }, 'connect'],
+    [{ loading: false, own: true, connected: false }, 'welcome'],
     [{ loading: false, own: true, connected: true }, 'profile'],
     [
       { loading: false, own: true, connected: false, devBypass: true },
       'profile',
     ],
+    // The welcome road (owner, 2026-09-09: value -> club -> Telegram -> SOUL).
+    [{ loading: false, own: true, connected: true, club: null }, 'skeleton'],
+    [{ loading: false, own: true, connected: true, club: false }, 'welcome'],
+    [
+      { loading: false, own: true, connected: true, club: false, left: true },
+      'profile',
+    ],
+    [
+      { loading: false, own: true, connected: true, club: true, soul: null },
+      'profile',
+    ],
+    [
+      { loading: false, own: true, connected: true, club: true, soul: false },
+      'welcome',
+    ],
+    [
+      { loading: false, own: true, connected: true, club: true, soul: true },
+      'profile',
+    ],
+    [
+      {
+        loading: false,
+        own: true,
+        connected: true,
+        club: true,
+        soul: null,
+        onRoad: true,
+      },
+      'welcome',
+    ],
+    [
+      {
+        loading: false,
+        own: true,
+        connected: true,
+        club: true,
+        soul: true,
+        onRoad: true,
+        left: true,
+      },
+      'profile',
+    ],
+    // Somebody else's profile never sees the road, whatever the facts.
+    [{ loading: false, own: false, connected: false, club: false }, 'profile'],
   ] as const)('%j -> %s', (input, expected) => {
     expect(profileScreen(input)).toBe(expected)
   })
@@ -40,14 +84,27 @@ describe('the gate is wired, not decorative', () => {
   const page = read('pages/Profile.tsx')
   const connect = read('components/Profile/ConnectTelegram.tsx')
   const gate = read('components/Profile/ProfileConnectGate.tsx')
+  const road = read('components/Profile/WelcomeOnboarding.tsx')
 
-  it('the page decides through profileScreen and renders the gate for "connect"', () => {
+  it('the page decides through profileScreen and renders the road for "welcome"', () => {
     expect(page).toContain('const screen = profileScreen({')
     expect(page).toMatch(
-      /if \(screen === 'connect'\) \{[\s\S]*<ProfileConnectGate \/>/
+      /if \(screen === 'welcome'\) \{[\s\S]*<WelcomeOnboarding[\s\S]*onLeave=\{leaveWelcome\}/
     )
     expect(page).toContain("if (screen === 'skeleton')")
     expect(page).not.toMatch(/\n\s*if \(loading\) \{/)
+  })
+
+  it('the page feeds the road with server facts, not with a stored flag', () => {
+    expect(page).toContain('club: clubActive,')
+    expect(page).toContain('soul: soulExists,')
+    expect(page).toContain('void loadClub()')
+    expect(page).toContain('void loadSoul()')
+  })
+
+  it('the road itself contains the connect flow as one of its steps', () => {
+    expect(road).toContain('<ConnectTelegram />')
+    expect(road).toContain("step === 'connect'")
   })
 
   it('the page asks the server once for its own profile', () => {
