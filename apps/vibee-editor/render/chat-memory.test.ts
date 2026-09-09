@@ -482,3 +482,41 @@ describe('who they are', () => {
     expect(other.lastWords).toBe('привет')
   })
 })
+
+describe('a segment is chosen over the whole base', () => {
+  const now = D('2026-09-08T00:00:00Z')
+  it('segment=warm surfaces a quiet person that the limit alone would hide', async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      lead_id: `w${i}`,
+      total: 3,
+      inbound: 2,
+      last_in: '2026-09-07T09:00:00Z',
+      last_out: '2026-09-06T09:00:00Z',
+    }))
+    rows.push({
+      lead_id: 'warm1',
+      total: 4,
+      inbound: 2,
+      last_in: '2026-08-15T09:00:00Z',
+      last_out: '2026-08-16T09:00:00Z',
+    })
+    const pool = fakePool([
+      { when: /GROUP BY lead_id/, rows },
+      {
+        when: /^SELECT lead_id, text FROM crm_messages/,
+        rows: rows.map(r => ({ lead_id: r.lead_id, text: 'привет' })),
+      },
+    ])
+    const top = await leadCandidates(pool, OWNER, { now, limit: 5 })
+    expect(top.map(c => c.lead)).not.toContain('warm1')
+    const warm = await leadCandidates(pool, OWNER, {
+      now,
+      limit: 5,
+      segment: 'warm',
+    })
+    expect(warm.map(c => c.lead)).toEqual(['warm1'])
+    expect(warm[0].segment).toBe('warm')
+    expect(warm[0].daysSinceOut).toBeGreaterThanOrEqual(20)
+    expect(top[0].segment).toBe('waiting')
+  })
+})

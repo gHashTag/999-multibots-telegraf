@@ -27,6 +27,7 @@ import { stageOf, waitingOn } from './crm-stages'
 import { whoPaid } from './crm-tools'
 import { displayOf } from './crm-offer-tool'
 import { zepConfigured, zepFlavor } from './zep-memory'
+import { countSegments, segmentCaps, type Segment } from './crm-segments'
 
 export const NEXT_STEPS = ['reply', 'deliver', 'offer', 'talk', 'wait'] as const
 export const STAGES = [
@@ -85,6 +86,15 @@ export interface SummaryCore {
     { total: number; recent: number; last_at: string | null }
   >
   waiting_by_touch: { ours: number; due: number; theirs: number }
+  /** Every person in exactly one segment; the counts add up to people_with_messages. */
+  segments: Record<Segment, number>
+  /** The objections of the week, hand only, by score. */
+  objections: Array<{
+    lead: string
+    display: string | null
+    next: string
+    days_since_their_last_word: number | null
+  }>
   top: Array<{
     lead: string
     display: string | null
@@ -158,6 +168,15 @@ export function summarize(
       last_at: row.last_at,
     }
   }
+  const objections = list
+    .filter(c => c.segment === 'objection')
+    .slice(0, 3)
+    .map(c => ({
+      lead: c.lead,
+      display: displayOf(c.name, c.username),
+      next: c.next,
+      days_since_their_last_word: c.daysSinceInbound,
+    }))
   const top = list
     .filter(c => c.next !== 'wait')
     .slice(0, 5)
@@ -182,6 +201,8 @@ export function summarize(
     by_signal,
     touches_by_kind,
     waiting_by_touch,
+    segments: countSegments(list),
+    objections,
     top,
   }
 }
@@ -219,10 +240,12 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
       const touched = await touchedSince(pool, owner, 60).catch(
         () => new Map<string, { kind: TouchKind; at: string }>()
       )
+      const paidSet = await whoPaid().catch(() => new Set<string>())
       // The whole base, not a page: the buckets must count everybody.
       const list = await leadCandidates(pool, owner, {
         limit: 100_000,
         touched,
+        paid: paidSet,
       })
       const [known, history, kinds, sellerSends, paid] = await Promise.all([
         (
@@ -239,7 +262,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         touchesByLead(pool, owner),
         touchesByKind(pool, owner, days),
         sellerSendsSince(pool, owner, days),
-        whoPaid().catch(() => new Set<string>()),
+        Promise.resolve(paidSet),
       ])
       const now = Date.now()
       const core = summarize(list, history, kinds, paid, now)
@@ -251,6 +274,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         people_known: Number(known.rows?.[0]?.people_known ?? 0),
         last_ingest_at: lastIngest ? new Date(lastIngest).toISOString() : null,
         ...core,
+        caps: segmentCaps(),
         seller_sends_recent: sellerSends,
         pending_card: pend
           ? {
