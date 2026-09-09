@@ -2,7 +2,9 @@
  * Minimal read-only client for the Inngest server GraphQL API (`/v0/gql`).
  *
  * Only queries are issued here — no mutations (no invoke, no cancel, no
- * rerun). Used by:
+ * rerun). The single mutation this repo sends (`invokeFunction`, safe-mode
+ * probes behind the admin command /inngest_probe) lives in
+ * `probe/inngestProbeClient.ts`, on purpose in a separate file. Used by:
  *   - GET /api/inngest/functions/status (api_server)
  *   - MCP read-only health tools (mcp-server.ts)
  *   - log-monitor fallback when file logging is disabled on the host

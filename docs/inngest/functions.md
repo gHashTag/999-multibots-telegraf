@@ -81,7 +81,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** check-user
 - **Side effects:** `charges-balance`, `paid-api`, `messages-user`, `db-write`
 - **Steps:** `get-bot` → `check-user` → `get-user-gender` → `update-level` → `calculate-total-cost` → `process-payment` → `get-aspect-ratio` → `generate-image-${i}` → `notify-image-${i}` → `final-notification`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - file corrected: 'src/inngest_app/functions/neuroImageGeneration.ts' -> 'src/inngest_app/functions/generation/neuroImageGeneration.ts'
   - steps re-extracted from code: ['get-bot', 'check-user', 'get-user-gender', 'update-level', 'calculate-total-cost', 'process-payment', 'get-aspect-ratio', 'generate-image-${i}', 'notify-image-${i}', 'deduct-balance-final', 'final-notification'] -> ['get-bot', 'check-user', 'get-user-gender', 'update-level', 'calculate-total-cost', 'process-payment', 'get-aspect-ratio', 'generate-image-${i}', 'notify-image-${i}', 'final-notification']
@@ -99,11 +99,12 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** validate-input
 - **Side effects:** `paid-api`, `messages-user`
 - **Steps:** `validate-input` → `generate-lipsync-video` → `generate-wan25-video` → `merge-videos` → `notify-telegram`
-- **Probe 2026-09-09:** safe=no, result=skipped, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=skipped, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - steps re-extracted from code: ['generate-lipsync-video', 'generate-wan25-video', 'merge-videos', 'notify-telegram'] -> ['validate-input', 'generate-lipsync-video', 'generate-wan25-video', 'merge-videos', 'notify-telegram']
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
   - guard: none -> validate-input (step added in this PR)
+  - probe 2026-09-10: validate-input rejects {} before the paid lipsync/wan25 steps; safe mode would stop there anyway
 
 ### reels-ai-callback
 
@@ -118,7 +119,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** extract-job-id
 - **Side effects:** `paid-api`, `messages-user`
 - **Steps:** `send-completed-video` → `send-failed-message` → `send-processing-update`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 
 ### reels-loop-generate
 
@@ -133,7 +134,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** min-images
 - **Side effects:** `paid-api`, `messages-user`
 - **Steps:** `generate-morphing-clips` → `download-video-clips` → `combine-video-clips` → `add-music` → `send-to-telegram` → `send-to-pulse` → `cleanup`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -150,7 +151,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** validate-steps
 - **Side effects:** `charges-balance`, `paid-api`, `messages-user`, `db-write`
 - **Steps:** `validate-credentials` → `check-duplicates` → `validate-zip-url` → `create-replicate-model` → `save-pending-record` → `create-replicate-training` → `update-training-record` → `notify-user-started`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -167,7 +168,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** check-user-exists
 - **Side effects:** `charges-balance`, `paid-api`, `messages-user`, `db-write`
 - **Steps:** `check-user-exists` → `update-user-level` → `get-bot` → `check-balance` → `encode-zip` → `create-training` → `save-training-to-db` → `notify-user` → `deduct-balance` → `refund-balance` → `handle-error`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - file corrected: '(empty)' -> 'src/inngest_app/functions/training/modelTrainingV2.ts'
   - steps re-extracted from code: [] -> ['check-user-exists', 'update-user-level', 'get-bot', 'check-balance', 'encode-zip', 'create-training', 'save-training-to-db', 'notify-user', 'deduct-balance', 'refund-balance', 'handle-error']
@@ -186,7 +187,9 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** unknown
 - **Side effects:** `charges-balance`, `paid-api`, `messages-user`, `db-write`
 - **Steps:** `find-training-record` → `update-training-status` → `send-telegram-notification`
-- **Probe 2026-09-09:** safe=no, result=not-deployed, deployed=no
+- **Probe 2026-09-09:** safe=yes, result=not-deployed, deployed=no; probe suite expects: COMPLETED
+- **Notes:**
+  - probe 2026-09-10: find-training-record returns found:false for the probe id and the function returns skipped:true without touching balances or users
 
 ### training-stuck-check
 
@@ -201,9 +204,10 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** `charges-balance`, `paid-api`, `messages-user`, `db-write`
 - **Steps:** `find-stuck-trainings` → `check-replicate-status` → `send-completion-events`
-- **Probe 2026-09-09:** safe=no, result=not-deployed, deployed=no
+- **Probe 2026-09-09:** safe=yes, result=not-deployed, deployed=no; probe suite expects: COMPLETED
 - **Notes:**
   - safe mode: send-completion-events is skipped (fan-out to training-model-complete would message users)
+  - probe 2026-09-10: same work as the 30-min cron; send-completion-events is skipped in safe mode
 
 ### morph-images-generate
 
@@ -218,7 +222,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** check-user-exists
 - **Side effects:** `charges-balance`, `paid-api`, `messages-user`
 - **Steps:** `check-user-exists` → `check-balance` → `notify-start` → `process-all-pairs` → `process-loop-pair` → `concatenate-all-videos` → `cleanup-temp-files` → `deliver-result`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -235,7 +239,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** zod-schema
 - **Side effects:** `paid-api`, `external-webhook`, `db-write`
 - **Steps:** `create-job-folder` → `download-files` → `render` → `upload-to-s3` → `callback`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 
 ### render-avatar-video-run
 
@@ -250,7 +254,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** zod-schema
 - **Side effects:** `paid-api`, `external-webhook`, `db-write`
 - **Steps:** `create-job` → `generate-speech-audio` → `start-hedra-generation` → `wait-hedra-completion` → `start-heygen-generation` → `wait-heygen-completion` → `generate-transcription` → `generate-broll-prompts` → `generate-brolls-parallel` → `wait-brolls-completion` → `create-job-settings` → `upload-settings-to-s3` → `trigger-render`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 
 ### render-riddle-run
 
@@ -265,7 +269,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** zod-schema
 - **Side effects:** `paid-api`, `external-webhook`, `db-write`
 - **Steps:** `preflight-render-capacity` → `load-template-json` → `create-job` → `generate-speech-audio` → `start-avatar-generation` → `wait-avatar-completion` → `extract-avatar-speech-url` → `generate-transcription` → `generate-broll-prompts` → `generate-broll-${index}` → `wait-broll-${index}` → `prepare-template-json` → `trigger-render`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - steps re-extracted from code: ['preflight-render-capacity', 'load-template-json', 'create-job', 'generate-speech-audio', 'start-avatar-generation', 'wait-avatar-completion', 'start-avatar-generation', 'wait-avatar-completion', 'extract-avatar-speech-url', 'generate-transcription', 'generate-broll-prompts', 'generate-broll-${index}', 'wait-broll-${index}', 'prepare-template-json', 'trigger-render'] -> ['preflight-render-capacity', 'load-template-json', 'create-job', 'generate-speech-audio', 'start-avatar-generation', 'wait-avatar-completion', 'extract-avatar-speech-url', 'generate-transcription', 'generate-broll-prompts', 'generate-broll-${index}', 'wait-broll-${index}', 'prepare-template-json', 'trigger-render']
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
@@ -283,7 +287,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** amount-match
 - **Side effects:** `db-write`, `messages-user`
 - **Steps:** `check-subscription-plan` → `check-payment-option` → `get-user-info` → `get-bot-config` → `update-user-balance` → `send-notification`
-- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes; probe suite expects: COMPLETED
 - **Notes:**
   - file corrected: '(empty)' -> 'src/inngest_app/functions/payments/paymentProcessing.ts'
   - steps re-extracted from code: [] -> ['check-subscription-plan', 'check-payment-option', 'get-user-info', 'get-bot-config', 'update-user-balance', 'send-notification']
@@ -303,7 +307,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** validate-input
 - **Side effects:** `messages-user`
 - **Steps:** `validate-input` → `check-permissions` → `fetch-users` → `send-messages` → `analyze-results`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - file corrected: '(empty)' -> 'src/inngest_app/functions/broadcast/broadcastMessage.ts'
   - steps re-extracted from code: [] -> ['validate-input', 'check-permissions', 'fetch-users', 'send-messages', 'analyze-results']
@@ -323,7 +327,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** validate-input
 - **Side effects:** `paid-api`, `db-write`
 - **Steps:** `validate-input` → `validate-project` → `call-instagram-reels-api` → `filter-reels-by-date` → `calculate-metrics` → `save-to-reels-analysis-table` → `send-telegram-notification`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -340,7 +344,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** validate-input
 - **Side effects:** `paid-api`, `db-write`
 - **Steps:** `validate-input` → `validate-project` → `call-instagram-api` → `filter-by-followers` → `save-to-competitors-table` → `send-telegram-notification`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -357,7 +361,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** zod-schema
 - **Side effects:** `db-write`
 - **Steps:** `query-top-reels` → `process-reels` → `format-report`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - side_effects corrected: ['paid-api','db-write'] -> ['db-write'] (function only queries reels_analysis; no external API)
 
@@ -374,7 +378,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** zod-schema
 - **Side effects:** `paid-api`, `db-write`
 - **Steps:** `get-reel-data` → `extract-audio` → `transcribe-audio` → `generate-scripts` → `save-scripts`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -391,7 +395,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** zod-schema
 - **Side effects:** `paid-api`, `db-write`
 - **Steps:** `create-script-record` → `generate-detailed-scenes` → `save-detailed-script`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -408,7 +412,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** zod-schema
 - **Side effects:** `paid-api`, `db-write`
 - **Steps:** `create-scenario-record` → `generate-detailed-scenes` → `create-text-reports-archive` → `update-scenario-record`
-- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=FAILED-at-guard, deployed=yes; probe suite expects: FAILED-at-guard
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -425,7 +429,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** `paid-api`, `messages-admin`
 - **Steps:** `analyze-error` → `format-message` → `send-notification` → `log-for-analysis`
-- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes; probe suite expects: COMPLETED
 - **Notes:**
   - side_effects: added paid-api (OpenAI analyze-error step); on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -442,7 +446,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** `messages-admin`
 - **Steps:** `check-api-health` → `check-inngest-health` → `notify-unhealthy`
-- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes; probe suite expects: COMPLETED
 
 ### monitoring-logs-analyze
 
@@ -457,7 +461,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** `messages-admin`
 - **Steps:** `read-logs` → `summarize-inngest-runs` → `analyze-logs` → `generate-message` → `send-notification`
-- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes; probe suite expects: COMPLETED
 - **Notes:**
   - steps re-extracted from code: ['read-logs', 'analyze-logs', 'generate-message', 'send-notification'] -> ['read-logs', 'summarize-inngest-runs', 'analyze-logs', 'generate-message', 'send-notification']
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
@@ -475,7 +479,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** `messages-admin`
 - **Steps:** `read-logs` → `summarize-inngest-runs` → `analyze-logs` → `generate-message` → `send-notification`
-- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes; probe suite expects: COMPLETED
 - **Notes:**
   - steps re-extracted from code: ['read-logs', 'analyze-logs', 'generate-message', 'send-notification'] -> ['read-logs', 'summarize-inngest-runs', 'analyze-logs', 'generate-message', 'send-notification']
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
@@ -493,7 +497,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** `messages-owners`, `messages-admin`
 - **Steps:** `load-owners` → `load-payments-7d` → `load-payments-1d` → `load-payments-2d` → `report-${ownerId}`
-- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes; probe suite expects: COMPLETED
 - **Notes:**
   - on_failure: log -> admin-telegram (onFailure handler added in this PR)
 
@@ -510,7 +514,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** `messages-admin`, `db-write`
 - **Steps:** `load-existing-skills` → `detect-${serviceType}` → `notify-admin`
-- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes
+- **Probe 2026-09-09:** safe=yes, result=COMPLETED, deployed=yes; probe suite expects: COMPLETED
 - **Notes:**
   - side_effects corrected: ['messages-owners','messages-admin'] -> ['messages-admin','db-write'] (only notify-admin to ADMIN_TELEGRAM_ID; writes skills table)
 
@@ -527,7 +531,9 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** unknown
 - **Side effects:** `db-write`
 - **Steps:** `check-webhook-availability`
-- **Probe 2026-09-09:** safe=no, result=not-deployed, deployed=no
+- **Probe 2026-09-09:** safe=yes, result=not-deployed, deployed=no; probe suite expects: COMPLETED
+- **Notes:**
+  - probe 2026-09-10: check-webhook-availability only GETs our own webhook URLs; a FAILED here means the webhooks are unreachable, which is worth knowing
 
 ### welcome-avatar-generate
 
@@ -542,7 +548,9 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** unknown
 - **Side effects:** `paid-api`, `messages-user`
 - **Steps:** `validate-bot` → `select-hero` → `reserve-gift-slot` → `generate-image` → `send-welcome`
-- **Probe 2026-09-09:** safe=no, result=not-deployed, deployed=no
+- **Probe 2026-09-09:** safe=yes, result=not-deployed, deployed=no; probe suite expects: COMPLETED
+- **Notes:**
+  - probe 2026-09-10: validate-bot fails for the nonexistent bot and the function returns success:false before reserve-gift-slot
 
 ## Unregistered cards
 
@@ -558,7 +566,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - demo function; moved to functions/__dev__; served only by dev/test apps (prod-app.ts, test-app.ts)
 
@@ -574,7 +582,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - demo function; moved to functions/__dev__; served only by dev/test apps
 
@@ -590,7 +598,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - demo function; moved to functions/__dev__; served only by dev/test apps
 
@@ -606,7 +614,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - KieAI webhook monitor never wired into registerFunctions
 
@@ -622,7 +630,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - RVC voice training never wired; charges balance — must not be registered silently
 
@@ -638,7 +646,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - RVC voice training completion never wired
 
@@ -654,7 +662,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - not exported from registerFunctions; only validateWebhookBeforeGeneration is served
 
@@ -670,7 +678,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - cron 0 * * * *; not served
 
@@ -686,7 +694,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - duplicate of training/morphImages.ts (served copy is morph-images-generate)
 
@@ -702,7 +710,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - duplicate of generation/neuroImageGeneration.ts (served copy is neuro-image-generate)
 
@@ -718,7 +726,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - duplicate/legacy of existing/generateModelTrainingFunction.ts (served copy is training-model-start)
 
@@ -734,7 +742,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - import commented out in registerFunctions (broken imports)
 
@@ -750,7 +758,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - import commented out in registerFunctions
 
@@ -766,6 +774,6 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Guard:** none
 - **Side effects:** —
 - **Steps:** —
-- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no
+- **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
   - import commented out in registerFunctions

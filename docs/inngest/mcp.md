@@ -55,3 +55,6 @@ The self-hosted Inngest server also serves `/mcp`. It requires
 `Authorization: Bearer <INNGEST_SIGNING_KEY>`; it is a *write-capable* surface
 (invoke, cancel). Prefer the read-only tools above for agents; use `/mcp` only
 from an operator's machine with the signing key.
+
+To *trigger* every served function in safe mode (not just read its status), see
+`docs/inngest/probe-suite.md` — the admin command `/inngest_probe`.

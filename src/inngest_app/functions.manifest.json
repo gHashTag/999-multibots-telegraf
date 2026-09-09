@@ -1,5 +1,5 @@
 {
-  "$comment": "SSOT for Inngest functions of 999-multibots-telegraf. Derived from design/functions-manifest.json (2026-09-09) and corrected against code; see notes[] per entry. control: spec+code = registered in registerFunctions.ts and served; code-only/unregistered = present in tree, deliberately NOT served. Regenerate docs: bun run scripts/inngest/gen-functions-doc.ts",
+  "$comment": "SSOT for Inngest functions of 999-multibots-telegraf. Derived from design/functions-manifest.json (2026-09-09) and corrected against code; see notes[] per entry. control: spec+code = registered in registerFunctions.ts and served; code-only/unregistered = present in tree, deliberately NOT served. Regenerate docs: bun run scripts/inngest/gen-functions-doc.ts probe_expect: what the safe probe suite (/inngest_probe, src/inngest_app/probe) expects from a run with e2e_test=true — COMPLETED | FAILED-at-guard (fails at `guard`) | skip (not probed).",
   "version": 1,
   "app": {
     "id": "telegram-bot-client",
@@ -42,6 +42,7 @@
       "guard": "check-user",
       "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\", \"prompt\": \"safe-mode probe\", \"is_ru\": true, \"num_images\": 1, \"model_url\": \"e2e/none\"}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "neuroImageGeneration",
@@ -76,15 +77,17 @@
         "messages-user"
       ],
       "guard": "validate-input",
-      "safe_probe": "",
+      "safe_probe": "{}",
       "probe_result": "skipped",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "generateAIReelsFunction",
       "notes": [
         "steps re-extracted from code: ['generate-lipsync-video', 'generate-wan25-video', 'merge-videos', 'notify-telegram'] -> ['validate-input', 'generate-lipsync-video', 'generate-wan25-video', 'merge-videos', 'notify-telegram']",
         "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
-        "guard: none -> validate-input (step added in this PR)"
+        "guard: none -> validate-input (step added in this PR)",
+        "probe 2026-09-10: validate-input rejects {} before the paid lipsync/wan25 steps; safe mode would stop there anyway"
       ]
     },
     {
@@ -113,6 +116,7 @@
       "guard": "extract-job-id",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "aiReelsCallbackFunction",
@@ -148,6 +152,7 @@
       "guard": "min-images",
       "safe_probe": "{\"telegram_id\": \"0\", \"image_urls\": [], \"bot_token\": \"\", \"prompt\": \"safe-mode probe\"}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "generateAdvancedLoopingVideoFunction",
@@ -188,6 +193,7 @@
       "guard": "validate-steps",
       "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\", \"steps\": -1, \"zipUrl\": \"\", \"triggerWord\": \"e2e\", \"modelName\": \"e2e\", \"is_ru\": true}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "generateModelTrainingFunction",
@@ -231,6 +237,7 @@
       "guard": "check-user-exists",
       "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\", \"zipUrl\": \"\", \"triggerWord\": \"e2e\", \"modelName\": \"e2e\", \"steps\": 1, \"is_ru\": true, \"gender\": \"male\"}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "modelTrainingV2",
@@ -266,12 +273,15 @@
         "db-write"
       ],
       "guard": "unknown",
-      "safe_probe": "",
+      "safe_probe": "{\"training_id\": \"e2e-probe-nonexistent\", \"status\": \"succeeded\"}",
       "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": false,
       "control": "spec+code",
       "export": "createHandleModelTrainingCompletedFunction(inngestFnClient)",
-      "notes": []
+      "notes": [
+        "probe 2026-09-10: find-training-record returns found:false for the probe id and the function returns skipped:true without touching balances or users"
+      ]
     },
     {
       "id": "training-stuck-check",
@@ -297,13 +307,15 @@
         "db-write"
       ],
       "guard": "none",
-      "safe_probe": "",
+      "safe_probe": "{}",
       "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": false,
       "control": "spec+code",
       "export": "checkStuckTrainings",
       "notes": [
-        "safe mode: send-completion-events is skipped (fan-out to training-model-complete would message users)"
+        "safe mode: send-completion-events is skipped (fan-out to training-model-complete would message users)",
+        "probe 2026-09-10: same work as the 30-min cron; send-completion-events is skipped in safe mode"
       ]
     },
     {
@@ -338,6 +350,7 @@
       "guard": "check-user-exists",
       "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\", \"is_ru\": true, \"job_id\": \"e2e-probe\", \"image_files\": [], \"extraction_path\": \"/nonexistent/e2e\", \"morphing_type\": \"seamless\", \"model\": \"kling-v1.6-pro\"}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "morphImages",
@@ -374,6 +387,7 @@
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "renderFunction",
@@ -416,6 +430,7 @@
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "renderAvatarVideoFunction",
@@ -458,6 +473,7 @@
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "renderRiddleFunction",
@@ -495,6 +511,7 @@
       "guard": "amount-match",
       "safe_probe": "{\"IncSum\": \"0.01\", \"inv_id\": \"e2e-safe-mode-probe\"}",
       "probe_result": "COMPLETED",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "processPayment",
@@ -532,6 +549,7 @@
       "guard": "validate-input",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "broadcastMessage",
@@ -572,6 +590,7 @@
       "guard": "validate-input",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "analyzeCompetitorReels",
@@ -608,6 +627,7 @@
       "guard": "validate-input",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "findCompetitors",
@@ -640,6 +660,7 @@
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "extractTopContent",
@@ -675,6 +696,7 @@
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "generateContentScripts",
@@ -708,6 +730,7 @@
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "generateDetailedScript",
@@ -742,6 +765,7 @@
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
+      "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "generateScenarioClips",
@@ -776,6 +800,7 @@
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "criticalErrorMonitor",
@@ -806,6 +831,7 @@
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "healthCheck",
@@ -836,6 +862,7 @@
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "logMonitor",
@@ -871,6 +898,7 @@
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "triggerLogMonitor",
@@ -905,6 +933,7 @@
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "dailySalesAdvisor",
@@ -936,6 +965,7 @@
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "skillDetector",
@@ -964,12 +994,15 @@
         "db-write"
       ],
       "guard": "unknown",
-      "safe_probe": "",
+      "safe_probe": "{\"telegramId\": \"0\", \"modelId\": \"e2e-probe\", \"provider\": \"e2e\"}",
       "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": false,
       "control": "spec+code",
       "export": "validateWebhookBeforeGeneration",
-      "notes": []
+      "notes": [
+        "probe 2026-09-10: check-webhook-availability only GETs our own webhook URLs; a FAILED here means the webhooks are unreachable, which is worth knowing"
+      ]
     },
     {
       "id": "welcome-avatar-generate",
@@ -997,12 +1030,15 @@
         "messages-user"
       ],
       "guard": "unknown",
-      "safe_probe": "",
+      "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\"}",
       "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
       "deployed_2026_09_09": false,
       "control": "spec+code",
       "export": "welcomeAvatarGeneration",
-      "notes": []
+      "notes": [
+        "probe 2026-09-10: validate-bot fails for the nonexistent bot and the function returns success:false before reserve-gift-slot"
+      ]
     },
     {
       "id": "test-simple",
@@ -1022,6 +1058,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1046,6 +1083,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1070,6 +1108,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1094,6 +1133,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1118,6 +1158,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1142,6 +1183,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1166,6 +1208,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1190,6 +1233,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1214,6 +1258,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1238,6 +1283,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1262,6 +1308,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1286,6 +1333,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1310,6 +1358,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
@@ -1334,6 +1383,7 @@
       "guard": "none",
       "safe_probe": false,
       "probe_result": "not-probed",
+      "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
       "notes": [
