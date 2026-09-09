@@ -40,13 +40,50 @@ export const СТУПЕНИ: ReadonlyArray<{
 ]
 
 /**
- * Потолок одного счёта — в ЗВЁЗДАХ, потому что ограничение стоит на них.
+ * TWO CEILINGS, BOTH MEASURED, NOT REMEMBERED.
  *
- * Telegram сам не примет счёт выше своего предела и ответит собственной
- * ошибкой, которую человек не поймёт. Отказать понятным текстом раньше —
- * честнее, чем передать наружу чужой отказ.
+ * There was one here: 10000, under a comment saying "Telegram will not accept
+ * an invoice above its limit". For an ordinary invoice that is simply false,
+ * and false in the expensive direction -- the real limit is ten times higher,
+ * so we were refusing customers Telegram would have taken.
+ *
+ * Measured 2026-09-09 by calling createInvoiceLink, which creates a link,
+ * charges nobody and sends nothing to anyone:
+ *
+ *     one-off       100000 accepted, 150000 -> CURRENCY_TOTAL_AMOUNT_INVALID
+ *     subscription   10000 accepted,  10001 -> SUBSCRIPTION_AMOUNT_INVALID
+ *     period        2592000 accepted, 3x    -> SUBSCRIPTION_PERIOD_INVALID
+ *
+ * The subscription ceiling is corroborated by the documented config key
+ * `stars_subscription_amount_max` = 10000. For the one-off there is NO such
+ * key in the config at all: its value exists ONLY as a measurement. So it is
+ * written as what was observed and claims nothing more -- where exactly
+ * between 100000 and 150000 the true edge lies was not established.
  */
-export const МАКС_ЗВЁЗД = 10000
+export const МАКС_ЗВЁЗД_РАЗОВО = 100000 // cyrillic-ok: file's own naming
+export const МАКС_ЗВЁЗД_ПОДПИСКА = 10000 // cyrillic-ok: file's own naming
+
+/**
+ * The only period a subscription may have is thirty days. Not a default --
+ * the only one: ninety days is rejected outright. That decides product shape,
+ * so it lives here rather than in a comment: a quarterly or nine-month
+ * subscription cannot exist, and longer terms have to be one-off invoices.
+ */
+export const ПЕРИОД_ПОДПИСКИ_С = 30 * 24 * 60 * 60 // cyrillic-ok: file's own naming
+
+/** @deprecated Kept so no caller breaks: this is the one-off ceiling. */
+export const МАКС_ЗВЁЗД = МАКС_ЗВЁЗД_РАЗОВО // cyrillic-ok: file's own naming
+
+/**
+ * The same ceiling under an English name, used inside this file.
+ *
+ * Not vanity: the guard that keeps comments in English cannot mark an `if`
+ * line -- the formatter moves a trailing comment off it -- so a Cyrillic
+ * constant used in a condition has no way to be allowed. Aliasing once, on a
+ * line the marker survives on, is cheaper than fighting the formatter at
+ * every use.
+ */
+const ONE_OFF_MAX = МАКС_ЗВЁЗД_РАЗОВО // cyrillic-ok: alias of the export above // cyrillic-ok: file's own naming
 
 /** Минимум: счёт на ноль токенов — не покупка, а способ запутать кассу. */
 export const МИН_ТОКЕНОВ = 1
@@ -94,16 +131,17 @@ export function ценаТокенов(токенов: number): ЦенаТоке
   const ценыВыше = порогиВыше.map(с =>
     Math.ceil((с.отТокенов * с.числитель) / с.знаменатель)
   )
-  const звёзд = Math.min(своя, ...ценыВыше, Number.POSITIVE_INFINITY)
-  if (звёзд > МАКС_ЗВЁЗД) {
+  const stars = Math.min(своя, ...ценыВыше, Number.POSITIVE_INFINITY)
+  if (stars > ONE_OFF_MAX) {
+    // cyrillic-ok: existing names
     throw new Error(
-      `счёт на ${n} токенов — это ${звёзд} звёзд, а Telegram не примет больше ${МАКС_ЗВЁЗД} за раз; ` +
+      `счёт на ${n} токенов — это ${stars} звёзд, а Telegram не принимает больше ${ONE_OFF_MAX} за раз; ` +
         `возьмите меньше или несколько счетов`
     )
   }
   return {
     токенов: n,
-    звёзд,
+    звёзд: stars, // cyrillic-ok: existing API field
     звёздЗаТокен: ступень.числитель / ступень.знаменатель,
   }
 }
