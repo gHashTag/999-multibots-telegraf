@@ -986,6 +986,98 @@ const en: Translations = {
   'profile.gate.title': 'Connect your Telegram to open the profile',
   'profile.gate.body':
     'The agent writes and reads on your behalf, so it needs your own Telegram signed in by phone. One time; you can disconnect from the Agent tab later.',
+  // ── Welcome road on the profile (value -> club -> Telegram -> SOUL) ──────
+  'welcome.step': 'Step {n} of {total}',
+  'welcome.next': 'Next',
+  'welcome.skip': 'Skip the story',
+  'welcome.later': 'Later',
+  'welcome.value.title': 'A digital twin that works your Telegram for you',
+  'welcome.value.lead':
+    'Not a chatbot in one window. An agent that speaks in your voice, keeps your feed alive and knows what you sell.',
+  'welcome.value.dm':
+    'Answers in DMs and groups on your behalf, remembers the thread, never forgets a client',
+  'welcome.value.reels':
+    'Makes reels, images and voice-overs in your style — not stock, yours',
+  'welcome.value.plan':
+    'Keeps a content plan and publishes on schedule while you work',
+  'welcome.value.blog':
+    'Writes your blog and reads the analytics so the next post is better than the last',
+  'welcome.value.note':
+    'We do not promise reach or income figures: the numbers come from your content and your audience. What we promise is the time you get back.',
+  'welcome.how.title': 'How it is built',
+  'welcome.how.lead':
+    'Three parts. Each one is yours and each one can be switched off.',
+  'welcome.how.soul':
+    'SOUL.md — who you are, what you sell, how you sound, what is forbidden. The twin is built on it.',
+  'welcome.how.telegram':
+    'Your Telegram, signed in by phone — so the twin writes as you, not as a bot.',
+  'welcome.how.tokens':
+    'Tokens on a balance — every answer, image, voice-over and reel is paid from it; a text answer costs the least, a video the most.',
+  'welcome.how.note':
+    'You see every charge in the chat. There are no hidden fees and no tariffs besides the club and token packs.',
+  'welcome.club.title': 'Entering the club',
+  'welcome.club.lead':
+    'One payment in Telegram Stars opens the twin. Part of it comes straight back to you as tokens.',
+  'welcome.club.per': 'per {days} days',
+  'welcome.club.tokens':
+    '{tokens} tokens land on your balance with every charge',
+  'welcome.club.share': '(30% of the payment)',
+  'welcome.club.renew':
+    'Renews inside Telegram every 30 days — no cards, no forms',
+  'welcome.club.topup':
+    'Tokens ran out early? Top up with an ordinary pack in the chat',
+  'welcome.club.cancel':
+    'Cancel any time: Telegram → Settings → My Stars → subscriptions',
+  'welcome.club.loading': 'Asking the server for the price…',
+  'welcome.club.join': 'Join for {stars} Stars',
+  'welcome.club.going': 'Opening the invoice…',
+  'welcome.club.pending':
+    'Telegram says paid, but the ledger has not shown the charge yet. It is booked automatically within the hour — come back and the road continues.',
+  'welcome.club.unsupported':
+    'Stars invoices open only inside Telegram. Open this page from the Mini App.',
+  'welcome.club.cancelled':
+    'The invoice was closed without paying. Nothing was charged.',
+  'welcome.club.failed':
+    'Telegram could not complete the payment. Nothing was charged; try again.',
+  'welcome.connect.title': 'Now sign in with your phone',
+  'welcome.connect.body':
+    'The twin needs your own Telegram to write as you. One time; you can disconnect later.',
+  'welcome.connect.who':
+    'Who: only you, the owner of this profile, on this device.',
+  'welcome.connect.what':
+    'What: a Telegram session in your name — phone, code from Telegram, your cloud password if set.',
+  'welcome.connect.why':
+    'Why: so the twin can answer your DMs and groups and publish to your channels.',
+  'welcome.connect.howlong':
+    'How long: until you disconnect. The session is stored encrypted; the code and password are typed only by you and are not kept.',
+  'welcome.connect.off':
+    'How to switch off: the Agent tab → Disconnect, or Telegram → Devices → end the session.',
+  'welcome.connect.warn':
+    'Telegram will send you a "new login" notice. That is this connection — not a stranger.',
+  'welcome.soul.title': 'Write your SOUL.md',
+  'welcome.soul.lead':
+    'Four short answers. The twin is built on them — you can edit the full file later in the SOUL tab.',
+  'welcome.soul.who': 'Who you are',
+  'welcome.soul.who.hint': 'One line: what you do and what people know you for',
+  'welcome.soul.sell': 'What you sell',
+  'welcome.soul.sell.hint':
+    'Service, product, partnerships — what your content is for',
+  'welcome.soul.voice': 'Your voice',
+  'welcome.soul.voice.hint': 'How to sound: "plain, friendly, no jargon"',
+  'welcome.soul.forbidden': 'What is forbidden',
+  'welcome.soul.forbidden.hint':
+    'What the twin must never write: topics, words, promises',
+  'welcome.soul.save': 'Save and continue',
+  'welcome.soul.saving': 'Saving…',
+  'welcome.soul.later': 'I will fill it in the editor later',
+  'welcome.done.title': 'The twin is ready',
+  'welcome.done.body':
+    'Club, Telegram and SOUL are in place. From here the agent works; you steer.',
+  'welcome.done.first':
+    'Write to the agent in the chat — ask for a first reel, a plan for the week or a reply to a client.',
+  'welcome.done.soul':
+    'The SOUL tab holds the full file; the twin re-reads it on every change.',
+  'welcome.done.go': 'Open my profile',
   'profile.edit_profile': 'Edit Profile',
   'profile.display_name': 'Display Name',
   'profile.display_name_placeholder': 'Your name',
@@ -2767,6 +2859,97 @@ const ru: Translations = {
   'profile.gate.title': 'Подключите Telegram, чтобы открыть профиль',
   'profile.gate.body':
     'Агент пишет и читает от вашего имени, поэтому ему нужен ваш Telegram, вход по номеру телефона. Один раз; отключить можно потом во вкладке «Агент».',
+  // ── Welcome road on the profile (value -> club -> Telegram -> SOUL) ──────
+  'welcome.step': 'Шаг {n} из {total}',
+  'welcome.next': 'Дальше',
+  'welcome.skip': 'Пропустить рассказ',
+  'welcome.later': 'Позже',
+  'welcome.value.title':
+    'Цифровой двойник, который ведёт твой Telegram за тебя',
+  'welcome.value.lead':
+    'Не чат-бот в одном окне. Агент, который говорит твоим голосом, держит ленту живой и знает, что ты продаёшь.',
+  'welcome.value.dm':
+    'Отвечает в личке и группах от твоего имени, помнит разговор, не теряет клиента',
+  'welcome.value.reels':
+    'Делает рилсы, картинки и озвучку в твоём стиле — не стоковые, твои',
+  'welcome.value.plan':
+    'Ведёт контент-план и публикует по расписанию, пока ты работаешь',
+  'welcome.value.blog':
+    'Пишет блог и читает аналитику, чтобы следующий пост был лучше прошлого',
+  'welcome.value.note':
+    'Цифры охватов и дохода не обещаем: их даёт твой контент и твоя аудитория. Обещаем время, которое к тебе вернётся.',
+  'welcome.how.title': 'Как это устроено',
+  'welcome.how.lead': 'Три части. Каждая — твоя, каждую можно выключить.',
+  'welcome.how.soul':
+    'SOUL.md — кто ты, что продаёшь, как звучишь, что запрещено. На нём строится двойник.',
+  'welcome.how.telegram':
+    'Твой Telegram, вход по номеру — чтобы двойник писал как ты, а не как бот.',
+  'welcome.how.tokens':
+    'Токены на балансе — каждый ответ, картинка, озвучка и рилс списываются с него; текст дешевле всего, видео дороже всего.',
+  'welcome.how.note':
+    'Каждое списание видно в чате. Скрытых платежей нет, тарифов кроме клуба и пакетов токенов нет.',
+  'welcome.club.title': 'Вход в клуб',
+  'welcome.club.lead':
+    'Один платёж звёздами Telegram открывает двойника. Часть сразу возвращается тебе токенами.',
+  'welcome.club.per': 'за {days} дней',
+  'welcome.club.tokens':
+    '{tokens} токенов приходят на баланс с каждого платежа',
+  'welcome.club.share': '(30% от платежа)',
+  'welcome.club.renew':
+    'Продление внутри Telegram каждые 30 дней — без карт и форм',
+  'welcome.club.topup':
+    'Токены кончились раньше? Пополни обычным пакетом в чате',
+  'welcome.club.cancel':
+    'Отменить можно всегда: Telegram → Настройки → Мои звёзды → подписки',
+  'welcome.club.loading': 'Спрашиваю цену у сервера…',
+  'welcome.club.join': 'Вступить за {stars} звёзд',
+  'welcome.club.going': 'Открываю счёт…',
+  'welcome.club.pending':
+    'Telegram сказал «оплачено», но в реестре платёж ещё не виден. Он зачислится сам в течение часа — вернись, и дорога продолжится.',
+  'welcome.club.unsupported':
+    'Счёт в звёздах открывается только внутри Telegram. Открой эту страницу из мини-аппа.',
+  'welcome.club.cancelled': 'Счёт закрыт без оплаты. Ничего не списано.',
+  'welcome.club.failed':
+    'Telegram не смог провести платёж. Ничего не списано; попробуй ещё раз.',
+  'welcome.connect.title': 'Теперь войди по номеру телефона',
+  'welcome.connect.body':
+    'Двойнику нужен твой собственный Telegram, чтобы писать как ты. Один раз; отключить можно потом.',
+  'welcome.connect.who':
+    'Кто: только ты, владелец этого профиля, на этом устройстве.',
+  'welcome.connect.what':
+    'Что: сессия Telegram от твоего имени — номер, код из Telegram, облачный пароль, если он есть.',
+  'welcome.connect.why':
+    'Зачем: чтобы двойник отвечал в твоей личке и группах и публиковал в твои каналы.',
+  'welcome.connect.howlong':
+    'Срок: пока не отключишь. Сессия хранится в зашифрованном виде; код и пароль вводишь только ты, мы их не сохраняем.',
+  'welcome.connect.off':
+    'Как отключить: вкладка «Агент» → Отключить, или Telegram → Устройства → завершить сеанс.',
+  'welcome.connect.warn':
+    'Telegram пришлёт уведомление о новом входе. Это и есть подключение — не чужой.',
+  'welcome.soul.title': 'Напиши свой SOUL.md',
+  'welcome.soul.lead':
+    'Четыре коротких ответа. На них строится двойник — полный файл можно править потом во вкладке SOUL.',
+  'welcome.soul.who': 'Кто ты',
+  'welcome.soul.who.hint': 'Одной строкой: чем занимаешься и за что тебя знают',
+  'welcome.soul.sell': 'Что продаёшь',
+  'welcome.soul.sell.hint':
+    'Услуга, продукт, партнёрки — ради чего твой контент',
+  'welcome.soul.voice': 'Твой голос',
+  'welcome.soul.voice.hint': 'Как звучать: «просто, по-дружески, без жаргона»',
+  'welcome.soul.forbidden': 'Что запрещено',
+  'welcome.soul.forbidden.hint':
+    'Чего двойник не должен писать никогда: темы, слова, обещания',
+  'welcome.soul.save': 'Сохранить и продолжить',
+  'welcome.soul.saving': 'Сохраняю…',
+  'welcome.soul.later': 'Заполню в редакторе позже',
+  'welcome.done.title': 'Двойник готов',
+  'welcome.done.body':
+    'Клуб, Telegram и SOUL на месте. Дальше работает агент, а ты рулишь.',
+  'welcome.done.first':
+    'Напиши агенту в чате — попроси первый рилс, план на неделю или ответ клиенту.',
+  'welcome.done.soul':
+    'Во вкладке SOUL лежит полный файл; двойник перечитывает его при каждом изменении.',
+  'welcome.done.go': 'Открыть мой профиль',
   'profile.edit_profile': 'Редактировать профиль',
   'profile.display_name': 'Отображаемое имя',
   'profile.display_name_placeholder': 'Ваше имя',

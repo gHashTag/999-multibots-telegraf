@@ -13,12 +13,14 @@ import { Header } from '@/components/Header'
 import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
-import { ProfileConnectGate } from '@/components/Profile/ProfileConnectGate'
+import { WelcomeOnboarding } from '@/components/Profile/WelcomeOnboarding'
 import { profileScreen } from '@/components/Profile/profileGate'
 import {
   agentTelegramConnectedAtom,
   loadAgentTelegramStatusAtom,
 } from '@/atoms/agentTelegram'
+import { clubErrorAtom, clubStatusAtom, loadClubStatusAtom } from '@/atoms/club'
+import { loadSoulAtom, soulAtom, soulLoadedAtom } from '@/atoms/soul'
 import '@/components/Profile/Profile.css'
 
 export function ProfilePage() {
@@ -34,6 +36,25 @@ export function ProfilePage() {
   const [showEdit, setShowEdit] = useState(false)
   const connected = useAtomValue(agentTelegramConnectedAtom)
   const loadConnected = useSetAtom(loadAgentTelegramStatusAtom)
+  const club = useAtomValue(clubStatusAtom)
+  const clubError = useAtomValue(clubErrorAtom)
+  const loadClub = useSetAtom(loadClubStatusAtom)
+  const soul = useAtomValue(soulAtom)
+  const soulLoaded = useAtomValue(soulLoadedAtom)
+  const loadSoul = useSetAtom(loadSoulAtom)
+  // "Later" on the welcome road lives for this tab's session only: the road
+  // comes back on the next visit until club, Telegram and SOUL are all in place.
+  const [leftWelcome, setLeftWelcome] = useState(
+    () =>
+      typeof sessionStorage !== 'undefined' &&
+      sessionStorage.getItem('welcome-left') === '1'
+  )
+  const [onRoad, setOnRoad] = useState(false)
+  const leaveWelcome = () => {
+    sessionStorage.setItem('welcome-left', '1')
+    setLeftWelcome(true)
+    setOnRoad(false)
+  }
 
   useEffect(() => {
     if (username) {
@@ -54,14 +75,43 @@ export function ProfilePage() {
     if (isOwn && connected === null) void loadConnected()
   }, [isOwn, connected, loadConnected])
 
+  /*
+   * THE WELCOME ROAD NEEDS TWO MORE FACTS (owner, 2026-09-09: value -> club ->
+   * Telegram -> SOUL). Club status is asked once per session for the own
+   * profile; the SOUL only once the club and the phone are in place, because
+   * soul_get is an agent tool call and the road does not need it earlier.
+   * A failed club request counts as "no club" so a network error shows the
+   * paywall (which can retry) instead of a skeleton forever.
+   */
+  useEffect(() => {
+    if (isOwn && connected === true && club === null && !clubError)
+      void loadClub()
+  }, [isOwn, connected, club, clubError, loadClub])
+  useEffect(() => {
+    if (isOwn && connected === true && club?.active && !soulLoaded)
+      void loadSoul()
+  }, [isOwn, connected, club, soulLoaded, loadSoul])
+
+  const clubActive: boolean | null =
+    club !== null ? club.active : clubError ? false : null
+  const soulExists: boolean | null = soulLoaded ? !!soul?.trim() : null
+
   const screen = profileScreen({
     loading,
     own: isOwn,
     connected,
+    club: clubActive,
+    soul: soulExists,
+    left: leftWelcome,
+    onRoad,
     devBypass:
       import.meta.env.DEV &&
       new URLSearchParams(window.location.search).has('свой'),
   })
+
+  // Derived state set during render (the React-sanctioned shape): once the
+  // road is on screen it stays there until leaveWelcome, whatever the facts do.
+  if (screen === 'welcome' && !onRoad) setOnRoad(true)
 
   if (screen === 'skeleton') {
     return (
@@ -145,13 +195,20 @@ export function ProfilePage() {
     )
   }
 
-  if (screen === 'connect') {
+  if (screen === 'welcome') {
     return (
       <>
         <Header />
         <div className="profile-page">
           <div className="profile-page__container">
-            <ProfileConnectGate />
+            <WelcomeOnboarding
+              facts={{
+                club: clubActive === true,
+                connected: connected === true,
+                soul: soulExists === true,
+              }}
+              onLeave={leaveWelcome}
+            />
           </div>
         </div>
       </>
