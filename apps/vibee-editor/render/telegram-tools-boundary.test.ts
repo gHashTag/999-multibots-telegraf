@@ -160,13 +160,13 @@ describe('действующие инструменты не действуют 
     forgetProposals()
     const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
     const answer = (await t.handler(
-      { chat: '6579515876', text: 'здравствуйте' },
+      { chat: '900000002', text: 'здравствуйте' },
       OWNER_CTX
     )) as { id?: string }
     const waiting = pendingFor(OWNER)
     expect(waiting, 'предложение никуда не положили').toBeTruthy()
     expect(waiting!.id).toBe(answer.id)
-    expect(waiting!.target).toBe('6579515876')
+    expect(waiting!.target).toBe('900000002')
     expect(waiting!.what).toBe('здравствуйте')
   })
 
@@ -176,14 +176,11 @@ describe('действующие инструменты не действуют 
     // press executes it through the client's own tg_sessions row.
     forgetProposals()
     const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
-    const answer = (await t.handler(
-      { chat: '6579515876', text: 'от клиента' },
-      {
-        telegramId: CLIENT,
-        pool,
-        surface: 'bot',
-      } as never
-    )) as { id?: string }
+    const answer = (await t.handler({ chat: '900000002', text: 'от клиента' }, {
+      telegramId: CLIENT,
+      pool,
+      surface: 'bot',
+    } as never)) as { id?: string }
     expect(pendingFor(CLIENT)?.id).toBe(answer.id)
     expect(pendingFor(OWNER)).toBeFalsy()
   })
@@ -209,7 +206,7 @@ describe('действующие инструменты не действуют 
     forgetProposals()
     const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
     await expect(
-      t.handler({ chat: '6579515876', text: 'ничей' }, undefined as never)
+      t.handler({ chat: '900000002', text: 'ничей' }, undefined as never)
     ).rejects.toThrow(NO_IDENTITY)
     expect(pendingCount()).toBe(0)
   })

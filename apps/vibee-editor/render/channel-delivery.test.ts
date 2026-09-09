@@ -353,7 +353,7 @@ describe('the names it reads and the shape of what it sends', () => {
 
   it('the owner comes from the pairing, never from a literal', () => {
     expect(resolveOwner({ AGENT_KEYS: `k1:${OWNER},k2:1` })).toBe(OWNER)
-    expect(resolveOwner({ OWNER_TELEGRAM_ID: '6579515876' })).toBe('6579515876')
+    expect(resolveOwner({ OWNER_TELEGRAM_ID: '900000002' })).toBe('900000002')
     expect(resolveOwner({ AGENT_KEYS: 'k1:' })).toBe('')
     expect(resolveOwner({})).toBe('')
   })

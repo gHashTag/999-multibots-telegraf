@@ -22,8 +22,8 @@ import {
 const rows = [
   {
     lead: '111111111',
-    display: 'Geya (@playom)',
-    username: 'playom',
+    display: 'Pilot (@pilot_client)',
+    username: 'pilot_client',
     next: 'reply',
     stage: 'client',
     paid: true,
@@ -33,8 +33,8 @@ const rows = [
   },
   {
     lead: '222222222',
-    display: 'Andreas',
-    username: 'VEDAAR',
+    display: 'Second',
+    username: 'second_client',
     next: 'offer',
     stage: 'new',
     paid: false,
@@ -44,8 +44,8 @@ const rows = [
   },
   {
     lead: '333333333',
-    display: 'Dmitry',
-    username: 'dmtrled',
+    display: 'Third',
+    username: 'third_client',
     next: 'talk',
     stage: 'new',
     paid: false,
@@ -98,15 +98,15 @@ describe('parseSweepArgs', () => {
   })
 
   it('people: a @username, a numeric id, a list in the order given', () => {
-    expect(parseSweepArgs(['@playom'])).toEqual({
+    expect(parseSweepArgs(['@pilot_client'])).toEqual({
       kind: 'list',
-      chats: ['@playom'],
-      label: '@playom',
+      chats: ['@pilot_client'],
+      label: '@pilot_client',
     })
-    expect(parseSweepArgs(['435572800', '@playom'])).toEqual({
+    expect(parseSweepArgs(['900000001', '@pilot_client'])).toEqual({
       kind: 'list',
-      chats: ['435572800', '@playom'],
-      label: '435572800 @playom',
+      chats: ['900000001', '@pilot_client'],
+      label: '900000001 @pilot_client',
     })
   })
 
@@ -137,7 +137,7 @@ describe('parseSweepArgs', () => {
   })
 
   it('refuses mixing people with filters, unknown keys, unknown values, and bare words', () => {
-    expect(parseSweepArgs(['@playom', 'next=reply'])).toMatchObject({
+    expect(parseSweepArgs(['@pilot_client', 'next=reply'])).toMatchObject({
       kind: 'error',
       message: expect.stringContaining('не вместе'),
     })
@@ -225,10 +225,17 @@ describe('the row filters', () => {
 
 describe('the items and the brief', () => {
   it('explicit chats keep their order and pick up the name and the step when known', () => {
-    const items = itemsFromChats(['@PLAYOM', '222222222', '@nobody'], rows)
+    const items = itemsFromChats(
+      ['@PILOT_CLIENT', '222222222', '@nobody'],
+      rows
+    )
     expect(items).toEqual([
-      { chat: '@PLAYOM', display: 'Geya (@playom)', next: 'reply' },
-      { chat: '222222222', display: 'Andreas', next: 'offer' },
+      {
+        chat: '@PILOT_CLIENT',
+        display: 'Pilot (@pilot_client)',
+        next: 'reply',
+      },
+      { chat: '222222222', display: 'Second', next: 'offer' },
       { chat: '@nobody', display: null, next: null },
     ])
     expect(itemsFromRows(rows.slice(0, 2)).map(i => i.chat)).toEqual([
@@ -239,21 +246,21 @@ describe('the items and the brief', () => {
 
   it('the scoped brief names the one person, forbids the list, reuses the rules, and forbids pay-first', () => {
     const p = scopedPrompt({
-      chat: '@playom',
-      display: 'Geya (@playom)',
+      chat: '@pilot_client',
+      display: 'Pilot (@pilot_client)',
       next: 'talk',
     })
-    expect(p).toContain('ОДИН человек — @playom (Geya (@playom))')
+    expect(p).toContain('ОДИН человек — @pilot_client (Pilot (@pilot_client))')
     expect(p).toContain('crm_leads НЕ вызывай')
-    expect(p).toContain('crm_lead_context с chat=@playom')
+    expect(p).toContain('crm_lead_context с chat=@pilot_client')
     expect(p).toContain('next=talk')
     expect(p).toContain(SWEEP_RULES)
     expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     expect(p).toContain('НИЧЕГО НЕ ОТПРАВЛЯЙ САМ')
     expect(p).toContain('«тихо»')
-    expect(itemMarker({ chat: '@playom', display: null, next: null })).toBe(
-      '[обход по выбору владельца: @playom]'
-    )
+    expect(
+      itemMarker({ chat: '@pilot_client', display: null, next: null })
+    ).toBe('[обход по выбору владельца: @pilot_client]')
   })
 
   it('the generic brief is head + rules + tail, and the progress line reads like a list row', () => {
@@ -262,13 +269,13 @@ describe('the items and the brief', () => {
     expect(generic).toContain('4) Если кандидатов нет')
     expect(
       progressLine(1, 7, {
-        chat: '435572800',
-        display: 'Geya (@playom)',
+        chat: '900000001',
+        display: 'Pilot (@pilot_client)',
         next: 'reply',
       })
-    ).toBe('2 из 7 · Geya (@playom) · 435572800 · ответить')
+    ).toBe('2 из 7 · Pilot (@pilot_client) · 900000001 · ответить')
     expect(
-      progressLine(0, 1, { chat: '@playom', display: null, next: null })
-    ).toBe('1 из 1 · @playom')
+      progressLine(0, 1, { chat: '@pilot_client', display: null, next: null })
+    ).toBe('1 из 1 · @pilot_client')
   })
 })

@@ -97,7 +97,7 @@ export function formatSummary(
   if (scopeLine) lines.push('', scopeLine)
   lines.push(
     '',
-    'Обход всех: /sweep · группа: /sweep ждут | горячие | разговор · фильтр: /sweep next=reply | stage=new | signal=price | days<=7 | paid=yes [limit=10] · один: /sweep @playom · где: /sweep где · стоп: /sweep stop'
+    'Обход всех: /sweep · группа: /sweep ждут | горячие | разговор · фильтр: /sweep next=reply | stage=new | signal=price | days<=7 | paid=yes [limit=10] · один: /sweep @pilot_client · где: /sweep где · стоп: /sweep stop'
   )
   return lines.join('\n')
 }

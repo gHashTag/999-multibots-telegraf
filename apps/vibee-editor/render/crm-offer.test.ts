@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { displayOf } from './src/agent/crm-offer-tool'
 
 const OWNER = '144022504'
-const LEAD = '6579515876'
+const LEAD = '900000002'
 
 /** Routes fetch by host: Telegram mints, Supabase answers who exists. */
 function stubNet(
@@ -60,7 +60,7 @@ function stubNet(
               {
                 telegram_id: LEAD,
                 bot_name: opts.botName ?? 'neuro_blogger_bot',
-                username: 'playom',
+                username: 'pilot_client',
                 first_name: 'Ольга',
               },
             ]
@@ -72,7 +72,7 @@ function stubNet(
 
 /** The owner's session: knows the username, hands back the numeric id. */
 function ownerSession(
-  entities: Record<string, string> = { '@playom': LEAD },
+  entities: Record<string, string> = { '@pilot_client': LEAD },
   shape: Record<string, Record<string, unknown>> = {}
 ) {
   return {
@@ -132,7 +132,7 @@ describe('the credit lands on the lead, never on the owner', () => {
     const posted = stubNet()
     const { tool } = await seller()
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ownerCtx()
     )
     const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
@@ -162,7 +162,7 @@ describe("it proposes, and the press is somebody else's", () => {
     stubNet()
     const { tool, q } = await seller()
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ownerCtx()
     )
     expect(r.proposal).toBe(true)
@@ -178,7 +178,7 @@ describe("it proposes, and the press is somebody else's", () => {
     const { tool, q } = await seller()
     await expect(
       tool.handler(
-        { chat: '@playom' },
+        { chat: '@pilot_client' },
         { ...(ownerCtx() as any), telegramId: '999' }
       )
     ).rejects.toThrow('владельцу')
@@ -195,7 +195,7 @@ describe("it proposes, and the press is somebody else's", () => {
     const posted = stubNet()
     const { tool, q } = await seller()
     const r: any = await tool.handler(
-      { chat: '@playom' },
+      { chat: '@pilot_client' },
       { ...(ownerCtx() as any), surface: 'miniapp' }
     )
     expect(q.pendingCount()).toBe(0)
@@ -222,7 +222,7 @@ describe('the touch follows the send, not the model', () => {
   it('a lead in the base travels on the proposal, so the send can record it', async () => {
     stubNet({ leadInBase: true })
     const { tool, q } = await seller()
-    const r: any = await tool.handler({ chat: '@playom' }, ownerCtx())
+    const r: any = await tool.handler({ chat: '@pilot_client' }, ownerCtx())
     // The refusal phrase contains the success phrase as a substring, so a
     // substring check passed on the very refusal it was meant to rule out.
     // The full phrase, or nothing.
@@ -249,7 +249,7 @@ describe('the touch follows the send, not the model', () => {
      */
     stubNet({ leadInBase: false })
     const { tool, q } = await seller()
-    const r: any = await tool.handler({ chat: '@playom' }, ownerCtx())
+    const r: any = await tool.handler({ chat: '@pilot_client' }, ownerCtx())
     expect(r.proposal).toBe(true)
     expect(q.pendingCount()).toBe(1)
     expect(r.touch).toContain('не запишется')
@@ -373,7 +373,7 @@ describe('the touch follows the send, not the model', () => {
       id: 'p1',
       telegramId: OWNER,
       action: 'send' as const,
-      target: '@playom',
+      target: '@pilot_client',
       what: 'привет',
       createdAt: Date.now(),
     }
@@ -503,7 +503,7 @@ describe('a person, not a place', () => {
 
 describe('the card names the person, beside the id', () => {
   /*
-   * "Кому: 6579515876" asks the owner to approve a message to a number. The
+   * "Кому: 900000002" asks the owner to approve a message to a number. The
    * name is what they recognise; the id is what the message goes to. Both go
    * on the card, and the name -- third-party text either way -- is one short
    * line by the time it leaves this module.
@@ -512,25 +512,25 @@ describe('the card names the person, beside the id', () => {
     stubNet()
     const { tool, q } = await seller(
       ownerSession(
-        { '@playom': LEAD },
-        { '@playom': { firstName: 'Ольга', username: 'playom' } }
+        { '@pilot_client': LEAD },
+        { '@pilot_client': { firstName: 'Ольга', username: 'pilot_client' } }
       )
     )
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ownerCtx()
     )
-    expect(r.display).toBe('Ольга (@playom)')
-    expect(q.pendingFor(OWNER)?.display).toBe('Ольга (@playom)')
-    expect(q.pendingFor(OWNER)?.target).toBe('@playom')
+    expect(r.display).toBe('Ольга (@pilot_client)')
+    expect(q.pendingFor(OWNER)?.display).toBe('Ольга (@pilot_client)')
+    expect(q.pendingFor(OWNER)?.target).toBe('@pilot_client')
   })
 
   it('a numeric id draft takes the name from the base', async () => {
     const posted = stubNet()
     const { tool, q } = await seller()
     const r: any = await tool.handler({ chat: LEAD, tokens: 50 }, ownerCtx())
-    expect(r.display).toBe('Ольга (@playom)')
-    expect(q.pendingFor(OWNER)?.display).toBe('Ольга (@playom)')
+    expect(r.display).toBe('Ольга (@pilot_client)')
+    expect(q.pendingFor(OWNER)?.display).toBe('Ольга (@pilot_client)')
     // The stub answers any URL with the same rows, so the name arriving
     // proves nothing about the query. The query itself must ask for it.
     const lookup = posted.find(
@@ -548,12 +548,12 @@ describe('the card names the person, beside the id', () => {
       'я'.repeat(200)
     const { tool, q } = await seller(
       ownerSession(
-        { '@playom': LEAD },
-        { '@playom': { firstName: evil, username: 'pl@y om!' } }
+        { '@pilot_client': LEAD },
+        { '@pilot_client': { firstName: evil, username: 'pl@y om!' } }
       )
     )
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ownerCtx()
     )
     const d = String(q.pendingFor(OWNER)?.display)
@@ -566,9 +566,9 @@ describe('the card names the person, beside the id', () => {
 
   it('nobody knows the name: the card falls back to the id, and the draft still files', async () => {
     stubNet()
-    const { tool, q } = await seller(ownerSession({ '@playom': LEAD }))
+    const { tool, q } = await seller(ownerSession({ '@pilot_client': LEAD }))
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ownerCtx()
     )
     expect(r.display).toBeUndefined()
@@ -588,7 +588,7 @@ describe('the card names the person, beside the id', () => {
       },
     }
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ctx as never
     )
     expect(r.invoice.id).toBe(42)
@@ -598,9 +598,9 @@ describe('the card names the person, beside the id', () => {
 
 describe('displayOf', () => {
   it('name and username together, either alone, nothing at all', () => {
-    expect(displayOf('Оля', 'playom')).toBe('Оля (@playom)')
+    expect(displayOf('Оля', 'pilot_client')).toBe('Оля (@pilot_client)')
     expect(displayOf('Оля', null)).toBe('Оля')
-    expect(displayOf(null, '@playom')).toBe('@playom')
+    expect(displayOf(null, '@pilot_client')).toBe('@pilot_client')
     expect(displayOf(null, null)).toBeNull()
     expect(displayOf('', '')).toBeNull()
   })
@@ -630,20 +630,26 @@ describe("the greeting is the person's Telegram name, not a name the model was t
     stubNet()
     const { tool, q } = await seller(
       ownerSession(
-        { '@playom': LEAD },
-        { '@playom': { firstName: 'Geya', username: 'playom' } }
+        { '@pilot_client': LEAD },
+        { '@pilot_client': { firstName: 'Pilot', username: 'pilot_client' } }
       )
     )
-    await tool.handler({ chat: '@playom', tokens: 50, name: 'Оля' }, ownerCtx())
+    await tool.handler(
+      { chat: '@pilot_client', tokens: 50, name: 'Оля' },
+      ownerCtx()
+    )
     const what = q.pendingFor(OWNER)!.what
-    expect(what.startsWith('Geya, привет!')).toBe(true)
+    expect(what.startsWith('Pilot, привет!')).toBe(true)
     expect(what).not.toContain('Оля')
   })
 
   it('without an entity name the base name is used, still not the argument', async () => {
     stubNet()
     const { tool, q } = await seller()
-    await tool.handler({ chat: '@playom', tokens: 50, name: 'Оля' }, ownerCtx())
+    await tool.handler(
+      { chat: '@pilot_client', tokens: 50, name: 'Оля' },
+      ownerCtx()
+    )
     const what = q.pendingFor(OWNER)!.what
     expect(what.startsWith('Ольга, привет!')).toBe(true)
     expect(what).not.toContain('Оля,')
@@ -688,7 +694,7 @@ describe("the invoice comes from the lead's own bot of the farm", () => {
     })
     const { tool } = await seller()
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ownerCtx()
     )
     const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
@@ -709,7 +715,7 @@ describe("the invoice comes from the lead's own bot of the farm", () => {
     })
     const { tool } = await seller()
     const r: any = await tool.handler(
-      { chat: '@playom', tokens: 50 },
+      { chat: '@pilot_client', tokens: 50 },
       ownerCtx()
     )
     const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
@@ -724,7 +730,7 @@ describe("the invoice comes from the lead's own bot of the farm", () => {
       bots: { 'farm-token-one': 'neuro_blogger_bot' },
     })
     const { tool, q } = await seller()
-    await tool.handler({ chat: '@playom', tokens: 50 }, ownerCtx())
+    await tool.handler({ chat: '@pilot_client', tokens: 50 }, ownerCtx())
     const mint = posted.find(p => p.url.includes('createInvoiceLink'))!
     expect(mint.url).toContain('/botbot-token-for-tests/')
     expect(q.pendingFor(OWNER)).toBeTruthy()

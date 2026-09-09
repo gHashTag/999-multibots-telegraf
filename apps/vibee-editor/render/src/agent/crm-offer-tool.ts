@@ -61,7 +61,7 @@ export async function resolveLeadId(
 }
 
 /**
- * The recipient in words, for the card: "Ольга (@playom)". Both parts are
+ * The recipient in words, for the card: "Ольга (@pilot_client)". Both parts are
  * third-party text -- a first name is whatever the person typed into
  * Telegram -- so each is cut to one short line, and the username keeps only
  * the characters Telegram allows in one. Nothing here is ever shown INSTEAD

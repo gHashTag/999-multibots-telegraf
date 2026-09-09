@@ -41,11 +41,11 @@ const connection = (id = CONN) => ({
   is_enabled: true,
   rights: { can_reply: true },
 })
-const dm = (text: string, chatId = 435572800) => ({
+const dm = (text: string, chatId = 900000001) => ({
   message_id: 41,
   date: 1757348157,
-  chat: { id: chatId, first_name: 'Geya', type: 'private' },
-  from: { id: chatId, first_name: 'Geya', username: 'playom' },
+  chat: { id: chatId, first_name: 'Pilot', type: 'private' },
+  from: { id: chatId, first_name: 'Pilot', username: 'pilot_client' },
   business_connection_id: CONN,
   text,
 })
@@ -114,8 +114,8 @@ describe('the exchange goes into the memory at once', () => {
       any[],
     ]
     expect(owner).toBe(String(OWNER))
-    expect(lead).toBe('435572800')
-    expect(name).toBe('Geya')
+    expect(lead).toBe('900000001')
+    expect(name).toBe('Pilot')
     expect(messages).toEqual([
       {
         msg_id: 41,
@@ -201,19 +201,19 @@ describe("the owner's notification carries the DM menu", () => {
       .flat()
       .map((b: any) => b.callback_data)
     expect(data).toEqual([
-      'crm:lead:435572800',
-      'crm:mute:435572800',
-      'crm:prep:435572800',
-      'crm:later:435572800',
-      'crm:refuse:435572800',
+      'crm:lead:900000001',
+      'crm:mute:900000001',
+      'crm:prep:900000001',
+      'crm:later:900000001',
+      'crm:refuse:900000001',
     ])
   })
 
   it('pauseAiFor silences the AI in that chat for the connections of that owner only', async () => {
     const svc = await import('@/services/businessBotService')
     svc.handleBusinessConnection(connection() as any)
-    expect(svc.pauseAiFor(435572800, undefined, 999)).toBe(0)
-    expect(svc.pauseAiFor(435572800, undefined, OWNER)).toBe(1)
+    expect(svc.pauseAiFor(900000001, undefined, 999)).toBe(0)
+    expect(svc.pauseAiFor(900000001, undefined, OWNER)).toBe(1)
     const bot = fakeBot()
     await svc.handleBusinessMessage(dm('ещё вопрос') as any, bot as any, BOT)
     // Paused: nothing is sent into the client chat as the owner.

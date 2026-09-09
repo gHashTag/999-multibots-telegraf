@@ -38,14 +38,14 @@ const sample = {
   waiting_by_touch: { ours: 3, due: 2, theirs: 8 },
   top: [
     {
-      lead: '435572800',
-      display: 'Geya (@playom)',
+      lead: '900000001',
+      display: 'Pilot (@pilot_client)',
       next: 'reply',
       stage: 'talking',
       days_since_their_last_word: 2,
     },
     {
-      lead: '6579515876',
+      lead: '900000002',
       display: null,
       next: 'talk',
       stage: 'new',
@@ -55,7 +55,7 @@ const sample = {
   pending_card: {
     id: 'p1',
     action: 'send',
-    target: '435572800',
+    target: '900000001',
     age_minutes: 4,
   },
 }
@@ -66,7 +66,7 @@ describe('formatSummary', () => {
   it('lays out the brief with every label in Russian, zeros included', () => {
     const t = formatSummary(
       sample,
-      'Обход «next=reply»: 3 из 7 · жду кнопку по Geya (@playom) 12 мин.'
+      'Обход «next=reply»: 3 из 7 · жду кнопку по Pilot (@pilot_client) 12 мин.'
     )
     expect(t).toContain('Сводка по переписке · окно 7 дн.')
     expect(t).toContain('Людей в памяти: 132 (с сообщениями 118) · платили 9')
@@ -90,12 +90,12 @@ describe('formatSummary', () => {
     )
     expect(t).toContain('По касаниям ждём: мы 3 · пора 2 · они 8')
     expect(t).toContain(
-      '1. Geya (@playom) · 435572800 · ответить · в разговоре · 2 дн. назад'
+      '1. Pilot (@pilot_client) · 900000001 · ответить · в разговоре · 2 дн. назад'
     )
     expect(t).toContain(
-      '2. id 6579515876 · 6579515876 · поговорить · новый · 5 дн. назад'
+      '2. id 900000002 · 900000002 · поговорить · новый · 5 дн. назад'
     )
-    expect(t).toContain('Карточка ждёт: send → 435572800, 4 мин.')
+    expect(t).toContain('Карточка ждёт: send → 900000001, 4 мин.')
     expect(t).toContain('Обход «next=reply»: 3 из 7')
     expect(t).toContain('/sweep ждут | горячие | разговор')
   })

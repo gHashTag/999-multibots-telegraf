@@ -124,9 +124,9 @@ Railway — застрявшая миграция, платежи отстают
 аккаунт инвойс выставить не может. Доставка услуг прямо в личку (агент
 генерирует и отправляет в DM) — следующий виток, не этот.
 
-Первое письмо @playom: **я его не отправляю.** Владелец в боте пишет
-«предложи @playom 50 токенов под рилсы» → карточка → «Отправить».
-@playom нет в 30 последних диалогах владельца — разговора ещё не было.
+Первое письмо @pilot_client: **я его не отправляю.** Владелец в боте пишет
+«предложи @pilot_client 50 токенов под рилсы» → карточка → «Отправить».
+@pilot_client нет в 30 последних диалогах владельца — разговора ещё не было.
 
 Найдено чужое и починено по пути: тест `robokassa-result-url-is-mounted`
 падал на любой машине с `.env` (dotenv возвращает удалённые переменные при
@@ -219,7 +219,7 @@ WebSearch по конкурентам — не повторял в этом ви
 Живой замер:
 
 - `tri crm-ingest 5 20` → 5 диалогов, 1 человек, 20 в память, 20 в Zep CE
-  (наш JWT принят); `tri crm-leads` → 6579515876 (@playom): «живая переписка»,
+  (наш JWT принят); `tri crm-leads` → 900000002 (@pilot_client): «живая переписка»,
   next=wait — честно.
 - Наша модель qwen3:1.7b: ход 68 с → 38 с после компактного набора (23 из 63
   инструментов), инструменты зовёт верно, но итоговый текст после инструмента —
@@ -255,7 +255,7 @@ pay button only with an invoice link, sweep prompt with talk).
 
 Found live: the first pitch said «Ольга» (a fixture name I put in the prompt) and was
 SENT by the owner's press 16:35 UTC; its link came from @t27ai_bot. Corrected card:
-message 146375 (draft ec95bd68e403, «Geya, привет!», @Gaia_Kamskaia_bot, 30/45⭐).
+message 146375 (draft ec95bd68e403, «Pilot, привет!», @Pilot_Client_bot, 30/45⭐).
 
 Owner's stance (2026-09-09): never offer payment first; continue each client's
 history with full context; Zep filled immediately. Lessons in memory:

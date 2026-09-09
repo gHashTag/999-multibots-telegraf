@@ -224,7 +224,7 @@ export function proposalCard(
    * A BARE ID IS NOT AN ADDRESS A PERSON CAN CHECK.
    *
    * `tg_dialogs` hands the model `id` and no username, so the common case --
-   * "reply to this dialog" -- reaches here as digits. "Кому: 6579515876" asks
+   * "reply to this dialog" -- reaches here as digits. "Кому: 900000002" asks
    * somebody to approve a recipient they cannot recognise, and the send path
    * was deliberately made to work for exactly that shape.
    *
@@ -240,7 +240,7 @@ export function proposalCard(
    * one line on the server and again here. Printing the target first and
    * the name after a dash means a name like "Оля, id 111" cannot put a
    * false id in front of the real one, and a @username draft is not
-   * labelled "id @playom".
+   * labelled "id @pilot_client".
    */
   const name = String(p.display ?? '')
     .replace(/\s+/g, ' ')

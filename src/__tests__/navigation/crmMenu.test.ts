@@ -27,7 +27,7 @@ import {
  * THE MENU'S GRAMMAR: every rendered callback is one the dispatcher matches,
  * the argument is only ever a numeric id, and nothing is over 64 bytes.
  */
-const LEAD = '435572800'
+const LEAD = '900000001'
 const matches = (data: string) =>
   CRM_ROOT_RE.test(data) || CRM_LEAD_RE.test(data) || CRM_SCOPE_RE.test(data)
 
@@ -58,14 +58,14 @@ describe('the callback grammar', () => {
     expect(parseCrmCallback(`crm:lead:${LEAD}`)?.kind).toBe('lead')
     expect(parseCrmCallback('crm:lead:@ivan')).toBeNull()
     expect(parseCrmCallback('crm:prep:1')).toBeNull()
-    expect(parseCrmCallback('crm:offer:435572800')).toBeNull()
+    expect(parseCrmCallback('crm:offer:900000001')).toBeNull()
     expect(parseCrmCallback('tgp:ok:abc:def')).toBeNull()
   })
 
   it('every keyboard renders only callbacks the dispatcher matches, all under 64 bytes', () => {
     const rows = [
-      { lead: LEAD, display: 'Geya (@playom)', next: 'reply' },
-      { lead: '528379017', display: 'Andreas', next: 'wait' },
+      { lead: LEAD, display: 'Pilot (@pilot_client)', next: 'reply' },
+      { lead: '900000003', display: 'Second', next: 'wait' },
       { lead: '@notnumeric', display: 'x', next: 'offer' },
     ]
     const boards = [
@@ -125,10 +125,10 @@ describe('what each keyboard offers', () => {
 
   it('a non-numeric lead draws no button', () => {
     const kb = leadsKeyboard([
-      { lead: '@playom', display: 'Geya', next: 'reply' },
+      { lead: '@pilot_client', display: 'Pilot', next: 'reply' },
     ])
     expect(allCallbacks(kb)).toEqual(['crm:leads', 'crm:summary', 'crm:sweep'])
-    expect(cardMenuRows('@playom')).toEqual([])
+    expect(cardMenuRows('@pilot_client')).toEqual([])
     expect(cardMenuRows('-1001')).toEqual([])
     expect(dmLeadMenu('-1001')).toBeUndefined()
   })
@@ -159,7 +159,7 @@ describe('what each keyboard offers', () => {
   })
 
   it('the DM notification: who, mute, prepare, later, refuse', () => {
-    expect(allCallbacks(dmLeadMenu(435572800))).toEqual([
+    expect(allCallbacks(dmLeadMenu(900000001))).toEqual([
       `crm:lead:${LEAD}`,
       `crm:mute:${LEAD}`,
       `crm:prep:${LEAD}`,

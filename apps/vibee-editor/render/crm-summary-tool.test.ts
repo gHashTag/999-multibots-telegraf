@@ -69,9 +69,9 @@ function fakePool(o: { throwOn?: RegExp } = {}) {
           rows: [
             {
               lead_id: A,
-              first_name: 'Geya',
+              first_name: 'Pilot',
               last_name: null,
-              username: 'playom',
+              username: 'pilot_client',
             },
           ],
         }
@@ -194,7 +194,7 @@ describe('crm_summary', () => {
     expect(r.waiting_by_touch).toEqual({ ours: 1, due: 0, theirs: 1 })
     expect(r.top.map((t: any) => t.lead)).toEqual([A, B])
     expect(r.top[0]).toMatchObject({
-      display: 'Geya (@playom)',
+      display: 'Pilot (@pilot_client)',
       next: 'reply',
       stage: 'talking',
       waiting_for_reply: true,
@@ -230,7 +230,7 @@ describe('crm_summary', () => {
       id: 'p77',
       telegramId: OWNER,
       action: 'send',
-      target: '@playom',
+      target: '@pilot_client',
       what: 'x',
       turn: 't',
     } as never)
@@ -240,7 +240,7 @@ describe('crm_summary', () => {
     expect(r.pending_card).toEqual({
       id: 'p77',
       action: 'send',
-      target: '@playom',
+      target: '@pilot_client',
       age_minutes: 4,
     })
   })

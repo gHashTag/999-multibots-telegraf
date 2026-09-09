@@ -385,7 +385,7 @@ describe('who they are', () => {
     await rememberPerson(pool, OWNER, '555', {
       firstName: '  Ольга\n\nСсылка ' + 'x'.repeat(100),
       lastName: null,
-      username: 'playom',
+      username: 'pilot_client',
     })
     const ins = pool.queries.find(q =>
       q.sql.startsWith('INSERT INTO crm_people')
@@ -396,7 +396,7 @@ describe('who they are', () => {
     expect(String(ins.params[2])).not.toContain('\n')
     expect(String(ins.params[2]).length).toBeLessThanOrEqual(64)
     expect(ins.params[3]).toBeNull()
-    expect(ins.params[4]).toBe('playom')
+    expect(ins.params[4]).toBe('pilot_client')
   })
 
   it('personOf reads them back; fullName joins what is known', async () => {
@@ -409,7 +409,7 @@ describe('who they are', () => {
                 {
                   first_name: 'Ольга',
                   last_name: 'Иванова',
-                  username: 'playom',
+                  username: 'pilot_client',
                 },
               ]
             : [],
@@ -419,7 +419,7 @@ describe('who they are', () => {
     expect(p).toEqual({
       firstName: 'Ольга',
       lastName: 'Иванова',
-      username: 'playom',
+      username: 'pilot_client',
     })
     expect(fullName(p)).toBe('Ольга Иванова')
     expect(
@@ -457,7 +457,7 @@ describe('who they are', () => {
             lead_id: '555',
             first_name: 'Ольга',
             last_name: 'Иванова',
-            username: 'playom',
+            username: 'pilot_client',
           },
         ],
       },
@@ -474,7 +474,7 @@ describe('who they are', () => {
     })
     const olga = list.find(l => l.lead === '555')!
     expect(olga.name).toBe('Ольга Иванова')
-    expect(olga.username).toBe('playom')
+    expect(olga.username).toBe('pilot_client')
     expect(olga.lastWords).toBe('сколько стоит фото?')
     const other = list.find(l => l.lead === '556')!
     expect(other.name).toBeNull()

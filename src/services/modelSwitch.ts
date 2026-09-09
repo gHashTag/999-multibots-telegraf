@@ -278,7 +278,7 @@ export async function fetchLead(
 }> {
   const chat = String(who ?? '').trim()
   if (!chat)
-    throw new Error('кого показать? /lead 435572800 или /lead @username')
+    throw new Error('кого показать? /lead 900000001 или /lead @username')
   const s = await callTool(telegramId, 'crm_lead_context', { chat, limit: 8 })
   const lead = /^\d{5,15}$/.test(String(s.lead ?? '')) ? String(s.lead) : null
   return {

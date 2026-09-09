@@ -2922,7 +2922,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     if (!who) {
       await sendLong(
         ctx,
-        'Кого показать? /lead 435572800 или /lead @username',
+        'Кого показать? /lead 900000001 или /lead @username',
         hub()
       )
       return

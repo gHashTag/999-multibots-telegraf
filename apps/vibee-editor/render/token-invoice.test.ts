@@ -34,13 +34,13 @@ describe('the payload names the person who will be credited', () => {
   it('a numeric recipient goes into the payload verbatim', async () => {
     const { posted, f } = recorder()
     const m = await mintTokenInvoice({
-      forTelegramId: '6579515876',
+      forTelegramId: '900000002',
       tokens: 50,
       fetchImpl: f,
       botToken: 'bot-token',
     })
-    expect(m.payload).toBe('tokens:50:6579515876')
-    expect(posted[0].body.payload).toBe('tokens:50:6579515876')
+    expect(m.payload).toBe('tokens:50:900000002')
+    expect(posted[0].body.payload).toBe('tokens:50:900000002')
   })
 
   it('a username is REFUSED rather than written into the payload', async () => {
@@ -51,7 +51,7 @@ describe('the payload names the person who will be credited', () => {
     const { posted, f } = recorder()
     await expect(
       mintTokenInvoice({
-        forTelegramId: '@playom',
+        forTelegramId: '@pilot_client',
         tokens: 50,
         fetchImpl: f,
         botToken: 'bot-token',
@@ -65,7 +65,7 @@ describe('price comes from the one scale', () => {
   it('50 tokens is 65 stars, as in token-packs', async () => {
     const { posted, f } = recorder()
     const m = await mintTokenInvoice({
-      forTelegramId: '6579515876',
+      forTelegramId: '900000002',
       tokens: 50,
       fetchImpl: f,
       botToken: 'bot-token',
@@ -81,7 +81,7 @@ describe('no link is invented', () => {
     const { posted, f } = recorder()
     await expect(
       mintTokenInvoice({
-        forTelegramId: '6579515876',
+        forTelegramId: '900000002',
         tokens: 10,
         fetchImpl: f,
         botToken: '',
@@ -97,7 +97,7 @@ describe('no link is invented', () => {
     })
     await expect(
       mintTokenInvoice({
-        forTelegramId: '6579515876',
+        forTelegramId: '900000002',
         tokens: 10,
         fetchImpl: f,
         botToken: 't',
@@ -123,7 +123,7 @@ describe('the pending row', () => {
     const { f } = recorder()
     const pool = poolThat(false)
     await mintTokenInvoice({
-      forTelegramId: '6579515876',
+      forTelegramId: '900000002',
       tokens: 10,
       pool,
       fetchImpl: f,
@@ -133,7 +133,7 @@ describe('the pending row', () => {
       q.sql.startsWith('INSERT INTO token_invoices')
     )
     expect(ins, 'pending-строка не записана').toBeTruthy()
-    expect(ins!.params[0]).toBe('6579515876')
+    expect(ins!.params[0]).toBe('900000002')
   })
 
   it('a row that fails to write is JOURNALED, naming the person and the amount', async () => {
@@ -160,7 +160,7 @@ describe('the pending row', () => {
     const { mintTokenInvoice: mint } = await import('./src/agent/token-invoice')
     const { f } = recorder()
     await mint({
-      forTelegramId: '6579515876',
+      forTelegramId: '900000002',
       tokens: 10,
       pool: poolThat(true),
       fetchImpl: f,
@@ -172,7 +172,7 @@ describe('the pending row', () => {
       // The kind is what a reader filters by. A wrong one files a money event
       // under a heading nobody opens -- survived a mutation until this line.
       kind: 'payment',
-      who: '6579515876',
+      who: '900000002',
       amount: 15,
       severity: 'attention',
     })
@@ -183,7 +183,7 @@ describe('the pending row', () => {
     // bot's handler credits perfectly well.
     const { f } = recorder()
     const m = await mintTokenInvoice({
-      forTelegramId: '6579515876',
+      forTelegramId: '900000002',
       tokens: 10,
       pool: poolThat(true),
       fetchImpl: f,
@@ -230,7 +230,7 @@ describe('a failed pending row leaves a line where somebody can find it', () => 
     try {
       const { f } = recorder()
       await mintTokenInvoice({
-        forTelegramId: '6579515876',
+        forTelegramId: '900000002',
         tokens: 10,
         pool: {
           query: async () => {
@@ -268,7 +268,7 @@ describe('the pending row id travels with the draft', () => {
   }
   const mint = (pool: ReturnType<typeof poolAnswering>) =>
     mintTokenInvoice({
-      forTelegramId: '6579515876',
+      forTelegramId: '900000002',
       tokens: 10,
       pool,
       fetchImpl: recorder().f,
@@ -322,7 +322,7 @@ describe('the cancel columns are added once per process', () => {
     const pool = recording()
     for (let i = 0; i < 2; i++) {
       await mintTokenInvoice({
-        forTelegramId: '6579515876',
+        forTelegramId: '900000002',
         tokens: 10,
         pool,
         fetchImpl: recorder().f,

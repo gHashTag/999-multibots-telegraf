@@ -29,7 +29,7 @@ const draft = (id: string, who: string, what = 'привет') => ({
   id,
   telegramId: who,
   action: 'send' as const,
-  target: '6579515876',
+  target: '900000002',
   what,
 })
 
@@ -259,12 +259,12 @@ describe('the send reaches an address the model actually holds', () => {
       client: async () => f.client,
     }))
     const { execute: exec } = await import('./src/agent/tg-proposals')
-    const r = await exec(proposal('6579515876'), { telegramId: '144022504' })
+    const r = await exec(proposal('900000002'), { telegramId: '144022504' })
     expect(r.done, r.done ? '' : (r as { why: string }).why).toBe(true)
     expect(f.calls).toEqual([
-      'sendMessage:6579515876',
+      'sendMessage:900000002',
       'getDialogs',
-      'sendMessage:6579515876',
+      'sendMessage:900000002',
     ])
   })
 
@@ -414,7 +414,7 @@ describe('the approved bytes are the sent bytes', () => {
     }))
     const { execute: exec } = await import('./src/agent/tg-proposals')
     const r = await exec(
-      { ...proposal2('a **b** c'), target: '6579515876' },
+      { ...proposal2('a **b** c'), target: '900000002' },
       { telegramId: '144022504' }
     )
     expect(r.done).toBe(true)
@@ -1048,10 +1048,10 @@ describe('the sent message goes into the memory at once', () => {
         id: 'p9',
         telegramId: '144022504',
         action: 'send',
-        target: '@playom',
+        target: '@pilot_client',
         what: 'привет, как дела',
-        lead: '435572800',
-        display: 'Geya (@playom)',
+        lead: '900000001',
+        display: 'Pilot (@pilot_client)',
         createdAt: Date.now(),
       } as never,
       { telegramId: '144022504', pool }
@@ -1067,8 +1067,8 @@ describe('the sent message goes into the memory at once', () => {
     ]
     expect(p).toBe(pool)
     expect(owner).toBe('144022504')
-    expect(lead).toBe('435572800')
-    expect(name).toBe('Geya')
+    expect(lead).toBe('900000001')
+    expect(name).toBe('Pilot')
     expect(msgs).toEqual([
       {
         msgId: 77,

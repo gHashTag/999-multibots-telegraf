@@ -144,7 +144,7 @@ export interface PendingProposal {
    */
   turn?: string
   /**
-   * Who the message is for, in words a person recognises -- "Ольга (@playom)"
+   * Who the message is for, in words a person recognises -- "Ольга (@pilot_client)"
    * -- beside the bare id the card used to show alone. Third-party text:
    * cut to one short line at the source, and shown to the owner only ever
    * NEXT TO the id, never instead of it.

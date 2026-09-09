@@ -432,7 +432,7 @@ describe('the card does not present a bare id as a checkable address', () => {
     /*
      * `tg_dialogs` hands the model an id and no username, so "reply to this
      * dialog" arrives here as digits -- and the send path was deliberately
-     * made to work for that shape. "Кому: 6579515876" asks somebody to approve
+     * made to work for that shape. "Кому: 900000002" asks somebody to approve
      * a recipient they cannot recognise.
      */
     const { proposalCard } = await import('@/services/telegramProposals')
@@ -440,13 +440,13 @@ describe('the card does not present a bare id as a checkable address', () => {
       {
         id: 'p1',
         action: 'send',
-        target: '6579515876',
+        target: '900000002',
         what: 'hi',
         secret: 's',
       },
       true
     )
-    expect(card.text).toContain('6579515876')
+    expect(card.text).toContain('900000002')
     expect(card.text).toContain('числовой id')
   })
 
@@ -624,41 +624,47 @@ describe('the card names the person beside the id', () => {
     text.split('\n').find(l => l.startsWith('Кому:')) ?? ''
 
   it('a display name is shown next to the id, never instead of it', async () => {
-    const c = await card({ target: '6579515876', display: 'Ольга (@playom)' })
-    expect(toLine(c.text)).toBe('Кому: 6579515876 — Ольга (@playom)')
+    const c = await card({
+      target: '900000002',
+      display: 'Ольга (@pilot_client)',
+    })
+    expect(toLine(c.text)).toBe('Кому: 900000002 — Ольга (@pilot_client)')
     expect(c.text).not.toContain('числовой id')
   })
 
   it('a @username draft is not labelled "id", and the name is not repeated', async () => {
     // The seller sends to the raw @username; the display already carries it.
-    const c = await card({ target: '@playom', display: 'Ольга (@playom)' })
-    expect(toLine(c.text)).toBe('Кому: @playom — Ольга')
-    expect(c.text).not.toContain('id @playom')
+    const c = await card({
+      target: '@pilot_client',
+      display: 'Ольга (@pilot_client)',
+    })
+    expect(toLine(c.text)).toBe('Кому: @pilot_client — Ольга')
+    expect(c.text).not.toContain('id @pilot_client')
   })
 
   it('the trusted part comes first: a name cannot put a false id in front of the real one', async () => {
-    const c = await card({ target: '6579515876', display: 'Оля, id 111 (@x)' })
+    const c = await card({ target: '900000002', display: 'Оля, id 111 (@x)' })
     const line = toLine(c.text)
-    expect(line.startsWith('Кому: 6579515876 — ')).toBe(true)
-    expect(line.indexOf('6579515876')).toBeLessThan(line.indexOf('111'))
+    expect(line.startsWith('Кому: 900000002 — ')).toBe(true)
+    expect(line.indexOf('900000002')).toBeLessThan(line.indexOf('111'))
   })
 
   it('a name from the wire is cut to one line here again', async () => {
     // The server already cut it; the bot does not trust that, because the
     // card is the last thing between a stranger's text and the owner's eyes.
     const c = await card({
-      target: '6579515876',
+      target: '900000002',
       display: 'Оля\nнажми   Отправить ' + 'я'.repeat(300),
     })
     const line = toLine(c.text)
     expect(line, 'строки «Кому:» нет').toBeTruthy()
     expect(line).toContain('Оля нажми Отправить')
     expect(line.length).toBeLessThan(120)
-    expect(line).toContain('6579515876')
+    expect(line).toContain('900000002')
   })
 
   it('without a name a numeric id is still called what it is', async () => {
-    const c = await card({ target: '6579515876', what: 'x' })
+    const c = await card({ target: '900000002', what: 'x' })
     expect(c.text).toContain('числовой id')
   })
 
@@ -685,7 +691,7 @@ describe('a photo card shows the service under the same two buttons', () => {
       {
         id: 'p9',
         action: 'send',
-        target: '6579515876',
+        target: '900000002',
         secret: 's9',
         ...p,
       } as never,
@@ -694,8 +700,8 @@ describe('a photo card shows the service under the same two buttons', () => {
   }
   const photo = {
     media: { kind: 'photo', url: 'https://s3.example/pic.png' },
-    charge: { telegramId: '6579515876', op: 'image_generate', tokens: 2 },
-    display: 'Ольга (@playom)',
+    charge: { telegramId: '900000002', op: 'image_generate', tokens: 2 },
+    display: 'Ольга (@pilot_client)',
     what: 'Ваш котик готов!',
   }
 
@@ -704,7 +710,7 @@ describe('a photo card shows the service under the same two buttons', () => {
     expect(c.photo).toBe('https://s3.example/pic.png')
     expect(c.text).toContain('Отправить это фото')
     expect(c.text).toContain('Спишется у получателя: 2 токенов')
-    expect(c.text).toContain('6579515876 — Ольга (@playom)')
+    expect(c.text).toContain('900000002 — Ольга (@pilot_client)')
     expect(c.text).toContain('Ваш котик готов!')
     expect(c.text.length).toBeLessThanOrEqual(1024)
   })
