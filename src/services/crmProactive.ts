@@ -98,6 +98,54 @@ const INGEST_TIMEOUT_MS = 170_000
 let running = false
 let lastPushAt = 0
 
+/** Appended to the brief for the one retry after a no-tools answer. */
+export const SWEEP_RETRY_NOTE =
+  ' ВНИМАНИЕ: предыдущий ответ отклонён — ты не вызвал ни одного инструмента. ' +
+  'Шаг 1 (crm_leads) обязателен ВСЕГДА, даже чтобы ответить «тихо»: без него ' +
+  'ответ не засчитывается. Маркеры вида [[Подпись|...]] здесь не работают — ' +
+  'не пиши их. Сначала вызови crm_leads, потом ответь одной строкой.'
+
+// The field holding the tool names has a Russian identifier on the existing
+// type. Read through a string key: a literal is allowed where an identifier
+// is not, and it keeps the callers free of a suppression marker that prettier
+// would move off its line.
+function toolsOf(answer: ОтветАгента): string[] {
+  // cyrillic-ok: pre-existing identifiers
+  return (
+    (answer as unknown as Record<string, string[] | undefined>)[
+      'инструменты'
+    ] ?? []
+  )
+}
+
+/**
+ * Consecutive failed sweeps, for the alert channel. The first failure and
+ * every sixth after it (three hours at the default cadence) go out as errors;
+ * the ones between are warnings, so a stuck model is reported, not
+ * broadcast twice an hour. Recovery is logged once, with the count.
+ */
+let failStreak = 0
+export function reportSweepOutcome(r: SweepOutcome): 'error' | 'warn' | 'info' {
+  if (r.did === 'failed') {
+    failStreak += 1
+    const level = failStreak === 1 || failStreak % 6 === 0 ? 'error' : 'warn'
+    logger[level]('[crm-proactive] sweep FAILED', {
+      did: r.did,
+      why: r.why,
+      consecutive: failStreak,
+    })
+    return level
+  }
+  if (failStreak) {
+    logger.info('[crm-proactive] sweep recovered', {
+      afterFailures: failStreak,
+    })
+    failStreak = 0
+  }
+  logger.info('[crm-proactive] sweep', { did: r.did, why: r.why })
+  return 'info'
+}
+
 /**
  * A press on the card -- either button -- frees the next sweep, and moves a
  * scoped sweep to its next person when the pressed card was the one it
@@ -121,6 +169,7 @@ export function noteResolved(owner?: string, cardId?: string): void {
 export function resetProactiveForTests(): void {
   running = false
   lastPushAt = 0
+  failStreak = 0
 }
 
 export async function sweepOnce(
@@ -145,11 +194,30 @@ export async function sweepOnce(
         error: e instanceof Error ? e.message : String(e),
       })
     }
-    const answer = await deps.ask(ownerId, opts.prompt ?? SWEEP_PROMPT)
-    void deps.record?.(ownerId, [
-      { role: 'user', content: opts.label ?? '[проактивный обход продавца]' },
-      { role: 'assistant', content: (answer.текст ?? '').slice(0, 2000) }, // cyrillic-ok: pre-existing identifiers
-    ])
+    const brief = opts.prompt ?? SWEEP_PROMPT
+    let answer = await deps.ask(ownerId, brief)
+    /*
+     * ONE SECOND CHANCE, WITH THE RULE SPELLED OUT.
+     *
+     * Production 2026-09-09, every thirty minutes from 11:54 to 15:04: the
+     * model answered `[[Подпись|no_one_available]]` (or `|reply`) with zero
+     * tool calls, and each sweep was filed as failed. The marker is the
+     * button syntax the customer-facing prompt teaches; the model took step 4
+     * of the brief ("nobody -> say quiet") as permission to skip step 1. A
+     * second turn that names the missing call and disowns the marker is
+     * cheap; a third would just be the same model in the same mood.
+     */
+    if (!toolsOf(answer).length && !answer.proposal) {
+      answer = await deps.ask(ownerId, brief + SWEEP_RETRY_NOTE)
+    }
+    // Only a turn that looked is worth remembering: a no-tools answer left
+    // in the transcript teaches the next sweep to answer the same way.
+    if (toolsOf(answer).length || answer.proposal) {
+      void deps.record?.(ownerId, [
+        { role: 'user', content: opts.label ?? '[проактивный обход продавца]' },
+        { role: 'assistant', content: (answer.текст ?? '').slice(0, 2000) }, // cyrillic-ok: pre-existing identifiers
+      ])
+    }
     if (answer.proposal) {
       await deps.push(ownerId, answer.proposal)
       lastPushAt = now
@@ -176,14 +244,7 @@ export async function sweepOnce(
      * stay quiet is a real idle, and the brief asks for exactly that. Only the
      * no-tools case is a non-answer.
      */
-    // The field holding the tool names has a Russian identifier on the
-    // existing type. Read through a string key: a literal is allowed where an
-    // identifier is not, and it keeps this block free of a suppression marker
-    // that prettier would move off its line.
-    const toolNames =
-      (answer as unknown as Record<string, string[] | undefined>)[
-        'инструменты'
-      ] ?? []
+    const toolNames = toolsOf(answer)
     if (!toolNames.length) {
       return {
         did: 'failed',
@@ -365,11 +426,10 @@ export function startCrmProactive(
      *
      * Every outcome was logged at info, and info does not reach the owner's
      * alert channel. So a model producing junk every thirty minutes looked
-     * exactly like a quiet afternoon.
+     * exactly like a quiet afternoon. The other extreme -- the same failure
+     * as a fresh alert twice an hour -- is handled in reportSweepOutcome.
      */
-    if (r.did === 'failed')
-      logger.error('[crm-proactive] sweep FAILED', { did: r.did, why: r.why })
-    else logger.info('[crm-proactive] sweep', { did: r.did, why: r.why })
+    reportSweepOutcome(r)
   }
   const first = setTimeout(run, opts.firstDelayMs ?? 120_000)
   const timer = setInterval(run, opts.everyMs)

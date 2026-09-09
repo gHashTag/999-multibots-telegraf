@@ -146,7 +146,9 @@ describe('the queue', () => {
       say
     )
     await flush()
-    expect(asks).toHaveLength(3)
+    // Three items, each asked twice: a no-tools answer earns one retry with
+    // the rule spelled out before the item counts as failed.
+    expect(asks).toHaveLength(6)
     expect(said.some(s => s.includes('три раза подряд'))).toBe(true)
     expect(activeScope(OWNER)).toBeNull()
   })
