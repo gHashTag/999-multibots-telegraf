@@ -42,19 +42,11 @@ export function ProfilePage() {
   const soul = useAtomValue(soulAtom)
   const soulLoaded = useAtomValue(soulLoadedAtom)
   const loadSoul = useSetAtom(loadSoulAtom)
-  // "Later" on the welcome road lives for this tab's session only: the road
-  // comes back on the next visit until club, Telegram and SOUL are all in place.
-  const [leftWelcome, setLeftWelcome] = useState(
-    () =>
-      typeof sessionStorage !== 'undefined' &&
-      sessionStorage.getItem('welcome-left') === '1'
-  )
+  // The welcome road has no "later" (owner, 2026-09-09, evening): the
+  // profile opens only when club, Telegram and SOUL are all in place and the
+  // person pressed the last button. Until then every visit lands on the road.
   const [onRoad, setOnRoad] = useState(false)
-  const leaveWelcome = () => {
-    sessionStorage.setItem('welcome-left', '1')
-    setLeftWelcome(true)
-    setOnRoad(false)
-  }
+  const finishWelcome = () => setOnRoad(false)
 
   useEffect(() => {
     if (username) {
@@ -102,7 +94,6 @@ export function ProfilePage() {
     connected,
     club: clubActive,
     soul: soulExists,
-    left: leftWelcome,
     onRoad,
     devBypass:
       import.meta.env.DEV &&
@@ -110,7 +101,7 @@ export function ProfilePage() {
   })
 
   // Derived state set during render (the React-sanctioned shape): once the
-  // road is on screen it stays there until leaveWelcome, whatever the facts do.
+  // road is on screen it stays there until finishWelcome, whatever the facts do.
   if (screen === 'welcome' && !onRoad) setOnRoad(true)
 
   if (screen === 'skeleton') {
@@ -207,7 +198,7 @@ export function ProfilePage() {
                 connected: connected === true,
                 soul: soulExists === true,
               }}
-              onLeave={leaveWelcome}
+              onDone={finishWelcome}
             />
           </div>
         </div>

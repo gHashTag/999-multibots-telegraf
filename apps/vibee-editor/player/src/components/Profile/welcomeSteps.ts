@@ -13,8 +13,11 @@
  * SOUL is not asked to write one. The facts come from three atoms the page
  * already keeps; this module only turns them into a step.
  *
- * Skipping is allowed on the two story steps and nowhere else: the paywall,
- * the login and the SOUL are the product, the story is only the reason.
+ * Nothing is skipped and nothing is postponed (owner, 2026-09-09, evening:
+ * "every step is mandatory, we do not move on until the step is done"). The
+ * only way forward is the step itself; the only way out is Telegram's own
+ * back button. Where the road starts is still decided from facts, so a
+ * person who already did a step is not asked to do it twice.
  */
 export type WelcomeStep = 'value' | 'how' | 'club' | 'connect' | 'soul' | 'done'
 
@@ -56,22 +59,6 @@ export function welcomeNext(step: WelcomeStep): WelcomeStep {
 export function welcomePrev(step: WelcomeStep): WelcomeStep {
   const i = WELCOME_STEPS.indexOf(step)
   return WELCOME_STEPS[Math.max(i - 1, 0)]
-}
-
-/** Only the story may be skipped; every other step is the product itself. */
-export function welcomeCanSkip(step: WelcomeStep): boolean {
-  return step === 'value' || step === 'how'
-}
-
-/**
- * Whether the person is allowed to leave the road for the profile without
- * finishing it. A brand-new person (not connected) is not: the profile does
- * not work without the phone login (owner, 2026-09-09). A person who is
- * already connected has passed the mandatory step and may say "later" to the
- * club or to the SOUL; the road returns next session.
- */
-export function welcomeCanLeave(facts: WelcomeFacts): boolean {
-  return facts.connected
 }
 
 /**

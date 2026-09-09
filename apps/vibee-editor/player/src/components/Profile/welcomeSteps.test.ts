@@ -14,8 +14,6 @@ import {
   WELCOME_STEPS,
   composeSoul,
   soulHasSubstance,
-  welcomeCanLeave,
-  welcomeCanSkip,
   welcomeIndex,
   welcomeNext,
   welcomePrev,
@@ -56,20 +54,12 @@ describe('the road', () => {
     expect(welcomePrev('value')).toBe('value')
   })
 
-  it('lets you skip the story and nothing else', () => {
-    expect(welcomeCanSkip('value')).toBe(true)
-    expect(welcomeCanSkip('how')).toBe(true)
-    for (const s of ['club', 'connect', 'soul', 'done'] as const) {
-      expect(welcomeCanSkip(s)).toBe(false)
-    }
-  })
-
-  it('lets only a connected person leave for the profile', () => {
-    expect(
-      welcomeCanLeave({ club: false, connected: false, soul: false })
-    ).toBe(false)
-    expect(welcomeCanLeave({ club: false, connected: true, soul: false })).toBe(
-      true
+  it('exports no skip and no leave: every step is mandatory', async () => {
+    // Owner, 2026-09-09, evening: "until paid the profile does not open;
+    // every step is mandatory; we do not move on until the step is done".
+    const mod = await import('./welcomeSteps')
+    expect(Object.keys(mod)).not.toEqual(
+      expect.arrayContaining(['welcomeCanSkip', 'welcomeCanLeave'])
     )
   })
 })
