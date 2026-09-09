@@ -510,6 +510,7 @@ const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
 }
 import { Pool } from 'pg'
 import { creditStarsPayment } from './src/stars-credit'
+import { tokenHistory } from './src/token-ledger'
 import {
   ENV_NAMES,
   MARK_POSTED,
@@ -8046,6 +8047,34 @@ const server = createServer(async (req, res) => {
               : 'касса ждёт токен бота-кассира от владельца',
           })
         )
+        return
+      }
+
+      // GET /api/tokens/history — the person's own book: what every token
+      // bought, refunded or was granted for (src/token-ledger.ts). Owner,
+      // 2026-09-09: "we must know exactly what each expense was for".
+      if (feedPath === '/api/tokens/history' && req.method === 'GET') {
+        const who = chatIdentity(req, verifiedTelegramId(req))
+        if (!who) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'нужна подпись или ключ агента',
+            })
+          )
+          return
+        }
+        try {
+          const pool = await getPool()
+          const history = await tokenHistory(pool, who, 100)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, history }))
+        } catch (e) {
+          console.error('[tokens/history] error:', e)
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: понятнаяПричина(e) })) // cyrillic-ok: existing helper name
+        }
         return
       }
 

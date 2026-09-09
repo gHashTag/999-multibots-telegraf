@@ -68,7 +68,10 @@ describe('the charge produces numbers', () => {
       'test-not-an-owner',
       'image_generate'
     )
-    expect(calls).toEqual(['INSERT', 'UPDATE'])
+    // ensureRow's INSERT still precedes the atomic UPDATE; the ledger adds
+    // its own CREATE/SELECT/INSERT around them (src/token-ledger.ts).
+    const moves = calls.filter(c => c === 'INSERT' || c === 'UPDATE')
+    expect(moves.slice(0, 2)).toEqual(['INSERT', 'UPDATE'])
     expect(spent.ok).toBe(true)
     // Both numbers, at the moment the money moves. If this ever returns
     // undefined, the receipt below has nothing to carry.

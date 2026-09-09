@@ -52,16 +52,21 @@ function balanceMoves(): string[] {
  * claim that somebody read it; the list is short on purpose.
  */
 const DECLARED: Record<string, string> = {
-  'src/agent/billing-shared.ts': 'spendByTid debits, refundByTid credits',
-  'src/agent/tools.ts': 'spendTokens debits, refundTokens credits (the agent)',
-  'src/stars-credit.ts': 'creditStarsPayment credits a Telegram Stars payment',
+  // 2026-09-09: the three implementations collapsed into one. billing-shared,
+  // tools and stars-credit now call moveTokens / grantWelcomeIfNew, which
+  // write the token_ledger row beside every balance change (owner: "every
+  // payment must be tracked; we must know what each expense was for").
+  'src/token-ledger.ts':
+    'moveTokens debits and credits (UPDATE, and the upsert for a first row); the only door',
 }
 
 describe('every place that moves a token balance is a place somebody read', () => {
   it('finds the movements at all — otherwise this test proves nothing', () => {
     // A matcher that stops matching would report an empty population as a
     // clean bill. That is the failure this whole file exists to prevent.
-    expect(balanceMoves().length).toBeGreaterThanOrEqual(5)
+    // Three statements move the balance today: the debit, the credit of an
+    // existing row, and the upsert that credits a person's first row.
+    expect(balanceMoves().length).toBeGreaterThanOrEqual(3)
   })
 
   it('has no undeclared implementation of moving money', () => {

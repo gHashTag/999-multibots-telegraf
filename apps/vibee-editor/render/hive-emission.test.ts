@@ -125,7 +125,9 @@ describe('emission cannot break the thing it observes', () => {
      * balance -- money in the report that never left a wallet.
      */
     const body = functionBody(tools, 'async function spendTokens(')
-    const refusal = body.indexOf('if (r.rows.length === 0)')
+    // The balance now moves inside moveTokens (src/token-ledger.ts); the
+    // refusal branch is its `ok: false` outcome.
+    const refusal = body.indexOf('if (!r.ok)')
     const emission = body.search(/record\(\s*ctx\.pool/)
     expect(refusal).toBeGreaterThan(-1)
     expect(emission).toBeGreaterThan(refusal)
