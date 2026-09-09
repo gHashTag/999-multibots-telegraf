@@ -26,6 +26,7 @@
  */
 
 import { planTools } from './plan-tools'
+import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot, botNameOf } from './bot-farm'
@@ -251,21 +252,8 @@ if (!pricingCheck.ok) {
 }
 
 async function ensureTokenRow(ctx: ToolContext): Promise<number> {
-  await ctx.pool.query(
-    `CREATE TABLE IF NOT EXISTS user_tokens (
-       telegram_id text PRIMARY KEY,
-       balance     int NOT NULL,
-       updated_at  timestamptz NOT NULL DEFAULT now()
-     )`
-  )
-  const r = await ctx.pool.query(
-    `INSERT INTO user_tokens (telegram_id, balance)
-     VALUES ($1, $2)
-     ON CONFLICT (telegram_id) DO UPDATE SET telegram_id = EXCLUDED.telegram_id
-     RETURNING balance`,
-    [ctx.telegramId, TOKEN_START]
-  )
-  return r.rows[0].balance
+  // The start grant is a movement: recorded once as 'grant' (src/token-ledger.ts).
+  return grantWelcomeIfNew(ctx.pool, ctx.telegramId, TOKEN_START)
 }
 
 /** Запущенные рендеры: чат без состояния, иначе renderId теряется навсегда. */
@@ -369,13 +357,17 @@ async function spendTokens(
   // READ COMMITTED второй UPDATE ждёт блокировку строки, перечитывает уже
   // списанный баланс и не проходит условие — 0 строк, честный отказ.
   await ensureTokenRow(ctx) // гарантируем, что строка есть
-  const r = await ctx.pool.query(
-    `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
-     WHERE telegram_id = $1 AND balance >= $2 RETURNING balance`,
-    [ctx.telegramId, price]
-  )
-  if (r.rows.length === 0) {
-    const balance = await ensureTokenRow(ctx)
+  // One statement checks and debits; the ledger row names the tool. See
+  // src/token-ledger.ts — the only writer of user_tokens.
+  const r = await moveTokens(ctx.pool, {
+    telegramId: ctx.telegramId,
+    delta: -price,
+    kind: 'spend',
+    reason: tool,
+    meta: { tool },
+  })
+  if (!r.ok) {
+    const balance = r.balance
     return {
       ok: false,
       причина:
@@ -404,7 +396,7 @@ async function spendTokens(
     what: tool,
   })
 
-  return { ok: true, потрачено: price, осталось: r.rows[0].balance }
+  return { ok: true, потрачено: price, осталось: r.balance }
 }
 
 /**
@@ -468,11 +460,13 @@ async function refundTokens(
   }
 
   try {
-    await ctx.pool.query(
-      `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
-       WHERE telegram_id = $1`,
-      [ctx.telegramId, price]
-    )
+    await moveTokens(ctx.pool, {
+      telegramId: ctx.telegramId,
+      delta: price,
+      kind: 'refund',
+      reason: `refund: ${tool} (${why})`,
+      meta: { tool, why },
+    })
     console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
     /*
      * A refund is ATTENTION, not an ordinary event.

@@ -10,6 +10,7 @@
  * Same SQL and the same order as before; the handler now calls this.
  */
 import { record } from './hive/journal'
+import { moveTokens } from './token-ledger'
 
 type Queryable = { query: (sql: string, params?: unknown[]) => Promise<any> }
 type Client = Queryable & { release: () => void }
@@ -105,13 +106,17 @@ export async function creditStarsPayment(
       first = (ins?.rowCount ?? 0) > 0
     }
     if (!first) return false
-    await q.query(
-      `INSERT INTO user_tokens (telegram_id, balance)
-       VALUES ($1, $2)
-       ON CONFLICT (telegram_id)
-       DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
-      [tid, amount]
-    )
+    // The credit and its ledger row are written by the one function that moves
+    // tokens (src/token-ledger.ts), on THIS client, inside THIS transaction.
+    const moved = await moveTokens(q, {
+      telegramId: tid,
+      delta: amount,
+      kind: 'purchase',
+      reason: 'Telegram Stars',
+      ref: chargeId || null,
+      meta: { chargeId: chargeId || null },
+    })
+    if (!moved.ok) throw new Error(`credit refused: ${moved.reason}`)
     return true
   })
 

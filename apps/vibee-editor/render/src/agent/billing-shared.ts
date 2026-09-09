@@ -2,6 +2,7 @@ import { СЕБЕСТОИМОСТЬ_USD, ЕДИНИЦА_ЦЕНЫ } from './kie-p
 // Контракты моделей: `needs` решает, задаём ли длину МЫ. Модуль без импортов,
 // цикла не создаёт.
 import { KIE_MODELS } from './kie-models'
+import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 /**
  * Тарификация — ЕДИНЫЙ источник для двух путей генерации.
  *
@@ -350,11 +351,8 @@ type Pool = {
 }
 
 async function ensureRow(pool: Pool, tid: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO user_tokens (telegram_id, balance)
-     VALUES ($1, 20) ON CONFLICT (telegram_id) DO NOTHING`,
-    [tid]
-  )
+  // The welcome grant is a movement too: recorded once, as 'grant'.
+  await grantWelcomeIfNew(pool, tid, 20)
 }
 
 /**
@@ -467,22 +465,22 @@ export async function spendByTid(
   }
   const price = unitPrice * quantity
   await ensureRow(pool, tid)
-  const r = await pool.query(
-    `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
-     WHERE telegram_id = $1 AND balance >= $2 RETURNING balance`,
-    [tid, price]
-  )
-  if (r.rows.length === 0) {
-    const b = await pool.query(
-      `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
-      [tid]
-    )
+  // Check-and-debit in one statement, plus the ledger row that says what the
+  // tokens bought (src/token-ledger.ts). The reason is what a person reads.
+  const r = await moveTokens(pool, {
+    telegramId: tid,
+    delta: -price,
+    kind: 'spend',
+    reason: `${op}${modelId ? ` ${modelId}` : ''}${quantity > 1 ? ` x${quantity}` : ''}`,
+    meta: { op, modelId: modelId ?? null, quantity, unitPrice },
+  })
+  if (!r.ok) {
     return {
       ok: false,
-      причина: `не хватает токенов: нужно ${price}, есть ${b.rows[0]?.balance ?? 0}`,
+      причина: `не хватает токенов: нужно ${price}, есть ${r.balance}`,
     }
   }
-  return { ok: true, списано: price, осталось: r.rows[0].balance }
+  return { ok: true, списано: price, осталось: r.balance }
 }
 
 /**
@@ -562,11 +560,13 @@ export async function refundByTid(
   if (!price)
     return { ok: false, why: `no price for op=${op} model=${modelId ?? '-'}` }
   try {
-    await pool.query(
-      `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
-       WHERE telegram_id = $1`,
-      [tid, price]
-    )
+    await moveTokens(pool, {
+      telegramId: tid,
+      delta: price,
+      kind: 'refund',
+      reason: `refund: ${op}${modelId ? ` ${modelId}` : ''}`,
+      meta: { op, modelId: modelId ?? null, quantity, exact: exact ?? null },
+    })
     console.log(`[токены] возврат ${price} за «${op}»`) // cyrillic-ok: existing log line
     return { ok: true, refunded: price }
   } catch (e) {
