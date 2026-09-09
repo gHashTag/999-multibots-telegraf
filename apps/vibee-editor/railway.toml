@@ -1,6 +1,37 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+# Deploy when something the nginx image actually serves has changed.
+#
+# Measured 2026-09-09: #2317 (player + render sources) and #2320 (player
+# only) both ended with "No deployment needed - watched paths not modified"
+# for vibee-editor, while #2318 (bun.lock, docs, src/inngest_app) did deploy
+# it. So the service-level watch paths in the Railway UI did not cover the
+# player, and the welcome road only reached app.t27.ai by riding an
+# unrelated merge. Config-as-code overrides the UI; these are the inputs the
+# Dockerfile COPYs (packages/, player/, nginx/, entrypoint), so a change to
+# any of them must rebuild, and nothing else should. Tests are never in the
+# image. Patterns are given from the repo root (Railway resolves them there);
+# the root-relative forms are kept as well in case the service evaluates
+# against its Root Directory (apps/vibee-editor).
+watchPatterns = [
+  "apps/vibee-editor/player/**",
+  "!apps/vibee-editor/player/**/*.test.ts",
+  "!apps/vibee-editor/player/**/*.test.tsx",
+  "apps/vibee-editor/packages/**",
+  "apps/vibee-editor/nginx/**",
+  "apps/vibee-editor/Dockerfile",
+  "apps/vibee-editor/docker-entrypoint.sh",
+  "apps/vibee-editor/railway.toml",
+  "player/**",
+  "!player/**/*.test.ts",
+  "!player/**/*.test.tsx",
+  "packages/**",
+  "nginx/**",
+  "Dockerfile",
+  "docker-entrypoint.sh",
+  "railway.toml",
+]
 
 [deploy]
 # Served by nginx directly (see nginx/default.conf.template). NOT "/" — the SPA
