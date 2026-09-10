@@ -121,7 +121,10 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     },
   },
   // Canonical event first, legacy event kept for existing senders.
-  [{ event: 'welcome/avatar.generate' }, { event: 'user/welcome.avatar.generate' }],
+  [
+    { event: 'welcome/avatar.generate' },
+    { event: 'user/welcome.avatar.generate' },
+  ],
   async ({ event, step }) => {
     const {
       telegram_id,
@@ -160,7 +163,12 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     if (!botValidation.valid) {
       const errorMsg =
         'error' in botValidation ? botValidation.error : 'Bot validation failed'
-      logger.error('🎁 [Welcome Avatar] Bot not found', {
+      // a probe sends a bot that does not exist on purpose — warn, not an
+      // admin-chat error
+      const logMissingBot = isSafeMode(event)
+        ? logger.warn.bind(logger)
+        : logger.error.bind(logger)
+      logMissingBot('🎁 [Welcome Avatar] Bot not found', {
         bot_name,
         error: errorMsg,
       })
