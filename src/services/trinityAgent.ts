@@ -39,6 +39,12 @@ export interface ОтветАгента {
   /** Имена вызванных инструментов — для журнала, не для показа человеку. */
   инструменты: string[]
   /**
+   * Which model answered, as `provider/model` -- for the log. The render's
+   * fallback chain means the answer may come from any configured provider,
+   * and a bad answer with no name on it cannot be repaired (sweep, 2026-09-10).
+   */
+  provider?: string
+  /**
    * A prepared message waiting for this person, WITH its one-time secret.
    *
    * It arrives on the same stream as the answer, from the turn that created
@@ -155,7 +161,11 @@ export async function спроситьАгента(
   telegramId: string,
   текст: string,
   /** Where the answer will be shown; the server shapes the prompt by it. */
-  opts: { surface?: 'bot' | 'business' } = {}
+  opts: {
+    surface?: 'bot' | 'business'
+    /** Only a model that calls tools may answer (the unattended sweep). */
+    toolsOnly?: boolean
+  } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
     throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
@@ -182,7 +192,11 @@ export async function спроситьАгента(
           'X-Api-Key': apiKey(),
         },
         // surface: 'bot' — сервер сохранит реплику с пометкой, откуда она.
-        body: JSON.stringify({ messages, surface: opts.surface ?? 'bot' }),
+        body: JSON.stringify({
+          messages,
+          surface: opts.surface ?? 'bot',
+          ...(opts.toolsOnly ? { tools_only: true } : {}),
+        }),
         signal: прерыватель.signal,
       }
     )
@@ -201,6 +215,7 @@ export async function спроситьАгента(
     const части: string[] = []
     const инструменты: string[] = []
     let ошибка = ''
+    let provider: string | undefined
     let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
 
     const строку = (s: string) => {
@@ -211,10 +226,16 @@ export async function спроситьАгента(
           тип?: string
           текст?: string
           имя?: string
+          id?: string
+          model?: string
           proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
         if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
+        else if (ev.тип === 'провайдер' && ev.id) // cyrillic-ok: pre-existing event envelope
+          // The last one wins: a provider that failed mid-stream before any
+          // text was handed over is replaced by the one that answered.
+          provider = `${ev.id}/${ev.model ?? '?'}`
         else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
         else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
         // A prepared message and its one-time secret, from this same turn.
@@ -247,12 +268,13 @@ export async function спроситьАгента(
 
     logger.info('[trinityAgent] ответ получен', {
       telegram_id: telegramId,
+      provider,
       инструментов: инструменты.length,
       инструменты: инструменты.slice(0, 8),
       длина: собрано.length,
     })
 
-    return { текст: собрано, инструменты, proposal } // cyrillic-ok: fields of ОтветАгента
+    return { текст: собрано, инструменты, provider, proposal } // cyrillic-ok: fields of ОтветАгента
   } finally {
     clearTimeout(таймер)
   }

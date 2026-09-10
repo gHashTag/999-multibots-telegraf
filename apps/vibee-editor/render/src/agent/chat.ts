@@ -41,6 +41,7 @@ export interface ChatMessage {
 
 /** Событие потока. Клиент рисует их по мере поступления. */
 export type AgentEvent =
+  | { тип: 'провайдер'; id: string; model: string } // cyrillic-ok: pre-existing event envelope
   | { тип: 'размышление'; текст: string }
   | { тип: 'текст'; текст: string }
   | { тип: 'инструмент'; имя: string; аргументы: string }
@@ -404,8 +405,10 @@ export function systemPrompt(surface?: string): string {
 }
 
 async function* streamModel(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  opts: { toolsOnly?: boolean } = {}
 ): AsyncGenerator<
+  | { kind: 'provider'; id: string; model: string }
   | { kind: 'reasoning'; text: string }
   | { kind: 'content'; text: string }
   | { kind: 'done'; message: any }
@@ -438,7 +441,14 @@ async function* streamModel(
    * one would send the other into a model that cannot take it.
    */
   const kinds = mediaKindsPresent(messages)
-  const configured = allProviders()
+  /*
+   * A turn that MUST call tools skips the models that only talk. The
+   * unattended sweep asks for this: there, a fallback that answers in words
+   * is not a degraded answer, it is a failure dressed as one (provider.ts,
+   * `tools`). With no tool-capable provider configured the turn fails loudly
+   * below, which is the truth the log needs.
+   */
+  const configured = allProviders().filter(p => !opts.toolsOnly || p.tools)
   const capable = configured.filter(
     p => (!kinds.has('image') || p.vision) && (!kinds.has('audio') || p.audio)
   )
@@ -460,6 +470,12 @@ async function* streamModel(
   }
   const providers = useParts ? capable : configured
 
+  if (!providers.length && opts.toolsOnly && allProviders().length) {
+    throw new Error(
+      'Ни один настроенный провайдер не умеет вызывать инструменты надёжно; ' +
+        'для этого хода нужен GLM_API_KEY или NVIDIA_API_KEY.'
+    )
+  }
   if (!providers.length) {
     throw new Error(
       'Ключ модели не задан. Нужен GLM_API_KEY, NVIDIA_API_KEY или OLLAMA_BASE_URL. ' +
@@ -512,6 +528,9 @@ async function* streamModel(
         continue
       }
 
+      // Who is answering. Without this line every bad answer in the log was
+      // anonymous, and the fallback chain made the guess wrong half the time.
+      yield { kind: 'provider', id: p.id, model: p.model }
       const reader = (r.body as any).getReader()
       const decoder = new TextDecoder()
       let buf = ''
@@ -608,7 +627,7 @@ export async function* runAgent(
    * needs it too, because a button marker belongs in the bot and nowhere else.
    * Absent means "not the bot", which is the safe direction: no markers.
    */
-  opts?: { surface?: string }
+  opts?: { surface?: string; toolsOnly?: boolean }
 ): AsyncGenerator<AgentEvent> {
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
   // агент пишет посты от его имени — значит, должен знать его SOUL так же,
@@ -664,8 +683,12 @@ export async function* runAgent(
   for (let step = 0; step < MAX_STEPS; step++) {
     let assistant: any = null
     try {
-      for await (const ev of streamModel(messages)) {
-        if (ev.kind === 'reasoning')
+      for await (const ev of streamModel(messages, {
+        toolsOnly: opts?.toolsOnly,
+      })) {
+        if (ev.kind === 'provider')
+          yield { тип: 'провайдер', id: ev.id, model: ev.model } // cyrillic-ok: pre-existing event envelope
+        else if (ev.kind === 'reasoning')
           yield { тип: 'размышление', текст: ev.text }
         else if (ev.kind === 'content') yield { тип: 'текст', текст: ev.text }
         else assistant = ev.message
