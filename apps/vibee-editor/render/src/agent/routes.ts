@@ -484,7 +484,9 @@ export async function handleAgentChat(
       { telegramId, pool, turn, surface: поверхность }, // cyrillic-ok: pre-existing local
       // The surface was already parsed and allow-listed above; the agent needs
       // it so that button markers are proposed in the bot and nowhere else.
-      { surface: поверхность } // cyrillic-ok: local defined earlier in this file
+      // tools_only: the caller (the seller's sweep) needs a model that calls
+      // tools, not one that talks about them. Anything but `true` is false.
+      { surface: поверхность, toolsOnly: body.tools_only === true } // cyrillic-ok: local defined earlier in this file
     )) {
       события.push(ev as { тип?: string; текст?: string })
       res.write(JSON.stringify(ev) + '\n')

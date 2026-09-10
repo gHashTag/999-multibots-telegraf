@@ -29,6 +29,23 @@ export interface Provider {
   /** Умеет ли отдавать поток размышления отдельным полем. */
   thinking: boolean
   /**
+   * Can this model be TRUSTED to call a tool when the brief says so?
+   *
+   * Production 2026-09-08..10, the seller's proactive sweep: the answer came
+   * back as `[[Подпись|crm_leads]]`, `[[Подпись|no_one_available]]`,
+   * `[[Подпись|tg_send]]` -- fifteen characters, the name of the tool inside
+   * the button-marker template, zero tool calls. That is the signature of a
+   * small model handed a tool schema: it writes the tool's name where it
+   * learnt to write a marker. Nothing in the log said which model answered,
+   * so three prompt repairs went in blind.
+   *
+   * `false` here does not disable the provider for chat -- a small model that
+   * talks is better than silence for a person at the keyboard. It excludes
+   * the provider from turns that ask for `toolsOnly`, where a turn without a
+   * tool call is by definition a failure and a chatty fallback only hides it.
+   */
+  tools: boolean
+  /**
    * Can this model actually LOOK at an image?
    *
    * Measured against the live endpoints on 2026-09-07, not read off the model
@@ -119,6 +136,7 @@ const CATALOG: Record<
     env: string
     model: string
     thinking: boolean
+    tools: boolean
     vision: boolean
     audio: boolean
     context: number
@@ -140,6 +158,7 @@ const CATALOG: Record<
     env: 'GLM_API_KEY',
     model: 'glm-5.3',
     thinking: true,
+    tools: true,
     // 400 code 1210: allowed values: [text]. Measured 2026-09-07.
     vision: false,
     audio: false,
@@ -165,6 +184,7 @@ const CATALOG: Record<
     env: 'GLM_API_KEY',
     model: 'glm-4.5',
     thinking: false,
+    tools: true,
     // Same endpoint, same refusal.
     vision: false,
     audio: false,
@@ -192,6 +212,8 @@ const CATALOG: Record<
     env: 'NVIDIA_API_KEY',
     model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
     thinking: false,
+    // Checked at NVIDIA when it was added: it calls tools (see above).
+    tools: true,
     // Answers 200 with an image part, and streaming plus tool schemas work
     // alongside it. The only sighted provider configured here.
     vision: true,
@@ -205,6 +227,9 @@ const CATALOG: Record<
     env: '',
     model: process.env.OLLAMA_MODEL || 'qwen3:1.7b',
     thinking: false,
+    // A 1.7B model writes tool names into markers instead of calling them.
+    // Fine as the last voice for a person; not for an unattended sweep.
+    tools: false,
     vision: false,
     audio: false,
     context: ollamaContext(),
@@ -261,6 +286,7 @@ function build(id: ProviderId, first: boolean, key: string): Provider {
     model,
     key,
     thinking: c.thinking,
+    tools: c.tools,
     vision: c.vision,
     audio: c.audio,
     context: c.context,

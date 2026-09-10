@@ -104,6 +104,17 @@ const INGEST_TIMEOUT_MS = 170_000
 let running = false
 let lastPushAt = 0
 
+/**
+ * `[[Подпись|tg_send]]` -- the whole answer is one button marker whose id is
+ * a tool's name (or a word from the brief). Seen in production 2026-09-08,
+ * -09 and -10 with crm_leads, no_one_available, reply, can and tg_send.
+ * Returns the name, or null when the answer is anything else.
+ */
+export function namedToolInsteadOfCalling(text: string): string | null {
+  const m = new RegExp('^\\[\\[[^\\]|]*\\|([\\w:-]+)\\]\\]$').exec(text.trim())
+  return m ? m[1] : null
+}
+
 /** Appended to the brief for the one retry after a no-tools answer. */
 export const SWEEP_RETRY_NOTE =
   ' ВНИМАНИЕ: предыдущий ответ отклонён — ты не вызвал ни одного инструмента. ' +
@@ -330,17 +341,25 @@ export async function sweepOnce(
       // With the rows in hand the failure is different in kind: somebody IS
       // waiting (the list had a due row) and nothing was prepared for them.
       const due = looked?.find(isDue)
+      const text =
+        (answer as unknown as Record<string, string | undefined>)['текст'] ||
+        '(пусто)'
+      // The model wrote a tool's name where a marker goes -- it named the
+      // call instead of making it. Say that, and say WHICH model did it.
+      const named = namedToolInsteadOfCalling(text)
+      const who = answer.provider ? ` [модель ${answer.provider}]` : ''
       return {
         did: 'failed',
         why:
           (due
-            ? `ждёт ${String(due.display ?? due.lead ?? '?')} (next=${String(due.next)}), модель ничего не подготовила и не вызвала инструментов: `
-            : 'модель ответила, не вызвав ни одного инструмента — она не смотрела: ') +
-          (
-            (answer as unknown as Record<string, string | undefined>)[
-              'текст'
-            ] || '(пусто)'
-          ).slice(0, 160),
+            ? `ждёт ${String(due.display ?? due.lead ?? '?')} (next=${String(due.next)}), `
+            : '') +
+          (named
+            ? `модель написала имя инструмента ${named} вместо вызова${who}: `
+            : due
+              ? `модель ничего не подготовила и не вызвала инструментов${who}: `
+              : `модель ответила, не вызвав ни одного инструмента — она не смотрела${who}: `) +
+          text.slice(0, 160),
       }
     }
 
@@ -441,7 +460,9 @@ async function ingestViaRender(telegramId: string): Promise<unknown> {
 /** The real wiring: the agent, the render's ingest, the bot's own chat. */
 export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
   return {
-    ask: спроситьАгента, // cyrillic-ok: pre-existing identifiers
+    // toolsOnly: a model that only talks cannot do step 2 or 3, and its
+    // answer would be filed as a failure anyway -- better an honest one.
+    ask: (owner, text) => спроситьАгента(owner, text, { toolsOnly: true }), // cyrillic-ok: pre-existing identifiers
     ingest: ingestViaRender,
     push: (owner, draft) =>
       pushCard(bot.telegram as never, owner, draft, {
