@@ -112,6 +112,9 @@ export const joinClubAtom = atom(
       const inv = (await ir.json()) as {
         ok: boolean
         link?: string
+        // The cashier's answer (club-membership.ts): the price it charged,
+        // reported with the outcome so a failed payment says how much.
+        stars?: number
         already_active?: boolean
         error?: string
       }
