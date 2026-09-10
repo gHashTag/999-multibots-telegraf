@@ -1,300 +1,61 @@
 /*
- * THE HIVE TAB.
+ * THE HIVE TAB: HER PAGE, FULL HEIGHT.
  *
- * Colours come from the app's own variables, not from t27.ai. The Queen's page
- * is a dark 3-D scene; copying its palette here would make one tab look like a
- * different application, and the person would not know which app they are in.
- * The DATA is hers, the surface is ours.
+ * The frame takes everything between the app header and the tab bar. Nothing
+ * scrolls around it -- the page inside has its own scrolling and its own
+ * touch handling (the 3-D comb pans and pinches), and a scrolling parent
+ * would steal those gestures on a phone.
+ *
+ * `100dvh`, not `100vh`: on iOS the toolbar shrinks and grows, `vh` does not
+ * follow it, and the bottom of the frame ends up under the tab bar.
  */
-
 .hive-page {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  height: 100dvh;
   padding-bottom: var(--nav-height, 64px);
+  overflow: hidden;
+  background: #05080a; /* her page's own background, so the load is not a white flash */
 }
 
-/* Sub-tabs scroll horizontally: six of them do not fit a phone, and shrinking
-   the text until they do makes every one of them unreadable. */
-.hive-tabs {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.2));
-}
-.hive-tabs::-webkit-scrollbar {
-  display: none;
+.hive-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
 }
 
-.hive-tab {
-  flex: 0 0 auto;
-  /* 44px minimum touch target, the same rule as the main tab bar. */
-  min-height: 44px;
+.hive-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+.hive-frame--ready {
+  opacity: 1;
+}
+
+.hive-loading {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  border-radius: 10px;
-  color: var(--text-secondary, #888);
-  text-decoration: none;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.hive-tab--active {
-  background: var(--accent-soft, rgba(120, 120, 255, 0.14));
-  color: var(--accent, #7878ff);
-  font-weight: 600;
-}
-
-.hive-main {
-  flex: 1;
-  padding: 12px 16px 24px;
-}
-
-.hive-blurb {
-  margin: 0 0 14px;
-  color: var(--text-secondary, #888);
-  font-size: 13px;
-}
-
-.hive-note {
-  margin: 6px 0;
-  color: var(--text-secondary, #888);
-  font-size: 12px;
-}
-
-/* An unreachable Queen is visually distinct from an empty one. If both looked
-   the same, a dead service would read as a quiet week. */
-.hive-down {
-  padding: 16px;
-  border: 1px solid var(--warning, #c9a227);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--warning, #c9a227) 8%, transparent);
-}
-.hive-down__title {
+  justify-content: center;
   margin: 0;
-  font-weight: 600;
-}
-
-.hive-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.hive-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px;
-  border-radius: 12px;
-  background: var(--surface-2, rgba(128, 128, 128, 0.08));
-}
-.hive-stat b {
-  font-size: 20px;
-  line-height: 1.1;
-}
-.hive-stat span {
-  font-size: 11px;
-  color: var(--text-secondary, #888);
-}
-
-.hive-columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-}
-
-.hive-column,
-.hive-layer {
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--surface-2, rgba(128, 128, 128, 0.08));
-}
-.hive-column h3,
-.hive-layer h3 {
-  margin: 0 0 4px;
+  color: rgba(242, 242, 242, 0.7);
   font-size: 14px;
-  text-transform: lowercase;
-}
-.hive-column ul,
-.hive-layer ul {
-  margin: 8px 0 0;
-  padding-left: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.hive-layer {
-  margin-bottom: 12px;
-}
-
-.hive-count {
-  display: inline-block;
-  min-width: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--accent-soft, rgba(120, 120, 255, 0.14));
-  color: var(--accent, #7878ff);
-  font-size: 11px;
-  text-align: center;
-}
-
-.hive-marks {
-  margin: 0;
-  padding-left: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.hive-mark {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 8px;
-  align-items: baseline;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--surface-2, rgba(128, 128, 128, 0.08));
-  font-size: 13px;
-}
-
-.hive-mark__kind,
-.hive-node__state {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--surface-3, rgba(128, 128, 128, 0.16));
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.hive-mark__id {
-  color: var(--text-secondary, #888);
-  font-variant-numeric: tabular-nums;
-  font-size: 12px;
-}
-
-/* A refused verdict is the one a person should notice; it is marked, not
-   coloured red — red on a board of hundreds of rows stops meaning anything. */
-.hive-mark--refused .hive-mark__kind {
-  background: color-mix(in srgb, var(--warning, #c9a227) 30%, transparent);
-}
-
-.hive-node {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-.hive-node--researched .hive-node__state {
-  background: color-mix(in srgb, var(--accent, #7878ff) 26%, transparent);
-}
-
-.hive-rule {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-left: 3px solid var(--accent, #7878ff);
-  background: var(--surface-2, rgba(128, 128, 128, 0.08));
-  font-size: 13px;
+  pointer-events: none;
 }
 
 .hive-out {
-  display: inline-block;
-  margin-top: 18px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  color: var(--accent, #7878ff);
-  font-size: 14px;
-  text-decoration: none;
-}
-
-/* ── The comb ──────────────────────────────────────────────────────────────
- *
- * The 3-D scene gets a fixed height rather than an aspect ratio: a canvas that
- * grows with the viewport ends up taller than a phone screen, and the legend
- * and the module card below it fall off the bottom where nobody scrolls.
- */
-.comb3d {
-  position: relative;
-  width: 100%;
-  height: 46vh;
-  min-height: 260px;
-  max-height: 420px;
-}
-
-.comb3d__canvas {
-  width: 100%;
-  height: 100%;
+  flex: 0 0 auto;
   display: block;
-  /* Touch panning belongs to the scene, not to the page: without this the
-     page scrolls away under the finger the moment somebody rotates the board. */
-  touch-action: none;
-  outline: none;
-}
-
-/* The flat map: what a device without WebGL gets. Hexagons via clip-path, so
-   there is no image to load and no second geometry to keep in step. */
-.comb-flat {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 1px;
-  padding: 4px 0 8px;
-}
-
-/*
- * THE TWO STATES ARE NAMED HERE, NOT TAKEN FROM --accent.
- *
- * The first version painted quiet cells with `var(--accent)`. In this app
- * --accent is GOLD, the same family as the amber that means "the Queen is
- * working" -- so every one of the 115 cells came out the same colour while the
- * legend underneath promised two. A map whose legend does not match it is
- * worse than no map: it is read, believed, and wrong.
- *
- * These two are the scene's own colours, kept in step with CombScene.tsx by
- * hand. A shared token would be better and is worth doing when a third surface
- * needs them.
- */
-.comb-flat__cell {
-  width: 30px;
-  height: 34px;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  background: #0e8a55;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-}
-/* Every other cell drops half a row, which is what interlocks them. */
-.comb-flat__cell:nth-child(even) {
-  margin-top: 17px;
-}
-.comb-flat__cell--busy {
-  background: #c9a227;
-}
-
-.comb-legend {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px 0;
+  padding: 8px 16px;
+  text-align: center;
   font-size: 12px;
   color: var(--text-secondary, #888);
-}
-.comb-legend__dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-.comb-legend__dot--busy {
-  background: #c9a227;
-}
-.comb-legend__dot--quiet {
-  background: #0e8a55;
-  margin-left: 10px;
+  text-decoration: none;
+  border-top: 1px solid var(--border, rgba(128, 128, 128, 0.2));
 }

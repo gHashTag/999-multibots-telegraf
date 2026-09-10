@@ -26,7 +26,7 @@ export const PRIMARY_NAV_ITEMS: readonly PrimaryNavigationItem[] = [
    *
    * Five tabs still fit a phone; the bar starts scrolling past six.
    */
-  { id: 'hive', route: '/hive/comb', labelKey: 'nav.hive', match: /^\/hive/ },
+  { id: 'hive', route: '/hive', labelKey: 'nav.hive', match: /^\/hive/ },
   {
     id: 'profile',
     route: '/profile',

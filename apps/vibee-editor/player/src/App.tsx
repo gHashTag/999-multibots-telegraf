@@ -278,11 +278,12 @@ function App() {
                       <Route path="/generate/script" element={<ScriptPage />} />
                       <Route path="/generate/editor" element={<EditorPage />} />
                       <Route path="/generate/:tab" element={<GeneratePage />} />
+                      <Route path="/hive" element={<HivePage />} />
+                      {/* The former sub-tab addresses still land on the hive. */}
                       <Route
-                        path="/hive"
-                        element={<Navigate to="/hive/comb" replace />}
+                        path="/hive/*"
+                        element={<Navigate to="/hive" replace />}
                       />
-                      <Route path="/hive/:tab" element={<HivePage />} />
                       <Route path="/crm" element={<CrmPage />} />
                       <Route path="/templates" element={<TemplatesPage />} />
                       <Route path="/chat" element={<ChatPage />} />
