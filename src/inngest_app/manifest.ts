@@ -12,7 +12,10 @@
  */
 import manifestJson from './functions.manifest.json'
 
-export type ManifestControl = 'spec+code' | 'spec-only' | 'code-only/unregistered'
+export type ManifestControl =
+  | 'spec+code'
+  | 'spec-only'
+  | 'code-only/unregistered'
 
 export interface ManifestFunction {
   id: string

@@ -378,13 +378,20 @@ describe('the daily ceiling refuses, and refuses BEFORE the provider', () => {
 
   it('no ledger at all means no spending', async () => {
     const p = provider({ taskId: 't1', urls: ['https://kie.invalid/a.mp4'] })
+    // A directory that cannot be created, and no database: nothing can record
+    // the attempt, so the attempt does not happen. The parent is a regular
+    // FILE, so mkdir fails with ENOTDIR on every OS. The first version used
+    // '/proc/no/such/place': on macOS that throws, on Linux procfs answers
+    // ENOENT for a child of an existing directory and Node's recursive mkdir
+    // retries for ever -- a synchronous loop no test timeout can interrupt.
+    // That one line held the whole suite at 100 % CPU (2026-09-10).
+    const notADir = path.join(dir, 'not-a-directory')
+    fs.writeFileSync(notADir, '')
     const r = await run(ON, p, {
-      // A directory that cannot be created, and no database: nothing can record
-      // the attempt, so the attempt does not happen.
       ledger: {
         db: null,
         owner: 'owner-1',
-        file: '/proc/no/such/place/spend.json',
+        file: path.join(notADir, 'place', 'spend.json'),
         log,
       },
     })

@@ -30,7 +30,9 @@ const читать = (о: string) => fs.readFileSync(path.join(КОРЕНЬ, о)
 const безКомментариев = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 
-const КЛАВИАТУРА = безКомментариев(читать('src/navigation/helpers/menuKeyboard.ts'))
+const КЛАВИАТУРА = безКомментариев(
+  читать('src/navigation/helpers/menuKeyboard.ts')
+)
 
 describe('админский пункт скрыт от не-админа, а не от всех', () => {
   it('нет безусловного отбрасывания adminOnly', () => {
@@ -49,7 +51,9 @@ describe('админский пункт скрыт от не-админа, а н
 
   it('список админов ОДИН и уже существующий', () => {
     // Второй список админов разошёлся бы с первым — вопрос только когда.
-    expect(КЛАВИАТУРА).toContain("import { isAdmin } from '@/middleware/adminOnly'")
+    expect(КЛАВИАТУРА).toContain(
+      "import { isAdmin } from '@/middleware/adminOnly'"
+    )
     expect(КЛАВИАТУРА).not.toContain('ADMIN_IDS_ARRAY')
   })
 })

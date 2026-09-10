@@ -63,5 +63,29 @@ The self-hosted Inngest server also serves `/mcp`. It requires
 (invoke, cancel). Prefer the read-only tools above for agents; use `/mcp` only
 from an operator's machine with the signing key.
 
+Observed 2026-09-10 against the current server: `initialize` answers without
+any header (serverInfo `inngest-dev` 1.0.0, tools capability), `tools/call`
+does not. The Inngest UI's "Dev Server MCP Setup" page shows the client-side
+configuration for Claude Code, Codex and Cursor:
+
+```bash
+# Claude Code
+claude mcp add --transport http inngest-dev <INNGEST_URL>/mcp
+# Codex
+codex mcp add inngest-dev --url <INNGEST_URL>/mcp
+```
+
+```json
+// Cursor: .cursor/mcp.json
+{ "mcpServers": { "inngest-dev": { "url": "<INNGEST_URL>/mcp" } } }
+```
+
+`<INNGEST_URL>` is the address the *client's* machine can reach. Claude
+Desktop's main chat only accepts a public URL — which is exactly what
+[security.md](./security.md) step 5 removes. Do not keep the public Railway
+domain for the sake of Claude Desktop; use the stdio server above (read-only,
+runs on the operator's machine) or reach `/mcp` over a tunnel to the private
+network. Claude Code, Codex and Cursor work with either.
+
 To *trigger* every served function in safe mode (not just read its status), see
 `docs/inngest/probe-suite.md` — the admin command `/inngest_probe`.

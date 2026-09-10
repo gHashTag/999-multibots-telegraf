@@ -123,9 +123,10 @@ describe('starPaymentScene.enter', () => {
       src.indexOf('bot.action(`${ACTION_PREFIX}balance`', start)
     )
     const clear = body.indexOf('ctx.session.selectedPayment = undefined')
-    const enterScene = body.indexOf(
-      'ctx.scene.enter(ModeEnum.StarPaymentScene)'
-    )
+    // Since 2026-09-09 the button opens the payment chooser (PaymentScene),
+    // not Stars alone; the invariant under test is the ORDER: the stale
+    // selection is cleared before any scene is entered.
+    const enterScene = body.indexOf('ctx.scene.enter(ModeEnum.PaymentScene')
     expect(clear).toBeGreaterThan(-1)
     expect(enterScene).toBeGreaterThan(clear)
   })

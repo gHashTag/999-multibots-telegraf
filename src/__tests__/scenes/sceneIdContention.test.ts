@@ -181,10 +181,9 @@ describe('no two scenes claim the same id by accident', () => {
      */
     const first = registry.indexOf('neuroPhotoWizard,')
     const second = registry.indexOf('neuroPhotoWizardV2,')
-    expect(
-      second,
-      `${DELIBERATE.winner} must stay registered`
-    ).toBeGreaterThan(-1)
+    expect(second, `${DELIBERATE.winner} must stay registered`).toBeGreaterThan(
+      -1
+    )
     expect(
       first,
       'neuroPhotoWizard must NOT be registered: it claims the same id as V2, ' +

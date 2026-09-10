@@ -32,7 +32,7 @@ describe('единственная дверь знает все три спос�
   })
 
   it('без подписи и без сессии подставляется ключ агента', async () => {
-    vi.stubEnv('DEV', true as unknown as string)
+    vi.stubEnv('DEV', true)
     vi.stubEnv('VITE_AGENT_KEY', 'agent-key-for-the-test')
     vi.doMock('./telegram', () => ({ getInitData: () => '' }))
     vi.doMock('./appSession', () => ({ getAppAccessToken: () => '' }))
@@ -46,7 +46,7 @@ describe('единственная дверь знает все три спос�
      * ключ агента — способ для наладки. Перепутав их, мы писали бы чужие
      * действия не тому владельцу.
      */
-    vi.stubEnv('DEV', true as unknown as string)
+    vi.stubEnv('DEV', true)
     vi.stubEnv('VITE_AGENT_KEY', 'agent-key-for-the-test')
     vi.doMock('./telegram', () => ({ getInitData: () => 'auth_date=1&hash=x' }))
     vi.doMock('./appSession', () => ({ getAppAccessToken: () => '' }))
@@ -57,7 +57,7 @@ describe('единственная дверь знает все три спос�
   })
 
   it('сессия приложения имеет приоритет над ключом', async () => {
-    vi.stubEnv('DEV', true as unknown as string)
+    vi.stubEnv('DEV', true)
     vi.stubEnv('VITE_AGENT_KEY', 'agent-key-for-the-test')
     vi.doMock('./telegram', () => ({ getInitData: () => '' }))
     vi.doMock('./appSession', () => ({ getAppAccessToken: () => 'session-token' }))
@@ -92,7 +92,7 @@ describe('загрузка идёт через ту же дверь', () => {
      * возвращал null, человек читал «загрузка не удалась». В журнале сервера
      * такого отказа нет и быть не может — запрос не уходил.
      */
-    vi.stubEnv('DEV', false as unknown as string)
+    vi.stubEnv('DEV', false)
     vi.doMock('./telegram', () => ({ getInitData: () => '' }))
     vi.doMock('./appSession', () => ({ getAppAccessToken: () => 'tok' }))
     const перехвачено: { имя: string | null } = { имя: null }

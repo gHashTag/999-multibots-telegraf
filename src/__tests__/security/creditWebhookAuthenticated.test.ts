@@ -55,7 +55,8 @@ const RECOGNIZED_GATES = [
  * или res.status(4xx). Гвард, чей результат никуда не ведёт, — это
  * комментарий с побочным эффектом.
  */
-const ОТКАЗ = /return\s+res\s*\.\s*status\s*\(\s*4\d\d\s*\)|throw\s+new\s+\w*Error/
+const ОТКАЗ =
+  /return\s+res\s*\.\s*status\s*\(\s*4\d\d\s*\)|throw\s+new\s+\w*Error/
 
 /**
  * СВЯЗЬ, А НЕ СОСЕДСТВО.

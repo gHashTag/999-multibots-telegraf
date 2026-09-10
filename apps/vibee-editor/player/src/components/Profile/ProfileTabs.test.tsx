@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ isOwn: true }))
 
-vi.mock('jotai', () => ({
+// Partial mock on purpose. ProfileTabs pulls in '@vibee/atoms', whose index
+// builds real atoms with `atom`/`atomWithStorage` at import time. With one
+// jotai in the tree (the dedupe of 2026-08-28) the mock covers that import
+// too, and a mock without `atom` throws before the first render. The old
+// full mock only worked while the atoms package had a second, unmocked copy.
+vi.mock('jotai', async importOriginal => ({
+  ...(await importOriginal<typeof import('jotai')>()),
   useAtomValue: (target: symbol) => {
     if (target.description === 'viewedProfileAtom') {
       return {

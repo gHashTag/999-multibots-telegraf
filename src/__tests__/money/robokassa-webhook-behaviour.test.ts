@@ -62,9 +62,7 @@ import router from '@/api_server/routes/robokassa.routes'
 /** Снимаем обработчик С НАСТОЯЩЕГО роутера: так проверяется и проводка. */
 function обработчик(путь: string) {
   const слои = (router as any).stack as any[]
-  const слой = слои.find(
-    l => l.route?.path === путь && l.route?.methods?.post
-  )
+  const слой = слои.find(l => l.route?.path === путь && l.route?.methods?.post)
   expect(слой, `маршрут ${путь} не найден на роутере`).toBeTruthy()
   const шаги = слой.route.stack.map((s: any) => s.handle)
   // Последний шаг — сам обработчик; перед ним разбор тела, который в тесте
@@ -135,7 +133,11 @@ describe('вебхук Робокассы: поведение, а не форм�
     // не зачисляет вообще ничего и никогда — тоже проходит.
     const о = ответ()
     await обработчик('/payment-success')(
-      запрос({ OutSum: '1000', InvId: '777', SignatureValue: подпись('1000', '777') }),
+      запрос({
+        OutSum: '1000',
+        InvId: '777',
+        SignatureValue: подпись('1000', '777'),
+      }),
       о
     )
     expect(о.код === 0 || о.код === 200, `ответ ${о.код}: ${о.тело}`).toBe(true)
@@ -191,7 +193,11 @@ describe('вебхук Робокассы: поведение, а не форм�
     supabase.getPaymentByInvId.mockResolvedValue({ data: null, error: null })
     const о = ответ()
     await обработчик('/payment-success')(
-      запрос({ OutSum: '1000', InvId: '999', SignatureValue: подпись('1000', '999') }),
+      запрос({
+        OutSum: '1000',
+        InvId: '999',
+        SignatureValue: подпись('1000', '999'),
+      }),
       о
     )
     expect(о.код).toBe(404)
@@ -222,7 +228,11 @@ describe('вебхук Робокассы: поведение, а не форм�
 
     const о2 = ответ()
     await обработчик('/robokassa-result')(
-      запрос({ OutSum: '1000', InvId: '777', SignatureValue: подпись('1000', '777') }),
+      запрос({
+        OutSum: '1000',
+        InvId: '777',
+        SignatureValue: подпись('1000', '777'),
+      }),
       о2
     )
     expect(supabase.updateUserBalance).toHaveBeenCalled()

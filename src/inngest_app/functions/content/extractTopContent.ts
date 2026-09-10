@@ -38,7 +38,10 @@ export const extractTopContent = inngest.createFunction(
     name: '📊 Extract Top Content',
   },
   // Canonical event first, legacy event kept for existing senders.
-  [{ event: 'instagram/top-content.extract' }, { event: 'instagram/extract-top' }],
+  [
+    { event: 'instagram/top-content.extract' },
+    { event: 'instagram/extract-top' },
+  ],
   async ({ event, step }) => {
     // Schema failure → NonRetriableError (never heals on retry).
     const input = parseEventData(

@@ -28,7 +28,11 @@ describe('WelcomeOnboarding: every step is mandatory', () => {
   })
 
   it('opens the profile only from the last card', () => {
-    const done = src.slice(src.indexOf("step === 'done'"))
+    // A missing anchor must fail here, not hand slice() the last character
+    // and let the assertions below pass over nothing.
+    const at = src.indexOf("step === 'done'")
+    expect(at).toBeGreaterThan(-1)
+    const done = src.slice(at)
     expect(done).toMatch(/onClick=\{onDone\}/)
     // Declared once, destructured once, called once: nowhere else.
     expect(src.match(/onDone\b/g)?.length).toBe(3)

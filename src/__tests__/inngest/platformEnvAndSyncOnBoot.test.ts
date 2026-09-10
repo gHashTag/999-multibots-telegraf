@@ -33,7 +33,10 @@ describe('PLATFORM_ENV_PRECEDENCE', () => {
 describe('applySecretsToEnv', () => {
   const secrets = [
     { secretKey: 'INNGEST_BASE_URL', secretValue: 'https://public.example/v0' },
-    { secretKey: 'INNGEST_GQL_URL', secretValue: 'https://public.example/v0/gql' },
+    {
+      secretKey: 'INNGEST_GQL_URL',
+      secretValue: 'https://public.example/v0/gql',
+    },
     { secretKey: 'INNGEST_EVENT_KEY', secretValue: 'evt-from-infisical' },
     { secretKey: 'SOME_OTHER', secretValue: 'x' },
   ]
@@ -84,8 +87,9 @@ describe('shouldSyncOnBoot', () => {
   it('requires INNGEST_SERVE_ORIGIN and honours the kill switch', () => {
     expect(shouldSyncOnBoot({} as NodeJS.ProcessEnv).sync).toBe(false)
     expect(
-      shouldSyncOnBoot({ INNGEST_SERVE_ORIGIN: 'https://a' } as NodeJS.ProcessEnv)
-        .sync
+      shouldSyncOnBoot({
+        INNGEST_SERVE_ORIGIN: 'https://a',
+      } as NodeJS.ProcessEnv).sync
     ).toBe(true)
     expect(
       shouldSyncOnBoot({
@@ -103,7 +107,9 @@ describe('shouldSyncOnBoot', () => {
 })
 
 describe('syncInngestAppOnBoot', () => {
-  const env = { INNGEST_SERVE_ORIGIN: 'https://app.example' } as NodeJS.ProcessEnv
+  const env = {
+    INNGEST_SERVE_ORIGIN: 'https://app.example',
+  } as NodeJS.ProcessEnv
   const noSleep = async () => undefined
 
   it('PUTs the loopback serve URL and reports success', async () => {
@@ -128,7 +134,10 @@ describe('syncInngestAppOnBoot', () => {
   })
 
   it('retries on non-2xx and gives up after N attempts without throwing', async () => {
-    const fetchImpl = vi.fn(async () => ({ status: 503, text: async () => 'down' }))
+    const fetchImpl = vi.fn(async () => ({
+      status: 503,
+      text: async () => 'down',
+    }))
     const r = await syncInngestAppOnBoot({
       port: '4000',
       env,

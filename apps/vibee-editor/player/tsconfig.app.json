@@ -24,6 +24,14 @@
       // 74 files import '@vibee/atoms'; there was no path entry for it at all.
       "@vibee/atoms": ["../packages/vibee-atoms/src"],
       "@vibee/atoms/*": ["../packages/vibee-atoms/src/*"],
+      // The atoms are compiled from their SOURCE, so their bare imports resolve
+      // from ../packages/vibee-atoms upwards -- not from this node_modules.
+      // Without this pin 'react' lands on whatever copy sits above the repo
+      // (or on nothing) and useProjectSync.ts reads as TS7016/TS2307 in a
+      // clean checkout. jotai is pinned the same way for the same reason.
+      "react": ["./node_modules/@types/react"],
+      "jotai": ["./node_modules/jotai"],
+      "jotai/*": ["./node_modules/jotai/*"],
       // '@vibee/ui' has exactly one importer (SyncDemo.tsx) and the package
       // does not exist in this tree. Kept only so that file still resolves.
       "@vibee/ui": ["../packages/ui/src"],

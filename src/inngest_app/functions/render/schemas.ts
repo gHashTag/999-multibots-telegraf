@@ -170,7 +170,9 @@ export function validateRenderEventData(
       err => `${err.path.join('.')}: ${err.message}`
     )
     // Schema failures never heal on retry — terminal.
-    throw new NonRetriableError(`Render event validation failed:\n${errors.join('\n')}`)
+    throw new NonRetriableError(
+      `Render event validation failed:\n${errors.join('\n')}`
+    )
   }
 
   return result.data

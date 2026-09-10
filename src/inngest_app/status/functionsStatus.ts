@@ -21,7 +21,12 @@ import {
   type ManifestFunction,
 } from '../manifest'
 
-export type RunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+export type RunStatus =
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
 
 export interface RunCounters {
   completed: number
@@ -55,8 +60,17 @@ export interface FunctionStatus {
   deployed: boolean
   runs24h: RunCounters
   runs7d: RunCounters
-  lastRun: { id: string; status: string; queuedAt: string; endedAt: string | null } | null
-  lastError: { runId: string; endedAt: string | null; eventName: string | null } | null
+  lastRun: {
+    id: string
+    status: string
+    queuedAt: string
+    endedAt: string | null
+  } | null
+  lastError: {
+    runId: string
+    endedAt: string | null
+    eventName: string | null
+  } | null
 }
 
 export interface FunctionsStatusPayload {
@@ -82,7 +96,14 @@ export interface FunctionsStatusError {
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export function emptyCounters(): RunCounters {
-  return { completed: 0, failed: 0, running: 0, cancelled: 0, invoked: 0, total: 0 }
+  return {
+    completed: 0,
+    failed: 0,
+    running: 0,
+    cancelled: 0,
+    invoked: 0,
+    total: 0,
+  }
 }
 
 function bump(c: RunCounters, status: string, invoked = false): void {
@@ -116,7 +137,9 @@ export function slugMatchesFunction(
   appName: string,
   fnId: string
 ): boolean {
-  return slug === `${appName}-${fnId}` || slug === fnId || slug.endsWith(`-${fnId}`)
+  return (
+    slug === `${appName}-${fnId}` || slug === fnId || slug.endsWith(`-${fnId}`)
+  )
 }
 
 export interface RunsSummary {
@@ -190,7 +213,8 @@ export function summarizeRuns(
 
 function manifestTriggers(fn: ManifestFunction): FunctionStatus['triggers'] {
   const out: FunctionStatus['triggers'] = []
-  if (fn.trigger === 'cron' && fn.cron) out.push({ type: 'cron', value: fn.cron })
+  if (fn.trigger === 'cron' && fn.cron)
+    out.push({ type: 'cron', value: fn.cron })
   if (fn.event) out.push({ type: 'event', value: fn.event })
   for (const legacy of fn.legacy_events ?? []) {
     out.push({ type: 'event', value: legacy })
@@ -199,7 +223,10 @@ function manifestTriggers(fn: ManifestFunction): FunctionStatus['triggers'] {
 }
 
 /** Pick the app that serves this codebase (by manifest app id, else the first). */
-export function selectApp(apps: InngestApp[], appId: string): InngestApp | null {
+export function selectApp(
+  apps: InngestApp[],
+  appId: string
+): InngestApp | null {
   if (apps.length === 0) return null
   return (
     apps.find(a => a.name === appId) ??
@@ -310,7 +337,10 @@ export async function fetchFunctionsStatus(
     cache &&
     now.getTime() - cache.at < STATUS_CACHE_TTL_MS
   ) {
-    return { ...cache.payload, source: { ...cache.payload.source, cached: true } }
+    return {
+      ...cache.payload,
+      source: { ...cache.payload.source, cached: true },
+    }
   }
 
   const client = new InngestGraphqlClient(opts)
@@ -343,7 +373,8 @@ export async function fetchFunctionsStatus(
 export async function fetchFunctionsStatusSafe(
   opts: FetchStatusOptions = {}
 ): Promise<
-  { ok: true; payload: FunctionsStatusPayload } | { ok: false; error: FunctionsStatusError }
+  | { ok: true; payload: FunctionsStatusPayload }
+  | { ok: false; error: FunctionsStatusError }
 > {
   try {
     const payload = await fetchFunctionsStatus(opts)
@@ -389,7 +420,9 @@ export function renderRunsSummaryText(payload: FunctionsStatusPayload): string {
   ]
   if (failing.length) lines.push(`Failing functions: ${failing.join('; ')}`)
   if (notDeployed.length)
-    lines.push(`In manifest but not served by the app: ${notDeployed.join(', ')}`)
+    lines.push(
+      `In manifest but not served by the app: ${notDeployed.join(', ')}`
+    )
   if (payload.unknownInApp.length)
     lines.push(`Served but not in manifest: ${payload.unknownInApp.join(', ')}`)
   return lines.join('\n')
