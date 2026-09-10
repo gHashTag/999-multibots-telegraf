@@ -75,6 +75,13 @@ import {
   sweepClubRenewals,
   sweepClubGrants,
 } from './src/agent/club-membership'
+import {
+  isPayOutcomePath,
+  handlePayOutcome,
+  noteInvoiceMinted,
+  noteCashierFailure,
+  checkCashierPulse,
+} from './src/agent/payment-alarms'
 // A2A: the open protocol for external agents. Imported here because this file
 // is the only place that mounts routes, and until now nothing imported it at
 // all -- see the block comment at the mount site.
@@ -2358,6 +2365,10 @@ setInterval(
           { botsOwnedBy, allOwners: allBotOwners },
           g => creditClubGrant(pool, g)
         )
+        // Is anybody polling the cashier? Two hourly readings with a backlog
+        // mean every pre_checkout_query dies unanswered (payment-alarms.ts).
+        const pulse = await checkCashierPulse(pool, token)
+        if (pulse !== 'quiet') console.warn(`[club] cashier pulse: ${pulse}`)
         if (granted.length) {
           console.log(
             `[club] grant sweep booked ${granted.length} period(s): ` +
@@ -7855,6 +7866,19 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // What Telegram told the person after openInvoice -- so a failed payment
+  // reaches the owner (payment-alarms.ts).
+  if (isPayOutcomePath(req.url?.split('?')[0] || '')) {
+    const out = await handlePayOutcome(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      readBody: r => readBody(r as any),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   if (isClubPath(req.url?.split('?')[0] || '')) {
     const out = await handleClub(req, {
       getPool: async () => (await getPool()) as any,
@@ -8179,6 +8203,16 @@ const server = createServer(async (req, res) => {
           return
         }
         if (!PAY_BOT) {
+          try {
+            void noteCashierFailure(
+              getPool() as any,
+              null,
+              'tokens',
+              'TOKENS_PAYMENT_BOT_TOKEN not set'
+            )
+          } catch {
+            // No database either; the 503 below is all we can say.
+          }
           res.writeHead(503, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
@@ -8235,12 +8269,32 @@ const server = createServer(async (req, res) => {
           } catch {
             pool = undefined
           }
-          const minted = await mintTokenInvoice({
-            forTelegramId: String(who),
-            tokens: запрошено,
-            pool,
-            botToken: PAY_BOT,
-          })
+          let minted: Awaited<ReturnType<typeof mintTokenInvoice>>
+          try {
+            minted = await mintTokenInvoice({
+              forTelegramId: String(who),
+              tokens: запрошено,
+              pool,
+              botToken: PAY_BOT,
+            })
+          } catch (e) {
+            // The cashier refused: the owner hears it now, not in a log.
+            if (pool)
+              void noteCashierFailure(
+                pool as any,
+                String(who),
+                'tokens',
+                e instanceof Error ? e.message : String(e)
+              )
+            throw e
+          }
+          if (pool)
+            void noteInvoiceMinted(
+              pool as any,
+              String(who),
+              'tokens',
+              Number((minted as any).stars ?? 0) || Number(запрошено)
+            )
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true, link: minted.url }))
         } catch (e) {

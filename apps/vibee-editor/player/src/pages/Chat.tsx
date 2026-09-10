@@ -20,6 +20,7 @@ import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { uploadToS3 } from '@/lib/s3Upload'
 import { toAbsoluteUrl } from '@/lib/mediaUrl'
+import { reportPayOutcome } from '@/lib/payOutcome'
 import './Chat.css'
 
 /**
@@ -192,16 +193,21 @@ function ChatPage() {
                 setTopUpNote(
                   'Оплата видна Telegram — зачисление догонит при следующем входе в чат'
                 )
+                reportPayOutcome('tokens', 'pending')
               }
             } catch {
               setTopUpNote('Оплата прошла — зачисление подтвердится чуть позже')
             }
           } else if (status === 'failed') {
             setTopUpNote('Оплата не прошла')
+            reportPayOutcome('tokens', 'failed')
+          } else if (status === 'cancelled') {
+            reportPayOutcome('tokens', 'cancelled')
           }
         })
       } else {
         setTopUpNote('Покупка доступна внутри Telegram')
+        reportPayOutcome('tokens', 'unsupported')
       }
     } catch {
       setTopUpNote('сеть подвела — попробуй ещё')

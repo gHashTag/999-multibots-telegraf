@@ -78,6 +78,12 @@ export type EventKind =
   | 'telegram-disconnected'
   // money
   | 'payment'
+  /** An invoice left the cashier; nothing has followed yet. */
+  | 'invoice'
+  /** Telegram or the cashier refused; the person did not pay. */
+  | 'payment-failed'
+  /** The person closed the cashier without paying. */
+  | 'payment-cancelled'
   | 'payment-lost'
   | 'payment-forged'
   | 'tokens-spent'

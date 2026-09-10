@@ -48,6 +48,7 @@
 import { МАКС_ЗВЁЗД_ПОДПИСКА, ПЕРИОД_ПОДПИСКИ_С, СТУПЕНИ } from './token-packs' // cyrillic-ok: pre-existing export names
 import { record } from '../hive/journal'
 import { keepers } from '../hive/roles'
+import { noteCashierFailure, noteInvoiceMinted } from './payment-alarms'
 
 type Queryable = {
   query: (sql: string, params?: unknown[]) => Promise<any>
@@ -709,6 +710,8 @@ export async function handleClub(
 
   if (path === '/api/club/invoice' && req.method === 'POST') {
     if (!deps.botToken) {
+      // Our fault, not the person's: alarm at the point of failure.
+      await noteCashierFailure(pool, who, 'club', 'TOKENS_PAYMENT_BOT_TOKEN not set')
       return {
         status: 503,
         body: {
@@ -734,11 +737,26 @@ export async function handleClub(
         },
       }
     }
-    const minted = await mintClubInvoice({
-      forTelegramId: who,
-      botToken: deps.botToken,
-      fetchImpl: deps.fetchImpl,
-    })
+    let minted: Awaited<ReturnType<typeof mintClubInvoice>>
+    try {
+      minted = await mintClubInvoice({
+        forTelegramId: who,
+        botToken: deps.botToken,
+        fetchImpl: deps.fetchImpl,
+      })
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e)
+      await noteCashierFailure(pool, who, 'club', reason)
+      return {
+        status: 502,
+        body: {
+          ok: false,
+          error: `касса не выписала счёт: ${reason.slice(0, 120)}`, // cyrillic-ok: user-facing error
+        },
+      }
+    }
+    // The sale was asked for: visible in the journal even if nothing follows.
+    await noteInvoiceMinted(pool, who, 'club', minted.stars)
     return {
       status: 200,
       body: {
