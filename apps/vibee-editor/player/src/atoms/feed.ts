@@ -20,6 +20,7 @@ import type {
 import { userAtom } from './user'
 import { API_BASE } from '../config'
 import { openInvoice } from '../lib/telegram'
+import { reportPayOutcome } from '../lib/payOutcome'
 import { apiFetch, explainApiError } from '../lib/apiFetch'
 import { getErrorMessage } from '../features/script/utils/errorMessages'
 import { languageAtom } from './language'
@@ -245,6 +246,7 @@ async function starTemplate(id: number): Promise<{
   }
   const invoiceResult = await openInvoice(created.invoice_url)
   if (invoiceResult !== 'paid') {
+    reportPayOutcome('feed', invoiceResult)
     return { status: invoiceResult, starsCount: null }
   }
   // Оплата прошла, но вебхук бота может добежать чуть позже — пингуем.

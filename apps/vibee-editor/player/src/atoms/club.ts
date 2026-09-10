@@ -22,6 +22,7 @@ import { atom } from 'jotai'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { openInvoice } from '@/lib/telegram'
+import { reportPayOutcome } from '@/lib/payOutcome'
 
 /** Why the club is open without a charge; null = paid (or not a member). */
 export type ClubGrant = 'owner' | 'keeper' | null
@@ -124,7 +125,12 @@ export const joinClubAtom = atom(
       if (!inv.link) throw new Error('no invoice link')
 
       const status = await openInvoice(inv.link)
-      if (status !== 'paid') return status
+      if (status !== 'paid') {
+        // The keepers hear it too (payOutcome.ts): a closed cashier is a
+        // note, a failed one is an alarm.
+        reportPayOutcome('club', status, { stars: inv.stars })
+        return status
+      }
 
       for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt++) {
         const vr = await fetch(`${API_BASE}/api/club/verify`, {
@@ -139,9 +145,13 @@ export const joinClubAtom = atom(
         }
         if (attempt < VERIFY_ATTEMPTS - 1) await pause(VERIFY_PAUSE_MS)
       }
+      // Telegram said "paid", the ledger did not show it in time: alarm.
+      reportPayOutcome('club', 'pending')
       return 'pending'
     } catch (e) {
-      set(clubErrorAtom, e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      set(clubErrorAtom, msg)
+      reportPayOutcome('club', 'failed', { error: msg })
       return 'failed'
     } finally {
       set(clubBusyAtom, false)
