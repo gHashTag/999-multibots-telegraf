@@ -290,7 +290,7 @@ export function clearFunctionsStatusCache(): void {
 
 export interface FetchStatusOptions extends GqlClientOptions {
   now?: Date
-  /** hard cap on runs fetched (single page). */
+  /** total cap on runs fetched across pages (default RUNS_MAX_DEFAULT). */
   first?: number
   bypassCache?: boolean
   manifest?: ManifestFunction[]
@@ -323,7 +323,7 @@ export async function fetchFunctionsStatus(
       ? await client.runs({
           from: new Date(now.getTime() - 7 * DAY_MS),
           functionIDs,
-          first: opts.first ?? 500,
+          first: opts.first,
         })
       : []
 
