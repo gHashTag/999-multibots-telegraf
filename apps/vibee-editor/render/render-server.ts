@@ -7846,6 +7846,11 @@ const server = createServer(async (req, res) => {
           telegramId: c.telegramId,
           amount: c.tokens,
         }),
+      // Bot owners (avatars) and keepers enter the club without paying.
+      grant: {
+        botsOwnedBy: async id =>
+          (await import('./src/agent/hive-tools')).botsOwnedBy(id),
+      },
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

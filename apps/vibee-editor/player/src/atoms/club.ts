@@ -23,8 +23,16 @@ import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { openInvoice } from '@/lib/telegram'
 
+/** Why the club is open without a charge; null = paid (or not a member). */
+export type ClubGrant = 'owner' | 'keeper' | null
+
 export interface ClubStatus {
   active: boolean
+  /**
+   * Bot owners (their bots in `avatars`) and keepers enter without paying
+   * (owner, 2026-09-10). The server decides; this side only shows it.
+   */
+  granted: ClubGrant
   until: string | null
   days_left: number
   periods: number
@@ -68,6 +76,8 @@ export const loadClubStatusAtom = atom(null, async (_get, set) => {
     }
     set(clubStatusAtom, {
       active: !!d.active,
+      granted:
+        d.granted === 'owner' || d.granted === 'keeper' ? d.granted : null,
       until: d.until ?? null,
       days_left: Number(d.days_left ?? 0),
       periods: Number(d.periods ?? 0),
