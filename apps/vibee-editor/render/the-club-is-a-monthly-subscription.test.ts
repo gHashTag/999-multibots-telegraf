@@ -383,3 +383,120 @@ describe('the HTTP surface', () => {
     expect(out.status).toBe(400)
   })
 })
+
+/**
+ * BOT OWNERS ENTER FOR FREE (owner, 2026-09-10: "give every bot owner access
+ * to the digital twin"). Ownership is the `avatars` answer, the same source
+ * as hive/roles.ts; the grant is read, never written, and fail-closed.
+ */
+describe('bot owners and keepers enter without paying', () => {
+  const grant = (bots: Record<string, string[]>, keeperIds: string[] = []) => ({
+    botsOwnedBy: async (id: string) => bots[id] ?? [],
+    keepers: () => keeperIds,
+  })
+  const deps = (
+    pool: ReturnType<typeof fakePool>,
+    who: string,
+    g: ReturnType<typeof grant> | undefined
+  ) => ({
+    getPool: async () => pool,
+    identity: () => who,
+    botToken: 'bot',
+    credit: fakeCredit().fn,
+    fetchImpl: invoiceFetch as unknown as typeof fetch,
+    now: () => new Date('2026-09-10T12:00:00Z'),
+    grant: g,
+  })
+
+  it('a bot owner is active with granted=owner and no paid period', async () => {
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps(fakePool(), '555', grant({ '555': ['woody_weed_bot'] }))
+    )
+    expect(out.body).toMatchObject({
+      ok: true,
+      active: true,
+      granted: 'owner',
+      until: null,
+      days_left: 0,
+      periods: 0,
+    })
+  })
+
+  it('a keeper is active with granted=keeper', async () => {
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps(fakePool(), '144022504', grant({}, ['144022504']))
+    )
+    expect(out.body).toMatchObject({ active: true, granted: 'keeper' })
+  })
+
+  it('a bee without bots still sees the paywall', async () => {
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps(fakePool(), '777', grant({ '555': ['woody_weed_bot'] }))
+    )
+    expect(out.body).toMatchObject({ active: false, granted: null })
+  })
+
+  it('without a grant source nobody is granted (the old behaviour)', async () => {
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps(fakePool(), '555', undefined)
+    )
+    expect(out.body).toMatchObject({ active: false, granted: null })
+  })
+
+  it('an owner is not sold an invoice: already_active with the reason', async () => {
+    const out = await handleClub(
+      { url: '/api/club/invoice', method: 'POST' },
+      deps(fakePool(), '555', grant({ '555': ['woody_weed_bot'] }))
+    )
+    expect(out.status).toBe(200)
+    expect(out.body).toMatchObject({
+      ok: false,
+      already_active: true,
+      granted: 'owner',
+    })
+    expect(String(out.body.error)).toMatch(new RegExp('без оплаты')) // cyrillic-ok: user-facing wording
+  })
+
+  it('a failing avatars lookup means no grant, not a free month', async () => {
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps(fakePool(), '555', {
+        botsOwnedBy: async () => {
+          throw new Error('avatars replied 500')
+        },
+        keepers: () => [],
+      })
+    )
+    expect(out.body).toMatchObject({ active: false, granted: null })
+  })
+
+  it('a paid month stays a paid month beside the grant', async () => {
+    const pool = fakePool()
+    const who = '555'
+    const tx: StarTx = {
+      id: 'tx-owner-1',
+      amount: CLUB_STARS,
+      date: Math.floor(new Date('2026-09-01T00:00:00Z').getTime() / 1000),
+      source: {
+        type: 'user',
+        user: { id: Number(who) },
+        subscription_period: CLUB_PERIOD_S,
+      },
+    }
+    await bookClubPeriods(pool, [tx], fakeCredit().fn, who)
+    const s = await clubStatus(
+      pool,
+      who,
+      new Date('2026-09-10T12:00:00Z'),
+      'owner'
+    )
+    expect(s.active).toBe(true)
+    expect(s.granted).toBe('owner')
+    expect(s.periods).toBe(1)
+    expect(s.days_left).toBeGreaterThan(0)
+  })
+})

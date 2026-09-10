@@ -39,8 +39,10 @@ import type { AgentTool, ToolContext } from './tools'
  *
  * A second source of ownership would drift from the first, and the drift would
  * show up as "I cannot see my own bot" or, worse, "I can see somebody else's".
+ * Exported for the club (club-membership.ts): a bot owner enters the digital
+ * twin without paying, and "owner" must mean the same thing there as here.
  */
-async function botsOwnedBy(telegramId: string): Promise<string[]> {
+export async function botsOwnedBy(telegramId: string): Promise<string[]> {
   const url = (process.env.SUPABASE_URL || '').replace(/\/+$/, '')
   const key = process.env.SUPABASE_SERVICE_KEY || ''
   if (!url || !key) return []

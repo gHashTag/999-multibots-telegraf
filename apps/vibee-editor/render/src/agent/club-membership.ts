@@ -22,10 +22,21 @@
  *
  * Cancelling is done by the person in Telegram settings; we never charge by
  * ourselves. Access simply ends at `until` if no renewal transaction arrives.
+ *
+ * BOT OWNERS ENTER FOR FREE (owner, 2026-09-10: "give every bot owner access
+ * to the digital twin"). Somebody with bots in `avatars` -- the same source
+ * of ownership as hive/roles.ts, and a keeper -- is a member without a
+ * charge: /api/club/status answers `active: true, granted: 'owner'`, the
+ * invoice route refuses to mint (nothing to sell them), and the welcome road
+ * in the Mini App skips the paywall on that fact. The grant is computed at
+ * read time from `avatars`, never written to club_period: a sold or removed
+ * bot ends the grant by itself, and a paid month stays a paid month. See
+ * `clubGrantFor`.
  */
 
 import { МАКС_ЗВЁЗД_ПОДПИСКА, ПЕРИОД_ПОДПИСКИ_С, СТУПЕНИ } from './token-packs' // cyrillic-ok: pre-existing export names
 import { record } from '../hive/journal'
+import { keepers } from '../hive/roles'
 
 type Queryable = {
   query: (sql: string, params?: unknown[]) => Promise<any>
@@ -101,8 +112,46 @@ export function forgetClubTablesForTests(): void {
   tablesReady = false
 }
 
+/**
+ * Why the club is open without a charge. `null` = no grant: membership, if
+ * any, is a paid one. 'owner' = has bots in `avatars`; 'keeper' = the
+ * platform's own keeper (hive/roles.ts).
+ */
+export type ClubGrant = 'owner' | 'keeper' | null
+
+export interface ClubGrantSource {
+  /** This person's bots according to `avatars`; an empty list means none. */
+  botsOwnedBy: (telegramId: string) => Promise<string[]>
+  /** Keepers of the hive; defaults to hive/roles.ts `keepers()`. */
+  keepers?: () => string[]
+}
+
+/**
+ * Is the club open to `who` without paying? Fail-closed like roles.ts: when
+ * ownership cannot be established the grant is absent and the paid path
+ * decides, so a database hiccup costs a paywall, never a free month for a
+ * stranger.
+ */
+export async function clubGrantFor(
+  who: string,
+  source: ClubGrantSource | undefined
+): Promise<ClubGrant> {
+  const id = String(who ?? '').trim()
+  if (!id || !source) return null
+  const keeperList = source.keepers ? source.keepers() : keepers()
+  if (keeperList.includes(id)) return 'keeper'
+  try {
+    const bots = await source.botsOwnedBy(id)
+    return bots.length ? 'owner' : null
+  } catch {
+    return null
+  }
+}
+
 export interface ClubStatus {
   active: boolean
+  /** Set when the club is open without a charge (bot owner / keeper). */
+  granted: ClubGrant
   until: string | null
   paid_at: string | null
   days_left: number
@@ -115,7 +164,8 @@ export interface ClubStatus {
 export async function clubStatus(
   pool: Queryable,
   telegramId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  granted: ClubGrant = null
 ): Promise<ClubStatus> {
   await ensureClubTables(pool)
   const r = await pool.query(
@@ -125,12 +175,14 @@ export async function clubStatus(
   )
   const row = r.rows?.[0]
   const untilMs = row ? new Date(row.until).getTime() : NaN
-  const active = Number.isFinite(untilMs) && untilMs > now.getTime()
+  const paid = Number.isFinite(untilMs) && untilMs > now.getTime()
+  const active = paid || granted !== null
   return {
     active,
+    granted,
     until: row ? String(row.until) : null,
     paid_at: row ? String(row.paid_at) : null,
-    days_left: active
+    days_left: paid
       ? Math.ceil((untilMs - now.getTime()) / (24 * 60 * 60 * 1000))
       : 0,
     periods: row ? Number(row.periods) : 0,
@@ -340,6 +392,8 @@ export interface ClubDeps {
   credit: Credit
   fetchImpl?: typeof fetch
   now?: () => Date
+  /** Who enters without paying (bot owners, keepers). Omitted = nobody. */
+  grant?: ClubGrantSource
 }
 
 /**
@@ -366,11 +420,12 @@ export async function handleClub(
   }
   const pool = await deps.getPool()
   const now = deps.now ? deps.now() : new Date()
+  const granted = await clubGrantFor(who, deps.grant)
 
   if (path === '/api/club/status' && req.method === 'GET') {
     return {
       status: 200,
-      body: { ok: true, ...(await clubStatus(pool, who, now)) },
+      body: { ok: true, ...(await clubStatus(pool, who, now, granted)) },
     }
   }
 
@@ -380,7 +435,7 @@ export async function handleClub(
     }
     const txs = await fetchStarTransactions(deps.botToken, deps.fetchImpl)
     const booked = await bookClubPeriods(pool, txs, deps.credit, who)
-    const status = await clubStatus(pool, who, now)
+    const status = await clubStatus(pool, who, now, granted)
     const creditedTokens = booked.reduce(
       (sum, b) => sum + (b.credited ? b.tokens : 0),
       0
@@ -409,16 +464,20 @@ export async function handleClub(
         },
       }
     }
-    const current = await clubStatus(pool, who, now)
+    const current = await clubStatus(pool, who, now, granted)
     if (current.active) {
+      // A bot owner is not sold a month they already have: no invoice.
       return {
         status: 200,
         body: {
           ok: false,
           already_active: true,
+          granted: current.granted,
           until: current.until,
           days_left: current.days_left,
-          error: 'клуб уже оплачен', // cyrillic-ok: user-facing error
+          error: current.granted
+            ? 'клуб открыт владельцам ботов без оплаты' // cyrillic-ok: user-facing error
+            : 'клуб уже оплачен', // cyrillic-ok: user-facing error
         },
       }
     }
