@@ -1028,6 +1028,7 @@ const en: Translations = {
   'welcome.club.cancel':
     'Cancel any time: Telegram → Settings → My Stars → subscriptions',
   'welcome.club.loading': 'Asking the server for the price…',
+  'welcome.club.retry': 'Ask the price again',
   'welcome.club.join': 'Join for {stars} Stars',
   'welcome.club.going': 'Opening the invoice…',
   'welcome.club.pending':
@@ -2848,6 +2849,7 @@ const ru: Translations = {
   'welcome.club.cancel':
     'Отменить можно всегда: Telegram → Настройки → Мои звёзды → подписки',
   'welcome.club.loading': 'Спрашиваю цену у сервера…',
+  'welcome.club.retry': 'Спросить цену ещё раз',
   'welcome.club.join': 'Вступить за {stars} звёзд',
   'welcome.club.going': 'Открываю счёт…',
   'welcome.club.pending':

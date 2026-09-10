@@ -428,6 +428,18 @@
   cursor: not-allowed;
 }
 
+/* The quiet one: "ask the price again" under a failed request. */
+.welcome__btn--secondary {
+  width: 100%;
+  color: var(--vibee-green, #00ff88);
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.35);
+}
+
+.welcome__btn--secondary:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.16);
+}
+
 .welcome__spin {
   animation: welcome-spin 0.9s linear infinite;
 }
