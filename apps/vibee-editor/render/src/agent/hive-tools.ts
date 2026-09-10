@@ -57,6 +57,28 @@ export async function botsOwnedBy(telegramId: string): Promise<string[]> {
   return rows.map(r => (r.bot_name || '').trim()).filter(Boolean)
 }
 
+/**
+ * Every bot owner on the platform: the distinct `telegram_id` of `avatars`.
+ * For the club's monthly grant sweep (club-membership.ts) only; nothing that
+ * answers a person may use this list, it names other people's owners.
+ */
+export async function allBotOwners(): Promise<string[]> {
+  const url = (process.env.SUPABASE_URL || '').replace(/\/+$/, '')
+  const key = process.env.SUPABASE_SERVICE_KEY || ''
+  if (!url || !key) return []
+  const res = await fetch(`${url}/rest/v1/avatars?select=telegram_id`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  })
+  if (!res.ok) throw new Error(`avatars replied ${res.status}`)
+  const rows = (await res.json()) as Array<{ telegram_id: string | number | null }>
+  const out = new Set<string>()
+  for (const r of rows) {
+    const id = String(r.telegram_id ?? '').trim()
+    if (/^\d{5,15}$/.test(id)) out.add(id)
+  }
+  return [...out]
+}
+
 async function visibilityFor(ctx?: ToolContext) {
   const who = ctx ? String(ctx.telegramId ?? '') : ''
   if (!who) {

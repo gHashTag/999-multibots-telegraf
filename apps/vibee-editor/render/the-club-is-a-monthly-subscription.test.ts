@@ -9,6 +9,9 @@ import {
   handleClub,
   isClubCharge,
   sweepClubRenewals,
+  sweepClubGrants,
+  bookGrantPeriod,
+  grantRef,
   forgetClubTablesForTests,
   type StarTx,
 } from './src/agent/club-membership'
@@ -28,9 +31,11 @@ import {
 
 function fakePool() {
   const periods: Array<Record<string, unknown>> = []
+  const grants: Array<Record<string, any>> = []
   const journal: Array<unknown[]> = []
   return {
     periods,
+    grants,
     journal,
     async query(sql: string, params: unknown[] = []) {
       const s = sql.replace(/\s+/g, ' ').trim()
@@ -47,6 +52,35 @@ function fakePool() {
           until: params[5],
         })
         return { rows: [{ id: periods.length }] }
+      }
+      if (/^INSERT INTO club_grant_period/i.test(s)) {
+        if (
+          grants.some(
+            g => g.telegram_id === params[0] && g.period_start === params[3]
+          )
+        )
+          return { rows: [], rowCount: 0 }
+        grants.push({
+          id: grants.length + 1,
+          telegram_id: params[0],
+          grant_kind: params[1],
+          tokens_granted: params[2],
+          credited: false,
+          period_start: params[3],
+          until: params[4],
+        })
+        return { rows: [{ id: grants.length }], rowCount: 1 }
+      }
+      if (/^UPDATE club_grant_period SET credited/i.test(s)) {
+        const g = grants.find(x => x.id === params[0])
+        if (g) g.credited = true
+        return { rows: [], rowCount: g ? 1 : 0 }
+      }
+      if (/FROM club_grant_period WHERE telegram_id/i.test(s)) {
+        const mine = grants
+          .filter(g => g.telegram_id === params[0])
+          .sort((a, b) => String(b.until).localeCompare(String(a.until)))
+        return { rows: mine.slice(0, 1) }
       }
       if (/^INSERT INTO hive_events/i.test(s)) {
         journal.push(params)
@@ -498,5 +532,157 @@ describe('bot owners and keepers enter without paying', () => {
     expect(s.granted).toBe('owner')
     expect(s.periods).toBe(1)
     expect(s.days_left).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * THE MONTHLY TOKENS OF A GRANTED PERSON (owner, 2026-09-10: "add the monthly
+ * club tokens for bot owners"). No charge to book, so the period is our own
+ * row; one per person per 30 days, opened on a visit or by the hourly sweep.
+ */
+describe('a granted person gets the monthly tokens', () => {
+  const NOW = new Date('2026-09-10T12:00:00Z')
+  function fakeGrantCredit(fail = false) {
+    const credits: Array<{ telegramId: string; tokens: number; ref: string; grant: string }> = []
+    const fn = async (c: { telegramId: string; tokens: number; ref: string; grant: 'owner' | 'keeper' }) => {
+      if (fail) return { credited: false, reason: 'ledger down' }
+      credits.push(c)
+      return { credited: true }
+    }
+    return { credits, fn }
+  }
+  const source = (bots: Record<string, string[]>, keeperIds: string[] = []) => ({
+    botsOwnedBy: async (id: string) => bots[id] ?? [],
+    keepers: () => keeperIds,
+    allOwners: async () => Object.keys(bots),
+  })
+
+  it('a visit opens the period once and credits 2 571 as a grant', async () => {
+    const pool = fakePool()
+    const { credits, fn } = fakeGrantCredit()
+    const first = await bookGrantPeriod(pool, '555', 'owner', fn, NOW)
+    expect(first).toMatchObject({
+      telegramId: '555',
+      grant: 'owner',
+      tokens: clubTokensPerPeriod(),
+      credited: true,
+      opened: true,
+      periodStart: '2026-09-10T00:00:00.000Z',
+      until: '2026-10-10T00:00:00.000Z',
+    })
+    expect(credits).toHaveLength(1)
+    expect(credits[0].ref).toBe(grantRef('555', new Date('2026-09-10T00:00:00Z')))
+    expect(credits[0].ref).toBe('club-grant:555:2026-09-10')
+
+    // The same day, an hour later, and a week later: nothing more.
+    expect(await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-09-10T13:00:00Z'))).toBeNull()
+    expect(await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-09-17T12:00:00Z'))).toBeNull()
+    expect(credits).toHaveLength(1)
+  })
+
+  it('after 30 days a new period opens and the next month is credited', async () => {
+    const pool = fakePool()
+    const { credits, fn } = fakeGrantCredit()
+    await bookGrantPeriod(pool, '555', 'owner', fn, NOW)
+    expect(await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-10-09T23:00:00Z'))).toBeNull()
+    const second = await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-10-10T00:00:01Z'))
+    expect(second).toMatchObject({ opened: true, credited: true, periodStart: '2026-10-10T00:00:00.000Z' })
+    expect(credits.map(c => c.ref)).toEqual(['club-grant:555:2026-09-10', 'club-grant:555:2026-10-10'])
+  })
+
+  it('no back-fill: three silent months give one period, from today', async () => {
+    const pool = fakePool()
+    const { credits, fn } = fakeGrantCredit()
+    await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-06-01T12:00:00Z'))
+    const late = await bookGrantPeriod(pool, '555', 'owner', fn, NOW)
+    expect(late).toMatchObject({ periodStart: '2026-09-10T00:00:00.000Z' })
+    expect(credits).toHaveLength(2)
+  })
+
+  it('a failed credit is an alarm and is retried on the next visit, not doubled', async () => {
+    const pool = fakePool()
+    const broken = fakeGrantCredit(true)
+    const first = await bookGrantPeriod(pool, '555', 'owner', broken.fn, NOW)
+    expect(first).toMatchObject({ opened: true, credited: false })
+    expect(pool.journal.some(j => JSON.stringify(j).includes('alarm'))).toBe(true)
+
+    const good = fakeGrantCredit()
+    const retry = await bookGrantPeriod(pool, '555', 'owner', good.fn, new Date('2026-09-11T12:00:00Z'))
+    expect(retry).toMatchObject({ opened: false, credited: true, periodStart: '2026-09-10T00:00:00.000Z' })
+    expect(good.credits).toHaveLength(1)
+    expect(await bookGrantPeriod(pool, '555', 'owner', good.fn, new Date('2026-09-12T12:00:00Z'))).toBeNull()
+  })
+
+  it('status of an owner opens the period, credits, and names until / days_left', async () => {
+    const pool = fakePool()
+    const { credits, fn } = fakeGrantCredit()
+    const deps = {
+      getPool: async () => pool,
+      identity: () => '555',
+      botToken: 'bot',
+      credit: fakeCredit().fn,
+      fetchImpl: invoiceFetch as unknown as typeof fetch,
+      now: () => NOW,
+      grant: source({ '555': ['woody_weed_bot'] }),
+      creditGrant: fn,
+    }
+    const out = await handleClub({ url: '/api/club/status', method: 'GET' }, deps)
+    expect(out.body).toMatchObject({
+      active: true,
+      granted: 'owner',
+      until: '2026-10-10T00:00:00.000Z',
+      days_left: 30,
+      periods: 0,
+      tokens_per_period: clubTokensPerPeriod(),
+    })
+    await handleClub({ url: '/api/club/status', method: 'GET' }, deps)
+    await handleClub({ url: '/api/club/verify', method: 'POST' }, deps)
+    expect(credits).toHaveLength(1)
+  })
+
+  it('a bee gets nothing from the grant path', async () => {
+    const pool = fakePool()
+    const { credits, fn } = fakeGrantCredit()
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      {
+        getPool: async () => pool,
+        identity: () => '777',
+        botToken: 'bot',
+        credit: fakeCredit().fn,
+        now: () => NOW,
+        grant: source({ '555': ['woody_weed_bot'] }),
+        creditGrant: fn,
+      }
+    )
+    expect(out.body).toMatchObject({ active: false, granted: null })
+    expect(credits).toHaveLength(0)
+    expect(pool.grants).toHaveLength(0)
+  })
+
+  it('the sweep books every owner and keeper once, keepers as keepers', async () => {
+    const pool = fakePool()
+    const { credits, fn } = fakeGrantCredit()
+    const src = source({ '555': ['a_bot'], '666': ['b_bot'], '144022504': ['c_bot'] }, ['144022504'])
+    const booked = await sweepClubGrants(pool, src, fn, NOW)
+    expect(booked.map(b => `${b.telegramId}:${b.grant}`).sort()).toEqual(
+      ['144022504:keeper', '555:owner', '666:owner']
+    )
+    expect(credits).toHaveLength(3)
+    expect(await sweepClubGrants(pool, src, fn, new Date('2026-09-20T12:00:00Z'))).toEqual([])
+    expect(credits).toHaveLength(3)
+  })
+
+  it('a failing owner list books nobody', async () => {
+    const pool = fakePool()
+    const { credits, fn } = fakeGrantCredit()
+    const booked = await sweepClubGrants(
+      pool,
+      { botsOwnedBy: async () => [], keepers: () => [], allOwners: async () => { throw new Error('avatars 500') } },
+      fn,
+      NOW
+    )
+    expect(booked).toEqual([])
+    expect(credits).toHaveLength(0)
   })
 })

@@ -32,6 +32,17 @@
  * read time from `avatars`, never written to club_period: a sold or removed
  * bot ends the grant by itself, and a paid month stays a paid month. See
  * `clubGrantFor`.
+ *
+ * AND THEY GET THE MONTHLY TOKENS (owner, 2026-09-10, later the same
+ * morning: "add the monthly club tokens for bot owners"). A granted person
+ * receives the same `clubTokensPerPeriod()` every 30 days that a paying
+ * member gets back from a charge. There is no Stars transaction to book, so
+ * the period is our own row: `club_grant_period`, one per person per 30
+ * days, opened when the person comes to the app (status / verify) and by the
+ * hourly sweep over every bot owner, so a month does not depend on a visit.
+ * No back-fill: a period starts the day it is opened, never retroactively.
+ * Credited through the ledger as kind 'grant', ref `club-grant:<id>:<day>`.
+ * See `bookGrantPeriod` and `sweepClubGrants`.
  */
 
 import { МАКС_ЗВЁЗД_ПОДПИСКА, ПЕРИОД_ПОДПИСКИ_С, СТУПЕНИ } from './token-packs' // cyrillic-ok: pre-existing export names
@@ -105,6 +116,25 @@ export async function ensureClubTables(pool: Queryable): Promise<void> {
   await pool.query(
     `CREATE INDEX IF NOT EXISTS club_period_who ON club_period (telegram_id, until DESC)`
   )
+  // A free period of a bot owner / keeper. `period_start` is a DAY (UTC
+  // midnight), and (telegram_id, period_start) is unique: two calls on the
+  // same day cannot open two periods, so the credit cannot double.
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS club_grant_period (
+       id serial PRIMARY KEY,
+       telegram_id text NOT NULL,
+       grant_kind text NOT NULL,
+       tokens_granted int NOT NULL,
+       credited boolean NOT NULL DEFAULT false,
+       period_start timestamptz NOT NULL,
+       until timestamptz NOT NULL,
+       created_at timestamptz NOT NULL DEFAULT now(),
+       UNIQUE (telegram_id, period_start)
+     )`
+  )
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS club_grant_period_who ON club_grant_period (telegram_id, until DESC)`
+  )
   tablesReady = true
 }
 
@@ -124,6 +154,8 @@ export interface ClubGrantSource {
   botsOwnedBy: (telegramId: string) => Promise<string[]>
   /** Keepers of the hive; defaults to hive/roles.ts `keepers()`. */
   keepers?: () => string[]
+  /** Every bot owner on the platform (distinct telegram_id in `avatars`); for the sweep. */
+  allOwners?: () => Promise<string[]>
 }
 
 /**
@@ -152,6 +184,10 @@ export interface ClubStatus {
   active: boolean
   /** Set when the club is open without a charge (bot owner / keeper). */
   granted: ClubGrant
+  /**
+   * End of the current period. A paid period when one is active; otherwise
+   * the current free period of a granted person; null when neither exists.
+   */
   until: string | null
   paid_at: string | null
   days_left: number
@@ -177,14 +213,26 @@ export async function clubStatus(
   const untilMs = row ? new Date(row.until).getTime() : NaN
   const paid = Number.isFinite(untilMs) && untilMs > now.getTime()
   const active = paid || granted !== null
+  // A granted person without an active paid month reads the free period, so
+  // the screen can say when the next tokens come.
+  let until: string | null = row ? String(row.until) : null
+  let daysLeft = paid
+    ? Math.ceil((untilMs - now.getTime()) / (24 * 60 * 60 * 1000))
+    : 0
+  if (!paid && granted) {
+    const g = await latestGrantPeriod(pool, telegramId)
+    const gUntil = g ? new Date(g.until).getTime() : NaN
+    if (Number.isFinite(gUntil) && gUntil > now.getTime()) {
+      until = g!.until
+      daysLeft = Math.ceil((gUntil - now.getTime()) / (24 * 60 * 60 * 1000))
+    }
+  }
   return {
     active,
     granted,
-    until: row ? String(row.until) : null,
+    until,
     paid_at: row ? String(row.paid_at) : null,
-    days_left: paid
-      ? Math.ceil((untilMs - now.getTime()) / (24 * 60 * 60 * 1000))
-      : 0,
+    days_left: daysLeft,
     periods: row ? Number(row.periods) : 0,
     stars: CLUB_STARS,
     period_days: CLUB_PERIOD_S / (24 * 60 * 60),
@@ -257,6 +305,205 @@ export async function mintClubInvoice(
     tokens: clubTokensPerPeriod(), // secret-guard-ok: token count, not a credential
     period_s: CLUB_PERIOD_S,
   }
+}
+
+export type CreditGrant = (input: {
+  telegramId: string
+  tokens: number
+  /** Idempotency / cross-reference for the ledger: `club-grant:<id>:<day>`. */
+  ref: string
+  grant: Exclude<ClubGrant, null>
+}) => Promise<{ credited: boolean; reason?: string }>
+
+export interface GrantPeriod {
+  id: number
+  telegram_id: string
+  grant_kind: string
+  tokens_granted: number
+  credited: boolean
+  period_start: string
+  until: string
+}
+
+async function latestGrantPeriod(
+  pool: Queryable,
+  telegramId: string
+): Promise<GrantPeriod | null> {
+  await ensureClubTables(pool)
+  const r = await pool.query(
+    `SELECT id, telegram_id, grant_kind, tokens_granted, credited,
+            period_start::text, until::text
+       FROM club_grant_period WHERE telegram_id = $1
+      ORDER BY until DESC LIMIT 1`,
+    [String(telegramId)]
+  )
+  const row = r.rows?.[0]
+  return row
+    ? {
+        id: Number(row.id),
+        telegram_id: String(row.telegram_id),
+        grant_kind: String(row.grant_kind),
+        tokens_granted: Number(row.tokens_granted),
+        credited: !!row.credited,
+        period_start: String(row.period_start),
+        until: String(row.until),
+      }
+    : null
+}
+
+/** UTC midnight of `now`, the day a free period starts. */
+export function grantDay(now: Date): Date {
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  )
+}
+
+export function grantRef(telegramId: string, start: Date): string {
+  return `club-grant:${telegramId}:${start.toISOString().slice(0, 10)}`
+}
+
+export interface BookedGrant {
+  telegramId: string
+  grant: Exclude<ClubGrant, null>
+  periodStart: string
+  until: string
+  tokens: number
+  credited: boolean
+  /** true when this call opened the period; false when it only repaired the credit. */
+  opened: boolean
+}
+
+/**
+ * Open the free period of a granted person if none is running, and credit
+ * the month's tokens. Returns null when the current period is still running
+ * and already credited -- the common case on every visit.
+ *
+ * Two doors, one lock: the INSERT on (telegram_id, period_start = today) is
+ * the lock; only the caller whose insert landed credits. A period whose credit
+ * failed (`credited = false`) is retried on the next call rather than
+ * forgotten -- the same alarm-not-silence rule as `bookClubPeriods`.
+ */
+export async function bookGrantPeriod(
+  pool: Queryable,
+  telegramId: string,
+  grant: Exclude<ClubGrant, null>,
+  credit: CreditGrant,
+  now: Date = new Date()
+): Promise<BookedGrant | null> {
+  await ensureClubTables(pool)
+  const tid = String(telegramId ?? '').trim()
+  if (!tid) return null
+  const tokens = clubTokensPerPeriod() // secret-guard-ok: token count, not a credential
+
+  const current = await latestGrantPeriod(pool, tid)
+  const running =
+    current && new Date(current.until).getTime() > now.getTime() ? current : null
+
+  let period: GrantPeriod
+  let opened = false
+  if (running) {
+    if (running.credited) return null
+    period = running
+  } else {
+    const start = grantDay(now)
+    const until = new Date(start.getTime() + CLUB_PERIOD_S * 1000)
+    const ins = await pool.query(
+      `INSERT INTO club_grant_period
+         (telegram_id, grant_kind, tokens_granted, period_start, until)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (telegram_id, period_start) DO NOTHING
+       RETURNING id`,
+      [tid, grant, tokens, start.toISOString(), until.toISOString()]
+    )
+    if (!ins.rows?.length) return null // somebody else opened today's period
+    opened = true
+    period = {
+      id: Number(ins.rows[0].id),
+      telegram_id: tid,
+      grant_kind: grant,
+      tokens_granted: tokens,
+      credited: false,
+      period_start: start.toISOString(),
+      until: until.toISOString(),
+    }
+  }
+
+  const start = new Date(period.period_start)
+  let c: { credited: boolean; reason?: string }
+  try {
+    c = await credit({
+      telegramId: tid,
+      tokens: period.tokens_granted,
+      ref: grantRef(tid, start),
+      grant,
+    })
+  } catch (e) {
+    c = { credited: false, reason: String(e).slice(0, 160) }
+  }
+  if (c.credited) {
+    await pool.query(
+      `UPDATE club_grant_period SET credited = true WHERE id = $1`,
+      [period.id]
+    )
+  }
+  try {
+    await record(pool, {
+      kind: 'payment',
+      who: tid,
+      amount: 0,
+      what: c.credited
+        ? `клуб (${grant}): 30 дней до ${period.until.slice(0, 10)}, ${period.tokens_granted} токенов зачислено без оплаты` // cyrillic-ok: journal text
+        : `клуб (${grant}): период открыт, токены НЕ зачислены: ${c.reason ?? ''}`, // cyrillic-ok: journal text
+      severity: c.credited ? 'normal' : 'alarm',
+    })
+  } catch {
+    // The period row is the record that matters; the journal is a courtesy.
+  }
+  return {
+    telegramId: tid,
+    grant,
+    periodStart: period.period_start,
+    until: period.until,
+    tokens: period.tokens_granted,
+    credited: c.credited,
+    opened,
+  }
+}
+
+/**
+ * The hourly pass over every granted person: bot owners from `avatars` and
+ * the keepers. Somebody who never opens the app still gets each month's
+ * tokens. Fail-closed per person: one bad row does not stop the others, and
+ * a failing owner list books nobody rather than guessing.
+ */
+export async function sweepClubGrants(
+  pool: Queryable,
+  source: ClubGrantSource,
+  credit: CreditGrant,
+  now: Date = new Date()
+): Promise<BookedGrant[]> {
+  const out: BookedGrant[] = []
+  let owners: string[] = []
+  try {
+    owners = source.allOwners ? await source.allOwners() : []
+  } catch (e) {
+    console.error('[club] grant sweep: owner list failed:', String(e).slice(0, 160))
+    return out
+  }
+  const keeperList = source.keepers ? source.keepers() : keepers()
+  const seen = new Set<string>()
+  const people: Array<[string, Exclude<ClubGrant, null>]> = []
+  for (const k of keeperList) if (k && !seen.has(k)) (seen.add(k), people.push([k, 'keeper']))
+  for (const o of owners) if (o && !seen.has(o)) (seen.add(o), people.push([o, 'owner']))
+  for (const [who, grant] of people) {
+    try {
+      const b = await bookGrantPeriod(pool, who, grant, credit, now)
+      if (b) out.push(b)
+    } catch (e) {
+      console.error(`[club] grant sweep ${who}:`, String(e).slice(0, 160))
+    }
+  }
+  return out
 }
 
 /** The slice of a Bot API StarTransaction this file reads. */
@@ -394,6 +641,8 @@ export interface ClubDeps {
   now?: () => Date
   /** Who enters without paying (bot owners, keepers). Omitted = nobody. */
   grant?: ClubGrantSource
+  /** Credits a granted person's monthly tokens (ledger kind 'grant'). Omitted = access only, no tokens. */
+  creditGrant?: CreditGrant
 }
 
 /**
@@ -421,6 +670,10 @@ export async function handleClub(
   const pool = await deps.getPool()
   const now = deps.now ? deps.now() : new Date()
   const granted = await clubGrantFor(who, deps.grant)
+  // A granted person's visit opens their free period and credits the month.
+  if (granted && deps.creditGrant && (path === '/api/club/status' || path === '/api/club/verify')) {
+    await bookGrantPeriod(pool, who, granted, deps.creditGrant, now)
+  }
 
   if (path === '/api/club/status' && req.method === 'GET') {
     return {
