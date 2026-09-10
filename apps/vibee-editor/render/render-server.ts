@@ -73,6 +73,7 @@ import {
   isClubPath,
   handleClub,
   sweepClubRenewals,
+  sweepClubGrants,
 } from './src/agent/club-membership'
 // A2A: the open protocol for external agents. Imported here because this file
 // is the only place that mounts routes, and until now nothing imported it at
@@ -515,6 +516,7 @@ const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
 }
 import { Pool } from 'pg'
 import { creditStarsPayment } from './src/stars-credit'
+import { creditClubGrant } from './src/club-grant-credit'
 import { tokenHistory } from './src/token-ledger'
 import {
   ENV_NAMES,
@@ -2343,6 +2345,24 @@ setInterval(
             `[club] sweep booked ${booked.length} period(s): ` +
               booked
                 .map(b => `${b.telegramId}→${b.until.slice(0, 10)}`)
+                .join(', ')
+          )
+        }
+        // Bot owners and keepers: the free month and its tokens, whether or
+        // not they opened the app this month (club-membership.ts).
+        const { botsOwnedBy, allBotOwners } = await import(
+          './src/agent/hive-tools'
+        )
+        const granted = await sweepClubGrants(
+          pool,
+          { botsOwnedBy, allOwners: allBotOwners },
+          g => creditClubGrant(pool, g)
+        )
+        if (granted.length) {
+          console.log(
+            `[club] grant sweep booked ${granted.length} period(s): ` +
+              granted
+                .map(b => `${b.telegramId}(${b.grant})→${b.until.slice(0, 10)}`)
                 .join(', ')
           )
         }
@@ -7846,11 +7866,13 @@ const server = createServer(async (req, res) => {
           telegramId: c.telegramId,
           amount: c.tokens,
         }),
-      // Bot owners (avatars) and keepers enter the club without paying.
+      // Bot owners (avatars) and keepers enter the club without paying, and
+      // get the month's tokens through the ledger (kind 'grant').
       grant: {
         botsOwnedBy: async id =>
           (await import('./src/agent/hive-tools')).botsOwnedBy(id),
       },
+      creditGrant: async g => creditClubGrant((await getPool()) as any, g),
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
