@@ -7,6 +7,12 @@
  *
  * Root cause: Webhook URL misconfiguration (e.g. pointing to VPS instead of fly.io)
  * causes Replicate callbacks to be lost, leaving trainings stuck forever.
+ *
+ * A training Replicate answers 404 for (see `isReplicateNotFound`) is retired:
+ * the DB row becomes `failed` with `RETIRED_ERROR`, one warn names it, and no
+ * event is sent — otherwise the same 404 was logged every 30 minutes forever
+ * (2025-12-02 rows 6mehygy1d1rm80ctvyrb4eakr4 / t02tygqk15rmc0ctvzyvty2ezg,
+ * still alerting on 2026-09-10).
  */
 
 import Replicate from 'replicate'
@@ -44,6 +50,24 @@ export function trainingAgeHours(
   if (Number.isNaN(t)) return null
   return (now - t) / (1000 * 60 * 60)
 }
+
+/**
+ * `true` when Replicate answered 404 for a training id: the training no
+ * longer exists there (deleted, expired, or never created). Such a row can
+ * never reach a terminal status through the webhook or this watchdog, so
+ * retrying it every 30 minutes only produces the same error forever.
+ */
+export function isReplicateNotFound(err: unknown): boolean {
+  const status = (err as { response?: { status?: number } } | null)?.response
+    ?.status
+  if (status === 404) return true
+  const msg = err instanceof Error ? err.message : String(err)
+  return /\bstatus 404\b|\b404 Not Found\b/i.test(msg)
+}
+
+/** What the DB row says after the watchdog retires it. */
+export const RETIRED_ERROR =
+  'replicate: training not found (HTTP 404) — retired by training-stuck-check'
 
 export const checkStuckTrainings = inngest.createFunction(
   {
@@ -100,7 +124,11 @@ export const checkStuckTrainings = inngest.createFunction(
         logger.error(
           '[CHECK STUCK] REPLICATE_API_TOKEN not set, cannot check training status'
         )
-        return { error: 'REPLICATE_API_TOKEN not configured', resolved: [] }
+        return {
+          error: 'REPLICATE_API_TOKEN not configured',
+          resolved: [],
+          retired: [],
+        }
       }
 
       const replicate = new Replicate({ auth: token })
@@ -113,6 +141,18 @@ export const checkStuckTrainings = inngest.createFunction(
         error?: string
       }> = []
       const alerts: string[] = []
+      // Rows Replicate no longer knows (404). They are marked `failed` in the
+      // DB so they leave this query; nothing is sent to the user — whether a
+      // refund is owed is a human decision, so the row is named once (warn).
+      const retired: Array<{
+        id: string
+        training_id: string
+        telegram_id: string
+        model_name: string
+        created_at: string
+        db_updated: boolean
+      }> = []
+      const safe = isSafeMode(event)
 
       for (const training of stuckTrainings) {
         try {
@@ -168,6 +208,45 @@ export const checkStuckTrainings = inngest.createFunction(
             )
           }
         } catch (err) {
+          if (isReplicateNotFound(err)) {
+            let dbUpdated = false
+            if (!safe) {
+              const { error: updErr } = await supabase
+                .from('model_trainings')
+                .update({ status: 'failed', error: RETIRED_ERROR })
+                .eq('id', training.id)
+              dbUpdated = !updErr
+              if (updErr) {
+                logger.error(
+                  '[CHECK STUCK] Could not retire vanished training',
+                  {
+                    training_id: training.replicate_training_id,
+                    error: updErr.message,
+                  }
+                )
+              }
+            }
+            retired.push({
+              id: training.id,
+              training_id: training.replicate_training_id,
+              telegram_id: String(training.telegram_id),
+              model_name: training.model_name,
+              created_at: String(training.created_at),
+              db_updated: dbUpdated,
+            })
+            logger.warn(
+              '[CHECK STUCK] Replicate no longer knows this training — retired as failed, user not messaged',
+              {
+                training_id: training.replicate_training_id,
+                telegram_id: training.telegram_id,
+                model_name: training.model_name,
+                created_at: training.created_at,
+                db_updated: dbUpdated,
+                safe_mode: safe,
+              }
+            )
+            continue
+          }
           logger.error('[CHECK STUCK] Failed to check training on Replicate', {
             training_id: training.replicate_training_id,
             error: err instanceof Error ? err.message : String(err),
@@ -182,7 +261,7 @@ export const checkStuckTrainings = inngest.createFunction(
         })
       }
 
-      return { resolved, alerts }
+      return { resolved, alerts, retired }
     })
 
     if (!results.resolved || results.resolved.length === 0) {
@@ -191,6 +270,7 @@ export const checkStuckTrainings = inngest.createFunction(
         success: true,
         checked: stuckTrainings.length,
         resolved: 0,
+        retired: ('retired' in results ? results.retired?.length : 0) ?? 0,
         elapsed_ms: Date.now() - startTime,
       }
     }
@@ -255,6 +335,7 @@ export const checkStuckTrainings = inngest.createFunction(
       success: true,
       checked: stuckTrainings.length,
       resolved: sendResults.sent,
+      retired: ('retired' in results ? results.retired?.length : 0) ?? 0,
       elapsed_ms: Date.now() - startTime,
     }
 
