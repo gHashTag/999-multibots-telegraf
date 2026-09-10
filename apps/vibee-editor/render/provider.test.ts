@@ -8,6 +8,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 const ENV = [
   'GLM_API_KEY',
   'NVIDIA_API_KEY',
+  'ZAI_BASE_URL',
+  'NVIDIA_BASE_URL',
   'OLLAMA_BASE_URL',
   'RAILWAY_SERVICE_QUEEN_OLLAMA_URL',
   'OLLAMA_ENABLED',
@@ -145,5 +147,46 @@ describe('what a small model is shown', () => {
     expect(chars / 3.2).toBeLessThan(6000)
     expect(kit.some(t => t.name === 'crm_offer')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send')).toBe(true)
+  })
+})
+
+describe('the endpoint base survives a slash from the dashboard', () => {
+  // NVIDIA answers `/v1//chat/completions` and
+  // `/v1/chat/completions/chat/completions` with a bare `404 page not found`
+  // (measured 2026-09-10); the loop must never build either.
+  it('trims trailing slashes and a pasted /chat/completions', async () => {
+    const m = await load()
+    const base = 'https://integrate.api.nvidia.com/v1'
+    expect(m.endpointBase(`${base}/`, 'x')).toBe(base)
+    expect(m.endpointBase(`${base}///`, 'x')).toBe(base)
+    expect(m.endpointBase(`${base}/chat/completions`, 'x')).toBe(base)
+    expect(m.endpointBase(`${base}/chat/completions/`, 'x')).toBe(base)
+    expect(m.endpointBase(base, 'x')).toBe(base)
+    expect(m.endpointBase(undefined, base)).toBe(base)
+    expect(m.endpointBase('   ', base)).toBe(base)
+  })
+
+  it('the catalogue applies it to every paid provider', async () => {
+    process.env.GLM_API_KEY = 'k'
+    process.env.NVIDIA_API_KEY = 'k'
+    process.env.ZAI_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/'
+    process.env.NVIDIA_BASE_URL =
+      'https://integrate.api.nvidia.com/v1/chat/completions/'
+    const m = await load()
+    const bases = Object.fromEntries(m.allProviders().map(p => [p.id, p.base]))
+    expect(bases.zai).toBe('https://api.z.ai/api/coding/paas/v4')
+    expect(bases['zai-lite']).toBe('https://api.z.ai/api/coding/paas/v4')
+    expect(bases.nemotron).toBe('https://integrate.api.nvidia.com/v1')
+  })
+
+  it('diagnose names the misbuilt path when the gateway says only 404 page not found', async () => {
+    const m = await load()
+    expect(m.diagnose('nemotron', 404, '404 page not found\n')).toContain(
+      'базовый адрес'
+    )
+    // A 404 with a body of its own is still reported as it came.
+    expect(
+      m.diagnose('nemotron', 404, '{"detail":"Not found for account"}')
+    ).toContain('Not found for account')
   })
 })

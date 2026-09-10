@@ -93,6 +93,25 @@ function ollamaContext(): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 4096
 }
 
+/**
+ * The endpoint base as the loop will use it: `${base}/chat/completions`.
+ *
+ * A trailing slash on the variable is not harmless. NVIDIA's gateway answers
+ * `/v1//chat/completions` -- and `/v1/chat/completions/chat/completions`,
+ * when the whole path was pasted into the variable -- with a bare Go
+ * `404 page not found`, while the same key on the clean path works.
+ * Measured 2026-09-10 after the CRM sweep reported exactly that text from
+ * nemotron. A slash added in a dashboard must not remove a provider from
+ * the chain, so the base is trimmed here, once, for every provider.
+ */
+export function endpointBase(
+  raw: string | undefined,
+  fallback: string
+): string {
+  const v = (raw || '').trim() || fallback
+  return v.replace(/\/+$/, '').replace(/\/chat\/completions$/, '')
+}
+
 const CATALOG: Record<
   ProviderId,
   {
@@ -114,7 +133,10 @@ const CATALOG: Record<
   // ключах: на обычном эндпоинте 0 из 5, на кодерском 4 из 5.
   // Адрес всё равно вынесен в переменную ZAI_BASE_URL на случай смены.
   zai: {
-    base: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4',
+    base: endpointBase(
+      process.env.ZAI_BASE_URL,
+      'https://api.z.ai/api/coding/paas/v4'
+    ),
     env: 'GLM_API_KEY',
     model: 'glm-5.3',
     thinking: true,
@@ -136,7 +158,10 @@ const CATALOG: Record<
    * отвечает, когда glm-5.3 занята или недоступна.
    */
   'zai-lite': {
-    base: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4',
+    base: endpointBase(
+      process.env.ZAI_BASE_URL,
+      'https://api.z.ai/api/coding/paas/v4'
+    ),
     env: 'GLM_API_KEY',
     model: 'glm-4.5',
     thinking: false,
@@ -160,7 +185,10 @@ const CATALOG: Record<
    * превращается в собеседника, который ничего не может сделать.
    */
   nemotron: {
-    base: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+    base: endpointBase(
+      process.env.NVIDIA_BASE_URL,
+      'https://integrate.api.nvidia.com/v1'
+    ),
     env: 'NVIDIA_API_KEY',
     model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
     thinking: false,
@@ -173,7 +201,7 @@ const CATALOG: Record<
     context: 128_000,
   },
   ollama: {
-    base: (process.env.OLLAMA_BASE_URL || OLLAMA_PRIVATE).replace(/\/+$/, ''),
+    base: endpointBase(process.env.OLLAMA_BASE_URL, OLLAMA_PRIVATE),
     env: '',
     model: process.env.OLLAMA_MODEL || 'qwen3:1.7b',
     thinking: false,
@@ -269,6 +297,9 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
       : `${id}: такой модели нет — проверьте AGENT_MODEL`
   }
   if (status === 429) return `${id}: превышен лимит запросов`
+  if (status === 404 && b.trim() === '404 page not found') {
+    return `${id}: ответил 404 «page not found» — путь до /chat/completions собран неверно, проверьте базовый адрес провайдера (без завершающего слэша и без самого пути)`
+  }
   return `${id}: ответил ${status} — ${body.slice(0, 200)}`
 }
 
