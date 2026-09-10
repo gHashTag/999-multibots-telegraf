@@ -33,6 +33,15 @@ const START_PARAM_ROUTES: Record<string, string> = {
   image: '/generate/image',
   audio: '/generate/audio',
   profile: '/profile',
+  /*
+   * The /start greeting in the bot (src/navigation/helpers/startGreeting.ts)
+   * offers the hive, the agent and the club as web_app buttons. `club` lands
+   * on the profile because the welcome road and the club card live there;
+   * one screen, two addresses, same reasoning as `pair` below.
+   */
+  hive: '/hive',
+  chat: '/chat',
+  club: '/profile',
   /**
    * `pair` — SIGN-IN FOR THE NATIVE APP. It was missing, and that alone made
    * signing in impossible.

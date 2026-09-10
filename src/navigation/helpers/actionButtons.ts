@@ -42,6 +42,16 @@ export interface Action {
  */
 export const ACTIONS: Action[] = [
   { id: 'topup', ru: '⭐ Пополнить баланс', en: '⭐ Top up' },
+  /*
+   * The other two doors to the same balance. Owner, 2026-09-09: "add payment
+   * in rubles, by choice, or in crypto -- find every payment type and wire
+   * it". Stars, rubles (Robokassa) and crypto (TON USDT, TON, USDC on Base
+   * when settlement can be credited) all existed as scenes; only Stars was
+   * reachable from a button. `topup` now opens the chooser with all of them,
+   * and these two jump straight to one method for the person who already knows.
+   */
+  { id: 'pay_rub', ru: '💳 Рублями', en: '💳 In rubles' },
+  { id: 'pay_crypto', ru: '💎 Криптой', en: '💎 In crypto' },
   { id: 'balance', ru: '💰 Мой баланс', en: '💰 My balance' },
   { id: 'can', ru: '✨ Что ты умеешь', en: '✨ What can you do' },
   // A person, always reachable: the one button that matters when the model
@@ -63,6 +73,13 @@ export const isKnownAction = (id: string): boolean =>
   ACTIONS.some(a => a.id === id)
 
 const label = (a: Action, isRu: boolean) => (isRu ? a.ru : a.en)
+
+/** One registered action as an inline button; throws on an id nobody handles. */
+export function actionButton(id: string, isRu: boolean): InlineKeyboardButton {
+  const a = ACTIONS.find(x => x.id === id)
+  if (!a) throw new Error(`unknown action button: ${id}`)
+  return Markup.button.callback(label(a, isRu), `${ACTION_PREFIX}${id}`)
+}
 
 /** The app button: inline web_app, which is the launch that carries a signature. */
 function appButton(isRu: boolean): InlineKeyboardButton {

@@ -32,6 +32,7 @@ import {
   redactSensitiveHeaders,
   redactSensitiveUrl,
 } from '@/utils/redactHeaders'
+import { SUPPORT_HANDLE, supportMention } from '@/config/support'
 
 // Определяем порт. Railway/Fly/Docker предоставляют PORT; мы используем API_PORT как override.
 // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
@@ -138,7 +139,7 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
 <li>Your branding, your pricing, your bot</li>
 <li>White-label dashboard and analytics</li>
 <li>Setup: $50-200/hour</li></ul>
-<a class="cta" href="https://t.me/neuro_sage">Contact @neuro_sage</a></body></html>`)
+<a class="cta" href="https://t.me/${SUPPORT_HANDLE}">Contact ${supportMention()}</a></body></html>`)
   })
 
   app.get('/api/whitelabel/:botName', async (req: any, res: any) => {
