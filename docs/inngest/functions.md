@@ -208,6 +208,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Notes:**
   - safe mode: send-completion-events is skipped (fan-out to training-model-complete would message users)
   - probe 2026-09-10: same work as the 30-min cron; send-completion-events is skipped in safe mode
+  - Replicate 404 for a training id: the row is retired (status failed, error names training-stuck-check), one warn to admin, no event and no user message; skipped in safe mode. Before: the same 404 was logged every 30 min (rows from 2025-12-02 still alerting 2026-09-10)
 
 ### morph-images-generate
 
