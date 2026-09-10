@@ -7,8 +7,13 @@ type Message = {
 
 export class GLMProvider {
   private readonly apiKey: string
-  private readonly baseURL =
+  // A trailing slash on the variable would build `//chat/completions`; see
+  // endpointBase in the render's provider catalogue for the measured 404.
+  private readonly baseURL = (
     process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4'
+  )
+    .replace(/\/+$/, '')
+    .replace(/\/chat\/completions$/, '')
   private readonly model = process.env.GLM_MODEL || 'glm-5.3'
 
   constructor(apiKey: string) {
