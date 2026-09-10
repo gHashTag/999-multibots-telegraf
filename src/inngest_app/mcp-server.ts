@@ -174,7 +174,8 @@ class InngestMCPServer {
             properties: {
               domain: {
                 type: 'string',
-                description: 'Optional domain filter (e.g. "render", "training")',
+                description:
+                  'Optional domain filter (e.g. "render", "training")',
               },
             },
           },
@@ -233,10 +234,14 @@ class InngestMCPServer {
             return await this.inngestHealth()
 
           case 'inngest_functions':
-            return await this.inngestFunctions(args?.domain as string | undefined)
+            return await this.inngestFunctions(
+              args?.domain as string | undefined
+            )
 
           case 'inngest_failed_runs':
-            return await this.inngestFailedRuns(args?.run_id as string | undefined)
+            return await this.inngestFailedRuns(
+              args?.run_id as string | undefined
+            )
 
           default:
             throw new Error(`Unknown tool: ${name}`)
@@ -386,7 +391,10 @@ class InngestMCPServer {
       content: [
         {
           type: 'text',
-          text: typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2),
+          text:
+            typeof payload === 'string'
+              ? payload
+              : JSON.stringify(payload, null, 2),
         },
       ],
     }

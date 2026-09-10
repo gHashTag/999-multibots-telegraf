@@ -53,7 +53,10 @@ export const modelTrainingV2 = inngest.createFunction(
     onFailure: createInngestFailureHandler('training-model-v2-start'),
   },
   // Canonical event first, legacy event kept for existing senders.
-  [{ event: 'training/model-v2.start' }, { event: 'model/training.v2.requested' }],
+  [
+    { event: 'training/model-v2.start' },
+    { event: 'model/training.v2.requested' },
+  ],
   async ({ event, step, runId }) => {
     logger.info('🚀 Model training initiated', {
       runId: runId, // Use runId from args

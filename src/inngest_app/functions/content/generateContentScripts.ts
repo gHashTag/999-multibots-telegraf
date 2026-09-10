@@ -52,7 +52,10 @@ export const generateContentScripts = inngest.createFunction(
     onFailure: createInngestFailureHandler('content-scripts-generate'),
   },
   // Canonical event first, legacy event kept for existing senders.
-  [{ event: 'content/scripts.generate' }, { event: 'instagram/generate-scripts' }],
+  [
+    { event: 'content/scripts.generate' },
+    { event: 'instagram/generate-scripts' },
+  ],
   async ({ event, step }) => {
     // Schema failure → NonRetriableError (never heals on retry).
     const input = parseEventData(
@@ -63,7 +66,10 @@ export const generateContentScripts = inngest.createFunction(
 
     // Safe mode: the steps below call the paid OpenAI API.
     if (isSafeMode(event)) {
-      return { success: false, ...skippedInSafeMode('openai script generation') }
+      return {
+        success: false,
+        ...skippedInSafeMode('openai script generation'),
+      }
     }
 
     // Step 1: Get reel data from database

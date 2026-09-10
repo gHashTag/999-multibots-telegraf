@@ -11,6 +11,8 @@ import {
   isKnownAction,
 } from '@/navigation/helpers/actionButtons'
 import { SUPPORT_HANDLE, supportMention } from '@/config/support'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * THE /start GREETING AND THE PAYMENT DOORS.
@@ -195,7 +197,7 @@ describe('the payment doors behind the buttons', () => {
     )
     // crypto_back must enter with an empty state; reenter() would keep
     // { crypto: true } and show the same menu again.
-    const back = scene.slice(scene.indexOf("paymentScene.action('crypto_back'"))
+    const back = sliceFrom(scene, "paymentScene.action('crypto_back'")
     expect(back).toContain('ctx.scene.enter(ModeEnum.PaymentScene, {})')
     expect(back.slice(0, back.indexOf('})\n'))).not.toContain(
       'ctx.scene.reenter()'

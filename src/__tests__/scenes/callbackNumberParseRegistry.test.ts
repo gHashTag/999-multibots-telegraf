@@ -53,6 +53,14 @@ const REGISTERED: Record<string, string> = {
   // is a log-line count, not a price or a quantity of paid work.
   'commands/autonomousMonitor.ts':
     'logs_(.+) -> parseInt sets how many log lines to fetch; no money in the file',
+  // CRM (#2316): the captured digits are a Telegram user id used as a lead key,
+  // never a price, quantity or duration. Both surfaces are owner-only
+  // (ADMIN_IDS_ARRAY) and the id is only ever looked up in crm_leads; an
+  // unknown id reads as "no such lead". No money call is reachable from them.
+  'navigation/helpers/crmMenu.ts':
+    'crm:(verb):(d{5,15}) via parseCrmCallback; id is a lead key for a crm_leads lookup by an owner; no pricing, no charge',
+  'navigation/registerCommands.ts':
+    'crm-prep-(d{5,15}) /start payload via crmPrepLead; admin-only, private chat only; id is a lead key, not an amount',
 }
 
 const walk = (d: string): string[] =>

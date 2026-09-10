@@ -49,7 +49,12 @@ const step = {
   sendEvent: vi.fn(async () => undefined),
 }
 // Inngest passes a per-run logger into the handler context.
-const ctxLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+const ctxLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -73,7 +78,10 @@ describe('guards.ts', () => {
       expect(e.message).toContain('telegram_id')
       expect(e.message).toContain('n:')
     }
-    expect(parseEventData(schema, { telegram_id: '1', n: 2 })).toEqual({ telegram_id: '1', n: 2 })
+    expect(parseEventData(schema, { telegram_id: '1', n: 2 })).toEqual({
+      telegram_id: '1',
+      n: 2,
+    })
   })
 
   it('requireValue → NonRetriableError on null/undefined/empty', () => {
@@ -88,8 +96,12 @@ describe('guards.ts', () => {
 describe('render schemas', () => {
   it('all three validators throw NonRetriableError on bad input', () => {
     expect(() => validateRenderEventData({})).toThrow(NonRetriableError)
-    expect(() => validateRenderRiddleEventData({ nope: 1 })).toThrow(NonRetriableError)
-    expect(() => validateRenderAvatarVideoEventData(null)).toThrow(NonRetriableError)
+    expect(() => validateRenderRiddleEventData({ nope: 1 })).toThrow(
+      NonRetriableError
+    )
+    expect(() => validateRenderAvatarVideoEventData(null)).toThrow(
+      NonRetriableError
+    )
   })
 })
 
@@ -110,7 +122,9 @@ describe('critical-error-monitor: renderErrorText', () => {
       expect(text).not.toContain('[object Object]')
       expect(text.length).toBeGreaterThan(0)
     }
-    expect(renderErrorText({ message: 'boom', name: 'TypeError' })).toBe('TypeError: boom')
+    expect(renderErrorText({ message: 'boom', name: 'TypeError' })).toBe(
+      'TypeError: boom'
+    )
     expect(renderErrorText(undefined)).toBe('Unknown error')
     expect(renderErrorText({ code: 'E1' })).toBe('{"code":"E1"}')
   })
@@ -118,7 +132,9 @@ describe('critical-error-monitor: renderErrorText', () => {
   it('renderErrorStack accepts string or Error-like', () => {
     // (raw stack field, error field): string stack wins, else Error-like.stack
     expect(renderErrorStack('at x', undefined)).toBe('at x')
-    expect(renderErrorStack(undefined, { stack: 'from error' })).toBe('from error')
+    expect(renderErrorStack(undefined, { stack: 'from error' })).toBe(
+      'from error'
+    )
     expect(renderErrorStack(undefined, {})).toBeUndefined()
   })
 })
@@ -150,7 +166,11 @@ describe('ai-reels-callback: malformed callback payloads are terminal', () => {
 
   it('cannot extract job_id → NonRetriableError', async () => {
     await rejectsNonRetriable(
-      handler({ event: { name: 'reels/ai.callback', data: { status: 'completed' } }, step, logger: ctxLogger }),
+      handler({
+        event: { name: 'reels/ai.callback', data: { status: 'completed' } },
+        step,
+        logger: ctxLogger,
+      }),
       /Cannot extract job_id/
     )
   })
@@ -174,7 +194,9 @@ describe('broadcast-message-send: validate-input', () => {
   const handler = getHandler(broadcastMessage)
 
   it('missing text on one language → NonRetriableError (no users fetched)', async () => {
-    const { broadcastService } = await import('@/services/plan_b/broadcast.service')
+    const { broadcastService } = await import(
+      '@/services/plan_b/broadcast.service'
+    )
     await rejectsNonRetriable(
       handler({
         event: {

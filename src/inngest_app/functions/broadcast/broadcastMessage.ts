@@ -50,9 +50,7 @@ export const broadcastMessage = inngest.createFunction(
             'URL изображения отсутствует для фото-рассылки'
           )
         } else if (data.contentType === 'video' && !data.videoFileId) {
-          throw new NonRetriableError(
-            'ID видео отсутствует для видео-рассылки'
-          )
+          throw new NonRetriableError('ID видео отсутствует для видео-рассылки')
         } else if (data.contentType === 'post_link' && !data.postLink) {
           throw new NonRetriableError(
             'URL поста отсутствует для рассылки ссылки'

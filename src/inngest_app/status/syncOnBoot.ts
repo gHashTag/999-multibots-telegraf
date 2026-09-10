@@ -55,12 +55,18 @@ export function shouldSyncOnBoot(env: NodeJS.ProcessEnv = process.env): {
   sync: boolean
   reason?: string
 } {
-  if (env.INNGEST_SYNC_ON_BOOT === '0' || env.INNGEST_SYNC_ON_BOOT === 'false') {
+  if (
+    env.INNGEST_SYNC_ON_BOOT === '0' ||
+    env.INNGEST_SYNC_ON_BOOT === 'false'
+  ) {
     return { sync: false, reason: 'INNGEST_SYNC_ON_BOOT=0' }
   }
   if (env.NODE_ENV === 'test') return { sync: false, reason: 'NODE_ENV=test' }
   if (!resolveInngestServeHost(env)) {
-    return { sync: false, reason: 'INNGEST_SERVE_HOST/INNGEST_SERVE_ORIGIN not set' }
+    return {
+      sync: false,
+      reason: 'INNGEST_SERVE_HOST/INNGEST_SERVE_ORIGIN not set',
+    }
   }
   return { sync: true }
 }
@@ -102,7 +108,13 @@ export async function syncInngestAppOnBoot(
         signal: controller.signal,
       })
       const body = (await res.text()).slice(0, 500)
-      last = { skipped: false, ok: res.status < 300, status: res.status, attempts: i, body }
+      last = {
+        skipped: false,
+        ok: res.status < 300,
+        status: res.status,
+        attempts: i,
+        body,
+      }
       if (last.ok) {
         log('[INNGEST SYNC] app registration synced', {
           status: res.status,
@@ -111,7 +123,11 @@ export async function syncInngestAppOnBoot(
         })
         return last
       }
-      log('[INNGEST SYNC] sync attempt failed', { status: res.status, attempt: i, body })
+      log('[INNGEST SYNC] sync attempt failed', {
+        status: res.status,
+        attempt: i,
+        body,
+      })
     } catch (error) {
       last = {
         skipped: false,
@@ -119,7 +135,10 @@ export async function syncInngestAppOnBoot(
         attempts: i,
         body: error instanceof Error ? error.message : String(error),
       }
-      log('[INNGEST SYNC] sync attempt errored', { attempt: i, error: last.body })
+      log('[INNGEST SYNC] sync attempt errored', {
+        attempt: i,
+        error: last.body,
+      })
     } finally {
       clearTimeout(timer)
     }

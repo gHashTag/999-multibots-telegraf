@@ -33,6 +33,8 @@ const KNOWN_PUBLIC: Record<string, string> = {
   replicateWebhookRouter:
     'no signature yet (webhook secret is owner/infra) but rejects unknown replicate_training_id before inngest.send; the consumer function is unregistered today',
   competitorRouter: 'endpoints are 501 stubs; no side effects',
+  inngestStatusRouter:
+    'GET/OPTIONS only (design inngest-spec-first §3.8: the t27.ai Functions tab reads it); read-only manifest × Inngest GraphQL counters, 30 s cache, CORS allow-list; no mutation is reachable. Residual disclosure, named: run ids, last-error event names and the internal gqlUrl are visible to anyone',
 }
 
 const idText = (e: ts.Expression): string => (ts.isIdentifier(e) ? e.text : '')

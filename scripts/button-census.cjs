@@ -37,7 +37,12 @@ const SCENE_ACT =
 const ANY_EQ = /\b[A-Za-z_$][\w$]*\s*===?\s*(['"`])([a-zA-Z0-9_:\-.]{2,64})\1/g
 const CASE = /case\s+(['"`])([a-zA-Z0-9_:\-.]{2,64})\1\s*:/g
 const PREFIX = /\.startsWith\(\s*(['"`])([a-zA-Z0-9_:\-.]{1,40})\1/g
-const REGEX = /\/(\^?)([a-zA-Z0-9_]{2,40})[^/\s]{0,40}\//g
+// The literal head of a regex trigger may carry a namespace separator:
+// `bot.action(/^mdl:(zai|ollama)$/)` catches `mdl:zai`. The first reader
+// stopped at `:` and saw a 3-character head, below the prefix floor, so four
+// caught buttons were reported as orphans. `.` stays out: in a regex it is
+// any character, not a literal.
+const REGEX = /\/(\^?)([a-zA-Z0-9_:\-]{2,40})[^/\s]{0,40}\//g
 
 /**
  * `.action(['a', 'b'], handler)` -- an array of triggers. The single-literal

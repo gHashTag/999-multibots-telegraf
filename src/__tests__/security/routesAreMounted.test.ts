@@ -59,7 +59,14 @@ function mountedModules(): string[] {
   // `app.use('/api', requireInternalKey, billingRouter)` -- and taking the
   // first argument named the MIDDLEWARE, which made five mounted routers look
   // like orphans.
-  for (const m of matchCode(raw, /\.use\(\s*['"`][^'"`]+['"`]\s*,([^)]*)\)/g)) {
+  // A prefix is optional: `app.use(inngestStatusRouter)` mounts a router whose
+  // routes carry their own absolute paths. The first resolver required a
+  // quoted prefix and reported that router as unmounted while it answered on
+  // the wire -- a resolver blind to one mount shape, not an orphan.
+  for (const m of matchCode(
+    raw,
+    /\.use\(\s*(?:['"`][^'"`]+['"`]\s*,)?([^)]*)\)/g
+  )) {
     for (const id of m[1].match(/\w+/g) || []) {
       const mod = imports[id]
       if (mod && mod.includes('routes/'))

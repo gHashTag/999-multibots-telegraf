@@ -47,7 +47,10 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
       onFailure: createInngestFailureHandler('training-model-complete'),
     },
     // Canonical event first, legacy event kept for the Replicate webhook path.
-    [{ event: 'training/model.complete' }, { event: 'model/training.completed' }],
+    [
+      { event: 'training/model.complete' },
+      { event: 'model/training.completed' },
+    ],
     async ({ event, step }) => {
       try {
         const eventData = event.data as TrainingCompletedEvent['data']

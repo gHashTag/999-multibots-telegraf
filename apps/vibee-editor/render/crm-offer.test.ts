@@ -295,6 +295,15 @@ describe('the touch follows the send, not the model', () => {
         } as any,
         { telegramId: OWNER, pool: { query: async () => ({ rows: [] }) } }
       )
+      // The 3 s guard is armed only after the send and two dynamic imports,
+      // which resolve through the real module loader, not the microtask queue.
+      // Advancing the fake clock before the timer exists advances nothing and
+      // the test then waits its full 30 s for a timer that fires never. Wait
+      // for the timer to be armed first (waitFor advances fake time itself).
+      await vi.waitFor(() => {
+        if (vi.getTimerCount() === 0)
+          throw new Error('touch guard not armed yet')
+      })
       await vi.advanceTimersByTimeAsync(3100)
       const r = await p
       expect(r.done, 'отправленное письмо отчитано как неотправленное').toBe(

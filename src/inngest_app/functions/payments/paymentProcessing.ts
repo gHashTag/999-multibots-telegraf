@@ -72,7 +72,10 @@ export const processPayment = inngest.createFunction(
     onFailure: createInngestFailureHandler('payment-ai-server-process'),
   },
   // Canonical event first, legacy event kept for existing senders.
-  [{ event: 'payment/ai-server.process' }, { event: 'payment/process-ai-server' }],
+  [
+    { event: 'payment/ai-server.process' },
+    { event: 'payment/process-ai-server' },
+  ],
   async ({ event, step }) => {
     console.log('🎯 Получено событие платежа:', event)
     console.log('📦 Данные события:', event.data)

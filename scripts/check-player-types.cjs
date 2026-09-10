@@ -29,7 +29,7 @@ const path = require('node:path')
  * 2.16.0. Атомы собирались типами одной версии, а useAtom читал их типами
  * другой — и сеттер выводился как `never`.
  */
-const BASELINE = 5
+const BASELINE = 0
 
 const PLAYER = path.join(__dirname, '..', 'apps', 'vibee-editor', 'player')
 

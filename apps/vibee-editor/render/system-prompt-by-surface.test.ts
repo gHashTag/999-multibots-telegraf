@@ -58,12 +58,22 @@ describe('the creator in the app (other surfaces)', () => {
    * Weakening a test to let a change through is a smell; this is the other
    * case -- the test pinned the defect, so the fix has to move it.
    */
-  it('sells tokens, not a club, and does not get the DM client rules', () => {
+  /*
+   * 2026-09-09 (#2317) the owner priced a club after all -- ONE, in Telegram
+   * Stars, bought in the mini-app profile, thirty percent back in tokens -- and
+   * #2334 let bot owners in without paying. The prompt moved with it; this
+   * test kept the 2026-09-08 sentence and went red on main for a day. What
+   * still holds and is pinned here: no dollar tiers, no invented "premium",
+   * and the DM client rules stay out of the creator's prompt.
+   */
+  it('sells tokens and one Stars club, no dollar tiers, and no DM client rules', () => {
     const o = systemPrompt('bot')
     expect(o).not.toContain('$99')
     expect(o).not.toContain('$999')
     expect(o).not.toContain('Trinity Club')
-    expect(o).toContain('ТАРИФОВ, ПОДПИСОК И КЛУБА НЕТ')
+    expect(o).toContain('Других тарифов')
+    expect(o).toContain('долларовых цен и «премиумов» нет')
+    expect(o).toContain('10 000 звёзд за 30 дней')
     expect(o).toContain('tokens_invoice')
     expect(o).not.toContain('ЕГО КЛИЕНТУ')
     expect(o).toContain(`картинка ${TOKEN_PRICES.image_generate}`)

@@ -68,9 +68,7 @@ export const generateModelTrainingFunction = inngest.createFunction(
         telegram_id: eventData.telegram_id,
         steps: eventData.steps,
       })
-      throw new NonRetriableError(
-        `Invalid training steps: ${eventData.steps}`
-      )
+      throw new NonRetriableError(`Invalid training steps: ${eventData.steps}`)
     }
 
     logger.info('[INNGEST TRAINING] 🚀 Starting model training', {

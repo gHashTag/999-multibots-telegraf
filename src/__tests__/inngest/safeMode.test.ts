@@ -8,8 +8,7 @@ import {
 } from '@/inngest_app/safeMode'
 
 const ENV_KEYS = ['INNGEST_SAFE_MODE', 'ADMIN_CHAT_ID'] as const
-const saved: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> =
-  {}
+const saved: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {}
 
 beforeEach(() => {
   for (const k of ENV_KEYS) {

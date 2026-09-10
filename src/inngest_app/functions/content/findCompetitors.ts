@@ -143,7 +143,10 @@ export const findCompetitors = inngest.createFunction(
     onFailure: createInngestFailureHandler('instagram-competitors-find'),
   },
   // Canonical event first, legacy event kept for existing senders.
-  [{ event: 'instagram/competitors.find' }, { event: 'instagram/find-competitors' }],
+  [
+    { event: 'instagram/competitors.find' },
+    { event: 'instagram/find-competitors' },
+  ],
   async ({ event, step, runId, logger }) => {
     log.info('🚀 Find Competitors started', {
       runId,

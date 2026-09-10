@@ -38,7 +38,8 @@ function собратьБота() {
   const команды = new Map<string, any>()
   const bot: any = {
     command(имя: string | string[], обработчик: any) {
-      for (const и of Array.isArray(имя) ? имя : [имя]) команды.set(и, обработчик)
+      for (const и of Array.isArray(имя) ? имя : [имя])
+        команды.set(и, обработчик)
       return bot
     },
     use: () => bot,
@@ -159,7 +160,9 @@ describe('/start: первая дверь', () => {
      * Необработанное исключение здесь — это ТИШИНА в ответ на первое в жизни
      * сообщение боту. Человек не пишет в поддержку, он уходит.
      */
-    supabase.getUserDetailsSubscription.mockRejectedValue(new Error('база легла'))
+    supabase.getUserDetailsSubscription.mockRejectedValue(
+      new Error('база легла')
+    )
     const { ctx } = собратьКонтекст()
     await expect(команды.get('start')(ctx)).resolves.not.toThrow()
     expect(ctx.reply).toHaveBeenCalled()

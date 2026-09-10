@@ -147,7 +147,11 @@ describe('the server hands in a pool that can lend a connection', () => {
   it('the file under test is the one that credits', () => {
     // Positive control: without this a wrong path reads as clean.
     expect(server).toContain('creditStarsPayment(pool, {')
-    expect(server.match(/creditStarsPayment\(pool, \{/g)?.length).toBe(2)
+    // Three callers, each handing in the Pool from getPool(): the webhook
+    // (successful_payment), the redelivery re-check, and -- since #2317 -- the
+    // club-renewal sweep. A fourth would be a fourth path to audit, so the
+    // count stays exact rather than "at least".
+    expect(server.match(/creditStarsPayment\(pool, \{/g)?.length).toBe(3)
   })
 
   it('getPool returns a real pg Pool, not a wrapper', () => {

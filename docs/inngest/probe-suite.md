@@ -95,8 +95,15 @@ window has a different event name and is ignored.
 
 * First production run: 2026-09-09 19:11Z from the admin chat (28 invoked in 44 s, all terminal
   within the budget). Deployed judge said 17 `mismatch`; corrected judge (this PR) on the same
-  runs: 28/28 `match`. The corrected judge itself has not yet run in production — the next
-  `/inngest_probe` report is its evidence.
+  runs: 28/28 `match`.
+* Witness of the merged judge (#2331) against production, 2026-09-10 03:19:17Z – 03:20:05Z:
+  `runProbeSuite` from `main` 224a87f, executed from an operator sandbox with `INNGEST_GQL_URL`
+  pointed at the production Inngest server — 28 invoked, **28 `match`, 0 mismatch, 0 timeout,
+  0 invoke-error, 0 skipped**, 48 s. Run ids and per-function verdicts:
+  `docs/inngest/witness/2026-09-10-probe-suite-03-19Z.json`. What this is not: the deployed bot
+  process did not run it and no Telegram report was produced — the same code, a different
+  process. The Telegram path (`/inngest_probe` → confirm button → report) is witnessed only by
+  the 2026-09-09 19:11Z run with the old judge and by unit tests.
 * Unit tests drive the orchestrator with a fake Inngest (`src/__tests__/inngest/probeSuite.test.ts`)
   and the command on a booted Telegraf bot (`src/__tests__/bot/inngestProbeCommand.test.ts`).
 * The 2026-09-09 manual probe (`probe_result` in the manifest, `PROBE_RESULT` on the t27 cards) is
