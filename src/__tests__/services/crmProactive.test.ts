@@ -8,6 +8,8 @@ import {
   resetProactiveForTests,
   SWEEP_PROMPT,
   SWEEP_RETRY_NOTE,
+  SWEEP_RETRY_NOTE_LOOKED,
+  leadsNote,
   HOLD_MS_DEFAULT,
   reportSweepOutcome,
   type SweepDeps,
@@ -184,6 +186,106 @@ describe('one sweep', () => {
     expect((await sweepOnce(OWNER, d)).did).toBe('failed')
     const ok = deps()
     expect((await sweepOnce(OWNER, ok.d)).did).toBe('card')
+  })
+})
+
+describe('the sweep looks first, then asks', () => {
+  /*
+   * Production 2026-09-09 22:14: both turns were `[[Подпись|crm_leads]]` --
+   * the tool's name written instead of called -- and the sweep was filed as
+   * failed with nobody knowing whether anyone was waiting. Step 1 is a plain
+   * MCP call; the sweep makes it itself.
+   */
+  const waiting = { lead: '555', display: 'Анна', next: 'reply' }
+  const quiet = { lead: '777', display: 'Борис', next: 'wait' }
+
+  it('nobody due: a real idle, and the model is not even asked', async () => {
+    const { d, calls } = deps({ leads: async () => [quiet] })
+    const r = await sweepOnce(OWNER, d)
+    expect(r).toEqual({
+      did: 'idle',
+      why: 'crm_leads: 1 кандидат(ов), все next=wait',
+    })
+    expect(calls).not.toContain('ask')
+  })
+
+  it('an empty list is idle too, and says so', async () => {
+    const { d, calls } = deps({ leads: async () => [] })
+    const r = await sweepOnce(OWNER, d)
+    expect(r).toEqual({ did: 'idle', why: 'crm_leads: кандидатов нет' })
+    expect(calls).not.toContain('ask')
+  })
+
+  it('somebody due: the rows go into the brief and step 1 is marked done', async () => {
+    const texts: string[] = []
+    const { d } = deps({
+      leads: async () => [quiet, waiting],
+      ask: async (_o, text) => {
+        texts.push(text)
+        return { текст: 'подготовил', proposal: draft } as never // cyrillic-ok: pre-existing identifiers
+      },
+    })
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('card')
+    expect(texts[0]).toContain(SWEEP_PROMPT)
+    expect(texts[0]).toContain(leadsNote([quiet, waiting]))
+    expect(texts[0]).toContain('Анна (555): next=reply')
+    expect(texts[0]).toContain('ШАГ 1 УЖЕ ВЫПОЛНЕН')
+  })
+
+  it('somebody due and two no-tools answers: failed, naming who waits; the retry note skips step 1', async () => {
+    const texts: string[] = []
+    const { d } = deps({
+      leads: async () => [waiting],
+      ask: async (_o, text) => {
+        texts.push(text)
+        return { текст: '[[Подпись|crm_leads]]', инструменты: [] } as never // cyrillic-ok: pre-existing identifiers
+      },
+    })
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('failed')
+    expect(r.why).toContain('ждёт Анна (next=reply)')
+    expect(texts).toHaveLength(2)
+    expect(texts[1]).toContain(SWEEP_RETRY_NOTE_LOOKED)
+    expect(texts[1]).not.toContain(SWEEP_RETRY_NOTE)
+  })
+
+  it('a failing crm_leads falls back to the model looking, as before', async () => {
+    const texts: string[] = []
+    const { d } = deps({
+      leads: async () => {
+        throw new Error('render 502')
+      },
+      ask: async (_o, text) => {
+        texts.push(text)
+        return { текст: 'тихо', инструменты: ['crm_leads'] } as never // cyrillic-ok: pre-existing identifiers
+      },
+    })
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('idle')
+    expect(texts[0]).toBe(SWEEP_PROMPT)
+  })
+
+  it('a scoped brief (its own prompt) does not read crm_leads', async () => {
+    let fetched = 0
+    const { d } = deps({
+      leads: async () => {
+        fetched += 1
+        return []
+      },
+      answer: { текст: 'тихо', инструменты: ['crm_lead_context'] }, // cyrillic-ok: pre-existing identifiers
+    })
+    const r = await sweepOnce(OWNER, d, { prompt: 'scoped brief' })
+    expect(r.did).toBe('idle')
+    expect(fetched).toBe(0)
+  })
+
+  it('wired: the live deps fetch the rows through the render MCP', () => {
+    const src = fs.readFileSync(
+      path.join(process.cwd(), 'src/services/crmProactive.ts'),
+      'utf8'
+    )
+    expect(src).toContain('leads: owner => fetchLeadRows(owner, LOOK_LIMIT)')
   })
 })
 

@@ -32,6 +32,7 @@ import {
   PLAN_MARKER_PREFIX,
 } from './crmPlan'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { fetchLeadRows } from './modelSwitch'
 import { Markup } from 'telegraf'
 
 /**
@@ -61,6 +62,11 @@ export interface SweepDeps {
     telegramId: string,
     turns: Array<{ role: 'user' | 'assistant'; content: string }>
   ) => Promise<unknown>
+  /**
+   * The crm_leads rows, fetched by the sweep itself (see LOOK FIRST in
+   * sweepOnce). Absent: the model is asked to look, as before.
+   */
+  leads?: (telegramId: string) => Promise<Array<Record<string, unknown>>>
   now?: () => number
 }
 
@@ -104,6 +110,39 @@ export const SWEEP_RETRY_NOTE =
   'Шаг 1 (crm_leads) обязателен ВСЕГДА, даже чтобы ответить «тихо»: без него ' +
   'ответ не засчитывается. Маркеры вида [[Подпись|...]] здесь не работают — ' +
   'не пиши их. Сначала вызови crm_leads, потом ответь одной строкой.'
+
+/** The retry note when the sweep already fetched the candidates itself. */
+export const SWEEP_RETRY_NOTE_LOOKED =
+  ' ВНИМАНИЕ: предыдущий ответ отклонён — ты не вызвал ни одного инструмента. ' +
+  'Кандидаты уже даны выше, crm_leads вызывать не нужно. Возьми первого с next не wait, ' +
+  'вызови по нему crm_lead_context и подготовь ровно одно действие. ' +
+  'Маркеры вида [[Подпись|...]] здесь не работают — не пиши их.'
+
+/** How many rows the sweep hands to the model; the brief says "limit 5". */
+export const LOOK_LIMIT = 5
+
+/** A row that is worth a turn: somebody whose forecast step is not "wait". */
+export const isDue = (c: Record<string, unknown>): boolean =>
+  typeof c.next === 'string' && c.next !== '' && c.next !== 'wait'
+
+/**
+ * The candidates, appended to the brief so step 1 is already done. One line
+ * per row, the fields the brief reasons about; nothing else from the row.
+ */
+export function leadsNote(rows: Array<Record<string, unknown>>): string {
+  const lines = rows.slice(0, LOOK_LIMIT).map(c => {
+    const who = c.display
+      ? `${String(c.display)} (${String(c.lead ?? '')})`
+      : String(c.lead ?? '')
+    return `- ${who}: next=${String(c.next ?? '')}`
+  })
+  return (
+    ' ШАГ 1 УЖЕ ВЫПОЛНЕН: crm_leads вернул ' +
+    `${rows.length} кандидат(ов), первые ${lines.length}:\n` +
+    lines.join('\n') +
+    '\nНачинай с шага 2 (crm_lead_context по первому, у кого next не wait).'
+  )
+}
 
 // The field holding the tool names has a Russian identifier on the existing
 // type. Read through a string key: a literal is allowed where an identifier
@@ -194,7 +233,46 @@ export async function sweepOnce(
         error: e instanceof Error ? e.message : String(e),
       })
     }
-    const brief = opts.prompt ?? SWEEP_PROMPT
+    /*
+     * LOOK FIRST, THEN ASK.
+     *
+     * Production 2026-09-09 22:14, after the retry above had been shipped:
+     * both turns came back as `[[Подпись|crm_leads]]` -- the model wrote the
+     * name of the tool instead of calling it, twice, and the sweep was filed
+     * as failed with nobody knowing whether anyone was waiting. Step 1 of the
+     * brief is a plain MCP call the bot can make itself. So it does: the rows
+     * are fetched here, an empty or all-`wait` list is a real idle without a
+     * model turn at all, and a non-empty list goes into the brief so the
+     * model starts at step 2. Whether somebody is waiting is no longer a
+     * question the model can answer wrongly by not asking it.
+     *
+     * The generic brief only: a scoped item (opts.prompt) chooses its own
+     * candidate and does not read crm_leads. A failing fetch falls back to
+     * the old path -- the model looks -- and says so in the log.
+     */
+    let looked: Array<Record<string, unknown>> | null = null
+    if (deps.leads && !opts.prompt) {
+      try {
+        looked = await deps.leads(ownerId)
+      } catch (e) {
+        logger.warn(
+          '[crm-proactive] crm_leads failed, the model looks itself',
+          {
+            error: e instanceof Error ? e.message : String(e),
+          }
+        )
+      }
+    }
+    if (looked && !looked.some(isDue)) {
+      return {
+        did: 'idle',
+        why: looked.length
+          ? `crm_leads: ${looked.length} кандидат(ов), все next=wait`
+          : 'crm_leads: кандидатов нет',
+      }
+    }
+    const brief =
+      opts.prompt ?? (looked ? SWEEP_PROMPT + leadsNote(looked) : SWEEP_PROMPT)
     let answer = await deps.ask(ownerId, brief)
     /*
      * ONE SECOND CHANCE, WITH THE RULE SPELLED OUT.
@@ -208,7 +286,10 @@ export async function sweepOnce(
      * cheap; a third would just be the same model in the same mood.
      */
     if (!toolsOf(answer).length && !answer.proposal) {
-      answer = await deps.ask(ownerId, brief + SWEEP_RETRY_NOTE)
+      answer = await deps.ask(
+        ownerId,
+        brief + (looked ? SWEEP_RETRY_NOTE_LOOKED : SWEEP_RETRY_NOTE)
+      )
     }
     // Only a turn that looked is worth remembering: a no-tools answer left
     // in the transcript teaches the next sweep to answer the same way.
@@ -246,10 +327,15 @@ export async function sweepOnce(
      */
     const toolNames = toolsOf(answer)
     if (!toolNames.length) {
+      // With the rows in hand the failure is different in kind: somebody IS
+      // waiting (the list had a due row) and nothing was prepared for them.
+      const due = looked?.find(isDue)
       return {
         did: 'failed',
         why:
-          'модель ответила, не вызвав ни одного инструмента — она не смотрела: ' +
+          (due
+            ? `ждёт ${String(due.display ?? due.lead ?? '?')} (next=${String(due.next)}), модель ничего не подготовила и не вызвала инструментов: `
+            : 'модель ответила, не вызвав ни одного инструмента — она не смотрела: ') +
           (
             (answer as unknown as Record<string, string | undefined>)[
               'текст'
@@ -365,6 +451,7 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
           : [],
       }),
     record: recordTurns,
+    leads: owner => fetchLeadRows(owner, LOOK_LIMIT),
   }
 }
 
