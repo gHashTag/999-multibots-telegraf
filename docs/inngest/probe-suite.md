@@ -41,7 +41,7 @@ A suite takes roughly one to three minutes: each probe is polled every 3 s with 
 
 | value | meaning | verdict `match` when |
 |---|---|---|
-| `FAILED-at-guard` | the guard step rejects the probe payload | run `FAILED` and the first `FAILED` step is the card's `guard` (guard `none`/`unknown`: any `FAILED`) |
+| `FAILED-at-guard` | the guard rejects the probe payload | run `FAILED` and it failed **where the guard lives** (see "Where a guard lives"); guard `none`/`unknown`: any `FAILED` |
 | `COMPLETED` | the function has a safe-mode path that runs to the end | run `COMPLETED` |
 | `skip` | not invoked (no safe payload / paid path) | reported as `skipped`, never counted as a failure |
 
@@ -50,8 +50,39 @@ budget — the run may still finish; check `/inngest_probe status`), `invoke-err
 Inngest, mutation refused, or no run appeared). The suite is **ok** only when there is no
 `mismatch`, `timeout` or `invoke-error`.
 
-At `main @251571c`: 28 planned = 17 `FAILED-at-guard` + 11 `COMPLETED` + 0 `skip`. The 14
+At `main @cddac64`: 28 planned = 17 `FAILED-at-guard` + 11 `COMPLETED` + 0 `skip`. The 14
 `code-only/unregistered` manifest entries are not planned (they are not served).
+
+## Where a guard lives (`guardKind`, derived — not a manifest field)
+
+The card's `guard` is either one of the function's `steps` (`guardKind = step`, e.g. `check-user`,
+`validate-input`) or a name for a check that runs in the function body before any step — a zod
+parse, an early throw (`guardKind = body`, e.g. `zod-schema`, `min-images`, `extract-job-id`,
+`validate-steps`). `guardKindOf(guard, steps)` decides: in `steps` → `step`, otherwise `body`.
+
+Inngest's trace (verified on the production runs of 2026-09-09 19:11Z, e.g.
+`01M23SG3QAZCWB2NQDZCV6RADK`) records a step that threw as status `RUNNING` with a `FAILED`
+`Attempt 0` child, and appends a synthetic top-level span named `function error`. A body failure
+produces **only** the `function error` span. So:
+
+* `step` guard → match when the first failed real step (own status or a failed attempt) is `guard`;
+* `body` guard → match when **no** real step failed and `function error` is present;
+* `none` → any `FAILED`.
+
+The first deployed judge (mb#2325) compared the guard name against the deepest failed span
+(`Attempt 0`) and so reported 17 false `mismatch` lines at 19:11Z. Re-judging those 28 runs
+with the rule above gives 28/28 `match` (`probe_live_rejudged.json` in the work log).
+
+## Probe runs and the admin channel
+
+A guard that rejects a probe is the designed outcome, so `createInngestFailureHandler` stays
+quiet for it: when the failed run's original event has `data.e2e_test === true`
+(`isProbeFailureEvent`), it logs one `[INNGEST PROBE]` info line and sends no
+`🚨 Inngest Failure` alert. The 20+ alerts in the admin channel at 22:11 local on 2026-09-09
+came from the first suite run before this rule existed. Known remaining noise: the
+`monitoring-*` 24 h statistics still count probe runs as failures (10 failed / 24 h after a
+suite run) — they are `inngest/function.invoked` runs and can be filtered by that event name
+if the reports should ignore them.
 
 ## How a run is found
 
@@ -62,8 +93,10 @@ window has a different event name and is ignored.
 
 ## Status (honesty)
 
-* The suite has **not been run against production** from the commit that adds it. The first real
-  run is from the admin chat after deploy; its report is the evidence, not this document.
+* First production run: 2026-09-09 19:11Z from the admin chat (28 invoked in 44 s, all terminal
+  within the budget). Deployed judge said 17 `mismatch`; corrected judge (this PR) on the same
+  runs: 28/28 `match`. The corrected judge itself has not yet run in production — the next
+  `/inngest_probe` report is its evidence.
 * Unit tests drive the orchestrator with a fake Inngest (`src/__tests__/inngest/probeSuite.test.ts`)
   and the command on a booted Telegraf bot (`src/__tests__/bot/inngestProbeCommand.test.ts`).
 * The 2026-09-09 manual probe (`probe_result` in the manifest, `PROBE_RESULT` on the t27 cards) is

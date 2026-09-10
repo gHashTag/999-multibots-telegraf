@@ -27,20 +27,26 @@ interface TraceSpan {
   childrenSpans?: TraceSpan[]
 }
 
-/** Flatten the span tree in source order, leaves and nodes alike. */
-export function flattenSpans(
+/**
+ * The top-level step spans of a run, with the attempt status folded in.
+ *
+ * Inngest's trace (verified on production runs, 2026-09-09) reports a step
+ * that threw as `status: RUNNING` with a FAILED `Attempt N` child, and adds a
+ * synthetic top-level `function error` span. The judge wants one status per
+ * step, so a step whose own status or any attempt is FAILED is FAILED here.
+ * Nested children below attempts are not steps and are not listed.
+ */
+export function topLevelSteps(
   root: TraceSpan | null | undefined
 ): Array<{ name: string; status: string }> {
-  const out: Array<{ name: string; status: string }> = []
-  const walk = (s: TraceSpan | undefined) => {
-    if (!s) return
-    for (const c of s.childrenSpans ?? []) {
-      out.push({ name: c.name, status: c.status })
-      walk(c)
-    }
-  }
-  walk(root ?? undefined)
-  return out
+  return (root?.childrenSpans ?? []).map(s => ({
+    name: s.name,
+    status:
+      s.status === 'FAILED' ||
+      (s.childrenSpans ?? []).some(c => c.status === 'FAILED')
+        ? 'FAILED'
+        : s.status,
+  }))
 }
 
 export class InngestProbeClient
@@ -101,7 +107,7 @@ export class InngestProbeClient
       id: data.run.id,
       status: data.run.status,
       endedAt: data.run.endedAt,
-      steps: flattenSpans(data.run.trace),
+      steps: topLevelSteps(data.run.trace),
     }
   }
 }

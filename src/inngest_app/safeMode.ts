@@ -88,3 +88,24 @@ export function isSafeModeSkip(value: unknown): value is SafeModeSkip {
     (value as SafeModeSkip).reason === 'safe-mode'
   )
 }
+
+/**
+ * `true` when an `inngest/function.failed` event describes the failure of a
+ * safe-mode (probe) run — its original event carried `data.e2e_test === true`.
+ * Used by `createInngestFailureHandler` to keep the admin channel quiet: a
+ * guard that rejects the probe payload is the expected outcome, and the
+ * /inngest_probe report is where it is shown.
+ */
+export function isProbeFailureEvent(
+  event?: {
+    data?: { event?: { data?: unknown } } | Record<string, unknown> | null
+  } | null
+): boolean {
+  const original = (event?.data as { event?: { data?: unknown } } | undefined)
+    ?.event?.data
+  return (
+    !!original &&
+    typeof original === 'object' &&
+    (original as Record<string, unknown>).e2e_test === true
+  )
+}

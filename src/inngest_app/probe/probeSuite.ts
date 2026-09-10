@@ -45,11 +45,24 @@ export type ProbeVerdict =
   | 'invoke-error'
   | 'skipped'
 
+/**
+ * Where the guard lives. `step`: the guard is one of the function's
+ * `step.run` names, so its span fails. `body`: the guard runs in the function
+ * body (zod parse, an early throw before the first step), so no step span
+ * fails and Inngest records only the synthetic `function error` span. `none`:
+ * the manifest could not name a guard (`none`/`unknown`) — any FAILED counts.
+ */
+export type GuardKind = 'step' | 'body' | 'none'
+
+/** The span name Inngest gives a failure that happened outside every step. */
+export const FUNCTION_ERROR_SPAN = 'function error'
+
 export interface ProbePlan {
   id: string
   slug: string
   expect: ProbeExpectation
   guard: string
+  guardKind: GuardKind
   payload: Record<string, unknown>
   /** Why a `skip` is a skip (from the manifest) — shown in the report. */
   skipReason?: string
@@ -59,7 +72,7 @@ export interface ProbeResult extends ProbePlan {
   verdict: ProbeVerdict
   runId?: string
   status?: string
-  /** Name of the first FAILED step span, when the run failed. */
+  /** Where the run failed: a step name, `function error`, or undefined. */
   failedStep?: string
   error?: string
   durationMs?: number
@@ -158,11 +171,13 @@ export function planProbes(
     .filter(f => f.control === 'spec+code')
     .map(f => {
       const expect = probeExpectation(f)
+      const guard = f.guard || 'none'
       const plan: ProbePlan = {
         id: f.id,
         slug: `${appId}-${f.id}`,
         expect,
-        guard: f.guard || 'none',
+        guard,
+        guardKind: guardKindOf(guard, f.steps),
         payload: probePayload(f),
       }
       if (expect === 'skip') plan.skipReason = skipReasonFor(f)
@@ -170,11 +185,29 @@ export function planProbes(
     })
 }
 
-/** The first FAILED step span, in trace order. */
+export function guardKindOf(guard: string, steps: string[]): GuardKind {
+  if (guard === 'none' || guard === 'unknown' || guard === '') return 'none'
+  return steps.includes(guard) ? 'step' : 'body'
+}
+
+/**
+ * Where a FAILED run failed, from the top-level step spans of its trace.
+ *
+ * Verified against production traces on 2026-09-09 (runs 01M23S9H…01M23SEE):
+ * a step that threw is reported with status RUNNING and a FAILED `Attempt N`
+ * child, and Inngest appends a synthetic top-level `function error` span.
+ * So: the first real step that is FAILED itself or has a FAILED attempt wins;
+ * only when no step failed is the answer `function error` (the guard ran in
+ * the function body). `runWithTrace` folds the attempt status into the step.
+ */
 export function firstFailedStep(
   steps: Array<{ name: string; status: string }>
 ): string | undefined {
-  return steps.find(s => s.status === 'FAILED')?.name
+  const step = steps.find(
+    s => s.name !== FUNCTION_ERROR_SPAN && s.status === 'FAILED'
+  )
+  if (step) return step.name
+  return steps.find(s => s.name === FUNCTION_ERROR_SPAN)?.name
 }
 
 export function judge(
@@ -189,13 +222,11 @@ export function judge(
     }
   }
   if (plan.expect === 'FAILED-at-guard') {
-    // A guard of "none" means the manifest could not name the stopping step;
-    // then any FAILED counts, because the promise is only "it does not act".
+    if (run.status !== 'FAILED') return { verdict: 'mismatch', failedStep }
     const atGuard =
-      run.status === 'FAILED' &&
-      (plan.guard === 'none' ||
-        plan.guard === 'unknown' ||
-        failedStep === plan.guard)
+      plan.guardKind === 'none' ||
+      (plan.guardKind === 'body' && failedStep === FUNCTION_ERROR_SPAN) ||
+      (plan.guardKind === 'step' && failedStep === plan.guard)
     return { verdict: atGuard ? 'match' : 'mismatch', failedStep }
   }
   return { verdict: 'skipped', failedStep }
@@ -368,7 +399,11 @@ export function renderProbePlanText(plans: ProbePlan[]): string {
     ...active.map(p =>
       p.expect === 'COMPLETED'
         ? `• ${p.id} → COMPLETED`
-        : `• ${p.id} → FAILED на шаге ${p.guard}`
+        : p.guardKind === 'body'
+          ? `• ${p.id} → FAILED в теле функции (${p.guard})`
+          : p.guardKind === 'step'
+            ? `• ${p.id} → FAILED на шаге ${p.guard}`
+            : `• ${p.id} → FAILED (guard не назван)`
     ),
   ]
   if (skipped.length) {
@@ -410,7 +445,9 @@ export function renderProbeReportText(rep: ProbeSuiteReport): string {
           ? `FAILED@${r.failedStep ?? '?'}`
           : (r.status ?? '?')
       const want =
-        r.expect === 'FAILED-at-guard' ? `FAILED@${r.guard}` : r.expect
+        r.expect === 'FAILED-at-guard'
+          ? `FAILED@${r.guardKind === 'body' ? `${FUNCTION_ERROR_SPAN} (${r.guard} в теле функции)` : r.guard}`
+          : r.expect
       tail = `ждали ${want}, получили ${got}`
     } else {
       tail = r.error ?? r.verdict
