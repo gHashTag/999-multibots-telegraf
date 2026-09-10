@@ -200,11 +200,24 @@ export function guardKindOf(guard: string, steps: string[]): GuardKind {
  * only when no step failed is the answer `function error` (the guard ran in
  * the function body). `runWithTrace` folds the attempt status into the step.
  */
+/**
+ * The step a terminal run died in: the first step span that is not
+ * COMPLETED, else the `function error` span (a body-level throw).
+ *
+ * "Not COMPLETED", not "FAILED": mirror run 2026-09-10 02:16Z, function
+ * `instagram-reels-analyze`, run `01M24HNMM66NTG7XJ8WQRE1SHB` -- the run was
+ * FAILED with `Invalid event data: username: Required` thrown as a
+ * NonRetriableError inside `step.run('validate-input')`, and the trace read
+ * 20 s later (and again minutes later) showed that span as RUNNING with the
+ * `function error` span FAILED. The server does not always close the span
+ * of a step whose NonRetriableError ends the run. Only call this on a
+ * terminal run: there a step still "running" is the one that threw.
+ */
 export function firstFailedStep(
   steps: Array<{ name: string; status: string }>
 ): string | undefined {
   const step = steps.find(
-    s => s.name !== FUNCTION_ERROR_SPAN && s.status === 'FAILED'
+    s => s.name !== FUNCTION_ERROR_SPAN && s.status !== 'COMPLETED'
   )
   if (step) return step.name
   return steps.find(s => s.name === FUNCTION_ERROR_SPAN)?.name
@@ -323,9 +336,18 @@ export async function runProbeSuite(
     await report()
   }
 
-  // 2. Poll until terminal or budget.
-  const pending = () =>
-    active.filter(r => r.runId && !TERMINAL_RUN_STATUSES.has(r.status ?? ''))
+  /*
+   * 2. Poll until judged or budget.
+   *
+   * "Pending" is a run with an id and no verdict yet -- NOT "a run that is
+   * not terminal". Mirror run 2026-09-10 02:16Z: 21 of 28 probes came back
+   * `skipped` with a run id and `status: FAILED`. A guard fails within
+   * milliseconds, so the discovery query above already saw the run as
+   * FAILED, a status-based filter never let it into this loop, and nobody
+   * read its trace. The verdict must come from the trace, so every run
+   * without a verdict goes through here at least once.
+   */
+  const pending = () => active.filter(r => r.runId && r.verdict === 'skipped')
   while (
     pending().length > 0 &&
     now().getTime() - startedAt.getTime() < budgetMs
