@@ -10,6 +10,8 @@ tools that never send events or invoke functions:
 | `inngest_functions` | `domain?` | JSON: manifest functions joined with live status (`id, slug, triggers, control, deployed, runs24h, runs7d, lastRun, lastError`) |
 | `inngest_failed_runs` | `run_id?` | JSON: functions with `runs24h.failed > 0` and their `lastError`; with `run_id` → `run(runID){id status output}` |
 
+Runs are read in pages of 200 (`RUNS_PAGE_SIZE`): the server silently answers `first ≥ 400` with its default 40, so until 2026-09-10 every counter here was built on the newest 40 runs only.
+
 Counters (`runs24h`, `runs7d`) have an `invoked` field: runs started by `invokeFunction`
 (dashboard, MCP, `/inngest_probe`; event name `inngest/function.invoked…`) are counted there and in
 `total` only — never as completed/failed — and never become a function's `lastError`. Reason: on

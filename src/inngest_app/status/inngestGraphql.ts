@@ -86,7 +86,9 @@ function trimSlash(s: string): string {
   return s.replace(/\/+$/, '')
 }
 
-export function resolveInngestGqlUrl(env: NodeJS.ProcessEnv = process.env): string {
+export function resolveInngestGqlUrl(
+  env: NodeJS.ProcessEnv = process.env
+): string {
   if (env.INNGEST_GQL_URL && env.INNGEST_GQL_URL.trim() !== '') {
     return env.INNGEST_GQL_URL.trim()
   }
@@ -102,11 +104,24 @@ export const GQL_APPS_QUERY = `query FunctionsStatusApps {
   apps { id name url connected sdkVersion functions { id slug name triggers { type value } } }
 }`
 
-export const GQL_RUNS_QUERY = `query FunctionsStatusRuns($first: Int!, $from: Time!, $functionIDs: [UUID!]) {
-  runs(first: $first, orderBy: [{ field: QUEUED_AT, direction: DESC }], filter: { from: $from, functionIDs: $functionIDs }) {
+export const GQL_RUNS_QUERY = `query FunctionsStatusRuns($first: Int!, $from: Time!, $functionIDs: [UUID!], $after: String) {
+  runs(first: $first, after: $after, orderBy: [{ field: QUEUED_AT, direction: DESC }], filter: { from: $from, functionIDs: $functionIDs }) {
     edges { node { id status queuedAt endedAt eventName function { slug } } }
+    pageInfo { hasNextPage endCursor }
   }
 }`
+
+/**
+ * Page size for `runs`. Measured on the production server (Inngest self-hosted,
+ * 2026-09-10): `first` up to 300 is honoured, `first: 400` and above is
+ * silently replaced by the default of 40 -- so the old single page of
+ * `first: 500` returned the newest 40 runs and every "24 h" figure built on
+ * it (report, MCP, functions tab) was really "the last 40 runs". Actual 24 h
+ * volume that day: 208.
+ */
+export const RUNS_PAGE_SIZE = 200
+/** Default total cap across pages; a week of this app is a few thousand. */
+export const RUNS_MAX_DEFAULT = 5000
 
 export const GQL_RUN_QUERY = `query FunctionsStatusRun($runID: String!) {
   run(runID: $runID) { id status output }
@@ -129,7 +144,10 @@ export class InngestGraphqlClient {
     }
   }
 
-  async query<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+  async query<T>(
+    query: string,
+    variables: Record<string, unknown>
+  ): Promise<T> {
     const controller =
       typeof AbortController !== 'undefined' ? new AbortController() : null
     const timer = controller
@@ -172,13 +190,19 @@ export class InngestGraphqlClient {
         )
       }
       if (!json.data) {
-        throw new InngestGraphqlError('Inngest GraphQL returned no data', this.url)
+        throw new InngestGraphqlError(
+          'Inngest GraphQL returned no data',
+          this.url
+        )
       }
       return json.data
     } catch (err) {
       if (err instanceof InngestGraphqlError) throw err
       const msg = err instanceof Error ? err.message : String(err)
-      throw new InngestGraphqlError(`Inngest GraphQL unreachable: ${msg}`, this.url)
+      throw new InngestGraphqlError(
+        `Inngest GraphQL unreachable: ${msg}`,
+        this.url
+      )
     } finally {
       if (timer) clearTimeout(timer)
     }
@@ -191,24 +215,40 @@ export class InngestGraphqlClient {
 
   /**
    * Runs queued since `from` for the given internal function UUIDs, newest
-   * first. `first` is a hard cap (single page — no pagination on purpose).
+   * first, across as many pages of `RUNS_PAGE_SIZE` as it takes. `first` is
+   * the total cap (default `RUNS_MAX_DEFAULT`), not a page size -- see
+   * `RUNS_PAGE_SIZE` for why a single big page did not work.
    */
   async runs(params: {
     from: Date
     functionIDs?: string[]
     first?: number
   }): Promise<InngestRunNode[]> {
-    const variables: Record<string, unknown> = {
-      first: params.first ?? 500,
-      from: params.from.toISOString(),
+    const max = params.first ?? RUNS_MAX_DEFAULT
+    const out: InngestRunNode[] = []
+    let after: string | null = null
+    while (out.length < max) {
+      const variables: Record<string, unknown> = {
+        first: Math.min(RUNS_PAGE_SIZE, max - out.length),
+        from: params.from.toISOString(),
+      }
+      if (params.functionIDs && params.functionIDs.length > 0) {
+        variables.functionIDs = params.functionIDs
+      }
+      if (after) variables.after = after
+      const data = await this.query<{
+        runs: {
+          edges: Array<{ node: InngestRunNode }>
+          pageInfo?: { hasNextPage?: boolean; endCursor?: string | null }
+        }
+      }>(GQL_RUNS_QUERY, variables)
+      const edges = data.runs?.edges ?? []
+      for (const e of edges) out.push(e.node)
+      const info = data.runs?.pageInfo
+      if (!info?.hasNextPage || !info.endCursor || edges.length === 0) break
+      after = info.endCursor
     }
-    if (params.functionIDs && params.functionIDs.length > 0) {
-      variables.functionIDs = params.functionIDs
-    }
-    const data = await this.query<{
-      runs: { edges: Array<{ node: InngestRunNode }> }
-    }>(GQL_RUNS_QUERY, variables)
-    return (data.runs?.edges ?? []).map(e => e.node)
+    return out
   }
 
   async run(runID: string): Promise<InngestRunDetail | null> {

@@ -9,6 +9,7 @@ import {
   InngestGraphqlError,
   GQL_APPS_QUERY,
   GQL_RUNS_QUERY,
+  RUNS_PAGE_SIZE,
   GQL_RUN_QUERY,
   resolveInngestGqlUrl,
   type InngestApp,
@@ -80,6 +81,8 @@ function run(p: Partial<InngestRunNode> & { hoursAgo: number }): InngestRunNode 
 function gqlFetch(handlers: {
   apps?: () => unknown
   runs?: (vars: any) => unknown
+  /** Full connection shape, for the pagination test. */
+  runsPage?: (vars: any) => { edges: Array<{ node: InngestRunNode }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } }
   run?: (vars: any) => unknown
   status?: number
 }) {
@@ -90,6 +93,7 @@ function gqlFetch(handlers: {
     let data: unknown
     if (body.query.includes('apps')) data = { apps: handlers.apps?.() ?? [] }
     else if (body.query.includes('run(runID')) data = { run: handlers.run?.(body.variables) }
+    else if (handlers.runsPage) data = { runs: handlers.runsPage(body.variables) }
     else data = { runs: { edges: ((handlers.runs?.(body.variables) as any[]) ?? []).map(n => ({ node: n })) } }
     const status = handlers.status ?? 200
     return {
@@ -119,6 +123,7 @@ describe('InngestGraphqlClient', () => {
   it('uses the agreed query shapes (read-only: no mutation keyword)', () => {
     expect(GQL_RUNS_QUERY).toContain('orderBy: [{ field: QUEUED_AT, direction: DESC }]')
     expect(GQL_RUNS_QUERY).toContain('filter: { from: $from, functionIDs: $functionIDs }')
+    expect(GQL_RUNS_QUERY).toContain('pageInfo { hasNextPage endCursor }')
     expect(GQL_RUNS_QUERY).toContain('edges { node { id status queuedAt endedAt eventName function { slug } } }')
     expect(GQL_APPS_QUERY).toContain('apps { id name url connected sdkVersion functions { id slug name triggers { type value } } }')
     expect(GQL_RUN_QUERY).toContain('run(runID: $runID) { id status output }')
@@ -135,6 +140,34 @@ describe('InngestGraphqlClient', () => {
     expect(calls[0].headers.Authorization).toBe('Bearer sk')
     await c.runs({ from: NOW, functionIDs: ['fn-render'], first: 10 })
     expect(calls[1].variables).toEqual({ first: 10, from: NOW.toISOString(), functionIDs: ['fn-render'] })
+  })
+
+  it('walks every page of runs; a page never asks for more than RUNS_PAGE_SIZE', async () => {
+    /*
+     * Production 2026-09-10: `first: 500` was silently answered with the
+     * default 40 rows (the server honours up to ~300), so "24 h" was really
+     * "the newest 40 runs" -- 40 seen of 208. Pages of 200, cursor-chained.
+     */
+    const total = 450
+    const { fetchImpl, calls } = gqlFetch({
+      runsPage: vars => {
+        const start = vars.after ? Number(vars.after) : 0
+        const end = Math.min(total, start + vars.first)
+        return {
+          edges: Array.from({ length: end - start }, (_, i) => ({ node: run({ id: `r${start + i}`, hoursAgo: 1 }) })),
+          pageInfo: { hasNextPage: end < total, endCursor: end < total ? String(end) : null },
+        }
+      },
+    })
+    const c = new InngestGraphqlClient({ url: 'http://gql', fetchImpl })
+    const all = await c.runs({ from: NOW, functionIDs: ['fn-render'] })
+    expect(all).toHaveLength(total)
+    expect(new Set(all.map(r => r.id)).size).toBe(total)
+    expect(calls.map(x => x.variables.first)).toEqual([RUNS_PAGE_SIZE, RUNS_PAGE_SIZE, RUNS_PAGE_SIZE])
+    expect(calls.map(x => x.variables.after)).toEqual([undefined, '200', '400'])
+    // and the total cap holds across pages
+    const capped = await c.runs({ from: NOW, first: 250 })
+    expect(capped).toHaveLength(250)
   })
 
   it('wraps HTTP failures into InngestGraphqlError with url and status', async () => {
