@@ -1,7 +1,8 @@
 /*
  * THE HIVE TAB: HER PAGE, FULL HEIGHT.
  *
- * The frame takes everything between the app header and the tab bar. Nothing
+ * The frame takes everything above the tab bar -- no app header, no line under
+ * the frame (see Hive.tsx: the frame was too short for her phone layout). Nothing
  * scrolls around it -- the page inside has its own scrolling and its own
  * touch handling (the 3-D comb pans and pinches), and a scrolling parent
  * would steal those gestures on a phone.
@@ -41,21 +42,24 @@
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   margin: 0;
+  padding: 0 24px;
+  text-align: center;
   color: rgba(242, 242, 242, 0.7);
   font-size: 14px;
-  pointer-events: none;
 }
 
+/* The way out while the frame is dark; it goes with the placeholder. */
 .hive-out {
-  flex: 0 0 auto;
-  display: block;
+  display: inline-block;
   padding: 8px 16px;
-  text-align: center;
   font-size: 12px;
   color: var(--text-secondary, #888);
   text-decoration: none;
-  border-top: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.2));
+  border-radius: 999px;
 }
