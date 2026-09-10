@@ -14,7 +14,7 @@ import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import { WelcomeOnboarding } from '@/components/Profile/WelcomeOnboarding'
-import { profileScreen } from '@/components/Profile/profileGate'
+import { profileScreen, shouldAskClubPrice } from '@/components/Profile/profileGate'
 import {
   agentTelegramConnectedAtom,
   loadAgentTelegramStatusAtom,
@@ -75,10 +75,12 @@ export function ProfilePage() {
    * A failed club request counts as "no club" so a network error shows the
    * paywall (which can retry) instead of a skeleton forever.
    */
+  // The price is asked BEFORE the phone step: the club step comes two steps
+  // earlier on the road than connect (see shouldAskClubPrice for the 12:31
+  // screenshot this gate used to produce).
   useEffect(() => {
-    if (isOwn && connected === true && club === null && !clubError)
-      void loadClub()
-  }, [isOwn, connected, club, clubError, loadClub])
+    if (shouldAskClubPrice({ own: isOwn, club, clubError })) void loadClub()
+  }, [isOwn, club, clubError, loadClub])
   useEffect(() => {
     if (isOwn && connected === true && club?.active && !soulLoaded)
       void loadSoul()

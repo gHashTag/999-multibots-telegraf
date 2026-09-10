@@ -41,6 +41,7 @@ import {
   clubBusyAtom,
   clubErrorAtom,
   clubStatusAtom,
+  loadClubStatusAtom,
   joinClubAtom,
   type ClubBuyOutcome,
 } from '@/atoms/club'
@@ -248,6 +249,7 @@ function ClubStep(props: { onJoined: () => void }) {
   const busy = useAtomValue(clubBusyAtom)
   const error = useAtomValue(clubErrorAtom)
   const join = useSetAtom(joinClubAtom)
+  const reloadStatus = useSetAtom(loadClubStatusAtom)
   const [outcome, setOutcome] = useState<ClubBuyOutcome | null>(null)
 
   const buy = async () => {
@@ -316,6 +318,19 @@ function ClubStep(props: { onJoined: () => void }) {
       )}
 
       {error && <p className="welcome__error">{error}</p>}
+      {error && !status && (
+        // The price request failed: say so and let the person ask again
+        // instead of leaving a spinner and a disabled "0 Stars" button.
+        <div className="welcome__actions">
+          <button
+            type="button"
+            className="welcome__btn welcome__btn--secondary"
+            onClick={() => void reloadStatus()}
+          >
+            {t('welcome.club.retry')}
+          </button>
+        </div>
+      )}
       {outcome === 'pending' && (
         <p className="welcome__note">{t('welcome.club.pending')}</p>
       )}

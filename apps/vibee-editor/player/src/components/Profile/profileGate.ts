@@ -66,3 +66,26 @@ export function profileScreen(input: {
   if (!input.club || input.soul === false) return 'welcome'
   return 'profile'
 }
+
+/**
+ * WHEN TO ASK THE SERVER FOR THE CLUB PRICE.
+ *
+ * Measured on a stranger's phone, 2026-09-10 12:31: the paywall step showed
+ * "Asking the server for the price..." and a dead "Join for 0 Stars" button
+ * forever. The road goes value -> how -> CLUB -> connect -> soul, but the
+ * request for the price was gated on `connected === true` -- a fact that is
+ * only established two steps LATER. Nobody who had not yet signed in by
+ * phone could ever see a price, i.e. nobody new could pay.
+ *
+ * The price does not depend on the phone: /api/club/status answers any
+ * Mini App visitor by their Telegram signature. So the only conditions are:
+ * own profile, not asked yet, and no failed attempt sitting on screen (a
+ * failure is shown with a retry button, not retried in a loop).
+ */
+export function shouldAskClubPrice(input: {
+  own: boolean
+  club: unknown | null
+  clubError: string | null
+}): boolean {
+  return input.own && input.club === null && !input.clubError
+}
