@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Header } from '@/components/Header'
 import { useLanguage } from '@/hooks/useLanguage'
 import { QUEEN_PAGE } from '@/lib/hive'
 import './Hive.css'
@@ -12,8 +11,8 @@ import './Hive.css'
  * first version, which re-drew her board piece by piece from the same data:
  * show the whole page, not parts of it; only adapt it for phones.
  *
- * So this tab is her page. One `<iframe>` over the full height between the
- * app header and the tab bar, pointed at t27.ai/#/queen. Her comb, her specs,
+ * So this tab is her page. One `<iframe>` over the full height above the tab
+ * bar, pointed at t27.ai/#/queen. Her comb, her specs,
  * her kanban, mission map, factory and technology tree, her Queen chat -- in
  * her own vocabulary and her own menu order, because they ARE her menu.
  *
@@ -34,12 +33,23 @@ import './Hive.css'
  * own policy (`frame-ancestors 'self' https://web.telegram.org ...`) is about
  * who may frame US, and does not restrict what we frame.
  *
- * WHAT IS BELOW THE FRAME
+ * NO APP HEADER, NO LINE UNDER THE FRAME (2026-09-10, SECOND PICTURE)
  *
- * One line: a link that opens the same page in the browser proper. A frame
- * inside Telegram's web view is two sandboxes deep, and a phone with WebGL
- * switched off or a blocked third-party frame shows a dark rectangle and no
- * explanation. The link is the explanation.
+ * The first cut kept this app's header above the frame and a one-line "open in
+ * the browser" link below it. The owner opened the tab on an iPhone and got the
+ * desktop chrome squeezed into the phone and no starry sky: her page switches
+ * to its phone layout by media query, and the frame -- the phone minus
+ * Telegram's own header, our header (56px) and our tab bar (64px) -- was
+ * shorter than that query allowed. The page's gate is now orientation-based
+ * (gHashTag/trinity, `queen-phone.css`), and this side stops spending height:
+ * the header and the line are gone, the frame owns everything above the tab
+ * bar. Her page has its own head row with its own menu, so nothing is lost --
+ * and the owner's words for the earlier preview were "full screen looks great,
+ * that is how it must be".
+ *
+ * The "open in the browser" link is still the explanation for a dark
+ * rectangle (WebGL off, third-party frame blocked), but it lives in the
+ * loading placeholder now: visible until the frame reports `load`, gone after.
  */
 export default function HivePage() {
   const { t } = useLanguage()
@@ -47,9 +57,20 @@ export default function HivePage() {
 
   return (
     <div className="hive-page">
-      <Header />
       <div className="hive-stage">
-        {!loaded && <p className="hive-loading">{t('hive.loading')}</p>}
+        {!loaded && (
+          <p className="hive-loading">
+            <span>{t('hive.loading')}</span>
+            <a
+              className="hive-out"
+              href={QUEEN_PAGE}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {t('hive.openOutside')}
+            </a>
+          </p>
+        )}
         <iframe
           className={`hive-frame${loaded ? ' hive-frame--ready' : ''}`}
           src={QUEEN_PAGE}
@@ -59,14 +80,6 @@ export default function HivePage() {
           onLoad={() => setLoaded(true)}
         />
       </div>
-      <a
-        className="hive-out"
-        href={QUEEN_PAGE}
-        target="_blank"
-        rel="noreferrer noopener"
-      >
-        {t('hive.openOutside')}
-      </a>
     </div>
   )
 }
