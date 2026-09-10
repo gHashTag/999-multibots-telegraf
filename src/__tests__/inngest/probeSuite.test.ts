@@ -187,6 +187,19 @@ describe('the verdict', () => {
   })
 
   it('a function expected to fail that completed is a mismatch — it acted on a probe', () => {
+    // Production 2026-09-10 02:16Z, run 01M24HNMM66NTG7XJ8WQRE1SHB: the
+    // guard step threw a NonRetriableError, the run is FAILED, and the server
+    // left the step span RUNNING. On a terminal run that span is the culprit.
+    expect(
+      judge(guard, {
+        status: 'FAILED',
+        steps: [
+          { name: 'get-bot', status: 'COMPLETED' },
+          { name: 'validate-input', status: 'RUNNING' },
+          FE,
+        ],
+      })
+    ).toEqual({ verdict: 'match', failedStep: 'validate-input' })
     expect(judge(guard, { status: 'COMPLETED', steps: [] }).verdict).toBe(
       'mismatch'
     )
@@ -269,10 +282,53 @@ describe('the verdict', () => {
 })
 
 /** Fake Inngest: each slug has a scripted terminal run. */
+describe('a run that failed before it was found is still judged', () => {
+  it('a guard that fails within milliseconds gets a verdict, not "skipped"', async () => {
+    /*
+     * Mirror run 2026-09-10 02:16Z on production: 21 of 28 probes ended
+     * `skipped` with a run id and status FAILED -- found already terminal,
+     * never polled, never judged.
+     */
+    const { client } = fakeClient({
+      [`${APP}-a-guard`]: {
+        status: 'FAILED',
+        failedStep: 'validate-input',
+        foundTerminal: true,
+      },
+      [`${APP}-c-acted`]: { status: 'COMPLETED', foundTerminal: true },
+    })
+    const rep = await runProbeSuite({
+      client,
+      functions: [
+        fn({
+          id: 'a-guard',
+          guard: 'validate-input',
+          probe_expect: 'FAILED-at-guard',
+        }),
+        fn({ id: 'c-acted', guard: 'none', probe_expect: 'COMPLETED' }),
+      ],
+      sleep: async () => {},
+      pollMs: 1,
+    })
+    const by = Object.fromEntries(rep.results.map(r => [r.id, r]))
+    expect(by['a-guard'].verdict).toBe('match')
+    expect(by['a-guard'].failedStep).toBe('validate-input')
+    expect(by['c-acted'].verdict).toBe('match')
+    expect(rep.counts.skipped).toBe(0)
+    expect(rep.ok).toBe(true)
+  })
+})
+
 function fakeClient(
   script: Record<
     string,
-    | { status: 'COMPLETED' | 'FAILED'; failedStep?: string; polls?: number }
+    | {
+        status: 'COMPLETED' | 'FAILED'
+        failedStep?: string
+        polls?: number
+        /** The discovery query already sees the run terminal (a fast guard). */
+        foundTerminal?: boolean
+      }
     | { invoke: 'false' | 'throw' }
     | { neverFound: true }
   >
@@ -300,7 +356,7 @@ function fakeClient(
       return [
         {
           id: `run-${slug}`,
-          status: 'RUNNING',
+          status: 'status' in s && s.foundTerminal ? s.status : 'RUNNING',
           eventName: 'inngest/function.invoked',
           queuedAt: 'x',
         },

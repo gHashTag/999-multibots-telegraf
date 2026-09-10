@@ -103,3 +103,19 @@ window has a different event name and is ignored.
   history and is left as it was; `probe_expect` is the live contract.
 * `docs/inngest/functions.md` is generated (`npx tsx scripts/inngest/gen-functions-doc.ts`,
   `--check` in CI) and now prints `probe suite expects: …` on every card.
+
+## Two judge defects found by the mirror run of 2026-09-10 02:16Z
+
+Run with the same `runProbeSuite` code as the bot, against the production GQL, right after the
+deploy of #2326/#2328/#2329. 6 match, 1 mismatch, **21 `skipped` with a run id and `status: FAILED`**.
+
+1. A guard fails within milliseconds, so the discovery query already saw the run as FAILED; the
+   poll loop filtered "pending" by status and never read the trace. Now "pending" = has a run id
+   and no verdict yet.
+2. `instagram-reels-analyze`: the NonRetriableError thrown inside `step.run('validate-input')` left
+   that span **RUNNING** in the trace while the run was FAILED (read at 20 s and again minutes
+   later). On a terminal run the culprit is the first step that is not COMPLETED, not the first
+   step that is FAILED.
+
+Re-judged offline with the fixed rule: 28/28 match. The bot's own report from
+`/inngest_probe` is the next witness.
