@@ -397,10 +397,11 @@ export async function buildInngestRunsFallbackAnalysis(
       acc.completed += f.runs24h.completed
       acc.failed += f.runs24h.failed
       acc.running += f.runs24h.running
+      acc.invoked += f.runs24h.invoked
       acc.total += f.runs24h.total
       return acc
     },
-    { completed: 0, failed: 0, running: 0, total: 0 }
+    { completed: 0, failed: 0, running: 0, invoked: 0, total: 0 }
   )
   const errors: LogAnalysisResult['errors'] = payload.functions
     .filter(f => f.runs24h.failed > 0)
@@ -428,25 +429,30 @@ export async function buildInngestRunsFallbackAnalysis(
       count: payload.unknownInApp.length,
     })
   }
-  const errorRate = totals.total > 0 ? Math.round((totals.failed / totals.total) * 1000) / 10 : 0
+  // Production traffic only: invoked runs (probe suite, dashboard, MCP) are
+  // reported apart and do not move the error rate.
+  const production = totals.total - totals.invoked
+  const errorRate = production > 0 ? Math.round((totals.failed / production) * 1000) / 10 : 0
   return {
     status: errors.some(e => e.severity === 'high')
       ? 'critical'
       : errors.length || warnings.length
         ? 'warning'
         : 'healthy',
-    summary: `${where}; Inngest runs (24h): ${totals.completed} completed, ${totals.failed} failed, ${totals.running} running`,
+    summary:
+      `${where}; Inngest runs (24h): ${totals.completed} completed, ${totals.failed} failed, ${totals.running} running` +
+      (totals.invoked > 0 ? `, ${totals.invoked} invoked (probe/manual, not counted)` : ''),
     errors,
     warnings,
     statistics: {
-      totalRequests: totals.total,
-      successRate: totals.total > 0 ? 100 - errorRate : undefined,
+      totalRequests: production,
+      successRate: production > 0 ? 100 - errorRate : undefined,
       errorRate,
     },
     recommendations: errors.length
       ? ['Open the failing runs in the Inngest dashboard; check lastError per function']
       : [],
-    achievements: errors.length === 0 && totals.total > 0 ? ['No failed Inngest runs in 24h'] : undefined,
+    achievements: errors.length === 0 && production > 0 ? ['No failed Inngest runs in 24h'] : undefined,
   }
 }
 
@@ -502,8 +508,14 @@ async function runLogMonitorPipeline(
     return await generateTelegramMessage(analysis as unknown as LogAnalysisResult)
   })
 
-  // Recipient is always GROUP_CHAT_ID (= admin), so safe mode needs no redirect.
+  // Recipient is always GROUP_CHAT_ID (= admin), so safe mode needs no
+  // redirect — but a probe run (/inngest_probe) must not post the report:
+  // two of them arrived at once on 2026-09-09 22:11 and read like an incident.
   await step.run('send-notification', async () => {
+    if (safeMode) {
+      logger.warn('🛡️ log-monitor safe mode — report not sent to admin chat', skippedInSafeMode('send-notification'))
+      return skippedInSafeMode('send-notification')
+    }
     logger.info('Sending Telegram notification...')
     await sendTelegramNotification(message)
   })

@@ -28,7 +28,20 @@ export interface RunCounters {
   failed: number
   running: number
   cancelled: number
+  /**
+   * Runs started by `invokeFunction` (dashboard, MCP, the /inngest_probe
+   * suite): their event name starts with `inngest/function.invoked`. They are
+   * counted here and in `total`, never in completed/failed/running — a probe
+   * that stops at its guard is not a production failure.
+   */
+  invoked: number
   total: number
+}
+
+export const INVOKED_EVENT_PREFIX = 'inngest/function.invoked'
+
+export function isInvokedRun(run: { eventName?: string | null }): boolean {
+  return (run.eventName ?? '').startsWith(INVOKED_EVENT_PREFIX)
 }
 
 export interface FunctionStatus {
@@ -69,11 +82,15 @@ export interface FunctionsStatusError {
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export function emptyCounters(): RunCounters {
-  return { completed: 0, failed: 0, running: 0, cancelled: 0, total: 0 }
+  return { completed: 0, failed: 0, running: 0, cancelled: 0, invoked: 0, total: 0 }
 }
 
-function bump(c: RunCounters, status: string): void {
+function bump(c: RunCounters, status: string, invoked = false): void {
   c.total += 1
+  if (invoked) {
+    c.invoked += 1
+    return
+  }
   switch (status) {
     case 'COMPLETED':
       c.completed += 1
@@ -142,11 +159,12 @@ export function summarizeRuns(
       perFunction.set(slug, entry)
     }
     const queuedAt = Date.parse(run.queuedAt)
-    bump(entry.runs7d, run.status)
-    bump(totals7d, run.status)
+    const invoked = isInvokedRun(run)
+    bump(entry.runs7d, run.status, invoked)
+    bump(totals7d, run.status, invoked)
     if (Number.isFinite(queuedAt) && queuedAt >= dayAgo) {
-      bump(entry.runs24h, run.status)
-      bump(totals24h, run.status)
+      bump(entry.runs24h, run.status, invoked)
+      bump(totals24h, run.status, invoked)
     }
     // runs come newest-first; keep the first seen as lastRun / lastError.
     if (!entry.lastRun) {
@@ -157,7 +175,9 @@ export function summarizeRuns(
         endedAt: run.endedAt ?? null,
       }
     }
-    if (!entry.lastError && run.status === 'FAILED') {
+    // an invoked (probe/manual) run that failed is not the function's last
+    // production error
+    if (!entry.lastError && run.status === 'FAILED' && !invoked) {
       entry.lastError = {
         runId: run.id,
         endedAt: run.endedAt ?? null,

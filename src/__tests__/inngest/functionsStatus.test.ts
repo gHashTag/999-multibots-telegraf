@@ -146,6 +146,21 @@ describe('InngestGraphqlClient', () => {
 })
 
 describe('summarizeRuns / buildFunctionsStatus', () => {
+  it('an invoked run (probe suite, dashboard, MCP) is counted apart and is never a failure', () => {
+    // 2026-09-09 22:11: /inngest_probe made the 24h report say "10 failed, 41.7%"
+    const runs = [
+      run({ hoursAgo: 1, status: 'FAILED', id: 'probe', eventName: 'inngest/function.invoked.01M23S9H' }),
+      run({ hoursAgo: 2, status: 'COMPLETED', id: 'probe-ok', eventName: 'inngest/function.invoked.01M23S9K' }),
+      run({ hoursAgo: 3, status: 'FAILED', id: 'real-fail' }),
+      run({ hoursAgo: 4, status: 'COMPLETED', id: 'real-ok' }),
+    ]
+    const s = summarizeRuns(runs, NOW).perFunction.get('telegram-bot-client-render-job-run')!
+    expect(s.runs24h).toEqual({ completed: 1, failed: 1, running: 0, cancelled: 0, invoked: 2, total: 4 })
+    // the newest run is still the probe, but the last *error* is production traffic
+    expect(s.lastRun?.id).toBe('probe')
+    expect(s.lastError?.runId).toBe('real-fail')
+  })
+
   it('splits 24h vs 7d counters and keeps newest run + last error', () => {
     const runs = [
       run({ hoursAgo: 1, status: 'RUNNING', endedAt: null, id: 'r-new' }),

@@ -10,6 +10,11 @@ tools that never send events or invoke functions:
 | `inngest_functions` | `domain?` | JSON: manifest functions joined with live status (`id, slug, triggers, control, deployed, runs24h, runs7d, lastRun, lastError`) |
 | `inngest_failed_runs` | `run_id?` | JSON: functions with `runs24h.failed > 0` and their `lastError`; with `run_id` → `run(runID){id status output}` |
 
+Counters (`runs24h`, `runs7d`) have an `invoked` field: runs started by `invokeFunction`
+(dashboard, MCP, `/inngest_probe`; event name `inngest/function.invoked…`) are counted there and in
+`total` only — never as completed/failed — and never become a function's `lastError`. Reason: on
+2026-09-09 22:11 one probe suite made the 24 h report read "10 failed, 41.7 %".
+
 Data source: `INNGEST_GQL_URL` (default `${INNGEST_BASE_URL}/v0/gql`, falls back
 to `INNGEST_DEV_URL`, then `http://127.0.0.1:8288`). Same code path as
 `GET /api/inngest/functions/status` (30 s cache).

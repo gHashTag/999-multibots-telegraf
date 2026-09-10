@@ -31,7 +31,10 @@ export function renderErrorText(raw: unknown): string {
 }
 
 /** Stack may arrive as a string or nested inside an Error-like object. */
-export function renderErrorStack(raw: unknown, errorField: unknown): string | undefined {
+export function renderErrorStack(
+  raw: unknown,
+  errorField: unknown
+): string | undefined {
   if (typeof raw === 'string' && raw.trim() !== '') return raw
   if (errorField && typeof errorField === 'object') {
     const st = (errorField as Record<string, unknown>).stack
@@ -233,13 +236,26 @@ export const criticalErrorMonitor = inngest.createFunction(
       context: event.data.context,
     }
 
-    logger.error('Critical error detected:', errorContext)
+    // logger.error itself posts to the admin chat; a probe (safe mode) is not
+    // an incident, so it is logged at warn and the notification is not sent.
+    const safeMode = isSafeMode(event)
+    if (safeMode) {
+      logger.warn(
+        '🛡️ [ERROR MONITOR] safe mode — probe error context',
+        errorContext
+      )
+    } else {
+      logger.error('Critical error detected:', errorContext)
+    }
 
     // Шаг 1: Анализ ошибки (paid LLM call → skipped in safe mode)
     const analysis = await step.run('analyze-error', async () => {
-      if (isSafeMode(event)) {
+      if (safeMode) {
         const skipped = skippedInSafeMode('openai analyzeError')
-        logger.warn('🛡️ [ERROR MONITOR] safe mode — LLM analysis skipped', skipped)
+        logger.warn(
+          '🛡️ [ERROR MONITOR] safe mode — LLM analysis skipped',
+          skipped
+        )
         return {
           analysis: 'safe mode: analysis skipped',
           solution: 'n/a',
@@ -262,6 +278,7 @@ export const criticalErrorMonitor = inngest.createFunction(
 
     // Шаг 3: Отправка уведомления
     await step.run('send-notification', async () => {
+      if (safeMode) return skippedInSafeMode('send-notification')
       await sendErrorNotification(message, analysis.urgency)
     })
 
