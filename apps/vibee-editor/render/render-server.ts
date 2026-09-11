@@ -75,6 +75,7 @@ import {
   sweepClubRenewals,
   sweepClubGrants,
 } from './src/agent/club-membership'
+import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
 import {
   isPayOutcomePath,
   handlePayOutcome,
@@ -7864,6 +7865,19 @@ const server = createServer(async (req, res) => {
         error: taken.ok ? undefined : taken.why,
       })
     }
+  }
+
+  // Another service writing into the hive journal (the seller's sweep).
+  // Server key only -- see src/hive/note-route.ts.
+  if (isHiveNotePath(req.url?.split('?')[0] || '')) {
+    const out = await handleHiveNote(req, {
+      getPool: async () => (await getPool()) as any,
+      isServer: r => authenticate(r as any).via === 'api-key',
+      readBody: r => readBody(r as any),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
   }
 
   // What Telegram told the person after openInvoice -- so a failed payment

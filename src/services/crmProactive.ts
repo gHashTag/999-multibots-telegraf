@@ -33,6 +33,7 @@ import {
 } from './crmPlan'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { fetchLeadRows } from './modelSwitch'
+import { noteSweepToHive } from './hiveNote'
 import { Markup } from 'telegraf'
 
 /**
@@ -529,6 +530,9 @@ export function startCrmProactive(
       }
     }
     const r = await sweepOnce(opts.ownerId, deps, { holdMs: opts.holdMs })
+    // The diary entry, too: every run that ran is visible in the hive
+    // (hiveNote.ts) -- quiet ones included, which the alert channel never was.
+    void noteSweepToHive(String(opts.ownerId), r)
     /*
      * A FAILED SWEEP IS AN ERROR, NOT A DIARY ENTRY.
      *
@@ -693,6 +697,7 @@ async function advanceScope(owner: string): Promise<void> {
     if (!scopes.has(owner)) return
     s.inFlight = false
     s.lastActivityAt = Date.now()
+    void noteSweepToHive(owner, r, { label: itemMarker(item) })
     switch (r.did) {
       case 'card':
         s.tally.card += 1
