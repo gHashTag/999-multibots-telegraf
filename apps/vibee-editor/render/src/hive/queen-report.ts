@@ -118,6 +118,9 @@ const NAMES: Record<string, string> = {
   published: 'опубликовали',
   unpublished: 'сняли с публикации',
   approved: 'одобрили работу агента',
+  'sweep-idle': 'обход продавца: тихо',
+  'sweep-card': 'обход продавца: подготовил карточку',
+  'sweep-failed': 'обход продавца: сбой',
   failure: 'сбой',
 }
 

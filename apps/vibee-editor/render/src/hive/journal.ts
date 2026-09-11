@@ -93,6 +93,10 @@ export type EventKind =
   | 'published'
   | 'unpublished'
   | 'approved'
+  // the seller's proactive sweep (bot service, via /api/hive/note)
+  | 'sweep-idle'
+  | 'sweep-card'
+  | 'sweep-failed'
   // other
   | 'failure'
 
