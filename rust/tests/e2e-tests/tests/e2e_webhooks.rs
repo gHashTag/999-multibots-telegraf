@@ -73,9 +73,10 @@ fn make_app(with_payment: bool) -> axum::Router {
     let db: Arc<dyn Database> = Arc::new(MockDatabase::new());
     if with_payment {
         let gw: Arc<dyn PaymentGateway> = Arc::new(MockPaymentGateway::new(true));
-        create_router_with_payments(db, gw)
+        create_router_with_payments(db, gw).expect("router with payments")
     } else {
         create_router_with_payments(db, Arc::new(MockPaymentGateway::new(false)))
+            .expect("router with payments")
     }
 }
 
