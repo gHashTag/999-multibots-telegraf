@@ -29,6 +29,13 @@ import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey } from '../../auth'
 import {
+  editorialAccess,
+  editorialKeyOwner,
+  EDITORIAL_SCOPE_VERSION,
+  EDITORIAL_TOOLS,
+  type AgentIdentity,
+} from '../../editorial-key-scope'
+import {
   записатьРеплику,
   прочитатьРазговор,
   собратьОтвет,
@@ -63,6 +70,7 @@ function sameKey(a: string, b: string): boolean {
  * бы, что любой желающий публикует от чужого имени.
  */
 export function agentKeyOwner(key: string): string | null {
+  if (editorialKeyOwner(key) !== null) return null
   const raw = process.env.AGENT_KEYS || ''
   if (!key) return null
   let owner: string | null = null
@@ -213,6 +221,8 @@ export async function resolveIdentity(
   req: IncomingMessage,
   getPool: () => any
 ): Promise<string | null> {
+  // A string-only identity must never shed an editorial credential's scope.
+  if (editorialAccess(req).kind !== 'none') return null
   const sync = chatIdentity(req, verifiedTelegramId(req))
   if (sync) return sync
 
@@ -268,17 +278,37 @@ export async function resolveIdentity(
   }
 }
 
+export async function resolveAgentIdentity(
+  req: IncomingMessage,
+  getPool: () => any
+): Promise<AgentIdentity | null> {
+  const editorial = editorialAccess(req)
+  if (editorial.kind !== 'none') {
+    return editorial.kind === 'allowed' &&
+      req.method === 'POST' &&
+      (req.url || '').split('?')[0] === '/mcp'
+      ? editorial.identity
+      : null
+  }
+  const telegramId = await resolveIdentity(req, getPool)
+  return telegramId ? { telegramId, scope: 'full' } : null
+}
+
 export async function handleMcp(
   req: IncomingMessage,
   res: ServerResponse,
   getPool: () => any
 ) {
+  const editorial = editorialAccess(req)
+  if (editorial.kind === 'denied') {
+    return json(res, 403, { error: 'forbidden', detail: editorial.reason })
+  }
   // THREE identities: the initData signature (the mini app itself), a key from
   // the environment, and a key the person issued to themselves through
   // /api/agent/keys. The last one resolves through the database, which is why
   // this entry point is async.
-  const owner = await resolveIdentity(req, getPool)
-  if (!owner) {
+  const identity = await resolveAgentIdentity(req, getPool)
+  if (!identity) {
     // Сообщение константно и не отражает содержимое заголовков: любое
     // эхо чужого ввода — путь к инъекции, даже в JSON.
     return json(res, 401, {
@@ -301,35 +331,76 @@ export async function handleMcp(
     })
   }
 
+  const invalidRequest = () =>
+    json(res, 400, {
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32600, message: 'Invalid JSON-RPC request' },
+    })
+  const isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+  // JSON.parse also accepts null and primitives. Reject them before accessing
+  // rpc.id so a malformed authenticated request cannot reject the HTTP callback.
+  if (
+    !isObject(rpc) ||
+    rpc.jsonrpc !== '2.0' ||
+    typeof rpc.method !== 'string' ||
+    !rpc.method.trim() ||
+    (rpc.params !== undefined && !isObject(rpc.params))
+  )
+    return invalidRequest()
+
   const id = rpc.id ?? null
+  if (
+    id !== null &&
+    typeof id !== 'string' &&
+    !(typeof id === 'number' && Number.isFinite(id))
+  )
+    return invalidRequest()
   const ok = (result: unknown) => json(res, 200, { jsonrpc: '2.0', id, result })
   const err = (code: number, message: string) =>
     json(res, 200, { jsonrpc: '2.0', id, error: { code, message } })
+  const scoped = identity.scope === 'leela-editorial'
+  const visibleTools = () =>
+    toMcpTools().filter(t => !scoped || EDITORIAL_TOOLS.has(t.name))
 
   if (rpc.method === 'initialize') {
     return ok({
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: { name: 'trinity-s3ai-reels', version: '1.0.0' },
-      instructions:
-        'Инструменты читают и меняют состояние приложения по-настоящему. ' +
-        'Сначала посмотри (whoami, feed_stats, feed_list), потом действуй. ' +
-        'Публикация требует текста поста с хештегами — это канон проекта.',
+      ...(scoped
+        ? { _meta: { 'leela.editorial.scope': EDITORIAL_SCOPE_VERSION } }
+        : {}),
+      instructions: scoped
+        ? 'Private Leela drafts only. Verify whoami before reading or writing. ' +
+          'Skill names, goal titles and item titles must start with Leela:. No publication, paid actions or SOUL editing.'
+        : 'Инструменты читают и меняют состояние приложения по-настоящему. ' +
+          'Сначала посмотри (whoami, feed_stats, feed_list), потом действуй. ' +
+          'Публикация требует текста поста с хештегами — это канон проекта.',
     })
   }
 
   if (rpc.method === 'tools/list') {
-    return ok({ tools: toMcpTools() })
+    return ok({ tools: visibleTools() })
   }
 
   if (rpc.method === 'tools/call') {
-    const имя = rpc.params?.name
-    const tool = имя ? TOOLS_BY_NAME.get(имя) : null
+    const toolName = rpc.params?.name
+    if (
+      scoped &&
+      (typeof toolName !== 'string' || !EDITORIAL_TOOLS.has(toolName))
+    ) {
+      return err(-32003, 'Tool forbidden by editorial scope')
+    }
+    if (typeof toolName !== 'string')
+      return err(-32602, 'Tool name must be a string')
+    const tool = toolName ? TOOLS_BY_NAME.get(toolName) : null
     if (!tool) {
       // Подсказываем ИМЕНА, а не просто отказываем: агент исправится за виток.
       return err(
         -32602,
-        `Инструмента «${имя}» нет. Доступны: ${toMcpTools()
+        `Инструмента «${toolName}» нет. Доступны: ${visibleTools()
           .map(t => t.name)
           .join(', ')}.`
       )
@@ -337,7 +408,8 @@ export async function handleMcp(
     try {
       const pool = await getPool()
       const значение = await tool.handler(rpc.params?.arguments || {}, {
-        telegramId: owner,
+        telegramId: identity.telegramId,
+        scope: identity.scope,
         pool,
       })
       return ok({
@@ -345,7 +417,10 @@ export async function handleMcp(
         structuredContent: значение,
       })
     } catch (e) {
-      return err(-32603, `Инструмент «${имя}» упал: ${String(e).slice(0, 400)}`)
+      return err(
+        -32603,
+        `Инструмент «${toolName}» упал: ${String(e).slice(0, 400)}`
+      )
     }
   }
 
@@ -374,6 +449,7 @@ export function chatIdentity(
   req: IncomingMessage,
   verified: string | null
 ): string | null {
+  if (editorialAccess(req).kind !== 'none') return null
   if (verified) return verified
   /**
    * Сессия приложения — второй источник личности после подписи.
@@ -405,6 +481,12 @@ export async function handleAgentChat(
   telegramId: string,
   getPool: () => any
 ) {
+  if (editorialAccess(req).kind !== 'none') {
+    return json(res, 403, {
+      error: 'forbidden',
+      detail: 'editorial credentials are MCP draft-only',
+    })
+  }
   let body: any
   try {
     body = JSON.parse((await readBody(req)) || '{}')

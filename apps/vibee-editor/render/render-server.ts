@@ -2358,9 +2358,8 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } = await import(
-          './src/agent/hive-tools'
-        )
+        const { botsOwnedBy, allBotOwners } =
+          await import('./src/agent/hive-tools')
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -2955,7 +2954,8 @@ const server = createServer(async (req, res) => {
     'Content-Type, Authorization, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
   )
 
-  if (req.method === 'OPTIONS') {
+  const auth = authenticate(req)
+  if (req.method === 'OPTIONS' && auth.statusCode !== 403) {
     res.writeHead(200)
     res.end()
     return
@@ -2964,17 +2964,18 @@ const server = createServer(async (req, res) => {
   // Аутентификация. До этого сервис не проверял ничего: любой мог залить 100 МБ
   // в бакет и запускать рендеры, тратящие кредиты FAL / ElevenLabs / xAI.
   // Подробности механизмов — в ./auth.ts.
-  const auth = authenticate(req)
   if (auth.wouldReject) {
     console.warn(
       `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${requestPath} — ${auth.reason}`
     )
   }
   if (!auth.allowed) {
-    res.writeHead(401, { 'Content-Type': 'application/json' })
+    res.writeHead(auth.statusCode ?? 401, {
+      'Content-Type': 'application/json',
+    })
     res.end(
       JSON.stringify({
-        error: 'unauthorized',
+        error: auth.statusCode === 403 ? 'forbidden' : 'unauthorized',
         detail: auth.reason,
         hint: 'send X-Api-Key (server to server) or X-Telegram-Init-Data (Mini App)',
       })
