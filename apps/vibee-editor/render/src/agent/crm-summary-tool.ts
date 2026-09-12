@@ -24,7 +24,7 @@ import {
   type TouchKind,
 } from './crm-touches'
 import { stageOf, waitingOn } from './crm-stages'
-import { whoPaid } from './crm-tools'
+import { whoPaid, visibleScope } from './crm-tools'
 import { displayOf } from './crm-offer-tool'
 import { zepConfigured, zepFlavor } from './zep-memory'
 import { countSegments, segmentCaps, type Segment } from './crm-segments'
@@ -240,7 +240,9 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
       const touched = await touchedSince(pool, owner, 60).catch(
         () => new Map<string, { kind: TouchKind; at: string }>()
       )
-      const paidSet = await whoPaid().catch(() => new Set<string>())
+      const paidSet = await visibleScope(ctx)
+        .then(scope => whoPaid(scope))
+        .catch(() => new Set<string>())
       // The whole base, not a page: the buckets must count everybody.
       const list = await leadCandidates(pool, owner, {
         limit: 100_000,

@@ -180,6 +180,12 @@ const EXECUTABLE = new Set<Proposal['action']>(['send'])
  */
 const CAN_CONFIRM = new Set(['bot'])
 
+/** A numeric Telegram target is the lead itself; anything else is not known. */
+export function leadOfTarget(target: unknown): string | undefined {
+  const t = String(target ?? '').trim()
+  return /^\d{5,15}$/.test(t) ? t : undefined
+}
+
 function propose(
   action: Proposal['action'],
   target: string,
@@ -733,12 +739,22 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
        * is confident — especially then, because confidence is exactly what a
        * well-written injection produces.
        */
+      /*
+       * THE LEAD RIDES WITH THE DRAFT (CRM audit 2026-09-12, P0).
+       *
+       * `next=reply` and `next=talk` go through this very tool. Without a
+       * lead the confirmed send wrote no `written` touch and mirrored
+       * nothing into crm_messages, so the person stayed "waiting for a
+       * reply" and the next sweep prepared a second answer for them. A
+       * numeric chat id IS the lead; a @username is not resolved here.
+       */
       return propose(
         'send',
         args.chat,
         args.text,
         'Отправка ждёт подтверждения человека. Покажи адресата и текст целиком.',
-        ctx
+        ctx,
+        leadOfTarget(args.chat)
       )
     },
   },

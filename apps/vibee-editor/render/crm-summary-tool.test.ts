@@ -132,8 +132,17 @@ beforeEach(() => {
     vi.fn(async (url: string) => ({
       ok: true,
       status: 200,
-      json: async () =>
-        String(url).includes('payments_v2') ? [{ telegram_id: B }] : [],
+      json: async () => {
+        const u = String(url)
+        // The owner has one bot in `avatars`; payments are scoped to it
+        // (CRM audit 2026-09-12, P1 #2), so the mock must name it.
+        if (u.includes('/avatars?')) return [{ bot_name: 'owner_bot' }]
+        if (u.includes('payments_v2')) {
+          expect(u).toContain('bot_name=in.("owner_bot")')
+          return [{ telegram_id: B }]
+        }
+        return []
+      },
     }))
   )
 })

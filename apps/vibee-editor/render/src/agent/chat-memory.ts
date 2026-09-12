@@ -579,6 +579,22 @@ export async function leadCandidates(
       next = 'talk'
     // A refusal parks the pitch, never the reply: their last word is answered.
     if (touch?.kind === 'refused' && score < 0 && !unanswered) next = 'wait'
+    /*
+     * AN OFFER THAT WENT OUT COOLS DOWN (CRM audit 2026-09-12, P1 #6).
+     *
+     * The word "price" stays in the person's history after the invoice was
+     * sent, so `offer`/`deliver` came back every two hours until they
+     * replied, and the model was the only barrier. A `written` touch fresher
+     * than three days, with nothing unanswered, means: wait for their word.
+     * `reply` is never parked -- their new message is always answered.
+     */
+    if (
+      (next === 'offer' || next === 'deliver') &&
+      !unanswered &&
+      touch?.kind === 'written' &&
+      now.getTime() - new Date(touch.at).getTime() < 3 * 86400_000
+    )
+      next = 'wait'
     const segment = segmentOf({
       unanswered,
       next,
