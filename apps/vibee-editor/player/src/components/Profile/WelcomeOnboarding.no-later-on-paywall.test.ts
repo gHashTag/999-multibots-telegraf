@@ -34,7 +34,12 @@ describe('WelcomeOnboarding: every step is mandatory', () => {
     expect(at).toBeGreaterThan(-1)
     const done = src.slice(at)
     expect(done).toMatch(/onClick=\{onDone\}/)
-    // Declared once, destructured once, called once: nowhere else.
-    expect(src.match(/onDone\b/g)?.length).toBe(3)
+    expect(done).toMatch(/onClick=\{goPlay\}/)
+    // Declared once, destructured once, called twice: from the last card's
+    // own button and from goPlay -- the fast road's exit into the hive
+    // (owner, 2026-09-12), which closes the road first. Nowhere else.
+    expect(src.match(/onDone\b/g)?.length).toBe(4)
+    const play = src.slice(src.indexOf('const goPlay'), src.indexOf('const total'))
+    expect(play).toMatch(/onDone\(\)[\s\S]*navigate\(WELCOME_EXIT_ROUTE\)/)
   })
 })

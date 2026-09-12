@@ -1077,6 +1077,7 @@ const en: Translations = {
   'welcome.done.soul':
     'The SOUL tab holds the full file; the twin re-reads it on every change.',
   'welcome.done.go': 'Open my profile',
+  'welcome.done.play': 'Into the hive',
   'profile.edit_profile': 'Edit Profile',
   'profile.display_name': 'Display Name',
   'profile.display_name_placeholder': 'Your name',
@@ -2897,6 +2898,7 @@ const ru: Translations = {
   'welcome.done.soul':
     'Во вкладке SOUL лежит полный файл; двойник перечитывает его при каждом изменении.',
   'welcome.done.go': 'Открыть мой профиль',
+  'welcome.done.play': 'В улей',
   'profile.edit_profile': 'Редактировать профиль',
   'profile.display_name': 'Отображаемое имя',
   'profile.display_name_placeholder': 'Ваше имя',

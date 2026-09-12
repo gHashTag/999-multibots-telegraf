@@ -25,7 +25,7 @@ import { openInvoice } from '@/lib/telegram'
 import { reportPayOutcome } from '@/lib/payOutcome'
 
 /** Why the club is open without a charge; null = paid (or not a member). */
-export type ClubGrant = 'owner' | 'keeper' | null
+export type ClubGrant = 'owner' | 'keeper' | 'guest' | null
 
 export interface ClubStatus {
   active: boolean
@@ -78,7 +78,11 @@ export const loadClubStatusAtom = atom(null, async (_get, set) => {
     set(clubStatusAtom, {
       active: !!d.active,
       granted:
-        d.granted === 'owner' || d.granted === 'keeper' ? d.granted : null,
+        d.granted === 'owner' ||
+        d.granted === 'keeper' ||
+        d.granted === 'guest'
+          ? d.granted
+          : null,
       until: d.until ?? null,
       days_left: Number(d.days_left ?? 0),
       periods: Number(d.periods ?? 0),

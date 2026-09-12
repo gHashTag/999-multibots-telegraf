@@ -11,9 +11,11 @@ import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
+  WELCOME_EXIT_ROUTE,
   WELCOME_STEPS,
   composeSoul,
   soulHasSubstance,
+  soulSeed,
   welcomeIndex,
   welcomeNext,
   welcomePrev,
@@ -147,5 +149,28 @@ describe('the paywall tells the truth of the server', () => {
     const superlative =
       /первый в|первая|единственн|лучший|the first|the only|the best/i // cyrillic-ok: forbidden wording
     expect(welcome).not.toMatch(superlative)
+  })
+})
+
+describe('the fast road (owner, 2026-09-12)', () => {
+  it('seeds the SOUL from the Telegram profile so the button is live at once', () => {
+    expect(soulSeed({ first_name: 'Sam', last_name: 'Hold', username: 'SamHold' })).toEqual({
+      who: 'Sam Hold @SamHold',
+      sell: '',
+      voice: '',
+      forbidden: '',
+    })
+    expect(soulHasSubstance(soulSeed({ first_name: 'Sam' }))).toBe(true)
+    expect(soulSeed({ username: 'dmtrled' }).who).toBe('@dmtrled')
+  })
+
+  it('an empty profile seeds nothing, and the button stays dead until a word is typed', () => {
+    expect(soulSeed(null).who).toBe('')
+    expect(soulHasSubstance(soulSeed(undefined))).toBe(false)
+  })
+
+  it('an invited guest with the club open starts at the Telegram step, and the exit is the hive', () => {
+    expect(welcomeStart({ club: true, connected: false, soul: false })).toBe('connect')
+    expect(WELCOME_EXIT_ROUTE).toBe('/hive')
   })
 })
