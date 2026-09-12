@@ -53,7 +53,7 @@ chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 axum = { version = "0.7", features = ["ws", "multipart"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "timeout", "set-header"] }
-teloxide = { version = "0.13", features = ["macros", "rustls"], default-features = false }
+teloxide = { version = "0.14", features = ["macros", "rustls"], default-features = false }
 sea-orm = { version = "1.1", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono", "with-json"] }
 sea-orm-migration = "1.1"
 http-body-util = "0.1"
