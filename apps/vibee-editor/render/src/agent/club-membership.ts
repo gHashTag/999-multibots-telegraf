@@ -48,6 +48,7 @@
 import { МАКС_ЗВЁЗД_ПОДПИСКА, ПЕРИОД_ПОДПИСКИ_С, СТУПЕНИ } from './token-packs' // cyrillic-ok: pre-existing export names
 import { record } from '../hive/journal'
 import { keepers } from '../hive/roles'
+import { clubGuests, isClubGuest } from './club-guests'
 import { noteCashierFailure, noteInvoiceMinted } from './payment-alarms'
 
 type Queryable = {
@@ -148,7 +149,9 @@ export function forgetClubTablesForTests(): void {
  * any, is a paid one. 'owner' = has bots in `avatars`; 'keeper' = the
  * platform's own keeper (hive/roles.ts).
  */
-export type ClubGrant = 'owner' | 'keeper' | null
+export type ClubGrant = 'owner' | 'keeper' | 'guest' | null
+/** The grants that come with the month's tokens. A guest is not one of them. */
+export type FundedGrant = 'owner' | 'keeper'
 
 export interface ClubGrantSource {
   /** This person's bots according to `avatars`; an empty list means none. */
@@ -157,6 +160,13 @@ export interface ClubGrantSource {
   keepers?: () => string[]
   /** Every bot owner on the platform (distinct telegram_id in `avatars`); for the sweep. */
   allOwners?: () => Promise<string[]>
+  /**
+   * The verified @username of the person asking (auth.ts), for the guest
+   * pass (club-guests.ts). Omitted or null = no name, only the id is tried.
+   */
+  usernameOf?: (req: unknown) => string | null
+  /** The guest list; defaults to club-guests.ts `clubGuests()`. */
+  guests?: () => string[]
 }
 
 /**
@@ -167,7 +177,8 @@ export interface ClubGrantSource {
  */
 export async function clubGrantFor(
   who: string,
-  source: ClubGrantSource | undefined
+  source: ClubGrantSource | undefined,
+  req?: unknown
 ): Promise<ClubGrant> {
   const id = String(who ?? '').trim()
   if (!id || !source) return null
@@ -175,10 +186,17 @@ export async function clubGrantFor(
   if (keeperList.includes(id)) return 'keeper'
   try {
     const bots = await source.botsOwnedBy(id)
-    return bots.length ? 'owner' : null
+    if (bots.length) return 'owner'
   } catch {
-    return null
+    // Ownership unknown: fall through to the guest list, which needs no
+    // database. A stranger still gets null; an invited person is not locked
+    // out by a Supabase hiccup.
   }
+  // The guest pass: the owner's invitation by @username or id. The name comes
+  // from the verified signature only; without a request there is no name.
+  const username = req && source.usernameOf ? source.usernameOf(req) : null
+  const list = source.guests ? source.guests() : clubGuests()
+  return isClubGuest({ telegramId: id, username }, list) ? 'guest' : null
 }
 
 export interface ClubStatus {
@@ -313,7 +331,7 @@ export type CreditGrant = (input: {
   tokens: number
   /** Idempotency / cross-reference for the ledger: `club-grant:<id>:<day>`. */
   ref: string
-  grant: Exclude<ClubGrant, null>
+  grant: FundedGrant
 }) => Promise<{ credited: boolean; reason?: string }>
 
 export interface GrantPeriod {
@@ -365,7 +383,7 @@ export function grantRef(telegramId: string, start: Date): string {
 
 export interface BookedGrant {
   telegramId: string
-  grant: Exclude<ClubGrant, null>
+  grant: FundedGrant
   periodStart: string
   until: string
   tokens: number
@@ -387,7 +405,7 @@ export interface BookedGrant {
 export async function bookGrantPeriod(
   pool: Queryable,
   telegramId: string,
-  grant: Exclude<ClubGrant, null>,
+  grant: FundedGrant,
   credit: CreditGrant,
   now: Date = new Date()
 ): Promise<BookedGrant | null> {
@@ -493,7 +511,7 @@ export async function sweepClubGrants(
   }
   const keeperList = source.keepers ? source.keepers() : keepers()
   const seen = new Set<string>()
-  const people: Array<[string, Exclude<ClubGrant, null>]> = []
+  const people: Array<[string, FundedGrant]> = []
   for (const k of keeperList) if (k && !seen.has(k)) (seen.add(k), people.push([k, 'keeper']))
   for (const o of owners) if (o && !seen.has(o)) (seen.add(o), people.push([o, 'owner']))
   for (const [who, grant] of people) {
@@ -670,9 +688,15 @@ export async function handleClub(
   }
   const pool = await deps.getPool()
   const now = deps.now ? deps.now() : new Date()
-  const granted = await clubGrantFor(who, deps.grant)
+  const granted = await clubGrantFor(who, deps.grant, req)
   // A granted person's visit opens their free period and credits the month.
-  if (granted && deps.creditGrant && (path === '/api/club/status' || path === '/api/club/verify')) {
+  // A guest is let in, not paid: the invitation opens the avatar setup, it is
+  // not a token budget (club-guests.ts).
+  if (
+    (granted === 'owner' || granted === 'keeper') &&
+    deps.creditGrant &&
+    (path === '/api/club/status' || path === '/api/club/verify')
+  ) {
     await bookGrantPeriod(pool, who, granted, deps.creditGrant, now)
   }
 

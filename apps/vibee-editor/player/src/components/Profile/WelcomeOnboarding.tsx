@@ -48,15 +48,19 @@ import {
 import { saveSoulAtom, soulErrorAtom, soulSavingAtom } from '@/atoms/soul'
 import { ConnectTelegram } from './ConnectTelegram'
 import {
+  WELCOME_EXIT_ROUTE,
   WELCOME_STEPS,
   composeSoul,
   soulHasSubstance,
+  soulSeed,
   welcomeIndex,
   welcomeNext,
   welcomeStart,
   type WelcomeFacts,
   type WelcomeStep,
 } from './welcomeSteps'
+import { getTelegramUser } from '@/lib/telegram'
+import { useNavigate } from 'react-router-dom'
 import './WelcomeOnboarding.css'
 
 interface WelcomeOnboardingProps {
@@ -69,6 +73,13 @@ export function WelcomeOnboarding({ facts, onDone }: WelcomeOnboardingProps) {
   const { t } = useLanguage()
   const [step, setStep] = useState<WelcomeStep>(() => welcomeStart(facts))
   const connected = useAtomValue(agentTelegramConnectedAtom)
+  const navigate = useNavigate()
+  // The last card leads into the game (welcomeSteps.ts, the fast road):
+  // the road is closed first, so coming back to the profile shows the profile.
+  const goPlay = () => {
+    onDone()
+    navigate(WELCOME_EXIT_ROUTE)
+  }
 
   // The connect step ends itself: ConnectTelegram flips the shared atom when
   // the code (and password) went through; the road moves on without a
@@ -188,13 +199,22 @@ export function WelcomeOnboarding({ facts, onDone }: WelcomeOnboardingProps) {
               <span>{t('welcome.done.soul')}</span>
             </li>
           </ul>
-          <button
-            type="button"
-            className="welcome__btn welcome__btn--primary"
-            onClick={onDone}
-          >
-            {t('welcome.done.go')}
-          </button>
+          <div className="welcome__actions">
+            <button
+              type="button"
+              className="welcome__btn welcome__btn--primary"
+              onClick={goPlay}
+            >
+              {t('welcome.done.play')}
+            </button>
+            <button
+              type="button"
+              className="welcome__btn welcome__btn--secondary"
+              onClick={onDone}
+            >
+              {t('welcome.done.go')}
+            </button>
+          </div>
         </div>
       )}
     </section>
@@ -372,12 +392,10 @@ function SoulStep(props: { onSaved: () => void }) {
   const save = useSetAtom(saveSoulAtom)
   const saving = useAtomValue(soulSavingAtom)
   const error = useAtomValue(soulErrorAtom)
-  const [answers, setAnswers] = useState({
-    who: '',
-    sell: '',
-    voice: '',
-    forbidden: '',
-  })
+  // Opens with the first answer already written from the Telegram profile
+  // the person arrived with (welcomeSteps.ts soulSeed): the button is live
+  // at once; the other three can be refined later in the SOUL tab.
+  const [answers, setAnswers] = useState(() => soulSeed(getTelegramUser()))
   const set =
     (k: keyof typeof answers) => (e: ChangeEvent<HTMLTextAreaElement>) =>
       setAnswers(a => ({ ...a, [k]: e.target.value }))

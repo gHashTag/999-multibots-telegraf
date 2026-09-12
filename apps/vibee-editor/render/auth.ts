@@ -668,6 +668,31 @@ export function verifiedTelegramId(req: IncomingMessage): string | null {
   }
 }
 
+/**
+ * The @username from the SAME verified signature, lower-cased, without the
+ * "@". Null when the signature is missing, wrong, or carries no username
+ * (Telegram lets a person have none). Used by the club's guest pass: the
+ * owner names people by @username, and only a verified `user` object may
+ * say who is who.
+ */
+export function verifiedTelegramUsername(req: IncomingMessage): string | null {
+  const initData =
+    (req.headers['x-telegram-init-data'] as string | undefined) ||
+    (req.headers['x-telegram-initdata'] as string | undefined) ||
+    ''
+  if (!initData) return null
+  if (!verifyTelegramInitData(initData).ok) return null
+  try {
+    const raw = new URLSearchParams(initData).get('user')
+    if (!raw) return null
+    const u = JSON.parse(raw)?.username
+    const name = String(u ?? '').trim().replace(/^@/, '').toLowerCase()
+    return name || null
+  } catch {
+    return null
+  }
+}
+
 export function authMode(): string {
   return mode()
 }

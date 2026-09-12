@@ -104,6 +104,7 @@ import {
   authMode,
   verifyTelegramInitData,
   verifiedTelegramId,
+  verifiedTelegramUsername,
 } from './auth'
 import { z } from 'zod'
 import { TEMPLATE_CARDS } from './src/templates/registry'
@@ -7909,6 +7910,9 @@ const server = createServer(async (req, res) => {
       grant: {
         botsOwnedBy: async id =>
           (await import('./src/agent/hive-tools')).botsOwnedBy(id),
+        // The guest pass (club-guests.ts): people the owner invited by
+        // @username. The name comes from the verified signature only.
+        usernameOf: r => verifiedTelegramUsername(r as any),
       },
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
     })

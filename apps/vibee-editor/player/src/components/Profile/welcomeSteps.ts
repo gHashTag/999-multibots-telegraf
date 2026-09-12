@@ -94,3 +94,42 @@ export function soulHasSubstance(answers: {
 }): boolean {
   return Object.values(answers).some(v => v.trim().length > 0)
 }
+
+/*
+ * THE FAST ROAD (owner, 2026-09-12: "set up the onboarding so that entering
+ * the game is quick"). Two things made the road long for a person who was
+ * simply invited: the SOUL slide opened with four empty boxes and a dead
+ * button, and the last card sent them to the profile, not to the game.
+ *
+ * Nothing became optional. The SOUL slide now opens with the first answer
+ * already written from the Telegram profile the person arrived with -- their
+ * name and handle -- so the button is live at once and the rest can be
+ * refined later in the SOUL tab. The last card leads into the hive.
+ */
+export interface SoulSeedSource {
+  first_name?: string
+  last_name?: string
+  username?: string
+}
+
+export function soulSeed(user: SoulSeedSource | null | undefined): {
+  who: string
+  sell: string
+  voice: string
+  forbidden: string
+} {
+  const name = [user?.first_name, user?.last_name]
+    .map(x => String(x ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+  const handle = String(user?.username ?? '').trim()
+  const who = [name, handle ? `@${handle}` : '']
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+  return { who, sell: '', voice: '', forbidden: '' }
+}
+
+/** Where the last card of the road sends a person: the game. */
+export const WELCOME_EXIT_ROUTE = '/hive'
+
