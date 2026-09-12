@@ -185,8 +185,8 @@ async function runFinancialLogicTests(): Promise<TestResults> {
 
     // Test 6: Validate Excel Structure
     logger.info('🔍 Validating Excel structure...')
-    const XLSX = require('xlsx')
-    const workbook = XLSX.read(buffer)
+    const XLSX = await import('../../src/utils/excelCompat')
+    const workbook = await XLSX.read(buffer)
 
     const expectedSheets = [
       '📊 Сводка',

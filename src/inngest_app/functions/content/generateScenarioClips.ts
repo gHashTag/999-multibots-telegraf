@@ -11,7 +11,7 @@ import { supabase } from '@/core/supabase'
 import * as fs from 'fs'
 import * as path from 'path'
 import archiver from 'archiver'
-import * as XLSX from 'xlsx'
+import * as XLSX from '@/utils/excelCompat'
 import {
   type ScenarioClipsRecord,
   type SceneData,
@@ -1097,7 +1097,7 @@ class TextScenarioReportGenerator {
     const filePath = path.join(this.outputDir, fileName)
 
     await fs.promises.mkdir(this.outputDir, { recursive: true })
-    XLSX.writeFile(workbook, filePath)
+    await XLSX.writeFile(workbook, filePath)
 
     return filePath
   }

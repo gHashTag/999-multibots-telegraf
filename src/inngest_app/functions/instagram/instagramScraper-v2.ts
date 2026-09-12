@@ -7,7 +7,7 @@ import { slugify } from 'inngest'
 import axios from 'axios'
 import pkg from 'pg'
 const { Pool } = pkg
-import * as XLSX from 'xlsx'
+import * as XLSX from '@/utils/excelCompat'
 import archiver from 'archiver'
 import { promises as fs } from 'fs'
 import path from 'path'
@@ -1119,7 +1119,7 @@ class ReportGenerator {
     const filePath = path.join(this.outputDir, fileName)
 
     await fs.mkdir(this.outputDir, { recursive: true })
-    XLSX.writeFile(workbook, filePath)
+    await XLSX.writeFile(workbook, filePath)
 
     log.info(`📊 Excel файл создан: ${fileName}`)
     return filePath

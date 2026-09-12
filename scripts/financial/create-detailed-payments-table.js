@@ -1,4 +1,5 @@
-const XLSX = require('xlsx');
+// xlsx replaced by exceljs-backed shim; requires `bun run build` (dist/)
+const XLSX = require('../../dist/utils/excelCompat');
 const fs = require('fs');
 
 // Данные о реальных платежах (все 277 записей)
@@ -311,7 +312,7 @@ function createDetailedPaymentsExcel() {
 
 const workbook = createDetailedPaymentsExcel();
 const fileName = `MetaMuse_Manifest_bot_Детальные_платежи_${new Date().toISOString().split('T')[0]}.xlsx`;
-XLSX.writeFile(workbook, fileName);
+XLSX.writeFile(workbook, fileName).then(() => console.log('xlsx written')).catch(e => { console.error(e); process.exitCode = 1 });
 
 console.log('\n✅ Создана детальная таблица всех реальных платежей');
 console.log('📄 Файл:', fileName);

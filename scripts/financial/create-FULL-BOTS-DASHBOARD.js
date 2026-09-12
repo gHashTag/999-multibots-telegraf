@@ -1,4 +1,5 @@
-const XLSX = require('xlsx');
+// xlsx replaced by exceljs-backed shim; requires `bun run build` (dist/)
+const XLSX = require('../../dist/utils/excelCompat');
 const path = require('path');
 
 // Список всех 10 ботов
@@ -453,7 +454,7 @@ function createFullBotsDashboard() {
   // СОХРАНЕНИЕ
   // ========================================================================
   const fileName = `MULTI_BOT_FARM_DASHBOARD_${currentDate}.xlsx`;
-  XLSX.writeFile(workbook, fileName);
+  XLSX.writeFile(workbook, fileName).then(() => console.log('xlsx written')).catch(e => { console.error(e); process.exitCode = 1 });
 
   console.log('\n' + '='.repeat(90));
   console.log('🎉 ДАШБОРД ПО ВСЕМ БОТАМ СОЗДАН!');

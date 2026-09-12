@@ -3,7 +3,7 @@
  * Создает детальную аналитику по транзакциям с красивым оформлением
  */
 
-import * as XLSX from 'xlsx'
+import * as XLSX from '@/utils/excelCompat'
 import { supabase } from '@/core/supabase'
 import {
   getServiceDisplayTitle,
@@ -49,7 +49,7 @@ export async function generateUserExcelReport(userId: string): Promise<Buffer> {
   XLSX.utils.book_append_sheet(workbook, historySheet, '📋 История операций')
 
   // Конвертируем в Buffer
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  const buffer = await XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
   return buffer
 }
 

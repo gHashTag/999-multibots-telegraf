@@ -19,7 +19,8 @@
  *   node scripts/bot-financial-report.js neuro_blogger_bot --upload
  */
 
-const XLSX = require('xlsx');
+// xlsx replaced by exceljs-backed shim; requires `bun run build` (dist/)
+const XLSX = require('../../dist/utils/excelCompat');
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
@@ -708,7 +709,7 @@ function saveExcelFile(workbook, filename) {
   }
 
   const filePath = path.join(outputDir, filename);
-  XLSX.writeFile(workbook, filePath);
+  XLSX.writeFile(workbook, filePath).then(() => console.log('xlsx written')).catch(e => { console.error(e); process.exitCode = 1 });
 
   return filePath;
 }

@@ -1,4 +1,5 @@
-const XLSX = require('xlsx');
+// xlsx replaced by exceljs-backed shim; requires `bun run build` (dist/)
+const XLSX = require('../../dist/utils/excelCompat');
 const path = require('path');
 
 // Утилиты форматирования
@@ -778,7 +779,7 @@ function createInvestorReport() {
   // СОХРАНЕНИЕ ФАЙЛА
   // ========================================================================
   const fileName = `MetaMuse_INVESTOR_PITCH_REPORT_${currentDate}.xlsx`;
-  XLSX.writeFile(workbook, fileName);
+  XLSX.writeFile(workbook, fileName).then(() => console.log('xlsx written')).catch(e => { console.error(e); process.exitCode = 1 });
 
   console.log('\n' + '='.repeat(85));
   console.log('🎉 ИНВЕСТИЦИОННЫЙ ОТЧЕТ СОЗДАН!');
