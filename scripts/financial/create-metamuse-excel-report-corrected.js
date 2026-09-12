@@ -1,4 +1,5 @@
-const XLSX = require('xlsx');
+// xlsx replaced by exceljs-backed shim; requires `bun run build` (dist/)
+const XLSX = require('../../dist/utils/excelCompat');
 
 // Данные из SQL запросов
 const summaryData = {
@@ -198,7 +199,7 @@ function createExcelReport() {
 
 const workbook = createExcelReport();
 const fileName = `/tmp/MetaMuse_Manifest_bot_ФИНАЛЬНЫЙ_ОТЧЕТ_${new Date().toISOString().split('T')[0]}.xlsx`;
-XLSX.writeFile(workbook, fileName);
+XLSX.writeFile(workbook, fileName).then(() => console.log('xlsx written')).catch(e => { console.error(e); process.exitCode = 1 });
 
 console.log('\n' + '='.repeat(70));
 console.log('🎯 ФИНАЛЬНОЕ ЗАКЛЮЧЕНИЕ');

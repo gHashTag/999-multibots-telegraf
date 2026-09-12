@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from '../../src/utils/excelCompat';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yuukfqcsdhkyxegfwlcb.supabase.co';
@@ -419,7 +419,7 @@ async function generateReport() {
 
     // СОХРАНЕНИЕ ФАЙЛА
     const fileName = `/tmp/MetaMuse_Manifest_bot_Финансовый_отчет_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+    await XLSX.writeFile(workbook, fileName);
 
     console.log('✅ Excel-отчет создан:', fileName);
     console.log('\n' + '='.repeat(70));
