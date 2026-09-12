@@ -466,8 +466,18 @@ export async function handleAgentChat(
      * клиент шлёт весь свой транскрипт каждым запросом, и запись целиком
      * дублировала бы разговор на каждом витке.
      */
+    /*
+     * THE SWEEP'S BRIEF IS NOT THE OWNER'S CONVERSATION (CRM audit
+     * 2026-09-12, P1 #5). `tools_only` turns come from the unattended
+     * seller: a ~1 KB brief plus, often, a marker-only answer. Recorded
+     * here they pushed the owner's own words out of the 40-turn window in
+     * about ten sweeps and taught the next sweep to answer the same way.
+     * The bot records the one turn worth keeping itself (crmProactive.ts);
+     * the server records nothing for these.
+     */
+    const ephemeral = body.tools_only === true
     const последняя = history[history.length - 1]
-    if (последняя?.role === 'user') {
+    if (!ephemeral && последняя?.role === 'user') {
       await записатьРеплику(pool, telegramId, {
         role: 'user',
         content: String(последняя.content ?? ''),
@@ -493,7 +503,7 @@ export async function handleAgentChat(
     }
 
     const ответ = собратьОтвет(события)
-    if (ответ) {
+    if (ответ && !ephemeral) {
       await записатьРеплику(pool, telegramId, {
         role: 'assistant',
         content: ответ,

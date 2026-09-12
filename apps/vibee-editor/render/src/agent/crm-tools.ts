@@ -80,7 +80,10 @@ async function myBots(telegramId: string): Promise<string[]> {
  * duplicated "who may see whom" is how one gets fixed and the other forgotten,
  * and the price here is a stranger's clients on a stranger's screen.
  */
-export async function областьВидимости(ctx?: ToolContext): Promise<string[] | null> { // cyrillic-ok: pre-existing name
+export async function областьВидимости(
+  ctx?: ToolContext
+): Promise<string[] | null> {
+  // cyrillic-ok: pre-existing name
   const who = ctx ? String(ctx.telegramId ?? '') : ''
   if (!who) {
     throw new Error(
@@ -146,7 +149,8 @@ const СТРАНИЦА = 1000
  * Пагинация идёт до КОРОТКОЙ страницы: ждать пустую — лишний запрос, а
  * «до потолка попыток» молча обрезало бы базу ровно так же, как PostgREST.
  */
-export async function запрос<T>(путь: string): Promise<T[]> { // cyrillic-ok: pre-existing name
+export async function запрос<T>(путь: string): Promise<T[]> {
+  // cyrillic-ok: pre-existing name
   const { url, key } = настройки()
   const всё: T[] = []
   for (let начало = 0; ; начало += СТРАНИЦА) {
@@ -203,9 +207,21 @@ function днейНазад(дата: string | null): number | null {
  * покупатель, а как раз горячий лид, и путать их значит терять самых
  * перспективных.
  */
-async function платившие(): Promise<Set<string>> {
+async function платившие(
+  область: string[] | null = null
+): Promise<Set<string>> {
+  /*
+   * ONLY THE OWNER'S OWN BOTS COUNT (CRM audit 2026-09-12, P1 #2). Without
+   * the scope a person who paid some other bot on the platform became this
+   * owner's `client`/`winback` and was kept out of warming; with several
+   * owners it was a fact of payment leaking across them. The same filter
+   * `люди()` applies to users is applied to payments_v2.bot_name here.
+   */
+  const scopeFilter = область
+    ? `&bot_name=in.(${область.map(b => `"${b.replace(/"/g, '')}"`).join(',')})`
+    : ''
   const строки = await запрос<{ telegram_id: string | number }>(
-    'payments_v2?select=telegram_id&status=eq.COMPLETED&type=eq.MONEY_INCOME'
+    `payments_v2?select=telegram_id&status=eq.COMPLETED&type=eq.MONEY_INCOME${scopeFilter}`
   )
   return new Set(строки.map(с => String(с.telegram_id)))
 }
@@ -260,7 +276,10 @@ export const CRM_TOOLS: AgentTool[] = [
     parameters: noArgs,
     async handler(_a, ctx) {
       const область = await областьВидимости(ctx)
-      const [все, платят] = await Promise.all([люди(область), платившие()])
+      const [все, платят] = await Promise.all([
+        люди(область),
+        платившие(область),
+      ])
 
       const свежие = (дней: number) =>
         все.filter(ч => {
@@ -311,7 +330,8 @@ export const CRM_TOOLS: AgentTool[] = [
       properties: {
         дней: {
           type: 'number',
-          description: 'считать недавним заход за столько дней (по умолчанию 14)',
+          description:
+            'считать недавним заход за столько дней (по умолчанию 14)',
         },
         quiet_days: {
           type: 'number',
@@ -323,14 +343,18 @@ export const CRM_TOOLS: AgentTool[] = [
     async handler(a: any, ctx) {
       const область = await областьВидимости(ctx)
       const окно = Number(a?.дней) > 0 ? Math.floor(Number(a.дней)) : 14
-      const [все, платят] = await Promise.all([люди(область), платившие()])
+      const [все, платят] = await Promise.all([
+        люди(область),
+        платившие(область),
+      ])
       const лиды = все
         .filter(ч => {
           const d = днейНазад(ч.updated_at)
           return d !== null && d <= окно && !платят.has(String(ч.telegram_id))
         })
         .sort(
-          (x, y) => (днейНазад(x.updated_at) ?? 1e9) - (днейНазад(y.updated_at) ?? 1e9)
+          (x, y) =>
+            (днейНазад(x.updated_at) ?? 1e9) - (днейНазад(y.updated_at) ?? 1e9)
         )
       /*
        * ALREADY-TOUCHED LEADS ARE SET ASIDE, AND THE COUNT IS STATED.
@@ -345,7 +369,11 @@ export const CRM_TOOLS: AgentTool[] = [
       const quietDays =
         Number(a?.quiet_days) > 0 ? Math.floor(Number(a.quiet_days)) : 30
       const touched = ctx?.pool
-        ? await touchedSince(ctx.pool as never, String(ctx.telegramId), quietDays)
+        ? await touchedSince(
+            ctx.pool as never,
+            String(ctx.telegramId),
+            quietDays
+          )
         : new Map()
       const fresh = лиды.filter(p => !touched.has(String(p.telegram_id))) // cyrillic-ok
       return {
@@ -381,13 +409,19 @@ export const CRM_TOOLS: AgentTool[] = [
       const область = await областьВидимости(ctx)
       const порог =
         Number(a?.молчит_дней) > 0 ? Math.floor(Number(a.молчит_дней)) : 30
-      const [все, платят] = await Promise.all([люди(область), платившие()])
+      const [все, платят] = await Promise.all([
+        люди(область),
+        платившие(область),
+      ])
       const ушедшие = все
         .filter(ч => {
           const d = днейНазад(ч.updated_at)
           return d !== null && d >= порог && платят.has(String(ч.telegram_id))
         })
-        .sort((x, y) => (днейНазад(y.updated_at) ?? 0) - (днейНазад(x.updated_at) ?? 0))
+        .sort(
+          (x, y) =>
+            (днейНазад(y.updated_at) ?? 0) - (днейНазад(x.updated_at) ?? 0)
+        )
       return {
         порог_дней: порог,
         найдено: ушедшие.length,

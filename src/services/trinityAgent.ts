@@ -33,6 +33,8 @@ const ЖДАТЬ_МС = 180_000
 
 /** Сколько прошлых реплик подмешать. Столько же, сколько отдаёт сервер. */
 const ГЛУБИНА_ИСТОРИИ = 40
+/** The history round trips are short; a hang here must not stall a sweep. */
+const HISTORY_TIMEOUT_MS = 20_000
 
 export interface ОтветАгента {
   текст: string
@@ -135,9 +137,14 @@ async function readConversation(
   telegramId: string
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {
   try {
+    // Bounded: a hung history read used to hold the sweep's `running` flag
+    // forever (CRM audit 2026-09-12, P1 #3).
     const о = await fetch(
       `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}`,
-      { headers: { 'X-Api-Key': apiKey() } }
+      {
+        headers: { 'X-Api-Key': apiKey() },
+        signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
+      }
     )
     if (!о.ok) return []
     const д = (await о.json()) as {
@@ -232,7 +239,8 @@ export async function спроситьАгента(
         }
         if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
-        else if (ev.тип === 'провайдер' && ev.id) // cyrillic-ok: pre-existing event envelope
+        else if (ev.тип === 'провайдер' && ev.id)
+          // cyrillic-ok: pre-existing event envelope
           // The last one wins: a provider that failed mid-stream before any
           // text was handed over is replaced by the one that answered.
           provider = `${ev.id}/${ev.model ?? '?'}`
@@ -314,6 +322,7 @@ export async function recordTurns(
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
         body: JSON.stringify({ turns: usable, surface }),
+        signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
       }
     )
     if (!response.ok) {

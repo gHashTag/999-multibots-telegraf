@@ -103,7 +103,32 @@ export interface SweepOpts {
 const INGEST_TIMEOUT_MS = 170_000
 
 let running = false
+let runningSince = 0
 let lastPushAt = 0
+/*
+ * A SWEEP THAT NEVER CAME BACK IS NOT "BUSY" (CRM audit 2026-09-12, P1 #3).
+ *
+ * The `running` flag was cleared only by `finally`; a history fetch that
+ * hangs without a FIN kept it set forever, and every later tick answered
+ * `busy` -- logged as info, skipped by the hive note. The longest honest
+ * sweep is ingest (170 s) plus two model calls (2 x 180 s), so anything
+ * older than ten minutes is a hang: the flag is released with an error in
+ * the log and the tick proceeds.
+ */
+export const STUCK_SWEEP_MS = 10 * 60_000
+/*
+ * MEMORY THAT STOPPED REFRESHING IS A FAILURE, NOT A WARNING (P1 #4).
+ *
+ * A revoked MTProto session is a permanent state, not a FLOOD_WAIT: the
+ * render throws every time, the bot used to warn every time and sweep on
+ * memory frozen at the moment the session died -- for months, silently.
+ * The first two failures still sweep on stale memory (a hiccup must not
+ * silence a person who waited since yesterday); the third in a row and
+ * every one after it is reported as `failed`, which reaches the owner
+ * through the alert channel and the hive journal with the reconnect hint.
+ */
+export const INGEST_FAILURES_BEFORE_FAILED = 3
+let ingestFailStreak = 0
 
 /**
  * `[[Подпись|tg_send]]` -- the whole answer is one button marker whose id is
@@ -219,8 +244,16 @@ export function noteResolved(owner?: string, cardId?: string): void {
 /** For tests. */
 export function resetProactiveForTests(): void {
   running = false
+  runningSince = 0
   lastPushAt = 0
   failStreak = 0
+  ingestFailStreak = 0
+}
+
+/** For tests: pretend a sweep has been running since `since`. */
+export function markRunningForTests(since: number): void {
+  running = true
+  runningSince = since
 }
 
 export async function sweepOnce(
@@ -228,21 +261,43 @@ export async function sweepOnce(
   deps: SweepDeps,
   opts: SweepOpts = {}
 ): Promise<SweepOutcome> {
-  if (running) return { did: 'busy', why: 'предыдущий обход ещё идёт' }
+  const startedAt = deps.now?.() ?? Date.now()
+  if (running) {
+    if (runningSince && startedAt - runningSince > STUCK_SWEEP_MS) {
+      logger.error('[crm-proactive] sweep stuck, releasing the flag', {
+        stuckForMs: startedAt - runningSince,
+      })
+    } else {
+      return { did: 'busy', why: 'предыдущий обход ещё идёт' }
+    }
+  }
   running = true
+  runningSince = startedAt
   try {
-    const now = deps.now?.() ?? Date.now()
+    const now = startedAt
     const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
     if (lastPushAt && now - lastPushAt < holdMs) {
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
     try {
-      if (opts.ingest !== false) await deps.ingest(ownerId)
+      if (opts.ingest !== false) {
+        await deps.ingest(ownerId)
+        ingestFailStreak = 0
+      }
     } catch (e) {
+      ingestFailStreak += 1
+      const error = e instanceof Error ? e.message : String(e)
+      if (ingestFailStreak >= INGEST_FAILURES_BEFORE_FAILED) {
+        return {
+          did: 'failed',
+          why: `память не обновляется ${ingestFailStreak} обхода подряд: ${error}. Если сессия Telegram истекла — переподключи её в профиле`,
+        }
+      }
       // Memory refresh is best-effort: a FLOOD_WAIT on ingest must not
       // silence a person who has been waiting since yesterday.
       logger.warn('[crm-proactive] ingest failed, sweeping on stale memory', {
-        error: e instanceof Error ? e.message : String(e),
+        error,
+        consecutive: ingestFailStreak,
       })
     }
     /*
@@ -585,7 +640,10 @@ interface Scope {
 }
 const scopes = new Map<string, Scope>()
 const BUSY_RETRY_MS = 30_000
-const BUSY_RETRY_MAX = 10
+// A timer sweep may honestly last ingest (170 s) + two model calls (360 s);
+// ten retries of 30 s dropped a scoped sweep that merely waited its turn
+// (CRM audit 2026-09-12, P2 #10). Twenty covers the longest honest sweep.
+const BUSY_RETRY_MAX = 20
 const FAILED_IN_A_ROW_MAX = 3
 
 export function activeScope(

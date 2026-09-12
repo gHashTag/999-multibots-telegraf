@@ -149,8 +149,16 @@ export function parseAgentButtons(
       Markup.button.callback(proposed.trim(), `${ACTION_PREFIX}${id}`),
     ])
   }
+  /*
+   * A SECOND PASS FOR THE MARKERS THE MODEL GOT WRONG (CRM audit 2026-09-12,
+   * P2 #14). `[[Оплатить|act:Topup]]`, `[[Пополнить|act:topup2]]` and
+   * `[[Подпись|tg_send]]` did not match the strict shape above and reached
+   * the person as bracket soup, although the prompt promises they are
+   * dropped in silence. Anything that still looks like a marker goes.
+   */
   const cleaned = text
     .replace(marker, '')
+    .replace(/\[\[[^\]\n]{1,60}\]\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
   void isRu

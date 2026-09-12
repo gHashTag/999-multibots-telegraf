@@ -91,7 +91,7 @@ const MONEY_AND_PLAN =
  * or `|`, and at most four markers survive. An unknown id is dropped silently,
  * which is why the list is spelled out rather than left to invention.
  */
-const BUTTON_MARKERS =
+export const BUTTON_MARKERS =
   '\n\nКНОПКИ. Ты отвечаешь в Telegram-боте, где человек может нажать, а не ' + // cyrillic-ok: prompt copy
   'печатать. Если у ответа есть очевидный следующий шаг — предложи его ' + // cyrillic-ok: prompt copy
   'кнопкой: поставь в конце ответа маркер [[Подпись|act:id]], где id — одно ' + // cyrillic-ok: prompt copy
@@ -387,8 +387,11 @@ export function soul(): string | null {
  * refers the model to a section that is not in it, and that is a property of
  * the STRING, which is unreachable through `runAgent` without a live model.
  */
-export function systemPrompt(surface?: string): string {
-  const buttons = surface === 'bot' ? BUTTON_MARKERS : ''
+export function systemPrompt(surface?: string, toolsOnly = false): string {
+  // The unattended sweep (tools_only) must call tools, not draw buttons:
+  // the markers section was the root of marker-only `[[...|no_one_available]]`
+  // answers (CRM audit 2026-09-12, P2 #14).
+  const buttons = surface === 'bot' && !toolsOnly ? BUTTON_MARKERS : ''
   const s = soul()
   if (!s) return systemFor(surface) + buttons
   return (
@@ -660,7 +663,7 @@ export async function* runAgent(
       role: 'system',
       content:
         (personalSoul
-          ? systemPrompt(opts?.surface) +
+          ? systemPrompt(opts?.surface, opts?.toolsOnly === true) +
             salesPlaybook({
               surface: opts?.surface,
               telegramId: ctx.telegramId,
@@ -671,7 +674,7 @@ export async function* runAgent(
             'голосом — решает этот SOUL. Человек может просить править его ' +
             'через soul_edit — это его скилл, помогай с этим.\n\n' +
             personalSoul
-          : systemPrompt(opts?.surface) +
+          : systemPrompt(opts?.surface, opts?.toolsOnly === true) +
             salesPlaybook({
               surface: opts?.surface,
               telegramId: ctx.telegramId,

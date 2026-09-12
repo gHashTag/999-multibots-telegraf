@@ -833,10 +833,10 @@ async function sendFileWithAddressBook(
   target: string,
   media: ProposalMedia,
   caption: string | undefined
-): Promise<void> {
+): Promise<unknown> {
   if (!c.sendFile) throw new Error('этот клиент не умеет отправлять файлы')
   const send = c.sendFile
-  await withAddressBook(c, target, () =>
+  return withAddressBook(c, target, () =>
     send(target, { file: media.url, caption: caption ?? '', ...VERBATIM })
   )
 }
@@ -913,8 +913,10 @@ export async function execute(
         }
         let sent: unknown = null
         try {
+          // Both branches hand back the sent message, so a photo with a
+          // caption is mirrored like text (CRM audit 2026-09-12, P2 #9).
           if (p.media)
-            await sendFileWithAddressBook(c, p.target, p.media, p.what)
+            sent = await sendFileWithAddressBook(c, p.target, p.media, p.what)
           else sent = await sendWithAddressBook(c, p.target, p.what ?? '')
         } catch (e) {
           if (paid !== null && p.charge && ctx.pool) {

@@ -1,7 +1,7 @@
 import type { AgentTool, ToolContext } from './tools'
 import { client, requireOwner, foreignText } from './telegram-tools'
 import { resolveLead, displayOf, oneLine } from './crm-offer-tool'
-import { whoPaid, askSupabase } from './crm-tools'
+import { whoPaid, askSupabase, visibleScope } from './crm-tools'
 import { stageOf } from './crm-stages'
 import { SEGMENTS, type Segment } from './crm-segments'
 import { balanceOf } from './billing-shared'
@@ -282,7 +282,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const touched = await touchedSince(pool, owner, 60).catch(
         () => new Map<string, { kind: string; at: string }>()
       )
-      const paidSet = await whoPaid().catch(() => new Set<string>())
+      const paidSet = await visibleScope(ctx)
+        .then(scope => whoPaid(scope))
+        .catch(() => new Set<string>())
       const list = await leadCandidates(pool, owner, {
         limit: clamp(a?.limit, 15, 50),
         touched,
