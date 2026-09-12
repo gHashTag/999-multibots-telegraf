@@ -23,6 +23,7 @@
 import crypto from 'node:crypto'
 import { verifyAppSession, SessionError } from './session'
 import type { IncomingMessage } from 'node:http'
+import { editorialAccess, type AgentScope } from './editorial-key-scope'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
 // непроверяемым (ESM поднимает import выше любого присваивания process.env в
@@ -462,6 +463,8 @@ export interface AuthResult {
   wouldReject: boolean
   via: 'public' | 'api-key' | 'agent-key' | 'telegram' | 'session' | 'none'
   reason?: string
+  scope?: AgentScope
+  statusCode?: 403
   /**
    * telegram_id, если способ аутентификации его знает.
    *
@@ -493,6 +496,7 @@ export interface AuthResult {
  * различии и выдаёт ключ по префиксу.
  */
 export function hasServerKey(req: IncomingMessage): boolean {
+  if (editorialAccess(req).kind !== 'none') return false
   const expected = apiKey()
   const given = (req.headers['x-api-key'] as string | undefined) || ''
   if (!expected || !given) return false
@@ -502,6 +506,24 @@ export function hasServerKey(req: IncomingMessage): boolean {
 }
 
 export function authenticate(req: IncomingMessage): AuthResult {
+  const editorial = editorialAccess(req)
+  if (editorial.kind === 'denied') {
+    return {
+      allowed: false,
+      wouldReject: true,
+      via: 'none',
+      reason: editorial.reason,
+      statusCode: 403,
+    }
+  }
+  if (editorial.kind === 'allowed') {
+    return {
+      allowed: true,
+      wouldReject: false,
+      via: 'agent-key',
+      ...editorial.identity,
+    }
+  }
   if (isPublic(req)) return { allowed: true, wouldReject: false, via: 'public' }
 
   const key = (req.headers['x-api-key'] as string | undefined) || ''
