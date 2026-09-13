@@ -11,6 +11,9 @@ import {
   sellerBrief,
   buyerPersona,
   dedupeLinks,
+  mediaKind,
+  mediaNote,
+  promisesFile,
   askBuyerModel,
   buyerRequestBody,
   PAID_TOOLS,
@@ -314,6 +317,97 @@ describe('crm_duet helpers', () => {
     const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
     expect(run.profile_used).toBe(false)
     expect(reportOf(run)).toContain('crm_client_setup')
+  })
+})
+
+describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
+  const MP4 = 'https://bucket.example/renders/leela-plan-6.mp4'
+
+  it('mediaKind reads the extension, ignoring query and hash', () => {
+    expect(mediaKind(MP4)).toBe('видео')
+    expect(mediaKind('https://x/y.PNG?sig=1#a')).toBe('картинка')
+    expect(mediaKind('https://x/voice.ogg')).toBe('аудио')
+    expect(mediaKind('https://x/download')).toBe('файл')
+  })
+
+  it('the buyer is told a video arrived and is visible, not handed a bare URL', async () => {
+    const { d, histories } = deps(
+      [
+        [
+          result('reel_render', { готово: true, url: MP4 }), // cyrillic-ok
+          text('Собрал пробный ролик в стиле игры.'),
+        ],
+      ],
+      ['Смотрю.']
+    )
+    // The buyer model receives its history; capture what it saw.
+    const seen: ChatMessage[][] = []
+    const buyerModel = d.buyerModel
+    d.buyerModel = async m => {
+      seen.push(m.map(x => ({ ...x })))
+      return buyerModel(m)
+    }
+    await runDuet(freshRun({ turns: 1 }), ctx, d)
+    const toBuyer = seen[0].at(-1)?.content ?? ''
+    expect(toBuyer).toContain(mediaNote([MP4]))
+    expect(toBuyer).toContain('в чат пришло видео файлом')
+    expect(toBuyer).not.toContain(MP4)
+    expect(seen[0][0].content).toContain('Не говори, что файл не пришёл')
+    expect(histories.length).toBe(1)
+  })
+
+  it('promisesFile fires only on a sending verb and a file noun in one sentence', () => {
+    expect(
+      promisesFile(
+        'Гея, договорились. Отправляю видео файлом прямо в этот чат — оно должно прийти следующим сообщением.'
+      )
+    ).toBe(true)
+    expect(promisesFile('Пришлю ролик, как только он соберётся.')).toBe(true)
+    expect(promisesFile('Собрал пробный ролик в стиле игры: вот он.')).toBe(false)
+    expect(promisesFile('Видео уже пришло в чат следующим сообщением после ссылки.')).toBe(false)
+    expect(promisesFile('Отправляю вам вопрос: где живёт ваша аудитория?')).toBe(false)
+    expect(promisesFile('Файл большой. Отправлю позже описание.')).toBe(false)
+  })
+
+  it('a promise without a tool call resends the last file, counts the send, and is reported; no new paid call', async () => {
+    const { d, sent } = deps(
+      [
+        [result('reel_render', { готово: true, url: MP4 }), text('Ролик собран.')], // cyrillic-ok
+        [text('Отправляю видео файлом прямо в этот чат, ссылку открывать не нужно.')],
+      ],
+      ['Не могу открыть видео по ссылке — пришлите файлом.', 'Теперь вижу.']
+    )
+    const run = await runDuet(freshRun({ turns: 2 }), ctx, d)
+    expect(run.state).toBe('done')
+    expect(run.paid_calls).toBe(1)
+    expect(run.media_sent).toBe(2)
+    expect(run.transcript[2].media).toEqual([])
+    expect(run.transcript[2].resent).toEqual([MP4])
+    expect(sent.filter(x => x.url).map(x => x.url)).toEqual([MP4, MP4])
+    expect(run.violations).toEqual([
+      `turn 2: обещание отправить файл без вызова инструмента — повторно отправлен ${MP4}`,
+    ])
+    expect(reportOf(run)).toContain('обещание отправить файл')
+    // Coverage stays consistent: every call is either ok or fail.
+    for (const c of Object.values(run.coverage)) expect(c.ok + c.fail).toBe(c.calls)
+  })
+
+  it('a promise with nothing to resend is reported and nothing is sent as media', async () => {
+    const { d, sent } = deps(
+      [[text('Пришлю ролик завтра утром.')]],
+      ['Хорошо.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(run.media_sent).toBe(0)
+    expect(sent.filter(x => x.url)).toEqual([])
+    expect(run.violations).toEqual(['turn 0: обещание отправить файл, файла нет'])
+    expect(run.transcript[0].resent).toBeUndefined()
+  })
+
+  it('the seller brief forbids the promise and names the honest phrasing', () => {
+    const brief = sellerBrief(BUYER)
+    expect(brief).toContain('Никогда не пиши «отправляю/пришлю файл»')
+    expect(brief).toContain('видео уже пришло в чат следующим сообщением')
   })
 })
 

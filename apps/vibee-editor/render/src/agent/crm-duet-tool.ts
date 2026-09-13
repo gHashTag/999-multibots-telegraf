@@ -71,6 +71,8 @@ export interface Transcript {
   text: string
   tools?: Array<{ name: string; ok: boolean; ms: number }>
   media?: string[]
+  /** Files re-sent by the duet itself because the seller promised one without producing it. */
+  resent?: string[]
   sent: boolean
   error?: string
 }
@@ -184,7 +186,7 @@ export function sellerBrief(buyer: string, profile: ClientProfile = null): strin
     ...(p.forbidden_claims ? ['Запрещённые формулировки:', ...lines(p.forbidden_claims)] : []),
     'Слова давления запрещены: «сегодня», «срочно», «последний шанс», «серия», «прогресс», «молодец», «успех», поздравления. Цены, скидки, проценты и отзывы не называй; о цене говори только если она сама спросила, и только цифрами из ответа pricing.',
     'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — только один ролик за диалог и только после того, как она сказала, чего хочет.',
-    'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт, файл дойдёт до неё сам. Ссылку на приложение или бота давай не больше одного раза за диалог.',
+    'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
     'О результате инструмента говори только то, что в нём есть: не описывай ролик или картинку, которых не видел, не хвали «читаемость» текста. Генерация занимает минуты; не обещай сроки «за день». Токены списываются с твоего баланса — не пиши ей «списано» и не называй свой остаток.',
     'Если у неё уже есть SOUL-черновик или скиллы «Leela: …» — скажи, что заготовка стоит, и попроси её поправить любое слово, которое не её.',
     'Первое сообщение: короткое приветствие, одна фраза о том, зачем ты пишешь, и ОДИН вопрос discovery.',
@@ -196,6 +198,7 @@ export function buyerPersona(soulExcerpt = ''): string {
   return [
     'Ты — Гея (@playom), хранительница игры самопознания «Лила Чакра». Тебе пишет владелец бота Trinity S³AI и предлагает функции для продвижения твоей игры.',
     'Ты — новый покупатель: любопытная, практичная, бережёшь голос игры. Отвечаешь на вопросы о своей аудитории и целях честно и коротко; просишь показать пример именно в стиле игры; не соглашаешься на оплату, пока не увидела пример.',
+    'Пометка «[в чат пришло видео …]» (или картинка, аудио) означает, что файл уже у тебя в Telegram и ты его видишь. Не говори, что файл не пришёл или ссылка не открывается; оценивай стиль по тому, что продавец о нём сказал, и по канону игры.',
     ...(soulExcerpt ? ['Твой голос (из твоего SOUL):', soulExcerpt] : []),
     'Отвечай по-русски, 1–3 предложения, один вопрос или одно решение за реплику. Никакой разметки. Не хвали чужой контент, если он не в стиле игры — скажи, что не так.',
     'Факты об игре, которыми ты пользуешься:',
@@ -226,6 +229,50 @@ export function mediaOf(value: unknown): string | null {
     v['сделано'] === true || v['готово'] === true || v['done'] === true // cyrillic-ok
   const url = typeof v.url === 'string' ? v.url : ''
   return done && /^https?:\/\//.test(url) ? url : null
+}
+
+/**
+ * What the buyer model is told about a file the duet forwarded. Run
+ * duet-mtzrz4jo (2026-09-13): the mp4 reached her chat as a 0:10 video, but the
+ * buyer model saw only `[sent file: https://...mp4]`, could not "open" a
+ * URL, and answered "the file did not arrive" -- a false claim about a real send. The
+ * note now names the kind of file and says it is already visible in Telegram.
+ */
+export function mediaKind(url: string): 'видео' | 'картинка' | 'аудио' | 'файл' {
+  const path = url.split(/[?#]/)[0].toLowerCase()
+  if (/\.(mp4|mov|webm|m4v)$/.test(path)) return 'видео'
+  if (/\.(png|jpe?g|webp|gif)$/.test(path)) return 'картинка'
+  if (/\.(mp3|ogg|oga|wav|m4a|opus)$/.test(path)) return 'аудио'
+  return 'файл'
+}
+
+export function mediaNote(urls: string[]): string {
+  if (!urls.length) return ''
+  const kinds = [...new Set(urls.map(mediaKind))]
+  const what = kinds.length === 1 && kinds[0] === 'видео' ? 'видео' : kinds.join(' и ')
+  return `[в чат пришло ${what} файлом (${urls.length} шт.) — оно уже видно в Telegram, ссылку открывать не нужно]`
+}
+
+// `\b` is ASCII-only in JS, so Cyrillic words are bounded by lookarounds.
+// First-person / future sending verbs only: "the reel goes to her" style
+// narration in the brief must not trip the check.
+const SEND_VERB_RE =
+  /(?<![а-яё])(отправ(ляю|лю|им)|при(шлю|сылаю)|прикреп(ляю|лю)|выс(ылаю|ылю|шлю)|скину|скидываю|прикладываю|приложу|загруж(у|аю))(?![а-яё])/i // cyrillic-ok
+const FILE_NOUN_RE =
+  /(?<![а-яё])(видео|файл[а-яё]*|ролик[а-яё]*|запис[а-яё]*|картинк[а-яё]*|mp4)(?![а-яёa-z0-9])/i // cyrillic-ok
+
+/**
+ * A seller line that promises a file in a sentence that also names the sending.
+ * Run duet-mtzrz4jo, turn 6: "I am sending the video as a file right into this
+ * chat -- it should arrive as the next message" with `tools: []` -- nothing was
+ * sent, the buyer waited for a file that never came. A promise is only honest
+ * when the same turn produced media; otherwise the duet resends the last file
+ * it has and reports the turn.
+ */
+export function promisesFile(text: string): boolean {
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .some(s => SEND_VERB_RE.test(s) && FILE_NOUN_RE.test(s))
 }
 
 export function okOf(value: unknown): boolean {
@@ -292,6 +339,7 @@ export async function runDuet(
   ]
   const buyer: ChatMessage[] = [{ role: 'system', content: buyerPersona(soulExcerpt) }]
   const linksSent = new Set<string>()
+  let lastMedia: string | null = null
   try {
     for (let i = 0; i < run.turns * 2; i++) {
       const fromSeller = i % 2 === 0
@@ -349,6 +397,21 @@ export async function runDuet(
           sent: false,
           error,
         }
+        // A promised file must exist in this very turn. When it does not, the
+        // duet keeps the promise with the last file it forwarded (no new paid
+        // call) and reports the turn; with nothing to resend it only reports.
+        if (media.length === 0 && promisesFile(text)) {
+          if (lastMedia) {
+            entry.resent = [lastMedia]
+            run.violations.push(
+              `turn ${i}: обещание отправить файл без вызова инструмента — повторно отправлен ${lastMedia}` // cyrillic-ok
+            )
+          } else {
+            run.violations.push(`turn ${i}: обещание отправить файл, файла нет`) // cyrillic-ok
+          }
+        }
+        const outgoing = [...media, ...(entry.resent ?? [])]
+        if (media.length) lastMedia = media[media.length - 1]
         run.transcript.push(entry)
         if (!text && media.length === 0) {
           entry.error = entry.error ?? 'seller produced no text'
@@ -356,7 +419,7 @@ export async function runDuet(
         }
         if (!run.dry_run) {
           if (text) await deps.sendText(ownerCtx, run.buyer, text)
-          for (const url of media) {
+          for (const url of outgoing) {
             await deps.sendMedia(ownerCtx, run.buyer, url, '')
             run.media_sent++
           }
@@ -365,9 +428,7 @@ export async function runDuet(
         seller.push({ role: 'assistant', content: text })
         buyer.push({
           role: 'user',
-          content: media.length
-            ? `${text}\n[прислал файл: ${media.join(', ')}]`
-            : text,
+          content: outgoing.length ? `${text}\n${mediaNote(outgoing)}` : text,
         })
       } else {
         const reply = (await deps.buyerModel(buyer)).replace(/\s+$/, '').trim()
