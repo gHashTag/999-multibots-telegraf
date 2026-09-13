@@ -303,12 +303,13 @@ export async function sellerSendsSince(
       `SELECT count(*)::int AS n FROM crm_touches
         WHERE owner_id = $1 AND kind IN ('written', 'bought')
           AND at > now() - ($2 || ' days')::interval
-          AND (note LIKE $3 OR note LIKE $4)`,
+          AND (note LIKE $3 OR note LIKE $4 OR note LIKE $5)`,
       [
         String(owner),
         String(clampDays(days)),
         SELLER_NOTE_PREFIXES.message + '%',
         SELLER_NOTE_PREFIXES.service + '%',
+        SELLER_NOTE_PREFIXES.gift + '%',
       ]
     )
     return Number(r.rows?.[0]?.n ?? 0)

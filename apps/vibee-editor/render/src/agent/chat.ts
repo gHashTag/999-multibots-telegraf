@@ -225,8 +225,8 @@ export async function dmHistoryBlock(ctx: ToolContext): Promise<string> {
 function tokenLine(): string {
   const p = TOKEN_PRICES
   return (
-    `картинка ${p.image_generate}, рилс ${p.reel_render}, озвучка ${p.audio_generate}, ` +
-    `липсинк ${p.lipsync_generate}/с, видео ${p.video_generate}`
+    `картинка ${p.image_generate}, фото-подарок GPT ${p.gpt_image_edit}, рилс ${p.reel_render}, ` +
+    `озвучка ${p.audio_generate}, липсинк ${p.lipsync_generate}/с, видео ${p.video_generate}`
   )
 }
 function packsLine(): string {

@@ -30,7 +30,12 @@ import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot, botNameOf } from './bot-farm'
-import { editImage, EDIT_MODEL } from '../kie-image'
+import {
+  editImage,
+  EDIT_MODEL,
+  GPT_IMAGE_25_EDIT_MODELS,
+  isGptImage25Edit,
+} from '../kie-image'
 
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
@@ -103,7 +108,30 @@ const selfBase = () =>
  * out loud rather than generating something unrelated.
  */
 async function ownerAvatarUrl(ctx: any): Promise<string> {
-  const tid = String(ctx?.telegramId || '')
+  return avatarUrlViaBotApi(String(ctx?.telegramId || ''))
+}
+
+/** Re-publish image bytes on our own S3; '' when the upload is refused. */
+async function publishImageBytes(
+  bytes: Buffer,
+  contentType: string,
+  filename: string
+): Promise<string> {
+  const up = await selfFetch(`${selfBase()}/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': contentType, 'X-Filename': filename },
+    body: new Uint8Array(bytes),
+  })
+  const data: any = await up.json().catch(() => null)
+  return data?.directUrl || ''
+}
+
+/**
+ * A person's profile photo through the platform bot. Works only for people
+ * the bot has met (every row in `users` has), and only if their privacy
+ * settings show the photo to it.
+ */
+async function avatarUrlViaBotApi(tid: string): Promise<string> {
   const token =
     process.env.TELEGRAM_BOT_TOKEN ||
     process.env.BOT_TOKEN_1 ||
@@ -127,21 +155,57 @@ async function ownerAvatarUrl(ctx: any): Promise<string> {
     const bin = await fetch(`https://api.telegram.org/file/bot${token}/${path}`)
     if (!bin.ok) return ''
     const bytes = Buffer.from(await bin.arrayBuffer())
-    const up = await selfFetch(`${selfBase()}/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': bin.headers.get('content-type') || 'image/jpeg',
-        'X-Filename': `avatar-${tid}-${Date.now()}.jpg`,
-      },
-      body: new Uint8Array(bytes),
-    })
-    const data: any = await up.json().catch(() => null)
-    return data?.directUrl || ''
+    return publishImageBytes(
+      bytes,
+      bin.headers.get('content-type') || 'image/jpeg',
+      `avatar-${tid}-${Date.now()}.jpg`
+    )
   } catch {
     // A missing avatar is not an error worth crashing a tool call over; the
     // caller turns '' into a stated refusal.
     return ''
   }
+}
+
+/**
+ * THE LEAD'S PROFILE PHOTO, for the CRM lead magnet (crm_deliver_photo).
+ *
+ * Two doors, in order:
+ *  1. the owner's own Telegram session (GramJS downloadProfilePhoto): the owner
+ *     already sees this person in a dialog, so the photo is readable exactly
+ *     as it is in the app, at full size;
+ *  2. the platform bot's API (above), which only knows people it has met.
+ *
+ * '' when neither door has a photo. The caller says so and falls back to a
+ * text-to-image picture instead of drawing a stranger and calling it them.
+ */
+export async function leadAvatarUrl(
+  ctx: any,
+  lead: { id: string; username?: string | null }
+): Promise<string> {
+  try {
+    const bytes = await withClient(ctx, c =>
+      c.downloadProfilePhoto
+        ? c.downloadProfilePhoto(
+            lead.username ? `@${lead.username.replace(/^@/, '')}` : lead.id,
+            { isBig: true }
+          )
+        : Promise.resolve(undefined)
+    )
+    if (Buffer.isBuffer(bytes) && bytes.length > 0) {
+      const url = await publishImageBytes(
+        bytes,
+        'image/jpeg',
+        `lead-avatar-${lead.id}-${Date.now()}.jpg`
+      )
+      if (url) return url
+    }
+  } catch (e) {
+    console.warn(
+      `[leadAvatarUrl] owner session gave no photo for ${lead.id}: ${String(e).slice(0, 120)}`
+    )
+  }
+  return avatarUrlViaBotApi(lead.id)
 }
 
 function selfFetch(url: string, init: RequestInit = {}): Promise<Response> {
@@ -524,7 +588,7 @@ import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { HIVE_TOOLS } from './hive-tools'
 import { record } from '../hive/journal'
-import { TELEGRAM_TOOLS } from './telegram-tools'
+import { TELEGRAM_TOOLS, withClient } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
 
 export const TOOLS: AgentTool[] = [
@@ -951,11 +1015,29 @@ export const TOOLS: AgentTool[] = [
           type: 'string',
           description: '9:16 по умолчанию (вертикаль для рилса), 1:1, 16:9',
         },
+        model: {
+          type: 'string',
+          description:
+            `не задан — ${EDIT_MODEL} (сохраняет лицо, цена image_generate). ` +
+            `${GPT_IMAGE_25_EDIT_MODELS.join(' | ')} — GPT Image 2.5 через Kie, ` +
+            'цена gpt_image_edit; другие имена отклоняются до списания',
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      // The model decides the tariff, so it is settled BEFORE any charge. An
+      // unknown name is refused here rather than paid for and refused by Kie.
+      const model = args.model ? String(args.model) : EDIT_MODEL
+      if (model !== EDIT_MODEL && !isGptImage25Edit(model))
+        return {
+          done: false,
+          reason:
+            `модель ${model} не допущена к img2img: ${EDIT_MODEL} или ` +
+            GPT_IMAGE_25_EDIT_MODELS.join(' | '),
+        }
+      const op = isGptImage25Edit(model) ? 'gpt_image_edit' : 'image_generate'
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           done: false,
@@ -989,7 +1071,7 @@ export const TOOLS: AgentTool[] = [
             'нечего перерисовывать: аватарка не читается, а image_url не задан',
         }
 
-      const charge = await spendTokens(ctx, 'image_generate')
+      const charge = await spendTokens(ctx, op)
       if (!charge.ok)
         // The charge helper reports its refusal under a Russian key; this is
         // the file's long-standing convention and not worth churning here.
@@ -999,11 +1081,12 @@ export const TOOLS: AgentTool[] = [
         prompt: String(args.prompt),
         imageUrl: source,
         aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : '9:16',
+        model,
       })
       if (!edited.ok) {
         await refundTokens(
           ctx,
-          'image_generate',
+          op,
           'провайдер не выполнил работу',
           charge['потрачено']
         )
@@ -1017,7 +1100,7 @@ export const TOOLS: AgentTool[] = [
       if (!got.ok) {
         await refundTokens(
           ctx,
-          'image_generate',
+          op,
           'провайдер не выполнил работу',
           charge['потрачено']
         )
@@ -1040,7 +1123,7 @@ export const TOOLS: AgentTool[] = [
       if (!up.ok || !upData?.directUrl) {
         await refundTokens(
           ctx,
-          'image_generate',
+          op,
           'провайдер не выполнил работу',
           charge['потрачено']
         )
@@ -1084,9 +1167,9 @@ export const TOOLS: AgentTool[] = [
         inGallery: assetId != null,
         ...(assetError ? { galleryError: assetError } : {}),
         source: args.image_url ? 'указанный файл' : 'аватарка из Telegram',
-        model: EDIT_MODEL,
+        model,
         providerCredits: edited.credits,
-        charged: TOKEN_PRICES.image_generate,
+        charged: TOKEN_PRICES[op],
       }
     },
   },
@@ -2301,7 +2384,11 @@ TOOLS.push(...CRM_TOUCH_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
 // Delivery borrows image_generate through the registry, not an import: the
 // generator lives in this file, and a module cycle would be the alternative.
-TOOLS.push(...makeCrmDeliverTools(n => TOOLS.find(t => t.name === n)))
+TOOLS.push(
+  ...makeCrmDeliverTools(n => TOOLS.find(t => t.name === n), {
+    leadPhoto: leadAvatarUrl,
+  })
+)
 TOOLS.push(...CRM_MEMORY_TOOLS)
 TOOLS.push(...CRM_SUMMARY_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)

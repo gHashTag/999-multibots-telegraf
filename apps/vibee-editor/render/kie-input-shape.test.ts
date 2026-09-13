@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { kieInputFor } from './src/agent/kie-web-provider'
+import {
+  EDIT_MODEL,
+  GPT_IMAGE_25_EDIT_MODELS,
+  LEAD_MAGNET_MODEL,
+  LEAD_MAGNET_RESOLUTION,
+  editInputFor,
+  isGptImage25Edit,
+} from './src/kie-image'
 
 /**
  * Форма запроса собирается по контракту модели, а не одна на весь вид.
@@ -42,5 +50,44 @@ describe('вход для KieAI по контракту модели', () => {
     // сработает заведомо.
     const вход = kieInputFor('нет/такой/модели', { prompt: 'x' })
     expect(вход).toEqual({ prompt: 'x' })
+  })
+})
+
+/**
+ * img2img on Kie speaks two dialects: nano-banana-edit expects `image_urls`,
+ * GPT Image 2.5 (flare/sunburst) expects `input_urls` and `resolution`.
+ * Documented from docs.kie.ai on 2026-09-13; not yet live-probed from this code.
+ */
+describe('вход для img2img собирается по модели', () => {
+  it('nano-banana-edit: image_urls и aspect_ratio, без resolution', () => {
+    const input = editInputFor(EDIT_MODEL, {
+      prompt: 'кот',
+      imageUrl: 'https://s3.example/a.jpg',
+      aspectRatio: '9:16',
+    })
+    expect(input).toEqual({
+      prompt: 'кот',
+      image_urls: ['https://s3.example/a.jpg'],
+      aspect_ratio: '9:16',
+    })
+  })
+
+  it('GPT Image 2.5: input_urls, aspect_ratio и resolution 1K (цена лид-магнита)', () => {
+    for (const model of GPT_IMAGE_25_EDIT_MODELS) {
+      expect(isGptImage25Edit(model)).toBe(true)
+      const input = editInputFor(model, {
+        prompt: 'кот',
+        imageUrl: 'https://s3.example/a.jpg',
+        aspectRatio: '9:16',
+      })
+      expect(input).toEqual({
+        prompt: 'кот',
+        input_urls: ['https://s3.example/a.jpg'],
+        aspect_ratio: '9:16',
+        resolution: LEAD_MAGNET_RESOLUTION,
+      })
+    }
+    expect(isGptImage25Edit(EDIT_MODEL)).toBe(false)
+    expect(GPT_IMAGE_25_EDIT_MODELS).toContain(LEAD_MAGNET_MODEL)
   })
 })

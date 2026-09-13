@@ -149,6 +149,8 @@ export interface ProposalExtras {
   invoiceId?: number
   media?: ProposalMedia
   charge?: ProposalCharge
+  /** A free lead magnet: nobody is charged, and the touch note says "gift". */
+  gift?: boolean
 }
 
 /**
@@ -202,6 +204,7 @@ function propose(
     ...(extra?.display ? { display: extra.display } : {}),
     ...(extra?.media ? { media: extra.media } : {}),
     ...(extra?.charge ? { charge: extra.charge } : {}),
+    ...(extra?.gift ? { gift: true } : {}),
   }
   /*
    * A SHORT ID, BECAUSE THE BUTTON HAS 64 BYTES.
@@ -251,6 +254,7 @@ function propose(
       invoiceId: extra?.invoiceId,
       media: extra?.media,
       charge: extra?.charge,
+      gift: extra?.gift,
     })
   }
   /*
@@ -410,6 +414,11 @@ export interface LiveClient {
   getDialogs: (o: { limit: number }) => Promise<unknown[]>
   getMessages: (chat: string, o: Record<string, unknown>) => Promise<unknown[]>
   invoke: (r: unknown) => Promise<{ users?: unknown[] }>
+  /** GramJS: the profile photo of a person the owner can see, as bytes. Optional so a fake client need not have it. */
+  downloadProfilePhoto?: (
+    entity: string,
+    o: { isBig?: boolean }
+  ) => Promise<string | Buffer | undefined>
   disconnect: () => Promise<void>
   destroy?: () => Promise<void>
 }

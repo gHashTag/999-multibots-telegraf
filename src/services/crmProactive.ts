@@ -20,7 +20,7 @@ import {
   PRESET_NOTES,
   type ScopeItem,
 } from './crmSweepScope'
-import { cardMenuRows, hubRow } from '@/navigation/helpers/crmMenu'
+import { cardMenuRows, hubRows } from '@/navigation/helpers/crmMenu'
 import {
   buildPlanText,
   planKeyboard,
@@ -919,7 +919,7 @@ export async function startScopedSweep(
         })
   if (!items.length) return `Никого не подходит под «${spec.label}».`
   const say = (text: string) =>
-    bot.telegram.sendMessage(owner, text, Markup.inlineKeyboard([hubRow()]))
+    bot.telegram.sendMessage(owner, text, Markup.inlineKeyboard(hubRows()))
   const line = await startScope(owner, spec.label, items, liveDeps(bot), say)
   return rows.length >= 50 && spec.kind === 'filter'
     ? line + ' (смотрю верхние 50 по баллу)'

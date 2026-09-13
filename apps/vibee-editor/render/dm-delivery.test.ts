@@ -74,6 +74,9 @@ const ctxWith = (pool: unknown, surface = 'bot', who = OWNER) =>
 async function deliverer(
   opts: {
     gen?: (args: Record<string, unknown>) => Promise<unknown>
+    edit?: (args: Record<string, unknown>) => Promise<unknown>
+    /** The lead's photo URL; undefined = no dep wired, '' = no photo. */
+    leadPhoto?: string
   } = {}
 ) {
   const session = ownerSession()
@@ -86,34 +89,57 @@ async function deliverer(
   const q = await import('./src/agent/tg-proposals')
   q.forgetProposals()
   const calls: Array<{
+    tool: string
     args: Record<string, unknown>
     who: string
     chargeLater?: boolean
   }> = []
-  const gen = {
-    name: 'image_generate',
+  const fake = (
+    name: string,
+    run?: (args: Record<string, unknown>) => Promise<unknown>
+  ) => ({
+    name,
     description: '',
     parameters: {},
     handler: async (
       args: Record<string, unknown>,
       ctx: { telegramId: string; chargeLater?: boolean }
     ) => {
-      calls.push({ args, who: ctx.telegramId, chargeLater: ctx.chargeLater })
-      return opts.gen ? opts.gen(args) : { url: PIC }
+      calls.push({
+        tool: name,
+        args,
+        who: ctx.telegramId,
+        chargeLater: ctx.chargeLater,
+      })
+      return run ? run(args) : { url: PIC }
     },
-  }
-  const [tool] = makeCrmDeliverTools(n =>
-    n === 'image_generate' ? gen : undefined
+  })
+  const gen = fake('image_generate', opts.gen)
+  const edit = fake('image_edit', opts.edit)
+  const photos: Array<{ id: string; username?: string | null }> = []
+  const [tool] = makeCrmDeliverTools(
+    n => (n === 'image_generate' ? gen : n === 'image_edit' ? edit : undefined),
+    opts.leadPhoto === undefined
+      ? {}
+      : {
+          leadPhoto: async (_ctx, lead) => {
+            photos.push(lead)
+            return opts.leadPhoto as string
+          },
+        }
   )
-  return { tool, q, calls }
+  return { tool, q, calls, photos }
 }
+
+/** The paid, text-to-image mode the older tests below were written for. */
+const PAID = { gift: false, from_photo: false } as const
 
 describe('crm_deliver_photo asks the provider last and charges nobody', () => {
   it('a surface without a button is refused BEFORE anything is generated', async () => {
     stubSupabase([leadRow])
     const { tool, q, calls } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@pilot_client', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот', ...PAID },
       ctxWith(poolWith([{ balance: 50 }]), 'mcp')
     )
     expect(r.proposal).toBe(true)
@@ -127,7 +153,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@pilot_client', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот', ...PAID },
       ctxWith(poolWith([{ balance: 1 }]))
     )
     expect(r.delivered).toBe(false)
@@ -143,7 +169,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@pilot_client', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот', ...PAID },
       ctxWith(poolWith([]))
     )
     expect(r.proposal).toBe(true)
@@ -155,9 +181,12 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const pool = poolWith([{ balance: 50 }])
-    await tool.handler({ chat: '@pilot_client', prompt: 'кот' }, ctxWith(pool))
+    await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID },
+      ctxWith(pool)
+    )
     expect(calls[0].who).toBe(OWNER)
-    expect(calls[0].args.prompt).toBe('кот')
+    expect(String(calls[0].args.prompt)).toMatch(/^кот/)
     // The generator is told the owner's wallet is not the one that pays.
     expect(calls[0].chargeLater).toBe(true)
     expect(
@@ -172,7 +201,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
       gen: async () => ({ сделано: false, причина: 'провайдер лёг' }), // cyrillic-ok: public API field
     })
     const r: any = await tool.handler(
-      { chat: '@pilot_client', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот', ...PAID },
       ctxWith(poolWith([{ balance: 50 }]))
     )
     expect(r.delivered).toBe(false)
@@ -184,7 +213,12 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     stubSupabase([leadRow])
     const { tool, q } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@pilot_client', prompt: 'кот', caption: 'Ваш котик готов!' },
+      {
+        chat: '@pilot_client',
+        prompt: 'кот',
+        caption: 'Ваш котик готов!',
+        ...PAID,
+      },
       ctxWith(poolWith([{ balance: 50 }]))
     )
     const d = q.pendingFor(OWNER)!
@@ -207,7 +241,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     process.env.ADMIN_IDS = LEAD
     const { tool, q } = await deliverer()
     const r: any = await tool.handler(
-      { chat: '@pilot_client', prompt: 'кот' },
+      { chat: '@pilot_client', prompt: 'кот', ...PAID },
       ctxWith(poolWith([]))
     )
     expect(r.proposal).toBe(true)
@@ -223,6 +257,7 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
         chat: '@pilot_client',
         prompt: 'кот',
         caption: 'Готово!\nЖми https://evil.example/x',
+        ...PAID,
       },
       ctxWith(poolWith([{ balance: 50 }]))
     )
@@ -236,11 +271,126 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     const { tool, calls } = await deliverer()
     await expect(
       tool.handler(
-        { chat: '@pilot_client', prompt: 'кот' },
+        { chat: '@pilot_client', prompt: 'кот', ...PAID },
         ctxWith(poolWith([{ balance: 50 }]), 'bot', '999')
       )
     ).rejects.toThrow('принадлежит владельцу')
     expect(calls.length).toBe(0)
+  })
+})
+
+describe("crm_deliver_photo, by default, is the GIFT lead magnet from the person's own photo", () => {
+  it("redraws the lead's photo with GPT Image 2.5 at 9:16, on the OWNER's wallet, and charges the recipient nothing", async () => {
+    stubSupabase([leadRow])
+    const { tool, q, calls, photos } = await deliverer({
+      leadPhoto: 'https://s3.example/lead-avatar.jpg',
+    })
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'капитан парусника на закате' },
+      ctxWith(poolWith([{ balance: 0 }]))
+    )
+    expect(photos).toEqual([{ id: LEAD, username: '@pilot_client' }])
+    expect(calls.length).toBe(1)
+    expect(calls[0].tool).toBe('image_edit')
+    expect(calls[0].who).toBe(OWNER)
+    // The owner pays now: no deferred charge to anybody.
+    expect(calls[0].chargeLater).toBeUndefined()
+    expect(calls[0].args.image_url).toBe('https://s3.example/lead-avatar.jpg')
+    expect(calls[0].args.aspect_ratio).toBe('9:16')
+    expect(calls[0].args.model).toBe('gpt-image-2-5-flare-image-to-image')
+    // Identity first, the owner's scene after it, framing last.
+    const prompt = String(calls[0].args.prompt)
+    expect(prompt.indexOf('same person')).toBeGreaterThanOrEqual(0)
+    expect(prompt.indexOf('same person')).toBeLessThan(
+      prompt.indexOf('капитан парусника')
+    )
+    expect(prompt).toContain('9:16')
+    const d = q.pendingFor(OWNER)!
+    expect(d.charge, 'a gift must not carry a charge').toBeUndefined()
+    expect(
+      d.gift,
+      'the card knows it is a gift, so the touch note will too'
+    ).toBe(true)
+    expect(d.media).toEqual({ kind: 'photo', url: PIC })
+    expect(r.gift).toBe(true)
+    expect(r.price).toBe(0)
+    expect(r.source).toBe('фото человека')
+    expect(r.aspect_ratio).toBe('9:16')
+  })
+
+  it('a recipient with an empty balance still gets the gift: no affordability gate', async () => {
+    stubSupabase([leadRow])
+    const { tool, calls } = await deliverer({
+      leadPhoto: 'https://s3.example/a.jpg',
+    })
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот' },
+      ctxWith(poolWith([{ balance: 0 }]))
+    )
+    expect(r.proposal).toBe(true)
+    expect(calls.length).toBe(1)
+  })
+
+  it('the default caption names the person, says who made it, asks one question, and has no link or price', async () => {
+    stubSupabase([leadRow])
+    const { tool, q } = await deliverer({
+      leadPhoto: 'https://s3.example/a.jpg',
+    })
+    await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот' },
+      ctxWith(poolWith([{ balance: 0 }]))
+    )
+    const what = String(q.pendingFor(OWNER)!.what)
+    expect(what.startsWith('Ольга, ')).toBe(true)
+    expect(what).toContain('ИИ-ассистент')
+    expect(what).toContain('9:16')
+    expect((what.match(/\?/g) ?? []).length).toBe(1)
+    expect(what).not.toContain('http')
+    expect(what).not.toMatch(/токен|₽|\$/) // cyrillic-ok: UI text pattern
+  })
+
+  it('no readable photo: falls back to text-to-image at 1080x1920, says so, still a gift', async () => {
+    stubSupabase([leadRow])
+    const { tool, q, calls } = await deliverer({ leadPhoto: '' })
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот' },
+      ctxWith(poolWith([{ balance: 0 }]))
+    )
+    expect(calls.length).toBe(1)
+    expect(calls[0].tool).toBe('image_generate')
+    expect(calls[0].args.width).toBe(1080)
+    expect(calls[0].args.height).toBe(1920)
+    // Still the owner's wallet, now: a gift is never deferred to the recipient.
+    expect(calls[0].chargeLater).toBeUndefined()
+    expect(r.source).toBe('по описанию')
+    expect(r.gift).toBe(true)
+    expect(q.pendingFor(OWNER)!.charge).toBeUndefined()
+  })
+
+  it('without a photo door wired at all, the gift is still made from text', async () => {
+    stubSupabase([leadRow])
+    const { tool, calls } = await deliverer()
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот' },
+      ctxWith(poolWith([{ balance: 0 }]))
+    )
+    expect(calls[0].tool).toBe('image_generate')
+    expect(r.source).toBe('по описанию')
+  })
+
+  it('an edit that fails files nothing and refunds nobody here (image_edit already did)', async () => {
+    stubSupabase([leadRow])
+    const { tool, q } = await deliverer({
+      leadPhoto: 'https://s3.example/a.jpg',
+      edit: async () => ({ done: false, reason: 'Kie не ответил' }),
+    })
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот' },
+      ctxWith(poolWith([{ balance: 0 }]))
+    )
+    expect(r.delivered).toBe(false)
+    expect(r.причина).toContain('Kie не ответил') // cyrillic-ok: public API field
+    expect(q.pendingCount()).toBe(0)
   })
 })
 

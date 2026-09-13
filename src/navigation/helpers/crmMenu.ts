@@ -114,23 +114,52 @@ export function parseCrmCallback(data: string): ParsedCrm | null {
 const btn = (text: string, data: string): InlineKeyboardButton =>
   Markup.button.callback(text, data)
 
-/** The three places to go from anywhere: the list, the overview, a sweep. */
-export function hubRow(): InlineKeyboardButton[] {
-  return [
-    btn('👥 Кому писать', crmCallback('leads')),
-    btn('📊 Сводка', crmCallback('summary')),
-    btn('🔄 Обход', crmCallback('sweep')),
-  ]
+/**
+ * AT MOST TWO BUTTONS SIDE BY SIDE.
+ *
+ * Telegram shares a row's width between its buttons, so three Russian labels
+ * with an emoji get cut to "✍️ Отве…" on a phone. Two survive. Every CRM
+ * keyboard goes through `fit`, which splits any wider row instead of trusting
+ * each author to count (spec: t27 specs/automation/crm-lead-magnet.t27,
+ * MAX_BUTTONS_PER_ROW).
+ */
+export const MAX_BUTTONS_PER_ROW = 2
+
+export function fit(
+  rows: InlineKeyboardButton[][],
+  perRow = MAX_BUTTONS_PER_ROW
+): InlineKeyboardButton[][] {
+  const out: InlineKeyboardButton[][] = []
+  for (const row of rows) {
+    if (!row.length) continue
+    for (let i = 0; i < row.length; i += perRow)
+      out.push(row.slice(i, i + perRow))
+  }
+  return out
+}
+
+const keyboard = (rows: InlineKeyboardButton[][]) =>
+  Markup.inlineKeyboard(fit(rows))
+
+/** The three places to go from anywhere: the list, the overview, a sweep. Two rows. */
+export function hubRows(): InlineKeyboardButton[][] {
+  return fit([
+    [
+      btn('👥 Кому писать', crmCallback('leads')),
+      btn('📊 Сводка', crmCallback('summary')),
+      btn('🔄 Обход', crmCallback('sweep')),
+    ],
+  ])
 }
 
 export function rootMenu() {
-  return Markup.inlineKeyboard([
-    hubRow(),
+  return keyboard([
+    ...hubRows(),
     [
       btn('🗓 План', crmCallback('plan')),
       btn('🧠 Модель', crmCallback('model')),
-      btn('📥 Загрузить переписку', crmCallback('ingest')),
     ],
+    [btn('📥 Загрузить переписку', crmCallback('ingest'))],
   ])
 }
 
@@ -143,7 +172,7 @@ export function takeLabel(n: number, cap?: number): string {
 export const PREP_LABEL: Record<string, string> = {
   reply: '✍️ Ответить',
   talk: '💬 Продолжить',
-  deliver: '🖼 Фото',
+  deliver: '🎁 Фото 9:16',
   offer: '🧾 Счёт',
 }
 export function prepLabel(next?: string | null): string {
@@ -186,14 +215,14 @@ export function leadsKeyboard(rows: LeadRow[]) {
         row.push(btn(prepLabel(r.next), crmCallback('prep', r.lead)))
       lines.push(row)
     })
-  lines.push(hubRow())
-  return Markup.inlineKeyboard(lines)
+  lines.push(...hubRows())
+  return keyboard(lines)
 }
 
 export function emptyLeadsKeyboard() {
-  return Markup.inlineKeyboard([
+  return keyboard([
     [btn('📥 Загрузить переписку', crmCallback('ingest'))],
-    hubRow(),
+    ...hubRows(),
   ])
 }
 
@@ -211,7 +240,7 @@ export function leadMenu(
         btn('⏰ Позже', crmCallback('later', lead)),
         btn('🚫 Отказ', crmCallback('refuse', lead)),
       ]
-  return Markup.inlineKeyboard([
+  return keyboard([
     [btn(`${prepLabel(o.next)}`, crmCallback('prep', lead))],
     second,
     [
@@ -225,7 +254,7 @@ export function leadMenu(
 export function dmLeadMenu(chatId: string | number) {
   const id = String(chatId)
   if (!LEAD_ID_RE.test(id)) return undefined
-  return Markup.inlineKeyboard([
+  return keyboard([
     [
       btn('👤 Кто это', crmCallback('lead', id)),
       btn('🤫 Отвечу сам', crmCallback('mute', id)),
@@ -256,8 +285,8 @@ export function afterSentKeyboard(lead?: string | null) {
       btn('👤 История', crmCallback('lead', id)),
     ])
   }
-  rows.push(hubRow())
-  return Markup.inlineKeyboard(rows)
+  rows.push(...hubRows())
+  return keyboard(rows)
 }
 
 export function afterCancelKeyboard(lead?: string | null) {
@@ -270,8 +299,8 @@ export function afterCancelKeyboard(lead?: string | null) {
       btn('🚫 Отказ', crmCallback('refuse', id)),
     ])
   }
-  rows.push(hubRow())
-  return Markup.inlineKeyboard(rows)
+  rows.push(...hubRows())
+  return keyboard(rows)
 }
 
 /** After a prepare turn that ended without a card, or beside a card. */
@@ -284,8 +313,8 @@ export function afterTurnKeyboard(lead?: string | null) {
       btn('⏰ Позже', crmCallback('later', id)),
     ])
   }
-  rows.push(hubRow())
-  return Markup.inlineKeyboard(rows)
+  rows.push(...hubRows())
+  return keyboard(rows)
 }
 
 /** Every failure carries a way forward: retry, the model when it did not look, the hub. */
@@ -295,8 +324,8 @@ export function failKeyboard(retry?: string | null, modelHint = false) {
   if (retry && parseCrmCallback(retry)) first.push(btn('🔄 Ещё раз', retry))
   if (modelHint) first.push(btn('🧠 Модель', crmCallback('model')))
   if (first.length) rows.push(first)
-  rows.push(hubRow())
-  return Markup.inlineKeyboard(rows)
+  rows.push(...hubRows())
+  return keyboard(rows)
 }
 
 /** Under the overview: refresh, the list, and a scoped sweep per bucket that has people. */
@@ -313,8 +342,8 @@ export function summaryKeyboard(
     [
       btn('🔄 Обновить', crmCallback('summary')),
       btn('🗓 План', crmCallback('plan')),
-      btn('👥 Кому писать', crmCallback('leads')),
     ],
+    [btn('👥 Кому писать', crmCallback('leads'))],
   ]
   const seg = (k: string, fallback: number) =>
     Number(s.segments?.[k] ?? fallback)
@@ -367,7 +396,7 @@ export function summaryKeyboard(
     btn('🔄 Обход', crmCallback('sweep')),
     btn('🧠 Модель', crmCallback('model')),
   ])
-  return Markup.inlineKeyboard(rows)
+  return keyboard(rows)
 }
 
 /** The render's own rule, mirrored, for a brief that arrives without `next`. */

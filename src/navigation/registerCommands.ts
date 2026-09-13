@@ -35,7 +35,7 @@ import {
   CRM_SCOPE_RE,
   LEAD_ID_RE,
   crmCallback,
-  hubRow,
+  hubRows,
   rootMenu,
   leadsKeyboard,
   emptyLeadsKeyboard,
@@ -1449,7 +1449,7 @@ If not, continue on your own and click the "I myself" button`
               app: ctx.chat?.type === 'private',
               ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
               ctx.chat?.type === 'private'
-                ? { tail: [hubRow()] }
+                ? { tail: hubRows() }
                 : {}),
             }
           )
@@ -1555,7 +1555,7 @@ If not, continue on your own and click the "I myself" button`
             app: ctx.chat?.type === 'private',
             ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
             ctx.chat?.type === 'private'
-              ? { tail: [hubRow()] }
+              ? { tail: hubRows() }
               : {}),
           }
         )
@@ -2781,7 +2781,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     Boolean(ctx.from?.id && ADMIN_IDS_ARRAY.includes(ctx.from.id))
   const ownerId = (ctx: MyContext) => String(ctx.from?.id ?? '')
   const isPrivate = (ctx: MyContext) => ctx.chat?.type === 'private'
-  const hub = () => Markup.inlineKeyboard([hubRow()])
+  const hub = () => Markup.inlineKeyboard(hubRows())
   const modelKeyboard = (current: string | null) =>
     Markup.inlineKeyboard([
       [
@@ -2804,7 +2804,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
           'mdl:zai-lite'
         ),
       ],
-      hubRow(),
+      ...hubRows(),
     ])
 
   /*

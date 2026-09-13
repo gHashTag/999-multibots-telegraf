@@ -8,4 +8,6 @@
 export const SELLER_NOTE_PREFIXES = {
   message: 'отправлено из личного продавца: ',
   service: 'услуга в личке: ',
+  /** A free lead magnet sent from the DM: a touch, not a purchase. */
+  gift: 'подарок в личке: ',
 } as const

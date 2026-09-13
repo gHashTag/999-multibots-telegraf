@@ -14,7 +14,8 @@ import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
 import {
   crmCallback,
-  hubRow,
+  hubRows,
+  fit,
   nameLabel,
   prepLabel,
   takeLabel,
@@ -260,8 +261,8 @@ export function planKeyboard(
       btn('📍 Где обход', crmCallback('status')),
     ])
   if (o.stale) rows.push([btn('📥 Загрузить переписку', crmCallback('ingest'))])
-  rows.push(hubRow())
-  return Markup.inlineKeyboard(rows)
+  rows.push(...hubRows())
+  return Markup.inlineKeyboard(fit(rows))
 }
 
 /** The memory is stale when the ingest has not walked the dialogs for two days. */

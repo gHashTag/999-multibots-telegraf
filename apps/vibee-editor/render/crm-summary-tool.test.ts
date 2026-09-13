@@ -316,6 +316,7 @@ describe('the touches helpers', () => {
     expect(SELLER_NOTE_PREFIXES).toEqual({
       message: 'отправлено из личного продавца: ',
       service: 'услуга в личке: ',
+      gift: 'подарок в личке: ',
     })
   })
 })

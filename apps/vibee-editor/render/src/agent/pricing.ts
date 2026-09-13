@@ -76,6 +76,11 @@ export const PAID = [
     провайдер: 'Replicate flux-schnell (или FAL при оплате)',
   },
   {
+    функция: 'gpt_image_edit', // cyrillic-ok: existing field name
+    токенов: priceFor('gpt_image_edit'), // cyrillic-ok: existing field name
+    провайдер: 'Kie GPT Image 2.5 (img2img, 1K) — лид-магнит из фото клиента', // cyrillic-ok: existing field name
+  },
+  {
     функция: 'audio_generate',
     токенов: priceFor('audio_generate'),
     провайдер: 'Replicate minimax / ElevenLabs',
