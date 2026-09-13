@@ -14,6 +14,7 @@ export const KNOWN_PROVIDERS: ProviderId[] = [
   'zai',
   'zai-lite',
   'nemotron',
+  'reserve',
   'ollama',
 ]
 const KEY = 'agent_provider'

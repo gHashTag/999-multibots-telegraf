@@ -75,6 +75,8 @@ export interface Transcript {
   resent?: string[]
   sent: boolean
   error?: string
+  /** The first attempt's error when the turn was replayed after a provider limit. */
+  retried?: string
 }
 
 export interface DuetRun {
@@ -338,7 +340,45 @@ export interface DuetDeps {
   /** Writes the run to the table: at start, after every turn, at the end. Optional in tests. */
   persist?: (run: DuetRun) => Promise<void>
   now?: () => number
+  /** The pause before a replayed seller turn; a double in tests. */
+  sleep?: (ms: number) => Promise<void>
 }
+
+/**
+ * One pause and one retry on a provider LIMIT (crm-duet.t27
+ * SELLER_RETRY_ON_LIMIT, duet-mu00klri 2026-09-13): the seller had called
+ * five free tools and every provider answered with a limit -- z.ai 429 twice,
+ * NVIDIA "Worker local total request limit reached (16/16)". A limit is
+ * temporary, so the turn is played again once from the same history after
+ * SELLER_RETRY_PAUSE_MS. Anything else -- bad key, no balance, unknown model --
+ * is not retried; waiting would not change the answer. A turn whose failed
+ * attempt already paid for a generation is never replayed.
+ */
+export const SELLER_RETRY_ON_LIMIT = 1
+export const SELLER_RETRY_PAUSE_MS = 30_000
+// "limit" covers "rate limit" and "limit reached"; the last alternative is the
+// word provider.ts diagnose() uses for 429 in Russian.
+const LIMIT_RE = /429|limit|ResourceExhausted|too many requests|\u043b\u0438\u043c\u0438\u0442/i
+
+export function isLimitError(error: string | undefined): boolean {
+  return !!error && LIMIT_RE.test(error)
+}
+
+/** Once, only on a limit, only when the failed attempt made no paid call. */
+export function retryAllowed(
+  retriesDone: number,
+  error: string | undefined,
+  results: ToolResultEvent[]
+): boolean {
+  return (
+    retriesDone < SELLER_RETRY_ON_LIMIT &&
+    isLimitError(error) &&
+    !results.some(r => PAID_TOOLS.has(r.name))
+  )
+}
+
+const defaultSleep = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms))
 
 /** A failed write costs the record of one turn, never the run itself. */
 async function save(deps: DuetDeps, run: DuetRun): Promise<void> {
@@ -611,6 +651,15 @@ export async function runDuet(
       const fromSeller = i % 2 === 0
       if (fromSeller) {
         let { text, results, error } = await sellerTurn(deps, seller, ownerCtx)
+        let retried: string | undefined
+        if (!text && retryAllowed(0, error, results)) {
+          retried = error
+          await (deps.sleep ?? defaultSleep)(SELLER_RETRY_PAUSE_MS)
+          const again = await sellerTurn(deps, seller, ownerCtx)
+          text = again.text
+          results = [...results, ...again.results]
+          error = again.error
+        }
         // One correction round: the brief says what not to say, the checker
         // says what was said anyway. A second miss is sent and reported.
         const flagged = violatesLeelaVoice(text)
@@ -693,6 +742,7 @@ export async function runDuet(
           media,
           sent: false,
           error,
+          retried,
         }
         // A promised file must exist in this very turn. When it does not, the
         // duet keeps the promise with the last file it forwarded (no new paid
