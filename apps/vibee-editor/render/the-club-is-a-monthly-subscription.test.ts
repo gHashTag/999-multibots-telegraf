@@ -339,16 +339,37 @@ describe('the HTTP surface', () => {
     }
   }
 
-  it('a stranger gets 401 on every route', async () => {
+  it('a stranger gets 401 on invoice and verify', async () => {
     const pool = fakePool()
     for (const [url, method] of [
-      ['/api/club/status', 'GET'],
       ['/api/club/invoice', 'POST'],
       ['/api/club/verify', 'POST'],
     ]) {
       const out = await handleClub({ url, method }, deps(pool, null).deps)
       expect(out.status).toBe(401)
     }
+  })
+
+  // app.t27.ai/t27_dev, 2026-09-13: a lapsed web session turned the paywall
+  // into an error line and a "Join for 0 Stars" button. The price is a
+  // constant, so status without identity answers it and says "not a member".
+  it('a stranger still reads the price from status, never a membership', async () => {
+    const pool = fakePool()
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps(pool, null).deps
+    )
+    expect(out.status).toBe(200)
+    expect(out.body).toMatchObject({
+      ok: true,
+      anonymous: true,
+      active: false,
+      granted: null,
+      stars: CLUB_STARS,
+      period_days: CLUB_PERIOD_S / 86400,
+    })
+    expect(Number(out.body.tokens_per_period)).toBeGreaterThan(0)
+    expect(Number(out.body.stars)).toBeGreaterThan(0)
   })
 
   it('status before paying names the price and the share', async () => {
