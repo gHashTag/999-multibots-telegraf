@@ -2494,6 +2494,8 @@ export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 /** Формат OpenAI tool-calling. Схема ОДНА и та же, что уходит наружу по MCP. */
 /** The seller's kit for a model with a small context: CRM, Telegram, SOUL, one generator. */
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_)/
+/** Owner-only diagnostics wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
+export const COMPACT_TOOLS_EXCLUDED = /^crm_schema_check$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -2506,7 +2508,9 @@ export function toolsForProvider<T extends { name: string }>(
 ): T[] {
   if (!p?.compact) return all
   return all.filter(
-    t => COMPACT_TOOLS.test(t.name) || t.name === 'image_generate'
+    t =>
+      (COMPACT_TOOLS.test(t.name) && !COMPACT_TOOLS_EXCLUDED.test(t.name)) ||
+      t.name === 'image_generate'
   )
 }
 

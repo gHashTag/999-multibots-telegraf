@@ -12,6 +12,7 @@ import {
   REEL_GOAL_TITLE,
   SKILL_PREFIX,
   CRM_CLIENT_TOOLS,
+  schemaCheck,
 } from './src/agent/crm-client-setup-tool'
 import type { ToolContext } from './src/agent/tools'
 
@@ -312,5 +313,80 @@ describe('the playom client package', () => {
       { telegramId: OWNER, pool: {} } as unknown as ToolContext
     )
     expect((bad as any).done).toBe(false)
+  })
+
+  it('the schema witness reads the base without migrating it', async () => {
+    const seen: string[] = []
+    const witness = (seed: { pkey: boolean; index: boolean; col: boolean; rows: Array<string | null> }) => ({
+      async query(sql: string) {
+        const q = sql.replace(/\s+/g, ' ').trim()
+        seen.push(q.split(' ')[0])
+        if (/information_schema\.tables/.test(q)) return { rows: [{ ok: 1 }] }
+        if (/information_schema\.columns/.test(q)) return { rows: seed.col ? [{ ok: 1 }] : [] }
+        if (/pg_constraint/.test(q)) return { rows: seed.pkey ? [{ ok: 1 }] : [] }
+        if (/pg_indexes/.test(q))
+          return {
+            rows: seed.index
+              ? [{ indexdef: 'CREATE UNIQUE INDEX crm_client_profiles_owner_client ON public.crm_client_profiles USING btree (owner_id, telegram_id)' }]
+              : [],
+          }
+        if (/GROUP BY owner_id/.test(q)) {
+          const m = new Map<string, number>()
+          for (const o of seed.rows) if (o) m.set(o, (m.get(o) ?? 0) + 1)
+          return { rows: [...m].map(([owner_id, rows]) => ({ owner_id, rows })) }
+        }
+        if (/count\(\*\)/.test(q))
+          return { rows: [{ total: seed.rows.length, owned: seed.rows.filter(Boolean).length }] }
+        throw new Error('unexpected query: ' + q)
+      },
+    })
+    const migrated = await schemaCheck({
+      telegramId: OWNER,
+      pool: witness({ pkey: false, index: true, col: true, rows: [OWNER, OWNER, null, '7'] }),
+    } as unknown as ToolContext)
+    expect(migrated).toMatchObject({
+      table_exists: true,
+      owner_column: true,
+      legacy_pkey: false,
+      unique_index: true,
+      rows_total: 4,
+      rows_owned: 3,
+      rows_unowned: 1,
+      migrated: true,
+    })
+    expect(migrated.owners).toEqual([
+      { owner_id: OWNER, rows: 2 },
+      { owner_id: '7', rows: 1 },
+    ])
+    // A witness that migrates is not a witness: only SELECTs went to the base.
+    expect(new Set(seen)).toEqual(new Set(['SELECT']))
+
+    const legacy = await schemaCheck({
+      telegramId: OWNER,
+      pool: witness({ pkey: true, index: false, col: false, rows: [null, null] }),
+    } as unknown as ToolContext)
+    expect(legacy).toMatchObject({
+      owner_column: false,
+      legacy_pkey: true,
+      unique_index: false,
+      rows_total: 2,
+      rows_unowned: 2,
+      owners: [],
+      migrated: false,
+    })
+  })
+
+  it('crm_schema_check is owner-only and takes no arguments', async () => {
+    const tool = CRM_CLIENT_TOOLS.find(t => t.name === 'crm_schema_check')!
+    expect(tool).toBeTruthy()
+    expect(Object.keys((tool.parameters as any).properties)).toEqual([])
+    await expect(
+      tool.handler({}, { telegramId: '1', pool: {} } as unknown as ToolContext)
+    ).rejects.toThrow()
+    const absent = await tool.handler({}, {
+      telegramId: OWNER,
+      pool: { async query() { return { rows: [] } } },
+    } as unknown as ToolContext)
+    expect(absent).toMatchObject({ table_exists: false, migrated: false, rows_total: 0 })
   })
 })

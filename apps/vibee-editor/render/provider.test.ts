@@ -139,6 +139,7 @@ describe('what a small model is shown', () => {
       'reel_render',
       'audio_generate',
       'my_assets',
+      'crm_schema_check',
     ].map(name => ({ name }))
     expect(toolsForProvider({ compact: true }, all).map(t => t.name)).toEqual([
       'crm_offer',
