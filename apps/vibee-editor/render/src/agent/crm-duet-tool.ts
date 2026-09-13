@@ -298,16 +298,32 @@ export function reportOf(run: DuetRun): string {
     .join('\n')
 }
 
-/** Live wiring: the real agent, the real model, the real sessions. */
-async function liveDeps(): Promise<DuetDeps> {
-  const { runAgent } = await import('./chat')
-  const { resolveProvider } = await import('./provider')
-  const buyerModel = async (messages: ChatMessage[]): Promise<string> => {
-    const p = resolveProvider()
+/**
+ * The buyer's voice, tried across EVERY configured provider in order.
+ *
+ * The first live run (duet-mtzmbvu1, 2026-09-13) died after one seller line
+ * with "buyer model HTTP 404": the buyer asked only `resolveProvider()`, i.e.
+ * the first provider, while the seller agent walks the whole `allProviders()`
+ * chain and so never noticed that the first endpoint answers 404. Same
+ * process, same keys, two different outcomes -- the buyer must walk the same
+ * chain. A provider that fails is recorded with `diagnose()` and the next one
+ * is tried; only when all fail does the duet fail, and the error then names
+ * every provider instead of a bare status code.
+ */
+export async function askBuyerModel(
+  messages: ChatMessage[],
+  providers: Array<{ id: string; base: string; model: string; key: string }>,
+  doFetch: typeof fetch = fetch,
+  explain: (id: string, status: number, body: string) => string = (id, s) =>
+    `${id}: HTTP ${s}`
+): Promise<string> {
+  if (!providers.length) throw new Error('buyer model: no provider configured')
+  const reasons: string[] = []
+  for (const p of providers) {
     const ac = new AbortController()
     const timer = setTimeout(() => ac.abort(), 90_000)
     try {
-      const r = await fetch(`${p.base}/chat/completions`, {
+      const r = await doFetch(`${p.base}/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${p.key}`,
@@ -325,15 +341,37 @@ async function liveDeps(): Promise<DuetDeps> {
         }),
         signal: ac.signal,
       })
-      if (!r.ok) throw new Error(`buyer model HTTP ${r.status}`)
+      if (!r.ok) {
+        const body = await r.text().catch(() => '')
+        reasons.push(explain(p.id, r.status, body))
+        continue
+      }
       const j = (await r.json()) as {
         choices?: Array<{ message?: { content?: string } }>
       }
-      return String(j.choices?.[0]?.message?.content ?? '')
+      const text = String(j.choices?.[0]?.message?.content ?? '').trim()
+      if (!text) {
+        reasons.push(`${p.id}: empty answer`)
+        continue
+      }
+      return text
+    } catch (e) {
+      reasons.push(`${p.id}: ${String((e as Error)?.message ?? e)}`)
     } finally {
       clearTimeout(timer)
     }
   }
+  throw new Error(`buyer model: ${reasons.join('; ')}`)
+}
+
+/** Live wiring: the real agent, the real model, the real sessions. */
+async function liveDeps(): Promise<DuetDeps> {
+  const { runAgent } = await import('./chat')
+  const { allProviders, diagnose } = await import('./provider')
+  const buyerModel = (messages: ChatMessage[]): Promise<string> =>
+    askBuyerModel(messages, allProviders(), fetch, (id, s, b) =>
+      diagnose(id as any, s, b)
+    )
   return {
     agent: (history, ctx) => runAgent(history, ctx, { surface: 'business' }),
     buyerModel,
