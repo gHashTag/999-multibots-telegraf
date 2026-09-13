@@ -90,16 +90,62 @@ export const REEL_SERIES: { title: string; plan: number | null; note: string }[]
   { title: 'Групповой стол: один вопрос, разные планы', plan: null, note: 'Формат для канала: каждый приходит со своим вопросом.' },
 ]
 
+/**
+ * WHO OWNS A PROFILE (spec crm-client-ownership.t27, #3608).
+ *
+ * The first cut keyed the table by telegram_id alone: one profile per person
+ * on the whole installation, so a second seller would have read and
+ * overwritten the first seller's notes about the same client. The owner
+ * column is nullable on purpose -- live rows exist with no owner, and a NOT
+ * NULL key would either refuse the migration or invent one. Legacy rows are
+ * backfilled from crm_people (the ingest already knows which owner met whom);
+ * whatever is still unowned stays readable by any seller and is claimed by
+ * the next crm_client_setup, which always writes owner_id.
+ *
+ * Idempotent: every statement is a no-op the second time.
+ */
 export async function ensureProfileTable(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
     `CREATE TABLE IF NOT EXISTS crm_client_profiles (
-       telegram_id text PRIMARY KEY,
+       telegram_id text NOT NULL,
+       owner_id    text,
        client      text NOT NULL,
        profile     jsonb NOT NULL,
        updated_at  timestamptz NOT NULL DEFAULT now()
      )`
   )
+  await ctx.pool.query(
+    `ALTER TABLE crm_client_profiles ADD COLUMN IF NOT EXISTS owner_id text`
+  )
+  // The legacy PRIMARY KEY (telegram_id) forbids two sellers holding two
+  // profiles of one person; drop it only where it still exists.
+  const pk = await ctx.pool.query(
+    `SELECT 1 FROM pg_constraint WHERE conname = 'crm_client_profiles_pkey'`
+  )
+  if (pk.rows?.length) {
+    await ctx.pool.query(
+      `ALTER TABLE crm_client_profiles DROP CONSTRAINT crm_client_profiles_pkey`
+    )
+  }
+  await ctx.pool.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS crm_client_profiles_owner_client
+       ON crm_client_profiles (owner_id, telegram_id)`
+  )
+  try {
+    await ctx.pool.query(
+      `UPDATE crm_client_profiles p
+          SET owner_id = (SELECT owner_id FROM crm_people c
+                           WHERE c.lead_id = p.telegram_id
+                           ORDER BY c.seen_at DESC LIMIT 1)
+        WHERE p.owner_id IS NULL`
+    )
+  } catch {
+    // No crm_people table on this base: rows stay unowned until claimed.
+  }
 }
+
+/** SQL fragment: the caller's own rows and the rows nobody has claimed. */
+export const PROFILE_OWNER_WHERE = `(owner_id = $2 OR owner_id IS NULL)`
 
 async function ensureSoulTable(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
@@ -238,12 +284,20 @@ export async function setupClient(
   }
 
   if (!o.dryRun) {
+    const owner = String(ctx.telegramId)
+    // Claim a legacy unowned row for this client before writing our own, so
+    // the setup does not leave one unowned and one owned copy side by side.
     await ctx.pool.query(
-      `INSERT INTO crm_client_profiles (telegram_id, client, profile, updated_at)
-       VALUES ($1, $2, $3::jsonb, now())
-       ON CONFLICT (telegram_id) DO UPDATE
-         SET client = $2, profile = $3::jsonb, updated_at = now()`,
-      [id, pkg.client, JSON.stringify(pkg.profile)]
+      `UPDATE crm_client_profiles SET owner_id = $2
+        WHERE telegram_id = $1 AND owner_id IS NULL`,
+      [id, owner]
+    )
+    await ctx.pool.query(
+      `INSERT INTO crm_client_profiles (telegram_id, owner_id, client, profile, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, now())
+       ON CONFLICT (owner_id, telegram_id) DO UPDATE
+         SET client = $3, profile = $4::jsonb, updated_at = now()`,
+      [id, owner, pkg.client, JSON.stringify(pkg.profile)]
     )
   }
 
@@ -298,9 +352,13 @@ export async function clientProfileFor(
   await ensureProfileTable(ctx)
   await ensureSoulTable(ctx)
   await ensureSkillsTable(ctx)
+  // Scoped by owner: another seller's profile of the same person is not ours
+  // to read. An unowned legacy row is, until somebody claims it.
   const p = await ctx.pool.query(
-    `SELECT client, profile, updated_at::text FROM crm_client_profiles WHERE telegram_id = $1`,
-    [telegramId]
+    `SELECT client, profile, updated_at::text, owner_id FROM crm_client_profiles
+      WHERE telegram_id = $1 AND ${PROFILE_OWNER_WHERE}
+      ORDER BY owner_id NULLS LAST LIMIT 1`,
+    [telegramId, String(ctx.telegramId)]
   )
   const soul = await ctx.pool.query(
     `SELECT content, updated_at::text FROM user_soul WHERE telegram_id = $1`,
@@ -323,6 +381,8 @@ export async function clientProfileFor(
   return {
     has_profile: true,
     client: p.rows[0].client,
+    owner_id: p.rows[0].owner_id ?? null,
+    owned_by_caller: p.rows[0].owner_id === String(ctx.telegramId),
     updated_at: p.rows[0].updated_at,
     profile: p.rows[0].profile,
     has_soul: soul.rows.length > 0,

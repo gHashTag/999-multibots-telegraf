@@ -19,6 +19,7 @@ import type { AgentTool, ToolContext } from './tools'
 import { requireSeller } from './telegram-tools'
 import { ensurePlanTables, ensureProfileTable } from './crm-client-setup-tool'
 import { stageOf, type Stage } from './crm-stages'
+import { visibleScope, whoPaid } from './crm-tools'
 import { touchesByLead, type TouchKind } from './crm-touches'
 
 const ID_RE = /^\d{5,15}$/
@@ -86,8 +87,24 @@ export interface ClientRow {
   has_soul: boolean
   skills: number
   stage: Stage
+  /** A COMPLETED MONEY_INCOME row in payments_v2 for one of the owner's bots. */
+  paid: boolean
   last_seen: string | null
   duets: number
+}
+
+/**
+ * Who paid, scoped to the owner's own bots (spec crm-client-ownership.t27).
+ * A dead Supabase costs the money column, not the answer: `known: false`
+ * and the stage falls back to touches alone.
+ */
+export async function paidSetFor(ctx: ToolContext): Promise<{ paid: Set<string>; known: boolean }> {
+  try {
+    const scope = await visibleScope(ctx)
+    return { paid: await whoPaid(scope), known: true }
+  } catch {
+    return { paid: new Set<string>(), known: false }
+  }
 }
 
 const later = (a: string | null, b: string | null): string | null => {
@@ -104,6 +121,7 @@ export function mergeClients(input: {
   skills: Map<string, number>
   duets: Map<string, number>
   touches: Map<string, Array<{ kind: TouchKind; at: string }>>
+  paid?: Set<string>
   now?: number
 }): ClientRow[] {
   const now = input.now ?? Date.now()
@@ -117,6 +135,7 @@ export function mergeClients(input: {
     has_soul: input.souls.has(id),
     skills: input.skills.get(id) ?? 0,
     stage: 'new',
+    paid: input.paid?.has(id) ?? false,
     last_seen: null,
     duets: input.duets.get(id) ?? 0,
   })
@@ -141,9 +160,9 @@ export function mergeClients(input: {
     const quietDays = r.last_seen
       ? Math.max(0, Math.floor((now - Date.parse(r.last_seen)) / 86_400_000))
       : null
-    // Payments live in Supabase and are not read here: the stage is from
-    // touches alone, so a paying client shows the stage of their last touch.
-    r.stage = stageOf({ paid: false, touches, quietDays }).stage
+    // Money first, as crm-stages.ts says: somebody who paid is a client even
+    // if the last touch says 'refused'.
+    r.stage = stageOf({ paid: r.paid, touches, quietDays }).stage
   }
   return [...rows.values()].sort(
     (a, b) => (b.last_seen ? Date.parse(b.last_seen) : 0) - (a.last_seen ? Date.parse(a.last_seen) : 0)
@@ -198,7 +217,7 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
   {
     name: 'crm_clients',
     description:
-      'Клиенты продавца (профили + люди из переписки), новые сверху: имя, стадия, SOUL, скиллы, дуэты.',
+      'Клиенты продавца (профили + люди из переписки), новые сверху: имя, стадия (оплата выше касаний), SOUL, скиллы, дуэты.',
     parameters: {
       type: 'object',
       properties: {
@@ -221,12 +240,14 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
            FROM crm_people WHERE owner_id = $1 ORDER BY seen_at DESC LIMIT $2`,
         [owner, limit]
       )
-      // Profiles carry no owner_id (one profile per client on the platform).
+      // Our own profiles and the legacy rows nobody has claimed yet.
       const profiles = await tryQuery<ProfileRow>(
         ctx!,
         `SELECT telegram_id, client, updated_at::text AS updated_at
-           FROM crm_client_profiles ORDER BY updated_at DESC LIMIT $1`,
-        [limit]
+           FROM crm_client_profiles
+          WHERE owner_id = $2 OR owner_id IS NULL
+          ORDER BY updated_at DESC LIMIT $1`,
+        [limit, owner]
       )
       const ids = [...new Set([...people.map(p => String(p.lead_id)), ...profiles.map(p => String(p.telegram_id))])]
       const souls = new Set(
@@ -249,8 +270,9 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
       ))
         duets.set(String(r.buyer_id), Number(r.n))
       const touches = await touchesByLead(ctx!.pool as never, owner)
-      const clients = mergeClients({ profiles, people, souls, skills, duets, touches }).slice(0, limit)
-      return { clients }
+      const money = await paidSetFor(ctx!)
+      const clients = mergeClients({ profiles, people, souls, skills, duets, touches, paid: money.paid }).slice(0, limit)
+      return { clients, paid_known: money.known }
     },
   },
 ]

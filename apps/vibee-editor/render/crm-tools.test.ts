@@ -465,6 +465,59 @@ describe('история касаний не показывает чужое', (
     expect(r.total).toBe(0)
     expect(JSON.stringify(r)).not.toContain('секрет соседа')
   })
+
+  // Spec: t27 specs/automation/crm-client-ownership.t27 (#3608)
+  it('a completed payment to one of our bots makes the stage client, whatever the last touch says', async () => {
+    vi.stubGlobal('fetch', async (url: string) => {
+      const a = String(url)
+      if (a.includes('/avatars?')) return { ok: true, json: async () => [{ bot_name: 'bot1' }] } as any
+      if (a.includes('/users?'))
+        return { ok: true, json: async () => [{ telegram_id: '111', bot_name: 'bot1' }] } as any
+      if (a.includes('/payments_v2?')) {
+        expect(a).toContain('status=eq.COMPLETED')
+        expect(a).toContain('type=eq.MONEY_INCOME')
+        expect(a).toContain('bot_name=in.(')
+        return { ok: true, json: async () => [{ telegram_id: 111 }] } as any
+      }
+      return { ok: true, json: async () => [] } as any
+    })
+    const pool = fakePool()
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused', note: 'said no' },
+      { telegramId: '77', pool } as any
+    )
+    const r: any = await tool('crm_history').handler(
+      { telegram_id: '111' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.total).toBe(1)
+    expect(r.paid).toBe(true)
+    expect(r.paid_known).toBe(true)
+    expect(r.stage).toBe('client')
+  })
+
+  it('when payments cannot be read the stage falls back to touches and says the money is unknown', async () => {
+    vi.stubGlobal('fetch', async (url: string) => {
+      const a = String(url)
+      if (a.includes('/avatars?')) return { ok: true, json: async () => [{ bot_name: 'bot1' }] } as any
+      if (a.includes('/users?'))
+        return { ok: true, json: async () => [{ telegram_id: '111', bot_name: 'bot1' }] } as any
+      if (a.includes('/payments_v2?')) return { ok: false, status: 503, text: async () => 'down' } as any
+      return { ok: true, json: async () => [] } as any
+    })
+    const pool = fakePool()
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'written' },
+      { telegramId: '77', pool } as any
+    )
+    const r: any = await tool('crm_history').handler(
+      { telegram_id: '111' },
+      { telegramId: '77', pool } as any
+    )
+    expect(r.paid).toBe(false)
+    expect(r.paid_known).toBe(false)
+    expect(r.stage).toBe('written')
+  })
 })
 
 describe('тронутых не предлагают снова', () => { // cyrillic-ok
