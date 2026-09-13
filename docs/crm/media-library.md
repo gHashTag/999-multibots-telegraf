@@ -73,3 +73,12 @@ READ-only, `requireSeller`, параметры `{lead, limit?, kind?}`; подп
 3. `select count(*) from user_media where url like '%api.telegram.org%'` → **0** всегда.
 4. `crm_ingest_chats` у продавца с медиа в переписке: `media_saved > 0`, в `crm_messages` больше нет дыр на местах фото без подписи.
 5. `[вопрос]` Реальный `audio_url` у nemotron для `.ogg` с полки — путь `chat.ts` уже работает, но описание идёт отдельным не-стриминговым запросом; проверить по логу `[media-library] could not describe`.
+
+## Обработать файлы одного клиента
+
+`crm_ingest_chats` принимает `lead` (telegram_id или @username): читается только этот диалог,
+глубина до 500 сообщений, файлы — все в рамках бюджета прогона (60), а не 12 на диалог.
+Вызов от имени владельца: `POST <render>/mcp?telegram_id=<owner>` → `tools/call`
+`crm_ingest_chats {"lead":"<id>","depth":500}`; результат — `crm_lead_media {"lead":"<id>"}`.
+Расшифровки появляются в фоне (голос → текст, фото → описание), видео и бинарные файлы
+сохраняются без текста [известно].
