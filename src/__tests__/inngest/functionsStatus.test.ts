@@ -22,6 +22,8 @@ import {
   fetchFunctionsStatusSafe,
   clearFunctionsStatusCache,
   renderRunsSummaryText,
+  probeAsExpected,
+  probeExpectOf,
   STATUS_CACHE_TTL_MS,
 } from '@/inngest_app/status/functionsStatus'
 import { getRegisteredManifestFunctions } from '@/inngest_app/manifest'
@@ -259,9 +261,55 @@ describe('summarizeRuns / buildFunctionsStatus', () => {
       invoked: 2,
       total: 4,
     })
-    // the newest run is still the probe, but the last *error* is production traffic
-    expect(s.lastRun?.id).toBe('probe')
+    // the newest run of any kind is the probe, but lastRun is organic traffic
+    // only (specs/automation/inngest-functions-status.t27 VERSION 2): after
+    // /inngest_probe the FUNCTIONS tab showed 20 red "last run FAILED" dots
+    // for functions that had done nothing wrong (production read 2026-09-12)
+    expect(s.lastRun?.id).toBe('real-fail')
+    expect(s.lastInvoked?.id).toBe('probe')
     expect(s.lastError?.runId).toBe('real-fail')
+  })
+
+  it('a function with only probe runs has lastRun null and lastProbe judged against probe_expect', () => {
+    const payload = buildFunctionsStatus({
+      app: app(),
+      runs: [
+        run({
+          hoursAgo: 1,
+          status: 'FAILED',
+          id: 'probe-guard',
+          eventName: 'inngest/function.invoked.01M24N7B',
+        }),
+      ],
+      appId: 'telegram-bot-client',
+      gqlUrl: 'http://gql',
+      now: NOW,
+    })
+    const render = payload.functions.find(f => f.id === 'render-job-run')!
+    expect(render.lastRun).toBeNull()
+    expect(render.runs24h.failed).toBe(0)
+    expect(render.runs24h.invoked).toBe(1)
+    expect(render.probeExpect).toBe('FAILED-at-guard')
+    expect(render.lastProbe).toEqual({
+      id: 'probe-guard',
+      status: 'FAILED',
+      queuedAt: expect.any(String),
+      endedAt: expect.any(String),
+      expect: 'FAILED-at-guard',
+      asExpected: true,
+    })
+  })
+
+  it('probeAsExpected is a status-level check and null for skip / non-terminal', () => {
+    expect(probeAsExpected('FAILED-at-guard', 'FAILED')).toBe(true)
+    expect(probeAsExpected('FAILED-at-guard', 'COMPLETED')).toBe(false)
+    expect(probeAsExpected('COMPLETED', 'COMPLETED')).toBe(true)
+    expect(probeAsExpected('COMPLETED', 'FAILED')).toBe(false)
+    expect(probeAsExpected('skip', 'FAILED')).toBeNull()
+    expect(probeAsExpected('FAILED-at-guard', 'RUNNING')).toBeNull()
+    expect(probeExpectOf({ probe_expect: 'COMPLETED' })).toBe('COMPLETED')
+    expect(probeExpectOf({ probe_expect: 'nonsense' })).toBe('skip')
+    expect(probeExpectOf({})).toBe('skip')
   })
 
   it('splits 24h vs 7d counters and keeps newest run + last error', () => {
@@ -325,6 +373,8 @@ describe('summarizeRuns / buildFunctionsStatus', () => {
       expect(f).toHaveProperty('runs24h')
       expect(f).toHaveProperty('runs7d')
       expect(f).toHaveProperty('lastRun')
+      expect(f).toHaveProperty('lastProbe')
+      expect(f).toHaveProperty('probeExpect')
       expect(f).toHaveProperty('lastError')
     }
     // not-yet-deployed manifest functions are reported, not hidden

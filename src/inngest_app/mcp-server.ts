@@ -168,7 +168,7 @@ class InngestMCPServer {
         {
           name: 'inngest_functions',
           description:
-            'READ-ONLY. List functions from the manifest joined with live status: id, slug, triggers (canonical + legacy), control, deployed, runs24h, runs7d, lastRun, lastError.',
+            'READ-ONLY. List functions from the manifest joined with live status: id, slug, triggers (canonical + legacy), control, deployed, runs24h, runs7d, lastRun (organic only), lastProbe (last invoked run + manifest expectation), lastError.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -443,6 +443,8 @@ class InngestMCPServer {
         slug: f.slug,
         failed24h: f.runs24h.failed,
         lastRun: f.lastRun,
+        lastProbe: f.lastProbe,
+        probeExpect: f.probeExpect,
         lastError: f.lastError,
       }))
     return this.text({
