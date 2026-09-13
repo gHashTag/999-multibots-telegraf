@@ -64,7 +64,8 @@
     "webhook:verify": "bun run src/utils/webhook-verify-cli.ts",
     "test:player": "cd apps/vibee-editor/player && npx --no-install vitest run",
     "test:bun:live": "RUN_LIVE_AI_TESTS=1 bun test src/__tests__/services/ai-models.test.ts",
-    "verify": "node scripts/verify.cjs"
+    "verify": "node scripts/verify.cjs",
+    "inngest:mcp-proxy": "npx tsx src/inngest_app/mcp-rest-proxy.ts"
   },
   "overrides": {
     "@grpc/grpc-js@1": "^1.14.4",

@@ -3,6 +3,15 @@
     "inngest-dev": {
       "type": "http",
       "url": "https://inngestinngest-production-c468.up.railway.app/mcp"
+    },
+    "inngest-prod": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "src/inngest_app/mcp-rest-proxy.ts"],
+      "env": {
+        "INNGEST_SIGNING_KEY": "${INNGEST_SIGNING_KEY}",
+        "INNGEST_BASE_URL": "https://inngestinngest-production-c468.up.railway.app"
+      }
     }
   }
 }
