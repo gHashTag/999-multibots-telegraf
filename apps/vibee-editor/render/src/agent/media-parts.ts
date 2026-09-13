@@ -91,10 +91,16 @@ const MARKER =
  * Extensions the shelf serves as this kind AND that the provider was shown to
  * understand. Both halves matter: the shelf's audio branch also covers `.aac`
  * and `.webm`, which are absent here only because they were never tested.
+ *
+ * Video is not a live-turn part (no chat provider takes it); the list exists
+ * for media-library.ts, which samples frames from a shelf clip with ffmpeg
+ * and shows them to the vision endpoint (media-vision.ts).
  */
-const EXTENSIONS: Record<MediaKind, string[]> = {
+export type ShelfKind = MediaKind | 'video'
+const EXTENSIONS: Record<ShelfKind, string[]> = {
   image: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'],
   audio: ['.ogg', '.mp3', '.wav', '.m4a'],
+  video: ['.mp4', '.mov', '.m4v', '.webm', '.mkv'],
 }
 
 /**
@@ -125,7 +131,7 @@ function shelfBase(): string {
  * message a PERSON wrote, so its URL is untrusted input. Without this, someone
  * could paste a marker pointing anywhere and have our provider fetch it.
  */
-export function usableMediaUrl(raw: string, kind: MediaKind): string | null {
+export function usableMediaUrl(raw: string, kind: ShelfKind): string | null {
   const text = String(raw || '').trim()
   if (!text) return null
 

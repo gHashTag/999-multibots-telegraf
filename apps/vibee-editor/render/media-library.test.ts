@@ -214,8 +214,9 @@ describe('forgetTranscripts', () => {
 
 describe('the token guard', () => {
   it('rememberMedia refuses a Telegram file link before touching the database', async () => {
-    const { rememberMedia, forgetMediaTableForTests } =
-      await import('./src/agent/media-library')
+    const { rememberMedia, forgetMediaTableForTests } = await import(
+      './src/agent/media-library'
+    )
     forgetMediaTableForTests()
     const pool = fakePool()
     await expect(
@@ -272,8 +273,9 @@ describe('the token guard', () => {
 
 describe('idempotence', () => {
   it('the same file twice is one row; fresh only the first time; the caption fills in', async () => {
-    const { rememberMedia, listMedia, forgetMediaTableForTests } =
-      await import('./src/agent/media-library')
+    const { rememberMedia, listMedia, forgetMediaTableForTests } = await import(
+      './src/agent/media-library'
+    )
     forgetMediaTableForTests()
     const pool = fakePool()
     const base = {
@@ -306,8 +308,9 @@ describe('idempotence', () => {
 
   it('the route stores the rows for the verified owner and reports fresh + ids', async () => {
     const { handleCrmMedia } = await import('./src/agent/media-library-route')
-    const { forgetMediaTableForTests } =
-      await import('./src/agent/media-library')
+    const { forgetMediaTableForTests } = await import(
+      './src/agent/media-library'
+    )
     forgetMediaTableForTests()
     const pool = fakePool()
     // The background describe must not reach a provider in a test.
@@ -446,8 +449,9 @@ describe('describeMedia', () => {
         return new Response('  слова из длинной записи  ', { status: 200 })
       })
     )
-    const { describeMedia, resetWhisperForTests } =
-      await import('./src/agent/media-library')
+    const { describeMedia, resetWhisperForTests } = await import(
+      './src/agent/media-library'
+    )
     resetWhisperForTests()
     expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')).toBe(
       'слова из длинной записи'
@@ -468,8 +472,9 @@ describe('describeMedia', () => {
     delete process.env.WHISPER_MODEL
     delete process.env.OPENAI_BASE_URL
     process.env.WHISPER_API_KEY = 'gsk_test' // secret-guard-ok: invented for this test
-    const { whisperConfig, resetWhisperForTests } =
-      await import('./src/agent/media-library')
+    const { whisperConfig, resetWhisperForTests } = await import(
+      './src/agent/media-library'
+    )
     resetWhisperForTests()
     expect(whisperConfig()).toEqual({
       base: 'https://api.groq.com/openai/v1',
@@ -504,8 +509,9 @@ describe('describeMedia', () => {
         )
       })
     )
-    const { describeMedia, resetWhisperForTests, whisperConfig } =
-      await import('./src/agent/media-library')
+    const { describeMedia, resetWhisperForTests, whisperConfig } = await import(
+      './src/agent/media-library'
+    )
     resetWhisperForTests()
     expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'a.ogg')).toBe(
       'из чата'
@@ -551,8 +557,9 @@ describe('describeMedia', () => {
       'fetch',
       vi.fn(async () => new Response('404 page not found', { status: 404 }))
     )
-    const { describeMedia, DescribeFailed, transcribeAndMirror } =
-      await import('./src/agent/media-library')
+    const { describeMedia, DescribeFailed, transcribeAndMirror } = await import(
+      './src/agent/media-library'
+    )
     await expect(
       describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')
     ).rejects.toBeInstanceOf(DescribeFailed)
@@ -585,11 +592,187 @@ describe('describeMedia', () => {
   })
 })
 
+describe('describeMedia with a vision endpoint', () => {
+  const shelfPhoto = SHELF.replace('voice.ogg', 'photo.jpg')
+  const shelfClip = SHELF.replace('voice.ogg', 'clip.mp4')
+
+  afterEach(() => {
+    delete process.env.VISION_API_KEY
+    delete process.env.VISION_BASE_URL
+    delete process.env.VISION_MODEL
+  })
+
+  it('visionConfig: no key -> null; defaults to the Railway private host; explicit base and model win', async () => {
+    delete process.env.VISION_API_KEY
+    const { visionConfig, resetVisionForTests } = await import(
+      './src/agent/media-vision'
+    )
+    resetVisionForTests()
+    expect(visionConfig()).toBeNull()
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    expect(visionConfig()).toEqual({
+      base: 'http://vision.railway.internal:8000/v1',
+      key: 'v',
+      model: 'qwen3-vl-2b-instruct',
+    })
+    process.env.VISION_BASE_URL = 'https://vlm.example.com/v1/'
+    process.env.VISION_MODEL = 'other-vlm'
+    expect(visionConfig()).toEqual({
+      base: 'https://vlm.example.com/v1',
+      key: 'v',
+      model: 'other-vlm',
+    })
+  })
+
+  it('a photo is fetched from OUR shelf, inlined as a data URL and posted to the vision endpoint', async () => {
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    const posts: Array<{ url: string; body: any }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url) === shelfPhoto)
+          return new Response(Buffer.from('JPEG bytes'), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' },
+          })
+        posts.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '  На фото кот.  ' } }],
+          }),
+          { status: 200 }
+        )
+      })
+    )
+    const { resetVisionForTests } = await import('./src/agent/media-vision')
+    resetVisionForTests()
+    const { describeMedia } = await import('./src/agent/media-library')
+    expect(
+      await describeMedia(shelfPhoto, 'image', 'image/jpeg', 'photo.jpg')
+    ).toBe('На фото кот.')
+    expect(posts).toHaveLength(1)
+    expect(posts[0].url).toBe(
+      'http://vision.railway.internal:8000/v1/chat/completions'
+    )
+    const parts = posts[0].body.messages[0].content
+    expect(parts[0].type).toBe('text')
+    expect(parts[1].type).toBe('image_url')
+    expect(parts[1].image_url.url).toBe(
+      `data:image/jpeg;base64,${Buffer.from('JPEG bytes').toString('base64')}`
+    )
+  })
+
+  it('a video is sampled into frames with ffmpeg and described from those frames in ONE request', async () => {
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    const { promises: fs } = await import('node:fs')
+    const calls: Array<{ bin: string; args: string[] }> = []
+    const { setFrameExecForTests, resetVisionForTests, VIDEO_FRAMES } =
+      await import('./src/agent/media-vision')
+    resetVisionForTests()
+    const prev = setFrameExecForTests(async (bin, args) => {
+      calls.push({ bin, args })
+      if (bin === 'ffprobe') return { stdout: '60.0\n' }
+      // ffmpeg: the output path is the last argument.
+      await fs.writeFile(args[args.length - 1], Buffer.from('frame'))
+      return { stdout: '' }
+    })
+    const posts: Array<{ body: any }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url) === shelfClip)
+          return new Response(Buffer.from('MP4 bytes'), {
+            status: 200,
+            headers: { 'content-type': 'video/mp4' },
+          })
+        posts.push({ body: JSON.parse(String(init?.body)) })
+        return new Response(
+          JSON.stringify({
+            choices: [
+              { message: { content: 'Видео: человек идёт по пляжу.' } },
+            ],
+          }),
+          { status: 200 }
+        )
+      })
+    )
+    try {
+      const { describeMedia } = await import('./src/agent/media-library')
+      expect(
+        await describeMedia(shelfClip, 'video', 'video/mp4', 'clip.mp4')
+      ).toBe('Видео: человек идёт по пляжу.')
+    } finally {
+      setFrameExecForTests(prev)
+    }
+    const ffmpegCalls = calls.filter(c => c.bin === 'ffmpeg')
+    expect(calls[0].bin).toBe('ffprobe')
+    expect(ffmpegCalls).toHaveLength(VIDEO_FRAMES)
+    // Centres of equal slices of a 60 s clip.
+    expect(ffmpegCalls.map(c => c.args[c.args.indexOf('-ss') + 1])).toEqual([
+      '7.500',
+      '22.500',
+      '37.500',
+      '52.500',
+    ])
+    expect(posts).toHaveLength(1)
+    const parts = posts[0].body.messages[0].content
+    expect(parts.filter((p: any) => p.type === 'image_url')).toHaveLength(
+      VIDEO_FRAMES
+    )
+  })
+
+  it('a video with no vision endpoint is still an honest null without any call', async () => {
+    delete process.env.VISION_API_KEY
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    const { describeMedia } = await import('./src/agent/media-library')
+    expect(
+      await describeMedia(shelfClip, 'video', 'video/mp4', 'clip.mp4')
+    ).toBeNull()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('a refused vision key falls back to the chat provider for photos and is not asked again', async () => {
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(String(url))
+        if (String(url) === shelfPhoto)
+          return new Response(Buffer.from('JPEG bytes'), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' },
+          })
+        if (/vision\.railway\.internal/.test(String(url)))
+          return new Response('no', { status: 401 })
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: 'кот' } }] }),
+          { status: 200 }
+        )
+      })
+    )
+    const { resetVisionForTests, visionConfig } = await import(
+      './src/agent/media-vision'
+    )
+    resetVisionForTests()
+    const { describeMedia } = await import('./src/agent/media-library')
+    expect(
+      await describeMedia(shelfPhoto, 'image', 'image/jpeg', 'photo.jpg')
+    ).toBe('кот')
+    expect(urls.filter(u => /vision\.railway/.test(u))).toHaveLength(1)
+    expect(visionConfig()).toBeNull()
+    await describeMedia(shelfPhoto, 'image', 'image/jpeg', 'photo.jpg')
+    expect(urls.filter(u => /vision\.railway/.test(u))).toHaveLength(1)
+  })
+})
+
 describe('mirrorTranscript', () => {
   it('inserts a new crm_messages row for an unknown msg_id and appends once to a known one', async () => {
     const { mirrorTranscript } = await import('./src/agent/media-library')
-    const { forgetMemoryTableForTests } =
-      await import('./src/agent/chat-memory')
+    const { forgetMemoryTableForTests } = await import(
+      './src/agent/chat-memory'
+    )
     forgetMemoryTableForTests()
     const pool = fakePool()
     const row = {

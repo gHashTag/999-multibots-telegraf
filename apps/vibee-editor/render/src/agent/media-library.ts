@@ -43,6 +43,11 @@
 import { mirrorNow } from './crm-mirror'
 import { allProviders, type Provider } from './provider'
 import { usableMediaUrl } from './media-parts'
+import {
+  describeImageWithVision,
+  describeVideoWithVision,
+  visionConfig,
+} from './media-vision'
 
 export interface Pool {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -540,11 +545,17 @@ async function askProviderOnce(
  * transcript must not break a send, so every failure is logged and
  * swallowed here.
  *
- * VIDEO AND BINARY DOCUMENTS RETURN NULL WITHOUT CALLING ANYONE. No
- * configured provider takes video or arbitrary files (media-parts.ts,
- * measured 2026-09-07: nemotron sees images and hears audio; z.ai takes
- * text only). The row is still kept -- the owner can open the URL -- and
- * the tool says so instead of inventing a summary.
+ * BINARY DOCUMENTS RETURN NULL WITHOUT CALLING ANYONE, and so does VIDEO
+ * unless a vision endpoint is configured (media-vision.ts). No chat
+ * provider takes video or arbitrary files (media-parts.ts, measured
+ * 2026-09-07: nemotron sees images and hears audio; z.ai takes text only).
+ * The row is still kept -- the owner can open the URL -- and the tool says
+ * so instead of inventing a summary.
+ *
+ * With VISION_API_KEY set, photos go to the open-weights vision endpoint
+ * first and fall back to the chat provider when it fails; videos go there
+ * as sampled frames and stay pending (DescribeFailed) when it fails, since
+ * nobody else can read them.
  */
 export async function describeMedia(
   url: string,
@@ -553,7 +564,13 @@ export async function describeMedia(
   name: string | null = null
 ): Promise<string | null> {
   try {
-    if (kind === 'video') return null
+    if (kind === 'video') {
+      const v = visionConfig()
+      if (!v) return null
+      const safe = usableMediaUrl(url, kind)
+      if (!safe) return null
+      return await describeVideoWithVision(v, safe, name)
+    }
     if (kind === 'file') {
       if (!isTextLikeDocument(mime, name)) return null
       if (isTelegramFileUrl(url)) return null
@@ -570,6 +587,20 @@ export async function describeMedia(
         } catch (e) {
           console.warn(
             `[media-library] whisper did not take ${name ?? ''}: ${String(
+              e instanceof Error ? e.message : e
+            ).slice(0, 160)}; asking the chat provider`
+          )
+        }
+      }
+    }
+    if (kind === 'image') {
+      const v = visionConfig()
+      if (v) {
+        try {
+          return await describeImageWithVision(v, safe)
+        } catch (e) {
+          console.warn(
+            `[media-library] vision did not take ${name ?? ''}: ${String(
               e instanceof Error ? e.message : e
             ).slice(0, 160)}; asking the chat provider`
           )
