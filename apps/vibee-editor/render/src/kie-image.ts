@@ -39,6 +39,61 @@ const BASE = 'https://api.kie.ai/api/v1'
 export const EDIT_MODEL = 'google/nano-banana-edit'
 
 /**
+ * GPT IMAGE 2.5 (OpenAI via Kie), the owner's choice for the CRM lead magnet.
+ *
+ * Two API variants, same contract. Documented 2026-09-13 at
+ * docs.kie.ai/market/gpt/gpt-image-2-5-{flare,sunburst}-image-to-image:
+ * `input.prompt` (<= 20 000 chars), `input.input_urls` (<= 16 URIs),
+ * `input.aspect_ratio` (enum incl. 9:16, default auto), `input.resolution`
+ * (1K | 2K | 4K). The source is named `input_urls` here and `image_urls` on
+ * nano-banana -- one form for both would be refused by one of them.
+ *
+ * Price, read from the Kie price list the same day (POST
+ * api.kie.ai/client/v1/model-pricing/page): image-to-image 1K = 6 credits =
+ * $0.03 per image, 2K = $0.05, 4K = $0.08. nano-banana-edit is $0.02.
+ *
+ * STATUS: documented, not yet probed by us -- no live run of this model has
+ * been made from this code base. The catalogue in kie-models.ts records only
+ * measured probes and deliberately does not list it until one exists.
+ */
+export const GPT_IMAGE_25_EDIT_MODELS = [
+  'gpt-image-2-5-flare-image-to-image',
+  'gpt-image-2-5-sunburst-image-to-image',
+] as const
+/** Flare is Kie's stated default for creator/social visuals; Sunburst is the premium one. */
+export const LEAD_MAGNET_MODEL: (typeof GPT_IMAGE_25_EDIT_MODELS)[number] =
+  'gpt-image-2-5-flare-image-to-image'
+/** 1K is the priced tier the lead magnet is budgeted at ($0.03). */
+export const LEAD_MAGNET_RESOLUTION = '1K'
+
+export function isGptImage25Edit(model: string): boolean {
+  return (GPT_IMAGE_25_EDIT_MODELS as readonly string[]).includes(model)
+}
+
+/**
+ * The `input` object for an edit, BY THE MODEL'S OWN CONTRACT.
+ *
+ * Exported so a test can check the shape without a network: sending
+ * `image_urls` to GPT Image 2.5 would be a refusal discovered only after a
+ * person pressed the button and waited.
+ */
+export function editInputFor(
+  model: string,
+  opts: { prompt: string; imageUrl: string; aspectRatio?: string }
+): Record<string, unknown> {
+  const aspect_ratio = opts.aspectRatio || '9:16'
+  if (isGptImage25Edit(model)) {
+    return {
+      prompt: opts.prompt,
+      input_urls: [opts.imageUrl],
+      aspect_ratio,
+      resolution: LEAD_MAGNET_RESOLUTION,
+    }
+  }
+  return { prompt: opts.prompt, image_urls: [opts.imageUrl], aspect_ratio }
+}
+
+/**
  * TEXT-TO-IMAGE, the leg that brings the factory's engraving back.
  *
  * WHICH MODEL, AND WHY NOT THE PRETTIER ONE. Measured 2026-08-31 by generating
@@ -204,13 +259,10 @@ export async function editImage(opts: {
   model?: string
   timeoutMs?: number
 }): Promise<KieResult> {
+  const model = opts.model || EDIT_MODEL
   return runKieJob({
-    model: opts.model || EDIT_MODEL,
-    input: {
-      prompt: opts.prompt,
-      image_urls: [opts.imageUrl],
-      aspect_ratio: opts.aspectRatio || '9:16',
-    },
+    model,
+    input: editInputFor(model, opts),
     timeoutMs: opts.timeoutMs,
   })
 }

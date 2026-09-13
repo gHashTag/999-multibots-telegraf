@@ -5,7 +5,9 @@ import {
   CRM_SCOPE_RE,
   crmCallback,
   parseCrmCallback,
-  hubRow,
+  hubRows,
+  fit,
+  MAX_BUTTONS_PER_ROW,
   rootMenu,
   prepLabel,
   nameLabel,
@@ -94,12 +96,13 @@ describe('the callback grammar', () => {
 })
 
 describe('what each keyboard offers', () => {
-  it('the hub row is the list, the overview and a sweep', () => {
-    expect(hubRow().map(b => (b as any).callback_data)).toEqual([
-      'crm:leads',
-      'crm:summary',
-      'crm:sweep',
-    ])
+  it('the hub is the list, the overview and a sweep -- on two rows, never three across', () => {
+    expect(
+      hubRows()
+        .flat()
+        .map(b => (b as any).callback_data)
+    ).toEqual(['crm:leads', 'crm:summary', 'crm:sweep'])
+    expect(hubRows().map(r => r.length)).toEqual([2, 1])
   })
 
   it('the list: a name button per person, a prepare button unless the step is wait, at most six, then the hub', () => {
@@ -110,7 +113,7 @@ describe('what each keyboard offers', () => {
       next: i % 2 ? 'wait' : 'reply',
     }))
     const kb = leadsKeyboard(rows).reply_markup.inline_keyboard
-    expect(kb).toHaveLength(7)
+    expect(kb).toHaveLength(8)
     expect((kb[0][0] as any).text).toBe('👤 1. Person 0')
     expect((kb[0][1] as any).text).toBe('✍️ Ответить')
     // A third-party name is index-prefixed and cut, and a wait row has no prepare button.
@@ -136,7 +139,7 @@ describe('what each keyboard offers', () => {
   it('the prepare label follows the forecast step, never an order', () => {
     expect(prepLabel('reply')).toBe('✍️ Ответить')
     expect(prepLabel('talk')).toBe('💬 Продолжить')
-    expect(prepLabel('deliver')).toBe('🖼 Фото')
+    expect(prepLabel('deliver')).toBe('🎁 Фото 9:16')
     expect(prepLabel('offer')).toBe('🧾 Счёт')
     expect(prepLabel(undefined)).toBe('✍️ Подготовить')
     expect(nameLabel(3, null, LEAD)).toBe(`👤 3. id ${LEAD}`)
@@ -255,5 +258,61 @@ describe('what each keyboard offers', () => {
     expect(nextOf({ signals: ['service', 'buy'] })).toBe('deliver')
     expect(nextOf({ signals: ['price'] })).toBe('offer')
     expect(nextOf({ signals: [] })).toBe('talk')
+  })
+})
+
+/**
+ * THE WIDTH RULE, RATCHETED: no CRM keyboard puts three buttons side by side.
+ * Telegram splits a row's width between its buttons; three Russian labels
+ * with an emoji are cut to "✍️ Отве…" on a phone, two are readable. Every
+ * keyboard the module exports is rendered with a busy input and measured.
+ */
+describe('at most two buttons per row, everywhere', () => {
+  const widest = (kb: { reply_markup: { inline_keyboard: unknown[][] } }) =>
+    Math.max(...kb.reply_markup.inline_keyboard.map(r => r.length))
+  const people = Array.from({ length: 6 }, (_, i) => ({
+    lead: String(100000000 + i),
+    display: `Person ${i}`,
+    next: 'deliver',
+  }))
+  const busySummary = {
+    segments: { waiting: 5, hot: 4, talk: 3, due: 2, ours: 1, winback: 6 },
+    caps: { waiting: 20 },
+  }
+  const keyboards: Record<
+    string,
+    { reply_markup: { inline_keyboard: unknown[][] } }
+  > = {
+    rootMenu: rootMenu(),
+    leadsKeyboard: leadsKeyboard(people),
+    emptyLeadsKeyboard: emptyLeadsKeyboard(),
+    leadMenu: leadMenu(LEAD, { next: 'deliver' }),
+    'leadMenu(confirmRefuse)': leadMenu(LEAD, { confirmRefuse: true }),
+    dmLeadMenu: dmLeadMenu(LEAD)!,
+    afterSentKeyboard: afterSentKeyboard(LEAD),
+    afterCancelKeyboard: afterCancelKeyboard(LEAD),
+    afterTurnKeyboard: afterTurnKeyboard(LEAD),
+    failKeyboard: failKeyboard(crmCallback('prep', LEAD), true),
+    'summaryKeyboard(active)': summaryKeyboard(busySummary, true),
+    'summaryKeyboard(idle)': summaryKeyboard(busySummary, false),
+  }
+  for (const [name, kb] of Object.entries(keyboards)) {
+    it(`${name} is at most ${MAX_BUTTONS_PER_ROW} wide`, () => {
+      expect(widest(kb)).toBeLessThanOrEqual(MAX_BUTTONS_PER_ROW)
+      // Nothing was lost in the split: every button is still there, in order.
+      expect(kb.reply_markup.inline_keyboard.every(r => r.length > 0)).toBe(
+        true
+      )
+    })
+  }
+
+  it('fit splits a wide row in order and drops empty rows, and MAX is 2', () => {
+    expect(MAX_BUTTONS_PER_ROW).toBe(2)
+    const b = (t: string) => ({ text: t, callback_data: t }) as any
+    expect(fit([[b('a'), b('b'), b('c')], [], [b('d')]])).toEqual([
+      [b('a'), b('b')],
+      [b('c')],
+      [b('d')],
+    ])
   })
 })

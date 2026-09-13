@@ -161,6 +161,8 @@ export interface PendingProposal {
   invoiceId?: number
   media?: ProposalMedia
   charge?: ProposalCharge
+  /** A free lead magnet: recorded as a touch with the gift prefix, never a purchase. */
+  gift?: boolean
 }
 
 /** What may leave this module. Never the secret, except through `issueFor`. */
@@ -966,7 +968,11 @@ export async function execute(
               note: p.charge
                 ? SELLER_NOTE_PREFIXES.service +
                   `${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
-                : SELLER_NOTE_PREFIXES.message + (p.what ?? '').slice(0, 80),
+                : p.gift
+                  ? SELLER_NOTE_PREFIXES.gift +
+                    `${p.media?.kind ?? 'photo'}: ` +
+                    (p.what ?? '').slice(0, 60)
+                  : SELLER_NOTE_PREFIXES.message + (p.what ?? '').slice(0, 80),
             })
             const outcome = await Promise.race([
               write,

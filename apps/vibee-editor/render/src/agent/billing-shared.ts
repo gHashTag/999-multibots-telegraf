@@ -27,6 +27,15 @@ export const COST_PER_TOKEN_USD = 0.005
 /** Себестоимость операций, $ (оценки Replicate/рынка — см. PRICING.md). */
 export const OPERATION_COST_USD: Record<string, number> = {
   image_generate: 0.003,
+  /**
+   * GPT Image 2.5 image-to-image at 1K on Kie: 6 credits = $0.03 per image.
+   * Read 2026-09-13 from the Kie price list (POST
+   * api.kie.ai/client/v1/model-pricing/page, rows "gpt-image-2-5-flare,
+   * image-to-image, 1K" and the sunburst twin -- same price). This is the
+   * model the CRM lead magnet is drawn with (kie-image.ts LEAD_MAGNET_MODEL);
+   * the flat `image_generate` rate would sell it below cost.
+   */
+  gpt_image_edit: 0.03,
   video_generate: 0.1,
   audio_generate: 0.03,
   /**
@@ -339,6 +348,7 @@ export function секундыКОплате(duration: unknown): number {
 
 export const TOKEN_PRICES: Record<string, number> = {
   image_generate: priceFor('image_generate'), // 2
+  gpt_image_edit: priceFor('gpt_image_edit'), // 12
   audio_generate: priceFor('audio_generate'), // 12
   lipsync_generate: priceFor('lipsync_generate'), // 6 per audio second
   reel_render: priceFor('reel_render'), // 2

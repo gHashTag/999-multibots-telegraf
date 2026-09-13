@@ -8,36 +8,118 @@ import {
   FIRST_ROW_GRANT,
   владелец, // cyrillic-ok: public API field
 } from './billing-shared'
+import { LEAD_MAGNET_MODEL } from '../kie-image'
 
 /**
- * THE SERVICE, DELIVERED IN THE DM.
+ * THE SERVICE, DELIVERED IN THE DM -- AND, BY DEFAULT, THE LEAD MAGNET.
  *
  * "Сделай фото" in a private chat is the sale; this is the delivery. The
  * owner (in the bot, surface `bot`) asks for a picture for a person from
  * the correspondence; the picture is made on the OWNER's turn -- their
- * generation cap, their gallery row, their exemption -- and put on a card
- * with a preview. Nothing is charged here. The recipient is charged at the
- * press, inside `execute`, and refunded exactly if the send fails.
+ * generation cap, their gallery row -- and put on a card with a preview.
+ * Nothing is sent until the owner presses the button.
+ *
+ * TWO MODES, one tool:
+ *
+ *  gift (default)  The lead magnet. The person's OWN Telegram photo is
+ *                  redrawn (img2img, GPT Image 2.5 on Kie) as a vertical
+ *                  9:16 story portrait and offered FREE: the owner pays the
+ *                  generation on their own wallet, the recipient is charged
+ *                  nothing, and the caption says who made it. A personal
+ *                  artefact made from the person's own picture is the kind
+ *                  of lead magnet that gets opened -- generic "content"
+ *                  is not (spec: t27 specs/automation/crm-lead-magnet.t27).
+ *                  No photo readable -> falls back to text-to-image, still
+ *                  9:16, and says so in `source`.
+ *
+ *  paid            The old path: text-to-image, the recipient charged at the
+ *                  press inside `execute`, refunded exactly if the send fails.
+ *                  Refused before generation when the person cannot afford it.
  *
  * Order of refusals, cheapest first: not the owner; not a surface with a
- * button; the person cannot be resolved; the person cannot afford it. Only
- * then the provider is asked, because that is where money leaves.
+ * button; the person cannot be resolved; (paid) the person cannot afford it.
+ * Only then the provider is asked, because that is where money leaves.
  */
-const OP = 'image_generate'
+const PAID_OP = 'image_generate'
 const CAPTION_CHARS = 900
 
+export const LEAD_MAGNET = {
+  model: LEAD_MAGNET_MODEL,
+  /** The op the OWNER pays when the gift is drawn from the person's photo. */
+  op: 'gpt_image_edit',
+  aspectRatio: '9:16',
+  /**
+   * Identity FIRST, scene second. Face-consistency guides for img2img models
+   * agree on the order: the model weighs the opening of the prompt most, so
+   * the "same person" constraint goes before the scene text, phrased as
+   * positive instructions (what to keep) rather than a list of don'ts.
+   */
+  identityPrefix:
+    'Keep the exact same person as in the reference photo: same face, eye shape, ' +
+    'nose, jawline, lips, skin tone and hairstyle; change only the scene, outfit, ' +
+    'light and mood. ',
+  /**
+   * The 1080x1920 story frame is covered by app UI at the top (~14%) and the
+   * bottom (~35%), so the face lives in the central band and nothing is
+   * written into the picture: the caption carries the words.
+   */
+  framingSuffix:
+    ' Vertical 9:16 story portrait, the face in the central third of the frame, ' +
+    'nothing important in the top or bottom band, no text, no watermark, no logo.',
+} as const
+
+/** The gift caption: one line, a name, who made it, one soft question. No price, no link. */
+export function giftCaption(firstName: string | null | undefined): string {
+  const name = String(firstName ?? '').trim()
+  return (
+    (name ? `${name}, ` : '') +
+    'это вы — мой ИИ-ассистент сделал портрет по вашей аватарке за минуту, ' +
+    'в формате сторис 9:16. Это подарок, без оплаты. ' +
+    'Хотите ещё один — в другом образе?'
+  )
+}
+
+/**
+ * image_generate speaks width/height, not aspect_ratio. 1080x1920 is the
+ * story frame; the other two are the ratios the tool advertises.
+ */
+export function sizeFor(aspectRatio: string): {
+  width: number
+  height: number
+} {
+  switch (aspectRatio) {
+    case '1:1':
+      return { width: 1024, height: 1024 }
+    case '3:4':
+      return { width: 1080, height: 1440 }
+    default:
+      return { width: 1080, height: 1920 }
+  }
+}
+
+export interface CrmDeliverDeps {
+  /** The lead's profile photo as a URL on our S3; '' when there is none. */
+  leadPhoto?: (
+    ctx: ToolContext | undefined,
+    lead: { id: string; username?: string | null }
+  ) => Promise<string>
+}
+
 export function makeCrmDeliverTools(
-  lookup: (name: string) => AgentTool | undefined
+  lookup: (name: string) => AgentTool | undefined,
+  deps: CrmDeliverDeps = {}
 ): AgentTool[] {
   return [
     {
       name: 'crm_deliver_photo',
       description:
-        'Сделать картинку для человека из переписки и подготовить отправку ему в личку. ' +
-        'Ничего не отправляет и ничего не списывает сам: возвращает предложение с превью, ' +
-        'владелец нажимает «Отправить» в боте — тогда фото уходит получателю, а токены ' +
-        'списываются с ПОЛУЧАТЕЛЯ по цене image_generate. Если у получателя не хватает ' +
-        'токенов — откажет до генерации и подскажет crm_offer.',
+        'Сделать человеку из переписки ЛИД-МАГНИТ: его же аватарка из Telegram, перерисованная ' +
+        `в вертикальный портрет 9:16 (img2img, ${LEAD_MAGNET_MODEL}), в подарок — получатель ` +
+        'не платит, генерацию оплачивает владелец со своего кошелька. Ничего не отправляет сам: ' +
+        'возвращает предложение с превью, владелец нажимает «Отправить» в боте. ' +
+        'Если фото человека не читается — рисует по описанию (тоже 9:16) и говорит об этом. ' +
+        'gift=false — платный режим: картинка по описанию, токены списываются с ПОЛУЧАТЕЛЯ ' +
+        'при нажатии по цене image_generate; при нехватке откажет до генерации и подскажет crm_offer.',
       parameters: {
         type: 'object',
         properties: {
@@ -45,11 +127,30 @@ export function makeCrmDeliverTools(
             type: 'string',
             description: '@username или числовой id получателя',
           },
-          prompt: { type: 'string', description: 'что нарисовать' },
+          prompt: {
+            type: 'string',
+            description:
+              'сцена/образ: во что перерисовать человека (в подарке) или что нарисовать (в платном режиме)',
+          },
           caption: {
             type: 'string',
             description:
-              'подпись к фото для получателя, одной строкой (необязательно)',
+              'подпись к фото для получателя, одной строкой (необязательно; ' +
+              'в подарке по умолчанию — имя, кто сделал, один мягкий вопрос)',
+          },
+          gift: {
+            type: 'boolean',
+            description:
+              'true (по умолчанию) — подарок из его фото, получатель не платит; false — платно по описанию',
+          },
+          from_photo: {
+            type: 'boolean',
+            description:
+              'true (по умолчанию) — исходник = аватарка человека; false — рисовать по описанию',
+          },
+          aspect_ratio: {
+            type: 'string',
+            description: '9:16 по умолчанию (сторис); 1:1, 3:4',
           },
         },
         required: ['chat', 'prompt'],
@@ -71,13 +172,18 @@ export function makeCrmDeliverTools(
           }
         }
         const lead = await resolveLead(ctx, chat)
-        const price = TOKEN_PRICES[OP]
+        const gift = a?.gift !== false
+        const fromPhoto = a?.from_photo !== false
+        const aspectRatio = a?.aspect_ratio
+          ? String(a.aspect_ratio)
+          : LEAD_MAGNET.aspectRatio
         const pool = ctx?.pool as never
         const free = владелец(lead.id) // cyrillic-ok: public API field
+        const price = gift ? 0 : TOKEN_PRICES[PAID_OP]
         const have = free
           ? Number.POSITIVE_INFINITY
           : ((await balanceOf(pool, lead.id)) ?? FIRST_ROW_GRANT)
-        if (have < price) {
+        if (!gift && have < price) {
           return {
             delivered: false,
             // cyrillic-ok: public API field
@@ -88,27 +194,72 @@ export function makeCrmDeliverTools(
             lead_balance: have,
           }
         }
-        const gen = lookup('image_generate')
-        if (!gen)
-          throw new Error('генерация картинок недоступна на этом сервере')
-        // The owner's turn makes the picture, but the owner's wallet is not
-        // the one that pays: the recipient does, once, at the press.
-        const made = (await gen.handler(
-          { prompt },
-          { ...(ctx as ToolContext), chargeLater: true }
-        )) as {
-          url?: string
-          причина?: string // cyrillic-ok: public API field
+
+        /*
+         * THE SOURCE. The person's own photo, or nothing. A gift portrait of
+         * a stranger is worse than an honest text-to-image picture, so a
+         * missing photo is reported in `source`, not papered over.
+         */
+        let source = ''
+        if (gift && fromPhoto && deps.leadPhoto) {
+          source = await deps
+            .leadPhoto(ctx, {
+              id: lead.id,
+              username: chat.startsWith('@') ? chat : null,
+            })
+            .catch(() => '')
+        }
+
+        let made: { url?: string; причина?: string; reason?: string } // cyrillic-ok: public API field
+        let model: string
+        if (source) {
+          const edit = lookup('image_edit')
+          if (!edit)
+            throw new Error('перерисовка фото недоступна на этом сервере')
+          // The OWNER pays the gift: no chargeLater, their wallet, their cap.
+          made = (await edit.handler(
+            {
+              prompt:
+                LEAD_MAGNET.identityPrefix + prompt + LEAD_MAGNET.framingSuffix,
+              image_url: source,
+              aspect_ratio: aspectRatio,
+              model: LEAD_MAGNET.model,
+            },
+            ctx as ToolContext
+          )) as typeof made
+          model = LEAD_MAGNET.model
+        } else {
+          const gen = lookup('image_generate')
+          if (!gen)
+            throw new Error('генерация картинок недоступна на этом сервере')
+          // Paid: the owner's turn makes the picture, the recipient pays at
+          // the press (chargeLater). Gift without a photo: the owner pays now.
+          made = (await gen.handler(
+            {
+              prompt: prompt + LEAD_MAGNET.framingSuffix,
+              ...sizeFor(aspectRatio),
+            },
+            gift
+              ? (ctx as ToolContext)
+              : { ...(ctx as ToolContext), chargeLater: true }
+          )) as typeof made
+          model = 'image_generate'
         }
         if (!made?.url) {
           return {
             delivered: false,
-            причина: made?.причина ?? 'картинка не получилась', // cyrillic-ok: public API field
+            // cyrillic-ok: public API field
+            причина: made?.причина ?? made?.reason ?? 'картинка не получилась',
             price,
+            source: source ? 'фото человека' : 'по описанию',
           }
         }
         const caption = oneLine(
-          a?.caption ? String(a.caption) : '',
+          a?.caption
+            ? String(a.caption)
+            : gift
+              ? giftCaption(lead.firstName)
+              : '',
           CAPTION_CHARS
         )
         const may = await reachable(ctx, lead.id).catch(() => ({
@@ -119,8 +270,11 @@ export function makeCrmDeliverTools(
           'send',
           chat,
           caption || undefined,
-          'Фото готово и ждёт подтверждения владельца. Покажи ссылку на превью. ' +
-            'Токены спишутся с получателя при нажатии «Отправить», не сейчас. ' +
+          (gift
+            ? 'Подарок готов и ждёт подтверждения владельца. Покажи ссылку на превью. ' +
+              'Получатель не платит ничего; генерация уже оплачена владельцем. '
+            : 'Фото готово и ждёт подтверждения владельца. Покажи ссылку на превью. ' +
+              'Токены спишутся с получателя при нажатии «Отправить», не сейчас. ') +
             'Пока карточка не нажата, не готовь этому владельцу других предложений: новое вытеснит фото.',
           ctx,
           may.ok ? lead.id : undefined,
@@ -128,19 +282,31 @@ export function makeCrmDeliverTools(
           {
             display: lead.display ?? undefined,
             media: { kind: 'photo', url: made.url },
-            // An owner-side recipient is never charged (spendByTid says 0),
-            // so the card must not promise a charge either.
-            charge: free
-              ? undefined
-              : { telegramId: lead.id, op: OP, tokens: price },
+            // A gift and an owner-side recipient are never charged, so the
+            // card must not promise a charge either.
+            charge:
+              gift || free
+                ? undefined
+                : { telegramId: lead.id, op: PAID_OP, tokens: price },
+            gift: gift || undefined,
           }
         )
         return {
           ...p,
           preview: made.url,
+          gift,
+          source: source ? 'фото человека' : 'по описанию',
+          aspect_ratio: aspectRatio,
+          model,
           price,
-          lead_balance: free ? 'владелец — бесплатно' : have,
-          note: 'списание с получателя произойдёт при нажатии «Отправить», не сейчас',
+          lead_balance: gift
+            ? 'подарок — получатель не платит'
+            : free
+              ? 'владелец — бесплатно'
+              : have,
+          note: gift
+            ? 'генерация оплачена владельцем; с получателя ничего не спишется'
+            : 'списание с получателя произойдёт при нажатии «Отправить», не сейчас',
         }
       },
     },
