@@ -30,6 +30,7 @@
  */
 
 import crypto from 'node:crypto'
+import { hangUp } from './hang-up'
 import type { AgentTool, ToolContext } from './tools'
 import { remember } from './tg-proposals'
 import type { ProposalMedia, ProposalCharge } from './tg-proposals'
@@ -377,12 +378,9 @@ export async function client(ctx?: ToolContext): Promise<unknown> {
    */
   const вошли = await c.checkAuthorization()
   if (!вошли) {
-    try {
-      await c.disconnect()
-    } catch {
-      // Разрыв не важен: мы всё равно отказываем, и падение здесь только
-      // подменило бы настоящую причину.
-    }
+    // Разрыв не важен: мы всё равно отказываем, и падение здесь только
+    // подменило бы настоящую причину.
+    await hangUp(c)
     /*
      * Two audiences, two fixes. A session that came from tg_sessions belongs
      * to a person who connected in the app and can reconnect there in a
@@ -413,6 +411,7 @@ export interface LiveClient {
   getMessages: (chat: string, o: Record<string, unknown>) => Promise<unknown[]>
   invoke: (r: unknown) => Promise<{ users?: unknown[] }>
   disconnect: () => Promise<void>
+  destroy?: () => Promise<void>
 }
 
 /**
@@ -437,11 +436,7 @@ export async function withClient<T>(
   try {
     return await fn(c)
   } finally {
-    try {
-      await c.disconnect()
-    } catch {
-      // The socket is Telegram's problem now; the answer (or the error) is ours.
-    }
+    await hangUp(c)
   }
 }
 

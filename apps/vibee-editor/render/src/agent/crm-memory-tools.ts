@@ -1,5 +1,6 @@
 import type { AgentTool, ToolContext } from './tools'
 import { client, requireOwner, foreignText } from './telegram-tools'
+import { hangUp } from './hang-up'
 import { resolveLead, displayOf, oneLine } from './crm-offer-tool'
 import { whoPaid, askSupabase, visibleScope } from './crm-tools'
 import { stageOf } from './crm-stages'
@@ -162,7 +163,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           report.zep_mirrored += mirrored.zep
         }
       } finally {
-        await c.disconnect?.().catch?.(() => undefined)
+        await hangUp(c)
       }
       return {
         ...report,

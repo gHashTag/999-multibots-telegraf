@@ -38,6 +38,7 @@
  */
 
 import { узнатьНомер, забытьНомер } from './known-phone'
+import { hangUp } from './hang-up'
 import { ingestAfterConnect } from './crm-ingest-on-connect'
 
 /** Сколько живёт незаконченный вход. Дольше и не нужно: код Telegram тоже. */
@@ -65,7 +66,7 @@ function убратьПротухшие(): void {
   for (const [ключ, п] of попытки) {
     if (сейчас - п.создана > ЖИЗНЬ_ПОПЫТКИ_МС) {
       попытки.delete(ключ)
-      void п.client?.disconnect?.().catch?.(() => {})
+      void hangUp(п.client)
     }
   }
 }
