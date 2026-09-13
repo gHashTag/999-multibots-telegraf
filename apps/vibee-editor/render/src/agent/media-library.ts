@@ -336,7 +336,15 @@ const PROMPTS: Record<'image' | 'audio', string> = {
  * `WHISPER_MODEL` (default whisper-1). Without a key the chat provider
  * keeps hearing audio as before.
  */
-const WHISPER_TIMEOUT_MS = 180_000
+/*
+ * A hosted transcriber answers a 7 MB track in seconds; a self-hosted
+ * CPU one (speaches / faster-whisper on Railway) needs minutes. The
+ * deadline therefore comes from `MEDIA_WHISPER_TIMEOUT_MS` (default 180 s).
+ */
+const WHISPER_TIMEOUT_MS = Math.max(
+  10_000,
+  Number(process.env.MEDIA_WHISPER_TIMEOUT_MS) || 180_000
+)
 const WHISPER_MAX_BYTES = 25 * 1024 * 1024
 let whisperKeyRefused = false
 
