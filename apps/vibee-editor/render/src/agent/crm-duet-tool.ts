@@ -117,6 +117,7 @@ export function sellerBrief(buyer: string): string {
     'Факты об игре — только эти:',
     ...LEELA_CANON.map(s => `- ${s}`),
     'Цены называй только из ответа pricing. Не обещай доход и результат. Не пиши «первый», «единственный», «лучший».',
+    'Генерация занимает минуты, а не дни: не обещай сроки «за день», делай сразу и показывай. Списание токенов идёт с твоего баланса, а не с её: не пиши ей «списано» и не называй свой остаток.',
     'Первое сообщение — короткое приветствие и одно конкретное предложение, что показать сначала.',
   ].join('\n')
 }
@@ -138,11 +139,20 @@ interface ToolResultEvent {
   ms: number
 }
 
-/** A successful generation is `{ сделано: true, url: 'http…' }`; nothing else is media. */
+/**
+ * A successful generation is `{ сделано: true, url }` (images, voice) // cyrillic-ok
+ * or `{ готово: true, url }` (reel_render). Nothing else is media. // cyrillic-ok
+ *
+ * Found in real run duet-mtzo7ogz (2026-09-13): reel_render finished, two
+ * tokens were spent, the seller quoted the post text -- and the buyer never
+ * received the mp4, because only `сделано` was recognised here. The report
+ * honestly said "files sent: 0" while "paid generations: 1".
+ */
 export function mediaOf(value: unknown): string | null {
   if (!value || typeof value !== 'object') return null
   const v = value as Record<string, unknown>
-  const done = v['сделано'] === true || v['done'] === true // cyrillic-ok
+  const done =
+    v['сделано'] === true || v['готово'] === true || v['done'] === true // cyrillic-ok
   const url = typeof v.url === 'string' ? v.url : ''
   return done && /^https?:\/\//.test(url) ? url : null
 }
@@ -151,6 +161,7 @@ export function okOf(value: unknown): boolean {
   if (!value || typeof value !== 'object') return true
   const v = value as Record<string, unknown>
   if (v['сделано'] === false || v['done'] === false) return false // cyrillic-ok
+  if (v['готово'] === false || v['началось'] === false) return false // cyrillic-ok
   if (typeof v['ошибка'] === 'string' || typeof v.error === 'string')
     return false // cyrillic-ok
   return true
