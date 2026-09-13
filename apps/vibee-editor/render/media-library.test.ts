@@ -428,8 +428,100 @@ describe('describeMedia', () => {
     ).toBe('hello from the brief')
   })
 
+  it('audio goes to Whisper when a key is set: the bytes are fetched from OUR shelf and posted as a file', async () => {
+    process.env.OPENAI_API_KEY = 'w' // secret-guard-ok: invented for this test
+    delete process.env.WHISPER_API_KEY
+    delete process.env.WHISPER_BASE_URL
+    delete process.env.OPENAI_BASE_URL
+    const posts: Array<{ url: string; init: RequestInit }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url) === SHELF)
+          return new Response(Buffer.from('OggS voice bytes'), {
+            status: 200,
+            headers: { 'content-type': 'audio/ogg' },
+          })
+        posts.push({ url: String(url), init: init ?? {} })
+        return new Response('  слова из длинной записи  ', { status: 200 })
+      })
+    )
+    const { describeMedia, resetWhisperForTests } =
+      await import('./src/agent/media-library')
+    resetWhisperForTests()
+    expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')).toBe(
+      'слова из длинной записи'
+    )
+    expect(posts).toHaveLength(1)
+    expect(posts[0].url).toBe('https://api.openai.com/v1/audio/transcriptions')
+    const form = posts[0].init.body as FormData
+    expect(form.get('model')).toBe('whisper-1')
+    expect(form.get('response_format')).toBe('text')
+    expect((form.get('file') as File).name).toBe('voice.ogg')
+    expect(
+      (posts[0].init.headers as Record<string, string>).Authorization
+    ).toBe('Bearer w')
+  })
+
+  it('a Groq key alone (gsk_) lands on Groq with its turbo Whisper; an explicit base or model wins', async () => {
+    delete process.env.WHISPER_BASE_URL
+    delete process.env.WHISPER_MODEL
+    delete process.env.OPENAI_BASE_URL
+    process.env.WHISPER_API_KEY = 'gsk_test' // secret-guard-ok: invented for this test
+    const { whisperConfig, resetWhisperForTests } =
+      await import('./src/agent/media-library')
+    resetWhisperForTests()
+    expect(whisperConfig()).toEqual({
+      base: 'https://api.groq.com/openai/v1',
+      key: 'gsk_test',
+      model: 'whisper-large-v3-turbo',
+    })
+    process.env.WHISPER_MODEL = 'whisper-large-v3'
+    expect(whisperConfig()?.model).toBe('whisper-large-v3')
+    process.env.WHISPER_BASE_URL = 'https://stt.example.com/v1/'
+    expect(whisperConfig()?.base).toBe('https://stt.example.com/v1')
+    delete process.env.WHISPER_API_KEY
+    delete process.env.WHISPER_BASE_URL
+    delete process.env.WHISPER_MODEL
+  })
+
+  it('a refused Whisper key falls back to the chat provider and is not asked again', async () => {
+    process.env.OPENAI_API_KEY = 'w' // secret-guard-ok: invented for this test
+    process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    delete process.env.WHISPER_API_KEY
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(String(url))
+        if (String(url) === SHELF)
+          return new Response(Buffer.from('OggS'), { status: 200 })
+        if (/audio\/transcriptions/.test(String(url)))
+          return new Response('{"error":"Incorrect API key"}', { status: 401 })
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: 'из чата' } }] }),
+          { status: 200 }
+        )
+      })
+    )
+    const { describeMedia, resetWhisperForTests, whisperConfig } =
+      await import('./src/agent/media-library')
+    resetWhisperForTests()
+    expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'a.ogg')).toBe(
+      'из чата'
+    )
+    expect(urls.filter(u => /audio\/transcriptions/.test(u))).toHaveLength(1)
+    expect(whisperConfig()).toBeNull()
+    // Second file: Whisper is skipped outright.
+    expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'b.ogg')).toBe(
+      'из чата'
+    )
+    expect(urls.filter(u => /audio\/transcriptions/.test(u))).toHaveLength(1)
+  })
+
   it('a throttled provider (503) is asked again, and the second answer counts', async () => {
     process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    delete process.env.OPENAI_API_KEY
     let calls = 0
     vi.stubGlobal(
       'fetch',
@@ -454,6 +546,7 @@ describe('describeMedia', () => {
 
   it('a provider that fails is retryable: DescribeFailed, and the row stays pending', async () => {
     process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    delete process.env.OPENAI_API_KEY
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('404 page not found', { status: 404 }))
