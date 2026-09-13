@@ -685,7 +685,7 @@ export function claim(
  * whoever pressed the button has already decided, and a resurrected draft is
  * how the same message gets sent twice.
  */
-interface SendingClient {
+export interface SendingClient {
   sendMessage: (
     to: string,
     opts: { message: string; parseMode: false }
@@ -774,7 +774,7 @@ async function withAddressBook<T>(
   return attempt()
 }
 
-async function sendWithAddressBook(
+export async function sendWithAddressBook(
   c: SendingClient,
   target: string,
   message: string
@@ -830,7 +830,7 @@ async function mirrorSent(
   }
 }
 
-async function sendFileWithAddressBook(
+export async function sendFileWithAddressBook(
   c: SendingClient,
   target: string,
   media: ProposalMedia,
