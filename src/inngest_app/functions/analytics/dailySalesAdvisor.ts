@@ -47,6 +47,15 @@ async function getRecentPayments(daysBack: number) {
   return all
 }
 
+/** True when the payment row belongs to the day before the 1-day window. */
+export function isBeforeYesterdayCutoff(
+  row: { created_at?: string | null },
+  cutoffMs: number
+): boolean {
+  const t = row.created_at ? Date.parse(row.created_at) : NaN
+  return Number.isFinite(t) && t < cutoffMs
+}
+
 function toRub(r: any): number {
   const cur = r.currency || 'XTR'
   if (cur === 'RUB') return Number(r.amount) || 0
@@ -87,6 +96,12 @@ export const dailySalesAdvisor = inngest.createFunction(
       getRecentPayments(2)
     )
 
+    // Rows come back from separate steps, so `payments1d.includes(p)` compared
+    // object identity across JSON round-trips and was always false: the
+    // "yesterday" figure silently equalled the whole 2-day window (audit
+    // 2026-09-13). Split the windows by created_at instead.
+    const yesterdayCutoff = Date.now() - 86400000
+
     for (const [ownerId, bots] of ownerBots) {
       await step.run(`report-${ownerId}`, async () => {
         let report = `📈 <b>Ежедневный отчёт</b>\n${new Date().toLocaleDateString('ru-RU')}\n\n`
@@ -110,7 +125,7 @@ export const dailySalesAdvisor = inngest.createFunction(
               p.bot_name === bn &&
               p.type === 'MONEY_INCOME' &&
               REAL_METHODS.includes(p.payment_method || '') &&
-              !payments1d.includes(p)
+              isBeforeYesterdayCutoff(p, yesterdayCutoff)
           )
           const out7d = payments7d.filter(
             (p: any) => p.bot_name === bn && p.type === 'MONEY_OUTCOME'

@@ -66,14 +66,22 @@ export function resolveLogPath(): {
   logPath: string
   enabled: boolean
 } {
-  const logDir = process.env.LOG_DIR || '/tmp/logs'
+  const logDir = defaultLogDir()
   const logPath = join(logDir, 'combined.log')
   return { logDir, logPath, enabled: existsSync(logPath) }
 }
 
+/**
+ * The winston logger writes to `<cwd>/logs/combined.log` (src/utils/logger.ts).
+ * The old default `/tmp/logs` never matched it, so the file branch was dead in
+ * production (audit 2026-09-13). LOG_DIR still overrides.
+ */
+export function defaultLogDir(): string {
+  return process.env.LOG_DIR || join(process.cwd(), 'logs')
+}
+
 async function readLogs(): Promise<string> {
-  const logDir = process.env.LOG_DIR || '/tmp/logs'
-  const logPath = join(logDir, 'combined.log')
+  const logPath = join(defaultLogDir(), 'combined.log')
 
   if (!existsSync(logPath)) {
     logger.warn(`Log file not found at ${logPath}`)
@@ -91,21 +99,35 @@ async function readLogs(): Promise<string> {
   }
 }
 
-// Фильтрация логов за последние 24 часа
-function filterLast24Hours(logs: string): string {
+/**
+ * Timestamp of one log line, or null. Accepts both the winston printf format
+ * `2026-09-13 02:17:45 [INFO]: ...` (what the logger actually writes) and the
+ * JSON `"timestamp":"..."` form the old filter expected.
+ */
+export function logLineTimestamp(line: string): number | null {
+  const printf = line.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})/)
+  if (printf) {
+    // The logger prints server-local time without a zone; Railway runs in UTC.
+    const t = Date.parse(`${printf[1]}T${printf[2]}Z`)
+    return Number.isFinite(t) ? t : null
+  }
+  const json = line.match(/"timestamp":"([^"]+)"/)
+  if (json) {
+    const t = Date.parse(json[1])
+    return Number.isFinite(t) ? t : null
+  }
+  return null
+}
+
+export function filterLast24Hours(logs: string, now = Date.now()): string {
   const lines = logs.split('\n')
-  const now = Date.now()
   const dayAgo = now - 24 * 60 * 60 * 1000
 
   return lines
     .filter(line => {
       try {
-        const match = line.match(/"timestamp":"([^"]+)"/)
-        if (match) {
-          const timestamp = new Date(match[1]).getTime()
-          return timestamp > dayAgo
-        }
-        return false
+        const timestamp = logLineTimestamp(line)
+        return timestamp !== null && timestamp > dayAgo
       } catch {
         return false
       }

@@ -51,8 +51,10 @@ export const generateAIReelsFunction = inngest.createFunction(
     retries: 2, // Повторить 2 раза при ошибке
     // Paid providers + user webhook → admin must learn about terminal failures.
     onFailure: createInngestFailureHandler('reels-ai-generate'),
-    rateLimit: {
-      limit: 5, // Максимум 5 одновременных генераций
+    // throttle QUEUES excess events; the previous rateLimit DROPPED them, and
+    // the wizard had already charged the user before sending (audit 2026-09-13).
+    throttle: {
+      limit: 5,
       period: '1m',
       key: 'event.data.telegramId',
     },

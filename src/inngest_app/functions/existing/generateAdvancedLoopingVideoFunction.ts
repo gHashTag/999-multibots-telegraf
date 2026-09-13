@@ -206,7 +206,11 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
             tempDir,
             `${filePrefix}_clip_${index}.mp4`
           )
-          return downloadFile(url).then(() => videoPath)
+          // downloadFile returns a Buffer and writes nothing: without this
+          // write the merge step always failed on a missing file (audit 2026-09-13).
+          return downloadFile(url)
+            .then(buffer => fs.writeFile(videoPath, buffer))
+            .then(() => videoPath)
         })
         return Promise.all(downloadPromises)
       }
