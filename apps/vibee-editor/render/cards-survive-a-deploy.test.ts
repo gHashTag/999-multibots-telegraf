@@ -3,6 +3,7 @@ import {
   remember,
   issueFor,
   claim,
+  claimAcrossDeploy,
   onPersist,
   restoreProposals,
   onOrphaned,
@@ -12,6 +13,8 @@ import {
   LIFETIME_MS,
 } from './src/agent/tg-proposals'
 import type { PendingProposal } from './src/agent/tg-proposals'
+import fs from 'node:fs'
+import path from 'node:path'
 import {
   proposalToRow,
   rowToProposal,
@@ -216,6 +219,265 @@ describe('a card comes back after a restart', () => {
 })
 
 /**
+ * THE PRESS MAY LAND IN A DIFFERENT PROCESS THAN THE CARD.
+ *
+ * Measured in production on 2026-09-13, 16:09-16:11 UTC. A merge redeployed
+ * the render during the seller's sweep. The outgoing container minted the
+ * card and saved its row; the new container had restored the table BEFORE
+ * that row existed; traffic moved over, and the press reached a Map that had
+ * never heard of the id. "Already confirmed or expired" -- about a card sixty
+ * seconds old. Both containers live for about a minute on every deploy.
+ *
+ * The table is shared. So the two processes below share `rows` and nothing
+ * else: `forgetProposals()` is the second container coming up, and the press
+ * goes to it.
+ */
+describe('a card minted by the other container during a deploy', () => {
+  let rows: Map<string, PendingProposal>
+  let loads: string[]
+  const table = (opts: { failing?: boolean } = {}) => ({
+    save: (p: PendingProposal) => rows.set(p.id, JSON.parse(JSON.stringify(p))),
+    remove: (id: string) => rows.delete(id),
+    load: async (id: string) => {
+      loads.push(id)
+      if (opts.failing) throw new Error('connection refused')
+      const r = rows.get(id)
+      // The row shape: the digest is there, the plaintext is not.
+      return r ? { ...r, secret: '' } : null
+    },
+  })
+  beforeEach(() => {
+    forgetProposals()
+    rows = new Map()
+    loads = []
+    onPersist(table())
+  })
+  afterEach(() => {
+    onPersist(null)
+    onOrphaned(null)
+    forgetProposals()
+  })
+
+  it('the press finds the row the Map never saw, and sends once', async () => {
+    // Container A: the sweep's turn mints the card and issues it.
+    draft('sweep-1')
+    const secret = issueFor(WHO, TURN)!.secret
+    // Container B: came up before the row existed, so its Map is empty.
+    forgetProposals()
+    expect(claim(WHO, 'sweep-1', secret).ok, 'the plain claim misses').toBe(
+      false
+    )
+    // The press reaches B.
+    const taken = await claimAcrossDeploy(WHO, 'sweep-1', secret)
+    expect(
+      taken.ok,
+      'the owner presses Send sixty seconds after the card'
+    ).toBe(true)
+    expect(rows.has('sweep-1'), 'the press consumed the row').toBe(false)
+    // Pressed again on the same button: gone in both places.
+    const again = await claimAcrossDeploy(WHO, 'sweep-1', secret)
+    expect(again.ok).toBe(false)
+  })
+
+  it('a wrong secret is still a wrong secret after the recovery', async () => {
+    draft('sweep-2')
+    issueFor(WHO, TURN)
+    forgetProposals()
+    const r = await claimAcrossDeploy(WHO, 'sweep-2', 'not the secret')
+    expect(r.ok).toBe(false)
+    // The row was adopted, not deleted: the right secret still works.
+    expect(rows.has('sweep-2')).toBe(true)
+  })
+
+  it("somebody else's id is refused before the row is adopted", async () => {
+    draft('sweep-3')
+    const secret = issueFor(WHO, TURN)!.secret
+    forgetProposals()
+    const r = await claimAcrossDeploy('999', 'sweep-3', secret)
+    expect(r).toEqual({
+      ok: false,
+      why: 'это действие предложено не вам', // cyrillic-ok: user-facing refusal
+    })
+    expect(pendingFor(WHO), 'nothing was pulled into the Map').toBeNull()
+    expect(rows.has('sweep-3'), 'and the row is untouched').toBe(true)
+  })
+
+  it('a row that expired while nobody pressed is not revived', async () => {
+    draft('sweep-4')
+    const secret = issueFor(WHO, TURN)!.secret
+    const r = rows.get('sweep-4')!
+    r.createdAt = Date.now() - LIFETIME_MS - 1000
+    forgetProposals()
+    const seen: string[] = []
+    onOrphaned((p, reason) => seen.push(`${p.id}:${reason}`))
+    const out = await claimAcrossDeploy(WHO, 'sweep-4', secret)
+    expect(out.ok).toBe(false)
+    expect(rows.has('sweep-4')).toBe(false)
+    // A plain text draft is not reported; only invoices and media are.
+    expect(seen).toEqual([])
+  })
+
+  it('a row that was never issued cannot be pressed into existence', async () => {
+    draft('sweep-5')
+    const minted = rows.get('sweep-5')!
+    forgetProposals()
+    // The plaintext never left container A, so this is the best a probe has.
+    const r = await claimAcrossDeploy(WHO, 'sweep-5', 'guess')
+    expect(r.ok).toBe(false)
+    expect(minted.issued).toBe(false)
+    expect(
+      rows.has('sweep-5'),
+      'an unissued row is dropped, as on restart'
+    ).toBe(false)
+  })
+
+  /**
+   * ONE PENDING PROPOSAL PER PERSON, decided by age. Container B restored an
+   * OLDER card for the same person before A superseded it; the press on the
+   * newer card wins and the stale sibling leaves as replaced.
+   */
+  it('an older card already in the Map yields to the pressed newer row', async () => {
+    const seen: string[] = []
+    onOrphaned((p, reason) => seen.push(`${p.id}:${reason}`))
+    // A: the older card, still in B's Map after B restored it.
+    const older: PendingProposal = {
+      id: 'older',
+      telegramId: WHO,
+      action: 'send',
+      target: '1',
+      createdAt: Date.now() - 60_000,
+      secret: '',
+      secretDigest: digestOf('x'),
+      issued: true,
+      invoiceId: 7,
+    }
+    restoreProposals([older])
+    // A then minted a newer card (its `remember` removed `older`'s row) and
+    // issued it. Here: the row only.
+    const newer: PendingProposal = {
+      ...older,
+      id: 'newer',
+      createdAt: Date.now(),
+      secretDigest: digestOf('s3cret'),
+      invoiceId: undefined,
+    }
+    rows.set('newer', newer)
+    const r = await claimAcrossDeploy(WHO, 'newer', 's3cret')
+    expect(r.ok).toBe(true)
+    expect(pendingFor(WHO)).toBeNull()
+    expect(seen).toEqual(['older:replaced'])
+  })
+
+  it('a newer card already in the Map keeps its place over an older row', async () => {
+    const newerLive = draft('live')
+    issueFor(WHO, TURN)
+    const olderRow: PendingProposal = {
+      id: 'older',
+      telegramId: WHO,
+      action: 'send',
+      target: '1',
+      createdAt: newerLive.createdAt - 60_000,
+      secret: '',
+      secretDigest: digestOf('old'),
+      issued: true,
+    }
+    rows.set('older', olderRow)
+    const r = await claimAcrossDeploy(WHO, 'older', 'old')
+    expect(r.ok).toBe(false)
+    expect(rows.has('older'), 'the superseded row leaves').toBe(false)
+    expect(pendingFor(WHO)?.id).toBe('live')
+  })
+
+  /**
+   * The mirror image: B restored a card, A consumed it (deleting the row),
+   * and B still holds a copy with a valid digest. A second press must not
+   * send the message twice.
+   */
+  it('a draft whose row is gone is not sent a second time', async () => {
+    draft('twice')
+    const secret = issueFor(WHO, TURN)!.secret
+    // Consumed in container A: the row is gone, B's Map still has it.
+    rows.delete('twice')
+    expect(claim(WHO, 'twice', secret).ok, 'the plain claim would send').toBe(
+      true
+    )
+    // Rebuild the same state and press through the guarded path.
+    forgetProposals()
+    draft('twice')
+    const secret2 = issueFor(WHO, TURN)!.secret
+    rows.delete('twice')
+    const r = await claimAcrossDeploy(WHO, 'twice', secret2)
+    expect(r.ok).toBe(false)
+    expect(pendingFor(WHO), 'the stale copy is dropped').toBeNull()
+  })
+
+  it('the hot path reads the table once per press, not on every hit', async () => {
+    draft('hit')
+    const secret = issueFor(WHO, TURN)!.secret
+    const r = await claimAcrossDeploy(WHO, 'hit', secret)
+    expect(r.ok).toBe(true)
+    expect(loads).toEqual(['hit'])
+  })
+
+  it('a table that cannot answer leaves the in-memory verdict in force', async () => {
+    onPersist(table({ failing: true }))
+    draft('offline')
+    const secret = issueFor(WHO, TURN)!.secret
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const hit = await claimAcrossDeploy(WHO, 'offline', secret)
+      expect(hit.ok, 'a hit still sends when the table is down').toBe(true)
+      forgetProposals()
+      draft('offline-2')
+      const s2 = issueFor(WHO, TURN)!.secret
+      forgetProposals()
+      const miss = await claimAcrossDeploy(WHO, 'offline-2', s2)
+      expect(miss.ok, 'a miss still refuses when the table is down').toBe(false)
+      expect(
+        warn.mock.calls.some(c => String(c[0]).includes('store.load failed'))
+      ).toBe(true)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('without a load in the store the guarded claim is the plain claim', async () => {
+    onPersist({
+      save: p => rows.set(p.id, JSON.parse(JSON.stringify(p))),
+      remove: id => rows.delete(id),
+    })
+    draft('plain')
+    const secret = issueFor(WHO, TURN)!.secret
+    forgetProposals()
+    const r = await claimAcrossDeploy(WHO, 'plain', secret)
+    expect(r.ok).toBe(false)
+  })
+})
+
+/**
+ * The confirm and cancel routes go through the guarded claim: the plain
+ * `claim` on a route is the exact defect measured in production.
+ */
+describe('the routes press through the guarded claim', () => {
+  it('confirm and cancel await claimAcrossDeploy, not claim', () => {
+    const src = fs.readFileSync(
+      path.join(__dirname, 'render-server.ts'),
+      'utf8'
+    )
+    const confirm = src.indexOf("route === '/api/tg/proposal/confirm'")
+    const cancel = src.indexOf("route === '/api/tg/proposal/cancel'")
+    expect(confirm).toBeGreaterThan(0)
+    expect(cancel).toBeGreaterThan(confirm)
+    const confirmBody = src.slice(confirm, cancel)
+    const cancelBody = src.slice(cancel, cancel + 1500)
+    expect(confirmBody).toMatch(/await claimAcrossDeploy\(/)
+    expect(confirmBody).not.toMatch(/[^A-Za-z]claim\(/)
+    expect(cancelBody).toMatch(/await claimAcrossDeploy\(/)
+    expect(cancelBody).not.toMatch(/[^A-Za-z]claim\(/)
+  })
+})
+
+/**
  * WHAT IS WRITTEN DOWN. Never the plaintext secret: the digest is all `claim`
  * needs, and it cannot be handed out, so a row is not a card. A database dump
  * is a list of drafts nobody can confirm.
@@ -294,5 +556,53 @@ describe('a store that cannot be reached complains', () => {
     const out = await wireProposalStore(() => pool)
     expect(out).toEqual({ restored: 0, expired: 0, unissued: 0, replaced: 0 })
     expect(queries.some(q => q.startsWith('CREATE TABLE'))).toBe(true)
+  })
+  /**
+   * The wired store answers a press-time read from the table. This is the
+   * pool the production route goes through, so the SQL shape is asserted
+   * here rather than trusted.
+   */
+  it('the wired store reads one row by id for the guarded claim', async () => {
+    forgetProposals()
+    const table = new Map<string, any[]>()
+    const queries: Array<{ sql: string; params?: unknown[] }> = []
+    const pool = {
+      query: async (sql: string, params?: unknown[]) => {
+        queries.push({ sql: sql.replace(/\s+/g, ' ').trim(), params })
+        if (/^INSERT/.test(sql.trim())) table.set(String(params![0]), params!)
+        if (/^DELETE/.test(sql.trim())) table.delete(String(params![0]))
+        if (/^SELECT.*WHERE id/s.test(sql.trim())) {
+          const r = table.get(String(params![0]))
+          return {
+            rows: r
+              ? [
+                  {
+                    id: r[0],
+                    telegram_id: r[1],
+                    created_at: r[2],
+                    issued: r[3],
+                    secret_digest: r[4],
+                    payload: r[5],
+                  },
+                ]
+              : [],
+          }
+        }
+        return { rows: [] }
+      },
+    }
+    await wireProposalStore(() => pool)
+    // Container A mints and issues; the INSERT is fire-and-forget.
+    draft('w1')
+    const secret = issueFor(WHO, TURN)!.secret
+    await new Promise(r => setTimeout(r, 0))
+    // Container B: empty Map, same table.
+    forgetProposals()
+    const taken = await claimAcrossDeploy(WHO, 'w1', secret)
+    expect(taken.ok).toBe(true)
+    const select = queries.find(q => /^SELECT .* WHERE id = \$1$/.test(q.sql))
+    expect(select?.params).toEqual(['w1'])
+    await new Promise(r => setTimeout(r, 0))
+    expect(table.has('w1'), 'the press deleted the row').toBe(false)
   })
 })

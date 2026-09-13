@@ -273,6 +273,13 @@ export function onOrphaned(fn: OrphanListener | null): void {
 export interface ProposalStore {
   save: (p: PendingProposal) => void
   remove: (id: string) => void
+  /**
+   * One row by id, or null when there is none. Optional: an in-memory test
+   * store does not need it, and without it `claimAcrossDeploy` behaves
+   * exactly like `claim`. Read on a press only -- see the deploy overlap
+   * note there.
+   */
+  load?: (id: string) => Promise<PendingProposal | null>
 }
 let store: ProposalStore | null = null
 
@@ -675,6 +682,123 @@ export function claim(
     persistRemove(id)
   }
   return { ok: true, proposal: redact(p) }
+}
+
+/**
+ * THE PRESS MAY LAND IN A DIFFERENT PROCESS THAN THE CARD.
+ *
+ * Measured in production on 2026-09-13 at 16:09-16:11 UTC. A merge redeployed
+ * the render while the seller's sweep was running. The outgoing container
+ * served the agent turn and minted the card (16:09:46, row saved); the new
+ * container had already come up and restored the table BEFORE that row
+ * existed (16:10:34, "restored 1"); traffic moved over, and the press at
+ * 16:11:31 reached the new process, whose Map had never heard of the id. The
+ * owner read "this action is already confirmed or expired" about a card
+ * that was sixty seconds old. Railway keeps both containers alive for about
+ * a minute on every deploy, and this repository deploys several times a day,
+ * so any card minted in that minute was unpressable.
+ *
+ * The table already had the row. So on a miss -- and ONLY on a miss, the
+ * hot path stays in memory -- the row is read back, adopted under the same
+ * rules a restart applies (issued, not expired, newest per person), and the
+ * claim is tried once more with the same secret. No plaintext leaves the
+ * process: the row carries the digest, and the press carries the secret.
+ *
+ * The mirror image of the same minute: a card the NEW process restored may
+ * meanwhile have been pressed in the OLD one, which deleted the row. Its
+ * Map entry is then a stale copy with a valid digest, and a second press would
+ * send the message twice. So a hit is checked against the table too, and a
+ * vanished row means the press already happened somewhere.
+ *
+ * A store that cannot answer does not block the press: the in-memory verdict
+ * stands, exactly as it did before the store existed, and a warning says so.
+ */
+export async function claimAcrossDeploy(
+  telegramId: string,
+  id: string,
+  secret: string,
+  intent: 'execute' | 'cancel' = 'execute'
+): Promise<
+  { ok: true; proposal: PublicProposal } | { ok: false; why: string }
+> {
+  dropExpired()
+  const mine = String(telegramId)
+  const load = store?.load
+  if (!load || !id) return claim(mine, id, secret, intent)
+
+  if (pending.has(id)) {
+    let row: PendingProposal | null | undefined
+    try {
+      row = await load(id)
+    } catch (e) {
+      console.warn('[proposal] store.load failed:', String(e).slice(0, 120))
+    }
+    if (row === null) {
+      // The row is gone but the Map still has it: consumed by another process
+      // during the overlap, or removed by hand. Either way it was pressed
+      // once already.
+      const stale = pending.get(id)
+      pending.delete(id)
+      console.warn(
+        `[proposal] stale draft id=${id} who=${mine} ` +
+          `action=${stale?.action ?? '?'}: row gone, not sending twice`
+      )
+      return { ok: false, why: 'это действие уже подтверждено или истекло' }
+    }
+    return claim(mine, id, secret, intent)
+  }
+
+  let row: PendingProposal | null = null
+  try {
+    row = await load(id)
+  } catch (e) {
+    console.warn('[proposal] store.load failed:', String(e).slice(0, 120))
+    return claim(mine, id, secret, intent)
+  }
+  if (!row) {
+    console.log(`[proposal] miss id=${id} who=${mine}: no row, no draft`)
+    return claim(mine, id, secret, intent)
+  }
+  // Fail-closed before adopting anything: a probe with somebody else's id
+  // must not pull their card into this process.
+  if (row.telegramId !== mine) {
+    return { ok: false, why: 'это действие предложено не вам' }
+  }
+  if (row.createdAt < Date.now() - LIFETIME_MS) {
+    reportOrphan(redact(row), 'expired')
+    persistRemove(row.id)
+    return claim(mine, id, secret, intent)
+  }
+  if (!row.issued) {
+    // Never shown, so never pressed: a press with this id did not come from
+    // a card. The row is dropped the way a restart drops it.
+    reportOrphan(redact(row), 'expired')
+    persistRemove(row.id)
+    return claim(mine, id, secret, intent)
+  }
+  /*
+   * ONE PENDING PROPOSAL PER PERSON, decided by age, not by which process
+   * happened to mint it. A sibling already in this Map that is NEWER than
+   * the row wins, as it would have live, and the row leaves as replaced. An
+   * OLDER sibling is the card the other process already superseded (it only
+   * survives here because the restore ran before that happened), so it is
+   * the one to drop.
+   */
+  for (const sibling of [...pending.values()]) {
+    if (sibling.telegramId !== mine) continue
+    if (sibling.createdAt > row.createdAt) {
+      reportOrphan(redact(row), 'replaced')
+      persistRemove(row.id)
+      return claim(mine, id, secret, intent)
+    }
+    drop(sibling, 'replaced')
+  }
+  pending.set(row.id, row)
+  console.log(
+    `[proposal] recovered id=${id} who=${mine} action=${row.action} ` +
+      `from the table: minted by another process during a deploy overlap`
+  )
+  return claim(mine, id, secret, intent)
 }
 
 /**
