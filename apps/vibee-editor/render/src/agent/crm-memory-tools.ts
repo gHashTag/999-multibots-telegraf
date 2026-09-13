@@ -21,6 +21,11 @@ import {
   listMedia,
   rememberMedia,
   transcribeAndMirror,
+  pendingTranscripts,
+  reopenUnread,
+  forgetTranscripts,
+  storedIngestMsgIds,
+  dropDuplicateIngestRows,
   mediaMessageText,
   mtprotoMediaInfo,
   MEDIA_KINDS,
@@ -184,6 +189,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         zep_mirrored: 0,
         media_saved: 0,
         media_skipped: 0,
+        transcripts_queued: 0,
         stopped: null as string | null,
       }
       let downloads = 0
@@ -264,7 +270,19 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
            * link -- MTProto has none, and the shelf URL is what a provider
            * may be handed. Describing runs in the background per dialog.
            */
-          const withMedia = withInfo.filter(x => x.info)
+          /*
+           * MTProto has no file_unique_id, so the shelf URL (timestamped)
+           * cannot be the identity of a file across runs: every pass would
+           * download the same photo again as a new row (measured 2026-09-13:
+           * nine photos twice). One message carries one file, so the
+           * (owner, lead, msg_id) already stored is the thing to skip.
+           */
+          const already = await storedIngestMsgIds(pool, owner, lead).catch(
+            () => new Set<number>()
+          )
+          const withMedia = withInfo.filter(
+            x => x.info && !already.has(Number(x.m.id))
+          )
           const fresh: Array<MediaRow & { id: number }> = []
           for (const { m, info } of withMedia.slice(0, perDialog)) {
             if (!info) continue
@@ -313,12 +331,26 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
               )
             }
           }
-          report.media_skipped += Math.max(
-            0,
-            withMedia.length - MEDIA_PER_DIALOG
-          )
-          if (fresh.length) {
-            void transcribeAndMirror(pool, owner, fresh).catch(() => undefined)
+          report.media_skipped += Math.max(0, withMedia.length - perDialog)
+          /*
+           * One person asked for by name gets their backlog read too: rows
+           * an earlier pass downloaded but could not describe (provider
+           * down) are still pending and are queued behind the fresh ones.
+           */
+          const queue: Array<MediaRow & { id: number }> = [...fresh]
+          if (onlyLead) {
+            const seen = new Set(fresh.map(x => x.id))
+            const backlog = await pendingTranscripts(
+              pool,
+              owner,
+              lead,
+              MAX_MEDIA_DOWNLOADS
+            ).catch(() => [])
+            for (const b of backlog) if (!seen.has(b.id)) queue.push(b)
+            report.transcripts_queued = queue.length
+          }
+          if (queue.length) {
+            void transcribeAndMirror(pool, owner, queue).catch(() => undefined)
           }
         }
       } finally {
@@ -428,6 +460,19 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           enum: [...MEDIA_KINDS],
           description: 'только этот вид: image | video | audio | file',
         },
+        reread: {
+          type: 'boolean',
+          description:
+            'прочитать заново фото и аудио без расшифровки (например, после сбоя ' +
+            'провайдера); расшифровки появятся в фоне',
+        },
+        rewrite: {
+          type: 'string',
+          enum: [...MEDIA_KINDS],
+          description:
+            'вместе с reread: стереть уже имеющиеся описания этого вида (image | audio) ' +
+            'и прочитать их заново — например, когда старые описания пришли не по-русски',
+        },
       },
       required: ['lead'],
       additionalProperties: false,
@@ -443,6 +488,20 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const kind = MEDIA_KINDS.includes(a?.kind)
         ? (a.kind as MediaKind)
         : undefined
+      let rereadQueued: number | undefined
+      let forgotten: number | undefined
+      if (a?.reread === true) {
+        await dropDuplicateIngestRows(pool, owner, lead.id)
+        if (a?.rewrite === 'image' || a?.rewrite === 'audio') {
+          forgotten = await forgetTranscripts(pool, owner, lead.id, a.rewrite)
+        }
+        await reopenUnread(pool, owner, lead.id)
+        const again = await pendingTranscripts(pool, owner, lead.id, 100)
+        rereadQueued = again.length
+        if (again.length) {
+          void transcribeAndMirror(pool, owner, again).catch(() => undefined)
+        }
+      }
       const items = await listMedia(pool, owner, lead.id, {
         limit: clamp(a?.limit, 20, 100),
         kind,
@@ -451,6 +510,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         lead: lead.id,
         display: lead.display ?? undefined,
         total: items.length,
+        ...(rereadQueued !== undefined ? { reread_queued: rereadQueued } : {}),
+        ...(forgotten !== undefined ? { rewritten: forgotten } : {}),
         // Newest first. Their caption and their words framed; the URL, the
         // kind and the sizes are ours.
         items: items.map(x => ({

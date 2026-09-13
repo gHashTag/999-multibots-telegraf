@@ -10,6 +10,10 @@ import {
   TrinityBlogReel,
   TrinityBlogReelSchema,
 } from './compositions/TrinityBlogReel'
+import {
+  LeelaPlanReel,
+  LeelaPlanReelSchema,
+} from './compositions/LeelaPlanReel'
 import { resolveMediaPath } from './shared/mediaPath'
 import {
   CAPTION_DEFAULTS,
@@ -209,6 +213,23 @@ export const RemotionRoot: React.FC = () => {
             : 0
           if (!last) return {}
           return { durationInFrames: Math.round((last / 1000 + 1.2) * 30) }
+        }}
+      />
+
+      {/* LeelaPlanReel: one throw, one plan, one observation; every word is canon */}
+      <Composition
+        id="LeelaPlanReel"
+        component={LeelaPlanReel as never}
+        durationInFrames={360}
+        fps={30}
+        width={1080}
+        height={1920}
+        schema={LeelaPlanReelSchema}
+        defaultProps={{
+          lang: 'ru' as const,
+          plan: 6,
+          showBoard: true,
+          musicVolume: 0.05,
         }}
       />
     </>

@@ -10,7 +10,9 @@ import {
   reportOf,
   sellerBrief,
   buyerPersona,
+  dedupeLinks,
   askBuyerModel,
+  buyerRequestBody,
   PAID_TOOLS,
   TURNS_MAX,
   type DuetRun,
@@ -37,6 +39,7 @@ function freshRun(over: Partial<DuetRun> = {}): DuetRun {
     paid_calls: 0,
     media_sent: 0,
     violations: [],
+    voice_flags: [],
     ...over,
   }
 }
@@ -198,12 +201,19 @@ describe('crm_duet helpers', () => {
     expect(mediaOf({ сделано: true, url: '/relative.png' })).toBeNull() // cyrillic-ok
     expect(mediaOf({ url: 'https://x/y.png' })).toBeNull()
     expect(mediaOf('https://x/y.png')).toBeNull()
+    // reel_render speaks gotovo, not sdelano -- run duet-mtzo7ogz lost its mp4 here
+    expect(mediaOf({ готово: true, renderId: 'r1', url: 'https://x/reel.mp4' })).toBe( // cyrillic-ok
+      'https://x/reel.mp4'
+    )
+    expect(mediaOf({ готово: false, renderId: 'r1' })).toBeNull() // cyrillic-ok
   })
 
   it('okOf reads the tools\u2019 own failure shapes', () => {
     expect(okOf({ сделано: false })).toBe(false) // cyrillic-ok
     expect(okOf({ ошибка: 'нет ключа' })).toBe(false) // cyrillic-ok
     expect(okOf({ error: 'boom' })).toBe(false)
+    expect(okOf({ готово: false, причина: 'не уложился' })).toBe(false) // cyrillic-ok
+    expect(okOf({ началось: false, причина: 'нет токенов' })).toBe(false) // cyrillic-ok
     expect(okOf({ ok: true })).toBe(true)
     expect(okOf([1, 2])).toBe(true)
   })
@@ -212,11 +222,98 @@ describe('crm_duet helpers', () => {
     const brief = sellerBrief(BUYER)
     expect(brief).toContain('72 планов')
     expect(brief).toContain('t27.ai/leela')
-    expect(brief).toContain('не больше трёх')
+    expect(brief).toContain('discovery')
+    expect(brief).toContain('LeelaPlanReel')
+    expect(brief).toContain('leela_plan')
+    expect(brief).toContain('Профиль клиента не настроен')
     expect(brief).toContain('Не вызывай tg_*')
+    expect(brief).toContain('не больше одного раза')
+    expect(brief).toContain('Здесь нет правильного ответа')
+    expect(brief).not.toContain('не больше трёх')
     expect(buyerPersona()).toContain('@playom')
+    expect(buyerPersona('Я хозяйка стола.')).toContain('Я хозяйка стола.')
     expect(PAID_TOOLS.size).toBe(5)
     expect(TURNS_MAX).toBe(8)
+  })
+
+  it('an installed client profile is quoted into the brief: discovery questions, series, forbidden claims, her template', () => {
+    const profile = {
+      name: 'Гея',
+      handle: '@playom',
+      status: 'draft',
+      role: 'Хранительница Лилы',
+      business: { product: 'Лила — игра самопознания', surfaces: ['@leela_chakra_ai_bot'] },
+      audience_hypotheses: ['новичок после первого броска'],
+      discovery_questions: ['Где живёт ваша аудитория?'],
+      content_series: [{ rubric: 'устройство партии', ideas: ['вход с шестёрки'] }],
+      forbidden_claims: ['первый / единственный / лучший'],
+      reel_template: { composition: 'LeelaPlanReel' },
+      approved_cta: { text: 'Приходите на доску.', button: '🎲 Играть' },
+    }
+    const brief = sellerBrief(BUYER, profile)
+    expect(brief).toContain('Гея (@playom)')
+    expect(brief).toContain('Где живёт ваша аудитория?')
+    expect(brief).toContain('новичок после первого броска')
+    expect(brief).toContain('устройство партии: вход с шестёрки')
+    expect(brief).toContain('первый / единственный / лучший')
+    expect(brief).toContain('«Приходите на доску.»')
+    expect(brief).not.toContain('Профиль клиента не настроен')
+  })
+
+  it('a link already sent is dropped from a later line; the first stays', () => {
+    const sent = new Set<string>()
+    const a = dedupeLinks('Играть: https://t27.ai/leela/ — посмотрите.', sent)
+    expect(a.text).toContain('https://t27.ai/leela/')
+    expect(a.dropped).toEqual([])
+    const b = dedupeLinks('Ещё раз ссылка https://t27.ai/leela/ и бот.', sent)
+    expect(b.text).not.toContain('https://')
+    expect(b.dropped).toEqual(['https://t27.ai/leela/'])
+  })
+
+  it('a pressure word costs the seller one correction round; the rewrite is what is sent and the flag is reported', async () => {
+    const { d, sent, histories } = deps(
+      [
+        [text('Сегодня последний шанс, вы молодец!')],
+        [text('Расскажите, где сейчас живёт ваша аудитория?')],
+        [text('Спокойно продолжим.')],
+      ],
+      ['В канале.', 'Хорошо.']
+    )
+    const run = await runDuet(freshRun(), ctx, d)
+    expect(run.state).toBe('done')
+    expect(run.voice_flags.length).toBe(1)
+    expect(run.voice_flags[0]).toMatch(/turn 0/)
+    expect(sent[0].text).toBe('Расскажите, где сейчас живёт ваша аудитория?')
+    expect(histories[1].at(-1)?.content).toContain('Проверка голоса')
+    expect(reportOf(run)).toContain('Проверка голоса')
+  })
+
+  it('the profile is read by the duet itself: the brief carries her name, the buyer borrows her SOUL, off-brand generations are flagged', async () => {
+    const { d, histories } = deps(
+      [
+        [
+          result('image_generate', { ok: true, url: 'https://x/y.jpg' }),
+          text('Смотрите пример.'),
+        ],
+      ],
+      ['Это не в стиле игры.']
+    )
+    d.clientProfile = async () => ({
+      has_profile: true,
+      profile: { name: 'Гея', handle: '@playom', reel_template: { composition: 'LeelaPlanReel' } },
+      soul_excerpt: 'Я хозяйка стола.',
+    })
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(run.profile_used).toBe(true)
+    expect(histories[0][0].content).toContain('Гея (@playom)')
+    expect(run.violations.some(v => /image_generate/.test(v))).toBe(true)
+  })
+
+  it('without a profile the run says so in the report', async () => {
+    const { d } = deps([[text('Здравствуйте.')]], ['Кто вы?'])
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(run.profile_used).toBe(false)
+    expect(reportOf(run)).toContain('crm_client_setup')
   })
 })
 
@@ -287,6 +384,45 @@ describe('crm_duet tools', () => {
       'https://bad/v1/chat/completions',
       'https://good/v1/chat/completions',
     ])
+  })
+
+  it('buyer model asks GLM not to think and treats a reasoning-only 200 as a miss', async () => {
+    const bodies: Array<Record<string, any>> = []
+    const doFetch = vi.fn(async (_url: string, init: any) => {
+      const body = JSON.parse(init.body)
+      bodies.push(body)
+      if (body.model === 'glm-5.3')
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: '', reasoning_content: 'hmm...' },
+                finish_reason: 'length',
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: 'беру пост' } }] }),
+        { status: 200 }
+      )
+    }) as unknown as typeof fetch
+    const text = await askBuyerModel(
+      [{ role: 'user', content: 'x' }],
+      [
+        { id: 'zai', base: 'https://a', model: 'glm-5.3', key: 'k', thinking: true },
+        { id: 'nemotron', base: 'https://b', model: 'n', key: 'k', thinking: false },
+      ],
+      doFetch
+    )
+    expect(text).toBe('беру пост')
+    expect(bodies[0].thinking).toEqual({ type: 'disabled' })
+    expect(bodies[0].max_tokens).toBeGreaterThanOrEqual(600)
+    expect(bodies[1].thinking).toBeUndefined()
+    expect(
+      buyerRequestBody({ id: 'zai-lite', model: 'glm-4.5' }, []).thinking
+    ).toEqual({ type: 'disabled' })
   })
 
   it('buyer model names every provider when all fail', async () => {

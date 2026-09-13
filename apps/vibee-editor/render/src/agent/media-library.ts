@@ -120,7 +120,20 @@ const TRANSCRIPT_CAP = 4000
 /** Text-like documents are read up to this size; bigger ones are not fetched. */
 const TEXT_DOC_MAX_BYTES = 200 * 1024
 /** Hard ceiling on one describe call, provider or fetch. */
-const DESCRIBE_TIMEOUT_MS = 20_000
+/*
+ * Vision on the NVIDIA gateway measured 2026-09-13: 15-40 s per photo, and a
+ * burst of 33 files answered 503 "ResourceExhausted" on every second call.
+ * So: a longer deadline, a short pause between files, a retry with backoff
+ * on the throttle answers, and ONE queue per process however many callers.
+ */
+const DESCRIBE_TIMEOUT_MS = 45_000
+const RETRY_STATUS = new Set([429, 502, 503, 504])
+const RETRY_ATTEMPTS = 3
+const retryBaseMs = () => Number(process.env.MEDIA_RETRY_BASE_MS ?? 5_000)
+const pauseMs = () => Number(process.env.MEDIA_DESCRIBE_PAUSE_MS ?? 2_000)
+const sleep = (ms: number) =>
+  ms > 0 ? new Promise<void>(r => setTimeout(r, ms)) : Promise.resolve()
+let queueTail: Promise<unknown> = Promise.resolve()
 
 let tableReady = false
 /** For tests: the next call creates the table again. */
@@ -310,7 +323,7 @@ const PROMPTS: Record<'image' | 'audio', string> = {
   audio:
     'Transcribe this recording verbatim. Keep the original language. Output only the words spoken, nothing else.',
   image:
-    'Describe in 2-3 sentences what is on the image and read any visible text verbatim. Answer in the language of the text on the image, or in Russian if there is none.',
+    'Describe in 2-3 sentences what is on the image and quote any visible text verbatim in its original language. Write the description itself in Russian.',
 }
 
 /** The one provider that perceives this kind, in the configured order. */
@@ -359,6 +372,24 @@ async function askProvider(
   kind: 'image' | 'audio',
   url: string
 ): Promise<string | null> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await askProviderOnce(p, kind, url)
+    } catch (e) {
+      const throttled =
+        (e as { retryable?: boolean })?.retryable === true ||
+        (e as { name?: string })?.name === 'AbortError'
+      if (!throttled || attempt >= RETRY_ATTEMPTS) throw e
+      await sleep(retryBaseMs() * attempt)
+    }
+  }
+}
+
+async function askProviderOnce(
+  p: Provider,
+  kind: 'image' | 'audio',
+  url: string
+): Promise<string | null> {
   const part =
     kind === 'image'
       ? { type: 'image_url', image_url: { url } }
@@ -384,7 +415,11 @@ async function askProvider(
   })
   if (!r.ok) {
     const body = await r.text().catch(() => '')
-    throw new Error(`${p.id} answered ${r.status}: ${body.slice(0, 160)}`)
+    const err = new Error(
+      `${p.id} answered ${r.status}: ${body.slice(0, 160)}`
+    ) as Error & { retryable?: boolean }
+    err.retryable = RETRY_STATUS.has(r.status)
+    throw err
   }
   const j: any = await r.json()
   const content = j?.choices?.[0]?.message?.content
@@ -437,8 +472,97 @@ export async function describeMedia(
         e instanceof Error ? e.message : e
       ).slice(0, 160)}`
     )
-    return null
+    /*
+     * A provider that fails is NOT "nothing readable": the row must stay
+     * pending so the next pass tries again (measured 2026-09-13: 28 files
+     * of one lead were marked read with no words because the provider
+     * answered 404 for an hour). Only the honest nulls above are final.
+     */
+    throw new DescribeFailed(kind, name)
   }
+}
+
+/** A provider failure while describing: retryable, never "attempted". */
+export class DescribeFailed extends Error {
+  constructor(kind: MediaKind, name: string | null) {
+    super(`describe failed: ${kind} ${name ?? ''}`)
+  }
+}
+
+/** Message ids of this lead's files the ingest already holds. */
+export async function storedIngestMsgIds(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<Set<number>> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `SELECT msg_id FROM user_media
+      WHERE owner_id = $1 AND lead_id = $2 AND surface = 'ingest' AND msg_id IS NOT NULL`,
+    [owner, lead]
+  )
+  return new Set(
+    (r.rows as Array<{ msg_id: number }>).map(x => Number(x.msg_id))
+  )
+}
+
+/**
+ * One row per (message, file) for the ingest surface: keep the earliest,
+ * drop the copies an earlier pass downloaded again under a new shelf URL.
+ */
+export async function dropDuplicateIngestRows(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<number> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `DELETE FROM user_media d USING user_media k
+      WHERE d.owner_id = $1 AND d.lead_id = $2 AND d.surface = 'ingest'
+        AND k.owner_id = d.owner_id AND k.lead_id = d.lead_id AND k.surface = d.surface
+        AND k.msg_id = d.msg_id AND k.id < d.id`,
+    [owner, lead]
+  )
+  return Number((r as { rowCount?: number }).rowCount ?? 0)
+}
+
+/**
+ * Drop the transcripts of one kind for one lead so they are read again
+ * (the owner asked: descriptions made before the Russian-only prompt).
+ * Returns how many rows were cleared.
+ */
+export async function forgetTranscripts(
+  pool: Pool,
+  owner: string,
+  lead: string,
+  kind: 'image' | 'audio'
+): Promise<number> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `UPDATE user_media SET transcript = NULL, transcribed_at = NULL
+      WHERE owner_id = $1 AND lead_id = $2 AND kind = $3 AND transcript IS NOT NULL`,
+    [owner, lead, kind]
+  )
+  return Number((r as { rowCount?: number }).rowCount ?? 0)
+}
+
+/**
+ * Forget failed attempts for one lead so `pendingTranscripts` offers the
+ * rows again. Only image and audio: video and binary files are final nulls.
+ */
+export async function reopenUnread(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<number> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `UPDATE user_media SET transcribed_at = NULL
+      WHERE owner_id = $1 AND lead_id = $2 AND transcript IS NULL
+        AND transcribed_at IS NOT NULL AND kind IN ('image', 'audio')`,
+    [owner, lead]
+  )
+  return Number((r as { rowCount?: number }).rowCount ?? 0)
 }
 
 /* ── the memory text ──────────────────────────────────────────────────── */
@@ -519,14 +643,28 @@ export async function mirrorTranscript(
  * ceiling, and a burst of twelve at once would be a burst against the same
  * key the live chat uses. Runs in the background; callers `void` it.
  */
-export async function transcribeAndMirror(
+export function transcribeAndMirror(
+  pool: Pool,
+  owner: string,
+  rows: Array<MediaRow & { id: number }>
+): Promise<{ described: number; mirrored: number }> {
+  // One queue per process: a sweep and a reread must not race the gateway.
+  const run = queueTail.then(() => transcribeQueue(pool, owner, rows))
+  queueTail = run.catch(() => undefined)
+  return run
+}
+
+async function transcribeQueue(
   pool: Pool,
   owner: string,
   rows: Array<MediaRow & { id: number }>
 ): Promise<{ described: number; mirrored: number }> {
   let described = 0
   let mirrored = 0
+  let first = true
   for (const row of rows) {
+    if (!first) await sleep(pauseMs())
+    first = false
     try {
       const words = await describeMedia(row.url, row.kind, row.mime, row.name)
       await saveTranscript(pool, row.id, words)
@@ -535,9 +673,12 @@ export async function transcribeAndMirror(
       const how = await mirrorTranscript(pool, owner, row, words)
       if (how !== 'skipped') mirrored += 1
     } catch (e) {
-      console.warn(
-        `[media-library] transcript for #${row.id} did not land: ${String(e).slice(0, 160)}`
-      )
+      // A DescribeFailed row is left pending on purpose; see describeMedia.
+      if (!(e instanceof DescribeFailed)) {
+        console.warn(
+          `[media-library] transcript for #${row.id} did not land: ${String(e).slice(0, 160)}`
+        )
+      }
     }
   }
   return { described, mirrored }

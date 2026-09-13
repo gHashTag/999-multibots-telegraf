@@ -99,8 +99,8 @@ const OLLAMA_PRIVATE = 'http://queen-ollama.railway.internal:11434/v1'
 function ollamaEnabled(): boolean {
   return Boolean(
     process.env.OLLAMA_BASE_URL ||
-      process.env.RAILWAY_SERVICE_QUEEN_OLLAMA_URL ||
-      process.env.OLLAMA_ENABLED
+    process.env.RAILWAY_SERVICE_QUEEN_OLLAMA_URL ||
+    process.env.OLLAMA_ENABLED
   )
 }
 function ollamaContext(): number {
@@ -274,12 +274,27 @@ export function providerOrder(): ProviderId[] {
     : DEFAULT_ORDER
 }
 
-function build(id: ProviderId, first: boolean, key: string): Provider {
+/**
+ * The provider AGENT_MODEL was written for: the deploy-time AGENT_PROVIDER,
+ * or the default head of the chain when none is set. A choice the owner
+ * makes later from the bot must NOT inherit that name -- measured
+ * 2026-09-13: owner picked nemotron, AGENT_MODEL=glm-5.3 went to NVIDIA,
+ * whose gateway answers an unknown model with a bare `404 page not found`;
+ * every nemotron turn and every image/audio description died on it.
+ */
+function envModelOwner(): ProviderId {
+  const env = (process.env.AGENT_PROVIDER || '').toLowerCase() as ProviderId
+  return env in CATALOG ? env : 'zai'
+}
+
+function build(id: ProviderId, key: string): Provider {
   const c = CATALOG[id]
   // Our model's name comes from OLLAMA_MODEL; AGENT_MODEL is the paid
   // providers' override and must not rename an Ollama tag by accident.
   const model =
-    id === 'ollama' ? c.model : (first && process.env.AGENT_MODEL) || c.model
+    id === 'ollama'
+      ? c.model
+      : (id === envModelOwner() && process.env.AGENT_MODEL) || c.model
   return {
     id,
     base: c.base,
@@ -300,7 +315,7 @@ export function allProviders(): Provider[] {
   for (const id of order) {
     const have = available(id)
     if (!have) continue
-    out.push(build(id, id === order[0], have.key))
+    out.push(build(id, have.key))
   }
   return out
 }
@@ -324,7 +339,20 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
   }
   if (status === 429) return `${id}: превышен лимит запросов`
   if (status === 404 && b.trim() === '404 page not found') {
-    return `${id}: ответил 404 «page not found» — путь до /chat/completions собран неверно, проверьте базовый адрес провайдера (без завершающего слэша и без самого пути)`
+    // Measured 2026-09-13 against integrate.api.nvidia.com with NO base URL
+    // override: GET /v1/models answers 200 with the catalogue, a POST with a
+    // Bearer key to /v1/chat/completions answers per model (410 for a retired
+    // one), yet the project's key gets a bare "404 page not found". Same
+    // shape as the NVIDIA forum threads about a personal org missing the
+    // "Public API Endpoints" permission -- an account-side fault, not a
+    // path. A misbuilt base is still possible, so both are named.
+    return (
+      `${id}: ответил 404 «page not found» на POST /chat/completions — ` +
+      (id === 'nemotron'
+        ? 'у организации ключа NVIDIA обычно нет разрешения Public API Endpoints (build.nvidia.com → организация/ключ); ' // cyrillic-ok
+        : '') +
+      'также проверьте базовый адрес провайдера (без завершающего слэша и без самого пути)' // cyrillic-ok
+    )
   }
   return `${id}: ответил ${status} — ${body.slice(0, 200)}`
 }

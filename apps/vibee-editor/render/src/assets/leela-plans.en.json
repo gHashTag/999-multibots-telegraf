@@ -1,0 +1,362 @@
+[
+  {
+    "plan": 1,
+    "title": "Birth (janma)",
+    "description": "Birth is the entrance to a karmic game. Karma is determined by the number of points rolled on the die, and the player's personality is represented on the field by some symbol that moves from square to square in accordance with its lot."
+  },
+  {
+    "plan": 2,
+    "title": "Maya",
+    "description": "When one becomes a player, the sense of unity is lost in the excitement of the game. In this change of consciousness lies the whole charm of the act of the game."
+  },
+  {
+    "plan": 3,
+    "title": "Anger (krodha)",
+    "description": "To understand the nature of anger, it is essential to understand the nature of the ego. The ego is that which identifies itself as 'I'."
+  },
+  {
+    "plan": 4,
+    "title": "Greed (lobha)",
+    "description": "Due to the sense of separation that every born creature has, the player begins to seek satisfaction."
+  },
+  {
+    "plan": 5,
+    "title": "Physical plane (bhu-loka)",
+    "description": "The realm of unmanifest reality transforms into a world of names and forms. The world of names and forms exists in the form of seven different lokas, or levels of being, arranged in ascending order."
+  },
+  {
+    "plan": 6,
+    "title": "Delusion (moha)",
+    "description": "The Sanskrit word moha means 'attachment'. This attachment is the cause of the slavish bondage that leads the player to be born and reborn again and again in the world of phenomena."
+  },
+  {
+    "plan": 7,
+    "title": "Vanity (mada)",
+    "description": "Vanity is self-deception, false pride, building castles in the air. In Sanskrit, the word mada, in addition to vanity, also means 'intoxication'."
+  },
+  {
+    "plan": 8,
+    "title": "Avarice (matsara)",
+    "description": "Vanity leads the player to become envious of everyone. He is so carried away by the illusion of himself as a separate reality that any means of satisfying his desires seem just to him."
+  },
+  {
+    "plan": 9,
+    "title": "Sensual plane (kama-loka)",
+    "description": "This is the ninth square of the bottom row. Nine is a completed odd number that closes the first row. This is a ladder that leads the player to the second level of consciousness, which begins with purification."
+  },
+  {
+    "plan": 10,
+    "title": "Cleansing (tapa)",
+    "description": "While at the first level, the player may feel quite well for some time, but soon they begin to lack vitality, wasted in negative emotions and sensuality."
+  },
+  {
+    "plan": 11,
+    "title": "Entertainment (Gandharvas)",
+    "description": "The scriptures say that the gandharvas are the musical notes of the Lord. The word gandharva is translated as \"heavenly musician\"."
+  },
+  {
+    "plan": 12,
+    "title": "Envy (irasya)",
+    "description": "Envy is the first snake on the board. It stings the player, returning them to the first level of the plane of greed and all other properties of the first chakra."
+  },
+  {
+    "plan": 13,
+    "title": "Insignificance (antariksha)",
+    "description": "Antariksha is the plane located between the physical plane and the heavens (svarga-loka). Here the player is in a \"suspended\" state - neither in heaven nor on earth, in fact, in nothing."
+  },
+  {
+    "plan": 14,
+    "title": "Astral Plane (Bhuvar Loka)",
+    "description": "Bhuvar-loka is a plane next to and closely related to the physical, but composed of finer matter."
+  },
+  {
+    "plan": 15,
+    "title": "Fantasy plan (naga-loka)",
+    "description": "Naga loka should have been an underworld. There are seven planes above the earth plane and seven planes below it."
+  },
+  {
+    "plan": 16,
+    "title": "Jealousy (dvesha)",
+    "description": "He becomes suspicious of other people when their actions are at odds with his self-image. In love relationships, he becomes jealous and fears infidelity."
+  },
+  {
+    "plan": 17,
+    "title": "Compassion (daya)",
+    "description": "Compassion is one of the divine qualities within the player, so strong that it lifts them from the second chakra to the eighth, to the plane of the Absolute."
+  },
+  {
+    "plan": 18,
+    "title": "Plan of joy (harsha-loka)",
+    "description": "Here, at the end of the second row, the second plane, the second chakra, a feeling of deep satisfaction comes to the player. He knows that he has successfully passed through the realms of envy, insignificance and jealousy."
+  },
+  {
+    "plan": 19,
+    "title": "Plan of karma (karma-loka)",
+    "description": "This plane, the plane of action (karma), opens the third row of the game board, corresponding to the third chakra. Only one desire remains with us everywhere and at all times, and that is the desire for satisfaction."
+  },
+  {
+    "plan": 20,
+    "title": "Charity (dana)",
+    "description": "Action karmas that lead to vibrational elevation are known as virtues; those that reduce the frequency of vibrations are like vices. Charity is a human virtue that exists at the level of the third chakra."
+  },
+  {
+    "plan": 21,
+    "title": "Atonement (Samana Papa)",
+    "description": "Rising from the spheres of influence of material and sensual impulses, the player realizes that in the process of satisfying these desires, he could harm others around him."
+  },
+  {
+    "plan": 22,
+    "title": "Plan of Dharma (Dharma-loka)",
+    "description": "Dharma is all that is true, right. It is an ever-evolving, ubiquitous principle, a force beyond time and space that guides human existence."
+  },
+  {
+    "plan": 23,
+    "title": "Heavenly plane (svarga-loka)",
+    "description": "Svarga-loka, the celestial plane, is the third of the seven planes of creation. All these three planes - bhu-loka, bhuvar-loka and svarga-loka - are destroyed at the end of the day of Brahma, the Creator, to be reborn again at the dawn of his next day."
+  },
+  {
+    "plan": 24,
+    "title": "Bad company (ku-sang-loka)",
+    "description": "In search of a third chakra identity, the player is looking for a group of other people who can support him."
+  },
+  {
+    "plan": 25,
+    "title": "Good company (su-sang-loka)",
+    "description": "A player who begins to follow the path of Dharma in the third chakra soon finds himself in a society of people striving to develop and realize their best features."
+  },
+  {
+    "plan": 26,
+    "title": "Sadness (dukkha)",
+    "description": "Sadness is a term used to describe changes in the body's chemistry caused by the loss of something. This loss and the associated excess pressure of energy creates a state of depression in the body."
+  },
+  {
+    "plan": 27,
+    "title": "Selfless service (paramartha)",
+    "description": "If charity involves actions performed from time to time, then selfless service is a permanent position, a way of being."
+  },
+  {
+    "plan": 28,
+    "title": "True religiosity (sudharma)",
+    "description": "Sudharma, or true religiosity, means taking the direction and course of action that best suits the player. Sudharma is life in harmony with the laws of the game. This is a direction of action that allows the player to roll the die without worrying about where it will land."
+  },
+  {
+    "plan": 29,
+    "title": "Lack of Religiousness (Adharma)",
+    "description": "A player who enters a sudharma square discovers their role in the game and begins to act in accordance with it, regardless of the consequences."
+  },
+  {
+    "plan": 30,
+    "title": "Good trends (uttama gati)",
+    "description": "Uttama means good, gati means movement. Good tendencies appear spontaneously in a player if he moves in harmony with the laws of the macrocosm."
+  },
+  {
+    "plan": 31,
+    "title": "Plan of holiness (yaksha-loka)",
+    "description": "A player entering the plane of holiness experiences divine grace through an understanding of cosmic principles. Holiness is a direct result of good tendencies."
+  },
+  {
+    "plan": 32,
+    "title": "Balance Plan (Mahar Loka)",
+    "description": "The Mahar Loka is the fourth of the seven levels of being. It is believed that this loka is destroyed at the onset of the night of Brahma, the Creator."
+  },
+  {
+    "plan": 33,
+    "title": "Plan of fragrances (gandha-loka)",
+    "description": "Gandha means \"smell\" and the sense of smell is associated with the earth element and the physical plane. However, when the player reaches the fourth level, the nature of sensory perceptions is transformed, becoming a symbolic expression of the Divine, carrying a powerful emotional charge."
+  },
+  {
+    "plan": 34,
+    "title": "Plan of taste (rasa-loka)",
+    "description": "Whereas in the lower chakras the sense of taste was primarily a form of sensory perception, in the fourth chakra it is refined into a sense of taste in an aesthetic sense."
+  },
+  {
+    "plan": 35,
+    "title": "Purgatory (naraka-loka)",
+    "description": "Until the player reaches heart level, they lack an understanding of sudharma, or true religiosity. And without sudharma, no freedom of action is possible."
+  },
+  {
+    "plan": 36,
+    "title": "Clarity of mind (svaccha)",
+    "description": "Clarity of Mind is the light that fills the player as they leave the fourth level to enter the fifth, where the human becomes Human."
+  },
+  {
+    "plan": 37,
+    "title": "Jnana (jnana)",
+    "description": "Knowledge of the truth and understanding of the correct means of putting it into practice in daily life are the two essential characteristics of jnana. Jnana is the force that elevates the player to the plane of bliss located in the eighth row beyond the chakras."
+  },
+  {
+    "plan": 38,
+    "title": "Prana Loka",
+    "description": "Prana is the life force. In Sanskrit, it is a synonym for life and the name of the breath of life that we receive with every breath. Prana is also the name of one of the five main subtle energies in the body."
+  },
+  {
+    "plan": 39,
+    "title": "Apana Loka",
+    "description": "While prana is the force for absorbing energy from the outside through the lungs and carrying food energy to the stomach, apana serves the opposite function."
+  },
+  {
+    "plan": 40,
+    "title": "Vyana-loka",
+    "description": "Vyana takes the pranic energy in the lungs and distributes it throughout the body's systems. This vital energy is responsible for the flow of blood, the secretion of the glands, the up and down movements of the body, and the opening and closing of the eyelids."
+  },
+  {
+    "plan": 41,
+    "title": "The human plane (jana-loka)",
+    "description": "Jana-loka, the fifth plane of the fifth level, is the abode of siddhas (beings who have reached a high degree of development and possess powers that allow them to perform actions \"supernatural\" for people on the lower planes) and saints, constantly immersed in the contemplation of the Lord Hari."
+  },
+  {
+    "plan": 42,
+    "title": "Plan of Agni (Agni-loka)",
+    "description": "Agni is the purest manifestation of the endless cyclic rebirth of the same divine essence. Fire is spirit, soul and body at the same time."
+  },
+  {
+    "plan": 43,
+    "title": "Birth of man (manushya-janma)",
+    "description": "Passing through the plane of Agni prepares the player for assuming form (birth). Manushya-janma marks the completion of this event."
+  },
+  {
+    "plan": 44,
+    "title": "Ignorance (avidya)",
+    "description": "A player who enters the field of ignorance forgets about the illusory nature of existence and becomes attached to certain emotional states or sensory perceptions."
+  },
+  {
+    "plan": 45,
+    "title": "Right Knowledge (suvidya)",
+    "description": "If jnana is the realization of truth, \"correct knowledge\" includes awareness and behavior (practice). This combination lifts the player to the eighth plane, the field of cosmic good."
+  },
+  {
+    "plan": 46,
+    "title": "Discrimination (Viveka)",
+    "description": "Everything that exists in the phenomenal world is not reality. Objects of perception change over time, they develop, grow and collapse."
+  },
+  {
+    "plan": 47,
+    "title": "Plan of Neutrality (Saraswati)",
+    "description": "Psychic energy in the human body flows through the central nerve channel of the spine, or sarasvati. According to yoga philosophy, this flow of energy begins at the first chakra and gradually rises higher as the player progresses from one row to the next."
+  },
+  {
+    "plan": 48,
+    "title": "Solar plan (yamuna)",
+    "description": "In the sixth chakra, the player strikes a balance between the masculine, solar principle and the feminine, lunar principle."
+  },
+  {
+    "plan": 49,
+    "title": "Lunar plan (ganga)",
+    "description": "A player entering this plane is placed at a source of female magnetic energy. Here it is under the influence of the ida-nadi nerve located on the left side of the spine."
+  },
+  {
+    "plan": 50,
+    "title": "Plan of asceticism (tapa-loka)",
+    "description": "Just as in the fifth chakra knowledge was of primary importance to the player, here on the plane of asceticism, all the player's aspirations are directed towards doing the hard work of penance and austerity."
+  },
+  {
+    "plan": 51,
+    "title": "Earth (prithivi)",
+    "description": "Earth symbolizes the great mother principle. This is the stage on which consciousness plays its eternal game known as Leela."
+  },
+  {
+    "plan": 52,
+    "title": "Plan of violence (himsa-loka)",
+    "description": "A player who has reached the sixth chakra realizes the unity of all things. Human bodies serve only as transitory forms. The true essence of all players exists beyond the realm of names and forms."
+  },
+  {
+    "plan": 53,
+    "title": "Plan of Fluids (Jala Loka)",
+    "description": "Water is cold in nature, absorbing heat, bringing coolness. The heat of asceticism of the sixth chakra, austerities, makes the player cruel."
+  },
+  {
+    "plan": 54,
+    "title": "Plan of spiritual devotion (bhakti-loka)",
+    "description": "Bhakti, or spiritual devotion, is based on the statement \"Love is God and God is love.\" A bhakta devotee loves his Deity."
+  },
+  {
+    "plan": 55,
+    "title": "Selfishness (ahamkara)",
+    "description": "Aham means \"I\" or \"I am seven\". Kara is \"form\". When the \"I\" takes form, it becomes ahamkara."
+  },
+  {
+    "plan": 56,
+    "title": "Plan of primordial vibrations (Omkara)",
+    "description": "Om is the single sound that is present throughout the universe, manifest and unmanifest. It is the most subtle form in which energy exists."
+  },
+  {
+    "plan": 57,
+    "title": "Air plane (vayu loka)",
+    "description": "Vayu Loka (literally \"plane of air\") is located in the area of Satya Loka, the plane of reality, in the seventh row of the game board. This vayu is not the wind or air found on the physical or earthly plane. This is the essence of the physical element air."
+  },
+  {
+    "plan": 58,
+    "title": "Plan of Radiance (Teja Loka)",
+    "description": "Teja means \"light, radiance\". The Upanishads speak of four states of consciousness, or \"I\"."
+  },
+  {
+    "plan": 59,
+    "title": "Plan of Reality (Satya Loka)",
+    "description": "Satya Loka is the last plane of the seven main lokas located in the spinal column of the playing board. The predominant element in Satya Loka is Akasha Tattva."
+  },
+  {
+    "plan": 60,
+    "title": "Positive Intelligence (Subuddhi)",
+    "description": "Subuddhi is the right understanding that comes only with reaching the plane of reality. After the player has reached Satya Loka, his consciousness becomes perfect and free from duality, and he comprehends the Divine in all forms and phenomena of this world."
+  },
+  {
+    "plan": 61,
+    "title": "Negative Intelligence (durbuddhi)",
+    "description": "If the player does not follow the laws of the Dharma, doubting the cosmic nature of existence and the divine presence in every experience, they will be bitten by the serpent of negative intelligence, dropping them down to the plane of nothingness."
+  },
+  {
+    "plan": 62,
+    "title": "Happiness (sukha)",
+    "description": "The balance of body and mind chemistry is happiness. Sukha, or happiness, is the state that the player achieves by discerning (viveka) or chanting Om, achieving samadhi, and maintaining a positive intellect."
+  },
+  {
+    "plan": 63,
+    "title": "Tamas",
+    "description": "In Sanskrit, the word tamas means \"darkness\", \"dark\". Darkness is the absence of light. Light is knowledge, darkness is ignorance; ignorance is the lower mind."
+  },
+  {
+    "plan": 64,
+    "title": "Phenomenal plane (prakriti-loka)",
+    "description": "In the Bhagavad Gita, Sri Krishna speaks of the dual nature of prakriti - it is both manifest and divine. Manifested prakriti is the material world, consisting of the elements - earth, water, fire, air and ether (akash), as well as mind (manas), intellect (buddhi) and ego (ahamkara)."
+  },
+  {
+    "plan": 65,
+    "title": "Plan of the interior space (uranta loka)",
+    "description": "Leaving the seventh row behind and realizing the existence of prakriti, the player begins to penetrate into the source of all phenomena of the phenomenal world - the great consciousness."
+  },
+  {
+    "plan": 66,
+    "title": "Plan of bliss (ananda loka)",
+    "description": "Consciousness is described as truth, being and bliss - Sachchidananda. Ananda is the highest truth, the essence of being."
+  },
+  {
+    "plan": 67,
+    "title": "Cosmic Benefit Plan (Rudra-loka)",
+    "description": "Rudra is one of the names of Shiva. All creation goes through three phases. The manifestation is accompanied by the maintenance of the emerging form and inevitably ends with disintegration or destruction."
+  },
+  {
+    "plan": 68,
+    "title": "Cosmic Consciousness (Vaikuntha Loka)",
+    "description": "Rising above all lokas, beyond all limits, is Vaikuntha - the loka of Cosmic Consciousness, the life force (prana) of all manifested reality."
+  },
+  {
+    "plan": 69,
+    "title": "Plan of the Absolute (Brahma-loka)",
+    "description": "On one side of the Vaikuntha Loka is the Rudra Loka, and on the other side is the Brahma Loka. Together they form the triad of Brahma, Vishnu and Shiva in the center of the top row of the playing board."
+  },
+  {
+    "plan": 70,
+    "title": "Sattvaguna",
+    "description": "Sat means \"truth\". Having achieved liberation, a person sees the truth only in the Cosmic Consciousness."
+  },
+  {
+    "plan": 71,
+    "title": "Rajoguna",
+    "description": "Rajoguna is activity in consciousness, or active consciousness. The player who has reached the eighth row, but has failed in his attempt to realize the Cosmic Consciousness, is carried forward by the forces of karma, activity."
+  },
+  {
+    "plan": 72,
+    "title": "Tamoguna",
+    "description": "After sunset and until morning twilight, tamoguna prevails, and the whole world goes to sleep. Initially, like other gunas, tamoguna is in primary prakrti."
+  }
+]

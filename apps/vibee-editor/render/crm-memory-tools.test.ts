@@ -407,6 +407,55 @@ describe('crm_ingest_chats', () => {
     )
     expect(ins[0].params).toContain('[голосовое]')
   })
+
+  it('a file whose message is already on the shelf is not downloaded again on the next pass', async () => {
+    const put = vi.fn(async (_b: Buffer, name: string) => ({
+      key: `assets/2-${name}`,
+      url: `https://vibee-render-production.up.railway.app/s3/assets/2-${name}`,
+    }))
+    vi.doMock('./src/lib/s3-put', () => ({ s3PutBytes: put }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 500, text: async () => '' }))
+    )
+    const f = fakeClient()
+    const photo = {
+      id: 9,
+      date: 1757250000,
+      out: false,
+      message: '',
+      media: {
+        className: 'MessageMediaPhoto',
+        photo: { sizes: [{ size: 100 }] },
+      },
+    }
+    const baseGetMessages = f.client.getMessages.bind(f.client)
+    f.client.getMessages = async (chat: string) => {
+      const rows = await baseGetMessages(chat)
+      return chat === A ? [photo, ...rows] : rows
+    }
+    const downloaded: number[] = []
+    ;(f.client as any).downloadMedia = async (m: { id: number }) => {
+      downloaded.push(m.id)
+      return Buffer.from('JFIF bytes')
+    }
+    const pool = fakePool()
+    const inner = pool.query
+    pool.query = async (sql: string, params: unknown[] = []) => {
+      const flat = sql.replace(/\s+/g, ' ').trim()
+      // The earlier pass already stored message 9 of this lead.
+      if (flat.startsWith('SELECT msg_id FROM user_media'))
+        return { rows: params[1] === A ? [{ msg_id: 9 }] : [] }
+      if (flat.startsWith('INSERT INTO user_media'))
+        return { rows: [{ id: 1, fresh: true }] }
+      return inner(sql, params)
+    }
+    const { ingest } = await tools(f.client)
+    const r: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(downloaded).toEqual([])
+    expect(put).not.toHaveBeenCalled()
+    expect(r.media_saved).toBe(0)
+  })
 })
 
 describe('crm_lead_context', () => {

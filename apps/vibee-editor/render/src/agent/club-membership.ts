@@ -675,9 +675,39 @@ export async function handleClub(
   const path = (req.url || '').split('?')[0]
   const who = deps.identity(req)
   if (!who) {
+    /*
+     * THE PRICE IS PUBLIC; ONLY THE MEMBERSHIP IS PERSONAL.
+     *
+     * Seen on app.t27.ai/t27_dev, 2026-09-13 18:00: the paywall showed the
+     * "signature or agent key required" error and a dead "Join for 0 Stars"
+     * button. The web session had lapsed, so identity() was null and the
+     * whole status -- including the constant price -- was refused. The price
+     * does not depend on who asks (CLUB_STARS, CLUB_PERIOD_S, tokens per
+     * period are process constants), so a visitor without identity gets the
+     * price and an inactive membership; only invoice and verify still need a
+     * person.
+     */
+    if (path === '/api/club/status' && req.method === 'GET') {
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          anonymous: true,
+          active: false,
+          granted: null,
+          until: null,
+          paid_at: null,
+          days_left: 0,
+          periods: 0,
+          stars: CLUB_STARS,
+          period_days: CLUB_PERIOD_S / (24 * 60 * 60),
+          tokens_per_period: clubTokensPerPeriod(), // secret-guard-ok: token count, not a credential
+        },
+      }
+    }
     return {
       status: 401,
-      body: { ok: false, error: 'нужна подпись или ключ агента' }, // cyrillic-ok: user-facing error
+      body: { ok: false, error: 'нужна подпись, сессия приложения или ключ агента' }, // cyrillic-ok: user-facing error
     }
   }
   if (/^-/.test(who)) {

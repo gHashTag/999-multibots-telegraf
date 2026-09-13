@@ -18,6 +18,8 @@ import { Readable } from 'node:stream'
  * would; anything it does not understand throws, so a wrong statement fails
  * the test instead of passing on an empty `rows: []`.
  */
+process.env.MEDIA_RETRY_BASE_MS = '0'
+process.env.MEDIA_DESCRIBE_PAUSE_MS = '0'
 const OWNER = '144022504'
 const LEAD = '900000001'
 const SHELF =
@@ -189,6 +191,24 @@ describe('user_media table', () => {
     ]) {
       expect(USER_MEDIA_TABLE_SQL).toContain(col)
     }
+  })
+})
+
+describe('forgetTranscripts', () => {
+  it('clears only the asked kind of one lead and reports the count', async () => {
+    const { forgetTranscripts } = await import('./src/agent/media-library')
+    const seen: Array<{ sql: string; params: unknown[] }> = []
+    const pool = {
+      async query(sql: string, params: unknown[] = []) {
+        seen.push({ sql: sql.replace(/\s+/g, ' ').trim(), params })
+        return { rows: [], rowCount: /UPDATE user_media/.test(sql) ? 4 : 0 }
+      },
+    }
+    expect(await forgetTranscripts(pool as never, OWNER, LEAD, 'image')).toBe(4)
+    const upd = seen.find(q => q.sql.startsWith('UPDATE user_media'))!
+    expect(upd.sql).toContain('SET transcript = NULL, transcribed_at = NULL')
+    expect(upd.sql).toContain('kind = $3 AND transcript IS NOT NULL')
+    expect(upd.params).toEqual([OWNER, LEAD, 'image'])
   })
 })
 
@@ -406,6 +426,69 @@ describe('describeMedia', () => {
         'brief.md'
       )
     ).toBe('hello from the brief')
+  })
+
+  it('a throttled provider (503) is asked again, and the second answer counts', async () => {
+    process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls += 1
+        if (calls === 1)
+          return new Response('{"error":"ResourceExhausted"}', { status: 503 })
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'слова из записи' } }],
+          }),
+          { status: 200 }
+        )
+      })
+    )
+    const { describeMedia } = await import('./src/agent/media-library')
+    expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')).toBe(
+      'слова из записи'
+    )
+    expect(calls).toBe(2)
+  })
+
+  it('a provider that fails is retryable: DescribeFailed, and the row stays pending', async () => {
+    process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('404 page not found', { status: 404 }))
+    )
+    const { describeMedia, DescribeFailed, transcribeAndMirror } =
+      await import('./src/agent/media-library')
+    await expect(
+      describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')
+    ).rejects.toBeInstanceOf(DescribeFailed)
+    const updates: string[] = []
+    const pool = {
+      async query(sql: string) {
+        if (/UPDATE user_media SET transcript/.test(sql)) updates.push(sql)
+        return { rows: [], rowCount: 0 }
+      },
+    }
+    const r = await transcribeAndMirror(pool as never, OWNER, [
+      {
+        id: 7,
+        lead: LEAD,
+        surface: 'ingest',
+        msgId: 1,
+        at: new Date(),
+        out: false,
+        kind: 'audio',
+        name: 'voice.ogg',
+        mime: 'audio/ogg',
+        bytes: 10,
+        url: SHELF,
+        tgFileUniqueId: null,
+        caption: null,
+      } as never,
+    ])
+    expect(r).toEqual({ described: 0, mirrored: 0 })
+    expect(updates).toEqual([])
   })
 })
 

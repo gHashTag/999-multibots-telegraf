@@ -42,3 +42,26 @@ describe('the club price is asked before the phone step', () => {
     )
   })
 })
+
+/**
+ * app.t27.ai/t27_dev, 2026-09-13 18:00: with a lapsed web session the step
+ * showed the server's identity error and "Join for 0 Stars". The server now
+ * answers the price anonymously; the screen, for its part, must never print
+ * a zero price on the button. This is a source-level contract because the
+ * component has no DOM test harness here.
+ */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+describe('the join button never says 0 Stars', () => {
+  const src = readFileSync(
+    join(__dirname, 'WelcomeOnboarding.tsx'),
+    'utf8'
+  )
+  it('is disabled while the price is unknown', () => {
+    expect(src).toContain('disabled={busy || !status || stars <= 0}')
+  })
+  it('shows the join label only for a positive price', () => {
+    expect(src).toMatch(/stars > 0 \? \(\s*t\('welcome\.club\.join'/)
+  })
+})
