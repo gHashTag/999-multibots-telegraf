@@ -837,7 +837,30 @@ export async function sendFileWithAddressBook(
   caption: string | undefined
 ): Promise<unknown> {
   if (!c.sendFile) throw new Error('этот клиент не умеет отправлять файлы')
-  const send = c.sendFile
+  /*
+   * BOUND, NOT DETACHED, AND THE DIFFERENCE IS A PRODUCTION PHOTO SEND.
+   *
+   * GramJS hangs `sendFile` on the prototype as
+   * `sendFile(entity, params) { return uploadMethods.sendFile(this, ...) }`,
+   * so the client travels as `this`. The bare `const send = c.sendFile` that
+   * stood here carried the function without its instance: `this` arrived
+   * undefined, and the very first line of the library implementation --
+   * `client.getInputEntity(entity)` -- answered the owner's press with
+   * "Cannot read properties of undefined (reading 'getInputEntity')".
+   * Every PHOTO send failed this way in production (2026-09-13, a lead-magnet
+   * card to @Best_WoodyWeed); text went out because `sendWithAddressBook`
+   * calls `c.sendMessage` attached.
+   *
+   * The tests never saw it: their fake client is an object literal whose
+   * `sendFile` closes over its own state and never touches `this`. The
+   * regression test beside this change gives the fake a PROTOTYPE method that
+   * reads `this`, the same contract the real client has.
+   *
+   * `.bind(c)` also keeps the narrowing the bare const was after: `c.sendFile`
+   * is optional on `SendingClient`, and a property narrowing does not survive
+   * into the closure below.
+   */
+  const send = c.sendFile.bind(c)
   return withAddressBook(c, target, () =>
     send(target, { file: media.url, caption: caption ?? '', ...VERBATIM })
   )

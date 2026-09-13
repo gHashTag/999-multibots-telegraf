@@ -395,32 +395,58 @@ describe("crm_deliver_photo, by default, is the GIFT lead magnet from the person
   })
 })
 
-/** The sending client, with a file door and a timeline. */
+/**
+ * The sending client, with a file door and a timeline.
+ *
+ * `sendFile` LIVES ON THE PROTOTYPE AND READS `this`, because that is the
+ * real client's contract: GramJS' prototype method is
+ * `sendFile(entity, params) { return uploadMethods.sendFile(this, ...) }`,
+ * so the client travels as `this`, and a caller that lifts the method off
+ * the instance sends it nowhere. The object literal that stood here closed
+ * over its own state and could not notice — the production failure of
+ * 2026-09-13, every photo press dying with "Cannot read properties of
+ * undefined (reading 'getInputEntity')", passed this suite green. A test
+ * double must share the one property the code under test can break.
+ */
+class FakeSendingClient {
+  private warmed = false
+  constructor(
+    private readonly o: {
+      failFile?: string
+      failNumericUntilDialogs?: boolean
+    },
+    private readonly timeline: string[],
+    private readonly files: Array<Record<string, unknown>>
+  ) {}
+  async sendMessage(to: string) {
+    this.timeline.push(`sendMessage:${to}`)
+  }
+  async sendFile(to: string, opts: Record<string, unknown>) {
+    // `this` IS the client, exactly as in GramJS. A detached call arrives
+    // with `this === undefined` and dies on the first line below — the same
+    // first line of the real library (`client.getInputEntity`) that died in
+    // production.
+    this.timeline.push(`sendFile:${to}`)
+    if (this.o.failNumericUntilDialogs && !this.warmed)
+      throw new Error('Could not find the input entity for 900000002')
+    if (this.o.failFile) throw new Error(this.o.failFile)
+    this.files.push(opts)
+  }
+  async getDialogs() {
+    this.timeline.push('getDialogs')
+    this.warmed = true
+  }
+  async disconnect() {
+    this.timeline.push('disconnect')
+  }
+}
+
 function fakeClient(
   o: { failFile?: string; failNumericUntilDialogs?: boolean } = {},
   timeline: string[] = []
 ) {
   const files: Array<Record<string, unknown>> = []
-  let warmed = false
-  const client = {
-    async sendMessage(to: string) {
-      timeline.push(`sendMessage:${to}`)
-    },
-    async sendFile(to: string, opts: Record<string, unknown>) {
-      timeline.push(`sendFile:${to}`)
-      if (o.failNumericUntilDialogs && !warmed)
-        throw new Error('Could not find the input entity for 900000002')
-      if (o.failFile) throw new Error(o.failFile)
-      files.push(opts)
-    },
-    async getDialogs() {
-      timeline.push('getDialogs')
-      warmed = true
-    },
-    async disconnect() {
-      timeline.push('disconnect')
-    },
-  }
+  const client = new FakeSendingClient(o, timeline, files)
   return { client, timeline, files }
 }
 
@@ -485,6 +511,22 @@ describe('execute: the money after the press, the file, the refund', () => {
       { file: PIC, caption: 'вот фото', parseMode: false },
     ])
     expect(f.timeline.filter(t => t.startsWith('sendMessage'))).toEqual([])
+  })
+
+  it('sendFile keeps its client: a photo press must not die on getInputEntity', async () => {
+    /**
+     * THE REGRESSION, BY NAME. 2026-09-13, production: every photo card
+     * answered "Not sent: Cannot read properties of undefined
+     * (reading 'getInputEntity')" because `sendFileWithAddressBook` lifted
+     * `c.sendFile` off the instance, and GramJS' prototype method passes the
+     * client along as `this`. The fake above now carries that same contract,
+     * so a detached call fails HERE instead of in a stranger's Telegram.
+     */
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(draft(), { telegramId: OWNER, pool })
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    expect(f.files).toHaveLength(1)
   })
 
   it('the recipient is charged BEFORE the send, once, for the op on the draft', async () => {
