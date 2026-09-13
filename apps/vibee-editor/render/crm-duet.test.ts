@@ -199,12 +199,19 @@ describe('crm_duet helpers', () => {
     expect(mediaOf({ сделано: true, url: '/relative.png' })).toBeNull() // cyrillic-ok
     expect(mediaOf({ url: 'https://x/y.png' })).toBeNull()
     expect(mediaOf('https://x/y.png')).toBeNull()
+    // reel_render speaks gotovo, not sdelano -- run duet-mtzo7ogz lost its mp4 here
+    expect(mediaOf({ готово: true, renderId: 'r1', url: 'https://x/reel.mp4' })).toBe( // cyrillic-ok
+      'https://x/reel.mp4'
+    )
+    expect(mediaOf({ готово: false, renderId: 'r1' })).toBeNull() // cyrillic-ok
   })
 
   it('okOf reads the tools\u2019 own failure shapes', () => {
     expect(okOf({ сделано: false })).toBe(false) // cyrillic-ok
     expect(okOf({ ошибка: 'нет ключа' })).toBe(false) // cyrillic-ok
     expect(okOf({ error: 'boom' })).toBe(false)
+    expect(okOf({ готово: false, причина: 'не уложился' })).toBe(false) // cyrillic-ok
+    expect(okOf({ началось: false, причина: 'нет токенов' })).toBe(false) // cyrillic-ok
     expect(okOf({ ok: true })).toBe(true)
     expect(okOf([1, 2])).toBe(true)
   })
