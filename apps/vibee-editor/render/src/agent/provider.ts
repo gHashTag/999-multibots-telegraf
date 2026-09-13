@@ -19,7 +19,7 @@
 
 import { chosenProvider } from './provider-choice'
 
-export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'ollama'
+export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'reserve' | 'ollama'
 
 export interface Provider {
   id: ProviderId
@@ -99,8 +99,8 @@ const OLLAMA_PRIVATE = 'http://queen-ollama.railway.internal:11434/v1'
 function ollamaEnabled(): boolean {
   return Boolean(
     process.env.OLLAMA_BASE_URL ||
-    process.env.RAILWAY_SERVICE_QUEEN_OLLAMA_URL ||
-    process.env.OLLAMA_ENABLED
+      process.env.RAILWAY_SERVICE_QUEEN_OLLAMA_URL ||
+      process.env.OLLAMA_ENABLED
   )
 }
 function ollamaContext(): number {
@@ -222,6 +222,34 @@ const CATALOG: Record<
     audio: true,
     context: 128_000,
   },
+  /**
+   * RESERVE -- a fourth, independent route the owner points at any
+   * OpenAI-compatible vendor with three variables (agent-provider-chain.t27).
+   *
+   * Why it exists: 2026-09-13, three duet runs and the business bot before
+   * them died with EVERY paid provider at a limit -- z.ai twice (glm-5.3 and
+   * glm-4.5 share one subscription and one limit) and NVIDIA "Worker local
+   * total request limit reached (16/16)". Two of three routes lead to the
+   * same wall; the third has its own. A route to a different vendor is the
+   * only thing that helps, and which vendor is the owner's call, not this
+   * file's.
+   *
+   * DECLARED, NOT MEASURED. `tools` and `vision` below are what the owner
+   * says about the model in RESERVE_TOOLS / RESERVE_VISION, not something
+   * this repository checked against the endpoint. Base, model and key are
+   * read when the chain is built, so a variable added on Railway is seen on
+   * the next process, no code change. All three or the route is absent.
+   */
+  reserve: {
+    base: '',
+    env: 'RESERVE_API_KEY',
+    model: '',
+    thinking: false,
+    tools: true,
+    vision: false,
+    audio: false,
+    context: 128_000,
+  },
   ollama: {
     base: endpointBase(process.env.OLLAMA_BASE_URL, OLLAMA_PRIVATE),
     env: '',
@@ -252,6 +280,10 @@ const CATALOG: Record<
 function available(id: ProviderId): { key: string } | null {
   const c = CATALOG[id]
   if (id === 'ollama') return ollamaEnabled() ? { key: 'ollama' } : null
+  if (id === 'reserve') {
+    const r = reserveEnv()
+    return r ? { key: r.key } : null
+  }
   const key = c.env ? process.env[c.env] : undefined
   return key ? { key } : null
 }
@@ -268,7 +300,13 @@ export function providerOrder(): ProviderId[] {
     process.env.AGENT_PROVIDER ||
     ''
   ).toLowerCase() as ProviderId
-  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'nemotron', 'ollama']
+  const DEFAULT_ORDER: ProviderId[] = [
+    'zai',
+    'zai-lite',
+    'nemotron',
+    'reserve',
+    'ollama',
+  ]
   return DEFAULT_ORDER.includes(wanted)
     ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
     : DEFAULT_ORDER
@@ -287,8 +325,48 @@ function envModelOwner(): ProviderId {
   return env in CATALOG ? env : 'zai'
 }
 
+/**
+ * The reserve route, or null unless RESERVE_BASE_URL, RESERVE_API_KEY and
+ * RESERVE_MODEL are ALL set. Read per call: the owner adds the variables on
+ * Railway, the next process has the route.
+ */
+export function reserveEnv(): {
+  base: string
+  key: string
+  model: string
+  tools: boolean
+  vision: boolean
+} | null {
+  const base = (process.env.RESERVE_BASE_URL || '').trim()
+  const key = (process.env.RESERVE_API_KEY || '').trim()
+  const model = (process.env.RESERVE_MODEL || '').trim()
+  if (!base || !key || !model) return null
+  return {
+    base: endpointBase(base, base),
+    key,
+    model,
+    tools: process.env.RESERVE_TOOLS !== '0',
+    vision: process.env.RESERVE_VISION === '1',
+  }
+}
+
 function build(id: ProviderId, key: string): Provider {
   const c = CATALOG[id]
+  if (id === 'reserve') {
+    const r = reserveEnv()!
+    return {
+      id,
+      base: r.base,
+      model: r.model,
+      key: r.key,
+      thinking: c.thinking,
+      tools: r.tools,
+      vision: r.vision,
+      audio: c.audio,
+      context: c.context,
+      compact: c.context < COMPACT_BELOW,
+    }
+  }
   // Our model's name comes from OLLAMA_MODEL; AGENT_MODEL is the paid
   // providers' override and must not rename an Ollama tag by accident.
   const model =
@@ -361,7 +439,13 @@ export function resolveProvider(): Provider {
   const first = allProviders()[0]
   if (first) return first
   const names = providerOrder()
-    .map(id => (id === 'ollama' ? 'OLLAMA_BASE_URL' : CATALOG[id].env))
+    .map(id =>
+      id === 'ollama'
+        ? 'OLLAMA_BASE_URL'
+        : id === 'reserve'
+          ? 'RESERVE_BASE_URL+RESERVE_API_KEY+RESERVE_MODEL'
+          : CATALOG[id].env
+    )
     .join(' или ')
   throw new Error(
     `Ключ модели не задан. Нужен ${names}. ` +

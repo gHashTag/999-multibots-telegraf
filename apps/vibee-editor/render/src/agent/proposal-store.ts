@@ -160,6 +160,21 @@ export async function wireProposalStore(getPool: GetPool): Promise<{
           )
         )
     },
+    /*
+     * One row on demand. The queue reads it on a press only, when the Map
+     * has no draft for the id -- or has one and wants to know whether the
+     * row is still there. Two containers share this table for about a
+     * minute on every deploy, and the startup load above cannot see a row
+     * the outgoing container writes after it ran. See `claimAcrossDeploy`.
+     */
+    load: async id => {
+      const { rows } = await pool.query(
+        `SELECT id, telegram_id, created_at, issued, secret_digest, payload
+           FROM agent_proposals WHERE id = $1`,
+        [id]
+      )
+      return rows[0] ? rowToProposal(rows[0]) : null
+    },
   })
 
   try {

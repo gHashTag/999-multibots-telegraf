@@ -268,7 +268,11 @@ describe('the server is wired (source-level: no test boots render-server)', () =
     const s = src()
     const a = at(s, "route === '/api/tg/proposal/cancel'")
     const block = s.slice(a, s.indexOf('sendJson(res, taken.ok', a))
-    expect(block).toContain("claim(who, asked.id, asked.secret, 'cancel')")
+    // Whitespace-insensitive: the call is now awaited across a deploy overlap
+    // and prettier breaks its arguments over several lines.
+    expect(block.replace(/\s+/g, ' ')).toContain(
+      "await claimAcrossDeploy( who, asked.id, asked.secret, 'cancel' )"
+    )
   })
 
   it('the confirm route does NOT use the cancel intent, and reports a failed send', () => {

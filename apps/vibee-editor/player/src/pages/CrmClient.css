@@ -117,6 +117,14 @@
   border-left-color: rgba(255, 215, 0, 0.7);
 }
 
+/* The turn and error a failed run stopped on, verbatim from the server. */
+.crm-client__duet-error {
+  color: rgba(255, 215, 0, 0.85);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8em;
+  word-break: break-word;
+}
+
 /* Timeline: touches and media, one line each. */
 .crm-client__timeline {
   list-style: none;

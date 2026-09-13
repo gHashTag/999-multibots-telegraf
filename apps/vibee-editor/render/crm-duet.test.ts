@@ -14,6 +14,12 @@ import {
   mediaKind,
   mediaNote,
   promisesFile,
+  claimsDoneWork,
+  producedWork,
+  isLimitError,
+  retryAllowed,
+  SELLER_RETRY_PAUSE_MS,
+  summaryOf,
   askBuyerModel,
   buyerRequestBody,
   PAID_TOOLS,
@@ -52,9 +58,10 @@ type Sent = { from: string; to: string; text?: string; url?: string }
 function deps(
   sellerScript: Array<Array<Record<string, unknown>>>,
   buyerScript: string[]
-): { d: DuetDeps; sent: Sent[]; histories: ChatMessage[][] } {
+): { d: DuetDeps; sent: Sent[]; histories: ChatMessage[][]; slept: number[] } {
   const sent: Sent[] = []
   const histories: ChatMessage[][] = []
+  const slept: number[] = []
   let s = 0
   let b = 0
   const d: DuetDeps = {
@@ -73,8 +80,11 @@ function deps(
       sent.push({ from: String(from.telegramId), to, url })
     },
     now: () => 1000,
+    sleep: async ms => {
+      slept.push(ms)
+    },
   }
-  return { d, sent, histories }
+  return { d, sent, histories, slept }
 }
 
 const text = (t: string) => ({ тип: 'текст', текст: t }) // cyrillic-ok
@@ -162,7 +172,10 @@ describe('crm_duet loop', () => {
   it('a silent seller ends the run without sending an empty message', async () => {
     const { d, sent } = deps([[]], ['…'])
     const run = await runDuet(freshRun({ turns: 2 }), ctx, d)
-    expect(run.state).toBe('done')
+    // crm-duet.t27 ABORTED_RUN_STATE: a run that did not play every turn is
+    // failed, not done, and keeps the turn's error.
+    expect(run.state).toBe('failed')
+    expect(run.error).toBe('turn 0: seller produced no text')
     expect(run.transcript).toHaveLength(1)
     expect(run.transcript[0].error).toBe('seller produced no text')
     expect(sent).toEqual([])
@@ -575,5 +588,217 @@ describe('crm_duet tools', () => {
     await expect(
       askBuyerModel([{ role: 'user', content: 'x' }], [], doFetch)
     ).rejects.toThrow('no provider configured')
+  })
+})
+
+describe('crm_duet claim honesty and aborted state (duet-mtzyg2t6, 2026-09-13)', () => {
+  const PROVIDER_ERR =
+    'Error: Ни один провайдер модели не ответил.\n  • zai: превышен лимит запросов' // cyrillic-ok
+
+  it('claimsDoneWork fires on finished-work claims, not on offers or futures', () => {
+    // The live line from turn 0.
+    expect(
+      claimsDoneWork(
+        'Привет, Gaia! Я уже собрал пробный ролик в том же стиле, как вы просили, и сейчас готовлю его к публикации.'
+      )
+    ).toBe(true)
+    expect(claimsDoneWork('Вот ваш ролик по плану 6.')).toBe(true)
+    expect(claimsDoneWork('Картинка готова, смотрите.')).toBe(true)
+    expect(
+      claimsDoneWork('Могу собрать один ролик её шаблоном — какой план взять?')
+    ).toBe(false)
+    expect(
+      claimsDoneWork('Готов собрать пример поста после вашего ответа.')
+    ).toBe(false)
+    expect(claimsDoneWork('Вот пример поста про 72 плана.')).toBe(false)
+    expect(claimsDoneWork('Расскажите, какой план вам ближе?')).toBe(false)
+  })
+
+  it('producedWork is true only for an ok producing tool', () => {
+    expect(
+      producedWork([
+        {
+          name: 'reel_render',
+          value: { готово: true, url: 'https://x/a.mp4' },
+          ms: 1,
+        },
+      ])
+    ).toBe(true) // cyrillic-ok
+    expect(
+      producedWork([
+        { name: 'reel_render', value: { error: 'no credits' }, ms: 1 },
+      ])
+    ).toBe(false)
+    expect(
+      producedWork([
+        { name: 'crm_client_profile', value: { has_profile: true }, ms: 1 },
+      ])
+    ).toBe(false)
+  })
+
+  it('a claim with no tool gets one rewrite; the rewrite is what goes out and the miss is reported', async () => {
+    const { d, sent, histories } = deps(
+      [
+        [
+          result('crm_client_profile', { has_profile: true }),
+          text(
+            'Я уже собрал пробный ролик в вашем стиле и готовлю его к публикации. Что поправить?'
+          ),
+        ],
+        [
+          text(
+            'Могу собрать один пример ролика вашим шаблоном после ответа. Какой план вам ближе?'
+          ),
+        ],
+      ],
+      ['План 6.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(histories).toHaveLength(2)
+    expect(histories[1].at(-1)?.content).toContain('Проверка честности')
+    expect(sent[0].text).toContain('Могу собрать')
+    expect(run.transcript[0].text).toContain('Могу собрать')
+    expect(run.violations).toEqual([
+      'turn 0: заявлена сделанная работа без инструмента — переписано',
+    ])
+    expect(run.state).toBe('done')
+  })
+
+  it('a second miss is sent as is and reported after the rewrite', async () => {
+    const { d, sent } = deps(
+      [
+        [text('Ролик уже сделал, вот ваш ролик.')],
+        [text('Картинка готова и ролик собрал, публикуем?')],
+      ],
+      ['?']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(sent[0].text).toContain('Картинка готова')
+    expect(run.violations).toEqual([
+      'turn 0 (после правки): заявлена сделанная работа без инструмента',
+    ])
+  })
+
+  it('a claim backed by a producing tool in the same turn is honest and untouched', async () => {
+    const { d, histories } = deps(
+      [
+        [
+          result('reel_render', { готово: true, url: 'https://x/plan-6.mp4' }), // cyrillic-ok
+          text('Собрал пробный ролик в стиле игры: вот он.'),
+        ],
+      ],
+      ['Вижу.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(histories).toHaveLength(1)
+    expect(run.violations).toEqual([])
+  })
+
+  it('a provider failure on a later seller turn ends the run as failed with the turn error, 3 of 8 lines', async () => {
+    // A limit is retried once (below); here both attempts hit it.
+    const { d, slept } = deps(
+      [
+        [text('Здравствуйте! Какой план вам ближе?')],
+        [{ тип: 'ошибка', текст: PROVIDER_ERR }], // cyrillic-ok
+        [{ тип: 'ошибка', текст: PROVIDER_ERR }], // cyrillic-ok
+      ],
+      ['План 6.']
+    )
+    const run = await runDuet(freshRun({ turns: 4 }), ctx, d)
+    expect(run.state).toBe('failed')
+    expect(run.transcript).toHaveLength(3)
+    expect(run.transcript[2].error).toBe(PROVIDER_ERR)
+    expect(run.transcript[2].retried).toBe(PROVIDER_ERR)
+    expect(slept).toEqual([SELLER_RETRY_PAUSE_MS])
+    expect(run.error).toBe(`turn 2: ${PROVIDER_ERR}`)
+    expect(run.finished_at).toBeDefined()
+    expect(reportOf(run)).toContain('failed')
+    expect(summaryOf(run, 1000).error).toBe(run.error)
+    expect(summaryOf(run, 1000).lines).toBe(3)
+  })
+
+  it('a silent buyer ends the run as failed too', async () => {
+    const { d } = deps([[text('Привет!')]], [''])
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(run.state).toBe('failed')
+    expect(run.error).toBe('turn 1: buyer produced no text')
+  })
+})
+
+describe('crm_duet one retry on a provider limit (duet-mu00klri, 2026-09-13)', () => {
+  // The three live lines of the day, and one that must not be retried.
+  const ZAI_429 = 'zai: превышен лимит запросов' // cyrillic-ok
+  const NVIDIA_16 =
+    'nemotron: Error: nemotron прислал ошибку в потоке: {"message":"ResourceExhausted: Worker local total request limit reached (16/16)"}' // cyrillic-ok
+  const BAD_KEY =
+    'zai: ключ недействителен — перевыпустите и обновите переменную' // cyrillic-ok
+
+  it('isLimitError knows a limit from a dead key', () => {
+    expect(isLimitError(ZAI_429)).toBe(true)
+    expect(isLimitError(NVIDIA_16)).toBe(true)
+    expect(isLimitError('openai: rate limit exceeded')).toBe(true)
+    expect(isLimitError('HTTP 429 Too Many Requests')).toBe(true)
+    expect(isLimitError(BAD_KEY)).toBe(false)
+    expect(isLimitError(undefined)).toBe(false)
+  })
+
+  it('retryAllowed: once, only on a limit, never after a paid call', () => {
+    const free = [{ name: 'crm_client_profile', value: {}, ms: 1 }]
+    const paid = [{ name: 'image_generate', value: { done: true }, ms: 1 }]
+    expect(retryAllowed(0, ZAI_429, free)).toBe(true)
+    expect(retryAllowed(1, ZAI_429, free)).toBe(false)
+    expect(retryAllowed(0, BAD_KEY, free)).toBe(false)
+    expect(retryAllowed(0, ZAI_429, paid)).toBe(false)
+    expect(SELLER_RETRY_PAUSE_MS).toBe(30_000)
+  })
+
+  it('a limited first attempt waits once and the second attempt is the line that goes out', async () => {
+    const { d, sent, slept, histories } = deps(
+      [
+        [
+          result('crm_client_profile', { has_profile: false }),
+          { тип: 'ошибка', текст: ZAI_429 }, // cyrillic-ok
+        ],
+        [text('Гея, здравствуйте! Какой план сейчас ближе всего?')],
+      ],
+      ['План 6.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(slept).toEqual([SELLER_RETRY_PAUSE_MS])
+    expect(run.state).toBe('done')
+    expect(run.transcript[0].text).toContain('Какой план')
+    expect(run.transcript[0].retried).toBe(ZAI_429)
+    expect(run.transcript[0].error).toBeUndefined()
+    // Same history on the replay: the brief, nothing else.
+    expect(histories[1]).toEqual(histories[0])
+    // The free call of the failed attempt is still counted.
+    expect(run.coverage.crm_client_profile.calls).toBe(1)
+    expect(sent.filter(x => x.text)).toHaveLength(2)
+  })
+
+  it('a dead key is not retried: no pause, failed at once', async () => {
+    const { d, slept } = deps([[{ тип: 'ошибка', текст: BAD_KEY }]], []) // cyrillic-ok
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(slept).toEqual([])
+    expect(run.state).toBe('failed')
+    expect(run.error).toBe(`turn 0: ${BAD_KEY}`)
+    expect(run.transcript[0].retried).toBeUndefined()
+  })
+
+  it('a limited attempt that already paid for a generation is not replayed', async () => {
+    const { d, slept } = deps(
+      [
+        [
+          result('image_generate', { done: true, url: 'https://x/y.png' }),
+          { тип: 'ошибка', текст: ZAI_429 }, // cyrillic-ok
+        ],
+      ],
+      []
+    )
+    const run = await runDuet(freshRun({ turns: 1, dry_run: true }), ctx, d)
+    expect(slept).toEqual([])
+    // The file went out with no text; the run did not replay and did not pay twice.
+    expect(run.paid_calls).toBe(1)
+    expect(run.transcript[0].retried).toBeUndefined()
   })
 })
