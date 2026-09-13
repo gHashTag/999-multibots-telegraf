@@ -62,8 +62,20 @@ export const VISION_TIMEOUT_MS = Math.max(
 const VISION_MAX_BYTES = 40 * 1024 * 1024
 /** Still frames sampled from a clip; more frames = more tokens per second of CPU. */
 export const VIDEO_FRAMES = 4
-/** Longest side of a sampled frame; the 2B model reads 768 px fine and fast. */
-const FRAME_SIDE = 768
+/**
+ * Longest side of a sampled frame. Measured on the CPU-only Railway `vision`
+ * service (Qwen3-VL-2B Q8_0): four 768 px frames became ~3 800 prompt tokens
+ * at ~30 tok/s plus ~3 tok/s generation, i.e. over five minutes and past the
+ * caller's timeout. 448 px keeps a frame near 150 tokens so a clip fits in
+ * well under the budget; MEDIA_VISION_FRAME_SIDE overrides.
+ */
+const FRAME_SIDE = Math.max(
+  224,
+  Number(process.env.MEDIA_VISION_FRAME_SIDE) || 448
+)
+/** Generation budget: CPU decode is slow, so a clip gets a short answer. */
+const VIDEO_MAX_TOKENS = 320
+const IMAGE_MAX_TOKENS = 500
 const FFMPEG_TIMEOUT_MS = 60_000
 const TRANSCRIPT_CAP = 4000
 
@@ -166,7 +178,7 @@ export async function askVision(
           },
         ],
         temperature: 0.1,
-        max_tokens: 700,
+        max_tokens: images.length > 1 ? VIDEO_MAX_TOKENS : IMAGE_MAX_TOKENS,
         stream: false,
       }),
       signal: ac.signal,
