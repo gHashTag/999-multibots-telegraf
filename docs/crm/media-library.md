@@ -135,9 +135,19 @@ READ-only, `requireSeller`, параметры `{lead, limit?, kind?}`; подп
 https://console.groq.com/docs/rate-limits). Ключ вида `gsk_…` в `WHISPER_API_KEY` достаточно:
 адрес и модель Groq подставляются сами, явные `WHISPER_BASE_URL`/`WHISPER_MODEL` их перекрывают.
 
-Open-source путь [решение 2026-09-13]: сервис `whisper` в том же проекте Railway — Speaches
-(MIT, faster-whisper, https://github.com/speaches-ai/speaches), образ
-`ghcr.io/speaches-ai/speaches:latest-cpu`, модель `deepdml/faster-whisper-large-v3-turbo-ct2`
-(int8, CPU), свой `API_KEY`, том под кеш модели. В render: `WHISPER_BASE_URL=http://whisper.railway.internal:8000/v1`,
-`WHISPER_API_KEY` (тот же ключ), `WHISPER_MODEL` (имя модели), `MEDIA_WHISPER_TIMEOUT_MS=600000` —
-на CPU минуты, не секунды. Аудио не покидает проект.
+Open-source путь [измерено 2026-09-13]: сервис `whisper` в том же проекте Railway — Speaches
+(MIT, faster-whisper, https://github.com/speaches-ai/speaches). Что сработало и что нет:
+
+- Образ — `ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu`, не `latest-cpu`: в `latest-cpu`
+  нет `PRELOAD_MODELS`, и сервер отвечает 404 «Model ... is not installed locally».
+- Переменные сервиса: `API_KEY` (свой, 64 hex), `PRELOAD_MODELS=["deepdml/faster-whisper-large-v3-turbo-ct2"]`,
+  `WHISPER__COMPUTE_TYPE=int8`, `WHISPER__INFERENCE_DEVICE=cpu`, `UVICORN_HOST=::` (приватная сеть
+  Railway — IPv6), `UVICORN_PORT=8000`, `RAILWAY_RUN_UID=0` и `HF_HUB_CACHE=/home/ubuntu/.cache/huggingface/hub`
+  — без UID 0 том смонтирован root'ом и предзагрузка падает с `PermissionError`.
+- Том на `/home/ubuntu/.cache/huggingface/hub` — кеш модели переживает рестарты.
+- Публичный домен не нужен и не работал (502 при `::`); render ходит по приватному адресу.
+- В render: `WHISPER_BASE_URL=http://whisper.railway.internal:8000/v1`, `WHISPER_API_KEY` (тот же ключ),
+  `WHISPER_MODEL=deepdml/faster-whisper-large-v3-turbo-ct2`, `MEDIA_WHISPER_TIMEOUT_MS=600000`.
+- Результат: `Allmix.mp3` (7,1 МБ) и `...wav` (5,5 МБ) Алекса прочитаны за один проход, оба 200.
+  На музыке Whisper оставляет артефакт «Субтитры сделал DimaTorzok» — это не речь из файла [известно].
+  Аудио не покидает проект Railway.
