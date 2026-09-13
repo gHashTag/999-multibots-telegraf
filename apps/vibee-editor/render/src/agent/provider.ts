@@ -324,7 +324,20 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
   }
   if (status === 429) return `${id}: превышен лимит запросов`
   if (status === 404 && b.trim() === '404 page not found') {
-    return `${id}: ответил 404 «page not found» — путь до /chat/completions собран неверно, проверьте базовый адрес провайдера (без завершающего слэша и без самого пути)`
+    // Measured 2026-09-13 against integrate.api.nvidia.com with NO base URL
+    // override: GET /v1/models answers 200 with the catalogue, a POST with a
+    // Bearer key to /v1/chat/completions answers per model (410 for a retired
+    // one), yet the project's key gets a bare "404 page not found". Same
+    // shape as the NVIDIA forum threads about a personal org missing the
+    // "Public API Endpoints" permission -- an account-side fault, not a
+    // path. A misbuilt base is still possible, so both are named.
+    return (
+      `${id}: ответил 404 «page not found» на POST /chat/completions — ` +
+      (id === 'nemotron'
+        ? 'у организации ключа NVIDIA обычно нет разрешения Public API Endpoints (build.nvidia.com → организация/ключ); ' // cyrillic-ok
+        : '') +
+      'также проверьте базовый адрес провайдера (без завершающего слэша и без самого пути)' // cyrillic-ok
+    )
   }
   return `${id}: ответил ${status} — ${body.slice(0, 200)}`
 }
