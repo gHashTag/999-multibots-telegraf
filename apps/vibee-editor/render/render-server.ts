@@ -7826,13 +7826,15 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claim, execute, idFromBody } = await import(
+      const { claimAcrossDeploy, execute, idFromBody } = await import(
         './src/agent/tg-proposals'
       )
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
-      const taken = claim(who, asked.id, asked.secret)
+      // Across a deploy overlap the card may have been minted by the other
+      // container: on a miss the row is read back before refusing.
+      const taken = await claimAcrossDeploy(who, asked.id, asked.secret)
       if (!taken.ok) return sendJson(res, 409, { ok: false, error: taken.why })
       // The trace. Not the text -- that is somebody's private message and does
       // not belong in a log -- but enough to answer "who sent what to whom".
@@ -7856,11 +7858,18 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claim, idFromBody } = await import('./src/agent/tg-proposals')
+      const { claimAcrossDeploy, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // Cancelling uses the same claim, so a cancel cannot remove somebody
       // else's draft either.
       const asked = idFromBody(await readBody(req))
-      const taken = claim(who, asked.id, asked.secret, 'cancel')
+      const taken = await claimAcrossDeploy(
+        who,
+        asked.id,
+        asked.secret,
+        'cancel'
+      )
       return sendJson(res, taken.ok ? 200 : 409, {
         ok: taken.ok,
         error: taken.ok ? undefined : taken.why,
