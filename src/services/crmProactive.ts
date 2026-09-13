@@ -546,58 +546,116 @@ export interface PlanOpts {
   tz: string
 }
 
+export interface TickOpts {
+  ownerId: string
+  holdMs?: number
+  /** The daily plan: at this local hour, in this zone. Absent = no plan. */
+  plan?: PlanOpts
+}
+
+export type TickOutcome = SweepOutcome | { did: 'paused'; why: string }
+
+/**
+ * ONE TICK OF THE SELLER. The unit both drivers run: the in-process timer
+ * (startCrmProactive) and the Inngest cron (functions/crm/crmProactiveSweep).
+ * Plan first, then the scoped-queue check, then one sweep, then the hive
+ * diary and the alert channel. Returns what happened so the Inngest run
+ * trace shows it -- a timer could only log.
+ */
+export async function runProactiveTick(
+  bot: Telegraf<MyContext>,
+  opts: TickOpts
+): Promise<TickOutcome> {
+  const deps = liveDeps(bot)
+  const owner = String(opts.ownerId)
+  // The plan first, and never deferred: a queue or a card in flight is
+  // exactly what the owner wants to see in it.
+  if (opts.plan) {
+    await maybeSendDailyPlan(bot, owner, opts.plan).catch(e =>
+      logger.warn('[crm-plan] failed', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
+  }
+  const active = scopes.get(owner)
+  if (active) {
+    const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
+    if (!active.inFlight && Date.now() - active.lastActivityAt > holdMs) {
+      dropScope(owner, 'карточка не нажата два часа — обход остановлен')
+    } else {
+      logger.info('[crm-proactive] paused: scoped sweep active', {
+        label: active.label,
+        cursor: active.cursor,
+      })
+      return { did: 'paused', why: `scoped sweep active: ${active.label}` }
+    }
+  }
+  const r = await sweepOnce(owner, deps, { holdMs: opts.holdMs })
+  // The diary entry, too: every run that ran is visible in the hive
+  // (hiveNote.ts) -- quiet ones included, which the alert channel never was.
+  void noteSweepToHive(owner, r)
+  /*
+   * A FAILED SWEEP IS AN ERROR, NOT A DIARY ENTRY.
+   *
+   * Every outcome was logged at info, and info does not reach the owner's
+   * alert channel. So a model producing junk every thirty minutes looked
+   * exactly like a quiet afternoon. The other extreme -- the same failure
+   * as a fresh alert twice an hour -- is handled in reportSweepOutcome.
+   */
+  reportSweepOutcome(r)
+  return r
+}
+
+/*
+ * THE CARRIER REGISTRY -- how the Inngest cron finds the bot.
+ *
+ * An Inngest function is a module-level constant; the Telegraf instances are
+ * built at startup. The entry point registers the carrier and the owner once
+ * the bots are up (index.ts), and the cron reads it on every run. Absent
+ * carrier = the bots are not up yet = the run reports 'paused', not an error.
+ */
+let carrier: { bot: Telegraf<MyContext>; opts: TickOpts } | null = null
+
+export function setCrmCarrier(bot: Telegraf<MyContext>, opts: TickOpts): void {
+  carrier = { bot, opts }
+  logger.info('[crm-proactive] carrier registered', {
+    owner: opts.ownerId,
+    bot: bot.botInfo?.username ?? null,
+    plan: opts.plan ?? null,
+  })
+}
+
+export function crmCarrier(): {
+  bot: Telegraf<MyContext>
+  opts: TickOpts
+} | null {
+  return carrier
+}
+
+export function resetCarrierForTests(): void {
+  carrier = null
+}
+
+/** Which clock drives the seller: `inngest` (cron function, default) or `timer` (setInterval in-process). */
+export type SweepDriver = 'inngest' | 'timer'
+
+export function sweepDriver(env: NodeJS.ProcessEnv = process.env): SweepDriver {
+  const v = String(env.CRM_SWEEP_DRIVER ?? 'inngest')
+    .trim()
+    .toLowerCase()
+  return v === 'timer' ? 'timer' : 'inngest'
+}
+
 export function startCrmProactive(
   bot: Telegraf<MyContext>,
-  opts: {
-    ownerId: string
-    everyMs: number
-    holdMs?: number
-    firstDelayMs?: number
-    /** The daily plan: at this local hour, in this zone. Absent = no plan. */
-    plan?: PlanOpts
-  }
+  opts: TickOpts & { everyMs: number; firstDelayMs?: number }
 ): () => void {
-  const deps = liveDeps(bot)
-  const run = async () => {
-    // The plan first, and never deferred: a queue or a card in flight is
-    // exactly what the owner wants to see in it.
-    if (opts.plan) {
-      await maybeSendDailyPlan(bot, String(opts.ownerId), opts.plan).catch(e =>
-        logger.warn('[crm-plan] failed', {
-          error: e instanceof Error ? e.message : String(e),
-        })
-      )
-    }
-    const active = scopes.get(String(opts.ownerId))
-    if (active) {
-      const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
-      if (!active.inFlight && Date.now() - active.lastActivityAt > holdMs) {
-        dropScope(
-          String(opts.ownerId),
-          'карточка не нажата два часа — обход остановлен'
-        )
-      } else {
-        logger.info('[crm-proactive] paused: scoped sweep active', {
-          label: active.label,
-          cursor: active.cursor,
-        })
-        return
-      }
-    }
-    const r = await sweepOnce(opts.ownerId, deps, { holdMs: opts.holdMs })
-    // The diary entry, too: every run that ran is visible in the hive
-    // (hiveNote.ts) -- quiet ones included, which the alert channel never was.
-    void noteSweepToHive(String(opts.ownerId), r)
-    /*
-     * A FAILED SWEEP IS AN ERROR, NOT A DIARY ENTRY.
-     *
-     * Every outcome was logged at info, and info does not reach the owner's
-     * alert channel. So a model producing junk every thirty minutes looked
-     * exactly like a quiet afternoon. The other extreme -- the same failure
-     * as a fresh alert twice an hour -- is handled in reportSweepOutcome.
-     */
-    reportSweepOutcome(r)
-  }
+  const run = () =>
+    runProactiveTick(bot, opts).catch(e =>
+      logger.error('[crm-proactive] tick failed', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    )
   const first = setTimeout(run, opts.firstDelayMs ?? 120_000)
   const timer = setInterval(run, opts.everyMs)
   logger.info('[crm-proactive] started', {

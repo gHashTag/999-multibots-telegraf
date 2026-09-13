@@ -1018,7 +1018,9 @@ async function startApplication() {
       const ownerId =
         process.env.CRM_PROACTIVE_OWNER ||
         String(ADMIN_IDS_ARRAY[0] || '144022504')
-      const { startCrmProactive } = await import('@/services/crmProactive')
+      const { startCrmProactive, setCrmCarrier, sweepDriver } = await import(
+        '@/services/crmProactive'
+      )
       // The daily plan: CRM_PLAN=0 turns it off; CRM_PLAN_HOUR and CRM_PLAN_TZ
       // say when, in the owner's zone (default 9, Europe/Moscow).
       const planOn = (process.env.CRM_PLAN ?? '1') !== '0'
@@ -1027,17 +1029,32 @@ async function startApplication() {
         Math.max(0, Number(process.env.CRM_PLAN_HOUR ?? '9') || 9)
       )
       const planTz = process.env.CRM_PLAN_TZ || 'Europe/Moscow'
-      startCrmProactive(carrier, {
+      const tick = {
         ownerId,
-        everyMs: proactiveMinutes * 60_000,
         ...(planOn ? { plan: { hour: planHour, tz: planTz } } : {}),
-      })
+      }
+      /*
+       * Two clocks, one tick. Default: the Inngest cron `crm-proactive-sweep`
+       * (every 30 min, one run per sweep, visible in the dashboard and via the
+       * Inngest MCP). CRM_SWEEP_DRIVER=timer: the old in-process setInterval,
+       * for a host where the Inngest app is not synced.
+       */
+      const driver = sweepDriver()
+      setCrmCarrier(carrier, tick)
+      if (driver === 'timer') {
+        startCrmProactive(carrier, {
+          ...tick,
+          everyMs: proactiveMinutes * 60_000,
+        })
+      }
       if (planOn)
         console.log(
           `🗓 [crm-plan] daily at ${planHour}:00 ${planTz}, owner ${ownerId}`
         )
       console.log(
-        `🕵️ [crm-proactive] started: every ${proactiveMinutes} min, owner ${ownerId}, bot @${carrier.botInfo?.username ?? '?'}`
+        driver === 'timer'
+          ? `🕵️ [crm-proactive] timer: every ${proactiveMinutes} min, owner ${ownerId}, bot @${carrier.botInfo?.username ?? '?'}`
+          : `🕵️ [crm-proactive] inngest cron crm-proactive-sweep (*/30), owner ${ownerId}, bot @${carrier.botInfo?.username ?? '?'}`
       )
     }
   } catch (error) {

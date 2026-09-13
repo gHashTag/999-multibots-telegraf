@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "inngest-dev": {
+      "type": "http",
+      "url": "https://inngestinngest-production-c468.up.railway.app/mcp"
+    }
+  }
+}

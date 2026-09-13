@@ -5,7 +5,7 @@
 
 App id: `telegram-bot-client` · slug format: `${app.id}-${function.id}` · manifest v1
 
-Served functions: **28** · code-only/unregistered: **14**
+Served functions: **29** · code-only/unregistered: **14**
 
 Every served function listens to its canonical event **and** its legacy event,
 so existing senders keep working. New code must send the canonical name
@@ -16,55 +16,56 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 
 ## Served functions (control = spec+code)
 
-| id | trigger | retries | onFailure | guard | side effects | file |
-|---|---|---|---|---|---|---|
-| `neuro-image-generate` | `neuro/image.generate` <br>legacy: `neuro/photo.generate` | 3 | admin-telegram | check-user | charges-balance, paid-api, messages-user, db-write | `generation/neuroImageGeneration.ts` |
-| `reels-ai-generate` | `reels/ai.generate` <br>legacy: `ai-reels/generate` | 2 | admin-telegram | validate-input | paid-api, messages-user | `existing/generateAIReelsFunction.ts` |
-| `reels-ai-callback` | `reels/ai.callback` <br>legacy: `ai-reels-callback` | 3 | admin-telegram | extract-job-id | paid-api, messages-user | `ai-reels-callback.ts` |
-| `reels-loop-generate` | `reels/loop.generate` <br>legacy: `reels/generate-advanced-loop` | 2 | admin-telegram | min-images | paid-api, messages-user | `existing/generateAdvancedLoopingVideoFunction.ts` |
-| `training-model-start` | `training/model.start` <br>legacy: `model/training.start` | 0 | admin-telegram | validate-steps | charges-balance, paid-api, messages-user, db-write | `existing/generateModelTrainingFunction.ts` |
-| `training-model-v2-start` | `training/model-v2.start` <br>legacy: `model/training.v2.requested` | SDK default (4) | admin-telegram | check-user-exists | charges-balance, paid-api, messages-user, db-write | `training/modelTrainingV2.ts` |
-| `training-model-complete` | `training/model.complete` <br>legacy: `model/training.completed` | 2 | admin-telegram | unknown | charges-balance, paid-api, messages-user, db-write | `existing/handleModelTrainingCompleted.ts` |
-| `training-stuck-check` | cron `*/30 * * * *` (UTC) | SDK default (4) | admin-telegram | none | charges-balance, paid-api, messages-user, db-write | `training/checkStuckTrainings.ts` |
-| `morph-images-generate` | `morph/images.generate` <br>legacy: `morph/images.requested` | 3 | admin-telegram | check-user-exists | charges-balance, paid-api, messages-user | `training/morphImages.ts` |
-| `render-job-run` | `render/job.run` <br>legacy: `render` | 3 | admin-telegram | zod-schema | paid-api, external-webhook, db-write | `render/render.ts` |
-| `render-avatar-video-run` | `render/avatar-video.run` <br>legacy: `render/avatar-video` | 3 | admin-telegram | zod-schema | paid-api, external-webhook, db-write | `render/renderAvatarVideo.ts` |
-| `render-riddle-run` | `render/riddle.run` <br>legacy: `render-riddle` | 3 | admin-telegram | zod-schema | paid-api, external-webhook, db-write | `render/renderRiddle.ts` |
-| `payment-ai-server-process` | `payment/ai-server.process` <br>legacy: `payment/process-ai-server` | 3 | admin-telegram | amount-match | db-write, messages-user | `payments/paymentProcessing.ts` |
-| `broadcast-message-send` | `broadcast/message.send` <br>legacy: `broadcast/send-message` | 3 | admin-telegram | validate-input | messages-user | `broadcast/broadcastMessage.ts` |
-| `instagram-reels-analyze` | `instagram/reels.analyze` <br>legacy: `instagram/analyze-reels` | SDK default (4) | admin-telegram | validate-input | paid-api, db-write | `content/analyzeCompetitorReels.ts` |
-| `instagram-competitors-find` | `instagram/competitors.find` <br>legacy: `instagram/find-competitors` | SDK default (4) | admin-telegram | validate-input | paid-api, db-write | `content/findCompetitors.ts` |
-| `instagram-top-content-extract` | `instagram/top-content.extract` <br>legacy: `instagram/extract-top` | SDK default (4) | log | zod-schema | db-write | `content/extractTopContent.ts` |
-| `content-scripts-generate` | `content/scripts.generate` <br>legacy: `instagram/generate-scripts` | SDK default (4) | admin-telegram | zod-schema | paid-api, db-write | `content/generateContentScripts.ts` |
-| `content-detailed-script-generate` | `content/detailed-script.generate` <br>legacy: `content/generate-detailed-script` | SDK default (4) | admin-telegram | zod-schema | paid-api, db-write | `content/generateDetailedScript.ts` |
-| `content-scenario-clips-generate` | `content/scenario-clips.generate` <br>legacy: `content/generate-scenario-clips` | SDK default (4) | admin-telegram | zod-schema | paid-api, db-write | `content/generateScenarioClips.ts` |
-| `monitoring-error-report` | `monitoring/error.report` <br>legacy: `app/error.critical` | 1 | admin-telegram | none | paid-api, messages-admin | `monitoring/criticalErrorMonitor.ts` |
-| `monitoring-health-check` | cron `*/30 * * * *` (UTC) | 2 | log | none | messages-admin | `monitoring/criticalErrorMonitor.ts` |
-| `monitoring-logs-analyze` | cron `0 10 * * *` (UTC) | 2 | admin-telegram | none | messages-admin | `monitoring/logMonitor.ts` |
-| `monitoring-logs-trigger` | `monitoring/logs.trigger` <br>legacy: `logs/monitor.trigger` | 1 | admin-telegram | none | messages-admin | `monitoring/logMonitor.ts` |
-| `analytics-sales-advise` | cron `0 9 * * *` (UTC) | 1 | admin-telegram | none | messages-owners, messages-admin | `analytics/dailySalesAdvisor.ts` |
-| `analytics-skills-detect` | cron `0 10 * * *` (UTC) | 1 | log | none | messages-admin, db-write | `analytics/skillDetector.ts` |
-| `webhook-generation-validate` | `webhook/generation.validate` <br>legacy: `video/generation-validate-webhook` | 1 | admin-telegram | unknown | db-write | `webhookHealthGuard.ts` |
-| `welcome-avatar-generate` | `welcome/avatar.generate` <br>legacy: `user/welcome.avatar.generate` | 2 | admin-telegram | unknown | paid-api, messages-user | `welcomeAvatarGeneration.ts` |
+| id                                 | trigger                                                                           | retries         | onFailure      | guard             | side effects                                       | file                                               |
+| ---------------------------------- | --------------------------------------------------------------------------------- | --------------- | -------------- | ----------------- | -------------------------------------------------- | -------------------------------------------------- |
+| `neuro-image-generate`             | `neuro/image.generate` <br>legacy: `neuro/photo.generate`                         | 3               | admin-telegram | check-user        | charges-balance, paid-api, messages-user, db-write | `generation/neuroImageGeneration.ts`               |
+| `reels-ai-generate`                | `reels/ai.generate` <br>legacy: `ai-reels/generate`                               | 2               | admin-telegram | validate-input    | paid-api, messages-user                            | `existing/generateAIReelsFunction.ts`              |
+| `reels-ai-callback`                | `reels/ai.callback` <br>legacy: `ai-reels-callback`                               | 3               | admin-telegram | extract-job-id    | paid-api, messages-user                            | `ai-reels-callback.ts`                             |
+| `reels-loop-generate`              | `reels/loop.generate` <br>legacy: `reels/generate-advanced-loop`                  | 2               | admin-telegram | min-images        | paid-api, messages-user                            | `existing/generateAdvancedLoopingVideoFunction.ts` |
+| `training-model-start`             | `training/model.start` <br>legacy: `model/training.start`                         | 0               | admin-telegram | validate-steps    | charges-balance, paid-api, messages-user, db-write | `existing/generateModelTrainingFunction.ts`        |
+| `training-model-v2-start`          | `training/model-v2.start` <br>legacy: `model/training.v2.requested`               | SDK default (4) | admin-telegram | check-user-exists | charges-balance, paid-api, messages-user, db-write | `training/modelTrainingV2.ts`                      |
+| `training-model-complete`          | `training/model.complete` <br>legacy: `model/training.completed`                  | 2               | admin-telegram | unknown           | charges-balance, paid-api, messages-user, db-write | `existing/handleModelTrainingCompleted.ts`         |
+| `training-stuck-check`             | cron `*/30 * * * *` (UTC)                                                         | SDK default (4) | admin-telegram | none              | charges-balance, paid-api, messages-user, db-write | `training/checkStuckTrainings.ts`                  |
+| `morph-images-generate`            | `morph/images.generate` <br>legacy: `morph/images.requested`                      | 3               | admin-telegram | check-user-exists | charges-balance, paid-api, messages-user           | `training/morphImages.ts`                          |
+| `render-job-run`                   | `render/job.run` <br>legacy: `render`                                             | 3               | admin-telegram | zod-schema        | paid-api, external-webhook, db-write               | `render/render.ts`                                 |
+| `render-avatar-video-run`          | `render/avatar-video.run` <br>legacy: `render/avatar-video`                       | 3               | admin-telegram | zod-schema        | paid-api, external-webhook, db-write               | `render/renderAvatarVideo.ts`                      |
+| `render-riddle-run`                | `render/riddle.run` <br>legacy: `render-riddle`                                   | 3               | admin-telegram | zod-schema        | paid-api, external-webhook, db-write               | `render/renderRiddle.ts`                           |
+| `payment-ai-server-process`        | `payment/ai-server.process` <br>legacy: `payment/process-ai-server`               | 3               | admin-telegram | amount-match      | db-write, messages-user                            | `payments/paymentProcessing.ts`                    |
+| `broadcast-message-send`           | `broadcast/message.send` <br>legacy: `broadcast/send-message`                     | 3               | admin-telegram | validate-input    | messages-user                                      | `broadcast/broadcastMessage.ts`                    |
+| `instagram-reels-analyze`          | `instagram/reels.analyze` <br>legacy: `instagram/analyze-reels`                   | SDK default (4) | admin-telegram | validate-input    | paid-api, db-write                                 | `content/analyzeCompetitorReels.ts`                |
+| `instagram-competitors-find`       | `instagram/competitors.find` <br>legacy: `instagram/find-competitors`             | SDK default (4) | admin-telegram | validate-input    | paid-api, db-write                                 | `content/findCompetitors.ts`                       |
+| `instagram-top-content-extract`    | `instagram/top-content.extract` <br>legacy: `instagram/extract-top`               | SDK default (4) | log            | zod-schema        | db-write                                           | `content/extractTopContent.ts`                     |
+| `content-scripts-generate`         | `content/scripts.generate` <br>legacy: `instagram/generate-scripts`               | SDK default (4) | admin-telegram | zod-schema        | paid-api, db-write                                 | `content/generateContentScripts.ts`                |
+| `content-detailed-script-generate` | `content/detailed-script.generate` <br>legacy: `content/generate-detailed-script` | SDK default (4) | admin-telegram | zod-schema        | paid-api, db-write                                 | `content/generateDetailedScript.ts`                |
+| `content-scenario-clips-generate`  | `content/scenario-clips.generate` <br>legacy: `content/generate-scenario-clips`   | SDK default (4) | admin-telegram | zod-schema        | paid-api, db-write                                 | `content/generateScenarioClips.ts`                 |
+| `monitoring-error-report`          | `monitoring/error.report` <br>legacy: `app/error.critical`                        | 1               | admin-telegram | none              | paid-api, messages-admin                           | `monitoring/criticalErrorMonitor.ts`               |
+| `monitoring-health-check`          | cron `*/30 * * * *` (UTC)                                                         | 2               | log            | none              | messages-admin                                     | `monitoring/criticalErrorMonitor.ts`               |
+| `monitoring-logs-analyze`          | cron `0 10 * * *` (UTC)                                                           | 2               | admin-telegram | none              | messages-admin                                     | `monitoring/logMonitor.ts`                         |
+| `monitoring-logs-trigger`          | `monitoring/logs.trigger` <br>legacy: `logs/monitor.trigger`                      | 1               | admin-telegram | none              | messages-admin                                     | `monitoring/logMonitor.ts`                         |
+| `analytics-sales-advise`           | cron `0 9 * * *` (UTC)                                                            | 1               | admin-telegram | none              | messages-owners, messages-admin                    | `analytics/dailySalesAdvisor.ts`                   |
+| `analytics-skills-detect`          | cron `0 10 * * *` (UTC)                                                           | 1               | log            | none              | messages-admin, db-write                           | `analytics/skillDetector.ts`                       |
+| `webhook-generation-validate`      | `webhook/generation.validate` <br>legacy: `video/generation-validate-webhook`     | 1               | admin-telegram | unknown           | db-write                                           | `webhookHealthGuard.ts`                            |
+| `welcome-avatar-generate`          | `welcome/avatar.generate` <br>legacy: `user/welcome.avatar.generate`              | 2               | admin-telegram | unknown           | paid-api, messages-user                            | `welcomeAvatarGeneration.ts`                       |
+| `crm-proactive-sweep`              | cron `*/30 * * * *` (UTC)                                                         | 0               | admin-telegram | none              | messages-user, paid-api, db-write                  | `crm/crmProactiveSweep.ts`                         |
 
 ## Code-only / unregistered (never served)
 
-| id | file | why |
-|---|---|---|
-| `test-simple` | `__dev__/testSimpleFunction.ts` | demo function; moved to functions/__dev__; served only by dev/test apps (prod-app.ts, test-app.ts) |
-| `test-simple-message` | `__dev__/testSimpleMessageFunction.ts` | demo function; moved to functions/__dev__; served only by dev/test apps |
-| `test-advanced-loop` | `__dev__/testAdvancedLoopFunction.ts` | demo function; moved to functions/__dev__; served only by dev/test apps |
-| `kie-ai-webhook-manual-check` | `kieAiWebhookMonitor.ts` | KieAI webhook monitor never wired into registerFunctions |
-| `voice-training-start` | `training/voiceTrainingRVC.ts` | RVC voice training never wired; charges balance — must not be registered silently |
-| `voice-training-completed` | `training/voiceTrainingRVC.ts` | RVC voice training completion never wired |
-| `webhook-health-check` | `webhookHealthGuard.ts` | not exported from registerFunctions; only validateWebhookBeforeGeneration is served |
-| `periodic-webhook-health-check` | `webhookHealthGuard.ts` | cron 0 * * * *; not served |
-| `morph-images` | `morphImages.ts` | duplicate of training/morphImages.ts (served copy is morph-images-generate) |
-| `neuro-image-generation` | `neuroImageGeneration.ts` | duplicate of generation/neuroImageGeneration.ts (served copy is neuro-image-generate) |
-| `model-training` | `training/generateModelTraining.ts` | duplicate/legacy of existing/generateModelTrainingFunction.ts (served copy is training-model-start) |
-| `instagram-scraper-v2` | `instagram/instagramScraper-v2.ts` | import commented out in registerFunctions (broken imports) |
-| `create-instagram-user` | `instagram/instagramScraper-v2.ts` | import commented out in registerFunctions |
-| `instagram-reels-test` | `instagram/instagramScraper-v2-simple.ts` | import commented out in registerFunctions |
+| id                              | file                                      | why                                                                                                 |
+| ------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `test-simple`                   | `__dev__/testSimpleFunction.ts`           | demo function; moved to functions/**dev**; served only by dev/test apps (prod-app.ts, test-app.ts)  |
+| `test-simple-message`           | `__dev__/testSimpleMessageFunction.ts`    | demo function; moved to functions/**dev**; served only by dev/test apps                             |
+| `test-advanced-loop`            | `__dev__/testAdvancedLoopFunction.ts`     | demo function; moved to functions/**dev**; served only by dev/test apps                             |
+| `kie-ai-webhook-manual-check`   | `kieAiWebhookMonitor.ts`                  | KieAI webhook monitor never wired into registerFunctions                                            |
+| `voice-training-start`          | `training/voiceTrainingRVC.ts`            | RVC voice training never wired; charges balance — must not be registered silently                   |
+| `voice-training-completed`      | `training/voiceTrainingRVC.ts`            | RVC voice training completion never wired                                                           |
+| `webhook-health-check`          | `webhookHealthGuard.ts`                   | not exported from registerFunctions; only validateWebhookBeforeGeneration is served                 |
+| `periodic-webhook-health-check` | `webhookHealthGuard.ts`                   | cron 0 \* \* \* \*; not served                                                                      |
+| `morph-images`                  | `morphImages.ts`                          | duplicate of training/morphImages.ts (served copy is morph-images-generate)                         |
+| `neuro-image-generation`        | `neuroImageGeneration.ts`                 | duplicate of generation/neuroImageGeneration.ts (served copy is neuro-image-generate)               |
+| `model-training`                | `training/generateModelTraining.ts`       | duplicate/legacy of existing/generateModelTrainingFunction.ts (served copy is training-model-start) |
+| `instagram-scraper-v2`          | `instagram/instagramScraper-v2.ts`        | import commented out in registerFunctions (broken imports)                                          |
+| `create-instagram-user`         | `instagram/instagramScraper-v2.ts`        | import commented out in registerFunctions                                                           |
+| `instagram-reels-test`          | `instagram/instagramScraper-v2-simple.ts` | import commented out in registerFunctions                                                           |
 
 ## Function cards
 
@@ -553,6 +554,25 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Notes:**
   - probe 2026-09-10: validate-bot fails for the nonexistent bot and the function returns success:false before reserve-gift-slot
 
+### crm-proactive-sweep
+
+- **Slug:** `telegram-bot-client-crm-proactive-sweep`
+- **Control:** `spec+code`
+- **Domain:** crm
+- **Trigger:** cron `*/30 * * * *` (UTC)
+- **Source:** `src/inngest_app/functions/crm/crmProactiveSweep.ts` → `crmProactiveSweep`
+- **Retries:** 0
+- **onFailure:** admin-telegram
+- **Guard:** none
+- **Side effects:** `messages-user`, `paid-api`, `db-write`
+- **Steps:** `sweep`
+- **Probe 2026-09-09:** safe=yes, result=not-deployed, deployed=no; probe suite expects: COMPLETED
+- **Notes:**
+  - 2026-09-12: the proactive seller sweep (services/crmProactive.ts runProactiveTick) moved from an in-process setInterval to this cron; CRM_SWEEP_DRIVER=timer restores the interval, CRM_PROACTIVE_MINUTES=0 disables both
+  - retries 0 and concurrency 1: a tick may push a card to the owner; a retry or an overlap would push a second one
+  - safe mode (e2e_test=true probe): skipped entirely, nothing is sent; the run COMPLETES with {skipped:true}
+  - no carrier registered (bots not up yet in this process): run returns did=paused, not an error
+
 ## Unregistered cards
 
 ### test-simple
@@ -569,7 +589,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Steps:** —
 - **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
-  - demo function; moved to functions/__dev__; served only by dev/test apps (prod-app.ts, test-app.ts)
+  - demo function; moved to functions/**dev**; served only by dev/test apps (prod-app.ts, test-app.ts)
 
 ### test-simple-message
 
@@ -585,7 +605,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Steps:** —
 - **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
-  - demo function; moved to functions/__dev__; served only by dev/test apps
+  - demo function; moved to functions/**dev**; served only by dev/test apps
 
 ### test-advanced-loop
 
@@ -601,7 +621,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Steps:** —
 - **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
-  - demo function; moved to functions/__dev__; served only by dev/test apps
+  - demo function; moved to functions/**dev**; served only by dev/test apps
 
 ### kie-ai-webhook-manual-check
 
@@ -681,7 +701,7 @@ MCP tools `inngest_health`, `inngest_functions`, `inngest_failed_runs`.
 - **Steps:** —
 - **Probe 2026-09-09:** safe=no, result=not-probed, deployed=no; probe suite expects: skip
 - **Notes:**
-  - cron 0 * * * *; not served
+  - cron 0 \* \* \* \*; not served
 
 ### morph-images
 

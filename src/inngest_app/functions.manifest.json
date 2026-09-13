@@ -13,9 +13,7 @@
       "domain": "neuro",
       "trigger": "event",
       "event": "neuro/image.generate",
-      "legacy_events": [
-        "neuro/photo.generate"
-      ],
+      "legacy_events": ["neuro/photo.generate"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/generation/neuroImageGeneration.ts",
@@ -57,9 +55,7 @@
       "domain": "reels",
       "trigger": "event",
       "event": "reels/ai.generate",
-      "legacy_events": [
-        "ai-reels/generate"
-      ],
+      "legacy_events": ["ai-reels/generate"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/existing/generateAIReelsFunction.ts",
@@ -72,10 +68,7 @@
       ],
       "retries": 2,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "messages-user"
-      ],
+      "side_effects": ["paid-api", "messages-user"],
       "guard": "validate-input",
       "safe_probe": "{}",
       "probe_result": "skipped",
@@ -96,9 +89,7 @@
       "domain": "reels",
       "trigger": "event",
       "event": "reels/ai.callback",
-      "legacy_events": [
-        "ai-reels-callback"
-      ],
+      "legacy_events": ["ai-reels-callback"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/ai-reels-callback.ts",
@@ -109,10 +100,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "messages-user"
-      ],
+      "side_effects": ["paid-api", "messages-user"],
       "guard": "extract-job-id",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -128,9 +116,7 @@
       "domain": "reels",
       "trigger": "event",
       "event": "reels/loop.generate",
-      "legacy_events": [
-        "reels/generate-advanced-loop"
-      ],
+      "legacy_events": ["reels/generate-advanced-loop"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/existing/generateAdvancedLoopingVideoFunction.ts",
@@ -145,10 +131,7 @@
       ],
       "retries": 2,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "messages-user"
-      ],
+      "side_effects": ["paid-api", "messages-user"],
       "guard": "min-images",
       "safe_probe": "{\"telegram_id\": \"0\", \"image_urls\": [], \"bot_token\": \"\", \"prompt\": \"safe-mode probe\"}",
       "probe_result": "FAILED-at-guard",
@@ -166,9 +149,7 @@
       "domain": "training",
       "trigger": "event",
       "event": "training/model.start",
-      "legacy_events": [
-        "model/training.start"
-      ],
+      "legacy_events": ["model/training.start"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/existing/generateModelTrainingFunction.ts",
@@ -207,9 +188,7 @@
       "domain": "training",
       "trigger": "event",
       "event": "training/model-v2.start",
-      "legacy_events": [
-        "model/training.v2.requested"
-      ],
+      "legacy_events": ["model/training.v2.requested"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/training/modelTrainingV2.ts",
@@ -253,9 +232,7 @@
       "domain": "training",
       "trigger": "event",
       "event": "training/model.complete",
-      "legacy_events": [
-        "model/training.completed"
-      ],
+      "legacy_events": ["model/training.completed"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/existing/handleModelTrainingCompleted.ts",
@@ -325,9 +302,7 @@
       "domain": "morph",
       "trigger": "event",
       "event": "morph/images.generate",
-      "legacy_events": [
-        "morph/images.requested"
-      ],
+      "legacy_events": ["morph/images.requested"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/training/morphImages.ts",
@@ -343,11 +318,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "charges-balance",
-        "paid-api",
-        "messages-user"
-      ],
+      "side_effects": ["charges-balance", "paid-api", "messages-user"],
       "guard": "check-user-exists",
       "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\", \"is_ru\": true, \"job_id\": \"e2e-probe\", \"image_files\": [], \"extraction_path\": \"/nonexistent/e2e\", \"morphing_type\": \"seamless\", \"model\": \"kling-v1.6-pro\"}",
       "probe_result": "FAILED-at-guard",
@@ -365,9 +336,7 @@
       "domain": "render",
       "trigger": "event",
       "event": "render/job.run",
-      "legacy_events": [
-        "render"
-      ],
+      "legacy_events": ["render"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/render/render.ts",
@@ -380,11 +349,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "external-webhook",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "external-webhook", "db-write"],
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -400,9 +365,7 @@
       "domain": "render",
       "trigger": "event",
       "event": "render/avatar-video.run",
-      "legacy_events": [
-        "render/avatar-video"
-      ],
+      "legacy_events": ["render/avatar-video"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/render/renderAvatarVideo.ts",
@@ -423,11 +386,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "external-webhook",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "external-webhook", "db-write"],
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -443,9 +402,7 @@
       "domain": "render",
       "trigger": "event",
       "event": "render/riddle.run",
-      "legacy_events": [
-        "render-riddle"
-      ],
+      "legacy_events": ["render-riddle"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/render/renderRiddle.ts",
@@ -466,11 +423,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "external-webhook",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "external-webhook", "db-write"],
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -489,9 +442,7 @@
       "domain": "payment",
       "trigger": "event",
       "event": "payment/ai-server.process",
-      "legacy_events": [
-        "payment/process-ai-server"
-      ],
+      "legacy_events": ["payment/process-ai-server"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/payments/paymentProcessing.ts",
@@ -505,10 +456,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "db-write",
-        "messages-user"
-      ],
+      "side_effects": ["db-write", "messages-user"],
       "guard": "amount-match",
       "safe_probe": "{\"IncSum\": \"0.01\", \"inv_id\": \"e2e-safe-mode-probe\"}",
       "probe_result": "COMPLETED",
@@ -529,9 +477,7 @@
       "domain": "broadcast",
       "trigger": "event",
       "event": "broadcast/message.send",
-      "legacy_events": [
-        "broadcast/send-message"
-      ],
+      "legacy_events": ["broadcast/send-message"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/broadcast/broadcastMessage.ts",
@@ -544,9 +490,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "messages-user"
-      ],
+      "side_effects": ["messages-user"],
       "guard": "validate-input",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -567,9 +511,7 @@
       "domain": "instagram",
       "trigger": "event",
       "event": "instagram/reels.analyze",
-      "legacy_events": [
-        "instagram/analyze-reels"
-      ],
+      "legacy_events": ["instagram/analyze-reels"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/content/analyzeCompetitorReels.ts",
@@ -584,10 +526,7 @@
       ],
       "retries": null,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "db-write"],
       "guard": "validate-input",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -605,9 +544,7 @@
       "domain": "instagram",
       "trigger": "event",
       "event": "instagram/competitors.find",
-      "legacy_events": [
-        "instagram/find-competitors"
-      ],
+      "legacy_events": ["instagram/find-competitors"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/content/findCompetitors.ts",
@@ -621,10 +558,7 @@
       ],
       "retries": null,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "db-write"],
       "guard": "validate-input",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -642,22 +576,14 @@
       "domain": "instagram",
       "trigger": "event",
       "event": "instagram/top-content.extract",
-      "legacy_events": [
-        "instagram/extract-top"
-      ],
+      "legacy_events": ["instagram/extract-top"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/content/extractTopContent.ts",
-      "steps": [
-        "query-top-reels",
-        "process-reels",
-        "format-report"
-      ],
+      "steps": ["query-top-reels", "process-reels", "format-report"],
       "retries": null,
       "on_failure": "log",
-      "side_effects": [
-        "db-write"
-      ],
+      "side_effects": ["db-write"],
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -675,9 +601,7 @@
       "domain": "content",
       "trigger": "event",
       "event": "content/scripts.generate",
-      "legacy_events": [
-        "instagram/generate-scripts"
-      ],
+      "legacy_events": ["instagram/generate-scripts"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/content/generateContentScripts.ts",
@@ -690,10 +614,7 @@
       ],
       "retries": null,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "db-write"],
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -711,9 +632,7 @@
       "domain": "content",
       "trigger": "event",
       "event": "content/detailed-script.generate",
-      "legacy_events": [
-        "content/generate-detailed-script"
-      ],
+      "legacy_events": ["content/generate-detailed-script"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/content/generateDetailedScript.ts",
@@ -724,10 +643,7 @@
       ],
       "retries": null,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "db-write"],
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -745,9 +661,7 @@
       "domain": "content",
       "trigger": "event",
       "event": "content/scenario-clips.generate",
-      "legacy_events": [
-        "content/generate-scenario-clips"
-      ],
+      "legacy_events": ["content/generate-scenario-clips"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/content/generateScenarioClips.ts",
@@ -759,10 +673,7 @@
       ],
       "retries": null,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "db-write"
-      ],
+      "side_effects": ["paid-api", "db-write"],
       "guard": "zod-schema",
       "safe_probe": "{}",
       "probe_result": "FAILED-at-guard",
@@ -780,9 +691,7 @@
       "domain": "monitoring",
       "trigger": "event",
       "event": "monitoring/error.report",
-      "legacy_events": [
-        "app/error.critical"
-      ],
+      "legacy_events": ["app/error.critical"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/monitoring/criticalErrorMonitor.ts",
@@ -794,10 +703,7 @@
       ],
       "retries": 1,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "messages-admin"
-      ],
+      "side_effects": ["paid-api", "messages-admin"],
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
@@ -819,16 +725,10 @@
       "cron": "*/30 * * * *",
       "tz": "UTC",
       "file": "src/inngest_app/functions/monitoring/criticalErrorMonitor.ts",
-      "steps": [
-        "check-api-health",
-        "check-inngest-health",
-        "notify-unhealthy"
-      ],
+      "steps": ["check-api-health", "check-inngest-health", "notify-unhealthy"],
       "retries": 2,
       "on_failure": "log",
-      "side_effects": [
-        "messages-admin"
-      ],
+      "side_effects": ["messages-admin"],
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
@@ -857,9 +757,7 @@
       ],
       "retries": 2,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "messages-admin"
-      ],
+      "side_effects": ["messages-admin"],
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
@@ -878,9 +776,7 @@
       "domain": "monitoring",
       "trigger": "event",
       "event": "monitoring/logs.trigger",
-      "legacy_events": [
-        "logs/monitor.trigger"
-      ],
+      "legacy_events": ["logs/monitor.trigger"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/monitoring/logMonitor.ts",
@@ -893,9 +789,7 @@
       ],
       "retries": 1,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "messages-admin"
-      ],
+      "side_effects": ["messages-admin"],
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
@@ -927,10 +821,7 @@
       ],
       "retries": 1,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "messages-owners",
-        "messages-admin"
-      ],
+      "side_effects": ["messages-owners", "messages-admin"],
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
@@ -959,10 +850,7 @@
       ],
       "retries": 1,
       "on_failure": "log",
-      "side_effects": [
-        "messages-admin",
-        "db-write"
-      ],
+      "side_effects": ["messages-admin", "db-write"],
       "guard": "none",
       "safe_probe": "{}",
       "probe_result": "COMPLETED",
@@ -980,20 +868,14 @@
       "domain": "webhook",
       "trigger": "event",
       "event": "webhook/generation.validate",
-      "legacy_events": [
-        "video/generation-validate-webhook"
-      ],
+      "legacy_events": ["video/generation-validate-webhook"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/webhookHealthGuard.ts",
-      "steps": [
-        "check-webhook-availability"
-      ],
+      "steps": ["check-webhook-availability"],
       "retries": 1,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "db-write"
-      ],
+      "side_effects": ["db-write"],
       "guard": "unknown",
       "safe_probe": "{\"telegramId\": \"0\", \"modelId\": \"e2e-probe\", \"provider\": \"e2e\"}",
       "probe_result": "not-deployed",
@@ -1011,9 +893,7 @@
       "domain": "welcome",
       "trigger": "event",
       "event": "welcome/avatar.generate",
-      "legacy_events": [
-        "user/welcome.avatar.generate"
-      ],
+      "legacy_events": ["user/welcome.avatar.generate"],
       "cron": "",
       "tz": "UTC",
       "file": "src/inngest_app/functions/welcomeAvatarGeneration.ts",
@@ -1026,10 +906,7 @@
       ],
       "retries": 2,
       "on_failure": "admin-telegram",
-      "side_effects": [
-        "paid-api",
-        "messages-user"
-      ],
+      "side_effects": ["paid-api", "messages-user"],
       "guard": "unknown",
       "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\"}",
       "probe_result": "not-deployed",
@@ -1137,9 +1014,7 @@
       "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
-      "notes": [
-        "KieAI webhook monitor never wired into registerFunctions"
-      ]
+      "notes": ["KieAI webhook monitor never wired into registerFunctions"]
     },
     {
       "id": "voice-training-start",
@@ -1187,9 +1062,7 @@
       "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
-      "notes": [
-        "RVC voice training completion never wired"
-      ]
+      "notes": ["RVC voice training completion never wired"]
     },
     {
       "id": "webhook-health-check",
@@ -1237,9 +1110,7 @@
       "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
-      "notes": [
-        "cron 0 * * * *; not served"
-      ]
+      "notes": ["cron 0 * * * *; not served"]
     },
     {
       "id": "morph-images",
@@ -1337,9 +1208,7 @@
       "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
-      "notes": [
-        "import commented out in registerFunctions (broken imports)"
-      ]
+      "notes": ["import commented out in registerFunctions (broken imports)"]
     },
     {
       "id": "create-instagram-user",
@@ -1362,9 +1231,7 @@
       "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
-      "notes": [
-        "import commented out in registerFunctions"
-      ]
+      "notes": ["import commented out in registerFunctions"]
     },
     {
       "id": "instagram-reels-test",
@@ -1387,8 +1254,34 @@
       "probe_expect": "skip",
       "deployed_2026_09_09": false,
       "control": "code-only/unregistered",
+      "notes": ["import commented out in registerFunctions"]
+    },
+    {
+      "id": "crm-proactive-sweep",
+      "legacy_id": "",
+      "domain": "crm",
+      "trigger": "cron",
+      "event": "",
+      "legacy_events": [],
+      "cron": "*/30 * * * *",
+      "tz": "UTC",
+      "file": "src/inngest_app/functions/crm/crmProactiveSweep.ts",
+      "steps": ["sweep"],
+      "retries": 0,
+      "on_failure": "admin-telegram",
+      "side_effects": ["messages-user", "paid-api", "db-write"],
+      "guard": "none",
+      "safe_probe": "{}",
+      "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
+      "deployed_2026_09_09": false,
+      "control": "spec+code",
+      "export": "crmProactiveSweep",
       "notes": [
-        "import commented out in registerFunctions"
+        "2026-09-12: the proactive seller sweep (services/crmProactive.ts runProactiveTick) moved from an in-process setInterval to this cron; CRM_SWEEP_DRIVER=timer restores the interval, CRM_PROACTIVE_MINUTES=0 disables both",
+        "retries 0 and concurrency 1: a tick may push a card to the owner; a retry or an overlap would push a second one",
+        "safe mode (e2e_test=true probe): skipped entirely, nothing is sent; the run COMPLETES with {skipped:true}",
+        "no carrier registered (bots not up yet in this process): run returns did=paused, not an error"
       ]
     }
   ]

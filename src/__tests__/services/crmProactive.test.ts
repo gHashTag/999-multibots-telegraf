@@ -419,13 +419,19 @@ describe('wired (source-level: the bot is not booted here)', () => {
   it('the ENTRY THAT RUNS starts the sweep unless CRM_PROACTIVE_MINUTES is zero', () => {
     // src/index.ts is what Railway starts; src/bot.ts has its own initializer
     // and is not it. The first wiring sat in bot.ts for an hour doing nothing.
+    // 2026-09-12: the clock moved to the Inngest cron crm-proactive-sweep;
+    // the entry registers the carrier for it and keeps the timer behind
+    // CRM_SWEEP_DRIVER=timer.
     const s = read('index.ts')
-    expect(s.indexOf('startCrmProactive(carrier')).toBeGreaterThan(
+    expect(s.indexOf('setCrmCarrier(carrier')).toBeGreaterThan(
       s.indexOf('await initializeBots()')
     )
     expect(s).toContain("process.env.CRM_PROACTIVE_MINUTES ?? '30'")
     expect(s).toMatch(/if \(proactiveMinutes > 0/)
-    expect(s).toContain('startCrmProactive(carrier')
+    expect(s).toContain('setCrmCarrier(carrier')
+    expect(s).toMatch(
+      /if \(driver === 'timer'\) \{\s*startCrmProactive\(carrier/
+    )
   })
 })
 

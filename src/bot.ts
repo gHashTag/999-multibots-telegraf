@@ -384,13 +384,19 @@ async function initializeBots() {
         const carrier =
           botInstances.find(b => b.botInfo?.username === wanted) ??
           botInstances[0]
-        const { startCrmProactive } = await import('@/services/crmProactive')
-        startCrmProactive(carrier, {
-          ownerId:
-            process.env.CRM_PROACTIVE_OWNER ||
-            String(ADMIN_IDS_ARRAY[0] || '144022504'),
-          everyMs: proactiveMinutes * 60_000,
-        })
+        const { startCrmProactive, setCrmCarrier, sweepDriver } = await import(
+          '@/services/crmProactive'
+        )
+        const ownerId =
+          process.env.CRM_PROACTIVE_OWNER ||
+          String(ADMIN_IDS_ARRAY[0] || '144022504')
+        setCrmCarrier(carrier, { ownerId })
+        if (sweepDriver() === 'timer') {
+          startCrmProactive(carrier, {
+            ownerId,
+            everyMs: proactiveMinutes * 60_000,
+          })
+        }
       }
       logger.info('✅ Асинхронный LipSync менеджер инициализирован')
     }

@@ -122,16 +122,17 @@ describe('maybeSendDailyPlan', () => {
 })
 
 describe('wired', () => {
-  it('the timer tick asks for the plan first, and the entry reads CRM_PLAN, CRM_PLAN_HOUR, CRM_PLAN_TZ', async () => {
+  it('the tick asks for the plan first, and the entry reads CRM_PLAN, CRM_PLAN_HOUR, CRM_PLAN_TZ', async () => {
     const fs = await import('node:fs')
     const cp = fs.readFileSync('src/services/crmProactive.ts', 'utf8')
+    // One tick for both clocks (timer and the Inngest cron): runProactiveTick.
     const run = cp.slice(
-      cp.indexOf('const run = async () => {'),
-      cp.indexOf('const first = setTimeout(run')
+      cp.indexOf('export async function runProactiveTick('),
+      cp.indexOf('let carrier:')
     )
     expect(run.indexOf('maybeSendDailyPlan(')).toBeGreaterThan(-1)
     expect(run.indexOf('maybeSendDailyPlan(')).toBeLessThan(
-      run.indexOf('scopes.get(String(opts.ownerId))')
+      run.indexOf('scopes.get(owner)')
     )
     const idx = fs.readFileSync('src/index.ts', 'utf8')
     expect(idx).toContain("process.env.CRM_PLAN ?? '1'")

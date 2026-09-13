@@ -61,7 +61,8 @@ describe('the plan', () => {
     const plans = planProbes()
     const served = getManifestFunctions().filter(f => f.control === 'spec+code')
     expect(plans.map(p => p.id).sort()).toEqual(served.map(f => f.id).sort())
-    expect(plans).toHaveLength(28)
+    // 28 on 2026-09-09; +crm-proactive-sweep on 2026-09-12 (the seller's clock).
+    expect(plans).toHaveLength(29)
     for (const p of plans) expect(p.slug).toBe(`${APP}-${p.id}`)
   })
 
