@@ -134,3 +134,10 @@ READ-only, `requireSeller`, параметры `{lead, limit?, kind?}`; подп
 7200 аудио-секунд/час — https://console.groq.com/docs/speech-to-text,
 https://console.groq.com/docs/rate-limits). Ключ вида `gsk_…` в `WHISPER_API_KEY` достаточно:
 адрес и модель Groq подставляются сами, явные `WHISPER_BASE_URL`/`WHISPER_MODEL` их перекрывают.
+
+Open-source путь [решение 2026-09-13]: сервис `whisper` в том же проекте Railway — Speaches
+(MIT, faster-whisper, https://github.com/speaches-ai/speaches), образ
+`ghcr.io/speaches-ai/speaches:latest-cpu`, модель `deepdml/faster-whisper-large-v3-turbo-ct2`
+(int8, CPU), свой `API_KEY`, том под кеш модели. В render: `WHISPER_BASE_URL=http://whisper.railway.internal:8000/v1`,
+`WHISPER_API_KEY` (тот же ключ), `WHISPER_MODEL` (имя модели), `MEDIA_WHISPER_TIMEOUT_MS=600000` —
+на CPU минуты, не секунды. Аудио не покидает проект.
