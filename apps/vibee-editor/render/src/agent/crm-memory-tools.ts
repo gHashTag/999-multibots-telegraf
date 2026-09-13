@@ -463,14 +463,14 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         reread: {
           type: 'boolean',
           description:
-            'прочитать заново фото и аудио без расшифровки (например, после сбоя ' +
-            'провайдера); расшифровки появятся в фоне',
+            'прочитать заново фото, аудио и (при настроенном vision) видео без расшифровки ' +
+            '(например, после сбоя провайдера); расшифровки появятся в фоне',
         },
         rewrite: {
           type: 'string',
           enum: [...MEDIA_KINDS],
           description:
-            'вместе с reread: стереть уже имеющиеся описания этого вида (image | audio) ' +
+            'вместе с reread: стереть уже имеющиеся описания этого вида (image | audio | video) ' +
             'и прочитать их заново — например, когда старые описания пришли не по-русски',
         },
       },
@@ -492,7 +492,11 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       let forgotten: number | undefined
       if (a?.reread === true) {
         await dropDuplicateIngestRows(pool, owner, lead.id)
-        if (a?.rewrite === 'image' || a?.rewrite === 'audio') {
+        if (
+          a?.rewrite === 'image' ||
+          a?.rewrite === 'audio' ||
+          a?.rewrite === 'video'
+        ) {
           forgotten = await forgetTranscripts(pool, owner, lead.id, a.rewrite)
         }
         await reopenUnread(pool, owner, lead.id)
