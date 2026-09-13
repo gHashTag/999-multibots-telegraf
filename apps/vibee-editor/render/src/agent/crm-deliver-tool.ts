@@ -1,5 +1,5 @@
 import type { AgentTool, ToolContext } from './tools'
-import { propose, requireOwner } from './telegram-tools'
+import { propose, requireSeller } from './telegram-tools'
 import { resolveLead, oneLine } from './crm-offer-tool'
 import { reachable } from './crm-touch-tools'
 import {
@@ -157,7 +157,7 @@ export function makeCrmDeliverTools(
         additionalProperties: false,
       },
       async handler(a: Record<string, any>, ctx?: ToolContext) {
-        requireOwner(ctx)
+        await requireSeller(ctx)
         const chat = String(a?.chat ?? '').trim()
         const prompt = String(a?.prompt ?? '').trim()
         if (!prompt) throw new Error('не сказано, что нарисовать')

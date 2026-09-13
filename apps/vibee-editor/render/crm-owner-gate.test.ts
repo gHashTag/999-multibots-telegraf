@@ -12,7 +12,7 @@
  * would surface as a database error rather than a refusal, and the assertion
  * below distinguishes the two.
  *
- * It is also a mutation canary. Flip `requireOwner` to `requireIdentity` in
+ * It is also a mutation canary. Flip `requireSeller` to `requireIdentity` in
  * crm_leads and this file fails; that swap has already happened once in this
  * service's history, for a reason that made sense at the time.
  */
@@ -45,10 +45,19 @@ const REGISTRIES = {
   CRM_OFFER_TOOLS,
 }
 
-/** Any query at all is a failure of the gate, so the pool says so out loud. */
+/**
+ * Any query at all is a failure of the gate, so the pool says so out loud --
+ * with ONE exception since 2026-09-13: the gate's own lookup of the caller's
+ * row in tg_sessions (`requireSeller`, spec crm-sellers.t27). A seller is
+ * whoever connected their own account, so the check IS a read, keyed by the
+ * verified caller id; it can return nothing about anybody else. The fake
+ * answers it with "no row", which is a refusal, and counts nothing.
+ */
 let touched = 0
+const GATE_OWN_READ = /tg_sessions/
 const hostilePool = {
-  query: async () => {
+  query: async (sql?: string) => {
+    if (GATE_OWN_READ.test(String(sql ?? ''))) return { rows: [] }
     touched += 1
     throw new Error('THE POOL WAS TOUCHED BEFORE THE CALLER WAS CHECKED')
   },

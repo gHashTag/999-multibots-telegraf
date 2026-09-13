@@ -32,7 +32,7 @@ import {
   PLAN_MARKER_PREFIX,
 } from './crmPlan'
 import { ADMIN_IDS_ARRAY } from '@/config'
-import { fetchLeadRows } from './modelSwitch'
+import { fetchLeadRows, callTool } from './modelSwitch'
 import { noteSweepToHive } from './hiveNote'
 import { Markup } from 'telegraf'
 
@@ -547,13 +547,98 @@ export interface PlanOpts {
 }
 
 export interface TickOpts {
+  /** The platform owner: always swept, and the identity the sellers list is asked as. */
   ownerId: string
+  /**
+   * Every seller to sweep, when the environment names them
+   * (CRM_PROACTIVE_OWNERS). Absent: asked of the render's `crm_sellers`
+   * on each tick, so a person who connects their account today is swept
+   * on the next run without a redeploy. Spec: t27 crm-sellers.t27.
+   */
+  ownerIds?: string[]
   holdMs?: number
   /** The daily plan: at this local hour, in this zone. Absent = no plan. */
   plan?: PlanOpts
 }
 
+/** CRM_PROACTIVE_OWNERS as a list: comma or space separated, ids only. */
+export function parseOwnerIds(raw: string | undefined): string[] {
+  return String(raw ?? '')
+    .split(/[\s,;]+/)
+    .map(s => s.trim())
+    .filter(s => /^\d{5,15}$/.test(s))
+}
+
+/**
+ * WHO IS SWEPT. The owner first, then every other connected account, each
+ * once. Until 2026-09-13 this was one id: @playom had connected on
+ * 2026-09-09 and nothing ever swept for them. The list comes from the
+ * environment when set, else from the render (asked as the owner, who is
+ * the only caller `crm_sellers` admits); when the render is down the
+ * owner alone is swept, as before -- a sweep must not stop because a list
+ * could not be read.
+ */
+export async function resolveSellers(
+  opts: TickOpts,
+  ask: (owner: string) => Promise<string[]> = async owner => {
+    const r = await callTool(owner, 'crm_sellers', {}, { timeoutMs: 15_000 })
+    const rows = Array.isArray(r?.sellers) ? r.sellers : []
+    return rows
+      .map((s: { telegram_id?: unknown }) => String(s?.telegram_id ?? ''))
+      .filter(Boolean)
+  }
+): Promise<string[]> {
+  const owner = String(opts.ownerId)
+  const out = [owner]
+  const add = (id: string) => {
+    if (id && !out.includes(id)) out.push(id)
+  }
+  if (opts.ownerIds && opts.ownerIds.length) {
+    opts.ownerIds.forEach(add)
+    return out
+  }
+  try {
+    ;(await ask(owner)).forEach(add)
+  } catch (e) {
+    logger.warn('[crm-proactive] sellers list unavailable; owner only', {
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
+  return out
+}
+
 export type TickOutcome = SweepOutcome | { did: 'paused'; why: string }
+
+/**
+ * ONE TICK FOR EVERY SELLER, in turn. Sequential on purpose: each sweep
+ * opens the seller's own Telegram session on the render, and one MTProto
+ * connection at a time is the discipline there. A seller whose sweep
+ * throws does not stop the next one; the failure is in their row.
+ */
+export async function runProactiveTickAll(
+  bot: Telegraf<MyContext>,
+  opts: TickOpts
+): Promise<{
+  sellers: string[]
+  outcomes: Array<{ owner: string; outcome: TickOutcome | { did: 'failed'; why: string } }>
+}> {
+  const sellers = await resolveSellers(opts)
+  const outcomes: Array<{
+    owner: string
+    outcome: TickOutcome | { did: 'failed'; why: string }
+  }> = []
+  for (const owner of sellers) {
+    try {
+      const outcome = await runProactiveTick(bot, { ...opts, ownerId: owner })
+      outcomes.push({ owner, outcome })
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e)
+      logger.error('[crm-proactive] tick failed for seller', { owner, why })
+      outcomes.push({ owner, outcome: { did: 'failed', why } })
+    }
+  }
+  return { sellers, outcomes }
+}
 
 /**
  * ONE TICK OF THE SELLER. The unit both drivers run: the in-process timer
@@ -651,7 +736,7 @@ export function startCrmProactive(
   opts: TickOpts & { everyMs: number; firstDelayMs?: number }
 ): () => void {
   const run = () =>
-    runProactiveTick(bot, opts).catch(e =>
+    runProactiveTickAll(bot, opts).catch(e =>
       logger.error('[crm-proactive] tick failed', {
         error: e instanceof Error ? e.message : String(e),
       })

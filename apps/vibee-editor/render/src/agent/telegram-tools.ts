@@ -79,6 +79,48 @@ function requireOwner(ctx?: ToolContext): void {
 }
 
 /**
+ * WHO THE CRM WORKS FOR: whoever connected their own Telegram account.
+ *
+ * Until 2026-09-13 the CRM tools (leads, context, summary, offers, the gift
+ * photo) asked `requireOwner` -- ONE id from the environment -- while the
+ * session they open and every CRM table they read were already keyed by the
+ * caller's own id. Measured on the render's Postgres that day: tg_sessions
+ * held two rows, the owner's (144022504) and @playom's (435572800), and the
+ * second was refused by the gate alone. A seller is a person with a session;
+ * the platform owner keeps the env-string fallback so a fresh base does not
+ * lock them out. Spec: t27 specs/automation/crm-sellers.t27.
+ */
+export async function isSeller(ctx?: ToolContext): Promise<boolean> {
+  const who = ctx ? String(ctx.telegramId ?? '').trim() : ''
+  if (!who) return false
+  // The platform owner is always a seller: their session is the row or the
+  // env string, and `client()` says which is missing when neither is there.
+  if (who === OWNER_TELEGRAM_ID) return true
+  const pool = (ctx as { pool?: { query: Function } } | undefined)?.pool
+  if (!pool) return false
+  try {
+    // The gate's one read: the caller's OWN row, keyed by the verified id.
+    // Nothing about anybody else can come back from it.
+    const tg = await import('./tg-connect')
+    const readSession = tg.прочитатьСессию // cyrillic-ok: pre-existing export
+    return Boolean(await readSession(pool as never, who))
+  } catch {
+    // A base without the table has no sellers but the owner.
+    return false
+  }
+}
+
+export async function requireSeller(ctx?: ToolContext): Promise<void> {
+  requireIdentity(ctx)
+  if (await isSeller(ctx)) return
+  throw new Error(
+    'CRM работает с вашим собственным Telegram-аккаунтом, а он не подключён. ' +
+      'Подключите аккаунт в приложении — после этого лиды, сводка и подарки ' +
+      'заработают от вашего имени.'
+  )
+}
+
+/**
  * WHO may read and act: anyone with a verified identity -- on THEIR OWN
  * account, and nobody else's.
  *
@@ -839,3 +881,21 @@ export const NOT_WIRED = [
 
 /** For the personal seller, which composes a message and then proposes it. */
 export { propose, requireOwner, requireIdentity, OWNER_TELEGRAM_ID }
+
+/**
+ * Every connected seller, for the owner and the bot's sweep. The session
+ * string never leaves this function: the row is reduced to who and when.
+ */
+export async function listSellers(pool: {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+}): Promise<Array<{ telegram_id: string; connected_at: string | null }>> {
+  const r = await pool.query(
+    `SELECT telegram_id, updated_at FROM tg_sessions ORDER BY updated_at DESC`
+  )
+  return (r.rows ?? []).map(row => ({
+    telegram_id: String(row.telegram_id),
+    connected_at: row.updated_at
+      ? new Date(row.updated_at).toISOString()
+      : null,
+  }))
+}

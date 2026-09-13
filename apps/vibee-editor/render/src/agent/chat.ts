@@ -658,6 +658,16 @@ export async function* runAgent(
   const dmContext =
     opts?.surface === 'business' ? await dmHistoryBlock(ctx) : ''
 
+  // Decided once per turn: a seller is anyone with a connected account.
+  const seller = await (async () => {
+    try {
+      const { isSeller } = await import('./telegram-tools')
+      return await isSeller(ctx)
+    } catch {
+      return false
+    }
+  })()
+
   const messages: ChatMessage[] = [
     {
       role: 'system',
@@ -667,6 +677,7 @@ export async function* runAgent(
             salesPlaybook({
               surface: opts?.surface,
               telegramId: ctx.telegramId,
+              seller,
             }) +
             '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
             'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
@@ -678,6 +689,7 @@ export async function* runAgent(
             salesPlaybook({
               surface: opts?.surface,
               telegramId: ctx.telegramId,
+              seller,
             })) + dmContext,
     },
     ...history,

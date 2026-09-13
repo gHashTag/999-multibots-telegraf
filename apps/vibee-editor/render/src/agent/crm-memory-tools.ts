@@ -1,5 +1,5 @@
 import type { AgentTool, ToolContext } from './tools'
-import { client, requireOwner, foreignText } from './telegram-tools'
+import { client, requireSeller, foreignText } from './telegram-tools'
 import { hangUp } from './hang-up'
 import { resolveLead, displayOf, oneLine } from './crm-offer-tool'
 import { whoPaid, askSupabase, visibleScope } from './crm-tools'
@@ -99,7 +99,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(a: Record<string, any>, ctx?: ToolContext) {
-      requireOwner(ctx)
+      await requireSeller(ctx)
       const owner = String(ctx?.telegramId)
       const pool = ctx?.pool as never
       const limit = clamp(a?.limit, DIALOGS_DEFAULT, DIALOGS_MAX)
@@ -198,7 +198,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(a: Record<string, any>, ctx?: ToolContext) {
-      requireOwner(ctx)
+      await requireSeller(ctx)
       const owner = String(ctx?.telegramId)
       const pool = ctx?.pool as never
       const raw = String(a?.chat ?? '').trim()
@@ -269,7 +269,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(a: Record<string, any>, ctx?: ToolContext) {
-      requireOwner(ctx)
+      await requireSeller(ctx)
       const owner = String(ctx?.telegramId)
       const pool = ctx?.pool as never
       const wanted = a?.segment === undefined ? undefined : String(a.segment)

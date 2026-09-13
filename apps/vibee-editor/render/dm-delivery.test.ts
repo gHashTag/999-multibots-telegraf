@@ -266,15 +266,16 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     expect(what).not.toContain('http')
   })
 
-  it('somebody other than the owner is refused', async () => {
+  it('somebody without a connected account is refused', async () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
+    // The pool has no tg_sessions row for '999' (no `session` column at all).
     await expect(
       tool.handler(
         { chat: '@pilot_client', prompt: 'кот', ...PAID },
         ctxWith(poolWith([{ balance: 50 }]), 'bot', '999')
       )
-    ).rejects.toThrow('принадлежит владельцу')
+    ).rejects.toThrow('не подключён')
     expect(calls.length).toBe(0)
   })
 })

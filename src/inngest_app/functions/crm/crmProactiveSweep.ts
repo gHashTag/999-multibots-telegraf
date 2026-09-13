@@ -17,6 +17,9 @@
  *   - safe mode (e2e_test=true probes): skipped, nothing is sent.
  *   - no carrier: the bots are not up yet in this process -- reported as
  *     'paused', not thrown. The next run finds them.
+ *   - every seller (2026-09-13): one run sweeps the owner and then each
+ *     other connected account (`resolveSellers`), in turn. The run's
+ *     output lists who was swept and what happened for each.
  */
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
@@ -37,7 +40,7 @@ export const crmProactiveSweep = inngest.createFunction(
     if (isSafeMode(event as never)) return skippedInSafeMode('crm-sweep')
 
     const outcome = await step.run('sweep', async () => {
-      const { crmCarrier, runProactiveTick } = await import(
+      const { crmCarrier, runProactiveTickAll } = await import(
         '@/services/crmProactive'
       )
       const c = crmCarrier()
@@ -46,7 +49,7 @@ export const crmProactiveSweep = inngest.createFunction(
         return { did: 'paused' as const, why: 'carrier not registered' }
       }
       const started = Date.now()
-      const r = await runProactiveTick(c.bot, c.opts)
+      const r = await runProactiveTickAll(c.bot, c.opts)
       return { ...r, ms: Date.now() - started, owner: c.opts.ownerId }
     })
 
