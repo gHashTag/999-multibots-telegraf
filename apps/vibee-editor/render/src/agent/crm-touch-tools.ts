@@ -173,9 +173,26 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
         String(ctx.telegramId),
         leadId
       )
+      // Stage from the touches alone (payments are not read here): the
+      // per-client dashboard shows it next to the touches.
+      const st = stageOf({
+        paid: false,
+        touches: past as never,
+        quietDays: null,
+      })
+      const w = waitingOn({
+        paid: false,
+        touches: past as never,
+        quietDays: null,
+        noAnswerAfterDays: 3,
+        laterAfterDays: 14,
+      })
       return {
         telegram_id: leadId,
         total: past.length,
+        stage: st.stage,
+        because: st.because,
+        waiting: w?.waiting ?? null,
         touches: past,
         what_to_do:
           past.length === 0

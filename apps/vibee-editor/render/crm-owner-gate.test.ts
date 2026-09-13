@@ -36,6 +36,8 @@ import { CRM_MEMORY_TOOLS } from './src/agent/crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './src/agent/crm-summary-tool'
 import { CRM_TOUCH_TOOLS } from './src/agent/crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './src/agent/crm-offer-tool'
+import { CRM_DUET_TOOLS } from './src/agent/crm-duet-tool'
+import { CRM_CLIENT_WORKSPACE_TOOLS } from './src/agent/crm-client-workspace-tools'
 
 const REGISTRIES = {
   CRM_TOOLS,
@@ -43,6 +45,11 @@ const REGISTRIES = {
   CRM_SUMMARY_TOOLS,
   CRM_TOUCH_TOOLS,
   CRM_OFFER_TOOLS,
+  // The per-client workspace (spec crm-client-workspace.t27): the list of
+  // runs and the two dashboard reads. crm_duet / crm_duet_status are
+  // owner-only and covered by the same loop.
+  CRM_DUET_RUNS: CRM_DUET_TOOLS.filter(t => t.name === 'crm_duet_runs'),
+  CRM_CLIENT_WORKSPACE_TOOLS,
 }
 
 /**
@@ -79,6 +86,9 @@ const ARGS: Record<string, Record<string, unknown>> = {
   crm_deliver_photo: { telegram_id: '900000001', prompt: 'x' },
   crm_ingest_chats: { limit: 5, depth: 5 },
   crm_lead_media: { lead: '900000001', limit: 5 },
+  crm_duet_runs: { buyer: '900000001', limit: 5 },
+  crm_client_plan: { telegram_id: '900000001' },
+  crm_clients: { limit: 5 },
 }
 
 const named = Object.entries(REGISTRIES).flatMap(([registry, tools]) =>

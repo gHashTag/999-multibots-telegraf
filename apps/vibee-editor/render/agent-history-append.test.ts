@@ -59,7 +59,7 @@ function fakePool() {
   return {
     rows,
     async query(sql: string, params: any[] = []) {
-      if (/^\s*CREATE/i.test(sql)) return { rows: [] }
+      if (/^\s*(CREATE|ALTER)/i.test(sql)) return { rows: [] }
       if (/INSERT INTO agent_messages/i.test(sql)) {
         const [telegram_id, role, content, surface] = params
         rows.push({ telegram_id, role, content, surface })
