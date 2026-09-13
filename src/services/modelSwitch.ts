@@ -367,3 +367,38 @@ export async function mirrorDm(
     ? { ok: true, fresh: data.fresh, zep: data.zep }
     : { ok: false, error: data.error || `HTTP ${r.status}` }
 }
+
+/**
+ * Did the agent send message `msgId` to `lead` as `owner`? Asked by the
+ * business middleware before it pauses the AI on an outgoing message, since
+ * a confirmed proposal comes back from Telegram as the owner's own message
+ * (measured 2026-09-13). Short timeout; any failure means "not the agent",
+ * which is the pre-existing behaviour.
+ */
+export async function wasAgentSent(
+  owner: string | number,
+  lead: string | number,
+  msgId: number,
+  timeoutMs = 3000
+): Promise<boolean> {
+  if (!apiKey()) return false
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), timeoutMs)
+  try {
+    const r = await fetch(
+      `${BASE}/api/crm/agent-sent?telegram_id=${encodeURIComponent(String(owner))}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey() },
+        body: JSON.stringify({ lead: String(lead), msg_id: msgId }),
+        signal: ctl.signal,
+      }
+    )
+    const data = (await r.json().catch(() => ({}))) as { agent?: boolean }
+    return r.ok && data.agent === true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}

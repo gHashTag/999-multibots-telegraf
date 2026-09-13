@@ -88,8 +88,10 @@ vi.mock('@/services/crmSummary', () => ({
   formatSummary: () => 'Сводка',
 }))
 const pauseAiFor = vi.fn(() => 1)
+const resumeAiFor = vi.fn(() => 1)
 vi.mock('@/services/businessBotService', () => ({
   pauseAiFor: (...a: unknown[]) => pauseAiFor(...(a as [])),
+  resumeAiFor: (...a: unknown[]) => resumeAiFor(...(a as [])),
 }))
 
 let sink: Array<{ method: string; payload: any }> = []
@@ -116,6 +118,7 @@ beforeEach(() => {
   startScopedSweep.mockClear()
   touchLead.mockClear()
   pauseAiFor.mockClear()
+  resumeAiFor.mockClear()
   fetchLead.mockClear()
   fetchLeads.mockClear()
 })
@@ -285,6 +288,14 @@ describe('what the presses do', () => {
     await bot.handleUpdate(press('crm:mute:900000001') as any)
     expect(pauseAiFor).toHaveBeenCalledWith('900000001', undefined, OWNER)
     expect(sent()[0].payload.text).toContain('Молчу')
+    expect(keyboardOf(sent()[0])).toContain('crm:unmute:900000001')
+  })
+
+  it('unmute gives the chat back to the AI for this owner', async () => {
+    const { bot } = boot()
+    await bot.handleUpdate(press('crm:unmute:900000001') as any)
+    expect(resumeAiFor).toHaveBeenCalledWith('900000001', OWNER)
+    expect(sent()[0].payload.text).toContain('снова отвечает')
   })
 
   it('the scope buttons and /sweep with words start the same scoped sweep', async () => {

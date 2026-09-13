@@ -8,7 +8,7 @@
  */
 
 import { Telegraf } from 'telegraf'
-import { dmLeadMenu } from '@/navigation/helpers/crmMenu'
+import { aiPausedMenu, dmLeadMenu } from '@/navigation/helpers/crmMenu'
 import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
 import { разбитьДлинное } from '@/helpers/telegramLongAnswer' // cyrillic-ok: pre-existing helper name
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -93,6 +93,22 @@ const ownerTakeoverUntil = new Map<string, number>()
  * the AI stays quiet there for `ms`, exactly as when the owner types in it.
  * Returns how many connections were paused.
  */
+/**
+ * The owner gives the chat back to the AI from a button ("🤖 Вернуть ИИ")
+ * before the pause runs out. Returns how many connections were resumed.
+ */
+export function resumeAiFor(
+  chatId: number | string,
+  ownerUserId?: number
+): number {
+  let resumed = 0
+  for (const [connId, conn] of connections) {
+    if (ownerUserId !== undefined && conn.userId !== ownerUserId) continue
+    if (ownerTakeoverUntil.delete(`${connId}:${chatId}`)) resumed += 1
+  }
+  return resumed
+}
+
 export function pauseAiFor(
   chatId: number | string,
   ms = OWNER_TAKEOVER_MS,
@@ -548,11 +564,32 @@ export async function handleBusinessMessage(
 
   // The owner typed in this chat themselves: hand the conversation to them.
   if (msg.from?.id === conn.userId) {
+    /*
+     * ...unless it was the agent speaking AS the owner. A confirmed proposal
+     * leaves through the owner's own session, and Telegram Business hands it
+     * back here as the owner's message. Measured 2026-09-13: the send at
+     * 14:16:14 paused the AI at 14:16:15 and the client's next five messages
+     * went unanswered. The render remembers its sends by message id; ask it.
+     */
+    try {
+      const { wasAgentSent } = await import('@/services/modelSwitch')
+      if (await wasAgentSent(conn.userId, chatId, msg.message_id)) {
+        logger.info('[Business] Agent-sent message, AI stays on', {
+          connId,
+          chatId,
+        })
+        return
+      }
+    } catch {
+      // Unknown -> treat as the owner's own words, as before.
+    }
+    const wasPaused = (ownerTakeoverUntil.get(chatKey) ?? 0) > Date.now()
     ownerTakeoverUntil.set(chatKey, Date.now() + OWNER_TAKEOVER_MS)
     logger.info('[Business] Owner replied manually, AI paused', {
       connId,
       chatId,
     })
+    if (!wasPaused) void tellOwnerAiPaused(conn, bot, chatId)
     return
   }
   const pausedUntil = ownerTakeoverUntil.get(chatKey) ?? 0
@@ -841,6 +878,36 @@ async function notifyOwnerOfLead(
     logger.warn('[Business] Owner lead notification failed', {
       error: error instanceof Error ? error.message : String(error),
       chatKey,
+    })
+  }
+}
+
+/**
+ * The owner typed in a client's chat and the AI went quiet there -- say so
+ * ONCE per pause, in the owner's private chat, with the button that brings
+ * the AI back. Before this the pause was silent, and "I write and the agent
+ * does not answer" had no visible cause (2026-09-13).
+ */
+async function tellOwnerAiPaused(
+  conn: ConnectionInfo,
+  bot: Telegraf<any>,
+  chatId: number
+): Promise<void> {
+  try {
+    const menu = ADMIN_IDS_ARRAY.includes(Number(conn.userId))
+      ? aiPausedMenu(chatId)
+      : undefined
+    const minutes = Math.round(OWNER_TAKEOVER_MS / 60000)
+    await bot.telegram.sendMessage(
+      conn.ownerChatId,
+      `🤫 Ты написал(а) в чат ${chatId} сам(а) — ИИ там молчит ${minutes} мин. ` + // cyrillic-ok
+        'Чтобы он снова отвечал раньше, нажми кнопку.', // cyrillic-ok
+      menu ? { reply_markup: menu.reply_markup } : {}
+    )
+  } catch (error) {
+    logger.warn('[Business] AI-paused notice failed', {
+      chatId,
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 }
