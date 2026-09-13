@@ -90,7 +90,7 @@ export const REEL_SERIES: { title: string; plan: number | null; note: string }[]
   { title: 'Групповой стол: один вопрос, разные планы', plan: null, note: 'Формат для канала: каждый приходит со своим вопросом.' },
 ]
 
-async function ensureProfileTable(ctx: ToolContext): Promise<void> {
+export async function ensureProfileTable(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
     `CREATE TABLE IF NOT EXISTS crm_client_profiles (
        telegram_id text PRIMARY KEY,
@@ -125,7 +125,7 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
   )
 }
 
-async function ensurePlanTables(ctx: ToolContext): Promise<void> {
+export async function ensurePlanTables(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
     `CREATE TABLE IF NOT EXISTS content_plan_goals (
        id          serial PRIMARY KEY,

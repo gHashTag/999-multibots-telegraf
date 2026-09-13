@@ -39,6 +39,25 @@ export interface Пул {
 
 export type РольРеплики = 'user' | 'assistant'
 
+/**
+ * THREAD: which conversation a turn belongs to.
+ *
+ * Until 2026-09-13 one person had exactly one thread, keyed by telegram_id,
+ * and the owner's talk about client A, the invoice for client B and the duet
+ * with @playom all landed in the same list. The owner asked for a separate
+ * CRM per client. `'self'` is the pre-existing personal thread (the default
+ * everywhere, so no caller changes); `'client:<id>'` is the owner's thread
+ * ABOUT one client. Spec: t27 specs/automation/crm-client-workspace.t27.
+ */
+export const SELF_THREAD = 'self'
+
+/** A client is a numeric Telegram id, like everywhere else in this service. */
+export const CLIENT_ID_RE = /^\d{5,15}$/
+
+export function clientThread(clientId: string): string {
+  return `client:${clientId}`
+}
+
 export interface Реплика {
   /*
    * НОМЕР ОТДАЁТСЯ КЛИЕНТУ, иначе удаление одной реплики невозможно.
@@ -53,6 +72,8 @@ export interface Реплика {
   /** Откуда пришла: чтобы в общем разговоре было видно, где человек писал. */
   surface: string
   created_at?: string
+  /** 'self' or 'client:<id>'; always present on what is read back. */
+  thread?: string
 }
 
 /**
@@ -92,6 +113,16 @@ async function убедитьсяВТаблице(pool: Пул): Promise<void> {
     `CREATE INDEX IF NOT EXISTS agent_messages_owner_time
        ON agent_messages (telegram_id, id)`
   )
+  // The thread column arrives by ALTER so existing rows keep working: every
+  // old turn is 'self', which is exactly what it was before threads existed.
+  await pool.query(
+    `ALTER TABLE agent_messages
+       ADD COLUMN IF NOT EXISTS thread text NOT NULL DEFAULT 'self'`
+  )
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS agent_messages_owner_thread_time
+       ON agent_messages (telegram_id, thread, id)`
+  )
   таблицаГотова = true
 }
 
@@ -110,19 +141,21 @@ export function забытьТаблицу(): void {
 export async function записатьРеплику(
   pool: Пул,
   telegramId: string,
-  реплика: Реплика
+  реплика: Реплика,
+  thread: string = SELF_THREAD
 ): Promise<boolean> {
   const текст = (реплика.content || '').trim()
   if (!telegramId || !текст) return false
   await убедитьсяВТаблице(pool)
   await pool.query(
-    `INSERT INTO agent_messages (telegram_id, role, content, surface)
-     VALUES ($1, $2, $3, $4)`,
+    `INSERT INTO agent_messages (telegram_id, role, content, surface, thread)
+     VALUES ($1, $2, $3, $4, $5)`,
     [
       String(telegramId),
       реплика.role,
       текст.slice(0, МАКС_ДЛИНА),
       реплика.surface || 'unknown',
+      thread || SELF_THREAD,
     ]
   )
   return true
@@ -138,18 +171,20 @@ export async function записатьРеплику(
 export async function прочитатьРазговор(
   pool: Пул,
   telegramId: string,
-  предел = РЕПЛИК_ПО_УМОЛЧАНИЮ
+  предел = РЕПЛИК_ПО_УМОЛЧАНИЮ,
+  thread: string = SELF_THREAD
 ): Promise<Реплика[]> {
   if (!telegramId) return []
   await убедитьсяВТаблице(pool)
   const n = Math.max(1, Math.min(500, Math.floor(предел) || РЕПЛИК_ПО_УМОЛЧАНИЮ))
+  const threadKey = thread || SELF_THREAD
   const r = await pool.query(
-    `SELECT id, role, content, surface, created_at::text AS created_at
+    `SELECT id, role, content, surface, thread, created_at::text AS created_at
        FROM agent_messages
-      WHERE telegram_id = $1
+      WHERE telegram_id = $1 AND thread = $3
       ORDER BY id DESC
       LIMIT $2`,
-    [String(telegramId), n]
+    [String(telegramId), n, threadKey]
   )
   return (r.rows || []).reverse().map(row => ({
     id: row.id == null ? undefined : Number(row.id),
@@ -157,6 +192,7 @@ export async function прочитатьРазговор(
     content: String(row.content),
     surface: String(row.surface || 'unknown'),
     created_at: row.created_at,
+    thread: String(row.thread || threadKey),
   }))
 }
 
@@ -170,13 +206,14 @@ export async function прочитатьРазговор(
 export async function удалитьРеплику(
   pool: Пул,
   telegramId: string,
-  id: number
+  id: number,
+  thread: string = SELF_THREAD
 ): Promise<number> {
   if (!telegramId || !Number.isFinite(id)) return 0
   await убедитьсяВТаблице(pool)
   const r: any = await pool.query(
-    `DELETE FROM agent_messages WHERE id = $1 AND telegram_id = $2`,
-    [id, String(telegramId)]
+    `DELETE FROM agent_messages WHERE id = $1 AND telegram_id = $2 AND thread = $3`,
+    [id, String(telegramId), thread || SELF_THREAD]
   )
   return r?.rowCount ?? 0
 }
@@ -190,13 +227,16 @@ export async function удалитьРеплику(
  */
 export async function очиститьРазговор(
   pool: Пул,
-  telegramId: string
+  telegramId: string,
+  thread: string = SELF_THREAD
 ): Promise<number> {
   if (!telegramId) return 0
   await убедитьсяВТаблице(pool)
+  // One thread at a time: a client thread's "new conversation" must never
+  // take the owner's own thread with it, and the other way round.
   const r: any = await pool.query(
-    `DELETE FROM agent_messages WHERE telegram_id = $1`,
-    [String(telegramId)]
+    `DELETE FROM agent_messages WHERE telegram_id = $1 AND thread = $2`,
+    [String(telegramId), thread || SELF_THREAD]
   )
   return r?.rowCount ?? 0
 }

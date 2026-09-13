@@ -34,7 +34,7 @@ function поддельныйПул() {
   let n = 0
   const пул: Пул = {
     async query(sql: string, params: unknown[] = []) {
-      if (/^CREATE/i.test(sql.trim())) return { rows: [] }
+      if (/^(CREATE|ALTER)/i.test(sql.trim())) return { rows: [] }
       if (/^INSERT INTO agent_messages/i.test(sql.trim())) {
         строки.push({
           id: ++n,
@@ -42,6 +42,7 @@ function поддельныйПул() {
           role: params[1],
           content: params[2],
           surface: params[3],
+          thread: params[4] ?? 'self',
           created_at: '2026-09-06T00:00:00Z',
         })
         return { rows: [] }
@@ -62,12 +63,23 @@ function поддельныйПул() {
         const текст = sql.replace(/\s+/g, ' ').trim()
         const было = строки.length
         let оставить: any[] | null = null
-        if (/WHERE id = \$1 AND telegram_id = \$2$/.test(текст)) {
+        // Since 2026-09-13 both forms are scoped to a thread as well (spec
+        // crm-client-workspace.t27): the fake still refuses any third shape.
+        if (
+          /WHERE id = \$1 AND telegram_id = \$2 AND thread = \$3$/.test(текст)
+        ) {
           оставить = строки.filter(
-            с => !(с.id === params[0] && с.telegram_id === params[1])
+            с =>
+              !(
+                с.id === params[0] &&
+                с.telegram_id === params[1] &&
+                с.thread === params[2]
+              )
           )
-        } else if (/WHERE telegram_id = \$1$/.test(текст)) {
-          оставить = строки.filter(с => с.telegram_id !== params[0])
+        } else if (/WHERE telegram_id = \$1 AND thread = \$2$/.test(текст)) {
+          оставить = строки.filter(
+            с => !(с.telegram_id === params[0] && с.thread === params[1])
+          )
         }
         if (оставить === null) {
           throw new Error(
@@ -80,7 +92,9 @@ function поддельныйПул() {
         return { rows: [], rowCount: было - строки.length } as any
       }
       if (/^SELECT/i.test(sql.trim())) {
-        const свои = строки.filter(с => с.telegram_id === params[0])
+        const свои = строки.filter(
+          с => с.telegram_id === params[0] && с.thread === (params[2] ?? 'self')
+        )
         const предел = Number(params[1])
         /*
          * ПОДДЕЛКА ПОДЧИНЯЕТСЯ ЗАПРОСУ, А НЕ ПОВТОРЯЕТ ОЖИДАЕМЫЙ ОТВЕТ.

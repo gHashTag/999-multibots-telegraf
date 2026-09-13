@@ -591,6 +591,7 @@ import { CRM_TOOLS } from './crm-tools'
 import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
+import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
@@ -2451,6 +2452,8 @@ TOOLS.push(...CRM_AGENT_LINK_TOOLS)
 TOOLS.push(...CRM_DUET_TOOLS)
 // The client package: owner installs SOUL draft / skills / profile / plan, the seller reads the profile (crm-client-setup-tool.ts).
 TOOLS.push(...CRM_CLIENT_TOOLS)
+// The per-client workspace reads: content plan and the client list (crm-client-workspace-tools.ts).
+TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project

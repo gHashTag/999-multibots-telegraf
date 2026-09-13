@@ -27,7 +27,7 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import type { AgentEvent, ChatMessage } from './chat'
-import { requireOwner, isSeller, withClient } from './telegram-tools'
+import { requireOwner, requireSeller, isSeller, withClient } from './telegram-tools'
 import {
   sendWithAddressBook,
   sendFileWithAddressBook,
@@ -99,12 +99,226 @@ export interface DuetRun {
   error?: string
 }
 
-/** Runs live in memory for the life of the process; the status tool reads them. */
+/**
+ * Runs live in memory as a CACHE for the life of the process; the table
+ * `crm_duet_runs` is the record. Until 2026-09-13 the Map was the only store,
+ * so a deploy emptied `crm_duet_status` and no per-client dashboard could show
+ * a run. Spec: t27 specs/automation/crm-client-workspace.t27.
+ */
 const runs = new Map<string, DuetRun>()
 let lastRunId: string | null = null
 
 export function getRun(id?: string | null): DuetRun | undefined {
   return runs.get(id ?? lastRunId ?? '')
+}
+
+type RunsPool = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+
+/** A running run whose process died shows as lost after this long. */
+export const LOST_AFTER_MS = 30 * 60_000
+
+/** What a reader sees: the stored state, or `lost` derived from the clock. */
+export type DuetRunView = Omit<DuetRun, 'state'> & {
+  state: DuetRun['state'] | 'lost'
+}
+
+export function viewOf(run: DuetRun, now: number = Date.now()): DuetRunView {
+  const started = Date.parse(run.started_at)
+  const lost =
+    run.state === 'running' &&
+    Number.isFinite(started) &&
+    now - started > LOST_AFTER_MS
+  return { ...run, state: lost ? 'lost' : run.state }
+}
+
+let runsTableReady = false
+/** For tests: the next call creates the table again. */
+export function forgetRunsTableForTests(): void {
+  runsTableReady = false
+}
+
+export async function ensureRunsTable(pool: RunsPool): Promise<void> {
+  if (runsTableReady) return
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS crm_duet_runs (
+       id text PRIMARY KEY, owner_id text NOT NULL, buyer_id text NOT NULL,
+       state text NOT NULL, dry_run boolean NOT NULL, turns int NOT NULL,
+       started_at timestamptz NOT NULL, finished_at timestamptz,
+       paid_calls int NOT NULL DEFAULT 0, media_sent int NOT NULL DEFAULT 0,
+       profile_used boolean, coverage jsonb NOT NULL DEFAULT '{}',
+       violations jsonb NOT NULL DEFAULT '[]', voice_flags jsonb NOT NULL DEFAULT '[]',
+       transcript jsonb NOT NULL DEFAULT '[]', error text)`
+  )
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS crm_duet_runs_buyer
+       ON crm_duet_runs (owner_id, buyer_id, started_at DESC)`
+  )
+  runsTableReady = true
+}
+
+/** Whole-row upsert: the run is small and every field may change per turn. */
+export async function upsertRun(pool: RunsPool, run: DuetRun): Promise<void> {
+  await ensureRunsTable(pool)
+  await pool.query(
+    `INSERT INTO crm_duet_runs (id, owner_id, buyer_id, state, dry_run, turns,
+       started_at, finished_at, paid_calls, media_sent, profile_used,
+       coverage, violations, voice_flags, transcript, error)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+       $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16)
+     ON CONFLICT (id) DO UPDATE SET
+       state = EXCLUDED.state, finished_at = EXCLUDED.finished_at,
+       paid_calls = EXCLUDED.paid_calls, media_sent = EXCLUDED.media_sent,
+       profile_used = EXCLUDED.profile_used, coverage = EXCLUDED.coverage,
+       violations = EXCLUDED.violations, voice_flags = EXCLUDED.voice_flags,
+       transcript = EXCLUDED.transcript, error = EXCLUDED.error`,
+    [
+      run.id,
+      run.owner,
+      run.buyer,
+      run.state,
+      run.dry_run,
+      run.turns,
+      run.started_at,
+      run.finished_at ?? null,
+      run.paid_calls,
+      run.media_sent,
+      run.profile_used ?? null,
+      JSON.stringify(run.coverage ?? {}),
+      JSON.stringify(run.violations ?? []),
+      JSON.stringify(run.voice_flags ?? []),
+      JSON.stringify(run.transcript ?? []),
+      run.error ?? null,
+    ]
+  )
+}
+
+const asJson = <T>(v: unknown, fallback: T): T => {
+  if (v == null) return fallback
+  if (typeof v === 'string') {
+    try {
+      return JSON.parse(v) as T
+    } catch {
+      return fallback
+    }
+  }
+  return v as T
+}
+
+const iso = (v: unknown): string | undefined => {
+  if (v == null) return undefined
+  if (v instanceof Date) return v.toISOString()
+  return String(v)
+}
+
+export function rowToRun(row: Record<string, any>): DuetRun {
+  return {
+    id: String(row.id),
+    buyer: String(row.buyer_id),
+    owner: String(row.owner_id),
+    turns: Number(row.turns ?? 0),
+    dry_run: Boolean(row.dry_run),
+    state: String(row.state) as DuetRun['state'],
+    started_at: iso(row.started_at) ?? new Date(0).toISOString(),
+    finished_at: iso(row.finished_at),
+    transcript: asJson<Transcript[]>(row.transcript, []),
+    coverage: asJson<DuetRun['coverage']>(row.coverage, {}),
+    paid_calls: Number(row.paid_calls ?? 0),
+    media_sent: Number(row.media_sent ?? 0),
+    violations: asJson<string[]>(row.violations, []),
+    voice_flags: asJson<string[]>(row.voice_flags, []),
+    profile_used: row.profile_used == null ? undefined : Boolean(row.profile_used),
+    error: row.error == null ? undefined : String(row.error),
+  }
+}
+
+const RUN_COLUMNS =
+  'id, owner_id, buyer_id, state, dry_run, turns, started_at, finished_at, ' +
+  'paid_calls, media_sent, profile_used, coverage, violations, voice_flags, transcript, error'
+
+/**
+ * The run by id, or the owner's latest: memory first, then the table. A pool
+ * without the table (or without `query` at all, as in tests) yields nothing
+ * rather than an error -- "not found" is the honest answer there.
+ */
+export async function findRun(
+  pool: RunsPool | undefined,
+  owner: string,
+  id?: string | null
+): Promise<DuetRun | undefined> {
+  const cached = getRun(id)
+  if (cached && cached.owner === owner) return cached
+  if (!pool || typeof pool.query !== 'function') return undefined
+  try {
+    await ensureRunsTable(pool)
+    const r = id
+      ? await pool.query(
+          `SELECT ${RUN_COLUMNS} FROM crm_duet_runs WHERE id = $1 AND owner_id = $2`,
+          [String(id), owner]
+        )
+      : await pool.query(
+          `SELECT ${RUN_COLUMNS} FROM crm_duet_runs WHERE owner_id = $1
+            ORDER BY started_at DESC LIMIT 1`,
+          [owner]
+        )
+    const row = r.rows?.[0]
+    return row ? rowToRun(row) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** The owner's runs, newest first, optionally for one buyer; transcripts excluded. */
+export async function listRuns(
+  pool: RunsPool | undefined,
+  owner: string,
+  buyer: string | null,
+  limit: number
+): Promise<DuetRun[]> {
+  if (!pool || typeof pool.query !== 'function') return []
+  const cols = RUN_COLUMNS.replace('transcript', `jsonb_array_length(transcript) AS lines`)
+  try {
+    await ensureRunsTable(pool)
+    const r = buyer
+      ? await pool.query(
+          `SELECT ${cols} FROM crm_duet_runs WHERE owner_id = $1 AND buyer_id = $2
+            ORDER BY started_at DESC LIMIT $3`,
+          [owner, buyer, limit]
+        )
+      : await pool.query(
+          `SELECT ${cols} FROM crm_duet_runs WHERE owner_id = $1
+            ORDER BY started_at DESC LIMIT $2`,
+          [owner, limit]
+        )
+    return (r.rows ?? []).map(row => {
+      const run = rowToRun(row)
+      // `lines` stands in for the transcript so the list stays light.
+      run.transcript = new Array(Number(row.lines ?? 0)).fill(null) as never
+      return run
+    })
+  } catch {
+    return []
+  }
+}
+
+/** The list entry per contract: the run without its transcript, plus `lines`. */
+export function summaryOf(run: DuetRun, now: number = Date.now()) {
+  const v = viewOf(run, now)
+  return {
+    id: v.id,
+    buyer: v.buyer,
+    state: v.state,
+    dry_run: v.dry_run,
+    turns: v.turns,
+    started_at: v.started_at,
+    finished_at: v.finished_at ?? null,
+    paid_calls: v.paid_calls,
+    media_sent: v.media_sent,
+    profile_used: v.profile_used ?? null,
+    coverage: v.coverage,
+    violations: v.violations,
+    voice_flags: v.voice_flags,
+    lines: v.transcript.length,
+  }
 }
 
 /** Everything the loop touches, so tests can run it with doubles. */
@@ -120,7 +334,19 @@ export interface DuetDeps {
   ) => Promise<void>
   /** The client profile the seller reads first; defaults to the DB row. */
   clientProfile?: (ctx: ToolContext, buyer: string) => Promise<Record<string, any>>
+  /** Writes the run to the table: at start, after every turn, at the end. Optional in tests. */
+  persist?: (run: DuetRun) => Promise<void>
   now?: () => number
+}
+
+/** A failed write costs the record of one turn, never the run itself. */
+async function save(deps: DuetDeps, run: DuetRun): Promise<void> {
+  if (!deps.persist) return
+  try {
+    await deps.persist(run)
+  } catch (e) {
+    console.warn(`[duet] run not persisted: ${String(e).slice(0, 120)}`)
+  }
 }
 
 /** Generations that are off-brand for a client with her own template. */
@@ -334,6 +560,7 @@ export async function runDuet(
     profile = null
   }
   run.profile_used = !!profile
+  await save(deps, run)
   const seller: ChatMessage[] = [
     { role: 'user', content: sellerBrief(run.buyer, profile) },
   ]
@@ -430,6 +657,7 @@ export async function runDuet(
           role: 'user',
           content: outgoing.length ? `${text}\n${mediaNote(outgoing)}` : text,
         })
+        await save(deps, run)
       } else {
         const reply = (await deps.buyerModel(buyer)).replace(/\s+$/, '').trim()
         const entry: Transcript = { i, from: 'buyer', text: reply, sent: false }
@@ -444,6 +672,7 @@ export async function runDuet(
         }
         buyer.push({ role: 'assistant', content: reply })
         seller.push({ role: 'user', content: `Покупатель (@playom): ${reply}` })
+        await save(deps, run)
       }
     }
     run.state = 'done'
@@ -452,6 +681,7 @@ export async function runDuet(
     run.error = e instanceof Error ? e.message : String(e)
   }
   run.finished_at = new Date(deps.now?.() ?? Date.now()).toISOString()
+  await save(deps, run)
   return run
 }
 
@@ -585,7 +815,7 @@ export async function askBuyerModel(
 }
 
 /** Live wiring: the real agent, the real model, the real sessions. */
-async function liveDeps(): Promise<DuetDeps> {
+async function liveDeps(pool?: RunsPool): Promise<DuetDeps> {
   const { runAgent } = await import('./chat')
   const { allProviders, diagnose } = await import('./provider')
   const buyerModel = (messages: ChatMessage[]): Promise<string> =>
@@ -595,6 +825,7 @@ async function liveDeps(): Promise<DuetDeps> {
   return {
     agent: (history, ctx) => runAgent(history, ctx, { surface: 'business' }),
     buyerModel,
+    persist: pool ? run => upsertRun(pool, run) : undefined,
     sendText: async (fromCtx, to, text) => {
       await withClient(fromCtx, c =>
         sendWithAddressBook(c as unknown as SendingClient, to, text)
@@ -691,7 +922,10 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
       }
       runs.set(run.id, run)
       lastRunId = run.id
-      const deps = await liveDeps()
+      const deps = await liveDeps(ctx!.pool as RunsPool)
+      // The first row goes in before the loop starts, so a status read from
+      // another process (or after a deploy) already sees the run.
+      await save(deps, run)
       void runDuet(run, ctx!, deps).then(async r => {
         if (r.dry_run) return
         try {
@@ -726,10 +960,48 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const run = getRun(args.duet_id ? String(args.duet_id) : null)
+      const run = await findRun(
+        ctx!.pool as RunsPool,
+        String(ctx!.telegramId),
+        args.duet_id ? String(args.duet_id) : null
+      )
       if (!run)
-        return { found: false, hint: 'дуэт ещё не запускался в этом процессе' }
-      return { found: true, run, report: reportOf(run) }
+        return { found: false, hint: 'дуэт ещё не запускался' }
+      const view = viewOf(run)
+      return { found: true, run: view, report: reportOf(view as DuetRun) }
+    },
+  },
+  {
+    name: 'crm_duet_runs',
+    description:
+      'Список своих прогонов дуэта (done/running/failed/lost, покрытие, нарушения). ' +
+      'Транскрипт — через crm_duet_status {duet_id}.',
+    parameters: {
+      type: 'object',
+      properties: {
+        buyer: { type: 'string', description: 'Telegram ID клиента' },
+        limit: { type: 'number', description: 'По умолчанию 10, максимум 50' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
+      await requireSeller(ctx)
+      const owner = String(ctx!.telegramId)
+      const buyer = args.buyer == null || args.buyer === '' ? null : String(args.buyer).trim()
+      if (buyer !== null && !/^\d{5,15}$/.test(buyer))
+        throw new Error('buyer должен быть числовым Telegram ID')
+      const limit = Math.min(50, Math.max(1, Math.floor(Number(args.limit) || 10)))
+      const rows = await listRuns(ctx!.pool as RunsPool, owner, buyer, limit)
+      const seen = new Set(rows.map(r => r.id))
+      // Runs of this process that the table has not seen yet (or a base
+      // without the table) still show up, from the cache.
+      const cached = [...runs.values()].filter(
+        r => r.owner === owner && !seen.has(r.id) && (!buyer || r.buyer === buyer)
+      )
+      const all = [...rows, ...cached]
+        .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))
+        .slice(0, limit)
+      return { runs: all.map(r => summaryOf(r)) }
     },
   },
 ]
