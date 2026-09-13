@@ -463,6 +463,28 @@ describe('describeMedia', () => {
     ).toBe('Bearer w')
   })
 
+  it('a Groq key alone (gsk_) lands on Groq with its turbo Whisper; an explicit base or model wins', async () => {
+    delete process.env.WHISPER_BASE_URL
+    delete process.env.WHISPER_MODEL
+    delete process.env.OPENAI_BASE_URL
+    process.env.WHISPER_API_KEY = 'gsk_test' // secret-guard-ok: invented for this test
+    const { whisperConfig, resetWhisperForTests } =
+      await import('./src/agent/media-library')
+    resetWhisperForTests()
+    expect(whisperConfig()).toEqual({
+      base: 'https://api.groq.com/openai/v1',
+      key: 'gsk_test',
+      model: 'whisper-large-v3-turbo',
+    })
+    process.env.WHISPER_MODEL = 'whisper-large-v3'
+    expect(whisperConfig()?.model).toBe('whisper-large-v3')
+    process.env.WHISPER_BASE_URL = 'https://stt.example.com/v1/'
+    expect(whisperConfig()?.base).toBe('https://stt.example.com/v1')
+    delete process.env.WHISPER_API_KEY
+    delete process.env.WHISPER_BASE_URL
+    delete process.env.WHISPER_MODEL
+  })
+
   it('a refused Whisper key falls back to the chat provider and is not asked again', async () => {
     process.env.OPENAI_API_KEY = 'w' // secret-guard-ok: invented for this test
     process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test

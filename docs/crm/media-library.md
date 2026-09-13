@@ -128,3 +128,9 @@ READ-only, `requireSeller`, параметры `{lead, limit?, kind?}`; подп
 до перезапуска процесса больше не спрашивается. [вопрос] Ключ OpenAI в render 26.08 отвечал 401 —
 перед использованием проверить `/v1/models`; альтернатива — любой OpenAI-совместимый Whisper
 (например, Groq) через `WHISPER_BASE_URL` + `WHISPER_API_KEY`.
+
+Бесплатная замена [известно, 2026-09-13]: Groq отдаёт Whisper на том же протоколе с бесплатным планом
+(файл до 25 МБ, `whisper-large-v3-turbo`; на платном плане лимиты 20 запросов/мин, 2000/день,
+7200 аудио-секунд/час — https://console.groq.com/docs/speech-to-text,
+https://console.groq.com/docs/rate-limits). Ключ вида `gsk_…` в `WHISPER_API_KEY` достаточно:
+адрес и модель Groq подставляются сами, явные `WHISPER_BASE_URL`/`WHISPER_MODEL` их перекрывают.

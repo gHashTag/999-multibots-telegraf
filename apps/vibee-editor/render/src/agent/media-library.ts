@@ -346,15 +346,29 @@ interface WhisperConfig {
   model: string
 }
 
+/*
+ * Groq serves Whisper on the same wire shape with a free plan (25 MB per
+ * file, whisper-large-v3-turbo) -- the owner asked for a free replacement
+ * on 2026-09-13. Its keys start with `gsk_`, so one variable is enough:
+ * WHISPER_API_KEY=gsk_... lands on Groq with its turbo model unless a base
+ * or model is named explicitly.
+ */
+const GROQ_BASE = 'https://api.groq.com/openai/v1'
+const GROQ_MODEL = 'whisper-large-v3-turbo'
+
 export function whisperConfig(): WhisperConfig | null {
   const key = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY
   if (!key || whisperKeyRefused) return null
+  const groqKey = /^gsk_/.test(key)
   const base = (
     process.env.WHISPER_BASE_URL ||
-    process.env.OPENAI_BASE_URL ||
+    (groqKey ? GROQ_BASE : process.env.OPENAI_BASE_URL) ||
     'https://api.openai.com/v1'
   ).replace(/\/+$/, '')
-  return { base, key, model: process.env.WHISPER_MODEL || 'whisper-1' }
+  const model =
+    process.env.WHISPER_MODEL ||
+    (/groq\.com/.test(base) ? GROQ_MODEL : 'whisper-1')
+  return { base, key, model }
 }
 
 /** Test seam: forget a refused key between cases. */
