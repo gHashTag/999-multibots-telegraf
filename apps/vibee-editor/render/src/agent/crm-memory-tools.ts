@@ -96,6 +96,31 @@ interface MessageLike {
   media?: MtprotoMediaLike | null
 }
 
+/**
+ * Resolve one person into the shape `getDialogs` returns, so the walk below
+ * has exactly one code path. A username is passed as Telegram wants it
+ * (without `@`); a numeric id as a number, or gramjs treats it as a phone.
+ */
+async function oneDialog(
+  c: { getEntity?: (id: string | number) => Promise<unknown> },
+  lead: string
+): Promise<DialogLike[]> {
+  if (typeof c.getEntity !== 'function') {
+    throw new Error('lead: the client cannot resolve a single person')
+  }
+  const who = lead.replace(/^@/, '')
+  const e = (await c.getEntity(
+    NUMERIC.test(who) ? Number(who) : who
+  )) as DialogLike['entity'] & {
+    id?: { toString(): string }
+    className?: string
+  }
+  if (!e || e.className !== 'User') {
+    throw new Error(`lead: ${lead} is not a person`)
+  }
+  return [{ id: e.id, isUser: true, entity: e }]
+}
+
 const clamp = (v: unknown, dflt: number, max: number) => {
   const n = Number(v)
   return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), max) : dflt
@@ -121,6 +146,12 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           description:
             'сколько сообщений на диалог (по умолчанию 100, максимум 500)',
         },
+        lead: {
+          type: 'string',
+          description:
+            'один человек (telegram_id или @username): читать только его диалог, ' +
+            'глубже и со всеми файлами в рамках бюджета прогона',
+        },
       },
       additionalProperties: false,
     },
@@ -130,8 +161,17 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const pool = ctx?.pool as never
       const limit = clamp(a?.limit, DIALOGS_DEFAULT, DIALOGS_MAX)
       const depth = clamp(a?.depth, DEPTH_DEFAULT, DEPTH_MAX)
+      const onlyLead = String(a?.lead ?? '').trim()
+      /*
+       * ONE PERSON, ALL THEIR FILES. "Process this client's files" must not
+       * depend on where the dialog sits in the recency list, nor share the
+       * per-dialog slice of 12 with 29 strangers: with `lead` the dialog is
+       * resolved directly and may take the whole run budget.
+       */
+      const perDialog = onlyLead ? MAX_MEDIA_DOWNLOADS : MEDIA_PER_DIALOG
       const c = (await client(ctx)) as {
         getDialogs: (o: { limit: number }) => Promise<unknown[]>
+        getEntity?: (id: string | number) => Promise<unknown>
         getMessages: (chat: string, o: { limit: number }) => Promise<unknown[]>
         downloadMedia?: (m: unknown) => Promise<unknown>
         disconnect?: () => Promise<unknown>
@@ -148,7 +188,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       }
       let downloads = 0
       try {
-        const dialogs = (await c.getDialogs({ limit })) as DialogLike[]
+        const dialogs = onlyLead
+          ? await oneDialog(c, onlyLead)
+          : ((await c.getDialogs({ limit })) as DialogLike[])
         report.dialogs_seen = dialogs.length
         for (const d of dialogs) {
           if (!d.isUser || d.entity?.bot || d.entity?.self) continue
@@ -224,7 +266,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
            */
           const withMedia = withInfo.filter(x => x.info)
           const fresh: Array<MediaRow & { id: number }> = []
-          for (const { m, info } of withMedia.slice(0, MEDIA_PER_DIALOG)) {
+          for (const { m, info } of withMedia.slice(0, perDialog)) {
             if (!info) continue
             if (
               downloads >= MAX_MEDIA_DOWNLOADS ||

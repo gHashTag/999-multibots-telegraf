@@ -211,6 +211,45 @@ describe('crm_ingest_chats', () => {
     expect(r.zep).toContain('не подключён')
   })
 
+  it('with `lead` only that person is read: resolved directly, no dialog list, not a bot', async () => {
+    const f = fakeClient()
+    const client = {
+      ...f.client,
+      async getEntity(id: string | number) {
+        f.calls.push(`getEntity:${id}`)
+        return {
+          className: 'User',
+          id: { toString: () => String(id) },
+          firstName: 'Ольга',
+          username: 'pilot_client',
+        }
+      },
+    }
+    const { ingest } = await tools(client)
+    const r: any = await ingest.handler({ lead: A }, ctxFor())
+    expect(r.people).toBe(1)
+    expect(r.dialogs_seen).toBe(1)
+    expect(f.calls).toContain(`getEntity:${Number(A)}`)
+    expect(f.calls).not.toContain('getDialogs')
+    expect(f.calls.filter(x => x.startsWith('getMessages'))).toEqual([
+      `getMessages:${A}`,
+    ])
+    expect(f.calls.at(-1)).toBe('disconnect')
+  })
+
+  it('with `lead` pointing at a channel the ingest refuses: not a person', async () => {
+    const f = fakeClient()
+    const { ingest } = await tools({
+      ...f.client,
+      async getEntity() {
+        return { className: 'Channel', id: { toString: () => '1' } }
+      },
+    } as never)
+    await expect(
+      ingest.handler({ lead: '@somechannel' }, ctxFor())
+    ).rejects.toThrow('not a person')
+  })
+
   it('a FLOOD_WAIT stops the sweep, keeps what was read, and says where', async () => {
     const f = fakeClient({ floodOn: '88888888' })
     const { ingest } = await tools(f.client)
