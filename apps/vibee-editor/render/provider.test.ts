@@ -140,6 +140,7 @@ describe('what a small model is shown', () => {
       'reel_render',
       'audio_generate',
       'my_assets',
+      'crm_schema_check',
     ].map(name => ({ name }))
     // tg_media matches /^tg_/ and is STILL hidden: the deep reads are for
     // big-context models, and the kit's budget is pinned by the next test.

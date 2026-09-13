@@ -14,18 +14,18 @@
 
 Один Postgres с перепиской, одна строка на `(owner_id, lead_id, url)`:
 
-| колонка | смысл |
-|---|---|
-| `owner_id` | чья CRM / чей бот (telegram_id владельца) |
-| `lead_id` | кто прислал; в чате с ботом совпадает с `owner_id` |
-| `surface` | `bot` \| `business` \| `ingest` |
-| `msg_id`, `at`, `out` | сообщение Telegram, время, «от владельца ли» |
-| `kind` | `image` \| `video` \| `audio` \| `file` — те же четыре, что в `agentAttachments.ts` |
-| `name`, `mime`, `bytes` | имя, тип, размер |
-| `url` | **только наша полка** `${PUBLIC_URL}/s3/<key>` |
-| `tg_file_unique_id` | стабильный id Telegram (для Bot API); у MTProto — `null` |
-| `caption` | подпись человека |
-| `transcript`, `transcribed_at` | что услышали/увидели; `transcribed_at` без `transcript` = пробовали, нечитаемо |
+| колонка                        | смысл                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `owner_id`                     | чья CRM / чей бот (telegram_id владельца)                                           |
+| `lead_id`                      | кто прислал; в чате с ботом совпадает с `owner_id`                                  |
+| `surface`                      | `bot` \| `business` \| `ingest`                                                     |
+| `msg_id`, `at`, `out`          | сообщение Telegram, время, «от владельца ли»                                        |
+| `kind`                         | `image` \| `video` \| `audio` \| `file` — те же четыре, что в `agentAttachments.ts` |
+| `name`, `mime`, `bytes`        | имя, тип, размер                                                                    |
+| `url`                          | **только наша полка** `${PUBLIC_URL}/s3/<key>`                                      |
+| `tg_file_unique_id`            | стабильный id Telegram (для Bot API); у MTProto — `null`                            |
+| `caption`                      | подпись человека                                                                    |
+| `transcript`, `transcribed_at` | что услышали/увидели; `transcribed_at` без `transcript` = пробовали, нечитаемо      |
 
 Индекс `(owner_id, lead_id, at DESC)`. Повторная запись того же URL — `ON CONFLICT DO UPDATE`, подпись дозаполняется, `fresh` (по `xmax = 0`) — только у первой вставки: именно она идёт в описание.
 
@@ -117,3 +117,84 @@ READ-only, `requireSeller`, параметры `{lead, limit?, kind?}`; подп
 429/502/503/504 и обрыв по сроку (`MEDIA_RETRY_BASE_MS`, по умолчанию 5000), одна очередь на
 процесс — обход и `reread` не соревнуются за шлюз. Что не удалось и после этого — остаётся в
 очереди до следующего `reread` или адресного инжеста.
+
+## Крупные аудио — через Whisper
+
+Чат-шлюз (nemotron) читает голосовые на десятки КБ, но 5–7 МБ трек не успевает за 45 с × 3
+[измерено 2026-09-13]. Если в render задан `WHISPER_API_KEY` (или `OPENAI_API_KEY`), аудио идёт
+первым делом в `/audio/transcriptions` (`WHISPER_BASE_URL` → `OPENAI_BASE_URL` → api.openai.com/v1,
+модель `WHISPER_MODEL`, по умолчанию whisper-1; срок 180 с, до 25 МБ): байты берутся с нашей полки и
+отправляются файлом. При отказе Whisper слово остаётся за чат-провайдером; ключ, отвергнутый 401/403,
+до перезапуска процесса больше не спрашивается. [вопрос] Ключ OpenAI в render 26.08 отвечал 401 —
+перед использованием проверить `/v1/models`; альтернатива — любой OpenAI-совместимый Whisper
+(например, Groq) через `WHISPER_BASE_URL` + `WHISPER_API_KEY`.
+
+Бесплатная замена [известно, 2026-09-13]: Groq отдаёт Whisper на том же протоколе с бесплатным планом
+(файл до 25 МБ, `whisper-large-v3-turbo`; на платном плане лимиты 20 запросов/мин, 2000/день,
+7200 аудио-секунд/час — https://console.groq.com/docs/speech-to-text,
+https://console.groq.com/docs/rate-limits). Ключ вида `gsk_…` в `WHISPER_API_KEY` достаточно:
+адрес и модель Groq подставляются сами, явные `WHISPER_BASE_URL`/`WHISPER_MODEL` их перекрывают.
+
+Open-source путь [измерено 2026-09-13]: сервис `whisper` в том же проекте Railway — Speaches
+(MIT, faster-whisper, https://github.com/speaches-ai/speaches). Что сработало и что нет:
+
+- Образ — `ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu`, не `latest-cpu`: в `latest-cpu`
+  нет `PRELOAD_MODELS`, и сервер отвечает 404 «Model ... is not installed locally».
+- Переменные сервиса: `API_KEY` (свой, 64 hex), `PRELOAD_MODELS=["deepdml/faster-whisper-large-v3-turbo-ct2"]`,
+  `WHISPER__COMPUTE_TYPE=int8`, `WHISPER__INFERENCE_DEVICE=cpu`, `UVICORN_HOST=::` (приватная сеть
+  Railway — IPv6), `UVICORN_PORT=8000`, `RAILWAY_RUN_UID=0` и `HF_HUB_CACHE=/home/ubuntu/.cache/huggingface/hub`
+  — без UID 0 том смонтирован root'ом и предзагрузка падает с `PermissionError`.
+- Том на `/home/ubuntu/.cache/huggingface/hub` — кеш модели переживает рестарты.
+- Публичный домен не нужен и не работал (502 при `::`); render ходит по приватному адресу.
+- В render: `WHISPER_BASE_URL=http://whisper.railway.internal:8000/v1`, `WHISPER_API_KEY` (тот же ключ),
+  `WHISPER_MODEL=deepdml/faster-whisper-large-v3-turbo-ct2`, `MEDIA_WHISPER_TIMEOUT_MS=600000`.
+- Результат: `Allmix.mp3` (7,1 МБ) и `...wav` (5,5 МБ) Алекса прочитаны за один проход, оба 200.
+  На музыке Whisper оставляет артефакт «Субтитры сделал DimaTorzok» — это не речь из файла [известно].
+  Аудио не покидает проект Railway.
+
+## Фото и видео — открытая vision-модель
+
+Запрос владельца 2026-09-13: «у Apple есть открытое решение для vision — добавь для изучения
+ассетов видео и фото». Что прочитано [измерено 2026-09-13]:
+
+- Открытые vision-модели Apple — FastVLM 0.5B/1.5B/7B (https://github.com/apple/ml-fastvlm,
+  https://huggingface.co/apple/FastVLM-0.5B), AIMv2, MobileCLIP/MobileCLIP2, DepthPro, DFN-CLIP,
+  SlowFast-LLaVA для видео — все веса на Hugging Face помечены `license: apple-amlr`. Текст лицензии
+  (https://github.com/apple/ml-fastvlm/blob/main/LICENSE_MODEL): право использования даётся
+  «exclusively for Research Purposes», и «“Research Purposes” does not include any commercial
+  exploitation, product development or use in any commercial product or service». Для CRM,
+  обслуживающей клиентов, это запрет. [решение] FastVLM в прод не ставим; он остаётся кандидатом
+  для исследовательского трека Trinity (GoldenFloat/AX7203, некоммерческие измерения) — там лицензия
+  соблюдается.
+- Apple Vision Framework (OCR, классификация) — не open source, работает только на устройствах
+  Apple; для сервера в Railway не подходит.
+- Выбрано [решение]: тот же паттерн, что `whisper` — сервис `vision` в проекте Railway:
+  образ `ghcr.io/ggml-org/llama.cpp:server` (llama.cpp, MIT) с моделью
+  `unsloth/Qwen3-VL-2B-Instruct-GGUF:Q4_K_M` (Qwen3-VL-2B-Instruct, Apache-2.0; ~1,1 ГБ + mmproj F16; в `ggml-org/...-GGUF` лежит только Q8_0;
+  понимает русский). Настройка через переменные `LLAMA_ARG_HF_REPO`, `LLAMA_API_KEY` (свой, 64 hex),
+  `LLAMA_ARG_HOST=::`, `LLAMA_ARG_PORT=8000`, `PORT=8000`, `LLAMA_ARG_CTX_SIZE=8192`,
+  `LLAMA_ARG_N_PARALLEL=1`, `LLAMA_ARG_THREADS=8` (без него llama.cpp берёт поток на каждое ядро хоста — на разделяемых vCPU Railway это давало 27 vCPU при лимите 24 и падение скорости в разы), `LLAMA_CACHE=/data/llama-cache`, `RAILWAY_RUN_UID=0`; том на `/data`,
+  публичного домена нет. mmproj скачивается вместе с моделью автоматически (`-hf`).
+- В render: `VISION_BASE_URL=http://vision.railway.internal:8000/v1`, `VISION_API_KEY` (тот же ключ),
+  `VISION_MODEL=qwen3-vl-2b-instruct`, `MEDIA_VISION_TIMEOUT_MS=300000`.
+
+Как это читает файлы (`media-vision.ts`):
+
+- Фото: байты берутся с нашей полки (только `/s3/`, только известные расширения — `usableMediaUrl`),
+  вкладываются `data:`-URL в один не-стриминговый `POST /chat/completions`. Если сервис `vision`
+  отказал — слово за чат-провайдером, как раньше; ключ, отвергнутый 401/403, до перезапуска процесса
+  больше не спрашивается.
+- Видео (`.mp4 .mov .m4v .webm .mkv`, до 40 МБ): ffmpeg (уже в образе render) берёт 4 кадра в центрах
+  равных отрезков (для 60 с — 7,5 / 22,5 / 37,5 / 52,5 с), не шире 448 px (`MEDIA_VISION_FRAME_SIDE`), и все кадры уходят ОДНИМ
+  запросом; описание начинается словом «Видео:». То, что между кадрами, теряется по построению —
+  описание честно говорит о кадрах. Без `VISION_API_KEY` видео остаётся честным `null` без единого
+  вызова (закреплено тестом). Если `vision` отказал — строка остаётся pending (`DescribeFailed`),
+  потому что видео больше никто не прочитает.
+- Бюджет: 2B-модель на CPU Railway — десятки секунд на кадр [вопрос: измерить на первом проходе],
+  поэтому срок 300 с и по одному запросу за раз (`LLAMA_ARG_N_PARALLEL=1`).
+
+[измерено] 2026-09-13, сервис `vision` на CPU Railway (Qwen3-VL-2B Q8_0, один слот): четыре кадра 768 px дали ~3 800 токенов промпта при ~30 ток/с и ~3 ток/с генерации — ролик `IMG_6859.MOV` считался более пяти минут и упёрся в `MEDIA_VISION_TIMEOUT_MS`. Поэтому кадр ужат до 448 px, ответ по видео ограничен 320 токенами, по фото — 500. Второй замер (кадр 448 px по ширине, ответ 320 токенов): вертикальный ролик дал кадры 448×~800 — 1 514 токенов промпта за ~80 с (~17 ток/с) и ~220 с генерации (~1,5 ток/с) — снова 300 с и обрыв. Поэтому 448 px теперь ограничивает длинную сторону (~150 токенов на кадр), а ответ по видео — 200 токенов; расчётно ~35 с промпт + ~130 с генерация. Третий замер (448 px по длинной стороне, Q8_0, потоки по умолчанию): промпт ужался до 456 токенов (114 на кадр), но сервер деградировал до 6 ток/с промпт и ~0,5 ток/с генерации при 27 vCPU нагрузки на лимите 24 — снова обрыв на 300 с. [решение владельца 2026-09-13] `LLAMA_ARG_THREADS=8`, квант Q4_K_M (репозиторий `unsloth`), `MEDIA_VISION_TIMEOUT_MS=600000`. Четвёртый замер после этого: 525 токенов промпта за 2,4 с (216 ток/с), 105 токенов ответа за 1,6 с (66 ток/с), весь ролик — 4,0 с; `IMG_6859.MOV` описан по-русски. Главный выигрыш дал лимит потоков, а не квант.
+
+Что проверить после деплоя [вопрос]: `crm_lead_media` с `reread:true` для клиента с `.MOV`
+(Алекс, `IMG_6859.MOV`) — раньше честный `null`, теперь ожидается «Видео: …»; в логах render строки
+`[media-library] vision did not take …` укажут на отказ сервиса.

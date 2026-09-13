@@ -76,6 +76,7 @@ import {
   sweepClubGrants,
 } from './src/agent/club-membership'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
+import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
   isPayOutcomePath,
   handlePayOutcome,
@@ -2356,8 +2357,9 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } =
-          await import('./src/agent/hive-tools')
+        const { botsOwnedBy, allBotOwners } = await import(
+          './src/agent/hive-tools'
+        )
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -7771,8 +7773,9 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, chosenProvider, isProviderId } =
-        await import('./src/agent/provider-choice')
+      const { chooseProvider, chosenProvider, isProviderId } = await import(
+        './src/agent/provider-choice'
+      )
       if (req.method === 'POST') {
         let asked: unknown = null
         try {
@@ -7823,8 +7826,9 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
-      const { claim, execute, idFromBody } =
-        await import('./src/agent/tg-proposals')
+      const { claim, execute, idFromBody } = await import(
+        './src/agent/tg-proposals'
+      )
       // idFromBody, not a cast: readBody hands back the raw string, and the
       // cast that pretended otherwise made every confirm press fail silently.
       const asked = idFromBody(await readBody(req))
@@ -7874,6 +7878,21 @@ const server = createServer(async (req, res) => {
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
+    return
+  }
+
+  // Zep's LLM calls to Z.AI, with the wire shape zep v0.27.2 builds made
+  // legal (a lone system message is a 400 on Z.AI). Bearer-gated, key from
+  // our own env -- see src/zai-relay.ts.
+  if (isZaiRelayPath(req.url?.split('?')[0] || '')) {
+    const out = await handleZaiRelay(req, {
+      readBody: r => readBody(r as any),
+      bearerOf: r => (r as any).headers?.authorization,
+      apiKey: () => process.env.GLM_API_KEY,
+      fetchImpl: fetch,
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(out.body)
     return
   }
 
@@ -8382,8 +8401,9 @@ const server = createServer(async (req, res) => {
           )
           // Once per process, not per open of the mini-app: the ALTER takes
           // an exclusive lock even when it has nothing to add.
-          const { ensureInvoiceColumns } =
-            await import('./src/agent/token-invoice')
+          const { ensureInvoiceColumns } = await import(
+            './src/agent/token-invoice'
+          )
           await ensureInvoiceColumns(pool)
           /*
            * EVERY unredeemed row, cancelled ones included. This is the only

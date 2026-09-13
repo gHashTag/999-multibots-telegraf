@@ -27,7 +27,12 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import type { AgentEvent, ChatMessage } from './chat'
-import { requireOwner, isSeller, withClient } from './telegram-tools'
+import {
+  requireOwner,
+  requireSeller,
+  isSeller,
+  withClient,
+} from './telegram-tools'
 import {
   sendWithAddressBook,
   sendFileWithAddressBook,
@@ -71,6 +76,8 @@ export interface Transcript {
   text: string
   tools?: Array<{ name: string; ok: boolean; ms: number }>
   media?: string[]
+  /** Files re-sent by the duet itself because the seller promised one without producing it. */
+  resent?: string[]
   sent: boolean
   error?: string
 }
@@ -97,12 +104,232 @@ export interface DuetRun {
   error?: string
 }
 
-/** Runs live in memory for the life of the process; the status tool reads them. */
+/**
+ * Runs live in memory as a CACHE for the life of the process; the table
+ * `crm_duet_runs` is the record. Until 2026-09-13 the Map was the only store,
+ * so a deploy emptied `crm_duet_status` and no per-client dashboard could show
+ * a run. Spec: t27 specs/automation/crm-client-workspace.t27.
+ */
 const runs = new Map<string, DuetRun>()
 let lastRunId: string | null = null
 
 export function getRun(id?: string | null): DuetRun | undefined {
   return runs.get(id ?? lastRunId ?? '')
+}
+
+type RunsPool = {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+}
+
+/** A running run whose process died shows as lost after this long. */
+export const LOST_AFTER_MS = 30 * 60_000
+
+/** What a reader sees: the stored state, or `lost` derived from the clock. */
+export type DuetRunView = Omit<DuetRun, 'state'> & {
+  state: DuetRun['state'] | 'lost'
+}
+
+export function viewOf(run: DuetRun, now: number = Date.now()): DuetRunView {
+  const started = Date.parse(run.started_at)
+  const lost =
+    run.state === 'running' &&
+    Number.isFinite(started) &&
+    now - started > LOST_AFTER_MS
+  return { ...run, state: lost ? 'lost' : run.state }
+}
+
+let runsTableReady = false
+/** For tests: the next call creates the table again. */
+export function forgetRunsTableForTests(): void {
+  runsTableReady = false
+}
+
+export async function ensureRunsTable(pool: RunsPool): Promise<void> {
+  if (runsTableReady) return
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS crm_duet_runs (
+       id text PRIMARY KEY, owner_id text NOT NULL, buyer_id text NOT NULL,
+       state text NOT NULL, dry_run boolean NOT NULL, turns int NOT NULL,
+       started_at timestamptz NOT NULL, finished_at timestamptz,
+       paid_calls int NOT NULL DEFAULT 0, media_sent int NOT NULL DEFAULT 0,
+       profile_used boolean, coverage jsonb NOT NULL DEFAULT '{}',
+       violations jsonb NOT NULL DEFAULT '[]', voice_flags jsonb NOT NULL DEFAULT '[]',
+       transcript jsonb NOT NULL DEFAULT '[]', error text)`
+  )
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS crm_duet_runs_buyer
+       ON crm_duet_runs (owner_id, buyer_id, started_at DESC)`
+  )
+  runsTableReady = true
+}
+
+/** Whole-row upsert: the run is small and every field may change per turn. */
+export async function upsertRun(pool: RunsPool, run: DuetRun): Promise<void> {
+  await ensureRunsTable(pool)
+  await pool.query(
+    `INSERT INTO crm_duet_runs (id, owner_id, buyer_id, state, dry_run, turns,
+       started_at, finished_at, paid_calls, media_sent, profile_used,
+       coverage, violations, voice_flags, transcript, error)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+       $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16)
+     ON CONFLICT (id) DO UPDATE SET
+       state = EXCLUDED.state, finished_at = EXCLUDED.finished_at,
+       paid_calls = EXCLUDED.paid_calls, media_sent = EXCLUDED.media_sent,
+       profile_used = EXCLUDED.profile_used, coverage = EXCLUDED.coverage,
+       violations = EXCLUDED.violations, voice_flags = EXCLUDED.voice_flags,
+       transcript = EXCLUDED.transcript, error = EXCLUDED.error`,
+    [
+      run.id,
+      run.owner,
+      run.buyer,
+      run.state,
+      run.dry_run,
+      run.turns,
+      run.started_at,
+      run.finished_at ?? null,
+      run.paid_calls,
+      run.media_sent,
+      run.profile_used ?? null,
+      JSON.stringify(run.coverage ?? {}),
+      JSON.stringify(run.violations ?? []),
+      JSON.stringify(run.voice_flags ?? []),
+      JSON.stringify(run.transcript ?? []),
+      run.error ?? null,
+    ]
+  )
+}
+
+const asJson = <T>(v: unknown, fallback: T): T => {
+  if (v == null) return fallback
+  if (typeof v === 'string') {
+    try {
+      return JSON.parse(v) as T
+    } catch {
+      return fallback
+    }
+  }
+  return v as T
+}
+
+const iso = (v: unknown): string | undefined => {
+  if (v == null) return undefined
+  if (v instanceof Date) return v.toISOString()
+  return String(v)
+}
+
+export function rowToRun(row: Record<string, any>): DuetRun {
+  return {
+    id: String(row.id),
+    buyer: String(row.buyer_id),
+    owner: String(row.owner_id),
+    turns: Number(row.turns ?? 0),
+    dry_run: Boolean(row.dry_run),
+    state: String(row.state) as DuetRun['state'],
+    started_at: iso(row.started_at) ?? new Date(0).toISOString(),
+    finished_at: iso(row.finished_at),
+    transcript: asJson<Transcript[]>(row.transcript, []),
+    coverage: asJson<DuetRun['coverage']>(row.coverage, {}),
+    paid_calls: Number(row.paid_calls ?? 0),
+    media_sent: Number(row.media_sent ?? 0),
+    violations: asJson<string[]>(row.violations, []),
+    voice_flags: asJson<string[]>(row.voice_flags, []),
+    profile_used:
+      row.profile_used == null ? undefined : Boolean(row.profile_used),
+    error: row.error == null ? undefined : String(row.error),
+  }
+}
+
+const RUN_COLUMNS =
+  'id, owner_id, buyer_id, state, dry_run, turns, started_at, finished_at, ' +
+  'paid_calls, media_sent, profile_used, coverage, violations, voice_flags, transcript, error'
+
+/**
+ * The run by id, or the owner's latest: memory first, then the table. A pool
+ * without the table (or without `query` at all, as in tests) yields nothing
+ * rather than an error -- "not found" is the honest answer there.
+ */
+export async function findRun(
+  pool: RunsPool | undefined,
+  owner: string,
+  id?: string | null
+): Promise<DuetRun | undefined> {
+  const cached = getRun(id)
+  if (cached && cached.owner === owner) return cached
+  if (!pool || typeof pool.query !== 'function') return undefined
+  try {
+    await ensureRunsTable(pool)
+    const r = id
+      ? await pool.query(
+          `SELECT ${RUN_COLUMNS} FROM crm_duet_runs WHERE id = $1 AND owner_id = $2`,
+          [String(id), owner]
+        )
+      : await pool.query(
+          `SELECT ${RUN_COLUMNS} FROM crm_duet_runs WHERE owner_id = $1
+            ORDER BY started_at DESC LIMIT 1`,
+          [owner]
+        )
+    const row = r.rows?.[0]
+    return row ? rowToRun(row) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** The owner's runs, newest first, optionally for one buyer; transcripts excluded. */
+export async function listRuns(
+  pool: RunsPool | undefined,
+  owner: string,
+  buyer: string | null,
+  limit: number
+): Promise<DuetRun[]> {
+  if (!pool || typeof pool.query !== 'function') return []
+  const cols = RUN_COLUMNS.replace(
+    'transcript',
+    `jsonb_array_length(transcript) AS lines`
+  )
+  try {
+    await ensureRunsTable(pool)
+    const r = buyer
+      ? await pool.query(
+          `SELECT ${cols} FROM crm_duet_runs WHERE owner_id = $1 AND buyer_id = $2
+            ORDER BY started_at DESC LIMIT $3`,
+          [owner, buyer, limit]
+        )
+      : await pool.query(
+          `SELECT ${cols} FROM crm_duet_runs WHERE owner_id = $1
+            ORDER BY started_at DESC LIMIT $2`,
+          [owner, limit]
+        )
+    return (r.rows ?? []).map(row => {
+      const run = rowToRun(row)
+      // `lines` stands in for the transcript so the list stays light.
+      run.transcript = new Array(Number(row.lines ?? 0)).fill(null) as never
+      return run
+    })
+  } catch {
+    return []
+  }
+}
+
+/** The list entry per contract: the run without its transcript, plus `lines`. */
+export function summaryOf(run: DuetRun, now: number = Date.now()) {
+  const v = viewOf(run, now)
+  return {
+    id: v.id,
+    buyer: v.buyer,
+    state: v.state,
+    dry_run: v.dry_run,
+    turns: v.turns,
+    started_at: v.started_at,
+    finished_at: v.finished_at ?? null,
+    paid_calls: v.paid_calls,
+    media_sent: v.media_sent,
+    profile_used: v.profile_used ?? null,
+    coverage: v.coverage,
+    violations: v.violations,
+    voice_flags: v.voice_flags,
+    lines: v.transcript.length,
+  }
 }
 
 /** Everything the loop touches, so tests can run it with doubles. */
@@ -117,8 +344,23 @@ export interface DuetDeps {
     caption: string
   ) => Promise<void>
   /** The client profile the seller reads first; defaults to the DB row. */
-  clientProfile?: (ctx: ToolContext, buyer: string) => Promise<Record<string, any>>
+  clientProfile?: (
+    ctx: ToolContext,
+    buyer: string
+  ) => Promise<Record<string, any>>
+  /** Writes the run to the table: at start, after every turn, at the end. Optional in tests. */
+  persist?: (run: DuetRun) => Promise<void>
   now?: () => number
+}
+
+/** A failed write costs the record of one turn, never the run itself. */
+async function save(deps: DuetDeps, run: DuetRun): Promise<void> {
+  if (!deps.persist) return
+  try {
+    await deps.persist(run)
+  } catch (e) {
+    console.warn(`[duet] run not persisted: ${String(e).slice(0, 120)}`)
+  }
 }
 
 /** Generations that are off-brand for a client with her own template. */
@@ -130,7 +372,10 @@ const URL_RE = /https?:\/\/[^\s)»"']+/g
  * app link twice in four turns. Only whole URLs are compared; the text around
  * them stays as the model wrote it.
  */
-export function dedupeLinks(text: string, sent: Set<string>): { text: string; dropped: string[] } {
+export function dedupeLinks(
+  text: string,
+  sent: Set<string>
+): { text: string; dropped: string[] } {
   const dropped: string[] = []
   const out = text.replace(URL_RE, u => {
     const key = u.replace(/[.,;:!?]+$/, '')
@@ -141,14 +386,22 @@ export function dedupeLinks(text: string, sent: Set<string>): { text: string; dr
     sent.add(key)
     return u
   })
-  return { text: out.replace(/[ \t]{2,}/g, ' ').replace(/ \n/g, '\n').trim(), dropped }
+  return {
+    text: out
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/ \n/g, '\n')
+      .trim(),
+    dropped,
+  }
 }
 
 /** A profile row as `crm_client_profile` returns it; `null` when none is set. */
 export type ClientProfile = Record<string, any> | null
 
 function lines(v: unknown): string[] {
-  return Array.isArray(v) ? v.map(x => `- ${typeof x === 'string' ? x : JSON.stringify(x)}`) : []
+  return Array.isArray(v)
+    ? v.map(x => `- ${typeof x === 'string' ? x : JSON.stringify(x)}`)
+    : []
 }
 
 /**
@@ -160,7 +413,10 @@ function lines(v: unknown): string[] {
  * installed, is quoted into the brief so the model reads it before the first
  * word; the voice checker below catches what the brief cannot.
  */
-export function sellerBrief(buyer: string, profile: ClientProfile = null): string {
+export function sellerBrief(
+  buyer: string,
+  profile: ClientProfile = null
+): string {
   const p = profile ?? {}
   const name = p.name ? `${p.name} (${p.handle ?? '@playom'})` : '@playom'
   const cta = p.approved_cta?.text ?? LEELA_CTA_RU
@@ -170,21 +426,46 @@ export function sellerBrief(buyer: string, profile: ClientProfile = null): strin
     `Ты ведёшь РЕАЛЬНЫЙ диалог в Telegram с ${name}, Telegram ID ${buyer}. Она ведёт игру самопознания «Лила Чакра» и впервые смотрит на этот бот как на инструмент для продвижения её игры.`,
     'Порядок работы — как у профессионала с клиентом: сначала УЗНАТЬ, потом ПРЕДЛОЖИТЬ. Первые 1–2 реплики — только знакомство и вопросы discovery (по одному за реплику). Предложение делай только после её ответов и опирайся на них дословно.',
     'Отвечай ТОЛЬКО текстом, который уйдёт ей: 2–5 предложений, по-русски, «вы» с маленькой буквы, без разметки и списков. Не больше одного вопроса в реплике.',
-    p.status ? `Профиль клиента (статус: ${p.status}):` : 'Профиль клиента не настроен — задавай вопросы discovery и не делай предположений об аудитории.',
+    p.status
+      ? `Профиль клиента (статус: ${p.status}):`
+      : 'Профиль клиента не настроен — задавай вопросы discovery и не делай предположений об аудитории.',
     ...(p.role ? [`- роль: ${p.role}`] : []),
     ...(p.business?.product ? [`- продукт: ${p.business.product}`] : []),
-    ...(p.business?.surfaces ? [`- где живёт продукт: ${(p.business.surfaces as string[]).join('; ')}`] : []),
-    ...(p.audience_hypotheses ? ['Гипотезы об аудитории (проверить вопросами, не утверждать):', ...lines(p.audience_hypotheses)] : []),
-    ...(p.discovery_questions ? ['Вопросы discovery — по одному, своими словами:', ...lines(p.discovery_questions)] : []),
-    ...(p.content_series ? ['Серии контента, которые можно предложить после discovery:', ...lines((p.content_series as any[]).map(c => `${c.rubric}: ${(c.ideas ?? []).join(', ')}`))] : []),
+    ...(p.business?.surfaces
+      ? [`- где живёт продукт: ${(p.business.surfaces as string[]).join('; ')}`]
+      : []),
+    ...(p.audience_hypotheses
+      ? [
+          'Гипотезы об аудитории (проверить вопросами, не утверждать):',
+          ...lines(p.audience_hypotheses),
+        ]
+      : []),
+    ...(p.discovery_questions
+      ? [
+          'Вопросы discovery — по одному, своими словами:',
+          ...lines(p.discovery_questions),
+        ]
+      : []),
+    ...(p.content_series
+      ? [
+          'Серии контента, которые можно предложить после discovery:',
+          ...lines(
+            (p.content_series as any[]).map(
+              c => `${c.rubric}: ${(c.ideas ?? []).join(', ')}`
+            )
+          ),
+        ]
+      : []),
     `Рилс для неё — только шаблон ${template}: возьми канон плана инструментом leela_plan {plan}, подставь reel_props в reel_render. Не предлагай TrinityBlogReel, PromoReel и картинки image_generate: они не в стиле игры, а сгенерированный текст на картинке нечитаем.`,
     `Одобренный призыв: «${cta}» и кнопка «${button}». Других обещаний и призывов не придумывай.`,
     'Факты об игре — только эти:',
     ...LEELA_CANON.map(s => `- ${s}`),
-    ...(p.forbidden_claims ? ['Запрещённые формулировки:', ...lines(p.forbidden_claims)] : []),
+    ...(p.forbidden_claims
+      ? ['Запрещённые формулировки:', ...lines(p.forbidden_claims)]
+      : []),
     'Слова давления запрещены: «сегодня», «срочно», «последний шанс», «серия», «прогресс», «молодец», «успех», поздравления. Цены, скидки, проценты и отзывы не называй; о цене говори только если она сама спросила, и только цифрами из ответа pricing.',
     'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — только один ролик за диалог и только после того, как она сказала, чего хочет.',
-    'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт, файл дойдёт до неё сам. Ссылку на приложение или бота давай не больше одного раза за диалог.',
+    'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
     'О результате инструмента говори только то, что в нём есть: не описывай ролик или картинку, которых не видел, не хвали «читаемость» текста. Генерация занимает минуты; не обещай сроки «за день». Токены списываются с твоего баланса — не пиши ей «списано» и не называй свой остаток.',
     'Если у неё уже есть SOUL-черновик или скиллы «Leela: …» — скажи, что заготовка стоит, и попроси её поправить любое слово, которое не её.',
     'Первое сообщение: короткое приветствие, одна фраза о том, зачем ты пишешь, и ОДИН вопрос discovery.',
@@ -196,6 +477,7 @@ export function buyerPersona(soulExcerpt = ''): string {
   return [
     'Ты — Гея (@playom), хранительница игры самопознания «Лила Чакра». Тебе пишет владелец бота Trinity S³AI и предлагает функции для продвижения твоей игры.',
     'Ты — новый покупатель: любопытная, практичная, бережёшь голос игры. Отвечаешь на вопросы о своей аудитории и целях честно и коротко; просишь показать пример именно в стиле игры; не соглашаешься на оплату, пока не увидела пример.',
+    'Пометка «[в чат пришло видео …]» (или картинка, аудио) означает, что файл уже у тебя в Telegram и ты его видишь. Не говори, что файл не пришёл или ссылка не открывается; оценивай стиль по тому, что продавец о нём сказал, и по канону игры.',
     ...(soulExcerpt ? ['Твой голос (из твоего SOUL):', soulExcerpt] : []),
     'Отвечай по-русски, 1–3 предложения, один вопрос или одно решение за реплику. Никакой разметки. Не хвали чужой контент, если он не в стиле игры — скажи, что не так.',
     'Факты об игре, которыми ты пользуешься:',
@@ -226,6 +508,53 @@ export function mediaOf(value: unknown): string | null {
     v['сделано'] === true || v['готово'] === true || v['done'] === true // cyrillic-ok
   const url = typeof v.url === 'string' ? v.url : ''
   return done && /^https?:\/\//.test(url) ? url : null
+}
+
+/**
+ * What the buyer model is told about a file the duet forwarded. Run
+ * duet-mtzrz4jo (2026-09-13): the mp4 reached her chat as a 0:10 video, but the
+ * buyer model saw only `[sent file: https://...mp4]`, could not "open" a
+ * URL, and answered "the file did not arrive" -- a false claim about a real send. The
+ * note now names the kind of file and says it is already visible in Telegram.
+ */
+export function mediaKind(
+  url: string
+): 'видео' | 'картинка' | 'аудио' | 'файл' {
+  const path = url.split(/[?#]/)[0].toLowerCase()
+  if (/\.(mp4|mov|webm|m4v)$/.test(path)) return 'видео'
+  if (/\.(png|jpe?g|webp|gif)$/.test(path)) return 'картинка'
+  if (/\.(mp3|ogg|oga|wav|m4a|opus)$/.test(path)) return 'аудио'
+  return 'файл'
+}
+
+export function mediaNote(urls: string[]): string {
+  if (!urls.length) return ''
+  const kinds = [...new Set(urls.map(mediaKind))]
+  const what =
+    kinds.length === 1 && kinds[0] === 'видео' ? 'видео' : kinds.join(' и ')
+  return `[в чат пришло ${what} файлом (${urls.length} шт.) — оно уже видно в Telegram, ссылку открывать не нужно]`
+}
+
+// `\b` is ASCII-only in JS, so Cyrillic words are bounded by lookarounds.
+// First-person / future sending verbs only: "the reel goes to her" style
+// narration in the brief must not trip the check.
+const SEND_VERB_RE =
+  /(?<![а-яё])(отправ(ляю|лю|им)|при(шлю|сылаю)|прикреп(ляю|лю)|выс(ылаю|ылю|шлю)|скину|скидываю|прикладываю|приложу|загруж(у|аю))(?![а-яё])/i // cyrillic-ok
+const FILE_NOUN_RE =
+  /(?<![а-яё])(видео|файл[а-яё]*|ролик[а-яё]*|запис[а-яё]*|картинк[а-яё]*|mp4)(?![а-яёa-z0-9])/i // cyrillic-ok
+
+/**
+ * A seller line that promises a file in a sentence that also names the sending.
+ * Run duet-mtzrz4jo, turn 6: "I am sending the video as a file right into this
+ * chat -- it should arrive as the next message" with `tools: []` -- nothing was
+ * sent, the buyer waited for a file that never came. A promise is only honest
+ * when the same turn produced media; otherwise the duet resends the last file
+ * it has and reports the turn.
+ */
+export function promisesFile(text: string): boolean {
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .some(s => SEND_VERB_RE.test(s) && FILE_NOUN_RE.test(s))
 }
 
 export function okOf(value: unknown): boolean {
@@ -280,18 +609,25 @@ export async function runDuet(
   let profile: ClientProfile = null
   let soulExcerpt = ''
   try {
-    const row = await (deps.clientProfile ?? clientProfileFor)(ownerCtx, run.buyer)
+    const row = await (deps.clientProfile ?? clientProfileFor)(
+      ownerCtx,
+      run.buyer
+    )
     if (row?.has_profile) profile = row.profile as Record<string, any>
     if (typeof row?.soul_excerpt === 'string') soulExcerpt = row.soul_excerpt
   } catch {
     profile = null
   }
   run.profile_used = !!profile
+  await save(deps, run)
   const seller: ChatMessage[] = [
     { role: 'user', content: sellerBrief(run.buyer, profile) },
   ]
-  const buyer: ChatMessage[] = [{ role: 'system', content: buyerPersona(soulExcerpt) }]
+  const buyer: ChatMessage[] = [
+    { role: 'system', content: buyerPersona(soulExcerpt) },
+  ]
   const linksSent = new Set<string>()
+  let lastMedia: string | null = null
   try {
     for (let i = 0; i < run.turns * 2; i++) {
       const fromSeller = i % 2 === 0
@@ -314,12 +650,17 @@ export async function runDuet(
             error = error ?? again.error
           }
           const still = violatesLeelaVoice(text)
-          if (still.length) run.voice_flags.push(`turn ${i} (после правки): ${still.join(', ')}`) // cyrillic-ok
+          if (still.length)
+            run.voice_flags.push(
+              `turn ${i} (после правки): ${still.join(', ')}`
+            ) // cyrillic-ok
         }
         const dedup = dedupeLinks(text, linksSent)
         if (dedup.dropped.length) {
           text = dedup.text
-          run.violations.push(`turn ${i}: повторная ссылка ${dedup.dropped.join(', ')}`) // cyrillic-ok
+          run.violations.push(
+            `turn ${i}: повторная ссылка ${dedup.dropped.join(', ')}`
+          ) // cyrillic-ok
         }
         const tools = results.map(r => ({
           name: r.name,
@@ -349,6 +690,21 @@ export async function runDuet(
           sent: false,
           error,
         }
+        // A promised file must exist in this very turn. When it does not, the
+        // duet keeps the promise with the last file it forwarded (no new paid
+        // call) and reports the turn; with nothing to resend it only reports.
+        if (media.length === 0 && promisesFile(text)) {
+          if (lastMedia) {
+            entry.resent = [lastMedia]
+            run.violations.push(
+              `turn ${i}: обещание отправить файл без вызова инструмента — повторно отправлен ${lastMedia}` // cyrillic-ok
+            )
+          } else {
+            run.violations.push(`turn ${i}: обещание отправить файл, файла нет`) // cyrillic-ok
+          }
+        }
+        const outgoing = [...media, ...(entry.resent ?? [])]
+        if (media.length) lastMedia = media[media.length - 1]
         run.transcript.push(entry)
         if (!text && media.length === 0) {
           entry.error = entry.error ?? 'seller produced no text'
@@ -356,7 +712,7 @@ export async function runDuet(
         }
         if (!run.dry_run) {
           if (text) await deps.sendText(ownerCtx, run.buyer, text)
-          for (const url of media) {
+          for (const url of outgoing) {
             await deps.sendMedia(ownerCtx, run.buyer, url, '')
             run.media_sent++
           }
@@ -365,10 +721,9 @@ export async function runDuet(
         seller.push({ role: 'assistant', content: text })
         buyer.push({
           role: 'user',
-          content: media.length
-            ? `${text}\n[прислал файл: ${media.join(', ')}]`
-            : text,
+          content: outgoing.length ? `${text}\n${mediaNote(outgoing)}` : text,
         })
+        await save(deps, run)
       } else {
         const reply = (await deps.buyerModel(buyer)).replace(/\s+$/, '').trim()
         const entry: Transcript = { i, from: 'buyer', text: reply, sent: false }
@@ -383,6 +738,7 @@ export async function runDuet(
         }
         buyer.push({ role: 'assistant', content: reply })
         seller.push({ role: 'user', content: `Покупатель (@playom): ${reply}` })
+        await save(deps, run)
       }
     }
     run.state = 'done'
@@ -391,6 +747,7 @@ export async function runDuet(
     run.error = e instanceof Error ? e.message : String(e)
   }
   run.finished_at = new Date(deps.now?.() ?? Date.now()).toISOString()
+  await save(deps, run)
   return run
 }
 
@@ -412,7 +769,9 @@ export function reportOf(run: DuetRun): string {
     run.voice_flags.length
       ? `Проверка голоса: ${run.voice_flags.join('; ')}`
       : '',
-    run.profile_used === false ? 'Профиль клиента не был настроен (crm_client_setup)' : '',
+    run.profile_used === false
+      ? 'Профиль клиента не был настроен (crm_client_setup)'
+      : '',
     run.dry_run ? 'Режим dry_run: в Telegram ничего не отправлялось' : '',
   ]
     .filter(Boolean)
@@ -449,7 +808,8 @@ export function buyerRequestBody(
     max_tokens: BUYER_MAX_TOKENS,
     stream: false,
   }
-  if (GLM_PROVIDER.test(p.id) || p.thinking) body.thinking = { type: 'disabled' }
+  if (GLM_PROVIDER.test(p.id) || p.thinking)
+    body.thinking = { type: 'disabled' }
   return body
 }
 
@@ -524,7 +884,7 @@ export async function askBuyerModel(
 }
 
 /** Live wiring: the real agent, the real model, the real sessions. */
-async function liveDeps(): Promise<DuetDeps> {
+async function liveDeps(pool?: RunsPool): Promise<DuetDeps> {
   const { runAgent } = await import('./chat')
   const { allProviders, diagnose } = await import('./provider')
   const buyerModel = (messages: ChatMessage[]): Promise<string> =>
@@ -534,6 +894,7 @@ async function liveDeps(): Promise<DuetDeps> {
   return {
     agent: (history, ctx) => runAgent(history, ctx, { surface: 'business' }),
     buyerModel,
+    persist: pool ? run => upsertRun(pool, run) : undefined,
     sendText: async (fromCtx, to, text) => {
       await withClient(fromCtx, c =>
         sendWithAddressBook(c as unknown as SendingClient, to, text)
@@ -630,7 +991,10 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
       }
       runs.set(run.id, run)
       lastRunId = run.id
-      const deps = await liveDeps()
+      const deps = await liveDeps(ctx!.pool as RunsPool)
+      // The first row goes in before the loop starts, so a status read from
+      // another process (or after a deploy) already sees the run.
+      await save(deps, run)
       void runDuet(run, ctx!, deps).then(async r => {
         if (r.dry_run) return
         try {
@@ -665,10 +1029,54 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const run = getRun(args.duet_id ? String(args.duet_id) : null)
-      if (!run)
-        return { found: false, hint: 'дуэт ещё не запускался в этом процессе' }
-      return { found: true, run, report: reportOf(run) }
+      const run = await findRun(
+        ctx!.pool as RunsPool,
+        String(ctx!.telegramId),
+        args.duet_id ? String(args.duet_id) : null
+      )
+      if (!run) return { found: false, hint: 'дуэт ещё не запускался' }
+      const view = viewOf(run)
+      return { found: true, run: view, report: reportOf(view as DuetRun) }
+    },
+  },
+  {
+    name: 'crm_duet_runs',
+    description:
+      'Список своих прогонов дуэта (done/running/failed/lost, покрытие, нарушения). ' +
+      'Транскрипт — через crm_duet_status {duet_id}.',
+    parameters: {
+      type: 'object',
+      properties: {
+        buyer: { type: 'string', description: 'Telegram ID клиента' },
+        limit: { type: 'number', description: 'По умолчанию 10, максимум 50' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
+      await requireSeller(ctx)
+      const owner = String(ctx!.telegramId)
+      const buyer =
+        args.buyer == null || args.buyer === ''
+          ? null
+          : String(args.buyer).trim()
+      if (buyer !== null && !/^\d{5,15}$/.test(buyer))
+        throw new Error('buyer должен быть числовым Telegram ID')
+      const limit = Math.min(
+        50,
+        Math.max(1, Math.floor(Number(args.limit) || 10))
+      )
+      const rows = await listRuns(ctx!.pool as RunsPool, owner, buyer, limit)
+      const seen = new Set(rows.map(r => r.id))
+      // Runs of this process that the table has not seen yet (or a base
+      // without the table) still show up, from the cache.
+      const cached = [...runs.values()].filter(
+        r =>
+          r.owner === owner && !seen.has(r.id) && (!buyer || r.buyer === buyer)
+      )
+      const all = [...rows, ...cached]
+        .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))
+        .slice(0, limit)
+      return { runs: all.map(r => summaryOf(r)) }
     },
   },
 ]

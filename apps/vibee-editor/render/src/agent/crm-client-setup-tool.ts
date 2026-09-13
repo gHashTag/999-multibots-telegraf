@@ -52,7 +52,9 @@ export function skillNameFromMarkdown(md: string, fallback: string): string {
   return raw.startsWith(SKILL_PREFIX) ? raw : SKILL_PREFIX + raw
 }
 
-export function loadClientPackage(client: string = DEFAULT_CLIENT): ClientPackage {
+export function loadClientPackage(
+  client: string = DEFAULT_CLIENT
+): ClientPackage {
   const safe = client.replace(/[^a-z0-9_-]/gi, '')
   const dir = join(CLIENTS_DIR, safe)
   if (!safe || !existsSync(join(dir, 'profile.json'))) {
@@ -68,38 +70,135 @@ export function loadClientPackage(client: string = DEFAULT_CLIENT): ClientPackag
         .sort()
         .map(f => {
           const content = readFileSync(join(skillsDir, f), 'utf8').trim()
-          return { name: skillNameFromMarkdown(content, f.replace(/\.md$/, '')), content }
+          return {
+            name: skillNameFromMarkdown(content, f.replace(/\.md$/, '')),
+            content,
+          }
         })
     : []
   return { client: safe, soul, profile, skills }
 }
 
 /** The twelve reel ideas the seller proposes, one canonical plan each. */
-export const REEL_SERIES: { title: string; plan: number | null; note: string }[] = [
-  { title: 'Вход только с шестёрки — план 6 «Заблуждение (моха)»', plan: 6, note: 'Крючок: «Следующий ход — не обязательно следующий бросок».' },
-  { title: '68 на старте — ещё не победа', plan: 68, note: 'Начальное состояние хранит 68 до входа; победа — только точное попадание.' },
-  { title: '68 «Космическое Сознание» — Цветок Жизни без цифры', plan: 68, note: 'Единственная клетка без номера на доске.' },
-  { title: '72 → 51: последний номер поля — не финиш', plan: 72, note: 'Змея Тамогуны возвращает на 51.' },
-  { title: '12 → 8: змея Зависти', plan: 12, note: 'Змея меняет положение фишки, не ваше достоинство.' },
-  { title: '17 → 69: стрела Сострадания', plan: 17, note: 'Стрела — не награда, а движение.' },
-  { title: '26 «Милосердие (даана)» — читать план без ярлыка', plan: 26, note: 'Название клетки не приписывается человеку.' },
-  { title: '55 → 3: змея Эгоизма', plan: 55, note: 'Самая длинная змея доски.' },
-  { title: '63 → 2: змея Тамаса', plan: 63, note: 'Из ряда Сахасрары — в первый ряд.' },
-  { title: 'Отчёт — не экзамен на правильный смысл', plan: null, note: 'Одна фраза вместо дневника; несогласие — тоже отчёт.' },
+export const REEL_SERIES: {
+  title: string
+  plan: number | null
+  note: string
+}[] = [
+  {
+    title: 'Вход только с шестёрки — план 6 «Заблуждение (моха)»',
+    plan: 6,
+    note: 'Крючок: «Следующий ход — не обязательно следующий бросок».',
+  },
+  {
+    title: '68 на старте — ещё не победа',
+    plan: 68,
+    note: 'Начальное состояние хранит 68 до входа; победа — только точное попадание.',
+  },
+  {
+    title: '68 «Космическое Сознание» — Цветок Жизни без цифры',
+    plan: 68,
+    note: 'Единственная клетка без номера на доске.',
+  },
+  {
+    title: '72 → 51: последний номер поля — не финиш',
+    plan: 72,
+    note: 'Змея Тамогуны возвращает на 51.',
+  },
+  {
+    title: '12 → 8: змея Зависти',
+    plan: 12,
+    note: 'Змея меняет положение фишки, не ваше достоинство.',
+  },
+  {
+    title: '17 → 69: стрела Сострадания',
+    plan: 17,
+    note: 'Стрела — не награда, а движение.',
+  },
+  {
+    title: '26 «Милосердие (даана)» — читать план без ярлыка',
+    plan: 26,
+    note: 'Название клетки не приписывается человеку.',
+  },
+  {
+    title: '55 → 3: змея Эгоизма',
+    plan: 55,
+    note: 'Самая длинная змея доски.',
+  },
+  {
+    title: '63 → 2: змея Тамаса',
+    plan: 63,
+    note: 'Из ряда Сахасрары — в первый ряд.',
+  },
+  {
+    title: 'Отчёт — не экзамен на правильный смысл',
+    plan: null,
+    note: 'Одна фраза вместо дневника; несогласие — тоже отчёт.',
+  },
   { title: '46 → 62: стрела Различения', plan: 46, note: 'Аджна → Сахасрара.' },
-  { title: 'Групповой стол: один вопрос, разные планы', plan: null, note: 'Формат для канала: каждый приходит со своим вопросом.' },
+  {
+    title: 'Групповой стол: один вопрос, разные планы',
+    plan: null,
+    note: 'Формат для канала: каждый приходит со своим вопросом.',
+  },
 ]
 
-async function ensureProfileTable(ctx: ToolContext): Promise<void> {
+/**
+ * WHO OWNS A PROFILE (spec crm-client-ownership.t27, #3608).
+ *
+ * The first cut keyed the table by telegram_id alone: one profile per person
+ * on the whole installation, so a second seller would have read and
+ * overwritten the first seller's notes about the same client. The owner
+ * column is nullable on purpose -- live rows exist with no owner, and a NOT
+ * NULL key would either refuse the migration or invent one. Legacy rows are
+ * backfilled from crm_people (the ingest already knows which owner met whom);
+ * whatever is still unowned stays readable by any seller and is claimed by
+ * the next crm_client_setup, which always writes owner_id.
+ *
+ * Idempotent: every statement is a no-op the second time.
+ */
+export async function ensureProfileTable(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
     `CREATE TABLE IF NOT EXISTS crm_client_profiles (
-       telegram_id text PRIMARY KEY,
+       telegram_id text NOT NULL,
+       owner_id    text,
        client      text NOT NULL,
        profile     jsonb NOT NULL,
        updated_at  timestamptz NOT NULL DEFAULT now()
      )`
   )
+  await ctx.pool.query(
+    `ALTER TABLE crm_client_profiles ADD COLUMN IF NOT EXISTS owner_id text`
+  )
+  // The legacy PRIMARY KEY (telegram_id) forbids two sellers holding two
+  // profiles of one person; drop it only where it still exists.
+  const pk = await ctx.pool.query(
+    `SELECT 1 FROM pg_constraint WHERE conname = 'crm_client_profiles_pkey'`
+  )
+  if (pk.rows?.length) {
+    await ctx.pool.query(
+      `ALTER TABLE crm_client_profiles DROP CONSTRAINT crm_client_profiles_pkey`
+    )
+  }
+  await ctx.pool.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS crm_client_profiles_owner_client
+       ON crm_client_profiles (owner_id, telegram_id)`
+  )
+  try {
+    await ctx.pool.query(
+      `UPDATE crm_client_profiles p
+          SET owner_id = (SELECT owner_id FROM crm_people c
+                           WHERE c.lead_id = p.telegram_id
+                           ORDER BY c.seen_at DESC LIMIT 1)
+        WHERE p.owner_id IS NULL`
+    )
+  } catch {
+    // No crm_people table on this base: rows stay unowned until claimed.
+  }
 }
+
+/** SQL fragment: the caller's own rows and the rows nobody has claimed. */
+export const PROFILE_OWNER_WHERE = `(owner_id = $2 OR owner_id IS NULL)`
 
 async function ensureSoulTable(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
@@ -125,7 +224,7 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
   )
 }
 
-async function ensurePlanTables(ctx: ToolContext): Promise<void> {
+export async function ensurePlanTables(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
     `CREATE TABLE IF NOT EXISTS content_plan_goals (
        id          serial PRIMARY KEY,
@@ -156,7 +255,10 @@ export interface SetupReport {
   telegram_id: string
   dry_run: boolean
   soul: 'created' | 'kept_hers' | 'overwritten' | 'empty_package'
-  skills: { name: string; result: 'created' | 'identical' | 'conflict' | 'overwritten' }[]
+  skills: {
+    name: string
+    result: 'created' | 'identical' | 'conflict' | 'overwritten'
+  }[]
   profile: 'written'
   plan: { goal: 'created' | 'exists'; items_added: number }
 }
@@ -238,12 +340,20 @@ export async function setupClient(
   }
 
   if (!o.dryRun) {
+    const owner = String(ctx.telegramId)
+    // Claim a legacy unowned row for this client before writing our own, so
+    // the setup does not leave one unowned and one owned copy side by side.
     await ctx.pool.query(
-      `INSERT INTO crm_client_profiles (telegram_id, client, profile, updated_at)
-       VALUES ($1, $2, $3::jsonb, now())
-       ON CONFLICT (telegram_id) DO UPDATE
-         SET client = $2, profile = $3::jsonb, updated_at = now()`,
-      [id, pkg.client, JSON.stringify(pkg.profile)]
+      `UPDATE crm_client_profiles SET owner_id = $2
+        WHERE telegram_id = $1 AND owner_id IS NULL`,
+      [id, owner]
+    )
+    await ctx.pool.query(
+      `INSERT INTO crm_client_profiles (telegram_id, owner_id, client, profile, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, now())
+       ON CONFLICT (owner_id, telegram_id) DO UPDATE
+         SET client = $3, profile = $4::jsonb, updated_at = now()`,
+      [id, owner, pkg.client, JSON.stringify(pkg.profile)]
     )
   }
 
@@ -260,7 +370,11 @@ export async function setupClient(
         const r = await ctx.pool.query(
           `INSERT INTO content_plan_goals (telegram_id, title, intent)
            VALUES ($1, $2, $3) RETURNING id`,
-          [id, REEL_GOAL_TITLE, 'Привести на доску со своим вопросом — один план, один рил.'] // cyrillic-ok
+          [
+            id,
+            REEL_GOAL_TITLE,
+            'Привести на доску со своим вопросом — один план, один рил.',
+          ] // cyrillic-ok
         )
         goalId = r.rows[0]?.id ?? null
       }
@@ -278,7 +392,13 @@ export async function setupClient(
           await ctx.pool.query(
             `INSERT INTO content_plan_items (goal_id, telegram_id, title, note, template_id)
              VALUES ($1, $2, $3, $4, $5)`,
-            [goalId, id, it.title, it.plan == null ? it.note : `План ${it.plan}. ${it.note}`, 'LeelaPlanReel'] // cyrillic-ok
+            [
+              goalId,
+              id,
+              it.title,
+              it.plan == null ? it.note : `План ${it.plan}. ${it.note}`,
+              'LeelaPlanReel',
+            ] // cyrillic-ok
           )
         }
       }
@@ -298,9 +418,13 @@ export async function clientProfileFor(
   await ensureProfileTable(ctx)
   await ensureSoulTable(ctx)
   await ensureSkillsTable(ctx)
+  // Scoped by owner: another seller's profile of the same person is not ours
+  // to read. An unowned legacy row is, until somebody claims it.
   const p = await ctx.pool.query(
-    `SELECT client, profile, updated_at::text FROM crm_client_profiles WHERE telegram_id = $1`,
-    [telegramId]
+    `SELECT client, profile, updated_at::text, owner_id FROM crm_client_profiles
+      WHERE telegram_id = $1 AND ${PROFILE_OWNER_WHERE}
+      ORDER BY owner_id NULLS LAST LIMIT 1`,
+    [telegramId, String(ctx.telegramId)]
   )
   const soul = await ctx.pool.query(
     `SELECT content, updated_at::text FROM user_soul WHERE telegram_id = $1`,
@@ -313,8 +437,7 @@ export async function clientProfileFor(
   if (!p.rows.length) {
     return {
       has_profile: false,
-      hint:
-        'Профиль клиента не настроен. Начни с вопросов: где аудитория, что уже публикует, какой результат за месяц был бы удачей.',
+      hint: 'Профиль клиента не настроен. Начни с вопросов: где аудитория, что уже публикует, какой результат за месяц был бы удачей.',
       has_soul: soul.rows.length > 0,
       skills: skills.rows.map((r: { name: string }) => r.name),
     }
@@ -323,12 +446,98 @@ export async function clientProfileFor(
   return {
     has_profile: true,
     client: p.rows[0].client,
+    owner_id: p.rows[0].owner_id ?? null,
+    owned_by_caller: p.rows[0].owner_id === String(ctx.telegramId),
     updated_at: p.rows[0].updated_at,
     profile: p.rows[0].profile,
     has_soul: soul.rows.length > 0,
     soul_is_draft: content.includes('Статус: ЧЕРНОВИК'),
     soul_excerpt: content.slice(0, 400),
     skills: skills.rows.map((r: { name: string }) => r.name),
+  }
+}
+
+export interface SchemaCheck {
+  table_exists: boolean
+  owner_column: boolean
+  legacy_pkey: boolean
+  unique_index: boolean
+  rows_total: number
+  rows_owned: number
+  rows_unowned: number
+  owners: Array<{ owner_id: string; rows: number }>
+  migrated: boolean
+}
+
+/**
+ * The read-only witness for the profile migration. It never calls
+ * ensureProfileTable: a witness that migrates on the way in would report
+ * its own work, not the state of the base it was asked about.
+ * Spec: t27 specs/automation/crm-client-ownership.t27 (SCHEMA_CHECK_*).
+ */
+export async function schemaCheck(ctx: ToolContext): Promise<SchemaCheck> {
+  const one = async (sql: string) =>
+    (await ctx.pool.query(sql)).rows?.[0] ?? null
+  const table = await one(
+    `SELECT 1 AS ok FROM information_schema.tables WHERE table_name = 'crm_client_profiles'`
+  )
+  if (!table) {
+    return {
+      table_exists: false,
+      owner_column: false,
+      legacy_pkey: false,
+      unique_index: false,
+      rows_total: 0,
+      rows_owned: 0,
+      rows_unowned: 0,
+      owners: [],
+      migrated: false,
+    }
+  }
+  const col = await one(
+    `SELECT 1 AS ok FROM information_schema.columns
+      WHERE table_name = 'crm_client_profiles' AND column_name = 'owner_id'`
+  )
+  const pk = await one(
+    `SELECT 1 AS ok FROM pg_constraint WHERE conname = 'crm_client_profiles_pkey'`
+  )
+  const idx = await one(
+    `SELECT indexdef FROM pg_indexes
+      WHERE tablename = 'crm_client_profiles' AND indexname = 'crm_client_profiles_owner_client'`
+  )
+  const counts = col
+    ? await one(
+        `SELECT count(*)::int AS total,
+                count(owner_id)::int AS owned
+           FROM crm_client_profiles`
+      )
+    : await one(
+        `SELECT count(*)::int AS total, 0 AS owned FROM crm_client_profiles`
+      )
+  const owners = col
+    ? ((
+        await ctx.pool.query(
+          `SELECT owner_id, count(*)::int AS rows FROM crm_client_profiles
+            WHERE owner_id IS NOT NULL GROUP BY owner_id ORDER BY rows DESC, owner_id`
+        )
+      ).rows ?? [])
+    : []
+  const total = Number(counts?.total ?? 0)
+  const owned = Number(counts?.owned ?? 0)
+  const uniqueIndex = Boolean(idx && /UNIQUE/i.test(String(idx.indexdef ?? '')))
+  return {
+    table_exists: true,
+    owner_column: Boolean(col),
+    legacy_pkey: Boolean(pk),
+    unique_index: uniqueIndex,
+    rows_total: total,
+    rows_owned: owned,
+    rows_unowned: total - owned,
+    owners: owners.map((r: any) => ({
+      owner_id: String(r.owner_id),
+      rows: Number(r.rows),
+    })),
+    migrated: Boolean(col) && !pk && uniqueIndex,
   }
 }
 
@@ -343,12 +552,33 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        client: { type: 'string', description: 'имя пакета в src/agent/clients (по умолчанию playom)' },
-        telegram_id: { type: 'string', description: 'Telegram ID клиента (по умолчанию 435572800)' },
-        overwrite_soul: { type: 'boolean', description: 'заменить существующий SOUL клиента (по умолчанию false)' },
-        overwrite_skills: { type: 'boolean', description: 'заменить скиллы с другим содержимым (по умолчанию false)' },
-        with_plan: { type: 'boolean', description: 'создать цель и 12 карточек серии рилс (по умолчанию true)' },
-        dry_run: { type: 'boolean', description: 'только показать план действий (по умолчанию false)' },
+        client: {
+          type: 'string',
+          description: 'имя пакета в src/agent/clients (по умолчанию playom)',
+        },
+        telegram_id: {
+          type: 'string',
+          description: 'Telegram ID клиента (по умолчанию 435572800)',
+        },
+        overwrite_soul: {
+          type: 'boolean',
+          description:
+            'заменить существующий SOUL клиента (по умолчанию false)',
+        },
+        overwrite_skills: {
+          type: 'boolean',
+          description:
+            'заменить скиллы с другим содержимым (по умолчанию false)',
+        },
+        with_plan: {
+          type: 'boolean',
+          description:
+            'создать цель и 12 карточек серии рилс (по умолчанию true)',
+        },
+        dry_run: {
+          type: 'boolean',
+          description: 'только показать план действий (по умолчанию false)',
+        },
       },
       additionalProperties: false,
     },
@@ -386,16 +616,33 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        telegram_id: { type: 'string', description: 'Telegram ID клиента (по умолчанию 435572800)' },
+        telegram_id: {
+          type: 'string',
+          description: 'Telegram ID клиента (по умолчанию 435572800)',
+        },
       },
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       if (!ctx || !(await isSeller(ctx))) {
-        throw new Error('Профиль клиента читает только продавец с подключённым Telegram.')
+        throw new Error(
+          'Профиль клиента читает только продавец с подключённым Telegram.'
+        )
       }
       const telegramId = String(args.telegram_id ?? DEFAULT_CLIENT_ID).trim()
       return clientProfileFor(ctx, telegramId)
+    },
+  },
+  {
+    name: 'crm_schema_check',
+    description:
+      'Свидетель миграции crm_client_profiles: есть ли колонка owner_id, снят ли старый первичный ключ, ' +
+      'стоит ли уникальный индекс (owner_id, telegram_id), сколько строк всего / со владельцем / ничьих. ' +
+      'Только читает, миграцию не запускает. Только владелец. Бесплатно.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler(_args: Record<string, any>, ctx?: ToolContext) {
+      requireOwner(ctx)
+      return schemaCheck(ctx!)
     },
   },
 ]

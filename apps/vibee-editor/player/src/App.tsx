@@ -29,6 +29,7 @@ const SearchPage = lazy(() => import('@/pages/Search'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
 const CrmPage = lazy(() => import('@/pages/Crm'))
+const CrmClientPage = lazy(() => import('@/pages/CrmClient'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
 const TemplatesPage = lazy(() => import('@/pages/Templates'))
 const InstagramCallbackPage = lazy(() => import('@/pages/InstagramCallback'))
@@ -236,6 +237,60 @@ function ProfileNeedsSignIn() {
   )
 }
 
+/**
+ * THE ROUTE TABLE, ON ITS OWN.
+ *
+ * Exported so a test can mount it inside a MemoryRouter and ask "where does
+ * `/crm/123` land?" without the providers, the tab bar and the Telegram
+ * bridge around it. `App` below renders exactly this.
+ */
+export function AppRoutes() {
+  return (
+    <Routes>
+      {/* The root opens where the person was interrupted, or on the feed
+          when nothing is remembered. A redirect rather than rendering
+          FeedPage at "/" keeps the feed on one canonical URL -- the tab
+          highlight depends on it. */}
+      <Route path="/" element={<LaunchRedirect />} />
+      {/* The marketing landing moved here so it would not be lost. */}
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/feed" element={<FeedPage />} />
+      {/* The t27.ai blog through the RSS proxy -- same design canon. */}
+      <Route path="/blog" element={<BlogPage />} />
+      <Route path="/search" element={<SearchPage />} />
+      <Route
+        path="/editor"
+        element={<Navigate to="/generate/editor" replace />}
+      />
+      <Route
+        path="/generate"
+        element={<Navigate to="/generate/script" replace />}
+      />
+      <Route path="/generate/script" element={<ScriptPage />} />
+      <Route path="/generate/editor" element={<EditorPage />} />
+      <Route path="/generate/:tab" element={<GeneratePage />} />
+      <Route path="/hive" element={<HivePage />} />
+      {/* The former sub-tab addresses still land on the hive. */}
+      <Route path="/hive/*" element={<Navigate to="/hive" replace />} />
+      <Route path="/crm" element={<CrmPage />} />
+      {/* One client's workspace and the thread about them. Declared before
+          `/:username`, and tested to resolve here rather than to a profile
+          named "123". */}
+      <Route path="/crm/:clientId" element={<CrmClientPage />} />
+      <Route path="/crm/:clientId/chat" element={<ChatPage />} />
+      <Route path="/templates" element={<TemplatesPage />} />
+      <Route path="/chat" element={<ChatPage />} />
+      <Route path="/instagram/callback" element={<InstagramCallbackPage />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms-service" element={<TermsServicePage />} />
+      <Route path="/terms-of-service" element={<TermsServicePage />} />
+      <Route path="/learn" element={<LearnPage />} />
+      <Route path="/profile" element={<ProfileRedirect />} />
+      <Route path="/:username" element={<ProfilePage />} />
+    </Routes>
+  )
+}
+
 // Loading fallback
 function PageLoader() {
   return (
@@ -255,58 +310,7 @@ function App() {
               <>
                 <PageTransition>
                   <Suspense fallback={<PageLoader />}>
-                    <Routes>
-                      {/* Главная открывается там, где человека прервали, а без
-                      памяти — на ленте. Редирект, а не рендер FeedPage прямо
-                      на "/", чтобы у ленты остался один канонический URL — от
-                      него зависит подсветка таба. */}
-                      <Route path="/" element={<LaunchRedirect />} />
-                      {/* Маркетинговый лендинг переехал сюда, чтобы не пропасть. */}
-                      <Route path="/home" element={<HomePage />} />
-                      <Route path="/feed" element={<FeedPage />} />
-                      {/* Блог t27.ai через RSS-прокси — тот же канон дизайна. */}
-                      <Route path="/blog" element={<BlogPage />} />
-                      <Route path="/search" element={<SearchPage />} />
-                      <Route
-                        path="/editor"
-                        element={<Navigate to="/generate/editor" replace />}
-                      />
-                      <Route
-                        path="/generate"
-                        element={<Navigate to="/generate/script" replace />}
-                      />
-                      <Route path="/generate/script" element={<ScriptPage />} />
-                      <Route path="/generate/editor" element={<EditorPage />} />
-                      <Route path="/generate/:tab" element={<GeneratePage />} />
-                      <Route path="/hive" element={<HivePage />} />
-                      {/* The former sub-tab addresses still land on the hive. */}
-                      <Route
-                        path="/hive/*"
-                        element={<Navigate to="/hive" replace />}
-                      />
-                      <Route path="/crm" element={<CrmPage />} />
-                      <Route path="/templates" element={<TemplatesPage />} />
-                      <Route path="/chat" element={<ChatPage />} />
-                      <Route
-                        path="/instagram/callback"
-                        element={<InstagramCallbackPage />}
-                      />
-                      <Route
-                        path="/privacy-policy"
-                        element={<PrivacyPolicyPage />}
-                      />
-                      <Route
-                        path="/terms-service"
-                        element={<TermsServicePage />}
-                      />
-                      <Route
-                        path="/terms-of-service"
-                        element={<TermsServicePage />}
-                      />
-                      <Route path="/learn" element={<LearnPage />} />
-                      <Route path="/profile" element={<ProfileRedirect />} />
-                      <Route path="/:username" element={<ProfilePage />} />
-                    </Routes>
+                    <AppRoutes />
                   </Suspense>
                 </PageTransition>
                 {/* Both live inside <BrowserRouter> (they use useLocation /

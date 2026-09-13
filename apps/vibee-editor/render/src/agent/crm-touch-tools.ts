@@ -173,9 +173,37 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
         String(ctx.telegramId),
         leadId
       )
+      // Money first (spec crm-client-ownership.t27): a COMPLETED MONEY_INCOME
+      // row for one of the owner's bots makes this person a client whatever
+      // the last touch says. A dead Supabase costs the money column, not the
+      // answer -- paid_known says which it was.
+      let paid = false
+      let paidKnown = true
+      try {
+        paid = (await visibleScope(ctx).then(whoPaid)).has(leadId)
+      } catch {
+        paidKnown = false
+      }
+      const st = stageOf({
+        paid,
+        touches: past as never,
+        quietDays: null,
+      })
+      const w = waitingOn({
+        paid,
+        touches: past as never,
+        quietDays: null,
+        noAnswerAfterDays: 3,
+        laterAfterDays: 14,
+      })
       return {
         telegram_id: leadId,
         total: past.length,
+        stage: st.stage,
+        because: st.because,
+        paid,
+        paid_known: paidKnown,
+        waiting: w?.waiting ?? null,
         touches: past,
         what_to_do:
           past.length === 0

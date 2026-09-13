@@ -34,7 +34,7 @@ function поддельныйПул() {
   let n = 0
   const пул: Пул = {
     async query(sql: string, params: unknown[] = []) {
-      if (/^CREATE/i.test(sql.trim())) return { rows: [] }
+      if (/^(CREATE|ALTER)/i.test(sql.trim())) return { rows: [] }
       if (/^INSERT INTO agent_messages/i.test(sql.trim())) {
         строки.push({
           id: ++n,
@@ -42,6 +42,7 @@ function поддельныйПул() {
           role: params[1],
           content: params[2],
           surface: params[3],
+          thread: params[4] ?? 'self',
           created_at: '2026-09-06T00:00:00Z',
         })
         return { rows: [] }
@@ -62,12 +63,23 @@ function поддельныйПул() {
         const текст = sql.replace(/\s+/g, ' ').trim()
         const было = строки.length
         let оставить: any[] | null = null
-        if (/WHERE id = \$1 AND telegram_id = \$2$/.test(текст)) {
+        // Since 2026-09-13 both forms are scoped to a thread as well (spec
+        // crm-client-workspace.t27): the fake still refuses any third shape.
+        if (
+          /WHERE id = \$1 AND telegram_id = \$2 AND thread = \$3$/.test(текст)
+        ) {
           оставить = строки.filter(
-            с => !(с.id === params[0] && с.telegram_id === params[1])
+            с =>
+              !(
+                с.id === params[0] &&
+                с.telegram_id === params[1] &&
+                с.thread === params[2]
+              )
           )
-        } else if (/WHERE telegram_id = \$1$/.test(текст)) {
-          оставить = строки.filter(с => с.telegram_id !== params[0])
+        } else if (/WHERE telegram_id = \$1 AND thread = \$2$/.test(текст)) {
+          оставить = строки.filter(
+            с => !(с.telegram_id === params[0] && с.thread === params[1])
+          )
         }
         if (оставить === null) {
           throw new Error(
@@ -80,7 +92,9 @@ function поддельныйПул() {
         return { rows: [], rowCount: было - строки.length } as any
       }
       if (/^SELECT/i.test(sql.trim())) {
-        const свои = строки.filter(с => с.telegram_id === params[0])
+        const свои = строки.filter(
+          с => с.telegram_id === params[0] && с.thread === (params[2] ?? 'self')
+        )
         const предел = Number(params[1])
         /*
          * ПОДДЕЛКА ПОДЧИНЯЕТСЯ ЗАПРОСУ, А НЕ ПОВТОРЯЕТ ОЖИДАЕМЫЙ ОТВЕТ.
@@ -229,7 +243,9 @@ describe('ответ собирается из потока', () => {
   })
 
   it('ошибка не записывается ответом', () => {
-    expect(собратьОтвет([{ тип: 'ошибка', текст: 'провайдер молчит' }])).toBe('')
+    expect(собратьОтвет([{ тип: 'ошибка', текст: 'провайдер молчит' }])).toBe(
+      ''
+    )
   })
 })
 
@@ -260,7 +276,9 @@ describe('маршрут истории достижим', () => {
       сервер.indexOf("'/api/agent/history'") + 1200
     )
     expect(кусок).toContain('await resolveIdentity(req, getPool)')
-    expect(кусок).toContain('handleAgentHistory(req, res, String(who), getPool)')
+    expect(кусок).toContain(
+      'handleAgentHistory(req, res, String(who), getPool)'
+    )
   })
 
   it('чат записывает обе стороны разговора', () => {
@@ -281,10 +299,20 @@ describe('переписку можно править — но только с�
 
   it('своя реплика удаляется', async () => {
     const { пул } = поддельныйПул()
-    await записатьРеплику(пул, '1', { role: 'user', content: 'а', surface: 'bot' })
-    await записатьРеплику(пул, '1', { role: 'user', content: 'б', surface: 'bot' })
+    await записатьРеплику(пул, '1', {
+      role: 'user',
+      content: 'а',
+      surface: 'bot',
+    })
+    await записатьРеплику(пул, '1', {
+      role: 'user',
+      content: 'б',
+      surface: 'bot',
+    })
     expect(await удалитьРеплику(пул, '1', 1)).toBe(1)
-    expect((await прочитатьРазговор(пул, '1')).map(x => x.content)).toEqual(['б'])
+    expect((await прочитатьРазговор(пул, '1')).map(x => x.content)).toEqual([
+      'б',
+    ])
   })
 
   it('ЧУЖАЯ реплика не удаляется, даже зная её номер', async () => {
@@ -293,15 +321,27 @@ describe('переписку можно править — но только с�
      * означало бы право стирать чужую переписку. Номера реплик сквозные.
      */
     const { пул } = поддельныйПул()
-    await записатьРеплику(пул, '2', { role: 'user', content: 'чужое', surface: 'bot' })
+    await записатьРеплику(пул, '2', {
+      role: 'user',
+      content: 'чужое',
+      surface: 'bot',
+    })
     expect(await удалитьРеплику(пул, '1', 1)).toBe(0)
     expect((await прочитатьРазговор(пул, '2')).length).toBe(1)
   })
 
   it('«начать заново» стирает ТОЛЬКО свой разговор', async () => {
     const { пул } = поддельныйПул()
-    await записатьРеплику(пул, '1', { role: 'user', content: 'моё', surface: 'bot' })
-    await записатьРеплику(пул, '2', { role: 'user', content: 'чужое', surface: 'bot' })
+    await записатьРеплику(пул, '1', {
+      role: 'user',
+      content: 'моё',
+      surface: 'bot',
+    })
+    await записатьРеплику(пул, '2', {
+      role: 'user',
+      content: 'чужое',
+      surface: 'bot',
+    })
     expect(await очиститьРазговор(пул, '1')).toBe(1)
     expect((await прочитатьРазговор(пул, '1')).length).toBe(0)
     expect((await прочитатьРазговор(пул, '2')).length).toBe(1)
@@ -317,7 +357,10 @@ describe('переписку можно править — но только с�
 
 describe('кнопка «Новый разговор» чистит и сервер', () => {
   it('маршрут удаления смонтирован и опознаёт так же, как чтение', () => {
-    const сервер = fs.readFileSync(path.join(__dirname, 'render-server.ts'), 'utf8')
+    const сервер = fs.readFileSync(
+      path.join(__dirname, 'render-server.ts'),
+      'utf8'
+    )
     /*
      * Якорь — по ПУТИ, а не по первому `req.method === 'DELETE'` в файле:
      * таких маршрутов несколько, и первый попавшийся относится к ленте.

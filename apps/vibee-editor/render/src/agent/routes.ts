@@ -35,7 +35,56 @@ import {
   удалитьРеплику,
   очиститьРазговор,
   РЕПЛИК_ПО_УМОЛЧАНИЮ,
+  SELF_THREAD,
+  CLIENT_ID_RE,
+  clientThread,
 } from './conversation'
+
+/**
+ * WHICH THREAD A REQUEST TALKS TO, AND WHETHER IT MAY.
+ *
+ * `body.client` / `?client=` names a client; the thread is `client:<id>`.
+ * Without it the request is about the caller's own thread and nothing here
+ * changes. Spec: t27 specs/automation/crm-client-workspace.t27.
+ *
+ * Fail-closed and BEFORE any read of the thread: a malformed id is 400, a
+ * caller who is not a seller is 403, and the owner naming themselves as a
+ * client is 400. The seller check is the gate's own lookup of the caller's
+ * row (`isSeller`), keyed by the verified id -- nothing about the client is
+ * read here.
+ */
+export type ThreadGate =
+  | { ok: true; thread: string; client: string | null }
+  | { ok: false; status: number; error: string }
+
+export async function threadFor(
+  rawClient: unknown,
+  owner: string,
+  getPool: () => any
+): Promise<ThreadGate> {
+  if (rawClient == null || rawClient === '')
+    return { ok: true, thread: SELF_THREAD, client: null }
+  const client = String(rawClient).trim()
+  if (!CLIENT_ID_RE.test(client))
+    return { ok: false, status: 400, error: 'bad client' }
+  if (client === String(owner))
+    return { ok: false, status: 400, error: 'bad client' }
+  let seller = false
+  try {
+    const { isSeller } = await import('./telegram-tools')
+    const pool = await getPool()
+    seller = await isSeller({ telegramId: String(owner), pool })
+  } catch {
+    seller = false
+  }
+  if (!seller) return { ok: false, status: 403, error: 'not a seller' }
+  return { ok: true, thread: clientThread(client), client }
+}
+
+/** The client id from the query string, or null when absent. */
+function clientParam(req: IncomingMessage): string | null {
+  return new URL(req.url || '', 'http://x').searchParams.get('client')
+}
 
 /**
  * CONSTANT-TIME key comparison.
@@ -420,6 +469,12 @@ export async function handleAgentChat(
     })
   }
 
+  // The client thread gate answers before the stream opens: a 4xx must be a
+  // real status, not an error event inside a 200.
+  const gate = await threadFor(body.client, telegramId, getPool)
+  if (!gate.ok) return json(res, gate.status, { error: gate.error })
+  const thread = gate.thread
+
   res.writeHead(200, {
     'Content-Type': 'application/x-ndjson; charset=utf-8',
     'Cache-Control': 'no-cache, no-store',
@@ -478,11 +533,16 @@ export async function handleAgentChat(
     const ephemeral = body.tools_only === true
     const последняя = history[history.length - 1]
     if (!ephemeral && последняя?.role === 'user') {
-      await записатьРеплику(pool, telegramId, {
-        role: 'user',
-        content: String(последняя.content ?? ''),
-        surface: поверхность,
-      }).catch(() => {
+      await записатьРеплику(
+        pool,
+        telegramId,
+        {
+          role: 'user',
+          content: String(последняя.content ?? ''),
+          surface: поверхность,
+        },
+        thread
+      ).catch(() => {
         // Хранение — удобство, а не условие разговора. Упавшая запись не
         // должна лишать человека ответа: он и так уже ждёт.
       })
@@ -496,7 +556,13 @@ export async function handleAgentChat(
       // it so that button markers are proposed in the bot and nowhere else.
       // tools_only: the caller (the seller's sweep) needs a model that calls
       // tools, not one that talks about them. Anything but `true` is false.
-      { surface: поверхность, toolsOnly: body.tools_only === true } // cyrillic-ok: local defined earlier in this file
+      // client: the thread is about this person; the agent reads their
+      // profile and the owner's history with them before the first word.
+      {
+        surface: поверхность, // cyrillic-ok: local defined earlier in this file
+        toolsOnly: body.tools_only === true,
+        client: gate.client ?? undefined,
+      }
     )) {
       события.push(ev as { тип?: string; текст?: string })
       res.write(JSON.stringify(ev) + '\n')
@@ -504,11 +570,16 @@ export async function handleAgentChat(
 
     const ответ = собратьОтвет(события)
     if (ответ && !ephemeral) {
-      await записатьРеплику(pool, telegramId, {
-        role: 'assistant',
-        content: ответ,
-        surface: поверхность,
-      }).catch(() => {
+      await записатьРеплику(
+        pool,
+        telegramId,
+        {
+          role: 'assistant',
+          content: ответ, // cyrillic-ok: pre-existing local
+          surface: поверхность, // cyrillic-ok: pre-existing local
+        },
+        thread
+      ).catch(() => {
         // Ответ человек уже получил потоком; потерянная запись — потеря
         // памяти, а не ответа.
       })
@@ -588,6 +659,10 @@ export async function handleAgentHistoryDelete(
 ) {
   const параметры = new URL(req.url || '', 'http://x').searchParams
   const сырой = параметры.get('id')
+  // Gate first: a client thread is cleared only by a seller, and only that
+  // thread -- the self thread is never touched through `?client=`.
+  const gate = await threadFor(clientParam(req), telegramId, getPool)
+  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
     const pool = await getPool()
     if (сырой != null) {
@@ -595,15 +670,15 @@ export async function handleAgentHistoryDelete(
       if (!Number.isFinite(id) || id <= 0) {
         return json(res, 400, { ok: false, error: 'id должен быть числом' })
       }
-      const убрано = await удалитьРеплику(pool, telegramId, id)
+      const убрано = await удалитьРеплику(pool, telegramId, id, gate.thread) // cyrillic-ok: pre-existing identifiers
       // 404, а не 200: «удалил ноль строк» и «удалил» — разные исходы, и
       // молчаливое «ок» на несуществующий id скрывало бы опечатку.
       if (!убрано)
         return json(res, 404, { ok: false, error: 'реплика не найдена' })
-      return json(res, 200, { ok: true, убрано })
+      return json(res, 200, { ok: true, убрано, thread: gate.thread }) // cyrillic-ok: pre-existing identifier
     }
-    const убрано = await очиститьРазговор(pool, telegramId)
-    return json(res, 200, { ok: true, убрано })
+    const убрано = await очиститьРазговор(pool, telegramId, gate.thread) // cyrillic-ok: pre-existing identifiers
+    return json(res, 200, { ok: true, убрано, thread: gate.thread }) // cyrillic-ok: pre-existing identifier
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
@@ -618,14 +693,18 @@ export async function handleAgentHistory(
   const предел = Number(
     new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
   )
+  const gate = await threadFor(clientParam(req), telegramId, getPool)
+  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
     const pool = await getPool()
     const реплики = await прочитатьРазговор(
+      // cyrillic-ok: pre-existing identifiers
       pool,
       telegramId,
-      предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ
+      предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ, // cyrillic-ok: pre-existing identifiers
+      gate.thread
     )
-    return json(res, 200, { ok: true, messages: реплики })
+    return json(res, 200, { ok: true, messages: реплики, thread: gate.thread }) // cyrillic-ok: pre-existing identifier
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }
@@ -720,19 +799,27 @@ export async function handleAgentHistoryAppend(
     ? String(body.surface)
     : 'unknown'
 
+  const gate = await threadFor(body.client, telegramId, getPool)
+  if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
+
   try {
     const pool = await getPool()
     let stored = 0
     for (const turn of turns) {
-      const ok = await записатьРеплику(pool, telegramId, {
+      const ok = await записатьРеплику(
         // cyrillic-ok: pre-existing writer
-        role: turn.role,
-        content: turn.content,
-        surface,
-      })
+        pool,
+        telegramId,
+        {
+          role: turn.role,
+          content: turn.content,
+          surface,
+        },
+        gate.thread
+      )
       if (ok) stored++
     }
-    return json(res, 200, { ok: true, stored })
+    return json(res, 200, { ok: true, stored, thread: gate.thread })
   } catch (e) {
     return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
   }

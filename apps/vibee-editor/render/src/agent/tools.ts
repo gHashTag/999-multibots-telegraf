@@ -26,6 +26,7 @@
  */
 
 import { planTools } from './plan-tools'
+import { INNGEST_TOOLS } from './inngest-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import {
@@ -591,6 +592,7 @@ import { CRM_TOOLS } from './crm-tools'
 import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
+import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
@@ -2461,6 +2463,8 @@ TOOLS.push(...CRM_AGENT_LINK_TOOLS)
 TOOLS.push(...CRM_DUET_TOOLS)
 // The client package: owner installs SOUL draft / skills / profile / plan, the seller reads the profile (crm-client-setup-tool.ts).
 TOOLS.push(...CRM_CLIENT_TOOLS)
+// The per-client workspace reads: content plan and the client list (crm-client-workspace-tools.ts).
+TOOLS.push(...CRM_CLIENT_WORKSPACE_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
@@ -2469,6 +2473,12 @@ TOOLS.push(...PROJECT_TOOLS)
  * owner sees their bots, everyone else sees only themselves.
  */
 TOOLS.push(...HIVE_TOOLS)
+/*
+ * The Inngest function catalogue (both apps, read live), runs and invocation.
+ * Keeper-only, like hive_queen: function names carry paths and internal state.
+ * One catalogue tool instead of a hundred per-function tools (inngest-tools.ts).
+ */
+TOOLS.push(...INNGEST_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.
@@ -2501,6 +2511,8 @@ export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 /** Формат OpenAI tool-calling. Схема ОДНА и та же, что уходит наружу по MCP. */
 /** The seller's kit for a model with a small context: CRM, Telegram, SOUL, one generator. */
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_)/
+/** Owner-only diagnostics wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
+export const COMPACT_TOOLS_EXCLUDED = /^crm_schema_check$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
@@ -2518,7 +2530,8 @@ export function toolsForProvider<T extends { name: string }>(
   if (!p?.compact) return all
   return all.filter(
     t =>
-      (COMPACT_TOOLS.test(t.name) || t.name === 'image_generate') &&
+      ((COMPACT_TOOLS.test(t.name) && !COMPACT_TOOLS_EXCLUDED.test(t.name)) ||
+        t.name === 'image_generate') &&
       !COMPACT_HIDDEN.has(t.name)
   )
 }

@@ -1,5 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/useLanguage', () => ({
@@ -74,6 +75,37 @@ const answers: Record<string, unknown> = {
     ],
   },
   crm_touch: { saved: true },
+  crm_clients: {
+    clients: [
+      {
+        telegram_id: '555',
+        name: 'ClientOnlyName',
+        username: 'clientonly',
+        client: 'Leela',
+        has_profile: true,
+        has_soul: false,
+        skills: 2,
+        stage: 'client',
+        paid: true,
+        last_seen: '2026-09-12T10:00:00Z',
+        duets: 7,
+      },
+      {
+        telegram_id: '666',
+        name: 'LeadRowOnlyName',
+        username: null,
+        client: null,
+        has_profile: false,
+        has_soul: false,
+        skills: 0,
+        stage: 'talking',
+        paid: false,
+        last_seen: null,
+        duets: 0,
+      },
+    ],
+    paid_known: true,
+  },
 }
 
 let calls: Array<{ name: string; args: Record<string, unknown> }> = []
@@ -129,9 +161,14 @@ afterEach(() => {
 async function draw() {
   const { default: CrmPage } = await import('./Crm')
   await act(async () => {
-    root.render(<CrmPage />)
+    // Rows link to `/crm/:clientId`, and a <Link> needs a router around it.
+    root.render(
+      <MemoryRouter>
+        <CrmPage />
+      </MemoryRouter>
+    )
   })
-  // Let the three parallel loads settle.
+  // Let the parallel loads settle.
   await act(async () => {
     await new Promise(r => setTimeout(r, 0))
   })
@@ -235,7 +272,9 @@ describe('the server speaks Russian keys and the screen does not have to', () =>
     )
     expect(text).toContain('crm.leads.quiet:3')
     expect(text).toContain('crm.leads.setAside:4')
-    const link = [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    const link = [...host.querySelectorAll('a')].map(a =>
+      a.getAttribute('href')
+    )
     expect(link).toContain('https://t.me/p')
   })
 })
@@ -246,7 +285,9 @@ describe('the buttons record, they do not send', () => {
     await draw()
     calls = []
     const btn = [
-      ...host.querySelectorAll<HTMLButtonElement>('.crm__row--ours .crm__acts button'),
+      ...host.querySelectorAll<HTMLButtonElement>(
+        '.crm__row--ours .crm__acts button'
+      ),
     ].find(b => b.textContent?.trim() === 'crm.act.replied')!
     await act(async () => {
       btn.click()
@@ -285,5 +326,143 @@ describe('the buttons record, they do not send', () => {
     serve()
     await draw()
     expect(host.textContent).toContain('crm.note')
+  })
+})
+
+describe('every person on the list is a way into their own page', () => {
+  it('client rows and lead rows link to /crm/:clientId', async () => {
+    /*
+     * Spec: t27 specs/automation/crm-client-workspace.t27 -- "the list links
+     * to the client page". Before this the row went to t.me and nowhere in
+     * the app; the per-client page existed for nobody.
+     */
+    serve()
+    await draw()
+    const text = String(host.textContent)
+    expect(text).toContain('crm.clients.title')
+    expect(text).toContain('ClientOnlyName')
+    expect(text).toContain('@clientonly')
+    expect(text).toContain('crm.clients.duets:7')
+    const hrefs = [...host.querySelectorAll('a')].map(a =>
+      a.getAttribute('href')
+    )
+    expect(hrefs).toContain('/crm/555')
+    expect(hrefs).toContain('/crm/111')
+    expect(hrefs).toContain('/crm/444')
+    // The t.me link is still there, as the secondary control.
+    expect(hrefs).toContain('https://t.me/p')
+  })
+
+  it('an unreachable client list says so rather than showing nobody', async () => {
+    serve({ fail: ['crm_clients'] })
+    await draw()
+    expect(host.textContent).not.toContain('crm.clients.none')
+    expect(host.textContent).toContain('crm.unreachable')
+  })
+})
+
+describe('paid is a fact from payments, shown as such', () => {
+  /*
+   * Spec: t27 specs/automation/crm-client-workspace.t27 -- the list tells
+   * who has paid, and says so when it cannot tell.
+   */
+  it('a row with paid:true wears the badge and a row without does not', async () => {
+    serve()
+    await draw()
+    const rows = [...host.querySelectorAll('.crm__row--client')]
+    const paidRow = rows.find(r => r.textContent?.includes('ClientOnlyName'))!
+    const leadRow = rows.find(r => r.textContent?.includes('LeadRowOnlyName'))!
+    expect(paidRow.querySelector('.crm__badge--paid')?.textContent).toBe(
+      'crm.clients.paid'
+    )
+    expect(leadRow.querySelector('.crm__badge--paid')).toBeNull()
+    // Payments were readable, so no warning.
+    expect(host.textContent).not.toContain('crm.clients.paidUnknown')
+  })
+
+  it('when the server could not read payments the list says so once', async () => {
+    const saved = answers.crm_clients as Record<string, unknown>
+    answers.crm_clients = { ...saved, paid_known: false }
+    serve()
+    await draw()
+    const text = String(host.textContent)
+    expect(text.split('crm.clients.paidUnknown').length - 1).toBe(1)
+    // The rows are still there: the note qualifies the list, it does not
+    // replace it.
+    expect(text).toContain('ClientOnlyName')
+    answers.crm_clients = saved
+  })
+})
+
+describe('the client list can be narrowed to clients or leads', () => {
+  const chip = (kind: string) =>
+    [
+      ...host.querySelectorAll<HTMLButtonElement>('.crm__filter .crm__chip'),
+    ].find(b => b.textContent?.startsWith(`crm.clients.filter.${kind}`))!
+
+  it('opens on all, with counts in the chips', async () => {
+    serve()
+    await draw()
+    expect(chip('all').getAttribute('aria-pressed')).toBe('true')
+    expect(chip('all').textContent).toBe('crm.clients.filter.all 2')
+    expect(chip('clients').textContent).toBe('crm.clients.filter.clients 1')
+    expect(chip('leads').textContent).toBe('crm.clients.filter.leads 1')
+    expect(host.querySelectorAll('.crm__row--client').length).toBe(2)
+  })
+
+  it('clients keeps the paid one, leads keeps the other', async () => {
+    serve()
+    await draw()
+    await act(async () => {
+      chip('clients').click()
+    })
+    let names = [...host.querySelectorAll('.crm__row--client')].map(r =>
+      String(r.textContent)
+    )
+    expect(names.length).toBe(1)
+    expect(names[0]).toContain('ClientOnlyName')
+
+    await act(async () => {
+      chip('leads').click()
+    })
+    names = [...host.querySelectorAll('.crm__row--client')].map(r =>
+      String(r.textContent)
+    )
+    expect(names.length).toBe(1)
+    expect(names[0]).toContain('LeadRowOnlyName')
+    expect(chip('leads').getAttribute('aria-pressed')).toBe('true')
+    // Filtering is local: nothing was asked of the server again.
+    expect(calls.filter(c => c.name === 'crm_clients').length).toBe(1)
+  })
+
+  it('a stage of client or winback counts as a client even when unpaid', async () => {
+    const saved = answers.crm_clients as Record<string, unknown>
+    answers.crm_clients = {
+      clients: [
+        {
+          telegram_id: '1',
+          name: 'WinbackOnly',
+          stage: 'winback',
+          paid: false,
+        },
+        { telegram_id: '2', name: 'PlainLeadOnly', stage: 'new', paid: false },
+        { telegram_id: '3', name: 'PaidNewOnly', stage: 'new', paid: true },
+      ],
+      paid_known: false,
+    }
+    serve()
+    await draw()
+    await act(async () => {
+      chip('clients').click()
+    })
+    const text = [...host.querySelectorAll('.crm__row--client')]
+      .map(r => String(r.textContent))
+      .join('|')
+    expect(text).toContain('WinbackOnly')
+    expect(text).toContain('PaidNewOnly')
+    expect(text).not.toContain('PlainLeadOnly')
+    expect(chip('clients').textContent).toBe('crm.clients.filter.clients 2')
+    expect(chip('leads').textContent).toBe('crm.clients.filter.leads 1')
+    answers.crm_clients = saved
   })
 })

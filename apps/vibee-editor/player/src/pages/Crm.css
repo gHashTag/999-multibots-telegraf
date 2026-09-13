@@ -194,3 +194,66 @@
   font-weight: 500;
   color: var(--text-muted, #888);
 }
+
+/* The name is a way IN -- to the client's own page -- so it is the primary
+   colour; the t.me link beside it is a small secondary control. */
+.crm__open {
+  color: var(--vibee-green, #00ff88);
+  text-decoration: none;
+}
+
+.crm__stage a {
+  color: var(--text-muted, #888);
+  text-decoration: underline;
+}
+
+/* THE CLIENT LIST FILTER. Three chips, one lit. Counts sit inside the chip
+   so the owner sees how many clients and how many leads without tapping. */
+.crm__filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.crm__chip {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #fff);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.crm__chip--on {
+  color: #000;
+  background: var(--vibee-green, #00ff88);
+  border-color: var(--vibee-green, #00ff88);
+}
+
+/* Paid is a fact from payments, not a stage from touches, so it is a small
+   badge beside the stage rather than a stage of its own. */
+.crm__badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+
+.crm__badge--paid {
+  color: #000;
+  background: var(--vibee-green, #00ff88);
+}
+
+/* Payments could not be read: every "paid" mark is missing for lack of data.
+   Gold, the colour this app uses for "look here". */
+.crm__paid-unknown {
+  color: var(--vibee-gold, #ffd700);
+}
