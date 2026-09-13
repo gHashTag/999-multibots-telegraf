@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
-import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
+import { agentMessagesAtomFor, agentDraftAtom } from '@/atoms/agentChat'
 import { sendToAgent, agentBusyAtom, isAgentBusy } from '@/lib/agentStream'
 import {
   shouldAdoptHistory,
@@ -97,12 +98,59 @@ const SUGGESTIONS = [
   'Что ты знаешь обо мне?',
 ]
 
+/**
+ * WHICH THREAD THIS SCREEN SHOWS.
+ *
+ * `/chat` is the person's own thread and behaves exactly as before. On
+ * `/crm/:clientId/chat` the same screen shows the thread ABOUT one client:
+ * its own storage key, `?client=` on history reads and clears, `client` in
+ * the chat request. The owner asked for this in one sentence -- every client
+ * was landing in one place -- and the split is the whole feature.
+ *
+ * The thread is a `key` on the inner component, so moving from one client to
+ * another remounts it: the mount-once effects below (history fetch, greeting)
+ * then run for the new thread instead of keeping the old one on screen.
+ */
+/**
+ * First questions ABOUT a client. They point at the client's data -- profile,
+ * plan, last DMs -- not at the agent's general abilities.
+ */
+const CLIENT_SUGGESTIONS = [
+  'Что мы знаем об этом клиенте?',
+  'Где он в контент-плане и что снять дальше?',
+  'Что ответить ему следующим сообщением?',
+]
+
 function ChatPage() {
+  const { clientId } = useParams<{ clientId?: string }>()
+  const client = clientId && /^\d{5,15}$/.test(clientId) ? clientId : null
+  return <ChatThread key={client ?? 'self'} client={client} />
+}
+
+/** The query-string suffix that names the thread, or nothing for self. */
+const clientQuery = (client: string | null, first: boolean) =>
+  client ? `${first ? '?' : '&'}client=${encodeURIComponent(client)}` : ''
+
+function ChatThread({ client }: { client: string | null }) {
   const { t } = useLanguage()
   // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
-  const [messages, setMessages] = useAtom(agentMessagesAtom)
+  const messagesAtom = useMemo(() => agentMessagesAtomFor(client), [client])
+  const [messages, setMessages] = useAtom(messagesAtom)
   const [input, setInput] = useAtom(agentDraftAtom)
+  // The greeting of a client thread is short and names the client: the long
+  // self greeting sells the agent, which the owner has already bought.
+  const welcome: Message = useMemo(
+    () =>
+      client
+        ? {
+            id: 'welcome',
+            role: 'assistant',
+            text: t('crm.client.chat.welcome', { id: client }),
+          }
+        : WELCOME,
+    [client, t]
+  )
   // Занятость — в атоме: она принадлежит разговору, а не странице.
   const busy = useAtomValue(agentBusyAtom)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
@@ -306,7 +354,7 @@ function ChatPage() {
       ) {
         return
       }
-      fetch(`${API_BASE}/api/agent/history?limit=100`, {
+      fetch(`${API_BASE}/api/agent/history?limit=100${clientQuery(client, false)}`, {
         headers: authHeaders(),
       })
         .then(response => (response.ok ? response.json() : null))
@@ -342,7 +390,7 @@ function ChatPage() {
   // это стирало бы разговор при каждом возврате.
   useEffect(() => {
     if (messages.length > 0) return
-    setMessages([WELCOME])
+    setMessages([welcome])
     // Один раз на монтировании: messages читается ради проверки «пусто ли»,
     // в зависимостях ему делать нечего — иначе эффект пересчитается на каждое
     // новое сообщение.
@@ -378,12 +426,12 @@ function ChatPage() {
   const send = useCallback(
     (text: string) => {
       if ((!text.trim() && attachments.length === 0) || uploading) return
-      void sendToAgent(text, attachments)
+      void sendToAgent(text, attachments, { client })
       setInput('')
       setAttachments([])
       setAttachmentError(null)
     },
-    [attachments, setInput, uploading]
+    [attachments, client, setInput, uploading]
   )
 
   const uploadAttachments = useCallback(
@@ -448,6 +496,16 @@ function ChatPage() {
           не повторяем, иначе название дублируется на экране дважды. */}
       {/* The greeting lives in the list as the agent's first message and
           scrolls away with it; the toolbar keeps only the two controls. */}
+      {client ? (
+        <nav className="chat-client" aria-label={t('crm.client.chat.title', { id: client })}>
+          <Link to={`/crm/${client}`} className="chat-client__back">
+            ← {t('crm.client.chat.back')}
+          </Link>
+          <span className="chat-client__title">
+            {t('crm.client.chat.title', { id: client })}
+          </span>
+        </nav>
+      ) : null}
       <div className="chat-toolbar">
         {/* Переписка теперь переживает уход со страницы — значит нужен и
           способ её закончить. Без этой кнопки старый разговор оставался
@@ -470,10 +528,13 @@ function ChatPage() {
                * он виден в консоли, а следующий заход покажет, что история
                * вернулась, и это честнее, чем ложное «очищено».
                */
-              setMessages([WELCOME])
+              // In a client thread this clears THAT thread only: the
+              // `?client=` names it, and the server never touches the self
+              // thread on a scoped delete.
+              setMessages([welcome])
               setInput('')
               setAttachments([])
-              fetch(`${API_BASE}/api/agent/history`, {
+              fetch(`${API_BASE}/api/agent/history${clientQuery(client, true)}`, {
                 method: 'DELETE',
                 headers: authHeaders(),
               }).catch(e => console.error('[chat] очистка на сервере:', e))
@@ -584,7 +645,7 @@ function ChatPage() {
 
           {messages.length <= 1 ? (
             <div className="suggestions">
-              {SUGGESTIONS.map((s, i) => (
+              {(client ? CLIENT_SUGGESTIONS : SUGGESTIONS).map((s, i) => (
                 <button
                   key={i}
                   className="suggestion-btn"

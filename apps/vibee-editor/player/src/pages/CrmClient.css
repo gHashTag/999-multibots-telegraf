@@ -1,0 +1,195 @@
+/*
+ * ONE CLIENT'S PAGE.
+ *
+ * Builds on Crm.css -- same panels, same rows, same tokens -- and adds only
+ * what a single-client view needs: a way back, one big green way into the
+ * chat, a progress bar, and two compact lists (timeline, DM excerpt).
+ * No chart library: a plan is one bar, and a bar is a div.
+ */
+
+.crm-client__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.crm-client__head h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-client__crumb {
+  font-size: 13px;
+  color: var(--text-muted, #888);
+  text-decoration: none;
+}
+
+/* THE PRIMARY ACTION. The only full-width green thing on the page: talking
+   about this client is what the page is for. */
+.crm-client__chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target, 44px);
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #000;
+  background: var(--vibee-green, #00ff88);
+  border-radius: 12px;
+  text-decoration: none;
+}
+
+.crm-client__chat:active {
+  transform: translateY(1px);
+}
+
+/* Profile / SOUL / skills: a mark, not a number, because "has a SOUL" is a
+   yes or a no. The tick is green, the dash is quiet. */
+.crm-client__marks dd[data-mark='yes'] {
+  color: var(--vibee-green, #00ff88);
+}
+
+.crm-client__marks dd[data-mark='no'] {
+  color: var(--text-muted, #888);
+}
+
+.crm-client__chips {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.crm-client__chips li {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #fff);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crm-client__chips li.crm-client__chip--fail {
+  border-color: rgba(255, 215, 0, 0.55);
+  color: var(--vibee-gold, #ffd700);
+}
+
+/* THE PLAN IS ONE BAR. */
+.crm-client__bar {
+  height: 8px;
+  margin: 0 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.crm-client__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--vibee-green, #00ff88);
+  transition: width 240ms ease;
+}
+
+/* Duet runs: state decides the left edge. Failed and lost are gold, the
+   colour this app uses for "look here", not red -- nothing here is broken,
+   somebody just needs to know. */
+.crm-client__duet {
+  border-left: 3px solid rgba(255, 255, 255, 0.16);
+}
+
+.crm-client__duet--done {
+  border-left-color: rgba(0, 255, 136, 0.6);
+}
+
+.crm-client__duet--running {
+  border-left-color: rgba(255, 255, 255, 0.5);
+}
+
+.crm-client__duet--failed,
+.crm-client__duet--lost {
+  border-left-color: rgba(255, 215, 0, 0.7);
+}
+
+/* Timeline: touches and media, one line each. */
+.crm-client__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crm-client__timeline li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-primary, #fff);
+}
+
+.crm-client__timeline a {
+  color: var(--vibee-green, #00ff88);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.crm-client__time {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #888);
+}
+
+.crm-client__kind {
+  flex: none;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #888);
+}
+
+/* The DM excerpt: theirs on the left, ours tinted, like the chat page. */
+.crm-client__dm {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crm-client__dm li {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  max-width: 92%;
+}
+
+.crm-client__dm li.crm-client__dm--out {
+  align-self: flex-end;
+  background: rgba(0, 255, 136, 0.08);
+}
+
+.crm-client__dm p {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-primary, #fff);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.crm-client__waiting {
+  color: var(--vibee-green, #00ff88);
+  font-weight: 600;
+}

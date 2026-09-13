@@ -1,5 +1,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/useLanguage', () => ({
@@ -74,6 +75,22 @@ const answers: Record<string, unknown> = {
     ],
   },
   crm_touch: { saved: true },
+  crm_clients: {
+    clients: [
+      {
+        telegram_id: '555',
+        name: 'ClientOnlyName',
+        username: 'clientonly',
+        client: 'Leela',
+        has_profile: true,
+        has_soul: false,
+        skills: 2,
+        stage: 'client',
+        last_seen: '2026-09-12T10:00:00Z',
+        duets: 7,
+      },
+    ],
+  },
 }
 
 let calls: Array<{ name: string; args: Record<string, unknown> }> = []
@@ -129,9 +146,14 @@ afterEach(() => {
 async function draw() {
   const { default: CrmPage } = await import('./Crm')
   await act(async () => {
-    root.render(<CrmPage />)
+    // Rows link to `/crm/:clientId`, and a <Link> needs a router around it.
+    root.render(
+      <MemoryRouter>
+        <CrmPage />
+      </MemoryRouter>
+    )
   })
-  // Let the three parallel loads settle.
+  // Let the parallel loads settle.
   await act(async () => {
     await new Promise(r => setTimeout(r, 0))
   })
@@ -285,5 +307,35 @@ describe('the buttons record, they do not send', () => {
     serve()
     await draw()
     expect(host.textContent).toContain('crm.note')
+  })
+})
+
+describe('every person on the list is a way into their own page', () => {
+  it('client rows and lead rows link to /crm/:clientId', async () => {
+    /*
+     * Spec: t27 specs/automation/crm-client-workspace.t27 -- "the list links
+     * to the client page". Before this the row went to t.me and nowhere in
+     * the app; the per-client page existed for nobody.
+     */
+    serve()
+    await draw()
+    const text = String(host.textContent)
+    expect(text).toContain('crm.clients.title')
+    expect(text).toContain('ClientOnlyName')
+    expect(text).toContain('@clientonly')
+    expect(text).toContain('crm.clients.duets:7')
+    const hrefs = [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    expect(hrefs).toContain('/crm/555')
+    expect(hrefs).toContain('/crm/111')
+    expect(hrefs).toContain('/crm/444')
+    // The t.me link is still there, as the secondary control.
+    expect(hrefs).toContain('https://t.me/p')
+  })
+
+  it('an unreachable client list says so rather than showing nobody', async () => {
+    serve({ fail: ['crm_clients'] })
+    await draw()
+    expect(host.textContent).not.toContain('crm.clients.none')
+    expect(host.textContent).toContain('crm.unreachable')
   })
 })

@@ -194,3 +194,15 @@
   font-weight: 500;
   color: var(--text-muted, #888);
 }
+
+/* The name is a way IN -- to the client's own page -- so it is the primary
+   colour; the t.me link beside it is a small secondary control. */
+.crm__open {
+  color: var(--vibee-green, #00ff88);
+  text-decoration: none;
+}
+
+.crm__stage a {
+  color: var(--text-muted, #888);
+  text-decoration: underline;
+}

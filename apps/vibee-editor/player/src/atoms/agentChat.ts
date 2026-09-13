@@ -2,7 +2,7 @@
 // Переписка с агентом — вкладка «Агент» (/chat)
 // ===============================
 
-import { atom } from 'jotai'
+import { atom, type WritableAtom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import { STORAGE_KEYS } from '@vibee/atoms'
 
@@ -77,20 +77,58 @@ const storedMessagesAtom = atomWithStorage<Message[]>(
   { getOnInit: true }
 )
 
-/** История переписки. Пишется с обрезкой хвоста — свежее важнее старого. */
-export const agentMessagesAtom = atom(
-  get => get(storedMessagesAtom),
-  (get, set, update: Message[] | ((prev: Message[]) => Message[])) => {
-    const prev = get(storedMessagesAtom)
-    const next = typeof update === 'function' ? update(prev) : update
-    set(
-      storedMessagesAtom,
-      next.length > MAX_STORED_MESSAGES
-        ? next.slice(next.length - MAX_STORED_MESSAGES)
-        : next
+type MessagesUpdate = Message[] | ((prev: Message[]) => Message[])
+export type MessagesAtom = WritableAtom<Message[], [MessagesUpdate], void>
+
+/** Trim the tail on write -- the fresh end of a conversation matters more. */
+function trimmed(stored: WritableAtom<Message[], [Message[]], void>): MessagesAtom {
+  return atom(
+    get => get(stored),
+    (get, set, update: MessagesUpdate) => {
+      const prev = get(stored)
+      const next = typeof update === 'function' ? update(prev) : update
+      set(
+        stored,
+        next.length > MAX_STORED_MESSAGES
+          ? next.slice(next.length - MAX_STORED_MESSAGES)
+          : next
+      )
+    }
+  )
+}
+
+/** The person's own thread (`/chat`). Unchanged key, unchanged behaviour. */
+export const agentMessagesAtom: MessagesAtom = trimmed(storedMessagesAtom)
+
+/**
+ * ONE THREAD PER CLIENT.
+ *
+ * The owner's complaint, verbatim: every client's conversation landed in one
+ * place. A thread about a client is keyed by that client -- on the server as
+ * `thread='client:<id>'`, here as its own localStorage entry -- so clearing or
+ * reading one never touches another, and never touches the self thread.
+ *
+ * A small keyed record rather than jotai's atomFamily: the set of clients on
+ * one device is tiny, and a Map we own is one less import to reason about.
+ */
+export const clientThreadStorageKey = (clientId: string): string =>
+  `${STORAGE_KEYS.agentChat}:client:${clientId}`
+
+const clientThreads = new Map<string, MessagesAtom>()
+
+export function agentMessagesAtomFor(clientId: string | null | undefined): MessagesAtom {
+  if (!clientId) return agentMessagesAtom
+  let found = clientThreads.get(clientId)
+  if (!found) {
+    found = trimmed(
+      atomWithStorage<Message[]>(clientThreadStorageKey(clientId), [], undefined, {
+        getOnInit: true,
+      })
     )
+    clientThreads.set(clientId, found)
   }
-)
+  return found
+}
 
 /**
  * Недописанное сообщение.
