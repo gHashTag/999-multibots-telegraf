@@ -977,7 +977,19 @@ export async function execute(
           }
           throw e
         }
-        if (sent !== null) await mirrorSent(ctx, p, sent)
+        if (sent !== null) {
+          // The bot will see this message come back as "the owner typed";
+          // remember the id so it does not pause the AI (see agent-sent.ts).
+          if (p.lead) {
+            const { recordAgentSent } = await import('./agent-sent')
+            recordAgentSent(
+              ctx.telegramId,
+              p.lead,
+              (sent as { id?: unknown } | null | undefined)?.id
+            )
+          }
+          await mirrorSent(ctx, p, sent)
+        }
         if (p.lead && ctx.pool) {
           try {
             const { recordTouch } = await import('./crm-touches')

@@ -65,8 +65,10 @@ export async function threadFor(
   if (rawClient == null || rawClient === '')
     return { ok: true, thread: SELF_THREAD, client: null }
   const client = String(rawClient).trim()
-  if (!CLIENT_ID_RE.test(client)) return { ok: false, status: 400, error: 'bad client' }
-  if (client === String(owner)) return { ok: false, status: 400, error: 'bad client' }
+  if (!CLIENT_ID_RE.test(client))
+    return { ok: false, status: 400, error: 'bad client' }
+  if (client === String(owner))
+    return { ok: false, status: 400, error: 'bad client' }
   let seller = false
   try {
     const { isSeller } = await import('./telegram-tools')
@@ -695,7 +697,8 @@ export async function handleAgentHistory(
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
     const pool = await getPool()
-    const реплики = await прочитатьРазговор( // cyrillic-ok: pre-existing identifiers
+    const реплики = await прочитатьРазговор(
+      // cyrillic-ok: pre-existing identifiers
       pool,
       telegramId,
       предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ, // cyrillic-ok: pre-existing identifiers
@@ -803,7 +806,8 @@ export async function handleAgentHistoryAppend(
     const pool = await getPool()
     let stored = 0
     for (const turn of turns) {
-      const ok = await записатьРеплику( // cyrillic-ok: pre-existing writer
+      const ok = await записатьРеплику(
+        // cyrillic-ok: pre-existing writer
         pool,
         telegramId,
         {
@@ -913,6 +917,52 @@ export async function handleAgentKeys(
   }
 
   return json(res, 405, { ok: false, error: 'метод не поддержан' })
+}
+
+/**
+ * POST /api/crm/agent-sent — the bot asks: did the agent send this message?
+ *
+ * Telegram Business returns a confirmed proposal to the bot as a message
+ * FROM THE OWNER, and the bot's rule "the owner typed here -> the AI pauses
+ * for 30 minutes" fired on the agent's own sends (measured 2026-09-13; see
+ * agent-sent.ts). Body: `{ lead, msg_id }`; the owner is the verified
+ * identity. Answer: `{ ok: true, agent: boolean }`.
+ */
+export async function handleCrmAgentSent(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string
+) {
+  const answer = (code: number, body: unknown) => {
+    res.writeHead(code, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(body))
+  }
+  let body: any = {}
+  try {
+    const chunks: Buffer[] = []
+    for await (const chunk of req as AsyncIterable<Buffer | string>) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+      if (chunks.reduce((n, c) => n + c.length, 0) > 4_000) break
+    }
+    body = chunks.length
+      ? JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      : {}
+  } catch {
+    return answer(400, { error: 'body: JSON' })
+  }
+  const lead = String(body?.lead ?? '').trim()
+  if (!/^\d{5,15}$/.test(lead)) {
+    return answer(400, { error: 'lead: числовой telegram_id человека' })
+  }
+  const msgId = Number(body?.msg_id)
+  if (!Number.isFinite(msgId) || msgId <= 0) {
+    return answer(400, { error: 'msg_id: номер сообщения Telegram' })
+  }
+  const { wasAgentSent } = await import('./agent-sent')
+  return answer(200, {
+    ok: true,
+    agent: wasAgentSent(String(telegramId), lead, msgId),
+  })
 }
 
 /**

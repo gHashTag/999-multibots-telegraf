@@ -46,6 +46,7 @@ export const LEAD_VERBS = [
   'refuse!',
   'back',
   'mute',
+  'unmute',
 ] as const
 export const SCOPE_VERBS = [
   'waiting',
@@ -60,7 +61,7 @@ export const SCOPE_VERBS = [
 
 export const CRM_ROOT_RE = /^crm:(menu|leads|summary|sweep|model|ingest|plan)$/
 export const CRM_LEAD_RE =
-  /^crm:(lead|prep|later|refuse!?|back|mute):(\d{5,15})$/
+  /^crm:(lead|prep|later|refuse!?|back|mute|unmute):(\d{5,15})$/
 export const CRM_SCOPE_RE =
   /^crm:scope:(waiting|hot|talk|due|ours|winback|stop|status)$/
 
@@ -264,6 +265,22 @@ export function dmLeadMenu(chatId: string | number) {
       btn('⏰ Позже', crmCallback('later', id)),
       btn('🚫 Отказ', crmCallback('refuse', id)),
     ],
+  ])
+}
+
+/**
+ * Under the owner's "the AI is paused here" notice and after 🤫: give the
+ * chat back to the AI before the pause runs out.
+ */
+export function aiPausedMenu(chatId: string | number) {
+  const id = String(chatId)
+  if (!LEAD_ID_RE.test(id)) return undefined
+  return keyboard([
+    [
+      btn('🤖 Вернуть ИИ', crmCallback('unmute', id)),
+      btn('👤 Кто это', crmCallback('lead', id)),
+    ],
+    [btn('✍️ Подготовить ответ', crmCallback('prep', id))],
   ])
 }
 

@@ -48,6 +48,7 @@ import {
   afterSentKeyboard,
   afterCancelKeyboard,
   afterTurnKeyboard,
+  aiPausedMenu,
   failKeyboard,
   summaryKeyboard,
   nextOf,
@@ -3165,8 +3166,20 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       await sendLong(
         ctx,
         n
-          ? `🤫 Молчу в этом чате 30 минут — отвечаешь ты.`
+          ? `🤫 Молчу в этом чате 30 минут — отвечаешь ты. Вернуть ИИ раньше — кнопкой.`
           : '🤫 Бизнес-подключения нет — в этом чате бот и так не отвечает.',
+        n ? aiPausedMenu(id) : afterTurnKeyboard(id)
+      )
+      return
+    }
+    if (verb === 'unmute') {
+      const { resumeAiFor } = await import('@/services/businessBotService')
+      const n = resumeAiFor(id, Number(ctx.from?.id))
+      await sendLong(
+        ctx,
+        n
+          ? '🤖 ИИ снова отвечает в этом чате.'
+          : '🤖 ИИ там и не молчал — пауза уже кончилась или её не было.',
         afterTurnKeyboard(id)
       )
       return
