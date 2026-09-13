@@ -310,7 +310,7 @@ const PROMPTS: Record<'image' | 'audio', string> = {
   audio:
     'Transcribe this recording verbatim. Keep the original language. Output only the words spoken, nothing else.',
   image:
-    'Describe in 2-3 sentences what is on the image and read any visible text verbatim. Answer in the language of the text on the image, or in Russian if there is none.',
+    'Describe in 2-3 sentences what is on the image and quote any visible text verbatim in its original language. Write the description itself in Russian.',
 }
 
 /** The one provider that perceives this kind, in the configured order. */
@@ -452,6 +452,43 @@ export class DescribeFailed extends Error {
   constructor(kind: MediaKind, name: string | null) {
     super(`describe failed: ${kind} ${name ?? ''}`)
   }
+}
+
+/** Message ids of this lead's files the ingest already holds. */
+export async function storedIngestMsgIds(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<Set<number>> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `SELECT msg_id FROM user_media
+      WHERE owner_id = $1 AND lead_id = $2 AND surface = 'ingest' AND msg_id IS NOT NULL`,
+    [owner, lead]
+  )
+  return new Set(
+    (r.rows as Array<{ msg_id: number }>).map(x => Number(x.msg_id))
+  )
+}
+
+/**
+ * One row per (message, file) for the ingest surface: keep the earliest,
+ * drop the copies an earlier pass downloaded again under a new shelf URL.
+ */
+export async function dropDuplicateIngestRows(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<number> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `DELETE FROM user_media d USING user_media k
+      WHERE d.owner_id = $1 AND d.lead_id = $2 AND d.surface = 'ingest'
+        AND k.owner_id = d.owner_id AND k.lead_id = d.lead_id AND k.surface = d.surface
+        AND k.msg_id = d.msg_id AND k.id < d.id`,
+    [owner, lead]
+  )
+  return Number((r as { rowCount?: number }).rowCount ?? 0)
 }
 
 /**
