@@ -26,6 +26,7 @@
  */
 
 import { planTools } from './plan-tools'
+import { INNGEST_TOOLS } from './inngest-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import {
@@ -2462,6 +2463,12 @@ TOOLS.push(...PROJECT_TOOLS)
  * owner sees their bots, everyone else sees only themselves.
  */
 TOOLS.push(...HIVE_TOOLS)
+/*
+ * The Inngest function catalogue (both apps, read live), runs and invocation.
+ * Keeper-only, like hive_queen: function names carry paths and internal state.
+ * One catalogue tool instead of a hundred per-function tools (inngest-tools.ts).
+ */
+TOOLS.push(...INNGEST_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.
