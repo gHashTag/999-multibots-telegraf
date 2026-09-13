@@ -527,6 +527,26 @@ export async function dropDuplicateIngestRows(
 }
 
 /**
+ * Drop the transcripts of one kind for one lead so they are read again
+ * (the owner asked: descriptions made before the Russian-only prompt).
+ * Returns how many rows were cleared.
+ */
+export async function forgetTranscripts(
+  pool: Pool,
+  owner: string,
+  lead: string,
+  kind: 'image' | 'audio'
+): Promise<number> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `UPDATE user_media SET transcript = NULL, transcribed_at = NULL
+      WHERE owner_id = $1 AND lead_id = $2 AND kind = $3 AND transcript IS NOT NULL`,
+    [owner, lead, kind]
+  )
+  return Number((r as { rowCount?: number }).rowCount ?? 0)
+}
+
+/**
  * Forget failed attempts for one lead so `pendingTranscripts` offers the
  * rows again. Only image and audio: video and binary files are final nulls.
  */

@@ -194,6 +194,24 @@ describe('user_media table', () => {
   })
 })
 
+describe('forgetTranscripts', () => {
+  it('clears only the asked kind of one lead and reports the count', async () => {
+    const { forgetTranscripts } = await import('./src/agent/media-library')
+    const seen: Array<{ sql: string; params: unknown[] }> = []
+    const pool = {
+      async query(sql: string, params: unknown[] = []) {
+        seen.push({ sql: sql.replace(/\s+/g, ' ').trim(), params })
+        return { rows: [], rowCount: /UPDATE user_media/.test(sql) ? 4 : 0 }
+      },
+    }
+    expect(await forgetTranscripts(pool as never, OWNER, LEAD, 'image')).toBe(4)
+    const upd = seen.find(q => q.sql.startsWith('UPDATE user_media'))!
+    expect(upd.sql).toContain('SET transcript = NULL, transcribed_at = NULL')
+    expect(upd.sql).toContain('kind = $3 AND transcript IS NOT NULL')
+    expect(upd.params).toEqual([OWNER, LEAD, 'image'])
+  })
+})
+
 describe('the token guard', () => {
   it('rememberMedia refuses a Telegram file link before touching the database', async () => {
     const { rememberMedia, forgetMediaTableForTests } =
