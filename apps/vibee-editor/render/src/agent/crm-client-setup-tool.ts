@@ -52,7 +52,9 @@ export function skillNameFromMarkdown(md: string, fallback: string): string {
   return raw.startsWith(SKILL_PREFIX) ? raw : SKILL_PREFIX + raw
 }
 
-export function loadClientPackage(client: string = DEFAULT_CLIENT): ClientPackage {
+export function loadClientPackage(
+  client: string = DEFAULT_CLIENT
+): ClientPackage {
   const safe = client.replace(/[^a-z0-9_-]/gi, '')
   const dir = join(CLIENTS_DIR, safe)
   if (!safe || !existsSync(join(dir, 'profile.json'))) {
@@ -68,26 +70,77 @@ export function loadClientPackage(client: string = DEFAULT_CLIENT): ClientPackag
         .sort()
         .map(f => {
           const content = readFileSync(join(skillsDir, f), 'utf8').trim()
-          return { name: skillNameFromMarkdown(content, f.replace(/\.md$/, '')), content }
+          return {
+            name: skillNameFromMarkdown(content, f.replace(/\.md$/, '')),
+            content,
+          }
         })
     : []
   return { client: safe, soul, profile, skills }
 }
 
 /** The twelve reel ideas the seller proposes, one canonical plan each. */
-export const REEL_SERIES: { title: string; plan: number | null; note: string }[] = [
-  { title: 'Вход только с шестёрки — план 6 «Заблуждение (моха)»', plan: 6, note: 'Крючок: «Следующий ход — не обязательно следующий бросок».' },
-  { title: '68 на старте — ещё не победа', plan: 68, note: 'Начальное состояние хранит 68 до входа; победа — только точное попадание.' },
-  { title: '68 «Космическое Сознание» — Цветок Жизни без цифры', plan: 68, note: 'Единственная клетка без номера на доске.' },
-  { title: '72 → 51: последний номер поля — не финиш', plan: 72, note: 'Змея Тамогуны возвращает на 51.' },
-  { title: '12 → 8: змея Зависти', plan: 12, note: 'Змея меняет положение фишки, не ваше достоинство.' },
-  { title: '17 → 69: стрела Сострадания', plan: 17, note: 'Стрела — не награда, а движение.' },
-  { title: '26 «Милосердие (даана)» — читать план без ярлыка', plan: 26, note: 'Название клетки не приписывается человеку.' },
-  { title: '55 → 3: змея Эгоизма', plan: 55, note: 'Самая длинная змея доски.' },
-  { title: '63 → 2: змея Тамаса', plan: 63, note: 'Из ряда Сахасрары — в первый ряд.' },
-  { title: 'Отчёт — не экзамен на правильный смысл', plan: null, note: 'Одна фраза вместо дневника; несогласие — тоже отчёт.' },
+export const REEL_SERIES: {
+  title: string
+  plan: number | null
+  note: string
+}[] = [
+  {
+    title: 'Вход только с шестёрки — план 6 «Заблуждение (моха)»',
+    plan: 6,
+    note: 'Крючок: «Следующий ход — не обязательно следующий бросок».',
+  },
+  {
+    title: '68 на старте — ещё не победа',
+    plan: 68,
+    note: 'Начальное состояние хранит 68 до входа; победа — только точное попадание.',
+  },
+  {
+    title: '68 «Космическое Сознание» — Цветок Жизни без цифры',
+    plan: 68,
+    note: 'Единственная клетка без номера на доске.',
+  },
+  {
+    title: '72 → 51: последний номер поля — не финиш',
+    plan: 72,
+    note: 'Змея Тамогуны возвращает на 51.',
+  },
+  {
+    title: '12 → 8: змея Зависти',
+    plan: 12,
+    note: 'Змея меняет положение фишки, не ваше достоинство.',
+  },
+  {
+    title: '17 → 69: стрела Сострадания',
+    plan: 17,
+    note: 'Стрела — не награда, а движение.',
+  },
+  {
+    title: '26 «Милосердие (даана)» — читать план без ярлыка',
+    plan: 26,
+    note: 'Название клетки не приписывается человеку.',
+  },
+  {
+    title: '55 → 3: змея Эгоизма',
+    plan: 55,
+    note: 'Из ряда Сахасрары в нижний ряд, 52 клетки; не «самая длинная» (63→2 длиннее).',
+  },
+  {
+    title: '63 → 2: змея Тамаса',
+    plan: 63,
+    note: 'Из ряда Сахасрары — в первый ряд.',
+  },
+  {
+    title: 'Отчёт — не экзамен на правильный смысл',
+    plan: null,
+    note: 'Одна фраза вместо дневника; несогласие — тоже отчёт.',
+  },
   { title: '46 → 62: стрела Различения', plan: 46, note: 'Аджна → Сахасрара.' },
-  { title: 'Групповой стол: один вопрос, разные планы', plan: null, note: 'Формат для канала: каждый приходит со своим вопросом.' },
+  {
+    title: 'Групповой стол: один вопрос, разные планы',
+    plan: null,
+    note: 'Формат для канала: каждый приходит со своим вопросом.',
+  },
 ]
 
 /**
@@ -202,7 +255,10 @@ export interface SetupReport {
   telegram_id: string
   dry_run: boolean
   soul: 'created' | 'kept_hers' | 'overwritten' | 'empty_package'
-  skills: { name: string; result: 'created' | 'identical' | 'conflict' | 'overwritten' }[]
+  skills: {
+    name: string
+    result: 'created' | 'identical' | 'conflict' | 'overwritten'
+  }[]
   profile: 'written'
   plan: { goal: 'created' | 'exists'; items_added: number }
 }
@@ -314,7 +370,11 @@ export async function setupClient(
         const r = await ctx.pool.query(
           `INSERT INTO content_plan_goals (telegram_id, title, intent)
            VALUES ($1, $2, $3) RETURNING id`,
-          [id, REEL_GOAL_TITLE, 'Привести на доску со своим вопросом — один план, один рил.'] // cyrillic-ok
+          [
+            id,
+            REEL_GOAL_TITLE,
+            'Привести на доску со своим вопросом — один план, один рил.',
+          ] // cyrillic-ok
         )
         goalId = r.rows[0]?.id ?? null
       }
@@ -332,7 +392,13 @@ export async function setupClient(
           await ctx.pool.query(
             `INSERT INTO content_plan_items (goal_id, telegram_id, title, note, template_id)
              VALUES ($1, $2, $3, $4, $5)`,
-            [goalId, id, it.title, it.plan == null ? it.note : `План ${it.plan}. ${it.note}`, 'LeelaPlanReel'] // cyrillic-ok
+            [
+              goalId,
+              id,
+              it.title,
+              it.plan == null ? it.note : `План ${it.plan}. ${it.note}`,
+              'LeelaPlanReel',
+            ] // cyrillic-ok
           )
         }
       }
@@ -371,8 +437,7 @@ export async function clientProfileFor(
   if (!p.rows.length) {
     return {
       has_profile: false,
-      hint:
-        'Профиль клиента не настроен. Начни с вопросов: где аудитория, что уже публикует, какой результат за месяц был бы удачей.',
+      hint: 'Профиль клиента не настроен. Начни с вопросов: где аудитория, что уже публикует, какой результат за месяц был бы удачей.',
       has_soul: soul.rows.length > 0,
       skills: skills.rows.map((r: { name: string }) => r.name),
     }
@@ -481,12 +546,33 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        client: { type: 'string', description: 'имя пакета в src/agent/clients (по умолчанию playom)' },
-        telegram_id: { type: 'string', description: 'Telegram ID клиента (по умолчанию 435572800)' },
-        overwrite_soul: { type: 'boolean', description: 'заменить существующий SOUL клиента (по умолчанию false)' },
-        overwrite_skills: { type: 'boolean', description: 'заменить скиллы с другим содержимым (по умолчанию false)' },
-        with_plan: { type: 'boolean', description: 'создать цель и 12 карточек серии рилс (по умолчанию true)' },
-        dry_run: { type: 'boolean', description: 'только показать план действий (по умолчанию false)' },
+        client: {
+          type: 'string',
+          description: 'имя пакета в src/agent/clients (по умолчанию playom)',
+        },
+        telegram_id: {
+          type: 'string',
+          description: 'Telegram ID клиента (по умолчанию 435572800)',
+        },
+        overwrite_soul: {
+          type: 'boolean',
+          description:
+            'заменить существующий SOUL клиента (по умолчанию false)',
+        },
+        overwrite_skills: {
+          type: 'boolean',
+          description:
+            'заменить скиллы с другим содержимым (по умолчанию false)',
+        },
+        with_plan: {
+          type: 'boolean',
+          description:
+            'создать цель и 12 карточек серии рилс (по умолчанию true)',
+        },
+        dry_run: {
+          type: 'boolean',
+          description: 'только показать план действий (по умолчанию false)',
+        },
       },
       additionalProperties: false,
     },
@@ -524,13 +610,18 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        telegram_id: { type: 'string', description: 'Telegram ID клиента (по умолчанию 435572800)' },
+        telegram_id: {
+          type: 'string',
+          description: 'Telegram ID клиента (по умолчанию 435572800)',
+        },
       },
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       if (!ctx || !(await isSeller(ctx))) {
-        throw new Error('Профиль клиента читает только продавец с подключённым Telegram.')
+        throw new Error(
+          'Профиль клиента читает только продавец с подключённым Telegram.'
+        )
       }
       const telegramId = String(args.telegram_id ?? DEFAULT_CLIENT_ID).trim()
       return clientProfileFor(ctx, telegramId)

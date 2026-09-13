@@ -76,15 +76,63 @@ export interface LeelaRow {
 
 /** Eight rows, bottom -> top. */
 export const ROWS: LeelaRow[] = [
-  { index: 1, plans: [1, 9], chakraRu: 'Муладхара', chakraEn: 'Muladhara', inlay: '#8c3a2a' },
-  { index: 2, plans: [10, 18], chakraRu: 'Свадхистхана', chakraEn: 'Svadhisthana', inlay: '#b5612a' },
-  { index: 3, plans: [19, 27], chakraRu: 'Манипура', chakraEn: 'Manipura', inlay: '#b8912f' },
-  { index: 4, plans: [28, 36], chakraRu: 'Анахата', chakraEn: 'Anahata', inlay: '#35624a' },
-  { index: 5, plans: [37, 45], chakraRu: 'Вишуддха', chakraEn: 'Vishuddha', inlay: '#4a7a8c' },
-  { index: 6, plans: [46, 54], chakraRu: 'Аджна', chakraEn: 'Ajna', inlay: '#2f5fd0' },
+  {
+    index: 1,
+    plans: [1, 9],
+    chakraRu: 'Муладхара',
+    chakraEn: 'Muladhara',
+    inlay: '#8c3a2a',
+  },
+  {
+    index: 2,
+    plans: [10, 18],
+    chakraRu: 'Свадхистхана',
+    chakraEn: 'Svadhisthana',
+    inlay: '#b5612a',
+  },
+  {
+    index: 3,
+    plans: [19, 27],
+    chakraRu: 'Манипура',
+    chakraEn: 'Manipura',
+    inlay: '#b8912f',
+  },
+  {
+    index: 4,
+    plans: [28, 36],
+    chakraRu: 'Анахата',
+    chakraEn: 'Anahata',
+    inlay: '#35624a',
+  },
+  {
+    index: 5,
+    plans: [37, 45],
+    chakraRu: 'Вишуддха',
+    chakraEn: 'Vishuddha',
+    inlay: '#4a7a8c',
+  },
+  {
+    index: 6,
+    plans: [46, 54],
+    chakraRu: 'Аджна',
+    chakraEn: 'Ajna',
+    inlay: '#2f5fd0',
+  },
   // Rows 7-8: colours are an editorial inference, not canon (see LeelaRow.inlay).
-  { index: 7, plans: [55, 63], chakraRu: 'Сахасрара', chakraEn: 'Sahasrara', inlay: '#6b4a8c' },
-  { index: 8, plans: [64, 72], chakraRu: 'за пределами чакр', chakraEn: 'beyond the chakras', inlay: '#e0b544' },
+  {
+    index: 7,
+    plans: [55, 63],
+    chakraRu: 'Сахасрара',
+    chakraEn: 'Sahasrara',
+    inlay: '#6b4a8c',
+  },
+  {
+    index: 8,
+    plans: [64, 72],
+    chakraRu: 'за пределами чакр',
+    chakraEn: 'beyond the chakras',
+    inlay: '#e0b544',
+  },
 ]
 
 export interface BoardCell {
@@ -131,7 +179,7 @@ export const PLANS: Record<LeelaLang, PlanRecord[]> = {
  */
 const HOOKS: Record<LeelaLang, Record<number, string[]>> = {
   ru: {
-    6: ['Первая клетка игры называется Заблуждение. Не случайно.'],
+    6: ['Следующий ход — не обязательно следующий бросок.'],
     68: ['68 на старте — ещё не победа.'],
     72: ['Последний номер поля — не финиш.'],
     12: ['Змея меняет положение фишки, не ваше достоинство.'],
@@ -145,7 +193,7 @@ const HOOKS: Record<LeelaLang, Record<number, string[]>> = {
     24: ['Виноваты все вокруг — знакомый разговор?'],
   },
   en: {
-    6: ['The first square of the game is called Delusion. Not by chance.'],
+    6: ['The next move is not necessarily the next roll.'],
     68: ['68 at the start is not yet a win.'],
     72: ['The last number on the board is not the finish.'],
     12: ['A snake moves the piece, not your worth.'],
@@ -176,10 +224,12 @@ export interface PlanInfo {
 
 export function planInfo(plan: number, lang: LeelaLang = 'ru'): PlanInfo {
   const p = Math.min(PLAN_COUNT, Math.max(1, Math.floor(plan)))
-  const rec = PLANS[lang].find(r => r.plan === p) ?? PLANS.ru.find(r => r.plan === p)!
+  const rec =
+    PLANS[lang].find(r => r.plan === p) ?? PLANS.ru.find(r => r.plan === p)!
   const row = rowOf(p)
   const event: LeelaEvent = SNAKES[p] ? 'snake' : ARROWS[p] ? 'arrow' : 'none'
-  const to = event === 'snake' ? SNAKES[p] : event === 'arrow' ? ARROWS[p] : undefined
+  const to =
+    event === 'snake' ? SNAKES[p] : event === 'arrow' ? ARROWS[p] : undefined
   return {
     plan: p,
     title: rec.title,
