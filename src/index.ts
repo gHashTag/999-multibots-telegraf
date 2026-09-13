@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { isDev } from './config'
 import { ADMIN_IDS_ARRAY } from './config'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
@@ -53,6 +54,10 @@ import { setBotInstance } from './api_server/routes/kie-ai-webhook.routes'
 
 // ✅ Импортируем supabase для диагностики
 import { supabase } from './core/supabase'
+
+// Log-safe fingerprint of a secret: 8 hex chars of SHA-256, never the value itself.
+const secretFingerprint = (value: string): string =>
+  createHash('sha256').update(value).digest('hex').slice(0, 8)
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -780,9 +785,8 @@ async function startApplication() {
             if (key.startsWith('RENDER_INNGEST')) {
               console.log(`  ✅ ${key} загружен из Infisical`)
               console.log(`     📊 Длина ключа: ${value.length} символов`)
-              console.log(
-                `     🔑 Первые 20 символов: ${value.substring(0, 20)}...`
-              )
+              // Never print key material: only a short digest and the length.
+              console.log(`     🔑 SHA-256 prefix: ${secretFingerprint(value)}`)
 
               // Дополнительная проверка для EVENT_KEY
               if (key === 'RENDER_INNGEST_EVENT_KEY') {
@@ -829,10 +833,10 @@ async function startApplication() {
       const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
 
       console.log(
-        `  📊 RENDER_INNGEST_EVENT_KEY: ${renderEventKey ? `${renderEventKey.substring(0, 30)}... (${renderEventKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
+        `  📊 RENDER_INNGEST_EVENT_KEY: ${renderEventKey ? `${secretFingerprint(renderEventKey)} (${renderEventKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
       )
       console.log(
-        `  📊 RENDER_INNGEST_SIGNING_KEY: ${renderSigningKey ? `${renderSigningKey.substring(0, 30)}... (${renderSigningKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
+        `  📊 RENDER_INNGEST_SIGNING_KEY: ${renderSigningKey ? `${secretFingerprint(renderSigningKey)} (${renderSigningKey.length} символов)` : '❌ НЕ УСТАНОВЛЕН'}`
       )
 
       if (!renderEventKey || !renderSigningKey) {
