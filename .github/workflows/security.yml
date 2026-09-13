@@ -8,6 +8,9 @@ on:
   schedule:
     # Запускать еженедельно по воскресеньям в 3:00 UTC
     - cron: '0 3 * * 0'
+  workflow_dispatch:
+    # Manual and remote starts (the Queen scheduler on trios-agent-server
+    # dispatches this workflow through the GitHub API).
 
 # Необходимые права для security проверок
 permissions:
