@@ -281,6 +281,22 @@ const PUBLIC_EXACT = new Set([
   // The legacy path, kept because a platform that cached the old name would
   // otherwise silently lose us.
   '/.well-known/agent.json',
+  /*
+   * THE Z.AI RELAY IS GATED BY ITS OWN BEARER, NOT BY THE GUARD.
+   *
+   * Its only caller is zep's LLM client: a 2023 snapshot of langchaingo that
+   * can send exactly one credential -- the Authorization bearer (the Z.AI key
+   * zep holds as ZEP_OPENAI_API_KEY) -- and no X-Api-Key, no initData, ever.
+   * Measured in production 2026-09-13: the guard answered 401 before the
+   * relay's own check ran, so the freshly deployed route was unreachable.
+   *
+   * Not a relaxation: the relay (src/zai-relay.ts) refuses every caller whose
+   * bearer does not timing-safe-match GLM_API_KEY, fails closed without that
+   * key, and rebuilds the upstream Authorization from OUR env so it can never
+   * proxy a caller-chosen key. The guard would only add a credential the one
+   * legitimate caller is technically unable to send.
+   */
+  '/api/zai/relay/chat/completions',
   // POST /api/users/sync-from-telegram пропускается гвардом НАМЕРЕННО:
   // хендлер сам достаёт личность из подписи initData (или сверяет
   // dev-ключ с телом). Синк МОЖЕТ писать только своего владельца.
@@ -686,7 +702,10 @@ export function verifiedTelegramUsername(req: IncomingMessage): string | null {
     const raw = new URLSearchParams(initData).get('user')
     if (!raw) return null
     const u = JSON.parse(raw)?.username
-    const name = String(u ?? '').trim().replace(/^@/, '').toLowerCase()
+    const name = String(u ?? '')
+      .trim()
+      .replace(/^@/, '')
+      .toLowerCase()
     return name || null
   } catch {
     return null
