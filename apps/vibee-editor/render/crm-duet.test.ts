@@ -10,6 +10,7 @@ import {
   reportOf,
   sellerBrief,
   buyerPersona,
+  askBuyerModel,
   PAID_TOOLS,
   TURNS_MAX,
   type DuetRun,
@@ -251,5 +252,58 @@ describe('crm_duet tools', () => {
       'числовым'
     )
     expect(await status.handler({}, ctx)).toMatchObject({ found: false })
+  })
+
+  /*
+   * Live run duet-mtzmbvu1 (2026-09-13) failed with "buyer model HTTP 404"
+   * because the buyer asked only the first provider. The buyer must walk the
+   * whole chain like the seller does: 404 on the first, answer from the next.
+   */
+  it('buyer model falls back to the next provider on a failed status', async () => {
+    const calls: string[] = []
+    const doFetch = (async (url: string) => {
+      calls.push(url)
+      if (url.startsWith('https://bad')) {
+        return new Response('404 page not found', { status: 404 })
+      }
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: ' Покажи пример. ' } }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as unknown as typeof fetch
+    const providers = [
+      { id: 'bad', base: 'https://bad/v1', model: 'm1', key: 'k1' },
+      { id: 'good', base: 'https://good/v1', model: 'm2', key: 'k2' },
+    ]
+    const text = await askBuyerModel(
+      [{ role: 'user', content: 'привет' }],
+      providers,
+      doFetch
+    )
+    expect(text).toBe('Покажи пример.')
+    expect(calls).toEqual([
+      'https://bad/v1/chat/completions',
+      'https://good/v1/chat/completions',
+    ])
+  })
+
+  it('buyer model names every provider when all fail', async () => {
+    const doFetch = (async () =>
+      new Response('nope', { status: 500 })) as unknown as typeof fetch
+    await expect(
+      askBuyerModel(
+        [{ role: 'user', content: 'x' }],
+        [
+          { id: 'a', base: 'https://a', model: 'm', key: 'k' },
+          { id: 'b', base: 'https://b', model: 'm', key: 'k' },
+        ],
+        doFetch
+      )
+    ).rejects.toThrow('buyer model: a: HTTP 500; b: HTTP 500')
+    await expect(
+      askBuyerModel([{ role: 'user', content: 'x' }], [], doFetch)
+    ).rejects.toThrow('no provider configured')
   })
 })
