@@ -16,6 +16,9 @@ import {
   promisesFile,
   claimsDoneWork,
   producedWork,
+  isLimitError,
+  retryAllowed,
+  SELLER_RETRY_PAUSE_MS,
   summaryOf,
   askBuyerModel,
   buyerRequestBody,
@@ -55,9 +58,10 @@ type Sent = { from: string; to: string; text?: string; url?: string }
 function deps(
   sellerScript: Array<Array<Record<string, unknown>>>,
   buyerScript: string[]
-): { d: DuetDeps; sent: Sent[]; histories: ChatMessage[][] } {
+): { d: DuetDeps; sent: Sent[]; histories: ChatMessage[][]; slept: number[] } {
   const sent: Sent[] = []
   const histories: ChatMessage[][] = []
+  const slept: number[] = []
   let s = 0
   let b = 0
   const d: DuetDeps = {
@@ -76,8 +80,11 @@ function deps(
       sent.push({ from: String(from.telegramId), to, url })
     },
     now: () => 1000,
+    sleep: async ms => {
+      slept.push(ms)
+    },
   }
-  return { d, sent, histories }
+  return { d, sent, histories, slept }
 }
 
 const text = (t: string) => ({ тип: 'текст', текст: t }) // cyrillic-ok
@@ -622,9 +629,11 @@ describe('crm_duet claim honesty and aborted state (duet-mtzyg2t6, 2026-09-13)',
   })
 
   it('a provider failure on a later seller turn ends the run as failed with the turn error, 3 of 8 lines', async () => {
-    const { d } = deps(
+    // A limit is retried once (below); here both attempts hit it.
+    const { d, slept } = deps(
       [
         [text('Здравствуйте! Какой план вам ближе?')],
+        [{ тип: 'ошибка', текст: PROVIDER_ERR }], // cyrillic-ok
         [{ тип: 'ошибка', текст: PROVIDER_ERR }], // cyrillic-ok
       ],
       ['План 6.']
@@ -633,6 +642,8 @@ describe('crm_duet claim honesty and aborted state (duet-mtzyg2t6, 2026-09-13)',
     expect(run.state).toBe('failed')
     expect(run.transcript).toHaveLength(3)
     expect(run.transcript[2].error).toBe(PROVIDER_ERR)
+    expect(run.transcript[2].retried).toBe(PROVIDER_ERR)
+    expect(slept).toEqual([SELLER_RETRY_PAUSE_MS])
     expect(run.error).toBe(`turn 2: ${PROVIDER_ERR}`)
     expect(run.finished_at).toBeDefined()
     expect(reportOf(run)).toContain('failed')
@@ -645,5 +656,82 @@ describe('crm_duet claim honesty and aborted state (duet-mtzyg2t6, 2026-09-13)',
     const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
     expect(run.state).toBe('failed')
     expect(run.error).toBe('turn 1: buyer produced no text')
+  })
+})
+
+describe('crm_duet one retry on a provider limit (duet-mu00klri, 2026-09-13)', () => {
+  // The three live lines of the day, and one that must not be retried.
+  const ZAI_429 = 'zai: превышен лимит запросов' // cyrillic-ok
+  const NVIDIA_16 =
+    'nemotron: Error: nemotron прислал ошибку в потоке: {"message":"ResourceExhausted: Worker local total request limit reached (16/16)"}' // cyrillic-ok
+  const BAD_KEY = 'zai: ключ недействителен — перевыпустите и обновите переменную' // cyrillic-ok
+
+  it('isLimitError knows a limit from a dead key', () => {
+    expect(isLimitError(ZAI_429)).toBe(true)
+    expect(isLimitError(NVIDIA_16)).toBe(true)
+    expect(isLimitError('openai: rate limit exceeded')).toBe(true)
+    expect(isLimitError('HTTP 429 Too Many Requests')).toBe(true)
+    expect(isLimitError(BAD_KEY)).toBe(false)
+    expect(isLimitError(undefined)).toBe(false)
+  })
+
+  it('retryAllowed: once, only on a limit, never after a paid call', () => {
+    const free = [{ name: 'crm_client_profile', value: {}, ms: 1 }]
+    const paid = [{ name: 'image_generate', value: { done: true }, ms: 1 }]
+    expect(retryAllowed(0, ZAI_429, free)).toBe(true)
+    expect(retryAllowed(1, ZAI_429, free)).toBe(false)
+    expect(retryAllowed(0, BAD_KEY, free)).toBe(false)
+    expect(retryAllowed(0, ZAI_429, paid)).toBe(false)
+    expect(SELLER_RETRY_PAUSE_MS).toBe(30_000)
+  })
+
+  it('a limited first attempt waits once and the second attempt is the line that goes out', async () => {
+    const { d, sent, slept, histories } = deps(
+      [
+        [
+          result('crm_client_profile', { has_profile: false }),
+          { тип: 'ошибка', текст: ZAI_429 }, // cyrillic-ok
+        ],
+        [text('Гея, здравствуйте! Какой план сейчас ближе всего?')],
+      ],
+      ['План 6.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(slept).toEqual([SELLER_RETRY_PAUSE_MS])
+    expect(run.state).toBe('done')
+    expect(run.transcript[0].text).toContain('Какой план')
+    expect(run.transcript[0].retried).toBe(ZAI_429)
+    expect(run.transcript[0].error).toBeUndefined()
+    // Same history on the replay: the brief, nothing else.
+    expect(histories[1]).toEqual(histories[0])
+    // The free call of the failed attempt is still counted.
+    expect(run.coverage.crm_client_profile.calls).toBe(1)
+    expect(sent.filter(x => x.text)).toHaveLength(2)
+  })
+
+  it('a dead key is not retried: no pause, failed at once', async () => {
+    const { d, slept } = deps([[{ тип: 'ошибка', текст: BAD_KEY }]], []) // cyrillic-ok
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(slept).toEqual([])
+    expect(run.state).toBe('failed')
+    expect(run.error).toBe(`turn 0: ${BAD_KEY}`)
+    expect(run.transcript[0].retried).toBeUndefined()
+  })
+
+  it('a limited attempt that already paid for a generation is not replayed', async () => {
+    const { d, slept } = deps(
+      [
+        [
+          result('image_generate', { done: true, url: 'https://x/y.png' }),
+          { тип: 'ошибка', текст: ZAI_429 }, // cyrillic-ok
+        ],
+      ],
+      []
+    )
+    const run = await runDuet(freshRun({ turns: 1, dry_run: true }), ctx, d)
+    expect(slept).toEqual([])
+    // The file went out with no text; the run did not replay and did not pay twice.
+    expect(run.paid_calls).toBe(1)
+    expect(run.transcript[0].retried).toBeUndefined()
   })
 })
