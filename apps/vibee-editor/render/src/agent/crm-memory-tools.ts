@@ -23,6 +23,7 @@ import {
   transcribeAndMirror,
   pendingTranscripts,
   reopenUnread,
+  forgetTranscripts,
   storedIngestMsgIds,
   dropDuplicateIngestRows,
   mediaMessageText,
@@ -465,6 +466,13 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             'прочитать заново фото и аудио без расшифровки (например, после сбоя ' +
             'провайдера); расшифровки появятся в фоне',
         },
+        rewrite: {
+          type: 'string',
+          enum: [...MEDIA_KINDS],
+          description:
+            'вместе с reread: стереть уже имеющиеся описания этого вида (image | audio) ' +
+            'и прочитать их заново — например, когда старые описания пришли не по-русски',
+        },
       },
       required: ['lead'],
       additionalProperties: false,
@@ -481,8 +489,12 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         ? (a.kind as MediaKind)
         : undefined
       let rereadQueued: number | undefined
+      let forgotten: number | undefined
       if (a?.reread === true) {
         await dropDuplicateIngestRows(pool, owner, lead.id)
+        if (a?.rewrite === 'image' || a?.rewrite === 'audio') {
+          forgotten = await forgetTranscripts(pool, owner, lead.id, a.rewrite)
+        }
         await reopenUnread(pool, owner, lead.id)
         const again = await pendingTranscripts(pool, owner, lead.id, 100)
         rereadQueued = again.length
@@ -499,6 +511,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         display: lead.display ?? undefined,
         total: items.length,
         ...(rereadQueued !== undefined ? { reread_queued: rereadQueued } : {}),
+        ...(forgotten !== undefined ? { rewritten: forgotten } : {}),
         // Newest first. Their caption and their words framed; the URL, the
         // kind and the sizes are ours.
         items: items.map(x => ({
