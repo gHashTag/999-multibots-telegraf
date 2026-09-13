@@ -14,6 +14,7 @@ import {
   type HotLeads,
   type WaitingRow,
   type ClientRow,
+  type ClientsList,
   type Reached,
 } from '@/lib/crm'
 
@@ -40,12 +41,26 @@ import {
 
 const empty = <T,>(): Reached<T> => ({ reachable: true, data: null })
 
+/**
+ * WHO COUNTS AS A CLIENT in the list filter.
+ *
+ * Somebody who paid is a client whatever their touches say; somebody whose
+ * touches say `client` or `winback` is one even when payments could not be
+ * read. Everybody else is a lead. One predicate, used for the chips and the
+ * counts, so the two can never disagree.
+ */
+const isClient = (x: ClientRow) =>
+  x.paid || x.stage === 'client' || x.stage === 'winback'
+
+type ClientsFilter = 'all' | 'clients' | 'leads'
+
 export default function CrmPage() {
   const { t } = useLanguage()
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
-  const [clients, setClients] = useState<Reached<ClientRow[]>>(empty)
+  const [clients, setClients] = useState<Reached<ClientsList>>(empty)
+  const [clientsFilter, setClientsFilter] = useState<ClientsFilter>('all')
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
@@ -135,6 +150,21 @@ export default function CrmPage() {
   const o = overview.data
   const c = clients.data
 
+  const allClients = c?.clients ?? []
+  const onlyClients = allClients.filter(isClient)
+  const onlyLeads = allClients.filter(x => !isClient(x))
+  const shownClients =
+    clientsFilter === 'clients'
+      ? onlyClients
+      : clientsFilter === 'leads'
+        ? onlyLeads
+        : allClients
+  const filterChips: Array<[ClientsFilter, number]> = [
+    ['all', allClients.length],
+    ['clients', onlyClients.length],
+    ['leads', onlyLeads.length],
+  ]
+
   return (
     <div className="crm">
       <header className="crm__top">
@@ -213,33 +243,66 @@ export default function CrmPage() {
       {panel(
         t('crm.clients.title'),
         clients,
-        c && c.length === 0 ? (
+        c && allClients.length === 0 ? (
           <p className="crm__empty">{t('crm.clients.none')}</p>
         ) : (
-          <ul className="crm__list">
-            {(c ?? []).map(x => (
-              <li key={x.telegramId} className="crm__row crm__row--client">
-                <div className="crm__who">
-                  <Link to={`/crm/${x.telegramId}`} className="crm__open">
-                    {x.name || x.telegramId}
-                    {x.username ? (
-                      <span className="crm__muted"> @{x.username}</span>
-                    ) : null}
-                  </Link>
-                  <span className="crm__stage">{t(`crm.stage.${x.stage}`)}</span>
-                </div>
-                <p className="crm__why">
-                  {x.client ?? '—'}
-                  {' · '}
-                  {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
-                  {' · '}
-                  {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
-                  {' · '}
-                  {t('crm.clients.duets', { n: x.duets })}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <>
+            {c && !c.paidKnown ? (
+              // Payments could not be read: every `paid` below is false for
+              // lack of data, and the reader must not take it for a fact.
+              <p className="crm__counts crm__paid-unknown">
+                {t('crm.clients.paidUnknown')}
+              </p>
+            ) : null}
+            {c ? (
+              <div className="crm__filter" role="group">
+                {filterChips.map(([kind, n]) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className={`crm__chip${
+                      clientsFilter === kind ? ' crm__chip--on' : ''
+                    }`}
+                    aria-pressed={clientsFilter === kind}
+                    onClick={() => setClientsFilter(kind)}
+                  >
+                    {t(`crm.clients.filter.${kind}`)} {n}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <ul className="crm__list">
+              {shownClients.map(x => (
+                <li key={x.telegramId} className="crm__row crm__row--client">
+                  <div className="crm__who">
+                    <Link to={`/crm/${x.telegramId}`} className="crm__open">
+                      {x.name || x.telegramId}
+                      {x.username ? (
+                        <span className="crm__muted"> @{x.username}</span>
+                      ) : null}
+                    </Link>
+                    <span className="crm__stage">
+                      {x.paid ? (
+                        <span className="crm__badge crm__badge--paid">
+                          {t('crm.clients.paid')}
+                        </span>
+                      ) : null}
+                      {t(`crm.stage.${x.stage}`)}
+                    </span>
+                  </div>
+                  <p className="crm__why">
+                    {x.client ?? '—'}
+                    {' · '}
+                    {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
+                    {' · '}
+                    {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
+                    {' · '}
+                    {t('crm.clients.duets', { n: x.duets })}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
         )
       )}
 
