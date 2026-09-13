@@ -18,6 +18,8 @@ import { Readable } from 'node:stream'
  * would; anything it does not understand throws, so a wrong statement fails
  * the test instead of passing on an empty `rows: []`.
  */
+process.env.MEDIA_RETRY_BASE_MS = '0'
+process.env.MEDIA_DESCRIBE_PAUSE_MS = '0'
 const OWNER = '144022504'
 const LEAD = '900000001'
 const SHELF =
@@ -406,6 +408,30 @@ describe('describeMedia', () => {
         'brief.md'
       )
     ).toBe('hello from the brief')
+  })
+
+  it('a throttled provider (503) is asked again, and the second answer counts', async () => {
+    process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls += 1
+        if (calls === 1)
+          return new Response('{"error":"ResourceExhausted"}', { status: 503 })
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'слова из записи' } }],
+          }),
+          { status: 200 }
+        )
+      })
+    )
+    const { describeMedia } = await import('./src/agent/media-library')
+    expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')).toBe(
+      'слова из записи'
+    )
+    expect(calls).toBe(2)
   })
 
   it('a provider that fails is retryable: DescribeFailed, and the row stays pending', async () => {

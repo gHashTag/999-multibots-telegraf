@@ -120,7 +120,20 @@ const TRANSCRIPT_CAP = 4000
 /** Text-like documents are read up to this size; bigger ones are not fetched. */
 const TEXT_DOC_MAX_BYTES = 200 * 1024
 /** Hard ceiling on one describe call, provider or fetch. */
-const DESCRIBE_TIMEOUT_MS = 20_000
+/*
+ * Vision on the NVIDIA gateway measured 2026-09-13: 15-40 s per photo, and a
+ * burst of 33 files answered 503 "ResourceExhausted" on every second call.
+ * So: a longer deadline, a short pause between files, a retry with backoff
+ * on the throttle answers, and ONE queue per process however many callers.
+ */
+const DESCRIBE_TIMEOUT_MS = 45_000
+const RETRY_STATUS = new Set([429, 502, 503, 504])
+const RETRY_ATTEMPTS = 3
+const retryBaseMs = () => Number(process.env.MEDIA_RETRY_BASE_MS ?? 5_000)
+const pauseMs = () => Number(process.env.MEDIA_DESCRIBE_PAUSE_MS ?? 2_000)
+const sleep = (ms: number) =>
+  ms > 0 ? new Promise<void>(r => setTimeout(r, ms)) : Promise.resolve()
+let queueTail: Promise<unknown> = Promise.resolve()
 
 let tableReady = false
 /** For tests: the next call creates the table again. */
@@ -359,6 +372,24 @@ async function askProvider(
   kind: 'image' | 'audio',
   url: string
 ): Promise<string | null> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await askProviderOnce(p, kind, url)
+    } catch (e) {
+      const throttled =
+        (e as { retryable?: boolean })?.retryable === true ||
+        (e as { name?: string })?.name === 'AbortError'
+      if (!throttled || attempt >= RETRY_ATTEMPTS) throw e
+      await sleep(retryBaseMs() * attempt)
+    }
+  }
+}
+
+async function askProviderOnce(
+  p: Provider,
+  kind: 'image' | 'audio',
+  url: string
+): Promise<string | null> {
   const part =
     kind === 'image'
       ? { type: 'image_url', image_url: { url } }
@@ -384,7 +415,11 @@ async function askProvider(
   })
   if (!r.ok) {
     const body = await r.text().catch(() => '')
-    throw new Error(`${p.id} answered ${r.status}: ${body.slice(0, 160)}`)
+    const err = new Error(
+      `${p.id} answered ${r.status}: ${body.slice(0, 160)}`
+    ) as Error & { retryable?: boolean }
+    err.retryable = RETRY_STATUS.has(r.status)
+    throw err
   }
   const j: any = await r.json()
   const content = j?.choices?.[0]?.message?.content
@@ -588,14 +623,28 @@ export async function mirrorTranscript(
  * ceiling, and a burst of twelve at once would be a burst against the same
  * key the live chat uses. Runs in the background; callers `void` it.
  */
-export async function transcribeAndMirror(
+export function transcribeAndMirror(
+  pool: Pool,
+  owner: string,
+  rows: Array<MediaRow & { id: number }>
+): Promise<{ described: number; mirrored: number }> {
+  // One queue per process: a sweep and a reread must not race the gateway.
+  const run = queueTail.then(() => transcribeQueue(pool, owner, rows))
+  queueTail = run.catch(() => undefined)
+  return run
+}
+
+async function transcribeQueue(
   pool: Pool,
   owner: string,
   rows: Array<MediaRow & { id: number }>
 ): Promise<{ described: number; mirrored: number }> {
   let described = 0
   let mirrored = 0
+  let first = true
   for (const row of rows) {
+    if (!first) await sleep(pauseMs())
+    first = false
     try {
       const words = await describeMedia(row.url, row.kind, row.mime, row.name)
       await saveTranscript(pool, row.id, words)
