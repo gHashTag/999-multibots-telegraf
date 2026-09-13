@@ -407,6 +407,45 @@ describe('describeMedia', () => {
       )
     ).toBe('hello from the brief')
   })
+
+  it('a provider that fails is retryable: DescribeFailed, and the row stays pending', async () => {
+    process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('404 page not found', { status: 404 }))
+    )
+    const { describeMedia, DescribeFailed, transcribeAndMirror } =
+      await import('./src/agent/media-library')
+    await expect(
+      describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')
+    ).rejects.toBeInstanceOf(DescribeFailed)
+    const updates: string[] = []
+    const pool = {
+      async query(sql: string) {
+        if (/UPDATE user_media SET transcript/.test(sql)) updates.push(sql)
+        return { rows: [], rowCount: 0 }
+      },
+    }
+    const r = await transcribeAndMirror(pool as never, OWNER, [
+      {
+        id: 7,
+        lead: LEAD,
+        surface: 'ingest',
+        msgId: 1,
+        at: new Date(),
+        out: false,
+        kind: 'audio',
+        name: 'voice.ogg',
+        mime: 'audio/ogg',
+        bytes: 10,
+        url: SHELF,
+        tgFileUniqueId: null,
+        caption: null,
+      } as never,
+    ])
+    expect(r).toEqual({ described: 0, mirrored: 0 })
+    expect(updates).toEqual([])
+  })
 })
 
 describe('mirrorTranscript', () => {
