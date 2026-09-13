@@ -37,6 +37,15 @@ const READING = [
    * прочитать и не ответить — тоже долг.
    */
   'tg_unanswered',
+  /*
+   * Four deep reads (2026-09-13): media search by kind, the scheduled box,
+   * chat participants, common chats with a person. They read and never
+   * write; depth is capped, the socket closes, foreign text stays data.
+   */
+  'tg_media',
+  'tg_scheduled',
+  'tg_participants',
+  'tg_common_chats',
 ]
 const ACTING = ['tg_send', 'tg_forward', 'tg_read']
 

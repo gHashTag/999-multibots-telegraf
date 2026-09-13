@@ -599,7 +599,7 @@ import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS } from './hive-tools'
 import { record } from '../hive/journal'
-import { TELEGRAM_TOOLS, withClient } from './telegram-tools'
+import { TELEGRAM_TOOLS, withClient, COMPACT_HIDDEN } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
 
 export const TOOLS: AgentTool[] = [
@@ -765,8 +765,17 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        plan: { type: 'integer', minimum: 1, maximum: 72, description: 'номер плана' },
-        lang: { type: 'string', enum: ['ru', 'en'], description: 'язык текста, по умолчанию ru' },
+        plan: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 72,
+          description: 'номер плана',
+        },
+        lang: {
+          type: 'string',
+          enum: ['ru', 'en'],
+          description: 'язык текста, по умолчанию ru',
+        },
       },
       required: ['plan'],
       additionalProperties: false,
@@ -791,7 +800,8 @@ export const TOOLS: AgentTool[] = [
         voice_check: hits.length
           ? `стоп-лист задет: ${hits.join(', ')} — перед рендером перепроверь текст`
           : 'чисто: без слов давления, цен и обещаний',
-        подсказка: // cyrillic-ok: existing field name
+        // cyrillic-ok: existing field name
+        подсказка:
           'Рендер — reel_render с compositionId LeelaPlanReel и этими props. ' +
           'Название клетки человеку не приписывать; змея — не наказание, стрела — не награда.',
       }
@@ -2496,6 +2506,10 @@ export const COMPACT_TOOLS = /^(crm_|tg_|soul_)/
  * Which tools a provider is shown. The full catalogue is ~9k tokens of
  * schemas; a model with a 4k-16k window cannot hold it beside the prompt
  * and the conversation, so a compact provider gets the seller's kit only.
+ *
+ * COMPACT_HIDDEN (telegram-tools.ts) removes the deep Telegram reads from
+ * the kit: `^tg_` alone would let every new reader in, and the kit's token
+ * budget is pinned by a test in provider.test.ts.
  */
 export function toolsForProvider<T extends { name: string }>(
   p: { compact?: boolean } | undefined,
@@ -2503,7 +2517,9 @@ export function toolsForProvider<T extends { name: string }>(
 ): T[] {
   if (!p?.compact) return all
   return all.filter(
-    t => COMPACT_TOOLS.test(t.name) || t.name === 'image_generate'
+    t =>
+      (COMPACT_TOOLS.test(t.name) || t.name === 'image_generate') &&
+      !COMPACT_HIDDEN.has(t.name)
   )
 }
 

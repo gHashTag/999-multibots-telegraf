@@ -729,13 +729,14 @@ const VERBATIM = { parseMode: false } as const
 const LOOKS_NUMERIC = /^-?\d+$/
 
 /**
- * Send, warming the address book first if the target is a bare id.
+ * Run `attempt`, warming the address book first if the target is a bare id
+ * and only that is what failed.
  *
- * ── WHY THIS IS NOT JUST `sendMessage` ────────────────────────────────────
+ * ── WHY THIS IS NOT JUST THE CALL ITSELF ──────────────────────────────────
  *
  * `client()` builds a BRAND NEW `TelegramClient` on every call, and a
  * `StringSession` carries only dcId, server, port and auth key -- no entities.
- * GramJS resolves the peer inside send (`getInputEntity`), and for a bare
+ * GramJS resolves the peer inside the call (`getInputEntity`), and for a bare
  * numeric id every fast path is empty on a fresh client: the per-instance
  * entity cache is populated only by results of calls made on that same
  * instance, and `checkAuthorization` (`updates.GetState`) carries no users or
@@ -755,12 +756,17 @@ const LOOKS_NUMERIC = /^-?\d+$/
  *
  * `getDialogs` is what a real client does on startup: its result carries the
  * users and chats, and GramJS feeds them into the session and the cache. One
- * extra round trip, taken ONLY when the first attempt fails, so a @username
- * send stays a single call.
+ * extra round trip, taken ONLY when the first attempt fails AND the target is
+ * numeric, so a @username call stays a single round trip and a global search
+ * (no target at all) never warms.
+ *
+ * Shared by the send paths here and by the reading tools in
+ * telegram-tools.ts -- the empty entity cache is a property of the client,
+ * not of what the call was going to do.
  */
-async function withAddressBook<T>(
-  c: SendingClient,
-  target: string,
+export async function resolvingPeer<T>(
+  c: { getDialogs: (opts: { limit: number }) => Promise<unknown> },
+  target: string | undefined,
   attempt: () => Promise<T>
 ): Promise<T> {
   try {
@@ -768,7 +774,8 @@ async function withAddressBook<T>(
   } catch (e) {
     const text = e instanceof Error ? e.message : String(e)
     const unresolved = /input entity|Could not find/i.test(text)
-    if (!unresolved || !LOOKS_NUMERIC.test(target)) throw e
+    if (!unresolved || target === undefined || !LOOKS_NUMERIC.test(target))
+      throw e
   }
   await c.getDialogs({ limit: 200 })
   return attempt()
@@ -779,7 +786,7 @@ export async function sendWithAddressBook(
   target: string,
   message: string
 ): Promise<unknown> {
-  return withAddressBook(c, target, () =>
+  return resolvingPeer(c, target, () =>
     c.sendMessage(target, { message, ...VERBATIM })
   )
 }
@@ -861,7 +868,7 @@ export async function sendFileWithAddressBook(
    * into the closure below.
    */
   const send = c.sendFile.bind(c)
-  return withAddressBook(c, target, () =>
+  return resolvingPeer(c, target, () =>
     send(target, { file: media.url, caption: caption ?? '', ...VERBATIM })
   )
 }

@@ -134,12 +134,15 @@ describe('what a small model is shown', () => {
     const all = [
       'crm_offer',
       'tg_send',
+      'tg_media',
       'soul_get',
       'image_generate',
       'reel_render',
       'audio_generate',
       'my_assets',
     ].map(name => ({ name }))
+    // tg_media matches /^tg_/ and is STILL hidden: the deep reads are for
+    // big-context models, and the kit's budget is pinned by the next test.
     expect(toolsForProvider({ compact: true }, all).map(t => t.name)).toEqual([
       'crm_offer',
       'tg_send',
@@ -164,6 +167,18 @@ describe('what a small model is shown', () => {
     expect(chars / 3.2).toBeLessThan(6000)
     expect(kit.some(t => t.name === 'crm_offer')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send')).toBe(true)
+    // The conversational core stays; the deep reads do not.
+    for (const stays of ['tg_dialogs', 'tg_history', 'tg_send']) {
+      expect(kit.some(t => t.name === stays)).toBe(true)
+    }
+    for (const hidden of [
+      'tg_media',
+      'tg_scheduled',
+      'tg_participants',
+      'tg_common_chats',
+    ]) {
+      expect(kit.some(t => t.name === hidden)).toBe(false)
+    }
   })
 })
 
