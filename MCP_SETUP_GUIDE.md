@@ -38,7 +38,10 @@ claude mcp add inngest-mcp "bun run src/inngest_app/mcp-server.ts"
   "mcpServers": {
     "inngest-mcp": {
       "command": "bun",
-      "args": ["run", "/Users/playra/999-agents-telegraf/worktrees/reels-callback-2/src/inngest_app/mcp-server.ts"],
+      "args": [
+        "run",
+        "/Users/playra/999-agents-telegraf/worktrees/reels-callback-2/src/inngest_app/mcp-server.ts"
+      ],
       "env": {
         "INNGEST_DEV_URL": "http://127.0.0.1:8288"
       }
@@ -85,9 +88,11 @@ npm run test:inngest:mcp
 После подключения MCP к Claude Code, будут доступны следующие инструменты:
 
 ### 1. send_event
+
 Отправка события для триггера функций
 
 **Пример:**
+
 ```typescript
 {
   "name": "test/simple",
@@ -99,12 +104,15 @@ npm run test:inngest:mcp
 ```
 
 ### 2. list_functions
+
 Получение списка зарегистрированных функций
 
 ### 3. invoke_function
+
 Прямой вызов функции
 
 **Пример:**
+
 ```typescript
 {
   "function_id": "testSimpleFunction",
@@ -115,9 +123,11 @@ npm run test:inngest:mcp
 ```
 
 ### 4. get_run_status
+
 Проверка статуса выполнения функции
 
 **Пример:**
+
 ```typescript
 {
   "run_id": "01K977BKJEP571GQZ8PBX78QE4"
@@ -125,9 +135,11 @@ npm run test:inngest:mcp
 ```
 
 ### 5. poll_run_status
+
 Polling статуса до завершения
 
 **Пример:**
+
 ```typescript
 {
   "run_id": "01K977BKJEP571GQZ8PBX78QE4",
@@ -140,6 +152,7 @@ Polling статуса до завершения
 Откройте в браузере: **http://127.0.0.1:8288**
 
 Здесь вы увидите:
+
 - Список зарегистрированных приложений
 - Список функций
 - История запусков
@@ -189,14 +202,14 @@ bun run src/inngest_app/mcp-server.ts
 
 ## 📊 Текущие Сервисы
 
-| Сервис | URL | Статус |
-|--------|-----|--------|
-| Inngest Dev Server | http://127.0.0.1:8288 | ✅ Running |
-| Inngest Dashboard | http://127.0.0.1:8288 | ✅ Available |
-| Test App | http://localhost:3000 | ✅ Running |
-| Test App Health | http://localhost:3000/health | ✅ OK |
-| Inngest Endpoint | http://localhost:3000/api/inngest | ✅ Registered |
-| MCP Server | stdio | ⚠️ Not running yet |
+| Сервис             | URL                               | Статус             |
+| ------------------ | --------------------------------- | ------------------ |
+| Inngest Dev Server | http://127.0.0.1:8288             | ✅ Running         |
+| Inngest Dashboard  | http://127.0.0.1:8288             | ✅ Available       |
+| Test App           | http://localhost:3000             | ✅ Running         |
+| Test App Health    | http://localhost:3000/health      | ✅ OK              |
+| Inngest Endpoint   | http://localhost:3000/api/inngest | ✅ Registered      |
+| MCP Server         | stdio                             | ⚠️ Not running yet |
 
 ## 🚀 Следующие Шаги
 
@@ -224,3 +237,27 @@ bun run src/inngest_app/mcp-server.ts
 **Готово к использованию!** 🎉
 
 Теперь вы можете использовать MCP для тестирования Inngest функций через Claude Code.
+
+## Inngest на Railway (production dev-server) — MCP по HTTP
+
+Сервер `inngest/inngest` из проекта Railway отдаёт MCP прямо по HTTP, без локального `mcp-server.ts`:
+
+```bash
+claude mcp add --transport http inngest-dev https://inngestinngest-production-c468.up.railway.app/mcp
+```
+
+То же самое лежит в `.mcp.json` в корне репозитория — Claude Code подхватывает его сам. Инструменты: `get_apps`, `list_functions`, `list_function_runs`, `get_run_trace`, `invoke_function`, `rerun`, `cancel_run`, `grep_docs`.
+
+[измерено 2026-09-13] `initialize` и `tools/list` отвечают без ключа; `get_apps` и всё, что ходит в REST API v2, отвечают `401 Authentication failed`, пока в окружении сервера не задан ключ, который MCP предъявляет API (см. `INNGEST_*` переменные сервиса на Railway).
+
+### Обход продавца (CRM) — теперь функция `crm-proactive-sweep`
+
+С 2026-09-12 тридцатиминутный обход продавца — cron-функция Inngest `telegram-bot-client-crm-proactive-sweep` (`src/inngest_app/functions/crm/crmProactiveSweep.ts`), а не `setInterval` в процессе бота. Каждый обход — отдельный run с трассой:
+
+```
+list_function_runs  function_id=telegram-bot-client-crm-proactive-sweep
+get_run_trace       run_id=<id>          # шаг "sweep": did=card|idle|held|busy|failed|paused, ms, owner
+invoke_function     ... crm-proactive-sweep   # внеочередной обход (или /sweep в боте)
+```
+
+Переключатель: `CRM_SWEEP_DRIVER=inngest` (по умолчанию) | `timer` (старый интервал); `CRM_PROACTIVE_MINUTES=0` выключает оба.

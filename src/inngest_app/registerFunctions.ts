@@ -71,6 +71,9 @@ import { renderFunction } from './functions/render/render'
 import { renderAvatarVideoFunction } from './functions/render/renderAvatarVideo'
 import { renderRiddleFunction } from './functions/render/renderRiddle'
 
+// CRM Functions
+import { crmProactiveSweep } from './functions/crm/crmProactiveSweep'
+
 // Analytics Functions
 import { dailySalesAdvisor } from './functions/analytics/dailySalesAdvisor'
 import { skillDetector } from './functions/analytics/skillDetector'
@@ -145,6 +148,10 @@ const allFunctionsRaw = [
   // Analytics (2)
   dailySalesAdvisor,
   skillDetector,
+
+  // CRM (1): the seller's 30-min tick, moved from setInterval to a cron run
+  // so every sweep has a trace (CRM_SWEEP_DRIVER=timer restores the interval).
+  crmProactiveSweep,
 
   // Existing (3)
   generateAIReelsFunction,
