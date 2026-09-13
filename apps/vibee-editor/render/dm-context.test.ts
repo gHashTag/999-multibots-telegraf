@@ -121,7 +121,11 @@ describe('the DM stance', () => {
 
   it("the owner's playbook says the same: no price, no link, no pay-first", async () => {
     const { salesPlaybook } = await import('./src/agent/crm-playbook')
-    const p = salesPlaybook({ surface: 'bot', telegramId: '144022504' })
+    const p = salesPlaybook({
+      surface: 'bot',
+      telegramId: '144022504',
+      seller: true,
+    })
     expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     expect(p).toContain('next=talk')
     expect(p).not.toContain('Цена сразу')

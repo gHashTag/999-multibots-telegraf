@@ -173,15 +173,16 @@ describe("it proposes, and the press is somebody else's", () => {
     expect(waiting!.action).toBe('send')
   })
 
-  it('a stranger cannot sell from the owner account', async () => {
+  it('a person without a connected account cannot sell', async () => {
     stubNet()
     const { tool, q } = await seller()
+    // ownerCtx's pool answers every query with no rows: no tg_sessions row.
     await expect(
       tool.handler(
         { chat: '@pilot_client' },
         { ...(ownerCtx() as any), telegramId: '999' }
       )
-    ).rejects.toThrow('владельцу')
+    ).rejects.toThrow('не подключён')
     expect(q.pendingCount()).toBe(0)
   })
 

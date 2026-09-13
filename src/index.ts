@@ -1018,9 +1018,11 @@ async function startApplication() {
       const ownerId =
         process.env.CRM_PROACTIVE_OWNER ||
         String(ADMIN_IDS_ARRAY[0] || '144022504')
-      const { startCrmProactive, setCrmCarrier, sweepDriver } = await import(
-        '@/services/crmProactive'
-      )
+      const { startCrmProactive, setCrmCarrier, sweepDriver, parseOwnerIds } =
+        await import('@/services/crmProactive')
+      // Every seller, not one: CRM_PROACTIVE_OWNERS pins the list; unset, the
+      // tick asks the render's crm_sellers (everyone with a connected account).
+      const ownerIds = parseOwnerIds(process.env.CRM_PROACTIVE_OWNERS)
       // The daily plan: CRM_PLAN=0 turns it off; CRM_PLAN_HOUR and CRM_PLAN_TZ
       // say when, in the owner's zone (default 9, Europe/Moscow).
       const planOn = (process.env.CRM_PLAN ?? '1') !== '0'
@@ -1031,6 +1033,7 @@ async function startApplication() {
       const planTz = process.env.CRM_PLAN_TZ || 'Europe/Moscow'
       const tick = {
         ownerId,
+        ...(ownerIds.length ? { ownerIds } : {}),
         ...(planOn ? { plan: { hour: planHour, tz: planTz } } : {}),
       }
       /*

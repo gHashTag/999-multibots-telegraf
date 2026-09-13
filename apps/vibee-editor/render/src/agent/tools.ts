@@ -586,6 +586,7 @@ import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
+import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS } from './hive-tools'
 import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS, withClient } from './telegram-tools'
@@ -2391,6 +2392,7 @@ TOOLS.push(
 )
 TOOLS.push(...CRM_MEMORY_TOOLS)
 TOOLS.push(...CRM_SUMMARY_TOOLS)
+TOOLS.push(...CRM_SELLERS_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project

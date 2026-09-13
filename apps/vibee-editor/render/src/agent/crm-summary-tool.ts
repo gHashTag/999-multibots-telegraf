@@ -13,7 +13,7 @@
  */
 
 import type { AgentTool, ToolContext } from './tools'
-import { requireOwner } from './telegram-tools'
+import { requireSeller } from './telegram-tools'
 import { leadCandidates, type LeadCandidate } from './chat-memory'
 import {
   touchedSince,
@@ -233,7 +233,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(a: Record<string, any>, ctx?: ToolContext) {
-      requireOwner(ctx)
+      await requireSeller(ctx)
       const owner = String(ctx?.telegramId)
       const pool = ctx?.pool as never
       const days = clampDays(a?.days)

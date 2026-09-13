@@ -268,13 +268,14 @@ describe('crm_summary', () => {
     })
   })
 
-  it('anybody but the owner is refused before any query', async () => {
+  it('a person without a connected account is refused before any CRM query', async () => {
     const tool = await summaryTool()
     const pool = fakePool()
     await expect(tool.handler({}, ctxFor('999', pool))).rejects.toThrow(
-      'владельцу'
+      'не подключён'
     )
-    expect(pool.queries).toEqual([])
+    // The gate's own lookup of the caller's row is the only query allowed.
+    expect(pool.queries.filter(q => !/tg_sessions/.test(q))).toEqual([])
   })
 
   it('a database that is down for the people count still yields the rest', async () => {

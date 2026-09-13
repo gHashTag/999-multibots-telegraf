@@ -180,11 +180,11 @@ afterEach(() => {
 })
 
 describe('crm_ingest_chats', () => {
-  it('refuses anybody but the owner before touching Telegram', async () => {
+  it('refuses a person without a connected account before touching Telegram', async () => {
     const f = fakeClient()
     const { ingest } = await tools(f.client)
     await expect(ingest.handler({}, ctxFor('999'))).rejects.toThrow(
-      'принадлежит владельцу'
+      'не подключён'
     )
     expect(f.calls).toEqual([])
   })
@@ -388,12 +388,18 @@ describe('the ingest remembers who people are', () => {
   })
 })
 
-describe("the playbook is the owner's", () => {
-  it('is empty for anybody else, on any surface', async () => {
+describe("the playbook is every seller's", () => {
+  it('is shown to a seller and empty for anybody else, on any surface', async () => {
     const { salesPlaybook } = await import('./src/agent/crm-playbook')
-    expect(salesPlaybook({ surface: 'bot', telegramId: OWNER })).toContain(
-      'crm_leads'
-    )
+    expect(
+      salesPlaybook({ surface: 'bot', telegramId: OWNER, seller: true })
+    ).toContain('crm_leads')
+    // @playom: not the owner, but a connected account -- a seller.
+    expect(
+      salesPlaybook({ surface: 'bot', telegramId: '435572800', seller: true })
+    ).toContain('crm_leads')
+    // The id alone decides nothing any more: the caller computes `seller`.
+    expect(salesPlaybook({ surface: 'bot', telegramId: OWNER })).toBe('')
     expect(salesPlaybook({ surface: 'bot', telegramId: '999' })).toBe('')
     expect(salesPlaybook({ surface: 'web', telegramId: undefined })).toBe('')
   })

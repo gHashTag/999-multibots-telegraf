@@ -33,8 +33,7 @@ import type { AgentTool, ToolContext } from './tools'
 import {
   propose,
   client,
-  requireOwner,
-  OWNER_TELEGRAM_ID,
+  requireSeller,
 } from './telegram-tools'
 import { hangUp } from './hang-up'
 import { mintTokenInvoice } from './token-invoice'
@@ -102,7 +101,8 @@ export async function resolveLead(
      * in `users` and within this owner's visibility. Somebody not in the base
      * is named by @username, which Telegram resolves for real.
      */
-    if (raw === OWNER_TELEGRAM_ID)
+    // Against the CALLER: the seller who asks, not the platform owner.
+    if (raw === String(ctx?.telegramId ?? ''))
       throw new Error('предложение самому себе не имеет смысла')
     const known = await reachable(ctx, raw).catch(() => ({
       ok: false as const,
@@ -182,9 +182,9 @@ export async function resolveLead(
       )
     }
     // 'me' and 'this' are GramJS aliases for the caller's own account, so
-    // they resolve to the owner: a link that would pay the owner with the
-    // owner's own Stars, sent to Saved Messages.
-    if (id === OWNER_TELEGRAM_ID)
+    // they resolve to the seller themselves: a link that would pay the seller
+    // with their own Stars, sent to Saved Messages.
+    if (id === String(ctx?.telegramId ?? ''))
       throw new Error('предложение самому себе не имеет смысла')
     return {
       id,
@@ -293,7 +293,7 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
        * be refused. Reproduced by the pre-merge probe. Nothing here moves
        * before this line.
        */
-      requireOwner(ctx)
+      await requireSeller(ctx)
       const chat = String(a?.chat ?? '').trim()
       const tokens =
         Number(a?.tokens) > 0 ? Math.floor(Number(a.tokens)) : DEFAULT_TOKENS
