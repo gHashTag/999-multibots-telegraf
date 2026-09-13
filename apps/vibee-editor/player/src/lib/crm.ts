@@ -472,6 +472,8 @@ export interface DuetRun {
   violations: string[]
   voiceFlags: string[]
   lines: number
+  /** Why a `failed` run stopped (the turn and its error); null otherwise. */
+  error: string | null
 }
 
 const strings = (v: unknown): string[] =>
@@ -503,6 +505,7 @@ function toDuetRuns(r: Record<string, unknown>): DuetRun[] {
       violations: strings(x['violations']),
       voiceFlags: strings(x['voice_flags']),
       lines: num(x['lines']) ?? 0,
+      error: str(x['error']),
     }
   })
 }
