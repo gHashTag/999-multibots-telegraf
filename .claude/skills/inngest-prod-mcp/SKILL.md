@@ -55,15 +55,15 @@ data-инструменты из REST API v2, но собирает внутре
 `eventId`. Путь `{run_id}` подставляется из `runId`; для GET остальные аргументы
 уходят в query, для POST — в JSON-тело.
 
-| Инструмент | Зачем |
-|---|---|
-| `get_apps`, `get_app` | что задеплоено (`telegram-bot-client`, sdk, число функций) |
-| `list_functions`, `get_function` | слаги и триггеры (`telegram-bot-client-<id>`) |
-| `list_runs`, `list_function_runs`, `get_event_runs` | последние запуски, статусы |
-| `get_run`, `get_run_trace` | шаги, вывод, ошибка конкретного run |
-| `invoke_function` | внеочередной запуск (обход продавца: `crm-proactive-sweep`) |
-| `rerun`, `cancel_run` | повтор / остановка |
-| `health` | жив ли сервер |
+| Инструмент                                          | Зачем                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------- |
+| `get_apps`, `get_app`                               | что задеплоено (`telegram-bot-client`, sdk, число функций)  |
+| `list_functions`, `get_function`                    | слаги и триггеры (`telegram-bot-client-<id>`)               |
+| `list_runs`, `list_function_runs`, `get_event_runs` | последние запуски, статусы                                  |
+| `get_run`, `get_run_trace`                          | шаги, вывод, ошибка конкретного run                         |
+| `invoke_function`                                   | внеочередной запуск (обход продавца: `crm-proactive-sweep`) |
+| `rerun`, `cancel_run`                               | повтор / остановка                                          |
+| `health`                                            | жив ли сервер                                               |
 
 Пример — проверить обход продавца после деплоя:
 
@@ -90,3 +90,13 @@ invoke_function     functionId=... crm-proactive-sweep   # внеочередн�
 - `/v0/gql` сервера Inngest сейчас отвечает без авторизации [вопрос, не
   закрыто] — не полагайся на это как на «фичу» и не расширяй.
 - Изменения переменных Railway — только с одобрения владельца.
+
+## Чтение ошибок сервера Inngest
+
+- `rejecting event; event key not recognized` с `remote_addr 127.0.0.1`, `user_agent go:v0.15.1`,
+  `event_names cli/dev_ui.loaded` — это телеметрия самого CLI, не клиент. Лечится `DO_NOT_TRACK=1`
+  на сервисе (стоит с 2026-09-13). Любой другой отправитель виден в тех же полях — форк
+  `ghcr.io/ghashtag/inngest:mcp-auth` пишет `key_sha256_prefix`, `key_len`, `remote_addr`,
+  `event_names` (значение ключа не пишется никогда).
+- `FAILED` у функции с `probe_expect = FAILED-at-guard` и `e2e_test: true` в событии — норма
+  probe-suite (`docs/inngest/probe-suite.md`), не поломка.

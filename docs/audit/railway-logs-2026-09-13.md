@@ -25,6 +25,10 @@ gramjs 2.26: `_updateLoop` крутится `while (!client._destroyed)`; `disco
 
 ## 3. Inngest-сервер: `rejecting event; event key not recognized` ×1836 за 2 ч 11 мин [измерено, причина — вопрос]
 
+> **Закрыто 08:40Z [измерено]:** отправитель — сам сервер Inngest, встроенная CLI-телеметрия (`pkg/api/tel`, Go SDK v0.15.1,
+> зашитый ключ длиной 86, события `cli/dev_ui.loaded`/`cli/command.executed` с 127.0.0.1). На функции не влияло.
+> Выключено `DO_NOT_TRACK=1` на сервисе. Подробности: `docs/inngest/lessons/2026-09-13-event-key-rejections-are-cli-telemetry.md`.
+
 Ритм: ровно 11–12/мин весь интервал (≈ одно событие в 5 с) + пики +25 в :00/:30 (совпадают с cron-функциями
 бота `health-check`, `stuck-check`) + пик 64/161 в 02:18–02:19 (совпадает с прогоном probe-suite бота).
 
