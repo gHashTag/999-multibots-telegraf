@@ -326,6 +326,83 @@ const PROMPTS: Record<'image' | 'audio', string> = {
     'Describe in 2-3 sentences what is on the image and quote any visible text verbatim in its original language. Write the description itself in Russian.',
 }
 
+/*
+ * Speech to text through a dedicated Whisper endpoint (OpenAI-compatible
+ * `/audio/transcriptions`). Measured 2026-09-13: the chat gateway reads a
+ * 47 KB voice note but never finishes a 5-7 MB track within 45 s x 3, so
+ * long recordings need a transcriber, not a chat model. Configured by
+ * `WHISPER_API_KEY` (falls back to `OPENAI_API_KEY`), `WHISPER_BASE_URL`
+ * (falls back to `OPENAI_BASE_URL`, then api.openai.com/v1) and
+ * `WHISPER_MODEL` (default whisper-1). Without a key the chat provider
+ * keeps hearing audio as before.
+ */
+const WHISPER_TIMEOUT_MS = 180_000
+const WHISPER_MAX_BYTES = 25 * 1024 * 1024
+let whisperKeyRefused = false
+
+interface WhisperConfig {
+  base: string
+  key: string
+  model: string
+}
+
+export function whisperConfig(): WhisperConfig | null {
+  const key = process.env.WHISPER_API_KEY || process.env.OPENAI_API_KEY
+  if (!key || whisperKeyRefused) return null
+  const base = (
+    process.env.WHISPER_BASE_URL ||
+    process.env.OPENAI_BASE_URL ||
+    'https://api.openai.com/v1'
+  ).replace(/\/+$/, '')
+  return { base, key, model: process.env.WHISPER_MODEL || 'whisper-1' }
+}
+
+/** Test seam: forget a refused key between cases. */
+export function resetWhisperForTests(): void {
+  whisperKeyRefused = false
+}
+
+async function transcribeWithWhisper(
+  w: WhisperConfig,
+  url: string,
+  name: string | null
+): Promise<string | null> {
+  const got = await fetchWithDeadline(url)
+  if (!got.ok) throw new Error(`shelf answered ${got.status}`)
+  const bytes = Buffer.from(await got.arrayBuffer())
+  if (!bytes.length || bytes.length > WHISPER_MAX_BYTES)
+    throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
+  const form = new FormData()
+  form.append('model', w.model)
+  form.append('response_format', 'text')
+  form.append(
+    'file',
+    new Blob([bytes], { type: got.headers.get('content-type') || 'audio/ogg' }),
+    name || 'audio.ogg'
+  )
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), WHISPER_TIMEOUT_MS)
+  let r: Response
+  try {
+    r = await fetch(`${w.base}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${w.key}` },
+      body: form,
+      signal: ac.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+  if (!r.ok) {
+    const body = await r.text().catch(() => '')
+    // A refused key will not start working mid-process: stop asking.
+    if (r.status === 401 || r.status === 403) whisperKeyRefused = true
+    throw new Error(`whisper answered ${r.status}: ${body.slice(0, 160)}`)
+  }
+  const text = (await r.text()).trim()
+  return text ? text.slice(0, TRANSCRIPT_CAP) : null
+}
+
 /** The one provider that perceives this kind, in the configured order. */
 function perceivingProvider(kind: 'image' | 'audio'): Provider | null {
   return (
@@ -463,6 +540,20 @@ export async function describeMedia(
     // Only our own shelf, only an extension the provider was shown to take.
     const safe = usableMediaUrl(url, kind)
     if (!safe) return null
+    if (kind === 'audio') {
+      const w = whisperConfig()
+      if (w) {
+        try {
+          return await transcribeWithWhisper(w, safe, name)
+        } catch (e) {
+          console.warn(
+            `[media-library] whisper did not take ${name ?? ''}: ${String(
+              e instanceof Error ? e.message : e
+            ).slice(0, 160)}; asking the chat provider`
+          )
+        }
+      }
+    }
     const p = perceivingProvider(kind)
     if (!p) return null
     return await askProvider(p, kind, safe)
