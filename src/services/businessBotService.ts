@@ -16,6 +16,15 @@ import { logger } from '@/utils/logger'
 import { chatWithAI, ChatMessage } from '@/services/aiChatService'
 import { спроситьАгента, recordTurns } from '@/services/trinityAgent' // cyrillic-ok: pre-existing identifiers
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
+import {
+  buildAgentTurn,
+  type AgentMessagePlan,
+  type FileFetcher,
+} from '@/services/agentAttachments'
+import {
+  mediaItemsFrom,
+  rememberClientMediaQuietly,
+} from '@/services/mediaLibrary'
 
 // --- Types (Telegraf 4.16.3 lacks native business event types) ---
 
@@ -564,15 +573,50 @@ export async function handleBusinessMessage(
   // customer sends), then either answer the caption through the LLM or answer
   // the bare media with a service offer. Never a dead end.
   const media = customerMedia(msg)
+  let plan: AgentMessagePlan | null = null
   if (media) {
     ensureToday()
     stats.mediaRelayed++
     await relayMediaToOwner(msg, media, conn, bot)
+    /*
+     * THE AGENT KEEPS, SEES AND HEARS THE FILE.
+     *
+     * Measured 2026-09-13: this branch re-sent the file to the owner, told
+     * the model "[the client sent a photo]" and dropped the bytes -- a
+     * description of a file, never the file. Now the same helper the bot
+     * chat uses fetches it once through the token-bearing link, puts it on
+     * OUR shelf and hands back marker lines the provider can open; the
+     * shelf URLs are indexed per client (media library). The Telegram link
+     * is used inside `buildAgentTurn` and never stored or logged.
+     *
+     * One message = one turn. The bot chat's album buffer is NOT reused
+     * here: a business album arrives as separate updates too, but each part
+     * is relayed and answered on its own, so a part that never comes does
+     * not cost the client a reply.
+     */
+    plan = await buildAgentTurn(bot.telegram as unknown as FileFetcher, [msg])
+    if (plan.stored.length) {
+      rememberClientMediaQuietly(
+        String(conn.userId),
+        String(chatId),
+        'business',
+        mediaItemsFrom(plan, msg.caption ?? null)
+      )
+    }
   }
 
   const caption = msg.caption?.trim()
+  const markers = plan?.stored.map(s => s.line) ?? []
+  // With a stored file the note is a human-readable prefix above the marker
+  // lines; when every file was refused, the caption travels the way it
+  // always did, so the client still gets an answer to their words.
   const text =
-    msg.text ?? (media && caption ? `[${media.note}] ${caption}` : undefined)
+    msg.text ??
+    (media && markers.length
+      ? [`${media.note}.`, caption, ...markers].filter(Boolean).join('\n')
+      : media && caption
+        ? `[${media.note}] ${caption}`
+        : undefined)
   if (!text) {
     ensureToday()
     stats.nonTextDropped++
@@ -584,7 +628,12 @@ export async function handleBusinessMessage(
     if (media) {
       const card = SERVICE_CARDS.find(c => c.key === media.card)
       try {
-        await sendAsOwner(media.reply, {
+        // Why the file did not make it (too big, did not download) and the
+        // service offer, in ONE message: two would read as nagging.
+        const said = plan?.refusal
+          ? `${plan.refusal}\n\n${media.reply}`
+          : media.reply
+        await sendAsOwner(said, {
           reply_markup: {
             inline_keyboard: [
               [

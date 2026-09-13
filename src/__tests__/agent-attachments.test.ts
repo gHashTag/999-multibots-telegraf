@@ -385,7 +385,7 @@ describe('what the agent actually receives', () => {
 
   it('plain text passes through untouched', async () => {
     const plan = await buildAgentMessage(telegram, { text: '  привет  ' })
-    expect(plan).toEqual({ text: 'привет', refusal: null })
+    expect(plan).toEqual({ text: 'привет', refusal: null, stored: [] })
   })
 })
 

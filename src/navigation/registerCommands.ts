@@ -23,7 +23,11 @@ import {
   attachmentFromMessage,
   buildAgentTurn,
 } from '@/services/agentAttachments'
-import { createAlbumBuffer } from '@/services/albumBuffer'
+import { createAlbumBuffer, albumCaption } from '@/services/albumBuffer'
+import {
+  mediaItemsFrom,
+  rememberClientMediaQuietly,
+} from '@/services/mediaLibrary'
 import {
   ACTION_PREFIX,
   standardButtons,
@@ -1288,6 +1292,17 @@ If not, continue on your own and click the "I myself" button`
       if (!albumParts) return
 
       const plan = await buildAgentTurn(ctx.telegram, albumParts)
+      // The person's own files, indexed per person: in the bot the owner and
+      // the sender are the same account. Fire and forget, shelf URLs only.
+      if (plan.stored.length && ctx.from?.id) {
+        const me = String(ctx.from.id)
+        rememberClientMediaQuietly(
+          me,
+          me,
+          'bot',
+          mediaItemsFrom(plan, albumCaption(albumParts) || null)
+        )
+      }
       if (plan.refusal) await ctx.reply(plan.refusal)
       const text = plan.text
       if (!text.trim()) return next()

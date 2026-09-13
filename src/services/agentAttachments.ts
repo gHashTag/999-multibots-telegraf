@@ -60,6 +60,8 @@ export interface TelegramAttachment {
   name: string
   mimeType: string
   fileId: string
+  /** Stable across bots and re-sends; the library keys a duplicate by it. */
+  fileUniqueId: string | null
   /** Telegram's own size, when it tells us. Null when it does not. */
   bytes: number | null
 }
@@ -121,6 +123,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: nameFor('photo', largest.file_unique_id, 'image/jpeg'),
       mimeType: 'image/jpeg',
       fileId: largest.file_id,
+      fileUniqueId: largest.file_unique_id ?? null,
       bytes: Number.isFinite(largest.file_size) ? largest.file_size : null,
     }
   }
@@ -135,6 +138,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: a.file_name || nameFor('animation', a.file_unique_id, mime),
       mimeType: mime,
       fileId: a.file_id,
+      fileUniqueId: a.file_unique_id ?? null,
       bytes: Number.isFinite(a.file_size) ? a.file_size : null,
     }
   }
@@ -147,6 +151,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: v.file_name || nameFor('video', v.file_unique_id, mime),
       mimeType: mime,
       fileId: v.file_id,
+      fileUniqueId: v.file_unique_id ?? null,
       bytes: Number.isFinite(v.file_size) ? v.file_size : null,
     }
   }
@@ -159,6 +164,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: nameFor('video-note', v.file_unique_id, 'video/mp4'),
       mimeType: 'video/mp4',
       fileId: v.file_id,
+      fileUniqueId: v.file_unique_id ?? null,
       bytes: Number.isFinite(v.file_size) ? v.file_size : null,
     }
   }
@@ -171,6 +177,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: nameFor('voice', v.file_unique_id, mime),
       mimeType: mime,
       fileId: v.file_id,
+      fileUniqueId: v.file_unique_id ?? null,
       bytes: Number.isFinite(v.file_size) ? v.file_size : null,
     }
   }
@@ -186,6 +193,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: a.file_name || title || nameFor('audio', a.file_unique_id, mime),
       mimeType: mime,
       fileId: a.file_id,
+      fileUniqueId: a.file_unique_id ?? null,
       bytes: Number.isFinite(a.file_size) ? a.file_size : null,
     }
   }
@@ -205,6 +213,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: nameFor('sticker', s.file_unique_id, mime),
       mimeType: mime,
       fileId: s.file_id,
+      fileUniqueId: s.file_unique_id ?? null,
       bytes: Number.isFinite(s.file_size) ? s.file_size : null,
     }
   }
@@ -220,6 +229,7 @@ export function attachmentFromMessage(message: any): TelegramAttachment | null {
       name: d.file_name || nameFor('document', d.file_unique_id, mime),
       mimeType: mime,
       fileId: d.file_id,
+      fileUniqueId: d.file_unique_id ?? null,
       bytes: Number.isFinite(d.file_size) ? d.file_size : null,
     }
   }
@@ -258,6 +268,21 @@ export interface AttachmentStored {
   line: string
   kind: AttachmentKind
   bytes: number
+  /*
+   * Enough to index the file per person (media library) without parsing the
+   * marker line back. The URL is OURS -- the shelf's -- never Telegram's.
+   */
+  name: string
+  mimeType: string
+  url: string
+  fileUniqueId: string | null
+}
+
+/** A stored attachment together with the Telegram message it came in. */
+export interface StoredAttachmentInfo extends AttachmentStored {
+  messageId: number | null
+  /** The message's own date, when Telegram gave one. */
+  at: Date | null
 }
 
 export interface AttachmentRefused {
@@ -303,6 +328,12 @@ export interface AgentMessagePlan {
   text: string
   /** A sentence to show the person first, when a file did not make it. */
   refusal: string | null
+  /**
+   * What DID make it, one per file, for the media library. The marker lines
+   * inside `text` are unchanged; this is the same information in a shape a
+   * caller can post without parsing them back.
+   */
+  stored: StoredAttachmentInfo[]
 }
 
 /**
@@ -340,6 +371,7 @@ export async function buildAgentTurn(
 
   const lines: string[] = []
   const refusals: string[] = []
+  const stored: StoredAttachmentInfo[] = []
   for (const part of parts) {
     const attachment = attachmentFromMessage(part)
     if (!attachment) continue
@@ -351,7 +383,16 @@ export async function buildAgentTurn(
      * of your photos failed" is not something anybody can act on.
      */
     if (attachmentRefused(outcome)) refusals.push(outcome.message)
-    else lines.push(outcome.line)
+    else {
+      lines.push(outcome.line)
+      const messageId = Number(part?.message_id)
+      const date = Number(part?.date)
+      stored.push({
+        ...outcome,
+        messageId: Number.isFinite(messageId) ? messageId : null,
+        at: Number.isFinite(date) && date > 0 ? new Date(date * 1000) : null,
+      })
+    }
   }
 
   return {
@@ -360,6 +401,7 @@ export async function buildAgentTurn(
     // about one of them and silence about the rest is worse than a long
     // message.
     refusal: refusals.length ? refusals.join('\n') : null,
+    stored,
   }
 }
 
@@ -440,6 +482,10 @@ export async function attachmentToLine(
       ok: true,
       kind: a.kind,
       bytes: bytes.length,
+      name: a.name,
+      mimeType: a.mimeType,
+      url: artifact.url,
+      fileUniqueId: a.fileUniqueId,
       line: attachmentLine({
         kind: a.kind,
         name: a.name,
