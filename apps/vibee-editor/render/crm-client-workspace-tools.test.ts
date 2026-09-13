@@ -79,10 +79,37 @@ describe('crm_clients', () => {
       has_soul: true,
       skills: 3,
       stage: 'new',
+      paid: false,
       last_seen: '2026-09-13T10:00:00Z',
       duets: 7,
     })
     expect(rows[0]).toMatchObject({ name: 'Ivan P', has_profile: false, has_soul: false, skills: 0, duets: 0, stage: 'written' })
+  })
+
+  // Spec: t27 specs/automation/crm-client-ownership.t27 (#3608)
+  it('money outranks every touch: a paying person is a client, or winback after 60 quiet days', () => {
+    const now = Date.parse('2026-09-13T13:00:00Z')
+    const people = (seen: string) => [
+      { lead_id: CLIENT, first_name: 'Geya', last_name: null, username: 'playom', seen_at: seen },
+    ]
+    const base = {
+      profiles: [],
+      souls: new Set<string>(),
+      skills: new Map<string, number>(),
+      duets: new Map<string, number>(),
+      touches: new Map([[CLIENT, [{ kind: 'refused' as const, at: '2026-09-13T12:00:00Z' }]]]),
+      now,
+    }
+    expect(mergeClients({ ...base, people: people('2026-09-13T12:00:00Z') })[0]).toMatchObject({ stage: 'refused', paid: false })
+    expect(mergeClients({ ...base, people: people('2026-09-13T12:00:00Z'), paid: new Set([CLIENT]) })[0]).toMatchObject({
+      stage: 'client',
+      paid: true,
+    })
+    expect(mergeClients({ ...base, people: people('2026-07-01T12:00:00Z'), paid: new Set([CLIENT]) })[0]).toMatchObject({
+      stage: 'winback',
+      paid: true,
+    })
+    expect(mergeClients({ ...base, people: people('2026-07-01T12:00:00Z'), paid: new Set([OTHER]) })[0].paid).toBe(false)
   })
 
   it('scopes people, duets and touches to the caller and survives missing tables', async () => {
@@ -103,5 +130,12 @@ describe('crm_clients', () => {
     for (const q of seen.filter(s => /WHERE owner_id = \$1/.test(s.sql))) expect(q.params[0]).toBe(OWNER)
     expect(seen.some(s => /FROM crm_people WHERE owner_id/.test(s.sql))).toBe(true)
     expect(seen.some(s => /FROM crm_duet_runs WHERE owner_id/.test(s.sql))).toBe(true)
+    // Profiles: ours and the unowned legacy rows, never another seller's.
+    const prof = seen.find(s => /FROM crm_client_profiles WHERE/.test(s.sql))!
+    expect(prof.sql).toMatch(/owner_id = \$2 OR owner_id IS NULL/)
+    expect(prof.params[1]).toBe(OWNER)
+    // No Supabase in this test: the money column is unknown and the stage came from touches alone.
+    expect(out.paid_known).toBe(false)
+    expect(out.clients[0].paid).toBe(false)
   })
 })

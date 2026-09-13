@@ -24,19 +24,42 @@ function fakePool(seed: {
   skills?: Record<string, string>
   goal?: boolean
   items?: string[]
+  /** Pre-existing profile rows: [owner_id | null, profile json]. */
+  profiles?: Array<{ owner: string | null; profile: string }>
+  /** Whether the legacy PRIMARY KEY (telegram_id) still exists. */
+  legacyPkey?: boolean
 }) {
   const state = {
     soul: seed.soul,
     skills: { ...(seed.skills ?? {}) },
     goal: seed.goal ?? false,
     items: [...(seed.items ?? [])],
-    profile: null as null | string,
+    profiles: [...(seed.profiles ?? [])],
+    legacyPkey: seed.legacyPkey ?? false,
     writes: [] as string[],
+    ddl: [] as string[],
   }
   const pool = {
     async query(sql: string, params: unknown[] = []) {
       const q = sql.replace(/\s+/g, ' ').trim()
-      if (/^CREATE|^ALTER/.test(q)) return { rows: [] }
+      if (/^SELECT 1 FROM pg_constraint/.test(q)) return { rows: state.legacyPkey ? [{}] : [] }
+      if (/^ALTER TABLE crm_client_profiles DROP CONSTRAINT/.test(q)) {
+        state.legacyPkey = false
+        state.ddl.push('drop-pkey')
+        return { rows: [] }
+      }
+      if (/^CREATE|^ALTER/.test(q)) {
+        state.ddl.push(q.split(' ').slice(0, 3).join(' '))
+        return { rows: [] }
+      }
+      if (/^UPDATE crm_client_profiles p SET owner_id = \(SELECT owner_id FROM crm_people/.test(q)) {
+        state.ddl.push('backfill')
+        return { rows: [] }
+      }
+      if (/^UPDATE crm_client_profiles SET owner_id = \$2 WHERE telegram_id = \$1 AND owner_id IS NULL/.test(q)) {
+        for (const r of state.profiles) if (r.owner === null) r.owner = String(params[1])
+        return { rows: [] }
+      }
       if (/^SELECT content FROM user_soul/.test(q))
         return { rows: state.soul ? [{ content: state.soul }] : [] }
       if (/^SELECT content, updated_at::text FROM user_soul/.test(q))
@@ -63,16 +86,27 @@ function fakePool(seed: {
         return { rows: [] }
       }
       if (/^INSERT INTO crm_client_profiles/.test(q)) {
-        state.profile = String(params[2])
+        const owner = String(params[1])
+        const mine = state.profiles.find(r => r.owner === owner)
+        if (mine) mine.profile = String(params[3])
+        else state.profiles.push({ owner, profile: String(params[3]) })
         state.writes.push('profile')
         return { rows: [] }
       }
-      if (/^SELECT client, profile, updated_at::text FROM crm_client_profiles/.test(q))
+      if (/^SELECT client, profile, updated_at::text, owner_id FROM crm_client_profiles WHERE telegram_id = \$1 AND \(owner_id = \$2 OR owner_id IS NULL\)/.test(q)) {
+        const caller = String(params[1])
+        const visible = state.profiles
+          .filter(r => r.owner === null || r.owner === caller)
+          .sort((a, b) => (a.owner === null ? 1 : 0) - (b.owner === null ? 1 : 0))
         return {
-          rows: state.profile
-            ? [{ client: 'playom', profile: JSON.parse(state.profile), updated_at: 't' }]
-            : [],
+          rows: visible.slice(0, 1).map(r => ({
+            client: 'playom',
+            profile: JSON.parse(r.profile),
+            updated_at: 't',
+            owner_id: r.owner,
+          })),
         }
+      }
       if (/^SELECT id FROM content_plan_goals/.test(q))
         return { rows: state.goal ? [{ id: 7 }] : [] }
       if (/^INSERT INTO content_plan_goals/.test(q)) {
@@ -152,9 +186,11 @@ describe('the playom client package', () => {
     expect(r.skills.map(s => s.result)).toEqual(['created', 'created', 'created'])
     expect(r.plan).toEqual({ goal: 'created', items_added: 12 })
     expect(state.writes.filter(w => w === 'item').length).toBe(12)
-    expect(state.profile).toBeTruthy()
+    expect(state.profiles).toEqual([{ owner: OWNER, profile: expect.any(String) }])
     const seen = await clientProfileFor(ctxWith(pool), CLIENT)
     expect(seen.has_profile).toBe(true)
+    expect(seen.owner_id).toBe(OWNER)
+    expect(seen.owned_by_caller).toBe(true)
     expect(seen.has_soul).toBe(true)
     expect(seen.soul_is_draft).toBe(true)
     expect((seen.skills as string[]).length).toBe(3)
@@ -198,6 +234,64 @@ describe('the playom client package', () => {
     expect(r.soul).toBe('created')
     expect(r.plan.items_added).toBe(12)
     expect(state.writes).toEqual([])
+  })
+
+  // Spec: t27 specs/automation/crm-client-ownership.t27 (#3608)
+  it('the profile belongs to the seller who set it up: another seller does not see it and may hold their own', async () => {
+    const { pool, state } = fakePool({})
+    const setup = (who: string) =>
+      setupClient({ telegramId: who, pool } as unknown as ToolContext, {
+        client: 'playom',
+        telegramId: CLIENT,
+        overwriteSoul: false,
+        overwriteSkills: false,
+        withPlan: false,
+        dryRun: false,
+      })
+    await setup(OWNER)
+    const other = { telegramId: '500000001', pool } as unknown as ToolContext
+    const strangerView = await clientProfileFor(other, CLIENT)
+    expect(strangerView.has_profile).toBe(false)
+    await setup('500000001')
+    expect(state.profiles.map(r => r.owner).sort()).toEqual([OWNER, '500000001'].sort())
+    const mine = await clientProfileFor(ctxWith(pool), CLIENT)
+    expect(mine.owner_id).toBe(OWNER)
+    const theirs = await clientProfileFor(other, CLIENT)
+    expect(theirs.owner_id).toBe('500000001')
+  })
+
+  it('a legacy row without an owner is readable by any seller and is claimed by the next setup', async () => {
+    const pkg = loadClientPackage('playom')
+    const { pool, state } = fakePool({
+      profiles: [{ owner: null, profile: JSON.stringify(pkg.profile) }],
+      legacyPkey: true,
+    })
+    const other = { telegramId: '500000001', pool } as unknown as ToolContext
+    const before = await clientProfileFor(other, CLIENT)
+    expect(before.has_profile).toBe(true)
+    expect(before.owner_id).toBeNull()
+    expect(before.owned_by_caller).toBe(false)
+    // The migration ran once: the legacy key is gone, the unique index and the backfill were issued.
+    expect(state.ddl).toContain('drop-pkey')
+    expect(state.ddl).toContain('CREATE UNIQUE INDEX')
+    expect(state.ddl).toContain('backfill')
+    await setupClient(ctxWith(pool), {
+      client: 'playom',
+      telegramId: CLIENT,
+      overwriteSoul: false,
+      overwriteSkills: false,
+      withPlan: false,
+      dryRun: false,
+    })
+    // Claimed, not duplicated: one row, now owned.
+    expect(state.profiles).toHaveLength(1)
+    expect(state.profiles[0].owner).toBe(OWNER)
+    const after = await clientProfileFor(other, CLIENT)
+    expect(after.has_profile).toBe(false)
+    // Running the migration again drops nothing twice.
+    const ddlBefore = state.ddl.length
+    await clientProfileFor(ctxWith(pool), CLIENT)
+    expect(state.ddl.slice(ddlBefore)).not.toContain('drop-pkey')
   })
 
   it('an unknown package is refused by name', () => {
