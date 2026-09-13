@@ -36,6 +36,7 @@ import {
   requireOwner,
   OWNER_TELEGRAM_ID,
 } from './telegram-tools'
+import { hangUp } from './hang-up'
 import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot } from './bot-farm'
 import { reachable } from './crm-touch-tools'
@@ -191,7 +192,7 @@ export async function resolveLead(
       firstName: firstName || null,
     }
   } finally {
-    await c.disconnect?.().catch?.(() => undefined)
+    await hangUp(c)
   }
 }
 

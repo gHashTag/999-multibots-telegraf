@@ -868,6 +868,7 @@ export async function execute(
   ctx: { telegramId: string; pool?: unknown }
 ): Promise<{ done: true; action: string } | { done: false; why: string }> {
   const { client } = await import('./telegram-tools')
+  const { hangUp } = await import('./hang-up')
   let c: SendingClient | null = null
   try {
     c = (await client(ctx as never)) as SendingClient
@@ -1015,7 +1016,7 @@ export async function execute(
      * this module opens; the five reading tools still leak and need the same
      * treatment -- filed separately rather than widened into this change.
      */
-    await c?.disconnect?.().catch?.(() => undefined)
+    await hangUp(c)
   }
 }
 

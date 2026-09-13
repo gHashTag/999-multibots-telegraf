@@ -2359,9 +2359,8 @@ setInterval(
         }
         // Bot owners and keepers: the free month and its tokens, whether or
         // not they opened the app this month (club-membership.ts).
-        const { botsOwnedBy, allBotOwners } = await import(
-          './src/agent/hive-tools'
-        )
+        const { botsOwnedBy, allBotOwners } =
+          await import('./src/agent/hive-tools')
         const granted = await sweepClubGrants(
           pool,
           { botsOwnedBy, allOwners: allBotOwners },
@@ -7957,7 +7956,9 @@ const server = createServer(async (req, res) => {
         try {
           await c.invoke({ _: 'auth.logOut' })
         } finally {
-          await c.disconnect().catch(() => {})
+          // destroy(), not disconnect(): the latter leaves gramjs's ping
+          // loop alive (src/agent/hang-up.ts).
+          await (c.destroy?.() ?? c.disconnect()).catch(() => {})
         }
       },
     })
