@@ -23,6 +23,8 @@ import {
   transcribeAndMirror,
   pendingTranscripts,
   reopenUnread,
+  storedIngestMsgIds,
+  dropDuplicateIngestRows,
   mediaMessageText,
   mtprotoMediaInfo,
   MEDIA_KINDS,
@@ -267,7 +269,19 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
            * link -- MTProto has none, and the shelf URL is what a provider
            * may be handed. Describing runs in the background per dialog.
            */
-          const withMedia = withInfo.filter(x => x.info)
+          /*
+           * MTProto has no file_unique_id, so the shelf URL (timestamped)
+           * cannot be the identity of a file across runs: every pass would
+           * download the same photo again as a new row (measured 2026-09-13:
+           * nine photos twice). One message carries one file, so the
+           * (owner, lead, msg_id) already stored is the thing to skip.
+           */
+          const already = await storedIngestMsgIds(pool, owner, lead).catch(
+            () => new Set<number>()
+          )
+          const withMedia = withInfo.filter(
+            x => x.info && !already.has(Number(x.m.id))
+          )
           const fresh: Array<MediaRow & { id: number }> = []
           for (const { m, info } of withMedia.slice(0, perDialog)) {
             if (!info) continue
@@ -468,6 +482,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         : undefined
       let rereadQueued: number | undefined
       if (a?.reread === true) {
+        await dropDuplicateIngestRows(pool, owner, lead.id)
         await reopenUnread(pool, owner, lead.id)
         const again = await pendingTranscripts(pool, owner, lead.id, 100)
         rereadQueued = again.length
