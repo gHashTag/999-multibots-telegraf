@@ -1,7 +1,7 @@
-import { Inngest, NonRetriableError } from 'inngest'
+import { NonRetriableError } from 'inngest'
 import { assertSafePathSegment } from '@/utils/pathSegment'
 import { logger } from '@/utils/logger'
-import { createInngestFailureHandler } from '@/inngest_app/client'
+import { createInngestFailureHandler, inngest } from '@/inngest_app/client'
 import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import path from 'path'
 import fs from 'fs/promises'
@@ -9,12 +9,6 @@ import { Telegraf } from 'telegraf'
 import fetch from 'node-fetch'
 import { addMusic, combineVideos } from '@/helpers/video-helpers'
 import { downloadFile } from '@/helpers'
-
-const inngest = new Inngest({
-  name: 'bot-farm',
-  id: 'bot-farm-kling-morph-v7',
-  eventKey: process.env.BOT_INNGEST_EVENT_KEY,
-})
 
 const replicateApi = {
   createPrediction: async (version: string, input: object) => {
