@@ -151,3 +151,48 @@ Open-source путь [измерено 2026-09-13]: сервис `whisper` в т
 - Результат: `Allmix.mp3` (7,1 МБ) и `...wav` (5,5 МБ) Алекса прочитаны за один проход, оба 200.
   На музыке Whisper оставляет артефакт «Субтитры сделал DimaTorzok» — это не речь из файла [известно].
   Аудио не покидает проект Railway.
+
+## Фото и видео — открытая vision-модель
+
+Запрос владельца 2026-09-13: «у Apple есть открытое решение для vision — добавь для изучения
+ассетов видео и фото». Что прочитано [измерено 2026-09-13]:
+
+- Открытые vision-модели Apple — FastVLM 0.5B/1.5B/7B (https://github.com/apple/ml-fastvlm,
+  https://huggingface.co/apple/FastVLM-0.5B), AIMv2, MobileCLIP/MobileCLIP2, DepthPro, DFN-CLIP,
+  SlowFast-LLaVA для видео — все веса на Hugging Face помечены `license: apple-amlr`. Текст лицензии
+  (https://github.com/apple/ml-fastvlm/blob/main/LICENSE_MODEL): право использования даётся
+  «exclusively for Research Purposes», и «“Research Purposes” does not include any commercial
+  exploitation, product development or use in any commercial product or service». Для CRM,
+  обслуживающей клиентов, это запрет. [решение] FastVLM в прод не ставим; он остаётся кандидатом
+  для исследовательского трека Trinity (GoldenFloat/AX7203, некоммерческие измерения) — там лицензия
+  соблюдается.
+- Apple Vision Framework (OCR, классификация) — не open source, работает только на устройствах
+  Apple; для сервера в Railway не подходит.
+- Выбрано [решение]: тот же паттерн, что `whisper` — сервис `vision` в проекте Railway:
+  образ `ghcr.io/ggml-org/llama.cpp:server` (llama.cpp, MIT) с моделью
+  `ggml-org/Qwen3-VL-2B-Instruct-GGUF:Q8_0` (Qwen3-VL-2B-Instruct, Apache-2.0; 1,8 ГБ + mmproj 0,45 ГБ;
+  понимает русский). Настройка через переменные `LLAMA_ARG_HF_REPO`, `LLAMA_API_KEY` (свой, 64 hex),
+  `LLAMA_ARG_HOST=::`, `LLAMA_ARG_PORT=8000`, `PORT=8000`, `LLAMA_ARG_CTX_SIZE=8192`,
+  `LLAMA_ARG_N_PARALLEL=1`, `LLAMA_CACHE=/data/llama-cache`, `RAILWAY_RUN_UID=0`; том на `/data`,
+  публичного домена нет. mmproj скачивается вместе с моделью автоматически (`-hf`).
+- В render: `VISION_BASE_URL=http://vision.railway.internal:8000/v1`, `VISION_API_KEY` (тот же ключ),
+  `VISION_MODEL=qwen3-vl-2b-instruct`, `MEDIA_VISION_TIMEOUT_MS=300000`.
+
+Как это читает файлы (`media-vision.ts`):
+
+- Фото: байты берутся с нашей полки (только `/s3/`, только известные расширения — `usableMediaUrl`),
+  вкладываются `data:`-URL в один не-стриминговый `POST /chat/completions`. Если сервис `vision`
+  отказал — слово за чат-провайдером, как раньше; ключ, отвергнутый 401/403, до перезапуска процесса
+  больше не спрашивается.
+- Видео (`.mp4 .mov .m4v .webm .mkv`, до 40 МБ): ffmpeg (уже в образе render) берёт 4 кадра в центрах
+  равных отрезков (для 60 с — 7,5 / 22,5 / 37,5 / 52,5 с), не шире 768 px, и все кадры уходят ОДНИМ
+  запросом; описание начинается словом «Видео:». То, что между кадрами, теряется по построению —
+  описание честно говорит о кадрах. Без `VISION_API_KEY` видео остаётся честным `null` без единого
+  вызова (закреплено тестом). Если `vision` отказал — строка остаётся pending (`DescribeFailed`),
+  потому что видео больше никто не прочитает.
+- Бюджет: 2B-модель на CPU Railway — десятки секунд на кадр [вопрос: измерить на первом проходе],
+  поэтому срок 300 с и по одному запросу за раз (`LLAMA_ARG_N_PARALLEL=1`).
+
+Что проверить после деплоя [вопрос]: `crm_lead_media` с `reread:true` для клиента с `.MOV`
+(Алекс, `IMG_6859.MOV`) — раньше честный `null`, теперь ожидается «Видео: …»; в логах render строки
+`[media-library] vision did not take …` укажут на отказ сервиса.
