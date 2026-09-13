@@ -582,6 +582,7 @@ async function withTokens<T extends object>(
 import { ценаТокенов } from './token-packs'
 import { CRM_TOOLS } from './crm-tools'
 import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
+import { CRM_DUET_TOOLS } from './crm-duet-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
@@ -2396,6 +2397,8 @@ TOOLS.push(...CRM_SUMMARY_TOOLS)
 TOOLS.push(...CRM_SELLERS_TOOLS)
 // The Leela handshake: owner-only, both accounts connected (crm-agent-link-tool.ts).
 TOOLS.push(...CRM_AGENT_LINK_TOOLS)
+// The seller<->buyer duet in real Telegram: owner-only, background run (crm-duet-tool.ts).
+TOOLS.push(...CRM_DUET_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
