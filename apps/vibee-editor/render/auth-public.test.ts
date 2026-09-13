@@ -85,4 +85,33 @@ describe('достижимость маршрутов аутентификаци
     ).toBeGreaterThan(0)
     expect([...publicPaths]).toContain('/.well-known/agent-card.json')
   })
+
+  /**
+   * THE Z.AI RELAY MUST BE REACHABLE BY ZEP, NOT BY THE GUARD'S CLIENTS.
+   *
+   * Measured in production 2026-09-13, minutes after the route shipped: the
+   * guard answered 401 "no X-Api-Key and no Telegram initData" before the
+   * relay's own bearer check ever ran. Zep's LLM client is a 2023 snapshot
+   * of langchaingo -- it can send exactly one credential, the Authorization
+   * bearer, and nothing else. The guard does not read that header, so a
+   * relay behind the guard is a relay nobody can call: the fourth route in
+   * this file's history to be written, typed, deployed and unreachable.
+   *
+   * The relay authenticates harder than the guard would: a timing-safe
+   * digest match against GLM_API_KEY (zai-relay.ts), fail-closed 503 when
+   * that key is unset. The guard has nothing to add.
+   */
+  it('Z.AI relay: mounted, and public so its own bearer is the gate', () => {
+    const server = readFile('render-server.ts')
+    const auth = readFile('auth.ts')
+
+    // Mounted where routes live.
+    expect(
+      server,
+      'handleZaiRelay is not called in render-server.ts'
+    ).toContain('handleZaiRelay(')
+
+    // Public: the guard must let it through to its own bearer check.
+    expect(auth).toContain("'/api/zai/relay/chat/completions'")
+  })
 })
