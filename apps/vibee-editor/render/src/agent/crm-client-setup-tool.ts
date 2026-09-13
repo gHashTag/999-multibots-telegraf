@@ -392,6 +392,84 @@ export async function clientProfileFor(
   }
 }
 
+export interface SchemaCheck {
+  table_exists: boolean
+  owner_column: boolean
+  legacy_pkey: boolean
+  unique_index: boolean
+  rows_total: number
+  rows_owned: number
+  rows_unowned: number
+  owners: Array<{ owner_id: string; rows: number }>
+  migrated: boolean
+}
+
+/**
+ * The read-only witness for the profile migration. It never calls
+ * ensureProfileTable: a witness that migrates on the way in would report
+ * its own work, not the state of the base it was asked about.
+ * Spec: t27 specs/automation/crm-client-ownership.t27 (SCHEMA_CHECK_*).
+ */
+export async function schemaCheck(ctx: ToolContext): Promise<SchemaCheck> {
+  const one = async (sql: string) => (await ctx.pool.query(sql)).rows?.[0] ?? null
+  const table = await one(
+    `SELECT 1 AS ok FROM information_schema.tables WHERE table_name = 'crm_client_profiles'`
+  )
+  if (!table) {
+    return {
+      table_exists: false,
+      owner_column: false,
+      legacy_pkey: false,
+      unique_index: false,
+      rows_total: 0,
+      rows_owned: 0,
+      rows_unowned: 0,
+      owners: [],
+      migrated: false,
+    }
+  }
+  const col = await one(
+    `SELECT 1 AS ok FROM information_schema.columns
+      WHERE table_name = 'crm_client_profiles' AND column_name = 'owner_id'`
+  )
+  const pk = await one(
+    `SELECT 1 AS ok FROM pg_constraint WHERE conname = 'crm_client_profiles_pkey'`
+  )
+  const idx = await one(
+    `SELECT indexdef FROM pg_indexes
+      WHERE tablename = 'crm_client_profiles' AND indexname = 'crm_client_profiles_owner_client'`
+  )
+  const counts = col
+    ? await one(
+        `SELECT count(*)::int AS total,
+                count(owner_id)::int AS owned
+           FROM crm_client_profiles`
+      )
+    : await one(`SELECT count(*)::int AS total, 0 AS owned FROM crm_client_profiles`)
+  const owners = col
+    ? (
+        await ctx.pool.query(
+          `SELECT owner_id, count(*)::int AS rows FROM crm_client_profiles
+            WHERE owner_id IS NOT NULL GROUP BY owner_id ORDER BY rows DESC, owner_id`
+        )
+      ).rows ?? []
+    : []
+  const total = Number(counts?.total ?? 0)
+  const owned = Number(counts?.owned ?? 0)
+  const uniqueIndex = Boolean(idx && /UNIQUE/i.test(String(idx.indexdef ?? '')))
+  return {
+    table_exists: true,
+    owner_column: Boolean(col),
+    legacy_pkey: Boolean(pk),
+    unique_index: uniqueIndex,
+    rows_total: total,
+    rows_owned: owned,
+    rows_unowned: total - owned,
+    owners: owners.map((r: any) => ({ owner_id: String(r.owner_id), rows: Number(r.rows) })),
+    migrated: Boolean(col) && !pk && uniqueIndex,
+  }
+}
+
 export const CRM_CLIENT_TOOLS: AgentTool[] = [
   {
     name: 'crm_client_setup',
@@ -456,6 +534,18 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
       }
       const telegramId = String(args.telegram_id ?? DEFAULT_CLIENT_ID).trim()
       return clientProfileFor(ctx, telegramId)
+    },
+  },
+  {
+    name: 'crm_schema_check',
+    description:
+      'Свидетель миграции crm_client_profiles: есть ли колонка owner_id, снят ли старый первичный ключ, ' +
+      'стоит ли уникальный индекс (owner_id, telegram_id), сколько строк всего / со владельцем / ничьих. ' +
+      'Только читает, миграцию не запускает. Только владелец. Бесплатно.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler(_args: Record<string, any>, ctx?: ToolContext) {
+      requireOwner(ctx)
+      return schemaCheck(ctx!)
     },
   },
 ]
