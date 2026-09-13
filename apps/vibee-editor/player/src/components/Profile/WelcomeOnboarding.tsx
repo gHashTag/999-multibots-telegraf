@@ -369,15 +369,19 @@ function ClubStep(props: { onJoined: () => void }) {
           type="button"
           className="welcome__btn welcome__btn--primary"
           onClick={buy}
-          disabled={busy || !status}
+          disabled={busy || !status || stars <= 0}
         >
           {busy ? (
             <>
               <Loader2 size={18} className="welcome__spin" aria-hidden="true" />
               {t('welcome.club.going')}
             </>
-          ) : (
+          ) : stars > 0 ? (
             t('welcome.club.join', { stars: stars.toLocaleString('ru-RU') })
+          ) : (
+            // No price yet (still asking, or the request failed): the button
+            // must not promise "0 Stars" -- app.t27.ai/t27_dev, 2026-09-13.
+            t('welcome.club.loading')
           )}
         </button>
       </div>
