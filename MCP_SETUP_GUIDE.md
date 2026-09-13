@@ -248,7 +248,24 @@ claude mcp add --transport http inngest-dev https://inngestinngest-production-c4
 
 То же самое лежит в `.mcp.json` в корне репозитория — Claude Code подхватывает его сам. Инструменты: `get_apps`, `list_functions`, `list_function_runs`, `get_run_trace`, `invoke_function`, `rerun`, `cancel_run`, `grep_docs`.
 
-[измерено 2026-09-13] `initialize` и `tools/list` отвечают без ключа; `get_apps` и всё, что ходит в REST API v2, отвечают `401 Authentication failed`, пока в окружении сервера не задан ключ, который MCP предъявляет API (см. `INNGEST_*` переменные сервиса на Railway).
+[измерено 2026-09-13] `initialize`, `tools/list`, `grep_docs`/`read_doc` отвечают без ключа. Но все data-инструменты (`get_apps`, `list_runs`, `get_run_trace`, `invoke_function`, …) отвечают `REST API v2 returned HTTP 401: Authentication failed` — **и заголовок `Authorization` на стороне клиента не помогает**. Причина в самом сервере: MCP-обработчик собирает внутренний запрос к REST API v2 без заголовка авторизации (`pkg/api/v2/apiv2mcp/tools.go` → `Request`, `pkg/devserver/mcp.go` → `executeV2`), а REST v2 при заданном `INNGEST_SIGNING_KEY` закрыт `SigningKeyMiddleware`. Проверено: тот же ключ напрямую в `GET /api/v2/apps` с `Authorization: Bearer <INNGEST_SIGNING_KEY>` → 200, через `/mcp` → 401.
+
+#### `inngest-prod` — рабочий обход: REST v2 → MCP прокси
+
+`src/inngest_app/mcp-rest-proxy.ts` — stdio MCP-сервер, который берёт тот же каталог инструментов с `${INNGEST_BASE_URL}/api/v2/operations` (открыт, 13 операций) и выполняет каждый вызов в REST API v2 с `Authorization: Bearer $INNGEST_SIGNING_KEY`. Без ключа не стартует (fail-closed). Записан в `.mcp.json` как `inngest-prod`; ключ подставляется из переменной окружения вашей оболочки — в репозитории его нет:
+
+```bash
+# ключ — INNGEST_SIGNING_KEY сервиса inngest/inngest на Railway (Variables), тот же, что у бота
+export INNGEST_SIGNING_KEY=…
+claude   # .mcp.json подхватится сам; либо вручную:
+claude mcp add inngest-prod -e INNGEST_SIGNING_KEY=$INNGEST_SIGNING_KEY -- npx tsx src/inngest_app/mcp-rest-proxy.ts
+```
+
+Проверка: `get_apps` → `telegram-bot-client`, 55 функций; `list_function_runs appId=telegram-bot-client functionId=crm-proactive-sweep`.
+
+Идентификаторы в REST v2 — camelCase (`runId`, `appId`, `functionId`), путь `{run_id}` подставляется из них; для GET остальные аргументы уходят в query, для POST — в JSON-тело (как в upstream `apiv2mcp.Request`). Тесты: `src/__tests__/inngest/mcpRestProxy.test.ts`.
+
+`inngest-dev` (http) оставлен ради встроенной документации (`grep_docs`, `list_docs`, `read_doc`) и совместимых инструментов `send_event`/`get_run_status`. Как только upstream начнёт прокидывать `Authorization` в `executeV2`, прокси станет лишним.
 
 ### Обход продавца (CRM) — теперь функция `crm-proactive-sweep`
 
