@@ -501,6 +501,18 @@ export interface LeadContext {
   messages: LeadMessage[]
 }
 
+/**
+ * The server wraps inbound lead text in a prompt-injection guard
+ * (`[FOREIGN CONTENT — …]` … `[END FOREIGN CONTENT]`) meant for the model,
+ * not for a human reading the dashboard. Strip it for display only.
+ */
+export function stripForeignMarkers(text: string): string {
+  return text
+    .replace(/^\s*\[FOREIGN CONTENT[^\]]*\]\s*/u, '')
+    .replace(/\s*\[END FOREIGN CONTENT\]\s*$/u, '')
+    .trim()
+}
+
 function toLeadContext(r: Record<string, unknown>): LeadContext {
   // Server shape (crm_lead_context): dialog[] {at, who: 'owner'|'person', text},
   // waiting_for_reply = count of unanswered inbound messages.
@@ -513,7 +525,7 @@ function toLeadContext(r: Record<string, unknown>): LeadContext {
     messages: list.map(x => ({
       at: str(x['at']),
       out: x['who'] === 'owner' || (bool(x['out']) ?? false),
-      text: String(x['text'] ?? ''),
+      text: stripForeignMarkers(String(x['text'] ?? '')),
     })),
   }
 }
