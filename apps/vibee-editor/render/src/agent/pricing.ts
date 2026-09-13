@@ -52,6 +52,12 @@ export const FREE = [
     что: 'Блог-рил: текст + барочная гравюра (TrinityBlogReel)',
     как: 'локальный Remotion, без платных генераций',
   },
+  {
+    что: 'Лила: канон плана (leela_plan) и рил LeelaPlanReel', // cyrillic-ok: field name
+    // The canon lookup and the template are free; the mp4 itself still goes
+    // through reel_render and is quoted in PAID below like every other render.
+    как: 'локальный Remotion + данные канона; сам рендер — по цене reel_render', // cyrillic-ok: field name
+  },
 ]
 
 /**

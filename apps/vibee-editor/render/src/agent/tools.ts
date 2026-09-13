@@ -28,6 +28,13 @@
 import { planTools } from './plan-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
+import {
+  LEELA_CTA_EN,
+  LEELA_CTA_RU,
+  canonQuote,
+  planInfo,
+  violatesLeelaVoice,
+} from './leela-canon'
 import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot, botNameOf } from './bot-farm'
 import {
@@ -583,6 +590,7 @@ import { ценаТокенов } from './token-packs'
 import { CRM_TOOLS } from './crm-tools'
 import { CRM_AGENT_LINK_TOOLS } from './crm-agent-link-tool'
 import { CRM_DUET_TOOLS } from './crm-duet-tool'
+import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
@@ -745,6 +753,48 @@ export const TOOLS: AgentTool[] = [
         return { ошибка: `рендер не отдал список композиций: HTTP ${r.status}` }
       }
       return await r.json()
+    },
+  },
+
+  {
+    name: 'leela_plan',
+    description:
+      'Канонический текст плана Лилы по номеру (1..72): название, описание, ряд и чакра, змея или ' +
+      'стрела с клеткой назначения, готовый крючок и готовые props для шаблона LeelaPlanReel. ' +
+      'Бесплатно. Текст — из канона игры, не пересказ: в рил он идёт как есть.',
+    parameters: {
+      type: 'object',
+      properties: {
+        plan: { type: 'integer', minimum: 1, maximum: 72, description: 'номер плана' },
+        lang: { type: 'string', enum: ['ru', 'en'], description: 'язык текста, по умолчанию ru' },
+      },
+      required: ['plan'],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const plan = Number(args.plan)
+      if (!Number.isInteger(plan) || plan < 1 || plan > 72) {
+        return { ошибка: 'план — целое число от 1 до 72' } // cyrillic-ok: existing field name
+      }
+      const lang: 'ru' | 'en' = args.lang === 'en' ? 'en' : 'ru'
+      const info = planInfo(plan, lang)
+      const hook = info.hooks[0] ?? info.title
+      const quote = canonQuote(info.description, 220)
+      const cta = lang === 'ru' ? LEELA_CTA_RU : LEELA_CTA_EN
+      const hits = violatesLeelaVoice([hook, quote, cta].join(' '))
+      return {
+        ...info,
+        reel_props: {
+          compositionId: 'LeelaPlanReel',
+          props: { lang, plan, hook, quote, cta },
+        },
+        voice_check: hits.length
+          ? `стоп-лист задет: ${hits.join(', ')} — перед рендером перепроверь текст`
+          : 'чисто: без слов давления, цен и обещаний',
+        подсказка: // cyrillic-ok: existing field name
+          'Рендер — reel_render с compositionId LeelaPlanReel и этими props. ' +
+          'Название клетки человеку не приписывать; змея — не наказание, стрела — не награда.',
+      }
     },
   },
 
@@ -2399,6 +2449,8 @@ TOOLS.push(...CRM_SELLERS_TOOLS)
 TOOLS.push(...CRM_AGENT_LINK_TOOLS)
 // The seller<->buyer duet in real Telegram: owner-only, background run (crm-duet-tool.ts).
 TOOLS.push(...CRM_DUET_TOOLS)
+// The client package: owner installs SOUL draft / skills / profile / plan, the seller reads the profile (crm-client-setup-tool.ts).
+TOOLS.push(...CRM_CLIENT_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 /*
  * The hive pulse goes into the same registry. It answers "how is the project
