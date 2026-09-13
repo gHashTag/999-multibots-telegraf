@@ -256,12 +256,12 @@ claude mcp add --transport http inngest-dev https://inngestinngest-production-c4
 
 ```bash
 # ключ — INNGEST_SIGNING_KEY сервиса inngest/inngest на Railway (Variables), тот же, что у бота
-export INNGEST_SIGNING_KEY=…
-claude   # .mcp.json подхватится сам; либо вручную:
+source scripts/inngest-mcp-enable.sh   # возьмёт ключ из env или ./.env, значение не печатает
+scripts/inngest-mcp-enable.sh --claude # или зарегистрирует inngest-prod в Claude Code; вручную:
 claude mcp add inngest-prod -e INNGEST_SIGNING_KEY=$INNGEST_SIGNING_KEY -- npx tsx src/inngest_app/mcp-rest-proxy.ts
 ```
 
-Проверка: `get_apps` → `telegram-bot-client`, 55 функций; `list_function_runs appId=telegram-bot-client functionId=crm-proactive-sweep`.
+Скил для агентов: `.claude/skills/inngest-prod-mcp`. Проверка: `get_apps` → `telegram-bot-client`, 55 функций; `list_function_runs appId=telegram-bot-client functionId=crm-proactive-sweep`.
 
 Идентификаторы в REST v2 — camelCase (`runId`, `appId`, `functionId`), путь `{run_id}` подставляется из них; для GET остальные аргументы уходят в query, для POST — в JSON-тело (как в upstream `apiv2mcp.Request`). Тесты: `src/__tests__/inngest/mcpRestProxy.test.ts`.
 
