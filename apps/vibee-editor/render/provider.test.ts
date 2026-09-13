@@ -179,10 +179,13 @@ describe('the endpoint base survives a slash from the dashboard', () => {
     expect(bases.nemotron).toBe('https://integrate.api.nvidia.com/v1')
   })
 
-  it('diagnose names the misbuilt path when the gateway says only 404 page not found', async () => {
+  it('diagnose names the account permission and the path when the gateway says only 404 page not found', async () => {
     const m = await load()
-    expect(m.diagnose('nemotron', 404, '404 page not found\n')).toContain(
-      'базовый адрес'
+    const d = m.diagnose('nemotron', 404, '404 page not found\n')
+    expect(d).toContain('базовый адрес')
+    expect(d).toContain('Public API Endpoints')
+    expect(m.diagnose('zai', 404, '404 page not found')).not.toContain(
+      'Public API Endpoints'
     )
     // A 404 with a body of its own is still reported as it came.
     expect(
