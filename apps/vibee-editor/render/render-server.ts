@@ -422,6 +422,8 @@ import {
   UploadConcurrencyGate,
   UploadTooLargeError,
 } from './src/lib/boundedUpload'
+import { s3PutObject } from './src/lib/s3-put'
+import { handleCrmMedia } from './src/agent/media-library-route'
 import {
   captionsFromCharacterAlignment,
   type CharacterAlignment,
@@ -1688,14 +1690,9 @@ async function uploadToS3(
   const key = `assets/${Date.now()}-${filename}`
 
   try {
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: key,
-        Body: fileBuffer,
-        ContentType: contentType,
-      })
-    )
+    // The put itself lives in src/lib/s3-put.ts, shared with the CRM ingest
+    // (media-library): one PutObject, two callers. The signed URL stays here.
+    await s3PutObject(key, fileBuffer, contentType)
 
     return await uploadedAssetResult(key)
   } catch (error) {
@@ -8066,6 +8063,32 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleCrmMirror(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * POST/GET /api/crm/media -- the per-user media library: what a person
+   * sent (photo, voice, file) as OUR shelf URL plus a transcript or a
+   * description. Same identity as the mirror above: the verified owner is
+   * `who`; the bot names them via X-Api-Key + telegram_id.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/crm/media' &&
+    (req.method === 'POST' || req.method === 'GET')
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    await handleCrmMedia(req, res, String(who), getPool)
     return
   }
 

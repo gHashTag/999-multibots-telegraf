@@ -1,0 +1,75 @@
+# Медиатека клиента — агент хранит, видит и слышит присланное — 2026-09-13
+
+Статусы: `[измерено]` — проверено по коду или в продакшене; `[решение]` — принято и реализовано в этом PR; `[вопрос]` — открыто, требует проверки в проде.
+
+## Что было измерено (три дыры)
+
+- `[измерено]` **Бизнес-личка** (`src/services/businessBotService.ts`): фото / голосовое / файл клиента пересылались владельцу, клиенту уходила заготовленная фраза, байты выбрасывались (`stats.nonTextDropped++`). Модель видела строку «[Клиент прислал фото] подпись» — описание файла, а не файл.
+- `[измерено]` **Инжест переписки** (`crm_ingest_chats`, `apps/vibee-editor/render/src/agent/crm-memory-tools.ts`): фильтр `.filter(m => m.message)` выбрасывал каждое медиа без подписи, поэтому в `crm_messages` были дыры ровно там, где присылали скриншоты, голосовые и брифы.
+- `[измерено]` **Чат с ботом** (`registerCommands.ts` → `buildAgentTurn`): файлы клались на полку и попадали в маркер-строки, но по человеку ничего не индексировалось — на вопрос «что мне присылал этот человек» ответа не было.
+
+## Что сделано
+
+### Таблица `user_media` `[решение]`
+
+Один Postgres с перепиской, одна строка на `(owner_id, lead_id, url)`:
+
+| колонка | смысл |
+|---|---|
+| `owner_id` | чья CRM / чей бот (telegram_id владельца) |
+| `lead_id` | кто прислал; в чате с ботом совпадает с `owner_id` |
+| `surface` | `bot` \| `business` \| `ingest` |
+| `msg_id`, `at`, `out` | сообщение Telegram, время, «от владельца ли» |
+| `kind` | `image` \| `video` \| `audio` \| `file` — те же четыре, что в `agentAttachments.ts` |
+| `name`, `mime`, `bytes` | имя, тип, размер |
+| `url` | **только наша полка** `${PUBLIC_URL}/s3/<key>` |
+| `tg_file_unique_id` | стабильный id Telegram (для Bot API); у MTProto — `null` |
+| `caption` | подпись человека |
+| `transcript`, `transcribed_at` | что услышали/увидели; `transcribed_at` без `transcript` = пробовали, нечитаемо |
+
+Индекс `(owner_id, lead_id, at DESC)`. Повторная запись того же URL — `ON CONFLICT DO UPDATE`, подпись дозаполняется, `fresh` (по `xmax = 0`) — только у первой вставки: именно она идёт в описание.
+
+**Ссылка Telegram не хранится никогда** `[решение]`: `api.telegram.org/file/bot<TOKEN>/…` содержит токен бота. `rememberMedia` бросает исключение до INSERT, маршрут отвечает 400 на всю пачку, бот-клиент (`src/services/mediaLibrary.ts`) отказывается отправлять. Тесты закреплены на обоих концах.
+
+### Путь по каждой поверхности
+
+**Бизнес-личка** `[решение]` — `businessBotService.ts`: после пересылки владельцу вызывается тот же `buildAgentTurn(bot.telegram, [msg])`, что и в чате бота: файл один раз скачивается по токен-ссылке, кладётся на полку, агенту уходит `Клиент прислал фото.\nподпись\n[attached image: …; url=<полка>]`. Ответ агента — клиенту (через `answerClient`, ход записывается `recordTurns`). Полка индексируется `POST /api/crm/media` (owner = владелец, lead = клиент, surface `business`), в фоне.
+Если файл отклонён (больше 20 МБ, не скачался): с подписью — прежний путь `[Клиент прислал фото] подпись`; без подписи — **одно** сообщение `отказ\n\nзаготовка` с прежней кнопкой карточки.
+Одно сообщение = один ход: буфер альбомов чата с ботом здесь не переиспользуется (части альбома отвечаются по отдельности, чтобы недошедшая часть не стоила клиенту ответа).
+
+**Чат с ботом** `[решение]` — `registerCommands.ts` сразу после `buildAgentTurn(ctx.telegram, albumParts)`: `plan.stored` → `POST /api/crm/media` (owner = lead = человек, surface `bot`). Строка `buildAgentTurn(ctx.telegram, albumParts)` сохранена — её пинит `agent-chat-wiring.test.ts`.
+
+**Инжест** `[решение]` — `crm_ingest_chats`: фильтр стал `m.message || m.media`; медиа без подписи пишется в `crm_messages` как `[фото: name]` / `[голосовое]` / `[видео: …]` / `[файл: name]` + подпись. Для новейших `MEDIA_PER_DIALOG = 12` медиа диалога (≤ 20 МБ) — `client.downloadMedia(m)` → `s3PutBytes` (`src/lib/s3-put.ts`) → `rememberMedia` → фоновое описание. Всего за запуск `MAX_MEDIA_DOWNLOADS = 60`. В отчёт добавлены `media_saved`, `media_skipped`.
+
+### Расшифровка `[решение]`
+
+`describeMedia(url, kind, mime, name)` в `media-library.ts`: провайдер выбирается из `allProviders()` по флагу `vision` / `audio` (`provider.ts`), запрос — не-стриминговый `POST ${p.base}/chat/completions` с частью `image_url` / `audio_url` (формат `media-parts.ts`), URL пропускается через `usableMediaUrl` (только наша полка, только известные расширения), таймаут 20 с. Текстовые документы (`text/*`, `.md`, `.csv`, `.json`, ≤ 200 КБ) читаются как текст, первые 4000 символов. Видео и бинарные файлы → `null` без единого вызова (закреплено тестом: `fetch` не вызывается).
+
+Расшифровка ложится в `crm_messages` под тем же `msg_id` (`mirrorTranscript`): если строки нет — `mirrorNow` вставляет `[голосовое]\n<слова>`; если есть — `UPDATE … text || '\n' || $4` один раз (страж `position($4 in text) = 0`). Отдельной строки `msg_id*1000+1` нет: одно сообщение Telegram — одна строка. Zep получает вставку через `mirrorNow` как обычно.
+
+### Инструмент агента `crm_lead_media` `[решение]`
+
+READ-only, `requireSeller`, параметры `{lead, limit?, kind?}`; подписи и расшифровки завёрнуты в `foreignText`. Попадает в `CRM_MEMORY_TOOLS` → `TOOLS` → компактный набор (`/^(crm_|tg_|soul_)/`). Добавлен в `crm-owner-gate.test.ts`: посторонний получает отказ без касания БД.
+
+## Бюджеты и границы `[решение]`
+
+- Bot API отдаёт ботам ≤ 20 МБ (`TELEGRAM_DOWNLOAD_LIMIT`); тот же потолок у инжеста (`MEDIA_MAX_BYTES`).
+- Инжест: 12 медиа на диалог, 60 на запуск; остальное — только строки без байтов, до следующего запуска.
+- Описание — последовательно, 20 с на файл, в фоне; ответ человеку его не ждёт.
+- Видео и бинарные документы хранятся, но не читаются: ни один настроенный провайдер их не берёт (`media-parts.ts`, измерено 2026-09-07).
+
+## Проверка в проде `[вопрос]`
+
+1. SQL после первого дня:
+   ```sql
+   select surface, kind, count(*) from user_media group by 1,2;
+   select count(*) filter (where transcript is not null) as read,
+          count(*) filter (where transcribed_at is not null and transcript is null) as unreadable,
+          count(*) filter (where transcribed_at is null) as pending
+   from user_media;
+   ```
+   Ожидание: строки по трём `surface`; у `audio`/`image` есть `transcript`, у `video` — `transcribed_at` без `transcript`.
+2. Голосовое в бизнес-личку с чужого аккаунта: агент отвечает по содержанию (не заготовкой), в `crm_messages` под `msg_id` появляется `[голосовое]\n<слова>`, `crm_lead_media` по этому lead показывает строку с URL полки.
+3. `select count(*) from user_media where url like '%api.telegram.org%'` → **0** всегда.
+4. `crm_ingest_chats` у продавца с медиа в переписке: `media_saved > 0`, в `crm_messages` больше нет дыр на местах фото без подписи.
+5. `[вопрос]` Реальный `audio_url` у nemotron для `.ogg` с полки — путь `chat.ts` уже работает, но описание идёт отдельным не-стриминговым запросом; проверить по логу `[media-library] could not describe`.

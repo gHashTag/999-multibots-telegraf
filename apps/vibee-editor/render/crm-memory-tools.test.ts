@@ -296,6 +296,78 @@ describe('crm_ingest_chats', () => {
       urls.some(u => u.includes(`/api/v2/threads/tg-${OWNER}-${A}/messages`))
     ).toBe(true)
   })
+
+  it('a caption-less voice note is no longer a hole: it becomes a row, is downloaded to OUR shelf and indexed', async () => {
+    // The media message has NO text. Before, `.filter(m => m.message)` dropped
+    // it; now it is a `[voice note]` row plus a user_media row whose URL is
+    // the shelf's, never Telegram's.
+    const put = vi.fn(async (_b: Buffer, name: string) => ({
+      key: `assets/1-${name}`,
+      url: `https://vibee-render-production.up.railway.app/s3/assets/1-${name}`,
+    }))
+    vi.doMock('./src/lib/s3-put', () => ({ s3PutBytes: put }))
+    // No provider must be reached from a test: the background describe sees
+    // a 500 and writes null.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 500, text: async () => '' }))
+    )
+    const f = fakeClient()
+    const voice = {
+      id: 5,
+      date: 1757250000,
+      out: false,
+      message: '',
+      media: {
+        className: 'MessageMediaDocument',
+        document: {
+          mimeType: 'audio/ogg',
+          size: 4096,
+          attributes: [{ className: 'DocumentAttributeAudio', voice: true }],
+        },
+      },
+    }
+    const baseGetMessages = f.client.getMessages.bind(f.client)
+    f.client.getMessages = async (chat: string) => {
+      const rows = await baseGetMessages(chat)
+      return chat === A ? [voice, ...rows] : rows
+    }
+    const downloaded: number[] = []
+    ;(f.client as any).downloadMedia = async (m: { id: number }) => {
+      downloaded.push(m.id)
+      return Buffer.from('OggS voice bytes')
+    }
+    const pool = fakePool()
+    const media: unknown[][] = []
+    const inner = pool.query
+    pool.query = async (sql: string, params: unknown[] = []) => {
+      const flat = sql.replace(/\s+/g, ' ').trim()
+      if (flat.startsWith('INSERT INTO user_media')) {
+        media.push(params)
+        return { rows: [{ id: media.length, fresh: true }] }
+      }
+      return inner(sql, params)
+    }
+    const { ingest } = await tools(f.client)
+    const r: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(r.messages_read).toBe(5)
+    expect(r.media_saved).toBe(1)
+    expect(downloaded).toEqual([5])
+    expect(put).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'voice-5.ogg',
+      'audio/ogg'
+    )
+    // The url column (index 10) is ours.
+    expect(String(media[0][10])).toContain('/s3/assets/1-voice-5.ogg')
+    expect(String(media[0][10])).not.toContain('api.telegram.org')
+    expect(media[0][2]).toBe('ingest')
+    // And the correspondence row exists with the label, not a hole.
+    const ins = pool.queries.filter(q =>
+      q.sql.startsWith('INSERT INTO crm_messages')
+    )
+    expect(ins[0].params).toContain('[голосовое]')
+  })
 })
 
 describe('crm_lead_context', () => {

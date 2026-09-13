@@ -78,6 +78,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   crm_offer: { telegram_id: '900000001', tokens: 100 },
   crm_deliver_photo: { telegram_id: '900000001', prompt: 'x' },
   crm_ingest_chats: { limit: 5, depth: 5 },
+  crm_lead_media: { lead: '900000001', limit: 5 },
 }
 
 const named = Object.entries(REGISTRIES).flatMap(([registry, tools]) =>
