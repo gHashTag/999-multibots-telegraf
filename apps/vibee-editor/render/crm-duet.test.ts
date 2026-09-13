@@ -14,6 +14,9 @@ import {
   mediaKind,
   mediaNote,
   promisesFile,
+  claimsDoneWork,
+  producedWork,
+  summaryOf,
   askBuyerModel,
   buyerRequestBody,
   PAID_TOOLS,
@@ -162,7 +165,10 @@ describe('crm_duet loop', () => {
   it('a silent seller ends the run without sending an empty message', async () => {
     const { d, sent } = deps([[]], ['…'])
     const run = await runDuet(freshRun({ turns: 2 }), ctx, d)
-    expect(run.state).toBe('done')
+    // crm-duet.t27 ABORTED_RUN_STATE: a run that did not play every turn is
+    // failed, not done, and keeps the turn's error.
+    expect(run.state).toBe('failed')
+    expect(run.error).toBe('turn 0: seller produced no text')
     expect(run.transcript).toHaveLength(1)
     expect(run.transcript[0].error).toBe('seller produced no text')
     expect(sent).toEqual([])
@@ -535,5 +541,109 @@ describe('crm_duet tools', () => {
     await expect(
       askBuyerModel([{ role: 'user', content: 'x' }], [], doFetch)
     ).rejects.toThrow('no provider configured')
+  })
+})
+
+describe('crm_duet claim honesty and aborted state (duet-mtzyg2t6, 2026-09-13)', () => {
+  const PROVIDER_ERR =
+    'Error: Ни один провайдер модели не ответил.\n  • zai: превышен лимит запросов' // cyrillic-ok
+
+  it('claimsDoneWork fires on finished-work claims, not on offers or futures', () => {
+    // The live line from turn 0.
+    expect(
+      claimsDoneWork(
+        'Привет, Gaia! Я уже собрал пробный ролик в том же стиле, как вы просили, и сейчас готовлю его к публикации.'
+      )
+    ).toBe(true)
+    expect(claimsDoneWork('Вот ваш ролик по плану 6.')).toBe(true)
+    expect(claimsDoneWork('Картинка готова, смотрите.')).toBe(true)
+    expect(claimsDoneWork('Могу собрать один ролик её шаблоном — какой план взять?')).toBe(false)
+    expect(claimsDoneWork('Готов собрать пример поста после вашего ответа.')).toBe(false)
+    expect(claimsDoneWork('Вот пример поста про 72 плана.')).toBe(false)
+    expect(claimsDoneWork('Расскажите, какой план вам ближе?')).toBe(false)
+  })
+
+  it('producedWork is true only for an ok producing tool', () => {
+    expect(producedWork([{ name: 'reel_render', value: { готово: true, url: 'https://x/a.mp4' }, ms: 1 }])).toBe(true) // cyrillic-ok
+    expect(producedWork([{ name: 'reel_render', value: { error: 'no credits' }, ms: 1 }])).toBe(false)
+    expect(producedWork([{ name: 'crm_client_profile', value: { has_profile: true }, ms: 1 }])).toBe(false)
+  })
+
+  it('a claim with no tool gets one rewrite; the rewrite is what goes out and the miss is reported', async () => {
+    const { d, sent, histories } = deps(
+      [
+        [
+          result('crm_client_profile', { has_profile: true }),
+          text('Я уже собрал пробный ролик в вашем стиле и готовлю его к публикации. Что поправить?'),
+        ],
+        [text('Могу собрать один пример ролика вашим шаблоном после ответа. Какой план вам ближе?')],
+      ],
+      ['План 6.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(histories).toHaveLength(2)
+    expect(histories[1].at(-1)?.content).toContain('Проверка честности')
+    expect(sent[0].text).toContain('Могу собрать')
+    expect(run.transcript[0].text).toContain('Могу собрать')
+    expect(run.violations).toEqual([
+      'turn 0: заявлена сделанная работа без инструмента — переписано',
+    ])
+    expect(run.state).toBe('done')
+  })
+
+  it('a second miss is sent as is and reported after the rewrite', async () => {
+    const { d, sent } = deps(
+      [
+        [text('Ролик уже сделал, вот ваш ролик.')],
+        [text('Картинка готова и ролик собрал, публикуем?')],
+      ],
+      ['?']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(sent[0].text).toContain('Картинка готова')
+    expect(run.violations).toEqual([
+      'turn 0 (после правки): заявлена сделанная работа без инструмента',
+    ])
+  })
+
+  it('a claim backed by a producing tool in the same turn is honest and untouched', async () => {
+    const { d, histories } = deps(
+      [
+        [
+          result('reel_render', { готово: true, url: 'https://x/plan-6.mp4' }), // cyrillic-ok
+          text('Собрал пробный ролик в стиле игры: вот он.'),
+        ],
+      ],
+      ['Вижу.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(histories).toHaveLength(1)
+    expect(run.violations).toEqual([])
+  })
+
+  it('a provider failure on a later seller turn ends the run as failed with the turn error, 3 of 8 lines', async () => {
+    const { d } = deps(
+      [
+        [text('Здравствуйте! Какой план вам ближе?')],
+        [{ тип: 'ошибка', текст: PROVIDER_ERR }], // cyrillic-ok
+      ],
+      ['План 6.']
+    )
+    const run = await runDuet(freshRun({ turns: 4 }), ctx, d)
+    expect(run.state).toBe('failed')
+    expect(run.transcript).toHaveLength(3)
+    expect(run.transcript[2].error).toBe(PROVIDER_ERR)
+    expect(run.error).toBe(`turn 2: ${PROVIDER_ERR}`)
+    expect(run.finished_at).toBeDefined()
+    expect(reportOf(run)).toContain('failed')
+    expect(summaryOf(run, 1000).error).toBe(run.error)
+    expect(summaryOf(run, 1000).lines).toBe(3)
+  })
+
+  it('a silent buyer ends the run as failed too', async () => {
+    const { d } = deps([[text('Привет!')]], [''])
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(run.state).toBe('failed')
+    expect(run.error).toBe('turn 1: buyer produced no text')
   })
 })

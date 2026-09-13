@@ -361,7 +361,13 @@ export default function CrmClientPage() {
                     {t('crm.client.duets.media')} {r.mediaSent} ·{' '}
                     {t('crm.client.duets.violations')} {r.violations.length}{' '}
                     · {t('crm.client.duets.voice')} {r.voiceFlags.length}
+                    {r.lines < r.turns * 2 && r.state !== 'running'
+                      ? ` · ${t('crm.client.duets.lines')} ${r.lines}/${r.turns * 2}`
+                      : ''}
                   </p>
+                  {r.error ? (
+                    <p className="crm__why crm-client__duet-error">{r.error}</p>
+                  ) : null}
                   {r.coverage.length > 0 ? (
                     <ul className="crm-client__chips">
                       {r.coverage.map(c => (
