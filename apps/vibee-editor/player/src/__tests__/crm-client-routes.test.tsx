@@ -87,7 +87,9 @@ describe('the client routes win over the profile catch-all', () => {
     expect(host.querySelector('.crm-client')).not.toBeNull()
     expect(host.textContent).toContain('crm.client.chatButton')
     expect(
-      host.querySelector<HTMLAnchorElement>('a.crm-client__chat')?.getAttribute('href')
+      host
+        .querySelector<HTMLAnchorElement>('a.crm-client__chat')
+        ?.getAttribute('href')
     ).toBe('/crm/123/chat')
   })
 

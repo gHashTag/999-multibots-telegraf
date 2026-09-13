@@ -40,7 +40,10 @@ export interface PlanItemRow {
 
 /** Pure: goals with their item counts by status, plus the totals. */
 export function aggregatePlan(goals: PlanGoalRow[], items: PlanItemRow[]) {
-  const perGoal = new Map<number, { total: number; done: number; by_status: Record<string, number> }>()
+  const perGoal = new Map<
+    number,
+    { total: number; done: number; by_status: Record<string, number> }
+  >()
   for (const g of goals) perGoal.set(g.id, { total: 0, done: 0, by_status: {} })
   let done = 0
   for (const it of items) {
@@ -98,7 +101,9 @@ export interface ClientRow {
  * A dead Supabase costs the money column, not the answer: `known: false`
  * and the stage falls back to touches alone.
  */
-export async function paidSetFor(ctx: ToolContext): Promise<{ paid: Set<string>; known: boolean }> {
+export async function paidSetFor(
+  ctx: ToolContext
+): Promise<{ paid: Set<string>; known: boolean }> {
   try {
     const scope = await visibleScope(ctx)
     return { paid: await whoPaid(scope), known: true }
@@ -165,7 +170,9 @@ export function mergeClients(input: {
     r.stage = stageOf({ paid: r.paid, touches, quietDays }).stage
   }
   return [...rows.values()].sort(
-    (a, b) => (b.last_seen ? Date.parse(b.last_seen) : 0) - (a.last_seen ? Date.parse(a.last_seen) : 0)
+    (a, b) =>
+      (b.last_seen ? Date.parse(b.last_seen) : 0) -
+      (a.last_seen ? Date.parse(a.last_seen) : 0)
   )
 }
 
@@ -198,7 +205,8 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       await requireSeller(ctx)
       const telegramId = String(args.telegram_id ?? '').trim()
-      if (!ID_RE.test(telegramId)) throw new Error('telegram_id должен быть числовым Telegram ID')
+      if (!ID_RE.test(telegramId))
+        throw new Error('telegram_id должен быть числовым Telegram ID')
       await ensurePlanTables(ctx!)
       const goals = await tryQuery<PlanGoalRow>(
         ctx!,
@@ -228,7 +236,10 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       await requireSeller(ctx)
       const owner = String(ctx!.telegramId)
-      const limit = Math.min(200, Math.max(1, Math.floor(Number(args.limit) || 50)))
+      const limit = Math.min(
+        200,
+        Math.max(1, Math.floor(Number(args.limit) || 50))
+      )
       try {
         await ensureProfileTable(ctx!)
       } catch {
@@ -249,11 +260,20 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
           ORDER BY updated_at DESC LIMIT $1`,
         [limit, owner]
       )
-      const ids = [...new Set([...people.map(p => String(p.lead_id)), ...profiles.map(p => String(p.telegram_id))])]
+      const ids = [
+        ...new Set([
+          ...people.map(p => String(p.lead_id)),
+          ...profiles.map(p => String(p.telegram_id)),
+        ]),
+      ]
       const souls = new Set(
-        (await tryQuery<{ telegram_id: string }>(ctx!, `SELECT telegram_id FROM user_soul WHERE telegram_id = ANY($1)`, [ids])).map(r =>
-          String(r.telegram_id)
-        )
+        (
+          await tryQuery<{ telegram_id: string }>(
+            ctx!,
+            `SELECT telegram_id FROM user_soul WHERE telegram_id = ANY($1)`,
+            [ids]
+          )
+        ).map(r => String(r.telegram_id))
       )
       const skills = new Map<string, number>()
       for (const r of await tryQuery<{ telegram_id: string; n: number }>(
@@ -271,7 +291,15 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
         duets.set(String(r.buyer_id), Number(r.n))
       const touches = await touchesByLead(ctx!.pool as never, owner)
       const money = await paidSetFor(ctx!)
-      const clients = mergeClients({ profiles, people, souls, skills, duets, touches, paid: money.paid }).slice(0, limit)
+      const clients = mergeClients({
+        profiles,
+        people,
+        souls,
+        skills,
+        duets,
+        touches,
+        paid: money.paid,
+      }).slice(0, limit)
       return { clients, paid_known: money.known }
     },
   },

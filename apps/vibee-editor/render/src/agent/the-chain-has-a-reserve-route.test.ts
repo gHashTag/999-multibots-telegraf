@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { allProviders, providerOrder, reserveEnv } from './provider'
-import { KNOWN_PROVIDERS, forgetProviderChoiceForTests } from './provider-choice'
+import {
+  KNOWN_PROVIDERS,
+  forgetProviderChoiceForTests,
+} from './provider-choice'
 
 /**
  * THE CHAIN HAS A RESERVE ROUTE. Spec: t27 specs/automation/agent-provider-chain.t27.
@@ -23,7 +26,13 @@ const three = () => {
 
 describe('the reserve route', () => {
   it('sits after nemotron and before ollama in the default order', () => {
-    expect(providerOrder()).toEqual(['zai', 'zai-lite', 'nemotron', 'reserve', 'ollama'])
+    expect(providerOrder()).toEqual([
+      'zai',
+      'zai-lite',
+      'nemotron',
+      'reserve',
+      'ollama',
+    ])
     expect(KNOWN_PROVIDERS).toContain('reserve')
   })
 
@@ -35,7 +44,11 @@ describe('the reserve route', () => {
     expect(reserveEnv()).toBeNull()
     expect(allProviders().map(p => p.id)).toEqual(['zai', 'zai-lite'])
     vi.stubEnv('RESERVE_MODEL', 'some/model')
-    expect(allProviders().map(p => p.id)).toEqual(['zai', 'zai-lite', 'reserve'])
+    expect(allProviders().map(p => p.id)).toEqual([
+      'zai',
+      'zai-lite',
+      'reserve',
+    ])
   })
 
   it('takes base, model and key from the variables; the trailing slash is trimmed', () => {
@@ -57,11 +70,21 @@ describe('the reserve route', () => {
     expect(r.tools).toBe(false)
     expect(r.vision).toBe(true)
     // What streamModel does under toolsOnly.
-    expect(allProviders().filter(p => p.tools).map(p => p.id)).toEqual([])
+    expect(
+      allProviders()
+        .filter(p => p.tools)
+        .map(p => p.id)
+    ).toEqual([])
   })
 
   it('AGENT_PROVIDER=reserve moves it to the front, the rest keep their order', () => {
     vi.stubEnv('AGENT_PROVIDER', 'reserve')
-    expect(providerOrder()).toEqual(['reserve', 'zai', 'zai-lite', 'nemotron', 'ollama'])
+    expect(providerOrder()).toEqual([
+      'reserve',
+      'zai',
+      'zai-lite',
+      'nemotron',
+      'ollama',
+    ])
   })
 })

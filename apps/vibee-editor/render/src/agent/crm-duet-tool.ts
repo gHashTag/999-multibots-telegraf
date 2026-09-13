@@ -27,7 +27,12 @@
  */
 import type { AgentTool, ToolContext } from './tools'
 import type { AgentEvent, ChatMessage } from './chat'
-import { requireOwner, requireSeller, isSeller, withClient } from './telegram-tools'
+import {
+  requireOwner,
+  requireSeller,
+  isSeller,
+  withClient,
+} from './telegram-tools'
 import {
   sendWithAddressBook,
   sendFileWithAddressBook,
@@ -114,7 +119,9 @@ export function getRun(id?: string | null): DuetRun | undefined {
   return runs.get(id ?? lastRunId ?? '')
 }
 
-type RunsPool = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+type RunsPool = {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+}
 
 /** A running run whose process died shows as lost after this long. */
 export const LOST_AFTER_MS = 30 * 60_000
@@ -228,7 +235,8 @@ export function rowToRun(row: Record<string, any>): DuetRun {
     media_sent: Number(row.media_sent ?? 0),
     violations: asJson<string[]>(row.violations, []),
     voice_flags: asJson<string[]>(row.voice_flags, []),
-    profile_used: row.profile_used == null ? undefined : Boolean(row.profile_used),
+    profile_used:
+      row.profile_used == null ? undefined : Boolean(row.profile_used),
     error: row.error == null ? undefined : String(row.error),
   }
 }
@@ -277,7 +285,10 @@ export async function listRuns(
   limit: number
 ): Promise<DuetRun[]> {
   if (!pool || typeof pool.query !== 'function') return []
-  const cols = RUN_COLUMNS.replace('transcript', `jsonb_array_length(transcript) AS lines`)
+  const cols = RUN_COLUMNS.replace(
+    'transcript',
+    `jsonb_array_length(transcript) AS lines`
+  )
   try {
     await ensureRunsTable(pool)
     const r = buyer
@@ -336,7 +347,10 @@ export interface DuetDeps {
     caption: string
   ) => Promise<void>
   /** The client profile the seller reads first; defaults to the DB row. */
-  clientProfile?: (ctx: ToolContext, buyer: string) => Promise<Record<string, any>>
+  clientProfile?: (
+    ctx: ToolContext,
+    buyer: string
+  ) => Promise<Record<string, any>>
   /** Writes the run to the table: at start, after every turn, at the end. Optional in tests. */
   persist?: (run: DuetRun) => Promise<void>
   now?: () => number
@@ -358,7 +372,8 @@ export const SELLER_RETRY_ON_LIMIT = 1
 export const SELLER_RETRY_PAUSE_MS = 30_000
 // "limit" covers "rate limit" and "limit reached"; the last alternative is the
 // word provider.ts diagnose() uses for 429 in Russian.
-const LIMIT_RE = /429|limit|ResourceExhausted|too many requests|\u043b\u0438\u043c\u0438\u0442/i
+const LIMIT_RE =
+  /429|limit|ResourceExhausted|too many requests|\u043b\u0438\u043c\u0438\u0442/i
 
 export function isLimitError(error: string | undefined): boolean {
   return !!error && LIMIT_RE.test(error)
@@ -399,7 +414,10 @@ const URL_RE = /https?:\/\/[^\s)»"']+/g
  * app link twice in four turns. Only whole URLs are compared; the text around
  * them stays as the model wrote it.
  */
-export function dedupeLinks(text: string, sent: Set<string>): { text: string; dropped: string[] } {
+export function dedupeLinks(
+  text: string,
+  sent: Set<string>
+): { text: string; dropped: string[] } {
   const dropped: string[] = []
   const out = text.replace(URL_RE, u => {
     const key = u.replace(/[.,;:!?]+$/, '')
@@ -410,14 +428,22 @@ export function dedupeLinks(text: string, sent: Set<string>): { text: string; dr
     sent.add(key)
     return u
   })
-  return { text: out.replace(/[ \t]{2,}/g, ' ').replace(/ \n/g, '\n').trim(), dropped }
+  return {
+    text: out
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/ \n/g, '\n')
+      .trim(),
+    dropped,
+  }
 }
 
 /** A profile row as `crm_client_profile` returns it; `null` when none is set. */
 export type ClientProfile = Record<string, any> | null
 
 function lines(v: unknown): string[] {
-  return Array.isArray(v) ? v.map(x => `- ${typeof x === 'string' ? x : JSON.stringify(x)}`) : []
+  return Array.isArray(v)
+    ? v.map(x => `- ${typeof x === 'string' ? x : JSON.stringify(x)}`)
+    : []
 }
 
 /**
@@ -429,7 +455,10 @@ function lines(v: unknown): string[] {
  * installed, is quoted into the brief so the model reads it before the first
  * word; the voice checker below catches what the brief cannot.
  */
-export function sellerBrief(buyer: string, profile: ClientProfile = null): string {
+export function sellerBrief(
+  buyer: string,
+  profile: ClientProfile = null
+): string {
   const p = profile ?? {}
   const name = p.name ? `${p.name} (${p.handle ?? '@playom'})` : '@playom'
   const cta = p.approved_cta?.text ?? LEELA_CTA_RU
@@ -439,18 +468,43 @@ export function sellerBrief(buyer: string, profile: ClientProfile = null): strin
     `Ты ведёшь РЕАЛЬНЫЙ диалог в Telegram с ${name}, Telegram ID ${buyer}. Она ведёт игру самопознания «Лила Чакра» и впервые смотрит на этот бот как на инструмент для продвижения её игры.`,
     'Порядок работы — как у профессионала с клиентом: сначала УЗНАТЬ, потом ПРЕДЛОЖИТЬ. Первые 1–2 реплики — только знакомство и вопросы discovery (по одному за реплику). Предложение делай только после её ответов и опирайся на них дословно.',
     'Отвечай ТОЛЬКО текстом, который уйдёт ей: 2–5 предложений, по-русски, «вы» с маленькой буквы, без разметки и списков. Не больше одного вопроса в реплике.',
-    p.status ? `Профиль клиента (статус: ${p.status}):` : 'Профиль клиента не настроен — задавай вопросы discovery и не делай предположений об аудитории.',
+    p.status
+      ? `Профиль клиента (статус: ${p.status}):`
+      : 'Профиль клиента не настроен — задавай вопросы discovery и не делай предположений об аудитории.',
     ...(p.role ? [`- роль: ${p.role}`] : []),
     ...(p.business?.product ? [`- продукт: ${p.business.product}`] : []),
-    ...(p.business?.surfaces ? [`- где живёт продукт: ${(p.business.surfaces as string[]).join('; ')}`] : []),
-    ...(p.audience_hypotheses ? ['Гипотезы об аудитории (проверить вопросами, не утверждать):', ...lines(p.audience_hypotheses)] : []),
-    ...(p.discovery_questions ? ['Вопросы discovery — по одному, своими словами:', ...lines(p.discovery_questions)] : []),
-    ...(p.content_series ? ['Серии контента, которые можно предложить после discovery:', ...lines((p.content_series as any[]).map(c => `${c.rubric}: ${(c.ideas ?? []).join(', ')}`))] : []),
+    ...(p.business?.surfaces
+      ? [`- где живёт продукт: ${(p.business.surfaces as string[]).join('; ')}`]
+      : []),
+    ...(p.audience_hypotheses
+      ? [
+          'Гипотезы об аудитории (проверить вопросами, не утверждать):',
+          ...lines(p.audience_hypotheses),
+        ]
+      : []),
+    ...(p.discovery_questions
+      ? [
+          'Вопросы discovery — по одному, своими словами:',
+          ...lines(p.discovery_questions),
+        ]
+      : []),
+    ...(p.content_series
+      ? [
+          'Серии контента, которые можно предложить после discovery:',
+          ...lines(
+            (p.content_series as any[]).map(
+              c => `${c.rubric}: ${(c.ideas ?? []).join(', ')}`
+            )
+          ),
+        ]
+      : []),
     `Рилс для неё — только шаблон ${template}: возьми канон плана инструментом leela_plan {plan}, подставь reel_props в reel_render. Не предлагай TrinityBlogReel, PromoReel и картинки image_generate: они не в стиле игры, а сгенерированный текст на картинке нечитаем.`,
     `Одобренный призыв: «${cta}» и кнопка «${button}». Других обещаний и призывов не придумывай.`,
     'Факты об игре — только эти:',
     ...LEELA_CANON.map(s => `- ${s}`),
-    ...(p.forbidden_claims ? ['Запрещённые формулировки:', ...lines(p.forbidden_claims)] : []),
+    ...(p.forbidden_claims
+      ? ['Запрещённые формулировки:', ...lines(p.forbidden_claims)]
+      : []),
     'Слова давления запрещены: «сегодня», «срочно», «последний шанс», «серия», «прогресс», «молодец», «успех», поздравления. Цены, скидки, проценты и отзывы не называй; о цене говори только если она сама спросила, и только цифрами из ответа pricing.',
     'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — только один ролик за диалог и только после того, как она сказала, чего хочет.',
     'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
@@ -505,7 +559,9 @@ export function mediaOf(value: unknown): string | null {
  * URL, and answered "the file did not arrive" -- a false claim about a real send. The
  * note now names the kind of file and says it is already visible in Telegram.
  */
-export function mediaKind(url: string): 'видео' | 'картинка' | 'аудио' | 'файл' {
+export function mediaKind(
+  url: string
+): 'видео' | 'картинка' | 'аудио' | 'файл' {
   const path = url.split(/[?#]/)[0].toLowerCase()
   if (/\.(mp4|mov|webm|m4v)$/.test(path)) return 'видео'
   if (/\.(png|jpe?g|webp|gif)$/.test(path)) return 'картинка'
@@ -516,7 +572,8 @@ export function mediaKind(url: string): 'видео' | 'картинка' | 'а�
 export function mediaNote(urls: string[]): string {
   if (!urls.length) return ''
   const kinds = [...new Set(urls.map(mediaKind))]
-  const what = kinds.length === 1 && kinds[0] === 'видео' ? 'видео' : kinds.join(' и ')
+  const what =
+    kinds.length === 1 && kinds[0] === 'видео' ? 'видео' : kinds.join(' и ')
   return `[в чат пришло ${what} файлом (${urls.length} шт.) — оно уже видно в Telegram, ссылку открывать не нужно]`
 }
 
@@ -550,7 +607,8 @@ const READY_RE =
   /(?<![а-яё])(готов(ый|ая|ое|ые|а|о|ы)?|вот\s+(ваш|твой|пробный|первый|готовый)?)(?![а-яё])/i // cyrillic-ok
 const WORK_NOUN_RE =
   /(?<![а-яё])(ролик[а-яё]*|рил[а-яё]*|видео|картинк[а-яё]*|пост[а-яё]*|карточк[а-яё]*|озвучк[а-яё]*|обложк[а-яё]*|монтаж[а-яё]*|сценари[а-яё]*)(?![а-яёa-z0-9])/i // cyrillic-ok
-const CAN_DO_RE = /(?<![а-яё])(могу|можем|смогу|готов[а]?\s+(собрать|сделать|записать|подготовить|смонтировать))(?![а-яё])/i // cyrillic-ok
+const CAN_DO_RE =
+  /(?<![а-яё])(могу|можем|смогу|готов[а]?\s+(собрать|сделать|записать|подготовить|смонтировать))(?![а-яё])/i // cyrillic-ok
 
 /**
  * A seller line that claims finished work in a sentence that names the work.
@@ -627,7 +685,10 @@ export async function runDuet(
   let profile: ClientProfile = null
   let soulExcerpt = ''
   try {
-    const row = await (deps.clientProfile ?? clientProfileFor)(ownerCtx, run.buyer)
+    const row = await (deps.clientProfile ?? clientProfileFor)(
+      ownerCtx,
+      run.buyer
+    )
     if (row?.has_profile) profile = row.profile as Record<string, any>
     if (typeof row?.soul_excerpt === 'string') soulExcerpt = row.soul_excerpt
   } catch {
@@ -638,7 +699,9 @@ export async function runDuet(
   const seller: ChatMessage[] = [
     { role: 'user', content: sellerBrief(run.buyer, profile) },
   ]
-  const buyer: ChatMessage[] = [{ role: 'system', content: buyerPersona(soulExcerpt) }]
+  const buyer: ChatMessage[] = [
+    { role: 'system', content: buyerPersona(soulExcerpt) },
+  ]
   const linksSent = new Set<string>()
   let lastMedia: string | null = null
   // Run duet-mtzyg2t6: turn 2 hit a provider rate limit, the loop broke and
@@ -677,7 +740,10 @@ export async function runDuet(
             error = error ?? again.error
           }
           const still = violatesLeelaVoice(text)
-          if (still.length) run.voice_flags.push(`turn ${i} (после правки): ${still.join(', ')}`) // cyrillic-ok
+          if (still.length)
+            run.voice_flags.push(
+              `turn ${i} (после правки): ${still.join(', ')}`
+            ) // cyrillic-ok
         }
         // Same shape as the voice check: a claim of finished work with no
         // producing tool and no file in this turn gets one rewrite; a second
@@ -713,7 +779,9 @@ export async function runDuet(
         const dedup = dedupeLinks(text, linksSent)
         if (dedup.dropped.length) {
           text = dedup.text
-          run.violations.push(`turn ${i}: повторная ссылка ${dedup.dropped.join(', ')}`) // cyrillic-ok
+          run.violations.push(
+            `turn ${i}: повторная ссылка ${dedup.dropped.join(', ')}`
+          ) // cyrillic-ok
         }
         const tools = results.map(r => ({
           name: r.name,
@@ -828,7 +896,9 @@ export function reportOf(run: DuetRun): string {
     run.voice_flags.length
       ? `Проверка голоса: ${run.voice_flags.join('; ')}`
       : '',
-    run.profile_used === false ? 'Профиль клиента не был настроен (crm_client_setup)' : '',
+    run.profile_used === false
+      ? 'Профиль клиента не был настроен (crm_client_setup)'
+      : '',
     run.dry_run ? 'Режим dry_run: в Telegram ничего не отправлялось' : '',
   ]
     .filter(Boolean)
@@ -865,7 +935,8 @@ export function buyerRequestBody(
     max_tokens: BUYER_MAX_TOKENS,
     stream: false,
   }
-  if (GLM_PROVIDER.test(p.id) || p.thinking) body.thinking = { type: 'disabled' }
+  if (GLM_PROVIDER.test(p.id) || p.thinking)
+    body.thinking = { type: 'disabled' }
   return body
 }
 
@@ -1090,8 +1161,7 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
         String(ctx!.telegramId),
         args.duet_id ? String(args.duet_id) : null
       )
-      if (!run)
-        return { found: false, hint: 'дуэт ещё не запускался' }
+      if (!run) return { found: false, hint: 'дуэт ещё не запускался' }
       const view = viewOf(run)
       return { found: true, run: view, report: reportOf(view as DuetRun) }
     },
@@ -1112,16 +1182,23 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       await requireSeller(ctx)
       const owner = String(ctx!.telegramId)
-      const buyer = args.buyer == null || args.buyer === '' ? null : String(args.buyer).trim()
+      const buyer =
+        args.buyer == null || args.buyer === ''
+          ? null
+          : String(args.buyer).trim()
       if (buyer !== null && !/^\d{5,15}$/.test(buyer))
         throw new Error('buyer должен быть числовым Telegram ID')
-      const limit = Math.min(50, Math.max(1, Math.floor(Number(args.limit) || 10)))
+      const limit = Math.min(
+        50,
+        Math.max(1, Math.floor(Number(args.limit) || 10))
+      )
       const rows = await listRuns(ctx!.pool as RunsPool, owner, buyer, limit)
       const seen = new Set(rows.map(r => r.id))
       // Runs of this process that the table has not seen yet (or a base
       // without the table) still show up, from the cache.
       const cached = [...runs.values()].filter(
-        r => r.owner === owner && !seen.has(r.id) && (!buyer || r.buyer === buyer)
+        r =>
+          r.owner === owner && !seen.has(r.id) && (!buyer || r.buyer === buyer)
       )
       const all = [...rows, ...cached]
         .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))

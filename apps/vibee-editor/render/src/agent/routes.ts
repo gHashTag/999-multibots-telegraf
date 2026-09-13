@@ -65,8 +65,10 @@ export async function threadFor(
   if (rawClient == null || rawClient === '')
     return { ok: true, thread: SELF_THREAD, client: null }
   const client = String(rawClient).trim()
-  if (!CLIENT_ID_RE.test(client)) return { ok: false, status: 400, error: 'bad client' }
-  if (client === String(owner)) return { ok: false, status: 400, error: 'bad client' }
+  if (!CLIENT_ID_RE.test(client))
+    return { ok: false, status: 400, error: 'bad client' }
+  if (client === String(owner))
+    return { ok: false, status: 400, error: 'bad client' }
   let seller = false
   try {
     const { isSeller } = await import('./telegram-tools')
@@ -695,7 +697,8 @@ export async function handleAgentHistory(
   if (!gate.ok) return json(res, gate.status, { ok: false, error: gate.error })
   try {
     const pool = await getPool()
-    const реплики = await прочитатьРазговор( // cyrillic-ok: pre-existing identifiers
+    const реплики = await прочитатьРазговор(
+      // cyrillic-ok: pre-existing identifiers
       pool,
       telegramId,
       предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ, // cyrillic-ok: pre-existing identifiers
@@ -803,7 +806,8 @@ export async function handleAgentHistoryAppend(
     const pool = await getPool()
     let stored = 0
     for (const turn of turns) {
-      const ok = await записатьРеплику( // cyrillic-ok: pre-existing writer
+      const ok = await записатьРеплику(
+        // cyrillic-ok: pre-existing writer
         pool,
         telegramId,
         {

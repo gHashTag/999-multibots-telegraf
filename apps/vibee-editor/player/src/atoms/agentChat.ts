@@ -81,7 +81,9 @@ type MessagesUpdate = Message[] | ((prev: Message[]) => Message[])
 export type MessagesAtom = WritableAtom<Message[], [MessagesUpdate], void>
 
 /** Trim the tail on write -- the fresh end of a conversation matters more. */
-function trimmed(stored: WritableAtom<Message[], [Message[]], void>): MessagesAtom {
+function trimmed(
+  stored: WritableAtom<Message[], [Message[]], void>
+): MessagesAtom {
   return atom(
     get => get(stored),
     (get, set, update: MessagesUpdate) => {
@@ -116,14 +118,21 @@ export const clientThreadStorageKey = (clientId: string): string =>
 
 const clientThreads = new Map<string, MessagesAtom>()
 
-export function agentMessagesAtomFor(clientId: string | null | undefined): MessagesAtom {
+export function agentMessagesAtomFor(
+  clientId: string | null | undefined
+): MessagesAtom {
   if (!clientId) return agentMessagesAtom
   let found = clientThreads.get(clientId)
   if (!found) {
     found = trimmed(
-      atomWithStorage<Message[]>(clientThreadStorageKey(clientId), [], undefined, {
-        getOnInit: true,
-      })
+      atomWithStorage<Message[]>(
+        clientThreadStorageKey(clientId),
+        [],
+        undefined,
+        {
+          getOnInit: true,
+        }
+      )
     )
     clientThreads.set(clientId, found)
   }

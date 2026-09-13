@@ -359,8 +359,8 @@ export default function CrmClientPage() {
                     {t('crm.client.duets.turns')} {r.turns} ·{' '}
                     {t('crm.client.duets.paid')} {r.paidCalls} ·{' '}
                     {t('crm.client.duets.media')} {r.mediaSent} ·{' '}
-                    {t('crm.client.duets.violations')} {r.violations.length}{' '}
-                    · {t('crm.client.duets.voice')} {r.voiceFlags.length}
+                    {t('crm.client.duets.violations')} {r.violations.length} ·{' '}
+                    {t('crm.client.duets.voice')} {r.voiceFlags.length}
                     {r.lines < r.turns * 2 && r.state !== 'running'
                       ? ` · ${t('crm.client.duets.lines')} ${r.lines}/${r.turns * 2}`
                       : ''}
@@ -391,9 +391,7 @@ export default function CrmClientPage() {
           <>
             <p className="crm__counts">
               {t('crm.client.touches.stage')}:{' '}
-              <strong>
-                {hi.stage ? t(`crm.stage.${hi.stage}`) : '—'}
-              </strong>
+              <strong>{hi.stage ? t(`crm.stage.${hi.stage}`) : '—'}</strong>
               {hi.waiting ? ` · ${t(`crm.wait.${hi.waiting}`)}` : ''}
             </p>
             {hi.touches.length === 0 ? (
@@ -447,7 +445,10 @@ export default function CrmClientPage() {
           ))}
       </Panel>
 
-      <Panel title={t('crm.client.messages.title')} state={unreachable(context)}>
+      <Panel
+        title={t('crm.client.messages.title')}
+        state={unreachable(context)}
+      >
         {ctx && (
           <>
             {ctx.waitingOnUs ? (

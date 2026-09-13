@@ -218,7 +218,10 @@ describe('crm_duet helpers', () => {
     expect(mediaOf({ url: 'https://x/y.png' })).toBeNull()
     expect(mediaOf('https://x/y.png')).toBeNull()
     // reel_render speaks gotovo, not sdelano -- run duet-mtzo7ogz lost its mp4 here
-    expect(mediaOf({ готово: true, renderId: 'r1', url: 'https://x/reel.mp4' })).toBe( // cyrillic-ok
+    expect(
+      mediaOf({ готово: true, renderId: 'r1', url: 'https://x/reel.mp4' })
+    ).toBe(
+      // cyrillic-ok
       'https://x/reel.mp4'
     )
     expect(mediaOf({ готово: false, renderId: 'r1' })).toBeNull() // cyrillic-ok
@@ -258,10 +261,15 @@ describe('crm_duet helpers', () => {
       handle: '@playom',
       status: 'draft',
       role: 'Хранительница Лилы',
-      business: { product: 'Лила — игра самопознания', surfaces: ['@leela_chakra_ai_bot'] },
+      business: {
+        product: 'Лила — игра самопознания',
+        surfaces: ['@leela_chakra_ai_bot'],
+      },
       audience_hypotheses: ['новичок после первого броска'],
       discovery_questions: ['Где живёт ваша аудитория?'],
-      content_series: [{ rubric: 'устройство партии', ideas: ['вход с шестёрки'] }],
+      content_series: [
+        { rubric: 'устройство партии', ideas: ['вход с шестёрки'] },
+      ],
       forbidden_claims: ['первый / единственный / лучший'],
       reel_template: { composition: 'LeelaPlanReel' },
       approved_cta: { text: 'Приходите на доску.', button: '🎲 Играть' },
@@ -316,7 +324,11 @@ describe('crm_duet helpers', () => {
     )
     d.clientProfile = async () => ({
       has_profile: true,
-      profile: { name: 'Гея', handle: '@playom', reel_template: { composition: 'LeelaPlanReel' } },
+      profile: {
+        name: 'Гея',
+        handle: '@playom',
+        reel_template: { composition: 'LeelaPlanReel' },
+      },
       soul_excerpt: 'Я хозяйка стола.',
     })
     const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
@@ -376,17 +388,30 @@ describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
       )
     ).toBe(true)
     expect(promisesFile('Пришлю ролик, как только он соберётся.')).toBe(true)
-    expect(promisesFile('Собрал пробный ролик в стиле игры: вот он.')).toBe(false)
-    expect(promisesFile('Видео уже пришло в чат следующим сообщением после ссылки.')).toBe(false)
-    expect(promisesFile('Отправляю вам вопрос: где живёт ваша аудитория?')).toBe(false)
+    expect(promisesFile('Собрал пробный ролик в стиле игры: вот он.')).toBe(
+      false
+    )
+    expect(
+      promisesFile('Видео уже пришло в чат следующим сообщением после ссылки.')
+    ).toBe(false)
+    expect(
+      promisesFile('Отправляю вам вопрос: где живёт ваша аудитория?')
+    ).toBe(false)
     expect(promisesFile('Файл большой. Отправлю позже описание.')).toBe(false)
   })
 
   it('a promise without a tool call resends the last file, counts the send, and is reported; no new paid call', async () => {
     const { d, sent } = deps(
       [
-        [result('reel_render', { готово: true, url: MP4 }), text('Ролик собран.')], // cyrillic-ok
-        [text('Отправляю видео файлом прямо в этот чат, ссылку открывать не нужно.')],
+        [
+          result('reel_render', { готово: true, url: MP4 }),
+          text('Ролик собран.'),
+        ], // cyrillic-ok
+        [
+          text(
+            'Отправляю видео файлом прямо в этот чат, ссылку открывать не нужно.'
+          ),
+        ],
       ],
       ['Не могу открыть видео по ссылке — пришлите файлом.', 'Теперь вижу.']
     )
@@ -402,7 +427,8 @@ describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
     ])
     expect(reportOf(run)).toContain('обещание отправить файл')
     // Coverage stays consistent: every call is either ok or fail.
-    for (const c of Object.values(run.coverage)) expect(c.ok + c.fail).toBe(c.calls)
+    for (const c of Object.values(run.coverage))
+      expect(c.ok + c.fail).toBe(c.calls)
   })
 
   it('a promise with nothing to resend is reported and nothing is sent as media', async () => {
@@ -413,7 +439,9 @@ describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
     const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
     expect(run.media_sent).toBe(0)
     expect(sent.filter(x => x.url)).toEqual([])
-    expect(run.violations).toEqual(['turn 0: обещание отправить файл, файла нет'])
+    expect(run.violations).toEqual([
+      'turn 0: обещание отправить файл, файла нет',
+    ])
     expect(run.transcript[0].resent).toBeUndefined()
   })
 
@@ -518,8 +546,20 @@ describe('crm_duet tools', () => {
     const text = await askBuyerModel(
       [{ role: 'user', content: 'x' }],
       [
-        { id: 'zai', base: 'https://a', model: 'glm-5.3', key: 'k', thinking: true },
-        { id: 'nemotron', base: 'https://b', model: 'n', key: 'k', thinking: false },
+        {
+          id: 'zai',
+          base: 'https://a',
+          model: 'glm-5.3',
+          key: 'k',
+          thinking: true,
+        },
+        {
+          id: 'nemotron',
+          base: 'https://b',
+          model: 'n',
+          key: 'k',
+          thinking: false,
+        },
       ],
       doFetch
     )
@@ -564,16 +604,36 @@ describe('crm_duet claim honesty and aborted state (duet-mtzyg2t6, 2026-09-13)',
     ).toBe(true)
     expect(claimsDoneWork('Вот ваш ролик по плану 6.')).toBe(true)
     expect(claimsDoneWork('Картинка готова, смотрите.')).toBe(true)
-    expect(claimsDoneWork('Могу собрать один ролик её шаблоном — какой план взять?')).toBe(false)
-    expect(claimsDoneWork('Готов собрать пример поста после вашего ответа.')).toBe(false)
+    expect(
+      claimsDoneWork('Могу собрать один ролик её шаблоном — какой план взять?')
+    ).toBe(false)
+    expect(
+      claimsDoneWork('Готов собрать пример поста после вашего ответа.')
+    ).toBe(false)
     expect(claimsDoneWork('Вот пример поста про 72 плана.')).toBe(false)
     expect(claimsDoneWork('Расскажите, какой план вам ближе?')).toBe(false)
   })
 
   it('producedWork is true only for an ok producing tool', () => {
-    expect(producedWork([{ name: 'reel_render', value: { готово: true, url: 'https://x/a.mp4' }, ms: 1 }])).toBe(true) // cyrillic-ok
-    expect(producedWork([{ name: 'reel_render', value: { error: 'no credits' }, ms: 1 }])).toBe(false)
-    expect(producedWork([{ name: 'crm_client_profile', value: { has_profile: true }, ms: 1 }])).toBe(false)
+    expect(
+      producedWork([
+        {
+          name: 'reel_render',
+          value: { готово: true, url: 'https://x/a.mp4' },
+          ms: 1,
+        },
+      ])
+    ).toBe(true) // cyrillic-ok
+    expect(
+      producedWork([
+        { name: 'reel_render', value: { error: 'no credits' }, ms: 1 },
+      ])
+    ).toBe(false)
+    expect(
+      producedWork([
+        { name: 'crm_client_profile', value: { has_profile: true }, ms: 1 },
+      ])
+    ).toBe(false)
   })
 
   it('a claim with no tool gets one rewrite; the rewrite is what goes out and the miss is reported', async () => {
@@ -581,9 +641,15 @@ describe('crm_duet claim honesty and aborted state (duet-mtzyg2t6, 2026-09-13)',
       [
         [
           result('crm_client_profile', { has_profile: true }),
-          text('Я уже собрал пробный ролик в вашем стиле и готовлю его к публикации. Что поправить?'),
+          text(
+            'Я уже собрал пробный ролик в вашем стиле и готовлю его к публикации. Что поправить?'
+          ),
         ],
-        [text('Могу собрать один пример ролика вашим шаблоном после ответа. Какой план вам ближе?')],
+        [
+          text(
+            'Могу собрать один пример ролика вашим шаблоном после ответа. Какой план вам ближе?'
+          ),
+        ],
       ],
       ['План 6.']
     )
@@ -664,7 +730,8 @@ describe('crm_duet one retry on a provider limit (duet-mu00klri, 2026-09-13)', (
   const ZAI_429 = 'zai: превышен лимит запросов' // cyrillic-ok
   const NVIDIA_16 =
     'nemotron: Error: nemotron прислал ошибку в потоке: {"message":"ResourceExhausted: Worker local total request limit reached (16/16)"}' // cyrillic-ok
-  const BAD_KEY = 'zai: ключ недействителен — перевыпустите и обновите переменную' // cyrillic-ok
+  const BAD_KEY =
+    'zai: ключ недействителен — перевыпустите и обновите переменную' // cyrillic-ok
 
   it('isLimitError knows a limit from a dead key', () => {
     expect(isLimitError(ZAI_429)).toBe(true)

@@ -5,10 +5,10 @@
 
 ## Что на сервере [измерено 2026-09-13]
 
-| Приложение | URL воркера | Функций |
-|---|---|---|
-| `t27-queen` | trios-agent-server (`/api/inngest`) | 59: 33 `cron …` (контракты `cron/<источник>/<репо>/<имя>.tick`, часть с CRON-триггером) + 26 `skill t27/*`, `skill trinity/*` (`skill/<ns>/<имя>.run`) |
-| `telegram-bot-client` | 999-multibots-telegraf (`/api/inngest`) | 55: рендер, контент, Instagram, обучение моделей, платежи, рассылка, мониторинг + `(failure)`-обработчики |
+| Приложение            | URL воркера                             | Функций                                                                                                                                                |
+| --------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `t27-queen`           | trios-agent-server (`/api/inngest`)     | 59: 33 `cron …` (контракты `cron/<источник>/<репо>/<имя>.tick`, часть с CRON-триггером) + 26 `skill t27/*`, `skill trinity/*` (`skill/<ns>/<имя>.run`) |
+| `telegram-bot-client` | 999-multibots-telegraf (`/api/inngest`) | 55: рендер, контент, Instagram, обучение моделей, платежи, рассылка, мониторинг + `(failure)`-обработчики                                              |
 
 Полный снимок: `apps/vibee-editor/render/inngest-tools.test.ts` держит формы ответов;
 живой список всегда берётся с сервера.
@@ -18,13 +18,13 @@
 Список инструментов отправляется модели на каждом ходу (`toOpenAITools`), сотня схем
 раздула бы каждый запрос и устарела бы при первом новом cron. Поэтому каталог читается живым:
 
-| Инструмент | Что делает | Транспорт |
-|---|---|---|
-| `inngest_functions {app?, match?, include_failure_handlers?}` | все функции обоих приложений с триггерами и пометкой `guarded` | REST v2 `GET /api/v2/apps`, `/apps/{id}/functions` (с ключом) или dev-GraphQL `/v0/gql` (без ключа, только каталог) |
-| `inngest_runs {app?, function?, status?, limit?}` | последние запуски, всего или одной функции; статусы `QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED` | `GET /api/v2/runs`, `/apps/{a}/functions/{f}/runs` |
-| `inngest_run {run_id, trace?}` | один запуск, вывод, шаги | `GET /api/v2/runs/{id}`, `/trace` |
-| `inngest_invoke {app, function, data?}` | запустить любую функцию из каталога (id, slug, имя или событие) | `POST /api/v2/apps/{a}/functions/{f}/invoke` |
-| `inngest_cancel {run_id}` | отменить запуск | `POST /api/v2/runs/{id}/cancel` |
+| Инструмент                                                    | Что делает                                                                                      | Транспорт                                                                                                           |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `inngest_functions {app?, match?, include_failure_handlers?}` | все функции обоих приложений с триггерами и пометкой `guarded`                                  | REST v2 `GET /api/v2/apps`, `/apps/{id}/functions` (с ключом) или dev-GraphQL `/v0/gql` (без ключа, только каталог) |
+| `inngest_runs {app?, function?, status?, limit?}`             | последние запуски, всего или одной функции; статусы `QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED` | `GET /api/v2/runs`, `/apps/{a}/functions/{f}/runs`                                                                  |
+| `inngest_run {run_id, trace?}`                                | один запуск, вывод, шаги                                                                        | `GET /api/v2/runs/{id}`, `/trace`                                                                                   |
+| `inngest_invoke {app, function, data?}`                       | запустить любую функцию из каталога (id, slug, имя или событие)                                 | `POST /api/v2/apps/{a}/functions/{f}/invoke`                                                                        |
+| `inngest_cancel {run_id}`                                     | отменить запуск                                                                                 | `POST /api/v2/runs/{id}/cancel`                                                                                     |
 
 Модуль: `apps/vibee-editor/render/src/agent/inngest-tools.ts`; регистрация — `tools.ts`
 (`TOOLS.push(...INNGEST_TOOLS)`), тем самым видны в боте, мини-аппе, iOS и по MCP.

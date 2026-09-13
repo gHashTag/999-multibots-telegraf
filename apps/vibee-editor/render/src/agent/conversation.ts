@@ -176,7 +176,10 @@ export async function прочитатьРазговор(
 ): Promise<Реплика[]> {
   if (!telegramId) return []
   await убедитьсяВТаблице(pool)
-  const n = Math.max(1, Math.min(500, Math.floor(предел) || РЕПЛИК_ПО_УМОЛЧАНИЮ))
+  const n = Math.max(
+    1,
+    Math.min(500, Math.floor(предел) || РЕПЛИК_ПО_УМОЛЧАНИЮ)
+  )
   const threadKey = thread || SELF_THREAD
   const r = await pool.query(
     `SELECT id, role, content, surface, thread, created_at::text AS created_at
@@ -249,7 +252,9 @@ export async function очиститьРазговор(
  * не пишем ответом: иначе следующий виток разговора прочитал бы её как слова
  * агента и начал бы на них опираться.
  */
-export function собратьОтвет(события: Array<{ тип?: string; текст?: string }>): string {
+export function собратьОтвет(
+  события: Array<{ тип?: string; текст?: string }>
+): string {
   return события
     .filter(е => е.тип === 'текст' && typeof е.текст === 'string')
     .map(е => е.текст as string)

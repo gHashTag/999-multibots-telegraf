@@ -354,9 +354,12 @@ function ChatThread({ client }: { client: string | null }) {
       ) {
         return
       }
-      fetch(`${API_BASE}/api/agent/history?limit=100${clientQuery(client, false)}`, {
-        headers: authHeaders(),
-      })
+      fetch(
+        `${API_BASE}/api/agent/history?limit=100${clientQuery(client, false)}`,
+        {
+          headers: authHeaders(),
+        }
+      )
         .then(response => (response.ok ? response.json() : null))
         .then(body => {
           if (!alive) return
@@ -497,7 +500,10 @@ function ChatThread({ client }: { client: string | null }) {
       {/* The greeting lives in the list as the agent's first message and
           scrolls away with it; the toolbar keeps only the two controls. */}
       {client ? (
-        <nav className="chat-client" aria-label={t('crm.client.chat.title', { id: client })}>
+        <nav
+          className="chat-client"
+          aria-label={t('crm.client.chat.title', { id: client })}
+        >
           <Link to={`/crm/${client}`} className="chat-client__back">
             ← {t('crm.client.chat.back')}
           </Link>
@@ -534,10 +540,13 @@ function ChatThread({ client }: { client: string | null }) {
               setMessages([welcome])
               setInput('')
               setAttachments([])
-              fetch(`${API_BASE}/api/agent/history${clientQuery(client, true)}`, {
-                method: 'DELETE',
-                headers: authHeaders(),
-              }).catch(e => console.error('[chat] очистка на сервере:', e))
+              fetch(
+                `${API_BASE}/api/agent/history${clientQuery(client, true)}`,
+                {
+                  method: 'DELETE',
+                  headers: authHeaders(),
+                }
+              ).catch(e => console.error('[chat] очистка на сервере:', e))
             }}
           >
             Новый разговор

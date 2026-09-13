@@ -79,7 +79,8 @@ function serve(history: Array<{ role: string; content: string }> = []) {
       const body = init?.body ? JSON.parse(String(init.body)) : undefined
       seen.push({ method, url: String(url), body })
       if (url.includes('/api/agent/history')) {
-        if (method === 'DELETE') return { ok: true, json: async () => ({ ok: true }) }
+        if (method === 'DELETE')
+          return { ok: true, json: async () => ({ ok: true }) }
         return { ok: true, json: async () => ({ messages: history }) }
       }
       if (url.includes('/api/agent/chat')) {
@@ -165,13 +166,17 @@ describe('the thread about a client', () => {
       send.click()
     })
     await settle()
-    const post = seen.find(s => s.method === 'POST' && s.url.includes('/api/agent/chat'))!
+    const post = seen.find(
+      s => s.method === 'POST' && s.url.includes('/api/agent/chat')
+    )!
     expect(post).toBeDefined()
     expect((post.body as { client?: string }).client).toBe(CLIENT)
     expect((post.body as { surface?: string }).surface).toBe('miniapp')
 
     // Start over: only this thread is cleared.
-    const reset = [...host.querySelectorAll<HTMLButtonElement>('button.chat-reset')][0]
+    const reset = [
+      ...host.querySelectorAll<HTMLButtonElement>('button.chat-reset'),
+    ][0]
     expect(reset).toBeDefined()
     await act(async () => {
       reset.click()
@@ -204,9 +209,9 @@ describe('the thread about a client', () => {
     expect(key).not.toBe(STORAGE_KEYS.agentChat)
     expect(String(localStorage.getItem(key))).toContain('ClientThreadOnly')
     // The self thread's storage does not carry the client's turns.
-    expect(String(localStorage.getItem(STORAGE_KEYS.agentChat) ?? '')).not.toContain(
-      'ClientThreadOnly'
-    )
+    expect(
+      String(localStorage.getItem(STORAGE_KEYS.agentChat) ?? '')
+    ).not.toContain('ClientThreadOnly')
     expect(editorStore.get(agentMessagesAtom)).toEqual([])
   })
 })
@@ -218,7 +223,9 @@ describe('the self thread is untouched', () => {
     const historyGet = seen.find(
       s => s.method === 'GET' && s.url.includes('/api/agent/history')
     )!
-    expect(historyGet.url).toBe('https://api.example.test/api/agent/history?limit=100')
+    expect(historyGet.url).toBe(
+      'https://api.example.test/api/agent/history?limit=100'
+    )
     expect(host.querySelector('.chat-client')).toBeNull()
 
     await act(async () => {
@@ -228,7 +235,9 @@ describe('the self thread is untouched', () => {
       host.querySelector<HTMLButtonElement>('button.send-btn')!.click()
     })
     await settle()
-    const post = seen.find(s => s.method === 'POST' && s.url.includes('/api/agent/chat'))!
+    const post = seen.find(
+      s => s.method === 'POST' && s.url.includes('/api/agent/chat')
+    )!
     expect(post.body).not.toHaveProperty('client')
 
     await act(async () => {

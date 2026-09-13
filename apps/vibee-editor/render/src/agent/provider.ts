@@ -99,8 +99,8 @@ const OLLAMA_PRIVATE = 'http://queen-ollama.railway.internal:11434/v1'
 function ollamaEnabled(): boolean {
   return Boolean(
     process.env.OLLAMA_BASE_URL ||
-    process.env.RAILWAY_SERVICE_QUEEN_OLLAMA_URL ||
-    process.env.OLLAMA_ENABLED
+      process.env.RAILWAY_SERVICE_QUEEN_OLLAMA_URL ||
+      process.env.OLLAMA_ENABLED
   )
 }
 function ollamaContext(): number {

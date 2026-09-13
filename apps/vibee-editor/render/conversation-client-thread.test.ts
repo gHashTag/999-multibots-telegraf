@@ -45,19 +45,31 @@ function recordingPool() {
         return { rows: [] }
       }
       if (/^SELECT/i.test(text)) {
-        if (!/AND thread = \$3/.test(text)) throw new Error('SELECT without thread: ' + text)
-        const mine = rows.filter(r => r.telegram_id === params[0] && r.thread === params[2])
-        return { rows: mine.sort((a, b) => b.id - a.id).slice(0, Number(params[1])) }
+        if (!/AND thread = \$3/.test(text))
+          throw new Error('SELECT without thread: ' + text)
+        const mine = rows.filter(
+          r => r.telegram_id === params[0] && r.thread === params[2]
+        )
+        return {
+          rows: mine.sort((a, b) => b.id - a.id).slice(0, Number(params[1])),
+        }
       }
       if (/^DELETE FROM agent_messages/i.test(text)) {
         const before = rows.length
         let keep: any[] | null = null
         if (/WHERE id = \$1 AND telegram_id = \$2 AND thread = \$3$/.test(text))
           keep = rows.filter(
-            r => !(r.id === params[0] && r.telegram_id === params[1] && r.thread === params[2])
+            r =>
+              !(
+                r.id === params[0] &&
+                r.telegram_id === params[1] &&
+                r.thread === params[2]
+              )
           )
         else if (/WHERE telegram_id = \$1 AND thread = \$2$/.test(text))
-          keep = rows.filter(r => !(r.telegram_id === params[0] && r.thread === params[1]))
+          keep = rows.filter(
+            r => !(r.telegram_id === params[0] && r.thread === params[1])
+          )
         if (keep === null) throw new Error('DELETE without thread: ' + text)
         rows.length = 0
         rows.push(...keep)
@@ -74,14 +86,34 @@ beforeEach(() => forgetTable())
 describe('the client thread', () => {
   it('adds the thread column by ALTER and indexes (telegram_id, thread, id)', async () => {
     const { pool, sql } = recordingPool()
-    await writeTurn(pool, OWNER, { role: 'user', content: 'hi', surface: 'miniapp' })
-    expect(sql.some(s => /ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS thread text NOT NULL DEFAULT 'self'/.test(s))).toBe(true)
-    expect(sql.some(s => /agent_messages_owner_thread_time ON agent_messages \(telegram_id, thread, id\)/.test(s))).toBe(true)
+    await writeTurn(pool, OWNER, {
+      role: 'user',
+      content: 'hi',
+      surface: 'miniapp',
+    })
+    expect(
+      sql.some(s =>
+        /ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS thread text NOT NULL DEFAULT 'self'/.test(
+          s
+        )
+      )
+    ).toBe(true)
+    expect(
+      sql.some(s =>
+        /agent_messages_owner_thread_time ON agent_messages \(telegram_id, thread, id\)/.test(
+          s
+        )
+      )
+    ).toBe(true)
   })
 
   it('defaults to self, so every existing caller is unchanged', async () => {
     const { pool, rows } = recordingPool()
-    await writeTurn(pool, OWNER, { role: 'user', content: 'mine', surface: 'bot' })
+    await writeTurn(pool, OWNER, {
+      role: 'user',
+      content: 'mine',
+      surface: 'bot',
+    })
     expect(rows[0].thread).toBe(SELF_THREAD)
     const back = await readThread(pool, OWNER)
     expect(back.map(m => m.content)).toEqual(['mine'])
@@ -91,9 +123,23 @@ describe('the client thread', () => {
   it('never mixes a client thread with the self thread', async () => {
     const { pool } = recordingPool()
     const t = clientThread(CLIENT)
-    await writeTurn(pool, OWNER, { role: 'user', content: 'about me', surface: 'miniapp' })
-    await writeTurn(pool, OWNER, { role: 'user', content: 'about her', surface: 'miniapp' }, t)
-    await writeTurn(pool, OWNER, { role: 'assistant', content: 'her profile', surface: 'miniapp' }, t)
+    await writeTurn(pool, OWNER, {
+      role: 'user',
+      content: 'about me',
+      surface: 'miniapp',
+    })
+    await writeTurn(
+      pool,
+      OWNER,
+      { role: 'user', content: 'about her', surface: 'miniapp' },
+      t
+    )
+    await writeTurn(
+      pool,
+      OWNER,
+      { role: 'assistant', content: 'her profile', surface: 'miniapp' },
+      t
+    )
     const self = await readThread(pool, OWNER)
     const client = await readThread(pool, OWNER, 100, t)
     expect(self.map(m => m.content)).toEqual(['about me'])
@@ -104,20 +150,42 @@ describe('the client thread', () => {
   it('clearing a client thread leaves the self thread intact, and the other way round', async () => {
     const { pool } = recordingPool()
     const t = clientThread(CLIENT)
-    await writeTurn(pool, OWNER, { role: 'user', content: 'about me', surface: 'miniapp' })
-    await writeTurn(pool, OWNER, { role: 'user', content: 'about her', surface: 'miniapp' }, t)
+    await writeTurn(pool, OWNER, {
+      role: 'user',
+      content: 'about me',
+      surface: 'miniapp',
+    })
+    await writeTurn(
+      pool,
+      OWNER,
+      { role: 'user', content: 'about her', surface: 'miniapp' },
+      t
+    )
     expect(await clearThread(pool, OWNER, t)).toBe(1)
-    expect((await readThread(pool, OWNER)).map(m => m.content)).toEqual(['about me'])
+    expect((await readThread(pool, OWNER)).map(m => m.content)).toEqual([
+      'about me',
+    ])
     expect(await readThread(pool, OWNER, 100, t)).toEqual([])
-    await writeTurn(pool, OWNER, { role: 'user', content: 'about her again', surface: 'miniapp' }, t)
+    await writeTurn(
+      pool,
+      OWNER,
+      { role: 'user', content: 'about her again', surface: 'miniapp' },
+      t
+    )
     expect(await clearThread(pool, OWNER)).toBe(1)
-    expect((await readThread(pool, OWNER, 100, t)).map(m => m.content)).toEqual(['about her again'])
+    expect((await readThread(pool, OWNER, 100, t)).map(m => m.content)).toEqual(
+      ['about her again']
+    )
   })
 
   it('deleting one turn by id is scoped to its thread', async () => {
     const { pool } = recordingPool()
     const t = clientThread(CLIENT)
-    await writeTurn(pool, OWNER, { role: 'user', content: 'about me', surface: 'miniapp' })
+    await writeTurn(pool, OWNER, {
+      role: 'user',
+      content: 'about me',
+      surface: 'miniapp',
+    })
     const [mine] = await readThread(pool, OWNER)
     // The self turn's id, asked through the client thread: nothing happens.
     expect(await deleteTurn(pool, OWNER, mine.id!, t)).toBe(0)

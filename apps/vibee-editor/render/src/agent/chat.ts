@@ -279,8 +279,12 @@ export async function clientContextBlock(
             (m.out ? ' владелец: ' : ' клиент: ') +
             m.text.slice(0, 300)
         )
-      parts.push('ПЕРЕПИСКА ВЛАДЕЛЬЦА С КЛИЕНТОМ (последние 20):\n' + foreignText(lines.join('\n')))
-      if (story.unanswered) parts.push('Клиент ждёт ответа на своё последнее сообщение.')
+      parts.push(
+        'ПЕРЕПИСКА ВЛАДЕЛЬЦА С КЛИЕНТОМ (последние 20):\n' +
+          foreignText(lines.join('\n'))
+      )
+      if (story.unanswered)
+        parts.push('Клиент ждёт ответа на своё последнее сообщение.')
     }
   } catch (e) {
     console.warn('[agent] client history not read:', String(e).slice(0, 120))
@@ -288,7 +292,8 @@ export async function clientContextBlock(
   try {
     const { zepContext } = await import('./zep-memory')
     const zep = await zepContext(owner, lead)
-    if (zep) parts.push('ЧТО ИЗВЕСТНО О КЛИЕНТЕ (память Zep):\n' + foreignText(zep))
+    if (zep)
+      parts.push('ЧТО ИЗВЕСТНО О КЛИЕНТЕ (память Zep):\n' + foreignText(zep))
   } catch {
     // Zep is optional memory; without it the block is built from the base.
   }

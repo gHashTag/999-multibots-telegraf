@@ -56,7 +56,10 @@ describe('каждый видит только свою аудиторию', () 
     '%s отказывает тому, за кем ботов нет',
     async name => {
       // Пустой список ботов — не повод показать всё: показывать нечего.
-      vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => [] }) as any)
+      vi.stubGlobal(
+        'fetch',
+        async () => ({ ok: true, json: async () => [] }) as any
+      )
       await expect(tool(name).handler({}, STRANGER_CTX)).rejects.toThrow(
         /ботов не числится/
       )
@@ -106,13 +109,45 @@ describe('каждый видит только свою аудиторию', () 
 describe('считаем по данным, а не по ощущениям', () => {
   const ЛЮДИ = [
     // платил, заходил вчера — живой, не лид
-    { telegram_id: 1, username: 'a', first_name: 'A', bot_name: 'bot1', created_at: дн(100), updated_at: дн(1), language_code: 'ru' },
+    {
+      telegram_id: 1,
+      username: 'a',
+      first_name: 'A',
+      bot_name: 'bot1',
+      created_at: дн(100),
+      updated_at: дн(1),
+      language_code: 'ru',
+    },
     // не платил, заходил вчера — ГОРЯЧИЙ
-    { telegram_id: 2, username: 'b', first_name: 'B', bot_name: 'bot1', created_at: дн(3), updated_at: дн(1), language_code: 'ru' },
+    {
+      telegram_id: 2,
+      username: 'b',
+      first_name: 'B',
+      bot_name: 'bot1',
+      created_at: дн(3),
+      updated_at: дн(1),
+      language_code: 'ru',
+    },
     // платил, молчит 90 дней — ВЕРНУТЬ
-    { telegram_id: 3, username: null, first_name: 'C', bot_name: 'bot2', created_at: дн(300), updated_at: дн(90), language_code: 'en' },
+    {
+      telegram_id: 3,
+      username: null,
+      first_name: 'C',
+      bot_name: 'bot2',
+      created_at: дн(300),
+      updated_at: дн(90),
+      language_code: 'en',
+    },
     // не платил, молчит 200 дней — ни то ни другое
-    { telegram_id: 4, username: 'd', first_name: 'D', bot_name: 'bot2', created_at: дн(400), updated_at: дн(200), language_code: 'en' },
+    {
+      telegram_id: 4,
+      username: 'd',
+      first_name: 'D',
+      bot_name: 'bot2',
+      created_at: дн(400),
+      updated_at: дн(200),
+      language_code: 'en',
+    },
   ]
   const ПЛАТЕЖИ = [{ telegram_id: 1 }, { telegram_id: 3 }]
 
@@ -158,7 +193,10 @@ describe('считаем по данным, а не по ощущениям', ()
   })
 
   it('вернуть — ПЛАТИВШИЙ и замолчавший', async () => {
-    const r: any = await tool('crm_winback').handler({ молчит_дней: 30 }, OWNER_CTX) // cyrillic-ok
+    const r: any = await tool('crm_winback').handler(
+      { молчит_дней: 30 },
+      OWNER_CTX
+    ) // cyrillic-ok
     expect(r.люди.map((ч: any) => ч.telegram_id)).toEqual(['3'])
   })
 
@@ -177,7 +215,10 @@ describe('считаем по данным, а не по ощущениям', ()
   })
 
   it('человек без username отдаётся без ссылки, а не с битой', async () => {
-    const r: any = await tool('crm_winback').handler({ молчит_дней: 30 }, OWNER_CTX) // cyrillic-ok
+    const r: any = await tool('crm_winback').handler(
+      { молчит_дней: 30 },
+      OWNER_CTX
+    ) // cyrillic-ok
     expect(r.люди[0].ссылка).toBeNull()
   })
 })
@@ -195,7 +236,10 @@ describe('CRM ничего не рассылает', () => {
      * проверки ловили мою же прозу вместо поведения.
      */
     const код = fs
-      .readFileSync(path.join(__dirname, 'src', 'agent', 'crm-tools.ts'), 'utf8')
+      .readFileSync(
+        path.join(__dirname, 'src', 'agent', 'crm-tools.ts'),
+        'utf8'
+      )
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '')
     expect(код).not.toMatch(/sendMessage|broadcast/i)
@@ -327,7 +371,9 @@ const stubNet = (byBot: Record<string, string>) =>
         return {
           ok: true,
           json: async () =>
-            bot ? [{ telegram_id: decodeURIComponent(m[1]), bot_name: bot }] : [],
+            bot
+              ? [{ telegram_id: decodeURIComponent(m[1]), bot_name: bot }]
+              : [],
         } as any
       }
       return {
@@ -439,10 +485,10 @@ describe('история касаний не показывает чужое', (
       { telegram_id: '111', kind: 'written', note: 'первое' },
       { telegramId: '77', pool } as any
     )
-    const r: any = await tool('crm_history').handler(
-      { telegram_id: '111' },
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_history').handler({ telegram_id: '111' }, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total).toBe(1)
     expect(r.touches[0].note).toBe('первое')
   })
@@ -458,10 +504,10 @@ describe('история касаний не показывает чужое', (
       { telegram_id: '111', kind: 'note', note: 'секрет соседа' },
       { telegramId: 'сосед', pool } as any
     )
-    const r: any = await tool('crm_history').handler(
-      { telegram_id: '111' },
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_history').handler({ telegram_id: '111' }, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total).toBe(0)
     expect(JSON.stringify(r)).not.toContain('секрет соседа')
   })
@@ -470,9 +516,13 @@ describe('история касаний не показывает чужое', (
   it('a completed payment to one of our bots makes the stage client, whatever the last touch says', async () => {
     vi.stubGlobal('fetch', async (url: string) => {
       const a = String(url)
-      if (a.includes('/avatars?')) return { ok: true, json: async () => [{ bot_name: 'bot1' }] } as any
+      if (a.includes('/avatars?'))
+        return { ok: true, json: async () => [{ bot_name: 'bot1' }] } as any
       if (a.includes('/users?'))
-        return { ok: true, json: async () => [{ telegram_id: '111', bot_name: 'bot1' }] } as any
+        return {
+          ok: true,
+          json: async () => [{ telegram_id: '111', bot_name: 'bot1' }],
+        } as any
       if (a.includes('/payments_v2?')) {
         expect(a).toContain('status=eq.COMPLETED')
         expect(a).toContain('type=eq.MONEY_INCOME')
@@ -486,10 +536,10 @@ describe('история касаний не показывает чужое', (
       { telegram_id: '111', kind: 'refused', note: 'said no' },
       { telegramId: '77', pool } as any
     )
-    const r: any = await tool('crm_history').handler(
-      { telegram_id: '111' },
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_history').handler({ telegram_id: '111' }, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total).toBe(1)
     expect(r.paid).toBe(true)
     expect(r.paid_known).toBe(true)
@@ -499,28 +549,34 @@ describe('история касаний не показывает чужое', (
   it('when payments cannot be read the stage falls back to touches and says the money is unknown', async () => {
     vi.stubGlobal('fetch', async (url: string) => {
       const a = String(url)
-      if (a.includes('/avatars?')) return { ok: true, json: async () => [{ bot_name: 'bot1' }] } as any
+      if (a.includes('/avatars?'))
+        return { ok: true, json: async () => [{ bot_name: 'bot1' }] } as any
       if (a.includes('/users?'))
-        return { ok: true, json: async () => [{ telegram_id: '111', bot_name: 'bot1' }] } as any
-      if (a.includes('/payments_v2?')) return { ok: false, status: 503, text: async () => 'down' } as any
+        return {
+          ok: true,
+          json: async () => [{ telegram_id: '111', bot_name: 'bot1' }],
+        } as any
+      if (a.includes('/payments_v2?'))
+        return { ok: false, status: 503, text: async () => 'down' } as any
       return { ok: true, json: async () => [] } as any
     })
     const pool = fakePool()
-    await tool('crm_touch').handler(
-      { telegram_id: '111', kind: 'written' },
-      { telegramId: '77', pool } as any
-    )
-    const r: any = await tool('crm_history').handler(
-      { telegram_id: '111' },
-      { telegramId: '77', pool } as any
-    )
+    await tool('crm_touch').handler({ telegram_id: '111', kind: 'written' }, {
+      telegramId: '77',
+      pool,
+    } as any)
+    const r: any = await tool('crm_history').handler({ telegram_id: '111' }, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.paid).toBe(false)
     expect(r.paid_known).toBe(false)
     expect(r.stage).toBe('written')
   })
 })
 
-describe('тронутых не предлагают снова', () => { // cyrillic-ok
+describe('тронутых не предлагают снова', () => {
+  // cyrillic-ok
   beforeEach(async () => {
     const { forgetTouchTable } = await import('./src/agent/crm-touches')
     forgetTouchTable()
@@ -538,22 +594,22 @@ describe('тронутых не предлагают снова', () => { // cyr
      */
     stubNet({ '111': 'bot1', '222': 'bot1' })
     const pool = fakePool()
-    const before: any = await tool('crm_hot_leads').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    const before: any = await tool('crm_hot_leads').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(before.показано).toBe(2) // cyrillic-ok
     expect(before.set_aside_touched).toBe(0)
 
-    await tool('crm_touch').handler(
-      { telegram_id: '111', kind: 'written' },
-      { telegramId: '77', pool } as any
-    )
+    await tool('crm_touch').handler({ telegram_id: '111', kind: 'written' }, {
+      telegramId: '77',
+      pool,
+    } as any)
 
-    const after: any = await tool('crm_hot_leads').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    const after: any = await tool('crm_hot_leads').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(after.показано, 'тронутый снова в списке').toBe(1) // cyrillic-ok
     expect(
       after.set_aside_touched,
@@ -567,14 +623,14 @@ describe('тронутых не предлагают снова', () => { // cyr
     // colleague's list -- a write into somebody else's working day.
     stubNet({ '111': 'bot1', '222': 'bot1' })
     const pool = fakePool()
-    await tool('crm_touch').handler(
-      { telegram_id: '111', kind: 'written' },
-      { telegramId: 'сосед', pool } as any
-    )
-    const mine: any = await tool('crm_hot_leads').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    await tool('crm_touch').handler({ telegram_id: '111', kind: 'written' }, {
+      telegramId: 'сосед',
+      pool,
+    } as any)
+    const mine: any = await tool('crm_hot_leads').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(mine.показано).toBe(2) // cyrillic-ok
     expect(mine.set_aside_touched).toBe(0)
   })
@@ -608,7 +664,9 @@ describe('кто ждёт ответа', () => {
           // filters on the code's behalf hides a missing condition.
           const byOwner = q.includes('owner_id = $1')
           return {
-            rows: rows.filter(r => !byOwner || r.owner_id === String(params[0])),
+            rows: rows.filter(
+              r => !byOwner || r.owner_id === String(params[0])
+            ),
           }
         }
         return { rows: [] }
@@ -627,10 +685,10 @@ describe('кто ждёт ответа', () => {
       { lead: '222', kind: 'written', daysAgo: 20 },
       { lead: '111', kind: 'replied', daysAgo: 1 },
     ])
-    const r: any = await tool('crm_waiting').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_waiting').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total).toBe(2)
     expect(r.waiting[0].telegram_id).toBe('111')
     expect(r.waiting[0].waiting).toBe('ours')
@@ -639,10 +697,10 @@ describe('кто ждёт ответа', () => {
   it('свежее «написали» не дёргает, пока не вышел срок', async () => {
     stubNet({ '111': 'bot1' })
     const pool = poolWith([{ lead: '111', kind: 'written', daysAgo: 1 }])
-    const r: any = await tool('crm_waiting').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_waiting').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total).toBe(0)
   })
 
@@ -652,10 +710,10 @@ describe('кто ждёт ответа', () => {
       { lead: '111', kind: 'replied', daysAgo: 1 },
       { lead: '111', kind: 'refused', daysAgo: 5 },
     ])
-    const r: any = await tool('crm_waiting').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_waiting').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total, 'сказавшего нет снова тянут в работу').toBe(0)
   })
 
@@ -669,10 +727,10 @@ describe('кто ждёт ответа', () => {
       { lead: '111', kind: 'replied', daysAgo: 1 },
       { lead: '999', kind: 'replied', daysAgo: 1 },
     ])
-    const r: any = await tool('crm_waiting').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_waiting').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total).toBe(1)
     expect(JSON.stringify(r.waiting)).not.toContain('999')
   })
@@ -682,20 +740,20 @@ describe('кто ждёт ответа', () => {
     const pool = poolWith([
       { lead: '111', kind: 'replied', daysAgo: 1, owner: 'сосед' },
     ])
-    const r: any = await tool('crm_waiting').handler(
-      {},
-      { telegramId: '77', pool } as any
-    )
+    const r: any = await tool('crm_waiting').handler({}, {
+      telegramId: '77',
+      pool,
+    } as any)
     expect(r.total).toBe(0)
   })
 
   it('пустой список говорит, что это хорошо, а не молчит', async () => {
     // An empty screen with no words reads as broken. This one is a result.
     stubNet({ '111': 'bot1' })
-    const r: any = await tool('crm_waiting').handler(
-      {},
-      { telegramId: '77', pool: poolWith([]) } as any
-    )
+    const r: any = await tool('crm_waiting').handler({}, {
+      telegramId: '77',
+      pool: poolWith([]),
+    } as any)
     expect(r.total).toBe(0)
     expect(String(r.what_to_do)).toContain('хорошая новость')
   })

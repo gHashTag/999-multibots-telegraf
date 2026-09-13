@@ -43,7 +43,8 @@ function fakePool(seed: {
   const pool = {
     async query(sql: string, params: unknown[] = []) {
       const q = sql.replace(/\s+/g, ' ').trim()
-      if (/^SELECT 1 FROM pg_constraint/.test(q)) return { rows: state.legacyPkey ? [{}] : [] }
+      if (/^SELECT 1 FROM pg_constraint/.test(q))
+        return { rows: state.legacyPkey ? [{}] : [] }
       if (/^ALTER TABLE crm_client_profiles DROP CONSTRAINT/.test(q)) {
         state.legacyPkey = false
         state.ddl.push('drop-pkey')
@@ -53,18 +54,29 @@ function fakePool(seed: {
         state.ddl.push(q.split(' ').slice(0, 3).join(' '))
         return { rows: [] }
       }
-      if (/^UPDATE crm_client_profiles p SET owner_id = \(SELECT owner_id FROM crm_people/.test(q)) {
+      if (
+        /^UPDATE crm_client_profiles p SET owner_id = \(SELECT owner_id FROM crm_people/.test(
+          q
+        )
+      ) {
         state.ddl.push('backfill')
         return { rows: [] }
       }
-      if (/^UPDATE crm_client_profiles SET owner_id = \$2 WHERE telegram_id = \$1 AND owner_id IS NULL/.test(q)) {
-        for (const r of state.profiles) if (r.owner === null) r.owner = String(params[1])
+      if (
+        /^UPDATE crm_client_profiles SET owner_id = \$2 WHERE telegram_id = \$1 AND owner_id IS NULL/.test(
+          q
+        )
+      ) {
+        for (const r of state.profiles)
+          if (r.owner === null) r.owner = String(params[1])
         return { rows: [] }
       }
       if (/^SELECT content FROM user_soul/.test(q))
         return { rows: state.soul ? [{ content: state.soul }] : [] }
       if (/^SELECT content, updated_at::text FROM user_soul/.test(q))
-        return { rows: state.soul ? [{ content: state.soul, updated_at: 't' }] : [] }
+        return {
+          rows: state.soul ? [{ content: state.soul, updated_at: 't' }] : [],
+        }
       if (/^INSERT INTO user_soul/.test(q)) {
         state.soul = String(params[1])
         state.writes.push('soul')
@@ -94,11 +106,17 @@ function fakePool(seed: {
         state.writes.push('profile')
         return { rows: [] }
       }
-      if (/^SELECT client, profile, updated_at::text, owner_id FROM crm_client_profiles WHERE telegram_id = \$1 AND \(owner_id = \$2 OR owner_id IS NULL\)/.test(q)) {
+      if (
+        /^SELECT client, profile, updated_at::text, owner_id FROM crm_client_profiles WHERE telegram_id = \$1 AND \(owner_id = \$2 OR owner_id IS NULL\)/.test(
+          q
+        )
+      ) {
         const caller = String(params[1])
         const visible = state.profiles
           .filter(r => r.owner === null || r.owner === caller)
-          .sort((a, b) => (a.owner === null ? 1 : 0) - (b.owner === null ? 1 : 0))
+          .sort(
+            (a, b) => (a.owner === null ? 1 : 0) - (b.owner === null ? 1 : 0)
+          )
         return {
           rows: visible.slice(0, 1).map(r => ({
             client: 'playom',
@@ -156,7 +174,9 @@ describe('the playom client package', () => {
     }
     expect(skillNameFromMarkdown('# Leela: x\nbody', 'f')).toBe('Leela: x')
     expect(skillNameFromMarkdown('# y\nbody', 'f')).toBe('Leela: y')
-    expect(skillNameFromMarkdown('no heading', 'fallback')).toBe('Leela: fallback')
+    expect(skillNameFromMarkdown('no heading', 'fallback')).toBe(
+      'Leela: fallback'
+    )
   })
 
   it('the SOUL, the skills and the profile carry no prices, superlatives or pressure words', () => {
@@ -170,7 +190,11 @@ describe('the playom client package', () => {
       expect(t).not.toMatch(/гарантир/i) // cyrillic-ok
     }
     expect(REEL_SERIES.length).toBe(12)
-    expect(REEL_SERIES.filter(r => r.plan != null).every(r => r.plan! >= 1 && r.plan! <= 72)).toBe(true)
+    expect(
+      REEL_SERIES.filter(r => r.plan != null).every(
+        r => r.plan! >= 1 && r.plan! <= 72
+      )
+    ).toBe(true)
   })
 
   it('installs everything on a fresh account and reports each row', async () => {
@@ -184,10 +208,16 @@ describe('the playom client package', () => {
       dryRun: false,
     })
     expect(r.soul).toBe('created')
-    expect(r.skills.map(s => s.result)).toEqual(['created', 'created', 'created'])
+    expect(r.skills.map(s => s.result)).toEqual([
+      'created',
+      'created',
+      'created',
+    ])
     expect(r.plan).toEqual({ goal: 'created', items_added: 12 })
     expect(state.writes.filter(w => w === 'item').length).toBe(12)
-    expect(state.profiles).toEqual([{ owner: OWNER, profile: expect.any(String) }])
+    expect(state.profiles).toEqual([
+      { owner: OWNER, profile: expect.any(String) },
+    ])
     const seen = await clientProfileFor(ctxWith(pool), CLIENT)
     expect(seen.has_profile).toBe(true)
     expect(seen.owner_id).toBe(OWNER)
@@ -201,7 +231,10 @@ describe('the playom client package', () => {
     const pkg = loadClientPackage('playom')
     const { pool, state } = fakePool({
       soul: 'Мой собственный текст.',
-      skills: { [pkg.skills[0].name]: 'её версия', [pkg.skills[1].name]: pkg.skills[1].content },
+      skills: {
+        [pkg.skills[0].name]: 'её версия',
+        [pkg.skills[1].name]: pkg.skills[1].content,
+      },
       goal: true,
       items: [REEL_SERIES[0].title, REEL_SERIES[1].title],
     })
@@ -215,7 +248,11 @@ describe('the playom client package', () => {
     })
     expect(r.soul).toBe('kept_hers')
     expect(state.soul).toBe('Мой собственный текст.')
-    expect(r.skills.map(s => s.result)).toEqual(['conflict', 'identical', 'created'])
+    expect(r.skills.map(s => s.result)).toEqual([
+      'conflict',
+      'identical',
+      'created',
+    ])
     expect(state.skills[pkg.skills[0].name]).toBe('её версия')
     expect(r.plan).toEqual({ goal: 'exists', items_added: 10 })
     expect(REEL_GOAL_TITLE.startsWith(SKILL_PREFIX)).toBe(true)
@@ -254,7 +291,9 @@ describe('the playom client package', () => {
     const strangerView = await clientProfileFor(other, CLIENT)
     expect(strangerView.has_profile).toBe(false)
     await setup('500000001')
-    expect(state.profiles.map(r => r.owner).sort()).toEqual([OWNER, '500000001'].sort())
+    expect(state.profiles.map(r => r.owner).sort()).toEqual(
+      [OWNER, '500000001'].sort()
+    )
     const mine = await clientProfileFor(ctxWith(pool), CLIENT)
     expect(mine.owner_id).toBe(OWNER)
     const theirs = await clientProfileFor(other, CLIENT)
@@ -308,41 +347,67 @@ describe('the playom client package', () => {
     const stranger = { telegramId: '1', pool: {} } as unknown as ToolContext
     await expect(setup.handler({}, stranger)).rejects.toThrow()
     await expect(read.handler({}, undefined as never)).rejects.toThrow()
-    const bad = await setup.handler(
-      { telegram_id: 'abc' },
-      { telegramId: OWNER, pool: {} } as unknown as ToolContext
-    )
+    const bad = await setup.handler({ telegram_id: 'abc' }, {
+      telegramId: OWNER,
+      pool: {},
+    } as unknown as ToolContext)
     expect((bad as any).done).toBe(false)
   })
 
   it('the schema witness reads the base without migrating it', async () => {
     const seen: string[] = []
-    const witness = (seed: { pkey: boolean; index: boolean; col: boolean; rows: Array<string | null> }) => ({
+    const witness = (seed: {
+      pkey: boolean
+      index: boolean
+      col: boolean
+      rows: Array<string | null>
+    }) => ({
       async query(sql: string) {
         const q = sql.replace(/\s+/g, ' ').trim()
         seen.push(q.split(' ')[0])
         if (/information_schema\.tables/.test(q)) return { rows: [{ ok: 1 }] }
-        if (/information_schema\.columns/.test(q)) return { rows: seed.col ? [{ ok: 1 }] : [] }
-        if (/pg_constraint/.test(q)) return { rows: seed.pkey ? [{ ok: 1 }] : [] }
+        if (/information_schema\.columns/.test(q))
+          return { rows: seed.col ? [{ ok: 1 }] : [] }
+        if (/pg_constraint/.test(q))
+          return { rows: seed.pkey ? [{ ok: 1 }] : [] }
         if (/pg_indexes/.test(q))
           return {
             rows: seed.index
-              ? [{ indexdef: 'CREATE UNIQUE INDEX crm_client_profiles_owner_client ON public.crm_client_profiles USING btree (owner_id, telegram_id)' }]
+              ? [
+                  {
+                    indexdef:
+                      'CREATE UNIQUE INDEX crm_client_profiles_owner_client ON public.crm_client_profiles USING btree (owner_id, telegram_id)',
+                  },
+                ]
               : [],
           }
         if (/GROUP BY owner_id/.test(q)) {
           const m = new Map<string, number>()
           for (const o of seed.rows) if (o) m.set(o, (m.get(o) ?? 0) + 1)
-          return { rows: [...m].map(([owner_id, rows]) => ({ owner_id, rows })) }
+          return {
+            rows: [...m].map(([owner_id, rows]) => ({ owner_id, rows })),
+          }
         }
         if (/count\(\*\)/.test(q))
-          return { rows: [{ total: seed.rows.length, owned: seed.rows.filter(Boolean).length }] }
+          return {
+            rows: [
+              {
+                total: seed.rows.length,
+                owned: seed.rows.filter(Boolean).length,
+              },
+            ],
+          }
         throw new Error('unexpected query: ' + q)
       },
     })
     const migrated = await schemaCheck({
       telegramId: OWNER,
-      pool: witness({ pkey: false, index: true, col: true, rows: [OWNER, OWNER, null, '7'] }),
+      pool: witness({
+        pkey: false,
+        index: true,
+        col: true,
+        rows: [OWNER, OWNER, null, '7'],
+      }),
     } as unknown as ToolContext)
     expect(migrated).toMatchObject({
       table_exists: true,
@@ -363,7 +428,12 @@ describe('the playom client package', () => {
 
     const legacy = await schemaCheck({
       telegramId: OWNER,
-      pool: witness({ pkey: true, index: false, col: false, rows: [null, null] }),
+      pool: witness({
+        pkey: true,
+        index: false,
+        col: false,
+        rows: [null, null],
+      }),
     } as unknown as ToolContext)
     expect(legacy).toMatchObject({
       owner_column: false,
@@ -385,8 +455,16 @@ describe('the playom client package', () => {
     ).rejects.toThrow()
     const absent = await tool.handler({}, {
       telegramId: OWNER,
-      pool: { async query() { return { rows: [] } } },
+      pool: {
+        async query() {
+          return { rows: [] }
+        },
+      },
     } as unknown as ToolContext)
-    expect(absent).toMatchObject({ table_exists: false, migrated: false, rows_total: 0 })
+    expect(absent).toMatchObject({
+      table_exists: false,
+      migrated: false,
+      rows_total: 0,
+    })
   })
 })

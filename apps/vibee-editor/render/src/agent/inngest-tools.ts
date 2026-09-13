@@ -209,7 +209,11 @@ type V2Page = {
   cursor?: string
   limit?: number
 }
-type V2List<T> = { data: T[]; page?: V2Page; metadata?: Record<string, unknown> }
+type V2List<T> = {
+  data: T[]
+  page?: V2Page
+  metadata?: Record<string, unknown>
+}
 
 function pageOf(list: V2List<unknown>): { has_more: boolean; cursor?: string } {
   const p = list.page ?? {}
@@ -221,10 +225,9 @@ function pageOf(list: V2List<unknown>): { has_more: boolean; cursor?: string } {
 export async function listFunctionsRest(
   deps: InngestDeps = {}
 ): Promise<InngestApp[]> {
-  const apps = await restV2<V2List<{ id: string; name?: string; url?: string }>>(
-    '/apps?limit=100',
-    deps
-  )
+  const apps = await restV2<
+    V2List<{ id: string; name?: string; url?: string }>
+  >('/apps?limit=100', deps)
   const out: InngestApp[] = []
   for (const a of apps.data ?? []) {
     const fns: InngestFunction[] = []
@@ -287,7 +290,12 @@ export function filterCatalogue(
       functions: a.functions.filter(f => {
         if (!opts.include_failure_handlers && f.is_failure_handler) return false
         if (!needle) return true
-        const hay = [f.id, f.name, f.slug ?? '', ...f.triggers.map(t => t.value)]
+        const hay = [
+          f.id,
+          f.name,
+          f.slug ?? '',
+          ...f.triggers.map(t => t.value),
+        ]
           .join(' ')
           .toLowerCase()
         return hay.includes(needle)
@@ -295,7 +303,9 @@ export function filterCatalogue(
     }))
 }
 
-export function isGuarded(f: Pick<InngestFunction, 'name' | 'triggers'>): boolean {
+export function isGuarded(
+  f: Pick<InngestFunction, 'name' | 'triggers'>
+): boolean {
   return (
     GUARDED_NAMES.test(f.name) ||
     f.triggers.some(t => t.type === 'EVENT' && GUARDED_TRIGGERS.test(t.value))
@@ -364,8 +374,15 @@ export function makeInngestTools(deps: InngestDeps = {}): AgentTool[] {
       parameters: {
         type: 'object',
         properties: {
-          app: { type: 'string', description: 'id или имя приложения (t27-queen, telegram-bot-client)' },
-          match: { type: 'string', description: 'подстрока: skill/, cron/, render, crm …' },
+          app: {
+            type: 'string',
+            description:
+              'id или имя приложения (t27-queen, telegram-bot-client)',
+          },
+          match: {
+            type: 'string',
+            description: 'подстрока: skill/, cron/, render, crm …',
+          },
           include_failure_handlers: {
             type: 'boolean',
             description: 'показать и «(failure)»-обработчики; по умолчанию нет',
@@ -415,11 +432,15 @@ export function makeInngestTools(deps: InngestDeps = {}): AgentTool[] {
       parameters: {
         type: 'object',
         properties: {
-          app: { type: 'string', description: 'id приложения; вместе с function' },
+          app: {
+            type: 'string',
+            description: 'id приложения; вместе с function',
+          },
           function: { type: 'string', description: 'id/slug/имя функции' },
           status: {
             type: 'string',
-            description: 'QUEUED | RUNNING | COMPLETED | FAILED | CANCELLED, можно несколько через запятую',
+            description:
+              'QUEUED | RUNNING | COMPLETED | FAILED | CANCELLED, можно несколько через запятую',
           },
           limit: { type: 'number', description: 'сколько, по умолчанию 20' },
         },
@@ -463,10 +484,16 @@ export function makeInngestTools(deps: InngestDeps = {}): AgentTool[] {
         await requireKeeper(ctx, 'Запуски Inngest')
         const id = encodeURIComponent(String(a?.run_id ?? '').trim())
         if (!id) throw new Error('run_id пуст')
-        const run = await restV2<unknown>(`/runs/${id}?includeOutput=true`, deps)
+        const run = await restV2<unknown>(
+          `/runs/${id}?includeOutput=true`,
+          deps
+        )
         const trace =
           a?.trace === true
-            ? await restV2<unknown>(`/runs/${id}/trace?includeOutput=true`, deps)
+            ? await restV2<unknown>(
+                `/runs/${id}/trace?includeOutput=true`,
+                deps
+              )
             : undefined
         return { run, ...(trace !== undefined ? { trace } : {}) }
       },
@@ -483,7 +510,10 @@ export function makeInngestTools(deps: InngestDeps = {}): AgentTool[] {
         type: 'object',
         properties: {
           app: { type: 'string', description: 'id приложения' },
-          function: { type: 'string', description: 'id/slug/имя функции или её событие' },
+          function: {
+            type: 'string',
+            description: 'id/slug/имя функции или её событие',
+          },
           data: {
             type: 'object',
             description: 'данные события (event.data), по умолчанию {}',
@@ -495,7 +525,11 @@ export function makeInngestTools(deps: InngestDeps = {}): AgentTool[] {
       },
       async handler(a: Record<string, any>, ctx?: ToolContext) {
         await requireKeeper(ctx, 'Вызовы функций Inngest')
-        const { app, fn } = await resolveFunction(String(a.app), String(a.function), deps)
+        const { app, fn } = await resolveFunction(
+          String(a.app),
+          String(a.function),
+          deps
+        )
         if (isGuarded(fn)) {
           return {
             invoked: false,
@@ -507,7 +541,9 @@ export function makeInngestTools(deps: InngestDeps = {}): AgentTool[] {
           }
         }
         const data =
-          a?.data && typeof a.data === 'object' && !Array.isArray(a.data) ? a.data : {}
+          a?.data && typeof a.data === 'object' && !Array.isArray(a.data)
+            ? a.data
+            : {}
         const res = await restV2<Record<string, unknown>>(
           `/apps/${encodeURIComponent(app.id)}/functions/${encodeURIComponent(fn.id)}/invoke`,
           deps,

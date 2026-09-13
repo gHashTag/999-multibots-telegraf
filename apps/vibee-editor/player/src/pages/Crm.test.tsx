@@ -272,7 +272,9 @@ describe('the server speaks Russian keys and the screen does not have to', () =>
     )
     expect(text).toContain('crm.leads.quiet:3')
     expect(text).toContain('crm.leads.setAside:4')
-    const link = [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    const link = [...host.querySelectorAll('a')].map(a =>
+      a.getAttribute('href')
+    )
     expect(link).toContain('https://t.me/p')
   })
 })
@@ -283,7 +285,9 @@ describe('the buttons record, they do not send', () => {
     await draw()
     calls = []
     const btn = [
-      ...host.querySelectorAll<HTMLButtonElement>('.crm__row--ours .crm__acts button'),
+      ...host.querySelectorAll<HTMLButtonElement>(
+        '.crm__row--ours .crm__acts button'
+      ),
     ].find(b => b.textContent?.trim() === 'crm.act.replied')!
     await act(async () => {
       btn.click()
@@ -339,7 +343,9 @@ describe('every person on the list is a way into their own page', () => {
     expect(text).toContain('ClientOnlyName')
     expect(text).toContain('@clientonly')
     expect(text).toContain('crm.clients.duets:7')
-    const hrefs = [...host.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    const hrefs = [...host.querySelectorAll('a')].map(a =>
+      a.getAttribute('href')
+    )
     expect(hrefs).toContain('/crm/555')
     expect(hrefs).toContain('/crm/111')
     expect(hrefs).toContain('/crm/444')
