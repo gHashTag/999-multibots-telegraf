@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import './Crm.css'
 import { useLanguage } from '@/hooks/useLanguage'
+import { Panel } from '@/components/Crm/Panel'
 import {
   loadOverview,
   loadWaiting,
   loadHotLeads,
+  loadClients,
   recordTouch,
   type Overview,
   type WaitingList,
   type HotLeads,
   type WaitingRow,
+  type ClientRow,
   type Reached,
 } from '@/lib/crm'
 
@@ -41,20 +45,23 @@ export default function CrmPage() {
   const [overview, setOverview] = useState<Reached<Overview>>(empty)
   const [waiting, setWaiting] = useState<Reached<WaitingList>>(empty)
   const [leads, setLeads] = useState<Reached<HotLeads>>(empty)
+  const [clients, setClients] = useState<Reached<ClientRow[]>>(empty)
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
     setBusy(true)
-    // In parallel: three independent panels, and one slow load must not hold
-    // the other two off the screen.
-    const [o, w, l] = await Promise.all([
+    // In parallel: four independent panels, and one slow load must not hold
+    // the others off the screen.
+    const [o, w, l, c] = await Promise.all([
       loadOverview(),
       loadWaiting(),
       loadHotLeads(),
+      loadClients(),
     ])
     setOverview(o)
     setWaiting(w)
     setLeads(l)
+    setClients(c)
     setBusy(false)
   }, [])
 
@@ -73,42 +80,34 @@ export default function CrmPage() {
     await reload()
   }
 
-  /**
-   * A panel that could not load says so.
-   *
-   * Rendering zeros for an unreachable server tells the owner their business is
-   * dead -- a worse lie than an empty screen, and indistinguishable from a
-   * quiet week.
-   */
+  // The unreachable-panel rule lives in `components/Crm/Panel.tsx`, shared
+  // with the per-client dashboard.
   const panel = (
     title: string,
     state: { reachable: boolean; error?: string },
     body: React.ReactNode
   ) => (
-    <section className="crm__panel">
-      <h3 className="crm__panel-title">{title}</h3>
-      {state.reachable ? (
-        body
-      ) : (
-        <p className="crm__unreachable">
-          {t('crm.unreachable')}
-          {state.error ? `: ${state.error}` : ''}
-        </p>
-      )}
-    </section>
+    <Panel title={title} state={state}>
+      {body}
+    </Panel>
   )
 
   const row = (r: WaitingRow) => (
     <li key={r.telegramId} className={`crm__row crm__row--${r.waiting}`}>
       <div className="crm__who">
-        {r.link ? (
-          <a href={r.link} target="_blank" rel="noreferrer">
-            {r.name || r.telegramId}
-          </a>
-        ) : (
-          <span>{r.name || r.telegramId}</span>
-        )}
-        <span className="crm__stage">{t(`crm.stage.${r.stage}`)}</span>
+        {/* The name opens the client's own page; the t.me link stays as a
+            small secondary control so the primary tap lands inside the app. */}
+        <Link to={`/crm/${r.telegramId}`} className="crm__open">
+          {r.name || r.telegramId}
+        </Link>
+        <span className="crm__stage">
+          {r.link ? (
+            <a href={r.link} target="_blank" rel="noreferrer">
+              t.me
+            </a>
+          ) : null}{' '}
+          {t(`crm.stage.${r.stage}`)}
+        </span>
       </div>
       <p className="crm__why">
         {t(`crm.wait.${r.waiting}`)} · {r.days} · {r.because}
@@ -134,6 +133,7 @@ export default function CrmPage() {
   const w = waiting.data
   const l = leads.data
   const o = overview.data
+  const c = clients.data
 
   return (
     <div className="crm">
@@ -180,13 +180,16 @@ export default function CrmPage() {
               {l.leads.map(p => (
                 <li key={p.telegramId} className="crm__row">
                   <div className="crm__who">
+                    <Link to={`/crm/${p.telegramId}`} className="crm__open">
+                      {p.name || p.telegramId}
+                    </Link>
                     {p.link ? (
-                      <a href={p.link} target="_blank" rel="noreferrer">
-                        {p.name || p.telegramId}
-                      </a>
-                    ) : (
-                      <span>{p.name || p.telegramId}</span>
-                    )}
+                      <span className="crm__stage">
+                        <a href={p.link} target="_blank" rel="noreferrer">
+                          t.me
+                        </a>
+                      </span>
+                    ) : null}
                   </div>
                   <p className="crm__why">
                     {p.bot ?? '—'} ·{' '}
@@ -204,6 +207,39 @@ export default function CrmPage() {
               ))}
             </ul>
           </>
+        )
+      )}
+
+      {panel(
+        t('crm.clients.title'),
+        clients,
+        c && c.length === 0 ? (
+          <p className="crm__empty">{t('crm.clients.none')}</p>
+        ) : (
+          <ul className="crm__list">
+            {(c ?? []).map(x => (
+              <li key={x.telegramId} className="crm__row crm__row--client">
+                <div className="crm__who">
+                  <Link to={`/crm/${x.telegramId}`} className="crm__open">
+                    {x.name || x.telegramId}
+                    {x.username ? (
+                      <span className="crm__muted"> @{x.username}</span>
+                    ) : null}
+                  </Link>
+                  <span className="crm__stage">{t(`crm.stage.${x.stage}`)}</span>
+                </div>
+                <p className="crm__why">
+                  {x.client ?? '—'}
+                  {' · '}
+                  {t('crm.clients.profile')} {x.hasProfile ? '✓' : '—'}
+                  {' · '}
+                  {t('crm.clients.soul')} {x.hasSoul ? '✓' : '—'}
+                  {' · '}
+                  {t('crm.clients.duets', { n: x.duets })}
+                </p>
+              </li>
+            ))}
+          </ul>
         )
       )}
 

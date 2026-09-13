@@ -21,8 +21,8 @@
  */
 import { atom } from 'jotai'
 import { editorStore } from '@/atoms/Provider'
-import { agentMessagesAtom } from '@/atoms/agentChat'
-import type { AgentAttachment, Message } from '@/atoms/agentChat'
+import { agentMessagesAtomFor } from '@/atoms/agentChat'
+import type { AgentAttachment, Message, MessagesAtom } from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { reportClientError } from '@/lib/clientErrorBeacon'
@@ -33,10 +33,21 @@ export const agentBusyAtom = atom(false)
 /** Не даём запустить второй поток поверх первого. */
 let inFlight = false
 
-function patch(agentId: string, fn: (m: Message) => Message): void {
-  editorStore.set(agentMessagesAtom, prev =>
-    prev.map(m => (m.id === agentId ? fn(m) : m))
-  )
+function patchIn(
+  thread: MessagesAtom,
+  agentId: string,
+  fn: (m: Message) => Message
+): void {
+  editorStore.set(thread, prev => prev.map(m => (m.id === agentId ? fn(m) : m)))
+}
+
+/**
+ * WHICH THREAD. `client` is the lead's Telegram id when the person is talking
+ * ABOUT a client on `/crm/:clientId/chat`; absent, it is their own thread and
+ * the request looks exactly as it did before this option existed.
+ */
+export interface SendOptions {
+  client?: string | null
 }
 
 export function isAgentBusy(): boolean {
@@ -62,12 +73,17 @@ export function messageContentForAgent(message: Message): string {
  */
 export async function sendToAgent(
   text: string,
-  attachments: AgentAttachment[] = []
+  attachments: AgentAttachment[] = [],
+  options: SendOptions = {}
 ): Promise<void> {
   const trimmed = text.trim()
   if ((!trimmed && attachments.length === 0) || inFlight) return
   inFlight = true
   editorStore.set(agentBusyAtom, true)
+  const client = options.client || null
+  const thread = agentMessagesAtomFor(client)
+  const patch = (agentId: string, fn: (m: Message) => Message) =>
+    patchIn(thread, agentId, fn)
 
   const userMsg: Message = {
     id: `u${Date.now()}`,
@@ -85,11 +101,11 @@ export async function sendToAgent(
   }
 
   // История для сервера — из уже показанных сообщений плюс новое.
-  const history = [...editorStore.get(agentMessagesAtom), userMsg]
+  const history = [...editorStore.get(thread), userMsg]
     .filter(m => m.id !== 'welcome')
     .map(m => ({ role: m.role, content: messageContentForAgent(m) }))
 
-  editorStore.set(agentMessagesAtom, prev => [...prev, userMsg, agentMsg])
+  editorStore.set(thread, prev => [...prev, userMsg, agentMsg])
 
   /**
    * A network drop before the first byte is retried once. 08.09.2026 the
@@ -127,6 +143,9 @@ export async function sendToAgent(
          * не верим на слово.
          */
         surface: 'miniapp',
+        // Only when talking about a client: the key is absent otherwise, so
+        // the self thread's request body is byte-for-byte what it was.
+        ...(client ? { client } : {}),
       }),
     })
     if (!res.ok || !res.body) {
