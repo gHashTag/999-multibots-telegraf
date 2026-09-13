@@ -86,6 +86,23 @@ describe('who is in the chain', () => {
     expect(m.allProviders()[0]).toMatchObject({ id: 'zai', model: 'glm-4.7' })
   })
 
+  it("AGENT_MODEL stays with the deploy-time provider: the owner's runtime choice keeps its own model", async () => {
+    process.env.GLM_API_KEY = 'g' // secret-guard-ok: invented for this test
+    process.env.NVIDIA_API_KEY = 'n' // secret-guard-ok: invented for this test
+    process.env.OLLAMA_ENABLED = '1'
+    process.env.AGENT_PROVIDER = 'ollama'
+    process.env.AGENT_MODEL = 'glm-5.3'
+    const m = await load()
+    const choice = await import('./src/agent/provider-choice')
+    choice.forgetProviderChoiceForTests()
+    await choice.chooseProvider(null, 'nemotron')
+    const first = m.allProviders()[0]
+    expect(first.id).toBe('nemotron')
+    expect(first.model).toBe('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning')
+    expect(m.allProviders().find(p => p.id === 'zai')?.model).toBe('glm-5.3')
+    choice.forgetProviderChoiceForTests()
+  })
+
   it('a 16k window is still compact; a 32k one is not', async () => {
     process.env.OLLAMA_ENABLED = '1'
     process.env.OLLAMA_CONTEXT_LENGTH = '16384'

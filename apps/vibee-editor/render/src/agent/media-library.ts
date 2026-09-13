@@ -437,8 +437,40 @@ export async function describeMedia(
         e instanceof Error ? e.message : e
       ).slice(0, 160)}`
     )
-    return null
+    /*
+     * A provider that fails is NOT "nothing readable": the row must stay
+     * pending so the next pass tries again (measured 2026-09-13: 28 files
+     * of one lead were marked read with no words because the provider
+     * answered 404 for an hour). Only the honest nulls above are final.
+     */
+    throw new DescribeFailed(kind, name)
   }
+}
+
+/** A provider failure while describing: retryable, never "attempted". */
+export class DescribeFailed extends Error {
+  constructor(kind: MediaKind, name: string | null) {
+    super(`describe failed: ${kind} ${name ?? ''}`)
+  }
+}
+
+/**
+ * Forget failed attempts for one lead so `pendingTranscripts` offers the
+ * rows again. Only image and audio: video and binary files are final nulls.
+ */
+export async function reopenUnread(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<number> {
+  await ensureTable(pool)
+  const r = await pool.query(
+    `UPDATE user_media SET transcribed_at = NULL
+      WHERE owner_id = $1 AND lead_id = $2 AND transcript IS NULL
+        AND transcribed_at IS NOT NULL AND kind IN ('image', 'audio')`,
+    [owner, lead]
+  )
+  return Number((r as { rowCount?: number }).rowCount ?? 0)
 }
 
 /* ── the memory text ──────────────────────────────────────────────────── */
@@ -535,9 +567,12 @@ export async function transcribeAndMirror(
       const how = await mirrorTranscript(pool, owner, row, words)
       if (how !== 'skipped') mirrored += 1
     } catch (e) {
-      console.warn(
-        `[media-library] transcript for #${row.id} did not land: ${String(e).slice(0, 160)}`
-      )
+      // A DescribeFailed row is left pending on purpose; see describeMedia.
+      if (!(e instanceof DescribeFailed)) {
+        console.warn(
+          `[media-library] transcript for #${row.id} did not land: ${String(e).slice(0, 160)}`
+        )
+      }
     }
   }
   return { described, mirrored }
