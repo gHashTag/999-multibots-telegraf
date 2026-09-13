@@ -104,6 +104,17 @@ window has a different event name and is ignored.
   process did not run it and no Telegram report was produced — the same code, a different
   process. The Telegram path (`/inngest_probe` → confirm button → report) is witnessed only by
   the 2026-09-09 19:11Z run with the old judge and by unit tests.
+* Witness 2026-09-13 02:18:45Z – 02:19:33Z against production (`runProbeSuite` from this branch,
+  operator sandbox, `INNGEST_GQL_URL` = production server): 28 invoked, **28 `match`, 0
+  mismatch, 0 timeout, 0 invoke-error, 0 skipped**. File:
+  `docs/inngest/witness/2026-09-13-probe-suite-02-17Z.json`. Same caveat as above: not the
+  deployed bot process, no Telegram report.
+* Since this change the status route splits runs by origin: `lastRun` = newest run that was
+  NOT invoked by hand (event/cron traffic, the health dot), `lastProbe` = newest invoked run
+  with the manifest expectation and `asExpected` beside it (judged from the run STATUS only),
+  `probeExpect` = the manifest contract. Before the split, every `/inngest_probe` painted the
+  seventeen guarded functions red in the FUNCTIONS tab although they had failed exactly as
+  expected (`specs/automation/inngest-functions-status.t27`, VERSION 2 in `gHashTag/t27`).
 * Unit tests drive the orchestrator with a fake Inngest (`src/__tests__/inngest/probeSuite.test.ts`)
   and the command on a booted Telegraf bot (`src/__tests__/bot/inngestProbeCommand.test.ts`).
 * The 2026-09-09 manual probe (`probe_result` in the manifest, `PROBE_RESULT` on the t27 cards) is

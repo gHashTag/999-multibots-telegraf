@@ -18,8 +18,13 @@ import {
 import {
   getManifestFunctions,
   manifestAppId,
+  probeExpectOf,
   type ManifestFunction,
+  type ProbeExpect,
 } from '../manifest'
+
+export { probeExpectOf }
+export type { ProbeExpect }
 
 export type RunStatus =
   | 'QUEUED'
@@ -45,6 +50,21 @@ export interface RunCounters {
 
 export const INVOKED_EVENT_PREFIX = 'inngest/function.invoked'
 
+/**
+ * Status-level judgement of a probe run against the manifest expectation.
+ * `null` = no expectation (skip) or the run has not ended.
+ */
+export function probeAsExpected(
+  expect: ProbeExpect,
+  status: string
+): boolean | null {
+  if (expect === 'skip') return null
+  if (status !== 'COMPLETED' && status !== 'FAILED' && status !== 'CANCELLED')
+    return null
+  if (expect === 'FAILED-at-guard') return status === 'FAILED'
+  return status === 'COMPLETED'
+}
+
 export function isInvokedRun(run: { eventName?: string | null }): boolean {
   return (run.eventName ?? '').startsWith(INVOKED_EVENT_PREFIX)
 }
@@ -60,12 +80,36 @@ export interface FunctionStatus {
   deployed: boolean
   runs24h: RunCounters
   runs7d: RunCounters
+  /**
+   * Newest run that was NOT invoked by hand (event or cron traffic). This is
+   * the health dot. `null` when the function had no organic run in the
+   * window; consumers show that as "no runs", never as red.
+   * (specs/automation/inngest-functions-status.t27, VERSION 2)
+   */
   lastRun: {
     id: string
     status: string
     queuedAt: string
     endedAt: string | null
   } | null
+  /**
+   * Newest invoked run (probe suite, dashboard "Invoke", MCP) with the
+   * manifest expectation beside it. `asExpected` is judged from the run
+   * STATUS only ("FAILED-at-guard" -> FAILED, "COMPLETED" -> COMPLETED);
+   * whether it failed AT THE GUARD is the probe suite's verdict, not ours.
+   * `asExpected` is null when the manifest expects `skip` or the run is
+   * not terminal yet.
+   */
+  lastProbe: {
+    id: string
+    status: string
+    queuedAt: string
+    endedAt: string | null
+    expect: ProbeExpect
+    asExpected: boolean | null
+  } | null
+  /** `probe_expect` from the manifest; what /inngest_probe expects of a safe probe. */
+  probeExpect: ProbeExpect
   lastError: {
     runId: string
     endedAt: string | null
@@ -149,6 +193,7 @@ export interface RunsSummary {
       runs24h: RunCounters
       runs7d: RunCounters
       lastRun: FunctionStatus['lastRun']
+      lastInvoked: FunctionStatus['lastRun']
       lastError: FunctionStatus['lastError']
     }
   >
@@ -177,6 +222,7 @@ export function summarizeRuns(
         runs24h: emptyCounters(),
         runs7d: emptyCounters(),
         lastRun: null,
+        lastInvoked: null,
         lastError: null,
       }
       perFunction.set(slug, entry)
@@ -189,14 +235,21 @@ export function summarizeRuns(
       bump(entry.runs24h, run.status, invoked)
       bump(totals24h, run.status, invoked)
     }
-    // runs come newest-first; keep the first seen as lastRun / lastError.
-    if (!entry.lastRun) {
-      entry.lastRun = {
-        id: run.id,
-        status: run.status,
-        queuedAt: run.queuedAt,
-        endedAt: run.endedAt ?? null,
-      }
+    // runs come newest-first; keep the first seen of each kind. An invoked
+    // run (probe, dashboard Invoke) is never the function's lastRun: seventeen
+    // guarded functions FAIL on every safe probe by design, and after each
+    // /inngest_probe the FUNCTIONS tab showed twenty red "last run FAILED"
+    // dots for functions that had done nothing wrong (read 2026-09-12).
+    const ref = {
+      id: run.id,
+      status: run.status,
+      queuedAt: run.queuedAt,
+      endedAt: run.endedAt ?? null,
+    }
+    if (invoked) {
+      if (!entry.lastInvoked) entry.lastInvoked = ref
+    } else if (!entry.lastRun) {
+      entry.lastRun = ref
     }
     // an invoked (probe/manual) run that failed is not the function's last
     // production error
@@ -262,6 +315,8 @@ export function buildFunctionsStatus(params: {
     )
     const slug = served?.slug ?? null
     const runStats = slug ? summary.perFunction.get(slug) : undefined
+    const probeExpect = probeExpectOf(fn as { probe_expect?: string })
+    const lastInvoked = runStats?.lastInvoked ?? null
     return {
       id: fn.id,
       slug,
@@ -273,6 +328,14 @@ export function buildFunctionsStatus(params: {
       runs24h: runStats?.runs24h ?? emptyCounters(),
       runs7d: runStats?.runs7d ?? emptyCounters(),
       lastRun: runStats?.lastRun ?? null,
+      lastProbe: lastInvoked
+        ? {
+            ...lastInvoked,
+            expect: probeExpect,
+            asExpected: probeAsExpected(probeExpect, lastInvoked.status),
+          }
+        : null,
+      probeExpect,
       lastError: runStats?.lastError ?? null,
     }
   })

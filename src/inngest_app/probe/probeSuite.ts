@@ -25,9 +25,13 @@
  * "passes" when every non-skipped probe is a match.
  */
 import type { ManifestFunction } from '@/inngest_app/manifest'
-import { getManifestFunctions, manifestAppId } from '@/inngest_app/manifest'
+import {
+  getManifestFunctions,
+  manifestAppId,
+  probeExpectOf,
+} from '@/inngest_app/manifest'
 
-export const PROBE_SUITE_VERSION = 1
+export const PROBE_SUITE_VERSION = 2
 /** Whole-suite wall-clock budget, after which pending runs are `timeout`. */
 export const PROBE_BUDGET_MS = 120_000
 /** Poll cadence for run status. */
@@ -133,9 +137,8 @@ export const TERMINAL_RUN_STATUSES = new Set([
 ])
 
 export function probeExpectation(f: ManifestFunction): ProbeExpectation {
-  const raw = (f as unknown as { probe_expect?: string }).probe_expect
-  if (raw === 'COMPLETED' || raw === 'FAILED-at-guard') return raw
-  return 'skip'
+  // one reading of probe_expect for the suite and the status route
+  return probeExpectOf(f as unknown as { probe_expect?: string })
 }
 
 export function probePayload(f: ManifestFunction): Record<string, unknown> {

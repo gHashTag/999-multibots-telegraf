@@ -1,0 +1,468 @@
+{
+  "version": 2,
+  "appId": "telegram-bot-client",
+  "startedAt": "2026-09-13T02:18:45.906Z",
+  "endedAt": "2026-09-13T02:19:33.894Z",
+  "gqlUrl": "https://inngestinngest-production-c468.up.railway.app/v0/gql",
+  "results": [
+    {
+      "id": "neuro-image-generate",
+      "slug": "telegram-bot-client-neuro-image-generate",
+      "expect": "FAILED-at-guard",
+      "guard": "check-user",
+      "guardKind": "step",
+      "payload": {
+        "telegram_id": "0",
+        "bot_name": "e2e_nonexistent_bot",
+        "prompt": "safe-mode probe",
+        "is_ru": true,
+        "num_images": 1,
+        "model_url": "e2e/none",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8YP660EJVQF408GAZXFD9",
+      "status": "FAILED",
+      "failedStep": "check-user",
+      "durationMs": 1682
+    },
+    {
+      "id": "reels-ai-generate",
+      "slug": "telegram-bot-client-reels-ai-generate",
+      "expect": "FAILED-at-guard",
+      "guard": "validate-input",
+      "guardKind": "step",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8YQWZKXSF31T721M60JDC",
+      "status": "FAILED",
+      "failedStep": "validate-input",
+      "durationMs": 2511
+    },
+    {
+      "id": "reels-ai-callback",
+      "slug": "telegram-bot-client-reels-ai-callback",
+      "expect": "FAILED-at-guard",
+      "guard": "extract-job-id",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8YSKWWFMSDKD3K0A1WCH7",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 4058
+    },
+    {
+      "id": "reels-loop-generate",
+      "slug": "telegram-bot-client-reels-loop-generate",
+      "expect": "FAILED-at-guard",
+      "guard": "min-images",
+      "guardKind": "body",
+      "payload": {
+        "telegram_id": "0",
+        "image_urls": [],
+        "bot_token": "",
+        "prompt": "safe-mode probe",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8YVAMYN5WEQ0498PD9VRK",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 5854
+    },
+    {
+      "id": "training-model-start",
+      "slug": "telegram-bot-client-training-model-start",
+      "expect": "FAILED-at-guard",
+      "guard": "validate-steps",
+      "guardKind": "body",
+      "payload": {
+        "telegram_id": "0",
+        "bot_name": "e2e_nonexistent_bot",
+        "steps": -1,
+        "zipUrl": "",
+        "triggerWord": "e2e",
+        "modelName": "e2e",
+        "is_ru": true,
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8YX1MH01R0GRHAHGG44T7",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 7628
+    },
+    {
+      "id": "training-model-v2-start",
+      "slug": "telegram-bot-client-training-model-v2-start",
+      "expect": "FAILED-at-guard",
+      "guard": "check-user-exists",
+      "guardKind": "step",
+      "payload": {
+        "telegram_id": "0",
+        "bot_name": "e2e_nonexistent_bot",
+        "zipUrl": "",
+        "triggerWord": "e2e",
+        "modelName": "e2e",
+        "steps": 1,
+        "is_ru": true,
+        "gender": "male",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8YYRJQGBCG1FNCKQ4BH57",
+      "status": "FAILED",
+      "failedStep": "check-user-exists",
+      "durationMs": 9900
+    },
+    {
+      "id": "training-model-complete",
+      "slug": "telegram-bot-client-training-model-complete",
+      "expect": "COMPLETED",
+      "guard": "unknown",
+      "guardKind": "none",
+      "payload": {
+        "training_id": "e2e-probe-nonexistent",
+        "status": "succeeded",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z0F6TWETK3CSWG89ZEWP",
+      "status": "COMPLETED",
+      "durationMs": 11540
+    },
+    {
+      "id": "training-stuck-check",
+      "slug": "telegram-bot-client-training-stuck-check",
+      "expect": "COMPLETED",
+      "guard": "none",
+      "guardKind": "none",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z0Q39DH93EAXXW9732PB",
+      "status": "COMPLETED",
+      "durationMs": 11676
+    },
+    {
+      "id": "morph-images-generate",
+      "slug": "telegram-bot-client-morph-images-generate",
+      "expect": "FAILED-at-guard",
+      "guard": "check-user-exists",
+      "guardKind": "step",
+      "payload": {
+        "telegram_id": "0",
+        "bot_name": "e2e_nonexistent_bot",
+        "is_ru": true,
+        "job_id": "e2e-probe",
+        "image_files": [],
+        "extraction_path": "/nonexistent/e2e",
+        "morphing_type": "seamless",
+        "model": "kling-v1.6-pro",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z2DYW9WD1NK1AQ6VJBJP",
+      "status": "FAILED",
+      "failedStep": "check-user-exists",
+      "durationMs": 13754
+    },
+    {
+      "id": "render-job-run",
+      "slug": "telegram-bot-client-render-job-run",
+      "expect": "FAILED-at-guard",
+      "guard": "zod-schema",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z44WAJF9DAR04N3X7Q8T",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 14856
+    },
+    {
+      "id": "render-avatar-video-run",
+      "slug": "telegram-bot-client-render-avatar-video-run",
+      "expect": "FAILED-at-guard",
+      "guard": "zod-schema",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z5VNNP7GX1K3JPX688JQ",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 16617
+    },
+    {
+      "id": "render-riddle-run",
+      "slug": "telegram-bot-client-render-riddle-run",
+      "expect": "FAILED-at-guard",
+      "guard": "zod-schema",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z63HHXVS02X6H28NRN0D",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 16951
+    },
+    {
+      "id": "payment-ai-server-process",
+      "slug": "telegram-bot-client-payment-ai-server-process",
+      "expect": "COMPLETED",
+      "guard": "amount-match",
+      "guardKind": "body",
+      "payload": {
+        "IncSum": "0.01",
+        "inv_id": "e2e-safe-mode-probe",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z7TBGCNG4MFCF8QTFEAA",
+      "status": "COMPLETED",
+      "durationMs": 18883
+    },
+    {
+      "id": "broadcast-message-send",
+      "slug": "telegram-bot-client-broadcast-message-send",
+      "expect": "FAILED-at-guard",
+      "guard": "validate-input",
+      "guardKind": "step",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8Z9H3G0FB0G2H88X1MZ6T",
+      "status": "FAILED",
+      "failedStep": "validate-input",
+      "durationMs": 20510
+    },
+    {
+      "id": "instagram-reels-analyze",
+      "slug": "telegram-bot-client-instagram-reels-analyze",
+      "expect": "FAILED-at-guard",
+      "guard": "validate-input",
+      "guardKind": "step",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZB7X8RCG0043X53J6B0T",
+      "status": "FAILED",
+      "failedStep": "validate-input",
+      "durationMs": 22308
+    },
+    {
+      "id": "instagram-competitors-find",
+      "slug": "telegram-bot-client-instagram-competitors-find",
+      "expect": "FAILED-at-guard",
+      "guard": "validate-input",
+      "guardKind": "step",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZCYT1N8HDEJY09WDEZ0H",
+      "status": "FAILED",
+      "failedStep": "validate-input",
+      "durationMs": 23965
+    },
+    {
+      "id": "instagram-top-content-extract",
+      "slug": "telegram-bot-client-instagram-top-content-extract",
+      "expect": "FAILED-at-guard",
+      "guard": "zod-schema",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZENMK4E44WF2KCQT3K8K",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 25650
+    },
+    {
+      "id": "content-scripts-generate",
+      "slug": "telegram-bot-client-content-scripts-generate",
+      "expect": "FAILED-at-guard",
+      "guard": "zod-schema",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZGCD3VZ4RYKDNBKH8ZVV",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 27421
+    },
+    {
+      "id": "content-detailed-script-generate",
+      "slug": "telegram-bot-client-content-detailed-script-generate",
+      "expect": "FAILED-at-guard",
+      "guard": "zod-schema",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZJ36V3NAH33S5794G6EC",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 29224
+    },
+    {
+      "id": "content-scenario-clips-generate",
+      "slug": "telegram-bot-client-content-scenario-clips-generate",
+      "expect": "FAILED-at-guard",
+      "guard": "zod-schema",
+      "guardKind": "body",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZKTGGZJYHR4KSR2FY4VY",
+      "status": "FAILED",
+      "failedStep": "function error",
+      "durationMs": 30903
+    },
+    {
+      "id": "monitoring-error-report",
+      "slug": "telegram-bot-client-monitoring-error-report",
+      "expect": "COMPLETED",
+      "guard": "none",
+      "guardKind": "none",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZNH7A82KVJMQYEDR5M06",
+      "status": "COMPLETED",
+      "durationMs": 33296
+    },
+    {
+      "id": "monitoring-health-check",
+      "slug": "telegram-bot-client-monitoring-health-check",
+      "expect": "COMPLETED",
+      "guard": "none",
+      "guardKind": "none",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZQ7T4JW069063H6K3HTV",
+      "status": "COMPLETED",
+      "durationMs": 34801
+    },
+    {
+      "id": "monitoring-logs-analyze",
+      "slug": "telegram-bot-client-monitoring-logs-analyze",
+      "expect": "COMPLETED",
+      "guard": "none",
+      "guardKind": "none",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZRYK1ZMV4TX7XDPD1D4T",
+      "status": "COMPLETED",
+      "durationMs": 37057
+    },
+    {
+      "id": "monitoring-logs-trigger",
+      "slug": "telegram-bot-client-monitoring-logs-trigger",
+      "expect": "COMPLETED",
+      "guard": "none",
+      "guardKind": "none",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZTNGVHE8V639JX9GBBVF",
+      "status": "COMPLETED",
+      "durationMs": 38507
+    },
+    {
+      "id": "analytics-sales-advise",
+      "slug": "telegram-bot-client-analytics-sales-advise",
+      "expect": "COMPLETED",
+      "guard": "none",
+      "guardKind": "none",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZWCCE8MXW8XXTWYGHRX9",
+      "status": "COMPLETED",
+      "durationMs": 46523
+    },
+    {
+      "id": "analytics-skills-detect",
+      "slug": "telegram-bot-client-analytics-skills-detect",
+      "expect": "COMPLETED",
+      "guard": "none",
+      "guardKind": "none",
+      "payload": {
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZWM6M6XVA5RH5RXCZKPV",
+      "status": "COMPLETED",
+      "durationMs": 42464
+    },
+    {
+      "id": "webhook-generation-validate",
+      "slug": "telegram-bot-client-webhook-generation-validate",
+      "expect": "COMPLETED",
+      "guard": "unknown",
+      "guardKind": "none",
+      "payload": {
+        "telegramId": "0",
+        "modelId": "e2e-probe",
+        "provider": "e2e",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C8ZYB1EMJ15G71P5EDKEHJ",
+      "status": "COMPLETED",
+      "durationMs": 41869
+    },
+    {
+      "id": "welcome-avatar-generate",
+      "slug": "telegram-bot-client-welcome-avatar-generate",
+      "expect": "COMPLETED",
+      "guard": "unknown",
+      "guardKind": "none",
+      "payload": {
+        "telegram_id": "0",
+        "bot_name": "e2e_nonexistent_bot",
+        "e2e_test": true
+      },
+      "verdict": "match",
+      "runId": "01M2C9001H5PBDE8M6ZW6WC7J6",
+      "status": "COMPLETED",
+      "durationMs": 43624
+    }
+  ],
+  "counts": {
+    "match": 28,
+    "mismatch": 0,
+    "timeout": 0,
+    "invoke-error": 0,
+    "skipped": 0
+  },
+  "ok": true
+}

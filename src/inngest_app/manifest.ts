@@ -17,6 +17,18 @@ export type ManifestControl =
   | 'spec-only'
   | 'code-only/unregistered'
 
+export type ProbeExpect = 'COMPLETED' | 'FAILED-at-guard' | 'skip'
+
+/**
+ * One reading of `probe_expect` for the probe suite and the status route:
+ * anything that is not a known expectation is `skip`.
+ */
+export function probeExpectOf(fn: { probe_expect?: string }): ProbeExpect {
+  const raw = fn.probe_expect
+  if (raw === 'COMPLETED' || raw === 'FAILED-at-guard') return raw
+  return 'skip'
+}
+
 export interface ManifestFunction {
   id: string
   legacy_id: string
@@ -38,7 +50,7 @@ export interface ManifestFunction {
   /** What the 2026-09-09 probe reached: COMPLETED | FAILED-at-guard | skipped | not-deployed */
   probe_result: string
   /** What the safe probe suite expects now: COMPLETED | FAILED-at-guard | skip */
-  probe_expect: 'COMPLETED' | 'FAILED-at-guard' | 'skip'
+  probe_expect: ProbeExpect
   deployed_2026_09_09: boolean
   control: ManifestControl
   notes: string[]
