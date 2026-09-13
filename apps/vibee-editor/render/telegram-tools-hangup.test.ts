@@ -63,7 +63,11 @@ describe('hangUp', () => {
 describe('withClient hangs up with destroy()', () => {
   it('every reading tool goes through withClient, and withClient destroys', async () => {
     const fs = await import('node:fs')
-    const s = fs.readFileSync('src/agent/telegram-tools.ts', 'utf8')
+    // Read through THIS file's URL, not the process cwd: `vitest related`
+    // from the repo root (the pre-push gate) runs with cwd at the root,
+    // where src/agent/telegram-tools.ts does not exist.
+    const agent = new URL('./src/agent/', import.meta.url)
+    const s = fs.readFileSync(new URL('telegram-tools.ts', agent), 'utf8')
     const body = s.slice(
       s.indexOf('export async function withClient'),
       s.indexOf('export interface СыройДиалог') // cyrillic-ok: pre-existing identifier
@@ -72,12 +76,12 @@ describe('withClient hangs up with destroy()', () => {
     expect(body).not.toContain('c.disconnect()')
     // And nobody in the agent reaches past hangUp to a bare disconnect().
     for (const f of [
-      'src/agent/tg-proposals.ts',
-      'src/agent/crm-memory-tools.ts',
-      'src/agent/crm-offer-tool.ts',
-      'src/agent/tg-connect.ts',
+      'tg-proposals.ts',
+      'crm-memory-tools.ts',
+      'crm-offer-tool.ts',
+      'tg-connect.ts',
     ]) {
-      const t = fs.readFileSync(f, 'utf8')
+      const t = fs.readFileSync(new URL(f, agent), 'utf8')
       expect(t, f).not.toMatch(/\.disconnect\?\.\(\)|await c\.disconnect\(\)/)
       expect(t, f).toContain('hangUp(')
     }
