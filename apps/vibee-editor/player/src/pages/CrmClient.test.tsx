@@ -31,6 +31,8 @@ vi.mock('@/hooks/useLanguage', () => ({
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const CLIENT = '435572800'
+/** What the tool allows: 1..8 turns. */
+const DUET_TURNS = [1, 2, 3, 4, 5, 6, 7, 8]
 
 const answers: Record<string, unknown> = {
   crm_client_profile: {
@@ -112,6 +114,14 @@ const answers: Record<string, unknown> = {
       { at: '2026-09-11T08:01:00Z', who: 'owner', text: 'WeSaidThat' },
     ],
   },
+  crm_duet: {
+    started: true,
+    duet_id: 'duet-new-77',
+    buyer: CLIENT,
+    turns: 4,
+    dry_run: true,
+    hint: 'watch crm_duet_status',
+  },
   crm_lead_media: {
     items: [
       {
@@ -128,13 +138,27 @@ const answers: Record<string, unknown> = {
 
 let calls: Array<{ name: string; args: Record<string, unknown> }> = []
 
-function serve(opts: { fail?: string[] } = {}) {
+function serve(
+  opts: { fail?: string[]; refuse?: Record<string, string> } = {}
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (_u: string, init: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'))
       const name = body?.params?.name
       calls.push({ name, args: body?.params?.arguments ?? {} })
+      if (opts.refuse && name in opts.refuse) {
+        // The tool itself threw -- a JSON-RPC error with the server's words,
+        // which is how an owner-only tool answers a non-owner.
+        return {
+          ok: true,
+          json: async () => ({
+            jsonrpc: '2.0',
+            id: 1,
+            error: { code: -32000, message: opts.refuse![name] },
+          }),
+        }
+      }
       if (opts.fail?.includes(name)) {
         // A 500 with a body, the way a real server fails.
         return {
@@ -309,5 +333,122 @@ describe('the way into the conversation', () => {
         c.name
       )
     }
+  })
+})
+
+describe('starting a duet: the one action that can reach the client', () => {
+  /*
+   * Spec: t27 specs/automation/crm-client-workspace.t27 and
+   * crm-client-ownership.t27. The dashboard sends nothing by itself; this
+   * control sends only what the owner explicitly asked for, and the
+   * server, not the screen, decides who the owner is.
+   */
+  const startButton = () =>
+    host.querySelector<HTMLButtonElement>('.crm-client__duet-go')!
+  const dryBox = () =>
+    host.querySelector<HTMLInputElement>(
+      '.crm-client__duet-start input[type=checkbox]'
+    )!
+  const turnsSelect = () =>
+    host.querySelector<HTMLSelectElement>('.crm-client__duet-start select')!
+  const click = async (el: HTMLElement) => {
+    await act(async () => {
+      el.click()
+      await new Promise(r => setTimeout(r, 0))
+    })
+  }
+
+  it('dry run is on by default, turns default to 4 and offer 1..8', async () => {
+    serve()
+    await draw()
+    expect(dryBox().checked).toBe(true)
+    expect(turnsSelect().value).toBe('4')
+    expect([...turnsSelect().options].map(o => o.value)).toEqual(
+      DUET_TURNS.map(String)
+    )
+    expect(startButton().textContent).toBe('crm.client.duets.start')
+    // Rendering the control called nothing: the tool runs on a tap only.
+    expect(calls.map(c => c.name)).not.toContain('crm_duet')
+  })
+
+  it('with dry run on, one tap calls crm_duet with dry_run:true and no question', async () => {
+    serve()
+    await draw()
+    calls = []
+    await act(async () => {
+      turnsSelect().value = '6'
+      turnsSelect().dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await click(startButton())
+    expect(host.querySelector('.crm-client__duet-confirm')).toBeNull()
+    const duet = calls.find(c => c.name === 'crm_duet')!
+    expect(duet.args).toEqual({ buyer: CLIENT, turns: 6, dry_run: true })
+    // Success shows the id and the state, then re-reads the runs.
+    const text = String(host.textContent)
+    expect(text).toContain('crm.client.duets.started:duet-new-77,')
+    expect(calls.filter(c => c.name === 'crm_duet_runs').length).toBe(1)
+  })
+
+  it('with dry run off, the tap asks first; cancel sends nothing', async () => {
+    serve()
+    await draw()
+    calls = []
+    await click(dryBox())
+    expect(dryBox().checked).toBe(false)
+    await click(startButton())
+    expect(host.textContent).toContain('crm.client.duets.confirm')
+    expect(calls.map(c => c.name)).not.toContain('crm_duet')
+    await click(host.querySelector<HTMLButtonElement>('.crm-client__duet-no')!)
+    expect(host.querySelector('.crm-client__duet-confirm')).toBeNull()
+    expect(calls.map(c => c.name)).not.toContain('crm_duet')
+  })
+
+  it('with dry run off, only confirm calls crm_duet, with dry_run:false', async () => {
+    serve()
+    await draw()
+    calls = []
+    await click(dryBox())
+    await click(startButton())
+    await click(host.querySelector<HTMLButtonElement>('.crm-client__duet-yes')!)
+    const duet = calls.filter(c => c.name === 'crm_duet')
+    expect(duet.length).toBe(1)
+    expect(duet[0].args).toEqual({ buyer: CLIENT, turns: 4, dry_run: false })
+    expect(host.querySelector('.crm-client__duet-confirm')).toBeNull()
+  })
+
+  it('a duet already running is reported with the server reason', async () => {
+    const saved = answers.crm_duet
+    answers.crm_duet = {
+      started: false,
+      duet_id: 'duet-1',
+      reason: 'AlreadyRunningReason',
+      run: { id: 'duet-1', state: 'running' },
+    }
+    serve()
+    await draw()
+    calls = []
+    await click(startButton())
+    const text = String(host.textContent)
+    expect(text).toContain('crm.client.duets.notStarted')
+    expect(text).toContain('AlreadyRunningReason')
+    expect(text).not.toContain('crm.client.duets.started:')
+    // Nothing started, so nothing to re-read.
+    expect(calls.map(c => c.name)).not.toContain('crm_duet_runs')
+    answers.crm_duet = saved
+  })
+
+  it("a non-owner sees the server's refusal, word for word", async () => {
+    /*
+     * The button is NOT hidden by guessing the role in the browser. The tool
+     * is owner-only on the server; that refusal is the truth, and the screen
+     * repeats it.
+     */
+    serve({ refuse: { crm_duet: 'OnlyTheOwnerMayStartADuet' } })
+    await draw()
+    await click(startButton())
+    const text = String(host.textContent)
+    expect(text).toContain('crm.client.duets.error')
+    expect(text).toContain('OnlyTheOwnerMayStartADuet')
+    expect(text).not.toContain('crm.client.duets.started:')
   })
 })

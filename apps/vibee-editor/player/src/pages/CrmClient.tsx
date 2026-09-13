@@ -11,9 +11,11 @@ import {
   loadClientHistory,
   loadLeadContext,
   loadLeadMedia,
+  startDuet,
   type ClientProfile,
   type ClientPlan,
   type DuetRun,
+  type DuetStart,
   type ClientHistory,
   type LeadContext,
   type LeadMedia,
@@ -36,11 +38,20 @@ import {
  * a verdict the screen has no right to pass. The rule and its test come from
  * `Crm.tsx`; the component that enforces it is shared.
  *
- * Nothing here sends anything to the client. It reads, and it links to the
- * chat where the agent proposes and the owner confirms.
+ * Nothing here sends anything to the client BY ITSELF. It reads, and it
+ * links to the chat where the agent proposes and the owner confirms. The one
+ * exception is the start-duet control in the Duets panel, and it is built so
+ * that nothing leaves the building by accident: dry run is on by default,
+ * turning it off demands a second, explicit confirmation, and the server
+ * refuses anybody but the owner -- the screen shows that refusal verbatim
+ * instead of guessing the role.
  */
 
 const empty = <T,>(): Reached<T> => ({ reachable: true, data: null })
+
+/** Allowed by the tool: 1..8 turns, 4 when nothing is said. */
+const DUET_TURNS = [1, 2, 3, 4, 5, 6, 7, 8] as const
+const DUET_TURNS_DEFAULT = 4
 
 /** `2026-09-13T10:00:00Z` -> `13.09 10:00`; anything unparseable is shown as is. */
 function when(iso: string | null): string {
@@ -67,6 +78,14 @@ export default function CrmClientPage() {
   const [media, setMedia] = useState<Reached<LeadMedia[]>>(empty)
   const [busy, setBusy] = useState(false)
 
+  // The start-duet control. `confirming` is the inline step between a click
+  // with dry run OFF and the call that sends real messages.
+  const [duetTurns, setDuetTurns] = useState(DUET_TURNS_DEFAULT)
+  const [duetDry, setDuetDry] = useState(true)
+  const [duetConfirming, setDuetConfirming] = useState(false)
+  const [duetBusy, setDuetBusy] = useState(false)
+  const [duetResult, setDuetResult] = useState<Reached<DuetStart> | null>(null)
+
   const reload = useCallback(async () => {
     if (!clientId) return
     setBusy(true)
@@ -92,6 +111,27 @@ export default function CrmClientPage() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  /**
+   * The only thing on this screen that can reach the client. Runs the tool
+   * and then RE-READS the Duets panel rather than inventing a row: the run's
+   * state is the server's to tell.
+   */
+  const runDuet = async (dryRun: boolean) => {
+    setDuetConfirming(false)
+    setDuetBusy(true)
+    const r = await startDuet(clientId, duetTurns, dryRun)
+    setDuetResult(r)
+    setDuetBusy(false)
+    if (r.data?.started) setDuets(await loadDuetRuns(clientId))
+  }
+
+  const onStartDuet = () => {
+    // A dry run sends nothing, so it needs no second question. Turning dry
+    // run off does: real Telegram messages will go to this client.
+    if (duetDry) void runDuet(true)
+    else setDuetConfirming(true)
+  }
 
   /**
    * The unreachable wording for THIS screen is the short one -- the
@@ -214,6 +254,85 @@ export default function CrmClientPage() {
       </Panel>
 
       <Panel title={t('crm.client.duets.title')} state={unreachable(duets)}>
+        <div className="crm-client__duet-start">
+          <label>
+            {t('crm.client.duets.turns')}{' '}
+            <select
+              value={duetTurns}
+              onChange={e => setDuetTurns(Number(e.target.value))}
+              disabled={duetBusy}
+            >
+              {DUET_TURNS.map(n => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={duetDry}
+              onChange={e => {
+                setDuetDry(e.target.checked)
+                setDuetConfirming(false)
+              }}
+              disabled={duetBusy}
+            />{' '}
+            {t('crm.client.duets.dry')}
+          </label>
+          <button
+            type="button"
+            className="crm-client__duet-go"
+            onClick={onStartDuet}
+            disabled={duetBusy || duetConfirming}
+          >
+            {duetBusy
+              ? t('crm.client.duets.starting')
+              : t('crm.client.duets.start')}
+          </button>
+        </div>
+        {duetConfirming ? (
+          <div className="crm-client__duet-confirm" role="alert">
+            <p>{t('crm.client.duets.confirm')}</p>
+            <div className="crm__acts">
+              <button
+                type="button"
+                className="crm-client__duet-yes"
+                onClick={() => void runDuet(false)}
+              >
+                {t('crm.client.duets.confirmYes')}
+              </button>
+              <button
+                type="button"
+                className="crm-client__duet-no"
+                onClick={() => setDuetConfirming(false)}
+              >
+                {t('crm.client.duets.confirmNo')}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {duetResult ? (
+          <p
+            className={`crm__counts crm-client__duet-result${
+              duetResult.data?.started ? '' : ' crm-client__duet-result--no'
+            }`}
+          >
+            {duetResult.data
+              ? duetResult.data.started
+                ? t('crm.client.duets.started', {
+                    id: duetResult.data.duetId ?? '?',
+                    state: duetResult.data.dryRun
+                      ? t('crm.client.duets.dry')
+                      : t('crm.client.duets.state.running'),
+                  })
+                : `${t('crm.client.duets.notStarted')}: ${
+                    duetResult.data.reason ?? '—'
+                  }`
+              : `${t('crm.client.duets.error')}: ${duetResult.error ?? '—'}`}
+          </p>
+        ) : null}
         {du &&
           (du.length === 0 ? (
             <p className="crm__empty">{t('crm.client.duets.none')}</p>

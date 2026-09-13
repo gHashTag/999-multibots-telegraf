@@ -238,23 +238,42 @@ export interface ClientRow {
   hasSoul: boolean
   skills: number
   stage: string
+  /** Read from payments on the server; `false` when payments were unreadable. */
+  paid: boolean
   lastSeen: string | null
   duets: number
 }
 
-function toClients(r: Record<string, unknown>): ClientRow[] {
-  return rows(r['clients']).map(c => ({
-    telegramId: String(c['telegram_id'] ?? ''),
-    name: str(c['name']),
-    username: str(c['username']),
-    client: str(c['client']),
-    hasProfile: bool(c['has_profile']) ?? false,
-    hasSoul: bool(c['has_soul']) ?? false,
-    skills: num(c['skills']) ?? 0,
-    stage: String(c['stage'] ?? 'new'),
-    lastSeen: str(c['last_seen']),
-    duets: num(c['duets']) ?? 0,
-  }))
+/**
+ * The list plus one fact about the list itself: whether the server could read
+ * payments at all. `paidKnown: false` means every `paid` is `false` for lack
+ * of data, not for lack of money, and the screen must say so rather than
+ * show a client list with nobody paying.
+ */
+export interface ClientsList {
+  clients: ClientRow[]
+  paidKnown: boolean
+}
+
+function toClients(r: Record<string, unknown>): ClientsList {
+  return {
+    clients: rows(r['clients']).map(c => ({
+      telegramId: String(c['telegram_id'] ?? ''),
+      name: str(c['name']),
+      username: str(c['username']),
+      client: str(c['client']),
+      hasProfile: bool(c['has_profile']) ?? false,
+      hasSoul: bool(c['has_soul']) ?? false,
+      skills: num(c['skills']) ?? 0,
+      stage: String(c['stage'] ?? 'new'),
+      paid: bool(c['paid']) ?? false,
+      lastSeen: str(c['last_seen']),
+      duets: num(c['duets']) ?? 0,
+    })),
+    // An older server that does not send the flag is treated as knowing:
+    // the note is for a server that SAID it could not read payments.
+    paidKnown: bool(r['paid_known']) ?? true,
+  }
 }
 
 export const loadClients = async (limit?: number) =>
@@ -264,6 +283,55 @@ export const loadClients = async (limit?: number) =>
       limit ? { limit } : {}
     ),
     toClients
+  )
+
+/**
+ * Start a duet with a client (tool `crm_duet`). Owner-only ON THE SERVER: a
+ * non-owner gets the tool's own refusal back as `error`, and the screen shows
+ * that text instead of guessing the role and hiding the button.
+ *
+ * `dryRun: false` makes the agent send REAL Telegram messages to the client,
+ * which is why the screen confirms first and defaults to a dry run. Errors
+ * are returned, never thrown, like every other loader here.
+ */
+export interface DuetStart {
+  started: boolean
+  duetId: string | null
+  buyer: string | null
+  turns: number | null
+  dryRun: boolean | null
+  hint: string | null
+  /** Why it did not start (a duet already running, usually). */
+  reason: string | null
+}
+
+function toDuetStart(r: Record<string, unknown>): DuetStart {
+  return {
+    started: bool(r['started']) ?? false,
+    duetId:
+      r['duet_id'] === undefined || r['duet_id'] === null
+        ? null
+        : String(r['duet_id']),
+    buyer: str(r['buyer']),
+    turns: num(r['turns']),
+    dryRun: bool(r['dry_run']),
+    hint: str(r['hint']),
+    reason: str(r['reason']),
+  }
+}
+
+export const startDuet = async (
+  buyer: string,
+  turns: number,
+  dryRun: boolean
+) =>
+  map(
+    await callTool<Record<string, unknown>>('crm_duet', {
+      buyer,
+      turns,
+      dry_run: dryRun,
+    }),
+    toDuetStart
   )
 
 /** Profile, SOUL and skills of one client (tool `crm_client_profile`). */

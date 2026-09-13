@@ -193,3 +193,80 @@
   color: var(--vibee-green, #00ff88);
   font-weight: 600;
 }
+
+/* THE START-DUET CONTROL. The one thing on this page that can reach the
+   client, so it is NOT the big green button: turns, a dry-run switch that is
+   on until somebody turns it off, and a quiet outline button. */
+.crm-client__duet-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text-primary, #fff);
+}
+
+.crm-client__duet-start label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crm-client__duet-start select {
+  min-height: 32px;
+  padding: 2px 8px;
+  font-size: 14px;
+  color: var(--text-primary, #fff);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+}
+
+.crm-client__duet-go {
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.crm-client__duet-go:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dry run off: a second question before anything is sent. Gold, because
+   this is the one place on the page where a tap costs somebody else. */
+.crm-client__duet-confirm {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 215, 0, 0.55);
+  border-radius: 12px;
+  background: rgba(255, 215, 0, 0.06);
+}
+
+.crm-client__duet-confirm p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--vibee-gold, #ffd700);
+}
+
+.crm__acts .crm-client__duet-yes {
+  border-color: rgba(255, 215, 0, 0.7);
+  color: var(--vibee-gold, #ffd700);
+}
+
+.crm-client__duet-result {
+  color: var(--vibee-green, #00ff88);
+  overflow-wrap: anywhere;
+}
+
+.crm-client__duet-result--no {
+  color: var(--vibee-gold, #ffd700);
+}
