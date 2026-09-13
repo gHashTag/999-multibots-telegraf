@@ -135,4 +135,18 @@ describe('voice check', () => {
     expect(violatesLeelaVoice('единственный настоящий оракул').length).toBe(1)
     expect(violatesLeelaVoice('150 XTR month').length).toBe(1)
   })
+  // duet-mu027xqr line 6 (2026-09-14), flagged live as a false positive.
+  // Spec: crm-duet.t27 CLAIM_NEGATION_EXEMPT, PRESSURE_NEGATION_EXEMPT=false.
+  it('a claim word under negation is not a claim; pressure is never exempt', () => {
+    expect(
+      violatesLeelaVoice(
+        'Ролик — это приглашение посмотреть на первую клетку, без обещаний и без рассказа о будущем, без предсказаний.'
+      )
+    ).toEqual([])
+    expect(violatesLeelaVoice('Я не буду предсказывать ваш путь.')).toEqual([])
+    expect(violatesLeelaVoice('Никаких гарантий здесь нет.')).toEqual([])
+    expect(violatesLeelaVoice('Я предсказываю вам стрелу.')).toEqual(['предсказ'])
+    expect(violatesLeelaVoice('Мы не обещаем, но это гарантия роста.')).toEqual(['гарант'])
+    expect(violatesLeelaVoice('Не сегодня, а срочно.').length).toBeGreaterThan(0)
+  })
 })

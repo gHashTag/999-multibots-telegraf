@@ -2538,12 +2538,16 @@ export function toolsForProvider<T extends { name: string }>(
 
 let compactWarned = false
 
-export function toOpenAITools(p?: {
-  id?: string
-  compact?: boolean
-  context?: number
-}) {
-  const chosen = toolsForProvider(p, TOOLS)
+export function toOpenAITools(
+  p?: {
+    id?: string
+    compact?: boolean
+    context?: number
+  },
+  /** Tools not offered on this turn (duet discovery gate). */
+  deny?: ReadonlySet<string>
+) {
+  const chosen = toolsForProvider(p, TOOLS).filter(t => !deny?.has(t.name))
   if (p?.compact && !compactWarned) {
     compactWarned = true
     console.warn(

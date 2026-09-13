@@ -18,6 +18,11 @@ import {
   producedWork,
   isLimitError,
   retryAllowed,
+  deniedToolsFor,
+  refusedOf,
+  claimsFamiliarity,
+  sellerGenderSlip,
+  DISCOVERY_SELLER_TURNS,
   SELLER_RETRY_PAUSE_MS,
   summaryOf,
   askBuyerModel,
@@ -58,15 +63,23 @@ type Sent = { from: string; to: string; text?: string; url?: string }
 function deps(
   sellerScript: Array<Array<Record<string, unknown>>>,
   buyerScript: string[]
-): { d: DuetDeps; sent: Sent[]; histories: ChatMessage[][]; slept: number[] } {
+): {
+  d: DuetDeps
+  sent: Sent[]
+  histories: ChatMessage[][]
+  slept: number[]
+  denies: Array<ReadonlySet<string> | undefined>
+} {
   const sent: Sent[] = []
   const histories: ChatMessage[][] = []
   const slept: number[] = []
+  const denies: Array<ReadonlySet<string> | undefined> = []
   let s = 0
   let b = 0
   const d: DuetDeps = {
-    agent: history => {
+    agent: (history, _ctx, opts) => {
       histories.push(history.map(m => ({ ...m })))
+      denies.push(opts?.denyTools)
       const events = sellerScript[s++] ?? []
       return (async function* () {
         for (const e of events) yield e as never
@@ -84,7 +97,7 @@ function deps(
       slept.push(ms)
     },
   }
-  return { d, sent, histories, slept }
+  return { d, sent, histories, slept, denies }
 }
 
 const text = (t: string) => ({ тип: 'текст', текст: t }) // cyrillic-ok
@@ -800,5 +813,134 @@ describe('crm_duet one retry on a provider limit (duet-mu00klri, 2026-09-13)', (
     // The file went out with no text; the run did not replay and did not pay twice.
     expect(run.paid_calls).toBe(1)
     expect(run.transcript[0].retried).toBeUndefined()
+  })
+})
+
+describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)', () => {
+  // Live line 0 of that run: a paid reel_render before the buyer spoke, and
+  // "the same style you liked" to a person who had liked nothing yet.
+  const LIVE_LINE_0 =
+    'Гея, ролик готов — тот же стиль, что вам понравился: план 6, крючок «Первая клетка игры называется Заблуждение. Не случайно.». Публикуем?'
+  const LIVE_LINE_4 =
+    'Ролик отправлен, но я задавала его сама и сам кадр я не видела.'
+  const LIVE_LINE_2 =
+    'Вы правы, и я забираю эти слова назад: я не видел ни кадра.'
+
+  it('paid tools are denied on the first two seller turns and offered from the third', () => {
+    expect(DISCOVERY_SELLER_TURNS).toBe(2)
+    expect(deniedToolsFor(0)).toBe(PAID_TOOLS)
+    expect(deniedToolsFor(1)).toBe(PAID_TOOLS)
+    expect(deniedToolsFor(2)).toBeUndefined()
+  })
+
+  it('the agent receives the deny set on seller turns 0 and 2 and nothing on turn 4', async () => {
+    const { d, denies } = deps(
+      [
+        [
+          text(
+            'Здравствуйте, Гея. Кому вы играете чаще: новичкам или тем, кто уже ходил по полю?'
+          ),
+        ],
+        [text('Понял. А какой план вам самой ближе сейчас?')],
+        [text('Могу собрать один пример вашим шаблоном. Публикуем план 6?')],
+      ],
+      ['Новичкам.', 'План 6.', 'Да.']
+    )
+    const run = await runDuet(freshRun({ turns: 3 }), ctx, d)
+    expect(run.state).toBe('done')
+    expect(denies).toEqual([PAID_TOOLS, PAID_TOOLS, undefined])
+    expect(run.violations).toEqual([])
+    expect(run.voice_flags).toEqual([])
+  })
+
+  it('refusedOf knows a dispatcher refusal from a failed tool; a refused paid call is a violation, not a paid call', async () => {
+    const refusal = { ошибка: 'недоступен на этом ходу', отказано: true } // cyrillic-ok
+    expect(refusedOf(refusal)).toBe(true)
+    expect(refusedOf({ ошибка: 'timeout' })).toBe(false) // cyrillic-ok
+    expect(refusedOf({ готово: true })).toBe(false) // cyrillic-ok
+    const { d } = deps(
+      [
+        [
+          result('reel_render', refusal),
+          text('Здравствуйте, Гея. Кому вы играете чаще?'),
+        ],
+      ],
+      ['Новичкам.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(run.paid_calls).toBe(0)
+    expect(run.coverage.reel_render).toEqual({ calls: 1, ok: 0, fail: 1 })
+    expect(run.violations).toEqual([
+      'turn 0: reel_render до discovery — отклонён',
+    ])
+  })
+
+  it('claimsFamiliarity fires on the live line and stays quiet on discovery', () => {
+    expect(claimsFamiliarity(LIVE_LINE_0)).toBe(true)
+    expect(claimsFamiliarity('Как договаривались, план 6.')).toBe(true)
+    expect(claimsFamiliarity('Сделал, как вы просили.')).toBe(true)
+    expect(claimsFamiliarity('Здравствуйте, Гея. Кому вы играете чаще?')).toBe(
+      false
+    )
+    expect(claimsFamiliarity('Могу собрать пример вашим шаблоном.')).toBe(false)
+  })
+
+  it('a familiarity claim on a discovery turn gets one rewrite; the rewrite goes out and the miss is reported', async () => {
+    const { d, sent, histories } = deps(
+      [
+        // Live line 0 minus the finished-work claim, which the claim check
+        // takes first (its own test above); here only the familiarity part.
+        [text('Гея, тот же стиль, что вам понравился: план 6. Публикуем?')],
+        [
+          text(
+            'Здравствуйте, Гея. Я Дмитрий, делаю ролики для игры. Кому вы играете чаще?'
+          ),
+        ],
+      ],
+      ['Новичкам.']
+    )
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(histories).toHaveLength(2)
+    expect(histories[1].at(-1)?.content).toContain('ни о чём не договаривалась')
+    expect(sent[0].text).toContain('Кому вы играете')
+    expect(run.violations).toEqual([
+      'turn 0: ссылка на несуществующую договорённость — переписано',
+    ])
+  })
+
+  it('a second familiarity miss is sent as is and reported; a later turn is not gated', async () => {
+    const { d, sent } = deps(
+      [
+        [text('Как договаривались, начнём с плана 6. Кому вы играете?')],
+        [text('Как вы просили, план 6. Кому вы играете?')],
+        [text('Ясно. Какой план ближе?')],
+        [text('Как договаривались, собираю план 6.')],
+      ],
+      ['Новичкам.', 'Шестой.', 'Да.']
+    )
+    const run = await runDuet(freshRun({ turns: 3 }), ctx, d)
+    expect(sent[0].text).toContain('Как вы просили')
+    expect(run.violations).toEqual([
+      'turn 0 (после правки): ссылка на несуществующую договорённость',
+    ])
+  })
+
+  it('a feminine first-person past form is a voice flag, not a rewrite', async () => {
+    expect(sellerGenderSlip(LIVE_LINE_4)).toBe(true)
+    expect(sellerGenderSlip(LIVE_LINE_2)).toBe(false)
+    expect(
+      sellerGenderSlip('Я собрал ролик и не видел кадра. Сама игра старше.')
+    ).toBe(false)
+    const { d, histories } = deps([[text(LIVE_LINE_4)]], ['Ок.'])
+    const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
+    expect(histories).toHaveLength(1)
+    expect(run.voice_flags).toEqual(['turn 0: женский род продавца'])
+  })
+
+  it('the brief fixes the seller gender, forbids familiarity before her answer and the prophecy hook', () => {
+    const brief = sellerBrief(BUYER, null)
+    expect(brief).toContain('мужском роде')
+    expect(brief).toContain('как договорились')
+    expect(brief).toContain('Не случайно')
   })
 })

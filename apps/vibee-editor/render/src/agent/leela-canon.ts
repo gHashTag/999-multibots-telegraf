@@ -234,9 +234,26 @@ export function violatesLeelaVoice(text: string): string[] {
   const hits: string[] = []
   for (const re of [PRESSURE_WORDS, CLAIM_WORDS, PRICE_PATTERN]) {
     re.lastIndex = 0
-    for (const m of text.matchAll(re)) hits.push(m[0])
+    for (const m of text.matchAll(re)) {
+      if (re === CLAIM_WORDS && negatedBefore(text, m.index ?? 0)) continue
+      hits.push(m[0])
+    }
   }
   return hits
+}
+
+/**
+ * A negation up to two words before the hit. Run duet-mu027xqr, line 6:
+ * "without promises and without predictions" was flagged for "predict" -- a
+ * claim word under negation is not a claim. Pressure words stay flagged:
+ * "not today" still presses. Spec: crm-duet.t27 CLAIM_NEGATION_EXEMPT,
+ * NEGATION_WINDOW_WORDS, PRESSURE_NEGATION_EXEMPT=false.
+ */
+const NEGATION_BEFORE =
+  /(?:^|[^\u0430-\u044f\u0451])(?:\u0431\u0435\u0437|\u043d\u0435|\u043d\u0435\u0442|\u043d\u0438\u043a\u0430\u043a\u0438\u0445|\u043d\u0438|\u043d\u0438\u043a\u043e\u0433\u0434\u0430)\s+(?:[\u0430-\u044f\u0451-]+\s+){0,2}$/iu
+
+export function negatedBefore(text: string, index: number): boolean {
+  return NEGATION_BEFORE.test(text.slice(Math.max(0, index - 60), index))
 }
 
 export const LEELA_CTA_RU =

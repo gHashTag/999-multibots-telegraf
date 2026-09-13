@@ -489,7 +489,7 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
 
 async function* streamModel(
   messages: ChatMessage[],
-  opts: { toolsOnly?: boolean } = {}
+  opts: { toolsOnly?: boolean; denyTools?: ReadonlySet<string> } = {}
 ): AsyncGenerator<
   | { kind: 'provider'; id: string; model: string }
   | { kind: 'reasoning'; text: string }
@@ -574,7 +574,7 @@ async function* streamModel(
     const body: Record<string, unknown> = {
       model: p.model,
       messages: useParts ? withMediaParts(messages) : messages,
-      tools: toOpenAITools(p),
+      tools: toOpenAITools(p, opts.denyTools),
       tool_choice: 'auto',
       temperature: 0.3,
       stream: true,
@@ -710,7 +710,18 @@ export async function* runAgent(
    * needs it too, because a button marker belongs in the bot and nowhere else.
    * Absent means "not the bot", which is the safe direction: no markers.
    */
-  opts?: { surface?: string; toolsOnly?: boolean; client?: string }
+  opts?: {
+    surface?: string
+    toolsOnly?: boolean
+    client?: string
+    /**
+     * Tools this turn may not use. They are not listed to the model and a
+     * call that arrives anyway is answered with an error instead of running
+     * the handler (nothing is spent). Used by the duet's discovery gate:
+     * crm-duet.t27 DISCOVERY_HIDES_PAID_TOOLS / DISCOVERY_REFUSES_PAID_CALL.
+     */
+    denyTools?: ReadonlySet<string>
+  }
 ): AsyncGenerator<AgentEvent> {
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
   // агент пишет посты от его имени — значит, должен знать его SOUL так же,
@@ -787,6 +798,7 @@ export async function* runAgent(
     try {
       for await (const ev of streamModel(messages, {
         toolsOnly: opts?.toolsOnly,
+        denyTools: opts?.denyTools,
       })) {
         if (ev.kind === 'provider')
           yield { тип: 'провайдер', id: ev.id, model: ev.model } // cyrillic-ok: pre-existing event envelope
@@ -823,6 +835,13 @@ export async function* runAgent(
       const tool = TOOLS_BY_NAME.get(имя)
       if (!tool) {
         значение = { ошибка: `инструмента ${имя} не существует` }
+      } else if (opts?.denyTools?.has(call.function.name)) {
+        // Discovery gate: the tool exists but this turn may not use it.
+        const refusal: Record<string, unknown> = {}
+        refusal['ошибка'] =
+          `инструмент ${call.function.name} недоступен на этом ходу: сначала узнай, чего хочет клиент` // cyrillic-ok
+        refusal['отказано'] = true // cyrillic-ok
+        значение = refusal // cyrillic-ok: pre-existing identifier
       } else {
         try {
           значение = await tool.handler(

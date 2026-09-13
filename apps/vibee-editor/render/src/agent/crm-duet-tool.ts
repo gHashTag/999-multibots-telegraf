@@ -337,7 +337,11 @@ export function summaryOf(run: DuetRun, now: number = Date.now()) {
 
 /** Everything the loop touches, so tests can run it with doubles. */
 export interface DuetDeps {
-  agent: (history: ChatMessage[], ctx: ToolContext) => AsyncIterable<AgentEvent>
+  agent: (
+    history: ChatMessage[],
+    ctx: ToolContext,
+    opts?: { denyTools?: ReadonlySet<string> }
+  ) => AsyncIterable<AgentEvent>
   buyerModel: (messages: ChatMessage[]) => Promise<string>
   sendText: (fromCtx: ToolContext, to: string, text: string) => Promise<void>
   sendMedia: (
@@ -510,6 +514,9 @@ export function sellerBrief(
     'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
     'О результате инструмента говори только то, что в нём есть: не описывай ролик или картинку, которых не видел, не хвали «читаемость» текста. Генерация занимает минуты; не обещай сроки «за день». Токены списываются с твоего баланса — не пиши ей «списано» и не называй свой остаток.',
     'Если у неё уже есть SOUL-черновик или скиллы «Leela: …» — скажи, что заготовка стоит, и попроси её поправить любое слово, которое не её.',
+    'Ты пишешь от лица владельца бота — Дмитрия, в мужском роде: «я собрал», «я не видел», «сам». Никаких «я задавала», «сама».',
+    'Пока она ничего не выбрала и не одобрила, не пиши «как вам понравилось», «как договорились», «как вы просили» — договорённостей ещё нет.',
+    'Крючок ролика не должен читаться как вердикт или предсказание о зрителе: «Не случайно.» для плана 6 не используй — возьми крючок, который называет клетку и оставляет вопрос ей.',
     'Первое сообщение: короткое приветствие, одна фраза о том, зачем ты пишешь, и ОДИН вопрос discovery.',
   ].join('\n')
 }
@@ -633,6 +640,55 @@ export function producedWork(results: ToolResultEvent[]): boolean {
   return results.some(r => PAID_TOOLS.has(r.name) && okOf(r.value))
 }
 
+/**
+ * Discovery gate. Run duet-mu027xqr (2026-09-14), line 0: a 70-second paid
+ * reel_render and "the same style you liked" before the buyer had said a word.
+ * The brief asked for two discovery lines; the model did not hold it. On the
+ * first DISCOVERY_SELLER_TURNS seller turns the paid tools are not offered to
+ * the model and a call that arrives anyway is refused by the dispatcher
+ * (`{ ошибка, отказано: true }`, nothing spent). Spec: crm-duet.t27 // cyrillic-ok
+ * DISCOVERY_SELLER_TURNS, DISCOVERY_HIDES_PAID_TOOLS, DISCOVERY_REFUSES_PAID_CALL.
+ */
+export const DISCOVERY_SELLER_TURNS = 2
+
+export function deniedToolsFor(
+  sellerTurn: number
+): ReadonlySet<string> | undefined {
+  return sellerTurn < DISCOVERY_SELLER_TURNS ? PAID_TOOLS : undefined
+}
+
+/** A dispatcher refusal, as opposed to a tool that ran and failed. */
+export function refusedOf(value: unknown): boolean {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    (value as Record<string, unknown>)['отказано'] === true // cyrillic-ok
+  )
+}
+
+// "you liked", "as we agreed", "as you asked", "as we discussed": familiarity
+// with a person who has not spoken yet. Spec: FAMILIARITY_MARKERS_RU.
+const FAMILIARITY_RE =
+  /\u043f\u043e\u043d\u0440\u0430\u0432\u0438\u043b|\u0434\u043e\u0433\u043e\u0432\u0430\u0440|\u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0438\u043b|\u043a\u0430\u043a \u0432\u044b \u043f\u0440\u043e\u0441\u0438\u043b\u0438|\u043f\u043e \u0432\u0430\u0448\u0435\u0439 \u043f\u0440\u043e\u0441\u044c\u0431\u0435|\u043e\u0431\u0441\u0443\u0436\u0434\u0430\u043b\u0438|\u043a\u0430\u043a \u043c\u044b \u0440\u0435\u0448\u0438\u043b\u0438/iu
+
+/** The line assumes shared history that does not exist yet. */
+export function claimsFamiliarity(text: string): boolean {
+  FAMILIARITY_RE.lastIndex = 0
+  return FAMILIARITY_RE.test(text)
+}
+
+// A feminine first-person past form: "ya videla", "ya zadavala ... sama".
+// Line 4 of the same run, next to "ya ne videl" on line 2. The seller writes
+// for the owner (crm-duet.t27 SELLER_GENDER = "m"); a slip is reported, not
+// rewritten (GENDER_SLIP_IS_FLAG_ONLY).
+const FEMININE_PAST_RE =
+  /(?<![\u0430-\u044f\u0451])\u044f\s+(?:\u043d\u0435\s+|\u0443\u0436\u0435\s+|\u0441\u0430\u043c\u0430\s+)?[\u0430-\u044f\u0451]{2,}(?:\u0430\u043b\u0430|\u0438\u043b\u0430|\u0435\u043b\u0430|\u044f\u043b\u0430|\u044b\u043b\u0430|\u0443\u043b\u0430)(?![\u0430-\u044f\u0451])/iu
+
+export function sellerGenderSlip(text: string): boolean {
+  FEMININE_PAST_RE.lastIndex = 0
+  return FEMININE_PAST_RE.test(text)
+}
+
 export function okOf(value: unknown): boolean {
   if (!value || typeof value !== 'object') return true
   const v = value as Record<string, unknown>
@@ -647,12 +703,13 @@ export function okOf(value: unknown): boolean {
 export async function sellerTurn(
   deps: DuetDeps,
   history: ChatMessage[],
-  ctx: ToolContext
+  ctx: ToolContext,
+  opts?: { denyTools?: ReadonlySet<string> }
 ): Promise<{ text: string; results: ToolResultEvent[]; error?: string }> {
   const parts: string[] = []
   const results: ToolResultEvent[] = []
   let error: string | undefined
-  for await (const ev of deps.agent(history, ctx)) {
+  for await (const ev of deps.agent(history, ctx, opts)) {
     const e = ev as unknown as Record<string, unknown>
     const kind = String(e['тип'] ?? e.kind ?? '') // cyrillic-ok
     if (kind === 'текст' || kind === 'text')
@@ -713,12 +770,18 @@ export async function runDuet(
     for (let i = 0; i < run.turns * 2; i++) {
       const fromSeller = i % 2 === 0
       if (fromSeller) {
-        let { text, results, error } = await sellerTurn(deps, seller, ownerCtx)
+        const gate = { denyTools: deniedToolsFor(i / 2) }
+        let { text, results, error } = await sellerTurn(
+          deps,
+          seller,
+          ownerCtx,
+          gate
+        )
         let retried: string | undefined
         if (!text && retryAllowed(0, error, results)) {
           retried = error
           await (deps.sleep ?? defaultSleep)(SELLER_RETRY_PAUSE_MS)
-          const again = await sellerTurn(deps, seller, ownerCtx)
+          const again = await sellerTurn(deps, seller, ownerCtx, gate)
           text = again.text
           results = [...results, ...again.results]
           error = again.error
@@ -733,7 +796,7 @@ export async function runDuet(
             role: 'user',
             content: `Проверка голоса: в реплике есть «${flagged.join('», «')}». Перепиши её без этих слов и без давления, тем же смыслом, 2–5 предложений, один вопрос.`, // cyrillic-ok
           })
-          const again = await sellerTurn(deps, seller, ownerCtx)
+          const again = await sellerTurn(deps, seller, ownerCtx, gate)
           if (again.text) {
             text = again.text
             results = [...results, ...again.results]
@@ -760,7 +823,7 @@ export async function runDuet(
             content:
               'Проверка честности: в реплике заявлена сделанная работа, но ни один инструмент её не делал и файла нет. Перепиши без утверждений о готовом результате: скажи, что МОЖЕШЬ собрать один пример её шаблоном после её ответа, и задай один вопрос. 2–4 предложения.', // cyrillic-ok
           })
-          const again = await sellerTurn(deps, seller, ownerCtx)
+          const again = await sellerTurn(deps, seller, ownerCtx, gate)
           if (again.text) {
             text = again.text
             results = [...results, ...again.results]
@@ -776,6 +839,29 @@ export async function runDuet(
               : `turn ${i}: заявлена сделанная работа без инструмента — переписано` // cyrillic-ok
           )
         }
+        // Discovery turns: a line that assumes shared history ("you liked",
+        // "as we agreed") gets one rewrite; a second miss is sent and reported.
+        if (gate.denyTools && claimsFamiliarity(text)) {
+          seller.push({ role: 'assistant', content: text })
+          seller.push({
+            role: 'user',
+            content:
+              'Проверка: она ещё ничего не выбирала, не одобряла и ни о чём не договаривалась. Перепиши без «понравился», «как договорились», «как вы просили»: коротко представься, одна фраза о том, зачем пишешь, и ОДИН вопрос о её аудитории или целях. 2–4 предложения.', // cyrillic-ok
+          })
+          const again = await sellerTurn(deps, seller, ownerCtx, gate)
+          if (again.text) {
+            text = again.text
+            results = [...results, ...again.results]
+            error = error ?? again.error
+          }
+          run.violations.push(
+            claimsFamiliarity(text)
+              ? `turn ${i} (после правки): ссылка на несуществующую договорённость` // cyrillic-ok
+              : `turn ${i}: ссылка на несуществующую договорённость — переписано` // cyrillic-ok
+          )
+        }
+        if (sellerGenderSlip(text))
+          run.voice_flags.push(`turn ${i}: женский род продавца`) // cyrillic-ok
         const dedup = dedupeLinks(text, linksSent)
         if (dedup.dropped.length) {
           text = dedup.text
@@ -793,7 +879,9 @@ export async function runDuet(
           c.calls++
           if (r.ok) c.ok++
           else c.fail++
-          if (PAID_TOOLS.has(r.name)) run.paid_calls++
+          if (refusedOf(results.find(x => x.name === r.name)?.value)) {
+            run.violations.push(`turn ${i}: ${r.name} до discovery — отклонён`) // cyrillic-ok
+          } else if (PAID_TOOLS.has(r.name)) run.paid_calls++
           if (FORBIDDEN_FOR_SELLER.test(r.name))
             run.violations.push(`turn ${i}: ${r.name}`)
           if (profile && OFF_BRAND_FOR_CLIENT.has(r.name))
@@ -1019,7 +1107,8 @@ async function liveDeps(pool?: RunsPool): Promise<DuetDeps> {
       diagnose(id as any, s, b)
     )
   return {
-    agent: (history, ctx) => runAgent(history, ctx, { surface: 'business' }),
+    agent: (history, ctx, o) =>
+      runAgent(history, ctx, { surface: 'business', denyTools: o?.denyTools }),
     buyerModel,
     persist: pool ? run => upsertRun(pool, run) : undefined,
     sendText: async (fromCtx, to, text) => {
