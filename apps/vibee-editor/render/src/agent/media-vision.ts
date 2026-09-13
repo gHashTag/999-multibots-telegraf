@@ -73,8 +73,11 @@ const FRAME_SIDE = Math.max(
   224,
   Number(process.env.MEDIA_VISION_FRAME_SIDE) || 448
 )
-/** Generation budget: CPU decode is slow, so a clip gets a short answer. */
-const VIDEO_MAX_TOKENS = 320
+/**
+ * Generation budget: measured ~1.5 tok/s decode on the CPU service, so a
+ * 320-token answer alone took ~220 s. 200 tokens is a paragraph and fits.
+ */
+const VIDEO_MAX_TOKENS = 200
 const IMAGE_MAX_TOKENS = 500
 const FFMPEG_TIMEOUT_MS = 60_000
 const TRANSCRIPT_CAP = 4000
@@ -256,7 +259,9 @@ export async function sampleFrames(
       '-frames:v',
       '1',
       '-vf',
-      `scale='min(${FRAME_SIDE},iw)':-2`,
+      // Bound the LONGEST side: a portrait phone clip scaled by width alone
+      // came out 448x~800 and cost ~350 tokens a frame instead of ~150.
+      `scale='if(gt(iw,ih),min(${FRAME_SIDE},iw),-2)':'if(gt(iw,ih),-2,min(${FRAME_SIDE},ih))'`,
       '-q:v',
       '4',
       target,
