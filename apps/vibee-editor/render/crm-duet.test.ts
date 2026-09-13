@@ -11,6 +11,7 @@ import {
   sellerBrief,
   buyerPersona,
   askBuyerModel,
+  buyerRequestBody,
   PAID_TOOLS,
   TURNS_MAX,
   type DuetRun,
@@ -287,6 +288,45 @@ describe('crm_duet tools', () => {
       'https://bad/v1/chat/completions',
       'https://good/v1/chat/completions',
     ])
+  })
+
+  it('buyer model asks GLM not to think and treats a reasoning-only 200 as a miss', async () => {
+    const bodies: Array<Record<string, any>> = []
+    const doFetch = vi.fn(async (_url: string, init: any) => {
+      const body = JSON.parse(init.body)
+      bodies.push(body)
+      if (body.model === 'glm-5.3')
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: { content: '', reasoning_content: 'hmm...' },
+                finish_reason: 'length',
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: 'беру пост' } }] }),
+        { status: 200 }
+      )
+    }) as unknown as typeof fetch
+    const text = await askBuyerModel(
+      [{ role: 'user', content: 'x' }],
+      [
+        { id: 'zai', base: 'https://a', model: 'glm-5.3', key: 'k', thinking: true },
+        { id: 'nemotron', base: 'https://b', model: 'n', key: 'k', thinking: false },
+      ],
+      doFetch
+    )
+    expect(text).toBe('беру пост')
+    expect(bodies[0].thinking).toEqual({ type: 'disabled' })
+    expect(bodies[0].max_tokens).toBeGreaterThanOrEqual(600)
+    expect(bodies[1].thinking).toBeUndefined()
+    expect(
+      buyerRequestBody({ id: 'zai-lite', model: 'glm-4.5' }, []).thinking
+    ).toEqual({ type: 'disabled' })
   })
 
   it('buyer model names every provider when all fail', async () => {

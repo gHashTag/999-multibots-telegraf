@@ -298,6 +298,40 @@ export function reportOf(run: DuetRun): string {
     .join('\n')
 }
 
+/** GLM models answer with a `thinking` block on by default; ask them not to. */
+export const GLM_PROVIDER = /^zai(-|$)/
+
+/** Token budget for one buyer line; a persona reply, not an essay. */
+export const BUYER_MAX_TOKENS = 600
+
+/**
+ * The buyer's request body. The third live run (duet-mtznc1ri, 2026-09-13)
+ * died with "zai: empty answer; zai-lite: empty answer": the buyer got a
+ * 200 whose `content` was empty. GLM thinks by default, and with the
+ * seller's post text in the prompt the whole `max_tokens` budget went into
+ * reasoning that the non-streaming reply does not surface as an answer. The
+ * buyer is a persona, not a planner -- reasoning is switched off for GLM
+ * (`thinking: {type: 'disabled'}`), and the budget is wide enough for a
+ * reply. Providers that do not know the `thinking` field never see it.
+ */
+export function buyerRequestBody(
+  p: { id: string; model: string; thinking?: boolean },
+  messages: ChatMessage[]
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model: p.model,
+    messages: messages.map(m => ({
+      role: m.role,
+      content: m.content ?? '',
+    })),
+    temperature: 0.7,
+    max_tokens: BUYER_MAX_TOKENS,
+    stream: false,
+  }
+  if (GLM_PROVIDER.test(p.id) || p.thinking) body.thinking = { type: 'disabled' }
+  return body
+}
+
 /**
  * The buyer's voice, tried across EVERY configured provider in order.
  *
@@ -312,7 +346,13 @@ export function reportOf(run: DuetRun): string {
  */
 export async function askBuyerModel(
   messages: ChatMessage[],
-  providers: Array<{ id: string; base: string; model: string; key: string }>,
+  providers: Array<{
+    id: string
+    base: string
+    model: string
+    key: string
+    thinking?: boolean
+  }>,
   doFetch: typeof fetch = fetch,
   explain: (id: string, status: number, body: string) => string = (id, s) =>
     `${id}: HTTP ${s}`
@@ -329,16 +369,7 @@ export async function askBuyerModel(
           Authorization: `Bearer ${p.key}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: p.model,
-          messages: messages.map(m => ({
-            role: m.role,
-            content: m.content ?? '',
-          })),
-          temperature: 0.7,
-          max_tokens: 400,
-          stream: false,
-        }),
+        body: JSON.stringify(buyerRequestBody(p, messages)),
         signal: ac.signal,
       })
       if (!r.ok) {
@@ -347,11 +378,18 @@ export async function askBuyerModel(
         continue
       }
       const j = (await r.json()) as {
-        choices?: Array<{ message?: { content?: string } }>
+        choices?: Array<{
+          message?: { content?: string; reasoning_content?: string }
+          finish_reason?: string
+        }>
       }
-      const text = String(j.choices?.[0]?.message?.content ?? '').trim()
+      const choice = j.choices?.[0]
+      const text = String(choice?.message?.content ?? '').trim()
       if (!text) {
-        reasons.push(`${p.id}: empty answer`)
+        const why = choice?.message?.reasoning_content
+          ? 'reasoning only, no answer'
+          : `empty answer${choice?.finish_reason ? ` (${choice.finish_reason})` : ''}`
+        reasons.push(`${p.id}: ${why}`)
         continue
       }
       return text
