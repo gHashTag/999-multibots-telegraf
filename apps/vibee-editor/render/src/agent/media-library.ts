@@ -679,7 +679,7 @@ export async function forgetTranscripts(
   pool: Pool,
   owner: string,
   lead: string,
-  kind: 'image' | 'audio'
+  kind: 'image' | 'audio' | 'video'
 ): Promise<number> {
   await ensureTable(pool)
   const r = await pool.query(
@@ -692,7 +692,9 @@ export async function forgetTranscripts(
 
 /**
  * Forget failed attempts for one lead so `pendingTranscripts` offers the
- * rows again. Only image and audio: video and binary files are final nulls.
+ * rows again. Image and audio always; video only once a vision endpoint is
+ * configured (before that a video null was final and stays so); binary
+ * files are final nulls.
  */
 export async function reopenUnread(
   pool: Pool,
@@ -700,11 +702,14 @@ export async function reopenUnread(
   lead: string
 ): Promise<number> {
   await ensureTable(pool)
+  const kinds = visionConfig()
+    ? ['image', 'audio', 'video']
+    : ['image', 'audio']
   const r = await pool.query(
     `UPDATE user_media SET transcribed_at = NULL
       WHERE owner_id = $1 AND lead_id = $2 AND transcript IS NULL
-        AND transcribed_at IS NOT NULL AND kind IN ('image', 'audio')`,
-    [owner, lead]
+        AND transcribed_at IS NOT NULL AND kind = ANY($3::text[])`,
+    [owner, lead, kinds]
   )
   return Number((r as { rowCount?: number }).rowCount ?? 0)
 }

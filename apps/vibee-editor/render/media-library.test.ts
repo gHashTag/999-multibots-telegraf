@@ -767,6 +767,32 @@ describe('describeMedia with a vision endpoint', () => {
   })
 })
 
+describe('reopenUnread', () => {
+  afterEach(() => {
+    delete process.env.VISION_API_KEY
+  })
+
+  it('reopens image and audio only; video joins once a vision endpoint is configured', async () => {
+    const params: unknown[][] = []
+    const pool = {
+      query: async (sql: string, p?: unknown[]) => {
+        if (/UPDATE user_media SET transcribed_at = NULL/.test(sql))
+          params.push(p ?? [])
+        return { rows: [], rowCount: 1 }
+      },
+    }
+    delete process.env.VISION_API_KEY
+    const { reopenUnread } = await import('./src/agent/media-library')
+    await reopenUnread(pool as never, '1', '2')
+    expect(params[0][2]).toEqual(['image', 'audio'])
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    const { resetVisionForTests } = await import('./src/agent/media-vision')
+    resetVisionForTests()
+    await reopenUnread(pool as never, '1', '2')
+    expect(params[1][2]).toEqual(['image', 'audio', 'video'])
+  })
+})
+
 describe('mirrorTranscript', () => {
   it('inserts a new crm_messages row for an unknown msg_id and appends once to a known one', async () => {
     const { mirrorTranscript } = await import('./src/agent/media-library')
