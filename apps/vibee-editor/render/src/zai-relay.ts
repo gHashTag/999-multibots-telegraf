@@ -12,6 +12,19 @@
  * upstream cross back verbatim: this route fixes the wire shape, it does
  * not interpret, cache, or re-key anything.
  *
+ * Two more measured facts (2026-09-13), both about TIME:
+ * - zep hard-caps every LLM HTTP call at 20s (OpenAIAPITimeout in
+ *   llm_openai.go; 60s ctx, 5 retries). No config can raise it.
+ * - the coding endpoint only serves hybrid reasoners (glm-5.3-flash,
+ *   glm-4.5-flash...), ignores thinking:{"type":"disabled"}, and takes
+ *   27-57s on a summary prompt -- every zep call times out. The normal
+ *   endpoint (api/paas/v4) accepts the same key, HONORS thinking:disabled,
+ *   and answers in ~13s with zero reasoning.
+ * So the relay also (a) injects thinking:{"type":"disabled"} when the
+ * caller sent none -- zep never sends it -- and (b) can be switched to the
+ * normal endpoint via ZAI_RELAY_UPSTREAM, leaving the coding default in
+ * place for deployments that do not set it.
+ *
  * Who may call: a service holding the same key we forward (zep carries the
  * Z.AI key as ZEP_OPENAI_API_KEY and sends it as a bearer). The upstream
  * Authorization is always rebuilt from OUR environment, so the relay can
@@ -125,7 +138,15 @@ export async function handleZaiRelay(
   if (legal.error) {
     return { status: 400, body: JSON.stringify({ error: legal.error }) }
   }
-  const upstream = deps.upstream ?? ZAI_RELAY_UPSTREAM
+  const upstream =
+    deps.upstream ?? process.env.ZAI_RELAY_UPSTREAM ?? ZAI_RELAY_UPSTREAM
+  // Zep never sends a thinking flag; without "disabled" the hybrid reasoners
+  // behind this key think for 27-57s and blow zep's hardcoded 20s HTTP cap.
+  // A caller who DID set the flag gets exactly what it asked for.
+  const body: Record<string, unknown> = { ...parsed, messages: legal.messages }
+  if (typeof body.thinking !== 'object' || body.thinking === null) {
+    body.thinking = { type: 'disabled' }
+  }
   let response: Response
   try {
     response = await deps.fetchImpl(upstream, {
@@ -134,7 +155,7 @@ export async function handleZaiRelay(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({ ...parsed, messages: legal.messages }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
     })
   } catch (e) {

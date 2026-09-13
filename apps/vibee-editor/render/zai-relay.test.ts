@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   isZaiRelayPath,
   legalizeZaiMessages,
   handleZaiRelay,
+  ZAI_RELAY_UPSTREAM,
 } from './src/zai-relay'
 
 /**
@@ -28,6 +29,15 @@ import {
  */
 
 const KEY = 'test-zai-key'
+
+// Upstream resolution reads the environment when deps leave it open; keep the
+// environment clean so tests cannot leak into each other through it.
+beforeEach(() => {
+  delete process.env.ZAI_RELAY_UPSTREAM
+})
+afterEach(() => {
+  delete process.env.ZAI_RELAY_UPSTREAM
+})
 
 function deps(over: Partial<Parameters<typeof handleZaiRelay>[1]> = {}) {
   const seen: Array<{
@@ -208,6 +218,71 @@ describe('handleZaiRelay', () => {
     const noMsgs = deps({ readBody: async () => '{"model":"glm-5.3-flash"}' })
     expect((await handleZaiRelay({ method: 'POST' }, noMsgs.d)).status).toBe(
       400
+    )
+  })
+
+  it('injects thinking:{type:"disabled"} when the caller sent none', async () => {
+    // Measured 2026-09-13: zep hard-caps each LLM HTTP call at 20s
+    // (OpenAIAPITimeout, pkg/llms/llm_openai.go). The coding endpoint's
+    // models are hybrid reasoners that burn 27-57s on a summary prompt and
+    // IGNORE thinking:disabled -- while the normal endpoint honors it and
+    // answers in ~13s with zero reasoning. Zep itself never sends the
+    // parameter, so the relay must, or every zep LLM call times out.
+    let sent: Record<string, unknown> = {}
+    const { d } = deps({
+      readBody: async () =>
+        JSON.stringify({
+          messages: [{ role: 'system', content: 'Summarize.' }],
+        }),
+      fetchImpl: (async (_u: string, init: RequestInit) => {
+        sent = JSON.parse(String(init.body))
+        return new Response('{}', { status: 200 })
+      }) as typeof fetch,
+    })
+    await handleZaiRelay({ method: 'POST' }, d)
+    expect(sent.thinking).toEqual({ type: 'disabled' })
+  })
+
+  it('never overrides a thinking flag the caller set on purpose', async () => {
+    let sent: Record<string, unknown> = {}
+    const { d } = deps({
+      readBody: async () =>
+        JSON.stringify({
+          thinking: { type: 'enabled' },
+          messages: [{ role: 'user', content: 'think hard' }],
+        }),
+      fetchImpl: (async (_u: string, init: RequestInit) => {
+        sent = JSON.parse(String(init.body))
+        return new Response('{}', { status: 200 })
+      }) as typeof fetch,
+    })
+    await handleZaiRelay({ method: 'POST' }, d)
+    expect(sent.thinking).toEqual({ type: 'enabled' })
+  })
+
+  it('resolves the upstream: deps first, then env, then the coding default', async () => {
+    // The coding endpoint stays the default so nothing changes for existing
+    // deployments; ZAI_RELAY_UPSTREAM switches the relay to the normal
+    // endpoint, whose models honor thinking:disabled and fit zep's 20s.
+    const body = JSON.stringify({ messages: [{ role: 'user', content: 'x' }] })
+    const viaDeps = deps({
+      upstream: 'https://dep.example/v1/chat',
+      readBody: async () => body,
+    })
+    await handleZaiRelay({ method: 'POST' }, viaDeps.d)
+    expect(viaDeps.seen[0].url).toBe('https://dep.example/v1/chat')
+
+    process.env.ZAI_RELAY_UPSTREAM = 'https://env.example/v1/chat'
+    const viaEnv = deps({ readBody: async () => body })
+    await handleZaiRelay({ method: 'POST' }, viaEnv.d)
+    expect(viaEnv.seen[0].url).toBe('https://env.example/v1/chat')
+
+    delete process.env.ZAI_RELAY_UPSTREAM
+    const viaDefault = deps({ readBody: async () => body })
+    await handleZaiRelay({ method: 'POST' }, viaDefault.d)
+    expect(viaDefault.seen[0].url).toBe(ZAI_RELAY_UPSTREAM)
+    expect(ZAI_RELAY_UPSTREAM).toBe(
+      'https://api.z.ai/api/coding/paas/v4/chat/completions'
     )
   })
 
