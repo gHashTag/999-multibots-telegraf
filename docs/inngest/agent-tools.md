@@ -1,0 +1,61 @@
+# Функции Inngest как инструменты агента (2026-09-13)
+
+Запрос владельца: «добавь в агента все функции для инструментов» — по странице
+`https://inngestinngest-production-c468.up.railway.app/functions`.
+
+## Что на сервере [измерено 2026-09-13]
+
+| Приложение | URL воркера | Функций |
+|---|---|---|
+| `t27-queen` | trios-agent-server (`/api/inngest`) | 59: 33 `cron …` (контракты `cron/<источник>/<репо>/<имя>.tick`, часть с CRON-триггером) + 26 `skill t27/*`, `skill trinity/*` (`skill/<ns>/<имя>.run`) |
+| `telegram-bot-client` | 999-multibots-telegraf (`/api/inngest`) | 55: рендер, контент, Instagram, обучение моделей, платежи, рассылка, мониторинг + `(failure)`-обработчики |
+
+Полный снимок: `apps/vibee-editor/render/inngest-tools.test.ts` держит формы ответов;
+живой список всегда берётся с сервера.
+
+## Решение: пять инструментов вместо ста [решение]
+
+Список инструментов отправляется модели на каждом ходу (`toOpenAITools`), сотня схем
+раздула бы каждый запрос и устарела бы при первом новом cron. Поэтому каталог читается живым:
+
+| Инструмент | Что делает | Транспорт |
+|---|---|---|
+| `inngest_functions {app?, match?, include_failure_handlers?}` | все функции обоих приложений с триггерами и пометкой `guarded` | REST v2 `GET /api/v2/apps`, `/apps/{id}/functions` (с ключом) или dev-GraphQL `/v0/gql` (без ключа, только каталог) |
+| `inngest_runs {app?, function?, status?, limit?}` | последние запуски, всего или одной функции; статусы `QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED` | `GET /api/v2/runs`, `/apps/{a}/functions/{f}/runs` |
+| `inngest_run {run_id, trace?}` | один запуск, вывод, шаги | `GET /api/v2/runs/{id}`, `/trace` |
+| `inngest_invoke {app, function, data?}` | запустить любую функцию из каталога (id, slug, имя или событие) | `POST /api/v2/apps/{a}/functions/{f}/invoke` |
+| `inngest_cancel {run_id}` | отменить запуск | `POST /api/v2/runs/{id}/cancel` |
+
+Модуль: `apps/vibee-editor/render/src/agent/inngest-tools.ts`; регистрация — `tools.ts`
+(`TOOLS.push(...INNGEST_TOOLS)`), тем самым видны в боте, мини-аппе, iOS и по MCP.
+
+## Границы
+
+- **Только смотритель улья** (`HIVE_KEEPERS` / `OWNER_TELEGRAM_ID`, `hive/roles.ts`), как `hive_queen`:
+  имена функций несут пути файлов и внутреннее состояние, вывод запусков — чужие telegram id.
+  Отказ называет роль, не «запрещено».
+- **Guarded**: `broadcast/*`, `payment/*`, `training/*`, `model/*` и функции со словами
+  Broadcast/Payment/Training в имени из чата не запускаются — инструмент возвращает
+  `invoked:false` и ссылку на панель. Паттерны экспортированы (`GUARDED_TRIGGERS`,
+  `GUARDED_NAMES`) и закреплены тестом; расширять — осознанно.
+- **Ключ** только из окружения процесса: `INNGEST_SIGNING_KEY` (тот же, что у бота), база —
+  `INNGEST_BASE_URL` или `INNGEST_URL`. Ничего не читает Railway или файлы токенов; ключ идёт
+  заголовком `Authorization: Bearer`, в URL не попадает (тест).
+- Ключ задан, но неверный → 401 наружу, без отката на публичный каталог: иначе владелец прочтёт
+  «работает» и не узнает, что ключ неверный.
+
+## Что нужно от владельца [вопрос]
+
+1. У сервиса `vibee-render` на Railway сейчас нет `INNGEST_SIGNING_KEY` (проверить по именам переменных);
+   без него работает только `inngest_functions` (`source: gql`). Добавить переменную — только из
+   своего браузера; агент значения не печатает.
+2. Панель Inngest (`/functions`, `/v0/gql`) отвечает без авторизации — это состояние сервера
+   до этой работы, не следствие. Закрыть доступ (Railway private networking или прокси с
+   авторизацией) — отдельный пункт `docs/inngest/security.md`.
+
+## Живая проверка после деплоя
+
+В чате агента (смотритель): «покажи функции Inngest, только skill/» → `source: rest`,
+26 скилов; «запусти skill trinity/status» → `invoked: true, run_id`; «статус запуска <id>» →
+`inngest_run`. Пока ключа нет — ожидается `source: gql` и честное сообщение об отсутствии
+`INNGEST_SIGNING_KEY` у остальных инструментов.
