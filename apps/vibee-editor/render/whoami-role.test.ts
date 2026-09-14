@@ -121,4 +121,21 @@ describe('whoami role', () => {
     )
     expect((await ask('500')).role).toBe('bee')
   })
+
+  it('fails closed to bee within 1.5 s when the ownership lookup never answers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => undefined))
+    )
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const pending = ask('600')
+      await vi.advanceTimersByTimeAsync(1_500)
+      const out = await pending
+      expect(out.role).toBe('bee')
+      expectEarlierFields(out, '600')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
