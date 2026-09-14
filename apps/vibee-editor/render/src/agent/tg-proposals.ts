@@ -1702,5 +1702,37 @@ function inPlainWords(e: unknown): string {
     return 'этот человек не принимает от вас сообщения'
   }
   if (/CHAT_WRITE_FORBIDDEN/i.test(raw)) return 'в этот чат писать нельзя'
+  /*
+   * Codes the social actions (PR3: kick, pin, react, vote, join, delete)
+   * answer with. Translated here rather than at each executor because the
+   * plain-words door is shared, and a code said raw is an answer only the
+   * debugger loves.
+   */
+  if (/CHAT_ADMIN_REQUIRED/i.test(raw)) {
+    return 'для этого нужны права администратора в чате'
+  }
+  if (/USER_NOT_PARTICIPANT/i.test(raw)) {
+    return 'этого человека нет в чате'
+  }
+  if (/USER_ALREADY_PARTICIPANT/i.test(raw)) {
+    return 'этот человек уже в чате'
+  }
+  if (/INVITE_HASH_EXPIRED/i.test(raw)) return 'ссылка-приглашение устарела'
+  if (/INVITE_HASH_INVALID/i.test(raw)) {
+    return 'ссылка-приглашение недействительна'
+  }
+  if (/MESSAGE_ID_INVALID/i.test(raw)) {
+    return 'сообщение не найдено — возможно, его уже удалили'
+  }
+  if (/POLL_VOTE_INVALID/i.test(raw)) {
+    return 'в этом голосовании нет такого варианта'
+  }
+  if (/REACTION_INVALID/i.test(raw))
+    return 'такой реакции здесь нельзя поставить'
+  if (/CHAT_NOT_MODIFIED/i.test(raw)) return 'в чате ничего не изменилось'
+  if (/MESSAGE_NOT_MODIFIED/i.test(raw)) {
+    return 'в сообщении ничего не изменилось'
+  }
+  if (/USER_ID_INVALID/i.test(raw)) return 'такого пользователя не существует'
   return raw
 }

@@ -937,6 +937,38 @@ describe('execute: media kinds reach sendFile shaped for their kind', () => {
     expect((r as { why: string }).why).toContain('скачать')
     expect(f.files).toEqual([])
   })
+
+  /*
+   * CODES THAT WILL START ARRIVING (PR3 adds kick, pin, react, vote, join,
+   * delete), translated NOW: every executor funnels its failure through the
+   * same plain-words door, and "CHAT_ADMIN_REQUIRED" said raw is an answer
+   * only the debugger loves. The send executor is used as the vehicle —
+   * the door is shared, so the words are proven on any road through it.
+   */
+  const plainWordCases: Array<[string, string]> = [
+    ['CHAT_ADMIN_REQUIRED', 'права администратора'],
+    ['USER_NOT_PARTICIPANT', 'нет в чате'],
+    ['USER_ALREADY_PARTICIPANT', 'уже в чате'],
+    ['INVITE_HASH_EXPIRED', 'устарела'],
+    ['INVITE_HASH_INVALID', 'недействительна'],
+    ['MESSAGE_ID_INVALID', 'не найдено'],
+    ['POLL_VOTE_INVALID', 'голосовании'],
+    ['REACTION_INVALID', 'реакц'],
+    ['CHAT_NOT_MODIFIED', 'не изменилось'],
+    ['MESSAGE_NOT_MODIFIED', 'не изменилось'],
+    ['USER_ID_INVALID', 'такого пользователя'],
+  ]
+  for (const [code, words] of plainWordCases) {
+    it(`${code} reaches the person as Russian, not as a code`, async () => {
+      const f = fakeClient({ failFile: code })
+      const { execute } = await executor(f.client, {}, f.timeline)
+      const r = await execute(draft(), { telegramId: OWNER, pool })
+      expect(r.done).toBe(false)
+      expect((r as { why: string }).why).toContain(words)
+      // the charge came back before the words were chosen
+      expect(f.timeline).toContain(`refund:${LEAD}:3`)
+    })
+  }
 })
 
 /**
