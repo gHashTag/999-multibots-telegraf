@@ -275,6 +275,7 @@ let revoked = new Set<string>()
  */
 let notBefore = new Map<string, number>()
 let revocationsSyncedAt = 0
+let staleCutoffLoggedAt = 0
 const REVOCATION_SYNC_MAX_AGE_MS = 15_000
 
 /*
@@ -362,8 +363,25 @@ export function initDataCutoffRefusal(
   authDate: number
 ): string | null {
   if (!revocationsSyncedAt) return null
-  if (Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS)
-    return 'sign-out state is unavailable'
+  /*
+   * Stale cutoff state ADMITS initData, unlike a stale revoked set for Bearer
+   * sessions. initData is how every Mini App request authenticates, so failing
+   * closed here turns a 15 s database stall into an outage for all Telegram
+   * users, to guard a rare case (a captured launch string replayed after sign
+   * out everywhere, inside that stall). Every route that MINTS from initData
+   * (telegram, pair/start, game-token) reads the cutoff from the database
+   * itself, so a stale process still cannot turn such a replay into a session.
+   */
+  if (Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS) {
+    const now = Date.now()
+    if (now - staleCutoffLoggedAt > 60_000) {
+      staleCutoffLoggedAt = now
+      console.warn(
+        '[not-before] cutoff state is stale; initData admitted without the in-memory cutoff check'
+      )
+    }
+    return null
+  }
   if (telegramId && authDate < (notBefore.get(telegramId) ?? 0))
     return 'initData was issued before sign-out everywhere'
   return null

@@ -310,20 +310,26 @@ describe('per-person not-before cutoff', () => {
     }
   })
 
-  it('fails closed for initData when the cutoff state goes stale', () => {
+  it('admits initData when the cutoff state goes stale, and says so once', () => {
+    // A stalled poll must not become an outage for every Mini App request.
     const now = nowSeconds()
     const fresh = launchAt(ALICE, now)
     expect(auth.verifyTelegramInitData(fresh).ok).toBe(true)
 
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const realNow = Date.now
     const frozen = realNow()
     Date.now = () => frozen + 16_000
     try {
-      const v = auth.verifyTelegramInitData(fresh)
-      expect(v.ok).toBe(false)
-      expect(v.reason).toMatch(/sign-out state is unavailable/)
+      expect(auth.verifyTelegramInitData(fresh).ok).toBe(true)
+      expect(auth.verifyTelegramInitData(fresh).ok).toBe(true)
+      const stale = warn.mock.calls.filter(c =>
+        String(c[0]).includes('[not-before] cutoff state is stale')
+      )
+      expect(stale.length).toBe(1)
     } finally {
       Date.now = realNow
+      warn.mockRestore()
     }
   })
 
