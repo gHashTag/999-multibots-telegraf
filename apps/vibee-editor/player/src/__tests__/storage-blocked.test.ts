@@ -5,16 +5,22 @@ import 'react-router-dom'
 import '@vibee/atoms'
 import '@/atoms'
 import '@/lib/telegram'
+import { createStore } from 'jotai'
 import { getAppAccessToken, storeAppSession } from '@/lib/appSession'
+import { userAtom } from '@/atoms/user'
 
 /**
- * A THIRD-PARTY FRAME MAY HAVE NO STORAGE AT ALL.
+ * STORAGE MAY THROW ON ACCESS.
  *
- * Inside the game's TRI frame the app is third-party to t27.ai. A browser that
- * blocks third-party storage (Chrome with third-party cookies blocked, Brave)
- * throws SecurityError from the `localStorage` / `sessionStorage` getter
- * itself, not from getItem. A module-scope read then kills the bundle before
- * anything mounts, and every TRI screen stays blank.
+ * Not on t27.ai in Chrome: the game's TRI frame there is same-site with
+ * app.t27.ai and reads the real app's storage (measured). A browser that
+ * blocks site data, or a frame under an unrelated site with third-party
+ * storage blocked, throws SecurityError from the `localStorage` /
+ * `sessionStorage` getter itself, not from getItem. A module-scope read then
+ * kills the bundle before anything mounts, and a throwing read inside an atom
+ * takes the page down to the ErrorBoundary. The headless check of a build
+ * with storage blocked renders the feed page now; before the persisted user
+ * read through lib/framedSession.ts it showed the ErrorBoundary.
  */
 
 function block(name: 'localStorage' | 'sessionStorage'): () => void {
@@ -52,6 +58,17 @@ describe('storage that throws on access', () => {
           expires_in: 60,
         })
       ).not.toThrow()
+    } finally {
+      restore()
+    }
+  })
+
+  it('the persisted user reads as nobody instead of throwing', () => {
+    const restore = block('sessionStorage')
+    try {
+      const store = createStore()
+      expect(() => store.sub(userAtom, () => {})).not.toThrow()
+      expect(store.get(userAtom)).toBeNull()
     } finally {
       restore()
     }

@@ -1,4 +1,5 @@
 import { API_BASE } from '../config'
+import { sessionStore, type SessionStore } from './framedSession'
 
 const ACCESS_KEY = 'trinity.app.session.access'
 const REFRESH_KEY = 'trinity.app.session.refresh'
@@ -23,17 +24,9 @@ export interface AppSession {
   }
 }
 
-// A third-party frame (the game's TRI tab) may have no storage at all: a
-// browser that blocks third-party storage throws from the getter itself. No
-// storage reads as no session, which is what that frame has.
-const storage = (): Storage | null => {
-  if (typeof window === 'undefined') return null
-  try {
-    return window.sessionStorage
-  } catch {
-    return null
-  }
-}
+// The tab's sessionStorage, or this document's memory inside a frame by
+// another site or where the browser refuses storage (lib/framedSession.ts).
+const storage = (): SessionStore => sessionStore()
 
 export function getAppAccessToken(): string {
   return storage()?.getItem(ACCESS_KEY) || ''

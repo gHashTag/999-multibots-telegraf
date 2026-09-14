@@ -100,9 +100,9 @@ export function LoginModal() {
           // Inside the game's TRI frame on t27.ai. Telegram's widget frame
           // accepts only https://app.t27.ai as an ancestor (measured
           // 2026-09-14), so it would render as a blocked frame. A sign-in made
-          // in the app in another tab does not carry over either: the session
-          // lives in that tab's sessionStorage. Say so, and link to this
-          // screen in the app.
+          // in the app does not carry over either, not even from the same
+          // tab: the session is kept out of frames by other sites
+          // (lib/framedSession.ts). Say so, and link to this screen in the app.
           <>
             <h2>{t('embed.signInTitle')}</h2>
             <p>{t('embed.signInBody')}</p>
