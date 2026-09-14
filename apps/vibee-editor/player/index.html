@@ -27,11 +27,12 @@
     <meta name="keywords" content="AI video editor, video creation, talking avatar, AI captions, video generator, content creation, VIBEE V5, parallel computing, ML/RL, Gleam, BEAM, functional programming" />
     <meta name="author" content="VIBEE" />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://app.t27.ai/" />
+    <!-- No canonical, og:url or twitter:url in the shell: this one index.html is
+         served for every route (/feed, /blog, /<username>, legal pages), so a
+         fixed URL here would declare each of them a copy of the home page. -->
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://app.t27.ai/" />
     <meta property="og:title" content="VIBEE - AI Video Editor | Powered by V5 Ultra-Minimal Language" />
     <meta property="og:description" content="Create stunning videos with AI-powered editing. Built on VIBEE V5 with 75% less boilerplate, 100x faster compilation, and ML/RL integration." />
     <meta property="og:image" content="https://app.t27.ai/icons/icon-512x512.png" />
@@ -40,8 +41,8 @@
     <meta property="og:locale:alternate" content="ru_RU" />
 
     <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://app.t27.ai/" />
+    <!-- "summary", not "summary_large_image": the only preview image is the square 512px icon. -->
+    <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="VIBEE - AI Video Editor" />
     <meta name="twitter:description" content="Create stunning videos with AI-powered editing. Generate avatars, add captions, and produce professional content in minutes." />
     <meta name="twitter:image" content="https://app.t27.ai/icons/icon-512x512.png" />
