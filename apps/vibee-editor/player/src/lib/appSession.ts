@@ -108,7 +108,11 @@ export async function refreshAppSession(): Promise<AppSession> {
     if (response.status === 409 && body.error === 'auth_refresh_raced') {
       await new Promise(готово => setTimeout(готово, 400))
       const свежий = storage()?.getItem(REFRESH_KEY) || ''
-      if (свежий && свежий !== refreshToken && generation === sessionGeneration) {
+      if (
+        свежий &&
+        свежий !== refreshToken &&
+        generation === sessionGeneration
+      ) {
         const access = getAppAccessToken()
         const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
         if (access) {
@@ -206,7 +210,9 @@ export async function exchangeTelegramLaunch(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ init_data: initData }),
     })
-    const body = (await response.json().catch(() => ({}))) as Partial<AppSession>
+    const body = (await response
+      .json()
+      .catch(() => ({}))) as Partial<AppSession>
     if (
       !response.ok ||
       typeof body.access_token !== 'string' ||

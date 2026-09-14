@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAtomValue } from 'jotai';
-import { STORAGE_KEYS } from '@vibee/atoms';
-import { myProfileAtom } from '@/atoms';
-import { getWebApp } from '@/lib/telegram';
+import { useEffect } from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
+import { STORAGE_KEYS } from '@vibee/atoms'
+import { myProfileAtom } from '@/atoms'
+import { getWebApp } from '@/lib/telegram'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -36,14 +36,14 @@ const RESTORABLE = [
   /^\/blog(\/|$)/,
   /^\/learn(\/|$)/,
   /^\/profile(\/|$)/,
-];
+]
 
 function isRestorable(path: string): boolean {
-  return RESTORABLE.some(re => re.test(path));
+  return RESTORABLE.some(re => re.test(path))
 }
 
 /** Куда уходит корень, когда памяти нет. */
-const HOME = '/feed';
+const HOME = '/feed'
 
 /**
  * Снято ДО монтирования React — по той же причине, что и LAUNCH_PATH в
@@ -53,7 +53,7 @@ const HOME = '/feed';
 const REMEMBERED =
   typeof window !== 'undefined'
     ? window.localStorage.getItem(STORAGE_KEYS.lastRoute)
-    : null;
+    : null
 
 /**
  * Элемент маршрута «/».
@@ -66,35 +66,35 @@ const REMEMBERED =
  */
 export function LaunchRedirect() {
   // Прямая ссылка сильнее памяти: человек попросил конкретный экран.
-  const startParam = getWebApp()?.initDataUnsafe?.start_param;
+  const startParam = getWebApp()?.initDataUnsafe?.start_param
   const target =
-    !startParam && REMEMBERED && isRestorable(REMEMBERED) ? REMEMBERED : HOME;
+    !startParam && REMEMBERED && isRestorable(REMEMBERED) ? REMEMBERED : HOME
 
-  return <Navigate to={target} replace />;
+  return <Navigate to={target} replace />
 }
 
 /** Запоминает текущий экран. Ничего не рендерит. */
 export function RouteMemory() {
-  const location = useLocation();
-  const myProfile = useAtomValue(myProfileAtom);
+  const location = useLocation()
+  const myProfile = useAtomValue(myProfileAtom)
 
   useEffect(() => {
-    const path = location.pathname;
-    const username = myProfile?.username;
+    const path = location.pathname
+    const username = myProfile?.username
 
     // `/profile` живёт как редирект на `/:username`, поэтому запоминаем
     // канонический `/profile`: чужой профиль возвращать незачем, а свой по
     // прямому пути сломается, если username сменится.
-    const toStore = username && path === `/${username}` ? '/profile' : path;
+    const toStore = username && path === `/${username}` ? '/profile' : path
 
-    if (!isRestorable(toStore)) return;
+    if (!isRestorable(toStore)) return
     try {
-      window.localStorage.setItem(STORAGE_KEYS.lastRoute, toStore);
+      window.localStorage.setItem(STORAGE_KEYS.lastRoute, toStore)
     } catch {
       // Приватный режим или переполненная квота. Потеря памяти о вкладке —
       // не повод ронять навигацию.
     }
-  }, [location.pathname, myProfile?.username]);
+  }, [location.pathname, myProfile?.username])
 
-  return null;
+  return null
 }
