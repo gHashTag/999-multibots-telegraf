@@ -11,6 +11,8 @@ import {
   числоОкон,
   ПОПЫТОК_В_ОКНЕ,
   ОКНО_МС,
+  allowPerKey,
+  perKeyWindowCount,
 } from './src/entry-throttle'
 
 /**
@@ -34,7 +36,9 @@ describe('перебор ограничен по источнику', () => {
 
   it('в пределах окна пускает ровно столько, сколько объявлено', () => {
     for (let i = 0; i < ПОПЫТОК_В_ОКНЕ; i++) {
-      expect(пуститьПопытку('1.2.3.4', 1000).можно, `попытка ${i + 1}`).toBe(true)
+      expect(пуститьПопытку('1.2.3.4', 1000).можно, `попытка ${i + 1}`).toBe(
+        true
+      )
     }
     const лишняя = пуститьПопытку('1.2.3.4', 1000)
     expect(лишняя.можно).toBe(false)
@@ -76,7 +80,9 @@ describe('перебор ограничен по источнику', () => {
   })
 
   it('канал считается по соединению — этот ключ не подделать', () => {
-    expect(источникЗапроса({ socket: { remoteAddress: '9.9.9.9' } })).toBe('9.9.9.9')
+    expect(источникЗапроса({ socket: { remoteAddress: '9.9.9.9' } })).toBe(
+      '9.9.9.9'
+    )
     expect(
       источникЗапроса({
         socket: { remoteAddress: '9.9.9.9' },
@@ -99,7 +105,9 @@ describe('перебор ограничен по источнику', () => {
     ).toBe('1.1.1.1')
     // Без заголовка клиент НЕ различим — и это должно быть видно как пустота,
     // а не как подстановка адреса прокси.
-    expect(клиентЗапроса({ socket: { remoteAddress: '10.0.0.1' } } as any)).toBe('')
+    expect(
+      клиентЗапроса({ socket: { remoteAddress: '10.0.0.1' } } as any)
+    ).toBe('')
   })
 
   it('без X-Forwarded-For узкий лимит не применяется — только потолок', () => {
@@ -163,7 +171,8 @@ describe('за одним прокси люди не запирают дверь
      * ничего не меняет. Проверять свойство без последствий — это тест ради
      * теста.
      */
-    for (let i = 0; i < ПОПЫТОК_В_ОКНЕ + 20; i++) пуститьВход(зр('1.1.1.1'), 1000)
+    for (let i = 0; i < ПОПЫТОК_В_ОКНЕ + 20; i++)
+      пуститьВход(зр('1.1.1.1'), 1000)
     let пущено = 0
     for (let i = 0; i < ПОТОЛОК_КАНАЛА; i++) {
       if (пуститьВход(зр(`иной-${i}`), 1000).можно) пущено++
@@ -182,14 +191,20 @@ describe('промах больше не гасит чужие коды', () => 
     'utf8'
   )
   /** Без комментариев: рассказ о снятом начислении обязан остаться в коде. */
-  const КОД = ХРАНИЛИЩЕ.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const КОД = ХРАНИЛИЩЕ
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
 
   it('нет начисления попыток всем живым кодам', () => {
-    expect(КОД).not.toMatch(/attempts = attempts \+ 1\s*\n?\s*WHERE consumed_at IS NULL AND expires_at/)
+    expect(КОД).not.toMatch(
+      /attempts = attempts \+ 1\s*\n?\s*WHERE consumed_at IS NULL AND expires_at/
+    )
   })
 
   it('нет гашения кодов по общему счётчику', () => {
-    expect(КОД).not.toMatch(/SET consumed_at = now\(\)\s*\n?\s*WHERE consumed_at IS NULL AND attempts/)
+    expect(КОД).not.toMatch(
+      /SET consumed_at = now\(\)\s*\n?\s*WHERE consumed_at IS NULL AND attempts/
+    )
   })
 
   it('тормоз стоит на маршруте и ДО разбора тела', () => {
@@ -203,5 +218,44 @@ describe('промах больше не гасит чужие коды', () => 
     expect(блок.indexOf('пуститьВход')).toBeLessThan(блок.indexOf('readBody'))
     expect(блок).toContain('429')
     expect(блок).toContain('Retry-After')
+  })
+})
+
+/*
+ * PER-PERSON COUNTS ARE NOT HOSTAGE TO THE SIGN-IN DOORS.
+ *
+ * allowPerKey (the game-token limit per telegram_id) used to share the doors'
+ * map. The doors add a window per X-Forwarded-For value, which the client
+ * chooses, and a full map refuses keys it does not hold: about 170 requests a
+ * second with rotating values made every game-token mint answer 429.
+ */
+describe('per-person windows live apart from the sign-in doors', () => {
+  beforeEach(() => забытьОкна()) // cyrillic-ok: test reset
+
+  it('a flood of invented X-Forwarded-For values leaves a verified person unrefused', () => {
+    for (let i = 0; i < 10_002; i++) {
+      const xff = `10.${i >> 16}.${(i >> 8) & 255}.${i & 255}`
+      const req = {
+        socket: { remoteAddress: '10.0.0.1' },
+        headers: { 'x-forwarded-for': xff },
+      } as any
+      пуститьВход(req, 1000) // cyrillic-ok: the sign-in door limiter
+    }
+    expect(числоОкон()).toBeGreaterThan(10_000) // cyrillic-ok: doors map is full
+    expect(allowPerKey('game-token:555000111', 10, 2000)).toEqual({ ok: true })
+  })
+
+  it('stays bounded when full, still admits a new person, and still counts one', () => {
+    for (let i = 0; i < 10_050; i++) {
+      expect(allowPerKey(`game-token:${i}`, 10, 1000).ok, `key ${i}`).toBe(true)
+    }
+    expect(perKeyWindowCount()).toBeLessThanOrEqual(10_000)
+
+    expect(allowPerKey('game-token:fresh', 10, 1500)).toEqual({ ok: true })
+    for (let i = 0; i < 9; i++) allowPerKey('game-token:fresh', 10, 1500)
+    const eleventh = allowPerKey('game-token:fresh', 10, 1500)
+    expect(eleventh.ok).toBe(false)
+    // A new window opens once the old one has run its 60 s.
+    expect(allowPerKey('game-token:fresh', 10, 1500 + 60_000).ok).toBe(true)
   })
 })
