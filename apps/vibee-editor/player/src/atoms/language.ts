@@ -3829,9 +3829,10 @@ function detectBrowserLanguage(): Language {
 
 /**
  * Inside the game's TRI frame the language is the game's (?lang=), read on
- * the first render and never written: under https://app.t27.ai/game/ the frame
- * shares localStorage with the real app, whose language a write would switch.
- * A switch made inside the frame lives in memory only.
+ * the first render and never written: the frame shares localStorage with the
+ * real app (on t27.ai too, because t27.ai and app.t27.ai are one site, and
+ * under https://app.t27.ai/game/), whose language a write would switch. A
+ * switch made inside the frame lives in memory only.
  */
 const embedLanguageStorage = {
   getItem: (_key: string, initialValue: Language): Language =>

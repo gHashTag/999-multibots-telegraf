@@ -12,6 +12,12 @@ import { IS_EMBED, postToParent } from '@/lib/embed'
  * game's availability signal: a frame refused by frame-ancestors still fires
  * `load`, but never says `ready`.
  *
+ * `ready` means the app mounted, not that the screen rendered. It is sent when
+ * the shell commits, before a lazy page loads, so a page that then throws
+ * leaves `ready` sent while the ErrorBoundary shows in the frame. Seen with
+ * storage access blocked, before the persisted user was read through
+ * lib/framedSession.ts: the page errored and `ready` still arrived.
+ *
  * The pathname only, never the search string. Posted to the captured parent
  * origin only (see lib/embed.ts). Renders nothing; outside embed it does
  * nothing at all.

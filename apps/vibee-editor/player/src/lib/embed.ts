@@ -4,8 +4,19 @@
  * The Queen board on https://t27.ai has a TRI tab that frames this app's
  * screens (`/feed?embed=1&lang=ru`, `/chat?embed=1`, ...). Inside that frame
  * the app hides its own header and tab bar (the game draws the navigation),
- * takes the game's language, writes nothing into the storage the real app
- * reads, and tells the game which route it is on.
+ * takes the game's language, and tells the game which route it is on.
+ *
+ * STORAGE IS SHARED WITH THE REAL APP
+ *
+ * t27.ai and app.t27.ai are one site, so the frame is not partitioned: it
+ * reads and writes the real app's localStorage, as a second tab would
+ * (measured in headless Chrome). Embed suppresses only the two writes that
+ * change how the real app opens: the language (atoms/language.ts) and the
+ * last route (RouteMemory). Everything else persisted in localStorage is
+ * shared: the agent chat, drafts, script data, generated results, bookmarks,
+ * the selected voice, the leads filters. The Bearer session and the persisted
+ * user are a separate matter, kept out of every frame by another site, embed
+ * or not (lib/framedSession.ts).
  *
  * WHO IS EMBED, DECIDED ONCE, BEFORE REACT MOUNTS
  *
