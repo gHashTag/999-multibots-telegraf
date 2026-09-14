@@ -60,6 +60,32 @@ const ACTING = [
   'tg_send_album',
   'tg_forward',
   'tg_read',
+  /*
+   * The social layer (2026-09-14): twenty acts, all propose-only, all behind
+   * the same gate as a send. Six of them are irreversible (block, delete,
+   * delete_chat, kick, leave, profile_photo_delete) -- their `why` says so,
+   * because the `why` is what the model relays to the person who asked.
+   */
+  'tg_contact_add',
+  'tg_contact_delete',
+  'tg_block',
+  'tg_unblock',
+  'tg_profile_update',
+  'tg_profile_photo',
+  'tg_profile_photo_delete',
+  'tg_online',
+  'tg_pin',
+  'tg_unpin',
+  'tg_react',
+  'tg_vote',
+  'tg_archive',
+  'tg_unarchive',
+  'tg_mark_unread',
+  'tg_join',
+  'tg_leave',
+  'tg_kick',
+  'tg_delete_messages',
+  'tg_delete_chat',
 ]
 
 /**
@@ -144,6 +170,30 @@ describe('действующие инструменты не действуют 
     },
     tg_forward: { from: 'a', to: 'b', messageId: 1 },
     tg_read: { chat: '123' },
+    tg_contact_add: {
+      phone: '+79001234567',
+      firstName: 'Анна',
+      lastName: 'Иванова',
+    },
+    tg_contact_delete: { user: '987654321' },
+    tg_block: { user: '987654321' },
+    tg_unblock: { user: '987654321' },
+    tg_profile_update: { firstName: 'Иван', bio: 'мастер' },
+    tg_profile_photo: { url: 'https://x/p.jpg' },
+    tg_profile_photo_delete: {},
+    tg_online: {},
+    tg_pin: { chat: '123', messageId: 5 },
+    tg_unpin: { chat: '123', messageId: 5 },
+    tg_react: { chat: '123', messageId: 5, emoticon: '👍' },
+    tg_vote: { chat: '123', messageId: 9, options: [0, 2] },
+    tg_archive: { chat: '123' },
+    tg_unarchive: { chat: '123' },
+    tg_mark_unread: { chat: '123' },
+    tg_join: { channel: '@news' },
+    tg_leave: { chat: '-1001234567890' },
+    tg_kick: { chat: '-1001234567890', user: '987654321' },
+    tg_delete_messages: { chat: '123', messageIds: [4, 5] },
+    tg_delete_chat: { chat: '123', mode: 'clear' },
   }
 
   for (const name of ACTING) {
@@ -176,10 +226,15 @@ describe('действующие инструменты не действуют 
     })
 
     it(`${name} отказывает вызову без подтверждённой личности`, async () => {
+      // VALID_ARGS, not a fixed bag: the social tools validate their own
+      // arguments before `propose` reaches the identity check, and a call
+      // dying on "no messageIds given" says nothing about whose session
+      // would have been used. The call the tool ACCEPTS is the one that
+      // must be refused for having no one to name.
       const t = TELEGRAM_TOOLS.find(x => x.name === name)!
       await expect(
         t.handler(
-          { chat: '123', text: 'привет', messageId: 1 },
+          VALID_ARGS[name] ?? { chat: '123', text: 'привет', messageId: 1 },
           undefined as never
         )
       ).rejects.toThrow(NO_IDENTITY)
@@ -301,7 +356,13 @@ describe('читающие инструменты объявляют приро�
 })
 
 describe('опасное не подключено', () => {
-  it('удаление, выход из каналов и деньги отсутствуют в наборе', () => {
+  it('деньги и настройки аккаунта отсутствуют в наборе', () => {
+    /*
+     * The destructive acts (delete, leave, kick, block) ARE in the kit since
+     * 2026-09-14 -- behind the proposal gate, with the irreversible set named
+     * in tg-social-tools.ts. What never enters, at any gate, is money and the
+     * account's security surface.
+     */
     const names = TELEGRAM_TOOLS.map(t => t.name)
     for (const forbidden of NOT_WIRED) {
       expect(names).not.toContain(`tg_${forbidden}`)
@@ -425,10 +486,12 @@ describe('читать можно только свой аккаунт', () => {
      *
      * `propose` is the choke point all three share. The first version of this
      * check looked for `remember(` inside handler bodies, where it does not
-     * appear at all, and so looked at nothing.
+     * appear at all, and so looked at nothing. The choke point moved to
+     * tg-propose.ts with the social layer (a gate importable from every tool
+     * file cannot live inside one of them); the check follows the gate.
      */
     const src = fs.readFileSync(
-      path.join(__dirname, 'src', 'agent', 'telegram-tools.ts'),
+      path.join(__dirname, 'src', 'agent', 'tg-propose.ts'),
       'utf8'
     )
     const body = sliceFrom(src, 'function propose(')
