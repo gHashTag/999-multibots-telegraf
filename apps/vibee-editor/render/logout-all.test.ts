@@ -32,6 +32,7 @@ interface SessionRow {
   id: string
   telegramId: string
   familyId: string
+  kind: string
   revoked: boolean
 }
 interface TokenRow {
@@ -72,6 +73,7 @@ function memoryPool() {
           id: p0,
           telegramId: String(params[1]),
           familyId: String(params[4]),
+          kind: String(params[5]),
           revoked: false,
         })
         return { rows: [] }
@@ -444,6 +446,11 @@ describe('POST /api/auth/logout-all', () => {
     const bob = await signInWithInitData(BOB, 'launch-b')
     expect(new Set(db.sessions.map(r => r.familyId)).size).toBe(4)
     expect(live(ALICE)).toEqual({ sessions: 3, tokens: 3 })
+    // Each way in records how the person proved who they are; game-token
+    // accepts only 'web' as a Bearer parent.
+    expect(
+      db.sessions.filter(r => r.telegramId === String(ALICE)).map(r => r.kind)
+    ).toEqual(['launch', 'app', 'web'])
 
     const res = await call(
       '/api/auth/logout-all',

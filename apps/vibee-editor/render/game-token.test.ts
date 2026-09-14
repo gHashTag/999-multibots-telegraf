@@ -77,9 +77,10 @@ let source = 0
 function request(
   headers: Record<string, string>,
   method = 'POST',
-  url = '/api/auth/game-token'
+  url = '/api/auth/game-token',
+  body = ''
 ) {
-  const r = Readable.from([Buffer.from('')]) as any
+  const r = Readable.from([Buffer.from(body)]) as any
   r.url = url
   r.method = method
   r.headers = headers
@@ -103,9 +104,31 @@ function response() {
   return o
 }
 
-const emptyPool = () => {
+/**
+ * app_sessions as these routes use it: sign-in inserts rows with their kind,
+ * and game-token reads the kind of a live row by id. The lookup obeys the query
+ * it is sent: without `revoked_at IS NULL` it sees revoked rows, as Postgres
+ * would. Everything else answers no rows.
+ */
+const sessionRows = new Map<string, { kind: string; revoked: boolean }>()
+const sessionsPool = () => {
   const client = {
-    async query() {
+    async query(sql: string, params: unknown[] = []) {
+      const s = sql.replace(/\s+/g, ' ').trim()
+      if (s.startsWith('INSERT INTO app_sessions')) {
+        sessionRows.set(String(params[0]), {
+          kind: String(params[5]),
+          revoked: false,
+        })
+        return { rows: [] }
+      }
+      if (s.startsWith('SELECT kind FROM app_sessions WHERE id = $1')) {
+        const row = sessionRows.get(String(params[0]))
+        const liveOnly = s.includes('revoked_at IS NULL')
+        return {
+          rows: row && !(liveOnly && row.revoked) ? [{ kind: row.kind }] : [],
+        }
+      }
       return { rows: [] as any[] }
     },
     release() {},
@@ -141,6 +164,7 @@ describe('POST /api/auth/game-token', () => {
     session = await import('./session')
     handleAuthRoute = (await import('./session-routes')).handleAuthRoute
     session.setRevokedSessions([])
+    sessionRows.clear()
   })
 
   afterEach(() => {
@@ -151,23 +175,106 @@ describe('POST /api/auth/game-token', () => {
     vi.restoreAllMocks()
   })
 
-  const bearerOf = (id: number, sessionId = `s-${id}`, now?: number) =>
-    `Bearer ${session.signAccessToken({
+  /** An access token, with a live session row of `kind` (null: no row). */
+  const bearerOf = (
+    id: number,
+    sessionId = `s-${id}`,
+    now?: number,
+    kind: string | null = 'web'
+  ) => {
+    if (kind !== null) sessionRows.set(sessionId, { kind, revoked: false })
+    return `Bearer ${session.signAccessToken({
       telegramId: String(id),
       sessionId,
       deviceKeyThumbprint: '',
       now,
     })}`
+  }
 
   async function mint(headers: Record<string, string>, method = 'POST') {
     const res = response()
     await handleAuthRoute(
       request(headers, method),
       res,
-      () => emptyPool() as any
+      () => sessionsPool() as any
     )
     return res
   }
+
+  /** Exchange initData for an app session, as the Mini App does. */
+  async function signInWithInitData(initData: string) {
+    const res = response()
+    await handleAuthRoute(
+      request(
+        { 'content-type': 'application/json' },
+        'POST',
+        '/api/auth/telegram',
+        JSON.stringify({ init_data: initData })
+      ),
+      res,
+      () => sessionsPool() as any
+    )
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+    return String(res.body.access_token)
+  }
+
+  /*
+   * THE REVIEW'S CHAIN: /api/auth/telegram accepts initData from every
+   * configured bot and mints an ordinary access token. Presented here as a
+   * Bearer, it minted a game token for a bot outside LAUNCH_BOT_IDS, or with no
+   * list at all, in one extra request.
+   */
+  it('a session exchanged from initData mints no game token, whichever bot signed it and whatever the list says', async () => {
+    for (const list of [BOT_ID, undefined]) {
+      if (list === undefined) delete process.env.LAUNCH_BOT_IDS
+      else process.env.LAUNCH_BOT_IDS = list
+      for (const [label, token] of [
+        ['unlisted bot', OTHER_BOT],
+        ['listed bot', TOKEN],
+      ] as const) {
+        const access = await signInWithInitData(launch(ALICE, token))
+        const res = await mint({
+          origin: GAME,
+          authorization: `Bearer ${access}`,
+        })
+        const where = `${label}, LAUNCH_BOT_IDS=${list}`
+        expect(res.status, where).toBe(403)
+        expect(res.body.error, where).toBe('game_token_parent_not_web')
+        expect(res.body, where).not.toHaveProperty('game_token')
+      }
+    }
+    expect(
+      [...sessionRows.values()].map(r => r.kind),
+      'the exchange did not record its kind'
+    ).toEqual(['launch', 'launch', 'launch', 'launch'])
+  })
+
+  it('refuses a Bearer from a pairing, a launch or a legacy session, and one the database knows is revoked', async () => {
+    for (const kind of ['app', 'launch', 'legacy']) {
+      const res = await mint({
+        origin: GAME,
+        authorization: bearerOf(ALICE, `s-${kind}`, undefined, kind),
+      })
+      expect(res.status, kind).toBe(403)
+      expect(res.body.error, kind).toBe('game_token_parent_not_web')
+    }
+
+    // Revoked on another replica: nothing in this process's memory says so.
+    const revokedElsewhere = bearerOf(ALICE, 's-revoked-elsewhere')
+    sessionRows.get('s-revoked-elsewhere')!.revoked = true
+    const revoked = await mint({
+      origin: GAME,
+      authorization: revokedElsewhere,
+    })
+    expect(revoked.status, JSON.stringify(revoked.body)).toBe(401)
+    expect(revoked.body.detail).toMatch(/revoked/)
+
+    const noRow = await mint({
+      origin: GAME,
+      authorization: bearerOf(ALICE, 's-no-row', undefined, null),
+    })
+    expect(noRow.status, JSON.stringify(noRow.body)).toBe(401)
+  })
 
   it('mints a v:2 identity token for the game origin from a live Bearer', async () => {
     const res = await mint({ origin: GAME, authorization: bearerOf(ALICE) })

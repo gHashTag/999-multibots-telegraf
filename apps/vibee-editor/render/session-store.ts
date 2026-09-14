@@ -69,6 +69,11 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       last_seen_at timestamptz,
       revoked_at timestamptz
     )`)
+  // How the person proved who they are (session-routes.ts SessionKind). Rows
+  // minted before the column existed read 'legacy': that is not known for them.
+  await pool.query(
+    `ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'legacy'`
+  )
   await pool.query(
     `CREATE INDEX IF NOT EXISTS app_sessions_owner
        ON app_sessions (telegram_id, created_at DESC)`

@@ -96,6 +96,8 @@ async function mintSession(
   pool: Pick<PoolClient, 'query'>,
   telegramId: string,
   body: Record<string, unknown>,
+  /** How the person proved who they are; stored on the session row. */
+  kind: SessionKind,
   /**
    * Отпечаток подписанной строки, по которой входят.
    *
@@ -162,9 +164,9 @@ async function mintSession(
   }
 
   await pool.query(
-    `INSERT INTO app_sessions (id, telegram_id, device_pubkey, device_name, family_id)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [sessionId, telegramId, dkt, String(body.device_name ?? ''), familyId]
+    `INSERT INTO app_sessions (id, telegram_id, device_pubkey, device_name, family_id, kind)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [sessionId, telegramId, dkt, String(body.device_name ?? ''), familyId, kind]
   )
   await pool.query(
     `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
@@ -201,6 +203,16 @@ async function mintSession(
 
 /** What a sign-in minted: the JSON for the client, and the session it made. */
 type Minted = { response: Record<string, unknown>; sessionId: string }
+
+/**
+ * How a session's person proved who they are, stored in app_sessions.kind:
+ *   web    -- Login Widget, verified with the one login bot (BOT_TOKEN_12);
+ *   launch -- Mini App initData at /api/auth/telegram, from ANY accepted bot;
+ *   app    -- a pairing code, issued at pair/start for initData from any
+ *             accepted bot.
+ * Rows minted before the column existed read 'legacy'.
+ */
+type SessionKind = 'web' | 'launch' | 'app'
 
 /**
  * Undo a session this request just minted, because the person signed out
@@ -428,7 +440,7 @@ async function mintWidgetSession(
     )
     if (!consumed.rows.length) throw new ReplayedWidgetAssertion()
     await syncVerifiedWidgetProfileWithClient(client, user)
-    const session = await mintSession(client, telegramId, body)
+    const session = await mintSession(client, telegramId, body, 'web')
     await client.query('COMMIT')
     return session
   } catch (error) {
@@ -656,6 +668,7 @@ export async function handleAuthRoute(
       pool,
       telegramId,
       body,
+      'launch',
       digest(`telegram-initdata:${initData}`)
     )
     // After the insert, from the database: see signedOutSince.
@@ -926,7 +939,7 @@ export async function handleAuthRoute(
       `🔑 [pair] claim ПРИНЯТ telegram_id=${outcome.telegramId}, ` +
         `устройство=${String(body.device_name ?? 'без имени').slice(0, 40)}`
     )
-    const minted = await mintSession(pool, outcome.telegramId, body)
+    const minted = await mintSession(pool, outcome.telegramId, body, 'app')
     // After the insert, from the database: see pairingCodeSignedOut. Closes a
     // claim that spent its code before logout-all and inserts its session after.
     if (await pairingCodeSignedOut(pool, code)) {
@@ -1128,12 +1141,14 @@ export async function handleAuthRoute(
    * a 300 s v:2 token under a derived key (session.ts signGameToken), which
    * every app-session route refuses and /mcp accepts only for identity tools.
    *
-   * Parent credential, exactly as other routes read it, and nothing else:
-   *   - a live Bearer access token. A failing Bearer is refused, not skipped,
-   *     and a game token is not a Bearer (no chaining).
+   * Parent credential, and nothing else:
+   *   - a live Bearer access token of a Login Widget session (kind 'web').
+   *     A failing Bearer is refused, not skipped, and a game token is not a
+   *     Bearer (no chaining). A session minted from initData or a pairing code,
+   *     or one minted before kinds were recorded, is refused: see below.
    *   - X-Telegram-Init-Data from a bot in LAUNCH_BOT_IDS. While that list is
-   *     unset every initData parent is refused, so the Telegram Hive path waits
-   *     for the list built from observed bot ids.
+   *     unset every initData parent is refused. No initData-derived session is
+   *     accepted either, so nothing from Telegram mints until the list is set.
    * Agent keys and the service key are never read here, so they mint nothing.
    *
    * The audience is this request's Origin and must be a game origin exactly.
@@ -1156,13 +1171,45 @@ export async function handleAuthRoute(
       (req.headers['x-telegram-initdata'] as string | undefined) ||
       ''
     if (bearer.startsWith('Bearer ')) {
+      let sid: string
       try {
-        telegramId = verifyAppSession(bearer.slice(7).trim()).sub
+        const claims = verifyAppSession(bearer.slice(7).trim())
+        telegramId = claims.sub
+        sid = claims.sid
       } catch (e) {
         const code = e instanceof SessionError ? e.code : 'malformed'
         json(res, 401, {
           error: 'game_token_credential_rejected',
           detail: `session rejected: ${code}`,
+        })
+        return true
+      }
+      /*
+       * Only a Login Widget session stands behind a game token. A session
+       * minted from initData (kind launch, or app through a pairing code) rests
+       * on a signature from any bot this server accepts. Accepting it let any
+       * of those bots mint here with one extra request -- exchange the initData
+       * at /api/auth/telegram, present the access token -- past the
+       * LAUNCH_BOT_IDS check below. A legacy row cannot show which it is, so it
+       * is refused as well. Read from the database, which also refuses a session
+       * revoked on a replica this one has not heard from yet.
+       */
+      const parent = await pool.query(
+        `SELECT kind FROM app_sessions WHERE id = $1 AND revoked_at IS NULL`,
+        [sid]
+      )
+      if (!parent.rows.length) {
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: 'session rejected: revoked',
+        })
+        return true
+      }
+      if (parent.rows[0].kind !== 'web') {
+        json(res, 403, {
+          error: 'game_token_parent_not_web',
+          detail:
+            'only a browser sign-in (Telegram Login Widget) session may mint a game token; inside Telegram send X-Telegram-Init-Data',
         })
         return true
       }
