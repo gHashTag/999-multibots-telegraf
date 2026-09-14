@@ -57,6 +57,7 @@ tri — оболочка Trinity S³AI
   tri schema     таблицы, которые код считает существующими, против настоящих
   tri crm-source какая копия users/payments живая: Supabase или Railway
   tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
+  tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
   tri worktrees  брошенные копии репозитория (могут хранить несохранённое)
@@ -352,6 +353,13 @@ case "${1:-}" in
   shipped)
     # Уехало ли в прод -- и пользуется ли им кто-нибудь. Два разных вопроса.
     bash "$ROOT/bin/helpers/shipped.sh"
+    ;;
+
+  app-smoke)
+    # Маршруты и заголовки app.t27.ai, от которых зависят боты, iOS, OAuth и
+    # медиа. Только чтение. 0 -- прошло, 1 -- изменилось, 2 -- НЕ проверено.
+    shift
+    bash "$ROOT/bin/helpers/app-t27-smoke.sh" "$@"
     ;;
 
   space)
