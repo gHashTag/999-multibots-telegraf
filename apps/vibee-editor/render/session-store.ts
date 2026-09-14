@@ -412,6 +412,43 @@ export function refreshStore(pool: Pool) {
 }
 
 /**
+ * Revoke EVERY live session family of one person: "sign out everywhere".
+ *
+ * Logout revokes the family that presented the token. Every other family the
+ * same person holds stays alive: another browser, the iOS app, a session minted
+ * from a Mini App launch, a pairing claim, a widget sign-in. After a token
+ * theft those are exactly the ones that matter, and nothing could reach them
+ * short of waiting out the sixty days.
+ *
+ * Keyed by `telegram_id`, not by how a family was minted: every way in writes
+ * these two tables through `mintSession`, so one condition covers them all,
+ * and a new way in is covered without a change here.
+ *
+ * Refresh tokens are revoked for every family of the person, including one
+ * whose session row was already revoked, so none of their refresh rows stays
+ * usable. Returns the ids of the sessions this call revoked, so the caller can
+ * `revokeNow` them in this process; other replicas pick them up from the poll.
+ */
+export async function revokeAllFamiliesOf(
+  pool: Pool,
+  telegramId: string
+): Promise<string[]> {
+  const sessions = await pool.query(
+    `UPDATE app_sessions SET revoked_at = now()
+      WHERE telegram_id = $1 AND revoked_at IS NULL
+      RETURNING id`,
+    [telegramId]
+  )
+  await pool.query(
+    `UPDATE app_refresh_tokens SET revoked_at = now()
+      WHERE revoked_at IS NULL
+        AND family_id IN (SELECT family_id FROM app_sessions WHERE telegram_id = $1)`,
+    [telegramId]
+  )
+  return sessions.rows.map((x: any) => String(x.id))
+}
+
+/**
  * Refresh the in-memory revoked set from the database.
  *
  * Deliberately does NOT clear rows: a session revoked long ago has an expired
