@@ -599,7 +599,8 @@ import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
-import { HIVE_TOOLS } from './hive-tools'
+import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
+import { visibilityOf } from '../hive/roles'
 import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS, withClient, COMPACT_HIDDEN } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
@@ -641,8 +642,17 @@ export const TOOLS: AgentTool[] = [
       )
       const профиль = u.rows[0] ?? null
       const аватар = String(профиль?.avatar_url || '')
+      /*
+       * The caller's hive role (keeper, owner or bee) from the same
+       * visibilityOf that scopes the hive tools, so a signed-in surface can
+       * show it without guessing. Display only: permissions stay checked where
+       * they are enforced. visibilityOf fails closed -- an ownership lookup
+       * that throws or answers an error status leaves the caller a bee.
+       */
+      const { role } = await visibilityOf(ctx.telegramId, { botsOwnedBy })
       return {
         telegram_id: ctx.telegramId,
+        role,
         профиль,
         опубликовано: c.rows[0]?.n ?? 0,
         аватар: аватар || undefined,
