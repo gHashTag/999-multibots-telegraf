@@ -5,6 +5,7 @@ import { IS_EMBED } from '@/lib/embed'
 import { API_BASE } from '@/config'
 import { getAppAccessToken } from '@/lib/appSession'
 import { getInitData } from '@/lib/telegram'
+import { sessionTrustedIn, type FramedWindow } from '@/lib/framedSession'
 import './Hive.css'
 
 /**
@@ -64,8 +65,15 @@ export default function HivePage() {
   // The framed game asks who the visitor is. The answer is a 300 s game token
   // minted from this app's credential, never the credential itself, and only
   // to this frame on https://t27.ai (lib/hive.ts answerIdentityRequests).
+  // Only where this app's own session is trusted: top level, or framed by this
+  // app or Telegram. Framed by a t27.ai page, the Bearer session is already a
+  // guest, but Telegram's launch data still authenticates (framedSession.ts),
+  // and that page shares the origin of the game frame answered here, so it
+  // could ask through that frame and skip the bridge's consent.
   useEffect(() => {
-    if (IS_EMBED) return
+    if (IS_EMBED || !sessionTrustedIn(window as unknown as FramedWindow)) {
+      return
+    }
     return answerIdentityRequests({
       win: window,
       frame: () => frameRef.current?.contentWindow,

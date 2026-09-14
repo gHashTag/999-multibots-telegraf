@@ -8,6 +8,37 @@ vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ lang: language.lang, t: (key: string) => key }),
 }))
 
+// Telegram launch data, and who frames the page. jsdom runs top-level and has
+// no location.ancestorOrigins, so the real sessionTrustedIn is handed the
+// window a frame would have. Defaults: no launch data, jsdom's own window.
+const framing = vi.hoisted(() => ({
+  initData: '',
+  ancestors: null as string[] | null,
+}))
+
+vi.mock('@/lib/telegram', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/telegram')>()),
+  getInitData: () => framing.initData,
+}))
+
+vi.mock('@/lib/framedSession', async importOriginal => {
+  const real = await importOriginal<typeof import('@/lib/framedSession')>()
+  return {
+    ...real,
+    sessionTrustedIn: (win: Parameters<typeof real.sessionTrustedIn>[0]) =>
+      framing.ancestors === null
+        ? real.sessionTrustedIn(win)
+        : real.sessionTrustedIn({
+            self: 'this frame',
+            top: 'the page framing it',
+            location: {
+              origin: 'https://app.t27.ai',
+              ancestorOrigins: framing.ancestors,
+            },
+          }),
+  }
+})
+
 /**
  * THE HIVE PAGE OPENS THE GAME IN THE PLAYER LANGUAGE.
  *
@@ -120,6 +151,38 @@ describe('the hive page answers its game frame', () => {
     await flush()
     expect(fetchMock).not.toHaveBeenCalled()
     expect(post).not.toHaveBeenCalled()
+  })
+
+  describe('only where the app session is trusted', () => {
+    afterEach(() => {
+      framing.initData = ''
+      framing.ancestors = null
+    })
+
+    it('framed by a t27.ai page, with Telegram launch data, a request from its game frame mints nothing', async () => {
+      // That page shares the game frame's origin, so it can ask through it.
+      framing.initData = 'fake-init-1'
+      framing.ancestors = ['https://t27.ai']
+      const { frame, post } = renderAndSpy()
+      send(frame)
+      await flush()
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('control: framed by Telegram Web, the same request mints with the launch data', async () => {
+      framing.initData = 'fake-init-1'
+      framing.ancestors = ['https://web.telegram.org']
+      const { frame, post } = renderAndSpy()
+      send(frame)
+      await flush()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const init = fetchMock.mock.calls[0][1] as RequestInit & {
+        headers: Record<string, string>
+      }
+      expect(init.headers['X-Telegram-Init-Data']).toBe('fake-init-1')
+      expect(post).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('removes the same message listener when the page goes away', () => {
