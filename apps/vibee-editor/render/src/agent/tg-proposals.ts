@@ -71,6 +71,29 @@ export type ProposalAction =
   | 'join'
   | 'leave'
   | 'read'
+  /*
+   * The social layer (PR3): contacts, profile, pins, reactions, votes,
+   * folders, membership and the destructive set. The destructive ones are
+   * card-marked irreversible on the bot side; here they are just rows,
+   * because the gate's job is the press, not the judgement.
+   */
+  | 'contact_add'
+  | 'contact_delete'
+  | 'block'
+  | 'unblock'
+  | 'profile_update'
+  | 'profile_photo'
+  | 'profile_photo_delete'
+  | 'online'
+  | 'pin'
+  | 'unpin'
+  | 'react'
+  | 'vote'
+  | 'archive'
+  | 'unarchive'
+  | 'mark_unread'
+  | 'kick'
+  | 'delete_chat'
 
 /**
  * Who pays for the service and how much. Charged at EXECUTE -- after the
@@ -956,19 +979,56 @@ export interface SendingClient {
   /** The newest message, for `read`: maxId is the precise act the card names. */
   getMessages?: (
     chat: string,
-    opts: { limit: number }
-  ) => Promise<Array<{ id?: unknown }>>
+    opts: { limit?: number; ids?: number[] }
+  ) => Promise<Array<{ id?: unknown; media?: unknown }>>
   /** GramJS `markAsRead`: with maxId, exactly that; without, the whole dialog. */
   markAsRead?: (
     chat: string,
     message?: unknown,
     opts?: { maxId?: number }
   ) => Promise<unknown>
+  /**
+   * GramJS `pinMessage`. WITHOUT a message id it unpins EVERYTHING in the
+   * chat -- the footgun the pin executor's check stands on; `unpinMessage`
+   * is the one-message opposite, a separate wrapper in GramJS as here.
+   */
+  pinMessage?: (
+    chat: string,
+    messageId: number,
+    opts?: { notify?: boolean }
+  ) => Promise<unknown>
+  unpinMessage?: (
+    chat: string,
+    messageId: number,
+    opts?: { notify?: boolean }
+  ) => Promise<unknown>
+  /** GramJS `kickParticipant`: channels and supergroups. */
+  kickParticipant?: (chat: string, user: string) => Promise<unknown>
+  /**
+   * GramJS `deleteMessages`: the chat first (channels delete through a
+   * different request than private chats), `revoke: true` for both sides.
+   */
+  deleteMessages?: (
+    chat: string,
+    ids: number[],
+    opts?: { revoke: boolean }
+  ) => Promise<unknown>
+  /** GramJS `uploadFile`: the profile photo's bytes go up through it. */
+  uploadFile?: (opts: { file: unknown; workers: number }) => Promise<unknown>
+  /**
+   * GramJS `getInputEntity`. The auto-cast that carries a string peer in a
+   * RAW request only walks the request's own args -- inside a constructed
+   * InputFolderPeer or InputDialogPeer a bare string would fail to
+   * serialize -- so those three executors resolve the peer through this
+   * door themselves, and the warm-retry still wraps them.
+   */
+  getInputEntity?: (peer: string) => Promise<unknown>
   getDialogs: (opts: { limit: number }) => Promise<unknown>
   /**
    * GramJS' raw-request door. The typing signal has no wrapper method, so it
    * rides `invoke` with a hand-built request; optional because the signal is
    * cosmetic and an older client (or a test double) must simply not show it.
+   * The social layer leans on the same door for everything wrapper-less.
    */
   invoke?: (request: unknown) => Promise<unknown>
   disconnect?: () => Promise<unknown>
@@ -1429,11 +1489,85 @@ async function afterSend(
   }
 }
 
+/*
+ * ── SHARED PIECES OF THE SOCIAL ROWS ────────────────────────────────────────
+ *
+ * Small on purpose: each is one sentence about one thing, so a row reads as
+ * the act it names and not as plumbing.
+ */
+
+/** The one person an act is about: `args.user`, with `target` behind it. */
+function personOf(p: PublicProposal): string {
+  return String(p.args?.user ?? p.target)
+}
+
+/** The one chat an act is about: `args.chat`, with `target` behind it. */
+function chatOf(p: PublicProposal): string {
+  return String(p.args?.chat ?? p.target)
+}
+
+/** The refusal an old client gives for anything riding `invoke`. */
+function noRawDoor(): Error {
+  return new Error('этот клиент не умеет выполнять это действие')
+}
+
+/** A pin's footgun guard: no message id, no pin -- see the pin row below. */
+function messageIdCheck(p: PublicProposal): string | null {
+  return Number.isFinite(Number(p.args?.messageId)) &&
+    Number(p.args?.messageId) > 0
+    ? null
+    : 'не названо сообщение: закрепить и открепить можно только конкретное'
+}
+
+/**
+ * One raw request through the one door, the warm-retry wrapped around it.
+ * The request is built before the call and sent as-is on a retry: its peers
+ * are strings the client casts, and a cast that failed left them untouched.
+ */
+async function rawInvoke(
+  c: SendingClient,
+  request: unknown,
+  peers: readonly string[]
+): Promise<unknown> {
+  if (!c.invoke) throw noRawDoor()
+  return resolvingPeer(c, peers, () => c.invoke!(request))
+}
+
+/** Archive (1) or unarchive (0): the same request, one folder apart. */
+async function toFolder(
+  c: SendingClient,
+  p: PublicProposal,
+  folderId: 0 | 1
+): Promise<unknown> {
+  const { Api } = await import('telegram')
+  const chat = chatOf(p)
+  return resolvingPeer(c, chat, async () => {
+    if (!c.getInputEntity || !c.invoke) throw noRawDoor()
+    /*
+     * InputFolderPeer holds the peer INSIDE a constructed arg, and the
+     * raw-request auto-cast does not descend there -- a bare string would
+     * fail to serialize, so the entity is resolved through the door first.
+     */
+    return c.invoke(
+      new Api.folders.EditPeerFolders({
+        folderPeers: [
+          new Api.InputFolderPeer({
+            // The door's answer is already an InputPeer at runtime; the
+            // declared type here just cannot know that.
+            peer: (await c.getInputEntity(chat)) as never,
+            folderId,
+          }),
+        ],
+      })
+    )
+  })
+}
+
 /**
  * The table. Keyed by exactly the actions `execute` can carry out; a key
  * without a row is a compile error here rather than a runtime refusal below.
  */
-const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
+const EXECUTORS: Record<ProposalAction, Executor> = {
   send: {
     check: p => {
       if (!p.what && !p.media) return 'нечего отправлять: текст пуст'
@@ -1519,6 +1653,353 @@ const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
       })
     },
   },
+
+  /*
+   * ── THE SOCIAL LAYER (PR3) ───────────────────────────────────────────────
+   *
+   * Twenty acts that are not messages. Three rules hold them together:
+   * none touches money (the charge block above stays empty -- account upkeep
+   * is not a priced service), none shows the typing signal (that belongs to
+   * a message a person is about to receive), and a raw request rides
+   * `invoke`, where the client auto-casts a string peer exactly as the
+   * wrapper methods do. Where a wrapper exists (pin, kick, delete-messages,
+   * upload) the row calls it BOUND -- the #2372 lesson.
+   *
+   * `args` carries the act's own names (chat, user, messageId...), with
+   * `target` as the fallback: a restored row that predates the schema still
+   * names the one person or chat the act is about.
+   */
+  block: {
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const who = personOf(p)
+      return rawInvoke(c, new Api.contacts.Block({ id: who }), [who])
+    },
+  },
+  unblock: {
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const who = personOf(p)
+      return rawInvoke(c, new Api.contacts.Unblock({ id: who }), [who])
+    },
+  },
+  contact_add: {
+    check: p => {
+      if (
+        !/^\+?\d{7,15}$/.test(
+          String(p.args?.phone ?? '').replace(/[\s()-]/g, '')
+        )
+      )
+        return 'телефон должен быть 7-15 цифр, например +79001234567'
+      if (!String(p.args?.firstName ?? '').trim())
+        return 'не названо имя нового контакта'
+      return null
+    },
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      // The server resolves the phone; nothing to warm on this side.
+      return rawInvoke(
+        c,
+        new Api.contacts.ImportContacts({
+          contacts: [
+            new Api.InputPhoneContact({
+              // The declared type is big-integer's; a native bigint stores
+              // and serializes the same (returnBigInt converts in-flight).
+              clientId: BigInt(1) as never,
+              phone: String(p.args?.phone ?? ''),
+              firstName: String(p.args?.firstName ?? ''),
+              lastName: String(p.args?.lastName ?? ''),
+            }),
+          ],
+        }),
+        []
+      )
+    },
+  },
+  contact_delete: {
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const who = personOf(p)
+      return rawInvoke(c, new Api.contacts.DeleteContacts({ id: [who] }), [who])
+    },
+  },
+  profile_update: {
+    check: p =>
+      ['firstName', 'lastName', 'bio'].some(k =>
+        String(p.args?.[k] ?? '').trim()
+      )
+        ? null
+        : 'не названо ни одного поля профиля для смены',
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      // The wire calls the bio `about`; only the named fields travel, so a
+      // blank in one field does not erase what the person did not offer.
+      const args: Record<string, string> = {}
+      const first = String(p.args?.firstName ?? '').trim()
+      const last = String(p.args?.lastName ?? '').trim()
+      const bio = String(p.args?.bio ?? '').trim()
+      if (first) args.firstName = first
+      if (last) args.lastName = last
+      if (bio) args.about = bio
+      return rawInvoke(c, new Api.account.UpdateProfile(args), [])
+    },
+  },
+  online: {
+    async run(c) {
+      const { Api } = await import('telegram')
+      return rawInvoke(c, new Api.account.UpdateStatus({ offline: false }), [])
+    },
+  },
+  profile_photo: {
+    check: p =>
+      /^https:\/\//.test(String(p.args?.url ?? ''))
+        ? null
+        : 'фото можно взять только по https-ссылке',
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const bytes = await downloadBytes(String(p.args?.url ?? ''))
+      if (!c.uploadFile) throw new Error('этот клиент не умеет загружать файлы')
+      const { CustomFile } = await import('telegram/client/uploads')
+      const uploaded = await c.uploadFile.bind(c)({
+        file: new CustomFile('photo.jpg', bytes.length, '', bytes),
+        workers: 1,
+      })
+      return rawInvoke(
+        c,
+        // uploadFile's answer IS the InputFile; the loose client type cannot
+        // say so.
+        new Api.photos.UploadProfilePhoto({ file: uploaded as never }),
+        []
+      )
+    },
+  },
+  profile_photo_delete: {
+    async run(c) {
+      const { Api } = await import('telegram')
+      if (!c.invoke) throw noRawDoor()
+      const mine = (await c.invoke(
+        new Api.photos.GetUserPhotos({ userId: new Api.InputUserSelf() })
+      )) as { photos?: Array<{ id?: unknown }> } | null
+      // The list comes newest-first: the first photo IS the profile photo
+      // the card named. Raw Photo objects travel -- the client's auto-cast
+      // turns each into the InputPhoto the wire wants.
+      const current = mine?.photos?.[0]
+      if (!current) throw new Error('у аккаунта нет фото профиля')
+      return c.invoke(new Api.photos.DeletePhotos({ id: [current as never] }))
+    },
+  },
+  pin: {
+    check: messageIdCheck,
+    async run(c, p) {
+      if (!c.pinMessage) throw new Error('этот клиент не умеет закреплять')
+      // BOUND, and with the id: the wrapper without one unpins EVERYTHING
+      // in the chat -- the footgun the check above stands on.
+      return resolvingPeer(c, chatOf(p), () =>
+        c.pinMessage!.bind(c)(chatOf(p), Number(p.args?.messageId), {
+          notify: false,
+        })
+      )
+    },
+  },
+  unpin: {
+    check: messageIdCheck,
+    async run(c, p) {
+      if (!c.unpinMessage) throw new Error('этот клиент не умеет откреплять')
+      return resolvingPeer(c, chatOf(p), () =>
+        c.unpinMessage!.bind(c)(chatOf(p), Number(p.args?.messageId), {
+          notify: false,
+        })
+      )
+    },
+  },
+  react: {
+    check: p => {
+      const face = String(p.args?.emoticon ?? '')
+      return face.length > 8 ? 'не знаю такой реакции — эмодзи один' : null
+    },
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const chat = chatOf(p)
+      const face = String(p.args?.emoticon ?? '')
+      // An empty emoticon is "take my reaction off", which is reaction: []
+      // -- the same request, with nothing in it.
+      const reaction = face ? [new Api.ReactionEmoji({ emoticon: face })] : []
+      return rawInvoke(
+        c,
+        new Api.messages.SendReaction({
+          peer: chat,
+          msgId: Number(p.args?.messageId),
+          reaction,
+        }),
+        [chat]
+      )
+    },
+  },
+  vote: {
+    check: p => {
+      const opts = p.args?.options
+      if (!Array.isArray(opts) || opts.length < 1)
+        return 'не назван ни один вариант ответа'
+      return null
+    },
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      if (!c.getMessages)
+        throw new Error('этот клиент не умеет читать сообщения')
+      if (!c.invoke) throw noRawDoor()
+      // BOUND: `invoke` is a prototype method too, and a lifted reference
+      // sends `this` nowhere -- the very trap the wrappers taught (#2372).
+      const invoke = c.invoke.bind(c)
+      const chat = chatOf(p)
+      const msgId = Number(p.args?.messageId)
+      return resolvingPeer(c, chat, async () => {
+        // Telegram does not take "option 2" -- it takes the answer's own
+        // bytes, which only the message carries. Index in, bytes out.
+        const m = (await c.getMessages!(chat, { ids: [msgId] }))[0] as
+          | {
+              media?: { poll?: { answers?: Array<{ option?: unknown }> } }
+            }
+          | undefined
+        const answers = m?.media?.poll?.answers ?? []
+        const options = ((p.args?.options as number[]) ?? [])
+          .map(i => answers[i]?.option)
+          .filter(b => b !== undefined)
+        return invoke(
+          // Poll answers' options are Buffers on the wire; `answers` is
+          // loose-typed, so the map's product needs the trust cast.
+          new Api.messages.SendVote({
+            peer: chat,
+            msgId,
+            options: options as never,
+          })
+        )
+      })
+    },
+  },
+  archive: {
+    async run(c, p) {
+      return toFolder(c, p, 1)
+    },
+  },
+  unarchive: {
+    async run(c, p) {
+      return toFolder(c, p, 0)
+    },
+  },
+  mark_unread: {
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const chat = chatOf(p)
+      return resolvingPeer(c, chat, async () => {
+        // InputDialogPeer wraps a peer, and the auto-cast does not descend
+        // into constructed args -- so the entity is resolved here.
+        if (!c.getInputEntity || !c.invoke) throw noRawDoor()
+        return c.invoke(
+          new Api.messages.MarkDialogUnread({
+            peer: new Api.InputDialogPeer({
+              // Same door, same trust: an InputPeer by the time it is here.
+              peer: (await c.getInputEntity(chat)) as never,
+            }),
+            unread: true,
+          })
+        )
+      })
+    },
+  },
+  join: {
+    check: p => {
+      const t = p.target.trim()
+      if (/^@[\w]{3,64}$/.test(t)) return null
+      const m = t.match(/^https:\/\/t\.me\/(?:\+|joinchat\/)([\w-]{8,})/)
+      return m
+        ? null
+        : 'назван не канал: нужен @username или ссылка-приглашение t.me'
+    },
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const t = p.target.trim()
+      const invite = t.match(/^https:\/\/t\.me\/(?:\+|joinchat\/)([\w-]{8,})/)
+      return rawInvoke(
+        c,
+        invite
+          ? new Api.messages.ImportChatInvite({ hash: invite[1] })
+          : new Api.channels.JoinChannel({ channel: t }),
+        []
+      )
+    },
+  },
+  leave: {
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      const t = p.target.trim()
+      return resolvingPeer(c, t, async () => {
+        if (!c.invoke) throw noRawDoor()
+        try {
+          return await c.invoke(new Api.channels.LeaveChannel({ channel: t }))
+        } catch (e) {
+          /*
+           * A basic group (no -100 mark) is not a channel: leaving it is
+           * "delete me from the member list", a different request with the
+           * chat's OWN positive id.
+           */
+          if (!/CHAT_ID_INVALID/i.test(e instanceof Error ? e.message : ''))
+            throw e
+          const numeric = Number(t)
+          if (!Number.isFinite(numeric) || numeric >= 0) throw e
+          return c.invoke(
+            new Api.messages.DeleteChatUser({
+              // The declared type is big-integer's; a plain positive number
+              // stores and serializes the same here.
+              chatId: -numeric as never,
+              userId: new Api.InputUserSelf(),
+            })
+          )
+        }
+      })
+    },
+  },
+  kick: {
+    async run(c, p) {
+      if (!c.kickParticipant) throw new Error('этот клиент не умеет исключать')
+      const kick = c.kickParticipant.bind(c)
+      return resolvingPeer(c, [chatOf(p), personOf(p)], () =>
+        kick(chatOf(p), personOf(p))
+      )
+    },
+  },
+  delete: {
+    check: p => {
+      const ids = p.args?.messageIds
+      const n = Array.isArray(ids) ? ids.length : 0
+      if (n < 1) return 'не названо ни одного сообщения'
+      if (n > 100) return 'слишком много сообщений для одного удаления (до 100)'
+      return null
+    },
+    async run(c, p) {
+      if (!c.deleteMessages) throw new Error('этот клиент не умеет удалять')
+      const ids = (p.args?.messageIds as number[]) ?? []
+      const del = c.deleteMessages.bind(c)
+      return resolvingPeer(c, chatOf(p), () =>
+        del(chatOf(p), ids, { revoke: true })
+      )
+    },
+  },
+  delete_chat: {
+    async run(c, p) {
+      const { Api } = await import('telegram')
+      return rawInvoke(
+        c,
+        new Api.messages.DeleteHistory({
+          peer: p.target,
+          // max_id is a plain int on the wire, and 0 means "all of it".
+          maxId: 0,
+          revoke: true,
+          justClear: p.args?.mode === 'clear',
+        }),
+        [p.target]
+      )
+    },
+  },
 }
 
 /** What `execute` can carry out. The tools' queue gate reads this, not a copy. */
@@ -1535,18 +2016,14 @@ export async function execute(
   let c: SendingClient | null = null
   try {
     c = (await client(ctx as never)) as SendingClient
-    const exec = (EXECUTORS as Partial<Record<ProposalAction, Executor>>)[
-      p.action
-    ]
+    /*
+     * The table is complete, so the type says a row always answers. The row
+     * is still read through a guard: `action` comes out of a stored draft,
+     * and a poisoned row can carry a name no row has -- for that one the
+     * refusal below still stands, in words, naming it.
+     */
+    const exec = EXECUTORS[p.action as ProposalAction]
     if (!exec) {
-      /*
-       * An action with no row in the table still refuses, in words, naming
-       * the action. Pretending to do it would be worse than the gap it
-       * leaves, because the person would believe the thing happened.
-       *
-       * The list of what IS carried out is derived from the table, so a new
-       * row updates the sentence without a second edit here.
-       */
       const done = Object.keys(EXECUTORS)
       return {
         done: false,

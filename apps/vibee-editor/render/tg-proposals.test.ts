@@ -432,12 +432,13 @@ describe('an action with no executor refuses honestly', () => {
     vi.doUnmock('./src/agent/telegram-tools')
   })
 
-  it('delete names the action and says what IS carried out', async () => {
+  it('a poisoned action name refuses honestly, saying what IS carried out', async () => {
     /*
      * Pin before the executor-table refactor: the honest refusal is the
-     * behaviour, and it must survive the refactor unchanged. A press on a
-     * draft whose action nobody implemented must say so in words -- not
-     * pretend, not throw.
+     * behaviour, and it must survive the refactor unchanged. The table is
+     * complete now, so "no row" reaches here only through a stored draft
+     * whose action nobody ever wrote -- a poisoned name must be refused in
+     * words, not pretended, not thrown.
      */
     vi.doMock('./src/agent/telegram-tools', () => ({
       client: async () => ({
@@ -451,7 +452,7 @@ describe('an action with no executor refuses honestly', () => {
       {
         id: 'd1',
         telegramId: '144022504',
-        action: 'delete',
+        action: 'stonks',
         target: '@ivan',
         createdAt: Date.now(),
       } as never,
@@ -459,8 +460,9 @@ describe('an action with no executor refuses honestly', () => {
     )
     expect(r.done).toBe(false)
     if (!r.done) {
-      expect(r.why).toContain('delete')
+      expect(r.why).toContain('stonks')
       expect(r.why).toContain('ещё не сделано')
+      expect(r.why).toContain('send')
     }
   })
 })
@@ -746,8 +748,9 @@ describe('only an executable action takes the one queue slot', () => {
   it('a non-executable action still answers the model with a proposal', async () => {
     // The model must learn the action did not happen; that is what the
     // proposal object is for. It simply does not occupy the human queue.
-    // `delete` has no executor yet (PR3 territory), so it is the honest
-    // specimen now that read and forward execute.
+    // Every real action has a row now, so the branch is held open for the
+    // window where a tool lands before its executor does -- a name no row
+    // answers is exactly that window.
     const { propose } = await import('./src/agent/telegram-tools')
     const q = await import('./src/agent/tg-proposals')
     q.forgetProposals()
@@ -757,7 +760,7 @@ describe('only an executable action takes the one queue slot', () => {
       surface: 'bot',
     } as never
     const answer = (await propose(
-      'delete',
+      'stonks' as never,
       '@x',
       'сообщения 1..3',
       'why',

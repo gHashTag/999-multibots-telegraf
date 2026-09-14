@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { Api } from 'telegram'
 
 /**
  * THE SERVICE IN THE DM: made on the owner's turn, paid by the recipient at
@@ -1127,5 +1128,446 @@ describe('execute: typing before the act, schedule instead of now', () => {
     expect((r as { why: string }).why).toContain('расписан')
     expect(f.timeline.filter(t => t.startsWith('spend:'))).toEqual([])
     expect(f.files).toEqual([])
+  })
+})
+
+/*
+ * THE SOCIAL LAYER: twenty more acts through the one gate (PR3).
+ *
+ * Contacts, profile, pins, reactions, votes, folders, membership and the
+ * destructive set. None of them cost money -- the charge block stays, empty
+ * -- and none of them earn the typing signal: that belongs to a message a
+ * person is about to receive. What each act IS, is a raw request built from
+ * the draft's `args` and sent through `invoke`, or a bound wrapper call
+ * where GramJS has one (the #2372 lesson: wrappers pass `this` on).
+ *
+ * The requests below are built from the REAL Api classes (constructing them
+ * is side-effect-free), so the assertions pin the wire shape itself:
+ * className plus the fields Telegram will see.
+ */
+describe('execute: the social layer, every act through the one gate', () => {
+  /*
+   * A client whose `invoke` records the request object. `failOn` throws on
+   * the FIRST invoke of that className and lets the second through -- the
+   * leave-split test's channel-then-group road.
+   */
+  class SocialClient {
+    readonly requests: unknown[] = []
+    readonly wrapper: Array<Record<string, unknown>> = []
+    readonly calls: string[] = []
+    failOn: Record<string, string> = {}
+    pollAnswers: Array<{ option: Buffer; text: string }> = []
+    photoIds: unknown[] = [{ id: 'photo1' }, { id: 'photo2' }]
+
+    async invoke(request: unknown) {
+      const className = String((request as { className?: string }).className)
+      this.calls.push(`invoke:${className}`)
+      this.requests.push(request)
+      if (this.failOn[className]) {
+        const error = this.failOn[className]
+        delete this.failOn[className]
+        throw new Error(error)
+      }
+      if (className === 'photos.GetUserPhotos') return { photos: this.photoIds }
+      return {}
+    }
+    async getMessages(chat: string, opts: { ids?: number[]; limit?: number }) {
+      this.wrapper.push({ what: 'getMessages', chat, ...opts })
+      return [
+        {
+          id: opts.ids?.[0] ?? 7,
+          media: { poll: { answers: this.pollAnswers } },
+        },
+      ]
+    }
+    // Prototype methods reading `this`, exactly as the GramJS wrappers do,
+    // under their real signatures: pin/unpin are two wrappers, and
+    // deleteMessages takes the chat first (channels delete differently).
+    async pinMessage(
+      chat: string,
+      messageId: number,
+      opts: Record<string, unknown> = {}
+    ) {
+      this.wrapper.push({ what: 'pinMessage', chat, messageId, ...opts })
+      this.calls.push('pinMessage')
+    }
+    async unpinMessage(
+      chat: string,
+      messageId: number,
+      opts: Record<string, unknown> = {}
+    ) {
+      this.wrapper.push({ what: 'unpinMessage', chat, messageId, ...opts })
+      this.calls.push('unpinMessage')
+    }
+    async kickParticipant(chat: string, user: string) {
+      this.wrapper.push({ what: 'kickParticipant', chat, user })
+      this.calls.push('kickParticipant')
+    }
+    async deleteMessages(
+      chat: string,
+      ids: number[],
+      opts: Record<string, unknown> = {}
+    ) {
+      this.wrapper.push({ what: 'deleteMessages', chat, ids, ...opts })
+      this.calls.push('deleteMessages')
+    }
+    async getInputEntity(peer: string) {
+      this.calls.push(`getInputEntity:${peer}`)
+      // Native bigints store fine; the declared type is big-integer's.
+      return new Api.InputPeerUser({
+        userId: BigInt(42) as never,
+        accessHash: BigInt(7) as never,
+      })
+    }
+    async uploadFile(opts: Record<string, unknown>) {
+      this.wrapper.push({ what: 'uploadFile', ...opts })
+      this.calls.push('uploadFile')
+      return { handle: 'uploaded' }
+    }
+    async sendMessage() {}
+    async sendFile() {}
+    async getDialogs() {}
+    async disconnect() {
+      this.calls.push('disconnect')
+    }
+  }
+
+  const asReq = (c: SocialClient, className: string) => {
+    const r = c.requests.find(
+      x => String((x as { className?: string }).className) === className
+    )
+    expect(r, `no ${className} request was sent`).toBeTruthy()
+    return r as never
+  }
+  const social = (
+    action: string,
+    args: Record<string, unknown>,
+    target = '@durov',
+    what?: string
+  ) =>
+    ({
+      id: 's1',
+      telegramId: OWNER,
+      action,
+      target,
+      what,
+      createdAt: 0,
+      args,
+    }) as never
+
+  const run = async (
+    action: string,
+    args: Record<string, unknown>,
+    target = '@durov',
+    what?: string
+  ) => {
+    const c = new SocialClient()
+    const tl: string[] = []
+    const { execute } = await executor(c as never, {}, tl)
+    const r = await execute(social(action, args, target, what), {
+      telegramId: OWNER,
+      pool,
+    })
+    return { c, r, tl }
+  }
+
+  it('block and unblock answer contacts.Block / Unblock with the person', async () => {
+    const block = await run('block', { user: '@spammer' })
+    expect(block.r.done, (block.r as { why?: string }).why).toBe(true)
+    expect(asReq(block.c, 'contacts.Block')).toMatchObject({ id: '@spammer' })
+    const unblock = await run('unblock', { user: '@spammer' })
+    expect(unblock.r.done).toBe(true)
+    expect(asReq(unblock.c, 'contacts.Unblock')).toMatchObject({
+      id: '@spammer',
+    })
+  })
+
+  it('a contact is added as an InputPhoneContact, deleted by name', async () => {
+    const add = await run('contact_add', {
+      phone: '+79001234567',
+      firstName: 'Оля',
+      lastName: 'Иванова',
+    })
+    expect(add.r.done, (add.r as { why?: string }).why).toBe(true)
+    const contact = (
+      asReq(add.c, 'contacts.ImportContacts') as { contacts: unknown[] }
+    ).contacts[0]
+    expect(String((contact as { className?: string }).className)).toBe(
+      'InputPhoneContact'
+    )
+    expect(contact).toMatchObject({
+      phone: '+79001234567',
+      firstName: 'Оля',
+      lastName: 'Иванова',
+    })
+    const del = await run('contact_delete', { user: '@old_friend' })
+    expect(del.r.done).toBe(true)
+    expect(asReq(del.c, 'contacts.DeleteContacts')).toMatchObject({
+      id: ['@old_friend'],
+    })
+  })
+
+  it('a profile update passes exactly the named fields, not blanks', async () => {
+    const r = await run(
+      'profile_update',
+      { firstName: 'Оля', bio: 'продаю сметы' },
+      'me'
+    )
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    const req = asReq(r.c, 'account.UpdateProfile') as Record<string, unknown>
+    expect(req.firstName).toBe('Оля')
+    expect(req.about).toBe('продаю сметы')
+    // GramJS stamps every arg as an own field, undefined when not given; the
+    // wire sets a flag bit only for the non-undefined ones, so "not sent"
+    // reads as undefined here -- the blank must not travel.
+    expect(req.lastName).toBeUndefined()
+  })
+
+  it('going online is account.UpdateStatus offline:false', async () => {
+    const r = await run('online', {}, 'me')
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    expect(asReq(r.c, 'account.UpdateStatus')).toMatchObject({ offline: false })
+  })
+
+  it('a profile photo is downloaded, uploaded as a file, then set', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(new Uint8Array(Buffer.alloc(64, 3)), { status: 200 })
+      )
+    )
+    const r = await run(
+      'profile_photo',
+      { url: 'https://s3.example/me.jpg' },
+      'me'
+    )
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    const up = r.c.wrapper.find(w => w.what === 'uploadFile')!
+    expect(up.file).toMatchObject({ name: 'photo.jpg', size: 64 })
+    expect(asReq(r.c, 'photos.UploadProfilePhoto')).toBeTruthy()
+    // A plain http url is refused before anything is fetched.
+    const bad = await run(
+      'profile_photo',
+      { url: 'http://insecure/me.jpg' },
+      'me'
+    )
+    expect(bad.r.done).toBe(false)
+    expect(bad.c.requests).toEqual([])
+  })
+
+  it('deleting the profile photo takes the current one, by id', async () => {
+    const r = await run('profile_photo_delete', {}, 'me')
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    const got = asReq(r.c, 'photos.GetUserPhotos') as { userId: unknown }
+    expect(String((got.userId as { className?: string }).className)).toBe(
+      'InputUserSelf'
+    )
+    // The FIRST photo is the current one; the raw Photo objects travel and
+    // the client's auto-cast turns them into InputPhoto on the wire.
+    expect(asReq(r.c, 'photos.DeletePhotos')).toMatchObject({
+      id: [{ id: 'photo1' }],
+    })
+  })
+
+  it('pin and unpin use the wrapper; pin without an id refuses outright', async () => {
+    const pin = await run('pin', { chat: '@sale', messageId: 42 })
+    expect(pin.r.done, (pin.r as { why?: string }).why).toBe(true)
+    expect(pin.c.wrapper.find(w => w.what === 'pinMessage')).toMatchObject({
+      chat: '@sale',
+      messageId: 42,
+    })
+    // GramJS pinMessage without an id unpins EVERYTHING -- the footgun the
+    // refusal stands on.
+    const none = await run('pin', { chat: '@sale' })
+    expect(none.r.done).toBe(false)
+    expect(none.c.wrapper).toEqual([])
+    const unpin = await run('unpin', { chat: '@sale', messageId: 42 })
+    expect(unpin.r.done).toBe(true)
+    expect(unpin.c.wrapper.find(w => w.what === 'unpinMessage')).toMatchObject({
+      chat: '@sale',
+      messageId: 42,
+    })
+  })
+
+  it('a reaction is a ReactionEmoji; an empty one removes it', async () => {
+    const r = await run('react', {
+      chat: '@sale',
+      messageId: 9,
+      emoticon: '🔥',
+    })
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    const req = asReq(r.c, 'messages.SendReaction') as {
+      reaction: Array<{ className?: string; emoticon?: string }>
+    }
+    expect(req.reaction[0].className).toBe('ReactionEmoji')
+    expect(req.reaction[0].emoticon).toBe('🔥')
+    const off = await run('react', {
+      chat: '@sale',
+      messageId: 9,
+      emoticon: '',
+    })
+    expect(off.r.done).toBe(true)
+    expect(asReq(off.c, 'messages.SendReaction')).toMatchObject({
+      reaction: [],
+    })
+  })
+
+  it('a vote maps option indexes to the poll answers bytes', async () => {
+    const r = await run('vote', {
+      chat: '@sale',
+      messageId: 5,
+      options: [0, 2],
+    })
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    expect(r.c.wrapper.find(w => w.what === 'getMessages')).toMatchObject({
+      chat: '@sale',
+      ids: [5],
+    })
+    const a = Buffer.from('opt0')
+    const b = Buffer.from('opt2')
+    const again = new SocialClient()
+    again.pollAnswers = [
+      { option: Buffer.from('opt1'), text: 'no' },
+      { option: a, text: 'yes' },
+      { option: b, text: 'maybe' },
+    ]
+    const { execute } = await executor(again as never, {}, [])
+    const rr = await execute(
+      social('vote', { chat: '@sale', messageId: 5, options: [1, 2] }),
+      { telegramId: OWNER, pool }
+    )
+    expect(rr.done, (rr as { why?: string }).why).toBe(true)
+    const req = asReq(again, 'messages.SendVote') as {
+      options: Array<{ toString(): string }>
+    }
+    expect(req.options.map(o => o.toString())).toEqual(
+      [a, b].map(x => x.toString())
+    )
+  })
+
+  it('archive and unarchive move the peer between folders 1 and 0', async () => {
+    const on = await run('archive', { chat: '@noise' })
+    expect(on.r.done, (on.r as { why?: string }).why).toBe(true)
+    // The peer inside InputFolderPeer is RESOLVED (a bare string would fail
+    // to serialize: the raw-request auto-cast does not descend into
+    // constructed args), so the fake's InputPeerUser stands for the entity.
+    const folderOf = (
+      c: Awaited<ReturnType<typeof run>>['c'],
+      name: string
+    ) => {
+      const peer = (
+        asReq(c, 'folders.EditPeerFolders') as {
+          folderPeers: Array<Record<string, unknown>>
+        }
+      ).folderPeers[0]
+      expect(String((peer as { className?: string }).className)).toBe(
+        'InputFolderPeer'
+      )
+      expect(String((peer.peer as { className?: string }).className)).toBe(
+        'InputPeerUser'
+      )
+      return peer[name]
+    }
+    expect(folderOf(on.c, 'folderId')).toBe(1)
+    const off = await run('unarchive', { chat: '@noise' })
+    expect(off.r.done).toBe(true)
+    expect(folderOf(off.c, 'folderId')).toBe(0)
+  })
+
+  it('mark unread is MarkDialogUnread unread:true over a resolved peer', async () => {
+    const r = await run('mark_unread', { chat: '@later' })
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    const req = asReq(r.c, 'messages.MarkDialogUnread') as {
+      peer: { className?: string; userId?: unknown }
+      unread: boolean
+    }
+    // InputDialogPeer, and inside it the entity -- resolved for the same
+    // serialization reason as the folders above.
+    expect(req.peer.className).toBe('InputDialogPeer')
+    expect(
+      (req.peer as { peer?: { className?: string } }).peer?.className
+    ).toBe('InputPeerUser')
+    expect(req.unread).toBe(true)
+  })
+
+  it('join splits: a username joins a channel, an invite link imports a hash', async () => {
+    const at = await run('join', {}, '@news_channel')
+    expect(at.r.done, (at.r as { why?: string }).why).toBe(true)
+    expect(asReq(at.c, 'channels.JoinChannel')).toMatchObject({
+      channel: '@news_channel',
+    })
+    const link = await run('join', {}, 'https://t.me/+AbCdEf123')
+    expect(link.r.done).toBe(true)
+    expect(asReq(link.c, 'messages.ImportChatInvite')).toMatchObject({
+      hash: 'AbCdEf123',
+    })
+  })
+
+  it('leave splits: a channel leaves, a basic group deletes self from it', async () => {
+    const channel = await run('leave', {}, '@news_channel')
+    expect(channel.r.done, (channel.r as { why?: string }).why).toBe(true)
+    expect(asReq(channel.c, 'channels.LeaveChannel')).toMatchObject({
+      channel: '@news_channel',
+    })
+    const group = new SocialClient()
+    group.failOn['channels.LeaveChannel'] = 'CHAT_ID_INVALID'
+    const { execute } = await executor(group as never, {}, [])
+    const r = await execute(social('leave', {}, '-123456'), {
+      telegramId: OWNER,
+      pool,
+    })
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    const del = asReq(group, 'messages.DeleteChatUser') as {
+      chatId: number
+      userId: { className?: string }
+    }
+    expect(del.chatId).toBe(123456)
+    expect(del.userId.className).toBe('InputUserSelf')
+  })
+
+  it('kick delegates to the bound wrapper', async () => {
+    const r = await run('kick', { user: '@noise' }, '@our_group')
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    expect(r.c.wrapper.find(w => w.what === 'kickParticipant')).toMatchObject({
+      chat: '@our_group',
+      user: '@noise',
+    })
+  })
+
+  it('deleting messages revokes for both sides, capped by the check', async () => {
+    const r = await run(
+      'delete',
+      { chat: '@sale', messageIds: [4, 5, 6] },
+      '@sale'
+    )
+    expect(r.r.done, (r.r as { why?: string }).why).toBe(true)
+    expect(r.c.wrapper.find(w => w.what === 'deleteMessages')).toMatchObject({
+      chat: '@sale',
+      ids: [4, 5, 6],
+      revoke: true,
+    })
+  })
+
+  it('delete_chat clears or leaves; both revoke the history', async () => {
+    const clear = await run('delete_chat', { mode: 'clear' }, '@old_chat')
+    expect(clear.r.done, (clear.r as { why?: string }).why).toBe(true)
+    expect(asReq(clear.c, 'messages.DeleteHistory')).toMatchObject({
+      peer: '@old_chat',
+      justClear: true,
+      revoke: true,
+    })
+    const leave = await run('delete_chat', { mode: 'leave' }, '@old_channel')
+    expect(leave.r.done).toBe(true)
+    expect(asReq(leave.c, 'messages.DeleteHistory')).toMatchObject({
+      justClear: false,
+      revoke: true,
+    })
+  })
+
+  it('not one social act spends a token, and every one hangs up', async () => {
+    const r = await run('archive', { chat: '@noise' })
+    expect(r.tl.filter(t => t.startsWith('spend:'))).toEqual([])
+    expect(r.c.calls).toContain('disconnect')
   })
 })
