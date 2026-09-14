@@ -5,6 +5,7 @@
 import { atom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import { STORAGE_KEYS } from '@vibee/atoms'
+import { IS_EMBED, embedLang } from '@/lib/embed'
 
 export type Language = 'ru' | 'en'
 
@@ -1189,6 +1190,13 @@ const en: Translations = {
   'hive.loading': 'Opening the hive on t27.ai…',
   'hive.frameTitle': 'The hive — t27.ai/#/queen',
   'hive.openOutside': 'Open in the browser: t27.ai/#/queen ↗',
+  'hive.insideGame':
+    'You are already inside the game: the hive is the page around this frame.',
+  // Sign-in inside the game's TRI frame on t27.ai (LoginModal).
+  'embed.signInTitle': 'Sign in inside the app',
+  'embed.signInBody':
+    'Telegram does not let its sign-in load inside another site, and a sign-in made in the app does not carry over into this frame. Open this screen in the app to use it under your name.',
+  'embed.openApp': 'Open this screen in the app ↗',
   'nav.editor': 'Editor',
   'nav.generate': 'Generate',
   'nav.templates': 'Templates',
@@ -3077,6 +3085,13 @@ const ru: Translations = {
   'hive.loading': 'Открываем улей на t27.ai…',
   'hive.frameTitle': 'Улей — t27.ai/#/queen',
   'hive.openOutside': 'Открыть в браузере: t27.ai/#/queen ↗',
+  'hive.insideGame':
+    'Вы уже внутри игры: улей — это страница вокруг этого фрейма.',
+  // Sign-in inside the game's TRI frame on t27.ai (LoginModal).
+  'embed.signInTitle': 'Вход — в самом приложении',
+  'embed.signInBody':
+    'Telegram не пускает свой вход внутрь чужого сайта, а вход, сделанный в приложении, сюда не переносится. Откройте этот экран в приложении, чтобы работать под своим именем.',
+  'embed.openApp': 'Открыть этот экран в приложении ↗',
   'nav.editor': 'Редактор',
   'nav.generate': 'Генерация',
   'nav.templates': 'Шаблоны',
@@ -3812,11 +3827,28 @@ function detectBrowserLanguage(): Language {
 // Atoms
 // ===============================
 
+/**
+ * Inside the game's TRI frame the language is the game's (?lang=), read on
+ * the first render and never written: under https://app.t27.ai/game/ the frame
+ * shares localStorage with the real app, whose language a write would switch.
+ * A switch made inside the frame lives in memory only.
+ */
+const embedLanguageStorage = {
+  getItem: (_key: string, initialValue: Language): Language =>
+    embedLang() ?? initialValue,
+  setItem: () => {},
+  removeItem: () => {},
+}
+
 // Language atom with localStorage persistence
-export const languageAtom = atomWithStorage<Language>(
-  STORAGE_KEYS.language,
-  detectBrowserLanguage()
-)
+export const languageAtom = IS_EMBED
+  ? atomWithStorage<Language>(
+      STORAGE_KEYS.language,
+      detectBrowserLanguage(),
+      embedLanguageStorage,
+      { getOnInit: true }
+    )
+  : atomWithStorage<Language>(STORAGE_KEYS.language, detectBrowserLanguage())
 
 // Translation function atom (derived)
 /**

@@ -6,6 +6,7 @@ import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { haptic } from '@/lib/telegram'
 import { PRIMARY_NAV_ITEMS, type PrimaryTabId } from '@/lib/primaryNavigation'
+import { IS_EMBED } from '@/lib/embed'
 import './TelegramTabBar.css'
 
 // ===============================
@@ -135,7 +136,9 @@ export function TelegramTabBar() {
     })
   }, [location.pathname])
 
+  // Inside the game's TRI frame the game draws the navigation.
   const hidden =
+    IS_EMBED ||
     HIDDEN_EXACT.has(location.pathname) ||
     HIDDEN_PREFIXES.some(p => location.pathname.startsWith(p))
 

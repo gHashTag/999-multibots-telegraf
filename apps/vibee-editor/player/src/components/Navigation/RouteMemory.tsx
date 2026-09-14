@@ -4,6 +4,7 @@ import { useAtomValue } from 'jotai'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { myProfileAtom } from '@/atoms'
 import { getWebApp } from '@/lib/telegram'
+import { IS_EMBED } from '@/lib/embed'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -78,8 +79,12 @@ function readRemembered(): string | null {
 export function LaunchRedirect() {
   // Прямая ссылка сильнее памяти: человек попросил конкретный экран.
   const startParam = getWebApp()?.initDataUnsafe?.start_param
+  // Inside the game's TRI frame the game chose the screen; the remembered one
+  // belongs to the real app.
   const target =
-    !startParam && REMEMBERED && isRestorable(REMEMBERED) ? REMEMBERED : HOME
+    !IS_EMBED && !startParam && REMEMBERED && isRestorable(REMEMBERED)
+      ? REMEMBERED
+      : HOME
 
   return <Navigate to={target} replace />
 }
@@ -90,6 +95,10 @@ export function RouteMemory() {
   const myProfile = useAtomValue(myProfileAtom)
 
   useEffect(() => {
+    // Screens opened inside the game's TRI frame are not where the person
+    // left the real app. The frame's localStorage is the real app's (same
+    // site on t27.ai, same origin under /game/), so nothing is written.
+    if (IS_EMBED) return
     const path = location.pathname
     const username = myProfile?.username
 

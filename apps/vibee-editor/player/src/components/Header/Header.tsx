@@ -38,6 +38,7 @@ import { brandingAtom, loadBrandingAtom } from '@/atoms/branding'
 import { getInitData, isTelegram } from '@/lib/telegram'
 import { getAppAccessToken } from '@/lib/appSession'
 import { AI_PIPELINE_STAGES } from '@/lib/aiPipeline'
+import { IS_EMBED } from '@/lib/embed'
 
 // Page navigation tabs. Editor belongs to the AI creation pipeline.
 const NAV_TABS = [
@@ -269,6 +270,20 @@ export function Header() {
   }, [disconnectInstagram])
 
   // Note: Undo/Redo, Play, Save, Load, Reset buttons moved to Timeline.tsx
+
+  // Inside the game's TRI frame the game draws the navigation: the logo row,
+  // the tabs (pinned to the bottom on phones), the language toggle and the
+  // settings go. The modals stay, because LoginModal is mounted only here and
+  // GeneratePanel, Timeline, ProfileHeader and UserCard open it through
+  // showLoginModalAtom. This return must stay below every hook.
+  if (IS_EMBED) {
+    return (
+      <>
+        <PaywallModal />
+        <LoginModal />
+      </>
+    )
+  }
 
   return (
     <>

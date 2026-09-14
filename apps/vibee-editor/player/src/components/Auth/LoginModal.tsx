@@ -5,6 +5,7 @@ import { telegramAutoLoginAtom } from '@/atoms/telegramAuth'
 import { useLanguage } from '@/hooks/useLanguage'
 import { isTelegram, hasVerifiableInitData } from '@/lib/telegram'
 import { TelegramLoginButton } from './TelegramLoginButton'
+import { APP_ORIGIN, IS_EMBED, widgetFrameAllowed } from '@/lib/embed'
 
 /**
  * Одна модалка входа на всё приложение.
@@ -93,6 +94,26 @@ export function LoginModal() {
               >
                 <span>{t('login.tgContinue')}</span>
               </button>
+            </div>
+          </>
+        ) : IS_EMBED && !widgetFrameAllowed() ? (
+          // Inside the game's TRI frame on t27.ai. Telegram's widget frame
+          // accepts only https://app.t27.ai as an ancestor (measured
+          // 2026-09-14), so it would render as a blocked frame, and a sign-in
+          // made in the app does not carry over into this partitioned frame.
+          // Say so, and link to this screen in the app.
+          <>
+            <h2>{t('embed.signInTitle')}</h2>
+            <p>{t('embed.signInBody')}</p>
+            <div className="login-modal-widget">
+              <a
+                className="telegram-login-btn embed-open-app"
+                href={APP_ORIGIN + window.location.pathname}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span>{t('embed.openApp')}</span>
+              </a>
             </div>
           </>
         ) : (
