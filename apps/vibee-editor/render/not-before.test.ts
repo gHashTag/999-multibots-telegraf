@@ -13,8 +13,9 @@ import { Readable } from 'node:stream'
  *
  * The cutoff is per telegram_id: an access token whose iat, or initData whose
  * auth_date, is older than it is refused. It reaches other replicas through the
- * same poll as the revoked-session set, and it fails closed the same way when
- * that poll goes stale.
+ * same poll as the revoked-session set. When that poll goes stale, access and
+ * game tokens are refused as before, while initData is admitted (an outage for
+ * every Mini App request is worse); the minting routes read the database.
  *
  * NOT covered, by construction: initData FORGED with a bot token the server
  * accepts carries whatever auth_date the forger writes, so it is always fresh.

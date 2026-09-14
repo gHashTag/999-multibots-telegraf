@@ -270,8 +270,10 @@ let revoked = new Set<string>()
  * narrowing the accepted bot tokens helps against that. And it ends the
  * person's own current Mini App launch too, until they relaunch it.
  *
- * Kept in memory and refreshed by the same poll as the revoked set, so it has
- * the same freshness rule: stale state refuses rather than admits.
+ * Kept in memory and refreshed by the same poll as the revoked set. Stale state
+ * refuses access and game tokens, as the revoked set does, but ADMITS initData
+ * (see initDataCutoffRefusal): the minting routes read the cutoff from the
+ * database, so only raw per-request initData goes unchecked during a stall.
  */
 let notBefore = new Map<string, number>()
 let revocationsSyncedAt = 0
