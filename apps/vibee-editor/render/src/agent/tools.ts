@@ -599,7 +599,8 @@ import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
-import { HIVE_TOOLS } from './hive-tools'
+import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
+import { visibilityOf } from '../hive/roles'
 import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS, withClient, COMPACT_HIDDEN } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
@@ -641,8 +642,36 @@ export const TOOLS: AgentTool[] = [
       )
       const профиль = u.rows[0] ?? null
       const аватар = String(профиль?.avatar_url || '')
+      /*
+       * The caller's hive role (keeper, owner or bee) from the same
+       * visibilityOf that scopes the hive tools, so a signed-in surface can
+       * show it without guessing. Display only: permissions stay checked where
+       * they are enforced. visibilityOf fails closed -- an ownership lookup
+       * that throws or answers an error status leaves the caller a bee.
+       *
+       * The lookup is a Supabase fetch with no timeout, and nothing above this
+       * handler has one either. A Supabase that accepts the connection and
+       * never answers would hold whoami -- the tool agents are told to call
+       * first -- for minutes, for a display-only label. So a stall is turned
+       * into an error here, which visibilityOf already reads as bee. Only this
+       * call is bounded; the shared botsOwnedBy is unchanged.
+       */
+      let ownershipTimer: ReturnType<typeof setTimeout> | undefined
+      const { role } = await visibilityOf(ctx.telegramId, {
+        botsOwnedBy: id =>
+          Promise.race([
+            botsOwnedBy(id),
+            new Promise<string[]>((_, reject) => {
+              ownershipTimer = setTimeout(
+                () => reject(new Error('avatars lookup timed out')),
+                1500
+              )
+            }),
+          ]),
+      }).finally(() => clearTimeout(ownershipTimer))
       return {
         telegram_id: ctx.telegramId,
+        role,
         профиль,
         опубликовано: c.rows[0]?.n ?? 0,
         аватар: аватар || undefined,

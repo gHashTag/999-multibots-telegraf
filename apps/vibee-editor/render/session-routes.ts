@@ -22,10 +22,7 @@
  * nothing downstream changes when it does.
  */
 
-import {
-  notifySignIn,
-  safeDeviceName,
-} from './src/auth/notify-sign-in'
+import { notifySignIn, safeDeviceName } from './src/auth/notify-sign-in'
 import { sendToTelegram } from './src/auth/telegram-sender'
 import { record } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -44,10 +41,12 @@ import {
   digest,
   revokeNow,
   SESSION_TUNING,
+  SessionError,
 } from './session'
 import {
   ensureAuthTables,
   refreshStore,
+  revokeAllFamiliesOf,
   issuePairingCode,
   claimPairingCode,
   PAIRING,
@@ -434,6 +433,26 @@ function verifiedTelegramIdFrom(initData: string): string | null {
   }
 }
 
+/**
+ * Which bot's token verified an initData, as a journal note: `bot <id>`.
+ *
+ * WHY IT IS RECORDED. Both initData doors below accept a signature from ANY
+ * token in auth.ts botTokens() and, until this note, left no trace of which
+ * one. Narrowing that set to the bots that really launch the app must be done
+ * from evidence, not from memory: a restriction written blind locks out
+ * whoever signs in through the bot nobody remembered. Nothing about which
+ * tokens are accepted changes here.
+ *
+ * WHY DIGITS ONLY. The id is the part of a token before the colon -- the bot's
+ * own public user id. Everything after the colon is the secret.
+ * `verifyTelegramInitData` returns `token.split(':')[0]`, and for a token
+ * pasted without its colon that is the WHOLE secret. So only a plain run of
+ * digits is written; anything else becomes `bot unknown`.
+ */
+function signedByBot(botId: string | undefined): string {
+  return /^\d{1,20}$/.test(botId ?? '') ? `bot ${botId}` : 'bot unknown'
+}
+
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
   release: () => void
@@ -562,13 +581,18 @@ export async function handleAuthRoute(
     void record(pool, {
       kind: 'sign-in',
       who: telegramId,
-      what: safeDeviceName(body.device_name),
+      what: `${safeDeviceName(body.device_name)}; ${signedByBot(v.botId)}`,
     })
 
     json(
       res,
       200,
-      await mintSession(pool, telegramId, body, digest(`telegram-initdata:${initData}`))
+      await mintSession(
+        pool,
+        telegramId,
+        body,
+        digest(`telegram-initdata:${initData}`)
+      )
     )
     return true
   }
@@ -692,6 +716,13 @@ export async function handleAuthRoute(
     console.log(
       `🔑 [pair] start ВЫДАН telegram_id=${telegramId}, живёт ${PAIRING.TTL_SECONDS}с`
     )
+    // The code mints a session on claim, so this door is an initData sign-in
+    // too: same note as /api/auth/telegram, and never the code itself.
+    void record(pool, {
+      kind: 'code-issued',
+      who: telegramId,
+      what: signedByBot(v.botId),
+    })
     json(res, 200, {
       code,
       expires_in: PAIRING.TTL_SECONDS,
@@ -990,6 +1021,64 @@ export async function handleAuthRoute(
     return true
   }
 
+  // ─── Logout everywhere ─────────────────────────────────────────────────
+  /*
+   * SIGN OUT EVERYWHERE: every live family of the person, not only this one.
+   *
+   * Logout below revokes the family that presented the token. After a token
+   * theft the thief holds a different family, so recovery needs all of them:
+   * Mini App launches, pairing claims, widget sign-ins, other browsers.
+   *
+   * Only a live app session access token may ask:
+   *   - initData alone is refused. It lives 24 hours and can be replayed by
+   *     whoever saw it, and a leaked launch string must not be able to sign
+   *     the person out of every device.
+   *   - agent keys and the service key are refused. The global guard admits
+   *     them on this non-public path, so this check is the one that counts.
+   *   - an expired or revoked token is refused, and unlike logout there is no
+   *     refresh-token fallback: a stolen refresh token alone must not be
+   *     enough to sign the owner out everywhere.
+   *
+   * Not in PUBLIC_EXACT on purpose; auth-public.test.ts names it as guarded.
+   */
+  if (path === '/api/auth/logout-all' && req.method === 'POST') {
+    const bearer = (req.headers['authorization'] as string | undefined) || ''
+    if (!bearer.startsWith('Bearer ')) {
+      json(res, 401, {
+        error: 'auth_session_required',
+        detail: 'sign out everywhere takes only a Bearer access token',
+      })
+      return true
+    }
+    let who: { sub: string; sid: string }
+    try {
+      who = verifyAppSession(bearer.slice(7).trim())
+    } catch (e) {
+      const code = e instanceof SessionError ? e.code : 'malformed'
+      json(res, 401, {
+        error: 'auth_session_required',
+        detail: `session rejected: ${code}`,
+      })
+      return true
+    }
+
+    const revoked = await revokeAllFamiliesOf(pool, who.sub)
+    // Immediately in this process; other replicas follow on the poll.
+    for (const sid of revoked) revokeNow(sid)
+    // The presenting session too, even if its row is gone -- as logout does.
+    revokeNow(who.sid)
+
+    void record(pool, {
+      kind: 'sign-out',
+      who: who.sub,
+      what: `everywhere; ${revoked.length} sessions`,
+      severity: 'attention',
+    })
+
+    json(res, 200, { logged_out: revoked.length })
+    return true
+  }
+
   // ─── Logout ────────────────────────────────────────────────────────────
   if (path === '/api/auth/logout' && req.method === 'POST') {
     const bearer = (req.headers['authorization'] as string | undefined) || ''
@@ -1111,6 +1200,7 @@ export async function handleAuthRoute(
     '/api/auth/widget': 'POST',
     '/api/auth/refresh': 'POST',
     '/api/auth/logout': 'POST',
+    '/api/auth/logout-all': 'POST',
     '/api/auth/pair/start': 'POST',
     '/api/auth/pair/claim': 'POST',
   }

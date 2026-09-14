@@ -20,6 +20,30 @@ const читать = (имя: string) =>
 // diff the guard judges. Same function, one name.
 const readFile = читать // cyrillic-ok: alias for new code
 
+/**
+ * AUTH ROUTES THAT MUST NOT BE PUBLIC -- NAMED, SO IT IS A CHOICE, NOT A MISS.
+ *
+ * /api/auth/logout-all revokes every session a person holds. It must not pass
+ * the guard with no credential at all: the guard admits only callers that
+ * already hold one, and the handler narrows that to a live Bearer. The check
+ * below still fails for any other handled route missing from PUBLIC_EXACT, and
+ * a separate test fails if a guarded route turns public or stops being handled.
+ */
+const GUARDED_AUTH_ROUTES = new Set(['/api/auth/logout-all'])
+
+describe('guarded auth routes', () => {
+  it('are handled by session-routes.ts and absent from the public list', async () => {
+    const routes = readFile('session-routes.ts')
+    const auth = readFile('auth.ts')
+    const { isPublic } = await import('./auth')
+    for (const p of GUARDED_AUTH_ROUTES) {
+      expect(routes, `${p} is not handled`).toContain(`path === '${p}'`)
+      expect(auth, `${p} is named in auth.ts`).not.toContain(`'${p}'`)
+      expect(isPublic({ url: p, method: 'POST' } as any), p).toBe(false)
+    }
+  })
+})
+
 describe('достижимость маршрутов аутентификации', () => {
   it('каждый обрабатываемый /api/auth/* путь публичен', () => {
     const routes = читать('session-routes.ts')
@@ -38,7 +62,7 @@ describe('достижимость маршрутов аутентификаци
     )
 
     const недостижимые = [...new Set(обрабатываемые)].filter(
-      p => !публичные.has(p)
+      p => !публичные.has(p) && !GUARDED_AUTH_ROUTES.has(p) // cyrillic-ok
     )
     expect(недостижимые).toEqual([])
   })
