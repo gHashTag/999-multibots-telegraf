@@ -174,6 +174,38 @@ describe('per-person not-before cutoff', () => {
     expect(() => session.verifyAppSession(before, now)).toThrow(
       /before sign-out everywhere/
     )
+
+    /*
+     * AND WHAT CAME AFTER THE CUTOFF STILL WORKS.
+     *
+     * Refusals alone cannot catch a unit slip: a cutoff read in milliseconds
+     * lies tens of thousands of years ahead and refuses the old credential
+     * just as well -- and then every new one, forever, since the row always
+     * looks recent. So the poll is also held to admitting credentials issued
+     * in the cutoff's own second and later.
+     */
+    const cutoff = now - 50
+    const token = (iat: number) =>
+      session.signAccessToken({
+        telegramId: String(ALICE),
+        sessionId: `issued-${iat}`,
+        deviceKeyThumbprint: '',
+        now: iat,
+      })
+    expect(() => session.verifyAppSession(token(cutoff), now)).not.toThrow()
+    expect(() => session.verifyAppSession(token(now), now)).not.toThrow()
+    expect(auth.verifyTelegramInitData(launchAt(ALICE, cutoff)).ok).toBe(true)
+    expect(auth.verifyTelegramInitData(launchAt(ALICE, cutoff - 1)).ok).toBe(
+      false
+    )
+    const game = session.signGameToken({
+      telegramId: String(ALICE),
+      audience: 'https://t27.ai',
+      now,
+    })
+    expect(session.verifyGameToken(game, 'https://t27.ai', now).sub).toBe(
+      String(ALICE)
+    )
   })
 
   it('a poll that read before a local mark does not erase it; a later poll retires it', async () => {

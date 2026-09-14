@@ -580,6 +580,20 @@ describe('POST /api/auth/logout-all', () => {
     expect(verifyTelegramInitData(seenBefore).reason).toMatch(
       /before sign-out everywhere/
     )
+
+    // The same poll admits what was issued at or after the cutoff: a unit slip
+    // in the upsert or the poll would refuse these for good.
+    const cutoff = db.notBefore.get(String(ALICE))!
+    const atCutoff = session.signAccessToken({
+      telegramId: String(ALICE),
+      sessionId: 'issued-at-the-cutoff',
+      deviceKeyThumbprint: '',
+      now: cutoff,
+    })
+    expect(() => session.verifyAppSession(atCutoff)).not.toThrow()
+    expect(verifyTelegramInitData(launch(ALICE, 'after-poll')).ok).toBe(true)
+    await signInWithInitData(ALICE, 'signs-in-after-poll')
+    expect(live(ALICE)).toEqual({ sessions: 1, tokens: 1 })
   })
 
   /*

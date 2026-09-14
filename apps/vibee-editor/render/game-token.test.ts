@@ -682,6 +682,19 @@ describe('verifyGameToken', () => {
     )
   })
 
+  it('refuses every game token in a process whose revocation state never synced', async () => {
+    // A fresh module: the poller has not run, so nothing says what is revoked
+    // or who signed out everywhere. That must refuse, not admit.
+    vi.resetModules()
+    const cold = await import('./session')
+    const t = cold.signGameToken({ telegramId: String(ALICE), audience: GAME })
+    expect(codeOf(() => cold.verifyGameToken(t, GAME))).toBe(
+      'revocation_unavailable'
+    )
+    cold.setRevokedSessions([])
+    expect(codeOf(() => cold.verifyGameToken(t, GAME))).toBe('accepted')
+  })
+
   it('fails closed when the revocation state is stale', () => {
     const t = session.signGameToken({
       telegramId: String(ALICE),
