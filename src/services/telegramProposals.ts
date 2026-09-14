@@ -44,8 +44,28 @@ export const PROPOSAL_NO = 'tgp:no:'
  * far above any real message written in a chat.
  */
 const SHOWN_CHARS = 3000
-/** A photo caption is capped at 1024 by Telegram; the head and price line need room. */
+/**
+ * One media caption -- photo, voice, video, round video, document -- is
+ * capped at 1024 by Telegram; the head and price line need room. Applies to
+ * every single-media kind since 2026-09-14, not only photos.
+ */
 const PHOTO_CHARS = 700
+/** An album's body is several captions joined; 1500 keeps the join readable. */
+const ALBUM_CHARS = 1500
+
+/**
+ * What a draft carries besides words. Mirrors the render side's media union:
+ * the server downloads and re-uploads voice, video and round videos itself,
+ * so the bot only ever needs the words -- never the bytes. Fetching a
+ * stranger's url to "preview" it would be the bot downloading foreign files.
+ */
+export type BotMedia =
+  | { kind: 'photo'; url: string }
+  | { kind: 'voice'; url: string; duration?: number }
+  | { kind: 'video'; url: string }
+  | { kind: 'video_note'; url: string; duration?: number }
+  | { kind: 'document'; url: string; fileName?: string }
+  | { kind: 'album'; urls: string[]; captions?: string[] }
 
 export interface Proposal {
   id: string
@@ -54,8 +74,12 @@ export interface Proposal {
   what?: string
   /** The recipient in words, from the server; shown beside the id only. */
   display?: string
-  /** A photo that IS the service; the card shows it before anything leaves. */
-  media?: { kind: 'photo'; url: string }
+  /** The thing itself when the draft is media; the card describes it in words. */
+  media?: BotMedia
+  /** Epoch ms: the press schedules the send for then, instead of now. */
+  scheduleAt?: number
+  /** Raw tool arguments the card may quote -- forward's source, message ids. */
+  args?: Record<string, unknown>
   /** Who is charged at the press, and how much. */
   charge?: { telegramId: string; op: string; tokens: number }
   /** The person in the base this draft is for, when the server knew one. */
@@ -197,6 +221,86 @@ async function post(
   }
 }
 
+const two = (n: number): string => String(n).padStart(2, '0')
+
+/*
+ * Wall-clock words for a scheduled send. Same-day is HH:MM; another day
+ * gains DD.MM, because "18:00" written about next week is a lie by
+ * omission. Server-local time, like every other clock the person sees.
+ */
+function clockOf(at: number): string {
+  const d = new Date(at)
+  const clock = `${two(d.getHours())}:${two(d.getMinutes())}`
+  const now = new Date()
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+  return sameDay
+    ? clock
+    : `${two(d.getDate())}.${two(d.getMonth() + 1)} ${clock}`
+}
+
+/*
+ * THE ASK NAMES THE ACT.
+ *
+ * "Отправить сообщение?" was for a while the only question the card knew,
+ * which for a round voice note or a five-photo album described neither the
+ * thing nor its shape. One verb per action and kind; an unknown action falls
+ * back to naming itself rather than pretending to be a message.
+ */
+function askOf(p: Proposal, isRu: boolean): string {
+  const media = p.media
+  if (p.action === 'forward')
+    return isRu
+      ? 'Переслать сообщения в Telegram?'
+      : 'Forward these messages on Telegram?'
+  if (p.action === 'read')
+    return isRu ? 'Отметить чат прочитанным?' : 'Mark this chat as read?'
+  if (p.action !== 'send')
+    return isRu
+      ? `Подтвердить «${p.action}» в Telegram?`
+      : `Confirm «${p.action}» on Telegram?`
+  switch (media?.kind) {
+    case 'photo':
+      return isRu
+        ? 'Отправить это фото в Telegram?'
+        : 'Send this photo on Telegram?'
+    case 'voice': {
+      const d = media.duration
+      const secs = d ? (isRu ? ` (~${d} сек)` : ` (~${d}s)`) : ''
+      return isRu
+        ? `Отправить это голосовое${secs} в Telegram?`
+        : `Send this voice message${secs} on Telegram?`
+    }
+    case 'video':
+      return isRu
+        ? 'Отправить это видео в Telegram?'
+        : 'Send this video on Telegram?'
+    case 'video_note':
+      return isRu
+        ? 'Отправить этот кружок (видеосообщение) в Telegram?'
+        : 'Send this round video message on Telegram?'
+    case 'document': {
+      const n = String(media.fileName ?? '').trim()
+      const name = n ? (isRu ? ` «${n}»` : ` "${n}"`) : ''
+      return isRu
+        ? `Отправить файл${name} в Telegram?`
+        : `Send this file${name} on Telegram?`
+    }
+    case 'album': {
+      const n = media.urls.length
+      return isRu
+        ? `Отправить альбом из ${n} фото в Telegram?`
+        : `Send an album of ${n} photos on Telegram?`
+    }
+    default:
+      return isRu
+        ? 'Отправить сообщение в Telegram?'
+        : 'Send this Telegram message?'
+  }
+}
+
 /**
  * The card a person confirms.
  *
@@ -214,9 +318,17 @@ export function proposalCard(
   markup: ReturnType<typeof Markup.inlineKeyboard>
   photo?: string
 } {
-  const photo = p.media?.kind === 'photo' ? p.media.url : undefined
-  const limit = photo ? PHOTO_CHARS : SHOWN_CHARS
-  const body = p.what ?? ''
+  const media = p.media
+  const photo = media?.kind === 'photo' ? media.url : undefined
+  const limit = !media
+    ? SHOWN_CHARS
+    : media.kind === 'album'
+      ? ALBUM_CHARS
+      : PHOTO_CHARS
+  // An album's words are its captions, joined; a text draft's words are `what`.
+  const body =
+    p.what ??
+    (media?.kind === 'album' ? (media.captions ?? []).join(' / ') : '')
   const cut = body.length > limit
   const shown = cut ? body.slice(0, limit) : body
 
@@ -262,20 +374,34 @@ export function proposalCard(
         ? `${p.target} (числовой id — не могу показать имя)`
         : `${p.target} (numeric id — no name to show)`
       : p.target
-  const ask = photo
-    ? isRu
-      ? 'Отправить это фото в Telegram?'
-      : 'Send this photo on Telegram?'
-    : isRu
-      ? 'Отправить сообщение в Telegram?'
-      : 'Send this Telegram message?'
+  const ask = askOf(p, isRu)
   // The price is on the card because the press is what charges it.
   const price = p.charge
     ? isRu
       ? `\nСпишется у получателя: ${p.charge.tokens} токенов`
       : `\nThe recipient will be charged: ${p.charge.tokens} tokens`
     : ''
-  const head = `${ask}\n\n${isRu ? 'Кому' : 'To'}: ${to}${price}`
+  // A forward's card names both ends: where from, where to.
+  const fromPeer =
+    p.action === 'forward' ? String(p.args?.fromPeer ?? '').trim() : ''
+  const fromLine = fromPeer
+    ? `\n${isRu ? 'Из' : 'From'}: ${fromPeer.slice(0, 64)}`
+    : ''
+  // Reading is visible to the other side -- the card must say so.
+  const warn =
+    p.action === 'read'
+      ? isRu
+        ? '\n⚠️ Собеседник увидит прочтение'
+        : '\n⚠️ The other person will see the read receipt'
+      : ''
+  const when = p.scheduleAt
+    ? isRu
+      ? `\nУйдёт в ${clockOf(p.scheduleAt)} (можно отменить до)`
+      : `\nWill be sent at ${clockOf(p.scheduleAt)} (cancellable until then)`
+    : ''
+  const label =
+    p.action === 'read' ? (isRu ? 'Чат' : 'Chat') : isRu ? 'Кому' : 'To'
+  const head = `${ask}\n\n${label}: ${to}${fromLine}${warn}${price}${when}`
   const tail = cut
     ? isRu
       ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`
