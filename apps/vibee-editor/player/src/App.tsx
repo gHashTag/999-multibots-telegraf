@@ -16,6 +16,7 @@ import {
   RouteMemory,
   LaunchRedirect,
 } from '@/components/Navigation/RouteMemory'
+import { EmbedBridge } from '@/components/Navigation/EmbedBridge'
 import './App.css'
 
 // Lazy load pages for code splitting
@@ -322,6 +323,9 @@ function App() {
                 {/* Порядок важен: TelegramProvider первым, чтобы диплинк по
                     start_param отработал раньше восстановления экрана. */}
                 <RouteMemory />
+                {/* Tells the game around the TRI frame which route this is;
+                    renders nothing and does nothing outside embed. */}
+                <EmbedBridge />
                 <TelegramTabBar />
                 <ToastContainer />
               </>

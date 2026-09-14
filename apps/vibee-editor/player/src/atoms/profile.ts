@@ -9,6 +9,7 @@ import { STORAGE_KEYS } from '@vibee/atoms'
 import { userAtom } from './user'
 import type { FeedTemplate } from './feed'
 import { API_BASE } from '../config'
+import { sessionStore } from '../lib/framedSession'
 // authHeaders вызывался БЕЗ импорта: свободный идентификатор в ES-модуле —
 // это ReferenceError при первом же исполнении строки. Синк профиля из
 // Telegram падал всегда, а вызывающий гасил это через .catch(() => {}).
@@ -76,10 +77,11 @@ export const profileLoadingAtom = atom<boolean>(false)
 export const profileErrorAtom = atom<string | null>(null)
 
 // User's own profile (cached in localStorage)
+// The tab's sessionStorage, or memory inside a frame by another site.
 export const myProfileAtom = atomWithStorage<UserProfile | null>(
   STORAGE_KEYS.myProfile,
   null,
-  createJSONStorage(() => window.sessionStorage)
+  createJSONStorage(() => sessionStore())
 )
 
 // Followers list for current profile

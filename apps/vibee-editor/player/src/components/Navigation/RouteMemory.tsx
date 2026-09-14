@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAtomValue } from 'jotai';
-import { STORAGE_KEYS } from '@vibee/atoms';
-import { myProfileAtom } from '@/atoms';
-import { getWebApp } from '@/lib/telegram';
+import { useEffect } from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
+import { useAtomValue } from 'jotai'
+import { STORAGE_KEYS } from '@vibee/atoms'
+import { myProfileAtom } from '@/atoms'
+import { getWebApp } from '@/lib/telegram'
+import { IS_EMBED } from '@/lib/embed'
 
 /**
  * Приложение открывается там, где человека прервали.
@@ -36,24 +37,35 @@ const RESTORABLE = [
   /^\/blog(\/|$)/,
   /^\/learn(\/|$)/,
   /^\/profile(\/|$)/,
-];
+]
 
 function isRestorable(path: string): boolean {
-  return RESTORABLE.some(re => re.test(path));
+  return RESTORABLE.some(re => re.test(path))
 }
 
 /** Куда уходит корень, когда памяти нет. */
-const HOME = '/feed';
+const HOME = '/feed'
 
 /**
  * Снято ДО монтирования React — по той же причине, что и LAUNCH_PATH в
  * TelegramProvider: к моменту эффектов путь уже переписан редиректом, а
  * записыватель ниже успел бы положить в хранилище «/feed» поверх запомненного.
  */
-const REMEMBERED =
-  typeof window !== 'undefined'
-    ? window.localStorage.getItem(STORAGE_KEYS.lastRoute)
-    : null;
+const REMEMBERED = readRemembered()
+
+/**
+ * A third-party frame (the game's TRI tab) may have no storage at all: a
+ * browser that blocks third-party storage throws from the `localStorage`
+ * getter itself, and a throw here, at module load, kills the whole bundle.
+ */
+function readRemembered(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage.getItem(STORAGE_KEYS.lastRoute)
+  } catch {
+    return null
+  }
+}
 
 /**
  * Элемент маршрута «/».
@@ -66,35 +78,43 @@ const REMEMBERED =
  */
 export function LaunchRedirect() {
   // Прямая ссылка сильнее памяти: человек попросил конкретный экран.
-  const startParam = getWebApp()?.initDataUnsafe?.start_param;
+  const startParam = getWebApp()?.initDataUnsafe?.start_param
+  // Inside the game's TRI frame the game chose the screen; the remembered one
+  // belongs to the real app.
   const target =
-    !startParam && REMEMBERED && isRestorable(REMEMBERED) ? REMEMBERED : HOME;
+    !IS_EMBED && !startParam && REMEMBERED && isRestorable(REMEMBERED)
+      ? REMEMBERED
+      : HOME
 
-  return <Navigate to={target} replace />;
+  return <Navigate to={target} replace />
 }
 
 /** Запоминает текущий экран. Ничего не рендерит. */
 export function RouteMemory() {
-  const location = useLocation();
-  const myProfile = useAtomValue(myProfileAtom);
+  const location = useLocation()
+  const myProfile = useAtomValue(myProfileAtom)
 
   useEffect(() => {
-    const path = location.pathname;
-    const username = myProfile?.username;
+    // Screens opened inside the game's TRI frame are not where the person
+    // left the real app. The frame's localStorage is the real app's (same
+    // site on t27.ai, same origin under /game/), so nothing is written.
+    if (IS_EMBED) return
+    const path = location.pathname
+    const username = myProfile?.username
 
     // `/profile` живёт как редирект на `/:username`, поэтому запоминаем
     // канонический `/profile`: чужой профиль возвращать незачем, а свой по
     // прямому пути сломается, если username сменится.
-    const toStore = username && path === `/${username}` ? '/profile' : path;
+    const toStore = username && path === `/${username}` ? '/profile' : path
 
-    if (!isRestorable(toStore)) return;
+    if (!isRestorable(toStore)) return
     try {
-      window.localStorage.setItem(STORAGE_KEYS.lastRoute, toStore);
+      window.localStorage.setItem(STORAGE_KEYS.lastRoute, toStore)
     } catch {
       // Приватный режим или переполненная квота. Потеря памяти о вкладке —
       // не повод ронять навигацию.
     }
-  }, [location.pathname, myProfile?.username]);
+  }, [location.pathname, myProfile?.username])
 
-  return null;
+  return null
 }

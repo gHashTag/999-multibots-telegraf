@@ -39,7 +39,23 @@ if (import.meta.env.DEV) {
 const STORAGE_VERSION = '4'
 const VERSION_KEY = 'vibee-storage-version'
 
-const storedVersion = localStorage.getItem(VERSION_KEY)
+/**
+ * A third-party frame (the game's TRI tab on t27.ai) may have no storage at
+ * all: a browser that blocks third-party storage throws SecurityError from the
+ * `localStorage` getter itself. That throw here would kill the bundle before
+ * anything mounts. Storage that is not there has nothing to reset.
+ */
+function localStorageOrNull(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+const storedVersion = localStorageOrNull()
+  ? localStorage.getItem(VERSION_KEY)
+  : STORAGE_VERSION
 if (storedVersion !== STORAGE_VERSION) {
   // Clear all VIBEE storage keys so new defaults take effect
   /**

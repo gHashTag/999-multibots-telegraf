@@ -9,6 +9,7 @@ import { STORAGE_KEYS } from '@vibee/atoms'
 import { API_BASE } from '../config'
 import { authHeaders } from '../lib/apiFetch'
 import { logoutAppSession } from '../lib/appSession'
+import { sessionStore } from '../lib/framedSession'
 
 // Import shared types from @vibee/atoms
 import type {
@@ -21,11 +22,12 @@ import type {
 // Re-export types for backward compatibility
 export type { TelegramUser, RenderQuota, SubscriptionInfo, InstagramStatus }
 
-// Persisted user state
+// Persisted user state: the tab's sessionStorage, or memory inside a frame by
+// another site, the same store as the Bearer session (lib/framedSession.ts).
 export const userAtom = atomWithStorage<TelegramUser | null>(
   STORAGE_KEYS.user,
   null,
-  createJSONStorage(() => window.sessionStorage)
+  createJSONStorage(() => sessionStore())
 )
 
 // Render quota (not persisted - fetched from API)

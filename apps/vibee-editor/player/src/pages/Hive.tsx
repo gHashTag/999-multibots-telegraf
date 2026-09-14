@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
 import { queenPage } from '@/lib/hive'
+import { IS_EMBED } from '@/lib/embed'
 import './Hive.css'
 
 /**
@@ -55,6 +56,22 @@ export default function HivePage() {
   const { lang, t } = useLanguage()
   const [loaded, setLoaded] = useState(false)
   const page = queenPage(lang)
+
+  // Inside the game's TRI frame the hive IS the page around this frame.
+  // Framing it again would nest game > app > game > app without end, so no
+  // path that reaches /hive there (the welcome exit, a start_param, a typed
+  // link) gets a frame.
+  if (IS_EMBED) {
+    return (
+      <div className="hive-page">
+        <div className="hive-stage">
+          <p className="hive-loading hive-inside-game">
+            {t('hive.insideGame')}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="hive-page">

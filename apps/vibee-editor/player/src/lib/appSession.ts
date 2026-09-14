@@ -1,4 +1,5 @@
 import { API_BASE } from '../config'
+import { sessionStore, type SessionStore } from './framedSession'
 
 const ACCESS_KEY = 'trinity.app.session.access'
 const REFRESH_KEY = 'trinity.app.session.refresh'
@@ -23,8 +24,9 @@ export interface AppSession {
   }
 }
 
-const storage = () =>
-  typeof window === 'undefined' ? null : window.sessionStorage
+// The tab's sessionStorage, or this document's memory inside a frame by
+// another site or where the browser refuses storage (lib/framedSession.ts).
+const storage = (): SessionStore => sessionStore()
 
 export function getAppAccessToken(): string {
   return storage()?.getItem(ACCESS_KEY) || ''
@@ -108,7 +110,11 @@ export async function refreshAppSession(): Promise<AppSession> {
     if (response.status === 409 && body.error === 'auth_refresh_raced') {
       await new Promise(готово => setTimeout(готово, 400))
       const свежий = storage()?.getItem(REFRESH_KEY) || ''
-      if (свежий && свежий !== refreshToken && generation === sessionGeneration) {
+      if (
+        свежий &&
+        свежий !== refreshToken &&
+        generation === sessionGeneration
+      ) {
         const access = getAppAccessToken()
         const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
         if (access) {
@@ -206,7 +212,9 @@ export async function exchangeTelegramLaunch(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ init_data: initData }),
     })
-    const body = (await response.json().catch(() => ({}))) as Partial<AppSession>
+    const body = (await response
+      .json()
+      .catch(() => ({}))) as Partial<AppSession>
     if (
       !response.ok ||
       typeof body.access_token !== 'string' ||
