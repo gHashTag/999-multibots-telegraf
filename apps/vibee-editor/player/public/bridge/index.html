@@ -1,0 +1,20 @@
+<!doctype html>
+<!--
+  TRI identity bridge: https://app.t27.ai/bridge, framed by the game on
+  https://t27.ai when the game runs top-level. No React, no Telegram script,
+  no third-party code. nginx serves it with its own strict policy (see the
+  bridge locations in nginx/default.conf.template). The page is empty until
+  the game asks and this tab has a session without consent yet: then the
+  one button below is the whole page. Behaviour: bridge.js.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>TRI</title>
+    <link rel="stylesheet" href="/bridge/bridge.css" />
+  </head>
+  <body>
+    <button id="tri-continue" type="button" hidden>Continue with TRI</button>
+    <script src="/bridge/bridge.js"></script>
+  </body>
+</html>

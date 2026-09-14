@@ -58,7 +58,8 @@ hdr() { # file, name
 
 PATHS=(/lipsync /assets /icons /backgrounds /healthz / /feed /t27_dev
   /lipsync/captions.json /nope.json /index.html '/profile?tab=agent'
-  '/feed?post=abc' /manifest.json /lipsync/lipsync.mp4)
+  '/feed?post=abc' /manifest.json /lipsync/lipsync.mp4
+  /bridge /bridge/bridge.js)
 
 echo "-- $BASE --"
 i=0
@@ -130,6 +131,16 @@ rows "SPA routes are 200 text/html, framable by https://web.telegram.org" "$(awk
   }' "$TMP/table")"
 
 rows "/nope.json is 404, not the SPA fallback" "$(awk -F'\t' '$1 == "/nope.json" && $2 != 404' "$TMP/table")"
+
+# The identity bridge the game frames (player/public/bridge/) has its own
+# policy, compared whole: frame-ancestors exactly https://t27.ai, never 'self'.
+# A missing location shows as the SPA fallback's CSP, and a script cached as
+# immutable would keep an old bridge alive for a year.
+BRIDGE_CSP="default-src 'none'; script-src 'self'; connect-src https://vibee-render-production.up.railway.app; style-src 'self'; frame-ancestors https://t27.ai"
+rows "/bridge and /bridge/bridge.js carry exactly the bridge policy, no-store" "$(awk -F'\t' -v csp="csp=$BRIDGE_CSP" '
+  ($1 == "/bridge" && $6 !~ /^ct=text\/html/) ||
+  ($1 == "/bridge/bridge.js" && $6 !~ /^ct=(application|text)\/javascript/) ||
+  (($1 == "/bridge" || $1 == "/bridge/bridge.js") && ($2 != 200 || $4 != csp || $5 != "cc=no-store"))' "$TMP/table")"
 
 DIFFS=0
 if [ -n "$COMPARE" ]; then

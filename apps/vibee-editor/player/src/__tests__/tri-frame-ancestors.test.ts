@@ -17,7 +17,13 @@ const TEMPLATE = path.resolve(__dirname, '../../../nginx/default.conf.template')
 
 /** Every problem with the policy lines, as text; empty means the file is right. */
 function problems(conf: string): string[] {
+  // The bridge locations carry their own policy, frame-ancestors https://t27.ai
+  // only, pinned by bridge-nginx.test.ts.
   const lines = conf
+    .replace(
+      /\n {4}location (= \/bridge|\^~ \/bridge\/) \{\n[\s\S]*?\n {4}\}\n/g,
+      '\n'
+    )
     .split('\n')
     .map(l => l.trim())
     .filter(l => /^add_header\s+Content-Security-Policy\b/.test(l))
