@@ -6,6 +6,14 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Directory redirects (/lipsync -> /lipsync/) must be relative. nginx builds
+    # them from the scheme it sees and the port it listens on, and behind
+    # Railway's TLS edge that is http:// and ${PORT}: measured 2026-09-14,
+    # https://app.t27.ai/lipsync, /assets, /icons and /backgrounds all answered
+    # 301 -> http://app.t27.ai:8080/..., which times out. A relative Location
+    # keeps the browser on https://app.t27.ai.
+    absolute_redirect off;
+
     # Telegram Web (web.telegram.org) runs a Mini App inside an iframe.
     # X-Frame-Options DENY/SAMEORIGIN would render the app blank on Web+Desktop,
     # so frame embedding is allowed for Telegram origins only.
