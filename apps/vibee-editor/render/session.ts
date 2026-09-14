@@ -250,10 +250,17 @@ let revoked = new Set<string>()
  *
  * Revoking every family covers refresh tokens and the access tokens of those
  * families. It does not cover a credential that exists outside them: Mini App
- * initData, valid for 24 hours and able to mint a new family, and anything
- * minted by a sign-in that raced the revocation. So a credential issued before
- * the cutoff is refused by its issue time: an access token by iat here,
- * initData by auth_date (auth.ts verifyTelegramInitData), a game token by iat.
+ * initData, valid for 24 hours and able to mint a new family. So a credential
+ * issued before the cutoff is refused by its issue time: an access token by iat
+ * here, initData by auth_date (auth.ts verifyTelegramInitData), a game token by
+ * iat.
+ *
+ * This map does NOT stop what a sign-in mints: a session minted after the
+ * cutoff carries iat >= cutoff and passes here. Minting is stopped in the
+ * database instead -- every minting route checks the stored cutoff against
+ * the credential it rests on after its row is committed (session-store.ts
+ * signedOutSince). That covers a replica that has not polled yet and a
+ * sign-in that raced the revocation.
  *
  * Seconds, compared with `<`: a credential issued in the same second as the
  * cutoff passes. Sessions that existed at that moment are revoked by sid anyway.

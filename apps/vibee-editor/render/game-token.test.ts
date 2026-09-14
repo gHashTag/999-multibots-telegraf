@@ -319,6 +319,43 @@ describe('POST /api/auth/game-token', () => {
     expect(forged.body.error).toBe('game_token_credential_rejected')
   })
 
+  it('refuses initData issued before sign-out everywhere when only the database knows the cutoff', async () => {
+    process.env.LAUNCH_BOT_IDS = BOT_ID
+    const initData = launch(ALICE)
+    const asked: unknown[][] = []
+    const cutoffPool = () => {
+      const client = {
+        async query(sql: string, params: unknown[] = []) {
+          const s = sql.replace(/\s+/g, ' ')
+          if (
+            s.includes(
+              'FROM app_user_not_before WHERE telegram_id = $1 AND not_before > to_timestamp($2)'
+            )
+          ) {
+            asked.push(params)
+            return { rows: [{}] }
+          }
+          return { rows: [] as any[] }
+        },
+        release() {},
+      }
+      return { ...client, connect: async () => client }
+    }
+    const res = response()
+    await handleAuthRoute(
+      request({ origin: GAME, 'x-telegram-init-data': initData }),
+      res,
+      () => cutoffPool() as any
+    )
+    expect(res.status, JSON.stringify(res.body)).toBe(401)
+    expect(res.body.detail).toMatch(/before sign-out everywhere/)
+    expect(res.body).not.toHaveProperty('game_token')
+    // Asked about this person, with the launch's auth_date in seconds.
+    expect(asked).toEqual([
+      [String(ALICE), Number(new URLSearchParams(initData).get('auth_date'))],
+    ])
+  })
+
   it('rate-limits per telegram_id, not globally', async () => {
     const auth = bearerOf(ALICE)
     for (let i = 0; i < 10; i++) {

@@ -208,6 +208,15 @@ function пул() {
         if (!current) fakeRows.push(row)
         return { rows: [{ telegram_id: params[0] }] }
       }
+      // The sign-out-everywhere cutoff read after a mint. Nothing in this file
+      // presses sign out everywhere, so no cutoff row exists.
+      if (
+        s.startsWith('SELECT 1 FROM app_user_not_before') ||
+        s.startsWith(
+          'SELECT 1 FROM app_pairing_codes c JOIN app_user_not_before'
+        )
+      )
+        return { rows: [] }
       // Молчаливый ноль строк на непонятом запросе превращает сломанный тест в
       // проходящий. Лучше упасть и назвать запрос.
       throw new Error(`пул не знает запроса: ${s.slice(0, 90)}`)

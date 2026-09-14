@@ -497,6 +497,55 @@ export async function setNotBefore(
 }
 
 /**
+ * Whether the person pressed "sign out everywhere" after `issuedAtSeconds`,
+ * the moment the credential a sign-in rests on was issued (initData or Login
+ * Widget auth_date). Read from the database, not from this process's memory,
+ * which another replica fills only on its next poll.
+ *
+ * Callers that mint ask AFTER their session or code row is committed, and
+ * revoke what they minted when this is true. logout-all commits the cutoff
+ * before its revocation UPDATE, so a check that starts after the insert either
+ * sees the cutoff, or started before the cutoff was committed -- and then the
+ * revocation UPDATE, which starts later still, sees the inserted row and
+ * revokes it. A check made before the insert would leave a window: an insert
+ * that lands after the revocation. Assumes Postgres READ COMMITTED (the
+ * default) and single-statement writes.
+ */
+export async function signedOutSince(
+  pool: Pool,
+  telegramId: string,
+  issuedAtSeconds: number
+): Promise<boolean> {
+  const r = await pool.query(
+    `SELECT 1 FROM app_user_not_before
+      WHERE telegram_id = $1 AND not_before > to_timestamp($2)
+      LIMIT 1`,
+    [telegramId, issuedAtSeconds]
+  )
+  return r.rows.length > 0
+}
+
+/**
+ * The same question for a pairing code: was it created before its owner's
+ * cutoff? A code is issued only after pair/start's own check, so its creation
+ * time stands in for the launch that issued it. Asked by pair/claim after the
+ * session row is committed, for the reason given above.
+ */
+export async function pairingCodeSignedOut(
+  pool: Pool,
+  code: string
+): Promise<boolean> {
+  const r = await pool.query(
+    `SELECT 1 FROM app_pairing_codes c
+       JOIN app_user_not_before n ON n.telegram_id = c.telegram_id
+      WHERE c.code_hash = $1 AND n.not_before > c.created_at
+      LIMIT 1`,
+    [digest(code)]
+  )
+  return r.rows.length > 0
+}
+
+/**
  * Refresh the in-memory revoked set from the database.
  *
  * Deliberately does NOT clear rows: a session revoked long ago has an expired

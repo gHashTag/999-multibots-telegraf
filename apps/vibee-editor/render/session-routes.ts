@@ -52,6 +52,8 @@ import {
   refreshStore,
   revokeAllFamiliesOf,
   setNotBefore,
+  signedOutSince,
+  pairingCodeSignedOut,
   issuePairingCode,
   claimPairingCode,
   PAIRING,
@@ -106,8 +108,8 @@ async function mintSession(
    * одноразовый по своей записи, вторая — по первичному ключу
    * `app_widget_assertions`.
    */
-  отпечатокЗапуска?: string
-): Promise<Record<string, unknown>> {
+  отпечатокЗапуска?: string // cyrillic-ok: existing parameter
+): Promise<Minted> {
   let sessionId: string = crypto.randomUUID()
   let familyId: string = crypto.randomUUID()
   const dkt = deviceThumbprint(body)
@@ -144,14 +146,17 @@ async function mintSession(
         [refresh.hash, familyId, sessionId, refresh.expiresAt.toISOString()]
       )
       return {
-        access_token: signAccessToken({
-          telegramId,
-          sessionId,
-          deviceKeyThumbprint: dkt,
-        }),
-        refresh_token: refresh.token,
-        expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
-        telegram_id: telegramId,
+        response: {
+          access_token: signAccessToken({
+            telegramId,
+            sessionId,
+            deviceKeyThumbprint: dkt,
+          }),
+          refresh_token: refresh.token,
+          expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+          telegram_id: telegramId,
+        },
+        sessionId,
       }
     }
   }
@@ -180,15 +185,57 @@ async function mintSession(
   }
 
   return {
-    access_token: signAccessToken({
-      telegramId,
-      sessionId,
-      deviceKeyThumbprint: dkt,
-    }),
-    refresh_token: refresh.token,
-    expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
-    telegram_id: telegramId,
+    response: {
+      access_token: signAccessToken({
+        telegramId,
+        sessionId,
+        deviceKeyThumbprint: dkt,
+      }),
+      refresh_token: refresh.token,
+      expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+      telegram_id: telegramId,
+    },
+    sessionId,
   }
+}
+
+/** What a sign-in minted: the JSON for the client, and the session it made. */
+type Minted = { response: Record<string, unknown>; sessionId: string }
+
+/**
+ * Undo a session this request just minted, because the person signed out
+ * everywhere after the credential it rests on was issued (session-store.ts
+ * signedOutSince). In the database, and at once in this process.
+ */
+async function revokeMinted(
+  pool: Pick<PoolClient, 'query'>,
+  sessionId: string
+): Promise<void> {
+  await pool.query(
+    `UPDATE app_sessions SET revoked_at = now()
+      WHERE id = $1 AND revoked_at IS NULL`,
+    [sessionId]
+  )
+  await pool.query(
+    `UPDATE app_refresh_tokens SET revoked_at = now()
+      WHERE session_id = $1 AND revoked_at IS NULL`,
+    [sessionId]
+  )
+  revokeNow(sessionId)
+}
+
+function refuseSignedOut(res: ServerResponse): true {
+  json(res, 401, {
+    error: 'auth_signed_out_everywhere',
+    detail:
+      'this sign-in rests on a credential issued before sign-out everywhere; sign in again',
+  })
+  return true
+}
+
+/** auth_date of an initData string that verifyTelegramInitData accepted. */
+function authDateOf(initData: string): number {
+  return Number(new URLSearchParams(initData).get('auth_date'))
 }
 
 class StaleWidgetProfileAssertion extends Error {}
@@ -365,7 +412,7 @@ async function mintWidgetSession(
   pool: Pool,
   user: VerifiedTelegramWidgetUser,
   body: Record<string, unknown>
-): Promise<Record<string, unknown>> {
+): Promise<Minted> {
   const assertion = String(body.hash || '')
   const assertionHash = digest(`telegram-widget:${assertion}`)
   const telegramId = String(user.id)
@@ -605,22 +652,25 @@ export async function handleAuthRoute(
      * showed the rare code sign-ins and hid the main path. "Quiet" meant both
      * "all is well" and "nobody came".
      */
+    const minted = await mintSession(
+      pool,
+      telegramId,
+      body,
+      digest(`telegram-initdata:${initData}`)
+    )
+    // After the insert, from the database: see signedOutSince.
+    if (await signedOutSince(pool, telegramId, authDateOf(initData))) {
+      await revokeMinted(pool, minted.sessionId)
+      return refuseSignedOut(res)
+    }
+
     void record(pool, {
       kind: 'sign-in',
       who: telegramId,
       what: `${safeDeviceName(body.device_name)}; ${signedByBot(v.botId)}`,
     })
 
-    json(
-      res,
-      200,
-      await mintSession(
-        pool,
-        telegramId,
-        body,
-        digest(`telegram-initdata:${initData}`)
-      )
-    )
+    json(res, 200, minted.response)
     return true
   }
 
@@ -661,7 +711,14 @@ export async function handleAuthRoute(
     }
     try {
       const session = await mintWidgetSession(pool, verified.user, body)
-      json(res, 200, { ...session, telegram_user: verified.user })
+      // After COMMIT, so the check cannot run ahead of its own session row.
+      if (
+        await signedOutSince(pool, verified.telegramId, verified.user.auth_date)
+      ) {
+        await revokeMinted(pool, session.sessionId)
+        return refuseSignedOut(res)
+      }
+      json(res, 200, { ...session.response, telegram_user: verified.user })
     } catch (error) {
       if (
         error instanceof StaleWidgetProfileAssertion ||
@@ -737,6 +794,16 @@ export async function handleAuthRoute(
       telegramId,
       mintPairingCode
     )
+    // After the insert, from the database: see signedOutSince. A code minted
+    // here from a launch older than the cutoff is spent before anyone sees it.
+    if (await signedOutSince(pool, telegramId, authDateOf(initData))) {
+      await pool.query(
+        `UPDATE app_pairing_codes SET consumed_at = now()
+          WHERE code_hash = $1 AND consumed_at IS NULL`,
+        [digest(code)]
+      )
+      return refuseSignedOut(res)
+    }
     // The code is NOT logged -- it is a live credential for 120 seconds. Who
     // it was issued to and for how long is enough to tie an issue to the
     // claim that follows from the same telegram_id.
@@ -859,7 +926,13 @@ export async function handleAuthRoute(
       `🔑 [pair] claim ПРИНЯТ telegram_id=${outcome.telegramId}, ` +
         `устройство=${String(body.device_name ?? 'без имени').slice(0, 40)}`
     )
-    const сессия = await mintSession(pool, outcome.telegramId, body)
+    const minted = await mintSession(pool, outcome.telegramId, body)
+    // After the insert, from the database: see pairingCodeSignedOut. Closes a
+    // claim that spent its code before logout-all and inserts its session after.
+    if (await pairingCodeSignedOut(pool, code)) {
+      await revokeMinted(pool, minted.sessionId)
+      return refuseSignedOut(res)
+    }
 
     /*
      * СООБЩАЕМ В TELEGRAM — И НЕ ЖДЁМ ОТПРАВКИ.
@@ -898,7 +971,7 @@ export async function handleAuthRoute(
       severity: 'attention',
     })
 
-    json(res, 200, сессия)
+    json(res, 200, minted.response)
     return true
   }
 
@@ -1119,6 +1192,15 @@ export async function handleAuthRoute(
         })
         return true
       }
+      // A replica that has not polled yet admits a launch older than the
+      // cutoff; the database does not.
+      if (await signedOutSince(pool, id, authDateOf(initData))) {
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: 'initData rejected: issued before sign-out everywhere',
+        })
+        return true
+      }
       telegramId = id
     } else {
       json(res, 401, {
@@ -1196,7 +1278,13 @@ export async function handleAuthRoute(
      * App launch string: it stays valid for 24 hours and would mint a new
      * family right after this call. Anything of this person's issued before
      * `cutoff` is now refused (session.ts `notBefore`): in this process at
-     * once, on other replicas from the next poll.
+     * once, on other replicas from the next poll. Every route that mints a
+     * session, a pairing code or a game token also reads the cutoff from the
+     * database (session-store.ts signedOutSince), so a replay on a replica
+     * that has not polled yet mints nothing that outlives that poll.
+     *
+     * Order matters for that check: the cutoff is committed BEFORE the
+     * revocation UPDATE below.
      */
     const cutoff = Math.floor(Date.now() / 1000)
     await setNotBefore(pool, who.sub, cutoff)
