@@ -51,6 +51,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.doUnmock('telegram')
   vi.doUnmock('./src/agent/telegram-tools')
   vi.doUnmock('./src/agent/billing-shared')
   vi.doUnmock('./src/agent/crm-touches')
@@ -416,10 +417,24 @@ class FakeSendingClient {
       failNumericUntilDialogs?: boolean
     },
     private readonly timeline: string[],
-    private readonly files: Array<Record<string, unknown>>
+    private readonly files: Array<Record<string, unknown>>,
+    private readonly texts: Array<Record<string, unknown>> = [],
+    private readonly invoked: unknown[] = []
   ) {}
-  async sendMessage(to: string) {
+  async sendMessage(to: string, opts: Record<string, unknown> = {}) {
     this.timeline.push(`sendMessage:${to}`)
+    this.texts.push(opts)
+  }
+  /*
+   * GramJS' raw-request door: the typing signal goes through `invoke`, so
+   * the fake carries the same door the real client has. Recorded, not
+   * interpreted: what matters is THAT it fired and in what order.
+   */
+  async invoke(request: unknown) {
+    this.invoked.push(request)
+    this.timeline.push(
+      `invoke:${String((request as { className?: string }).className)}`
+    )
   }
   async sendFile(to: string, opts: Record<string, unknown>) {
     // `this` IS the client, exactly as in GramJS. A detached call arrives
@@ -442,12 +457,28 @@ class FakeSendingClient {
 }
 
 function fakeClient(
-  o: { failFile?: string; failNumericUntilDialogs?: boolean } = {},
+  o: {
+    failFile?: string
+    failNumericUntilDialogs?: boolean
+    typing?: boolean
+  } = {},
   timeline: string[] = []
 ) {
   const files: Array<Record<string, unknown>> = []
-  const client = new FakeSendingClient(o, timeline, files)
-  return { client, timeline, files }
+  const texts: Array<Record<string, unknown>> = []
+  const invoked: unknown[] = []
+  const client = new FakeSendingClient(o, timeline, files, texts, invoked)
+  if (!o.typing) {
+    /*
+     * The default fake is an OLDER client: no raw-request door. The typing
+     * signal is cosmetic, so `execute` must skip it AND the pause with it —
+     * otherwise every unrelated money test below would wait out TYPING_MS
+     * for a signal it never asked about. Tests that care pass `typing: true`
+     * and get the door (plus the pause, under fake timers).
+     */
+    Object.defineProperty(client, 'invoke', { value: undefined })
+  }
+  return { client, timeline, files, texts, invoked }
 }
 
 async function executor(
@@ -485,8 +516,8 @@ async function executor(
       return 'recorded'
     },
   }))
-  const { execute } = await import('./src/agent/tg-proposals')
-  return { execute, timeline, touches, journal }
+  const { execute, TYPING_MS } = await import('./src/agent/tg-proposals')
+  return { execute, timeline, touches, journal, TYPING_MS }
 }
 const pool = { query: async () => ({ rows: [] }) }
 const draft = (over: Record<string, unknown> = {}) => ({
@@ -904,6 +935,142 @@ describe('execute: media kinds reach sendFile shaped for their kind', () => {
     )
     expect(r.done).toBe(false)
     expect((r as { why: string }).why).toContain('скачать')
+    expect(f.files).toEqual([])
+  })
+})
+
+/**
+ * TYPING AND SCHEDULE (owner decisions, 2026-09-14): "печатает…" shows
+ * automatically before a send, and a send may be named a time instead of now.
+ *
+ * The two are one block of behaviour because they exclude each other: a
+ * scheduled send fires later, with nobody watching, so signalling "typing"
+ * at press time would be a lie -- the person is not typing at HH:MM, the
+ * clock is. Everything here is cosmetic until the send itself, which is why
+ * typing can fail without killing the send, and why its absence (an old
+ * client, a fake) must not change the wire behaviour at all.
+ */
+describe('execute: typing before the act, schedule instead of now', () => {
+  it('a send signals typing once, between the charge and the send', async () => {
+    /*
+     * A local client, not the shared fake: this test needs TIME STAMPS, and
+     * under fake timers Date.now() only moves when the clock does. The
+     * prologue (module loads, the charge) crosses real event-loop ticks, so
+     * mid-flight assertions race it; asserting afterwards, on one shared
+     * timeline plus stamps, is deterministic however long the prologue took.
+     *
+     * `telegram` is mocked so the SetTyping request is cheap to build and
+     * inspect; the real package is not what is under test here.
+     */
+    class SetTyping {
+      className = 'messages.SetTyping'
+      constructor(public readonly payload: Record<string, unknown>) {}
+    }
+    class TypingAction {
+      className = 'SendMessageTypingAction'
+    }
+    vi.doMock('telegram', () => ({
+      Api: { messages: { SetTyping }, SendMessageTypingAction: TypingAction },
+    }))
+    class TypingClient {
+      readonly marks: Array<[string, number]> = []
+      lastRequest: unknown = null
+      constructor(private readonly tl: string[]) {}
+      private stamp(what: string) {
+        this.tl.push(what)
+        this.marks.push([what, Date.now()])
+      }
+      async getDialogs() {
+        this.stamp('getDialogs')
+      }
+      async invoke(request: unknown) {
+        this.lastRequest = request
+        this.stamp(
+          `invoke:${String((request as { className?: string }).className)}`
+        )
+      }
+      async sendMessage() {}
+      async sendFile(to: string) {
+        this.stamp(`sendFile:${to}`)
+      }
+      async disconnect() {
+        this.stamp('disconnect')
+      }
+    }
+    vi.useFakeTimers()
+    try {
+      const tl: string[] = []
+      const client = new TypingClient(tl)
+      const { execute, TYPING_MS } = await executor(client as never, {}, tl)
+      const started = execute(draft(), { telegramId: OWNER, pool })
+      // The prologue crosses real ticks; the async timer advance yields to
+      // them, so the whole chain settles within this one call.
+      await vi.advanceTimersByTimeAsync(TYPING_MS + 5)
+      const r = await started
+      expect(r.done, (r as { why?: string }).why).toBe(true)
+      const at = (what: string) => tl.findIndex(t => t.startsWith(what))
+      expect(at('spend:')).toBeGreaterThanOrEqual(0)
+      expect(at('invoke:')).toBeGreaterThan(at('spend:'))
+      expect(at('sendFile:')).toBeGreaterThan(at('invoke:'))
+      // The pause is real: the send's stamp sits a full TYPING_MS after the
+      // signal's, so the recipient sees the typing indicator first.
+      const invokedAt = client.marks.find(([w]) => w.startsWith('invoke:'))![1]
+      const sentAt = client.marks.find(([w]) => w.startsWith('sendFile:'))![1]
+      expect(sentAt - invokedAt).toBeGreaterThanOrEqual(TYPING_MS)
+      // The signal itself: exactly one request of the typing kind -- not a
+      // record-audio or upload kind -- and its peer is the draft's target.
+      expect(tl.filter(t => t.startsWith('invoke:'))).toEqual([
+        'invoke:messages.SetTyping',
+      ])
+      const asked = client.lastRequest as SetTyping
+      expect(asked.className).toBe('messages.SetTyping')
+      expect(asked.payload.peer).toBe(LEAD)
+      expect((asked.payload.action as TypingAction).className).toBe(
+        'SendMessageTypingAction'
+      )
+    } finally {
+      vi.useRealTimers()
+      vi.doUnmock('telegram')
+    }
+  })
+
+  it('a scheduled file send names the time and skips typing', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const when = Date.now() + 60 * 60_000
+    const r = await execute(draft({ scheduleAt: when }), {
+      telegramId: OWNER,
+      pool,
+    })
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    expect(f.invoked, 'никто не печатает в запланированное время').toEqual([])
+    expect((f.files[0]?.scheduleDate as Date).getTime()).toBe(when)
+  })
+
+  it('a scheduled text goes through sendMessage with schedule', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const when = Date.now() + 5 * 60_000
+    const r = await execute(
+      draft({ media: undefined, what: 'позже', scheduleAt: when }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    expect(f.texts).toEqual([
+      { message: 'позже', parseMode: false, schedule: new Date(when) },
+    ])
+  })
+
+  it('a restored draft whose time has passed refuses before the charge', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(draft({ scheduleAt: Date.now() - 60_000 }), {
+      telegramId: OWNER,
+      pool,
+    })
+    expect(r.done).toBe(false)
+    expect((r as { why: string }).why).toContain('расписан')
+    expect(f.timeline.filter(t => t.startsWith('spend:'))).toEqual([])
     expect(f.files).toEqual([])
   })
 })

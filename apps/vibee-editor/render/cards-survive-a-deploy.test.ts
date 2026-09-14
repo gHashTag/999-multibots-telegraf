@@ -644,3 +644,31 @@ describe('an album draft survives the deploy mirror', () => {
     })
   })
 })
+
+describe('a scheduled draft survives the deploy mirror', () => {
+  it('rowToProposal(proposalToRow(scheduled)) keeps the time', () => {
+    // Same jsonb argument as the album: the epoch travels as a number, and a
+    // deploy that ate it would turn a scheduled send into an immediate one --
+    // the one mode change the card never announced.
+    const when = Date.now() + 60 * 60_000
+    const p = remember({
+      id: 'sch1',
+      telegramId: WHO,
+      action: 'send',
+      target: '@ivan',
+      createdAt: 0,
+      what: 'вечером',
+      scheduleAt: when,
+    } as Parameters<typeof remember>[0])
+    const row = proposalToRow(p)
+    const back = rowToProposal({
+      id: row.id,
+      telegram_id: row.telegramId,
+      created_at: row.createdAt,
+      issued: row.issued,
+      secret_digest: row.secretDigest,
+      payload: row.payload,
+    })
+    expect(back.scheduleAt).toBe(when)
+  })
+})

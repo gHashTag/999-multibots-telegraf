@@ -193,6 +193,14 @@ export interface PendingProposal {
    */
   invoiceId?: number
   media?: ProposalMedia
+  /**
+   * WHEN to send instead of now, as epoch milliseconds (owner decision,
+   * 2026-09-14). Telegram schedules at second precision; the card shows the
+   * wall-clock time and says it can be cancelled until then. A scheduled send
+   * returns a placeholder message with id 0, which the mirror skips -- there
+   * is no real message id until the clock fires.
+   */
+  scheduleAt?: number
   charge?: ProposalCharge
   /** A free lead magnet: recorded as a touch with the gift prefix, never a purchase. */
   gift?: boolean
@@ -233,6 +241,14 @@ export type PublicProposal = Omit<
 
 /** How long a touch write may hold up the owner's "sent" after a real send. */
 const TOUCH_WRITE_MS = 3000
+
+/**
+ * How long the "typing" signal is held before the act (owner decision:
+ * typing shows automatically). Telegram shows one SendMessageTypingAction
+ * for about five seconds; holding for half of that keeps the indicator alive
+ * through the send without stretching the press into a visible wait.
+ */
+export const TYPING_MS = 2500
 
 /**
  * How long an unconfirmed proposal survives.
@@ -571,6 +587,30 @@ export function mediaProblem(media: ProposalMedia | undefined): string | null {
 }
 
 /**
+ * The window a draft's schedule may sit in, checked once here.
+ *
+ * The same two doors as `mediaProblem`: `remember` throws with this text
+ * (the model reads it as a tool error), the send executor's `check` refuses
+ * with it (a restored row whose time has passed never reaches the wire).
+ * Closer than 30 seconds is "now" wearing a costume; farther than 30 days
+ * outlives the draft's own lifetime and any promise the card made. A time
+ * that is not a finite number -- Date.parse of garbage -- must die too:
+ * GramJS would read it as absent and send immediately, a mode change the
+ * person never confirmed.
+ */
+export function scheduleProblem(
+  at: unknown,
+  now: number = Date.now()
+): string | null {
+  if (at === undefined || at === null) return null
+  if (typeof at !== 'number' || !Number.isFinite(at))
+    return 'время расписания не понято — передай ISO, например 2026-09-14T18:00:00Z'
+  if (at < now + 30_000 || at > now + 30 * 24 * 3600_000)
+    return 'расписание — от 30 секунд до 30 дней вперёд; назови время в этом окне'
+  return null
+}
+
+/**
  * Remember a proposal so it can be confirmed later.
  *
  * The id is supplied by the caller rather than generated here so tests do not
@@ -589,6 +629,8 @@ export function remember(
   {
     const badMedia = mediaProblem(p.media)
     if (badMedia) throw new Error(badMedia)
+    const badWhen = scheduleProblem(p.scheduleAt)
+    if (badWhen) throw new Error(badWhen)
   }
   /*
    * ONE PENDING PROPOSAL PER PERSON.
@@ -893,7 +935,7 @@ export async function claimAcrossDeploy(
 export interface SendingClient {
   sendMessage: (
     to: string,
-    opts: { message: string; parseMode: false }
+    opts: { message: string; parseMode: false; schedule?: Date }
   ) => Promise<unknown>
   /**
    * GramJS `sendFile`: `file` may be a direct URL (which Telegram fetches
@@ -923,6 +965,12 @@ export interface SendingClient {
     opts?: { maxId?: number }
   ) => Promise<unknown>
   getDialogs: (opts: { limit: number }) => Promise<unknown>
+  /**
+   * GramJS' raw-request door. The typing signal has no wrapper method, so it
+   * rides `invoke` with a hand-built request; optional because the signal is
+   * cosmetic and an older client (or a test double) must simply not show it.
+   */
+  invoke?: (request: unknown) => Promise<unknown>
   disconnect?: () => Promise<unknown>
 }
 
@@ -1015,10 +1063,15 @@ export async function resolvingPeer<T>(
 export async function sendWithAddressBook(
   c: SendingClient,
   target: string,
-  message: string
+  message: string,
+  scheduleAt?: number
 ): Promise<unknown> {
   return resolvingPeer(c, target, () =>
-    c.sendMessage(target, { message, ...VERBATIM })
+    c.sendMessage(target, {
+      message,
+      ...VERBATIM,
+      ...(scheduleAt ? { schedule: new Date(scheduleAt) } : {}),
+    })
   )
 }
 
@@ -1038,7 +1091,11 @@ async function mirrorSent(
   if (!p.lead || !ctx.pool) return
   const m = sent as { id?: unknown; date?: unknown } | null | undefined
   const id = Number(m?.id)
-  if (!Number.isFinite(id)) return
+  // id 0 is Telegram's placeholder for a scheduled message: no real message
+  // exists until the clock fires, and a mirrored msg_id of 0 is junk the
+  // next ingest cannot match. The touch is still written -- the service the
+  // person paid for is the schedule, and it was delivered.
+  if (!Number.isFinite(id) || id <= 0) return
   const date = Number(m?.date)
   const text = p.what ?? ''
   if (!text.trim()) return
@@ -1085,6 +1142,8 @@ export type SendFileParams = {
   supportsStreaming?: boolean
   forceDocument?: boolean
   attributes?: unknown[]
+  /** GramJS' own name for a scheduled file send. */
+  scheduleDate?: Date
   parseMode: false
 }
 
@@ -1233,7 +1292,8 @@ export async function sendFileWithAddressBook(
   c: SendingClient,
   target: string,
   media: ProposalMedia,
-  caption: string | undefined
+  caption: string | undefined,
+  scheduleAt?: number
 ): Promise<unknown> {
   if (!c.sendFile) throw new Error('этот клиент не умеет отправлять файлы')
   /*
@@ -1261,6 +1321,7 @@ export async function sendFileWithAddressBook(
    */
   const send = c.sendFile.bind(c)
   const params = await fileParamsFor(media, caption)
+  if (scheduleAt) params.scheduleDate = new Date(scheduleAt)
   return resolvingPeer(c, target, () => send(target, params))
 }
 
@@ -1379,15 +1440,24 @@ const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
       /*
        * The same url rules `remember` enforces, read again here: a draft
        * restored from a poisoned row must not get as far as a download, and
-       * the refusal must come before any money moves.
+       * the refusal must come before any money moves. The schedule window
+       * too: a pressed draft whose time has passed would silently send NOW,
+       * which is a different act from the one the card named.
        */
-      return mediaProblem(p.media)
+      return mediaProblem(p.media) ?? scheduleProblem(p.scheduleAt)
     },
     async run(c, p) {
       // Both branches hand back the sent message, so a photo with a
       // caption is mirrored like text (CRM audit 2026-09-12, P2 #9).
-      if (p.media) return sendFileWithAddressBook(c, p.target, p.media, p.what)
-      return sendWithAddressBook(c, p.target, p.what ?? '')
+      if (p.media)
+        return sendFileWithAddressBook(
+          c,
+          p.target,
+          p.media,
+          p.what,
+          p.scheduleAt
+        )
+      return sendWithAddressBook(c, p.target, p.what ?? '', p.scheduleAt)
     },
     typing: true,
     after: afterSend,
@@ -1522,6 +1592,30 @@ export async function execute(
         amount: -paid,
         what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
       })
+    }
+    /*
+     * "TYPING" BEFORE THE ACT (owner decision: automatic), sends only.
+     *
+     * The recipient sees the person "typing" for a couple of seconds before
+     * the message pops in, which is what a human conversation looks like and
+     * what a sudden drop-in does not. Cosmetic by design, and disciplined
+     * about it: no capability (`invoke`), no schedule (nobody is typing at
+     * HH:MM -- the clock is), a failure in the signal never stops the send,
+     * and the pause is skipped with it so an old client pays no wait.
+     */
+    if (exec.typing && !p.scheduleAt && c.invoke) {
+      try {
+        const { Api } = await import('telegram')
+        await c.invoke(
+          new Api.messages.SetTyping({
+            peer: p.target,
+            action: new Api.SendMessageTypingAction(),
+          })
+        )
+      } catch {
+        // The indicator is a courtesy; the approved act is not.
+      }
+      await new Promise(r => setTimeout(r, TYPING_MS))
     }
     let sent: unknown = null
     try {

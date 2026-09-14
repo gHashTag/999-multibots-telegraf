@@ -186,6 +186,33 @@ describe('действующие инструменты не действуют 
     })
   }
 
+  it('schedule_at попадает в черновик числом, а мусор — ошибкой инструмента', async () => {
+    /*
+     * The tool takes ISO text (that is what a model can write) and the draft
+     * keeps an epoch (that is what the wire needs). Garbage must die HERE,
+     * as a tool error the model can fix -- a NaN stored now would reach
+     * Telegram as "send immediately", a mode change nobody confirmed.
+     */
+    forgetProposals()
+    const when = new Date(Date.now() + 5 * 60_000)
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    const answer = (await t.handler(
+      { chat: '900000002', text: 'позже', schedule_at: when.toISOString() },
+      OWNER_CTX
+    )) as { id?: string }
+    const waiting = pendingFor(OWNER)!
+    expect(waiting.id).toBe(answer.id)
+    expect(Math.abs((waiting.scheduleAt ?? 0) - when.getTime())).toBeLessThan(
+      1000
+    )
+    await expect(
+      t.handler(
+        { chat: '900000002', text: 'позже', schedule_at: 'завтра утром' },
+        OWNER_CTX
+      )
+    ).rejects.toThrow('ISO')
+  })
+
   it('предложение попадает в очередь владельца, а не только в ответ', async () => {
     /*
      * The defect this whole change exists for. Until 2026-09-07 `propose()`

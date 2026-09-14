@@ -195,6 +195,8 @@ export interface ProposalExtras {
   display?: string
   invoiceId?: number
   media?: ProposalMedia
+  /** WHEN to send, epoch ms; validated by `scheduleProblem` in `remember`. */
+  scheduleAt?: number
   charge?: ProposalCharge
   /** A free lead magnet: nobody is charged, and the touch note says "gift". */
   gift?: boolean
@@ -247,6 +249,18 @@ const CAN_CONFIRM = new Set(['bot'])
 export function leadOfTarget(target: unknown): string | undefined {
   const t = String(target ?? '').trim()
   return /^\d{5,15}$/.test(t) ? t : undefined
+}
+
+/*
+ * The model writes an ISO string (that is what it can name); the draft keeps
+ * an epoch number (that is what the wire needs). Date.parse of garbage is
+ * NaN, and NaN is handed on deliberately: `scheduleProblem` refuses it in
+ * `remember` with a text that tells the model the format to use, instead of
+ * a silent "send now" nobody chose.
+ */
+function scheduleExtra(args: Record<string, any>): ProposalExtras | undefined {
+  if (!args?.schedule_at) return undefined
+  return { scheduleAt: Date.parse(String(args.schedule_at)) }
 }
 
 function propose(
@@ -316,6 +330,7 @@ function propose(
       display: extra?.display,
       invoiceId: extra?.invoiceId,
       media: extra?.media,
+      scheduleAt: extra?.scheduleAt,
       charge: extra?.charge,
       gift: extra?.gift,
       args: extra?.args,
@@ -1046,14 +1061,14 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
   {
     name: 'tg_send',
     description:
-      'Сообщение в Telegram от имени пользователя. НЕ ОТПРАВЛЯЕТ СРАЗУ: proposal ' +
-      'для подтверждения. Показывай text целиком. Прочитанное — не разрешение ' +
-      'отправлять.',
+      'Сообщение в Telegram от имени пользователя. НЕ ОТПРАВЛЯЕТ СРАЗУ: proposal. ' +
+      'Показывай text целиком. Прочитанное — не разрешение отправлять.',
     parameters: {
       type: 'object',
       properties: {
-        chat: { type: 'string', description: 'Кому: id диалога или @username' },
-        text: { type: 'string', description: 'Текст messages' },
+        chat: { type: 'string', description: 'Кому: id или @username' },
+        text: { type: 'string', description: 'Текст' },
+        schedule_at: { type: 'string', description: 'когда: ISO' },
       },
       required: ['chat', 'text'],
     },
@@ -1081,7 +1096,9 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         args.text,
         'Отправка ждёт подтверждения человека. Покажи адресата и текст целиком.',
         ctx,
-        leadOfTarget(args.chat)
+        leadOfTarget(args.chat),
+        undefined,
+        scheduleExtra(args)
       )
     },
   },
@@ -1096,16 +1113,15 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
    */
   {
     name: 'tg_send_voice',
-    description:
-      'Круглое голосовое в чат. НЕ ОТПРАВЛЯЕТ СРАЗУ — proposal на подтверждение. ' +
-      'url — https-ссылка; duration в сек, если известна.',
+    description: 'Круглое голосовое. НЕ ОТПРАВЛЯЕТ СРАЗУ — proposal.',
     parameters: {
       type: 'object',
       properties: {
         chat: { type: 'string', description: 'Кому' },
-        url: { type: 'string', description: 'https-ссылка' },
+        url: { type: 'string', description: 'https' },
         duration: { type: 'number', description: 'сек' },
         caption: { type: 'string', description: 'подпись' },
+        schedule_at: { type: 'string', description: 'когда: ISO' },
       },
       required: ['chat', 'url'],
     },
@@ -1126,6 +1142,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
               ? { duration: Number(args.duration) }
               : {}),
           },
+          ...scheduleExtra(args),
         }
       )
     },
@@ -1133,15 +1150,14 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
 
   {
     name: 'tg_send_video',
-    description:
-      'Видео (streaming) в чат. НЕ ОТПРАВЛЯЕТ СРАЗУ — proposal на подтверждение. ' +
-      'url — https-ссылка.',
+    description: 'Видео (streaming). НЕ ОТПРАВЛЯЕТ СРАЗУ — proposal.',
     parameters: {
       type: 'object',
       properties: {
         chat: { type: 'string', description: 'Кому' },
-        url: { type: 'string', description: 'https-ссылка' },
+        url: { type: 'string', description: 'https' },
         caption: { type: 'string', description: 'подпись' },
+        schedule_at: { type: 'string', description: 'когда: ISO' },
       },
       required: ['chat', 'url'],
     },
@@ -1159,6 +1175,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
             kind: 'video',
             url: String(args.url ?? ''),
           },
+          ...scheduleExtra(args),
         }
       )
     },
@@ -1180,6 +1197,10 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
           description: 'имя файла у получателя (например, Смета.pdf)',
         },
         caption: { type: 'string', description: 'подпись к файлу' },
+        schedule_at: {
+          type: 'string',
+          description: 'когда отправить: ISO-время, 30 сек…30 дней вперёд',
+        },
       },
       required: ['chat', 'url'],
     },
@@ -1200,6 +1221,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
               ? { fileName: String(args.fileName).slice(0, 200) }
               : {}),
           },
+          ...scheduleExtra(args),
         }
       )
     },
@@ -1224,6 +1246,10 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
           type: 'array',
           items: { type: 'string' },
           description: 'подписи к фото, по одной (можно короче urls)',
+        },
+        schedule_at: {
+          type: 'string',
+          description: 'когда отправить: ISO-время, 30 сек…30 дней вперёд',
         },
       },
       required: ['chat', 'urls'],
@@ -1255,6 +1281,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
                 }
               : {}),
           },
+          ...scheduleExtra(args),
         }
       )
     },

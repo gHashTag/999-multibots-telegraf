@@ -1377,3 +1377,46 @@ describe('remember caps what a media draft may carry', () => {
     ).toThrow(/2048/)
   })
 })
+
+/*
+ * A draft may name a time instead of now (owner decision, 2026-09-14). The
+ * window is 30 seconds to 30 days: closer than 30 seconds is "now" wearing a
+ * costume, farther than 30 days is a promise nobody can check, and Telegram
+ * itself refuses both edges. The check lives in `remember` (the model sees a
+ * tool error the moment it drafts one) and again in the send executor (a row
+ * restored from a poisoned mirror never reaches the wire).
+ */
+describe('remember caps the schedule a draft may carry', () => {
+  const base = (over: Record<string, unknown> = {}) => ({
+    id: 'sch1',
+    telegramId: '144022504',
+    action: 'send' as const,
+    target: '@x',
+    what: 'привет',
+    ...over,
+  })
+
+  it('keeps a time inside the window', () => {
+    const p = remember(base({ scheduleAt: Date.now() + 60_000 }))
+    expect(p.scheduleAt).toBeGreaterThan(Date.now())
+  })
+
+  it('refuses the past and the far future', () => {
+    expect(() =>
+      remember(base({ id: 'sch-past', scheduleAt: Date.now() - 60_000 }))
+    ).toThrow('расписан')
+    expect(() =>
+      remember(
+        base({ id: 'sch-far', scheduleAt: Date.now() + 31 * 24 * 3600_000 })
+      )
+    ).toThrow('расписан')
+  })
+
+  it('refuses a time the model never managed to parse', () => {
+    // Date.parse of garbage is NaN; the model hands us strings, and a NaN on
+    // the wire would mean "now" to Telegram -- a silent mode change.
+    expect(() =>
+      remember(base({ id: 'sch-nan', scheduleAt: Number.NaN }))
+    ).toThrow('ISO')
+  })
+})
