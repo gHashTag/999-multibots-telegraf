@@ -1035,9 +1035,32 @@ describe('execute: typing before the act, schedule instead of now', () => {
       const client = new TypingClient(tl)
       const { execute, TYPING_MS } = await executor(client as never, {}, tl)
       const started = execute(draft(), { telegramId: OWNER, pool })
-      // The prologue crosses real ticks; the async timer advance yields to
-      // them, so the whole chain settles within this one call.
-      await vi.advanceTimersByTimeAsync(TYPING_MS + 5)
+      /*
+       * Drive BOTH clocks until the draft settles. The prologue (charge,
+       * dynamic imports) crosses real event-loop ticks, and on a cold
+       * graph -- the root runner touching this file first -- it can
+       * outlast a single timer advance: the pause's fake setTimeout is
+       * then scheduled after nobody advances the clock, and awaiting the
+       * draft deadlocks. Pumping the fake clock in slices, yielding real
+       * I/O between slices, settles the chain however slow the prologue
+       * was. Bounded at two typing periods -- far beyond the one pause
+       * the execute owes -- and honest if it somehow never lands.
+       */
+      let settled = false
+      void started.then(
+        () => {
+          settled = true
+        },
+        () => {
+          settled = true
+        }
+      )
+      let advanced = 0
+      while (!settled && advanced < TYPING_MS * 2) {
+        await vi.advanceTimersByTimeAsync(50)
+        advanced += 50
+      }
+      if (!settled) throw new Error('execute never settled under fake timers')
       const r = await started
       expect(r.done, (r as { why?: string }).why).toBe(true)
       const at = (what: string) => tl.findIndex(t => t.startsWith(what))
