@@ -23,8 +23,17 @@ export interface AppSession {
   }
 }
 
-const storage = () =>
-  typeof window === 'undefined' ? null : window.sessionStorage
+// A third-party frame (the game's TRI tab) may have no storage at all: a
+// browser that blocks third-party storage throws from the getter itself. No
+// storage reads as no session, which is what that frame has.
+const storage = (): Storage | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.sessionStorage
+  } catch {
+    return null
+  }
+}
 
 export function getAppAccessToken(): string {
   return storage()?.getItem(ACCESS_KEY) || ''

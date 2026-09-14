@@ -50,10 +50,21 @@ const HOME = '/feed'
  * TelegramProvider: к моменту эффектов путь уже переписан редиректом, а
  * записыватель ниже успел бы положить в хранилище «/feed» поверх запомненного.
  */
-const REMEMBERED =
-  typeof window !== 'undefined'
-    ? window.localStorage.getItem(STORAGE_KEYS.lastRoute)
-    : null
+const REMEMBERED = readRemembered()
+
+/**
+ * A third-party frame (the game's TRI tab) may have no storage at all: a
+ * browser that blocks third-party storage throws from the `localStorage`
+ * getter itself, and a throw here, at module load, kills the whole bundle.
+ */
+function readRemembered(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage.getItem(STORAGE_KEYS.lastRoute)
+  } catch {
+    return null
+  }
+}
 
 /**
  * Элемент маршрута «/».
