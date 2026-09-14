@@ -22,10 +22,7 @@
  * nothing downstream changes when it does.
  */
 
-import {
-  notifySignIn,
-  safeDeviceName,
-} from './src/auth/notify-sign-in'
+import { notifySignIn, safeDeviceName } from './src/auth/notify-sign-in'
 import { sendToTelegram } from './src/auth/telegram-sender'
 import { record } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -434,6 +431,26 @@ function verifiedTelegramIdFrom(initData: string): string | null {
   }
 }
 
+/**
+ * Which bot's token verified an initData, as a journal note: `bot <id>`.
+ *
+ * WHY IT IS RECORDED. Both initData doors below accept a signature from ANY
+ * token in auth.ts botTokens() and, until this note, left no trace of which
+ * one. Narrowing that set to the bots that really launch the app must be done
+ * from evidence, not from memory: a restriction written blind locks out
+ * whoever signs in through the bot nobody remembered. Nothing about which
+ * tokens are accepted changes here.
+ *
+ * WHY DIGITS ONLY. The id is the part of a token before the colon -- the bot's
+ * own public user id. Everything after the colon is the secret.
+ * `verifyTelegramInitData` returns `token.split(':')[0]`, and for a token
+ * pasted without its colon that is the WHOLE secret. So only a plain run of
+ * digits is written; anything else becomes `bot unknown`.
+ */
+function signedByBot(botId: string | undefined): string {
+  return /^\d{1,20}$/.test(botId ?? '') ? `bot ${botId}` : 'bot unknown'
+}
+
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
   release: () => void
@@ -562,13 +579,18 @@ export async function handleAuthRoute(
     void record(pool, {
       kind: 'sign-in',
       who: telegramId,
-      what: safeDeviceName(body.device_name),
+      what: `${safeDeviceName(body.device_name)}; ${signedByBot(v.botId)}`,
     })
 
     json(
       res,
       200,
-      await mintSession(pool, telegramId, body, digest(`telegram-initdata:${initData}`))
+      await mintSession(
+        pool,
+        telegramId,
+        body,
+        digest(`telegram-initdata:${initData}`)
+      )
     )
     return true
   }
@@ -692,6 +714,13 @@ export async function handleAuthRoute(
     console.log(
       `🔑 [pair] start ВЫДАН telegram_id=${telegramId}, живёт ${PAIRING.TTL_SECONDS}с`
     )
+    // The code mints a session on claim, so this door is an initData sign-in
+    // too: same note as /api/auth/telegram, and never the code itself.
+    void record(pool, {
+      kind: 'code-issued',
+      who: telegramId,
+      what: signedByBot(v.botId),
+    })
     json(res, 200, {
       code,
       expires_in: PAIRING.TTL_SECONDS,
