@@ -1,0 +1,33 @@
+/* The consent popup: one sentence, one button, one note. */
+body {
+  margin: 0;
+  padding: 20px;
+  font:
+    15px/1.4 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: #0a0a0a;
+  background: #faf8f3;
+}
+button {
+  display: block;
+  width: 100%;
+  margin: 16px 0 8px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #e6e0d2;
+  color: #0a0a0a;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.note {
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+}
+[hidden] {
+  display: none !important;
+}

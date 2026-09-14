@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
-import { queenPage } from '@/lib/hive'
+import { answerIdentityRequests, queenPage } from '@/lib/hive'
 import { IS_EMBED } from '@/lib/embed'
+import { API_BASE } from '@/config'
+import { getAppAccessToken } from '@/lib/appSession'
+import { getInitData } from '@/lib/telegram'
+import { sessionTrustedIn, type FramedWindow } from '@/lib/framedSession'
 import './Hive.css'
 
 /**
@@ -56,6 +60,30 @@ export default function HivePage() {
   const { lang, t } = useLanguage()
   const [loaded, setLoaded] = useState(false)
   const page = queenPage(lang)
+  const frameRef = useRef<HTMLIFrameElement>(null)
+
+  // The framed game asks who the visitor is. The answer is a 300 s game token
+  // minted from this app's credential, never the credential itself, and only
+  // to this frame on https://t27.ai (lib/hive.ts answerIdentityRequests).
+  // Only where this app's own session is trusted: top level, or framed by this
+  // app or Telegram. Framed by a t27.ai page, the Bearer session is already a
+  // guest, but Telegram's launch data still authenticates (framedSession.ts),
+  // and that page shares the origin of the game frame answered here, so it
+  // could ask through that frame and skip the bridge's consent.
+  useEffect(() => {
+    if (IS_EMBED || !sessionTrustedIn(window as unknown as FramedWindow)) {
+      return
+    }
+    return answerIdentityRequests({
+      win: window,
+      frame: () => frameRef.current?.contentWindow,
+      credential: () => ({
+        initData: getInitData(),
+        accessToken: getAppAccessToken(), // secret-guard-ok: runtime session value, never a literal credential
+      }),
+      apiBase: API_BASE,
+    })
+  }, [])
 
   // Inside the game's TRI frame the hive IS the page around this frame.
   // Framing it again would nest game > app > game > app without end, so no
@@ -90,6 +118,7 @@ export default function HivePage() {
           </p>
         )}
         <iframe
+          ref={frameRef}
           className={`hive-frame${loaded ? ' hive-frame--ready' : ''}`}
           src={page}
           title={t('hive.frameTitle')}

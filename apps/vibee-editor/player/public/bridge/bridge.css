@@ -1,0 +1,30 @@
+/* The bridge frame is small and shown by the game only while consent is
+   needed; the button fills it. Nothing else is ever drawn. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+}
+body {
+  display: flex;
+  font:
+    600 15px/1.2 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+button {
+  flex: 1;
+  margin: 0;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #e6e0d2;
+  color: #0a0a0a;
+  font: inherit;
+  cursor: pointer;
+}
+[hidden] {
+  display: none !important;
+}

@@ -49,6 +49,48 @@ server {
         add_header Pragma "no-cache" always;
     }
 
+    # TRI identity bridge (player/public/bridge/). The game on https://t27.ai
+    # frames it when it runs top-level, to learn who the visitor is without
+    # holding this app's session: the bridge reads the tab's access token and
+    # hands the game a 300 s game token after one click (bridge.js).
+    #
+    # Its own policy, not the server-level one above:
+    #  - frame-ancestors is exactly https://t27.ai. Never 'self': inside /hive
+    #    the chain is app.t27.ai > t27.ai > app.t27.ai, and a bridge framed
+    #    there would share the player's sessionStorage, Telegram launch data
+    #    included (measured in Chrome). Never Telegram: it answers the game only.
+    #  - script-src and style-src 'self', connect-src vibee-render, nothing else.
+    #  - no-store. Without the ^~ block, /bridge/bridge.js would fall into the
+    #    .js location below and be cached as immutable for a year.
+    # Exact and ^~ locations win over the regex locations below.
+    location = /bridge {
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; connect-src https://vibee-render-production.up.railway.app; style-src 'self'; frame-ancestors https://t27.ai" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Cache-Control "no-store" always;
+        try_files /bridge/index.html =404;
+    }
+
+    # The consent popup the bridge opens (bridge.js, consent.js). Nobody may
+    # frame it: a page that frames it could make it invisible and put a decoy
+    # over its button, which is exactly what a popup is there to prevent. No
+    # connect-src: it sends nothing but a message to its opener.
+    location = /bridge/consent.html {
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
+    location ^~ /bridge/ {
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; connect-src https://vibee-render-production.up.railway.app; style-src 'self'; frame-ancestors https://t27.ai" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
     # Данные — до SPA-fallback. Иначе отсутствующий manifest.json отдавался
     # как index.html с кодом 200: парсер получал HTML вместо JSON, и поломка
     # была не видна ни в консоли, ни в логах. Ровно так и случилось.
