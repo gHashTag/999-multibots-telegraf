@@ -232,30 +232,88 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
   if (revoked.has(claims.sid)) {
     throw new SessionError('session revoked', 'revoked')
   }
+  if (claims.iat < (notBefore.get(claims.sub) ?? 0)) {
+    throw new SessionError(
+      'session issued before sign-out everywhere',
+      'revoked'
+    )
+  }
   return claims
 }
 
 // ─── Revocation ──────────────────────────────────────────────────────────
 
 let revoked = new Set<string>()
+/**
+ * Per-person cutoff left by "sign out everywhere": telegram_id -> epoch seconds.
+ *
+ * Revoking every family covers refresh tokens and the access tokens of those
+ * families. It does not cover a credential that exists outside them: Mini App
+ * initData, valid for 24 hours and able to mint a new family, and anything
+ * minted by a sign-in that raced the revocation. So a credential issued before
+ * the cutoff is refused by its issue time: an access token by iat here,
+ * initData by auth_date (auth.ts verifyTelegramInitData), a game token by iat.
+ *
+ * Seconds, compared with `<`: a credential issued in the same second as the
+ * cutoff passes. Sessions that existed at that moment are revoked by sid anyway.
+ *
+ * What it cannot stop: initData forged with a bot token the server accepts
+ * carries whatever auth_date the forger writes, so it is always fresh. Only
+ * narrowing the accepted bot tokens helps against that. And it ends the
+ * person's own current Mini App launch too, until they relaunch it.
+ *
+ * Kept in memory and refreshed by the same poll as the revoked set, so it has
+ * the same freshness rule: stale state refuses rather than admits.
+ */
+let notBefore = new Map<string, number>()
 let revocationsSyncedAt = 0
 const REVOCATION_SYNC_MAX_AGE_MS = 15_000
 
 /**
- * Replace the revoked-session set.
+ * Replace the revoked-session set and the per-person cutoffs.
  *
  * Called by a background poller, never on the request path. Replacing the
  * whole set rather than mutating it means a request that reads it mid-update
  * sees either the old set or the new one, never a half-built one.
  */
-export function setRevokedSessions(ids: Iterable<string>): void {
+export function setRevokedSessions(
+  ids: Iterable<string>,
+  cutoffs: Iterable<[string, number]> = []
+): void {
   revoked = new Set(ids)
+  notBefore = new Map(cutoffs)
   revocationsSyncedAt = Date.now()
 }
 
 /** Mark a session revoked immediately, without waiting for the next poll. */
 export function revokeNow(sessionId: string): void {
   revoked.add(sessionId)
+}
+
+/** Set a person's cutoff immediately, without waiting for the next poll. */
+export function markNotBefore(telegramId: string, seconds: number): void {
+  notBefore.set(telegramId, seconds)
+}
+
+/**
+ * Why initData issued at `authDate` must be refused, or null to admit it.
+ *
+ * Fails closed like verifyAppSession once the poller has run and its state is
+ * older than the limit. A process whose poller never ran has no cutoffs to
+ * enforce: every deployed instance syncs before it listens and refuses to start
+ * without SESSION_SIGNING_KEY, so that is a laptop or a test without sessions,
+ * where logout-all cannot run at all.
+ */
+export function initDataCutoffRefusal(
+  telegramId: string | null,
+  authDate: number
+): string | null {
+  if (!revocationsSyncedAt) return null
+  if (Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS)
+    return 'sign-out state is unavailable'
+  if (telegramId && authDate < (notBefore.get(telegramId) ?? 0))
+    return 'initData was issued before sign-out everywhere'
+  return null
 }
 
 // ─── Refresh tokens ──────────────────────────────────────────────────────

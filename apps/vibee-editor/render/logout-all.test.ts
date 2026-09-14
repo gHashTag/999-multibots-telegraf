@@ -47,6 +47,7 @@ function memoryPool() {
   const events: unknown[][] = []
   const codes = new Map<string, { telegramId: string; consumed: boolean }>()
   const assertions = new Set<string>()
+  const notBefore = new Map<string, number>()
 
   const client = {
     async query(sql: string, params: unknown[] = []) {
@@ -194,6 +195,31 @@ function memoryPool() {
         }
       }
 
+      // The per-person cutoff, and the poll that carries it to other replicas.
+      if (s.startsWith('INSERT INTO app_user_not_before')) {
+        notBefore.set(p0, Number(params[1]))
+        return { rows: [] }
+      }
+      if (
+        s.startsWith(
+          'SELECT telegram_id, EXTRACT(EPOCH FROM not_before) AS not_before FROM app_user_not_before'
+        )
+      ) {
+        return {
+          rows: [...notBefore].map(([telegram_id, at]) => ({
+            telegram_id,
+            not_before: `${at}.000000`,
+          })),
+        }
+      }
+      if (
+        s.startsWith('SELECT id FROM app_sessions WHERE revoked_at IS NOT NULL')
+      )
+        return {
+          rows: sessions.filter(r => r.revoked).map(r => ({ id: r.id })),
+        }
+      if (s.startsWith('DELETE FROM app_launch_families')) return { rows: [] }
+
       // A silent zero rows on an unknown query turns a broken test green.
       throw new Error(`memory pool does not know: ${s.slice(0, 120)}`)
     },
@@ -203,6 +229,7 @@ function memoryPool() {
     sessions,
     tokens,
     events,
+    notBefore,
     pool: { ...client, connect: async () => client },
   }
 }
@@ -254,9 +281,12 @@ function signInitData(fields: Record<string, string>): string {
 }
 
 const launch = (id: number, salt: string) =>
+  launchAt(id, salt, Math.floor(Date.now() / 1000))
+
+const launchAt = (id: number, salt: string, authDate: number) =>
   signInitData({
     user: JSON.stringify({ id, first_name: 'Test' }),
-    auth_date: String(Math.floor(Date.now() / 1000)),
+    auth_date: String(authDate),
     query_id: salt,
   })
 
@@ -447,6 +477,77 @@ describe('POST /api/auth/logout-all', () => {
       sessions: 0,
       tokens: 0,
     })
+  })
+
+  /*
+   * A LAUNCH STRING SEEN BEFORE SIGN-OUT EVERYWHERE MUST NOT MINT AFTER IT.
+   *
+   * Without the cutoff, logout-all revoked every family and a thief holding the
+   * person's initData (valid 24 hours) simply signed in again: mintSession
+   * starts a new family when the launch's family is revoked. The person
+   * relaunching the Mini App gets a fresh auth_date and is not affected.
+   */
+  it('initData launched before sign-out everywhere cannot mint after it', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const seenBefore = launchAt(ALICE, 'seen-before', now - 5)
+    const neighbourBefore = launchAt(BOB, 'neighbour-before', now - 5)
+    const fromWidget = await signInWithWidget(ALICE)
+
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+
+    const again = await call('/api/auth/telegram', { init_data: seenBefore })
+    expect(again.status, JSON.stringify(again.body)).toBe(401)
+    expect(String(again.body.detail)).toMatch(/before sign-out everywhere/)
+    const code = await call(
+      '/api/auth/pair/start',
+      {},
+      { 'x-telegram-init-data': seenBefore }
+    )
+    expect(code.status, JSON.stringify(code.body)).toBe(401)
+    expect(live(ALICE), 'the old launch minted a family').toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+
+    // A relaunch after the call works, and a neighbour's launch is untouched.
+    await signInWithInitData(ALICE, 'relaunch')
+    await signInWithInitData(BOB, 'neighbour-now')
+    const neighbour = await call('/api/auth/telegram', {
+      init_data: neighbourBefore,
+    })
+    expect(neighbour.status, JSON.stringify(neighbour.body)).toBe(200)
+  })
+
+  it('another replica learns the cutoff from the revocation poll', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const seenBefore = launchAt(ALICE, 'replica-before', now - 5)
+    const fromWidget = await signInWithWidget(ALICE)
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+    expect(
+      db.notBefore.get(String(ALICE)),
+      'cutoff not written'
+    ).toBeGreaterThanOrEqual(now)
+
+    // A replica that did not handle the call starts with empty memory ...
+    session.setRevokedSessions([])
+    const { verifyTelegramInitData } = await import('./auth')
+    expect(verifyTelegramInitData(seenBefore).ok).toBe(true)
+    // ... and the poll hands it the cutoff.
+    const { pollRevocations } = await import('./session-store')
+    await pollRevocations(db.pool)
+    expect(verifyTelegramInitData(seenBefore).reason).toMatch(
+      /before sign-out everywhere/
+    )
   })
 
   const refused = async (headers: Record<string, string>) => {

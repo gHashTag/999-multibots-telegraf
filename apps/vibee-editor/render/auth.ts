@@ -21,7 +21,11 @@
  * знаешь. Сначала сутки в warn и смотрим лог, потом enforce.
  */
 import crypto from 'node:crypto'
-import { verifyAppSession, SessionError } from './session'
+import {
+  verifyAppSession,
+  SessionError,
+  initDataCutoffRefusal,
+} from './session'
 import type { IncomingMessage } from 'node:http'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
@@ -468,6 +472,23 @@ export function verifyTelegramInitData(initData: string): {
   const ageHours = (Date.now() / 1000 - authDate) / 3600
   if (!authDate || ageHours > 24)
     return { ok: false, reason: `initData is ${ageHours.toFixed(1)}h old` }
+
+  /*
+   * Sign out everywhere: a launch string issued before the person's cutoff is
+   * refused here, so every initData door refuses it -- the guard, the identity
+   * helpers, /api/auth/telegram and pair/start. It stops a CAPTURED launch
+   * string, not a forged one: initData signed with a bot token this server
+   * accepts carries a fresh auth_date of the forger's choosing.
+   */
+  let userId: string | null = null
+  try {
+    const id = JSON.parse(params.get('user') || 'null')?.id
+    userId = id != null ? String(id) : null
+  } catch {
+    userId = null
+  }
+  const cutoff = initDataCutoffRefusal(userId, authDate)
+  if (cutoff) return { ok: false, reason: cutoff }
 
   return { ok: true, botId: matchedBotId }
 }

@@ -40,6 +40,7 @@ import {
   verifyAppSession,
   digest,
   revokeNow,
+  markNotBefore,
   SESSION_TUNING,
   SessionError,
 } from './session'
@@ -47,6 +48,7 @@ import {
   ensureAuthTables,
   refreshStore,
   revokeAllFamiliesOf,
+  setNotBefore,
   issuePairingCode,
   claimPairingCode,
   PAIRING,
@@ -1061,6 +1063,17 @@ export async function handleAuthRoute(
       })
       return true
     }
+
+    /*
+     * The cutoff goes first. Revoking families does not reach a captured Mini
+     * App launch string: it stays valid for 24 hours and would mint a new
+     * family right after this call. Anything of this person's issued before
+     * `cutoff` is now refused (session.ts `notBefore`): in this process at
+     * once, on other replicas from the next poll.
+     */
+    const cutoff = Math.floor(Date.now() / 1000)
+    await setNotBefore(pool, who.sub, cutoff)
+    markNotBefore(who.sub, cutoff)
 
     const revoked = await revokeAllFamiliesOf(pool, who.sub)
     // Immediately in this process; other replicas follow on the poll.
