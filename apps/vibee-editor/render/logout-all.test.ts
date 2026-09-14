@@ -550,6 +550,63 @@ describe('POST /api/auth/logout-all', () => {
     )
   })
 
+  /*
+   * REVIEW-2: THE REPLICA THAT HANDLED THE CALL KEEPS REFUSING WHILE A POLL
+   * THAT STARTED BEFORE IT LANDS.
+   *
+   * The poll runs every 5 s. Its cutoff SELECT can take its snapshot before
+   * logout-all's upsert commits and return after markNotBefore ran. Replacing
+   * the in-memory state with that result erased the cutoff and the revoked ids
+   * on this very replica, and the captured launch minted again.
+   */
+  it('a poll in flight during logout-all does not erase the cutoff on this replica', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const captured = launchAt(ALICE, 'thief-launch-2', now - 3600)
+    const fromWidget = await signInWithWidget(ALICE)
+
+    let release!: () => void
+    const gate = new Promise<void>(r => (release = r))
+    let held = false
+    const slowPool = {
+      async query(sql: string, params?: unknown[]) {
+        const s = sql.replace(/\s+/g, ' ').trim()
+        if (s.startsWith('SELECT telegram_id, EXTRACT')) {
+          // Read now, answer later: the snapshot predates the logout-all call.
+          const snapshot = await db.pool.query(sql, params)
+          held = true
+          await gate
+          return snapshot
+        }
+        return db.pool.query(sql, params)
+      },
+    }
+    const { pollRevocations } = await import('./session-store')
+    const polling = pollRevocations(slowPool as any)
+    for (let i = 0; i < 50 && !held; i++)
+      await new Promise(r => setTimeout(r, 5))
+    expect(held, 'the poll never reached its cutoff read').toBe(true)
+
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+    const { verifyTelegramInitData } = await import('./auth')
+    expect(verifyTelegramInitData(captured).ok).toBe(false)
+
+    release()
+    await polling
+
+    expect(verifyTelegramInitData(captured).ok).toBe(false)
+    expect(() => session.verifyAppSession(fromWidget.access_token)).toThrow(
+      /revoked/
+    )
+    const minted = await call('/api/auth/telegram', { init_data: captured })
+    expect(minted.status, JSON.stringify(minted.body)).toBe(401)
+    expect(live(ALICE)).toEqual({ sessions: 0, tokens: 0 })
+  })
+
   const refused = async (headers: Record<string, string>) => {
     await signInWithInitData(ALICE, 'launch-a')
     await signInWithInitData(ALICE, 'launch-a2')

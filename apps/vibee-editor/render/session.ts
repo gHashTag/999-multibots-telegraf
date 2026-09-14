@@ -270,30 +270,75 @@ let notBefore = new Map<string, number>()
 let revocationsSyncedAt = 0
 const REVOCATION_SYNC_MAX_AGE_MS = 15_000
 
+/*
+ * Marks made in this process (revokeNow, markNotBefore), numbered in order.
+ *
+ * A poll replaces the in-memory state with what it read. A mark made while the
+ * poll was reading may be missing from that read -- the row was written after
+ * the SELECT took its snapshot -- and a plain replacement erased it: the
+ * replica that handled "sign out everywhere" admitted the old credentials again
+ * until the next poll. So each mark keeps its number until a poll that STARTED
+ * after it lands. Every caller marks only after its database write has
+ * committed, so a poll that started later has read that write.
+ */
+let lastMark = 0
+const pendingRevokes = new Map<string, number>()
+const pendingCutoffs = new Map<string, { seconds: number; mark: number }>()
+
+/** The number of the latest local mark. A poll reads it before its queries. */
+export function revocationMark(): number {
+  return lastMark
+}
+
 /**
  * Replace the revoked-session set and the per-person cutoffs.
  *
  * Called by a background poller, never on the request path. Replacing the
  * whole set rather than mutating it means a request that reads it mid-update
  * sees either the old set or the new one, never a half-built one.
+ *
+ * `readAfterMark` is revocationMark() taken before the poll's first query.
+ * Local marks newer than it are kept on top of what the poll read (a cutoff
+ * only moves forward, so the later of the two wins); older ones are dropped,
+ * since the read includes them. Without it the state is replaced outright and
+ * pending marks are forgotten -- what a replica with empty memory looks like.
  */
 export function setRevokedSessions(
   ids: Iterable<string>,
-  cutoffs: Iterable<[string, number]> = []
+  cutoffs: Iterable<[string, number]> = [],
+  readAfterMark?: number
 ): void {
-  revoked = new Set(ids)
-  notBefore = new Map(cutoffs)
+  const nextRevoked = new Set(ids)
+  const nextNotBefore = new Map(cutoffs)
+  if (readAfterMark === undefined) {
+    pendingRevokes.clear()
+    pendingCutoffs.clear()
+  } else {
+    for (const [sid, mark] of pendingRevokes) {
+      if (mark <= readAfterMark) pendingRevokes.delete(sid)
+      else nextRevoked.add(sid)
+    }
+    for (const [id, c] of pendingCutoffs) {
+      if (c.mark <= readAfterMark) pendingCutoffs.delete(id)
+      else
+        nextNotBefore.set(id, Math.max(nextNotBefore.get(id) ?? 0, c.seconds))
+    }
+  }
+  revoked = nextRevoked
+  notBefore = nextNotBefore
   revocationsSyncedAt = Date.now()
 }
 
 /** Mark a session revoked immediately, without waiting for the next poll. */
 export function revokeNow(sessionId: string): void {
   revoked.add(sessionId)
+  pendingRevokes.set(sessionId, ++lastMark)
 }
 
 /** Set a person's cutoff immediately, without waiting for the next poll. */
 export function markNotBefore(telegramId: string, seconds: number): void {
-  notBefore.set(telegramId, seconds)
+  notBefore.set(telegramId, Math.max(notBefore.get(telegramId) ?? 0, seconds))
+  pendingCutoffs.set(telegramId, { seconds, mark: ++lastMark })
 }
 
 /**

@@ -176,6 +176,54 @@ describe('per-person not-before cutoff', () => {
     )
   })
 
+  it('a poll that read before a local mark does not erase it; a later poll retires it', async () => {
+    const now = nowSeconds()
+    const token = (id: number, sid: string, iat: number) =>
+      session.signAccessToken({
+        telegramId: String(id),
+        sessionId: sid,
+        deviceKeyThumbprint: '',
+        now: iat,
+      })
+    const oldAlice = token(ALICE, 's-alice-old', now - 100)
+    const bobRevoked = token(BOB, 's-bob-revoked', now - 10)
+
+    // The poll's queries run while the marks are made, and answer from a
+    // snapshot taken before them: no cutoff row, no revoked session.
+    let release!: () => void
+    const gate = new Promise<void>(r => (release = r))
+    let reads = 0
+    const snapshotPool = {
+      async query() {
+        reads += 1
+        await gate
+        return { rows: [] as any[] }
+      },
+    }
+    const polling = store.pollRevocations(snapshotPool)
+    await new Promise(r => setTimeout(r, 10))
+    expect(reads, 'the poll did not start reading').toBe(1)
+
+    session.markNotBefore(String(ALICE), now - 50)
+    session.revokeNow('s-bob-revoked')
+    release()
+    await polling
+
+    expect(() => session.verifyAppSession(oldAlice, now)).toThrow(
+      /before sign-out everywhere/
+    )
+    expect(() => session.verifyAppSession(bobRevoked, now)).toThrow(/revoked/)
+    expect(auth.verifyTelegramInitData(launchAt(ALICE, now - 100)).ok).toBe(
+      false
+    )
+
+    // A poll that starts after the marks has read their rows. These rows say
+    // nothing any more, so the marks are retired rather than kept forever.
+    await store.pollRevocations({ query: async () => ({ rows: [] }) })
+    expect(() => session.verifyAppSession(oldAlice, now)).not.toThrow()
+    expect(() => session.verifyAppSession(bobRevoked, now)).not.toThrow()
+  })
+
   it('refuses initData launched before the cutoff at every initData door', async () => {
     const now = nowSeconds()
     const stale = launchAt(ALICE, now - 100)

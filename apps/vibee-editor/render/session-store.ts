@@ -13,7 +13,12 @@
  */
 
 import crypto from 'node:crypto'
-import { digest, revokeNow, setRevokedSessions } from './session'
+import {
+  digest,
+  revokeNow,
+  revocationMark,
+  setRevokedSessions,
+} from './session'
 
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -500,6 +505,9 @@ export async function setNotBefore(
  * that nothing slips through, short enough that the set stays small.
  */
 export async function pollRevocations(pool: Pool): Promise<number> {
+  // Before the first query: marks made after this are re-applied on top of
+  // what the queries read (see setRevokedSessions).
+  const readAfterMark = revocationMark()
   const r = await pool.query(
     `SELECT id FROM app_sessions
       WHERE revoked_at IS NOT NULL AND revoked_at > now() - interval '90 minutes'`
@@ -524,7 +532,8 @@ export async function pollRevocations(pool: Pool): Promise<number> {
           string,
           number,
         ]
-    )
+    ),
+    readAfterMark
   )
 
   /*
