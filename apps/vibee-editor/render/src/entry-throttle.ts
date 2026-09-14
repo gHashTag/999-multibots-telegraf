@@ -134,10 +134,28 @@ export function пуститьПопытку(
   }
   if (о.счёт >= предел) {
     const осталось = ОКНО_МС - (сейчас - о.началось)
-    return { можно: false, ждатьСекунд: Math.max(1, Math.ceil(осталось / 1000)) }
+    return {
+      можно: false,
+      ждатьСекунд: Math.max(1, Math.ceil(осталось / 1000)),
+    }
   }
   о.счёт += 1
   return { можно: true }
+}
+
+/**
+ * The per-key window above under English names, for new callers whose key is
+ * not a network source (one telegram_id, say). Same map, same cap on how many
+ * keys it holds; prefix the key so it cannot collide with a source key.
+ */
+export function allowPerKey(
+  key: string,
+  limit: number,
+  now = Date.now()
+): { ok: true } | { ok: false; retryAfterSeconds: number } {
+  const r = пуститьПопытку(key, now, limit) // cyrillic-ok: existing limiter
+  if (r.можно) return { ok: true } // cyrillic-ok: its result field
+  return { ok: false, retryAfterSeconds: r.ждатьСекунд } // cyrillic-ok: same
 }
 
 interface ЗапросСАдресом {

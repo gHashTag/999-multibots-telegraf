@@ -26,7 +26,7 @@ import { notifySignIn, safeDeviceName } from './src/auth/notify-sign-in'
 import { sendToTelegram } from './src/auth/telegram-sender'
 import { record } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { пуститьВход } from './src/entry-throttle'
+import { пуститьВход, allowPerKey } from './src/entry-throttle'
 import crypto from 'node:crypto'
 import {
   verifyTelegramInitData,
@@ -41,6 +41,9 @@ import {
   digest,
   revokeNow,
   markNotBefore,
+  signGameToken,
+  GAME_AUDIENCES,
+  GAME_TOKEN_TTL_SECONDS,
   SESSION_TUNING,
   SessionError,
 } from './session'
@@ -454,6 +457,28 @@ function verifiedTelegramIdFrom(initData: string): string | null {
 function signedByBot(botId: string | undefined): string {
   return /^\d{1,20}$/.test(botId ?? '') ? `bot ${botId}` : 'bot unknown'
 }
+
+/**
+ * Numeric ids of the bots whose initData may mint a game token.
+ *
+ * Read on every call, like the bot tokens in auth.ts, so a change needs no
+ * restart. Anything that is not a plain run of digits is ignored. Empty means
+ * no bot is trusted yet: the list is to be built from the observed bot ids
+ * (sign-in journal notes and the per-request counters), not from memory.
+ */
+function launchBotIds(): string[] {
+  return (process.env.LAUNCH_BOT_IDS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => /^\d{1,20}$/.test(s))
+}
+
+/**
+ * Game tokens one person may mint per limiter window (60 s). The game renews
+ * about every four minutes per frame; ten leaves room for several tabs and
+ * retries and still stops a loop from minting thousands.
+ */
+const GAME_TOKENS_PER_WINDOW = 10
 
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -1023,6 +1048,108 @@ export async function handleAuthRoute(
     return true
   }
 
+  // ─── Game token: identity only, for the game origin ────────────────────
+  /*
+   * The game on https://t27.ai may learn who the person is, and nothing more.
+   * It never receives a refresh token, an app access token or initData; it gets
+   * a 300 s v:2 token under a derived key (session.ts signGameToken), which
+   * every app-session route refuses and /mcp accepts only for identity tools.
+   *
+   * Parent credential, exactly as other routes read it, and nothing else:
+   *   - a live Bearer access token. A failing Bearer is refused, not skipped,
+   *     and a game token is not a Bearer (no chaining).
+   *   - X-Telegram-Init-Data from a bot in LAUNCH_BOT_IDS. While that list is
+   *     unset every initData parent is refused, so the Telegram Hive path waits
+   *     for the list built from observed bot ids.
+   * Agent keys and the service key are never read here, so they mint nothing.
+   *
+   * The audience is this request's Origin and must be a game origin exactly.
+   * Public (auth.ts PUBLIC_EXACT): this block is the whole identity check.
+   */
+  if (path === '/api/auth/game-token' && req.method === 'POST') {
+    const origin = String(req.headers['origin'] ?? '')
+    if (!GAME_AUDIENCES.includes(origin)) {
+      json(res, 403, {
+        error: 'game_token_origin_refused',
+        detail: `Origin must be exactly one of: ${GAME_AUDIENCES.join(', ')}`,
+      })
+      return true
+    }
+
+    let telegramId: string
+    const bearer = (req.headers['authorization'] as string | undefined) || ''
+    const initData =
+      (req.headers['x-telegram-init-data'] as string | undefined) ||
+      (req.headers['x-telegram-initdata'] as string | undefined) ||
+      ''
+    if (bearer.startsWith('Bearer ')) {
+      try {
+        telegramId = verifyAppSession(bearer.slice(7).trim()).sub
+      } catch (e) {
+        const code = e instanceof SessionError ? e.code : 'malformed'
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: `session rejected: ${code}`,
+        })
+        return true
+      }
+    } else if (initData) {
+      const launchBots = launchBotIds()
+      if (!launchBots.length) {
+        json(res, 403, {
+          error: 'game_token_launch_bots_unset',
+          detail:
+            'LAUNCH_BOT_IDS is not configured, so Telegram initData cannot mint a game token yet',
+        })
+        return true
+      }
+      const v = verifyTelegramInitData(initData)
+      const id = v.ok ? verifiedTelegramIdFrom(initData) : null
+      if (!v.ok || !id) {
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: `initData rejected: ${v.reason ?? 'no user.id in the signed string'}`,
+        })
+        return true
+      }
+      if (!launchBots.includes(v.botId ?? '')) {
+        json(res, 403, {
+          error: 'game_token_bot_not_allowed',
+          detail: 'the bot that signed this initData is not in LAUNCH_BOT_IDS',
+        })
+        return true
+      }
+      telegramId = id
+    } else {
+      json(res, 401, {
+        error: 'game_token_credential_required',
+        detail:
+          'send Authorization: Bearer <access token> or X-Telegram-Init-Data',
+      })
+      return true
+    }
+
+    const allowed = allowPerKey(
+      `game-token:${telegramId}`,
+      GAME_TOKENS_PER_WINDOW
+    )
+    if (!allowed.ok) {
+      res.setHeader('Retry-After', String(allowed.retryAfterSeconds))
+      json(res, 429, {
+        error: 'game_token_rate_limited',
+        retry_after_seconds: allowed.retryAfterSeconds,
+      })
+      return true
+    }
+
+    json(res, 200, {
+      game_token: signGameToken({ telegramId, audience: origin }),
+      expires_in: GAME_TOKEN_TTL_SECONDS,
+      telegram_id: telegramId,
+    })
+    return true
+  }
+
   // ─── Logout everywhere ─────────────────────────────────────────────────
   /*
    * SIGN OUT EVERYWHERE: every live family of the person, not only this one.
@@ -1214,6 +1341,7 @@ export async function handleAuthRoute(
     '/api/auth/refresh': 'POST',
     '/api/auth/logout': 'POST',
     '/api/auth/logout-all': 'POST',
+    '/api/auth/game-token': 'POST',
     '/api/auth/pair/start': 'POST',
     '/api/auth/pair/claim': 'POST',
   }

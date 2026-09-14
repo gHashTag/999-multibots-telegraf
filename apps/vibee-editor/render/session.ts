@@ -83,6 +83,7 @@ export class SessionError extends Error {
       | 'revoked'
       | 'revocation_unavailable'
       | 'wrong_version'
+      | 'wrong_audience'
   ) {
     super(message)
   }
@@ -314,6 +315,170 @@ export function initDataCutoffRefusal(
   if (telegramId && authDate < (notBefore.get(telegramId) ?? 0))
     return 'initData was issued before sign-out everywhere'
   return null
+}
+
+// ─── Game token ──────────────────────────────────────────────────────────
+
+/**
+ * The origins a game token may be minted for and used from. Exact strings:
+ * not www.t27.ai, and not app.t27.ai, where the player holds real sessions.
+ */
+export const GAME_AUDIENCES: readonly string[] = ['https://t27.ai']
+
+/** Five minutes: a leaked game token is worth one identity for that long. */
+export const GAME_TOKEN_TTL_SECONDS = 300
+
+/**
+ * What a game token says. Deliberately no `sid`: it is not a session, it
+ * cannot be refreshed, and it names no family. `scope` is identity only.
+ */
+export interface GameClaims {
+  v: 2
+  sub: string
+  aud: string
+  scope: 'identity'
+  iat: number
+  exp: number
+  jti: string
+}
+
+/**
+ * The game token key: HMAC of the session key under a fixed label.
+ *
+ * A separate key keeps the two kinds apart by construction. A game token fails
+ * verifyAppSession's signature check before its claims are read, so every
+ * route that accepts app sessions refuses it without knowing it exists; and an
+ * app access token fails here. One secret still backs both, so there is no new
+ * environment value to configure or rotate.
+ */
+function gameSigningKey(): Buffer {
+  return crypto
+    .createHmac('sha256', signingKey())
+    .update('tri-game-token-v1', 'utf8')
+    .digest()
+}
+
+export function signGameToken(params: {
+  telegramId: string
+  audience: string
+  now?: number
+}): string {
+  if (!GAME_AUDIENCES.includes(params.audience)) {
+    throw new Error('game token audience is not a game origin')
+  }
+  const now = params.now ?? Math.floor(Date.now() / 1000)
+  const header = { alg: 'HS256', typ: 'tri-game' }
+  const claims: GameClaims = {
+    v: 2,
+    sub: params.telegramId,
+    aud: params.audience,
+    scope: 'identity',
+    iat: now,
+    exp: now + GAME_TOKEN_TTL_SECONDS,
+    jti: b64url(crypto.randomBytes(12)),
+  }
+  const head = b64url(Buffer.from(JSON.stringify(header), 'utf8'))
+  const body = b64url(Buffer.from(JSON.stringify(claims), 'utf8'))
+  const mac = crypto
+    .createHmac('sha256', gameSigningKey())
+    .update(`${head}.${body}`, 'utf8')
+    .digest()
+  return `${head}.${body}.${b64url(mac)}`
+}
+
+/**
+ * Whether a Bearer presents itself as a game token, by its header `typ`.
+ * Routing only -- nothing is trusted until verifyGameToken has run.
+ */
+export function isGameToken(token: string): boolean {
+  try {
+    const header = JSON.parse(unb64url(token.split('.')[0]).toString('utf8'))
+    return header?.typ === 'tri-game'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Verify a game token for a request from `origin`. Synchronous, like
+ * verifyAppSession, and refused on the same stale revocation state.
+ *
+ * The audience must be a game origin AND equal the Origin the request came
+ * with, so a token taken from the game cannot be used from a page elsewhere.
+ * A non-browser client can send any Origin; that binding narrows where a
+ * browser can use the token, it does not authenticate anyone.
+ */
+export function verifyGameToken(
+  token: string,
+  origin: string,
+  now?: number
+): GameClaims {
+  const parts = token.split('.')
+  if (parts.length !== 3)
+    throw new SessionError('token is not three parts', 'malformed')
+  const [head, body, sig] = parts
+
+  let header: Record<string, unknown>
+  try {
+    header = JSON.parse(unb64url(head).toString('utf8'))
+  } catch {
+    throw new SessionError('header is not JSON', 'malformed')
+  }
+  if (header.alg !== 'HS256' || header.typ !== 'tri-game') {
+    throw new SessionError('not a game token header', 'bad_algorithm')
+  }
+  if ('kid' in header || 'jku' in header || 'x5u' in header) {
+    throw new SessionError('key-resolution header refused', 'bad_algorithm')
+  }
+
+  const expected = crypto
+    .createHmac('sha256', gameSigningKey())
+    .update(`${head}.${body}`, 'utf8')
+    .digest()
+  const given = unb64url(sig)
+  if (
+    given.length !== expected.length ||
+    !crypto.timingSafeEqual(given, expected)
+  ) {
+    throw new SessionError('signature mismatch', 'bad_signature')
+  }
+
+  let claims: GameClaims
+  try {
+    claims = JSON.parse(unb64url(body).toString('utf8'))
+  } catch {
+    throw new SessionError('claims are not JSON', 'malformed')
+  }
+  if (claims.v !== 2 || claims.scope !== 'identity')
+    throw new SessionError('unknown claim version or scope', 'wrong_version')
+  if (!claims.sub) throw new SessionError('sub missing', 'malformed')
+  if (!GAME_AUDIENCES.includes(claims.aud) || claims.aud !== origin) {
+    throw new SessionError('audience does not match origin', 'wrong_audience')
+  }
+
+  const t = now ?? Math.floor(Date.now() / 1000)
+  if (typeof claims.exp !== 'number' || t > claims.exp + CLOCK_SKEW_SECONDS) {
+    throw new SessionError('token expired', 'expired')
+  }
+  if (typeof claims.iat !== 'number' || claims.iat > t + CLOCK_SKEW_SECONDS) {
+    throw new SessionError('token issued in the future', 'not_yet_valid')
+  }
+  if (
+    !revocationsSyncedAt ||
+    Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS
+  ) {
+    throw new SessionError(
+      'revocation state is unavailable',
+      'revocation_unavailable'
+    )
+  }
+  if (claims.iat < (notBefore.get(claims.sub) ?? 0)) {
+    throw new SessionError(
+      'game token issued before sign-out everywhere',
+      'revoked'
+    )
+  }
+  return claims
 }
 
 // ─── Refresh tokens ──────────────────────────────────────────────────────

@@ -261,6 +261,14 @@ const PUBLIC_EXACT = new Set([
    */
   '/api/auth/pair/start',
   '/api/auth/pair/claim',
+  /*
+   * The game token route checks identity itself, as the sign-in routes do: an
+   * exact Origin, then a live Bearer or initData from a bot in LAUNCH_BOT_IDS.
+   * Behind the guard nothing would change for a real caller, agent keys and the
+   * service key would still reach the handler, and callers would meet two
+   * different 401 bodies for one route. Pinned in auth-public.test.ts.
+   */
+  '/api/auth/game-token',
   /**
    * THE AGENT CARD MUST BE READABLE BY A STRANGER, or A2A does not exist.
    *
