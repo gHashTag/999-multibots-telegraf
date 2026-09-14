@@ -180,6 +180,17 @@ export interface PendingProposal {
   charge?: ProposalCharge
   /** A free lead magnet: recorded as a touch with the gift prefix, never a purchase. */
   gift?: boolean
+  /**
+   * Structured arguments an executor needs beyond the prose card: which
+   * messages a forward names and where they came from, for example.
+   *
+   * A generic bag rather than a field per argument because the executor table
+   * is meant to grow without PendingProposal growing beside it: a row that
+   * needs something new reads it out of here, and the jsonb mirror round-trips
+   * the bag without knowing what is in it. The card stays prose -- `what` is
+   * what a person reads -- and `args` is what the row reads.
+   */
+  args?: Record<string, unknown>
 }
 
 /** What may leave this module. Never the secret, except through `issueFor`. */
@@ -840,6 +851,26 @@ export interface SendingClient {
     to: string,
     opts: { file: string; caption?: string; parseMode: false }
   ) => Promise<unknown>
+  /**
+   * GramJS `forwardMessages`: the messages and their source are named in the
+   * draft's `args`, and fromPeer is REQUIRED when ids are integers -- the
+   * wrapper cannot guess which chat they came from.
+   */
+  forwardMessages?: (
+    to: string,
+    opts: { messages: number[]; fromPeer: string }
+  ) => Promise<unknown>
+  /** The newest message, for `read`: maxId is the precise act the card names. */
+  getMessages?: (
+    chat: string,
+    opts: { limit: number }
+  ) => Promise<Array<{ id?: unknown }>>
+  /** GramJS `markAsRead`: with maxId, exactly that; without, the whole dialog. */
+  markAsRead?: (
+    chat: string,
+    message?: unknown,
+    opts?: { maxId?: number }
+  ) => Promise<unknown>
   getDialogs: (opts: { limit: number }) => Promise<unknown>
   disconnect?: () => Promise<unknown>
 }
@@ -907,7 +938,7 @@ const LOOKS_NUMERIC = /^-?\d+$/
  */
 export async function resolvingPeer<T>(
   c: { getDialogs: (opts: { limit: number }) => Promise<unknown> },
-  target: string | undefined,
+  target: string | readonly string[] | undefined,
   attempt: () => Promise<T>
 ): Promise<T> {
   try {
@@ -915,8 +946,16 @@ export async function resolvingPeer<T>(
   } catch (e) {
     const text = e instanceof Error ? e.message : String(e)
     const unresolved = /input entity|Could not find/i.test(text)
-    if (!unresolved || target === undefined || !LOOKS_NUMERIC.test(target))
-      throw e
+    /*
+     * `target` may name TWO peers (a forward has a source and a destination)
+     * and the thrown text does not reliably say which one was unresolved. The
+     * warm-up loads every dialog, so one warm fixes both; it is taken only
+     * when at least one name is a bare id, for the same reason as before.
+     */
+    const names =
+      target === undefined ? [] : Array.isArray(target) ? target : [target]
+    const anyNumeric = names.some(t => LOOKS_NUMERIC.test(t))
+    if (!unresolved || !anyNumeric) throw e
   }
   await c.getDialogs({ limit: 200 })
   return attempt()
@@ -1053,8 +1092,12 @@ export interface ExecCtx {
  * row, and a row left out refuses honestly below.
  */
 export interface Executor {
-  /** A refusal before anything moves, or null to proceed. */
-  check: (p: PublicProposal, ctx: ExecCtx) => string | null
+  /**
+   * A refusal before anything moves, or null to proceed. Absent when the
+   * tool's schema already guarantees everything a check would -- a guard
+   * repeating the schema is the schema written twice.
+   */
+  check?: (p: PublicProposal, ctx: ExecCtx) => string | null
   /** The act itself. Runs inside the refund guard: a throw with money taken gives the money back. */
   run: (c: SendingClient, p: PublicProposal, ctx: ExecCtx) => Promise<unknown>
   /** Show "typing…" before the act. Sends only, and never when scheduled. */
@@ -1118,7 +1161,7 @@ async function afterSend(
  * The table. Keyed by exactly the actions `execute` can carry out; a key
  * without a row is a compile error here rather than a runtime refusal below.
  */
-const EXECUTORS: Record<'send', Executor> = {
+const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
   send: {
     check: p => (p.what || p.media ? null : 'нечего отправлять: текст пуст'),
     async run(c, p) {
@@ -1129,6 +1172,63 @@ const EXECUTORS: Record<'send', Executor> = {
     },
     typing: true,
     after: afterSend,
+  },
+  forward: {
+    /*
+     * Forwarding carries somebody else's words somewhere new -- the card says
+     * which messages from where, and `args` carries the same names in the
+     * form the wire needs. No mirror, no touch: nothing the owner wrote left
+     * the account, so the CRM picture gains nothing from it.
+     */
+    check: p => {
+      const ids = p.args?.messageIds
+      const n = Array.isArray(ids) ? ids.length : 0
+      if (n < 1) return 'нечего пересылать: не названы сообщения'
+      if (n > 100) return 'слишком много сообщений для одной пересылки (до 100)'
+      if (!String(p.args?.fromPeer ?? '').trim())
+        return 'не назван источник: откуда пересылать'
+      return null
+    },
+    async run(c, p) {
+      if (!c.forwardMessages)
+        throw new Error('этот клиент не умеет пересылать сообщения')
+      const ids = (p.args?.messageIds as number[]) ?? []
+      const from = String(p.args?.fromPeer ?? '')
+      // BOUND, for the same reason as sendFile: the wrapper passes `this` on
+      // into the library call, and a detached reference is a production
+      // failure that an object-literal fake cannot reproduce (#2372).
+      const fwd = c.forwardMessages.bind(c)
+      return resolvingPeer(c, [p.target, from], () =>
+        fwd(p.target, { messages: ids, fromPeer: from })
+      )
+    },
+  },
+  read: {
+    /*
+     * Marking read is a signal TO the other person: their checkmarks change
+     * and there is no undo. That visibility is why it goes through the gate
+     * rather than happening on the model's say-so.
+     *
+     * No `check`: the schema requires the chat, and an executor guard here
+     * would be the schema repeated in prose.
+     */
+    async run(c, p) {
+      if (!c.markAsRead)
+        throw new Error('этот клиент не умеет отмечать прочитанным')
+      if (!c.getMessages)
+        throw new Error('этот клиент не умеет читать сообщения')
+      const mark = c.markAsRead.bind(c)
+      return resolvingPeer(c, p.target, async () => {
+        const newest = (await c.getMessages!(p.target, { limit: 1 }))[0]
+        const maxId = Number(newest?.id)
+        // The newest message's id names exactly what a person means by "mark
+        // that read". An empty chat has no newest: read the whole dialog,
+        // which for an empty chat is the same act.
+        return Number.isFinite(maxId) && maxId > 0
+          ? mark(p.target, undefined, { maxId })
+          : mark(p.target)
+      })
+    },
   },
 }
 
@@ -1154,13 +1254,19 @@ export async function execute(
        * An action with no row in the table still refuses, in words, naming
        * the action. Pretending to do it would be worse than the gap it
        * leaves, because the person would believe the thing happened.
+       *
+       * The list of what IS carried out is derived from the table, so a new
+       * row updates the sentence without a second edit here.
        */
+      const done = Object.keys(EXECUTORS)
       return {
         done: false,
-        why: `подтверждение для «${p.action}» ещё не сделано — пока только отправка`,
+        why:
+          `подтверждение для «${p.action}» ещё не сделано — ` +
+          `сделано: ${done.join(', ')}`,
       }
     }
-    const bad = exec.check(p, ctx)
+    const bad = exec.check?.(p, ctx)
     if (bad) return { done: false, why: bad }
     /*
      * THE MONEY, AFTER THE PRESS AND BEFORE THE ACT. A charge on the

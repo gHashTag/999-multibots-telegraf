@@ -198,6 +198,12 @@ export interface ProposalExtras {
   charge?: ProposalCharge
   /** A free lead magnet: nobody is charged, and the touch note says "gift". */
   gift?: boolean
+  /**
+   * Structured arguments the executor will need: which messages a forward
+   * names, and where they came from. The prose `what` is what the person
+   * reads on the card; this is what the executor reads on the press.
+   */
+  args?: Record<string, unknown>
 }
 
 /**
@@ -277,8 +283,9 @@ function propose(
   /*
    * ONLY WHAT CAN ACTUALLY BE CARRIED OUT TAKES THE QUEUE SLOT.
    *
-   * `execute` performs `send` and honestly refuses forward, read, delete,
-   * join and leave. Queueing those anyway cost two real defects:
+   * `execute` performs send, forward and read, and honestly refuses delete,
+   * join and leave. Queueing what cannot execute cost two real defects while
+   * read had no executor:
    *
    *  - the card said "Отправить сообщение в Telegram?" for every action, so a
    *    `tg_read` proposal appeared as a send with an empty body, and pressing
@@ -288,9 +295,11 @@ function propose(
    *    the person was about to confirm. The agent reads a chat, and the
    *    message waiting for approval quietly disappears.
    *
-   * The others still return a proposal to the model -- that is how it learns
-   * the action was not performed -- they simply do not occupy the human
-   * queue. When forward becomes executable it is added here, in one place.
+   * Now that read executes, queueing it is the point -- and eviction is the
+   * honest rule it always was for a second send. The others still return a
+   * proposal to the model -- that is how it learns the action was not
+   * performed -- they simply do not occupy the human queue. A row added to
+   * the executor table joins the queue here without this file changing.
    */
   if (EXECUTABLE.has(action) && CAN_CONFIRM.has(String(ctx?.surface ?? ''))) {
     remember({
@@ -309,6 +318,7 @@ function propose(
       media: extra?.media,
       charge: extra?.charge,
       gift: extra?.gift,
+      args: extra?.args,
     })
   }
   /*
@@ -621,6 +631,14 @@ export const COMPACT_HIDDEN: ReadonlySet<string> = new Set([
   'tg_scheduled',
   'tg_participants',
   'tg_common_chats',
+  /*
+   * Precision actions, not conversation: a small model selling in a DM needs
+   * to read the room and to answer, not to forward or mark read. The budget
+   * the compact kit must fit is pinned by a test, and these two paid their
+   * way in neither value nor tokens.
+   */
+  'tg_forward',
+  'tg_read',
 ])
 
 export const TELEGRAM_TOOLS: AgentTool[] = [
@@ -1064,24 +1082,57 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
   {
     name: 'tg_forward',
     description:
-      'Переслать сообщение другому адресату. НЕ ПЕРЕСЫЛАЕТ СРАЗУ — возвращает proposal ' +
-      'на подтверждение. Пересылка выносит чужое содержимое за пределы диалога.',
+      'Переслать сообщения другому адресату. НЕ ПЕРЕСЫЛАЕТ СРАЗУ — возвращает proposal ' +
+      'на подтверждение. Пересылка выносит чужое содержимое за пределы диалога. ' +
+      'messageIds принимает список id (до 100) из tg_history или tg_search; ' +
+      'messageId — одиночный id для совместимости.',
     parameters: {
       type: 'object',
       properties: {
-        from: { type: 'string', description: 'Откуда' },
-        to: { type: 'string', description: 'Куда' },
-        messageId: { type: 'number', description: 'id messages' },
+        from: {
+          type: 'string',
+          description: 'Откуда: id диалога или @username',
+        },
+        to: { type: 'string', description: 'Куда: id диалога или @username' },
+        messageIds: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'id сообщений из tg_history/tg_search (до 100)',
+        },
+        messageId: {
+          type: 'number',
+          description: 'одиночный id (совместимость)',
+        },
       },
-      required: ['from', 'to', 'messageId'],
+      required: ['from', 'to'],
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
+      /*
+       * messageIds is the real parameter; messageId stays so an old call with
+       * one id still works instead of suddenly refusing. Up to 100: the same
+       * ceiling the executor's check enforces, so the model learns the limit
+       * from the tool answer rather than from a refused press.
+       */
+      const ids: number[] = Array.isArray(args.messageIds)
+        ? args.messageIds.map((x: unknown) => Number(x)).filter(Number.isFinite)
+        : Number.isFinite(Number(args.messageId))
+          ? [Number(args.messageId)]
+          : []
+      const shown = ids.slice(0, 100)
       return propose(
         'forward',
         args.to,
-        `сообщение ${args.messageId} из ${args.from}`,
+        `сообщения ${shown.join(', ')} из ${args.from}`,
         'Пересылка ждёт подтверждения: она выносит чужой text за пределы исходного диалога.',
-        ctx
+        ctx,
+        undefined,
+        undefined,
+        {
+          args: {
+            messageIds: shown,
+            fromPeer: String(args.from ?? ''),
+          },
+        }
       )
     },
   },

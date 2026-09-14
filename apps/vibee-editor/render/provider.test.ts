@@ -177,6 +177,9 @@ describe('what a small model is shown', () => {
       'tg_scheduled',
       'tg_participants',
       'tg_common_chats',
+      // Precision actions the small model has no conversational use for.
+      'tg_forward',
+      'tg_read',
     ]) {
       expect(kit.some(t => t.name === hidden)).toBe(false)
     }

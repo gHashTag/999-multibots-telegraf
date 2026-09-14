@@ -465,6 +465,165 @@ describe('an action with no executor refuses honestly', () => {
   })
 })
 
+describe('forward and read join send at the executor table', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock('./src/agent/telegram-tools')
+  })
+
+  /*
+   * PROTOTYPE FAKES, ON PURPOSE. GramJS hangs forwardMessages and markAsRead
+   * on the prototype as wrappers that pass `this` into the library call, so a
+   * detached reference dies the way sendFile did in production (#2372: every
+   * photo send answered "Cannot read properties of undefined"). A fake whose
+   * methods read `this` cannot be fooled by a detached call the way an object
+   * literal can.
+   */
+  class FakeForwarder {
+    public calls: Array<{
+      to: string
+      messages: unknown
+      fromPeer: unknown
+    }> = []
+    private self: unknown
+    constructor() {
+      this.self = this
+    }
+    getDialogs() {
+      return []
+    }
+    forwardMessages(
+      this: FakeForwarder,
+      to: string,
+      opts: { messages: unknown; fromPeer: unknown }
+    ) {
+      if (!this || this !== this.self) {
+        // Unreachable when called attached; a detached call loses `this`.
+        throw new Error('detached call')
+      }
+      this.calls.push({ to, messages: opts.messages, fromPeer: opts.fromPeer })
+      return [{ id: 500 }]
+    }
+    async disconnect() {}
+  }
+
+  class FakeReader {
+    public reads: Array<{ chat: string; message: unknown; opts: unknown }> = []
+    public top: Array<{ id?: unknown }> = [{ id: 42 }]
+    getDialogs() {
+      return []
+    }
+    getMessages(this: FakeReader, chat: string, opts: { limit: number }) {
+      expect(opts.limit).toBe(1)
+      expect(chat).toBeTruthy()
+      return this.top
+    }
+    markAsRead(
+      this: FakeReader,
+      chat: string,
+      message: unknown,
+      opts?: unknown
+    ) {
+      this.reads.push({ chat, message, opts })
+      return true
+    }
+    async disconnect() {}
+  }
+
+  it('forward forwards the named messages from the named source', async () => {
+    const fake = new FakeForwarder()
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => fake,
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const r = await exec(
+      {
+        id: 'f1',
+        telegramId: '144022504',
+        action: 'forward',
+        target: '@dest',
+        args: { messageIds: [10, 11], fromPeer: '@src' },
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done).toBe(true)
+    expect(fake.calls).toEqual([
+      { to: '@dest', messages: [10, 11], fromPeer: '@src' },
+    ])
+  })
+
+  it('forward with no message ids refuses before anything moves', async () => {
+    const fake = new FakeForwarder()
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => fake,
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const r = await exec(
+      {
+        id: 'f2',
+        telegramId: '144022504',
+        action: 'forward',
+        target: '@dest',
+        // fromPeer only: nothing named to forward.
+        args: { fromPeer: '@src' },
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done).toBe(false)
+    if (!r.done) expect(r.why).toContain('нечего пересылать')
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('read marks the newest message read, with its id', async () => {
+    // maxId beats a bare read-all: the wrapper gives maxId priority over
+    // message, and naming the id is the precise act the card describes.
+    const fake = new FakeReader()
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => fake,
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const r = await exec(
+      {
+        id: 'r1',
+        telegramId: '144022504',
+        action: 'read',
+        target: '@chat',
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done).toBe(true)
+    expect(fake.reads).toEqual([
+      { chat: '@chat', message: undefined, opts: { maxId: 42 } },
+    ])
+  })
+
+  it('an empty chat still reads: no newest id, so the whole dialog', async () => {
+    const fake = new FakeReader()
+    fake.top = []
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => fake,
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const r = await exec(
+      {
+        id: 'r2',
+        telegramId: '144022504',
+        action: 'read',
+        target: '@chat',
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done).toBe(true)
+    expect(fake.reads).toEqual([
+      { chat: '@chat', message: undefined, opts: undefined },
+    ])
+  })
+})
+
 describe('the socket does not stay open', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -550,12 +709,16 @@ describe('only an executable action takes the one queue slot', () => {
     forgetProposals()
   })
 
-  it('a read proposal does not evict the send waiting for approval', async () => {
+  it('a read proposal now evicts the send waiting for approval', async () => {
     /*
-     * One slot per person, so whatever is queued last is what the card shows
-     * and what a press carries out. Queueing a `tg_read` -- which `execute`
-     * refuses anyway -- silently threw away the message the person was about
-     * to confirm: the agent reads a chat, and the draft disappears.
+     * THE EVICTION FLIP, AND WHY IT IS THE HONEST RULE NOW.
+     *
+     * Until read had an executor it was right to keep it OUT of the slot: the
+     * card could not carry it out, so queueing it only threw away the message
+     * the person was about to confirm. Now read executes like send, and a
+     * person pressing a green button on a read they just asked for is exactly
+     * what the queue is for. One executable draft at a time is still the
+     * anti-spam invariant; what changed is what counts as executable.
      */
     const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
     const q = await import('./src/agent/tg-proposals')
@@ -574,30 +737,32 @@ describe('only an executable action takes the one queue slot', () => {
     expect(q.pendingFor('144022504')?.what).toBe('важное письмо')
 
     await read.handler({ chat: '@somebody' }, owner)
-    expect(
-      q.pendingFor('144022504')?.what,
-      'чтение выбросило черновик отправки'
-    ).toBe('важное письмо')
+    // The read replaced it: last executable draft wins, exactly like a second
+    // send always did.
+    expect(q.pendingFor('144022504')?.action).toBe('read')
     expect(q.pendingCount()).toBe(1)
   })
 
   it('a non-executable action still answers the model with a proposal', async () => {
     // The model must learn the action did not happen; that is what the
     // proposal object is for. It simply does not occupy the human queue.
-    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    // `delete` has no executor yet (PR3 territory), so it is the honest
+    // specimen now that read and forward execute.
+    const { propose } = await import('./src/agent/telegram-tools')
     const q = await import('./src/agent/tg-proposals')
     q.forgetProposals()
     const owner = {
       telegramId: '144022504',
       pool: { query: async () => ({ rows: [] }) },
-      // 'bot' because only that surface can confirm, and therefore only that
-      // surface queues anything at all.
       surface: 'bot',
     } as never
-    const read = TELEGRAM_TOOLS.find(t => t.name === 'tg_read')!
-    const answer = (await read.handler({ chat: '@x' }, owner)) as {
-      proposal?: boolean
-    }
+    const answer = (await propose(
+      'delete',
+      '@x',
+      'сообщения 1..3',
+      'why',
+      owner
+    )) as { proposal?: boolean }
     expect(answer.proposal).toBe(true)
     expect(q.pendingCount()).toBe(0)
   })

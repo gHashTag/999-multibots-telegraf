@@ -180,9 +180,10 @@ describe('действующие инструменты не действуют 
   })
 
   it('черновик tg_send клиента лежит в ЕГО очереди и исполнится с ЕГО сессии', async () => {
-    // Only `send` is executable and therefore queued (forward/read return a
-    // proposal and stop). The draft is keyed by the caller: the client's own
-    // press executes it through the client's own tg_sessions row.
+    // send, forward and read are all executable now and therefore all queued;
+    // what is NOT queued is anything without an executor (delete, join,
+    // leave). The draft is keyed by the caller: the client's own press
+    // executes it through the client's own tg_sessions row.
     forgetProposals()
     const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
     const answer = (await t.handler({ chat: '900000002', text: 'от клиента' }, {
