@@ -606,3 +606,41 @@ describe('a store that cannot be reached complains', () => {
     expect(table.has('w1'), 'the press deleted the row').toBe(false)
   })
 })
+
+describe('an album draft survives the deploy mirror', () => {
+  /*
+   * The payload is jsonb and the whole draft rides inside it, so an album's
+   * url list and per-photo captions should come back as arrays -- not as the
+   * string a naive "payload: String(draft)" would leave behind. A deploy is
+   * exactly when a card must not change shape: the owner confirms what they
+   * saw before the restart.
+   */
+  it('rowToProposal(proposalToRow(album)) keeps every url and caption', () => {
+    const p = remember({
+      id: 'alb1',
+      telegramId: WHO,
+      action: 'send',
+      target: '@ivan',
+      createdAt: 0,
+      media: {
+        kind: 'album',
+        urls: ['https://x/1.png', 'https://x/2.png', 'https://x/3.png'],
+        captions: ['раз', 'два'],
+      },
+    } as Parameters<typeof remember>[0])
+    const row = proposalToRow(p)
+    const back = rowToProposal({
+      id: row.id,
+      telegram_id: row.telegramId,
+      created_at: row.createdAt,
+      issued: row.issued,
+      secret_digest: row.secretDigest,
+      payload: row.payload,
+    })
+    expect(back.media).toEqual({
+      kind: 'album',
+      urls: ['https://x/1.png', 'https://x/2.png', 'https://x/3.png'],
+      captions: ['раз', 'два'],
+    })
+  })
+})

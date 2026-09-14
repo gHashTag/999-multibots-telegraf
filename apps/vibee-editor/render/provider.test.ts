@@ -180,9 +180,17 @@ describe('what a small model is shown', () => {
       // Precision actions the small model has no conversational use for.
       'tg_forward',
       'tg_read',
+      // A DM seller sends words, a picture, a voice; bulk and files do not
+      // earn their tokens in the small kit.
+      'tg_send_document',
+      'tg_send_album',
     ]) {
       expect(kit.some(t => t.name === hidden)).toBe(false)
     }
+    // Voice and video DO earn it: "here is the clip about the offer" is the
+    // product in a DM.
+    expect(kit.some(t => t.name === 'tg_send_voice')).toBe(true)
+    expect(kit.some(t => t.name === 'tg_send_video')).toBe(true)
   })
 })
 

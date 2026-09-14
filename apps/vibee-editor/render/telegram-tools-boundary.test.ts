@@ -47,7 +47,20 @@ const READING = [
   'tg_participants',
   'tg_common_chats',
 ]
-const ACTING = ['tg_send', 'tg_forward', 'tg_read']
+/*
+ * Four media sends (2026-09-14): voice, video, document, album. They are
+ * `send` in the queue's eyes -- same action, same gate, same refund guard --
+ * the card only gains a kind. Nothing here acts from the model's word alone.
+ */
+const ACTING = [
+  'tg_send',
+  'tg_send_voice',
+  'tg_send_video',
+  'tg_send_document',
+  'tg_send_album',
+  'tg_forward',
+  'tg_read',
+]
 
 /**
  * WHO may call these: anyone with a verified identity -- on their OWN account.
@@ -115,12 +128,30 @@ describe('действующие инструменты не действуют 
     surface: 'bot',
   } as never
 
+  /*
+   * A call the tool ACCEPTS, per tool. The media sends validate their url
+   * before a card exists -- an invalid draft would throw here, and the
+   * property under test (a proposal, never a result) would look broken.
+   */
+  const VALID_ARGS: Record<string, Record<string, unknown>> = {
+    tg_send: { chat: '123', text: 'привет' },
+    tg_send_voice: { chat: '123', url: 'https://x/v.mp3', duration: 3 },
+    tg_send_video: { chat: '123', url: 'https://x/v.mp4' },
+    tg_send_document: { chat: '123', url: 'https://x/d.pdf' },
+    tg_send_album: {
+      chat: '123',
+      urls: ['https://x/1.png', 'https://x/2.png'],
+    },
+    tg_forward: { from: 'a', to: 'b', messageId: 1 },
+    tg_read: { chat: '123' },
+  }
+
   for (const name of ACTING) {
     it(`${name} возвращает proposal, а не результат`, async () => {
       const t = TELEGRAM_TOOLS.find(x => x.name === name)!
       expect(t, `инструмент ${name} исчез из набора`).toBeTruthy()
       const answer = (await t.handler(
-        { chat: '123', text: 'привет', from: 'a', to: 'b', messageId: 1 },
+        VALID_ARGS[name] ?? { chat: '123', text: 'привет' },
         OWNER_CTX
       )) as { proposal?: boolean; why?: string }
       // The load-bearing assertion of this file: a PROPOSAL went out.
@@ -134,7 +165,7 @@ describe('действующие инструменты не действуют 
       forgetProposals()
       const t = TELEGRAM_TOOLS.find(x => x.name === name)!
       const answer = (await t.handler(
-        { chat: '123', text: 'привет', from: 'a', to: 'b', messageId: 1 },
+        VALID_ARGS[name] ?? { chat: '123', text: 'привет' },
         { telegramId: CLIENT, pool, surface: 'bot' } as never
       )) as { proposal?: boolean }
       expect(answer.proposal).toBe(true)

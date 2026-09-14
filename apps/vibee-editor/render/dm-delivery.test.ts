@@ -714,3 +714,196 @@ describe('the real generator honours chargeLater', () => {
     ).toBe(true)
   })
 })
+
+/**
+ * THE MEDIA KINDS A DRAFT CAN CARRY.
+ *
+ * Photo was the only kind, and photo travels as a URL Telegram fetches
+ * itself. Voice, video and video notes CANNOT: the URL path in GramJS
+ * ignores voiceNote/videoNote/attributes (uploads.js `_fileToMedia`), so a
+ * round voice note or a streaming video means downloading the bytes here
+ * and uploading them as a CustomFile with the attributes the card promised.
+ *
+ * These tests stub fetch (the download) and read what the fake client's
+ * BOUND sendFile received: the attributes are the contract the card shows
+ * (~N seconds, a video, a document named X), so they must reach the wire.
+ */
+describe('execute: media kinds reach sendFile shaped for their kind', () => {
+  const bytes = (n: number) => Buffer.alloc(n, 7)
+
+  const stubDownload = (buf: Buffer, status = 200) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array(buf), { status }))
+    )
+  }
+
+  const asParams = (o: Record<string, unknown>) =>
+    o as {
+      file: {
+        name?: string
+        size?: number
+        buffer?: Buffer
+      } & (string | unknown[])
+      caption?: unknown
+      voiceNote?: boolean
+      videoNote?: boolean
+      supportsStreaming?: boolean
+      forceDocument?: boolean
+      attributes?: Array<{ voice?: boolean; duration?: number }>
+    }
+
+  it('a voice draft uploads bytes as a round voice note with the promised duration', async () => {
+    stubDownload(bytes(60_000))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'https://s3.example/v.mp3', duration: 17 },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    const o = asParams(f.files[0])
+    expect(o.voiceNote).toBe(true)
+    // The attribute is what makes it ROUND and makes the duration honest:
+    // GramJS cannot measure duration itself (_getMetadata is a stub).
+    expect(o.attributes?.[0]).toMatchObject({ voice: true, duration: 17 })
+    expect(o.file).toMatchObject({ name: 'voice.mp3', size: 60_000 })
+  })
+
+  it('without a duration the seconds are estimated from the bytes, never zero', async () => {
+    // 60_000 bytes / 6000 ≈ 10s of opus-quality voice; a zero duration would
+    // show as a broken waveform on the recipient's phone.
+    stubDownload(bytes(60_000))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'https://s3.example/v.mp3' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done).toBe(true)
+    expect(asParams(f.files[0]).attributes?.[0]).toMatchObject({
+      voice: true,
+      duration: 10,
+    })
+  })
+
+  it('a video uploads with streaming support; a video note as a round note', async () => {
+    stubDownload(bytes(2048))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'video', url: 'https://s3.example/v.mp4' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    await execute(
+      draft({
+        id: 'm2',
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'video_note', url: 'https://s3.example/vn.mp4' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(asParams(f.files[0]).supportsStreaming).toBe(true)
+    expect(asParams(f.files[0]).voiceNote).toBeUndefined()
+    expect(asParams(f.files[1]).videoNote).toBe(true)
+  })
+
+  it('a document uploads under its promised name, as a document not a photo', async () => {
+    stubDownload(bytes(128))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: {
+          kind: 'document',
+          url: 'https://s3.example/report.pdf',
+          fileName: 'Смета.pdf',
+        },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    const o = asParams(f.files[0])
+    expect(o.forceDocument).toBe(true)
+    expect(o.file).toMatchObject({ name: 'Смета.pdf', size: 128 })
+  })
+
+  it('an album sends every URL, each caption beside its own photo', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: {
+          kind: 'album',
+          urls: [
+            'https://s3.example/1.png',
+            'https://s3.example/2.png',
+            'https://s3.example/3.png',
+          ],
+          captions: ['первый', 'второй'],
+        },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    expect(f.files).toEqual([
+      {
+        file: [
+          'https://s3.example/1.png',
+          'https://s3.example/2.png',
+          'https://s3.example/3.png',
+        ],
+        caption: ['первый', 'второй'],
+        parseMode: false,
+      },
+    ])
+  })
+
+  it('a media url that is not https is refused before anything is fetched', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'http://insecure/v.mp3' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done).toBe(false)
+    expect(f.files).toEqual([])
+  })
+
+  it('a download that fails is said in plain words, not a stack trace', async () => {
+    stubDownload(bytes(1), 503)
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'https://s3.example/v.mp3', duration: 5 },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done).toBe(false)
+    expect((r as { why: string }).why).toContain('скачать')
+    expect(f.files).toEqual([])
+  })
+})

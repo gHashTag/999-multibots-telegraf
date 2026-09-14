@@ -33,11 +33,27 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 
-/** A file that IS the service: made on the owner's turn, shown on the card. */
-export interface ProposalMedia {
-  kind: 'photo'
-  url: string
-}
+/**
+ * A file that IS the service: made on the owner's turn, shown on the card.
+ *
+ * ── WHICH KINDS CAN TRAVEL AS A URL, AND WHICH CANNOT ──────────────────────
+ *
+ * Photo and album ride the URL: Telegram fetches those itself
+ * (InputMediaPhotoExternal, capped at 10 MB per photo). Voice, video, video
+ * note and document CANNOT: GramJS' URL path (`_fileToMedia`, uploads.js)
+ * builds an external document and silently IGNORES voiceNote, videoNote and
+ * attributes -- so a round voice note "as a URL" would arrive as a plain
+ * audio file, and the duration the card promised would be a lie. Those kinds
+ * are downloaded here (https, ≤50 MB, 30 s) and uploaded as a CustomFile
+ * with the attributes written on the card.
+ */
+export type ProposalMedia =
+  | { kind: 'photo'; url: string }
+  | { kind: 'voice'; url: string; duration?: number }
+  | { kind: 'video'; url: string }
+  | { kind: 'video_note'; url: string; duration?: number }
+  | { kind: 'document'; url: string; fileName?: string }
+  | { kind: 'album'; urls: string[]; captions?: string[] }
 
 /**
  * Every action a proposal can carry.
@@ -522,6 +538,39 @@ export function pendingCount(): number {
 }
 
 /**
+ * The urls a media draft may carry, checked once here.
+ *
+ * `remember` throws with this text (the model reads it as a tool error and
+ * can fix the call); the send executor's `check` refuses with it (a draft
+ * restored from a poisoned row never gets as far as a download). The rules
+ * guard the mirror row and Telegram's own album limit, and https is not
+ * negotiable: an http url would send the service's file credentials over
+ * the open wire.
+ */
+export function mediaProblem(media: ProposalMedia | undefined): string | null {
+  if (!media) return null
+  const urlProblem = (u: unknown): string | null => {
+    const s = typeof u === 'string' ? u : ''
+    if (!s.startsWith('https://'))
+      return 'файл можно взять только по https-ссылке'
+    if (s.length > 2048)
+      return 'ссылка на файл длиннее 2048 знаков — не влезет в черновик'
+    return null
+  }
+  if (media.kind === 'album') {
+    const urls = Array.isArray(media.urls) ? media.urls : []
+    if (urls.length < 2 || urls.length > 10)
+      return 'альбом — это от 2 до 10 ссылок, как принимает Telegram'
+    for (const u of urls) {
+      const bad = urlProblem(u)
+      if (bad) return bad
+    }
+    return null
+  }
+  return urlProblem((media as { url?: unknown }).url)
+}
+
+/**
  * Remember a proposal so it can be confirmed later.
  *
  * The id is supplied by the caller rather than generated here so tests do not
@@ -536,6 +585,10 @@ export function remember(
     throw new Error(
       'слишком много неподтверждённых действий — подождите минуту'
     )
+  }
+  {
+    const badMedia = mediaProblem(p.media)
+    if (badMedia) throw new Error(badMedia)
   }
   /*
    * ONE PENDING PROPOSAL PER PERSON.
@@ -843,14 +896,12 @@ export interface SendingClient {
     opts: { message: string; parseMode: false }
   ) => Promise<unknown>
   /**
-   * GramJS `sendFile`: `file` may be a direct URL, which Telegram fetches
-   * itself (photo by URL is capped at 10 MB). Same parseMode rule as text:
-   * the approved caption must be the sent caption.
+   * GramJS `sendFile`: `file` may be a direct URL (which Telegram fetches
+   * itself; photo by URL is capped at 10 MB), a CustomFile built from
+   * downloaded bytes, or an array of urls for an album. Same parseMode rule
+   * as text: the approved caption must be the sent caption.
    */
-  sendFile?: (
-    to: string,
-    opts: { file: string; caption?: string; parseMode: false }
-  ) => Promise<unknown>
+  sendFile?: (to: string, opts: SendFileParams) => Promise<unknown>
   /**
    * GramJS `forwardMessages`: the messages and their source are named in the
    * draft's `args`, and fromPeer is REQUIRED when ids are integers -- the
@@ -1017,6 +1068,167 @@ async function mirrorSent(
   }
 }
 
+/** A file to upload: the shape of GramJS' CustomFile, without importing it. */
+export interface CustomFileLike {
+  name: string
+  size: number
+  path: string
+  buffer?: Buffer
+}
+
+/** The sendFile parameters a media kind maps to. Album captions are a list. */
+export type SendFileParams = {
+  file: string | CustomFileLike | Array<string | CustomFileLike>
+  caption?: string | string[]
+  voiceNote?: boolean
+  videoNote?: boolean
+  supportsStreaming?: boolean
+  forceDocument?: boolean
+  attributes?: unknown[]
+  parseMode: false
+}
+
+/** Opus-ish voice: ~6 KB per second is honest enough for a waveform. */
+export function estimatedVoiceSeconds(bytes: number): number {
+  return Math.max(1, Math.round(bytes / 6000))
+}
+
+/**
+ * Download the bytes behind a media url, within hard bounds.
+ *
+ * https only (checked again here, because a restored row can predate a
+ * validator), 50 MB (Telegram documents cap at 2 GB but a service file has
+ * no business being that big, and the PRESS must not hang), 30 s wall clock.
+ * Content-length is a hint, not a promise: the real check is on the bytes
+ * that actually arrived.
+ */
+async function downloadBytes(url: string): Promise<Buffer> {
+  if (!/^https:\/\//.test(url))
+    throw new Error('файл можно взять только по https-ссылке')
+  let res: Response
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(30_000) })
+  } catch (e) {
+    throw new Error(
+      `не удалось скачать файл: ${String(e instanceof Error ? e.message : e).slice(0, 80)}`
+    )
+  }
+  if (!res.ok) throw new Error(`не удалось скачать файл (${res.status})`)
+  const cap = 50 * 1024 * 1024
+  const declared = Number(res.headers.get('content-length') ?? 0)
+  if (declared > cap) throw new Error('файл больше 50 МБ — не буду отправлять')
+  const buf = Buffer.from(await res.arrayBuffer())
+  if (buf.length > cap)
+    throw new Error('файл больше 50 МБ — не буду отправлять')
+  return buf
+}
+
+/** The last path segment of a url, or 'file' when there is none usable. */
+function basenameOf(url: string): string {
+  try {
+    const seg = new URL(url).pathname.split('/').filter(Boolean).pop()
+    return seg && seg.length <= 200 ? seg : 'file'
+  } catch {
+    return 'file'
+  }
+}
+
+/**
+ * ONE MAPPING FROM KIND TO WIRE PARAMETERS, and the reasons it is not just
+ * `{file: media.url}`:
+ *
+ *  - voice needs `voiceNote` AND an explicit DocumentAttributeAudio, because
+ *    GramJS cannot measure duration (`_getMetadata` is a stub that answers
+ *    0) and a URL would drop both flags anyway;
+ *  - video gets `supportsStreaming`; a video note `videoNote`;
+ *  - a document is uploaded, not linked, so it arrives under its promised
+ *    name and as a document even when the url ends in .png (the URL path
+ *    sniffs images into InputMediaPhotoExternal);
+ *  - an album passes the urls as the array `_sendAlbum` expects, captions
+ *    item by item.
+ *
+ * The attributes are the card's promises: "~N sec" is only honest if the
+ * number actually travels to Telegram.
+ */
+export async function fileParamsFor(
+  media: ProposalMedia,
+  caption: string | undefined
+): Promise<SendFileParams> {
+  if (media.kind === 'photo')
+    return { file: media.url, caption: caption ?? '', ...VERBATIM }
+  if (media.kind === 'album')
+    return {
+      file: media.urls,
+      caption: media.captions ?? caption ?? '',
+      ...VERBATIM,
+    }
+  const { CustomFile } = await import('telegram/client/uploads')
+  if (media.kind === 'document') {
+    const buf = await downloadBytes(media.url)
+    const name = media.fileName?.trim() || basenameOf(media.url)
+    return {
+      file: new CustomFile(name, buf.length, '', buf) as CustomFileLike,
+      caption: caption ?? '',
+      forceDocument: true,
+      ...VERBATIM,
+    }
+  }
+  if (media.kind === 'voice' || media.kind === 'video_note') {
+    const buf = await downloadBytes(media.url)
+    const { Api } = await import('telegram')
+    if (media.kind === 'voice') {
+      const seconds = media.duration ?? estimatedVoiceSeconds(buf.length)
+      return {
+        file: new CustomFile(
+          'voice.mp3',
+          buf.length,
+          '',
+          buf
+        ) as CustomFileLike,
+        caption: caption ?? '',
+        voiceNote: true,
+        attributes: [
+          new Api.DocumentAttributeAudio({ voice: true, duration: seconds }),
+        ],
+        ...VERBATIM,
+      }
+    }
+    const seconds = media.duration ?? estimatedVoiceSeconds(buf.length)
+    return {
+      file: new CustomFile(
+        'video_note.mp4',
+        buf.length,
+        '',
+        buf
+      ) as CustomFileLike,
+      caption: '', // a round video note carries no caption on Telegram
+      videoNote: true,
+      attributes: [
+        new Api.DocumentAttributeVideo({
+          duration: seconds,
+          roundMessage: true,
+          w: 0,
+          h: 0,
+        }),
+      ],
+      ...VERBATIM,
+    }
+  }
+  // video
+  const buf = await downloadBytes(media.url)
+  return {
+    file: new CustomFile(
+      basenameOf(media.url) || 'video.mp4',
+      buf.length,
+      '',
+      buf
+    ) as CustomFileLike,
+    caption: caption ?? '',
+    supportsStreaming: true,
+    ...VERBATIM,
+  }
+}
+
 export async function sendFileWithAddressBook(
   c: SendingClient,
   target: string,
@@ -1048,9 +1260,8 @@ export async function sendFileWithAddressBook(
    * into the closure below.
    */
   const send = c.sendFile.bind(c)
-  return resolvingPeer(c, target, () =>
-    send(target, { file: media.url, caption: caption ?? '', ...VERBATIM })
-  )
+  const params = await fileParamsFor(media, caption)
+  return resolvingPeer(c, target, () => send(target, params))
 }
 
 /** Best-effort, bounded: the journal must never hold or fail a send. */
@@ -1163,7 +1374,15 @@ async function afterSend(
  */
 const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
   send: {
-    check: p => (p.what || p.media ? null : 'нечего отправлять: текст пуст'),
+    check: p => {
+      if (!p.what && !p.media) return 'нечего отправлять: текст пуст'
+      /*
+       * The same url rules `remember` enforces, read again here: a draft
+       * restored from a poisoned row must not get as far as a download, and
+       * the refusal must come before any money moves.
+       */
+      return mediaProblem(p.media)
+    },
     async run(c, p) {
       // Both branches hand back the sent message, so a photo with a
       // caption is mirrored like text (CRM audit 2026-09-12, P2 #9).

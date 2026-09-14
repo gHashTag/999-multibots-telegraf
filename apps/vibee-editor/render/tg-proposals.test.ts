@@ -1311,3 +1311,69 @@ describe('the sent message goes into the memory at once', () => {
     expect(mirrorNow).not.toHaveBeenCalled()
   })
 })
+
+describe('remember caps what a media draft may carry', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    forgetProposals()
+  })
+
+  /*
+   * The caps guard two different things. The url caps guard the mirror: the
+   * payload is a jsonb row, and a "url" of unbounded length is a row of
+   * unbounded size. The album cap guards Telegram itself, which refuses an
+   * album of more than ten items at send time -- learning that from a refused
+   * PRESS, after the card was shown, is a late way to learn it.
+   */
+  const media = (m: Record<string, unknown>) => ({
+    id: 'c1',
+    telegramId: '144022504',
+    action: 'send' as const,
+    target: '@ivan',
+    what: undefined,
+    createdAt: 0,
+    ...m,
+  })
+
+  it('an album of two to ten urls is taken', () => {
+    expect(() =>
+      remember(
+        media({
+          media: {
+            kind: 'album',
+            urls: ['https://x/1.png', 'https://x/2.png'],
+          },
+        }) as never
+      )
+    ).not.toThrow()
+  })
+
+  it("one url is not an album and eleven is past Telegram's limit", () => {
+    const urls = (n: number) =>
+      Array.from({ length: n }, (_, i) => `https://x/${i}.png`)
+    expect(() =>
+      remember(media({ media: { kind: 'album', urls: urls(1) } }) as never)
+    ).toThrow('альбом')
+    expect(() =>
+      remember(media({ media: { kind: 'album', urls: urls(11) } }) as never)
+    ).toThrow('альбом')
+  })
+
+  it('a url that is not https, or is absurdly long, is refused', () => {
+    expect(() =>
+      remember(
+        media({ media: { kind: 'voice', url: 'http://x/v.mp3' } }) as never
+      )
+    ).toThrow(/https/i)
+    expect(() =>
+      remember(
+        media({
+          media: {
+            kind: 'photo',
+            url: 'https://x/' + 'a'.repeat(2100),
+          },
+        }) as never
+      )
+    ).toThrow(/2048/)
+  })
+})
