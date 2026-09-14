@@ -26,7 +26,7 @@ import { notifySignIn, safeDeviceName } from './src/auth/notify-sign-in'
 import { sendToTelegram } from './src/auth/telegram-sender'
 import { record } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { пуститьВход } from './src/entry-throttle'
+import { пуститьВход, allowPerKey } from './src/entry-throttle'
 import crypto from 'node:crypto'
 import {
   verifyTelegramInitData,
@@ -40,6 +40,10 @@ import {
   verifyAppSession,
   digest,
   revokeNow,
+  markNotBefore,
+  signGameToken,
+  GAME_AUDIENCES,
+  GAME_TOKEN_TTL_SECONDS,
   SESSION_TUNING,
   SessionError,
 } from './session'
@@ -47,6 +51,9 @@ import {
   ensureAuthTables,
   refreshStore,
   revokeAllFamiliesOf,
+  setNotBefore,
+  signedOutSince,
+  pairingCodeSignedOut,
   issuePairingCode,
   claimPairingCode,
   PAIRING,
@@ -89,6 +96,8 @@ async function mintSession(
   pool: Pick<PoolClient, 'query'>,
   telegramId: string,
   body: Record<string, unknown>,
+  /** How the person proved who they are; stored on the session row. */
+  kind: SessionKind,
   /**
    * Отпечаток подписанной строки, по которой входят.
    *
@@ -101,8 +110,8 @@ async function mintSession(
    * одноразовый по своей записи, вторая — по первичному ключу
    * `app_widget_assertions`.
    */
-  отпечатокЗапуска?: string
-): Promise<Record<string, unknown>> {
+  отпечатокЗапуска?: string // cyrillic-ok: existing parameter
+): Promise<Minted> {
   let sessionId: string = crypto.randomUUID()
   let familyId: string = crypto.randomUUID()
   const dkt = deviceThumbprint(body)
@@ -139,22 +148,25 @@ async function mintSession(
         [refresh.hash, familyId, sessionId, refresh.expiresAt.toISOString()]
       )
       return {
-        access_token: signAccessToken({
-          telegramId,
-          sessionId,
-          deviceKeyThumbprint: dkt,
-        }),
-        refresh_token: refresh.token,
-        expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
-        telegram_id: telegramId,
+        response: {
+          access_token: signAccessToken({
+            telegramId,
+            sessionId,
+            deviceKeyThumbprint: dkt,
+          }),
+          refresh_token: refresh.token,
+          expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+          telegram_id: telegramId,
+        },
+        sessionId,
       }
     }
   }
 
   await pool.query(
-    `INSERT INTO app_sessions (id, telegram_id, device_pubkey, device_name, family_id)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [sessionId, telegramId, dkt, String(body.device_name ?? ''), familyId]
+    `INSERT INTO app_sessions (id, telegram_id, device_pubkey, device_name, family_id, kind)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [sessionId, telegramId, dkt, String(body.device_name ?? ''), familyId, kind]
   )
   await pool.query(
     `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
@@ -175,15 +187,67 @@ async function mintSession(
   }
 
   return {
-    access_token: signAccessToken({
-      telegramId,
-      sessionId,
-      deviceKeyThumbprint: dkt,
-    }),
-    refresh_token: refresh.token,
-    expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
-    telegram_id: telegramId,
+    response: {
+      access_token: signAccessToken({
+        telegramId,
+        sessionId,
+        deviceKeyThumbprint: dkt,
+      }),
+      refresh_token: refresh.token,
+      expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+      telegram_id: telegramId,
+    },
+    sessionId,
   }
+}
+
+/** What a sign-in minted: the JSON for the client, and the session it made. */
+type Minted = { response: Record<string, unknown>; sessionId: string }
+
+/**
+ * How a session's person proved who they are, stored in app_sessions.kind:
+ *   web    -- Login Widget, verified with the one login bot (BOT_TOKEN_12);
+ *   launch -- Mini App initData at /api/auth/telegram, from ANY accepted bot;
+ *   app    -- a pairing code, issued at pair/start for initData from any
+ *             accepted bot.
+ * Rows minted before the column existed read 'legacy'.
+ */
+type SessionKind = 'web' | 'launch' | 'app'
+
+/**
+ * Undo a session this request just minted, because the person signed out
+ * everywhere after the credential it rests on was issued (session-store.ts
+ * signedOutSince). In the database, and at once in this process.
+ */
+async function revokeMinted(
+  pool: Pick<PoolClient, 'query'>,
+  sessionId: string
+): Promise<void> {
+  await pool.query(
+    `UPDATE app_sessions SET revoked_at = now()
+      WHERE id = $1 AND revoked_at IS NULL`,
+    [sessionId]
+  )
+  await pool.query(
+    `UPDATE app_refresh_tokens SET revoked_at = now()
+      WHERE session_id = $1 AND revoked_at IS NULL`,
+    [sessionId]
+  )
+  revokeNow(sessionId)
+}
+
+function refuseSignedOut(res: ServerResponse): true {
+  json(res, 401, {
+    error: 'auth_signed_out_everywhere',
+    detail:
+      'this sign-in rests on a credential issued before sign-out everywhere; sign in again',
+  })
+  return true
+}
+
+/** auth_date of an initData string that verifyTelegramInitData accepted. */
+function authDateOf(initData: string): number {
+  return Number(new URLSearchParams(initData).get('auth_date'))
 }
 
 class StaleWidgetProfileAssertion extends Error {}
@@ -360,7 +424,7 @@ async function mintWidgetSession(
   pool: Pool,
   user: VerifiedTelegramWidgetUser,
   body: Record<string, unknown>
-): Promise<Record<string, unknown>> {
+): Promise<Minted> {
   const assertion = String(body.hash || '')
   const assertionHash = digest(`telegram-widget:${assertion}`)
   const telegramId = String(user.id)
@@ -376,7 +440,7 @@ async function mintWidgetSession(
     )
     if (!consumed.rows.length) throw new ReplayedWidgetAssertion()
     await syncVerifiedWidgetProfileWithClient(client, user)
-    const session = await mintSession(client, telegramId, body)
+    const session = await mintSession(client, telegramId, body, 'web')
     await client.query('COMMIT')
     return session
   } catch (error) {
@@ -452,6 +516,37 @@ function verifiedTelegramIdFrom(initData: string): string | null {
 function signedByBot(botId: string | undefined): string {
   return /^\d{1,20}$/.test(botId ?? '') ? `bot ${botId}` : 'bot unknown'
 }
+
+/**
+ * Numeric ids of the bots whose initData may mint a game token.
+ *
+ * Read on every call, like the bot tokens in auth.ts, so a change needs no
+ * restart. Anything that is not a plain run of digits is ignored. Empty means
+ * no bot is trusted yet: the list is to be built from the observed bot ids
+ * (sign-in journal notes and the per-request counters), not from memory.
+ */
+function launchBotIds(): string[] {
+  return (process.env.LAUNCH_BOT_IDS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => /^\d{1,20}$/.test(s))
+}
+
+/**
+ * Game tokens one person may mint per limiter window (60 s). The game renews
+ * about every four minutes per frame; ten leaves room for several tabs and
+ * retries and still stops a loop from minting thousands.
+ */
+const GAME_TOKENS_PER_WINDOW = 10
+
+/**
+ * The only Origin that may ask for a game token: the player, which holds the
+ * person's credential (a Login Widget session or Telegram initData) and hands
+ * the game its token by postMessage, from Hive's frame or the bridge page. The
+ * game's own origin must never hold that credential, so it is refused here.
+ * A non-browser client can send any Origin; this narrows browsers only.
+ */
+const PLAYER_ORIGIN = 'https://app.t27.ai'
 
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -578,22 +673,26 @@ export async function handleAuthRoute(
      * showed the rare code sign-ins and hid the main path. "Quiet" meant both
      * "all is well" and "nobody came".
      */
+    const minted = await mintSession(
+      pool,
+      telegramId,
+      body,
+      'launch',
+      digest(`telegram-initdata:${initData}`)
+    )
+    // After the insert, from the database: see signedOutSince.
+    if (await signedOutSince(pool, telegramId, authDateOf(initData))) {
+      await revokeMinted(pool, minted.sessionId)
+      return refuseSignedOut(res)
+    }
+
     void record(pool, {
       kind: 'sign-in',
       who: telegramId,
       what: `${safeDeviceName(body.device_name)}; ${signedByBot(v.botId)}`,
     })
 
-    json(
-      res,
-      200,
-      await mintSession(
-        pool,
-        telegramId,
-        body,
-        digest(`telegram-initdata:${initData}`)
-      )
-    )
+    json(res, 200, minted.response)
     return true
   }
 
@@ -634,7 +733,14 @@ export async function handleAuthRoute(
     }
     try {
       const session = await mintWidgetSession(pool, verified.user, body)
-      json(res, 200, { ...session, telegram_user: verified.user })
+      // After COMMIT, so the check cannot run ahead of its own session row.
+      if (
+        await signedOutSince(pool, verified.telegramId, verified.user.auth_date)
+      ) {
+        await revokeMinted(pool, session.sessionId)
+        return refuseSignedOut(res)
+      }
+      json(res, 200, { ...session.response, telegram_user: verified.user })
     } catch (error) {
       if (
         error instanceof StaleWidgetProfileAssertion ||
@@ -710,6 +816,16 @@ export async function handleAuthRoute(
       telegramId,
       mintPairingCode
     )
+    // After the insert, from the database: see signedOutSince. A code minted
+    // here from a launch older than the cutoff is spent before anyone sees it.
+    if (await signedOutSince(pool, telegramId, authDateOf(initData))) {
+      await pool.query(
+        `UPDATE app_pairing_codes SET consumed_at = now()
+          WHERE code_hash = $1 AND consumed_at IS NULL`,
+        [digest(code)]
+      )
+      return refuseSignedOut(res)
+    }
     // The code is NOT logged -- it is a live credential for 120 seconds. Who
     // it was issued to and for how long is enough to tie an issue to the
     // claim that follows from the same telegram_id.
@@ -832,7 +948,13 @@ export async function handleAuthRoute(
       `🔑 [pair] claim ПРИНЯТ telegram_id=${outcome.telegramId}, ` +
         `устройство=${String(body.device_name ?? 'без имени').slice(0, 40)}`
     )
-    const сессия = await mintSession(pool, outcome.telegramId, body)
+    const minted = await mintSession(pool, outcome.telegramId, body, 'app')
+    // After the insert, from the database: see pairingCodeSignedOut. Closes a
+    // claim that spent its code before logout-all and inserts its session after.
+    if (await pairingCodeSignedOut(pool, code)) {
+      await revokeMinted(pool, minted.sessionId)
+      return refuseSignedOut(res)
+    }
 
     /*
      * СООБЩАЕМ В TELEGRAM — И НЕ ЖДЁМ ОТПРАВКИ.
@@ -871,7 +993,7 @@ export async function handleAuthRoute(
       severity: 'attention',
     })
 
-    json(res, 200, сессия)
+    json(res, 200, minted.response)
     return true
   }
 
@@ -1021,6 +1143,170 @@ export async function handleAuthRoute(
     return true
   }
 
+  // ─── Game token: identity only, for the game origin ────────────────────
+  /*
+   * The game on https://t27.ai may learn who the person is, and nothing more.
+   * It never receives a refresh token, an app access token or initData; it gets
+   * a 300 s v:2 token under a derived key (session.ts signGameToken), which
+   * every app-session route refuses and /mcp accepts only for identity tools.
+   *
+   * Parent credential, and nothing else:
+   *   - a live Bearer access token of a Login Widget session (kind 'web').
+   *     A failing Bearer is refused, not skipped, and a game token is not a
+   *     Bearer (no chaining). A session minted from initData or a pairing code,
+   *     or one minted before kinds were recorded, is refused: see below.
+   *   - X-Telegram-Init-Data from a bot in LAUNCH_BOT_IDS. While that list is
+   *     unset every initData parent is refused. No initData-derived session is
+   *     accepted either, so nothing from Telegram mints until the list is set.
+   * Agent keys and the service key are never read here, so they mint nothing.
+   *
+   * The caller is the player (Origin exactly PLAYER_ORIGIN), never the game.
+   * The body names the audience, {"aud": "<game origin>"}, which must be in
+   * GAME_AUDIENCES exactly; /mcp then accepts the token only from that Origin.
+   * Public (auth.ts PUBLIC_EXACT): this block is the whole identity check.
+   */
+  if (path === '/api/auth/game-token' && req.method === 'POST') {
+    const origin = String(req.headers['origin'] ?? '')
+    if (origin !== PLAYER_ORIGIN) {
+      json(res, 403, {
+        error: 'game_token_origin_refused',
+        detail: `Origin must be exactly ${PLAYER_ORIGIN}`,
+      })
+      return true
+    }
+    let aud: unknown
+    try {
+      aud = JSON.parse((await readBody(req)) || '{}')?.aud
+    } catch {
+      json(res, 400, {
+        error: 'game_token_bad_request',
+        detail: 'the body must be JSON: {"aud": "<game origin>"}',
+      })
+      return true
+    }
+    if (typeof aud !== 'string' || !GAME_AUDIENCES.includes(aud)) {
+      json(res, 400, {
+        error: 'game_token_audience_refused',
+        detail: `aud must be exactly one of: ${GAME_AUDIENCES.join(', ')}`,
+      })
+      return true
+    }
+
+    let telegramId: string
+    const bearer = (req.headers['authorization'] as string | undefined) || ''
+    const initData =
+      (req.headers['x-telegram-init-data'] as string | undefined) ||
+      (req.headers['x-telegram-initdata'] as string | undefined) ||
+      ''
+    if (bearer.startsWith('Bearer ')) {
+      let sid: string
+      try {
+        const claims = verifyAppSession(bearer.slice(7).trim())
+        telegramId = claims.sub
+        sid = claims.sid
+      } catch (e) {
+        const code = e instanceof SessionError ? e.code : 'malformed'
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: `session rejected: ${code}`,
+        })
+        return true
+      }
+      /*
+       * Only a Login Widget session stands behind a game token. A session
+       * minted from initData (kind launch, or app through a pairing code) rests
+       * on a signature from any bot this server accepts. Accepting it let any
+       * of those bots mint here with one extra request -- exchange the initData
+       * at /api/auth/telegram, present the access token -- past the
+       * LAUNCH_BOT_IDS check below. A legacy row cannot show which it is, so it
+       * is refused as well. Read from the database, which also refuses a session
+       * revoked on a replica this one has not heard from yet.
+       */
+      const parent = await pool.query(
+        `SELECT kind FROM app_sessions WHERE id = $1 AND revoked_at IS NULL`,
+        [sid]
+      )
+      if (!parent.rows.length) {
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: 'session rejected: revoked',
+        })
+        return true
+      }
+      if (parent.rows[0].kind !== 'web') {
+        json(res, 403, {
+          error: 'game_token_parent_not_web',
+          detail:
+            'only a browser sign-in (Telegram Login Widget) session may mint a game token; inside Telegram send X-Telegram-Init-Data',
+        })
+        return true
+      }
+    } else if (initData) {
+      const launchBots = launchBotIds()
+      if (!launchBots.length) {
+        json(res, 403, {
+          error: 'game_token_launch_bots_unset',
+          detail:
+            'LAUNCH_BOT_IDS is not configured, so Telegram initData cannot mint a game token yet',
+        })
+        return true
+      }
+      const v = verifyTelegramInitData(initData)
+      const id = v.ok ? verifiedTelegramIdFrom(initData) : null
+      if (!v.ok || !id) {
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: `initData rejected: ${v.reason ?? 'no user.id in the signed string'}`,
+        })
+        return true
+      }
+      if (!launchBots.includes(v.botId ?? '')) {
+        json(res, 403, {
+          error: 'game_token_bot_not_allowed',
+          detail: 'the bot that signed this initData is not in LAUNCH_BOT_IDS',
+        })
+        return true
+      }
+      // A replica that has not polled yet admits a launch older than the
+      // cutoff; the database does not.
+      if (await signedOutSince(pool, id, authDateOf(initData))) {
+        json(res, 401, {
+          error: 'game_token_credential_rejected',
+          detail: 'initData rejected: issued before sign-out everywhere',
+        })
+        return true
+      }
+      telegramId = id
+    } else {
+      json(res, 401, {
+        error: 'game_token_credential_required',
+        detail:
+          'send Authorization: Bearer <access token> or X-Telegram-Init-Data',
+      })
+      return true
+    }
+
+    const allowed = allowPerKey(
+      `game-token:${telegramId}`,
+      GAME_TOKENS_PER_WINDOW
+    )
+    if (!allowed.ok) {
+      res.setHeader('Retry-After', String(allowed.retryAfterSeconds))
+      json(res, 429, {
+        error: 'game_token_rate_limited',
+        retry_after_seconds: allowed.retryAfterSeconds,
+      })
+      return true
+    }
+
+    json(res, 200, {
+      game_token: signGameToken({ telegramId, audience: aud }),
+      expires_in: GAME_TOKEN_TTL_SECONDS,
+      telegram_id: telegramId,
+    })
+    return true
+  }
+
   // ─── Logout everywhere ─────────────────────────────────────────────────
   /*
    * SIGN OUT EVERYWHERE: every live family of the person, not only this one.
@@ -1061,6 +1347,23 @@ export async function handleAuthRoute(
       })
       return true
     }
+
+    /*
+     * The cutoff goes first. Revoking families does not reach a captured Mini
+     * App launch string: it stays valid for 24 hours and would mint a new
+     * family right after this call. Anything of this person's issued before
+     * `cutoff` is now refused (session.ts `notBefore`): in this process at
+     * once, on other replicas from the next poll. Every route that mints a
+     * session, a pairing code or a game token also reads the cutoff from the
+     * database (session-store.ts signedOutSince), so a replay on a replica
+     * that has not polled yet mints nothing that outlives that poll.
+     *
+     * Order matters for that check: the cutoff is committed BEFORE the
+     * revocation UPDATE below.
+     */
+    const cutoff = Math.floor(Date.now() / 1000)
+    await setNotBefore(pool, who.sub, cutoff)
+    markNotBefore(who.sub, cutoff)
 
     const revoked = await revokeAllFamiliesOf(pool, who.sub)
     // Immediately in this process; other replicas follow on the poll.
@@ -1201,6 +1504,7 @@ export async function handleAuthRoute(
     '/api/auth/refresh': 'POST',
     '/api/auth/logout': 'POST',
     '/api/auth/logout-all': 'POST',
+    '/api/auth/game-token': 'POST',
     '/api/auth/pair/start': 'POST',
     '/api/auth/pair/claim': 'POST',
   }

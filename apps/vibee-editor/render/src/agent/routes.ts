@@ -23,7 +23,12 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
-import { verifyAppSession } from '../../session'
+import {
+  verifyAppSession,
+  isGameToken,
+  verifyGameToken,
+  SessionError,
+} from '../../session'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
@@ -317,6 +322,37 @@ export async function resolveIdentity(
   }
 }
 
+/**
+ * Tools a game token may call on /mcp: who the person is (whoami) and the hive
+ * pulse their role may see (hive_pulse). A game token lives in the game origin,
+ * whose code this service does not review, so anything that reads or changes a
+ * person's data stays off this list.
+ */
+export const GAME_TOKEN_TOOLS: readonly string[] = ['whoami', 'hive_pulse']
+
+/**
+ * The game token behind this request's Bearer, if the Bearer is one.
+ *
+ * null: no Bearer, or a Bearer whose header does not say game token -- the
+ * ordinary identity path decides. A game token that fails verification is
+ * refused, and never falls through to another credential on the same request:
+ * the client said how it authenticates, as in authenticate().
+ */
+function gameTokenOf(
+  req: IncomingMessage
+): null | { ok: true; telegramId: string } | { ok: false; code: string } {
+  const bearer = (req.headers['authorization'] as string | undefined) || ''
+  if (!bearer.startsWith('Bearer ')) return null
+  const token = bearer.slice(7).trim()
+  if (!isGameToken(token)) return null
+  const origin = String(req.headers['origin'] ?? '')
+  try {
+    return { ok: true, telegramId: verifyGameToken(token, origin).sub }
+  } catch (e) {
+    return { ok: false, code: e instanceof SessionError ? e.code : 'malformed' }
+  }
+}
+
 export async function handleMcp(
   req: IncomingMessage,
   res: ServerResponse,
@@ -326,7 +362,19 @@ export async function handleMcp(
   // the environment, and a key the person issued to themselves through
   // /api/agent/keys. The last one resolves through the database, which is why
   // this entry point is async.
-  const owner = await resolveIdentity(req, getPool)
+  // A game token is a narrower fourth identity: identity tools only (see
+  // GAME_TOKEN_TOOLS below), and an invalid one is refused outright.
+  const game = gameTokenOf(req)
+  if (game && !game.ok) {
+    return json(res, 401, {
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: `Game token refused: ${game.code}. Mint a new one at POST /api/auth/game-token.`,
+      },
+    })
+  }
+  const owner = game ? game.telegramId : await resolveIdentity(req, getPool)
   if (!owner) {
     // Сообщение константно и не отражает содержимое заголовков: любое
     // эхо чужого ввода — путь к инъекции, даже в JSON.
@@ -368,10 +416,21 @@ export async function handleMcp(
   }
 
   if (rpc.method === 'tools/list') {
-    return ok({ tools: toMcpTools() })
+    const listed = game
+      ? toMcpTools().filter(t => GAME_TOKEN_TOOLS.includes(t.name))
+      : toMcpTools()
+    return ok({ tools: listed })
   }
 
   if (rpc.method === 'tools/call') {
+    // Before the lookup, so a game token learns nothing about other tools,
+    // not even whether a name exists.
+    if (game && !GAME_TOKEN_TOOLS.includes(String(rpc.params?.name))) {
+      return err(
+        -32001,
+        `A game token may call only: ${GAME_TOKEN_TOOLS.join(', ')}.`
+      )
+    }
     const имя = rpc.params?.name
     const tool = имя ? TOOLS_BY_NAME.get(имя) : null
     if (!tool) {

@@ -21,7 +21,12 @@
  * знаешь. Сначала сутки в warn и смотрим лог, потом enforce.
  */
 import crypto from 'node:crypto'
-import { verifyAppSession, SessionError } from './session'
+import {
+  verifyAppSession,
+  SessionError,
+  initDataCutoffRefusal,
+} from './session'
+import { countInitDataBot } from './src/auth/initdata-bot-counts'
 import type { IncomingMessage } from 'node:http'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
@@ -257,6 +262,14 @@ const PUBLIC_EXACT = new Set([
    */
   '/api/auth/pair/start',
   '/api/auth/pair/claim',
+  /*
+   * The game token route checks identity itself, as the sign-in routes do: an
+   * exact Origin, then a live Bearer or initData from a bot in LAUNCH_BOT_IDS.
+   * Behind the guard nothing would change for a real caller, agent keys and the
+   * service key would still reach the handler, and callers would meet two
+   * different 401 bodies for one route. Pinned in auth-public.test.ts.
+   */
+  '/api/auth/game-token',
   /**
    * THE AGENT CARD MUST BE READABLE BY A STRANGER, or A2A does not exist.
    *
@@ -469,6 +482,23 @@ export function verifyTelegramInitData(initData: string): {
   if (!authDate || ageHours > 24)
     return { ok: false, reason: `initData is ${ageHours.toFixed(1)}h old` }
 
+  /*
+   * Sign out everywhere: a launch string issued before the person's cutoff is
+   * refused here, so every initData door refuses it -- the guard, the identity
+   * helpers, /api/auth/telegram and pair/start. It stops a CAPTURED launch
+   * string, not a forged one: initData signed with a bot token this server
+   * accepts carries a fresh auth_date of the forger's choosing.
+   */
+  let userId: string | null = null
+  try {
+    const id = JSON.parse(params.get('user') || 'null')?.id
+    userId = id != null ? String(id) : null
+  } catch {
+    userId = null
+  }
+  const cutoff = initDataCutoffRefusal(userId, authDate)
+  if (cutoff) return { ok: false, reason: cutoff }
+
   return { ok: true, botId: matchedBotId }
 }
 
@@ -637,7 +667,10 @@ export function authenticate(req: IncomingMessage): AuthResult {
     ''
   if (initData) {
     const v = verifyTelegramInitData(initData)
-    if (v.ok) return { allowed: true, wouldReject: false, via: 'telegram' }
+    if (v.ok) {
+      countInitDataBot(v.botId)
+      return { allowed: true, wouldReject: false, via: 'telegram' }
+    }
     return {
       allowed: mode() !== 'enforce',
       wouldReject: true,
@@ -673,7 +706,9 @@ export function verifiedTelegramId(req: IncomingMessage): string | null {
     (req.headers['x-telegram-initdata'] as string | undefined) ||
     ''
   if (!initData) return null
-  if (!verifyTelegramInitData(initData).ok) return null
+  const v = verifyTelegramInitData(initData)
+  if (!v.ok) return null
+  countInitDataBot(v.botId)
   try {
     const raw = new URLSearchParams(initData).get('user')
     if (!raw) return null

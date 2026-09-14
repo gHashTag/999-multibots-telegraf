@@ -44,6 +44,29 @@ describe('guarded auth routes', () => {
   })
 })
 
+/**
+ * /api/auth/game-token IS PUBLIC, AND THAT IS A DECISION, NOT A MISS.
+ *
+ * Like /mcp and the sign-in routes, its handler does the whole identity check
+ * itself: an exact Origin, then a live Bearer or initData from a bot in
+ * LAUNCH_BOT_IDS, never an agent key or the service key -- both of which the
+ * guard would admit. Behind the guard, callers would also get two different 401
+ * bodies for one route. game-token.test.ts proves a request with no credential
+ * is refused by the handler.
+ */
+describe('the game token route', () => {
+  it('is public and handled, so its own check is the one that answers', async () => {
+    const { isPublic } = await import('./auth')
+    expect(readFile('session-routes.ts')).toContain(
+      "path === '/api/auth/game-token'"
+    )
+    expect(
+      isPublic({ url: '/api/auth/game-token', method: 'POST' } as any)
+    ).toBe(true)
+    expect(GUARDED_AUTH_ROUTES.has('/api/auth/game-token')).toBe(false)
+  })
+})
+
 describe('достижимость маршрутов аутентификации', () => {
   it('каждый обрабатываемый /api/auth/* путь публичен', () => {
     const routes = читать('session-routes.ts')

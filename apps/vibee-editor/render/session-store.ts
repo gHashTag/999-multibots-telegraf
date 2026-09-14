@@ -13,7 +13,12 @@
  */
 
 import crypto from 'node:crypto'
-import { digest, revokeNow, setRevokedSessions } from './session'
+import {
+  digest,
+  revokeNow,
+  revocationMark,
+  setRevokedSessions,
+} from './session'
 
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -64,6 +69,11 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       last_seen_at timestamptz,
       revoked_at timestamptz
     )`)
+  // How the person proved who they are (session-routes.ts SessionKind). Rows
+  // minted before the column existed read 'legacy': that is not known for them.
+  await pool.query(
+    `ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'legacy'`
+  )
   await pool.query(
     `CREATE INDEX IF NOT EXISTS app_sessions_owner
        ON app_sessions (telegram_id, created_at DESC)`
@@ -181,6 +191,17 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       expires_at timestamptz NOT NULL,
       consumed_at timestamptz,
       attempts int NOT NULL DEFAULT 0
+    )`)
+
+  /**
+   * Sign out everywhere: one cutoff per person (see `notBefore` in session.ts).
+   * A credential issued before `not_before` is refused. One row per person who
+   * ever pressed the button; the poll reads only recent rows.
+   */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_user_not_before (
+      telegram_id text PRIMARY KEY,
+      not_before timestamptz NOT NULL
     )`)
 
   готово = true
@@ -461,6 +482,75 @@ export async function revokeAllFamiliesOf(
 }
 
 /**
+ * Write a person's sign-out-everywhere cutoff, in epoch seconds.
+ *
+ * The caller passes the same number it marks in its own memory
+ * (`markNotBefore`), so this replica and the ones that learn it from the poll
+ * compare against exactly one value.
+ */
+export async function setNotBefore(
+  pool: Pool,
+  telegramId: string,
+  seconds: number
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO app_user_not_before (telegram_id, not_before)
+     VALUES ($1, to_timestamp($2))
+     ON CONFLICT (telegram_id) DO UPDATE SET not_before = EXCLUDED.not_before`,
+    [telegramId, seconds]
+  )
+}
+
+/**
+ * Whether the person pressed "sign out everywhere" after `issuedAtSeconds`,
+ * the moment the credential a sign-in rests on was issued (initData or Login
+ * Widget auth_date). Read from the database, not from this process's memory,
+ * which another replica fills only on its next poll.
+ *
+ * Callers that mint ask AFTER their session or code row is committed, and
+ * revoke what they minted when this is true. logout-all commits the cutoff
+ * before its revocation UPDATE, so a check that starts after the insert either
+ * sees the cutoff, or started before the cutoff was committed -- and then the
+ * revocation UPDATE, which starts later still, sees the inserted row and
+ * revokes it. A check made before the insert would leave a window: an insert
+ * that lands after the revocation. Assumes Postgres READ COMMITTED (the
+ * default) and single-statement writes.
+ */
+export async function signedOutSince(
+  pool: Pool,
+  telegramId: string,
+  issuedAtSeconds: number
+): Promise<boolean> {
+  const r = await pool.query(
+    `SELECT 1 FROM app_user_not_before
+      WHERE telegram_id = $1 AND not_before > to_timestamp($2)
+      LIMIT 1`,
+    [telegramId, issuedAtSeconds]
+  )
+  return r.rows.length > 0
+}
+
+/**
+ * The same question for a pairing code: was it created before its owner's
+ * cutoff? A code is issued only after pair/start's own check, so its creation
+ * time stands in for the launch that issued it. Asked by pair/claim after the
+ * session row is committed, for the reason given above.
+ */
+export async function pairingCodeSignedOut(
+  pool: Pool,
+  code: string
+): Promise<boolean> {
+  const r = await pool.query(
+    `SELECT 1 FROM app_pairing_codes c
+       JOIN app_user_not_before n ON n.telegram_id = c.telegram_id
+      WHERE c.code_hash = $1 AND n.not_before > c.created_at
+      LIMIT 1`,
+    [digest(code)]
+  )
+  return r.rows.length > 0
+}
+
+/**
  * Refresh the in-memory revoked set from the database.
  *
  * Deliberately does NOT clear rows: a session revoked long ago has an expired
@@ -469,12 +559,36 @@ export async function revokeAllFamiliesOf(
  * that nothing slips through, short enough that the set stays small.
  */
 export async function pollRevocations(pool: Pool): Promise<number> {
+  // Before the first query: marks made after this are re-applied on top of
+  // what the queries read (see setRevokedSessions).
+  const readAfterMark = revocationMark()
   const r = await pool.query(
     `SELECT id FROM app_sessions
       WHERE revoked_at IS NOT NULL AND revoked_at > now() - interval '90 minutes'`
   )
   const ids = r.rows.map((x: any) => String(x.id))
-  setRevokedSessions(ids)
+  /*
+   * Cutoffs from the last two days. Older ones refuse nothing any more: the
+   * longest-lived credential they apply to, initData, is itself refused after
+   * 24 hours; access and game tokens live minutes. Read in the same poll so one
+   * timestamp says how fresh both are, and a failed read fails the whole poll.
+   */
+  const cut = await pool.query(
+    `SELECT telegram_id, EXTRACT(EPOCH FROM not_before) AS not_before
+       FROM app_user_not_before
+      WHERE not_before > now() - interval '2 days'`
+  )
+  setRevokedSessions(
+    ids,
+    cut.rows.map(
+      (x: any) =>
+        [String(x.telegram_id), Math.floor(Number(x.not_before))] as [
+          string,
+          number,
+        ]
+    ),
+    readAfterMark
+  )
 
   /*
    * Заодно убираем отработавшие записи о запусках.

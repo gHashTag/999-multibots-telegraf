@@ -83,6 +83,7 @@ export class SessionError extends Error {
       | 'revoked'
       | 'revocation_unavailable'
       | 'wrong_version'
+      | 'wrong_audience'
   ) {
     super(message)
   }
@@ -232,30 +233,324 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
   if (revoked.has(claims.sid)) {
     throw new SessionError('session revoked', 'revoked')
   }
+  if (claims.iat < (notBefore.get(claims.sub) ?? 0)) {
+    throw new SessionError(
+      'session issued before sign-out everywhere',
+      'revoked'
+    )
+  }
   return claims
 }
 
 // ─── Revocation ──────────────────────────────────────────────────────────
 
 let revoked = new Set<string>()
+/**
+ * Per-person cutoff left by "sign out everywhere": telegram_id -> epoch seconds.
+ *
+ * Revoking every family covers refresh tokens and the access tokens of those
+ * families. It does not cover a credential that exists outside them: Mini App
+ * initData, valid for 24 hours and able to mint a new family. So a credential
+ * issued before the cutoff is refused by its issue time: an access token by iat
+ * here, initData by auth_date (auth.ts verifyTelegramInitData), a game token by
+ * iat.
+ *
+ * This map does NOT stop what a sign-in mints: a session minted after the
+ * cutoff carries iat >= cutoff and passes here. Minting is stopped in the
+ * database instead -- every minting route checks the stored cutoff against
+ * the credential it rests on after its row is committed (session-store.ts
+ * signedOutSince). That covers a replica that has not polled yet and a
+ * sign-in that raced the revocation.
+ *
+ * Seconds, compared with `<`: a credential issued in the same second as the
+ * cutoff passes. Sessions that existed at that moment are revoked by sid anyway.
+ *
+ * What it cannot stop: initData forged with a bot token the server accepts
+ * carries whatever auth_date the forger writes, so it is always fresh. Only
+ * narrowing the accepted bot tokens helps against that. And it ends the
+ * person's own current Mini App launch too, until they relaunch it.
+ *
+ * Kept in memory and refreshed by the same poll as the revoked set. Stale state
+ * refuses access and game tokens, as the revoked set does, but ADMITS initData
+ * (see initDataCutoffRefusal): the minting routes read the cutoff from the
+ * database, so only raw per-request initData goes unchecked during a stall.
+ */
+let notBefore = new Map<string, number>()
 let revocationsSyncedAt = 0
+let staleCutoffLoggedAt = 0
 const REVOCATION_SYNC_MAX_AGE_MS = 15_000
 
+/*
+ * Marks made in this process (revokeNow, markNotBefore), numbered in order.
+ *
+ * A poll replaces the in-memory state with what it read. A mark made while the
+ * poll was reading may be missing from that read -- the row was written after
+ * the SELECT took its snapshot -- and a plain replacement erased it: the
+ * replica that handled "sign out everywhere" admitted the old credentials again
+ * until the next poll. So each mark keeps its number until a poll that STARTED
+ * after it lands. Every caller marks only after its database write has
+ * committed, so a poll that started later has read that write.
+ */
+let lastMark = 0
+const pendingRevokes = new Map<string, number>()
+const pendingCutoffs = new Map<string, { seconds: number; mark: number }>()
+
+/** The number of the latest local mark. A poll reads it before its queries. */
+export function revocationMark(): number {
+  return lastMark
+}
+
 /**
- * Replace the revoked-session set.
+ * Replace the revoked-session set and the per-person cutoffs.
  *
  * Called by a background poller, never on the request path. Replacing the
  * whole set rather than mutating it means a request that reads it mid-update
  * sees either the old set or the new one, never a half-built one.
+ *
+ * `readAfterMark` is revocationMark() taken before the poll's first query.
+ * Local marks newer than it are kept on top of what the poll read (a cutoff
+ * only moves forward, so the later of the two wins); older ones are dropped,
+ * since the read includes them. Without it the state is replaced outright and
+ * pending marks are forgotten -- what a replica with empty memory looks like.
  */
-export function setRevokedSessions(ids: Iterable<string>): void {
-  revoked = new Set(ids)
+export function setRevokedSessions(
+  ids: Iterable<string>,
+  cutoffs: Iterable<[string, number]> = [],
+  readAfterMark?: number
+): void {
+  const nextRevoked = new Set(ids)
+  const nextNotBefore = new Map(cutoffs)
+  if (readAfterMark === undefined) {
+    pendingRevokes.clear()
+    pendingCutoffs.clear()
+  } else {
+    for (const [sid, mark] of pendingRevokes) {
+      if (mark <= readAfterMark) pendingRevokes.delete(sid)
+      else nextRevoked.add(sid)
+    }
+    for (const [id, c] of pendingCutoffs) {
+      if (c.mark <= readAfterMark) pendingCutoffs.delete(id)
+      else
+        nextNotBefore.set(id, Math.max(nextNotBefore.get(id) ?? 0, c.seconds))
+    }
+  }
+  revoked = nextRevoked
+  notBefore = nextNotBefore
   revocationsSyncedAt = Date.now()
 }
 
 /** Mark a session revoked immediately, without waiting for the next poll. */
 export function revokeNow(sessionId: string): void {
   revoked.add(sessionId)
+  pendingRevokes.set(sessionId, ++lastMark)
+}
+
+/** Set a person's cutoff immediately, without waiting for the next poll. */
+export function markNotBefore(telegramId: string, seconds: number): void {
+  notBefore.set(telegramId, Math.max(notBefore.get(telegramId) ?? 0, seconds))
+  pendingCutoffs.set(telegramId, { seconds, mark: ++lastMark })
+}
+
+/**
+ * Why initData issued at `authDate` must be refused, or null to admit it.
+ *
+ * Fails closed like verifyAppSession once the poller has run and its state is
+ * older than the limit. A process whose poller never ran has no cutoffs to
+ * enforce: every deployed instance syncs before it listens and refuses to start
+ * without SESSION_SIGNING_KEY, so that is a laptop or a test without sessions,
+ * where logout-all cannot run at all.
+ */
+export function initDataCutoffRefusal(
+  telegramId: string | null,
+  authDate: number
+): string | null {
+  if (!revocationsSyncedAt) return null
+  /*
+   * Stale cutoff state ADMITS initData, unlike a stale revoked set for Bearer
+   * sessions. initData is how every Mini App request authenticates, so failing
+   * closed here turns a 15 s database stall into an outage for all Telegram
+   * users, to guard a rare case (a captured launch string replayed after sign
+   * out everywhere, inside that stall). Every route that MINTS from initData
+   * (telegram, pair/start, game-token) reads the cutoff from the database
+   * itself, so a stale process still cannot turn such a replay into a session.
+   */
+  if (Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS) {
+    const now = Date.now()
+    if (now - staleCutoffLoggedAt > 60_000) {
+      staleCutoffLoggedAt = now
+      console.warn(
+        '[not-before] cutoff state is stale; initData admitted without the in-memory cutoff check'
+      )
+    }
+    return null
+  }
+  if (telegramId && authDate < (notBefore.get(telegramId) ?? 0))
+    return 'initData was issued before sign-out everywhere'
+  return null
+}
+
+// ─── Game token ──────────────────────────────────────────────────────────
+
+/**
+ * The origins a game token may be minted for and used from. Exact strings:
+ * not www.t27.ai, and not app.t27.ai, where the player holds real sessions.
+ */
+export const GAME_AUDIENCES: readonly string[] = ['https://t27.ai']
+
+/** Five minutes: a leaked game token is worth one identity for that long. */
+export const GAME_TOKEN_TTL_SECONDS = 300
+
+/**
+ * What a game token says. Deliberately no `sid`: it is not a session, it
+ * cannot be refreshed, and it names no family. `scope` is identity only.
+ */
+export interface GameClaims {
+  v: 2
+  sub: string
+  aud: string
+  scope: 'identity'
+  iat: number
+  exp: number
+  jti: string
+}
+
+/**
+ * The game token key: HMAC of the session key under a fixed label.
+ *
+ * A separate key keeps the two kinds apart by construction. A game token fails
+ * verifyAppSession's signature check before its claims are read, so every
+ * route that accepts app sessions refuses it without knowing it exists; and an
+ * app access token fails here. One secret still backs both, so there is no new
+ * environment value to configure or rotate.
+ */
+function gameSigningKey(): Buffer {
+  return crypto
+    .createHmac('sha256', signingKey())
+    .update('tri-game-token-v1', 'utf8')
+    .digest()
+}
+
+export function signGameToken(params: {
+  telegramId: string
+  audience: string
+  now?: number
+}): string {
+  if (!GAME_AUDIENCES.includes(params.audience)) {
+    throw new Error('game token audience is not a game origin')
+  }
+  const now = params.now ?? Math.floor(Date.now() / 1000)
+  const header = { alg: 'HS256', typ: 'tri-game' }
+  const claims: GameClaims = {
+    v: 2,
+    sub: params.telegramId,
+    aud: params.audience,
+    scope: 'identity',
+    iat: now,
+    exp: now + GAME_TOKEN_TTL_SECONDS,
+    jti: b64url(crypto.randomBytes(12)),
+  }
+  const head = b64url(Buffer.from(JSON.stringify(header), 'utf8'))
+  const body = b64url(Buffer.from(JSON.stringify(claims), 'utf8'))
+  const mac = crypto
+    .createHmac('sha256', gameSigningKey())
+    .update(`${head}.${body}`, 'utf8')
+    .digest()
+  return `${head}.${body}.${b64url(mac)}`
+}
+
+/**
+ * Whether a Bearer presents itself as a game token, by its header `typ`.
+ * Routing only -- nothing is trusted until verifyGameToken has run.
+ */
+export function isGameToken(token: string): boolean {
+  try {
+    const header = JSON.parse(unb64url(token.split('.')[0]).toString('utf8'))
+    return header?.typ === 'tri-game'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Verify a game token for a request from `origin`. Synchronous, like
+ * verifyAppSession, and refused on the same stale revocation state.
+ *
+ * The audience must be a game origin AND equal the Origin the request came
+ * with, so a token taken from the game cannot be used from a page elsewhere.
+ * A non-browser client can send any Origin; that binding narrows where a
+ * browser can use the token, it does not authenticate anyone.
+ */
+export function verifyGameToken(
+  token: string,
+  origin: string,
+  now?: number
+): GameClaims {
+  const parts = token.split('.')
+  if (parts.length !== 3)
+    throw new SessionError('token is not three parts', 'malformed')
+  const [head, body, sig] = parts
+
+  let header: Record<string, unknown>
+  try {
+    header = JSON.parse(unb64url(head).toString('utf8'))
+  } catch {
+    throw new SessionError('header is not JSON', 'malformed')
+  }
+  if (header.alg !== 'HS256' || header.typ !== 'tri-game') {
+    throw new SessionError('not a game token header', 'bad_algorithm')
+  }
+  if ('kid' in header || 'jku' in header || 'x5u' in header) {
+    throw new SessionError('key-resolution header refused', 'bad_algorithm')
+  }
+
+  const expected = crypto
+    .createHmac('sha256', gameSigningKey())
+    .update(`${head}.${body}`, 'utf8')
+    .digest()
+  const given = unb64url(sig)
+  if (
+    given.length !== expected.length ||
+    !crypto.timingSafeEqual(given, expected)
+  ) {
+    throw new SessionError('signature mismatch', 'bad_signature')
+  }
+
+  let claims: GameClaims
+  try {
+    claims = JSON.parse(unb64url(body).toString('utf8'))
+  } catch {
+    throw new SessionError('claims are not JSON', 'malformed')
+  }
+  if (claims.v !== 2 || claims.scope !== 'identity')
+    throw new SessionError('unknown claim version or scope', 'wrong_version')
+  if (!claims.sub) throw new SessionError('sub missing', 'malformed')
+  if (!GAME_AUDIENCES.includes(claims.aud) || claims.aud !== origin) {
+    throw new SessionError('audience does not match origin', 'wrong_audience')
+  }
+
+  const t = now ?? Math.floor(Date.now() / 1000)
+  if (typeof claims.exp !== 'number' || t > claims.exp + CLOCK_SKEW_SECONDS) {
+    throw new SessionError('token expired', 'expired')
+  }
+  if (typeof claims.iat !== 'number' || claims.iat > t + CLOCK_SKEW_SECONDS) {
+    throw new SessionError('token issued in the future', 'not_yet_valid')
+  }
+  if (
+    !revocationsSyncedAt ||
+    Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS
+  ) {
+    throw new SessionError(
+      'revocation state is unavailable',
+      'revocation_unavailable'
+    )
+  }
+  if (claims.iat < (notBefore.get(claims.sub) ?? 0)) {
+    throw new SessionError(
+      'game token issued before sign-out everywhere',
+      'revoked'
+    )
+  }
+  return claims
 }
 
 // ─── Refresh tokens ──────────────────────────────────────────────────────

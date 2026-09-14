@@ -95,6 +95,7 @@ const окна = new Map<string, Окно>()
 /** Только для проверок. */
 export function забытьОкна(): void {
   окна.clear()
+  perKeyWindows.clear()
 }
 
 export function числоОкон(): number {
@@ -134,10 +135,69 @@ export function пуститьПопытку(
   }
   if (о.счёт >= предел) {
     const осталось = ОКНО_МС - (сейчас - о.началось)
-    return { можно: false, ждатьСекунд: Math.max(1, Math.ceil(осталось / 1000)) }
+    return {
+      можно: false,
+      ждатьСекунд: Math.max(1, Math.ceil(осталось / 1000)),
+    }
   }
   о.счёт += 1
   return { можно: true }
+}
+
+/*
+ * Per-key windows for callers whose key is an identity they have already
+ * proved (one telegram_id), in a map of their own.
+ *
+ * They used to share the sign-in doors' map above. The doors add a window for
+ * every X-Forwarded-For value a client invents, and a map full of live windows
+ * refuses any key it does not hold yet -- so a flood of unauthenticated sign-in
+ * requests made every person's game-token mint wait 60 s. Only verified callers
+ * add keys here, and a full map forgets its oldest window instead of refusing:
+ * forgetting resets one person's count, refusing locks out people who did
+ * nothing.
+ */
+const PER_KEY_WINDOW_MS = ОКНО_МС // cyrillic-ok: the doors' window length
+const MAX_PER_KEY_WINDOWS = 10_000
+const perKeyWindows = new Map<string, { count: number; startedAt: number }>()
+
+/** Only for tests: how many per-key windows are held. */
+export function perKeyWindowCount(): number {
+  return perKeyWindows.size
+}
+
+/** At most `limit` calls per key in a 60 s window. */
+export function allowPerKey(
+  key: string,
+  limit: number,
+  now = Date.now()
+): { ok: true } | { ok: false; retryAfterSeconds: number } {
+  const w = perKeyWindows.get(key)
+  if (w && now - w.startedAt < PER_KEY_WINDOW_MS) {
+    if (w.count >= limit) {
+      const left = PER_KEY_WINDOW_MS - (now - w.startedAt)
+      return {
+        ok: false,
+        retryAfterSeconds: Math.max(1, Math.ceil(left / 1000)),
+      }
+    }
+    w.count += 1
+    return { ok: true }
+  }
+
+  perKeyWindows.delete(key)
+  if (perKeyWindows.size >= MAX_PER_KEY_WINDOWS) {
+    for (const [k, old] of perKeyWindows) {
+      if (now - old.startedAt >= PER_KEY_WINDOW_MS) perKeyWindows.delete(k)
+    }
+    // Still full of live windows: drop the oldest (a Map iterates in
+    // insertion order, and a restarted window is re-inserted above).
+    if (perKeyWindows.size >= MAX_PER_KEY_WINDOWS) {
+      const oldest = perKeyWindows.keys().next().value
+      if (oldest !== undefined) perKeyWindows.delete(oldest)
+    }
+  }
+  perKeyWindows.set(key, { count: 1, startedAt: now })
+  return { ok: true }
 }
 
 interface ЗапросСАдресом {

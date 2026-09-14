@@ -32,6 +32,7 @@ interface SessionRow {
   id: string
   telegramId: string
   familyId: string
+  kind: string
   revoked: boolean
 }
 interface TokenRow {
@@ -45,8 +46,12 @@ function memoryPool() {
   const sessions: SessionRow[] = []
   const tokens: TokenRow[] = []
   const events: unknown[][] = []
-  const codes = new Map<string, { telegramId: string; consumed: boolean }>()
+  const codes = new Map<
+    string,
+    { telegramId: string; consumed: boolean; createdAt: number }
+  >()
   const assertions = new Set<string>()
+  const notBefore = new Map<string, number>()
 
   const client = {
     async query(sql: string, params: unknown[] = []) {
@@ -68,6 +73,7 @@ function memoryPool() {
           id: p0,
           telegramId: String(params[1]),
           familyId: String(params[4]),
+          kind: String(params[5]),
           revoked: false,
         })
         return { rows: [] }
@@ -93,7 +99,11 @@ function memoryPool() {
         return { rows: [] }
       }
       if (s.startsWith('INSERT INTO app_pairing_codes')) {
-        codes.set(p0, { telegramId: String(params[1]), consumed: false })
+        codes.set(p0, {
+          telegramId: String(params[1]),
+          consumed: false,
+          createdAt: Date.now() / 1000,
+        })
         return { rows: [] }
       }
       if (
@@ -194,6 +204,48 @@ function memoryPool() {
         }
       }
 
+      // The per-person cutoff, and the poll that carries it to other replicas.
+      if (s.startsWith('INSERT INTO app_user_not_before')) {
+        notBefore.set(p0, Number(params[1]))
+        return { rows: [] }
+      }
+      if (
+        s.startsWith(
+          'SELECT telegram_id, EXTRACT(EPOCH FROM not_before) AS not_before FROM app_user_not_before'
+        )
+      ) {
+        return {
+          rows: [...notBefore].map(([telegram_id, at]) => ({
+            telegram_id,
+            not_before: `${at}.000000`,
+          })),
+        }
+      }
+      // The cutoff read by the minting routes. Seconds on both sides, as
+      // to_timestamp($2) and the stored timestamptz compare in Postgres.
+      if (
+        s ===
+        'SELECT 1 FROM app_user_not_before WHERE telegram_id = $1 AND not_before > to_timestamp($2) LIMIT 1'
+      ) {
+        const at = notBefore.get(p0)
+        return { rows: at !== undefined && at > Number(params[1]) ? [{}] : [] }
+      }
+      if (
+        s ===
+        'SELECT 1 FROM app_pairing_codes c JOIN app_user_not_before n ON n.telegram_id = c.telegram_id WHERE c.code_hash = $1 AND n.not_before > c.created_at LIMIT 1'
+      ) {
+        const c = codes.get(p0)
+        const at = c ? notBefore.get(c.telegramId) : undefined
+        return { rows: c && at !== undefined && at > c.createdAt ? [{}] : [] }
+      }
+      if (
+        s.startsWith('SELECT id FROM app_sessions WHERE revoked_at IS NOT NULL')
+      )
+        return {
+          rows: sessions.filter(r => r.revoked).map(r => ({ id: r.id })),
+        }
+      if (s.startsWith('DELETE FROM app_launch_families')) return { rows: [] }
+
       // A silent zero rows on an unknown query turns a broken test green.
       throw new Error(`memory pool does not know: ${s.slice(0, 120)}`)
     },
@@ -203,6 +255,8 @@ function memoryPool() {
     sessions,
     tokens,
     events,
+    notBefore,
+    codes,
     pool: { ...client, connect: async () => client },
   }
 }
@@ -254,17 +308,20 @@ function signInitData(fields: Record<string, string>): string {
 }
 
 const launch = (id: number, salt: string) =>
+  launchAt(id, salt, Math.floor(Date.now() / 1000))
+
+const launchAt = (id: number, salt: string, authDate: number) =>
   signInitData({
     user: JSON.stringify({ id, first_name: 'Test' }),
-    auth_date: String(Math.floor(Date.now() / 1000)),
+    auth_date: String(authDate),
     query_id: salt,
   })
 
-function widgetPayload(id: number) {
+function widgetPayload(id: number, authDate = Math.floor(Date.now() / 1000)) {
   const fields = {
     id: String(id),
     first_name: 'Test',
-    auth_date: String(Math.floor(Date.now() / 1000)),
+    auth_date: String(authDate),
   }
   const checkString = Object.entries(fields)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
@@ -389,6 +446,11 @@ describe('POST /api/auth/logout-all', () => {
     const bob = await signInWithInitData(BOB, 'launch-b')
     expect(new Set(db.sessions.map(r => r.familyId)).size).toBe(4)
     expect(live(ALICE)).toEqual({ sessions: 3, tokens: 3 })
+    // Each way in records how the person proved who they are; game-token
+    // accepts only 'web' as a Bearer parent.
+    expect(
+      db.sessions.filter(r => r.telegramId === String(ALICE)).map(r => r.kind)
+    ).toEqual(['launch', 'app', 'web'])
 
     const res = await call(
       '/api/auth/logout-all',
@@ -447,6 +509,306 @@ describe('POST /api/auth/logout-all', () => {
       sessions: 0,
       tokens: 0,
     })
+  })
+
+  /*
+   * A LAUNCH STRING SEEN BEFORE SIGN-OUT EVERYWHERE MUST NOT MINT AFTER IT.
+   *
+   * Without the cutoff, logout-all revoked every family and a thief holding the
+   * person's initData (valid 24 hours) simply signed in again: mintSession
+   * starts a new family when the launch's family is revoked. The person
+   * relaunching the Mini App gets a fresh auth_date and is not affected.
+   */
+  it('initData launched before sign-out everywhere cannot mint after it', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const seenBefore = launchAt(ALICE, 'seen-before', now - 5)
+    const neighbourBefore = launchAt(BOB, 'neighbour-before', now - 5)
+    const fromWidget = await signInWithWidget(ALICE)
+
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+
+    const again = await call('/api/auth/telegram', { init_data: seenBefore })
+    expect(again.status, JSON.stringify(again.body)).toBe(401)
+    expect(String(again.body.detail)).toMatch(/before sign-out everywhere/)
+    const code = await call(
+      '/api/auth/pair/start',
+      {},
+      { 'x-telegram-init-data': seenBefore }
+    )
+    expect(code.status, JSON.stringify(code.body)).toBe(401)
+    expect(live(ALICE), 'the old launch minted a family').toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+
+    // A relaunch after the call works, and a neighbour's launch is untouched.
+    await signInWithInitData(ALICE, 'relaunch')
+    await signInWithInitData(BOB, 'neighbour-now')
+    const neighbour = await call('/api/auth/telegram', {
+      init_data: neighbourBefore,
+    })
+    expect(neighbour.status, JSON.stringify(neighbour.body)).toBe(200)
+  })
+
+  it('another replica learns the cutoff from the revocation poll', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const seenBefore = launchAt(ALICE, 'replica-before', now - 5)
+    const fromWidget = await signInWithWidget(ALICE)
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+    expect(
+      db.notBefore.get(String(ALICE)),
+      'cutoff not written'
+    ).toBeGreaterThanOrEqual(now)
+
+    // A replica that did not handle the call starts with empty memory ...
+    session.setRevokedSessions([])
+    const { verifyTelegramInitData } = await import('./auth')
+    expect(verifyTelegramInitData(seenBefore).ok).toBe(true)
+    // ... and the poll hands it the cutoff.
+    const { pollRevocations } = await import('./session-store')
+    await pollRevocations(db.pool)
+    expect(verifyTelegramInitData(seenBefore).reason).toMatch(
+      /before sign-out everywhere/
+    )
+
+    // The same poll admits what was issued at or after the cutoff: a unit slip
+    // in the upsert or the poll would refuse these for good.
+    const cutoff = db.notBefore.get(String(ALICE))!
+    const atCutoff = session.signAccessToken({
+      telegramId: String(ALICE),
+      sessionId: 'issued-at-the-cutoff',
+      deviceKeyThumbprint: '',
+      now: cutoff,
+    })
+    expect(() => session.verifyAppSession(atCutoff)).not.toThrow()
+    expect(verifyTelegramInitData(launch(ALICE, 'after-poll')).ok).toBe(true)
+    await signInWithInitData(ALICE, 'signs-in-after-poll')
+    expect(live(ALICE)).toEqual({ sessions: 1, tokens: 1 })
+  })
+
+  /*
+   * REVIEW-1: A REPLICA THAT HAS NOT POLLED YET MINTS NOTHING THAT SURVIVES.
+   *
+   * The in-memory cutoff reaches other replicas on their next poll, up to 5 s
+   * later. A thief replaying the victim's launch string there used to get a
+   * brand-new family whose tokens carry iat >= cutoff and whose refresh token
+   * rotated for 60 days: the poll that followed refused the launch string but
+   * not what it had minted. Minting routes now read the cutoff from the
+   * database after their row is committed.
+   */
+  it('REVIEW-1: a replica that has not polled yet mints no session and no code from an old launch', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const captured = launchAt(ALICE, 'thief-launch', now - 3600)
+    const fromWidget = await signInWithWidget(ALICE)
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+
+    // Replica B last polled before the call: nothing about ALICE in memory.
+    session.setRevokedSessions([])
+    const minted = await call('/api/auth/telegram', { init_data: captured })
+    expect(minted.status, JSON.stringify(minted.body)).toBe(401)
+    expect(minted.body.error).toBe('auth_signed_out_everywhere')
+    expect(minted.body).not.toHaveProperty('refresh_token')
+    expect(live(ALICE), 'the replay kept a family').toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+
+    const code = await call(
+      '/api/auth/pair/start',
+      {},
+      { 'x-telegram-init-data': captured }
+    )
+    expect(code.status, JSON.stringify(code.body)).toBe(401)
+    expect(code.body).not.toHaveProperty('code')
+    const aliceCodes = [...db.codes.values()].filter(
+      c => c.telegramId === String(ALICE)
+    )
+    expect(aliceCodes.length).toBeGreaterThan(0)
+    expect(
+      aliceCodes.every(c => c.consumed),
+      'a live code was left'
+    ).toBe(true)
+
+    // A Login Widget assertion signed before the call and never used.
+    const oldWidget = await call(
+      '/api/auth/widget',
+      widgetPayload(ALICE, now - 3600)
+    )
+    expect(oldWidget.status, JSON.stringify(oldWidget.body)).toBe(401)
+    expect(oldWidget.body.error).toBe('auth_signed_out_everywhere')
+    expect(live(ALICE), 'the old widget assertion kept a family').toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+
+    // On the same replica, a launch issued after the cutoff still signs in.
+    await signInWithInitData(ALICE, 'fresh-after-logout-all')
+    expect(live(ALICE)).toEqual({ sessions: 1, tokens: 1 })
+  })
+
+  /** A pool that holds the first `INSERT INTO app_sessions` until released. */
+  function holdFirstSessionInsert() {
+    let release!: () => void
+    const gate = new Promise<void>(r => (release = r))
+    const state = { held: false }
+    const pool = {
+      async query(sql: string, params?: unknown[]) {
+        const s = sql.replace(/\s+/g, ' ').trim()
+        if (s.startsWith('INSERT INTO app_sessions') && !state.held) {
+          state.held = true
+          await gate
+        }
+        return db.pool.query(sql, params)
+      },
+      connect: db.pool.connect,
+    }
+    const reached = async () => {
+      for (let i = 0; i < 100 && !state.held; i++)
+        await new Promise(r => setTimeout(r, 5))
+      expect(state.held, 'the sign-in never reached its insert').toBe(true)
+    }
+    return { pool, release, reached }
+  }
+
+  it('a launch sign-in that passed its checks before logout-all and inserts after it keeps nothing', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const launchedBefore = launchAt(ALICE, 'racing-launch', now - 5)
+    const fromWidget = await signInWithWidget(ALICE)
+
+    const hold = holdFirstSessionInsert()
+    const res = response()
+    const signingIn = handleAuthRoute(
+      request('/api/auth/telegram', { init_data: launchedBefore }),
+      res,
+      () => hold.pool as any
+    )
+    await hold.reached()
+
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+    hold.release()
+    await signingIn
+
+    expect(res.status, JSON.stringify(res.body)).toBe(401)
+    expect(live(ALICE), 'the raced sign-in kept a family').toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+  })
+
+  it('a claim that spent its code before logout-all and inserts after it keeps nothing', async () => {
+    const fromWidget = await signInWithWidget(ALICE)
+    const started = await call(
+      '/api/auth/pair/start',
+      {},
+      { 'x-telegram-init-data': launch(ALICE, 'pair-race') }
+    )
+    expect(started.status, JSON.stringify(started.body)).toBe(200)
+    // Issued two seconds before the call. The cutoff is whole seconds, so a
+    // code created in the same second as the call is not told apart.
+    for (const c of db.codes.values())
+      if (c.telegramId === String(ALICE)) c.createdAt -= 2
+
+    const hold = holdFirstSessionInsert()
+    const res = response()
+    const claiming = handleAuthRoute(
+      request('/api/auth/pair/claim', { code: started.body.code }),
+      res,
+      () => hold.pool as any
+    )
+    await hold.reached()
+
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+    hold.release()
+    await claiming
+
+    expect(res.status, JSON.stringify(res.body)).toBe(401)
+    expect(res.body.error).toBe('auth_signed_out_everywhere')
+    expect(live(ALICE), 'the raced claim kept a family').toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+  })
+
+  /*
+   * REVIEW-2: THE REPLICA THAT HANDLED THE CALL KEEPS REFUSING WHILE A POLL
+   * THAT STARTED BEFORE IT LANDS.
+   *
+   * The poll runs every 5 s. Its cutoff SELECT can take its snapshot before
+   * logout-all's upsert commits and return after markNotBefore ran. Replacing
+   * the in-memory state with that result erased the cutoff and the revoked ids
+   * on this very replica, and the captured launch minted again.
+   */
+  it('a poll in flight during logout-all does not erase the cutoff on this replica', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const captured = launchAt(ALICE, 'thief-launch-2', now - 3600)
+    const fromWidget = await signInWithWidget(ALICE)
+
+    let release!: () => void
+    const gate = new Promise<void>(r => (release = r))
+    let held = false
+    const slowPool = {
+      async query(sql: string, params?: unknown[]) {
+        const s = sql.replace(/\s+/g, ' ').trim()
+        if (s.startsWith('SELECT telegram_id, EXTRACT')) {
+          // Read now, answer later: the snapshot predates the logout-all call.
+          const snapshot = await db.pool.query(sql, params)
+          held = true
+          await gate
+          return snapshot
+        }
+        return db.pool.query(sql, params)
+      },
+    }
+    const { pollRevocations } = await import('./session-store')
+    const polling = pollRevocations(slowPool as any)
+    for (let i = 0; i < 50 && !held; i++)
+      await new Promise(r => setTimeout(r, 5))
+    expect(held, 'the poll never reached its cutoff read').toBe(true)
+
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+    const { verifyTelegramInitData } = await import('./auth')
+    expect(verifyTelegramInitData(captured).ok).toBe(false)
+
+    release()
+    await polling
+
+    expect(verifyTelegramInitData(captured).ok).toBe(false)
+    expect(() => session.verifyAppSession(fromWidget.access_token)).toThrow(
+      /revoked/
+    )
+    const minted = await call('/api/auth/telegram', { init_data: captured })
+    expect(minted.status, JSON.stringify(minted.body)).toBe(401)
+    expect(live(ALICE)).toEqual({ sessions: 0, tokens: 0 })
   })
 
   const refused = async (headers: Record<string, string>) => {
