@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
-import { QUEEN_PAGE } from '@/lib/hive'
+import { queenPage } from '@/lib/hive'
 import './Hive.css'
 
 /**
@@ -52,8 +52,9 @@ import './Hive.css'
  * loading placeholder now: visible until the frame reports `load`, gone after.
  */
 export default function HivePage() {
-  const { t } = useLanguage()
+  const { lang, t } = useLanguage()
   const [loaded, setLoaded] = useState(false)
+  const page = queenPage(lang)
 
   return (
     <div className="hive-page">
@@ -63,7 +64,7 @@ export default function HivePage() {
             <span>{t('hive.loading')}</span>
             <a
               className="hive-out"
-              href={QUEEN_PAGE}
+              href={page}
               target="_blank"
               rel="noreferrer noopener"
             >
@@ -73,7 +74,7 @@ export default function HivePage() {
         )}
         <iframe
           className={`hive-frame${loaded ? ' hive-frame--ready' : ''}`}
-          src={QUEEN_PAGE}
+          src={page}
           title={t('hive.frameTitle')}
           allow="fullscreen; clipboard-write"
           referrerPolicy="strict-origin-when-cross-origin"

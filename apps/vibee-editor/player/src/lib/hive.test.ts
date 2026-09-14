@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { QUEEN_PAGE } from './hive'
+import { queenPage } from './hive'
 import { PRIMARY_NAV_ITEMS } from './primaryNavigation'
 
 describe('the hive tab is her page, whole', () => {
   it('points at the board on t27.ai, hash route included', () => {
     // A single-page site: `/queen` without the hash is a 404 on GitHub Pages.
-    expect(QUEEN_PAGE).toBe('https://t27.ai/#/queen')
-    expect(new URL(QUEEN_PAGE).protocol).toBe('https:')
+    expect(queenPage('en')).toBe('https://t27.ai/?lang=en#/queen')
+    expect(new URL(queenPage('en')).protocol).toBe('https:')
+    expect(new URL(queenPage('en')).hash).toBe('#/queen')
+  })
+
+  it('opens her page in the player language, English for a code she does not read', () => {
+    // Her page reads `?lang=` from location.search, before the hash.
+    expect(queenPage('ru')).toBe('https://t27.ai/?lang=ru#/queen')
+    expect(new URL(queenPage('ru')).searchParams.get('lang')).toBe('ru')
+    expect(queenPage('fr')).toBe('https://t27.ai/?lang=en#/queen')
   })
 
   it('is a top-level tab, and any old sub-tab address still lights it up', () => {
