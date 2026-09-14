@@ -419,6 +419,36 @@ describe('POST /api/auth/logout-all', () => {
     expect(String(signOut[0][4])).toContain('3')
   })
 
+  it('a pairing code issued before sign-out-everywhere cannot be claimed after it', async () => {
+    const fromWidget = await signInWithWidget(ALICE)
+    const started = await call(
+      '/api/auth/pair/start',
+      {},
+      { 'x-telegram-init-data': launch(ALICE, 'pair-before-logout-all') }
+    )
+    expect(started.status, JSON.stringify(started.body)).toBe(200)
+
+    const out = await call(
+      '/api/auth/logout-all',
+      {},
+      { authorization: `Bearer ${fromWidget.access_token}` }
+    )
+    expect(out.status, JSON.stringify(out.body)).toBe(200)
+
+    const claimed = await call('/api/auth/pair/claim', {
+      code: started.body.code,
+    })
+    expect(claimed.status, JSON.stringify(claimed.body)).toBe(401)
+    expect(claimed.body).toMatchObject({
+      error: 'pairing_failed',
+      reason: 'expired',
+    })
+    expect(live(ALICE), 'the code minted a family after logout-all').toEqual({
+      sessions: 0,
+      tokens: 0,
+    })
+  })
+
   const refused = async (headers: Record<string, string>) => {
     await signInWithInitData(ALICE, 'launch-a')
     await signInWithInitData(ALICE, 'launch-a2')

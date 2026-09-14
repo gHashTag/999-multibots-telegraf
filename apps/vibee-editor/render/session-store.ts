@@ -428,11 +428,23 @@ export function refreshStore(pool: Pool) {
  * whose session row was already revoked, so none of their refresh rows stays
  * usable. Returns the ids of the sessions this call revoked, so the caller can
  * `revokeNow` them in this process; other replicas pick them up from the poll.
+ *
+ * Outstanding pairing codes are spent first. A code is an unused credential:
+ * claiming it mints a new family, and the claim checks only that the code is
+ * live. A code seen over the person's shoulder and claimed after this call
+ * would otherwise start a family the person believes they just killed. Spending
+ * codes before revoking sessions means a claim cannot land between the two.
  */
 export async function revokeAllFamiliesOf(
   pool: Pool,
   telegramId: string
 ): Promise<string[]> {
+  // Same statement as issuePairingCode's "one live code per person".
+  await pool.query(
+    `UPDATE app_pairing_codes SET consumed_at = now()
+      WHERE telegram_id = $1 AND consumed_at IS NULL`,
+    [telegramId]
+  )
   const sessions = await pool.query(
     `UPDATE app_sessions SET revoked_at = now()
       WHERE telegram_id = $1 AND revoked_at IS NULL
