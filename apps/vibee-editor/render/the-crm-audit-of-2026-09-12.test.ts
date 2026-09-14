@@ -141,8 +141,21 @@ describe('P2 #9: a sent photo is mirrored like text (source)', () => {
       join(__dirname, 'src/agent/tg-proposals.ts'),
       'utf8'
     )
-    expect(src).toMatch(/sent = await sendFileWithAddressBook\(/)
-    expect(src).toMatch(/caption: string \| undefined\n\): Promise<unknown>/)
+    /*
+     * After the executor-table refactor the message travels in three hops:
+     * the send executor RETURNS it, execute keeps it in `sent`, and the
+     * aftermath mirrors it. The anchor follows the hops; the property is
+     * unchanged -- a photo with a caption is mirrored like text. The
+     * signature anchor grew an optional scheduleAt (PR2, 2026-09-14); the
+     * pinned part -- the caption is the approved `string | undefined` -- is
+     * what the property needed all along.
+     */
+    expect(src).toMatch(/return sendFileWithAddressBook\(\s*c,\s*p\.target/)
+    expect(src).toMatch(/sent = await exec\.run\(c, p, ctx\)/)
+    expect(src).toMatch(/if \(sent !== null\) await mirrorSent\(ctx, p, sent\)/)
+    expect(src).toMatch(
+      /caption: string \| undefined(,\n  scheduleAt\?: number)?\n\): Promise<unknown>/
+    )
   })
 })
 

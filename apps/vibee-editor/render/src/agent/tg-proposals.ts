@@ -33,11 +33,44 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 
-/** A file that IS the service: made on the owner's turn, shown on the card. */
-export interface ProposalMedia {
-  kind: 'photo'
-  url: string
-}
+/**
+ * A file that IS the service: made on the owner's turn, shown on the card.
+ *
+ * ── WHICH KINDS CAN TRAVEL AS A URL, AND WHICH CANNOT ──────────────────────
+ *
+ * Photo and album ride the URL: Telegram fetches those itself
+ * (InputMediaPhotoExternal, capped at 10 MB per photo). Voice, video, video
+ * note and document CANNOT: GramJS' URL path (`_fileToMedia`, uploads.js)
+ * builds an external document and silently IGNORES voiceNote, videoNote and
+ * attributes -- so a round voice note "as a URL" would arrive as a plain
+ * audio file, and the duration the card promised would be a lie. Those kinds
+ * are downloaded here (https, ≤50 MB, 30 s) and uploaded as a CustomFile
+ * with the attributes written on the card.
+ */
+export type ProposalMedia =
+  | { kind: 'photo'; url: string }
+  | { kind: 'voice'; url: string; duration?: number }
+  | { kind: 'video'; url: string }
+  | { kind: 'video_note'; url: string; duration?: number }
+  | { kind: 'document'; url: string; fileName?: string }
+  | { kind: 'album'; urls: string[]; captions?: string[] }
+
+/**
+ * Every action a proposal can carry.
+ *
+ * The one list. It used to be spelled out twice -- here and again in
+ * telegram-tools.ts's `Proposal` -- and two copies of one list is how a third
+ * thing (the executor table, the bot's card) ends up agreeing with neither.
+ * The tools import this; the executor table keys it; the bot reads it through
+ * the draft the server sends.
+ */
+export type ProposalAction =
+  | 'send'
+  | 'forward'
+  | 'delete'
+  | 'join'
+  | 'leave'
+  | 'read'
 
 /**
  * Who pays for the service and how much. Charged at EXECUTE -- after the
@@ -53,7 +86,7 @@ export interface ProposalCharge {
 export interface PendingProposal {
   id: string
   telegramId: string
-  action: 'send' | 'forward' | 'delete' | 'join' | 'leave' | 'read'
+  action: ProposalAction
   target: string
   what?: string
   /**
@@ -160,9 +193,28 @@ export interface PendingProposal {
    */
   invoiceId?: number
   media?: ProposalMedia
+  /**
+   * WHEN to send instead of now, as epoch milliseconds (owner decision,
+   * 2026-09-14). Telegram schedules at second precision; the card shows the
+   * wall-clock time and says it can be cancelled until then. A scheduled send
+   * returns a placeholder message with id 0, which the mirror skips -- there
+   * is no real message id until the clock fires.
+   */
+  scheduleAt?: number
   charge?: ProposalCharge
   /** A free lead magnet: recorded as a touch with the gift prefix, never a purchase. */
   gift?: boolean
+  /**
+   * Structured arguments an executor needs beyond the prose card: which
+   * messages a forward names and where they came from, for example.
+   *
+   * A generic bag rather than a field per argument because the executor table
+   * is meant to grow without PendingProposal growing beside it: a row that
+   * needs something new reads it out of here, and the jsonb mirror round-trips
+   * the bag without knowing what is in it. The card stays prose -- `what` is
+   * what a person reads -- and `args` is what the row reads.
+   */
+  args?: Record<string, unknown>
 }
 
 /** What may leave this module. Never the secret, except through `issueFor`. */
@@ -189,6 +241,14 @@ export type PublicProposal = Omit<
 
 /** How long a touch write may hold up the owner's "sent" after a real send. */
 const TOUCH_WRITE_MS = 3000
+
+/**
+ * How long the "typing" signal is held before the act (owner decision:
+ * typing shows automatically). Telegram shows one SendMessageTypingAction
+ * for about five seconds; holding for half of that keeps the indicator alive
+ * through the send without stretching the press into a visible wait.
+ */
+export const TYPING_MS = 2500
 
 /**
  * How long an unconfirmed proposal survives.
@@ -494,6 +554,63 @@ export function pendingCount(): number {
 }
 
 /**
+ * The urls a media draft may carry, checked once here.
+ *
+ * `remember` throws with this text (the model reads it as a tool error and
+ * can fix the call); the send executor's `check` refuses with it (a draft
+ * restored from a poisoned row never gets as far as a download). The rules
+ * guard the mirror row and Telegram's own album limit, and https is not
+ * negotiable: an http url would send the service's file credentials over
+ * the open wire.
+ */
+export function mediaProblem(media: ProposalMedia | undefined): string | null {
+  if (!media) return null
+  const urlProblem = (u: unknown): string | null => {
+    const s = typeof u === 'string' ? u : ''
+    if (!s.startsWith('https://'))
+      return 'файл можно взять только по https-ссылке'
+    if (s.length > 2048)
+      return 'ссылка на файл длиннее 2048 знаков — не влезет в черновик'
+    return null
+  }
+  if (media.kind === 'album') {
+    const urls = Array.isArray(media.urls) ? media.urls : []
+    if (urls.length < 2 || urls.length > 10)
+      return 'альбом — это от 2 до 10 ссылок, как принимает Telegram'
+    for (const u of urls) {
+      const bad = urlProblem(u)
+      if (bad) return bad
+    }
+    return null
+  }
+  return urlProblem((media as { url?: unknown }).url)
+}
+
+/**
+ * The window a draft's schedule may sit in, checked once here.
+ *
+ * The same two doors as `mediaProblem`: `remember` throws with this text
+ * (the model reads it as a tool error), the send executor's `check` refuses
+ * with it (a restored row whose time has passed never reaches the wire).
+ * Closer than 30 seconds is "now" wearing a costume; farther than 30 days
+ * outlives the draft's own lifetime and any promise the card made. A time
+ * that is not a finite number -- Date.parse of garbage -- must die too:
+ * GramJS would read it as absent and send immediately, a mode change the
+ * person never confirmed.
+ */
+export function scheduleProblem(
+  at: unknown,
+  now: number = Date.now()
+): string | null {
+  if (at === undefined || at === null) return null
+  if (typeof at !== 'number' || !Number.isFinite(at))
+    return 'время расписания не понято — передай ISO, например 2026-09-14T18:00:00Z'
+  if (at < now + 30_000 || at > now + 30 * 24 * 3600_000)
+    return 'расписание — от 30 секунд до 30 дней вперёд; назови время в этом окне'
+  return null
+}
+
+/**
  * Remember a proposal so it can be confirmed later.
  *
  * The id is supplied by the caller rather than generated here so tests do not
@@ -508,6 +625,12 @@ export function remember(
     throw new Error(
       'слишком много неподтверждённых действий — подождите минуту'
     )
+  }
+  {
+    const badMedia = mediaProblem(p.media)
+    if (badMedia) throw new Error(badMedia)
+    const badWhen = scheduleProblem(p.scheduleAt)
+    if (badWhen) throw new Error(badWhen)
   }
   /*
    * ONE PENDING PROPOSAL PER PERSON.
@@ -812,18 +935,42 @@ export async function claimAcrossDeploy(
 export interface SendingClient {
   sendMessage: (
     to: string,
-    opts: { message: string; parseMode: false }
+    opts: { message: string; parseMode: false; schedule?: Date }
   ) => Promise<unknown>
   /**
-   * GramJS `sendFile`: `file` may be a direct URL, which Telegram fetches
-   * itself (photo by URL is capped at 10 MB). Same parseMode rule as text:
-   * the approved caption must be the sent caption.
+   * GramJS `sendFile`: `file` may be a direct URL (which Telegram fetches
+   * itself; photo by URL is capped at 10 MB), a CustomFile built from
+   * downloaded bytes, or an array of urls for an album. Same parseMode rule
+   * as text: the approved caption must be the sent caption.
    */
-  sendFile?: (
+  sendFile?: (to: string, opts: SendFileParams) => Promise<unknown>
+  /**
+   * GramJS `forwardMessages`: the messages and their source are named in the
+   * draft's `args`, and fromPeer is REQUIRED when ids are integers -- the
+   * wrapper cannot guess which chat they came from.
+   */
+  forwardMessages?: (
     to: string,
-    opts: { file: string; caption?: string; parseMode: false }
+    opts: { messages: number[]; fromPeer: string }
+  ) => Promise<unknown>
+  /** The newest message, for `read`: maxId is the precise act the card names. */
+  getMessages?: (
+    chat: string,
+    opts: { limit: number }
+  ) => Promise<Array<{ id?: unknown }>>
+  /** GramJS `markAsRead`: with maxId, exactly that; without, the whole dialog. */
+  markAsRead?: (
+    chat: string,
+    message?: unknown,
+    opts?: { maxId?: number }
   ) => Promise<unknown>
   getDialogs: (opts: { limit: number }) => Promise<unknown>
+  /**
+   * GramJS' raw-request door. The typing signal has no wrapper method, so it
+   * rides `invoke` with a hand-built request; optional because the signal is
+   * cosmetic and an older client (or a test double) must simply not show it.
+   */
+  invoke?: (request: unknown) => Promise<unknown>
   disconnect?: () => Promise<unknown>
 }
 
@@ -890,7 +1037,7 @@ const LOOKS_NUMERIC = /^-?\d+$/
  */
 export async function resolvingPeer<T>(
   c: { getDialogs: (opts: { limit: number }) => Promise<unknown> },
-  target: string | undefined,
+  target: string | readonly string[] | undefined,
   attempt: () => Promise<T>
 ): Promise<T> {
   try {
@@ -898,8 +1045,16 @@ export async function resolvingPeer<T>(
   } catch (e) {
     const text = e instanceof Error ? e.message : String(e)
     const unresolved = /input entity|Could not find/i.test(text)
-    if (!unresolved || target === undefined || !LOOKS_NUMERIC.test(target))
-      throw e
+    /*
+     * `target` may name TWO peers (a forward has a source and a destination)
+     * and the thrown text does not reliably say which one was unresolved. The
+     * warm-up loads every dialog, so one warm fixes both; it is taken only
+     * when at least one name is a bare id, for the same reason as before.
+     */
+    const names =
+      target === undefined ? [] : Array.isArray(target) ? target : [target]
+    const anyNumeric = names.some(t => LOOKS_NUMERIC.test(t))
+    if (!unresolved || !anyNumeric) throw e
   }
   await c.getDialogs({ limit: 200 })
   return attempt()
@@ -908,10 +1063,15 @@ export async function resolvingPeer<T>(
 export async function sendWithAddressBook(
   c: SendingClient,
   target: string,
-  message: string
+  message: string,
+  scheduleAt?: number
 ): Promise<unknown> {
   return resolvingPeer(c, target, () =>
-    c.sendMessage(target, { message, ...VERBATIM })
+    c.sendMessage(target, {
+      message,
+      ...VERBATIM,
+      ...(scheduleAt ? { schedule: new Date(scheduleAt) } : {}),
+    })
   )
 }
 
@@ -931,7 +1091,11 @@ async function mirrorSent(
   if (!p.lead || !ctx.pool) return
   const m = sent as { id?: unknown; date?: unknown } | null | undefined
   const id = Number(m?.id)
-  if (!Number.isFinite(id)) return
+  // id 0 is Telegram's placeholder for a scheduled message: no real message
+  // exists until the clock fires, and a mirrored msg_id of 0 is junk the
+  // next ingest cannot match. The touch is still written -- the service the
+  // person paid for is the schedule, and it was delivered.
+  if (!Number.isFinite(id) || id <= 0) return
   const date = Number(m?.date)
   const text = p.what ?? ''
   if (!text.trim()) return
@@ -961,11 +1125,175 @@ async function mirrorSent(
   }
 }
 
+/** A file to upload: the shape of GramJS' CustomFile, without importing it. */
+export interface CustomFileLike {
+  name: string
+  size: number
+  path: string
+  buffer?: Buffer
+}
+
+/** The sendFile parameters a media kind maps to. Album captions are a list. */
+export type SendFileParams = {
+  file: string | CustomFileLike | Array<string | CustomFileLike>
+  caption?: string | string[]
+  voiceNote?: boolean
+  videoNote?: boolean
+  supportsStreaming?: boolean
+  forceDocument?: boolean
+  attributes?: unknown[]
+  /** GramJS' own name for a scheduled file send. */
+  scheduleDate?: Date
+  parseMode: false
+}
+
+/** Opus-ish voice: ~6 KB per second is honest enough for a waveform. */
+export function estimatedVoiceSeconds(bytes: number): number {
+  return Math.max(1, Math.round(bytes / 6000))
+}
+
+/**
+ * Download the bytes behind a media url, within hard bounds.
+ *
+ * https only (checked again here, because a restored row can predate a
+ * validator), 50 MB (Telegram documents cap at 2 GB but a service file has
+ * no business being that big, and the PRESS must not hang), 30 s wall clock.
+ * Content-length is a hint, not a promise: the real check is on the bytes
+ * that actually arrived.
+ */
+async function downloadBytes(url: string): Promise<Buffer> {
+  if (!/^https:\/\//.test(url))
+    throw new Error('файл можно взять только по https-ссылке')
+  let res: Response
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(30_000) })
+  } catch (e) {
+    throw new Error(
+      `не удалось скачать файл: ${String(e instanceof Error ? e.message : e).slice(0, 80)}`
+    )
+  }
+  if (!res.ok) throw new Error(`не удалось скачать файл (${res.status})`)
+  const cap = 50 * 1024 * 1024
+  const declared = Number(res.headers.get('content-length') ?? 0)
+  if (declared > cap) throw new Error('файл больше 50 МБ — не буду отправлять')
+  const buf = Buffer.from(await res.arrayBuffer())
+  if (buf.length > cap)
+    throw new Error('файл больше 50 МБ — не буду отправлять')
+  return buf
+}
+
+/** The last path segment of a url, or 'file' when there is none usable. */
+function basenameOf(url: string): string {
+  try {
+    const seg = new URL(url).pathname.split('/').filter(Boolean).pop()
+    return seg && seg.length <= 200 ? seg : 'file'
+  } catch {
+    return 'file'
+  }
+}
+
+/**
+ * ONE MAPPING FROM KIND TO WIRE PARAMETERS, and the reasons it is not just
+ * `{file: media.url}`:
+ *
+ *  - voice needs `voiceNote` AND an explicit DocumentAttributeAudio, because
+ *    GramJS cannot measure duration (`_getMetadata` is a stub that answers
+ *    0) and a URL would drop both flags anyway;
+ *  - video gets `supportsStreaming`; a video note `videoNote`;
+ *  - a document is uploaded, not linked, so it arrives under its promised
+ *    name and as a document even when the url ends in .png (the URL path
+ *    sniffs images into InputMediaPhotoExternal);
+ *  - an album passes the urls as the array `_sendAlbum` expects, captions
+ *    item by item.
+ *
+ * The attributes are the card's promises: "~N sec" is only honest if the
+ * number actually travels to Telegram.
+ */
+export async function fileParamsFor(
+  media: ProposalMedia,
+  caption: string | undefined
+): Promise<SendFileParams> {
+  if (media.kind === 'photo')
+    return { file: media.url, caption: caption ?? '', ...VERBATIM }
+  if (media.kind === 'album')
+    return {
+      file: media.urls,
+      caption: media.captions ?? caption ?? '',
+      ...VERBATIM,
+    }
+  const { CustomFile } = await import('telegram/client/uploads')
+  if (media.kind === 'document') {
+    const buf = await downloadBytes(media.url)
+    const name = media.fileName?.trim() || basenameOf(media.url)
+    return {
+      file: new CustomFile(name, buf.length, '', buf) as CustomFileLike,
+      caption: caption ?? '',
+      forceDocument: true,
+      ...VERBATIM,
+    }
+  }
+  if (media.kind === 'voice' || media.kind === 'video_note') {
+    const buf = await downloadBytes(media.url)
+    const { Api } = await import('telegram')
+    if (media.kind === 'voice') {
+      const seconds = media.duration ?? estimatedVoiceSeconds(buf.length)
+      return {
+        file: new CustomFile(
+          'voice.mp3',
+          buf.length,
+          '',
+          buf
+        ) as CustomFileLike,
+        caption: caption ?? '',
+        voiceNote: true,
+        attributes: [
+          new Api.DocumentAttributeAudio({ voice: true, duration: seconds }),
+        ],
+        ...VERBATIM,
+      }
+    }
+    const seconds = media.duration ?? estimatedVoiceSeconds(buf.length)
+    return {
+      file: new CustomFile(
+        'video_note.mp4',
+        buf.length,
+        '',
+        buf
+      ) as CustomFileLike,
+      caption: '', // a round video note carries no caption on Telegram
+      videoNote: true,
+      attributes: [
+        new Api.DocumentAttributeVideo({
+          duration: seconds,
+          roundMessage: true,
+          w: 0,
+          h: 0,
+        }),
+      ],
+      ...VERBATIM,
+    }
+  }
+  // video
+  const buf = await downloadBytes(media.url)
+  return {
+    file: new CustomFile(
+      basenameOf(media.url) || 'video.mp4',
+      buf.length,
+      '',
+      buf
+    ) as CustomFileLike,
+    caption: caption ?? '',
+    supportsStreaming: true,
+    ...VERBATIM,
+  }
+}
+
 export async function sendFileWithAddressBook(
   c: SendingClient,
   target: string,
   media: ProposalMedia,
-  caption: string | undefined
+  caption: string | undefined,
+  scheduleAt?: number
 ): Promise<unknown> {
   if (!c.sendFile) throw new Error('этот клиент не умеет отправлять файлы')
   /*
@@ -992,9 +1320,9 @@ export async function sendFileWithAddressBook(
    * into the closure below.
    */
   const send = c.sendFile.bind(c)
-  return resolvingPeer(c, target, () =>
-    send(target, { file: media.url, caption: caption ?? '', ...VERBATIM })
-  )
+  const params = await fileParamsFor(media, caption)
+  if (scheduleAt) params.scheduleDate = new Date(scheduleAt)
+  return resolvingPeer(c, target, () => send(target, params))
 }
 
 /** Best-effort, bounded: the journal must never hold or fail a send. */
@@ -1019,146 +1347,314 @@ async function noteInJournal(
   }
 }
 
+/** What an executor may need about the press that started it. */
+export interface ExecCtx {
+  telegramId: string
+  pool?: unknown
+}
+
+/**
+ * HOW ONE ACTION IS CARRIED OUT.
+ *
+ * `execute` used to be a switch with one populated case and a default that
+ * refused everything else. Adding `forward` meant editing the switch, the
+ * refusal text, and the set that decides what may occupy the queue -- three
+ * places, one of them prose. The table replaces that: an action is executable
+ * exactly when it has a row here, `execute` runs the same spine for every
+ * row, and a row left out refuses honestly below.
+ */
+export interface Executor {
+  /**
+   * A refusal before anything moves, or null to proceed. Absent when the
+   * tool's schema already guarantees everything a check would -- a guard
+   * repeating the schema is the schema written twice.
+   */
+  check?: (p: PublicProposal, ctx: ExecCtx) => string | null
+  /** The act itself. Runs inside the refund guard: a throw with money taken gives the money back. */
+  run: (c: SendingClient, p: PublicProposal, ctx: ExecCtx) => Promise<unknown>
+  /** Show "typing…" before the act. Sends only, and never when scheduled. */
+  typing?: boolean
+  /** Bookkeeping after success (the CRM mirror, the touch). Sends only. */
+  after?: (
+    ctx: ExecCtx,
+    p: PublicProposal,
+    sent: unknown,
+    paid: number | null
+  ) => Promise<void>
+}
+
+/** The sent message into the memory, then the touch -- send's own aftermath. */
+async function afterSend(
+  ctx: ExecCtx,
+  p: PublicProposal,
+  sent: unknown,
+  paid: number | null
+): Promise<void> {
+  if (sent !== null) await mirrorSent(ctx, p, sent)
+  if (p.lead && ctx.pool) {
+    try {
+      const { recordTouch } = await import('./crm-touches')
+      const { SELLER_NOTE_PREFIXES } = await import('./crm-notes')
+      const write = recordTouch(ctx.pool as never, {
+        owner: String(ctx.telegramId),
+        lead: String(p.lead),
+        botName: p.bot ?? null,
+        // A paid, delivered service is a purchase; a message is a touch.
+        kind: p.charge ? 'bought' : 'written',
+        note: p.charge
+          ? SELLER_NOTE_PREFIXES.service +
+            `${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
+          : p.gift
+            ? SELLER_NOTE_PREFIXES.gift +
+              `${p.media?.kind ?? 'photo'}: ` +
+              (p.what ?? '').slice(0, 60)
+            : SELLER_NOTE_PREFIXES.message + (p.what ?? '').slice(0, 80),
+      })
+      const outcome = await Promise.race([
+        write,
+        new Promise<'timed out'>(r =>
+          setTimeout(() => r('timed out'), TOUCH_WRITE_MS)
+        ),
+      ])
+      if (outcome !== 'recorded') {
+        console.warn(
+          `[proposal] touch not recorded (${String(outcome)}) lead=${p.lead} who=${String(ctx.telegramId)}`
+        )
+      }
+    } catch (e) {
+      console.warn(
+        `[proposal] touch write threw lead=${p.lead}: ${String(e).slice(0, 120)}`
+      )
+    }
+  }
+}
+
+/**
+ * The table. Keyed by exactly the actions `execute` can carry out; a key
+ * without a row is a compile error here rather than a runtime refusal below.
+ */
+const EXECUTORS: Record<'send' | 'forward' | 'read', Executor> = {
+  send: {
+    check: p => {
+      if (!p.what && !p.media) return 'нечего отправлять: текст пуст'
+      /*
+       * The same url rules `remember` enforces, read again here: a draft
+       * restored from a poisoned row must not get as far as a download, and
+       * the refusal must come before any money moves. The schedule window
+       * too: a pressed draft whose time has passed would silently send NOW,
+       * which is a different act from the one the card named.
+       */
+      return mediaProblem(p.media) ?? scheduleProblem(p.scheduleAt)
+    },
+    async run(c, p) {
+      // Both branches hand back the sent message, so a photo with a
+      // caption is mirrored like text (CRM audit 2026-09-12, P2 #9).
+      if (p.media)
+        return sendFileWithAddressBook(
+          c,
+          p.target,
+          p.media,
+          p.what,
+          p.scheduleAt
+        )
+      return sendWithAddressBook(c, p.target, p.what ?? '', p.scheduleAt)
+    },
+    typing: true,
+    after: afterSend,
+  },
+  forward: {
+    /*
+     * Forwarding carries somebody else's words somewhere new -- the card says
+     * which messages from where, and `args` carries the same names in the
+     * form the wire needs. No mirror, no touch: nothing the owner wrote left
+     * the account, so the CRM picture gains nothing from it.
+     */
+    check: p => {
+      const ids = p.args?.messageIds
+      const n = Array.isArray(ids) ? ids.length : 0
+      if (n < 1) return 'нечего пересылать: не названы сообщения'
+      if (n > 100) return 'слишком много сообщений для одной пересылки (до 100)'
+      if (!String(p.args?.fromPeer ?? '').trim())
+        return 'не назван источник: откуда пересылать'
+      return null
+    },
+    async run(c, p) {
+      if (!c.forwardMessages)
+        throw new Error('этот клиент не умеет пересылать сообщения')
+      const ids = (p.args?.messageIds as number[]) ?? []
+      const from = String(p.args?.fromPeer ?? '')
+      // BOUND, for the same reason as sendFile: the wrapper passes `this` on
+      // into the library call, and a detached reference is a production
+      // failure that an object-literal fake cannot reproduce (#2372).
+      const fwd = c.forwardMessages.bind(c)
+      return resolvingPeer(c, [p.target, from], () =>
+        fwd(p.target, { messages: ids, fromPeer: from })
+      )
+    },
+  },
+  read: {
+    /*
+     * Marking read is a signal TO the other person: their checkmarks change
+     * and there is no undo. That visibility is why it goes through the gate
+     * rather than happening on the model's say-so.
+     *
+     * No `check`: the schema requires the chat, and an executor guard here
+     * would be the schema repeated in prose.
+     */
+    async run(c, p) {
+      if (!c.markAsRead)
+        throw new Error('этот клиент не умеет отмечать прочитанным')
+      if (!c.getMessages)
+        throw new Error('этот клиент не умеет читать сообщения')
+      const mark = c.markAsRead.bind(c)
+      return resolvingPeer(c, p.target, async () => {
+        const newest = (await c.getMessages!(p.target, { limit: 1 }))[0]
+        const maxId = Number(newest?.id)
+        // The newest message's id names exactly what a person means by "mark
+        // that read". An empty chat has no newest: read the whole dialog,
+        // which for an empty chat is the same act.
+        return Number.isFinite(maxId) && maxId > 0
+          ? mark(p.target, undefined, { maxId })
+          : mark(p.target)
+      })
+    },
+  },
+}
+
+/** What `execute` can carry out. The tools' queue gate reads this, not a copy. */
+export const EXECUTABLE_ACTIONS: ReadonlySet<string> = new Set(
+  Object.keys(EXECUTORS)
+)
+
 export async function execute(
   p: PublicProposal,
-  ctx: { telegramId: string; pool?: unknown }
+  ctx: ExecCtx
 ): Promise<{ done: true; action: string } | { done: false; why: string }> {
   const { client } = await import('./telegram-tools')
   const { hangUp } = await import('./hang-up')
   let c: SendingClient | null = null
   try {
     c = (await client(ctx as never)) as SendingClient
-    switch (p.action) {
-      case 'send': {
-        if (!p.what && !p.media)
-          return { done: false, why: 'нечего отправлять: текст пуст' }
-        /*
-         * THE MONEY, AFTER THE PRESS AND BEFORE THE SEND. A charge on the
-         * proposal is the recipient's -- a service they asked for in the DM
-         * and the owner approved with a button. Charging here, not at tool
-         * time, means the model's word alone never moves anybody's balance,
-         * and a cancelled or expired card costs the recipient nothing.
-         */
-        let paid: number | null = null
-        if (p.charge) {
-          if (!ctx.pool)
-            return {
-              done: false,
-              why: 'списать не с чего: база недоступна — услуга не отправлена',
-            }
-          const { spendByTid } = await import('./billing-shared')
-          const r = await spendByTid(
-            ctx.pool as never,
-            p.charge.telegramId,
-            p.charge.op
-          )
-          if (!r.ok)
-            return {
-              done: false,
-              why:
-                `у получателя не хватает токенов (${r.причина ?? 'баланс мал'}) — ` +
-                'предложи пополнить счёт (crm_offer) и повтори',
-            }
-          paid = r.списано ?? 0 // cyrillic-ok: public API field
-          await noteInJournal(ctx.pool, {
-            kind: 'tokens-spent',
-            who: p.charge.telegramId,
-            // Negative, as every other tokens-spent line: money leaving.
-            amount: -paid,
-            what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
-          })
-        }
-        let sent: unknown = null
-        try {
-          // Both branches hand back the sent message, so a photo with a
-          // caption is mirrored like text (CRM audit 2026-09-12, P2 #9).
-          if (p.media)
-            sent = await sendFileWithAddressBook(c, p.target, p.media, p.what)
-          else sent = await sendWithAddressBook(c, p.target, p.what ?? '')
-        } catch (e) {
-          if (paid !== null && p.charge && ctx.pool) {
-            // Not delivered: give back exactly what was taken, and say so
-            // either way -- a refund that failed is the owner's problem now.
-            const { refundByTid } = await import('./billing-shared')
-            const back = await refundByTid(
-              ctx.pool as never,
-              p.charge.telegramId,
-              p.charge.op,
-              1,
-              undefined,
-              paid
-            )
-            await noteInJournal(ctx.pool, {
-              kind: back.ok ? 'tokens-refunded' : 'failure',
-              who: p.charge.telegramId,
-              amount: paid,
-              what: back.ok
-                ? `услуга не доставлена, ${paid} возвращено: ${inPlainWords(e).slice(0, 80)}`
-                : `ВОЗВРАТ НЕ ПРОШЁЛ ${paid} токенов: ${back.why}`,
-              severity: back.ok ? 'attention' : 'alarm',
-            })
-            return {
-              done: false,
-              why:
-                inPlainWords(e) +
-                (back.ok
-                  ? `; списанные ${paid} токенов возвращены получателю`
-                  : `; ВОЗВРАТ ${paid} токенов НЕ ПРОШЁЛ — проверь баланс получателя`),
-            }
-          }
-          throw e
-        }
-        if (sent !== null) await mirrorSent(ctx, p, sent)
-        if (p.lead && ctx.pool) {
-          try {
-            const { recordTouch } = await import('./crm-touches')
-            const { SELLER_NOTE_PREFIXES } = await import('./crm-notes')
-            const write = recordTouch(ctx.pool as never, {
-              owner: String(ctx.telegramId),
-              lead: String(p.lead),
-              botName: p.bot ?? null,
-              // A paid, delivered service is a purchase; a message is a touch.
-              kind: p.charge ? 'bought' : 'written',
-              note: p.charge
-                ? SELLER_NOTE_PREFIXES.service +
-                  `${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
-                : p.gift
-                  ? SELLER_NOTE_PREFIXES.gift +
-                    `${p.media?.kind ?? 'photo'}: ` +
-                    (p.what ?? '').slice(0, 60)
-                  : SELLER_NOTE_PREFIXES.message + (p.what ?? '').slice(0, 80),
-            })
-            const outcome = await Promise.race([
-              write,
-              new Promise<'timed out'>(r =>
-                setTimeout(() => r('timed out'), TOUCH_WRITE_MS)
-              ),
-            ])
-            if (outcome !== 'recorded') {
-              console.warn(
-                `[proposal] touch not recorded (${String(outcome)}) lead=${p.lead} who=${String(ctx.telegramId)}`
-              )
-            }
-          } catch (e) {
-            console.warn(
-              `[proposal] touch write threw lead=${p.lead}: ${String(e).slice(0, 120)}`
-            )
-          }
-        }
-        return { done: true, action: 'send' }
+    const exec = (EXECUTORS as Partial<Record<ProposalAction, Executor>>)[
+      p.action
+    ]
+    if (!exec) {
+      /*
+       * An action with no row in the table still refuses, in words, naming
+       * the action. Pretending to do it would be worse than the gap it
+       * leaves, because the person would believe the thing happened.
+       *
+       * The list of what IS carried out is derived from the table, so a new
+       * row updates the sentence without a second edit here.
+       */
+      const done = Object.keys(EXECUTORS)
+      return {
+        done: false,
+        why:
+          `подтверждение для «${p.action}» ещё не сделано — ` +
+          `сделано: ${done.join(', ')}`,
       }
-      default:
-        /*
-         * Only sending is carried out for now. The other actions -- forward,
-         * delete, join, leave -- still propose, and refusing here is honest
-         * about that. Pretending to do them would be worse than the gap they
-         * leave, because the person would believe the thing happened.
-         */
+    }
+    const bad = exec.check?.(p, ctx)
+    if (bad) return { done: false, why: bad }
+    /*
+     * THE MONEY, AFTER THE PRESS AND BEFORE THE ACT. A charge on the
+     * proposal is the recipient's -- a service they asked for in the DM
+     * and the owner approved with a button. Charging here, not at tool
+     * time, means the model's word alone never moves anybody's balance,
+     * and a cancelled or expired card costs the recipient nothing.
+     */
+    let paid: number | null = null
+    if (p.charge) {
+      if (!ctx.pool)
         return {
           done: false,
-          why: `подтверждение для «${p.action}» ещё не сделано — пока только отправка`,
+          why: 'списать не с чего: база недоступна — услуга не отправлена',
         }
+      const { spendByTid } = await import('./billing-shared')
+      const r = await spendByTid(
+        ctx.pool as never,
+        p.charge.telegramId,
+        p.charge.op
+      )
+      if (!r.ok)
+        return {
+          done: false,
+          why:
+            `у получателя не хватает токенов (${r.причина ?? 'баланс мал'}) — ` +
+            'предложи пополнить счёт (crm_offer) и повтори',
+        }
+      paid = r.списано ?? 0 // cyrillic-ok: public API field
+      await noteInJournal(ctx.pool, {
+        kind: 'tokens-spent',
+        who: p.charge.telegramId,
+        // Negative, as every other tokens-spent line: money leaving.
+        amount: -paid,
+        what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
+      })
     }
+    /*
+     * "TYPING" BEFORE THE ACT (owner decision: automatic), sends only.
+     *
+     * The recipient sees the person "typing" for a couple of seconds before
+     * the message pops in, which is what a human conversation looks like and
+     * what a sudden drop-in does not. Cosmetic by design, and disciplined
+     * about it: no capability (`invoke`), no schedule (nobody is typing at
+     * HH:MM -- the clock is), a failure in the signal never stops the send,
+     * and the pause is skipped with it so an old client pays no wait.
+     */
+    if (exec.typing && !p.scheduleAt && c.invoke) {
+      try {
+        const { Api } = await import('telegram')
+        await c.invoke(
+          new Api.messages.SetTyping({
+            peer: p.target,
+            action: new Api.SendMessageTypingAction(),
+          })
+        )
+      } catch {
+        // The indicator is a courtesy; the approved act is not.
+      }
+      await new Promise(r => setTimeout(r, TYPING_MS))
+    }
+    let sent: unknown = null
+    try {
+      sent = await exec.run(c, p, ctx)
+    } catch (e) {
+      if (paid !== null && p.charge && ctx.pool) {
+        // Not delivered: give back exactly what was taken, and say so
+        // either way -- a refund that failed is the owner's problem now.
+        const { refundByTid } = await import('./billing-shared')
+        const back = await refundByTid(
+          ctx.pool as never,
+          p.charge.telegramId,
+          p.charge.op,
+          1,
+          undefined,
+          paid
+        )
+        await noteInJournal(ctx.pool, {
+          kind: back.ok ? 'tokens-refunded' : 'failure',
+          who: p.charge.telegramId,
+          amount: paid,
+          what: back.ok
+            ? `услуга не доставлена, ${paid} возвращено: ${inPlainWords(e).slice(0, 80)}`
+            : `ВОЗВРАТ НЕ ПРОШЁЛ ${paid} токенов: ${back.why}`,
+          severity: back.ok ? 'attention' : 'alarm',
+        })
+        return {
+          done: false,
+          why:
+            inPlainWords(e) +
+            (back.ok
+              ? `; списанные ${paid} токенов возвращены получателю`
+              : `; ВОЗВРАТ ${paid} токенов НЕ ПРОШЁЛ — проверь баланс получателя`),
+        }
+      }
+      throw e
+    }
+    if (exec.after) await exec.after(ctx, p, sent, paid)
+    return { done: true, action: p.action }
   } catch (e) {
     return { done: false, why: inPlainWords(e) }
   } finally {
@@ -1206,5 +1702,37 @@ function inPlainWords(e: unknown): string {
     return 'этот человек не принимает от вас сообщения'
   }
   if (/CHAT_WRITE_FORBIDDEN/i.test(raw)) return 'в этот чат писать нельзя'
+  /*
+   * Codes the social actions (PR3: kick, pin, react, vote, join, delete)
+   * answer with. Translated here rather than at each executor because the
+   * plain-words door is shared, and a code said raw is an answer only the
+   * debugger loves.
+   */
+  if (/CHAT_ADMIN_REQUIRED/i.test(raw)) {
+    return 'для этого нужны права администратора в чате'
+  }
+  if (/USER_NOT_PARTICIPANT/i.test(raw)) {
+    return 'этого человека нет в чате'
+  }
+  if (/USER_ALREADY_PARTICIPANT/i.test(raw)) {
+    return 'этот человек уже в чате'
+  }
+  if (/INVITE_HASH_EXPIRED/i.test(raw)) return 'ссылка-приглашение устарела'
+  if (/INVITE_HASH_INVALID/i.test(raw)) {
+    return 'ссылка-приглашение недействительна'
+  }
+  if (/MESSAGE_ID_INVALID/i.test(raw)) {
+    return 'сообщение не найдено — возможно, его уже удалили'
+  }
+  if (/POLL_VOTE_INVALID/i.test(raw)) {
+    return 'в этом голосовании нет такого варианта'
+  }
+  if (/REACTION_INVALID/i.test(raw))
+    return 'такой реакции здесь нельзя поставить'
+  if (/CHAT_NOT_MODIFIED/i.test(raw)) return 'в чате ничего не изменилось'
+  if (/MESSAGE_NOT_MODIFIED/i.test(raw)) {
+    return 'в сообщении ничего не изменилось'
+  }
+  if (/USER_ID_INVALID/i.test(raw)) return 'такого пользователя не существует'
   return raw
 }

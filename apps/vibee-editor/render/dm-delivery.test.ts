@@ -51,6 +51,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.doUnmock('telegram')
   vi.doUnmock('./src/agent/telegram-tools')
   vi.doUnmock('./src/agent/billing-shared')
   vi.doUnmock('./src/agent/crm-touches')
@@ -416,10 +417,24 @@ class FakeSendingClient {
       failNumericUntilDialogs?: boolean
     },
     private readonly timeline: string[],
-    private readonly files: Array<Record<string, unknown>>
+    private readonly files: Array<Record<string, unknown>>,
+    private readonly texts: Array<Record<string, unknown>> = [],
+    private readonly invoked: unknown[] = []
   ) {}
-  async sendMessage(to: string) {
+  async sendMessage(to: string, opts: Record<string, unknown> = {}) {
     this.timeline.push(`sendMessage:${to}`)
+    this.texts.push(opts)
+  }
+  /*
+   * GramJS' raw-request door: the typing signal goes through `invoke`, so
+   * the fake carries the same door the real client has. Recorded, not
+   * interpreted: what matters is THAT it fired and in what order.
+   */
+  async invoke(request: unknown) {
+    this.invoked.push(request)
+    this.timeline.push(
+      `invoke:${String((request as { className?: string }).className)}`
+    )
   }
   async sendFile(to: string, opts: Record<string, unknown>) {
     // `this` IS the client, exactly as in GramJS. A detached call arrives
@@ -442,12 +457,28 @@ class FakeSendingClient {
 }
 
 function fakeClient(
-  o: { failFile?: string; failNumericUntilDialogs?: boolean } = {},
+  o: {
+    failFile?: string
+    failNumericUntilDialogs?: boolean
+    typing?: boolean
+  } = {},
   timeline: string[] = []
 ) {
   const files: Array<Record<string, unknown>> = []
-  const client = new FakeSendingClient(o, timeline, files)
-  return { client, timeline, files }
+  const texts: Array<Record<string, unknown>> = []
+  const invoked: unknown[] = []
+  const client = new FakeSendingClient(o, timeline, files, texts, invoked)
+  if (!o.typing) {
+    /*
+     * The default fake is an OLDER client: no raw-request door. The typing
+     * signal is cosmetic, so `execute` must skip it AND the pause with it —
+     * otherwise every unrelated money test below would wait out TYPING_MS
+     * for a signal it never asked about. Tests that care pass `typing: true`
+     * and get the door (plus the pause, under fake timers).
+     */
+    Object.defineProperty(client, 'invoke', { value: undefined })
+  }
+  return { client, timeline, files, texts, invoked }
 }
 
 async function executor(
@@ -485,8 +516,8 @@ async function executor(
       return 'recorded'
     },
   }))
-  const { execute } = await import('./src/agent/tg-proposals')
-  return { execute, timeline, touches, journal }
+  const { execute, TYPING_MS } = await import('./src/agent/tg-proposals')
+  return { execute, timeline, touches, journal, TYPING_MS }
 }
 const pool = { query: async () => ({ rows: [] }) }
 const draft = (over: Record<string, unknown> = {}) => ({
@@ -712,5 +743,389 @@ describe('the real generator honours chargeLater', () => {
       paid.sqls.some(q => /balance = balance - /i.test(q)),
       'the plain path stopped charging'
     ).toBe(true)
+  })
+})
+
+/**
+ * THE MEDIA KINDS A DRAFT CAN CARRY.
+ *
+ * Photo was the only kind, and photo travels as a URL Telegram fetches
+ * itself. Voice, video and video notes CANNOT: the URL path in GramJS
+ * ignores voiceNote/videoNote/attributes (uploads.js `_fileToMedia`), so a
+ * round voice note or a streaming video means downloading the bytes here
+ * and uploading them as a CustomFile with the attributes the card promised.
+ *
+ * These tests stub fetch (the download) and read what the fake client's
+ * BOUND sendFile received: the attributes are the contract the card shows
+ * (~N seconds, a video, a document named X), so they must reach the wire.
+ */
+describe('execute: media kinds reach sendFile shaped for their kind', () => {
+  const bytes = (n: number) => Buffer.alloc(n, 7)
+
+  const stubDownload = (buf: Buffer, status = 200) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array(buf), { status }))
+    )
+  }
+
+  const asParams = (o: Record<string, unknown>) =>
+    o as {
+      file: {
+        name?: string
+        size?: number
+        buffer?: Buffer
+      } & (string | unknown[])
+      caption?: unknown
+      voiceNote?: boolean
+      videoNote?: boolean
+      supportsStreaming?: boolean
+      forceDocument?: boolean
+      attributes?: Array<{ voice?: boolean; duration?: number }>
+    }
+
+  it('a voice draft uploads bytes as a round voice note with the promised duration', async () => {
+    stubDownload(bytes(60_000))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'https://s3.example/v.mp3', duration: 17 },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    const o = asParams(f.files[0])
+    expect(o.voiceNote).toBe(true)
+    // The attribute is what makes it ROUND and makes the duration honest:
+    // GramJS cannot measure duration itself (_getMetadata is a stub).
+    expect(o.attributes?.[0]).toMatchObject({ voice: true, duration: 17 })
+    expect(o.file).toMatchObject({ name: 'voice.mp3', size: 60_000 })
+  })
+
+  it('without a duration the seconds are estimated from the bytes, never zero', async () => {
+    // 60_000 bytes / 6000 ≈ 10s of opus-quality voice; a zero duration would
+    // show as a broken waveform on the recipient's phone.
+    stubDownload(bytes(60_000))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'https://s3.example/v.mp3' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done).toBe(true)
+    expect(asParams(f.files[0]).attributes?.[0]).toMatchObject({
+      voice: true,
+      duration: 10,
+    })
+  })
+
+  it('a video uploads with streaming support; a video note as a round note', async () => {
+    stubDownload(bytes(2048))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'video', url: 'https://s3.example/v.mp4' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    await execute(
+      draft({
+        id: 'm2',
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'video_note', url: 'https://s3.example/vn.mp4' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(asParams(f.files[0]).supportsStreaming).toBe(true)
+    expect(asParams(f.files[0]).voiceNote).toBeUndefined()
+    expect(asParams(f.files[1]).videoNote).toBe(true)
+  })
+
+  it('a document uploads under its promised name, as a document not a photo', async () => {
+    stubDownload(bytes(128))
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: {
+          kind: 'document',
+          url: 'https://s3.example/report.pdf',
+          fileName: 'Смета.pdf',
+        },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    const o = asParams(f.files[0])
+    expect(o.forceDocument).toBe(true)
+    expect(o.file).toMatchObject({ name: 'Смета.pdf', size: 128 })
+  })
+
+  it('an album sends every URL, each caption beside its own photo', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: {
+          kind: 'album',
+          urls: [
+            'https://s3.example/1.png',
+            'https://s3.example/2.png',
+            'https://s3.example/3.png',
+          ],
+          captions: ['первый', 'второй'],
+        },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    expect(f.files).toEqual([
+      {
+        file: [
+          'https://s3.example/1.png',
+          'https://s3.example/2.png',
+          'https://s3.example/3.png',
+        ],
+        caption: ['первый', 'второй'],
+        parseMode: false,
+      },
+    ])
+  })
+
+  it('a media url that is not https is refused before anything is fetched', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'http://insecure/v.mp3' },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done).toBe(false)
+    expect(f.files).toEqual([])
+  })
+
+  it('a download that fails is said in plain words, not a stack trace', async () => {
+    stubDownload(bytes(1), 503)
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(
+      draft({
+        what: undefined,
+        charge: undefined,
+        media: { kind: 'voice', url: 'https://s3.example/v.mp3', duration: 5 },
+      }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done).toBe(false)
+    expect((r as { why: string }).why).toContain('скачать')
+    expect(f.files).toEqual([])
+  })
+
+  /*
+   * CODES THAT WILL START ARRIVING (PR3 adds kick, pin, react, vote, join,
+   * delete), translated NOW: every executor funnels its failure through the
+   * same plain-words door, and "CHAT_ADMIN_REQUIRED" said raw is an answer
+   * only the debugger loves. The send executor is used as the vehicle —
+   * the door is shared, so the words are proven on any road through it.
+   */
+  const plainWordCases: Array<[string, string]> = [
+    ['CHAT_ADMIN_REQUIRED', 'права администратора'],
+    ['USER_NOT_PARTICIPANT', 'нет в чате'],
+    ['USER_ALREADY_PARTICIPANT', 'уже в чате'],
+    ['INVITE_HASH_EXPIRED', 'устарела'],
+    ['INVITE_HASH_INVALID', 'недействительна'],
+    ['MESSAGE_ID_INVALID', 'не найдено'],
+    ['POLL_VOTE_INVALID', 'голосовании'],
+    ['REACTION_INVALID', 'реакц'],
+    ['CHAT_NOT_MODIFIED', 'не изменилось'],
+    ['MESSAGE_NOT_MODIFIED', 'не изменилось'],
+    ['USER_ID_INVALID', 'такого пользователя'],
+  ]
+  for (const [code, words] of plainWordCases) {
+    it(`${code} reaches the person as Russian, not as a code`, async () => {
+      const f = fakeClient({ failFile: code })
+      const { execute } = await executor(f.client, {}, f.timeline)
+      const r = await execute(draft(), { telegramId: OWNER, pool })
+      expect(r.done).toBe(false)
+      expect((r as { why: string }).why).toContain(words)
+      // the charge came back before the words were chosen
+      expect(f.timeline).toContain(`refund:${LEAD}:3`)
+    })
+  }
+})
+
+/**
+ * TYPING AND SCHEDULE (owner decisions, 2026-09-14): "печатает…" shows
+ * automatically before a send, and a send may be named a time instead of now.
+ *
+ * The two are one block of behaviour because they exclude each other: a
+ * scheduled send fires later, with nobody watching, so signalling "typing"
+ * at press time would be a lie -- the person is not typing at HH:MM, the
+ * clock is. Everything here is cosmetic until the send itself, which is why
+ * typing can fail without killing the send, and why its absence (an old
+ * client, a fake) must not change the wire behaviour at all.
+ */
+describe('execute: typing before the act, schedule instead of now', () => {
+  it('a send signals typing once, between the charge and the send', async () => {
+    /*
+     * A local client, not the shared fake: this test needs TIME STAMPS, and
+     * under fake timers Date.now() only moves when the clock does. The
+     * prologue (module loads, the charge) crosses real event-loop ticks, so
+     * mid-flight assertions race it; asserting afterwards, on one shared
+     * timeline plus stamps, is deterministic however long the prologue took.
+     *
+     * `telegram` is mocked so the SetTyping request is cheap to build and
+     * inspect; the real package is not what is under test here.
+     */
+    class SetTyping {
+      className = 'messages.SetTyping'
+      constructor(public readonly payload: Record<string, unknown>) {}
+    }
+    class TypingAction {
+      className = 'SendMessageTypingAction'
+    }
+    vi.doMock('telegram', () => ({
+      Api: { messages: { SetTyping }, SendMessageTypingAction: TypingAction },
+    }))
+    class TypingClient {
+      readonly marks: Array<[string, number]> = []
+      lastRequest: unknown = null
+      constructor(private readonly tl: string[]) {}
+      private stamp(what: string) {
+        this.tl.push(what)
+        this.marks.push([what, Date.now()])
+      }
+      async getDialogs() {
+        this.stamp('getDialogs')
+      }
+      async invoke(request: unknown) {
+        this.lastRequest = request
+        this.stamp(
+          `invoke:${String((request as { className?: string }).className)}`
+        )
+      }
+      async sendMessage() {}
+      async sendFile(to: string) {
+        this.stamp(`sendFile:${to}`)
+      }
+      async disconnect() {
+        this.stamp('disconnect')
+      }
+    }
+    vi.useFakeTimers()
+    try {
+      const tl: string[] = []
+      const client = new TypingClient(tl)
+      const { execute, TYPING_MS } = await executor(client as never, {}, tl)
+      const started = execute(draft(), { telegramId: OWNER, pool })
+      /*
+       * Drive BOTH clocks until the draft settles. The prologue (charge,
+       * dynamic imports) crosses real event-loop ticks, and on a cold
+       * graph -- the root runner touching this file first -- it can
+       * outlast a single timer advance: the pause's fake setTimeout is
+       * then scheduled after nobody advances the clock, and awaiting the
+       * draft deadlocks. Pumping the fake clock in slices, yielding real
+       * I/O between slices, settles the chain however slow the prologue
+       * was. Bounded at two typing periods -- far beyond the one pause
+       * the execute owes -- and honest if it somehow never lands.
+       */
+      let settled = false
+      void started.then(
+        () => {
+          settled = true
+        },
+        () => {
+          settled = true
+        }
+      )
+      let advanced = 0
+      while (!settled && advanced < TYPING_MS * 2) {
+        await vi.advanceTimersByTimeAsync(50)
+        advanced += 50
+      }
+      if (!settled) throw new Error('execute never settled under fake timers')
+      const r = await started
+      expect(r.done, (r as { why?: string }).why).toBe(true)
+      const at = (what: string) => tl.findIndex(t => t.startsWith(what))
+      expect(at('spend:')).toBeGreaterThanOrEqual(0)
+      expect(at('invoke:')).toBeGreaterThan(at('spend:'))
+      expect(at('sendFile:')).toBeGreaterThan(at('invoke:'))
+      // The pause is real: the send's stamp sits a full TYPING_MS after the
+      // signal's, so the recipient sees the typing indicator first.
+      const invokedAt = client.marks.find(([w]) => w.startsWith('invoke:'))![1]
+      const sentAt = client.marks.find(([w]) => w.startsWith('sendFile:'))![1]
+      expect(sentAt - invokedAt).toBeGreaterThanOrEqual(TYPING_MS)
+      // The signal itself: exactly one request of the typing kind -- not a
+      // record-audio or upload kind -- and its peer is the draft's target.
+      expect(tl.filter(t => t.startsWith('invoke:'))).toEqual([
+        'invoke:messages.SetTyping',
+      ])
+      const asked = client.lastRequest as SetTyping
+      expect(asked.className).toBe('messages.SetTyping')
+      expect(asked.payload.peer).toBe(LEAD)
+      expect((asked.payload.action as TypingAction).className).toBe(
+        'SendMessageTypingAction'
+      )
+    } finally {
+      vi.useRealTimers()
+      vi.doUnmock('telegram')
+    }
+  })
+
+  it('a scheduled file send names the time and skips typing', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const when = Date.now() + 60 * 60_000
+    const r = await execute(draft({ scheduleAt: when }), {
+      telegramId: OWNER,
+      pool,
+    })
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    expect(f.invoked, 'никто не печатает в запланированное время').toEqual([])
+    expect((f.files[0]?.scheduleDate as Date).getTime()).toBe(when)
+  })
+
+  it('a scheduled text goes through sendMessage with schedule', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const when = Date.now() + 5 * 60_000
+    const r = await execute(
+      draft({ media: undefined, what: 'позже', scheduleAt: when }),
+      { telegramId: OWNER, pool }
+    )
+    expect(r.done, (r as { why?: string }).why).toBe(true)
+    expect(f.texts).toEqual([
+      { message: 'позже', parseMode: false, schedule: new Date(when) },
+    ])
+  })
+
+  it('a restored draft whose time has passed refuses before the charge', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const r = await execute(draft({ scheduleAt: Date.now() - 60_000 }), {
+      telegramId: OWNER,
+      pool,
+    })
+    expect(r.done).toBe(false)
+    expect((r as { why: string }).why).toContain('расписан')
+    expect(f.timeline.filter(t => t.startsWith('spend:'))).toEqual([])
+    expect(f.files).toEqual([])
   })
 })
