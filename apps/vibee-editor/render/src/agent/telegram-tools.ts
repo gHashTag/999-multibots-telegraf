@@ -33,8 +33,12 @@ import crypto from 'node:crypto'
 import { hangUp } from './hang-up'
 import type { AgentTool, ToolContext } from './tools'
 import { remember } from './tg-proposals'
-import { resolvingPeer } from './tg-proposals'
-import type { ProposalMedia, ProposalCharge } from './tg-proposals'
+import { resolvingPeer, EXECUTABLE_ACTIONS } from './tg-proposals'
+import type {
+  ProposalAction,
+  ProposalMedia,
+  ProposalCharge,
+} from './tg-proposals'
 
 /**
  * WHOSE ACCOUNT THIS IS -- and why every reading tool below asks.
@@ -176,7 +180,7 @@ export function foreignText(text: string): string {
  */
 export interface Proposal {
   proposal: true
-  action: 'send' | 'forward' | 'delete' | 'join' | 'leave' | 'read'
+  action: ProposalAction
   target: string
   what?: string
   why: string
@@ -207,8 +211,15 @@ export interface ProposalExtras {
  * handlers took no ToolContext at all, which meant no identity check on the
  * tools that reach other people. Harmless only while nothing executed.
  */
-/** Actions `execute` can actually carry out. Keep in step with it. */
-const EXECUTABLE = new Set<Proposal['action']>(['send'])
+/**
+ * Actions `execute` can actually carry out.
+ *
+ * DERIVED, not restated: the executor table in tg-proposals.ts is the one
+ * place that knows, and a copy here is how a tool queues a draft nobody can
+ * execute (or refuses to queue one somebody can). When `forward` gained its
+ * row there, this set followed without this file changing a line of its own.
+ */
+const EXECUTABLE = EXECUTABLE_ACTIONS
 
 /**
  * Surfaces that can actually SHOW a confirmation and take a press.

@@ -426,6 +426,45 @@ describe('the approved bytes are the sent bytes', () => {
   })
 })
 
+describe('an action with no executor refuses honestly', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.doUnmock('./src/agent/telegram-tools')
+  })
+
+  it('delete names the action and says what IS carried out', async () => {
+    /*
+     * Pin before the executor-table refactor: the honest refusal is the
+     * behaviour, and it must survive the refactor unchanged. A press on a
+     * draft whose action nobody implemented must say so in words -- not
+     * pretend, not throw.
+     */
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      client: async () => ({
+        async getDialogs() {
+          return []
+        },
+      }),
+    }))
+    const { execute: exec } = await import('./src/agent/tg-proposals')
+    const r = await exec(
+      {
+        id: 'd1',
+        telegramId: '144022504',
+        action: 'delete',
+        target: '@ivan',
+        createdAt: Date.now(),
+      } as never,
+      { telegramId: '144022504' }
+    )
+    expect(r.done).toBe(false)
+    if (!r.done) {
+      expect(r.why).toContain('delete')
+      expect(r.why).toContain('ещё не сделано')
+    }
+  })
+})
+
 describe('the socket does not stay open', () => {
   beforeEach(() => {
     vi.resetModules()

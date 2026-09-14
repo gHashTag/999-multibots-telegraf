@@ -40,6 +40,23 @@ export interface ProposalMedia {
 }
 
 /**
+ * Every action a proposal can carry.
+ *
+ * The one list. It used to be spelled out twice -- here and again in
+ * telegram-tools.ts's `Proposal` -- and two copies of one list is how a third
+ * thing (the executor table, the bot's card) ends up agreeing with neither.
+ * The tools import this; the executor table keys it; the bot reads it through
+ * the draft the server sends.
+ */
+export type ProposalAction =
+  | 'send'
+  | 'forward'
+  | 'delete'
+  | 'join'
+  | 'leave'
+  | 'read'
+
+/**
  * Who pays for the service and how much. Charged at EXECUTE -- after the
  * owner's press, never on the model's say-so -- and refunded exactly if the
  * send then fails. `op` is the price-list key (billing-shared TOKEN_PRICES).
@@ -53,7 +70,7 @@ export interface ProposalCharge {
 export interface PendingProposal {
   id: string
   telegramId: string
-  action: 'send' | 'forward' | 'delete' | 'join' | 'leave' | 'read'
+  action: ProposalAction
   target: string
   what?: string
   /**
@@ -1019,146 +1036,206 @@ async function noteInJournal(
   }
 }
 
+/** What an executor may need about the press that started it. */
+export interface ExecCtx {
+  telegramId: string
+  pool?: unknown
+}
+
+/**
+ * HOW ONE ACTION IS CARRIED OUT.
+ *
+ * `execute` used to be a switch with one populated case and a default that
+ * refused everything else. Adding `forward` meant editing the switch, the
+ * refusal text, and the set that decides what may occupy the queue -- three
+ * places, one of them prose. The table replaces that: an action is executable
+ * exactly when it has a row here, `execute` runs the same spine for every
+ * row, and a row left out refuses honestly below.
+ */
+export interface Executor {
+  /** A refusal before anything moves, or null to proceed. */
+  check: (p: PublicProposal, ctx: ExecCtx) => string | null
+  /** The act itself. Runs inside the refund guard: a throw with money taken gives the money back. */
+  run: (c: SendingClient, p: PublicProposal, ctx: ExecCtx) => Promise<unknown>
+  /** Show "typing…" before the act. Sends only, and never when scheduled. */
+  typing?: boolean
+  /** Bookkeeping after success (the CRM mirror, the touch). Sends only. */
+  after?: (
+    ctx: ExecCtx,
+    p: PublicProposal,
+    sent: unknown,
+    paid: number | null
+  ) => Promise<void>
+}
+
+/** The sent message into the memory, then the touch -- send's own aftermath. */
+async function afterSend(
+  ctx: ExecCtx,
+  p: PublicProposal,
+  sent: unknown,
+  paid: number | null
+): Promise<void> {
+  if (sent !== null) await mirrorSent(ctx, p, sent)
+  if (p.lead && ctx.pool) {
+    try {
+      const { recordTouch } = await import('./crm-touches')
+      const { SELLER_NOTE_PREFIXES } = await import('./crm-notes')
+      const write = recordTouch(ctx.pool as never, {
+        owner: String(ctx.telegramId),
+        lead: String(p.lead),
+        botName: p.bot ?? null,
+        // A paid, delivered service is a purchase; a message is a touch.
+        kind: p.charge ? 'bought' : 'written',
+        note: p.charge
+          ? SELLER_NOTE_PREFIXES.service +
+            `${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
+          : p.gift
+            ? SELLER_NOTE_PREFIXES.gift +
+              `${p.media?.kind ?? 'photo'}: ` +
+              (p.what ?? '').slice(0, 60)
+            : SELLER_NOTE_PREFIXES.message + (p.what ?? '').slice(0, 80),
+      })
+      const outcome = await Promise.race([
+        write,
+        new Promise<'timed out'>(r =>
+          setTimeout(() => r('timed out'), TOUCH_WRITE_MS)
+        ),
+      ])
+      if (outcome !== 'recorded') {
+        console.warn(
+          `[proposal] touch not recorded (${String(outcome)}) lead=${p.lead} who=${String(ctx.telegramId)}`
+        )
+      }
+    } catch (e) {
+      console.warn(
+        `[proposal] touch write threw lead=${p.lead}: ${String(e).slice(0, 120)}`
+      )
+    }
+  }
+}
+
+/**
+ * The table. Keyed by exactly the actions `execute` can carry out; a key
+ * without a row is a compile error here rather than a runtime refusal below.
+ */
+const EXECUTORS: Record<'send', Executor> = {
+  send: {
+    check: p => (p.what || p.media ? null : 'нечего отправлять: текст пуст'),
+    async run(c, p) {
+      // Both branches hand back the sent message, so a photo with a
+      // caption is mirrored like text (CRM audit 2026-09-12, P2 #9).
+      if (p.media) return sendFileWithAddressBook(c, p.target, p.media, p.what)
+      return sendWithAddressBook(c, p.target, p.what ?? '')
+    },
+    typing: true,
+    after: afterSend,
+  },
+}
+
+/** What `execute` can carry out. The tools' queue gate reads this, not a copy. */
+export const EXECUTABLE_ACTIONS: ReadonlySet<string> = new Set(
+  Object.keys(EXECUTORS)
+)
+
 export async function execute(
   p: PublicProposal,
-  ctx: { telegramId: string; pool?: unknown }
+  ctx: ExecCtx
 ): Promise<{ done: true; action: string } | { done: false; why: string }> {
   const { client } = await import('./telegram-tools')
   const { hangUp } = await import('./hang-up')
   let c: SendingClient | null = null
   try {
     c = (await client(ctx as never)) as SendingClient
-    switch (p.action) {
-      case 'send': {
-        if (!p.what && !p.media)
-          return { done: false, why: 'нечего отправлять: текст пуст' }
-        /*
-         * THE MONEY, AFTER THE PRESS AND BEFORE THE SEND. A charge on the
-         * proposal is the recipient's -- a service they asked for in the DM
-         * and the owner approved with a button. Charging here, not at tool
-         * time, means the model's word alone never moves anybody's balance,
-         * and a cancelled or expired card costs the recipient nothing.
-         */
-        let paid: number | null = null
-        if (p.charge) {
-          if (!ctx.pool)
-            return {
-              done: false,
-              why: 'списать не с чего: база недоступна — услуга не отправлена',
-            }
-          const { spendByTid } = await import('./billing-shared')
-          const r = await spendByTid(
-            ctx.pool as never,
-            p.charge.telegramId,
-            p.charge.op
-          )
-          if (!r.ok)
-            return {
-              done: false,
-              why:
-                `у получателя не хватает токенов (${r.причина ?? 'баланс мал'}) — ` +
-                'предложи пополнить счёт (crm_offer) и повтори',
-            }
-          paid = r.списано ?? 0 // cyrillic-ok: public API field
-          await noteInJournal(ctx.pool, {
-            kind: 'tokens-spent',
-            who: p.charge.telegramId,
-            // Negative, as every other tokens-spent line: money leaving.
-            amount: -paid,
-            what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
-          })
-        }
-        let sent: unknown = null
-        try {
-          // Both branches hand back the sent message, so a photo with a
-          // caption is mirrored like text (CRM audit 2026-09-12, P2 #9).
-          if (p.media)
-            sent = await sendFileWithAddressBook(c, p.target, p.media, p.what)
-          else sent = await sendWithAddressBook(c, p.target, p.what ?? '')
-        } catch (e) {
-          if (paid !== null && p.charge && ctx.pool) {
-            // Not delivered: give back exactly what was taken, and say so
-            // either way -- a refund that failed is the owner's problem now.
-            const { refundByTid } = await import('./billing-shared')
-            const back = await refundByTid(
-              ctx.pool as never,
-              p.charge.telegramId,
-              p.charge.op,
-              1,
-              undefined,
-              paid
-            )
-            await noteInJournal(ctx.pool, {
-              kind: back.ok ? 'tokens-refunded' : 'failure',
-              who: p.charge.telegramId,
-              amount: paid,
-              what: back.ok
-                ? `услуга не доставлена, ${paid} возвращено: ${inPlainWords(e).slice(0, 80)}`
-                : `ВОЗВРАТ НЕ ПРОШЁЛ ${paid} токенов: ${back.why}`,
-              severity: back.ok ? 'attention' : 'alarm',
-            })
-            return {
-              done: false,
-              why:
-                inPlainWords(e) +
-                (back.ok
-                  ? `; списанные ${paid} токенов возвращены получателю`
-                  : `; ВОЗВРАТ ${paid} токенов НЕ ПРОШЁЛ — проверь баланс получателя`),
-            }
-          }
-          throw e
-        }
-        if (sent !== null) await mirrorSent(ctx, p, sent)
-        if (p.lead && ctx.pool) {
-          try {
-            const { recordTouch } = await import('./crm-touches')
-            const { SELLER_NOTE_PREFIXES } = await import('./crm-notes')
-            const write = recordTouch(ctx.pool as never, {
-              owner: String(ctx.telegramId),
-              lead: String(p.lead),
-              botName: p.bot ?? null,
-              // A paid, delivered service is a purchase; a message is a touch.
-              kind: p.charge ? 'bought' : 'written',
-              note: p.charge
-                ? SELLER_NOTE_PREFIXES.service +
-                  `${p.media?.kind ?? p.charge.op}, списано ${paid ?? 0}`
-                : p.gift
-                  ? SELLER_NOTE_PREFIXES.gift +
-                    `${p.media?.kind ?? 'photo'}: ` +
-                    (p.what ?? '').slice(0, 60)
-                  : SELLER_NOTE_PREFIXES.message + (p.what ?? '').slice(0, 80),
-            })
-            const outcome = await Promise.race([
-              write,
-              new Promise<'timed out'>(r =>
-                setTimeout(() => r('timed out'), TOUCH_WRITE_MS)
-              ),
-            ])
-            if (outcome !== 'recorded') {
-              console.warn(
-                `[proposal] touch not recorded (${String(outcome)}) lead=${p.lead} who=${String(ctx.telegramId)}`
-              )
-            }
-          } catch (e) {
-            console.warn(
-              `[proposal] touch write threw lead=${p.lead}: ${String(e).slice(0, 120)}`
-            )
-          }
-        }
-        return { done: true, action: 'send' }
+    const exec = (EXECUTORS as Partial<Record<ProposalAction, Executor>>)[
+      p.action
+    ]
+    if (!exec) {
+      /*
+       * An action with no row in the table still refuses, in words, naming
+       * the action. Pretending to do it would be worse than the gap it
+       * leaves, because the person would believe the thing happened.
+       */
+      return {
+        done: false,
+        why: `подтверждение для «${p.action}» ещё не сделано — пока только отправка`,
       }
-      default:
-        /*
-         * Only sending is carried out for now. The other actions -- forward,
-         * delete, join, leave -- still propose, and refusing here is honest
-         * about that. Pretending to do them would be worse than the gap they
-         * leave, because the person would believe the thing happened.
-         */
+    }
+    const bad = exec.check(p, ctx)
+    if (bad) return { done: false, why: bad }
+    /*
+     * THE MONEY, AFTER THE PRESS AND BEFORE THE ACT. A charge on the
+     * proposal is the recipient's -- a service they asked for in the DM
+     * and the owner approved with a button. Charging here, not at tool
+     * time, means the model's word alone never moves anybody's balance,
+     * and a cancelled or expired card costs the recipient nothing.
+     */
+    let paid: number | null = null
+    if (p.charge) {
+      if (!ctx.pool)
         return {
           done: false,
-          why: `подтверждение для «${p.action}» ещё не сделано — пока только отправка`,
+          why: 'списать не с чего: база недоступна — услуга не отправлена',
         }
+      const { spendByTid } = await import('./billing-shared')
+      const r = await spendByTid(
+        ctx.pool as never,
+        p.charge.telegramId,
+        p.charge.op
+      )
+      if (!r.ok)
+        return {
+          done: false,
+          why:
+            `у получателя не хватает токенов (${r.причина ?? 'баланс мал'}) — ` +
+            'предложи пополнить счёт (crm_offer) и повтори',
+        }
+      paid = r.списано ?? 0 // cyrillic-ok: public API field
+      await noteInJournal(ctx.pool, {
+        kind: 'tokens-spent',
+        who: p.charge.telegramId,
+        // Negative, as every other tokens-spent line: money leaving.
+        amount: -paid,
+        what: `услуга в личке (${p.charge.op}) от ${String(ctx.telegramId)}: списано ${paid}`,
+      })
     }
+    let sent: unknown = null
+    try {
+      sent = await exec.run(c, p, ctx)
+    } catch (e) {
+      if (paid !== null && p.charge && ctx.pool) {
+        // Not delivered: give back exactly what was taken, and say so
+        // either way -- a refund that failed is the owner's problem now.
+        const { refundByTid } = await import('./billing-shared')
+        const back = await refundByTid(
+          ctx.pool as never,
+          p.charge.telegramId,
+          p.charge.op,
+          1,
+          undefined,
+          paid
+        )
+        await noteInJournal(ctx.pool, {
+          kind: back.ok ? 'tokens-refunded' : 'failure',
+          who: p.charge.telegramId,
+          amount: paid,
+          what: back.ok
+            ? `услуга не доставлена, ${paid} возвращено: ${inPlainWords(e).slice(0, 80)}`
+            : `ВОЗВРАТ НЕ ПРОШЁЛ ${paid} токенов: ${back.why}`,
+          severity: back.ok ? 'attention' : 'alarm',
+        })
+        return {
+          done: false,
+          why:
+            inPlainWords(e) +
+            (back.ok
+              ? `; списанные ${paid} токенов возвращены получателю`
+              : `; ВОЗВРАТ ${paid} токенов НЕ ПРОШЁЛ — проверь баланс получателя`),
+        }
+      }
+      throw e
+    }
+    if (exec.after) await exec.after(ctx, p, sent, paid)
+    return { done: true, action: p.action }
   } catch (e) {
     return { done: false, why: inPlainWords(e) }
   } finally {
