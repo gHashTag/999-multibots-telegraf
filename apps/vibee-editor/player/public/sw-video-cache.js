@@ -59,6 +59,11 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
   const pathname = url.pathname
 
+  // The Queen game is served from /game/ on this origin and loads its own
+  // assets; the player's cache must not answer for them.
+  if (url.origin === self.location.origin && pathname.startsWith('/game/'))
+    return
+
   // Only cache video and image files
   const isCacheable = CACHEABLE_EXTENSIONS.some(ext => pathname.endsWith(ext))
   if (!isCacheable) return
