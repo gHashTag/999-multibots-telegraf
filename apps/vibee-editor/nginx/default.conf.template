@@ -17,8 +17,13 @@ server {
     # Telegram Web (web.telegram.org) runs a Mini App inside an iframe.
     # X-Frame-Options DENY/SAMEORIGIN would render the app blank on Web+Desktop,
     # so frame embedding is allowed for Telegram origins only.
-    # https://t27.ai is the game: its Queen board has a TRI tab that shows the
-    # app's screens (feed, agent, AI, profile, CRM) in a frame with ?embed=1.
+    # https://t27.ai hosts the game: its Queen board has a TRI tab that shows
+    # the app's screens (feed, agent, AI, profile, CRM) in a frame with
+    # ?embed=1. frame-ancestors is per origin, so this admits every page on
+    # t27.ai: every GitHub Pages site of gHashTag published there (t27.ai/leela/,
+    # /trinity/, /jscamp/, ...), not only the game. CSP cannot narrow it to a
+    # path; the player keeps the browser session out of frames by such pages
+    # (player/src/lib/framedSession.ts).
     # Not www.t27.ai: it answers 301 to the apex (measured 2026-09-14).
     add_header Content-Security-Policy "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://t27.ai;" always;
     add_header X-Content-Type-Options "nosniff" always;
