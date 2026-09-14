@@ -26,6 +26,7 @@ import {
   SessionError,
   initDataCutoffRefusal,
 } from './session'
+import { countInitDataBot } from './src/auth/initdata-bot-counts'
 import type { IncomingMessage } from 'node:http'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
@@ -666,7 +667,10 @@ export function authenticate(req: IncomingMessage): AuthResult {
     ''
   if (initData) {
     const v = verifyTelegramInitData(initData)
-    if (v.ok) return { allowed: true, wouldReject: false, via: 'telegram' }
+    if (v.ok) {
+      countInitDataBot(v.botId)
+      return { allowed: true, wouldReject: false, via: 'telegram' }
+    }
     return {
       allowed: mode() !== 'enforce',
       wouldReject: true,
@@ -702,7 +706,9 @@ export function verifiedTelegramId(req: IncomingMessage): string | null {
     (req.headers['x-telegram-initdata'] as string | undefined) ||
     ''
   if (!initData) return null
-  if (!verifyTelegramInitData(initData).ok) return null
+  const v = verifyTelegramInitData(initData)
+  if (!v.ok) return null
+  countInitDataBot(v.botId)
   try {
     const raw = new URLSearchParams(initData).get('user')
     if (!raw) return null
