@@ -56,6 +56,37 @@ function bridgeProblems(conf: string): string[] {
   return out
 }
 
+/**
+ * The consent popup the bridge opens must not be framed by anyone, t27.ai
+ * included: a framed copy could be hidden under a decoy, which is what the
+ * popup exists to prevent. Without its own exact location it would fall into
+ * ^~ /bridge/ and get frame-ancestors https://t27.ai.
+ */
+const CONSENT_CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self'; frame-ancestors 'none'"
+
+function consentProblems(conf: string): string[] {
+  const body = block(conf, '= /bridge/consent.html')
+  if (!body) return ['no location = /bridge/consent.html']
+  const out: string[] = []
+  const csp = [
+    ...body.matchAll(/add_header\s+Content-Security-Policy\s+"([^"]*)"/g),
+  ].map(m => m[1])
+  if (csp.length !== 1 || csp[0] !== CONSENT_CSP) {
+    out.push(`consent policy is ${JSON.stringify(csp)}`)
+  }
+  if (!/add_header Cache-Control "no-store" always;/.test(body)) {
+    out.push('consent: no no-store')
+  }
+  if (!/add_header X-Content-Type-Options "nosniff" always;/.test(body)) {
+    out.push('consent: no nosniff')
+  }
+  if (!body.includes('try_files $uri =404;')) {
+    out.push('consent: not try_files $uri =404')
+  }
+  return out
+}
+
 describe('nginx serves the bridge with its own exact policy', () => {
   const conf = fs.readFileSync(TEMPLATE, 'utf8')
 
@@ -100,6 +131,32 @@ describe('nginx serves the bridge with its own exact policy', () => {
         )
     expect(bridgeProblems(broken)).toEqual([
       expect.stringMatching(/^\^~ \/bridge\/: policy is/),
+    ])
+  })
+
+  it('the consent popup: nobody may frame it, no-store, nosniff, only its file', () => {
+    expect(consentProblems(conf)).toEqual([])
+  })
+
+  it('negative control: t27.ai allowed to frame the consent popup is caught', () => {
+    const broken = conf.replace(
+      "frame-ancestors 'none'\" always;",
+      'frame-ancestors https://t27.ai" always;'
+    )
+    expect(broken).not.toBe(conf)
+    expect(consentProblems(broken)).toEqual([
+      expect.stringMatching(/^consent policy is/),
+    ])
+  })
+
+  it('negative control: no consent block (it would get the frameable ^~ /bridge/ policy) is caught', () => {
+    const missing = conf.replace(
+      /\n {4}location = \/bridge\/consent\.html \{[\s\S]*?\n {4}\}\n/,
+      '\n'
+    )
+    expect(missing).not.toBe(conf)
+    expect(consentProblems(missing)).toEqual([
+      'no location = /bridge/consent.html',
     ])
   })
 

@@ -1,0 +1,25 @@
+<!doctype html>
+<!--
+  TRI consent popup: https://app.t27.ai/bridge/consent.html, opened by the
+  identity bridge (bridge.js) when the game on https://t27.ai first asks who
+  the visitor is in this tab. A top-level window, so no page that frames the
+  bridge can hide or cover it; nginx serves it with frame-ancestors 'none'.
+  It reads no storage and no session. Behaviour: consent.js.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TRI: continue on t27.ai?</title>
+    <link rel="stylesheet" href="/bridge/consent.css" />
+  </head>
+  <body>
+    <p>
+      <strong>https://t27.ai</strong> asks who you are on TRI: your Telegram id,
+      name and picture.
+    </p>
+    <button id="tri-consent" type="button" hidden>Continue with TRI</button>
+    <p class="note">Close this window to say no.</p>
+    <script src="/bridge/consent.js"></script>
+  </body>
+</html>

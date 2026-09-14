@@ -71,6 +71,18 @@ server {
         try_files /bridge/index.html =404;
     }
 
+    # The consent popup the bridge opens (bridge.js, consent.js). Nobody may
+    # frame it: a page that frames it could make it invisible and put a decoy
+    # over its button, which is exactly what a popup is there to prevent. No
+    # connect-src: it sends nothing but a message to its opener.
+    location = /bridge/consent.html {
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
     location ^~ /bridge/ {
         add_header Content-Security-Policy "default-src 'none'; script-src 'self'; connect-src https://vibee-render-production.up.railway.app; style-src 'self'; frame-ancestors https://t27.ai" always;
         add_header X-Content-Type-Options "nosniff" always;

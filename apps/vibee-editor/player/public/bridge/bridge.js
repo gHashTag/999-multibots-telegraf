@@ -14,12 +14,19 @@
  *  - Only a message from window.parent whose origin is exactly
  *    https://t27.ai is answered, and every reply is posted to window.parent
  *    with targetOrigin https://t27.ai, never '*'.
- *  - Only three sessionStorage keys are read: the access token, its expiry,
+ *  - Only three sessionStorage keys are touched: the access token, its expiry,
  *    and this tab's consent. Never the refresh token, never Telegram's
  *    '__telegram__initParams', never localStorage, never cookies.
- *  - The first token in a tab needs a real click on the button here. The
- *    origin check admits every page on t27.ai (all of gHashTag's GitHub
- *    Pages), so without the click any of them would learn who the visitor is.
+ *  - The first token in a tab needs consent given in a popup, not in this
+ *    frame. The origin check admits every page on t27.ai (all of gHashTag's
+ *    GitHub Pages), and any of them can make this frame invisible and put it
+ *    under a decoy, so a click here proves nothing (measured in Chrome). The
+ *    click here only opens https://app.t27.ai/bridge/consent.html, a top-level
+ *    window no framer can style or cover. Only a {v:1, type:'tri-consent'}
+ *    message from that very window counts.
+ *  - Consent names the person: it is stored as "https://t27.ai|<telegram_id>"
+ *    from the first mint after it. A later token for anyone else is dropped
+ *    and consent is asked again, and every signed-out removes it.
  *  - When the access token disappears (sign-out in another document of this
  *    tab, or on return to a hidden tab), the game is told at once.
  *
@@ -31,15 +38,20 @@
   'use strict'
 
   var GAME_ORIGIN = 'https://t27.ai'
+  var APP_ORIGIN = 'https://app.t27.ai'
+  var CONSENT_URL = APP_ORIGIN + '/bridge/consent.html'
   var MINT_URL =
     'https://vibee-render-production.up.railway.app/api/auth/game-token'
   var ACCESS_KEY = 'trinity.app.session.access'
   var EXPIRES_KEY = 'trinity.app.session.expires-at'
   var CONSENT_KEY = 'trinity.bridge.consent'
+  var CONSENT_PREFIX = GAME_ORIGIN + '|'
 
   var button = window.document.getElementById('tri-continue')
-  // The request waiting for the click; a newer request replaces it.
+  // The request waiting for consent; a newer request replaces it.
   var pendingNonce = null
+  // The consent window this frame opened; only its message is consent.
+  var popup = null
   // The last state told to the game; null until the game has asked.
   var lastState = null
 
@@ -51,11 +63,29 @@
     }
   }
 
+  function write(key, value) {
+    try {
+      if (value === null) window.sessionStorage.removeItem(key)
+      else window.sessionStorage.setItem(key, value)
+    } catch (e) {
+      // Storage refused: the next request asks for consent again.
+    }
+  }
+
   // The access token while the player's own expiry says it is alive.
   function accessToken() {
     var token = read(ACCESS_KEY)
     if (!token) return null
     return Number(read(EXPIRES_KEY)) > Date.now() ? token : null
+  }
+
+  // The telegram_id consent was given for in this tab, or null.
+  function consentedId() {
+    var value = read(CONSENT_KEY)
+    if (typeof value !== 'string' || value.indexOf(CONSENT_PREFIX) !== 0) {
+      return null
+    }
+    return value.slice(CONSENT_PREFIX.length) || null
   }
 
   function reply(nonce, state, extra) {
@@ -69,11 +99,21 @@
 
   function signedOut(nonce) {
     pendingNonce = null
+    popup = null
     button.hidden = true
+    write(CONSENT_KEY, null)
     reply(nonce, 'signed-out')
   }
 
-  function mint(nonce, token) {
+  function askConsent(nonce) {
+    pendingNonce = nonce
+    button.hidden = false
+    reply(nonce, 'consent-required')
+  }
+
+  // expectedId: the telegram_id consent was stored for, or null right after
+  // consent in the popup, when the minted id becomes the stored one.
+  function mint(nonce, token, expectedId) {
     window
       .fetch(MINT_URL, {
         method: 'POST',
@@ -101,6 +141,14 @@
                 typeof body.expires_in === 'number' &&
                 typeof body.telegram_id === 'string'
               ) {
+                if (expectedId === null) {
+                  write(CONSENT_KEY, CONSENT_PREFIX + body.telegram_id)
+                } else if (body.telegram_id !== expectedId) {
+                  // Another person now holds this tab's session: they have
+                  // not agreed, so their token is dropped unseen.
+                  write(CONSENT_KEY, null)
+                  return askConsent(nonce)
+                }
                 return reply(nonce, 'signed-in', {
                   game_token: body.game_token,
                   expires_in: body.expires_in,
@@ -124,38 +172,41 @@
   function answer(nonce) {
     var token = accessToken()
     if (!token) return signedOut(nonce)
-    if (read(CONSENT_KEY) !== GAME_ORIGIN) {
-      pendingNonce = nonce
-      button.hidden = false
-      return reply(nonce, 'consent-required')
-    }
-    mint(nonce, token)
+    var id = consentedId()
+    if (id === null) return askConsent(nonce)
+    mint(nonce, token, id)
   }
 
   window.addEventListener('message', function (event) {
-    if (event.origin !== GAME_ORIGIN || event.source !== window.parent) return
     var data = event.data
-    if (!data || typeof data !== 'object') return
-    if (data.v !== 1 || data.type !== 'tri-identity-request') return
+    if (!data || typeof data !== 'object' || data.v !== 1) return
+
+    // Consent, from the popup this frame opened and nothing else.
+    if (data.type === 'tri-consent') {
+      if (popup === null || event.source !== popup) return
+      if (event.origin !== APP_ORIGIN || pendingNonce === null) return
+      var waiting = pendingNonce
+      pendingNonce = null
+      popup = null
+      button.hidden = true
+      var token = accessToken()
+      if (!token) return signedOut(waiting)
+      return mint(waiting, token, null)
+    }
+
+    if (event.origin !== GAME_ORIGIN || event.source !== window.parent) return
+    if (data.type !== 'tri-identity-request') return
     var nonce = data.nonce
     if (typeof nonce !== 'string' || !nonce || nonce.length > 128) return
     answer(nonce)
   })
 
   button.addEventListener('click', function (event) {
-    // A script-made click (element.click(), dispatchEvent) is not consent.
+    // A script-made click (element.click(), dispatchEvent) opens nothing.
+    // A real one may still be a click on a decoy, so it only opens the popup.
     if (!event.isTrusted || pendingNonce === null) return
-    var nonce = pendingNonce
-    pendingNonce = null
-    button.hidden = true
-    var token = accessToken()
-    if (!token) return signedOut(nonce)
-    try {
-      window.sessionStorage.setItem(CONSENT_KEY, GAME_ORIGIN)
-    } catch (e) {
-      // Storage refused: this click still counts, the next request asks again.
-    }
-    mint(nonce, token)
+    popup =
+      window.open(CONSENT_URL, '_blank', 'popup,width=420,height=320') || null
   })
 
   function recheck() {
