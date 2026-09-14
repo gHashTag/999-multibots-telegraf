@@ -13,6 +13,53 @@
          font-size: 16px на сенсорных, см. design-system.css). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 
+    <!-- Embed guard. Must stay ABOVE telegram-web-app.js.
+         Inside the game's TRI frame (https://t27.ai frames the app with
+         ?embed=1) the parent is not Telegram, yet telegram-web-app.js would
+         still turn any JSON {eventType} message from it into a WebView event
+         (invoice_closed, popup_closed, main_button_pressed, reload_iframe...).
+         This listener is registered first and stops messages from the parent,
+         in embed only; Telegram Web launches are untouched. The decision
+         repeats detectEmbed in src/lib/embed.ts, and
+         src/__tests__/embed-parent-guard.test.ts fails if the two disagree. -->
+    <script id="embed-parent-guard">
+      (function (w) {
+        try {
+          if (w.self === w.top) return;
+          var PARENTS = ['https://t27.ai', 'https://app.t27.ai'];
+          var PREFIX = 't27-embed:';
+          var originOf = function (url) {
+            try {
+              return url ? new URL(url).origin : null;
+            } catch (e) {
+              return null;
+            }
+          };
+          var ancestors = w.location.ancestorOrigins;
+          var live = ancestors && ancestors.length ? ancestors[0] : null;
+          var stored = null;
+          if (typeof w.name === 'string' && w.name.indexOf(PREFIX) === 0) {
+            try {
+              var marker = JSON.parse(w.name.slice(PREFIX.length));
+              if (marker && PARENTS.indexOf(marker.parent) >= 0) {
+                stored = marker.parent;
+              }
+            } catch (e) {}
+          }
+          var parent = null;
+          if (new URLSearchParams(w.location.search).get('embed') === '1') {
+            parent = live || stored || originOf(w.document.referrer);
+          } else if (stored && (live === null || live === stored)) {
+            parent = stored;
+          }
+          if (PARENTS.indexOf(parent) < 0) return;
+          w.addEventListener('message', function (event) {
+            if (event.source === w.parent) event.stopImmediatePropagation();
+          });
+        } catch (e) {}
+      })(window);
+    </script>
+
     <!-- Telegram Mini Apps runtime. Must be a classic (non-async, non-defer)
          script in <head>: `<script type="module">` is deferred by spec, so a
          classic head script is guaranteed to have parsed the #tgWebApp* launch
