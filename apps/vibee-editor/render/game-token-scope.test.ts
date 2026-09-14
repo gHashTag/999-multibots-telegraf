@@ -309,16 +309,17 @@ describe('every other Bearer reader refuses a game token', () => {
     const { projectOwner } = await import('./project-routes')
     expect(projectOwner(bare)).toBeNull()
 
-    // session-routes.ts: logout, logout-all, and game-token itself.
+    // session-routes.ts: logout, logout-all, and game-token itself -- which the
+    // player origin asks, naming the game audience in the body.
     const { handleAuthRoute } = await import('./session-routes')
-    for (const url of [
-      '/api/auth/logout',
-      '/api/auth/logout-all',
-      '/api/auth/game-token',
+    for (const [url, origin] of [
+      ['/api/auth/logout', GAME],
+      ['/api/auth/logout-all', GAME],
+      ['/api/auth/game-token', 'https://app.t27.ai'],
     ]) {
       const res = response()
       await handleAuthRoute(
-        request(url, headers),
+        request(url, { ...headers, origin }, { aud: GAME }),
         res,
         () => emptyPool() as any
       )

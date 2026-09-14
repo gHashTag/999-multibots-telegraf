@@ -539,6 +539,15 @@ function launchBotIds(): string[] {
  */
 const GAME_TOKENS_PER_WINDOW = 10
 
+/**
+ * The only Origin that may ask for a game token: the player, which holds the
+ * person's credential (a Login Widget session or Telegram initData) and hands
+ * the game its token by postMessage, from Hive's frame or the bridge page. The
+ * game's own origin must never hold that credential, so it is refused here.
+ * A non-browser client can send any Origin; this narrows browsers only.
+ */
+const PLAYER_ORIGIN = 'https://app.t27.ai'
+
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
   release: () => void
@@ -1151,15 +1160,34 @@ export async function handleAuthRoute(
    *     accepted either, so nothing from Telegram mints until the list is set.
    * Agent keys and the service key are never read here, so they mint nothing.
    *
-   * The audience is this request's Origin and must be a game origin exactly.
+   * The caller is the player (Origin exactly PLAYER_ORIGIN), never the game.
+   * The body names the audience, {"aud": "<game origin>"}, which must be in
+   * GAME_AUDIENCES exactly; /mcp then accepts the token only from that Origin.
    * Public (auth.ts PUBLIC_EXACT): this block is the whole identity check.
    */
   if (path === '/api/auth/game-token' && req.method === 'POST') {
     const origin = String(req.headers['origin'] ?? '')
-    if (!GAME_AUDIENCES.includes(origin)) {
+    if (origin !== PLAYER_ORIGIN) {
       json(res, 403, {
         error: 'game_token_origin_refused',
-        detail: `Origin must be exactly one of: ${GAME_AUDIENCES.join(', ')}`,
+        detail: `Origin must be exactly ${PLAYER_ORIGIN}`,
+      })
+      return true
+    }
+    let aud: unknown
+    try {
+      aud = JSON.parse((await readBody(req)) || '{}')?.aud
+    } catch {
+      json(res, 400, {
+        error: 'game_token_bad_request',
+        detail: 'the body must be JSON: {"aud": "<game origin>"}',
+      })
+      return true
+    }
+    if (typeof aud !== 'string' || !GAME_AUDIENCES.includes(aud)) {
+      json(res, 400, {
+        error: 'game_token_audience_refused',
+        detail: `aud must be exactly one of: ${GAME_AUDIENCES.join(', ')}`,
       })
       return true
     }
@@ -1272,7 +1300,7 @@ export async function handleAuthRoute(
     }
 
     json(res, 200, {
-      game_token: signGameToken({ telegramId, audience: origin }),
+      game_token: signGameToken({ telegramId, audience: aud }),
       expires_in: GAME_TOKEN_TTL_SECONDS,
       telegram_id: telegramId,
     })

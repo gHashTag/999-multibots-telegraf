@@ -23,6 +23,8 @@ const KEY = 'game-token-test-signing-key-long-enough-0123456789'
 const AGENT_KEY = 'agent-key-for-game-token-tests'
 const SERVER_KEY = 'service-key-for-game-token-tests'
 const GAME = 'https://t27.ai'
+/** Who asks for a game token: the player, never the game. */
+const PLAYER = 'https://app.t27.ai'
 const ALICE = 1001
 const BOB = 2002
 
@@ -78,7 +80,8 @@ function request(
   headers: Record<string, string>,
   method = 'POST',
   url = '/api/auth/game-token',
-  body = ''
+  // game-token names its audience in the body; other routes get none.
+  body = url === '/api/auth/game-token' ? JSON.stringify({ aud: GAME }) : ''
 ) {
   const r = Readable.from([Buffer.from(body)]) as any
   r.url = url
@@ -234,7 +237,7 @@ describe('POST /api/auth/game-token', () => {
       ] as const) {
         const access = await signInWithInitData(launch(ALICE, token))
         const res = await mint({
-          origin: GAME,
+          origin: PLAYER,
           authorization: `Bearer ${access}`,
         })
         const where = `${label}, LAUNCH_BOT_IDS=${list}`
@@ -252,7 +255,7 @@ describe('POST /api/auth/game-token', () => {
   it('refuses a Bearer from a pairing, a launch or a legacy session, and one the database knows is revoked', async () => {
     for (const kind of ['app', 'launch', 'legacy']) {
       const res = await mint({
-        origin: GAME,
+        origin: PLAYER,
         authorization: bearerOf(ALICE, `s-${kind}`, undefined, kind),
       })
       expect(res.status, kind).toBe(403)
@@ -263,21 +266,21 @@ describe('POST /api/auth/game-token', () => {
     const revokedElsewhere = bearerOf(ALICE, 's-revoked-elsewhere')
     sessionRows.get('s-revoked-elsewhere')!.revoked = true
     const revoked = await mint({
-      origin: GAME,
+      origin: PLAYER,
       authorization: revokedElsewhere,
     })
     expect(revoked.status, JSON.stringify(revoked.body)).toBe(401)
     expect(revoked.body.detail).toMatch(/revoked/)
 
     const noRow = await mint({
-      origin: GAME,
+      origin: PLAYER,
       authorization: bearerOf(ALICE, 's-no-row', undefined, null),
     })
     expect(noRow.status, JSON.stringify(noRow.body)).toBe(401)
   })
 
   it('mints a v:2 identity token for the game origin from a live Bearer', async () => {
-    const res = await mint({ origin: GAME, authorization: bearerOf(ALICE) })
+    const res = await mint({ origin: PLAYER, authorization: bearerOf(ALICE) })
     expect(res.status, JSON.stringify(res.body)).toBe(200)
     expect(Object.keys(res.body).sort()).toEqual([
       'expires_in',
@@ -307,7 +310,7 @@ describe('POST /api/auth/game-token', () => {
   })
 
   it('verifyAppSession refuses a game token: other key, and v !== 1 even under the same key', async () => {
-    const res = await mint({ origin: GAME, authorization: bearerOf(ALICE) })
+    const res = await mint({ origin: PLAYER, authorization: bearerOf(ALICE) })
     expect(res.status).toBe(200)
     // Signed under the derived key, so it fails before its claims are read.
     expect(() => session.verifyAppSession(res.body.game_token)).toThrow(
@@ -333,15 +336,20 @@ describe('POST /api/auth/game-token', () => {
     )
   })
 
-  it('refuses every Origin that is not exactly the game origin', async () => {
+  /*
+   * THE PLAYER ASKS, NOT THE GAME. The player on app.t27.ai is the one holder
+   * of the person's credential; code on the game origin must never hold one,
+   * so a request from it is refused even with a valid parent.
+   */
+  it('refuses every Origin that is not exactly the player origin, the game origin included', async () => {
     for (const origin of [
       undefined,
       '',
+      GAME,
       'https://www.t27.ai',
-      'https://app.t27.ai',
-      'http://t27.ai',
-      'https://t27.ai/',
-      'https://t27.ai.evil.example',
+      'http://app.t27.ai',
+      'https://app.t27.ai/',
+      'https://app.t27.ai.evil.example',
       'null',
     ]) {
       const headers: Record<string, string> = { authorization: bearerOf(ALICE) }
@@ -353,11 +361,58 @@ describe('POST /api/auth/game-token', () => {
     }
   })
 
+  it('takes the audience from the body and refuses one that is not a game origin', async () => {
+    const ask = async (body: string) => {
+      const res = response()
+      await handleAuthRoute(
+        request(
+          { origin: PLAYER, authorization: bearerOf(ALICE) },
+          'POST',
+          '/api/auth/game-token',
+          body
+        ),
+        res,
+        () => sessionsPool() as any
+      )
+      return res
+    }
+    for (const [body, error] of [
+      ['', 'game_token_audience_refused'],
+      ['{}', 'game_token_audience_refused'],
+      ['not json', 'game_token_bad_request'],
+      [JSON.stringify({ aud: PLAYER }), 'game_token_audience_refused'],
+      [
+        JSON.stringify({ aud: 'https://www.t27.ai' }),
+        'game_token_audience_refused',
+      ],
+      [
+        JSON.stringify({ aud: 'https://evil.example' }),
+        'game_token_audience_refused',
+      ],
+      [JSON.stringify({ aud: [GAME] }), 'game_token_audience_refused'],
+    ] as const) {
+      const res = await ask(body)
+      expect(res.status, body).toBe(400)
+      expect(res.body.error, body).toBe(error)
+      expect(res.body, body).not.toHaveProperty('game_token')
+    }
+
+    const ok = await ask(JSON.stringify({ aud: GAME }))
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200)
+    const token = String(ok.body.game_token)
+    expect(decode(token.split('.')[1]).aud).toBe(GAME)
+    // Used by the game from its own origin, as /mcp requires.
+    expect(session.verifyGameToken(token, GAME).sub).toBe(String(ALICE))
+    expect(() => session.verifyGameToken(token, PLAYER)).toThrow(
+      expect.objectContaining({ code: 'wrong_audience' })
+    )
+  })
+
   it('refuses a caller with no parent credential, an agent key, or the service key', async () => {
     const callers: Record<string, string>[] = [
-      { origin: GAME },
-      { origin: GAME, 'x-agent-key': AGENT_KEY },
-      { origin: GAME, 'x-api-key': SERVER_KEY },
+      { origin: PLAYER },
+      { origin: PLAYER, 'x-agent-key': AGENT_KEY },
+      { origin: PLAYER, 'x-api-key': SERVER_KEY },
     ]
     for (const headers of callers) {
       const res = await mint(headers)
@@ -367,10 +422,10 @@ describe('POST /api/auth/game-token', () => {
   })
 
   it('refuses a game token as parent, and an expired or revoked Bearer', async () => {
-    const first = await mint({ origin: GAME, authorization: bearerOf(ALICE) })
+    const first = await mint({ origin: PLAYER, authorization: bearerOf(ALICE) })
     expect(first.status).toBe(200)
     const chained = await mint({
-      origin: GAME,
+      origin: PLAYER,
       authorization: `Bearer ${first.body.game_token}`,
     })
     expect(chained.status).toBe(401)
@@ -378,7 +433,7 @@ describe('POST /api/auth/game-token', () => {
 
     const hourAgo = Math.floor(Date.now() / 1000) - 3600
     const expired = await mint({
-      origin: GAME,
+      origin: PLAYER,
       authorization: bearerOf(ALICE, 's-old', hourAgo),
     })
     expect(expired.status).toBe(401)
@@ -386,7 +441,7 @@ describe('POST /api/auth/game-token', () => {
 
     session.revokeNow('s-revoked')
     const revoked = await mint({
-      origin: GAME,
+      origin: PLAYER,
       authorization: bearerOf(ALICE, 's-revoked'),
     })
     expect(revoked.status).toBe(401)
@@ -395,7 +450,7 @@ describe('POST /api/auth/game-token', () => {
 
   it('refuses initData parents while LAUNCH_BOT_IDS is unset', async () => {
     const res = await mint({
-      origin: GAME,
+      origin: PLAYER,
       'x-telegram-init-data': launch(ALICE),
     })
     expect(res.status, JSON.stringify(res.body)).toBe(403)
@@ -405,21 +460,21 @@ describe('POST /api/auth/game-token', () => {
   it('accepts initData only from a bot in LAUNCH_BOT_IDS', async () => {
     process.env.LAUNCH_BOT_IDS = ` ${BOT_ID} , not-a-number`
     const allowed = await mint({
-      origin: GAME,
+      origin: PLAYER,
       'x-telegram-init-data': launch(ALICE),
     })
     expect(allowed.status, JSON.stringify(allowed.body)).toBe(200)
     expect(allowed.body.telegram_id).toBe(String(ALICE))
 
     const otherBot = await mint({
-      origin: GAME,
+      origin: PLAYER,
       'x-telegram-init-data': launch(ALICE, OTHER_BOT),
     })
     expect(otherBot.status, JSON.stringify(otherBot.body)).toBe(403)
     expect(otherBot.body.error).toBe('game_token_bot_not_allowed')
 
     const forged = await mint({
-      origin: GAME,
+      origin: PLAYER,
       'x-telegram-init-data': launch(ALICE, '4440003:NotTheConfiguredBotToken'),
     })
     expect(forged.status).toBe(401)
@@ -450,7 +505,7 @@ describe('POST /api/auth/game-token', () => {
     }
     const res = response()
     await handleAuthRoute(
-      request({ origin: GAME, 'x-telegram-init-data': initData }),
+      request({ origin: PLAYER, 'x-telegram-init-data': initData }),
       res,
       () => cutoffPool() as any
     )
@@ -466,10 +521,10 @@ describe('POST /api/auth/game-token', () => {
   it('rate-limits per telegram_id, not globally', async () => {
     const auth = bearerOf(ALICE)
     for (let i = 0; i < 10; i++) {
-      const ok = await mint({ origin: GAME, authorization: auth })
+      const ok = await mint({ origin: PLAYER, authorization: auth })
       expect(ok.status, `mint ${i + 1}`).toBe(200)
     }
-    const limited = await mint({ origin: GAME, authorization: auth })
+    const limited = await mint({ origin: PLAYER, authorization: auth })
     expect(limited.status).toBe(429)
     expect(limited.body.error).toBe('game_token_rate_limited')
     expect(Number(limited.head['Retry-After'])).toBeGreaterThan(0)
@@ -477,13 +532,16 @@ describe('POST /api/auth/game-token', () => {
       Number(limited.head['Retry-After'])
     )
 
-    const neighbour = await mint({ origin: GAME, authorization: bearerOf(BOB) })
+    const neighbour = await mint({
+      origin: PLAYER,
+      authorization: bearerOf(BOB),
+    })
     expect(neighbour.status).toBe(200)
   })
 
   it('answers 405 with Allow: POST to any other verb', async () => {
     const res = await mint(
-      { origin: GAME, authorization: bearerOf(ALICE) },
+      { origin: PLAYER, authorization: bearerOf(ALICE) },
       'GET'
     )
     expect(res.status).toBe(405)
