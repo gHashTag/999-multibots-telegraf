@@ -55,5 +55,7 @@ describe('the video cache worker and the game', () => {
     expect(
       fetchFor('https://cdn.example.com/game/a.png')
     ).toHaveBeenCalledTimes(1)
+    // The boundary is the directory, not the prefix: /gameplay.png is player media.
+    expect(fetchFor('https://app.t27.ai/gameplay.png')).toHaveBeenCalledTimes(1)
   })
 })
