@@ -5,7 +5,7 @@ import { whoPaid, askSupabase } from './crm-tools'
 import { stageOf } from './crm-stages'
 import { SEGMENTS, type Segment } from './crm-segments'
 import { balanceOf } from './billing-shared'
-import { touchedSince, touchesFor } from './crm-touches'
+import { touchedSince, touchesFor, touchesByLead } from './crm-touches'
 import {
   rememberPerson,
   personOf,
@@ -294,6 +294,19 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         () => new Map<string, { kind: string; at: string }>()
       )
       const paidSet = await whoPaid().catch(() => new Set<string>())
+      /*
+       * The whole folded history, beside the windowed `touched`.
+       *
+       * `touched` gives the newest live touch per lead and is what the queue
+       * is scored by. stageOf needs more than that: its refusal rule is a
+       * `find` across every touch, and handing it `[lastTouch]` turned a rule
+       * about a history into a rule about one row -- so a client who refused
+       * and later wrote anything at all had his refusal erased on this screen
+       * while crm_waiting still called him refused.
+       */
+      const history = await touchesByLead(pool, owner).catch(
+        () => new Map<string, Array<{ kind: string; at: string }>>()
+      )
       const list = await leadCandidates(pool, owner, {
         limit: clamp(a?.limit, 15, 50),
         touched,
@@ -339,7 +352,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           const username = l.username ?? base?.username ?? null
           const st = stageOf({
             paid: paid.has(l.lead),
-            touches: (l.lastTouch ? [l.lastTouch] : []) as never,
+            touches: (history.get(l.lead) ?? []) as never,
             quietDays: l.daysSinceInbound,
           })
           return {

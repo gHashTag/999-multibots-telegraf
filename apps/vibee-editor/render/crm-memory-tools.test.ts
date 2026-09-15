@@ -420,3 +420,79 @@ describe("the playbook is the owner's", () => {
     expect(salesPlaybook({ surface: 'web', telegramId: undefined })).toBe('')
   })
 })
+
+/**
+ * A REFUSAL IS NOT ERASED BY THE NEXT THING THEY SAY.
+ *
+ * stageOf is written for a HISTORY -- its refusal rule is a `find` across
+ * every touch, and the module's header calls that priority its reason for
+ * existing. crm_leads used to hand it `[lastTouch]`, one row, which turned a
+ * rule about a history into a rule about the newest row.
+ *
+ * That was latent until 2026-09-15, when a client answering started writing
+ * `replied` automatically. After that, any message at all from somebody who
+ * had refused erased his refusal ON THIS SCREEN, while crm_waiting -- which
+ * does read the history -- still called him refused. One fact, two answers,
+ * both shown to the owner.
+ */
+describe('crm_leads reads the whole touch history', () => {
+  /** The windowed read says `replied`; the full history still holds the no. */
+  function poolWithRefusalUnderneath() {
+    const base = fakePool()
+    return {
+      queries: base.queries,
+      query: async (sql: string, params: unknown[] = []) => {
+        const flat = sql.replace(/\s+/g, ' ').trim()
+        if (
+          /FROM crm_touches WHERE owner_id = \$1 AND at > now\(\) -/.test(flat)
+        ) {
+          return {
+            rows: [
+              {
+                id: 2,
+                lead_id: A,
+                kind: 'replied',
+                at: '2026-09-07T11:00:00Z',
+                reverts_id: null,
+              },
+            ],
+          }
+        }
+        if (
+          /FROM crm_touches WHERE owner_id = \$1 ORDER BY at DESC LIMIT/.test(
+            flat
+          )
+        ) {
+          return {
+            rows: [
+              {
+                id: 2,
+                lead_id: A,
+                kind: 'replied',
+                at: '2026-09-07T11:00:00Z',
+                reverts_id: null,
+              },
+              {
+                id: 1,
+                lead_id: A,
+                kind: 'refused',
+                at: '2026-09-05T09:00:00Z',
+                reverts_id: null,
+              },
+            ],
+          }
+        }
+        return base.query(sql, params)
+      },
+    }
+  }
+
+  it('still calls him refused after he writes again', async () => {
+    const { leads } = await tools(fakeClient().client)
+    const r: any = await leads.handler(
+      { limit: 5 },
+      ctxFor(OWNER, poolWithRefusalUnderneath() as never)
+    )
+    expect(r.candidates[0].stage).toBe('refused')
+  })
+})

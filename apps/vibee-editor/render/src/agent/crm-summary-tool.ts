@@ -129,9 +129,20 @@ export function summarize(
   const stages = new Map<string, string>()
   for (const c of list) {
     by_next[c.next] = (by_next[c.next] ?? 0) + 1
+    /*
+     * THE WHOLE HISTORY, NOT THE NEWEST ROW.
+     *
+     * stageOf is written for a history -- its refusal rule is a `find` over
+     * every touch, and the module's own header calls that priority its reason
+     * for existing. Passing `[lastTouch]` quietly turned it into a rule about
+     * one row, and since 2026-09-15 a client answering writes `replied` by
+     * itself: any message from somebody who had refused erased his refusal
+     * here, while crm_waiting (which does read the history) still called him
+     * refused. One fact, two answers, both on screen.
+     */
     const st = stageOf({
       paid: paid.has(c.lead),
-      touches: (c.lastTouch ? [c.lastTouch] : []) as never,
+      touches: (history.get(c.lead) ?? []) as never,
       quietDays: c.daysSinceInbound ?? 999,
     }).stage
     stages.set(c.lead, st)

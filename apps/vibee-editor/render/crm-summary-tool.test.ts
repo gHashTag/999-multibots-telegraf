@@ -191,14 +191,30 @@ describe('crm_summary', () => {
       talk: 0,
       wait: 1,
     })
+    /*
+     * `written: 1` AND `new: 0` -- this pair was the other way round until
+     * 2026-09-16, and the fixture above is the proof it was wrong.
+     *
+     * Lead C has a `written` touch in this very test's touch history, and the
+     * summary called him 'new' with the reason "never touched". That is
+     * what passing stageOf a single `lastTouch` did: the windowed read did not
+     * carry C, so stageOf was handed an empty list and answered "never
+     * touched" about somebody the same tool had just counted a touch for.
+     *
+     * The stage is now computed from the whole folded history, which is what
+     * stageOf was written for -- its refusal rule is a `find` across every
+     * touch. This mattered beyond one label: a client who had refused and then
+     * wrote again had his refusal erased here, while crm_waiting, which does
+     * read the history, still called him refused.
+     */
     expect(r.by_stage).toEqual({
       client: 1,
       refused: 0,
       later: 0,
       talking: 1,
-      written: 0,
+      written: 1,
       winback: 0,
-      new: 1,
+      new: 0,
     })
     expect(r.by_signal).toEqual({
       price: 2,

@@ -288,3 +288,62 @@ describe('a cancelled refusal is simply not in the history', () => {
     expect(r.stage).toBe('refused')
   })
 })
+
+/**
+ * A NOTE IS A FACT SOMEBODY WROTE DOWN, NOT AN ACT.
+ *
+ * `note` is a full TouchKind: the owner writes one from crm_touch, and since
+ * 2026-09-15 the seller writes one by itself when a subscription is cancelled
+ * or a managed bot is created. Reading the newest ROW blindly made a note
+ * behave like the latest act, and neither function has a branch for it -- so
+ * stageOf fell through to 'new' -- reason "never touched" -- about somebody with a
+ * month of correspondence, and waitingOn returned null and dropped them off
+ * crm_waiting entirely.
+ *
+ * The automatic case is the worse one: a client's subscription payment fails,
+ * the system writes a note, and that is the exact moment the person vanishes
+ * from the queue of people waiting on the owner.
+ */
+describe('a note does not pretend to be the latest act', () => {
+  it('leaves the stage where the real act left it', () => {
+    expect(
+      stageNow({ paid: false, touches: [t('written', 2)], quietDays: 3 }).stage
+    ).toBe('written')
+    // The same history with a note written afterwards.
+    expect(
+      stageNow({
+        paid: false,
+        touches: [t('note', 1), t('written', 2)],
+        quietDays: 3,
+      }).stage
+    ).toBe('written')
+  })
+
+  it('does not erase a refusal that is still holding', () => {
+    expect(
+      stageNow({
+        paid: false,
+        touches: [t('note', 0), t('refused', 5)],
+        quietDays: 6,
+      }).stage
+    ).toBe('refused')
+  })
+
+  it('keeps the person on the waiting screen', () => {
+    // Without this, a note on a client who answered took them out of `ours`
+    // -- the bucket the tool itself calls the most expensive one.
+    const r = waitingOn({
+      paid: false,
+      touches: [t('note', 0), t('replied', 1)],
+      quietDays: 1,
+      now: NOW,
+    })
+    expect(r?.waiting).toBe('ours')
+  })
+
+  it('a history of nothing but notes is still nobody touched', () => {
+    expect(
+      stageNow({ paid: false, touches: [t('note', 1)], quietDays: 2 }).stage
+    ).toBe('new')
+  })
+})
