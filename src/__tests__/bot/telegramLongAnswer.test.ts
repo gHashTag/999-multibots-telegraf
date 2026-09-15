@@ -105,10 +105,26 @@ describe('обработчик бота этим пользуется', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
 
-  it('индикатор гасится в finally, а не только при успехе', () => {
-    // Иначе после ошибки агента «печатает…» осталось бы висеть.
-    expect(CODE).toContain('const стоп = держатьПечатает')
+  it('показанное во время витка гасится в finally, а не только при успехе', () => {
+    /*
+     * THE PROPERTY IS PINNED, NOT THE NAME OF THE HELPER.
+     *
+     * This asserted the literal `const стоп = держатьПечатает`. Since
+     * 2026-09-15 the owner is shown the answer being written rather than an
+     * indicator (keepDraft, sendMessageDraft), and the old line went red
+     * against code doing the same thing better. That line was never the
+     * point: the point is that the person sees SOMETHING during the turn and
+     * that it is stopped in `finally` -- otherwise it would hang there after
+     * an error from the agent.
+     */
+    expect(CODE).toContain('keepDraft(')
+    expect(CODE).toContain('const стоп = draft.stop')
     expect(CODE.replace(/\s+/g, ' ')).toContain('finally { стоп()')
+  })
+
+  it('поток ответа доходит до того, кто его показывает', () => {
+    // Without this line the draft exists and stays empty forever.
+    expect(CODE.replace(/\s+/g, ' ')).toContain('onProgress: draft.show')
   })
 
   /*

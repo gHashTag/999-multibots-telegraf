@@ -1309,21 +1309,26 @@ If not, continue on your own and click the "I myself" button`
       try {
         logger.info(`🤖 [Агент] "${text.substring(0, 50)}" от ${ctx.from?.id}`)
         /*
-         * «Печатает…» ЖИВЁТ ПЯТЬ СЕКУНД, а виток агента — до трёх минут.
+         * THE ANSWER IS SHOWN BEING WRITTEN, NOT ANNOUNCED BY THREE DOTS.
          *
-         * Одного вызова не хватало: человек видел признак работы пять секунд,
-         * а потом тишину, неотличимую от зависшего бота. Держим индикатор,
-         * пока идёт работа, и гасим в finally — иначе он остался бы висеть
-         * после ошибки.
+         * A turn runs up to three minutes and the owner used to
+         * watch a typing indicator for all of it -- something is happening,
+         * never what. The stream from the model was already crossing the
+         * wire and being thrown away. keepDraft shows it and falls back to
+         * the old indicator by itself if Telegram refuses the draft.
+         *
+         * Stopped in `finally`, or it would hang there after an error.
          */
-        const { держатьПечатает, разбитьДлинное } = await import(
-          '@/helpers/telegramLongAnswer'
-        )
-        const стоп = держатьПечатает(ctx as any)
+        const { разбитьДлинное } = await import('@/helpers/telegramLongAnswer')
+        const { keepDraft } = await import('@/helpers/streamDraft')
+        const draft = keepDraft(ctx as never)
+        const стоп = draft.stop // cyrillic-ok: pre-existing local name
         let ответ
         try {
           const { спроситьАгента } = await import('@/services/trinityAgent')
-          ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text)
+          ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
+            onProgress: draft.show,
+          })
           /*
            * The request reached the server, so the server already stored the
            * question on its way into the agent. Only an ANSWER can be missing

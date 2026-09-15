@@ -146,16 +146,31 @@ async function readConversation(
 /**
  * Спросить агента и дождаться готового ответа.
  *
- * Поток NDJSON собирается здесь целиком: в Telegram нельзя «печатать по
- * буквам», сообщение отправляется один раз. Зато по дороге видно, какие
- * инструменты агент вызвал, — это уходит в журнал и помогает понять, почему
- * ответ такой.
+ * Поток NDJSON собирается здесь целиком, и по дороге видно, какие инструменты
+ * агент вызвал, — это уходит в журнал и помогает понять, почему ответ такой.
+ *
+ * This used to say "in Telegram you cannot type letter by letter, a message
+ * is sent once". Since Bot API 9.3 (31 Dec 2025) that is false --
+ * sendMessageDraft exists. Hence `onProgress`: it hands the text collected so
+ * far to whoever can show it. The answer itself is still returned whole and
+ * still sent as one message.
  */
 export async function спроситьАгента(
   telegramId: string,
   текст: string,
   /** Where the answer will be shown; the server shapes the prompt by it. */
-  opts: { surface?: 'bot' | 'business' } = {}
+  opts: {
+    surface?: 'bot' | 'business'
+    /**
+     * The answer so far, on every token.
+     *
+     * Passed only by the owner's own chat. The client in a business DM does
+     * NOT get it: raw deltas still carry button markers like
+     * `[[Оплатить|act:pay]]`, which are stripped from the whole text later,
+     * and payButton scans the finished answer for the invoice link.
+     */
+    onProgress?: (sofar: string) => void
+  } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
     throw new Error('RENDER_API_KEY не задан в сервисе бота — агент недоступен')
@@ -199,6 +214,8 @@ export async function спроситьАгента(
     const reader = (о.body as any).getReader?.()
     let хвост = ''
     const части: string[] = []
+    /** Kept beside `части` so onProgress costs nothing when nobody listens. */
+    let streamed = ''
     const инструменты: string[] = []
     let ошибка = ''
     let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
@@ -213,9 +230,13 @@ export async function спроситьАгента(
           имя?: string
           proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
-        if (ev.тип === 'текст' && typeof ev.текст === 'string')
+        if (ev.тип === 'текст' && typeof ev.текст === 'string') {
           части.push(ev.текст)
-        else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
+          if (opts.onProgress) {
+            streamed += ev.текст
+            opts.onProgress(streamed)
+          }
+        } else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
         else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
         // A prepared message and its one-time secret, from this same turn.
         // Bracket access with a string literal: the envelope's field name is
