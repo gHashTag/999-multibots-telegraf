@@ -670,6 +670,21 @@ export async function buildPlan(
   return { text, keyboard, fingerprint: planFingerprint(s) }
 }
 
+/**
+ * How deep to look for this morning's marker.
+ *
+ * The memory above is gone after a redeploy, so the marker in the shared
+ * transcript is the only thing standing between a restart and a second plan
+ * the same day. It was looked for in the model's own window -- forty turns --
+ * and the sweep writes TWO turns every thirty minutes, so by the afternoon
+ * the morning marker has already fallen out of it. A restart then sent the
+ * plan again, on top of the one the owner had read hours earlier.
+ *
+ * Three hundred covers a full day of sweeps several times over, and the
+ * server clamps at five hundred.
+ */
+const PLAN_MARKER_DEPTH = 300
+
 async function alreadyPlannedToday(
   owner: string,
   dayKey: string
@@ -678,7 +693,7 @@ async function alreadyPlannedToday(
   if (mem?.day === dayKey) return true
   try {
     const { fetchHistory } = await import('./trinityAgent')
-    const turns = await fetchHistory(owner)
+    const turns = await fetchHistory(owner, PLAN_MARKER_DEPTH)
     return turns.some(
       t =>
         t.role === 'user' &&

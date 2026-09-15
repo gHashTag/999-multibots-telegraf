@@ -17,8 +17,22 @@ vi.mock('@/services/crmSummary', () => ({
 }))
 const history: Array<{ role: string; content: string }> = []
 const recorded: Array<{ role: string; content: string }[]> = []
+/** How deep each look into the transcript asked to go. */
+const asked: Array<number | undefined> = []
 vi.mock('@/services/trinityAgent', () => ({
-  fetchHistory: async () => history,
+  fetchHistory: async (_o: string, limit?: number) => {
+    asked.push(limit)
+    /*
+     * A READ THAT ASKS FOR FORTY TURNS FINDS WHAT IS IN FORTY TURNS.
+     *
+     * The marker is the only thing standing between a redeploy and a second
+     * plan the same day, and the sweep writes two turns every half hour --
+     * so by the afternoon the morning marker is no longer inside the model's
+     * own window. This fake answers like the server: only what fits in the
+     * depth asked for, newest last.
+     */
+    return limit ? history.slice(-limit) : history.slice(-40)
+  },
   recordTurns: async (
     _o: string,
     turns: { role: string; content: string }[]
@@ -50,6 +64,7 @@ beforeEach(async () => {
   m.resetScopesForTests()
   history.length = 0
   recorded.length = 0
+  asked.length = 0
   fetchSummary.mockClear()
 })
 
@@ -100,6 +115,43 @@ describe('maybeSendDailyPlan', () => {
         tomorrow
       )
     ).toBe('sent')
+  })
+
+  it("finds this morning's marker under a day of sweeps, not just in the model's window", async () => {
+    /*
+     * MEASURED SHAPE, NOT AN INVENTED ONE. The proactive sweep records a pair
+     * of turns every thirty minutes, so a day puts about ninety-six turns on
+     * top of the morning plan. The marker was looked for in forty -- the
+     * model's own window -- and after a restart in the afternoon the plan
+     * went out a second time, on top of the one the owner had read.
+     */
+    const { maybeSendDailyPlan, resetPlanForTests } = await import(
+      '@/services/crmProactive'
+    )
+    const { PLAN_MARKER_PREFIX } = await import('@/services/crmPlan')
+    // The closing bracket belongs to the marker: the check is startsWith of
+    // the prefix plus the day plus that bracket, and without it nothing
+    // matches -- the older test above got away with it by prefix luck.
+    history.push({
+      role: 'user',
+      content: `${PLAN_MARKER_PREFIX}2026-09-09] timer`,
+    })
+    for (let i = 0; i < 120; i++) {
+      history.push({ role: 'user', content: '[проактивный обход продавца]' })
+      history.push({ role: 'assistant', content: 'тихо' })
+    }
+    // The restart: process memory is gone, the transcript is all there is.
+    resetPlanForTests()
+    const bot = fakeBot()
+    expect(
+      await maybeSendDailyPlan(bot as never, OWNER, { hour: 9, tz: TZ }, NOW),
+      'the plan went out a second time the same day'
+    ).toBe('already')
+    expect(bot.sent).toHaveLength(0)
+    expect(
+      asked.some(n => (n ?? 0) >= 240),
+      'the marker was looked for in a window a day of sweeps pushes it out of'
+    ).toBe(true)
   })
 
   it('sendPlanNow sends whatever the clock says and marks the day', async () => {

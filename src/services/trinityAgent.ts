@@ -120,17 +120,26 @@ function apiKey(): string {
  */
 /** The shared transcript, newest last; [] when the render is unreachable. */
 export async function fetchHistory(
-  telegramId: string
+  telegramId: string,
+  /**
+   * How far back to read. The default is the conversation window the model
+   * gets; a caller LOOKING FOR SOMETHING -- the daily plan's marker, say --
+   * needs more than the model does, and the server clamps at 500.
+   */
+  limit?: number
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {
-  return readConversation(telegramId)
+  return readConversation(telegramId, limit)
 }
 
 async function readConversation(
-  telegramId: string
+  telegramId: string,
+  limit = ГЛУБИНА_ИСТОРИИ // cyrillic-ok: pre-existing constant
 ): Promise<Array<{ role: string; content: string; surface?: string }>> {
   try {
+    const depth =
+      Math.max(1, Math.min(500, Math.floor(limit) || 0)) || ГЛУБИНА_ИСТОРИИ // cyrillic-ok: pre-existing constant
     const о = await fetch(
-      `${БАЗА}/api/agent/history?limit=${ГЛУБИНА_ИСТОРИИ}&telegram_id=${encodeURIComponent(telegramId)}`,
+      `${БАЗА}/api/agent/history?limit=${depth}&telegram_id=${encodeURIComponent(telegramId)}`,
       { headers: { 'X-Api-Key': apiKey() } }
     )
     if (!о.ok) return []
