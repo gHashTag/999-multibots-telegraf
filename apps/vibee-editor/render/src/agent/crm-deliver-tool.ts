@@ -1,5 +1,6 @@
 import type { AgentTool, ToolContext } from './tools'
 import { propose, requireOwner } from './telegram-tools'
+import { telegramAvatarUrl } from './tools'
 import { resolveLead, oneLine } from './crm-offer-tool'
 import { reachable } from './crm-touch-tools'
 import {
@@ -33,7 +34,8 @@ export function makeCrmDeliverTools(
     {
       name: 'crm_deliver_photo',
       description:
-        'Сделать картинку для человека из переписки и подготовить отправку ему в личку. ' +
+        'Нарисовать портрет человека ИЗ ЕГО ЖЕ аватарки в Telegram и подготовить отправку ему в личку. ' +
+        'Если у человека НЕТ фотографии в Telegram — откажет до генерации: рисовать не из чего. ' +
         'Ничего не отправляет и ничего не списывает сам: возвращает предложение с превью, ' +
         'владелец нажимает «Отправить» в боте — тогда фото уходит получателю, а токены ' +
         'списываются с ПОЛУЧАТЕЛЯ по цене image_generate. Если у получателя не хватает ' +
@@ -88,13 +90,45 @@ export function makeCrmDeliverTools(
             lead_balance: have,
           }
         }
-        const gen = lookup('image_generate')
-        if (!gen)
-          throw new Error('генерация картинок недоступна на этом сервере')
+        /*
+         * NO FACE, NO PORTRAIT -- AND THE REFUSAL COMES BEFORE THE MONEY.
+         *
+         * Owner, 2026-09-15: the seller was offering to make a photo for people
+         * who have no avatar. It was worse than he thought: this tool called
+         * `image_generate`, a TEXT-ONLY generator, so the "photo" it delivered
+         * was a stranger's picture for everybody, avatar or not.
+         *
+         * Now the recipient's own face is the source, which makes their avatar
+         * a precondition rather than a nicety. The check and the source are one
+         * call: if the Bot API yields no photo we cannot draw them, so offering
+         * to is a promise we cannot keep.
+         *
+         * Placed here, above the provider and after the cheap identity checks,
+         * because the refusal order in this file is cheapest-first and nothing
+         * below this line is free.
+         */
+        const face = await telegramAvatarUrl(lead.id).catch(() => '')
+        if (!face) {
+          return {
+            delivered: false,
+            // cyrillic-ok: public API field
+            причина:
+              'у человека нет фотографии в Telegram, а портрет рисуется ' +
+              'ИЗ ЕГО фото — предложить нечего. Не обещай ему картинку: ' +
+              'предложи то, для чего лицо не нужно, или попроси прислать фото.',
+            no_avatar: true,
+          }
+        }
+
+        const gen = lookup('image_edit')
+        if (!gen) throw new Error('перерисовка фото недоступна на этом сервере')
         // The owner's turn makes the picture, but the owner's wallet is not
         // the one that pays: the recipient does, once, at the press.
+        // `image_url` is what makes this a portrait OF THEM: image_edit keeps
+        // the face and redraws the rest. Without it the tool falls back to the
+        // CALLER's avatar, which would deliver the owner's face to a client.
         const made = (await gen.handler(
-          { prompt },
+          { prompt, image_url: face },
           { ...(ctx as ToolContext), chargeLater: true }
         )) as {
           url?: string

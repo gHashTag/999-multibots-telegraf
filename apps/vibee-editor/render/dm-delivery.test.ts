@@ -12,11 +12,63 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const OWNER = '144022504'
 const LEAD = '900000002'
 const PIC = 'https://s3.example/pic.png'
+/** The recipient's own avatar, re-published to our shelf. */
+const FACE = 'https://s3.example/face.jpg'
 
-function stubSupabase(rows: unknown[]) {
+/**
+ * One stub for two very different conversations.
+ *
+ * Since 2026-09-15 crm_deliver_photo draws the recipient's OWN face, so before
+ * it reaches a provider it asks the Bot API whether that face exists --
+ * getUserProfilePhotos, getFile, the JPEG itself, then our own /upload. A stub
+ * that answered every URL with Supabase rows made the tool see "no photo" and
+ * refuse, which is correct behaviour and a useless test.
+ *
+ * `avatar: false` is not an omission either: it is the case the owner asked
+ * for, and it has its own test below.
+ */
+function stubSupabase(rows: unknown[], opts: { avatar?: boolean } = {}) {
+  const hasAvatar = opts.avatar !== false
+  process.env.TELEGRAM_BOT_TOKEN = 'test-token' // secret-guard-ok: invented here
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({ ok: true, status: 200, json: async () => rows }))
+    vi.fn(async (url: unknown) => {
+      const u = String(url)
+      if (u.includes('getUserProfilePhotos')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            result: {
+              photos: hasAvatar ? [[{ file_id: 'f1', width: 640 }]] : [],
+            },
+          }),
+        }
+      }
+      if (u.includes('getFile')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ result: { file_path: 'photos/a.jpg' } }),
+        }
+      }
+      if (u.includes('/file/bot')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'image/jpeg' },
+          arrayBuffer: async () => new ArrayBuffer(8),
+        }
+      }
+      if (u.includes('/upload')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ directUrl: FACE }),
+        }
+      }
+      return { ok: true, status: 200, json: async () => rows }
+    })
   )
 }
 const leadRow = {
@@ -91,7 +143,7 @@ async function deliverer(
     chargeLater?: boolean
   }> = []
   const gen = {
-    name: 'image_generate',
+    name: 'image_edit',
     description: '',
     parameters: {},
     handler: async (
@@ -103,7 +155,7 @@ async function deliverer(
     },
   }
   const [tool] = makeCrmDeliverTools(n =>
-    n === 'image_generate' ? gen : undefined
+    n === 'image_edit' ? gen : undefined
   )
   return { tool, q, calls }
 }
@@ -158,6 +210,10 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     await tool.handler({ chat: '@pilot_client', prompt: 'кот' }, ctxWith(pool))
     expect(calls[0].who).toBe(OWNER)
     expect(calls[0].args.prompt).toBe('кот')
+    // The whole point of the tool: the portrait is drawn FROM the recipient's
+    // own avatar. Without this the provider gets a prompt and invents a
+    // stranger's face, which is what the owner objected to on 2026-09-15.
+    expect(calls[0].args.image_url, 'the provider drew from nobody').toBe(FACE)
     // The generator is told the owner's wallet is not the one that pays.
     expect(calls[0].chargeLater).toBe(true)
     expect(
@@ -229,6 +285,26 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
     const what = String(q.pendingFor(OWNER)!.what)
     expect(what).not.toContain('\n')
     expect(what).not.toContain('http')
+  })
+
+  it('a person with no avatar is refused BEFORE a single token is spent', async () => {
+    // The owner's complaint, 2026-09-15: the seller offered a photo to
+    // somebody with no picture in Telegram, and such people must be skipped.
+    // Telegram serves a letter-placeholder for them, so there is nothing to
+    // redraw and nothing honest to promise.
+    stubSupabase([leadRow], { avatar: false })
+    const { tool, q, calls } = await deliverer()
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот' },
+      ctxWith(poolWith([{ balance: 50 }]))
+    )
+    expect(r.delivered).toBe(false)
+    expect(r.no_avatar).toBe(true)
+    expect(r.причина).toContain('фотографии') // cyrillic-ok: public API field
+    expect(calls.length, 'a face was invented for somebody').toBe(0)
+    expect(q.pendingCount(), 'a card was offered with nothing behind it').toBe(
+      0
+    )
   })
 
   it('somebody other than the owner is refused', async () => {

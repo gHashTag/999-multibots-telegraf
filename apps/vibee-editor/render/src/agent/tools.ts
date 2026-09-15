@@ -86,7 +86,14 @@ const selfBase = () =>
  * серверным ключом, как это делает бот.
  */
 /**
- * The caller's own Telegram avatar, as a URL a third-party model can fetch.
+ * A person's Telegram avatar, as a URL a third-party model can fetch.
+ *
+ * THE CHECK AND THE SOURCE ARE THE SAME CALL, WHICH IS WHY THIS TAKES AN ID.
+ * `profiles.avatar_url` cannot answer "does this person have a photo": Telegram
+ * serves a letter-placeholder there for people who have none, so the column is
+ * populated either way. Asking the Bot API yields the pixels when they exist
+ * and nothing when they do not -- one question, one answer, no second source to
+ * disagree with the first.
  *
  * TWO REASONS THIS IS NOT A ONE-LINER.
  *
@@ -102,8 +109,13 @@ const selfBase = () =>
  * Returns '' when there is no photo or no bot token, and the caller refuses
  * out loud rather than generating something unrelated.
  */
+/** The caller's own avatar. A wrapper so existing call sites read unchanged. */
 async function ownerAvatarUrl(ctx: any): Promise<string> {
-  const tid = String(ctx?.telegramId || '')
+  return telegramAvatarUrl(String(ctx?.telegramId || ''))
+}
+
+export async function telegramAvatarUrl(telegramId: string): Promise<string> {
+  const tid = String(telegramId || '')
   const token =
     process.env.TELEGRAM_BOT_TOKEN ||
     process.env.BOT_TOKEN_1 ||
