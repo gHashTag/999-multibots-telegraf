@@ -166,6 +166,31 @@ describe('a refusal is not a purchase', () => {
     expect(buys('не хочу ждать, давайте оплачу')).toBe(true)
   })
 
+  /**
+   * THE FIXED WINDOW WAS WRONG IN BOTH DIRECTIONS.
+   *
+   * It looked back 24 characters and allowed one word in between. So a bare
+   * "no" in the PREVIOUS clause killed a real intent, a denial standing AFTER
+   * the verb was never seen at all, and two words of distance was already one
+   * too many. All three were reproduced against the shipped regex before this
+   * was written; each line below failed then and passes now.
+   */
+  it('reads the clause, not a count of characters', () => {
+    // The denial belongs to the clause before the comma, not to this one.
+    expect(buys('нет, хочу купить сейчас')).toBe(true)
+    // ...and here it stands AFTER the verb it denies, as Russian allows.
+    expect(buys('не надо, и оплачивать я не буду')).toBe(false)
+    // Two words between the denial and the stem: inside the clause, so seen.
+    expect(buys("I don't want to pay")).toBe(false)
+  })
+
+  it('a "not" that denies something else is not a refusal to buy', () => {
+    // Reading the clause forwards is limited to "not" plus an auxiliary on
+    // purpose: any "not" at all would turn this intent into its opposite.
+    expect(buys('оплатить не проблема')).toBe(true)
+    expect(buys('хочу оплатить, но не сегодня')).toBe(true)
+  })
+
   it('leaves a plain intent alone', () => {
     expect(buys('хочу заказать')).toBe(true)
     expect(buys('готов оплатить сегодня')).toBe(true)

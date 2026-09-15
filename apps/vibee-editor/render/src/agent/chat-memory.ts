@@ -253,7 +253,7 @@ const stems = (words: string[]) =>
     'iu'
   )
 /**
- * A NEGATION IN FRONT OF A WORD TURNS IT INTO ITS OPPOSITE.
+ * A NEGATION IN THE SAME CLAUSE TURNS A WORD INTO ITS OPPOSITE.
  *
  * The buy group matches stems for want / need / pay. Nothing looked at what
  * stood before them, so the Russian for "thanks, I do not need it" scored +3
@@ -264,23 +264,80 @@ const stems = (words: string[]) =>
  * the rule about never offering payment first does not save them.
  *
  * Checked per OCCURRENCE, not per message: "I do not want to wait, let me
- * pay" still counts, because the second stem carries no negation. The window
- * is short and counted in characters, so a denial two clauses earlier does
- * not reach the stem it never referred to.
+ * pay" still counts, because the second stem carries no negation.
+ *
+ * THE WINDOW IS THE CLAUSE, NOT A COUNT OF CHARACTERS. The first version
+ * looked back a fixed 24 characters and allowed at most one word in between.
+ * That is wrong in BOTH directions at once, and both were reproduced against
+ * the shipped regex:
+ *
+ *   "no, I want to buy it now"      -> the bare "no" reached across the comma
+ *                                      into the next clause and killed a real
+ *                                      intent
+ *   "no need, and I will not pay"   -> the denial stands AFTER the stem, where
+ *                                      nothing looked, so it scored as buy
+ *   "I don't want to pay"           -> two words between the denial and the
+ *                                      stem, one more than the window allowed
+ *
+ * So the lookbehind now runs to the nearest clause break -- , . ! ? ; : an em
+ * dash, or a newline, which is also the join between two messages -- and the
+ * WHOLE clause is searched rather than one word of it. A denial in the
+ * previous clause no longer reaches a stem it never referred to; a denial
+ * anywhere in this one does.
+ *
+ * Russian also puts the denial after the verb ("I will not pay" is literally
+ * "to pay I will not"), so the clause is read forwards as well -- but only for
+ * "not" plus an auxiliary from a short list. Accepting any "not" at all would
+ * kill "paying is not a problem", which is an intent to buy.
  */
-// Built from a string: the Cyrillic guard cannot see inside a regex literal
+// Built from strings: the Cyrillic guard cannot see inside a regex literal
 // and blocks the commit, exactly as it does for the stem lists above.
 const NEGATIONS = ['не', 'нет', 'ни', 'not', "don'?t", 'no']
-const NEGATED_BEFORE = new RegExp(
-  '(?:^|[^\\p{L}])(?:' +
-    NEGATIONS.join('|') +
-    ')(?:[^\\p{L}]+\\p{L}+)?[^\\p{L}]*$',
+const NEGATION_IN_CLAUSE = new RegExp(
+  '(?:^|[^\\p{L}])(?:' + NEGATIONS.join('|') + ')(?!\\p{L})',
   'iu'
 )
+/** Auxiliaries a denial can stand in front of AFTER the verb it denies. */
+const DENIED_AFTER = [
+  'буду',
+  'будем',
+  'будет',
+  'стану',
+  'станем',
+  'станет',
+  'хочу',
+  'хотим',
+  'хочет',
+  'планирую',
+  'планируем',
+  'собираюсь',
+  'собираемся',
+  'готов',
+  'готова',
+  'готовы',
+  'намерен',
+  'намерена',
+  'нужно',
+  'нужен',
+  'нужна',
+]
+const NEGATION_AFTER = new RegExp(
+  '(?:^|[^\\p{L}])(?:не[^\\p{L}]+(?:' +
+    DENIED_AFTER.join('|') +
+    ")|won'?t|will not|not going to)(?!\\p{L})",
+  'iu'
+)
+/** Punctuation a negation does not reach across. A comma is one. */
+const CLAUSE_CHARS = '.!?;:,\\n\\u2014\\u2013'
+const HEAD_CLAUSE = new RegExp('[^' + CLAUSE_CHARS + ']*$', 'u')
+const TAIL_CLAUSE = new RegExp('^[^' + CLAUSE_CHARS + ']*', 'u')
 
-/** Is this match denied by something standing just in front of it? */
+/** Is this match denied by the clause it stands in? */
 function negatedAt(text: string, index: number): boolean {
-  return NEGATED_BEFORE.test(text.slice(Math.max(0, index - 24), index))
+  const before = text.slice(0, index).match(HEAD_CLAUSE)?.[0] ?? ''
+  if (NEGATION_IN_CLAUSE.test(before)) return true
+  const after = text.slice(index).match(TAIL_CLAUSE)?.[0] ?? ''
+  return NEGATION_AFTER.test(after)
 }
 
 /**
