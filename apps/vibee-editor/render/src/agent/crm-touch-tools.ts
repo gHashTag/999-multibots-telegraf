@@ -110,6 +110,13 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           description:
             'своими словами: о чём договорились, что человек ответил',
         },
+        undo: {
+          type: 'boolean',
+          description:
+            'ОТМЕНИТЬ последнее такое касание вместо того, чтобы записать новое. ' +
+            'Ошиблись видом или человеком — ставь true с тем же kind. Старая ' +
+            'запись НЕ стирается: поверх ложится отменяющая, и история видна целиком.',
+        },
       },
       required: ['telegram_id', 'kind'],
     },
@@ -129,12 +136,50 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       if (!may.ok) return { saved: false, why: may.why }
       if (!ctx?.pool) return { saved: false, why: 'память недоступна' }
 
+      /*
+       * SUPERSEDE, NEVER ERASE -- the owner's decision, 2026-09-15.
+       *
+       * The machinery for this was built the same day: a reverts_id column, an
+       * index, effectiveTouches folding it in three readers, latestToRevert to
+       * pick the row to cancel, and ten tests. What it never got was a WRITER.
+       * `tri wired latestToRevert` answers "nobody": five mentions, all in
+       * tests. So a mistake -- the wrong kind, the wrong person -- could be
+       * made and never taken back, while the code claimed otherwise.
+       *
+       * A correction carries the SAME kind as the act it cancels, so a reader
+       * that knows nothing about corrections still sees a plausible history
+       * rather than a stray marker. Nothing is deleted: the raw log keeps both
+       * rows, and only the derived view drops the pair.
+       */
+      const undo = a?.undo === true
+      let revertsId: number | undefined
+      if (undo) {
+        const { touchesFor } = await import('./crm-touches')
+        const { latestToRevert } = await import('./crm-supersede')
+        const history = await touchesFor(
+          ctx.pool as never,
+          String(ctx.telegramId),
+          leadId
+        )
+        const target = latestToRevert(history, kind)
+        if (!target || typeof target.id !== 'number') {
+          return {
+            saved: false,
+            why: `нечего отменять: касаний «${kind}» у этого человека не осталось`,
+            kind,
+            telegram_id: leadId,
+          }
+        }
+        revertsId = target.id
+      }
+
       const outcome = await recordTouch(ctx.pool as never, {
         owner: String(ctx.telegramId),
         lead: leadId,
         botName: may.botName,
         kind,
         note: a?.note ? String(a.note) : undefined,
+        revertsId,
       })
       return {
         saved: outcome === 'recorded',
@@ -144,6 +189,7 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
          * the person writes to somebody twice believing they did not.
          */
         why: outcome === 'recorded' ? undefined : 'не удалось сохранить',
+        undone: undo ? revertsId : undefined,
         kind,
         telegram_id: leadId,
       }

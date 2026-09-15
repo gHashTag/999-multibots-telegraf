@@ -375,11 +375,16 @@ const fakePool = () => {
       if (s.startsWith('CREATE')) return { rows: [] }
       if (s.startsWith('INSERT INTO crm_touches')) {
         rows.push({
+          // A real row has an id and may cancel an earlier one; without both,
+          // an undo cannot be tested at all -- latestToRevert needs the id and
+          // the fold needs reverts_id.
+          id: rows.length + 1,
           owner_id: params[0],
           lead_id: params[1],
           bot_name: params[2],
           kind: params[3],
           note: params[4],
+          reverts_id: params[5] ?? null,
           at: new Date().toISOString(),
         })
         return { rows: [] }
@@ -393,13 +398,15 @@ const fakePool = () => {
          */
         const byOwner = s.includes('owner_id = $1')
         const byLead = s.includes('lead_id = $2')
-        return {
-          rows: rows.filter(
-            r =>
-              (!byOwner || r.owner_id === String(params[0])) &&
-              (!byLead || r.lead_id === String(params[1]))
-          ),
-        }
+        const kept = rows.filter(
+          r =>
+            (!byOwner || r.owner_id === String(params[0])) &&
+            (!byLead || r.lead_id === String(params[1]))
+        )
+        // Newest first, as every real query here orders them: the fold in
+        // crm-supersede depends on that order and would silently misread a
+        // list handed back in insertion order.
+        return { rows: [...kept].reverse() }
       }
       return { rows: [] }
     },
@@ -539,6 +546,128 @@ describe('история касаний не показывает чужое', (
     } as any)
     expect(r.total).toBe(1)
     expect(r.touches[0].note).toBe('первое')
+  })
+
+  /*
+   * SUPERSEDE, NEVER ERASE -- and until 2026-09-16 nothing could.
+   *
+   * The machinery was built on 2026-09-15: a reverts_id column, an index, the
+   * fold in three readers, latestToRevert to choose the row to cancel, ten
+   * tests. It never got a WRITER. `tri wired latestToRevert` answered
+   * "nobody": five mentions, every one of them in a test. So the owner could
+   * record the wrong kind, or the wrong person, and the thing built to take it
+   * back could not be reached from anywhere.
+   */
+  it('отменяет последнее касание, не стирая его', async () => {
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    const ctx = { telegramId: '144022504', pool } as any
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused', note: 'сказал нет' },
+      ctx
+    )
+    const undone: any = await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused', undo: true },
+      ctx
+    )
+    expect(undone.saved).toBe(true)
+    expect(undone.undone, 'ничего не отменено').toBe(1)
+    // Both rows are still there: the raw log keeps the mistake AND its
+    // correction, and only the derived view drops the pair.
+    expect(pool.rows).toHaveLength(2)
+    expect(pool.rows[1].reverts_id).toBe(1)
+    /*
+     * crm_history stays RAW on purpose: the owner asked to erase nothing, and
+     * a history that hid the mistake would be the erasure by another name. It
+     * is the DERIVED view that drops the pair, and effectiveTouches is where
+     * that happens.
+     */
+    const after: any = await tool('crm_history').handler(
+      { telegram_id: '111' },
+      ctx
+    )
+    expect(
+      after.total,
+      'история спрятала запись вместо того, чтобы её перекрыть'
+    ).toBe(2)
+    const { effectiveTouches } = await import('./src/agent/crm-supersede')
+    const live = effectiveTouches(
+      [...pool.rows]
+        .reverse()
+        .map(r => ({
+          id: r.id,
+          kind: r.kind,
+          at: r.at,
+          revertsId: r.reverts_id,
+        }))
+    )
+    expect(live, 'отказ всё ещё считается актом').toEqual([])
+  })
+
+  it('говорит, что отменять нечего, вместо пустой записи', async () => {
+    // A correction naming nothing is worse than a refusal to write one: it
+    // looks like an act in the log and cancels nothing.
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    const r: any = await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused', undo: true },
+      { telegramId: '144022504', pool } as any
+    )
+    expect(r.saved).toBe(false)
+    expect(r.why).toContain('нечего отменять')
+    expect(pool.rows).toHaveLength(0)
+  })
+
+  it('отменяет последнее касание ЭТОГО вида, а не просто последнее', async () => {
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    const ctx = { telegramId: '144022504', pool } as any
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused' },
+      ctx
+    )
+    await tool('crm_touch').handler({ telegram_id: '111', kind: 'note' }, ctx)
+    const r: any = await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused', undo: true },
+      ctx
+    )
+    expect(r.undone).toBe(1)
+  })
+
+  it('отменить саму отмену через инструмент нельзя, и об этом сказано', async () => {
+    /*
+     * A deliberate gap, worth writing down because the two halves differ.
+     *
+     * effectiveTouches DOES understand an undo of an undo -- cancel the
+     * correction and the original act stands again; crm-supersede.test.ts
+     * covers exactly that. The WRITER does not offer it: latestToRevert names
+     * only a live ACT, so once a refusal has been taken back there is nothing
+     * of that kind left to take back.
+     *
+     * The way forward is to record the act again, which is honest: the person
+     * refusing a second time IS a second refusal, not the resurrection of the
+     * first. The fold stays more general than the writer on purpose -- it has
+     * to read whatever the log holds, including rows written by hand.
+     */
+    stubNet({ '111': 'bot1' })
+    const pool = fakePool()
+    const ctx = { telegramId: '144022504', pool } as any
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused' },
+      ctx
+    )
+    await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused', undo: true },
+      ctx
+    )
+    const twice: any = await tool('crm_touch').handler(
+      { telegram_id: '111', kind: 'refused', undo: true },
+      ctx
+    )
+    expect(twice.saved).toBe(false)
+    expect(twice.why).toContain('нечего отменять')
+    // And nothing was written for the refused undo.
+    expect(pool.rows).toHaveLength(2)
   })
 
   it('касания ДРУГОГО владельца по тому же человеку не видны', async () => {
