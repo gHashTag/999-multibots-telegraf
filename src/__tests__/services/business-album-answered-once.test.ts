@@ -65,26 +65,60 @@ describe('an album is answered once', () => {
 
 describe('the seller actually consults it', () => {
   const src = fs.readFileSync('src/services/businessBotService.ts', 'utf8')
+  /** The claim on the album. The import line carries no bracket, so it is skipped. */
+  const guard = src.indexOf('answeredAlbumAlready(')
+  const relay = src.indexOf('await relayMediaToOwner(')
+  /** Where a message with words parts company with a message without any. */
+  const split = src.indexOf('if (!text) {')
+  const canned = src.indexOf('sendAsOwner(mediaReply(')
+  const model = src.search(/await (answerClient|chatWithAI)\(/)
 
   it('asks before the canned reply goes out', () => {
-    const branch = src.slice(src.indexOf('if (!text) {'))
-    const guard = branch.indexOf('answeredAlbumAlready(')
-    // The reply is now chosen by language, so the anchor is the call that
-    // sends it rather than the field it used to read.
-    const reply = branch.indexOf('sendAsOwner(mediaReply(')
     expect(guard, 'the album is never checked').toBeGreaterThan(-1)
+    expect(canned, 'the canned reply was not found').toBeGreaterThan(-1)
     expect(
       guard,
       'the reply goes out before anything asks whether this is a repeat'
-    ).toBeLessThan(reply)
+    ).toBeLessThan(canned)
+  })
+
+  it('asks before the MODEL answers too, which means above the split', () => {
+    /*
+     * THE BUG THIS REPLACES. The guard used to live INSIDE the no-text
+     * branch, so it only ever saw an album with no caption. An album WITH a
+     * caption got two answers: the captioned element went to the model and
+     * replied, the next element found no text and no claim on the album --
+     * the model path had never made one -- and added the canned line under
+     * it. A guard that drifts back below this split brings that back, and
+     * fails here.
+     */
+    expect(split, 'the text split was not found').toBeGreaterThan(-1)
+    expect(model, 'the model answer was not found').toBeGreaterThan(-1)
+    expect(guard, 'the guard is inside one branch again').toBeLessThan(split)
+    expect(guard, 'the model answers before the album is claimed').toBeLessThan(
+      model
+    )
+  })
+
+  it('claims the album on the real id, and stops the turn when it is a repeat', () => {
+    // Pinned as a whole statement: a guard reduced to `if (false && ...)` or
+    // one whose `return` is gone still sits in the right place, and the order
+    // checks above would pass it.
+    expect(
+      src,
+      'the claim is not made on this element, or it does not stop the turn'
+    ).toMatch(
+      /if \(answeredAlbumAlready\(connId, msg\.media_group_id\)\)\s*\{[\s\S]{0,400}?\breturn\b/
+    )
   })
 
   it('leaves the relay to the owner outside the guard', () => {
     // Every element must still reach the owner; only the client-facing line
-    // is deduplicated, and the relay happens above this branch.
-    const relay = src.indexOf('await relayMediaToOwner(')
+    // is deduplicated, and the relay happens above the claim.
     expect(relay).toBeGreaterThan(-1)
-    expect(relay).toBeLessThan(src.indexOf('if (!text) {'))
+    expect(relay, 'an album element no longer reaches the owner').toBeLessThan(
+      guard
+    )
   })
 })
 

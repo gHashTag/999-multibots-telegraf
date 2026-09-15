@@ -293,6 +293,8 @@ interface DailyStats {
   nonTextDropped: number
   mediaRelayed: number
   takeoverSkipped: number
+  /** Album elements after the first: relayed to the owner, not answered. */
+  albumQuiet: number
 }
 
 let stats: DailyStats = {
@@ -303,6 +305,7 @@ let stats: DailyStats = {
   nonTextDropped: 0,
   mediaRelayed: 0,
   takeoverSkipped: 0,
+  albumQuiet: 0,
 }
 
 function todayKey(): string {
@@ -320,6 +323,7 @@ function ensureToday(): void {
       nonTextDropped: 0,
       mediaRelayed: 0,
       takeoverSkipped: 0,
+      albumQuiet: 0,
     }
   }
 }
@@ -635,6 +639,34 @@ export async function handleBusinessMessage(
     ensureToday()
     stats.mediaRelayed++
     await relayMediaToOwner(msg, media, conn, bot)
+    /*
+     * ONE ANSWER PER ALBUM -- AND THE GUARD STANDS ABOVE THE SPLIT.
+     *
+     * Telegram delivers every element of an album as its own business_message
+     * and puts the caption on at most one of them. The first version of this
+     * guard sat INSIDE the no-text branch, so it only ever saw an album with
+     * no caption. An album WITH one still got two answers: the captioned
+     * element went to the model and replied, the next element found no text,
+     * found no claim on the album either -- the model path never made one --
+     * and added the canned line underneath. Two replies to one album, both
+     * signed with the owner's name, at the moment the client had just shown
+     * what they wanted.
+     *
+     * Claimed here instead: after the relay, before EITHER answer, so exactly
+     * one element speaks. Telegram puts the caption on the first element, and
+     * that is the element that claims the album, so the words are not lost.
+     *
+     * The file itself still reaches the owner for every element -- the relay
+     * is the line above.
+     */
+    if (answeredAlbumAlready(connId, msg.media_group_id)) {
+      stats.albumQuiet++
+      logger.info('[Business] Album element after the first - staying quiet', {
+        connId,
+        chatId,
+      })
+      return
+    }
   }
 
   const caption = msg.caption?.trim()
@@ -648,27 +680,6 @@ export async function handleBusinessMessage(
       chatId,
       kind: media?.field ?? 'other',
     })
-    /*
-     * ONE ANSWER PER ALBUM, NOT ONE PER PHOTO.
-     *
-     * This branch answers with a canned line and returns -- ABOVE the only
-     * duplicate guard in the function, businessReplyInFlight, which is why
-     * nothing here ever suppressed anything. Telegram delivers each element
-     * of an album as its own business_message, so four photos with no caption
-     * produced four identical messages in a row, signed with the owner's
-     * name, at the exact moment the client had shown what they wanted. It
-     * reads as a broken bot.
-     *
-     * The file itself still reaches the owner for every element -- that
-     * happens above, before this branch.
-     */
-    if (media && answeredAlbumAlready(connId, msg.media_group_id)) {
-      logger.info('[Business] Album element after the first — staying quiet', {
-        connId,
-        chatId,
-      })
-      return
-    }
     if (media) {
       const card = SERVICE_CARDS.find(c => c.key === media.card)
       try {
@@ -946,6 +957,7 @@ export function getBusinessStats(): {
   todayNonText: number
   todayMediaRelayed: number
   todayTakeoverSkipped: number
+  todayAlbumQuiet: number
   connections: Array<{ id: string; userId: number; canReply: boolean }>
 } {
   ensureToday()
@@ -957,6 +969,7 @@ export function getBusinessStats(): {
     todayNonText: stats.nonTextDropped,
     todayMediaRelayed: stats.mediaRelayed,
     todayTakeoverSkipped: stats.takeoverSkipped,
+    todayAlbumQuiet: stats.albumQuiet,
     connections: Array.from(connections.entries()).map(([id, info]) => ({
       id,
       userId: info.userId,
