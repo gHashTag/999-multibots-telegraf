@@ -29,6 +29,7 @@
 import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
 import { logger } from '@/utils/logger'
+import { rewriteRow, rewriteStyleRows } from '@/navigation/helpers/rewriteMenu'
 
 const BASE = 'https://vibee-render-production.up.railway.app'
 
@@ -109,12 +110,33 @@ export function cardLeadOf(p: {
  */
 const CARD_LEAD_TTL_MS = 15 * 60_000
 const CARD_LEAD_MAX = 200
-const cardLeads = new Map<string, { lead: string; at: number }>()
+/**
+ * The words are kept beside the person for one reason: a rewrite press.
+ *
+ * "Write it shorter" has to be shorter than something, and the rejected draft
+ * is nowhere else -- it was never sent, so it is not in the correspondence the
+ * agent re-reads on the next turn. Three hundred characters of it are quoted
+ * into that turn's brief; the rest would only pad the prompt.
+ */
+const CARD_WHAT_CHARS = 300
+const cardLeads = new Map<string, { lead: string; what: string; at: number }>()
+
+const draftWords = (p: { what?: string; media?: BotMedia }): string => {
+  const body =
+    p.what ??
+    (p.media?.kind === 'album' ? (p.media.captions ?? []).join(' / ') : '')
+  return String(body ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, CARD_WHAT_CHARS)
+}
 
 export function rememberCard(p: {
   id: string
   lead?: string
   target: string
+  what?: string
+  media?: BotMedia
 }): void {
   const lead = cardLeadOf(p)
   if (!lead) return
@@ -126,13 +148,34 @@ export function rememberCard(p: {
     if (oldest === undefined) break
     cardLeads.delete(oldest)
   }
-  cardLeads.set(p.id, { lead, at: now })
+  cardLeads.set(p.id, { lead, what: draftWords(p), at: now })
 }
 
 export function takeCardLead(id: string): string | null {
+  return takeCardDraft(id)?.lead ?? null
+}
+
+/** The person AND the words, for a press that has to write them again. */
+export function takeCardDraft(
+  id: string
+): { lead: string; what: string } | null {
   const v = cardLeads.get(id)
   if (!v) return null
   cardLeads.delete(id)
+  if (Date.now() - v.at > CARD_LEAD_TTL_MS) return null
+  return { lead: v.lead, what: v.what }
+}
+
+/**
+ * The person, without consuming the entry.
+ *
+ * Opening and closing the rewrite list only redraws the same card's buttons;
+ * it decides nothing. Consuming the entry there would mean the send that came
+ * after it lost the person's history button, for no reason.
+ */
+export function peekCardLead(id: string): string | null {
+  const v = cardLeads.get(id)
+  if (!v) return null
   return Date.now() - v.at > CARD_LEAD_TTL_MS ? null : v.lead
 }
 
@@ -309,10 +352,63 @@ function askOf(p: Proposal, isRu: boolean): string {
  * otherwise either break the message or be silently reformatted, and the words
  * shown must be exactly the words sent.
  */
+export interface CardOpts {
+  extraRows?: InlineKeyboardButton[][]
+  /**
+   * Offer the rewrite button. Owner-only, like `extraRows`: the press runs a
+   * CRM turn on the owner's own correspondence, so a card shown to anybody
+   * else must not carry it.
+   */
+  rewrite?: boolean
+  /** Draw the style list in place of the rewrite button. */
+  expanded?: boolean
+}
+
+/**
+ * The buttons under a card, in both of its states.
+ *
+ * Built apart from the text so that opening and closing the rewrite list can
+ * redraw exactly the card's own keyboard rather than a second, drifting copy
+ * of it -- the press that opens the list edits the markup and nothing else.
+ */
+export function cardKeyboard(
+  p: { id: string; secret: string },
+  isRu: boolean,
+  opts: CardOpts = {}
+): ReturnType<typeof Markup.inlineKeyboard> {
+  const decide = [
+    /*
+     * The secret rides in the button, not in our memory.
+     *
+     * Telegram stores callback data and hands it back on the press, so the
+     * bot holds no state between showing the card and the tap -- a restart
+     * between the two does not strand a draft. Budget is 64 bytes:
+     * "tgp:ok:" (7) + a 12-char id + ":" + a 32-char secret = 52.
+     */
+    Markup.button.callback(
+      isRu ? '✅ Отправить' : '✅ Send',
+      `${PROPOSAL_OK}${p.id}:${p.secret}`
+    ),
+    Markup.button.callback(
+      isRu ? '✖️ Отмена' : '✖️ Cancel',
+      `${PROPOSAL_NO}${p.id}:${p.secret}`
+    ),
+  ]
+  if (!opts.rewrite)
+    return Markup.inlineKeyboard([decide, ...(opts.extraRows ?? [])])
+  // Send and cancel stay above the styles: opening the list must not take
+  // away the answer the person already had.
+  return Markup.inlineKeyboard(
+    opts.expanded
+      ? [decide, ...rewriteStyleRows(p.id, p.secret, isRu)]
+      : [decide, ...rewriteRow(p.id, p.secret, isRu), ...(opts.extraRows ?? [])]
+  )
+}
+
 export function proposalCard(
   p: Proposal & { secret: string },
   isRu: boolean,
-  opts: { extraRows?: InlineKeyboardButton[][] } = {}
+  opts: CardOpts = {}
 ): {
   text: string
   markup: ReturnType<typeof Markup.inlineKeyboard>
@@ -411,26 +507,11 @@ export function proposalCard(
   return {
     ...(photo ? { photo } : {}),
     text: shown ? `${head}\n\n${shown}${tail}` : head,
-    markup: Markup.inlineKeyboard([
-      [
-        /*
-         * The secret rides in the button, not in our memory.
-         *
-         * Telegram stores callback data and hands it back on the press, so the
-         * bot holds no state between showing the card and the tap -- a restart
-         * between the two does not strand a draft. Budget is 64 bytes:
-         * "tgp:ok:" (7) + a 12-char id + ":" + a 32-char secret = 52.
-         */
-        Markup.button.callback(
-          isRu ? '✅ Отправить' : '✅ Send',
-          `${PROPOSAL_OK}${p.id}:${p.secret}`
-        ),
-        Markup.button.callback(
-          isRu ? '✖️ Отмена' : '✖️ Cancel',
-          `${PROPOSAL_NO}${p.id}:${p.secret}`
-        ),
-      ],
-      ...(opts.extraRows ?? []),
-    ]),
+    // A rewrite has to have something to rewrite FOR: the turn it starts
+    // prepares for one numeric person, so a card without one offers no styles.
+    markup: cardKeyboard(p, isRu, {
+      ...opts,
+      rewrite: Boolean(opts.rewrite) && Boolean(cardLeadOf(p)),
+    }),
   }
 }

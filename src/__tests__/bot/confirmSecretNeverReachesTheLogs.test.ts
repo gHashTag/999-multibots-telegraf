@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { scrubCallbackSecrets, scrubbedLog } from '@/utils/scrubCallbackSecrets'
+import { cardKeyboard } from '@/services/telegramProposals'
 
 /**
  * A SECRET IN A LOG HAS LEFT THE BUILDING.
@@ -69,6 +70,47 @@ describe('the secret is cut out, the id is not', () => {
     // which is how it ends up being removed.
     for (const s of ['act:topup', 'обычная строка', 'tgp', '']) {
       expect(scrubCallbackSecrets(s)).toBe(s)
+    }
+  })
+})
+
+describe('every button the card renders is scrubbed, not just the two named ones', () => {
+  /*
+   * THE SCRUBBER IS A LIST, AND LISTS GO STALE.
+   *
+   * `CALLBACK_SECRET` names the `tgp:` verbs it knows. The rewrite buttons
+   * added three more -- and a fourth added later without touching the pattern
+   * would print a live secret into the logs in full, silently, because nothing
+   * above this looks at what the card actually draws.
+   *
+   * So: draw the card in both of its states, take every callback the keyboard
+   * contains, and require that each one both carries the secret and comes out
+   * the other side without it. A new verb fails here on the day it is added.
+   */
+  const CARD = { id: '0f3a91cc42de', secret: SECRET }
+  const every = (opts: Record<string, unknown>): string[] =>
+    (cardKeyboard(CARD, true, opts) as any).reply_markup.inline_keyboard
+      .flat()
+      .map((b: any) => String(b.callback_data ?? ''))
+      .filter(Boolean)
+
+  it('the closed card and the open one', () => {
+    for (const opts of [
+      {},
+      { rewrite: true },
+      { rewrite: true, expanded: true },
+    ]) {
+      const buttons = every(opts)
+      expect(buttons.length, 'the card drew no buttons').toBeGreaterThan(0)
+      for (const data of buttons) {
+        expect(data, `${data} does not carry the secret`).toContain(SECRET)
+        expect(
+          scrubCallbackSecrets(data),
+          `${data.split(':').slice(0, 2).join(':')} leaks the secret`
+        ).not.toContain(SECRET)
+        // The id is what makes a press answerable afterwards; it stays.
+        expect(scrubCallbackSecrets(data)).toContain(CARD.id)
+      }
     }
   })
 })

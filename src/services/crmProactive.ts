@@ -443,15 +443,9 @@ export async function pushCard(
   },
   ownerId: string,
   draft: Draft,
-  opts: {
-    extraRows?: Parameters<typeof proposalCard>[2] extends infer O
-      ? O extends { extraRows?: infer R }
-        ? R
-        : never
-      : never
-  } = {}
+  opts: Parameters<typeof proposalCard>[2] = {}
 ): Promise<void> {
-  const card = proposalCard(draft, true, { extraRows: opts.extraRows })
+  const card = proposalCard(draft, true, opts)
   // The press will want to know who this was for.
   rememberCard(draft as never)
   if (card.photo) {
@@ -522,10 +516,12 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
     ingest: ingestViaRender,
     push: (owner, draft) =>
       pushCard(bot.telegram as never, owner, draft, {
-        // The owner reads the person's history before approving the words.
+        // The owner reads the person's history before approving the words,
+        // and can send the draft back to be written differently.
         extraRows: ADMIN_IDS_ARRAY.includes(Number(owner))
           ? cardMenuRows(cardLeadOf(draft as never))
           : [],
+        rewrite: ADMIN_IDS_ARRAY.includes(Number(owner)),
       }),
     record: recordTurns,
     leads: owner => fetchLeadRows(owner, LOOK_LIMIT),
@@ -620,7 +616,10 @@ export async function runProactiveTickAll(
   opts: TickOpts
 ): Promise<{
   sellers: string[]
-  outcomes: Array<{ owner: string; outcome: TickOutcome | { did: 'failed'; why: string } }>
+  outcomes: Array<{
+    owner: string
+    outcome: TickOutcome | { did: 'failed'; why: string }
+  }>
 }> {
   const sellers = await resolveSellers(opts)
   const outcomes: Array<{

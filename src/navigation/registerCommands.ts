@@ -52,6 +52,13 @@ import {
   summaryKeyboard,
   nextOf,
 } from '@/navigation/helpers/crmMenu'
+import {
+  REWRITE_OPEN_RE,
+  REWRITE_BACK_RE,
+  REWRITE_STYLE_RE,
+  rewriteNote,
+  rewriteStyleById,
+} from '@/navigation/helpers/rewriteMenu'
 import { scopedPrompt } from '@/services/crmSweepScope'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
@@ -1411,8 +1418,10 @@ If not, continue on your own and click the "I myself" button`
             // card shows the service under the same two buttons.
             const isAdminHere = ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id))
             const card = proposalCard(draft, isRuOtvet, {
-              // The owner reads the person's history before approving.
+              // The owner reads the person's history before approving, and
+              // can send the words back to be written differently.
               extraRows: isAdminHere ? cardMenuRows(cardLeadOf(draft)) : [],
+              rewrite: isAdminHere,
             })
             rememberCard(draft)
             if (!card.photo) {
@@ -2059,6 +2068,149 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
       afterCancelKeyboard(lead)
     )
   })
+
+  /*
+   * ── "NOT LIKE THAT" ────────────────────────────────────────────────────
+   *
+   * Three presses, and only the third one does anything: open the styles,
+   * close them again, or rewrite. The first two edit the card's own markup
+   * and decide nothing, which is why they neither consume the remembered
+   * draft nor touch the sweep.
+   *
+   * Owner-only and private-chat-only: the rewrite runs a CRM turn over the
+   * owner's correspondence. The card carries these buttons only for an
+   * admin, but a callback is a string anybody can send back, so the gate is
+   * here as well as on the keyboard.
+   */
+  const rewriteAllowed = (ctx: MyContext): boolean =>
+    ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
+    ctx.chat?.type === 'private'
+
+  const redrawCard = async (ctx: any, expanded: boolean) => {
+    const [, id, secret] = ctx.match as RegExpMatchArray
+    const { cardKeyboard, peekCardLead } = await import(
+      '@/services/telegramProposals'
+    )
+    const lead = peekCardLead(id)
+    await ctx
+      .editMessageReplyMarkup(
+        cardKeyboard({ id, secret }, isRussianFromState(ctx), {
+          rewrite: true,
+          expanded,
+          extraRows: cardMenuRows(lead),
+        }).reply_markup
+      )
+      .catch(() => undefined)
+  }
+
+  bot.action(REWRITE_OPEN_RE, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    if (!rewriteAllowed(ctx)) return
+    await redrawCard(ctx, true)
+  })
+
+  bot.action(REWRITE_BACK_RE, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    if (!rewriteAllowed(ctx)) return
+    await redrawCard(ctx, false)
+  })
+
+  bot.action(REWRITE_STYLE_RE, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    if (!rewriteAllowed(ctx)) return
+    const [, styleId, id, secret] = ctx.match as RegExpMatchArray
+    const style = rewriteStyleById(styleId)
+    if (!style) return
+    /*
+     * Ahead of the work, not after it. The remembered draft is handed out
+     * once: a second tap that got as far as `takeCardDraft` would find it
+     * gone and tell the person the card had gone cold -- a minute after they
+     * pressed it, about a rewrite that is running.
+     */
+    if (!pressOnceGlobal(`re:${id}`)) return
+    await stripButtons(ctx)
+    const owner = String(ctx.from?.id ?? '')
+
+    /*
+     * THE OLD DRAFT DIES FIRST.
+     *
+     * A rewrite that left the previous words in the queue would mean two
+     * sendable drafts for one person, and the card for the first one is
+     * still scrolled up in this chat with a live secret in its buttons.
+     * Cancel it before writing anything new -- and the cancel needs the
+     * secret, which is why the styles carry it.
+     */
+    const { cancelProposal, takeCardDraft } = await import(
+      '@/services/telegramProposals'
+    )
+    const card = takeCardDraft(id)
+    await cancelProposal(owner, id, secret).catch(() => undefined)
+
+    /*
+     * A SCOPED SWEEP IS STOPPED, NOT ADVANCED.
+     *
+     * `noteResolved` is what the send and cancel buttons call, and for a
+     * scoped sweep it moves the cursor to the NEXT person -- which here
+     * would start a turn for somebody else while this rewrite is still
+     * being written for this one. Stop the round trip instead and say so;
+     * with the scope gone, `noteResolved` only frees the card hold, which
+     * the new turn needs or it would answer "held".
+     */
+    const proactive = await import('@/services/crmProactive')
+    const stopped = proactive.activeScope(owner)
+      ? proactive.stopScope(owner)
+      : ''
+    proactive.noteResolved(owner, id)
+
+    if (!card?.lead) {
+      /*
+       * Fifteen minutes passed, or the bot restarted between the card and
+       * the press. The draft is cancelled either way; what is missing is
+       * the person it was for, and guessing one would prepare a message
+       * for the wrong human being.
+       */
+      await ctx.reply(
+        'Старый вариант отменён — ничего не ушло. Но карточка уже остыла: не помню, для кого она была. Открой человека и нажми «Подготовить».',
+        Markup.inlineKeyboard(hubRows())
+      )
+      return
+    }
+    if (!preparedForOwner) {
+      await ctx.reply(
+        'Старый вариант отменён, но переписать некому: раздел «Продавец» не подключён к этому боту.',
+        Markup.inlineKeyboard(hubRows())
+      )
+      return
+    }
+    await preparedForOwner(ctx, card.lead, {
+      note: rewriteNote(style, card.what),
+      headline: [
+        `✍️ Переписываю для ${card.lead}: ${style.label}.`,
+        'Старый вариант отменён, ничего не ушло.',
+        stopped,
+        'Читаю переписку, спрашиваю агента (до 3 минут). Ничего не уйдёт без твоей кнопки.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    })
+  })
+}
+
+/**
+ * A costly button pressed twice within a breath acts once.
+ *
+ * The CRM menu has its own copy of this, closed over its own map; this one
+ * serves the proposal buttons, which are registered in a different place and
+ * earlier. Same rule, same five seconds.
+ */
+const pressedGlobally = new Map<string, number>()
+function pressOnceGlobal(key: string): boolean {
+  const now = Date.now()
+  for (const [k, at] of pressedGlobally)
+    if (now - at > 5_000) pressedGlobally.delete(k)
+  if (pressedGlobally.has(key)) return false
+  pressedGlobally.set(key, now)
+  return true
 }
 
 /** Is this a one-to-one chat rather than a group? */
@@ -2775,8 +2927,16 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
  * assigning it here keeps ONE implementation, which is the property that
  * matters -- a second "prepare" would eventually stop matching the first.
  */
-let preparedForOwner: ((ctx: MyContext, lead: string) => Promise<void>) | null =
-  null
+export interface PrepareOpts {
+  /** One extra line of brief: what to change about the last attempt. */
+  note?: string
+  /** What the owner is told while it runs; the default names the person. */
+  headline?: string
+}
+
+let preparedForOwner:
+  | ((ctx: MyContext, lead: string, opts?: PrepareOpts) => Promise<void>)
+  | null = null
 
 /** `crm-prep-<numeric id>` and nothing else; a malformed payload never matches. */
 export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
@@ -2987,16 +3147,28 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     Markup.inlineKeyboard([
       [Markup.button.callback('🏠 Меню', crmCallback('menu'))],
     ])
-  const prepare = async (ctx: MyContext, lead: string) => {
+  const prepare = async (
+    ctx: MyContext,
+    lead: string,
+    opts: PrepareOpts = {}
+  ) => {
     await sendLong(
       ctx,
-      `⏳ Готовлю для ${lead}: читаю переписку, спрашиваю агента (до 3 минут). Ничего не уйдёт без твоей кнопки.`,
+      opts.headline ??
+        `⏳ Готовлю для ${lead}: читаю переписку, спрашиваю агента (до 3 минут). Ничего не уйдёт без твоей кнопки.`,
       menuOnly()
     )
     await runTurn(
       ctx,
       {
-        prompt: scopedPrompt({ chat: lead, display: null, next: null }),
+        // `note` is the rewrite: the brief the agent gets carries the line the
+        // owner pressed, and the words it is meant to replace.
+        prompt: scopedPrompt({
+          chat: lead,
+          display: null,
+          next: null,
+          note: opts.note,
+        }),
         ingest: false,
         label: `[кнопка: подготовить для ${lead}]`,
       },

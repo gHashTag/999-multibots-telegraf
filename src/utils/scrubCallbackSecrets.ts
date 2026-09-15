@@ -30,12 +30,24 @@
  */
 
 /**
- * `tgp:ok:<id>:<secret>` and `tgp:no:<id>:<secret>`.
+ * Every `tgp:` press that carries the secret:
+ *
+ *   tgp:ok:<id>:<secret>            send it
+ *   tgp:no:<id>:<secret>            cancel it
+ *   tgp:rw:<id>:<secret>            open the rewrite styles
+ *   tgp:rb:<id>:<secret>            close them again
+ *   tgp:re:<style>:<id>:<secret>    write it again, this way
  *
  * Anchored on the prefix rather than on "a long hex string", so it cannot
- * quietly eat an unrelated value that happens to look similar.
+ * quietly eat an unrelated value that happens to look similar. The rewrite
+ * family puts a style between the prefix and the id, so the pattern allows
+ * exactly one such extra field -- the secret is still the last one, and it is
+ * the last one that gets cut.
+ *
+ * A new `tgp:` verb that carries a secret and is not listed here would print
+ * that secret into the logs in full. That is what the ratchet test measures.
  */
-const CALLBACK_SECRET = /(tgp:(?:ok|no):[^:\s"']+):[^\s"']+/g
+const CALLBACK_SECRET = /(tgp:(?:ok|no|rw|rb|re:[^:\s"']+):[^:\s"']+):[^\s"']+/g
 
 /**
  * Replace every confirmation secret in a string with a marker.

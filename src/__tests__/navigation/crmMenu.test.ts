@@ -145,20 +145,35 @@ describe('what each keyboard offers', () => {
     expect(nameLabel(3, null, LEAD)).toBe(`👤 3. id ${LEAD}`)
   })
 
-  it('the brief: prepare, later/refuse, the hub; refusal needs a second press', () => {
+  it('the brief: prepare, the chat itself, mute, later/refuse, the hub', () => {
     const plain = allCallbacks(leadMenu(LEAD, { next: 'offer' }))
     expect(plain).toEqual([
       `crm:prep:${LEAD}`,
+      `crm:mute:${LEAD}`,
       `crm:later:${LEAD}`,
       `crm:refuse:${LEAD}`,
       'crm:leads',
       'crm:menu',
     ])
     expect(plain).not.toContain(`crm:refuse!:${LEAD}`)
+    // Writing it yourself needs the chat, and the agent quiet while you are
+    // in it -- both on one row, beside each other.
+    const rows = leadMenu(LEAD).reply_markup.inline_keyboard
+    expect((rows[1][0] as any).url).toBe(`tg://user?id=${LEAD}`)
+    expect((rows[1][1] as any).callback_data).toBe(`crm:mute:${LEAD}`)
+  })
+
+  it('a refusal asks once more, and offers nothing else on that row', () => {
     const confirm = allCallbacks(leadMenu(LEAD, { confirmRefuse: true }))
     expect(confirm).toContain(`crm:refuse!:${LEAD}`)
     expect(confirm).toContain(`crm:back:${LEAD}`)
     expect(confirm).not.toContain(`crm:refuse:${LEAD}`)
+    // The mute and the chat are gone while the question is open: a
+    // destructive second press is not the moment to offer five other taps.
+    expect(confirm).not.toContain(`crm:mute:${LEAD}`)
+    const rows = leadMenu(LEAD, { confirmRefuse: true }).reply_markup
+      .inline_keyboard
+    expect(rows.flat().some((b: any) => b.url)).toBe(false)
   })
 
   it('the DM notification: who, mute, prepare, later, refuse', () => {
