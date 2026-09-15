@@ -135,7 +135,28 @@ describe('/inngest_probe', () => {
     expect(runner).not.toHaveBeenCalled()
     const texts = sent().map(s => s.payload.text as string)
     expect(texts[0]).toContain('Безопасный прогон Inngest-функций')
-    expect(texts[0]).toContain('К запуску: 28')
+    /*
+     * A LITERAL COUNT, ON PURPOSE -- and it had rotted.
+     *
+     * It said 28 while the manifest served 29: crm-proactive-sweep arrived in
+     * 02a74d11c and nobody looked. This test was not run between then and now,
+     * because GitHub Actions executes no job on this repository, so the only
+     * thing standing between a new served function and nobody noticing was a
+     * number that had already stopped being true.
+     *
+     * The number stays LITERAL rather than being read back out of the manifest.
+     * A count derived from the thing it measures agrees with itself for ever and
+     * would have said nothing here either. Serving a new function SHOULD cost
+     * one person one minute: either it belongs in the safe-mode probe -- and
+     * then someone has answered whether it can charge, write to a user, or call
+     * a paid provider during a probe -- or it belongs in `skip`, deliberately.
+     *
+     * All three numbers are asserted together so the shape cannot drift while
+     * the first number is kept current.
+     */
+    expect(texts[0]).toContain(
+      'К запуску: 29, пропуск: 0, всего в манифесте: 29'
+    )
     const last = sent().at(-1)!
     const buttons = (last.payload.reply_markup.inline_keyboard as any[])
       .flat()

@@ -15,6 +15,7 @@ import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
+import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
@@ -214,7 +215,10 @@ export const generateSeeDream4 = async (
         await ctx.reply(message, standardButtons(is_ru))
       }
 
-      logger.error('SeeDream4 insufficient balance', {
+      // `warn`, not `error`: see the note on the identical line in
+      // generateSeeDream45.ts. The customer already has the message and the
+      // top-up button; the owner's alert group is for our failures.
+      logger.warn('SeeDream4 insufficient balance', {
         telegram_id,
         currentBalance,
         requiredCost: totalCost,
@@ -554,7 +558,11 @@ export const generateSeeDream4 = async (
       ? `[SeeDream4] ${errorType} - автоматический retry через fallback`
       : `[SeeDream4] ${errorType} - требует внимания`
 
-    logger.error(`${logMessage}${errorDetail}`, {
+    // See the note on the identical decision in generateSeeDream45.ts: the
+    // narrow predicate, not `errorType`, because that classifier matches the
+    // bare word 'balance' and would mute a database outage.
+    const isCustomerWallet = isBalanceRefusal(errorMessage)
+    logger[isCustomerWallet ? 'warn' : 'error'](`${logMessage}${errorDetail}`, {
       telegram_id: params.telegram_id,
       errorType,
       isRetriable,

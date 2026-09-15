@@ -111,6 +111,26 @@ const ALLOWLIST: Record<string, number> = {
   'src/services/generateFluxKontextMax.ts': 1,
   'src/services/generateFluxKontextPro.ts': 1,
   'src/services/generateGeminiImage.ts': 1,
+  /*
+   * Reviewed 2026-09-15, against the three questions this census asks.
+   *
+   * The amount cannot be chosen by the user: `GPT_IMAGE_25_MODEL.costPerImage`
+   * is a module constant and nothing in the params can reach it.
+   *
+   * A retry cannot charge twice: the only caller is avatarTransformScene, one
+   * charge per invocation, behind the per-user superheroGenInFlight lock.
+   *
+   * A failure after the charge refunds: the catch refunds exactly `totalCost`
+   * -- and now only when the charge actually happened. It used to refund
+   * whenever `skipBalanceCheck` was false, although four things above the
+   * charge can throw (missing API key, Zod parse, unknown user, level bump),
+   * so a failure BEFORE paying returned five stars that were never taken.
+   * refundUser's hasChargeToRefund guard caught the simple case -- a refund
+   * with no charge at all in the last day -- but it matches ANY charge of that
+   * size, not the one this call thought it made, so anyone who had generated
+   * something else that day went straight through it.
+   */
+  'src/services/generateGptImage25.ts': 1,
   'src/services/generateNanoBanana.ts': 1,
   'src/services/generateNanoBananaKie.ts': 1,
   'src/services/generateNanoBananaProReplicate.ts': 1,

@@ -15,6 +15,7 @@ import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
+import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
@@ -228,7 +229,17 @@ export const generateSeeDream45 = async (
         await ctx.reply(message, standardButtons(is_ru))
       }
 
-      logger.error('SeeDream4.5 insufficient balance', {
+      /*
+       * `warn`, not `error`: the winston transport forwards every logger.error
+       * to the owner's alert group, and this line is not an incident -- the
+       * customer was already told, with the way to pay under the message.
+       * Seven sibling generators (NanoBanana, GptImage25, Gemini,
+       * Seedream45Replicate, NanoBananaPro, NanoBananaKie) already use warn
+       * here; these two were the odd ones out, and they were alerts 1 and 2 of
+       * the four the owner got at 08:56 on 2026-09-15 for one empty wallet.
+       * The numbers stay in the log file, where they are still readable.
+       */
+      logger.warn('SeeDream4.5 insufficient balance', {
         telegram_id,
         currentBalance,
         requiredCost: totalCost,
@@ -580,7 +591,19 @@ export const generateSeeDream45 = async (
       ? `[SeeDream4.5] ${errorType} - автоматический retry через fallback`
       : `[SeeDream4.5] ${errorType} - требует внимания`
 
-    logger.error(`${logMessage}${errorDetail}`, {
+    /*
+     * WHO IS THIS FAILURE ABOUT?
+     *
+     * Every logger.error reaches the owner's alert group. A customer with no
+     * stars is not something the owner can act on, and the guard above has
+     * already told the customer. Note that the decision is NOT taken on
+     * `errorType`: that classifier matches the bare word 'balance', so
+     * "Failed to fetch user balance" -- a real outage -- lands in the same
+     * branch. `isBalanceRefusal` requires the money word next to the thing
+     * there is not enough of, and anything it cannot recognise stays an alert.
+     */
+    const isCustomerWallet = isBalanceRefusal(errorMessage)
+    logger[isCustomerWallet ? 'warn' : 'error'](`${logMessage}${errorDetail}`, {
       telegram_id: params.telegram_id,
       errorType,
       isRetriable,

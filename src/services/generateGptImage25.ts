@@ -62,6 +62,23 @@ export async function generateGptImage25(
   params: GptImage25ServiceParams
 ): Promise<string | null> {
   const totalCost = GPT_IMAGE_25_MODEL.costPerImage
+  /*
+   * A REFUND IS ONLY HONEST AFTER A CHARGE.
+   *
+   * The catch below refunded `totalCost` whenever `skipBalanceCheck` was false
+   * -- but the charge happens two thirds of the way down the try, and several
+   * things above it throw: a missing API key, a Zod parse of the input, a user
+   * who does not exist, the level bump. Any of those landed in the catch and
+   * asked for five stars back on a charge that had not happened.
+   *
+   * refundUser does hold a guard, and it is the reason this was not a standing
+   * mint: it refuses a refund when the ledger shows no charge in the last day.
+   * But it looks for ANY charge of at least that size, not THIS one -- so a
+   * person who generated anything else that day passed it and was paid for a
+   * failure they never funded. The flag is the charge itself, not the intention
+   * to charge.
+   */
+  let charged = false
 
   try {
     const {
@@ -140,6 +157,8 @@ export async function generateGptImage25(
         )
         return null
       }
+
+      charged = true
     }
 
     let statusMessage: any = null
@@ -284,7 +303,7 @@ export async function generateGptImage25(
       )
     }
 
-    if (!params.skipBalanceCheck) {
+    if (charged) {
       await refundUser(params.ctx, totalCost, { reason: 'generation_failed' })
     }
 
