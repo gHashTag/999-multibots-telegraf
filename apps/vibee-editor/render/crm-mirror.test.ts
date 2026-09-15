@@ -10,20 +10,39 @@ const D = (iso: string) => new Date(iso)
 
 function fakePool(seen = new Set<string>()) {
   const queries: Array<{ sql: string; params: unknown[] }> = []
+  /** What has been stored, so a read-back answers what was written. */
+  const stored: Array<{ at: number; out: boolean }> = []
   return {
     queries,
+    stored,
     query: async (sql: string, params: unknown[] = []) => {
       const flat = sql.replace(/\s+/g, ' ').trim()
       queries.push({ sql: flat, params })
       if (flat.startsWith('INSERT INTO crm_messages')) {
         const rows: Array<{ msg_id: unknown }> = []
+        // Columns: owner_id, lead_id, msg_id, at, "out", text.
         for (let i = 0; i < params.length; i += 6) {
           const key = `${params[i + 1]}:${params[i + 2]}`
+          stored.push({
+            at: new Date(params[i + 3] as never).getTime(),
+            out: Boolean(params[i + 4]),
+          })
           if (seen.has(key)) continue
           seen.add(key)
           rows.push({ msg_id: params[i + 2] })
         }
         return { rows }
+      }
+      /*
+       * The reply derivation reads the correspondence back. Answering it by
+       * hand would let the wiring test pass against a rule that never looked
+       * at anything, so it is answered from what was actually stored.
+       */
+      if (/SELECT 1 FROM crm_messages/.test(flat)) {
+        const after = new Date(String(params[2])).getTime()
+        const before = new Date(String(params[3])).getTime()
+        const hit = stored.some(m => m.out && m.at > after && m.at < before)
+        return { rows: hit ? [{ '?column?': 1 }] : [] }
       }
       return { rows: [] }
     },
@@ -140,5 +159,47 @@ describe('mirrorNow', () => {
     expect(r).toEqual({ fresh: 2, zep: 0 })
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+})
+
+/**
+ * THE FUNNEL ACTUALLY CALLS IT.
+ *
+ * noteReply had nine tests of its own and all of them passed with the call
+ * removed from mirrorNow entirely -- the feature could ship disconnected and
+ * nothing would go red. That is what this case exists to stop. It checks the
+ * wiring, not the rule; the rule lives in crm-replies.test.ts.
+ */
+describe('a client answering is written down by the one funnel', () => {
+  it('mirrorNow records the reply', async () => {
+    const now = new Date()
+    const pool = fakePool()
+    const { mirrorNow } = await import('./src/agent/crm-mirror')
+    await mirrorNow(pool as never, OWNER, LEAD, [
+      // Ours first, then theirs a minute later: that is what makes it a reply.
+      {
+        msgId: 10,
+        at: new Date(now.getTime() - 60_000),
+        out: true,
+        text: 'предлагаю',
+      },
+      { msgId: 11, at: now, out: false, text: 'да, давай' },
+    ])
+    const touch = pool.queries.find(q =>
+      q.sql.startsWith('INSERT INTO crm_touches')
+    )
+    expect(touch, 'mirrorNow no longer derives the reply').toBeTruthy()
+    expect(touch!.params).toContain('replied')
+  })
+
+  it('and writes none when the batch is only ours', async () => {
+    const pool = fakePool()
+    const { mirrorNow } = await import('./src/agent/crm-mirror')
+    await mirrorNow(pool as never, OWNER, LEAD, [
+      { msgId: 12, at: new Date(), out: true, text: 'напоминаю' },
+    ])
+    expect(
+      pool.queries.some(q => q.sql.startsWith('INSERT INTO crm_touches'))
+    ).toBe(false)
   })
 })
