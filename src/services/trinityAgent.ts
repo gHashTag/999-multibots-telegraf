@@ -178,6 +178,18 @@ export function stopTurn(telegramId: string): boolean {
   return true
 }
 
+/**
+ * Mark an error as thrown AFTER the server had already stored the question.
+ *
+ * Read by the business fallback: it must not write the person's line a second
+ * time when the server has it. A missing flag means "never arrived".
+ */
+function questionAlreadyStored(e: unknown): Error {
+  const err = e instanceof Error ? e : new Error(String(e))
+  ;(err as { questionStored?: boolean }).questionStored = true
+  return err
+}
+
 export async function спроситьАгента(
   telegramId: string,
   текст: string,
@@ -236,77 +248,100 @@ export async function спроситьАгента(
     )
     if (!о.ok || !о.body) {
       const тело = await о.text().catch(() => '')
+      // No stream, so the server never reached the point where it stores the
+      // question: the 400 and 401 answers are returned above that line. The
+      // error carries no `questionStored`, and the caller records both turns.
       throw new Error(`агент ответил ${о.status}: ${тело.slice(0, 200)}`)
     }
 
     /*
-     * Разбор NDJSON вручную: тело приходит кусками, и кусок может оборваться
-     * посреди строки. Держим хвост до следующего куска — иначе половина
-     * событий тихо теряется, а ответ выглядит обрезанным без причины.
+     * FROM HERE THE QUESTION IS ALREADY ON RECORD.
+     *
+     * The bot's fallback decides from the thrown error whether to write the
+     * person's line again, and it used to read EVERY throw as "the render
+     * never saw this turn". That is only true before the stream opens. The
+     * server writes head 200 first, stores the person's line second and runs
+     * the agent third -- so an error event inside the stream, or a socket cut
+     * halfway through it, means the question is stored and only the answer is
+     * missing. Writing the question a second time halves a memory window that
+     * is read as the last forty replies, and the duplicate is invisible:
+     * both sides are plain INSERTs against the same telegram_id.
+     *
+     * So the fact travels on the error itself, where the caller can read what
+     * happened instead of inferring it from the bare fact of a throw.
      */
-    const reader = (о.body as any).getReader?.()
-    let хвост = ''
-    const части: string[] = []
-    /** Kept beside `части` so onProgress costs nothing when nobody listens. */
-    let streamed = ''
-    const инструменты: string[] = []
-    let ошибка = ''
-    let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
+    try {
+      /*
+       * Разбор NDJSON вручную: тело приходит кусками, и кусок может оборваться
+       * посреди строки. Держим хвост до следующего куска — иначе половина
+       * событий тихо теряется, а ответ выглядит обрезанным без причины.
+       */
+      const reader = (о.body as any).getReader?.()
+      let хвост = ''
+      const части: string[] = []
+      /** Kept beside `части` so onProgress costs nothing when nobody listens. */
+      let streamed = ''
+      const инструменты: string[] = []
+      let ошибка = ''
+      let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
 
-    const строку = (s: string) => {
-      const t = s.trim()
-      if (!t) return
-      try {
-        const ev = JSON.parse(t) as {
-          тип?: string
-          текст?: string
-          имя?: string
-          proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
-        }
-        if (ev.тип === 'текст' && typeof ev.текст === 'string') {
-          части.push(ev.текст)
-          if (opts.onProgress) {
-            streamed += ev.текст
-            opts.onProgress(streamed)
+      const строку = (s: string) => {
+        const t = s.trim()
+        if (!t) return
+        try {
+          const ev = JSON.parse(t) as {
+            тип?: string
+            текст?: string
+            имя?: string
+            proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
           }
-        } else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
-        else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
-        // A prepared message and its one-time secret, from this same turn.
-        // Bracket access with a string literal: the envelope's field name is
-        // pre-existing and Cyrillic, and quoting keeps it data, not code.
-        else if (ev['тип'] === 'proposal' && ev.proposal?.secret)
-          proposal = ev.proposal
-      } catch {
-        // Неразобранная строка — не повод терять остальные.
+          if (ev.тип === 'текст' && typeof ev.текст === 'string') {
+            части.push(ev.текст)
+            if (opts.onProgress) {
+              streamed += ev.текст
+              opts.onProgress(streamed)
+            }
+          } else if (ev.тип === 'инструмент' && ev.имя) инструменты.push(ev.имя)
+          else if (ev.тип === 'ошибка' && ev.текст) ошибка = ev.текст
+          // A prepared message and its one-time secret, from this same turn.
+          // Bracket access with a string literal: the envelope's field name is
+          // pre-existing and Cyrillic, and quoting keeps it data, not code.
+          else if (ev['тип'] === 'proposal' && ev.proposal?.secret)
+            proposal = ev.proposal
+        } catch {
+          // Неразобранная строка — не повод терять остальные.
+        }
       }
-    }
 
-    if (reader) {
-      const dec = new TextDecoder()
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        хвост += dec.decode(value, { stream: true })
-        const строки = хвост.split('\n')
-        хвост = строки.pop() ?? ''
-        строки.forEach(строку)
+      if (reader) {
+        const dec = new TextDecoder()
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          хвост += dec.decode(value, { stream: true })
+          const строки = хвост.split('\n')
+          хвост = строки.pop() ?? ''
+          строки.forEach(строку)
+        }
+      } else {
+        ;(await о.text()).split('\n').forEach(строку)
       }
-    } else {
-      ;(await о.text()).split('\n').forEach(строку)
+      строку(хвост)
+
+      const собрано = части.join('').trim()
+      if (!собрано && ошибка) throw new Error(ошибка)
+
+      logger.info('[trinityAgent] ответ получен', {
+        telegram_id: telegramId,
+        инструментов: инструменты.length,
+        инструменты: инструменты.slice(0, 8),
+        длина: собрано.length,
+      })
+
+      return { текст: собрано, инструменты, proposal } // cyrillic-ok: fields of ОтветАгента
+    } catch (e) {
+      throw questionAlreadyStored(e)
     }
-    строку(хвост)
-
-    const собрано = части.join('').trim()
-    if (!собрано && ошибка) throw new Error(ошибка)
-
-    logger.info('[trinityAgent] ответ получен', {
-      telegram_id: telegramId,
-      инструментов: инструменты.length,
-      инструменты: инструменты.slice(0, 8),
-      длина: собрано.length,
-    })
-
-    return { текст: собрано, инструменты, proposal } // cyrillic-ok: fields of ОтветАгента
   } finally {
     clearTimeout(таймер)
     // Only if it is still OURS: a newer question from the same person has

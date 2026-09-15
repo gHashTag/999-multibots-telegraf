@@ -409,9 +409,15 @@ export async function answerClient(
    * was down and the spare model answered, that answer never reached the
    * history at all: the next turn read a question with no answer beside it.
    *
-   * `recordedQuestion` is the difference between the two failures. A thrown
-   * call means the render never saw the turn and neither reply exists; an
-   * empty answer means it stored the question and only the answer is missing.
+   * `recordedQuestion` is the difference between the two failures. An empty
+   * answer means the render stored the question and only the answer is
+   * missing. A throw used to be read as "the render never saw the turn" --
+   * which is true only until the stream opens. The server writes head 200
+   * first, stores the person's line second and runs the agent third, so an
+   * error event inside the stream, or a socket cut halfway, leaves the
+   * question stored and this function would write it AGAIN. The answer comes
+   * from the error itself now (`questionStored`), not from the bare fact of
+   * a throw.
    */
   let recordedQuestion = false
   try {
@@ -424,9 +430,13 @@ export async function answerClient(
     if (said) return said
     logger.warn('[Business] agent answered nothing, falling back', { chatId })
   } catch (error) {
+    recordedQuestion = Boolean(
+      (error as { questionStored?: boolean })?.questionStored
+    )
     logger.warn('[Business] agent unreachable, falling back', {
       chatId,
       error: error instanceof Error ? error.message : String(error),
+      questionStored: recordedQuestion,
     })
   }
   const spare = await fallback()

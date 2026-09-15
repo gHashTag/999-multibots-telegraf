@@ -115,3 +115,81 @@ describe('the draft and its secret survive every chunk boundary', () => {
     expect(r.proposal).toBeUndefined()
   })
 })
+
+/**
+ * WHAT THE ERROR CARRIES DECIDES WHETHER THE QUESTION IS WRITTEN TWICE.
+ *
+ * The business fallback records the person's line again when the agent could
+ * not be reached, and skips it when the render already has it. It used to
+ * decide from the bare fact of a throw, which is wrong for everything that
+ * happens after the stream opens: the server writes head 200 first, stores
+ * the person's line second, runs the agent third. So an error event mid-stream
+ * leaves the question stored, and writing it again halves a memory window read
+ * as the last forty replies.
+ *
+ * Driven through the REAL agent call, because the flag is set there and a
+ * mock of it in the fallback's own test proves only the reader.
+ */
+describe('an error says whether the question was already stored', () => {
+  it('a failure INSIDE the stream is marked: the render has the question', async () => {
+    serve([
+      `${JSON.stringify({ ['тип']: 'ошибка', ['текст']: 'модель отказала' })}\n`,
+    ])
+    const { спроситьАгента: ask } = await import('@/services/trinityAgent') // cyrillic-ok
+    const e = await ask(OWNER, 'привет').catch(x => x)
+    expect(e, 'the call resolved instead of failing').toBeInstanceOf(Error)
+    expect(String(e.message)).toContain('модель отказала')
+    expect(
+      e.questionStored,
+      'the caller cannot tell this from a request that never arrived'
+    ).toBe(true)
+  })
+
+  it('a refusal BEFORE the stream is not marked: nothing was stored', async () => {
+    // 400 and 401 are answered above the line that stores the question.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 401,
+        body: null,
+        text: async () => 'нужен ключ',
+      }))
+    )
+    const { спроситьАгента: ask } = await import('@/services/trinityAgent') // cyrillic-ok
+    const e = await ask(OWNER, 'привет').catch(x => x)
+    expect(e).toBeInstanceOf(Error)
+    expect(String(e.message)).toContain('401')
+    expect(
+      e.questionStored,
+      'a refused request would stop the bot from writing the question at all'
+    ).toBeUndefined()
+  })
+
+  it('a socket cut halfway is marked too', async () => {
+    const enc = new TextEncoder()
+    let first = true
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              if (first) {
+                first = false
+                return { done: false, value: enc.encode('{"') }
+              }
+              throw new Error('socket hang up')
+            },
+          }),
+        },
+      }))
+    )
+    const { спроситьАгента: ask } = await import('@/services/trinityAgent') // cyrillic-ok
+    const e = await ask(OWNER, 'привет').catch(x => x)
+    expect(e).toBeInstanceOf(Error)
+    expect(e.questionStored).toBe(true)
+  })
+})

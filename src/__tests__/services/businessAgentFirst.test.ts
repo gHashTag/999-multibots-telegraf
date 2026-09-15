@@ -107,6 +107,34 @@ describe('answerClient', () => {
     ])
   })
 
+  /**
+   * A THROW IS NOT PROOF THAT NOTHING WAS STORED.
+   *
+   * The server writes head 200 first, stores the person's line second and
+   * runs the agent third. An error event inside the stream, or a socket cut
+   * halfway through it, therefore leaves the question ON RECORD -- and this
+   * function used to write it again, because it read every throw as "never
+   * arrived". The duplicate is invisible (both sides are plain INSERTs) and
+   * it halves a memory window read as the last forty replies.
+   *
+   * `спроситьАгента` attaches `questionStored` to exactly those errors.
+   */
+  it('writes only the ANSWER when the stream broke after the question was stored', async () => {
+    agentAnswer = async () => {
+      const e = new Error('агент оборвался на середине')
+      ;(e as { questionStored?: boolean }).questionStored = true
+      throw e
+    }
+    const { answerClient } = await import('@/services/businessBotService')
+    const fallback = vi.fn(async () => 'запасной')
+    expect(await answerClient('555', 'привет', fallback)).toBe('запасной')
+    await new Promise(r => setTimeout(r, 0))
+    expect(
+      recorded[0]?.turns,
+      'the question was written a second time on top of the render'
+    ).toEqual([{ role: 'assistant', content: 'запасной' }])
+  })
+
   it('an empty answer is not an answer: fallback', async () => {
     agentAnswer = async () => ({ текст: '   ' }) // cyrillic-ok: pre-existing field
     const { answerClient } = await import('@/services/businessBotService')
