@@ -80,7 +80,10 @@ async function myBots(telegramId: string): Promise<string[]> {
  * duplicated "who may see whom" is how one gets fixed and the other forgotten,
  * and the price here is a stranger's clients on a stranger's screen.
  */
-export async function областьВидимости(ctx?: ToolContext): Promise<string[] | null> { // cyrillic-ok: pre-existing name
+export async function областьВидимости(
+  ctx?: ToolContext
+): Promise<string[] | null> {
+  // cyrillic-ok: pre-existing name
   const who = ctx ? String(ctx.telegramId ?? '') : ''
   if (!who) {
     throw new Error(
@@ -146,7 +149,8 @@ const СТРАНИЦА = 1000
  * Пагинация идёт до КОРОТКОЙ страницы: ждать пустую — лишний запрос, а
  * «до потолка попыток» молча обрезало бы базу ровно так же, как PostgREST.
  */
-export async function запрос<T>(путь: string): Promise<T[]> { // cyrillic-ok: pre-existing name
+export async function запрос<T>(путь: string): Promise<T[]> {
+  // cyrillic-ok: pre-existing name
   const { url, key } = настройки()
   const всё: T[] = []
   for (let начало = 0; ; начало += СТРАНИЦА) {
@@ -203,11 +207,55 @@ function днейНазад(дата: string | null): number | null {
  * покупатель, а как раз горячий лид, и путать их значит терять самых
  * перспективных.
  */
-async function платившие(): Promise<Set<string>> {
-  const строки = await запрос<{ telegram_id: string | number }>(
+async function платившие(pool?: LedgerPool): Promise<Set<string>> {
+  // cyrillic-ok: pre-existing name
+  // cyrillic-ok: pre-existing name
+  const строки = await запрос<{ telegram_id: string | number }>( // cyrillic-ok: pre-existing name
     'payments_v2?select=telegram_id&status=eq.COMPLETED&type=eq.MONEY_INCOME'
   )
-  return new Set(строки.map(с => String(с.telegram_id)))
+  const out = new Set(строки.map(с => String(с.telegram_id))) // cyrillic-ok: pre-existing names
+  /*
+   * AND THE LIVE BOOK, WHICH IS WHERE THE MONEY ACTUALLY IS.
+   *
+   * payments_v2 has been an ARCHIVE since 2026-09-09: top-ups of the bot's
+   * own balance still reach it, but a Stars purchase of tokens does not --
+   * handleSuccessfulPayment credits through postStarsCredit and returns
+   * without writing a row. So everybody who bought tokens from the mini app,
+   * from the personal seller, or by a subscription renewal was invisible
+   * here, and every derived answer inherited that: stageOf never reached
+   * 'client', segmentOf never reached 'winback', and crm_leads reported
+   * `paid: false` about somebody whose token balance the neighbouring tool
+   * was printing from the live ledger.
+   *
+   * star_payments is that ledger's record of payment: one row per charge,
+   * written inside the same transaction that moves the balance. The two sets
+   * are unioned rather than swapped -- the archive still holds years of real
+   * payers and losing them would be the same defect pointing the other way.
+   *
+   * The pool is optional so no caller breaks; one that cannot supply it gets
+   * the archive alone, exactly as before.
+   */
+  if (pool) {
+    try {
+      const r = await pool.query(
+        `SELECT DISTINCT telegram_id FROM star_payments`
+      )
+      for (const row of (r?.rows ?? []) as Array<{ telegram_id?: unknown }>) {
+        const id = String(row?.telegram_id ?? '').trim()
+        if (id) out.add(id)
+      }
+    } catch {
+      // A live book that will not answer must not erase the archive's
+      // answer: an incomplete list of payers beats an empty one.
+    }
+  }
+  return out
+}
+
+/** Just enough of a pool to ask the live ledger who paid. */
+type LedgerPool = {
+  // cyrillic-ok: names in this file are pre-existing
+  query: (sql: string, params?: unknown[]) => Promise<{ rows?: unknown[] }>
 }
 
 async function люди(область: string[] | null): Promise<Человек[]> {
@@ -260,7 +308,10 @@ export const CRM_TOOLS: AgentTool[] = [
     parameters: noArgs,
     async handler(_a, ctx) {
       const область = await областьВидимости(ctx)
-      const [все, платят] = await Promise.all([люди(область), платившие()])
+      const [все, платят] = await Promise.all([
+        люди(область),
+        платившие(ctx?.pool as LedgerPool | undefined), // cyrillic-ok: pre-existing name
+      ])
 
       const свежие = (дней: number) =>
         все.filter(ч => {
@@ -311,7 +362,8 @@ export const CRM_TOOLS: AgentTool[] = [
       properties: {
         дней: {
           type: 'number',
-          description: 'считать недавним заход за столько дней (по умолчанию 14)',
+          description:
+            'считать недавним заход за столько дней (по умолчанию 14)',
         },
         quiet_days: {
           type: 'number',
@@ -323,14 +375,18 @@ export const CRM_TOOLS: AgentTool[] = [
     async handler(a: any, ctx) {
       const область = await областьВидимости(ctx)
       const окно = Number(a?.дней) > 0 ? Math.floor(Number(a.дней)) : 14
-      const [все, платят] = await Promise.all([люди(область), платившие()])
+      const [все, платят] = await Promise.all([
+        люди(область),
+        платившие(ctx?.pool as LedgerPool | undefined), // cyrillic-ok: pre-existing name
+      ])
       const лиды = все
         .filter(ч => {
           const d = днейНазад(ч.updated_at)
           return d !== null && d <= окно && !платят.has(String(ч.telegram_id))
         })
         .sort(
-          (x, y) => (днейНазад(x.updated_at) ?? 1e9) - (днейНазад(y.updated_at) ?? 1e9)
+          (x, y) =>
+            (днейНазад(x.updated_at) ?? 1e9) - (днейНазад(y.updated_at) ?? 1e9)
         )
       /*
        * ALREADY-TOUCHED LEADS ARE SET ASIDE, AND THE COUNT IS STATED.
@@ -345,7 +401,11 @@ export const CRM_TOOLS: AgentTool[] = [
       const quietDays =
         Number(a?.quiet_days) > 0 ? Math.floor(Number(a.quiet_days)) : 30
       const touched = ctx?.pool
-        ? await touchedSince(ctx.pool as never, String(ctx.telegramId), quietDays)
+        ? await touchedSince(
+            ctx.pool as never,
+            String(ctx.telegramId),
+            quietDays
+          )
         : new Map()
       const fresh = лиды.filter(p => !touched.has(String(p.telegram_id))) // cyrillic-ok
       return {
@@ -381,13 +441,19 @@ export const CRM_TOOLS: AgentTool[] = [
       const область = await областьВидимости(ctx)
       const порог =
         Number(a?.молчит_дней) > 0 ? Math.floor(Number(a.молчит_дней)) : 30
-      const [все, платят] = await Promise.all([люди(область), платившие()])
+      const [все, платят] = await Promise.all([
+        люди(область),
+        платившие(ctx?.pool as LedgerPool | undefined), // cyrillic-ok: pre-existing name
+      ])
       const ушедшие = все
         .filter(ч => {
           const d = днейНазад(ч.updated_at)
           return d !== null && d >= порог && платят.has(String(ч.telegram_id))
         })
-        .sort((x, y) => (днейНазад(y.updated_at) ?? 0) - (днейНазад(x.updated_at) ?? 0))
+        .sort(
+          (x, y) =>
+            (днейНазад(y.updated_at) ?? 0) - (днейНазад(x.updated_at) ?? 0)
+        )
       return {
         порог_дней: порог,
         найдено: ушедшие.length,

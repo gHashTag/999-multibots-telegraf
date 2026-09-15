@@ -221,7 +221,7 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
 
       const [people, paid, touches] = await Promise.all([
         audienceOf(scope),
-        whoPaid(),
+        whoPaid(ctx.pool as never),
         touchesByLead(ctx.pool as never, String(ctx.telegramId)),
       ])
 

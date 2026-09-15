@@ -293,7 +293,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const touched = await touchedSince(pool, owner, 60).catch(
         () => new Map<string, { kind: string; at: string }>()
       )
-      const paidSet = await whoPaid().catch(() => new Set<string>())
+      const paidSet = await whoPaid(pool as never).catch(
+        () => new Set<string>()
+      )
       /*
        * The whole folded history, beside the windowed `touched`.
        *
