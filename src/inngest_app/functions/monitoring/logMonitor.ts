@@ -1,10 +1,18 @@
 import { inngest } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
-import { readFileSync, existsSync } from 'fs'
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  readSync,
+  statSync,
+} from 'fs'
 import { join } from 'path'
 import { OpenAI } from 'openai'
 import { getMonitoringBot } from './monitoringBot'
 import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
+import { resolveAlertDestination } from '@/services/telegram-log.service'
 import { createInngestFailureHandler } from '@/inngest_app/client'
 import {
   fetchFunctionsStatusSafe,
@@ -14,25 +22,123 @@ import {
 // Константы для бота и группы
 // Токен бота больше не хардкодится: см. getMonitoringBot() в ./monitoringBot
 // Временно отправляем админу, пока бот не добавлен в группу
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '144022504'
-const GROUP_CHAT_ID = ADMIN_TELEGRAM_ID // Используем ID админа вместо группы
+/**
+ * WHERE THE DAILY REPORT GOES -- AND WHY IT WENT NOWHERE.
+ *
+ * `ADMIN_TELEGRAM_ID` was passed to `sendMessage` raw. On the production
+ * service that variable is not one id: measured 2026-09-15 it is twenty
+ * characters holding TWO ids joined by a comma. Telegram's chat_id is a single
+ * integer or a single @username, so the send answered 400 "chat not found",
+ * `sendTelegramNotification` rethrew, the Inngest step failed, it retried twice
+ * and onFailure fired. The 13:00 report reached nobody.
+ *
+ * `resolveAlertDestination()` (src/services/telegram-log.service.ts) is the
+ * house answer to exactly this: LOG_GROUP_ID if someone set it, otherwise the
+ * FIRST id out of the comma-separated list. Six other call sites already split
+ * on the comma; these two monitors were the only ones in src that did not.
+ */
+const { chatId: GROUP_CHAT_ID } = resolveAlertDestination()
+const ADMIN_DIRECT_CHAT_ID = GROUP_CHAT_ID
 
-// Ленивая инициализация OpenAI (загружается при первом использовании)
-let openai: OpenAI | null = null
-function getOpenAI(): OpenAI {
-  if (!openai) {
-    const apiKey = process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY or DEEPSEEK_API_KEY is required')
+/**
+ * ONE PROVIDER, CHOSEN ONCE -- AND ONE THAT ANSWERS.
+ *
+ * The key came from `OPENAI_API_KEY || DEEPSEEK_API_KEY` while the endpoint and
+ * the model came from `DEEPSEEK_API_KEY ? … : …`. Both variables are set on the
+ * production service, so the OpenAI key was POSTed to api.deepseek.com, which
+ * answered `401 Authentication Fails, Your api key: ****ex0A is invalid` every
+ * day at 13:00. The tail it names is OPENAI_API_KEY's, not DEEPSEEK_API_KEY's,
+ * so the door was provably the wrong one.
+ *
+ * Pairing them correctly is necessary and not sufficient: measured 2026-09-15,
+ * each of those two keys is ALSO rejected by its own endpoint --
+ * api.openai.com/v1/models answers 401 "Incorrect API key provided" and
+ * api.deepseek.com answers 401 for `****0aee`. Both need rotating; neither can
+ * carry this report today.
+ *
+ * Z.AI can, and it is already deployed. Measured against the live service:
+ *   GLM_API_KEY + ZAI_BASE_URL (= https://api.z.ai/api/coding/paas/v4)
+ *     + GLM_MODEL (= glm-5.3)                          -> HTTP 200
+ *   the same key against https://api.z.ai/api/paas/v4  -> HTTP 429, code 1113,
+ *     "Insufficient balance or no resource package"
+ * So the Coding-Plan path is the only one this key may use, and ZAI_BASE_URL
+ * already names it. Never default to the standard endpoint.
+ *
+ * GLM is a REASONING model and `max_tokens` is charged for the thinking too:
+ * the same ping at max_tokens 16 spent all 16 on reasoning and returned an
+ * EMPTY content with finish_reason "stop", while at 900 it answered "pong"
+ * after 59 tokens (56 of them reasoning). `thinking: {type: 'disabled'}` drops
+ * that to 3. The report needs the answer, not the deliberation, so it is off --
+ * which is also what keeps the response inside the budget below.
+ */
+export interface MonitorProvider {
+  apiKey: string
+  baseURL?: string
+  model: string
+  name: 'zai' | 'openai' | 'deepseek'
+  /** Extra body fields this provider needs; empty for plain OpenAI-shaped ones. */
+  extraBody: Record<string, unknown>
+}
+
+const ZAI_CODING_BASE_URL = 'https://api.z.ai/api/coding/paas/v4'
+
+export function resolveMonitorProvider(
+  env: NodeJS.ProcessEnv = process.env
+): MonitorProvider | null {
+  const glmKey = (env.GLM_API_KEY || '').trim()
+  if (glmKey) {
+    return {
+      apiKey: glmKey,
+      baseURL: (env.ZAI_BASE_URL || '').trim() || ZAI_CODING_BASE_URL,
+      model: env.LOG_MONITOR_MODEL || env.GLM_MODEL || 'glm-5.3',
+      name: 'zai',
+      extraBody: { thinking: { type: 'disabled' } },
     }
-    openai = new OpenAI({
-      apiKey,
-      baseURL: process.env.DEEPSEEK_API_KEY
-        ? 'https://api.deepseek.com'
-        : undefined,
-    })
   }
-  return openai
+  const openaiKey = (env.OPENAI_API_KEY || '').trim()
+  if (openaiKey) {
+    return {
+      apiKey: openaiKey,
+      model: env.LOG_MONITOR_MODEL || 'gpt-4o-mini',
+      name: 'openai',
+      extraBody: {},
+    }
+  }
+  const deepseekKey = (env.DEEPSEEK_API_KEY || '').trim()
+  if (deepseekKey) {
+    return {
+      apiKey: deepseekKey,
+      baseURL: 'https://api.deepseek.com',
+      model: env.LOG_MONITOR_MODEL || 'deepseek-chat',
+      name: 'deepseek',
+      extraBody: {},
+    }
+  }
+  return null
+}
+
+// The client is created lazily, on first use.
+// The cache is keyed on the door it was built for: a bare `if (!openai)` kept
+// the first client for the life of the process, so changing the provider in
+// Railway left the old base URL in place until something restarted the service.
+let openai: OpenAI | null = null
+let openaiKeyedOn = ''
+function getOpenAI(): { client: OpenAI; provider: MonitorProvider } {
+  const provider = resolveMonitorProvider()
+  if (!provider) {
+    throw new Error(
+      'GLM_API_KEY, OPENAI_API_KEY or DEEPSEEK_API_KEY is required'
+    )
+  }
+  const cacheKey = `${provider.name}|${provider.baseURL ?? ''}|${provider.apiKey.slice(-6)}`
+  if (!openai || openaiKeyedOn !== cacheKey) {
+    openai = new OpenAI({
+      apiKey: provider.apiKey,
+      baseURL: provider.baseURL,
+    })
+    openaiKeyedOn = cacheKey
+  }
+  return { client: openai, provider }
 }
 
 // Интерфейс для результата анализа
@@ -80,6 +186,34 @@ export function defaultLogDir(): string {
   return process.env.LOG_DIR || join(process.cwd(), 'logs')
 }
 
+/**
+ * The comment on the old body promised "the last 10000 characters" and then
+ * read the entire file. combined.log has no maxsize/maxFiles/tailable in
+ * logger.ts, so it grows without bound between deploys, and this is a
+ * synchronous read on the event loop. Only the last 24 hours survive
+ * filterLast24Hours and only the last 50KB of that is ever sent, so a 2MB tail
+ * is already far more than the function can use.
+ */
+const MAX_LOG_TAIL_BYTES = 2 * 1024 * 1024
+
+function readLogTail(logPath: string): string {
+  const { size } = statSync(logPath)
+  if (size <= MAX_LOG_TAIL_BYTES) return readFileSync(logPath, 'utf-8')
+
+  const fd = openSync(logPath, 'r')
+  try {
+    const buffer = Buffer.allocUnsafe(MAX_LOG_TAIL_BYTES)
+    readSync(fd, buffer, 0, MAX_LOG_TAIL_BYTES, size - MAX_LOG_TAIL_BYTES)
+    const text = buffer.toString('utf-8')
+    // The window opens mid-line; that fragment has no timestamp and would be
+    // dropped by filterLast24Hours anyway. Remove it so it cannot be counted.
+    const firstBreak = text.indexOf('\n')
+    return firstBreak === -1 ? text : text.slice(firstBreak + 1)
+  } finally {
+    closeSync(fd)
+  }
+}
+
 async function readLogs(): Promise<string> {
   const logPath = join(defaultLogDir(), 'combined.log')
 
@@ -89,8 +223,7 @@ async function readLogs(): Promise<string> {
   }
 
   try {
-    // Читаем последние 10000 символов логов (чтобы не перегружать AI)
-    const fullLog = readFileSync(logPath, 'utf-8')
+    const fullLog = readLogTail(logPath)
     const last24Hours = filterLast24Hours(fullLog)
     return last24Hours.slice(-50000) // Последние 50KB логов
   } catch (error) {
@@ -190,11 +323,9 @@ async function analyzeLogs(logs: string): Promise<LogAnalysisResult> {
 }`
 
   try {
-    const client = getOpenAI()
+    const { client, provider } = getOpenAI()
     const response = await client.chat.completions.create({
-      model: process.env.DEEPSEEK_API_KEY
-        ? 'deepseek-chat'
-        : 'gpt-4-turbo-preview',
+      model: provider.model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Проанализируй следующие логи:\n\n${logs}` },
@@ -202,30 +333,104 @@ async function analyzeLogs(logs: string): Promise<LogAnalysisResult> {
       response_format: { type: 'json_object' },
       temperature: 0.3,
       max_tokens: 2000,
+      // Spread, not a literal field: `thinking` is a Z.AI extension and the
+      // OpenAI SDK's parameter type has no room for it.
+      ...provider.extraBody,
     })
 
-    const result = JSON.parse(response.choices[0].message.content || '{}')
-    return result as LogAnalysisResult
+    const parsed = JSON.parse(response.choices[0].message.content || '{}')
+    if (!isLogAnalysisResult(parsed)) {
+      // `as LogAnalysisResult` on an unchecked parse is a promise, not a check.
+      // generateTelegramMessage then does Object.keys(analysis.statistics) and
+      // analysis.errors.length -- both throw on `{}`, and they throw in a
+      // DIFFERENT Inngest step, outside this catch, where the failure is not a
+      // degraded report but no report at all. An empty content field is enough
+      // to get there: `|| '{}'` turns it into a legal object of the wrong shape.
+      return basicLogAnalysis(
+        logs,
+        `ИИ вернул ответ неожиданной формы (${provider.name}/${provider.model})`
+      )
+    }
+    return parsed
   } catch (error) {
     logger.error('Error analyzing logs with AI:', error)
 
-    // Fallback анализ без AI
-    return basicLogAnalysis(logs)
+    // Fall back to analysis without AI -- and the report is obliged to say
+    // that the AI did not answer.
+    return basicLogAnalysis(
+      logs,
+      error instanceof Error ? error.message : String(error)
+    )
   }
 }
 
-// Базовый анализ логов без AI
-function basicLogAnalysis(logs: string): LogAnalysisResult {
-  const lines = logs.split('\n')
-  const errors = lines.filter(line => line.includes('"level":"error"')).length
-  const warnings = lines.filter(line => line.includes('"level":"warn"')).length
-  const info = lines.filter(line => line.includes('"level":"info"')).length
+/**
+ * HOW MANY ERRORS, IN THE FORMAT THIS APPLICATION ACTUALLY WRITES.
+ *
+ * The counter matched the substring `"level":"error"` -- JSON. The application
+ * logger is `format.printf` (src/utils/logger.ts) and writes
+ * `2026-09-15 09:00:01 [ERROR]: …`, which contains no such fragment. So every
+ * line of every log was counted as neither error nor warning: the owner was
+ * told `Ошибок: 0` and `Система работает стабильно` on three consecutive days
+ * that each carried a dozen 🚨 alerts. Measured on a real combined.log written
+ * by this very logger: 0 lines matched the JSON form, 9 matched `[ERROR]`.
+ *
+ * Both shapes are accepted now, because the security logger does write JSON.
+ * Each line is classified ONCE, printf form first: a line may carry the other
+ * form inside its metadata -- `logger.info('…', { level: 'error' })` prints
+ * `[INFO]: … {"level":"error"}` -- and counting per level independently would
+ * have charged that one line to two different levels at once.
+ */
+export function countLogLevels(lines: string[]): {
+  errors: number
+  warnings: number
+  info: number
+} {
+  const printf = /\[(ERROR|WARN|INFO)\]:/
+  const json = /"level":"(error|warn|info)"/
+  const counts = { errors: 0, warnings: 0, info: 0 }
 
-  const status = errors > 10 ? 'critical' : errors > 5 ? 'warning' : 'healthy'
+  for (const line of lines) {
+    const level = (
+      printf.exec(line)?.[1] ??
+      json.exec(line)?.[1] ??
+      ''
+    ).toLowerCase()
+    if (level === 'error') counts.errors++
+    else if (level === 'warn') counts.warnings++
+    else if (level === 'info') counts.info++
+  }
+
+  return counts
+}
+
+// Базовый анализ логов без AI
+export function basicLogAnalysis(
+  logs: string,
+  aiFailure?: string
+): LogAnalysisResult {
+  const lines = logs.split('\n').filter(line => line.trim().length > 0)
+  const { errors, warnings, info } = countLogLevels(lines)
+
+  // An analysis produced without the AI is not the same claim as one produced
+  // with it. A provider outage downgrades the verdict; it never yields ✅.
+  const status = aiFailure
+    ? errors > 10
+      ? 'critical'
+      : 'warning'
+    : errors > 10
+      ? 'critical'
+      : errors > 5
+        ? 'warning'
+        : 'healthy'
 
   return {
     status,
-    summary: `Обработано ${lines.length} записей логов. Ошибок: ${errors}, Предупреждений: ${warnings}`,
+    summary:
+      `Обработано ${lines.length} записей логов. Ошибок: ${errors}, Предупреждений: ${warnings}` +
+      (aiFailure
+        ? `\n⚠️ ИИ-анализ недоступен (${aiFailure.slice(0, 160)}) — ниже только подсчёт строк.`
+        : ''),
     errors:
       errors > 0
         ? [
@@ -250,11 +455,32 @@ function basicLogAnalysis(logs: string): LogAnalysisResult {
       totalRequests: info,
       errorRate: (errors / (lines.length || 1)) * 100,
     },
-    recommendations:
+    recommendations: [
+      ...(aiFailure ? ['Починить ключ ИИ-анализа: отчёт собран без него'] : []),
       errors > 0
-        ? ['Исследовать и устранить источники ошибок']
-        : ['Система работает стабильно'],
+        ? 'Исследовать и устранить источники ошибок'
+        : aiFailure
+          ? 'Ошибок в строках не найдено — но это не проверено ИИ'
+          : 'Система работает стабильно',
+    ],
   }
+}
+
+function isLogAnalysisResult(value: unknown): value is LogAnalysisResult {
+  const v = value as LogAnalysisResult
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    (v.status === 'healthy' ||
+      v.status === 'warning' ||
+      v.status === 'critical') &&
+    typeof v.summary === 'string' &&
+    Array.isArray(v.errors) &&
+    Array.isArray(v.warnings) &&
+    Array.isArray(v.recommendations) &&
+    !!v.statistics &&
+    typeof v.statistics === 'object'
+  )
 }
 
 // Генерация креативного сообщения для Telegram
@@ -370,10 +596,16 @@ async function sendTelegramNotification(message: string): Promise<void> {
       link_preview_options: { is_disabled: true },
     })
 
-    // Если есть критические ошибки, дублируем администратору
-    if (message.includes('🚨')) {
+    // Если есть критические ошибки, дублируем администратору.
+    // The duplicate used to be unconditional while GROUP_CHAT_ID *was*
+    // ADMIN_TELEGRAM_ID, so both copies landed in the same chat -- the owner
+    // read the same report twice, the second one under a CRITICAL heading. The
+    // branch had never actually run, because the status was pinned to
+    // 'healthy' by the broken counter; repairing the counter makes it
+    // reachable, so it has to know the difference now.
+    if (message.includes('🚨') && ADMIN_DIRECT_CHAT_ID !== GROUP_CHAT_ID) {
       await bot.telegram.sendMessage(
-        ADMIN_TELEGRAM_ID,
+        ADMIN_DIRECT_CHAT_ID,
         `🚨 <b>КРИТИЧЕСКОЕ УВЕДОМЛЕНИЕ</b>\n\n${message}`,
         { parse_mode: 'HTML' }
       )

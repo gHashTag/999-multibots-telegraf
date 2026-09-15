@@ -3,6 +3,8 @@ import { logger } from '@/utils/logger'
 import { OpenAI } from 'openai'
 import { getMonitoringBot } from './monitoringBot'
 import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
+import { resolveMonitorProvider, type MonitorProvider } from './logMonitor'
+import { resolveAlertDestination } from '@/services/telegram-log.service'
 
 /**
  * Render whatever the sender put in `event.data.error` as readable text.
@@ -43,26 +45,33 @@ export function renderErrorStack(
   return undefined
 }
 
-// Константы
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '144022504'
-const GROUP_CHAT_ID = ADMIN_TELEGRAM_ID // Временно используем ID админа
+// Константы.
+// ADMIN_TELEGRAM_ID is a comma-separated LIST on the production service, and
+// Telegram's chat_id is one id. Passing it raw returned 400 "chat not found",
+// so every alert this monitor ever raised failed to arrive. Same defect, same
+// remedy as logMonitor.ts: resolveAlertDestination() takes the first id.
+const { chatId: GROUP_CHAT_ID } = resolveAlertDestination()
+const ADMIN_DIRECT_CHAT_ID = GROUP_CHAT_ID
 
-// Ленивая инициализация OpenAI (загружается при первом использовании)
+/**
+ * The same key-to-the-wrong-door wiring that made logMonitor fail its 401 every
+ * day at 13:00 lived here byte for byte. One resolver now serves both.
+ */
 let openai: OpenAI | null = null
-function getOpenAI(): OpenAI {
-  if (!openai) {
-    const apiKey = process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY or DEEPSEEK_API_KEY is required')
-    }
-    openai = new OpenAI({
-      apiKey,
-      baseURL: process.env.DEEPSEEK_API_KEY
-        ? 'https://api.deepseek.com'
-        : undefined,
-    })
+let openaiKeyedOn = ''
+function getOpenAI(): { client: OpenAI; provider: MonitorProvider } {
+  const provider = resolveMonitorProvider()
+  if (!provider) {
+    throw new Error(
+      'GLM_API_KEY, OPENAI_API_KEY or DEEPSEEK_API_KEY is required'
+    )
   }
-  return openai
+  const cacheKey = `${provider.name}|${provider.baseURL ?? ''}|${provider.apiKey.slice(-6)}`
+  if (!openai || openaiKeyedOn !== cacheKey) {
+    openai = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
+    openaiKeyedOn = cacheKey
+  }
+  return { client: openai, provider }
 }
 
 interface ErrorContext {
@@ -105,11 +114,9 @@ async function analyzeError(errorContext: ErrorContext): Promise<{
 }`
 
   try {
-    const client = getOpenAI()
+    const { client, provider } = getOpenAI()
     const response = await client.chat.completions.create({
-      model: process.env.DEEPSEEK_API_KEY
-        ? 'deepseek-chat'
-        : 'gpt-4-turbo-preview',
+      model: provider.model,
       messages: [
         {
           role: 'system',
@@ -121,6 +128,10 @@ async function analyzeError(errorContext: ErrorContext): Promise<{
       response_format: { type: 'json_object' },
       temperature: 0.3,
       max_tokens: 800,
+      // GLM charges reasoning against max_tokens: at 16 it spent all of them
+      // thinking and returned empty content with finish_reason "stop". See the
+      // measurement in logMonitor.ts.
+      ...provider.extraBody,
     })
 
     return JSON.parse(response.choices[0].message.content || '{}')
@@ -195,10 +206,13 @@ async function sendErrorNotification(
       link_preview_options: { is_disabled: true },
     })
 
-    // Для критических ошибок дублируем админу
-    if (urgency === 'immediate') {
+    // A critical error is copied to the admin -- but only if that really is a
+    // different address. GROUP_CHAT_ID *was* ADMIN_TELEGRAM_ID, so the
+    // "duplicate" landed in the very same chat and the owner read every
+    // immediate alert twice.
+    if (urgency === 'immediate' && ADMIN_DIRECT_CHAT_ID !== GROUP_CHAT_ID) {
       await bot.telegram.sendMessage(
-        ADMIN_TELEGRAM_ID,
+        ADMIN_DIRECT_CHAT_ID,
         `🚨 <b>КРИТИЧЕСКАЯ ОШИБКА!</b>\n\n${message}`,
         { parse_mode: 'HTML' }
       )

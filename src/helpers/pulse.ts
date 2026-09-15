@@ -1,6 +1,11 @@
 import { getPulseBot } from '@/core/bot'
 import fs from 'fs'
 import { logger } from '@/utils/logger'
+import {
+  isPulseDestinationDead,
+  reportPulseFailure,
+  resolvePulseChatId,
+} from './pulseDestination'
 
 // Для обратной совместимости поддерживаем старый формат
 export const pulse = async (
@@ -49,7 +54,7 @@ export const pulse = async (
               username || 'User without username'
             } Telegram ID: ${telegramId} generated an image with a prompt: ${truncatedPrompt} \n\n Service: ${service}`
 
-        const chatId = '-1002737186844' // НейроМентор - основной чат для всех логов
+        const chatId = resolvePulseChatId()
 
         // Отправляем по URL вместо локального файла
         await pulseBot.telegram.sendPhoto(
@@ -91,7 +96,7 @@ export const pulse = async (
           username || 'User without username'
         } Telegram ID: ${telegram_id} generated an image with a prompt: ${truncatedPrompt} \n\n Command: ${command} \n\n Bot: @${bot_name}`
 
-    const chatId = '-1002737186844' // НейроМентор - Приватный канал
+    const chatId = resolvePulseChatId()
 
     // send image as buffer
     await pulseBot.telegram.sendPhoto(
@@ -100,15 +105,18 @@ export const pulse = async (
       { caption }
     )
   } catch (error) {
-    logger.error('❌ Ошибка при отправке в pulse', {
-      description: 'Error sending to pulse',
-      error: (error as Error).message,
-      stack: (error as Error).stack,
-      telegram_id,
-      username,
-      command,
-      bot_name,
-    })
+    reportPulseFailure(
+      'Ошибка при отправке в pulse',
+      resolvePulseChatId(),
+      error,
+      {
+        telegram_id,
+        username,
+        command,
+        bot_name,
+        stack: error instanceof Error ? error.stack : undefined,
+      }
+    )
   }
 }
 
@@ -157,7 +165,19 @@ function escapeHTML(text: string): string {
 export const sendMediaToPulse = async (
   options: MediaPulseOptions
 ): Promise<void> => {
-  const chatId = '-1002737186844' // НейроМентор - Приватный канал
+  const chatId = resolvePulseChatId()
+
+  // A destination that just answered "chat not found" will answer it again for
+  // every image. Skip quietly until the latch expires instead of re-alerting.
+  if (isPulseDestinationDead(chatId)) {
+    logger.info('⏸️ [pulse] Пропуск отправки: канал помечен недоступным', {
+      description: 'Skipping pulse send: destination marked unreachable',
+      chatId,
+      telegramId: options.telegramId,
+      mediaType: options.mediaType,
+    })
+    return
+  }
 
   try {
     // ✅ Получаем pulseBot с ленивой инициализацией
@@ -275,44 +295,24 @@ export const sendMediaToPulse = async (
             promptAvailable: !!prompt,
           })
         } catch (photoError) {
-          // Extract Telegram error details
-          const telegramError = photoError as any
-          const errorCode = telegramError?.response?.error_code
-          const errorDesc = telegramError?.response?.description
-
-          logger.error('❌ [pulse] Ошибка при отправке ФОТО', {
-            description: 'Error sending PHOTO in pulse',
-            error:
-              photoError instanceof Error
-                ? photoError.message
-                : String(photoError),
-            errorDetails:
-              photoError instanceof Error
-                ? {
-                    name: photoError.name,
-                    stack: photoError.stack,
-                    cause: photoError.cause,
-                  }
-                : photoError,
-            telegramId: rawTelegramId,
-            username: rawUsername,
+          const destinationDead = reportPulseFailure(
+            'Ошибка при отправке ФОТО',
             chatId,
-            mediaType,
-            isUrl:
-              typeof mediaSource === 'string' &&
-              (mediaSource.startsWith('http://') ||
-                mediaSource.startsWith('https://')),
-            mediaSourcePreview:
-              typeof mediaSource === 'string'
-                ? mediaSource.substring(0, 100)
-                : 'Buffer',
-            // 🔍 Диагностика: Telegram API error response
-            telegramErrorCode: errorCode,
-            telegramErrorDescription: errorDesc,
-            telegramErrorPayload: telegramError?.response?.parameters,
-            botInitialized: !!pulseBot,
-          })
-          // Продолжаем попытку отправить текст, если фото не ушло
+            photoError,
+            {
+              telegramId: rawTelegramId,
+              username: rawUsername,
+              mediaType,
+              mediaSourcePreview:
+                typeof mediaSource === 'string'
+                  ? mediaSource.substring(0, 100)
+                  : 'Buffer',
+            }
+          )
+          // The text below goes to the SAME chat. If the chat is gone, sending
+          // it is two more guaranteed failures and two more alerts.
+          if (destinationDead) return
+          // Otherwise keep the old behaviour: a photo may fail where text works.
         }
 
         // 2. Формируем и отправляем текстовое сообщение с полным промптом и доп. информацией
@@ -404,41 +404,22 @@ export const sendMediaToPulse = async (
               )
             }
           } catch (textError) {
-            // Extract Telegram error details
-            const telegramError = textError as any
-            const errorCode = telegramError?.response?.error_code
-            const errorDesc = telegramError?.response?.description
-
-            logger.error(
-              '❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)',
+            const destinationDead = reportPulseFailure(
+              'Ошибка при отправке ТЕКСТА с промптом (HTML)',
+              chatId,
+              textError,
               {
-                description:
-                  'Error sending TEXT message with prompt in pulse (HTML)',
-                error:
-                  textError instanceof Error
-                    ? textError.message
-                    : String(textError),
-                errorDetails:
-                  textError instanceof Error
-                    ? {
-                        name: textError.name,
-                        stack: textError.stack,
-                        cause: textError.cause,
-                      }
-                    : textError,
                 telegramId: rawTelegramId,
                 username: rawUsername,
-                chatId,
                 textMessageLength: textMessage.length,
-                textMessagePreview: textMessage.substring(0, 300) + '...',
                 parseMode: 'HTML',
                 promptLength: prompt?.length ?? 0,
-                // 🔍 Диагностика: Telegram API error response
-                telegramErrorCode: errorCode,
-                telegramErrorDescription: errorDesc,
-                telegramErrorPayload: telegramError?.response?.parameters,
               }
             )
+            // The retry below exists for `can't parse entities` and for messages
+            // that are too long. Neither is cured by dropping the formatting
+            // when the chat itself is unreachable.
+            if (destinationDead) return
             // ---> УПРОЩЕННЫЙ FALLBACK: Обрезаем промпт и отправляем без форматирования
             try {
               logger.warn(
@@ -462,15 +443,11 @@ export const sendMediaToPulse = async (
                 telegramId: rawTelegramId,
               })
             } catch (retryError) {
-              logger.error(
-                '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)',
-                {
-                  error:
-                    retryError instanceof Error
-                      ? retryError.message
-                      : String(retryError),
-                  telegramId: rawTelegramId,
-                }
+              reportPulseFailure(
+                'Ошибка при повторной отправке ТЕКСТА (без форматирования)',
+                chatId,
+                retryError,
+                { telegramId: rawTelegramId }
               )
             }
           }
@@ -507,33 +484,16 @@ export const sendMediaToPulse = async (
               telegramId: rawTelegramId,
             })
           } catch (textError) {
-            // Extract Telegram error details
-            const telegramError = textError as any
-
-            logger.error('❌ [pulse] Ошибка при отправке ТЕКСТА без промпта', {
-              description: 'Error sending TEXT message without prompt in pulse',
-              error:
-                textError instanceof Error
-                  ? textError.message
-                  : String(textError),
-              errorDetails:
-                textError instanceof Error
-                  ? {
-                      name: textError.name,
-                      stack: textError.stack,
-                      cause: textError.cause,
-                    }
-                  : textError,
-              telegramId: rawTelegramId,
+            reportPulseFailure(
+              'Ошибка при отправке ТЕКСТА без промпта',
               chatId,
-              textMessageLength: textMessage.length,
-              textMessagePreview: textMessage.substring(0, 300) + '...',
-              parseMode: 'HTML',
-              // 🔍 Диагностика: Telegram API error response
-              telegramErrorCode: telegramError?.response?.error_code,
-              telegramErrorDescription: telegramError?.response?.description,
-              telegramErrorPayload: telegramError?.response?.parameters,
-            })
+              textError,
+              {
+                telegramId: rawTelegramId,
+                textMessageLength: textMessage.length,
+                parseMode: 'HTML',
+              }
+            )
           }
         }
         break
@@ -557,23 +517,12 @@ export const sendMediaToPulse = async (
       telegramId: rawTelegramId,
     })
   } catch (error) {
-    logger.error('❌ Ошибка при отправке медиа в pulse', {
-      description: 'Error sending media to pulse channel',
-      error: (error as Error).message,
-      errorDetails:
-        error instanceof Error
-          ? {
-              name: error.name,
-              stack: error.stack,
-              cause: error.cause,
-            }
-          : error,
-      options,
+    reportPulseFailure('Ошибка при отправке медиа в pulse', chatId, error, {
       telegramId: options.telegramId,
       username: options.username,
       serviceType: options.serviceType,
       mediaType: options.mediaType,
-      chatId,
+      stack: error instanceof Error ? error.stack : undefined,
     })
   }
 }
