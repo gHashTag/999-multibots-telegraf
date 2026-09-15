@@ -345,3 +345,83 @@ describe('the cancel columns are added once per process', () => {
     expect(ok.sqls.length, 'a second ALTER after success').toBe(1)
   })
 })
+
+/**
+ * A SUBSCRIPTION IS A DIFFERENT INVOICE, NOT THE SAME ONE REPEATED.
+ *
+ * Telegram bills it every thirty days by itself. Three things have to be
+ * right or somebody is charged for nothing: the period must be exactly the
+ * one Telegram accepts, the ceiling is ten times lower than a one-off, and
+ * the payload must say "subscription" so the bot credits every renewal and
+ * BotSubscriptionUpdated can be matched to a person later.
+ *
+ * The numbers here are not guesses: token-packs.ts records a live measurement
+ * from 2026-09-09 -- 10000 accepted, 10001 rejected, period 2592000 accepted.
+ */
+describe('a subscription invoice', () => {
+  const mint = (over: Record<string, unknown> = {}) => ({
+    forTelegramId: '900000001',
+    tokens: 150,
+    botToken: 'test-token', // secret-guard-ok: invented here
+    subscription: true,
+    ...over,
+  })
+
+  it('asks Telegram for the only period Telegram takes', async () => {
+    const { posted, f } = recorder()
+    await mintTokenInvoice(mint({ fetchImpl: f }) as never)
+    expect(posted[0].body.subscription_period).toBe(2592000)
+    expect(posted[0].body.currency).toBe('XTR')
+  })
+
+  it('says so in the payload, or every renewal credits nobody', async () => {
+    const { posted, f } = recorder()
+    await mintTokenInvoice(mint({ fetchImpl: f }) as never)
+    expect(posted[0].body.payload).toBe('subtokens:150:900000001')
+  })
+
+  it('leaves a one-off invoice exactly as it was', async () => {
+    const { posted, f } = recorder()
+    await mintTokenInvoice(mint({ fetchImpl: f, subscription: false }) as never)
+    expect(posted[0].body.payload).toBe('tokens:150:900000001')
+    expect('subscription_period' in posted[0].body).toBe(false)
+  })
+
+  it('refuses above the subscription ceiling, with the real number', async () => {
+    // 10000 stars is where Telegram answers SUBSCRIPTION_AMOUNT_INVALID. A
+    // one-off of the same size is fine, which is exactly why this cannot
+    // lean on the one-off check.
+    const { posted, f } = recorder()
+    await expect(
+      mintTokenInvoice(mint({ fetchImpl: f, tokens: 20000 }) as never)
+    ).rejects.toThrow('10000')
+    expect(posted, 'Telegram was asked anyway').toHaveLength(0)
+  })
+
+  it('still mints that size as a one-off', async () => {
+    const { posted, f } = recorder()
+    await mintTokenInvoice(
+      mint({ fetchImpl: f, tokens: 20000, subscription: false }) as never
+    )
+    expect(posted).toHaveLength(1)
+  })
+
+  it('marks the pending row, so a second subscription can be refused later', async () => {
+    forgetInvoiceColumnsForTests()
+    const sql: Array<{ q: string; p: unknown[] }> = []
+    const pool = {
+      query: async (q: string, p: unknown[] = []) => {
+        sql.push({ q, p })
+        return { rows: [{ id: 7 }] }
+      },
+    }
+    const { f } = recorder()
+    await mintTokenInvoice(mint({ fetchImpl: f, pool }) as never)
+    const insert = sql.find(x => x.q.includes('INSERT INTO token_invoices'))!
+    expect(insert.p).toContain(true)
+    expect(
+      sql.some(x => /ADD COLUMN IF NOT EXISTS subscription/.test(x.q)),
+      'the column was never added'
+    ).toBe(true)
+  })
+})

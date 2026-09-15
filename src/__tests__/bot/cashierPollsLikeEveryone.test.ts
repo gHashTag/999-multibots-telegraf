@@ -87,6 +87,22 @@ describe('покупка токенов мини-приложения', () => {
     expect(parseTokensPayload('tokens:500:144022504')).toEqual({
       amount: 500,
       telegramId: '144022504',
+      subscription: false,
+    })
+  })
+
+  it('продление подписки зачисляется, а не пропадает', () => {
+    /*
+     * Telegram bills a subscription with an ordinary successful_payment every
+     * thirty days: same payload, fresh charge id (SuccessfulPayment
+     * .is_recurring). A parser that knew only `tokens:` would take the stars
+     * every month and credit nothing -- which is why this case is here now
+     * and not "some day".
+     */
+    expect(parseTokensPayload('subtokens:150:900000001')).toEqual({
+      amount: 150,
+      telegramId: '900000001',
+      subscription: true,
     })
   })
 
@@ -100,6 +116,9 @@ describe('покупка токенов мини-приложения', () => {
   it('нулевая и отрицательная сумма отвергаются', () => {
     expect(parseTokensPayload('tokens:0:144022504')).toBeNull()
     expect(parseTokensPayload('tokens:-5:144022504')).toBeNull()
+    expect(parseTokensPayload('subtokens:0:144022504')).toBeNull()
+    // The prefix is a prefix, not a substring: nothing else may borrow it.
+    expect(parseTokensPayload('mysubtokens:5:1')).toBeNull()
   })
 
   it('ветка tokens: стоит ДО общего разбора тарифов', () => {

@@ -139,15 +139,26 @@ export function starsCreditVerdict(outcome: {
   return 'failed'
 }
 
-/** Разобрать payload покупки токенов мини-приложения: `tokens:<сумма>:<id>`. */
+/**
+ * Read a token purchase payload: `tokens:<amount>:<id>` is a one-off invoice,
+ * `subtokens:<amount>:<id>` a monthly subscription.
+ *
+ * A RENEWAL ARRIVES HERE, NOT ANYWHERE ELSE.
+ *
+ * Telegram bills a subscription by sending an ordinary successful_payment
+ * every thirty days, carrying the same payload and a fresh charge id
+ * (SuccessfulPayment.is_recurring). So the subscription prefix MUST be
+ * accepted here: a parser that only knew `tokens:` would take the person's
+ * stars every month and credit them nothing.
+ */
 export function parseTokensPayload(
   payload: string
-): { amount: number; telegramId: string } | null {
-  const m = /^tokens:(\d+):(.+)$/.exec(payload)
+): { amount: number; telegramId: string; subscription: boolean } | null {
+  const m = /^(sub)?tokens:(\d+):(.+)$/.exec(payload)
   if (!m) return null
-  const amount = Number(m[1])
+  const amount = Number(m[2])
   if (!(amount > 0)) return null
-  return { amount, telegramId: m[2] }
+  return { amount, telegramId: m[3], subscription: m[1] === 'sub' }
 }
 
 async function sendNotification(ctx: MyContext, message: string) {

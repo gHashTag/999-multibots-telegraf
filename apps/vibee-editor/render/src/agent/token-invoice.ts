@@ -24,7 +24,14 @@
  * and the credit must land on the lead. Putting the owner's id there would
  * quietly pay the owner for the lead's money.
  */
-import { ценаТокенов, названиеСчёта } from './token-packs' // cyrillic-ok: pre-existing export names
+import {
+  ценаТокенов, // cyrillic-ok: pre-existing export name
+  названиеСчёта, // cyrillic-ok: pre-existing export name
+  // Aliased to English on the way in, the way token-packs.ts does for its own
+  // ceiling: the guard that keeps code out of Cyrillic cannot mark an `if`.
+  МАКС_ЗВЁЗД_ПОДПИСКА as SUB_MAX_STARS, // cyrillic-ok: pre-existing export name
+  ПЕРИОД_ПОДПИСКИ_С as SUB_PERIOD_S, // cyrillic-ok: pre-existing export name
+} from './token-packs'
 import { record } from '../hive/journal'
 
 export interface MintedInvoice {
@@ -49,6 +56,14 @@ export interface MintInput {
   /** Injected so the mint can be tested without reaching api.telegram.org. */
   fetchImpl?: typeof fetch
   botToken?: string
+  /**
+   * Charge this every thirty days instead of once.
+   *
+   * Thirty days is not a default but the ONLY period Telegram accepts, and
+   * the ceiling drops from 100000 stars to 10000 -- see token-packs.ts, where
+   * both numbers were measured against the live API rather than guessed.
+   */
+  subscription?: boolean
 }
 
 export function paymentBotToken(): string {
@@ -100,7 +115,8 @@ export async function ensureInvoiceColumns(pool: {
       `ALTER TABLE token_invoices
          ADD COLUMN IF NOT EXISTS cancelled_at timestamptz,
          ADD COLUMN IF NOT EXISTS cancel_reason text,
-         ADD COLUMN IF NOT EXISTS star_tx_id text`
+         ADD COLUMN IF NOT EXISTS star_tx_id text,
+         ADD COLUMN IF NOT EXISTS subscription boolean NOT NULL DEFAULT false`
     )
     invoiceColumnsReady = true
     return true
@@ -135,8 +151,31 @@ export async function mintTokenInvoice(
   // The price scale's field names are pre-existing and Cyrillic; aliased once
   // here so the rest of this file reads in one language.
   const { токенов: tokens, звёзд: stars } = ценаТокенов(Number(input.tokens)) // cyrillic-ok
-  const title = названиеСчёта(tokens) // cyrillic-ok: pre-existing helper name
-  const payload = `tokens:${tokens}:${forId}`
+  const monthly = input.subscription === true
+  if (monthly && stars > SUB_MAX_STARS) {
+    // cyrillic-ok: pre-existing name
+    // A different ceiling from the one-off one, and lower. Refusing here with
+    // the real number beats SUBSCRIPTION_AMOUNT_INVALID from Telegram.
+    throw new Error(
+      `подписка на ${tokens} токенов — это ${stars} звёзд в месяц, ` +
+        `а Telegram не берёт больше ${SUB_MAX_STARS} за период; ` +
+        `возьмите пакет поменьше или выпишите разовый счёт`
+    )
+  }
+  const title = monthly
+    ? `${tokens} токенов Trinity каждый месяц` // cyrillic-ok: invoice title
+    : названиеСчёта(tokens) // cyrillic-ok: pre-existing helper name
+  /*
+   * A SUBSCRIPTION SAYS SO IN ITS PAYLOAD.
+   *
+   * Telegram hands the payload back twice: on every renewal payment, and on
+   * BotSubscriptionUpdated when the person cancels or a charge fails. Both
+   * need to know this was a subscription, and the payload is the only thing
+   * we are given in the second case. parseTokensPayload in the bot reads both
+   * prefixes -- a renewal that did not credit would be money taken for
+   * nothing.
+   */
+  const payload = `${monthly ? 'subtokens' : 'tokens'}:${tokens}:${forId}`
 
   const doFetch = input.fetchImpl ?? fetch
   const r = await doFetch(
@@ -150,6 +189,7 @@ export async function mintTokenInvoice(
         payload,
         currency: 'XTR',
         prices: [{ label: title, amount: stars }],
+        ...(monthly ? { subscription_period: SUB_PERIOD_S } : {}),
       }),
     }
   )
@@ -182,8 +222,9 @@ export async function mintTokenInvoice(
       // the pending row below: the row is what the reconcile needs.
       await ensureInvoiceColumns(input.pool)
       const inserted = (await input.pool.query(
-        `INSERT INTO token_invoices (telegram_id, tokens, stars) VALUES ($1, $2, $3) RETURNING id`,
-        [forId, tokens, stars]
+        `INSERT INTO token_invoices (telegram_id, tokens, stars, subscription)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [forId, tokens, stars, monthly]
       )) as { rows?: Array<{ id?: unknown }> } | undefined
       const rawId = inserted?.rows?.[0]?.id
       if (
