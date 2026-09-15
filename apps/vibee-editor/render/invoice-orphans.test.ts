@@ -319,6 +319,28 @@ describe('the server is wired (source-level: no test boots render-server)', () =
     expect(stmt).toContain('redeemed = FALSE')
   })
 
+  /**
+   * THE KIND OF SALE HAS TO SURVIVE THE TRIP.
+   *
+   * `redeemInvoiceFor` can tell a subscription row from a one-off of the same
+   * size, but only if somebody tells it which one was paid. The bot reads that
+   * from the payload (`subtokens:` against `tokens:`) and sends it; this route
+   * is the middle link, and a middle link that drops the field leaves the
+   * whole chain exactly as broken as before, with every unit test green.
+   */
+  it('the credit route hands the kind of sale to the redeemer', () => {
+    const s = src()
+    const call = s.slice(
+      at(s, 'const closed = await redeemInvoiceFor(pool, {'),
+      at(s, 'const closed = await redeemInvoiceFor(pool, {') + 900
+    )
+    expect(call).toContain('subscription:')
+    // Only a real boolean travels: an older bot sends nothing, and "nothing"
+    // must not be read as "one-off".
+    expect(call).toMatch(/typeof [^\n]*\.subscription === 'boolean'/)
+    expect(call).toContain('undefined')
+  })
+
   it('verify adds the columns through the once-per-process helper, not inline', () => {
     const s = src()
     const a = at(s, "'/api/tokens/verify'")

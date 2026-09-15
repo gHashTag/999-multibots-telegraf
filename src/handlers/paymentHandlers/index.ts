@@ -93,6 +93,17 @@ export async function postStarsCredit(payment: {
   chargeId: string
   telegramId: string
   amount: number
+  /**
+   * A subscription charge, or a one-off.
+   *
+   * The ledger closes the invoice this payment belongs to, and person plus
+   * token count do not tell the two apart: a person can hold a monthly
+   * subscription and a single purchase of the same size at once. Paying one
+   * used to mark the other sold -- and then the seller stops offering a
+   * subscription to somebody who never took one. The payload knows
+   * (`subtokens:` against `tokens:`), so it travels with the payment.
+   */
+  subscription?: boolean
 }): Promise<{ ok: boolean; credited?: boolean; reason?: string }> {
   const target = new URL(
     'https://vibee-render-production.up.railway.app/api/stars/credit'
@@ -314,6 +325,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         chargeId: telegramPaymentChargeId,
         telegramId: токены.telegramId,
         amount: токены.amount,
+        subscription: токены.subscription, // cyrillic-ok: pre-existing local
       })
       // The rule lives in starsCreditVerdict, beside the call that asks the
       // ledger; `ok` alone used to decide, and `ok` is not `credited`.

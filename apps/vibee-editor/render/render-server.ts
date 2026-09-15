@@ -8647,6 +8647,17 @@ const server = createServer(async (req, res) => {
               tokens: amount,
               chargeId,
               credited: outcome.credited === true,
+              /*
+               * A subscription charge closes a subscription row, not a
+               * one-off of the same size. The bot reads it from the payload
+               * (`subtokens:` against `tokens:`) and sends it here; only a
+               * real boolean is passed on, so an older bot that sends
+               * nothing keeps the looser match it has always had.
+               */
+              subscription:
+                typeof тело?.subscription === 'boolean' // cyrillic-ok: pre-existing local
+                  ? тело.subscription // cyrillic-ok: pre-existing local
+                  : undefined,
             })
             if (outcome.credited && closed !== 'redeemed') {
               console.log(

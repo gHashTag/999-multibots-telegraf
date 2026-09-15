@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { parseTokensPayload } from '@/handlers/paymentHandlers'
@@ -104,6 +104,42 @@ describe('покупка токенов мини-приложения', () => {
       telegramId: '900000001',
       subscription: true,
     })
+  })
+
+  /**
+   * WHICH KIND OF SALE IT WAS HAS TO REACH THE LEDGER.
+   *
+   * The ledger closes the invoice a payment belongs to, and person plus token
+   * count cannot tell a monthly subscription from a single purchase of the
+   * same size -- a person can hold both, because the seller offers both. The
+   * parser above knows which one this is and the flag used to stop right
+   * here: the call carried only charge, person and amount. Then paying for
+   * one marked the other sold, and the seller stopped offering a
+   * subscription to somebody who never took one.
+   */
+  it('вид оплаты доезжает до леджера вместе с деньгами', async () => {
+    const sent: Array<Record<string, unknown>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init: { body: string }) => {
+        sent.push(JSON.parse(init.body))
+        return { json: async () => ({ ok: true, credited: true }) }
+      })
+    )
+    const { postStarsCredit } = await import('@/handlers/paymentHandlers')
+    await postStarsCredit({
+      chargeId: 'ch_1',
+      telegramId: '900000001',
+      amount: 150,
+      subscription: true,
+    })
+    expect(sent[0]).toMatchObject({
+      chargeId: 'ch_1',
+      telegramId: '900000001',
+      amount: 150,
+      subscription: true,
+    })
+    vi.unstubAllGlobals()
   })
 
   it('чужие форматы не притворяются покупкой токенов', () => {

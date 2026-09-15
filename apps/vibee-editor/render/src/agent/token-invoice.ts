@@ -171,6 +171,26 @@ export async function redeemInvoiceFor(
      * redelivered charge credits nothing and must close no sale.
      */
     credited: boolean
+    /**
+     * Was this a subscription charge, or a one-off?
+     *
+     * WHY IT MATTERS. The row was chosen by person and token count alone, and
+     * those two do not tell a monthly subscription from a single purchase of
+     * the same size -- a person can hold both at once, and the seller offers
+     * both. Newest-first then closed whichever was minted last, so paying for
+     * one package could mark the OTHER sold.
+     *
+     * The cost is not the row: it is what reads it. `hasOpenSubscription`
+     * treats a redeemed subscription row as a live seat and stops offering
+     * the subscription to somebody who never took one; and the unpaid one-off
+     * that stayed open keeps standing as an offer nobody made.
+     *
+     * The payload says which it is -- `subtokens:` against `tokens:` -- and
+     * the bot parses it before crediting. Undefined keeps the old, looser
+     * match on purpose: a render deployed ahead of the bot must not stop
+     * closing sales it has always closed.
+     */
+    subscription?: boolean
   }
 ): Promise<'redeemed' | 'no matching invoice'> {
   try {
@@ -181,16 +201,24 @@ export async function redeemInvoiceFor(
       return 'no matching invoice'
     }
     await ensureInvoiceColumns(pool as never)
+    const kind =
+      typeof paid?.subscription === 'boolean' ? ' AND subscription = $4' : ''
+    const args: unknown[] = [
+      tid,
+      paid.chargeId ? String(paid.chargeId) : null,
+      Math.floor(tokens),
+    ]
+    if (kind) args.push(paid.subscription === true)
     const r = await pool.query(
       `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = COALESCE($2, star_tx_id)
         WHERE id = (
           SELECT id FROM token_invoices
            WHERE telegram_id = $1 AND tokens = $3 AND redeemed = FALSE
-             AND cancelled_at IS NULL
+             AND cancelled_at IS NULL${kind}
            ORDER BY created_at DESC
            LIMIT 1
         )`,
-      [tid, paid.chargeId ? String(paid.chargeId) : null, Math.floor(tokens)]
+      args
     )
     return (r?.rowCount ?? 0) > 0 ? 'redeemed' : 'no matching invoice'
   } catch {

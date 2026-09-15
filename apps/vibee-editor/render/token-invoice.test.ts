@@ -474,6 +474,61 @@ describe('redeeming the invoice a payment belongs to', () => {
     expect(upd.q).toContain('cancelled_at IS NULL')
   })
 
+  /**
+   * A SUBSCRIPTION AND A ONE-OFF OF THE SAME SIZE ARE NOT THE SAME SALE.
+   *
+   * The row was chosen by person and token count alone, newest first. A
+   * person can hold both at once -- the seller offers both -- so paying for
+   * one could mark the OTHER sold. What that costs is not the row but what
+   * reads it: `hasOpenSubscription` treats a redeemed subscription row as a
+   * live seat and stops offering a subscription to somebody who never took
+   * one, while the one-off that stayed open keeps standing as an offer.
+   *
+   * The payload tells them apart (`subtokens:` against `tokens:`), and the
+   * bot parses it before crediting.
+   */
+  it('closes a one-off with a one-off charge, and a subscription with a subscription one', async () => {
+    const one = pool()
+    await redeemInvoiceFor(one as never, {
+      telegramId: '900000002',
+      tokens: 150,
+      chargeId: 'ch_1',
+      credited: true,
+      subscription: false,
+    })
+    const updOne = one.sql.find(x => x.q.startsWith('UPDATE token_invoices'))!
+    expect(updOne.q).toContain('AND subscription = $4')
+    expect(updOne.p).toEqual(['900000002', 'ch_1', 150, false])
+
+    const monthly = pool()
+    await redeemInvoiceFor(monthly as never, {
+      telegramId: '900000002',
+      tokens: 150,
+      chargeId: 'ch_2',
+      credited: true,
+      subscription: true,
+    })
+    const updSub = monthly.sql.find(x =>
+      x.q.startsWith('UPDATE token_invoices')
+    )!
+    expect(updSub.p).toEqual(['900000002', 'ch_2', 150, true])
+  })
+
+  it('keeps the looser match when nobody said which kind it was', async () => {
+    // A render deployed ahead of the bot must not stop closing sales it has
+    // always closed. Absence is not "one-off": it is "not told".
+    const db = pool()
+    await redeemInvoiceFor(db as never, {
+      telegramId: '900000002',
+      tokens: 150,
+      chargeId: 'ch_3',
+      credited: true,
+    })
+    const upd = db.sql.find(x => x.q.startsWith('UPDATE token_invoices'))!
+    expect(upd.q).not.toContain('subscription')
+    expect(upd.p).toEqual(['900000002', 'ch_3', 150])
+  })
+
   it('says so when no invoice matches, instead of pretending', async () => {
     // A person can pay from the mini app with no seller invoice at all.
     const db = pool(0)
