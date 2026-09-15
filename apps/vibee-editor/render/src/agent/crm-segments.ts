@@ -50,6 +50,21 @@ export const SEGMENT_CAPS_DEFAULT: Record<ActiveSegment, number> = {
 }
 export const DAILY_CAP_DEFAULT = 30
 
+/**
+ * How long "later" holds somebody out of the queue.
+ *
+ * NAMED BECAUSE A MESSAGE PROMISES IT. The bot answers the `later` button
+ * with "back on the list in two weeks", and this bare 14 was the only thing
+ * that made the sentence true. Two numbers in two services with nothing
+ * holding them together is how a bot starts telling people things that were
+ * true last month -- the same shape as a message naming a command nobody
+ * registered. promisesMatchTheCode.test.ts now reads both ends.
+ *
+ * The neighbouring windows (warm 14..60, winback 30) carry no promise to
+ * anybody yet, so they stay as they are rather than being renamed for tidiness.
+ */
+export const LATER_RETURNS_AFTER_DAYS = 14
+
 /** Caps from the environment: SELLER_SEGMENT_CAPS 'hot=10,waiting=20', SELLER_DAILY_CAP '30'. */
 export function segmentCaps(
   env: NodeJS.ProcessEnv = process.env
@@ -107,7 +122,7 @@ export function segmentOf(c: SegmentInput): Segment {
   if (
     touch?.kind === 'later' &&
     touchAge !== null &&
-    touchAge >= 14 &&
+    touchAge >= LATER_RETURNS_AFTER_DAYS &&
     !c.paid &&
     !refusedLately
   )
