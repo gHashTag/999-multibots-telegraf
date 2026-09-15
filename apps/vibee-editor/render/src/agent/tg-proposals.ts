@@ -828,15 +828,26 @@ async function mirrorSent(
   }
 }
 
+/**
+ * Returns the sent message, like its text sibling above.
+ *
+ * It was `Promise<void>` and threw the message away, so the media branch left
+ * `sent` at null and mirrorSent never ran for a photo: the picture and its
+ * caption reached the client and never became a crm_messages row or a line in
+ * Zep. The seller then answered that client's next message without knowing
+ * what the owner had just sent them -- and could offer to make the same
+ * picture again. The touch was still written, so this was invisible in the
+ * touch log: what went missing was the seller's MEMORY of the conversation.
+ */
 async function sendFileWithAddressBook(
   c: SendingClient,
   target: string,
   media: ProposalMedia,
   caption: string | undefined
-): Promise<void> {
+): Promise<unknown> {
   if (!c.sendFile) throw new Error('этот клиент не умеет отправлять файлы')
   const send = c.sendFile
-  await withAddressBook(c, target, () =>
+  return await withAddressBook(c, target, () =>
     send(target, { file: media.url, caption: caption ?? '', ...VERBATIM })
   )
 }
@@ -914,7 +925,7 @@ export async function execute(
         let sent: unknown = null
         try {
           if (p.media)
-            await sendFileWithAddressBook(c, p.target, p.media, p.what)
+            sent = await sendFileWithAddressBook(c, p.target, p.media, p.what)
           else sent = await sendWithAddressBook(c, p.target, p.what ?? '')
         } catch (e) {
           if (paid !== null && p.charge && ctx.pool) {

@@ -330,6 +330,9 @@ function fakeClient(
   const client = {
     async sendMessage(to: string) {
       timeline.push(`sendMessage:${to}`)
+      // Like sendFile below: Telegram answers with the message, and a fake
+      // that answers with nothing makes the mirror untestable.
+      return { id: 778, date: 1789600001 }
     },
     async sendFile(to: string, opts: Record<string, unknown>) {
       timeline.push(`sendFile:${to}`)
@@ -337,6 +340,16 @@ function fakeClient(
         throw new Error('Could not find the input entity for 900000002')
       if (o.failFile) throw new Error(o.failFile)
       files.push(opts)
+      /*
+       * IT RETURNS THE MESSAGE, BECAUSE TELEGRAM DOES.
+       *
+       * This returned nothing, and that alone made the whole mirror
+       * untestable here: after the send path was fixed to keep the sent
+       * message, `sent` would have been undefined, mirrorSent would have
+       * bailed on a NaN id, and every case in this file would have stayed
+       * green over a mirror that never ran.
+       */
+      return { id: 777, date: 1789600000 }
     },
     async getDialogs() {
       timeline.push('getDialogs')
@@ -386,6 +399,23 @@ async function executor(
   }))
   const { execute } = await import('./src/agent/tg-proposals')
   return { execute, timeline, touches, journal }
+}
+/**
+ * A pool that remembers what was asked of it.
+ *
+ * It answered `{ rows: [] }` to everything and was never inspected, so
+ * nothing in this file could tell whether the exchange reached crm_messages
+ * at all -- which is exactly how a photo went unmirrored for weeks.
+ */
+function watchedPool() {
+  const sql: string[] = []
+  return {
+    sql,
+    query: async (q: string) => {
+      sql.push(String(q).replace(/\s+/g, ' ').trim())
+      return { rows: [] }
+    },
+  }
 }
 const pool = { query: async () => ({ rows: [] }) }
 const draft = (over: Record<string, unknown> = {}) => ({
@@ -594,6 +624,51 @@ describe('the real generator honours chargeLater', () => {
     expect(
       paid.sqls.some(q => /balance = balance - /i.test(q)),
       'the plain path stopped charging'
+    ).toBe(true)
+  })
+})
+
+/**
+ * A PHOTO THE OWNER SENT MUST REACH THE SELLER'S MEMORY.
+ *
+ * mirrorSent ran only when `sent` was non-null, and the media branch threw the
+ * sent message away -- sendFileWithAddressBook was declared `Promise<void>`.
+ * So a paid picture with its caption reached the client and never became a
+ * crm_messages row or a line in Zep. The touch was still written, which is why
+ * this was invisible in the touch log: what went missing was the seller's
+ * MEMORY of what the owner had just sent.
+ *
+ * The consequence is the kind a client sees. They answer within seconds, the
+ * seller replies automatically in the business DM without that picture in its
+ * history, and offers to make the very same one again.
+ *
+ * Twenty-two cases in this file owned that path and not one of them could see
+ * it: replacing the mirror call with `if (false)` left them all green.
+ */
+describe('the sent photo reaches the memory', () => {
+  it('mirrors the caption with the id Telegram gave it', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const watched = watchedPool()
+    // `lead` is what ties a draft to a person; mirrorSent does nothing
+    // without it, and the shared fixture above does not carry one.
+    await execute(draft({ lead: LEAD }), { telegramId: OWNER, pool: watched })
+    const insert = watched.sql.find(q =>
+      q.startsWith('INSERT INTO crm_messages')
+    )
+    expect(insert, 'the photo never reached crm_messages').toBeTruthy()
+  })
+
+  it('a text send still mirrors, so the fix did not trade one for the other', async () => {
+    const f = fakeClient()
+    const { execute } = await executor(f.client)
+    const watched = watchedPool()
+    await execute(draft({ media: undefined, lead: LEAD }), {
+      telegramId: OWNER,
+      pool: watched,
+    })
+    expect(
+      watched.sql.some(q => q.startsWith('INSERT INTO crm_messages'))
     ).toBe(true)
   })
 })
