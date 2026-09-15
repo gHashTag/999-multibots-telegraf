@@ -113,7 +113,19 @@ describe('an operation without a price is refused, not given away', () => {
       calls.length,
       'no refund sites found — the matcher, not the code'
     ).toBeGreaterThan(0)
-    const withoutAmount = calls.filter(m => !m[1].includes('потрачено')).length // cyrillic-ok: the API field carried
+    /*
+     * TWO measured sources, and no third.
+     *
+     * The charge's own spent-field is what the deduction measured a moment ago.
+     * `owed` is that SAME measured number read back from
+     * agent_renders.owed_tokens, which is written from the spent-field at the
+     * start of a render -- needed because a render's outcome arrives minutes
+     * later, sometimes in a different turn of the conversation, where there is
+     * no charge in scope to measure. Re-deriving from TOKEN_PRICES is what this
+     * test forbids, and neither of these does that.
+     */
+    const measured = /потрачено|owed/ // cyrillic-ok: the API field carried
+    const withoutAmount = calls.filter(m => !measured.test(m[1])).length
     expect(withoutAmount, 'refund sites not carrying the charged amount').toBe(
       0
     )
