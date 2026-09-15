@@ -40,6 +40,23 @@ function poolWithClient(
       return { rows: [], ...out }
     }),
     release: vi.fn(),
+    /*
+     * A BORROWED pg CLIENT STILL HAS connect, AND IT THROWS.
+     *
+     * This double had only query and release, which made it kinder than the
+     * real thing and hid a defect that broke every Stars payment: the ledger
+     * decided "pool or client" by asking whether `connect` exists, a
+     * PoolClient has one, and calling it a second time makes pg refuse with
+     * "Client has already been connected". The whole credit rolled back --
+     * money taken, no tokens, no row anywhere.
+     *
+     * pg's own words, so a double can never be gentler than production again.
+     */
+    connect: vi.fn(async () => {
+      throw new Error(
+        'Client has already been connected. You cannot reuse a client.'
+      )
+    }),
   }
   return {
     ran,
