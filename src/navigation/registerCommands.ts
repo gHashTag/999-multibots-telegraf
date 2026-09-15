@@ -42,6 +42,7 @@ import {
   leadMenu,
   cardMenuRows,
   afterSentKeyboard,
+  settledKeyboard,
   afterCancelKeyboard,
   afterTurnKeyboard,
   failKeyboard,
@@ -1950,10 +1951,29 @@ function getUserInfoFromContext(ctx: MyContext) {
 export function registerProposalButtons(bot: Telegraf<MyContext>): void {
   /*
    * A card whose buttons survive their own press invites a second tap, and on
-   * a phone the second tap is the normal case, not the rare one.
+   * a phone the second tap is the normal case, not the rare one. So they are
+   * spent at once -- but spent is not gone: the verdict takes their place and
+   * the rows under the card stay put. See settledKeyboard for why that matters
+   * twelve hours later.
+   *
+   * A redraw Telegram refuses falls back to clearing the keyboard, which is
+   * exactly what this did before, so a failure here can never leave a live
+   * button behind.
    */
-  const stripButtons = async (ctx: any) =>
-    ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
+  const settle = async (ctx: any, verdict: string) => {
+    const rows = settledKeyboard(
+      (ctx.callbackQuery?.message as any)?.reply_markup,
+      verdict
+    )
+    if (rows) {
+      const drawn = await ctx
+        .editMessageReplyMarkup({ inline_keyboard: rows })
+        .then(() => true)
+        .catch(() => false)
+      if (drawn) return
+    }
+    await ctx.editMessageReplyMarkup(undefined).catch(() => undefined)
+  }
 
   /*
    * The press carries the id AND the one-time secret.
@@ -1965,8 +1985,10 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
    */
   bot.action(/^tgp:ok:([^:]+):(.+)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
-    await stripButtons(ctx)
     const isRu = isRussianFromState(ctx)
+    // Spent before the work, not after: sending can be slow, and the card must
+    // stop inviting a second tap the moment the first one lands.
+    await settle(ctx, isRu ? '⏳ Отправляю…' : '⏳ Sending…')
     const [, id, secret] = ctx.match as RegExpMatchArray
     const { confirmProposal, takeCardLead } = await import(
       '@/services/telegramProposals'
@@ -1990,6 +2012,20 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
      * Told "not sent", a person writes it again and it arrives twice. Told the
      * truth, they look at the chat. The truth is cheaper.
      */
+    await settle(
+      ctx,
+      r.ok
+        ? isRu
+          ? '✅ Отправлено'
+          : '✅ Sent'
+        : r.unknown
+          ? isRu
+            ? '⚠️ Неизвестно'
+            : '⚠️ Unknown'
+          : isRu
+            ? '❌ Не отправлено'
+            : '❌ Not sent'
+    )
     await ctx.reply(
       r.ok
         ? isRu
@@ -2011,8 +2047,8 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
 
   bot.action(/^tgp:no:([^:]+):(.+)$/, async ctx => {
     await ctx.answerCbQuery().catch(() => undefined)
-    await stripButtons(ctx)
     const isRu = isRussianFromState(ctx)
+    await settle(ctx, isRu ? '⏳ Отменяю…' : '⏳ Cancelling…')
     const [, id, secret] = ctx.match as RegExpMatchArray
     const { cancelProposal, takeCardLead } = await import(
       '@/services/telegramProposals'
@@ -2031,6 +2067,7 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
      * cancel "did not work" would invite them to hunt for a way to cancel it
      * harder.
      */
+    await settle(ctx, isRu ? '✖️ Отменено' : '✖️ Cancelled')
     await ctx.reply(
       isRu ? '✖️ Отменено, ничего не ушло' : '✖️ Cancelled, nothing was sent',
       afterCancelKeyboard(lead)

@@ -254,10 +254,16 @@ describe('both buttons are wired, and the press is what acts', () => {
     ).toBe(total)
   })
 
-  it('the buttons are removed once pressed', () => {
+  it('the buttons are spent on the press, before the slow part', () => {
     /*
      * A card whose buttons survive their own press invites a second tap, and
      * on a phone the second tap is the normal case, not the rare one.
+     *
+     * Since 2026-09-15 they are SPENT rather than removed: the verdict takes
+     * their place so the owner can read his own day back (see settledKeyboard,
+     * and cardSettles.test.ts for what the redraw actually produces). What
+     * this case guards is unchanged and is the dangerous half -- that it
+     * happens on the press, and before the send.
      *
      * Checked INSIDE both handlers. The first version of this searched the
      * whole file and was satisfied by an unrelated `editMessageReplyMarkup`
@@ -265,14 +271,27 @@ describe('both buttons are wired, and the press is what acts', () => {
      * changed nothing and the check passed. It looked at a real line, just not
      * at this one.
      */
-    for (const marker of ['tgp:ok', 'tgp:no']) {
+    for (const [marker, work] of [
+      ['tgp:ok', 'confirmProposal'],
+      ['tgp:no', 'cancelProposal'],
+    ]) {
+      const body = handlerBody(marker)
+      const spent = body.indexOf('settle(ctx')
+      expect(spent, `${marker} no longer spends its buttons`).toBeGreaterThan(
+        -1
+      )
       expect(
-        handlerBody(marker),
-        `${marker} no longer clears its buttons`
-      ).toContain('stripButtons(ctx)')
+        spent,
+        `${marker} spends its buttons only after ${work} -- a second tap fits`
+      ).toBeLessThan(body.indexOf(work))
     }
-    const strip = sliceFrom(SOURCE, 'const stripButtons')
-    expect(strip.slice(0, 200)).toContain('editMessageReplyMarkup(undefined)')
+    /*
+     * And the fallback, which is the whole reason this is safe to change: a
+     * redraw Telegram refuses must still clear the keyboard. Without this line
+     * a rejected `disabled` would leave both live buttons on the card.
+     */
+    const settle = sliceFrom(SOURCE, 'const settle = async')
+    expect(settle.slice(0, 800)).toContain('editMessageReplyMarkup(undefined)')
   })
 
   it('answerCbQuery comes before the work, per the project rule', () => {

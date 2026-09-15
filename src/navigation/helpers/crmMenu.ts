@@ -392,3 +392,73 @@ export function allCallbacks(
     .map(b => ('callback_data' in b ? String(b.callback_data) : ''))
     .filter(Boolean)
 }
+
+/**
+ * A spent card must still say how it ended.
+ *
+ * Until 2026-09-15 a press removed the WHOLE keyboard, so by evening the
+ * owner's DM held a column of identical texts with no buttons: no way to see
+ * which of them went out and which he killed. It also took away the card's
+ * own "История" row, and that row is the only path from a twelve-hour-old
+ * draft back to the person -- the id/lead map the follow-up keyboard is built
+ * from expires in fifteen minutes.
+ *
+ * So instead of removing the keyboard we redraw it: the card's own buttons
+ * collapse into one disabled button carrying the verdict, and every other row
+ * is left exactly as it was. Reading the CURRENT markup rather than rebuilding
+ * it is deliberate -- this helper does not need to know how the card was put
+ * together, and cannot drift when that changes.
+ *
+ * `disabled` is Bot API 10.3 (24 Aug 2026), and it carries NOTHING beside it:
+ * the reference says "exactly one of the fields other than text,
+ * icon_custom_emoji_id and style must be used to specify the type of the
+ * button", and `disabled` is one of those type fields. A verdict button that
+ * also kept a callback_data would name two types at once and be refused on
+ * every single press -- and since the caller falls back to clearing the
+ * keyboard, that refusal would look exactly like the old behaviour and this
+ * whole thing would quietly do nothing.
+ */
+
+/** A button belonging to the card itself, as opposed to the rows under it. */
+function isCardButton(b: unknown): boolean {
+  const cell = b as { callback_data?: unknown; disabled?: unknown } | null
+  const data = String(cell?.callback_data ?? '')
+  if (data.startsWith('tgp:ok:') || data.startsWith('tgp:no:')) return true
+  // A verdict we drew earlier, so a second pass can relabel it.
+  return cell?.disabled != null
+}
+
+/**
+ * The card's keyboard after the press, or null when there is nothing of ours
+ * in it -- the caller falls back to clearing the keyboard, which is what this
+ * code did before, so a surprise can never leave a live button behind.
+ */
+export function settledKeyboard(
+  markup: { inline_keyboard?: unknown[][] } | null | undefined,
+  verdict: string
+): InlineKeyboardButton[][] | null {
+  const rows = markup?.inline_keyboard
+  if (!Array.isArray(rows) || !rows.length) return null
+  const spent: InlineKeyboardButton[] = [
+    // Bot API 10.3: DisabledButton "currently holds no information", and it
+    // is the button's ONE type field -- see the note above.
+    { text: verdict, disabled: {} } as unknown as InlineKeyboardButton,
+  ]
+  let found = false
+  const out: InlineKeyboardButton[][] = []
+  for (const row of rows) {
+    const cells = Array.isArray(row) ? row : []
+    const ours = cells.filter(c => isCardButton(c))
+    if (!ours.length) {
+      out.push(cells as InlineKeyboardButton[])
+      continue
+    }
+    // The verdict stands where the card's own row stood; anything sharing
+    // that row (there is nothing today) keeps its place beside it.
+    const others = cells.filter(c => !isCardButton(c)) as InlineKeyboardButton[]
+    if (!found) out.push([...spent, ...others])
+    else if (others.length) out.push(others)
+    found = true
+  }
+  return found ? out : null
+}
