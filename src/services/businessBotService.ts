@@ -14,6 +14,7 @@ import { разбитьДлинное } from '@/helpers/telegramLongAnswer' // c
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import { answeredAlbumAlready } from '@/services/albumOnce'
+import { mediaReply } from '@/services/mediaLanguage'
 import { chatWithAI, ChatMessage } from '@/services/aiChatService'
 import { спроситьАгента, recordTurns } from '@/services/trinityAgent' // cyrillic-ok: pre-existing identifiers
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
@@ -41,7 +42,13 @@ export interface BusinessMessage {
     username?: string
     type: string
   }
-  from?: { id: number; first_name: string; username?: string }
+  from?: {
+    id: number
+    first_name: string
+    username?: string
+    /** The locale their Telegram reports. See MediaKind.replyEn. */
+    language_code?: string
+  }
   text?: string
   caption?: string
   photo?: Array<{ file_id: string; width?: number; height?: number }>
@@ -137,6 +144,18 @@ interface MediaKind {
   label: string
   note: string
   reply: string
+  /**
+   * The same line for somebody who does not read Russian.
+   *
+   * The text path was taught the client's language on 2026-09-15, from the
+   * words they wrote. This path has no words to read -- a photo with no
+   * caption carries none -- so the only signal available is the locale their
+   * Telegram reports. That is a poor source for a CONVERSATION (a Russian
+   * speaker on an English phone would be answered in English, which is why
+   * the text path refuses to use it) and the best one available here, where
+   * the alternative is answering everybody in Russian.
+   */
+  replyEn: string
   card: string
 }
 const MEDIA_KINDS: readonly MediaKind[] = [
@@ -148,6 +167,8 @@ const MEDIA_KINDS: readonly MediaKind[] = [
     card: 'image2video',
     reply:
       'Фото получил и передал владельцу. Могу сделать из него нейрофото или оживить в видео — напишите, что нужно, или откройте бота.',
+    replyEn:
+      'Got the photo and passed it to the owner. I can turn it into an AI portrait or bring it to life as a video -- tell me what you need, or open the bot.',
   },
   {
     field: 'video',
@@ -157,6 +178,8 @@ const MEDIA_KINDS: readonly MediaKind[] = [
     card: 'avatar',
     reply:
       'Видео получил и передал владельцу. Напишите, что с ним сделать — например, цифровой аватар или озвучку.',
+    replyEn:
+      'Got the video and passed it to the owner. Tell me what to do with it -- a digital avatar or a voice-over, for example.',
   },
   {
     field: 'animation',
@@ -165,6 +188,8 @@ const MEDIA_KINDS: readonly MediaKind[] = [
     note: 'Клиент прислал GIF',
     card: 'image2video',
     reply: 'Получил и передал владельцу. Напишите пару слов, что вы хотите.',
+    replyEn:
+      'Got it and passed it to the owner. Tell me in a couple of words what you would like.',
   },
   {
     field: 'document',
@@ -174,6 +199,8 @@ const MEDIA_KINDS: readonly MediaKind[] = [
     card: 'chat',
     reply:
       'Файл получил и передал владельцу. Напишите пару слов, что с ним сделать.',
+    replyEn:
+      'Got the file and passed it to the owner. Tell me in a couple of words what to do with it.',
   },
   {
     field: 'voice',
@@ -183,6 +210,8 @@ const MEDIA_KINDS: readonly MediaKind[] = [
     card: 'voice',
     reply:
       'Голосовое получил и передал владельцу. Напишите, пожалуйста, коротко текстом, что вам нужно — так я отвечу быстрее.',
+    replyEn:
+      'Got the voice message and passed it to the owner. Please write what you need in a short text -- I will answer faster that way.',
   },
   {
     field: 'audio',
@@ -191,6 +220,8 @@ const MEDIA_KINDS: readonly MediaKind[] = [
     note: 'Клиент прислал аудио',
     card: 'voice',
     reply: 'Аудио получил и передал владельцу. Напишите, что с ним сделать.',
+    replyEn:
+      'Got the audio and passed it to the owner. Tell me what to do with it.',
   },
   {
     field: 'video_note',
@@ -200,6 +231,8 @@ const MEDIA_KINDS: readonly MediaKind[] = [
     card: 'avatar',
     reply:
       'Видеосообщение получил и передал владельцу. Напишите, пожалуйста, текстом, что вам нужно.',
+    replyEn:
+      'Got the video message and passed it to the owner. Please write what you need.',
   },
 ]
 
@@ -614,7 +647,7 @@ export async function handleBusinessMessage(
     if (media) {
       const card = SERVICE_CARDS.find(c => c.key === media.card)
       try {
-        await sendAsOwner(media.reply, {
+        await sendAsOwner(mediaReply(media, msg.from?.language_code), {
           reply_markup: {
             inline_keyboard: [
               [

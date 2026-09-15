@@ -6,6 +6,7 @@ import {
   albumsRemembered,
   ALBUM_QUIET_MS,
 } from '@/services/albumOnce'
+import { mediaReply } from '@/services/mediaLanguage'
 
 /**
  * ONE ANSWER PER ALBUM, NOT ONE PER PHOTO.
@@ -68,7 +69,9 @@ describe('the seller actually consults it', () => {
   it('asks before the canned reply goes out', () => {
     const branch = src.slice(src.indexOf('if (!text) {'))
     const guard = branch.indexOf('answeredAlbumAlready(')
-    const reply = branch.indexOf('sendAsOwner(media.reply')
+    // The reply is now chosen by language, so the anchor is the call that
+    // sends it rather than the field it used to read.
+    const reply = branch.indexOf('sendAsOwner(mediaReply(')
     expect(guard, 'the album is never checked').toBeGreaterThan(-1)
     expect(
       guard,
@@ -82,5 +85,38 @@ describe('the seller actually consults it', () => {
     const relay = src.indexOf('await relayMediaToOwner(')
     expect(relay).toBeGreaterThan(-1)
     expect(relay).toBeLessThan(src.indexOf('if (!text) {'))
+  })
+})
+
+/**
+ * A CANNED LINE IN A LANGUAGE THE PERSON CAN READ.
+ *
+ * The text path was taught the client's language on 2026-09-15, from the words
+ * they wrote. This path was forgotten, and it is the one with no words to read
+ * at all: a photo with no caption carries none. So the only signal available
+ * is the locale their Telegram reports -- a poor source for a CONVERSATION,
+ * which is exactly why the text path refuses to use it, and the best one here,
+ * where the alternative is answering everybody in Russian.
+ */
+describe('the canned media line picks a language', () => {
+  const kind = { reply: 'по-русски', replyEn: 'in English' }
+
+  it('answers an English speaker in English', () => {
+    expect(mediaReply(kind, 'en')).toBe('in English')
+    expect(mediaReply(kind, 'en-GB')).toBe('in English')
+    expect(mediaReply(kind, 'de')).toBe('in English')
+  })
+
+  it('keeps Russian for the languages that read it', () => {
+    for (const l of ['ru', 'be', 'uk', 'kk', 'ru-RU']) {
+      expect(mediaReply(kind, l)).toBe('по-русски')
+    }
+  })
+
+  it('defaults to Russian when the locale is missing or strange', () => {
+    // A missing locale must not switch somebody to English: the owner's
+    // clients are mostly Russian-speaking, and silence is not a signal.
+    expect(mediaReply(kind, undefined)).toBe('по-русски')
+    expect(mediaReply(kind, '')).toBe('по-русски')
   })
 })
