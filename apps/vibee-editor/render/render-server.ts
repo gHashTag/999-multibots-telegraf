@@ -6214,10 +6214,63 @@ const server = createServer(async (req, res) => {
               const caption = userInfo
                 ? `✅ <b>Рендер готов!</b>\n\n👤 ${userInfo.first_name || 'Unknown'} (@${userInfo.username || 'нет'})\n📹 ${userInfo.project_name || 'Untitled'}\n⏱ ${renderTimeSec}s`
                 : `✅ <b>Рендер готов!</b>\n\n⏱ ${renderTimeSec}s`
-              await sendTelegramVideo(
+
+              /**
+               * THE TEMPLATE ROUTE HAS A BUYER TOO.
+               *
+               * The delivery fix landed on the OTHER render route and stopped
+               * there. This one -- the route the agent's reel_render calls --
+               * kept sending the finished video only to TELEGRAM_RENDERS_GROUP,
+               * the internal chat the bot is not in ("chat not found"). So the
+               * video was built and thrown away, exactly as before.
+               *
+               * MEASURED. 2026-09-15, lead 1900592465: three paid renders, one
+               * failed, two completed with byte-identical output (sha256
+               * 79741cd2..., 1080x1920, 30.000s). Neither completed file ever
+               * reached him; the last message in that thread is the bot
+               * apologising for the tokens. One fix, two routes -- and only one
+               * of them had it.
+               *
+               * Buyer first, and their failure is reported as a failure. The
+               * group copy is a courtesy that must never mask a dropped
+               * delivery.
+               */
+              const buyerChatId = userInfo?.telegram_id
+                ? String(userInfo.telegram_id)
+                : ''
+              let deliveredToBuyer = false
+              if (buyerChatId) {
+                const projectLine = userInfo?.project_name
+                  ? `\n\n📹 ${userInfo.project_name}`
+                  : ''
+                deliveredToBuyer = await sendTelegramVideo(
+                  buyerChatId,
+                  publicUrl,
+                  `✅ <b>Готово!</b>${projectLine}\n⏱ ${renderTimeSec}s`
+                )
+                if (!deliveredToBuyer) {
+                  console.error(
+                    `❌ [Render] ${renderId}: the buyer did NOT receive the video. ` +
+                      `A finished render that reaches nobody is a paid job with no ` +
+                      `result -- chat ${buyerChatId} could not be written to ` +
+                      `(most often: the person has never opened a chat with this bot).`
+                  )
+                }
+              } else {
+                console.error(
+                  `❌ [Render] ${renderId}: no telegram_id on the job, so the video ` +
+                    `has no addressee at all.`
+                )
+              }
+
+              const groupCopy = await sendTelegramVideo(
                 TELEGRAM_RENDERS_GROUP,
                 publicUrl,
                 caption
+              )
+              console.log(
+                `📱 [Render] ${renderId}: buyer=${deliveredToBuyer ? 'ok' : 'FAILED'}, ` +
+                  `group=${groupCopy ? 'ok' : 'failed'}`
               )
 
               // Auto-publish to community feed

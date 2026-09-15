@@ -24,8 +24,17 @@ import {
   FluxKontextMaxInput,
   FluxKontextMaxResponse,
   FLUX_KONTEXT_MAX_AVATAR_CONFIG,
+  FluxKontextMaxAspectRatio,
+  FluxKontextMaxAspectRatioSchema,
   getFluxKontextMaxDimensions,
 } from '@/schemas/fluxKontextMax.schema'
+
+/**
+ * Portrait by default -- the shape of stories and reels, which is where these
+ * images go. It applies only when the person has NOT chosen a format
+ * themselves: their own choice from `users.aspect_ratio` still comes first.
+ */
+const DEFAULT_ASPECT_RATIO: FluxKontextMaxAspectRatio = '9:16'
 
 // Service parameters interface
 export interface FluxKontextMaxServiceParams {
@@ -36,7 +45,7 @@ export interface FluxKontextMaxServiceParams {
   is_ru: boolean
   ctx: MyContext
   seed?: number
-  aspect_ratio?: '1:1' | '16:9' | 'match_input_image'
+  aspect_ratio?: FluxKontextMaxAspectRatio
   output_format?: 'png' | 'jpg'
   safety_tolerance?: number
   suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
@@ -102,32 +111,28 @@ export const generateFluxKontextMax = async (
     // ✅ Get centralized aspect_ratio from database and map to FLUX-compatible values
     const dbAspectRatio = await getAspectRatio(Number(telegram_id))
 
-    // Map database aspect ratios to FLUX-compatible enum values
+    // The person's stored ratio, honoured when the model knows it.
+    //
+    // This used to be a hand-written switch that rewrote '9:16' into
+    // 'match_input_image' -- "to preserve portrait proportions". It preserved
+    // the INPUT's proportions, and a Telegram avatar is square, so asking for
+    // portrait delivered a square. The model accepts '9:16' directly
+    // (schemas/fluxKontextMax.schema.ts names the source of that fact); the
+    // switch existed only because this repo's enum was narrower than the API.
+    // With the enum widened, the mapping is a membership test: known ratio
+    // through, anything else to the portrait default.
     const mapToFluxAspectRatio = (
       ratio: string | null
-    ): '1:1' | '16:9' | 'match_input_image' => {
-      if (!ratio) return 'match_input_image'
-
-      switch (ratio) {
-        case '1:1':
-          return '1:1'
-        case '16:9':
-          return '16:9'
-        case '9:16':
-          // For portrait format, use match_input_image to preserve portrait proportions
-          return inputImageUrl ? 'match_input_image' : '1:1'
-        case 'match_input_image':
-          return 'match_input_image'
-        default:
-          return 'match_input_image' // Default fallback
-      }
+    ): FluxKontextMaxAspectRatio => {
+      const known = FluxKontextMaxAspectRatioSchema.safeParse(ratio)
+      return known.success ? known.data : DEFAULT_ASPECT_RATIO
     }
 
     const mappedDbAspectRatio = dbAspectRatio
       ? mapToFluxAspectRatio(dbAspectRatio)
       : null
     const finalAspectRatio =
-      mappedDbAspectRatio || aspect_ratio || 'match_input_image'
+      mappedDbAspectRatio || aspect_ratio || DEFAULT_ASPECT_RATIO
 
     logger.info('FLUX Max aspect_ratio resolved', {
       telegram_id,

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { logger } from '@/utils/logger'
+import { KIE_JOBS } from '@/config/kie-jobs'
 import {
   KIE_AI_API_KEY,
   ELEVENLABS_API_KEY,
@@ -579,34 +580,33 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
   async getStatus(predictionId: string): Promise<LipSyncOutput | LipSyncError> {
     try {
       // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ: Проверка перед запросом
+      const statusUrl = `${KIE_JOBS.BASE_URL}${KIE_JOBS.RECORD_INFO}`
+
       logger.info('🔍 [KIE PROVIDER] Проверка статуса задачи', {
         taskId: predictionId,
         hasApiKey: !!KIE_AI_API_KEY,
         apiKeyPrefix: KIE_AI_API_KEY?.substring(0, 10) + '...',
-        endpoint: 'https://api.kie.ai/api/v1/jobs/taskStatus',
+        endpoint: statusUrl,
       })
 
       console.log('🔴 [KIE DEBUG] Full getStatus() request details:', {
         taskId: predictionId,
         recordId: predictionId,
-        url: 'https://api.kie.ai/api/v1/jobs/taskStatus',
+        url: statusUrl,
         hasAuthHeader: !!KIE_AI_API_KEY,
       })
 
-      const response = await axios.get(
-        'https://api.kie.ai/api/v1/jobs/taskStatus',
-        {
-          params: {
-            taskId: predictionId,
-            recordId: predictionId,
-          },
-          headers: {
-            Authorization: `Bearer ${KIE_AI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
-        }
-      )
+      const response = await axios.get(statusUrl, {
+        params: {
+          taskId: predictionId,
+          recordId: predictionId,
+        },
+        headers: {
+          Authorization: `Bearer ${KIE_AI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      })
 
       console.log('🔴 [KIE DEBUG] getStatus() response received:', {
         status: response.status,
@@ -622,7 +622,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
 
       const data = response.data.data || response.data
 
-      // Kie's /api/v1/jobs/taskStatus returns a unified shape: data.state
+      // Kie's job-status query returns a unified shape: data.state
       // ('waiting'|'queuing'|'generating'|'success'|'fail'), the result URLs
       // inside the JSON string data.resultJson, and failures in data.failMsg --
       // the same shape the sibling poller wan25-helpers.ts reads against the

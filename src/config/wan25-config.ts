@@ -2,6 +2,7 @@
  * Конфигурация для WAN 2.5 Image-to-Video API от Alibaba
  * Используется для создания кинематографичных AI видео
  */
+import { KIE_JOBS } from '@/config/kie-jobs'
 
 export enum WAN25ModelType {
   IMAGE_TO_VIDEO = 'wan25_i2v',
@@ -239,10 +240,16 @@ export interface WAN25StatusResponse {
  * Конфигурация API endpoints
  */
 export const WAN25_API_CONFIG = {
-  BASE_URL: 'https://api.kie.ai',
+  BASE_URL: KIE_JOBS.BASE_URL,
   ENDPOINTS: {
-    CREATE_TASK: '/api/v1/jobs/createTask',
-    TASK_STATUS: '/api/v1/jobs/taskStatus',
+    CREATE_TASK: KIE_JOBS.CREATE_TASK,
+    // Renamed along with the value it holds: this key said TASK_STATUS because
+    // it pointed at /api/v1/jobs/taskStatus, and that route answers 404 to
+    // every request (see src/config/kie-jobs.ts for the measurement). The
+    // poller below it parses the answer correctly and always has -- it simply
+    // never received one. Renaming rather than re-pointing makes the compiler
+    // name every other place that believed in the old route.
+    RECORD_INFO: KIE_JOBS.RECORD_INFO,
   },
   TIMEOUT: {
     CREATE_TASK: 30000, // 30 секунд

@@ -7,6 +7,14 @@ import { logger } from '@/utils/logger'
 import { redactBotToken } from '@/utils/redactBotToken'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
+import { avatarActionCaption, avatarActionKeyboard } from './actionPrompt'
+import {
+  avatarModelCard,
+  avatarModelDisplayName,
+  avatarModelFromButton,
+  avatarModelKeyboard,
+  avatarModelPriority,
+} from './models'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
 // 🚨 HERO VALIDATION SYSTEM
@@ -24,6 +32,7 @@ import { getBotNameByToken } from '@/core/bot'
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
 import { generateSeeDream45 } from '@/services/generateSeeDream45'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
+import { generateGptImage25 } from '@/services/generateGptImage25'
 // Legacy fallback
 import { generateFluxKontext } from '@/services/generateFluxKontext'
 
@@ -1387,23 +1396,19 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Показываем выбор AI модели
     await ctx.reply(
-      isRu
-        ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${gender === 'male' ? 'Мужской образ' : 'Женский образ'}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2025\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-        : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${gender === 'male' ? 'Male style' : 'Female style'}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2025 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+      avatarModelCard(
+        isRu,
+        gender === 'male'
+          ? isRu
+            ? 'Мужской образ'
+            : 'Male style'
+          : isRu
+            ? 'Женский образ'
+            : 'Female style'
+      ),
       {
         parse_mode: 'HTML',
-        reply_markup: Markup.keyboard([
-          [
-            isRu
-              ? '🤖 FLUX Kontext Max (Google)'
-              : '🤖 FLUX Kontext Max (Google)',
-            isRu
-              ? '🎭 SeeDream-4.5 (ByteDance)'
-              : '🎭 SeeDream-4.5 (ByteDance)',
-            isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
-          ],
-          [isRu ? 'Отмена' : 'Cancel', isRu ? '🔙 Назад' : '🔙 Back'],
-        ]).resize().reply_markup,
+        reply_markup: avatarModelKeyboard(isRu, true),
       }
     )
 
@@ -1491,30 +1496,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Обработка выбора модели
-    let selectedModel: 'flux-kontext' | 'seedream45' | 'nano-banana' | null =
-      null
+    const selectedModel = avatarModelFromButton(text)
 
-    if (
-      text ===
-      (isRu ? '🤖 FLUX Kontext Max (Google)' : '🤖 FLUX Kontext Max (Google)')
-    ) {
-      selectedModel = 'flux-kontext'
-      logger.info('[AvatarTransformScene] FLUX Kontext Max selected', {
+    if (selectedModel) {
+      logger.info('[AvatarTransformScene] Model selected from keyboard', {
         telegramId,
+        selectedModel,
       })
-    } else if (
-      text ===
-      (isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)')
-    ) {
-      selectedModel = 'seedream45'
-      logger.info('[AvatarTransformScene] SeeDream-4.5 selected', {
-        telegramId,
-      })
-    } else if (
-      text === (isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)')
-    ) {
-      selectedModel = 'nano-banana'
-      logger.info('[AvatarTransformScene] Nano Banana selected', { telegramId })
     }
 
     if (!selectedModel) {
@@ -1545,10 +1533,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         step: 'photo_obtained',
       })
 
-      const modelDisplayName =
-        selectedModel === 'flux-kontext'
-          ? 'FLUX Kontext Max (Google)'
-          : 'SeeDream-4.5 (ByteDance)'
+      const modelDisplayName = avatarModelDisplayName(selectedModel)
 
       const gender = ctx.session.selectedGender
       const genderDisplay =
@@ -1560,47 +1545,43 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             ? 'Женский образ'
             : 'Female style'
 
+      // One card instead of three copies, and it knows whether a photo exists.
+      // The "use my avatar" button is drawn only when the avatar was really
+      // fetched: offering an action that cannot be carried out IS the
+      // 🚨 INVALID_URL that kept reaching the owner. The text explains why the
+      // button is missing.
+      const hasPhoto = !!userPhotoUrl
+      const actionCaption = avatarActionCaption({
+        isRu,
+        genderDisplay,
+        modelDisplayName,
+        hasPhoto,
+      })
+      const actionKeyboard = avatarActionKeyboard(isRu, hasPhoto)
+
       try {
-        // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
-        const photoSent = await sendPhotoWithFallback(ctx, userPhotoUrl, {
-          caption: isRu
-            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
-          parse_mode: 'HTML',
-          reply_markup: Markup.keyboard([
-            [
-              isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
-              isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-            ],
-            [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
-          ]).resize().reply_markup,
-        })
+        const photoSent =
+          hasPhoto &&
+          (await sendPhotoWithFallback(ctx, userPhotoUrl, {
+            caption: actionCaption,
+            parse_mode: 'HTML',
+            reply_markup: actionKeyboard,
+          }))
 
         // Если фото не удалось отправить, отправляем текстовое сообщение
         if (!photoSent) {
-          logger.warn(
-            '[AvatarTransformScene] Photo fallback failed, sending text message'
-          )
+          // Only a real send failure is a fault. Having no avatar is not one,
+          // and it does not belong in the log.
+          if (hasPhoto) {
+            logger.warn(
+              '[AvatarTransformScene] Photo fallback failed, sending text message'
+            )
+          }
 
-          await ctx.reply(
-            isRu
-              ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-              : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: Markup.keyboard([
-                [
-                  isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
-                  isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-                ],
-                [
-                  isRu
-                    ? '🔙 Назад к выбору модели'
-                    : '🔙 Back to model selection',
-                ],
-              ]).resize().reply_markup,
-            }
-          )
+          await ctx.reply(actionCaption, {
+            parse_mode: 'HTML',
+            reply_markup: actionKeyboard,
+          })
         }
       } catch (photoError) {
         logger.warn(
@@ -1612,29 +1593,17 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
 
         // Fallback: если не удалось отправить фото, показываем текстовое сообщение
-        await ctx.reply(
-          isRu
-            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: Markup.keyboard([
-              [
-                isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
-                isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-              ],
-              [
-                isRu
-                  ? '🔙 Назад к выбору модели'
-                  : '🔙 Back to model selection',
-              ],
-            ]).resize().reply_markup,
-          }
-        )
+        await ctx.reply(actionCaption, {
+          parse_mode: 'HTML',
+          reply_markup: actionKeyboard,
+        })
       }
 
-      // Сохраняем URL в сессии
-      ctx.session.kontextImageUrl = userPhotoUrl
+      // Сохраняем URL в сессии.
+      // kontextImageUrl is typed `string | undefined`; writing the null here
+      // stored it for step 3, which handed the same null back to the sender at
+      // the second call site. Clear the field instead of poisoning it.
+      ctx.session.kontextImageUrl = userPhotoUrl ?? undefined
       return ctx.wizard.next()
     } catch (error) {
       logger.error('[AvatarTransformScene] Error in photo step:', error)
@@ -1705,26 +1674,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             : 'Female style'
 
       // Показываем выбор AI модели заново
-      await ctx.reply(
-        isRu
-          ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2025\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-          : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2025 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: Markup.keyboard([
-            [
-              isRu
-                ? '🤖 FLUX Kontext Max (Google)'
-                : '🤖 FLUX Kontext Max (Google)',
-              isRu
-                ? '🎭 SeeDream-4.5 (ByteDance)'
-                : '🎭 SeeDream-4.5 (ByteDance)',
-              isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
-            ],
-            [isRu ? '🔙 Назад' : '🔙 Back'],
-          ]).resize().reply_markup,
-        }
-      )
+      await ctx.reply(avatarModelCard(isRu, genderDisplay), {
+        parse_mode: 'HTML',
+        reply_markup: avatarModelKeyboard(isRu, false),
+      })
 
       // Возвращаемся к шагу выбора модели (шаг 1, индекс 1)
       ctx.wizard.selectStep(1)
@@ -1926,10 +1879,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       const gender = ctx.session.selectedGender
       const selectedModel = ctx.session.selectedModel
-      const modelDisplayName =
-        selectedModel === 'flux-kontext'
-          ? 'FLUX Kontext Max (Google)'
-          : 'SeeDream-4.5 (ByteDance)'
+      const modelDisplayName = avatarModelDisplayName(selectedModel)
       const genderDisplay =
         gender === 'male'
           ? isRu
@@ -1942,64 +1892,37 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Показываем сообщение выбора действия заново
       const userPhotoUrl = ctx.session.kontextImageUrl
 
+      // The same card as in the photo step: one definition for both places.
+      const hasPhoto = !!userPhotoUrl
+      const actionCaption = avatarActionCaption({
+        isRu,
+        genderDisplay,
+        modelDisplayName,
+        hasPhoto,
+      })
+      const actionKeyboard = avatarActionKeyboard(isRu, hasPhoto)
+
       try {
-        // 🎨 ПОКАЗЫВАЕМ ПРЕВЬЮ АВАТАРКИ ПОЛЬЗОВАТЕЛЯ
-        const photoSent = await sendPhotoWithFallback(ctx, userPhotoUrl, {
-          caption: isRu
-            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
-          parse_mode: 'HTML',
-          reply_markup: Markup.keyboard([
-            [
-              isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
-              isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-            ],
-            [isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection'],
-          ]).resize().reply_markup,
-        })
+        const photoSent =
+          hasPhoto &&
+          (await sendPhotoWithFallback(ctx, userPhotoUrl, {
+            caption: actionCaption,
+            parse_mode: 'HTML',
+            reply_markup: actionKeyboard,
+          }))
 
         // Если фото не удалось отправить, отправляем текстовое сообщение
         if (!photoSent) {
-          await ctx.reply(
-            isRu
-              ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-              : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: Markup.keyboard([
-                [
-                  isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
-                  isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-                ],
-                [
-                  isRu
-                    ? '🔙 Назад к выбору модели'
-                    : '🔙 Back to model selection',
-                ],
-              ]).resize().reply_markup,
-            }
-          )
+          await ctx.reply(actionCaption, {
+            parse_mode: 'HTML',
+            reply_markup: actionKeyboard,
+          })
         }
       } catch (photoError) {
-        await ctx.reply(
-          isRu
-            ? `🤖 <b>AI-трансформация готова к запуску!</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n🎯 <b>Выбранная модель:</b> ${modelDisplayName}\n\n📸 <b>Ваше фото для трансформации</b>\n🎨 Я беру ваше фото и трансформирую его в любой стиль!\n\n🌟 <b>Демо возможностей бота:</b>\n• Трансформация в стиле популярных персонажей\n• Кинематографическое качество обработки\n• Любые образы на ваш выбор (в полной версии)\n\n🎁 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n💰 <b>Полный доступ ко всем функциям бота - после покупки</b>\n\n🎯 Выберите действие:`
-            : `🤖 <b>AI transformation ready to start!</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n🎯 <b>Selected model:</b> ${modelDisplayName}\n\n📸 <b>Your photo for transformation</b>\n🎨 I take your photo and transform it into any style!\n\n🌟 <b>Bot capabilities demo:</b>\n• Transformation in popular character styles\n• Cinematic quality processing\n• Any styles of your choice (in full version)\n\n🎁 <b>This is a FREE demonstration of capabilities!</b>\n💰 <b>Full access to all bot functions - after purchase</b>\n\n🎯 Choose action:`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: Markup.keyboard([
-              [
-                isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar',
-                isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo',
-              ],
-              [
-                isRu
-                  ? '🔙 Назад к выбору модели'
-                  : '🔙 Back to model selection',
-              ],
-            ]).resize().reply_markup,
-          }
-        )
+        await ctx.reply(actionCaption, {
+          parse_mode: 'HTML',
+          reply_markup: actionKeyboard,
+        })
       }
 
       // Возвращаемся к выбору действия (шаг 2, индекс 2)
@@ -2562,12 +2485,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       const attemptedModels: string[] = []
 
       // Define the priority order for models with fallback
-      const modelPriority =
-        selectedModel === 'seedream45'
-          ? ['seedream45', 'flux-kontext', 'nano-banana']
-          : (selectedModel as string) === 'nano-banana'
-            ? ['nano-banana', 'flux-kontext', 'seedream45']
-            : ['flux-kontext', 'seedream45', 'nano-banana']
+      const modelPriority = avatarModelPriority(selectedModel)
 
       console.log('🎯 Starting AI generation with fallback logic:', {
         telegramId,
@@ -2584,7 +2502,28 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             telegramId,
           })
 
-          if (modelToTry === 'seedream45') {
+          if (modelToTry === 'gpt-image-25') {
+            console.log('🎨 Using GPT-Image-2.5...', { telegramId })
+            const gptImageResult = await generateGptImage25({
+              telegram_id: telegramId,
+              promptText: prompt,
+              inputImageUrl: userPhotoUrl,
+              username: ctx.from?.username || 'unknown',
+              is_ru: isRu,
+              ctx,
+              // Portrait, like every other model in this chain.
+              aspect_ratio: '9:16',
+              suppressUserErrors: true, // Don't show errors in fallback chain
+            })
+
+            if (gptImageResult) {
+              result = 'success'
+              console.log('✅ GPT-Image-2.5 generation successful!', {
+                telegramId,
+              })
+              break
+            }
+          } else if (modelToTry === 'seedream45') {
             console.log('🎭 Using SeeDream-4.5...', { telegramId })
             const seedreamResult = await generateSeeDream45({
               telegram_id: telegramId,
@@ -2637,7 +2576,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
                 username: ctx.from?.username || 'unknown',
                 is_ru: isRu,
                 ctx,
-                aspect_ratio: 'match_input_image',
+                // Portrait, like the other two models in this same chain
+                // (seedream45 above asks for '9:16'). 'match_input_image'
+                // meant the shape of the INPUT picture, and the input here is
+                // a square Telegram avatar: one and the same transformation
+                // returned a square or a vertical frame depending on which
+                // model answered first.
+                aspect_ratio: '9:16',
                 suppressUserErrors: true, // ✅ Don't show errors in fallback chain
               })
 
@@ -3079,7 +3024,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           username: ctx.from?.username || 'unknown',
           is_ru: isRu,
           ctx: ctx,
-          aspect_ratio: '16:9',
+          // The prompt above (baseSettings) demands "Aspect ratio 9:16" while
+          // the parameter asked for 16:9 -- two instructions arguing over one
+          // picture, and the parameter won. The seedream45 branch next to it
+          // always asked for '9:16': the frame depended on which model was
+          // picked, not on the intent.
+          aspect_ratio: '9:16',
         })
         generatedImageUrl =
           typeof result.image === 'string'

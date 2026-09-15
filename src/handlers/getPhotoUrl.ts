@@ -21,11 +21,28 @@ export async function getPhotoUrl(
       .single()
 
     if (error) {
-      logger.error('Ошибка при получении URL аватара из Supabase:', {
-        description: 'Error fetching avatar URL from Supabase',
-        error,
-        bot_name,
-      })
+      // A bot with no row in `avatars` is an ordinary state, not an incident:
+      // `.single()` reports zero rows as PGRST116 and this function answers it
+      // with a fallback URL that works. It was logged at ERROR, and every
+      // logger.error is forwarded to the owner's Telegram, so onboarding a new
+      // bot (t27ai_bot, added after the 15-bot avatar census) posted a 🚨 to
+      // the owner each time somebody pressed Start. The house idiom for this is
+      // in checkAvatarTransformUsage.ts: name the code, log it as information.
+      // `const m = logger.info` would arrive without its instance -- the same
+      // detached-method trap that answered a photo send with
+      // "Cannot read properties of undefined". Call it attached.
+      if ((error as { code?: string }).code === 'PGRST116') {
+        logger.info('Аватар бота не задан, берём изображение по умолчанию', {
+          description: 'No avatar row for this bot; using the default image',
+          bot_name,
+        })
+      } else {
+        logger.error('Ошибка при получении URL аватара из Supabase:', {
+          description: 'Error fetching avatar URL from Supabase',
+          error,
+          bot_name,
+        })
+      }
       return `https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/landingpage/avatars/neuro_blogger_bot/levels/${step}.jpg`
     }
 

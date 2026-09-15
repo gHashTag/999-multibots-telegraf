@@ -7,6 +7,26 @@ import { z } from 'zod'
 
 export const NanoBananaOutputFormatSchema = z.enum(['jpg', 'png'])
 
+/**
+ * Read from Replicate's schema for `google/nano-banana` on 2026-09-15:
+ * GET https://api.replicate.com/v1/models/google/nano-banana. The service
+ * never sent this field at all, so every image came back at the model's own
+ * default, `match_input_image` -- the square shape of a Telegram avatar.
+ */
+export const NanoBananaAspectRatioSchema = z.enum([
+  'match_input_image',
+  '1:1',
+  '2:3',
+  '3:2',
+  '3:4',
+  '4:3',
+  '4:5',
+  '5:4',
+  '9:16',
+  '16:9',
+  '21:9',
+])
+
 export const NanoBananaInputSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required').max(1000, 'Prompt too long'),
   image_input: z
@@ -14,6 +34,7 @@ export const NanoBananaInputSchema = z.object({
     .min(1, 'At least one input image is required')
     .max(10, 'Maximum 10 images allowed'),
   output_format: NanoBananaOutputFormatSchema.default('png'),
+  aspect_ratio: NanoBananaAspectRatioSchema.default('9:16'),
 })
 
 export const NanoBananaResponseSchema = z.object({
@@ -58,6 +79,7 @@ export const ReplicateNanoBananaResponseSchema = z.union([
 export type NanoBananaInput = z.infer<typeof NanoBananaInputSchema>
 export type NanoBananaResponse = z.infer<typeof NanoBananaResponseSchema>
 export type NanoBananaError = z.infer<typeof NanoBananaErrorSchema>
+export type NanoBananaAspectRatio = z.infer<typeof NanoBananaAspectRatioSchema>
 export type NanoBananaOutputFormat = z.infer<
   typeof NanoBananaOutputFormatSchema
 >

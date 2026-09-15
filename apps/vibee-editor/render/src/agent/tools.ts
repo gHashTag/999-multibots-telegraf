@@ -25,6 +25,7 @@
  * границу пропуска нужно будет вернуть сюда же — одним местом.
  */
 
+import { createHash } from 'node:crypto'
 import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
@@ -343,6 +344,147 @@ async function ensureRendersTable(ctx: ToolContext): Promise<void> {
     `CREATE INDEX IF NOT EXISTS agent_renders_owner
        ON agent_renders (telegram_id, created_at DESC)`
   )
+  /*
+   * The table is already live, so new columns are added separately.
+   *
+   * fingerprint - the same composition with the same props (renderFingerprint).
+   * output_url  - what actually came out; empty while nothing has.
+   * owed_tokens - HOW MUCH THIS RENDER HAS NOT YET EARNED. The charge happens
+   *               before the start, and the outcome can arrive minutes later,
+   *               sometimes in a different turn of the conversation. Without
+   *               this number there is nobody left to compute a refund from:
+   *               the chat holds no state.
+   */
+  await ctx.pool.query(
+    `ALTER TABLE agent_renders ADD COLUMN IF NOT EXISTS fingerprint text`
+  )
+  await ctx.pool.query(
+    `ALTER TABLE agent_renders ADD COLUMN IF NOT EXISTS output_url text`
+  )
+  await ctx.pool.query(
+    `ALTER TABLE agent_renders ADD COLUMN IF NOT EXISTS owed_tokens integer NOT NULL DEFAULT 0`
+  )
+  await ctx.pool.query(
+    `CREATE INDEX IF NOT EXISTS agent_renders_fingerprint
+       ON agent_renders (telegram_id, fingerprint, created_at DESC)`
+  )
+}
+
+/** Keys sorted: {a,b} and {b,a} are one piece of work, not two. */
+function stableJson(v: unknown): string {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null'
+  if (Array.isArray(v)) return '[' + v.map(stableJson).join(',') + ']'
+  const o = v as Record<string, unknown>
+  return (
+    '{' +
+    Object.keys(o)
+      .sort()
+      .map(k => JSON.stringify(k) + ':' + stableJson(o[k]))
+      .join(',') +
+    '}'
+  )
+}
+
+/**
+ * The fingerprint of a job: the composition plus its inputs.
+ *
+ * MEASURED ON A REAL PERSON. On 2026-09-15 lead 1900592465 paid for three
+ * builds in a row. One failed; the other two returned EXACTLY ONE file:
+ * sha256 79741cd2..., 1 426 269 bytes, 1080x1920, 30.000 s - byte-identical
+ * mp4s under two different renderIds. Two charges for one result.
+ *
+ * Remotion is deterministic: frames are drawn from props. So a repeat with
+ * the same props is not "another attempt", it is a copy of a file already
+ * paid for, and there is nothing to charge for a second time.
+ */
+function renderFingerprint(compositionId: string, props: unknown): string {
+  return createHash('sha256')
+    .update(String(compositionId))
+    .update(' ')
+    .update(stableJson(props ?? {}))
+    .digest('hex')
+}
+
+/** A finished file with the same fingerprint: if it exists, there is no work. */
+async function recentTwin(
+  ctx: ToolContext,
+  fingerprint: string
+): Promise<{ renderId: string; url: string } | null> {
+  try {
+    const r = await ctx.pool.query(
+      `SELECT render_id, output_url FROM agent_renders
+        WHERE telegram_id = $1 AND fingerprint = $2 AND output_url IS NOT NULL
+          AND created_at > now() - interval '24 hours'
+        ORDER BY created_at DESC LIMIT 1`,
+      [ctx.telegramId, fingerprint]
+    )
+    const row = r.rows[0]
+    if (!row?.output_url) return null
+    return { renderId: String(row.render_id), url: String(row.output_url) }
+  } catch (e) {
+    // No twin found means we simply render again. Throwing here is worse.
+    console.error('[рендеры] не смог поискать близнеца', e)
+    return null
+  }
+}
+
+/**
+ * The work is done: the file is recorded, the money is earned.
+ *
+ * Zeroing owed_tokens here does the same job as it does on a refund: once a
+ * render is settled there is nothing left to give back. One row cannot be
+ * settled twice.
+ */
+async function markRenderDelivered(
+  ctx: ToolContext,
+  renderId: string,
+  url: string
+): Promise<void> {
+  try {
+    await ctx.pool.query(
+      `UPDATE agent_renders SET output_url = $3, owed_tokens = 0
+        WHERE render_id = $1 AND telegram_id = $2`,
+      [renderId, ctx.telegramId, url]
+    )
+  } catch (e) {
+    console.error('[рендеры] не записал результат', renderId, e)
+  }
+}
+
+/**
+ * A RENDER IS REFUNDED EXACTLY ONCE.
+ *
+ * The decision to refund and the removal of the amount from the row are one
+ * UPDATE: `owed_tokens > 0` in the WHERE, the amount itself in the RETURNING.
+ * A second call (the agent polled status twice, the human pressed again)
+ * finds no row and mints no tokens out of thin air. The deduction in
+ * spendTokens is built the same way.
+ *
+ * The HOUSE never reaches this by accident: spendTokens charges the house
+ * zero, so owed_tokens is 0, so the WHERE does not match. House symmetry
+ * holds without a branch of its own.
+ */
+async function refundRenderOnce(
+  ctx: ToolContext,
+  renderId: string,
+  why: string
+): Promise<number> {
+  try {
+    const r = await ctx.pool.query(
+      `UPDATE agent_renders SET owed_tokens = 0
+        WHERE render_id = $1 AND telegram_id = $2 AND owed_tokens > 0
+        RETURNING owed_tokens AS owed`,
+      [renderId, ctx.telegramId]
+    )
+    // The amount was MEASURED by the deduction and written into the row:
+    // re-deriving it from the price table is wrong, the price may have moved.
+    const owed = Number(r.rows[0]?.owed ?? 0)
+    if (owed > 0) await refundTokens(ctx, 'reel_render', why, owed)
+    return owed
+  } catch (e) {
+    console.error('[рендеры] не смог рассчитаться по', renderId, e)
+    return 0
+  }
 }
 
 /** Таблица скиллов создаётся лениво при первом обращении — как user_soul. */
@@ -1650,6 +1792,35 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      /*
+       * FIRST LOOK WHETHER THIS WORK IS ALREADY DONE.
+       *
+       * The check sits BEFORE the charge: otherwise money goes out for a file
+       * the person already has. The table is created here too - the twin
+       * lookup reads the same columns the start below writes.
+       */
+      const fingerprint = renderFingerprint(
+        String(args.compositionId),
+        args.props || {}
+      )
+      try {
+        await ensureRendersTable(ctx)
+      } catch (e) {
+        console.error('[рендеры] таблица недоступна', e)
+      }
+      const twin = await recentTwin(ctx, fingerprint)
+      if (twin) {
+        const note =
+          'этот же шаблон с теми же данными уже собран — файл побайтово тот же, ' +
+          'второй раз не списываю. Нужен другой ролик — поменяй props (текст, картинки, звук).'
+        return {
+          готово: true, // cyrillic-ok: the tool's result fields are its API
+          renderId: twin.renderId,
+          url: twin.url,
+          повтор: true, // cyrillic-ok: the tool's result fields are its API
+          примечание: note, // cyrillic-ok: the tool's result fields are its API
+        }
+      }
       const charge = await spendTokens(ctx, 'reel_render')
       if (!charge.ok) return { началось: false, причина: charge.причина }
       const base = selfBase()
@@ -1659,6 +1830,13 @@ export const TOOLS: AgentTool[] = [
         body: JSON.stringify({
           compositionId: String(args.compositionId),
           props: args.props || {},
+          /*
+           * WHO ORDERED IT. Without this field the finished video goes only to
+           * the internal group and the buyer has no address - which is exactly
+           * how two reels built on 2026-09-15 never reached the person who paid
+           * for them. The server delivers by userInfo.telegram_id.
+           */
+          userInfo: { telegram_id: ctx.telegramId },
         }),
       })
       const startData: any = await start.json().catch(() => null)
@@ -1688,13 +1866,22 @@ export const TOOLS: AgentTool[] = [
        * Ошибку записи глотаем: потерять ЛОГ хуже, чем потерять рендер, но
        * уронить из-за лога сам рендер — хуже всего.
        */
+      // Whether the render made it into the table: that decides who refunds -
+      // the atomic settle on the row, or this call directly.
+      let recorded = false
       try {
-        await ensureRendersTable(ctx)
         await ctx.pool.query(
-          `INSERT INTO agent_renders (telegram_id, render_id, title)
-           VALUES ($1, $2, $3) ON CONFLICT (render_id) DO NOTHING`,
-          [ctx.telegramId, renderId, String(args.name || '').slice(0, 200)]
+          `INSERT INTO agent_renders (telegram_id, render_id, title, fingerprint, owed_tokens)
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (render_id) DO NOTHING`,
+          [
+            ctx.telegramId,
+            renderId,
+            String(args.name || '').slice(0, 200),
+            fingerprint,
+            Number(charge['потрачено'] ?? 0),
+          ]
         )
+        recorded = true
       } catch (e) {
         console.error('[рендеры] не записал запуск', renderId, e)
       }
@@ -1716,24 +1903,65 @@ export const TOOLS: AgentTool[] = [
         if (stData?.status === 'completed') {
           const url = stData.publicUrl || stData.outputUrl
           const full = url && !url.startsWith('http') ? `${base}${url}` : url
+          if (recorded && full) await markRenderDelivered(ctx, renderId, full)
           return withTokens(ctx, 'reel_render', {
-            готово: true,
+            готово: true, // cyrillic-ok: the tool's result fields are its API
             renderId,
             url: full,
+            // The file is invisible to the person by itself: the link has to
+            // reach them.
+            отдать_человеку: full, // cyrillic-ok: result field, the tool's API
           })
         }
+        /*
+         * IT FAILED, SO THE MONEY GOES BACK.
+         *
+         * There was no refund here. The charge stood before the start and came
+         * back only when the render never started at all, while the commonest
+         * breakage is: started and failed. On 2026-09-15 that was "No `src` was
+         * passed to <OffthreadVideo>." A person paid for a build that does not
+         * exist. This was the ONLY paid tool in the file with no refund on a
+         * provider failure - every neighbour of it refunds.
+         */
         if (stData?.status === 'failed') {
+          const why = `рендер упал: ${String(stData.error || 'без подробностей')}`
+          // There is a row: settle on it, exactly once. There is no row (the
+          // INSERT did not land): refund directly - there will be nothing to
+          // settle against later, and what was taken must still go back.
+          let back = 0
+          if (recorded) {
+            back = await refundRenderOnce(ctx, renderId, why)
+          } else if (Number(charge['потрачено'] ?? 0) > 0) {
+            await refundTokens(ctx, 'reel_render', why, charge['потрачено'])
+            back = Number(charge['потрачено'])
+          }
           return {
             готово: false,
             renderId,
-            причина: `рендер упал: ${String(stData.error || 'без подробностей')}`,
+            причина: why,
+            ...(back > 0 ? { возвращено: back } : {}), // cyrillic-ok: API field
           }
         }
       }
+      /*
+       * We stopped waiting, but the outcome is still coming. The money stays
+       * owed against this render (owed_tokens), and render_status settles it
+       * once the outcome is known: failed refunds, completed closes. Keeping
+       * it silently is not allowed here, and refunding here is not either -
+       * the work may still finish.
+       */
+      if (!recorded) {
+        console.error(
+          `[рендеры] ${renderId} не записан и не дождался: вернуть будет некому`
+        )
+      }
+      const hint =
+        'render_status по этому renderId и отдаст ссылку, и вернёт токены, если рендер упал'
       return {
         готово: false,
         renderId,
         причина: 'не уложился в 6 минут — проверь render_status',
+        подсказка: hint, // cyrillic-ok: result field, the tool's API
       }
     },
   },
@@ -1748,19 +1976,45 @@ export const TOOLS: AgentTool[] = [
       required: ['renderId'],
       additionalProperties: false,
     },
-    async handler(args) {
+    async handler(args, ctx) {
+      const renderId = String(args.renderId)
       const st = await selfFetch(
-        `${selfBase()}/render/${encodeURIComponent(String(args.renderId))}`
+        `${selfBase()}/render/${encodeURIComponent(renderId)}`
       )
       const stData: any = await st.json().catch(() => null)
       if (!st.ok) {
         return { ошибка: `рендер не найден: HTTP ${st.status}` }
       }
       const url = stData.publicUrl || stData.outputUrl
-      return {
-        ...stData,
-        url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url,
+      const full = url && !url.startsWith('http') ? `${selfBase()}${url}` : url
+      /*
+       * THIS IS WHERE A RENDER'S ACCOUNT IS CLOSED.
+       *
+       * reel_render waits six minutes and leaves; the outcome often arrives
+       * later, and then the only witness to it is a status poll. Without
+       * settling here, "did not finish in 6 minutes" stays paid-for-nothing
+       * for ever. The settle runs off the row in agent_renders and exactly
+       * once, however many times the status is asked for.
+       */
+      if (ctx?.pool && ctx?.telegramId) {
+        if (stData?.status === 'failed') {
+          const back = await refundRenderOnce(
+            ctx,
+            renderId,
+            `рендер упал: ${String(stData.error || 'без подробностей')}`
+          )
+          if (back > 0) {
+            return {
+              ...stData,
+              url: full,
+              возвращено: back, // cyrillic-ok: result field, the tool's API
+            }
+          }
+        } else if (stData?.status === 'completed' && full) {
+          await markRenderDelivered(ctx, renderId, full)
+        }
       }
+      return { ...stData, url: full }
     },
   },
 

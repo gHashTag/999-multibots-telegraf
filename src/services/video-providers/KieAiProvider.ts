@@ -2,6 +2,7 @@ import axios, { AxiosError } from 'axios'
 import { logger } from '@/utils/logger'
 import { getAvailableCallbackUrl } from '@/utils/webhookHealthCheck'
 import { inngest } from '@/inngest_app/client'
+import { KIE_JOBS, readKieJobRecord } from '@/config/kie-jobs'
 
 interface KieAiCredits {
   credits: number
@@ -1126,8 +1127,23 @@ export class KieAiProvider {
     }
 
     try {
+      // Two things were wrong here at once, and each hid the other.
+      //
+      // The URL was `${baseUrl}/jobs/taskStatus`, a route kie.ai does not have:
+      // it answers 404 to every request, so this method threw a network error
+      // on every poll and pollSoraTaskStatus below turned that into a failed
+      // generation. See src/config/kie-jobs.ts for the measurement.
+      //
+      // Under the 404 sat a second defect that could never be observed: the
+      // branches below read `status`, `videoUrl`, `resultUrls` and
+      // `errorMessage`, which are the WEBHOOK callback's field names. The
+      // status query answers with `state` and a `resultJson` STRING. Had the
+      // route existed, every response would have fallen into the final
+      // "unknown status" branch and polled until it timed out. Fixing only the
+      // URL would have traded a loud failure for a silent one, so both move
+      // together, through the one reader that knows every spelling.
       const response = await axios.get<SoraTaskStatusResponse>(
-        `${this.baseUrl}/jobs/taskStatus`,
+        `${KIE_JOBS.BASE_URL}${KIE_JOBS.RECORD_INFO}`,
         {
           params: { taskId },
           headers: {
@@ -1138,13 +1154,14 @@ export class KieAiProvider {
         }
       )
 
+      const record = readKieJobRecord(response.data?.data)
+
       logger.info('[KieAiProvider] Sora task status response:', {
         taskId,
         code: response.data.code,
         msg: response.data.msg,
-        status: response.data.data?.status,
-        successFlag: response.data.data?.successFlag,
-        hasVideoUrl: !!response.data.data?.videoUrl,
+        state: record.state,
+        hasVideoUrl: record.urls.length > 0,
       })
 
       if (response.data.code !== 200) {
@@ -1153,94 +1170,50 @@ export class KieAiProvider {
 
       const data = response.data.data
 
-      // Check if task is completed (successFlag === 1 or status === 'completed')
-      if (data.successFlag === 1 || data.status === 'completed') {
-        const videoUrl = data.videoUrl || data.resultUrls?.[0]
-
-        if (videoUrl) {
-          logger.info('[KieAiProvider] Sora video is ready!', {
-            taskId,
-            videoUrl,
-          })
-          return {
-            success: true,
-            data: {
-              videoUrl,
-              duration: data.duration || 10,
-              taskId,
-            },
-            cost: { usd: 0, stars: 0 }, // Cost already calculated in generateSoraVideo
-            provider: 'Kie.ai Sora 2',
-            model: 'sora-2-text-to-video',
-          }
-        } else {
-          logger.warn(
-            '[KieAiProvider] Sora video marked as ready but no URL found',
-            {
-              taskId,
-              data,
-            }
-          )
-          throw new Error('Video marked as ready but no video URL provided')
-        }
-      } else if (
-        data.successFlag === 0 ||
-        data.status === 'pending' ||
-        data.status === 'processing'
-      ) {
-        // Still processing
-        logger.info('[KieAiProvider] Sora video still processing', {
-          taskId,
-          status: data.status,
-          successFlag: data.successFlag,
-        })
-        return {
-          success: true,
-          data: {
-            videoUrl: '', // Empty string indicates still processing
-            duration: 10,
-            taskId,
-          },
-          cost: { usd: 0, stars: 0 },
-          provider: 'Kie.ai Sora 2',
-          model: 'sora-2-text-to-video',
-        }
-      } else if (data.successFlag === 2 || data.status === 'failed') {
-        // Task failed
-        const errorMessage = data.errorMessage || 'Sora video generation failed'
+      if (record.state === 'fail') {
+        const errorMessage = record.failMsg || 'Sora video generation failed'
         logger.error('[KieAiProvider] Sora video generation failed', {
           taskId,
           errorMessage,
         })
         throw new Error(errorMessage)
-      } else if (data.successFlag === 3) {
-        // Content policy violation
-        logger.error('[KieAiProvider] Sora video rejected by content policy', {
+      }
+
+      if (record.state === 'success') {
+        const videoUrl = record.urls[0]
+        logger.info('[KieAiProvider] Sora video is ready!', {
           taskId,
-          errorMessage: data.errorMessage,
+          videoUrl,
         })
-        throw new Error(
-          data.errorMessage ||
-            'Content rejected by policy. Please try a different prompt.'
-        )
-      } else {
-        logger.warn('[KieAiProvider] Unknown Sora task status', {
-          taskId,
-          status: data.status,
-          successFlag: data.successFlag,
-        })
-        // Continue polling for unknown statuses
         return {
           success: true,
           data: {
-            videoUrl: '',
-            duration: 10,
+            videoUrl,
+            duration: data?.duration || 10,
             taskId,
           },
-          cost: { usd: 0, stars: 0 },
+          cost: { usd: 0, stars: 0 }, // Cost already calculated in generateSoraVideo
           provider: 'Kie.ai Sora 2',
           model: 'sora-2-text-to-video',
         }
+      }
+
+      // Still running. An empty videoUrl is how this method has always said
+      // "keep polling", and pollSoraTaskStatus reads it that way.
+      logger.info('[KieAiProvider] Sora video still processing', {
+        taskId,
+        state: record.state,
+      })
+      return {
+        success: true,
+        data: {
+          videoUrl: '',
+          duration: 10,
+          taskId,
+        },
+        cost: { usd: 0, stars: 0 },
+        provider: 'Kie.ai Sora 2',
+        model: 'sora-2-text-to-video',
       }
     } catch (error) {
       logger.error('[KieAiProvider] Error checking Sora task status', {

@@ -16,6 +16,7 @@ import {
   NanoBananaInputSchema,
   NanoBananaResponseSchema,
   NanoBananaInput,
+  NanoBananaAspectRatio,
   NanoBananaResponse,
   NANO_BANANA_AVATAR_CONFIG,
   NANO_BANANA_PROMPT_TEMPLATES,
@@ -32,6 +33,7 @@ export interface NanoBananaServiceParams {
   username?: string
   is_ru?: boolean
   output_format?: 'jpg' | 'png'
+  aspect_ratio?: NanoBananaAspectRatio
   promptStyle?: 'headshot' | 'fullBody' | 'artistic'
   silent?: boolean // If true, don't send photo to user (for ALL_MODELS mode)
   skipBalanceCheck?: boolean // If true, skip balance check (already checked before loop)
@@ -79,6 +81,10 @@ export async function generateNanoBanana(
       username,
       is_ru = true,
       output_format = 'png',
+      // Portrait by default. Without this field Replicate used its own
+      // default, `match_input_image` -- the shape of the input picture --
+      // and a Telegram avatar is square.
+      aspect_ratio = '9:16',
       promptStyle = 'headshot',
     } = params
 
@@ -103,6 +109,7 @@ export async function generateNanoBanana(
       prompt: truncatedPrompt,
       image_input: imageInputArray,
       output_format,
+      aspect_ratio,
     }
 
     // ✅ ENHANCED VALIDATION: Validate input with Zod schema and detailed error handling
