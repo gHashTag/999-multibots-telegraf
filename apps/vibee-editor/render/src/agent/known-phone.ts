@@ -72,7 +72,11 @@ export function нормализоватьНомер(сырое: unknown): strin
 
 export async function запомнитьНомер(
   pool: ПулДляНомера,
-  { telegramId, phone, источник }: { telegramId: string; phone: unknown; источник: string }
+  {
+    telegramId,
+    phone,
+    источник,
+  }: { telegramId: string; phone: unknown; источник: string }
 ): Promise<'сохранён' | 'не похоже на номер'> {
   const номер = нормализоватьНомер(phone)
   if (!номер) return 'не похоже на номер'

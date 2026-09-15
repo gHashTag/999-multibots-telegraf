@@ -49,20 +49,52 @@ export interface ГолосПровайдера {
  */
 export const ГОЛОСА_MINIMAX: readonly ГолосПровайдера[] = [
   // — русские —
-  { id: 'Russian_ReliableMan', name: 'Максим — уверенный', category: 'premade' },
+  {
+    id: 'Russian_ReliableMan',
+    name: 'Максим — уверенный',
+    category: 'premade',
+  },
   { id: 'Russian_BrightHeroine', name: 'Алиса — звонкая', category: 'premade' },
   { id: 'Russian_AmbitiousWoman', name: 'Вера — деловая', category: 'premade' },
-  { id: 'Russian_HandsomeChildhoodFriend', name: 'Артём — свой парень', category: 'premade' },
-  { id: 'Russian_AttractiveGuy', name: 'Егор — обаятельный', category: 'premade' },
-  { id: 'Russian_PessimisticGirl', name: 'Ника — сдержанная', category: 'premade' },
+  {
+    id: 'Russian_HandsomeChildhoodFriend',
+    name: 'Артём — свой парень',
+    category: 'premade',
+  },
+  {
+    id: 'Russian_AttractiveGuy',
+    name: 'Егор — обаятельный',
+    category: 'premade',
+  },
+  {
+    id: 'Russian_PessimisticGirl',
+    name: 'Ника — сдержанная',
+    category: 'premade',
+  },
   { id: 'Russian_CrazyQueen', name: 'Рита — дерзкая', category: 'premade' },
-  { id: 'Russian_Bad-temperedBoy', name: 'Слава — резкий', category: 'premade' },
+  {
+    id: 'Russian_Bad-temperedBoy',
+    name: 'Слава — резкий',
+    category: 'premade',
+  },
   // — английские —
   { id: 'English_Wiselady', name: 'Wise Lady', category: 'premade' },
-  { id: 'English_Deep-VoicedGentleman', name: 'Deep-Voiced Gentleman', category: 'premade' },
+  {
+    id: 'English_Deep-VoicedGentleman',
+    name: 'Deep-Voiced Gentleman',
+    category: 'premade',
+  },
   { id: 'English_CalmWoman', name: 'Calm Woman', category: 'premade' },
-  { id: 'English_FriendlyPerson', name: 'Friendly Person', category: 'premade' },
-  { id: 'English_CaptivatingStoryteller', name: 'Captivating Storyteller', category: 'premade' },
+  {
+    id: 'English_FriendlyPerson',
+    name: 'Friendly Person',
+    category: 'premade',
+  },
+  {
+    id: 'English_CaptivatingStoryteller',
+    name: 'Captivating Storyteller',
+    category: 'premade',
+  },
 ]
 
 const ИЗВЕСТНЫЕ = new Set(ГОЛОСА_MINIMAX.map(г => г.id))

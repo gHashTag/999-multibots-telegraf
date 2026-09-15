@@ -212,6 +212,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         },
         limit: {
           type: 'number',
+          // promise-checked: clamp(a?.limit, 30, 100) in this handler
           description: 'сколько последних реплик (по умолчанию 30)',
         },
       },
@@ -280,6 +281,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       properties: {
         limit: {
           type: 'number',
+          // promise-checked: clamp(a?.limit, 15, 50) in this handler
           description: 'сколько людей вернуть (по умолчанию 15)',
         },
         segment: {

@@ -275,7 +275,8 @@ export const KIE_MODELS: KieModel[] = [
     kind: 'video',
     state: 'live',
     needs: ['prompt'],
-    probed: 'Server exception, please try again later or contact customer service',
+    probed:
+      'Server exception, please try again later or contact customer service',
   },
   {
     id: 'hailuo/02-text-to-video-pro',

@@ -189,7 +189,9 @@ export const planTools: AgentTool[] = [
       'спроси человека, прежде чем звать. Бесплатно.',
     parameters: {
       type: 'object',
-      properties: { id: { type: 'integer', description: 'id цели из plan_list' } },
+      properties: {
+        id: { type: 'integer', description: 'id цели из plan_list' },
+      },
       required: ['id'],
       additionalProperties: false,
     },
@@ -226,7 +228,10 @@ export const planTools: AgentTool[] = [
       const note = clean(args.note)
       if (!title) return { добавлено: false, причина: 'нужно непустое title' }
       if (title.length > MAX_TITLE) {
-        return { добавлено: false, причина: `название до ${MAX_TITLE} символов` }
+        return {
+          добавлено: false,
+          причина: `название до ${MAX_TITLE} символов`,
+        }
       }
       if (note.length > MAX_NOTE) {
         return { добавлено: false, причина: `заметка до ${MAX_NOTE} символов` }
@@ -313,7 +318,8 @@ export const planTools: AgentTool[] = [
          RETURNING title, status`,
         [args.id, title, note, status, clean(args.template_id), ctx.telegramId]
       )
-      if (!r.rows.length) return { изменено: false, причина: 'карточка не найдена' }
+      if (!r.rows.length)
+        return { изменено: false, причина: 'карточка не найдена' }
       return {
         изменено: true,
         название: r.rows[0].title,
@@ -327,7 +333,9 @@ export const planTools: AgentTool[] = [
     description: 'Удалить карточку из плана. Бесплатно.',
     parameters: {
       type: 'object',
-      properties: { id: { type: 'integer', description: 'id карточки из plan_list' } },
+      properties: {
+        id: { type: 'integer', description: 'id карточки из plan_list' },
+      },
       required: ['id'],
       additionalProperties: false,
     },
@@ -339,7 +347,8 @@ export const planTools: AgentTool[] = [
          RETURNING title`,
         [args.id, ctx.telegramId]
       )
-      if (!r.rows.length) return { удалено: false, причина: 'карточка не найдена' }
+      if (!r.rows.length)
+        return { удалено: false, причина: 'карточка не найдена' }
       return { удалено: true, карточка: r.rows[0].title }
     },
   },

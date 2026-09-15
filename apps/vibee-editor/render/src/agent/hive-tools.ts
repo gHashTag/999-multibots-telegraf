@@ -88,6 +88,7 @@ export const HIVE_TOOLS: AgentTool[] = [
       properties: {
         hours: {
           type: 'number',
+          // promise-checked: the handler clamps to 720 in this file
           description: 'Окно в часах. По умолчанию 24, максимум 720 (месяц).',
         },
       },
@@ -119,6 +120,7 @@ export const HIVE_TOOLS: AgentTool[] = [
         limit: {
           type: 'number',
           description:
+            // promise-checked: Math.min(Math.max(1, limit), 200) with a default of 20, below
             'Сколько последних событий. По умолчанию 20, максимум 200.',
         },
         alarms_only: {

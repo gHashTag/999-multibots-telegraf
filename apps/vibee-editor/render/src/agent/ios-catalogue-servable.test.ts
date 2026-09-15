@@ -19,7 +19,14 @@ import { СЕБЕСТОИМОСТЬ_USD } from './kie-prices.generated'
  */
 const СВИФТ = fs.readFileSync(
   path.join(
-    __dirname, '..', '..', '..', '..', 'vibee-ios', 'Vibee', 'KieModels.swift'
+    __dirname,
+    '..',
+    '..',
+    '..',
+    '..',
+    'vibee-ios',
+    'Vibee',
+    'KieModels.swift'
   ),
   'utf8'
 )
@@ -38,7 +45,8 @@ function модели(): Строка[] {
   // Построчно, а не одним выражением на всю запись: поля со значением по
   // умолчанию (`входИзвне`) в строке могут отсутствовать, и жёсткий шаблон
   // молча находил бы НОЛЬ моделей — то есть проверка была бы зелёной и пустой.
-  return СВИФТ.split('\n')
+  return СВИФТ
+    .split('\n')
     .filter(строка => строка.includes('Модель(id: "'))
     .map(строка => {
       const поле = (имя: string) =>
@@ -98,9 +106,7 @@ describe('модель, которую показывает приложение
      * сервер.
      */
     const расхождения: string[] = []
-    const цены = СВИФТ.matchAll(
-      /Модель\(id: "([^"]+)"[^)]*?ценаUSD: ([^,]+),/g
-    )
+    const цены = СВИФТ.matchAll(/Модель\(id: "([^"]+)"[^)]*?ценаUSD: ([^,]+),/g)
     for (const [, id, сырое] of цены) {
       const вСвифте = сырое.trim() === 'nil' ? null : Number(сырое)
       const наСервере = СЕБЕСТОИМОСТЬ_USD[id] ?? null
@@ -194,7 +200,14 @@ describe('чип показывают только под поле, которо
     expect(сервер).toContain('modelFields: поляМоделей()')
     const веб = fs.readFileSync(
       path.join(
-        __dirname, '..', '..', '..', 'player', 'src', 'components', 'Panels',
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'player',
+        'src',
+        'components',
+        'Panels',
         'GeneratePanel.tsx'
       ),
       'utf8'
@@ -210,12 +223,20 @@ describe('чип показывают только под поле, которо
     expect(веб).toContain("полеДоходит(баланс, 'aspect_ratio', imageModel)")
     const экран = fs.readFileSync(
       path.join(
-        __dirname, '..', '..', '..', '..', 'vibee-ios', 'Vibee',
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        'vibee-ios',
+        'Vibee',
         'GenerateScreen.swift'
       ),
       'utf8'
     )
-    expect(экран).toContain('полеДоходит("aspect_ratio", модель: модельДляСервера)')
+    expect(экран).toContain(
+      'полеДоходит("aspect_ratio", модель: модельДляСервера)'
+    )
     expect(экран).toContain('полеДоходит("duration", модель: модельДляСервера)')
   })
 })
@@ -275,7 +296,8 @@ describe('перечни имён, из которых выбирают, све�
     const уПровайдеров = new Set(
       именаИзБлока('const ПРОВАЙДЕРЫ = [').filter(с => !с.startsWith('http'))
     )
-    const вПриложении = СВИФТ.split('\n')
+    const вПриложении = СВИФТ
+      .split('\n')
       .filter(с => с.includes('вид: .сценарий') && с.includes('живая: true'))
       .map(с => с.match(/Модель\(id: "([^"]+)"/)![1])
     expect(вПриложении.length).toBeGreaterThan(0)
@@ -287,7 +309,9 @@ describe('перечни имён, из которых выбирают, све�
     // Выбор может не сбыться: провайдер без ключа выпадает из списка. Без
     // этого поля разница между «выбрал» и «ответил» выясняется по стилю
     // текста, а не из ответа.
-    expect(СЕРВЕР).toMatch(/captions: scriptData\.captions \|\| \[\],[\s\S]{0,900}?model: провайдер\.model,/)
+    expect(СЕРВЕР).toMatch(
+      /captions: scriptData\.captions \|\| \[\],[\s\S]{0,900}?model: провайдер\.model,/
+    )
     expect(СЕРВЕР).toMatch(/provider: провайдер\.имя,/)
   })
 })

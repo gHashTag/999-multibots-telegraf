@@ -130,3 +130,21 @@ describe('listing them back', () => {
     expect(await managedBotsOf(broken as never, '1')).toEqual([])
   })
 })
+
+/**
+ * THE SAME RULE ON THE RENDER SIDE, WHICH HAS ITS OWN COPY OF THE PATTERN.
+ *
+ * Two services, two identical regexes; fixing one and leaving the other is
+ * how a rule starts meaning two things. Measured boundaries: 5 and 32 pass,
+ * 4 and 33 do not -- Telegram's own rule, and the one the refusal states.
+ */
+describe('the render takes exactly the lengths Telegram takes', () => {
+  it('five to thirty-two, and nothing outside', async () => {
+    const { newBotLink } = await import('./src/agent/managed-bots')
+    const name = (n: number) => 'a'.repeat(n - 3) + 'bot'
+    expect(() => newBotLink('t27ai_bot', name(4))).toThrow()
+    expect(newBotLink('t27ai_bot', name(5))).toContain(name(5))
+    expect(newBotLink('t27ai_bot', name(32))).toContain(name(32))
+    expect(() => newBotLink('t27ai_bot', name(33))).toThrow()
+  })
+})

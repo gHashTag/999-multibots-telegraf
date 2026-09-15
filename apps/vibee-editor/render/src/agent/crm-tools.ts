@@ -355,6 +355,7 @@ export const CRM_TOOLS: AgentTool[] = [
     name: 'crm_hot_leads',
     description:
       'Горячие лиды: заходили НЕДАВНО, но ни разу не платили. Интерес есть, барьер не пройден — ' +
+      // promise-checked: the list-ceiling constant in this file is 50, applied by the slice below
       'им нужен повод, а не знакомство. Отдаёт до 50 человек со ссылками, свежие первыми. ' +
       'Бесплатно и НИЧЕГО НЕ ОТПРАВЛЯЕТ: писать людям решает человек, а не ты.',
     parameters: {
@@ -363,11 +364,13 @@ export const CRM_TOOLS: AgentTool[] = [
         дней: {
           type: 'number',
           description:
+            // promise-checked: the handler falls back to 14 twelve lines below
             'считать недавним заход за столько дней (по умолчанию 14)',
         },
         quiet_days: {
           type: 'number',
           description:
+            // promise-checked: the handler falls back to 30 in this same tool
             'сколько дней после касания не предлагать человека снова (по умолчанию 30)',
         },
       },
@@ -426,6 +429,7 @@ export const CRM_TOOLS: AgentTool[] = [
     name: 'crm_winback',
     description:
       'Кого возвращать: ПЛАТИЛИ раньше и замолчали. Это дороже всего терять — они уже доказали, ' +
+      // promise-checked: the list-ceiling constant in this file is 50, applied by the slice below
       'что готовы платить. Отдаёт до 50 человек, дольше молчащие первыми. ' +
       'Бесплатно и ничего не отправляет.',
     parameters: {
@@ -433,6 +437,7 @@ export const CRM_TOOLS: AgentTool[] = [
       properties: {
         молчит_дней: {
           type: 'number',
+          // promise-checked: the handler falls back to 30 four lines below
           description: 'с какой давности считать молчанием (по умолчанию 30)',
         },
       },

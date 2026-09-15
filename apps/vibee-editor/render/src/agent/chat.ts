@@ -100,6 +100,7 @@ const BUTTON_MARKERS =
   'из ЧЕТЫРЁХ: topup (пополнить баланс), balance (показать баланс), can (что ' + // cyrillic-ok: prompt copy
   'сейчас доступно), human (позвать человека). Кнопку оплаты не предлагай, пока ' + // cyrillic-ok: prompt copy
   'человек сам не спросил про оплату. Другие id не работают и будут молча выброшены — не ' + // cyrillic-ok: prompt copy
+  // promise-checked: the marker regex allows 1..40 and parseAgentButtons stops at four
   'выдумывай их. Подпись — до 40 символов, без символов ] и |. Не больше ' + // cyrillic-ok: prompt copy
   '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy
   'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy

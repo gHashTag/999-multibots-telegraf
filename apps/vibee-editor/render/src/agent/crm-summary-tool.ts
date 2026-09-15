@@ -244,6 +244,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
           type: 'integer',
           minimum: 1,
           maximum: 90,
+          // promise-checked: clampDays defaults to 7 in this file
           description: 'окно в днях для «недавних» касаний (по умолчанию 7)',
         },
       },

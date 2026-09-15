@@ -35,8 +35,29 @@ describe('the link Telegram is asked to create a bot with', () => {
     // Telegram requires the name to end in "bot"; a link with anything else
     // opens and fails, and the person has no idea why.
     expect(() => newBotLink('t27ai_bot', 'olga_seller')).toThrow('bot')
-    expect(() => newBotLink('t27ai_bot', 'ab_bot')).toThrow()
     expect(() => newBotLink('', 'olga_seller_bot')).toThrow()
+  })
+
+  /**
+   * THE RULE THE REFUSAL STATES IS THE RULE THE CHECK APPLIES.
+   *
+   * The message says "5 to 32 characters" -- Telegram's own rule -- while the
+   * pattern behind it allowed 7..34. Wrong in BOTH directions, measured:
+   *
+   *   "aabot"  (5, valid for Telegram)   was refused by us
+   *   34 chars (Telegram will refuse it) passed, and the person found out
+   *                                      after opening the link
+   *
+   * This case used to assert the opposite for a six-character name, which is
+   * how the wrong pattern stayed: the test encoded it.
+   */
+  it('takes exactly the lengths Telegram takes: five to thirty-two', () => {
+    const name = (n: number) => 'a'.repeat(n - 3) + 'bot'
+    expect(() => newBotLink('t27ai_bot', name(4))).toThrow()
+    expect(newBotLink('t27ai_bot', name(5))).toContain(name(5))
+    expect(newBotLink('t27ai_bot', 'ab_bot')).toContain('ab_bot')
+    expect(newBotLink('t27ai_bot', name(32))).toContain(name(32))
+    expect(() => newBotLink('t27ai_bot', name(33))).toThrow()
   })
 })
 

@@ -26,7 +26,9 @@ const tool = (name: string) => {
 function требуетВладения(sql: string, что: string): void {
   const т = sql.replace(/\s+/g, ' ')
   if (!/telegram_id = \$\d/.test(т)) {
-    throw new Error(`${что}: в запросе нет привязки к владельцу — ${т.slice(0, 160)}`)
+    throw new Error(
+      `${что}: в запросе нет привязки к владельцу — ${т.slice(0, 160)}`
+    )
   }
   if (/ OR telegram_id/.test(т)) {
     throw new Error(`${что}: владелец через OR — это не ограничение, а обход`)

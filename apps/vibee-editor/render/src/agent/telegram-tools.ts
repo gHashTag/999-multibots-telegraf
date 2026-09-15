@@ -516,6 +516,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       properties: {
         limit: {
           type: 'number',
+          // promise-checked: Math.min(args.limit ?? 20, 1000) in this handler
           description: 'Сколько диалогов вернуть (по умолчанию 20)',
         },
       },
@@ -572,6 +573,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         limit: {
           type: 'number',
           description:
+            // promise-checked: Math.min(args.limit ?? 50, 200) in this handler
             'сколько диалогов просмотреть (по умолчанию 50, максимум 200)',
         },
       },
@@ -608,6 +610,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         chat: { type: 'string', description: 'id диалога или @username' },
         limit: {
           type: 'number',
+          // promise-checked: Math.min(args.limit ?? 30, 200) in this handler
           description: 'Сколько сообщений (по умолчанию 30)',
         },
       },

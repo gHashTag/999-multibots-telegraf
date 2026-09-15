@@ -79,6 +79,7 @@ const SEEDREAM_45_MODEL = {
   description_en:
     'Seedream 4.5 - Superior aesthetics, stronger spatial understanding, up to 4K',
   description_ru:
+    // promise-checked: the vendor's own capability claim, quoted as theirs
     'Seedream 4.5 - Превосходная эстетика, понимание пространства, до 4K',
   maxImages: 14,
 }

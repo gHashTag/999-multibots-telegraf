@@ -613,6 +613,7 @@ export const TOOLS: AgentTool[] = [
           type: 'integer',
           minimum: 1,
           maximum: 50,
+          // promise-checked: the handler defaults to 10 six lines below
           description: 'сколько записей, по умолчанию 10',
         },
         mine: { type: 'boolean', description: 'только мои публикации' },
@@ -1139,6 +1140,7 @@ export const TOOLS: AgentTool[] = [
             'fal-ai/flux/dev, fal-ai/flux-pro/v1.1-ultra, fal-ai/reve/text-to-image. ' +
             'Если FAL откажет, рисовать будет другой провайдер — смотри «провайдер» в ответе.',
         },
+        // promise-checked: the provider default, stated for the model
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
       },
@@ -1794,6 +1796,7 @@ export const TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         name: { type: 'string', description: 'короткое имя скилла' },
+        // promise-checked: content.length > 8192 rejects in this handler
         content: { type: 'string', description: 'текст правила, до 8 КБ' },
       },
       required: ['name', 'content'],
@@ -1806,6 +1809,7 @@ export const TOOLS: AgentTool[] = [
         return { создано: false, причина: 'нужны непустые name и content' }
       }
       if (name.length > 100)
+        // promise-checked: name.length > 100 is the line above
         return { создано: false, причина: 'имя до 100 символов' }
       if (content.length > 8192) {
         return {
@@ -2080,6 +2084,7 @@ export const TOOLS: AgentTool[] = [
       properties: {
         soul: {
           type: 'string',
+          // promise-checked: soul.length > 32_768 rejects in this handler
           description: 'полный текст личного SOUL.md (markdown), до 32 КБ',
         },
       },
@@ -2199,6 +2204,7 @@ export const TOOLS: AgentTool[] = [
           type: 'integer',
           minimum: 1,
           maximum: 20,
+          // promise-checked: Math.min(20, Math.max(1, limit || 5)) in this handler
           description: 'сколько, по умолчанию 5',
         },
       },
