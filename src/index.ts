@@ -562,6 +562,12 @@ async function initializeBots() {
          * a subscriber left would go back to being a month of silence.
          */
         'subscription',
+        /*
+         * A bot the owner created through our /newbot link (Bot API 9.6,
+         * 3 Apr 2026). Not in the default set either, and the token can only
+         * be read once, when this arrives.
+         */
+        'managed_bot',
       ])
 
       botPromises.push(botPromise)

@@ -8429,6 +8429,52 @@ const server = createServer(async (req, res) => {
        * the body names a person, and with a mini-app signature alone anybody
        * could write a line into somebody else's CRM.
        */
+      /*
+       * A BOT THE OWNER MADE THROUGH US (Bot API 9.6, 3 Apr 2026).
+       *
+       * The farm bot receives the `managed_bot` update, reads the token with
+       * getManagedBotToken -- the only way to read it, since BotFather does
+       * not own this bot -- and posts it here, because the token must be kept
+       * the moment it arrives: nobody can ask for it a second time.
+       *
+       * Server key only, like crediting: the body carries a secret and names
+       * whose it is.
+       */
+      const managedBotPath = (req.url || '').split('?')[0]
+      if (managedBotPath === '/api/bots/managed' && req.method === 'POST') {
+        if (authenticate(req).via !== 'api-key') {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'этот маршрут принимает только ключ сервера',
+            })
+          )
+          return
+        }
+        try {
+          const body = JSON.parse((await readBody(req)) || '{}')
+          const { rememberManagedBot } = await import(
+            './src/agent/managed-bots'
+          )
+          const saved = await rememberManagedBot(getPool(), {
+            owner: String(body.owner ?? ''),
+            botId: Number(body.botId),
+            botUsername: String(body.botUsername ?? ''),
+            token: String(body.token ?? ''),
+          })
+          // The answer says WHETHER, never what was stored: echoing the body
+          // would put the token in a log on the bot's side.
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: saved === 'saved' }))
+        } catch (e) {
+          console.error('[bots] управляемый бот не сохранён:', e) // cyrillic-ok: log text
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'бот не сохранён' }))
+        }
+        return
+      }
+
       const subscriptionPath = (req.url || '').split('?')[0]
       if (
         subscriptionPath === '/api/crm/subscription' &&
