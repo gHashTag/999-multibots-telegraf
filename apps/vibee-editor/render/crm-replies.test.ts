@@ -94,6 +94,72 @@ describe('when a client answering is written down', () => {
   })
 })
 
+describe('the time and our own half of the exchange', () => {
+  /*
+   * Both were wrong until 16.09.2026 and both bent a comparison somewhere
+   * else into meaning its opposite.
+   */
+  const theirs = {
+    msgId: 1,
+    at: new Date(NOW - 60_000),
+    out: false,
+    text: 'да',
+  }
+  const ours = {
+    msgId: 2,
+    at: new Date(NOW - 30_000),
+    out: true,
+    text: 'отлично',
+  }
+
+  it('stamps the reply with THEIR time, not the moment we noticed', async () => {
+    // now() put the touch after our own answer -- which mirrorNow stores in
+    // the same call -- so "our last word is older than this touch" read
+    // backwards and the window below skipped every other reply.
+    const pool = fakePool({ ourWordAt: ago(5 * 60_000) })
+    await noteReply(pool as never, '1', '2', [theirs] as never, NOW)
+    const [params] = pool.inserts
+    expect(String(params[6])).toBe(new Date(NOW - 60_000).toISOString())
+  })
+
+  it('writes our own answer too, or the queue never lets them go', async () => {
+    /*
+     * In a business DM the seller answers by itself and both messages arrive
+     * in one batch. With no touch for OUR half, `replied` stayed the newest
+     * touch forever and waitingOn read that as "they answered, we are
+     * silent" -- so every auto-answered client sat permanently in `ours`.
+     */
+    const pool = fakePool({ ourWordAt: ago(5 * 60_000) })
+    await noteReply(pool as never, '1', '2', [theirs, ours] as never, NOW)
+    expect(pool.inserts).toHaveLength(2)
+    expect(pool.inserts[0][3]).toBe('replied')
+    expect(pool.inserts[1][3]).toBe('written')
+    expect(String(pool.inserts[1][6])).toBe(
+      new Date(NOW - 30_000).toISOString()
+    )
+  })
+
+  it('writes only the reply when we said nothing back', async () => {
+    const pool = fakePool({ ourWordAt: ago(5 * 60_000) })
+    await noteReply(pool as never, '1', '2', [theirs] as never, NOW)
+    expect(pool.inserts).toHaveLength(1)
+    expect(pool.inserts[0][3]).toBe('replied')
+  })
+
+  it('ignores an outbound that is OLDER than their reply', async () => {
+    // That one is the word they were answering, not our answer to them.
+    const before = {
+      msgId: 0,
+      at: new Date(NOW - 90_000),
+      out: true,
+      text: 'предлагаю',
+    }
+    const pool = fakePool({ ourWordAt: ago(5 * 60_000) })
+    await noteReply(pool as never, '1', '2', [before, theirs] as never, NOW)
+    expect(pool.inserts).toHaveLength(1)
+  })
+})
+
 describe('once per turn of ours, not once per message', () => {
   it('does not write a second time while we have said nothing since', async () => {
     // Five messages in a row are one reply. Otherwise the newest touch would

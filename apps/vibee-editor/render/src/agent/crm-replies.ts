@@ -98,12 +98,46 @@ export async function noteReply(
     )
     if (!ours.rows?.length) return 'not recorded'
 
-    return await recordTouch(pool as never, {
+    const wrote = await recordTouch(pool as never, {
       owner: String(owner),
       lead: String(lead),
       kind: 'replied',
+      // The time THEY wrote, not the time we noticed. Stamping now() put the
+      // touch after our own answer, which is already stored by the same
+      // mirrorNow -- so "our last word is older than this touch" read
+      // backwards, and the window below skipped every other reply.
+      at,
       botName: null,
     })
+    if (wrote !== 'recorded') return wrote
+
+    /*
+     * AND OUR OWN ANSWER, WHEN THERE WAS ONE.
+     *
+     * In a business DM the seller answers by itself and mirrorNow carries both
+     * messages in one batch. Nothing wrote a touch for OUR half, so `replied`
+     * stayed the newest touch for good -- and waitingOn reads that as "they
+     * answered, we are silent" with no delay at all. Every auto-answered
+     * client sat forever in `ours`, the queue the tool itself calls the most
+     * expensive one, minutes after the bot had answered them.
+     *
+     * Only when we also wrote `replied` just now: that ties this to the
+     * auto-answer and keeps it from competing with tg-proposals.ts, which
+     * already writes `written` when the owner confirms a card.
+     */
+    const ourWord = (fresh ?? [])
+      .filter(m => m && m.out && new Date(m.at).getTime() > stamp)
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())[0]
+    if (ourWord) {
+      await recordTouch(pool as never, {
+        owner: String(owner),
+        lead: String(lead),
+        kind: 'written',
+        at: ourWord.at,
+        botName: null,
+      })
+    }
+    return 'recorded'
   } catch {
     // A touch that could not be written must never break the mirror: the
     // messages themselves are already in memory, and losing a derived fact

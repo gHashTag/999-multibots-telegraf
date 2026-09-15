@@ -63,6 +63,14 @@ export const TOUCH_KINDS: TouchKind[] = [
   'note',
 ]
 
+/** A usable event time, or null for "now". Junk is not written as 1970. */
+function whenHappened(at: Date | string | undefined): string | null {
+  if (at === undefined || at === null) return null
+  const d = at instanceof Date ? at : new Date(String(at))
+  const ms = d.getTime()
+  return Number.isFinite(ms) ? d.toISOString() : null
+}
+
 export interface Touch {
   /** Who reached out: the bot owner, not the lead. */
   owner: string
@@ -72,6 +80,17 @@ export interface Touch {
   botName: string | null
   kind: TouchKind
   note?: string
+  /**
+   * When it HAPPENED, if that is not now.
+   *
+   * The column defaulted to now() and nothing ever overrode it, which was
+   * wrong in two ways at once. A sweep re-reading an old dialogue stamped
+   * today onto an answer from three weeks ago; and worse, a touch derived
+   * from a message was stamped AFTER the message it describes was already
+   * stored, so `our last outbound is older than this touch` -- the comparison
+   * crm-segments.ts and crm-replies.ts both lean on -- read backwards.
+   */
+  at?: Date | string
   /**
    * The id of an earlier row this one cancels. A correction carries the SAME
    * kind as the act it takes back, so a reader that knows nothing about
@@ -144,8 +163,8 @@ export async function recordTouch(
     if (!TOUCH_KINDS.includes(t.kind)) return 'not recorded'
     await ensureTable(pool)
     await pool.query(
-      `INSERT INTO crm_touches (owner_id, lead_id, bot_name, kind, note, reverts_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO crm_touches (owner_id, lead_id, bot_name, kind, note, reverts_id, at)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, now()))`,
       [
         String(t.owner),
         String(t.lead),
@@ -155,6 +174,8 @@ export async function recordTouch(
         typeof t.revertsId === 'number' && Number.isFinite(t.revertsId)
           ? Math.floor(t.revertsId)
           : null,
+        // NULL means "now", so every existing caller keeps its behaviour.
+        whenHappened(t.at),
       ]
     )
     return 'recorded'
