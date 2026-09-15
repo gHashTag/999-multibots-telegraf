@@ -51,6 +51,7 @@ import {
 } from '@/navigation/helpers/crmMenu'
 import { registerSubscriptionUpdates } from '@/handlers/paymentHandlers'
 import { registerManagedBots } from '@/services/managedBots'
+import { registerStopTurn } from '@/services/stopTurn'
 import { scopedPrompt } from '@/services/crmSweepScope'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
@@ -286,6 +287,8 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // A bot created through our /newbot link: take its token before it is
     // unreachable, and keep it. See services/managedBots.
     registerManagedBots(bot)
+    // The stop button on a streaming draft ends the turn it belongs to.
+    registerStopTurn(bot)
     registerCrmCommands(bot)
 
     // 3. Добавляем Stage middleware - теперь ctx.scene доступен!

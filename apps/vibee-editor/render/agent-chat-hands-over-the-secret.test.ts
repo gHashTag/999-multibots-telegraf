@@ -74,16 +74,40 @@ function request(surface?: string) {
   return s
 }
 
+/**
+ * A response double that can also GO AWAY.
+ *
+ * It grew `on`/`off` when the route started aborting the turn on a closed
+ * socket: a double without them is not a ServerResponse, and leaving them out
+ * would have meant bending the route to fit the test. `close()` fires the
+ * listeners the way Node does.
+ */
 function response() {
   const written: string[] = []
+  const listeners = new Map<string, Set<() => void>>()
   return {
     written,
+    writableEnded: false,
     writeHead: () => undefined,
     write: (c: string) => {
       written.push(c)
       return true
     },
     end: () => undefined,
+    on(event: string, fn: () => void) {
+      const set = listeners.get(event) ?? new Set()
+      set.add(fn)
+      listeners.set(event, set)
+      return this
+    },
+    off(event: string, fn: () => void) {
+      listeners.get(event)?.delete(fn)
+      return this
+    },
+    /** The far end hung up. */
+    close() {
+      for (const fn of listeners.get('close') ?? []) fn()
+    },
   }
 }
 

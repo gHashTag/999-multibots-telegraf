@@ -155,6 +155,29 @@ async function readConversation(
  * far to whoever can show it. The answer itself is still returned whole and
  * still sent as one message.
  */
+/**
+ * Turns in flight, by the person whose turn it is.
+ *
+ * One per person on purpose: a second question from the same chat replaces
+ * the first, and a stop pressed on the draft means "this one", of which there
+ * is only ever one visible.
+ */
+const running = new Map<string, AbortController>()
+
+/**
+ * End the turn this person is waiting on, if any.
+ *
+ * Returns whether there was one. Nothing else is cleaned up here: the call
+ * itself unregisters in its own `finally`, and the answer it was building is
+ * simply never sent.
+ */
+export function stopTurn(telegramId: string): boolean {
+  const c = running.get(String(telegramId))
+  if (!c) return false
+  c.abort()
+  return true
+}
+
 export async function спроситьАгента(
   telegramId: string,
   текст: string,
@@ -187,6 +210,16 @@ export async function спроситьАгента(
 
   const прерыватель = new AbortController()
   const таймер = setTimeout(() => прерыватель.abort(), ЖДАТЬ_МС)
+  /*
+   * Registered so somebody OUTSIDE this call can end it -- the person whose
+   * turn it is, pressing the stop button on the draft. Until now the only
+   * thing that could end a turn was the timer, and three minutes is a long
+   * time to watch something you already know is going the wrong way.
+   *
+   * Aborting here closes the response from the render, which is how the agent
+   * on the other side learns to stop calling tools. See routes.ts.
+   */
+  running.set(String(telegramId), прерыватель) // cyrillic-ok: pre-existing name
   try {
     const о = await fetch(
       `${БАЗА}/api/agent/chat?telegram_id=${encodeURIComponent(telegramId)}`,
@@ -276,6 +309,12 @@ export async function спроситьАгента(
     return { текст: собрано, инструменты, proposal } // cyrillic-ok: fields of ОтветАгента
   } finally {
     clearTimeout(таймер)
+    // Only if it is still OURS: a newer question from the same person has
+    // already replaced the entry, and clearing it would orphan that one.
+    if (running.get(String(telegramId)) === прерыватель) {
+      // cyrillic-ok: pre-existing
+      running.delete(String(telegramId))
+    }
   }
 }
 

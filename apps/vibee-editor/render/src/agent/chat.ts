@@ -47,6 +47,7 @@ export type AgentEvent =
   | { тип: 'инструмент'; имя: string; аргументы: string }
   | { тип: 'результат'; имя: string; значение: unknown; мс: number }
   | { тип: 'готово'; витков: number; обрыв?: string }
+  | { тип: 'оборвано'; витков: number } // cyrillic-ok: event field names
   | { тип: 'ошибка'; текст: string }
 
 /**
@@ -426,7 +427,9 @@ export function systemPrompt(surface?: string): string {
 }
 
 async function* streamModel(
-  messagesIn: ChatMessage[]
+  messagesIn: ChatMessage[],
+  /** The caller went away; stop asking the provider for more. */
+  signal?: AbortSignal
 ): AsyncGenerator<
   | { kind: 'reasoning'; text: string }
   | { kind: 'content'; text: string }
@@ -538,6 +541,15 @@ async function* streamModel(
     // с размышлением.
     const ac = new AbortController()
     const timer = setTimeout(() => ac.abort(), 120_000)
+    /*
+     * The deadline is not the only reason to stop. Until 2026-09-16 nothing
+     * cut this off when the LISTENER left: the bot gives up at 180 seconds
+     * and the provider kept streaming into a socket nobody reads, on our
+     * bill. The same controller serves both, so one `catch` covers them.
+     */
+    if (signal?.aborted) ac.abort()
+    const onGone = () => ac.abort()
+    signal?.addEventListener('abort', onGone, { once: true })
     // Отдали ли клиенту хоть кусок текста. Если да, «тихо начать заново у
     // другого провайдера» уже нельзя — человек увидел бы склейку двух ответов.
     let ужеОтдалиТекст = false
@@ -630,6 +642,7 @@ async function* streamModel(
       continue
     } finally {
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onGone)
     }
   }
 
@@ -654,7 +667,19 @@ export async function* runAgent(
    * needs it too, because a button marker belongs in the bot and nowhere else.
    * Absent means "not the bot", which is the safe direction: no markers.
    */
-  opts?: { surface?: string }
+  opts?: {
+    surface?: string
+    /**
+     * The caller hung up.
+     *
+     * Until 2026-09-16 the loop had no way to learn that. The bot gives up at
+     * 180 seconds and simply stops reading; the agent here carried
+     * on -- up to eight steps of 120 seconds each, calling tools and paying
+     * providers for an answer with no reader. See routes.ts, which now aborts
+     * on a closed response.
+     */
+    signal?: AbortSignal
+  }
 ): AsyncGenerator<AgentEvent> {
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
   // агент пишет посты от его имени — значит, должен знать его SOUL так же,
@@ -735,9 +760,15 @@ export async function* runAgent(
   }
 
   for (let step = 0; step < MAX_STEPS; step++) {
+    // Checked before the model and again before the tools below: those are
+    // the two places this loop spends money.
+    if (opts?.signal?.aborted) {
+      yield { тип: 'оборвано', витков: step } // cyrillic-ok: event field names
+      return
+    }
     let assistant: any = null
     try {
-      for await (const ev of streamModel(messages)) {
+      for await (const ev of streamModel(messages, opts?.signal)) {
         if (ev.kind === 'reasoning')
           yield { тип: 'размышление', текст: ev.text }
         else if (ev.kind === 'content') yield { тип: 'текст', текст: ev.text }
@@ -760,6 +791,16 @@ export async function* runAgent(
     messages.push(assistant)
 
     for (const call of assistant.tool_calls) {
+      /*
+       * A tool is the expensive half: it charges providers and, worse, it can
+       * SEND things. Checked per call rather than per step, because a model
+       * that asked for five tools at once would otherwise run all five after
+       * the listener had already gone.
+       */
+      if (opts?.signal?.aborted) {
+        yield { тип: 'оборвано', витков: step + 1 } // cyrillic-ok: event fields
+        return
+      }
       const имя = call.function.name
       yield {
         тип: 'инструмент',

@@ -115,6 +115,14 @@ export function keepDraft(
         chat_id: chatId,
         draft_id: draftId,
         text,
+        /*
+         * Bot API 10.3 (24 Aug 2026): a button on the draft that ends the
+         * turn. Until now the only thing that could end one was a three
+         * minute timer, and three minutes is a long time to watch something
+         * you already know is going the wrong way. The press arrives as a
+         * `stopped_message_generation` update; see services/stopTurn.
+         */
+        can_stop: true,
       })
       sent = text
       sentAt = Date.now()

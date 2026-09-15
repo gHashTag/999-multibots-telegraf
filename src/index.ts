@@ -568,6 +568,11 @@ async function initializeBots() {
          * be read once, when this arrives.
          */
         'managed_bot',
+        /*
+         * The person pressed "stop" on a streaming draft (Bot API 10.3).
+         * Like the other two, not in the default set.
+         */
+        'stopped_message_generation',
       ])
 
       botPromises.push(botPromise)

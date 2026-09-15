@@ -478,16 +478,41 @@ export async function handleAgentChat(
       })
     }
 
+    /*
+     * NOBODY IS LISTENING ANY MORE -- STOP SPENDING.
+     *
+     * The bot gives up at 180 seconds and stops reading. Until 2026-09-16
+     * this loop did not care: the agent kept going for up to eight steps of
+     * 120 seconds, streaming from a provider and calling tools for an answer
+     * that had nowhere to arrive. The only abort handling in this file was
+     * inside readBody, which is over long before the agent starts.
+     *
+     * 'close' on the response is the one signal that covers every way the
+     * far end can disappear, including a socket dropped mid-stream.
+     */
+    const gone = new AbortController()
+    const hangUp = () => gone.abort()
+    res.on('close', hangUp)
+    req.on('aborted', hangUp)
+
     const события: Array<{ тип?: string; текст?: string }> = []
-    for await (const ev of runAgent(
-      history,
-      { telegramId, pool, turn, surface: поверхность }, // cyrillic-ok: pre-existing local
-      // The surface was already parsed and allow-listed above; the agent needs
-      // it so that button markers are proposed in the bot and nowhere else.
-      { surface: поверхность } // cyrillic-ok: local defined earlier in this file
-    )) {
-      события.push(ev as { тип?: string; текст?: string })
-      res.write(JSON.stringify(ev) + '\n')
+    try {
+      for await (const ev of runAgent(
+        history,
+        { telegramId, pool, turn, surface: поверхность }, // cyrillic-ok: pre-existing local
+        // The surface was already parsed and allow-listed above; the agent
+        // needs it so that button markers are proposed in the bot and
+        // nowhere else.
+        { surface: поверхность, signal: gone.signal } // cyrillic-ok: pre-existing local
+      )) {
+        события.push(ev as { тип?: string; текст?: string })
+        // Writing into a closed socket throws on some Node versions and is
+        // silently dropped on others; either way there is nothing to say.
+        if (!res.writableEnded) res.write(JSON.stringify(ev) + '\n')
+      }
+    } finally {
+      res.off('close', hangUp)
+      req.off('aborted', hangUp)
     }
 
     const ответ = собратьОтвет(события)
