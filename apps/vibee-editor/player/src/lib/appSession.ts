@@ -32,6 +32,12 @@ export function getAppAccessToken(): string {
   return storage()?.getItem(ACCESS_KEY) || ''
 }
 
+/** An access token whose stored expiry is still ahead. */
+export function hasLiveAppSession(): boolean {
+  const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
+  return !!getAppAccessToken() && expiresAt > Date.now()
+}
+
 export function storeAppSession(session: AppSession): void {
   const s = storage()
   if (!s) return

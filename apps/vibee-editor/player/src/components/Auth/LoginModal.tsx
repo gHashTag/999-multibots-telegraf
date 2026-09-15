@@ -6,6 +6,7 @@ import { useLanguage } from '@/hooks/useLanguage'
 import { isTelegram, hasVerifiableInitData } from '@/lib/telegram'
 import { TelegramLoginButton } from './TelegramLoginButton'
 import { APP_ORIGIN, IS_EMBED, widgetFrameAllowed } from '@/lib/embed'
+import { hasReturnTarget } from '@/lib/returnTarget'
 
 /**
  * Одна модалка входа на всё приложение.
@@ -120,7 +121,11 @@ export function LoginModal() {
         ) : (
           <>
             <h2>{t('login.title')}</h2>
-            <p>{t('login.subtitle')}</p>
+            <p>
+              {hasReturnTarget()
+                ? t('login.returnToGame')
+                : t('login.subtitle')}
+            </p>
             <div className="login-modal-widget">
               <TelegramLoginButton onSuccess={close} size="large" />
             </div>

@@ -386,6 +386,7 @@ const en: Translations = {
   'login.tgUnsignedBody':
     "This launch carries no signed data, so the server cannot verify who you are. Open the app from the bot's menu button or an inline button, and everything will work.",
   'login.subtitle': 'Sign in with Telegram to get 3 free video renders!',
+  'login.returnToGame': 'Sign in with Telegram to return to the game.',
   'login.button': 'Login',
   'login.buttonFull': 'Sign in with Telegram',
 
@@ -2276,6 +2277,7 @@ const ru: Translations = {
   'login.tgUnsignedBody':
     'Этот запуск не несёт подписанных данных, и сервер не может подтвердить, кто вы. Откройте приложение через кнопку меню бота или инлайн-кнопку — и всё заработает.',
   'login.subtitle': 'Войдите через Telegram и получите 3 бесплатных рендера!',
+  'login.returnToGame': 'Войдите через Telegram, чтобы вернуться в игру.',
   'login.button': 'Войти',
   'login.buttonFull': 'Войти через Telegram',
 

@@ -13,6 +13,8 @@ import {
   resumeAppSessionRefresh,
 } from '@/lib/appSession'
 import { shouldUseTelegramFallback } from '@/lib/telegramWidget'
+import { takeReturnTarget } from '@/lib/returnTarget'
+import { sessionStore } from '@/lib/framedSession'
 
 declare global {
   interface Window {
@@ -97,6 +99,12 @@ export function TelegramLoginButton({
             is_admin: false,
           }
           setUser(user)
+          // Came from the game's sign-in chip: back to it, in this tab.
+          const back = takeReturnTarget(sessionStore())
+          if (back) {
+            window.location.assign(back)
+            return
+          }
           await fetchMyProfile(user)
           await fetchQuota()
           onSuccess?.()
