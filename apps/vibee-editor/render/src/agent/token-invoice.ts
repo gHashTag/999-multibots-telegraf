@@ -84,17 +84,48 @@ export interface MintInput {
  * -- the owner still reads the card, and Telegram shows every person their
  * own subscriptions.
  */
+/**
+ * How long an unpaid subscription invoice still counts as a standing offer.
+ *
+ * Short on purpose: it exists to stop the owner approving two cards for the
+ * same person in the same week, not to hold anybody hostage to an invoice
+ * they never paid.
+ */
+export const UNPAID_OFFER_STANDS_DAYS = 7
+
 export async function hasOpenSubscription(
   pool: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
   forTelegramId: string
 ): Promise<boolean> {
   try {
     await ensureInvoiceColumns(pool)
+    /*
+     * LIVE MEANS LIVE, NOT "EVER MINTED".
+     *
+     * The first version asked only for `cancelled_at IS NULL` -- and
+     * cancelled_at is stamped by exactly one thing: killing a DRAFT that is
+     * still sitting in the queue. A card the owner actually sent leaves a row
+     * that nothing ever marks, so this said "already subscribed" for that
+     * person for ever. A guard against selling twice had become a ban on
+     * selling again, which is worse than the thing it prevents: a double
+     * subscription is visible and refundable, a sale that cannot be made is
+     * neither.
+     *
+     * Two things count as live now. A subscription that was PAID and not
+     * since cancelled -- the real one. And an unpaid invoice minted in the
+     * last few days, because that offer is still standing and re-offering
+     * inside a week is just a duplicate card for the owner to press twice.
+     *
+     * The other end of this is recordSubscriptionChange: when Telegram says
+     * the subscription was cancelled or its charge failed, the row is stamped
+     * and stops counting the same minute.
+     */
     const r = (await pool.query(
       `SELECT 1 FROM token_invoices
         WHERE telegram_id = $1 AND subscription = TRUE AND cancelled_at IS NULL
+          AND (redeemed = TRUE OR created_at > now() - ($2 || ' days')::interval)
         LIMIT 1`,
-      [String(forTelegramId)]
+      [String(forTelegramId), String(UNPAID_OFFER_STANDS_DAYS)]
     )) as { rows?: unknown[] } | undefined
     return Boolean(r?.rows?.length)
   } catch {

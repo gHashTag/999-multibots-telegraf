@@ -186,6 +186,71 @@ describe('what a subscription pitch tells the person', () => {
   })
 })
 
+/**
+ * A CANCELLED SUBSCRIPTION MUST STOP BLOCKING THE NEXT ONE.
+ *
+ * hasOpenSubscription refuses a second subscription while one is live, and
+ * `cancelled_at` is how a row stops being live -- but that column was stamped
+ * by exactly one thing: killing a DRAFT still in the queue. A subscription the
+ * person actually bought and then cancelled went on blocking every future
+ * offer to them. The guard against selling twice had become a ban on selling
+ * again, which is the worse of the two: a double subscription is visible and
+ * refundable, a sale that cannot be made is neither.
+ */
+describe('a cancellation releases the seat', () => {
+  const change = (state: string) => ({
+    payload: 'subtokens:150:900000001',
+    state,
+    botName: 'seller_bot',
+  })
+
+  /** Records the UPDATEs as well as the touch inserts. */
+  function poolWatching(owners: string[]) {
+    const sql: Array<{ q: string; p: unknown[] }> = []
+    return {
+      sql,
+      query: async (q: string, p: unknown[] = []) => {
+        sql.push({ q: q.replace(/\s+/g, ' ').trim(), p })
+        if (/SELECT DISTINCT owner_id/.test(q)) {
+          return { rows: owners.map(owner_id => ({ owner_id })) }
+        }
+        return { rows: [] }
+      },
+    }
+  }
+
+  it('stamps the invoice when Telegram says cancelled', async () => {
+    const pool = poolWatching(['144022504'])
+    await recordSubscriptionChange(pool as never, change('canceled'))
+    const upd = pool.sql.find(x => x.q.startsWith('UPDATE token_invoices'))
+    expect(upd, 'the seat is still taken after a cancellation').toBeTruthy()
+    expect(upd!.p).toEqual(['900000001'])
+    expect(upd!.q).toContain('subscription = TRUE')
+    expect(upd!.q).toContain('cancelled_at IS NULL')
+  })
+
+  it('leaves it alone when a charge merely failed', async () => {
+    /*
+     * `failed` means one payment did not go through, not that the
+     * subscription ended: Telegram may take it next month. Releasing the
+     * guard on a missed charge could leave the person paying twice.
+     */
+    const pool = poolWatching(['144022504'])
+    await recordSubscriptionChange(pool as never, change('failed'))
+    expect(pool.sql.some(x => x.q.startsWith('UPDATE token_invoices'))).toBe(
+      false
+    )
+  })
+
+  it('leaves it alone when a subscription is resumed', async () => {
+    const pool = poolWatching(['144022504'])
+    await recordSubscriptionChange(pool as never, change('active'))
+    expect(pool.sql.some(x => x.q.startsWith('UPDATE token_invoices'))).toBe(
+      false
+    )
+  })
+})
+
 describe('a person cannot be given two subscriptions at once', () => {
   /**
    * A pool that HONOURS the conditions in the query instead of answering the
@@ -197,7 +262,13 @@ describe('a person cannot be given two subscriptions at once', () => {
    * not what the query asked.
    */
   const pool = (
-    rows: Array<{ subscription?: boolean; cancelled_at?: string | null }>
+    rows: Array<{
+      subscription?: boolean
+      cancelled_at?: string | null
+      redeemed?: boolean
+      /** Stands in for `created_at > now() - N days`. */
+      fresh?: boolean
+    }>
   ) => ({
     query: async (sql: string) => {
       if (!/FROM token_invoices/.test(sql)) return { rows: [] }
@@ -208,11 +279,30 @@ describe('a person cannot be given two subscriptions at once', () => {
       if (/cancelled_at IS NULL/.test(sql)) {
         kept = kept.filter(r => !r.cancelled_at)
       }
+      /*
+       * "Live" is no longer "ever minted": a row counts only if it was PAID,
+       * or minted recently enough that the offer still stands. The fake obeys
+       * that clause too, or deleting it from the real query would change
+       * nothing here -- which is how the guard became a permanent ban in the
+       * first place.
+       */
+      if (/redeemed = TRUE OR created_at >/.test(sql)) {
+        kept = kept.filter(r => r.redeemed === true || r.fresh === true)
+      }
       return { rows: kept }
     },
   })
-  const standing = [{ subscription: true, cancelled_at: null }]
-  const killed = [{ subscription: true, cancelled_at: '2026-09-15' }]
+  const standing = [
+    { subscription: true, cancelled_at: null, redeemed: true, fresh: true },
+  ]
+  const killed = [
+    {
+      subscription: true,
+      cancelled_at: '2026-09-15',
+      redeemed: true,
+      fresh: true,
+    },
+  ]
 
   it('sees an invoice that is still standing', async () => {
     expect(await hasOpenSubscription(pool(standing) as never, '9')).toBe(true)
@@ -222,6 +312,45 @@ describe('a person cannot be given two subscriptions at once', () => {
     // Cancelling the card is exactly how the owner says "not that one, this
     // one" -- a killed draft must not block the replacement.
     expect(await hasOpenSubscription(pool(killed) as never, '9')).toBe(false)
+  })
+
+  it('does not count a subscription that was never paid and has gone stale', async () => {
+    /*
+     * The defect this guard had: cancelled_at is stamped only when a DRAFT is
+     * killed, so a card the owner actually sent left a row that nothing ever
+     * marked -- and the person could never be offered a subscription again.
+     */
+    expect(
+      await hasOpenSubscription(
+        pool([
+          {
+            subscription: true,
+            cancelled_at: null,
+            redeemed: false,
+            fresh: false,
+          },
+        ]) as never,
+        '9'
+      )
+    ).toBe(false)
+  })
+
+  it('still counts an unpaid offer while it is fresh', async () => {
+    // Two cards for the same person in the same week is a duplicate the owner
+    // would have to press twice.
+    expect(
+      await hasOpenSubscription(
+        pool([
+          {
+            subscription: true,
+            cancelled_at: null,
+            redeemed: false,
+            fresh: true,
+          },
+        ]) as never,
+        '9'
+      )
+    ).toBe(true)
   })
 
   it('does not count the person one-off invoices', async () => {

@@ -110,6 +110,31 @@ export async function recordSubscriptionChange(
   if (!owners.length) {
     return { recorded: 0, lead: who.lead, reason: 'nobody has this lead' }
   }
+  /*
+   * A CANCELLED SUBSCRIPTION MUST STOP BLOCKING THE NEXT ONE.
+   *
+   * hasOpenSubscription refuses to mint a second subscription while one is
+   * live, and `cancelled_at` is how a row stops being live. Until now that
+   * column was stamped by exactly one thing -- killing a draft still sitting
+   * in the queue -- so a subscription the person actually bought and then
+   * cancelled went on blocking every future offer to them.
+   *
+   * Only on `canceled`. `failed` means one charge did not go through, not
+   * that the subscription ended: Telegram may take it next month, and
+   * releasing the guard on a missed payment could leave the person paying
+   * twice. `active` is a resumption, which is the opposite of closing.
+   */
+  if (state === 'canceled') {
+    await pool
+      .query(
+        `UPDATE token_invoices SET cancelled_at = now(),
+                cancel_reason = COALESCE(cancel_reason, 'subscription canceled')
+          WHERE telegram_id = $1 AND subscription = TRUE AND cancelled_at IS NULL`,
+        [who.lead]
+      )
+      .catch(() => undefined)
+  }
+
   const note = `${SUBSCRIPTION_NOTES[state as SubscriptionState]} (${who.tokens})`
   let recorded = 0
   for (const owner of owners) {
