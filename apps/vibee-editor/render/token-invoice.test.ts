@@ -3,6 +3,7 @@ import {
   mintTokenInvoice,
   ensureInvoiceColumns,
   forgetInvoiceColumnsForTests,
+  redeemInvoiceFor,
 } from './src/agent/token-invoice'
 
 /**
@@ -426,5 +427,116 @@ describe('a subscription invoice', () => {
       sql.some(x => /ADD COLUMN IF NOT EXISTS subscription/.test(x.q)),
       'the column was never added'
     ).toBe(true)
+  })
+})
+
+/**
+ * THE SALE ROW IS CLOSED WHERE THE MONEY ACTUALLY LANDS.
+ *
+ * `redeemed` was written in exactly one place -- the verify route, which
+ * matches a payment against the DEFAULT cashier's star transactions. The
+ * personal seller mints with the person's OWN bot and the table has no column
+ * saying which bot minted what, so those invoices could never be matched and
+ * stayed open for ever.
+ *
+ * Nobody lost money: the tokens were credited the whole time by a path that
+ * does not touch this table. What was lost was the truth in the one daily
+ * report the owner reads, which counted those rows and told him to remind
+ * people who had already paid.
+ */
+describe('redeeming the invoice a payment belongs to', () => {
+  function pool(rowCount = 1) {
+    const sql: Array<{ q: string; p: unknown[] }> = []
+    return {
+      sql,
+      query: async (q: string, p: unknown[] = []) => {
+        sql.push({ q: q.replace(/\s+/g, ' ').trim(), p })
+        return { rowCount, rows: [] }
+      },
+    }
+  }
+
+  it('closes the newest open invoice for that person and amount', async () => {
+    const db = pool()
+    expect(
+      await redeemInvoiceFor(db as never, {
+        telegramId: '900000001',
+        tokens: 150,
+        chargeId: 'ch_1',
+        credited: true,
+      })
+    ).toBe('redeemed')
+    const upd = db.sql.find(x => x.q.startsWith('UPDATE token_invoices'))!
+    expect(upd.p).toEqual(['900000001', 'ch_1', 150])
+    expect(upd.q).toContain('ORDER BY created_at DESC')
+    expect(upd.q).toContain('redeemed = FALSE')
+    // A card the owner killed is not a sale waiting to be closed.
+    expect(upd.q).toContain('cancelled_at IS NULL')
+  })
+
+  it('says so when no invoice matches, instead of pretending', async () => {
+    // A person can pay from the mini app with no seller invoice at all.
+    const db = pool(0)
+    expect(
+      await redeemInvoiceFor(db as never, {
+        telegramId: '9',
+        tokens: 10,
+        credited: true,
+      })
+    ).toBe('no matching invoice')
+  })
+
+  it('refuses a payment with nothing to match on', async () => {
+    const db = pool()
+    for (const bad of [
+      { telegramId: '', tokens: 10, credited: true },
+      { telegramId: '9', tokens: 0, credited: true },
+      { telegramId: '9', tokens: -5, credited: true },
+    ]) {
+      expect(await redeemInvoiceFor(db as never, bad as never)).toBe(
+        'no matching invoice'
+      )
+    }
+    expect(db.sql.some(x => x.q.startsWith('UPDATE token_invoices'))).toBe(
+      false
+    )
+  })
+
+  it('closes nothing when the money did not move', async () => {
+    /*
+     * A redelivered charge credits nothing -- creditStarsPayment refuses it on
+     * the charge id -- and must close no sale. This rule used to live at the
+     * call site in render-server.ts, where no test could reach it: removing it
+     * there left every case green, which is how a guard quietly stops working.
+     */
+    const db = pool()
+    expect(
+      await redeemInvoiceFor(db as never, {
+        telegramId: '900000001',
+        tokens: 150,
+        chargeId: 'ch_1',
+        credited: false,
+      })
+    ).toBe('no matching invoice')
+    expect(db.sql.some(x => x.q.startsWith('UPDATE token_invoices'))).toBe(
+      false
+    )
+  })
+
+  it('never turns a successful payment into an error', async () => {
+    // The money is credited by the time this runs. A bookkeeping row that
+    // will not update must not propagate as a failure.
+    const broken = {
+      query: async () => {
+        throw new Error('no database')
+      },
+    }
+    await expect(
+      redeemInvoiceFor(broken as never, {
+        telegramId: '9',
+        tokens: 10,
+        credited: true,
+      })
+    ).resolves.toBe('no matching invoice')
   })
 })

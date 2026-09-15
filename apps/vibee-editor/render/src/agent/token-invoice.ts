@@ -102,6 +102,73 @@ export async function hasOpenSubscription(
   }
 }
 
+/**
+ * MARK THE SALE PAID WHERE THE MONEY ACTUALLY LANDS.
+ *
+ * `redeemed` was written in exactly one place: the /api/tokens/verify route,
+ * which matches a payment by asking getStarTransactions on the DEFAULT
+ * cashier's token. But the personal seller mints with the person's OWN bot
+ * (tokenForBot), and the table has no column saying which bot minted what --
+ * so that payment is never in the default cashier's transactions and the row
+ * stayed `redeemed = FALSE` forever.
+ *
+ * The tokens were credited normally the whole time, by another path that does
+ * not touch this table at all. Nobody lost money; the daily summary lost the
+ * truth. It reads these rows and prints "paid: 0, waiting: N" with the advice
+ * "no purchases yet -- remind them", so the owner goes off to chase people who
+ * have already paid.
+ *
+ * So the row is redeemed here instead, from the credit that really happened,
+ * with the same charge id verify would have matched. Newest matching invoice
+ * first: a person can hold several, and the one they just paid is the last
+ * one they were given.
+ */
+export async function redeemInvoiceFor(
+  pool: {
+    query: (sql: string, params?: unknown[]) => Promise<{ rowCount?: number }>
+  },
+  paid: {
+    telegramId: string
+    tokens: number
+    chargeId?: string
+    /**
+     * Did the money actually move?
+     *
+     * The rule lives here rather than at the call site so that it can be
+     * tested at all: render-server.ts cannot be imported from a test, and a
+     * guard nothing can exercise is a guard that quietly stops working. A
+     * redelivered charge credits nothing and must close no sale.
+     */
+    credited: boolean
+  }
+): Promise<'redeemed' | 'no matching invoice'> {
+  try {
+    if (paid?.credited !== true) return 'no matching invoice'
+    const tid = String(paid?.telegramId ?? '').trim()
+    const tokens = Number(paid?.tokens)
+    if (!tid || !Number.isFinite(tokens) || tokens <= 0) {
+      return 'no matching invoice'
+    }
+    await ensureInvoiceColumns(pool as never)
+    const r = await pool.query(
+      `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = COALESCE($2, star_tx_id)
+        WHERE id = (
+          SELECT id FROM token_invoices
+           WHERE telegram_id = $1 AND tokens = $3 AND redeemed = FALSE
+             AND cancelled_at IS NULL
+           ORDER BY created_at DESC
+           LIMIT 1
+        )`,
+      [tid, paid.chargeId ? String(paid.chargeId) : null, Math.floor(tokens)]
+    )
+    return (r?.rowCount ?? 0) > 0 ? 'redeemed' : 'no matching invoice'
+  } catch {
+    // The money is already credited. A bookkeeping row that would not update
+    // must never turn a successful payment into an error for the caller.
+    return 'no matching invoice'
+  }
+}
+
 export function paymentBotToken(): string {
   return process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
 }

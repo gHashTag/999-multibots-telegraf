@@ -8593,6 +8593,35 @@ const server = createServer(async (req, res) => {
               ? `[STARS] +${amount} to ${tid} (${outcome.reason})`
               : `[STARS] not credited for ${tid}: ${outcome.reason}`
           )
+          /*
+           * And close the sale row, which nothing else can.
+           *
+           * `redeemed` was only ever written by /api/tokens/verify, which
+           * matches payments against the DEFAULT cashier's transactions --
+           * and the personal seller mints with the person's own bot, so its
+           * invoices could never be matched there. The daily summary reads
+           * these rows and told the owner to chase people who had paid.
+           *
+           * Only on a credit that actually happened -- the rule is inside
+           * redeemInvoiceFor, where a test can reach it, because this file
+           * cannot be imported from one.
+           */
+          {
+            const { redeemInvoiceFor } = await import(
+              './src/agent/token-invoice'
+            )
+            const closed = await redeemInvoiceFor(pool, {
+              telegramId: tid,
+              tokens: amount,
+              chargeId,
+              credited: outcome.credited === true,
+            })
+            if (outcome.credited && closed !== 'redeemed') {
+              console.log(
+                `[STARS] no open invoice matched ${amount} for ${tid}`
+              )
+            }
+          }
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true, ...outcome }))
         } catch (e) {
