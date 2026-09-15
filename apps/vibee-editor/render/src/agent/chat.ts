@@ -19,7 +19,12 @@
  *    и повторить; ронять весь запрос из-за одного неудачного вызова значит
  *    показывать пятисотку там, где был связный ответ.
  */
-import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
+import {
+  TOOLS_BY_NAME,
+  toOpenAITools,
+  countInitDataToolCall,
+  type ToolContext,
+} from './tools'
 import { TOKEN_PRICES } from './billing-shared'
 import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic-ok: pre-existing names
 import { salesPlaybook } from './crm-playbook'
@@ -862,6 +867,7 @@ export async function* runAgent(
         refusal['отказано'] = true // cyrillic-ok
         значение = refusal // cyrillic-ok: pre-existing identifier
       } else {
+        countInitDataToolCall(ctx, имя) // cyrillic-ok: pre-existing local
         try {
           значение = await tool.handler(
             call.function.arguments ? JSON.parse(call.function.arguments) : {},

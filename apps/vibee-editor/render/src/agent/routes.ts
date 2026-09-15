@@ -29,10 +29,10 @@ import {
   verifyGameToken,
   SessionError,
 } from '../../session'
-import { TOOLS_BY_NAME, toMcpTools } from './tools'
+import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
-import { verifiedTelegramId, hasServerKey } from '../../auth'
+import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
   записатьРеплику,
   прочитатьРазговор,
@@ -444,10 +444,16 @@ export async function handleMcp(
     }
     try {
       const pool = await getPool()
-      const значение = await tool.handler(rpc.params?.arguments || {}, {
+      const ctx = {
         telegramId: owner,
         pool,
-      })
+        // Per-bot privileged path counters; a game token is not initData.
+        initDataBot: game
+          ? undefined
+          : (initDataBotOf(req, owner) ?? undefined),
+      }
+      countInitDataToolCall(ctx, имя) // cyrillic-ok: pre-existing local
+      const значение = await tool.handler(rpc.params?.arguments || {}, ctx)
       return ok({
         content: [{ type: 'text', text: JSON.stringify(значение, null, 1) }],
         structuredContent: значение,
@@ -610,7 +616,14 @@ export async function handleAgentChat(
     const события: Array<{ тип?: string; текст?: string }> = []
     for await (const ev of runAgent(
       history,
-      { telegramId, pool, turn, surface: поверхность }, // cyrillic-ok: pre-existing local
+      {
+        telegramId,
+        pool,
+        turn,
+        surface: поверхность, // cyrillic-ok: pre-existing local
+        // Per-bot privileged path counters (src/auth/initdata-bot-counts.ts).
+        initDataBot: initDataBotOf(req, telegramId) ?? undefined,
+      },
       // The surface was already parsed and allow-listed above; the agent needs
       // it so that button markers are proposed in the bot and nowhere else.
       // tools_only: the caller (the seller's sweep) needs a model that calls

@@ -111,6 +111,8 @@ describe('refresh rotation', () => {
     usedAt: Date | null
     revokedAt: Date | null
     expiresAt: Date
+    /** The family's session row; rotation keeps it (refresh-family-age.test.ts). */
+    familyCreatedAt: Date
   }
 
   function makeStore() {
@@ -133,6 +135,7 @@ describe('refresh rotation', () => {
           usedAt: null,
           revokedAt: null,
           expiresAt: exp,
+          familyCreatedAt: r.familyCreatedAt,
         })
         return true
       },
@@ -147,6 +150,7 @@ describe('refresh rotation', () => {
           usedAt: null,
           revokedAt: null,
           expiresAt: exp,
+          familyCreatedAt: new Date(),
         })
       },
     }
@@ -253,6 +257,7 @@ describe('refresh rotation', () => {
           usedAt: null,
           revokedAt: null,
           expiresAt: new Date(Date.now() + 86_400_000),
+          familyCreatedAt: new Date(),
         }
       },
       async consumeAndInsert() {

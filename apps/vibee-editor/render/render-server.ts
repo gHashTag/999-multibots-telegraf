@@ -106,7 +106,9 @@ import {
   verifyTelegramInitData,
   verifiedTelegramId,
   verifiedTelegramUsername,
+  initDataBotOf,
 } from './auth'
+import { countInitDataBot } from './src/auth/initdata-bot-counts'
 import { z } from 'zod'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import { SplitTalkingHeadSchema } from './src/compositions/SplitTalkingHead'
@@ -7879,6 +7881,9 @@ const server = createServer(async (req, res) => {
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
       const who = await resolveIdentity(req, getPool)
       if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      // Counts only: which bot's initData confirms (src/auth/initdata-bot-counts.ts).
+      const bot = initDataBotOf(req, who)
+      if (bot) countInitDataBot(bot, 'proposal_confirm')
       const { claimAcrossDeploy, execute, idFromBody } = await import(
         './src/agent/tg-proposals'
       )

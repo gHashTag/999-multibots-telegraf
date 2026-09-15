@@ -720,6 +720,38 @@ export function verifiedTelegramId(req: IncomingMessage): string | null {
 }
 
 /**
+ * The bot whose token verified this request's initData, when that initData is
+ * what proved `telegramId` (its signed user.id is that person), as digits or
+ * 'unknown'. Null for every other credential.
+ *
+ * For the per-bot path counters (src/auth/initdata-bot-counts.ts) only, so it
+ * counts nothing itself: the identity helpers already counted the request.
+ * Digits only for the reason given there: for a token stored without its colon
+ * the "id" is the whole secret, and this value travels in a ToolContext.
+ */
+export function initDataBotOf(
+  req: IncomingMessage,
+  telegramId: string | null
+): string | null {
+  const initData =
+    (req.headers['x-telegram-init-data'] as string | undefined) ||
+    (req.headers['x-telegram-initdata'] as string | undefined) ||
+    ''
+  if (!initData || !telegramId) return null
+  const v = verifyTelegramInitData(initData)
+  if (!v.ok) return null
+  try {
+    const id = JSON.parse(
+      new URLSearchParams(initData).get('user') || 'null'
+    )?.id
+    if (id == null || String(id) !== String(telegramId)) return null
+  } catch {
+    return null
+  }
+  return /^\d{1,20}$/.test(v.botId ?? '') ? String(v.botId) : 'unknown'
+}
+
+/**
  * The @username from the SAME verified signature, lower-cased, without the
  * "@". Null when the signature is missing, wrong, or carries no username
  * (Telegram lets a person have none). Used by the club's guest pass: the

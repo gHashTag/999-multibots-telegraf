@@ -19,6 +19,10 @@ import {
   revocationMark,
   setRevokedSessions,
 } from './session'
+import {
+  takeInitDataBotCounts,
+  returnInitDataBotCounts,
+} from './src/auth/initdata-bot-counts'
 
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -204,6 +208,33 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       not_before timestamptz NOT NULL
     )`)
 
+  /**
+   * A plain sign-out's cutoff for GAME tokens only (see `gameNotBefore` in
+   * session.ts). One row per person who ever signed out; the poll reads only
+   * the last hour, since a game token lives five minutes.
+   */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_user_game_not_before (
+      telegram_id text PRIMARY KEY,
+      not_before timestamptz NOT NULL
+    )`)
+
+  /**
+   * Per-day initData counts by bot id and path class
+   * (src/auth/initdata-bot-counts.ts), written from the revocation poll so a
+   * week of evidence survives deploys. Counts only: no person, no token. Small
+   * by construction (days x bots x seven paths), so nothing deletes rows. No
+   * route reads it; the owner queries it.
+   */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_initdata_bot_daily (
+      day date NOT NULL,
+      bot_id text NOT NULL,
+      path text NOT NULL,
+      n bigint NOT NULL,
+      PRIMARY KEY (day, bot_id, path)
+    )`)
+
   готово = true
 }
 
@@ -369,9 +400,18 @@ export async function claimPairingCode(
 export function refreshStore(pool: Pool) {
   return {
     async find(hash: string) {
+      /*
+       * The family's age comes from its session row: rotation keeps the
+       * session_id, and app_sessions.created_at is written once, at sign-in
+       * (session.ts FAMILY_MAX_AGE_SECONDS). An inner join, so a token whose
+       * session row is gone is unknown and is refused before it is spent.
+       */
       const r = await pool.query(
-        `SELECT family_id, used_at, revoked_at, expires_at
-           FROM app_refresh_tokens WHERE token_hash = $1`,
+        `SELECT t.family_id, t.used_at, t.revoked_at, t.expires_at,
+                s.created_at AS family_created_at
+           FROM app_refresh_tokens t
+           JOIN app_sessions s ON s.id = t.session_id
+          WHERE t.token_hash = $1`,
         [hash]
       )
       if (!r.rows.length) return null
@@ -381,6 +421,7 @@ export function refreshStore(pool: Pool) {
         usedAt: row.used_at ? new Date(row.used_at) : null,
         revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
         expiresAt: new Date(row.expires_at),
+        familyCreatedAt: new Date(row.family_created_at),
       }
     },
 
@@ -502,6 +543,25 @@ export async function setNotBefore(
 }
 
 /**
+ * Write a person's game-token cutoff (a plain sign-out), in epoch seconds: the
+ * same number the caller marks in memory (`markGameNotBefore`). It only moves
+ * forward, so a replica with a slower clock cannot pull it back.
+ */
+export async function setGameNotBefore(
+  pool: Pool,
+  telegramId: string,
+  seconds: number
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO app_user_game_not_before (telegram_id, not_before)
+     VALUES ($1, to_timestamp($2))
+     ON CONFLICT (telegram_id) DO UPDATE
+       SET not_before = GREATEST(app_user_game_not_before.not_before, EXCLUDED.not_before)`,
+    [telegramId, seconds]
+  )
+}
+
+/**
  * Whether the person pressed "sign out everywhere" after `issuedAtSeconds`,
  * the moment the credential a sign-in rests on was issued (initData or Login
  * Widget auth_date). Read from the database, not from this process's memory,
@@ -578,16 +638,29 @@ export async function pollRevocations(pool: Pool): Promise<number> {
        FROM app_user_not_before
       WHERE not_before > now() - interval '2 days'`
   )
-  setRevokedSessions(
-    ids,
-    cut.rows.map(
+  /*
+   * Game-token cutoffs left by plain sign-outs (session.ts gameNotBefore). An
+   * hour is twelve game-token lifetimes; older rows refuse nothing. Read in the
+   * same poll, so a failed read fails it and game tokens are refused as stale.
+   */
+  const gameCut = await pool.query(
+    `SELECT telegram_id, EXTRACT(EPOCH FROM not_before) AS not_before
+       FROM app_user_game_not_before
+      WHERE not_before > now() - interval '1 hour'`
+  )
+  const cutoffsOf = (rows: any[]) =>
+    rows.map(
       (x: any) =>
         [String(x.telegram_id), Math.floor(Number(x.not_before))] as [
           string,
           number,
         ]
-    ),
-    readAfterMark
+    )
+  setRevokedSessions(
+    ids,
+    cutoffsOf(cut.rows),
+    readAfterMark,
+    cutoffsOf(gameCut.rows)
   )
 
   /*
@@ -605,7 +678,46 @@ export async function pollRevocations(pool: Pool): Promise<number> {
   await pool.query(
     `DELETE FROM app_launch_families WHERE created_at < now() - interval '2 days'`
   )
+  await persistInitDataBotCounts(pool)
   return ids.length
+}
+
+/** At most one write of the per-bot counts a minute; the poll runs every 5 s. */
+const BOT_COUNTS_WRITE_MS = 60_000
+let botCountsTriedAt = 0
+
+/**
+ * Add the per-bot initData aggregates (src/auth/initdata-bot-counts.ts) to
+ * app_initdata_bot_daily. It rides the revocation poll for the reason the
+ * cleanup above does: a second timer is a second moving part.
+ *
+ * NEVER THROWS. It runs inside the poll, and a failed poll lets the revocation
+ * state go stale, which refuses every access and game token: a counter must not
+ * be able to do that. A failed write puts the counts back for the next attempt
+ * a minute later; a process that dies in between loses that minute.
+ */
+export async function persistInitDataBotCounts(pool: Pool): Promise<void> {
+  const now = Date.now()
+  if (now - botCountsTriedAt < BOT_COUNTS_WRITE_MS) return
+  const rows = takeInitDataBotCounts()
+  if (!rows.length) return
+  botCountsTriedAt = now
+  try {
+    await pool.query(
+      `INSERT INTO app_initdata_bot_daily (day, bot_id, path, n)
+       SELECT * FROM unnest($1::date[], $2::text[], $3::text[], $4::bigint[])
+       ON CONFLICT (day, bot_id, path) DO UPDATE
+         SET n = app_initdata_bot_daily.n + EXCLUDED.n`,
+      [
+        rows.map(r => r.day),
+        rows.map(r => r.bot),
+        rows.map(r => r.path),
+        rows.map(r => r.n),
+      ]
+    )
+  } catch {
+    returnInitDataBotCounts(rows)
+  }
 }
 
 /** A ticket for one stream connection. Returns the raw value once. */
