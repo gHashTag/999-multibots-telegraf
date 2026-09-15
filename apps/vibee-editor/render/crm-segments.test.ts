@@ -34,6 +34,29 @@ describe('segmentOf', () => {
     ).toBe('hot')
     expect(segmentOf({ ...base, next: 'deliver' })).toBe('hot')
   })
+
+  /*
+   * THE BOUNDARY, WHICH NOTHING GUARDED.
+   *
+   * Removing the `days <= 7` window from the price-ask rule broke no test: the
+   * only case that reached it asked one day ago, which is hot either way. The
+   * window is the whole difference between "he is asking about price right now"
+   * and "he asked once, a while back" -- and it is what a queue is built from.
+   *
+   * Found while repairing crm-memory-tools.test.ts, which had rotted past this
+   * very boundary: its fixture aged from one day to eight and started failing
+   * for a reason that looked like broken precedence.
+   */
+  it('a price ask goes cold after a week', () => {
+    const asking = {
+      ...base,
+      signals: ['price'],
+      unanswered: false,
+      next: 'wait',
+    }
+    expect(segmentOf({ ...asking, daysSinceInbound: 7 })).toBe('hot')
+    expect(segmentOf({ ...asking, daysSinceInbound: 8 })).not.toBe('hot')
+  })
   it('an objection this week outranks waiting; an old objection does not', () => {
     expect(
       segmentOf({

@@ -346,6 +346,28 @@ describe('crm_leads', () => {
 })
 
 describe('crm_leads by segment', () => {
+  /*
+   * THE CLOCK IS FROZEN HERE, AND IT HAS TO BE.
+   *
+   * This case says "A asked a price today", and the fixture dates it
+   * 2026-09-07. Against the real clock that sentence stopped being true a week
+   * later: segmentOf calls somebody hot only while `daysSinceInbound <= 7`, so
+   * on 2026-09-15 the person is eight days old and correctly falls through to
+   * waiting. The code was right and the test had rotted -- it was red on main
+   * for days, telling everyone who ran it that the segment precedence was
+   * broken.
+   *
+   * Same defect class as stageOf reading Date.now() with a frozen fixture: a
+   * test whose meaning depends on the wall clock passes the day it is written
+   * and fails later for a reason that looks like a logic bug.
+   */
+  beforeEach(() => {
+    vi.useFakeTimers({ now: new Date('2026-09-08T12:00:00Z') })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('every row names its segment and how long we have been silent; a bad segment is refused', async () => {
     const { leads } = await tools(fakeClient().client)
     const r: any = await leads.handler({ limit: 5 }, ctxFor())
