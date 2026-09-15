@@ -216,7 +216,16 @@ import {
   OPERATION_COST_USD,
 } from './billing-shared'
 
-const TOKEN_START = 20
+/**
+ * The welcome grant, once per person (src/token-ledger.ts).
+ *
+ * Exported because a PROMISE leans on it: the client-facing prompt says a
+ * request for a picture, a reel or a voice is done straight away because
+ * "the starter tokens are there". That is only true while each of those
+ * costs no more than this number, and the two live in different files.
+ * every-promised-service-fits-the-grant.test.ts holds them together.
+ */
+export const TOKEN_START = 20
 
 /**
  * Wallets that belong to the HOUSE, not to a customer: the autopilot and any
