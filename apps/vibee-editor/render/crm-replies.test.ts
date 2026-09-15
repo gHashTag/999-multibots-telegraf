@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll, vi } from 'vitest'
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest'
 import { noteReply, REPLY_IS_FRESH_MS } from './src/agent/crm-replies'
 
 /**
@@ -16,33 +16,98 @@ const NOW = Date.UTC(2026, 8, 15, 12, 0, 0)
 const ago = (ms: number) => new Date(NOW - ms).toISOString()
 
 /**
- * A pool that answers the two questions noteReply asks and records what it
- * would insert. It HONOURS the conditions: `ourWordAt` only comes back when
- * it really falls inside the window the query asks for.
+ * A POOL THAT DOES NOT ANSWER BY TABLE NAME.
+ *
+ * The first version recognised a query by the table in it and answered from
+ * the options -- which is the shape this repository has paid for before (form
+ * 21 in the blind-guards skill). Every condition that makes the answer MEAN
+ * something could be deleted from the real SQL and this fake would keep
+ * answering exactly as before: drop `"out"` and a client's own message counts
+ * as our word; drop `reverts_id IS NULL` and a cancelled reply still blocks
+ * the next one; drop the upper bound and a reply is "answered" by something
+ * we wrote afterwards. All green, every time.
+ *
+ * So it answers FROM DATA where it can -- the window is really compared --
+ * and every clause it leans on must still be present in the SQL. A missing
+ * one goes into `unmet`, which the tests assert is empty. It is recorded
+ * rather than thrown because noteReply swallows exceptions on purpose: a
+ * throw here would come back as a plain 'not recorded' and the negative
+ * tests would go on passing.
  */
 function fakePool(opts: {
   lastReplied?: string | null
   ourWordAt?: string | null
 }) {
   const inserts: unknown[][] = []
-  return {
+  const unmet: string[] = []
+  const flat = (sql: string) => sql.replace(/\s+/g, ' ')
+  const need = (sql: string, label: string, clauses: RegExp[]) => {
+    for (const c of clauses) {
+      if (!c.test(flat(sql))) unmet.push(`${label} lost: ${c.source}`)
+    }
+  }
+  const pool = {
     inserts,
+    unmet,
     query: async (sql: string, params: unknown[] = []) => {
-      if (/kind = 'replied'/.test(sql)) {
+      if (/FROM crm_touches/.test(sql) && /max\(/.test(sql)) {
+        need(sql, 'last replied', [
+          /owner_id = \$1/,
+          /lead_id = \$2/,
+          /kind = 'replied'/,
+          /reverts_id IS NULL/,
+          /NOT EXISTS/,
+        ])
         return { rows: [{ at: opts.lastReplied ?? null }] }
       }
       if (/FROM crm_messages/.test(sql)) {
+        need(sql, 'our own word', [
+          /owner_id = \$1/,
+          /lead_id = \$2/,
+          /"out"/,
+          /at > \$3/,
+          /at < \$4/,
+        ])
         const after = new Date(String(params[2])).getTime()
         const before = new Date(String(params[3])).getTime()
         const word = opts.ourWordAt ? new Date(opts.ourWordAt).getTime() : NaN
         const inside = Number.isFinite(word) && word > after && word < before
         return { rows: inside ? [{ '?column?': 1 }] : [] }
       }
-      if (/INSERT INTO crm_touches/.test(sql)) inserts.push(params)
+      if (/INSERT INTO crm_touches/.test(sql)) {
+        inserts.push(params)
+        return { rows: [{ id: inserts.length }] }
+      }
+      // recordTouch makes sure of its own table on the way in. DDL carries no
+      // condition this pool answers, so it passes without comment -- but
+      // anything else is a query this fake would be answering blind.
+      if (!/^\s*(CREATE|ALTER|DROP)/i.test(sql)) {
+        unmet.push(`a query nobody taught this pool: ${flat(sql).slice(0, 80)}`)
+      }
       return { rows: [] }
     },
   }
+  pools.push(pool)
+  return pool
 }
+
+/**
+ * CHECKED FOR EVERY POOL, NOT WHERE SOMEBODY REMEMBERED TO LOOK.
+ *
+ * A record nobody reads is the same blind guard one level up, so the check
+ * is not a call a new test can forget: every pool built here is registered
+ * and read after each test.
+ */
+const pools: Array<{ unmet: string[] }> = []
+afterEach(() => {
+  for (const p of pools) {
+    expect(
+      p.unmet,
+      'the fake answered a query whose conditions it no longer sees'
+    ).toEqual([])
+  }
+  pools.length = 0
+})
 
 const theyWrote = (whenMs: number) => [
   { msgId: 1, at: new Date(NOW - whenMs), out: false, text: 'да, интересно' },
