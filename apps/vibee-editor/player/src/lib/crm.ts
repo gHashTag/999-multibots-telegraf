@@ -19,6 +19,7 @@
  */
 import { API_BASE } from '../config'
 import { authHeaders } from '@/lib/apiFetch'
+import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 
 export interface Reached<T> {
   reachable: boolean
@@ -46,6 +47,9 @@ async function callTool<T>(
       }),
     })
     if (!r.ok) {
+      // In the game's TRI frame a refused credential means "sign in", and the
+      // route gate swaps the CRM for the sign-in panel (lib/embedGuest.ts).
+      if (r.status === 401) markEmbedSignInNeeded()
       return {
         reachable: false,
         data: null,

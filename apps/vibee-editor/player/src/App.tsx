@@ -18,6 +18,7 @@ import {
 } from '@/components/Navigation/RouteMemory'
 import { EmbedBridge } from '@/components/Navigation/EmbedBridge'
 import { ReturnToGame } from '@/components/Navigation/ReturnToGame'
+import { EmbedGuestGate } from '@/components/Navigation/EmbedGuestGate'
 import './App.css'
 
 // Lazy load pages for code splitting
@@ -247,6 +248,16 @@ function ProfileNeedsSignIn() {
  * bridge around it. `App` below renders exactly this.
  */
 export function AppRoutes() {
+  // Inside the game's TRI frame, screens that need a person show a guest the
+  // sign-in panel instead (components/Navigation/EmbedGuestGate.tsx).
+  return (
+    <EmbedGuestGate>
+      <RouteTable />
+    </EmbedGuestGate>
+  )
+}
+
+function RouteTable() {
   return (
     <Routes>
       {/* The root opens where the person was interrupted, or on the feed
