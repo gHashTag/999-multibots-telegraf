@@ -75,9 +75,24 @@ function fakePool(o: { throwOn?: RegExp } = {}) {
             },
           ],
         }
-      if (/DISTINCT ON \(lead_id\) lead_id, kind, at/.test(flat))
+      /*
+       * The windowed read (touchedSince). It stopped being a DISTINCT ON in
+       * 2026-09: with corrections in the table, one-row-per-lead could return
+       * the CORRECTION and never see the row it cancels, so the window is read
+       * whole and folded in code. The window clause is what tells this query
+       * apart from the unwindowed touchesByLead below.
+       */
+      if (/FROM crm_touches WHERE owner_id = \$1 AND at > now\(\) -/.test(flat))
         return {
-          rows: [{ lead_id: A, kind: 'replied', at: '2026-09-08T09:00:00Z' }],
+          rows: [
+            {
+              id: 11,
+              lead_id: A,
+              kind: 'replied',
+              at: '2026-09-08T09:00:00Z',
+              reverts_id: null,
+            },
+          ],
         }
       if (
         /FROM crm_touches WHERE owner_id = \$1 ORDER BY at DESC LIMIT/.test(
@@ -86,8 +101,20 @@ function fakePool(o: { throwOn?: RegExp } = {}) {
       )
         return {
           rows: [
-            { lead_id: A, kind: 'replied', at: '2026-09-08T09:00:00Z' },
-            { lead_id: C, kind: 'written', at: '2026-09-01T09:00:00Z' },
+            {
+              id: 11,
+              lead_id: A,
+              kind: 'replied',
+              at: '2026-09-08T09:00:00Z',
+              reverts_id: null,
+            },
+            {
+              id: 12,
+              lead_id: C,
+              kind: 'written',
+              at: '2026-09-01T09:00:00Z',
+              reverts_id: null,
+            },
           ],
         }
       if (/GROUP BY kind/.test(flat))

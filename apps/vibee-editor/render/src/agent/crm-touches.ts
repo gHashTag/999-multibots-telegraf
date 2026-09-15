@@ -72,6 +72,12 @@ export interface Touch {
   botName: string | null
   kind: TouchKind
   note?: string
+  /**
+   * The id of an earlier row this one cancels. A correction carries the SAME
+   * kind as the act it takes back, so a reader that knows nothing about
+   * corrections still sees a plausible history rather than a stray marker.
+   */
+  revertsId?: number | null
 }
 
 let tableReady = false
@@ -99,9 +105,25 @@ async function ensureTable(pool: Pool): Promise<void> {
    * with these people in the last N days". Without it that is a sequential scan
    * of the whole table on every list the person opens.
    */
+  /*
+   * CORRECTIONS, ADDED 2026-09-15. A mistake is never erased and never edited:
+   * a later row names the id of the one it cancels, and both stay in the log
+   * forever. See crm-supersede.ts for the fold that reads them.
+   *
+   * ADD COLUMN IF NOT EXISTS inside ensureTable, by the precedent of tools.ts
+   * and token-invoice.ts: this database has no migrations directory.
+   */
+  await pool.query(
+    'ALTER TABLE crm_touches ADD COLUMN IF NOT EXISTS reverts_id bigint'
+  )
   await pool.query(
     `CREATE INDEX IF NOT EXISTS crm_touches_owner_lead_at
        ON crm_touches (owner_id, lead_id, at DESC)`
+  )
+  /* Every fold asks "was this row cancelled"; without this that is a scan. */
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS crm_touches_reverts
+       ON crm_touches (reverts_id) WHERE reverts_id IS NOT NULL`
   )
   tableReady = true
 }
@@ -122,14 +144,17 @@ export async function recordTouch(
     if (!TOUCH_KINDS.includes(t.kind)) return 'not recorded'
     await ensureTable(pool)
     await pool.query(
-      `INSERT INTO crm_touches (owner_id, lead_id, bot_name, kind, note)
-       VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO crm_touches (owner_id, lead_id, bot_name, kind, note, reverts_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         String(t.owner),
         String(t.lead),
         t.botName ?? null,
         t.kind,
         t.note ? String(t.note).slice(0, 2000) : null,
+        typeof t.revertsId === 'number' && Number.isFinite(t.revertsId)
+          ? Math.floor(t.revertsId)
+          : null,
       ]
     )
     return 'recorded'
@@ -158,18 +183,45 @@ export async function touchedSince(
   try {
     if (!owner) return out
     await ensureTable(pool)
+    /*
+     * DISTINCT ON CANNOT SURVIVE CORRECTIONS, AND THIS IS THE TRAP.
+     *
+     * The old query asked the database for the newest row per lead. With
+     * corrections in the table the newest row is often the CORRECTION -- so the
+     * caller would be told "the last thing you did was refuse him" about the
+     * very act that was just taken back. Worse, a correction is invisible to a
+     * one-row-per-lead query: its subject is not there to be cancelled.
+     *
+     * So the window is read whole and folded here. The volume is one owner's
+     * touches over N days -- hundreds, not millions -- and the LIMIT keeps a
+     * pathological log from becoming a pathological query.
+     */
     const r = await pool.query(
-      `SELECT DISTINCT ON (lead_id) lead_id, kind, at
+      `SELECT id, lead_id, kind, at, reverts_id
          FROM crm_touches
         WHERE owner_id = $1 AND at > now() - ($2 || ' days')::interval
-        ORDER BY lead_id, at DESC`,
+        ORDER BY at DESC LIMIT 20000`,
       [String(owner), String(Math.max(1, Math.floor(days)))]
     )
+    const byLead = new Map<string, TouchRow[]>()
     for (const row of r.rows ?? []) {
-      out.set(String(row.lead_id), {
-        kind: row.kind as TouchKind,
+      const lead = String(row.lead_id)
+      const list = byLead.get(lead) ?? []
+      list.push({
+        id: row.id === null || row.id === undefined ? null : Number(row.id),
+        kind: String(row.kind),
         at: String(row.at),
+        revertsId:
+          row.reverts_id === null || row.reverts_id === undefined
+            ? null
+            : Number(row.reverts_id),
       })
+      byLead.set(lead, list)
+    }
+    for (const [lead, list] of byLead) {
+      // Rows arrive newest-first, which is what the fold requires.
+      const live = effectiveTouches(list)[0]
+      if (live) out.set(lead, { kind: live.kind as TouchKind, at: live.at })
     }
     return out
   } catch {
@@ -183,20 +235,43 @@ export async function touchesFor(
   owner: string,
   lead: string,
   limit = 20
-): Promise<Array<{ kind: TouchKind; note: string | null; at: string }>> {
+): Promise<
+  Array<{
+    id: number | null
+    kind: TouchKind
+    note: string | null
+    at: string
+    revertsId: number | null
+  }>
+> {
   try {
     if (!owner || !lead) return []
     await ensureTable(pool)
+    /*
+     * THE ONE READ THAT IS DELIBERATELY NOT FOLDED.
+     *
+     * This feeds the person's card, and a card must show the struck-through
+     * refusal and who lifted it. Folding here would tidy the mistake away,
+     * which is the opposite of the point: the log is evidence, and evidence
+     * that quietly loses its corrections is worth less than none.
+     *
+     * Callers that want state, not history, fold it themselves.
+     */
     const r = await pool.query(
-      `SELECT kind, note, at FROM crm_touches
+      `SELECT id, kind, note, at, reverts_id FROM crm_touches
         WHERE owner_id = $1 AND lead_id = $2
         ORDER BY at DESC LIMIT $3`,
       [String(owner), String(lead), Math.max(1, Math.min(100, limit))]
     )
     return (r.rows ?? []).map(row => ({
+      id: row.id === null || row.id === undefined ? null : Number(row.id),
       kind: row.kind as TouchKind,
       note: row.note ?? null,
       at: String(row.at),
+      revertsId:
+        row.reverts_id === null || row.reverts_id === undefined
+          ? null
+          : Number(row.reverts_id),
     }))
   } catch {
     return []
@@ -225,16 +300,36 @@ export async function touchesByLead(
     if (!owner) return out
     await ensureTable(pool)
     const r = await pool.query(
-      `SELECT lead_id, kind, at FROM crm_touches
+      `SELECT id, lead_id, kind, at, reverts_id FROM crm_touches
         WHERE owner_id = $1
         ORDER BY at DESC LIMIT $2`,
       [String(owner), Math.max(1, Math.floor(maxRows))]
     )
+    const raw = new Map<string, TouchRow[]>()
     for (const row of r.rows ?? []) {
-      const id = String(row.lead_id)
-      const list = out.get(id) ?? []
-      list.push({ kind: row.kind as TouchKind, at: String(row.at) })
-      out.set(id, list)
+      const lead = String(row.lead_id)
+      const list = raw.get(lead) ?? []
+      list.push({
+        id: row.id === null || row.id === undefined ? null : Number(row.id),
+        kind: String(row.kind),
+        at: String(row.at),
+        revertsId:
+          row.reverts_id === null || row.reverts_id === undefined
+            ? null
+            : Number(row.reverts_id),
+      })
+      raw.set(lead, list)
+    }
+    // This feeds stageOf, which asks what is TRUE about a person, not what was
+    // once written about them. Newest-first is preserved from the query.
+    for (const [lead, list] of raw) {
+      out.set(
+        lead,
+        effectiveTouches(list).map(t => ({
+          kind: t.kind as TouchKind,
+          at: t.at,
+        }))
+      )
     }
     return out
   } catch {
@@ -249,6 +344,7 @@ export async function touchesByLead(
  */
 export { SELLER_NOTE_PREFIXES } from './crm-notes'
 import { SELLER_NOTE_PREFIXES } from './crm-notes'
+import { effectiveTouches, type TouchRow } from './crm-supersede'
 
 const clampDays = (d: unknown): number =>
   Math.min(90, Math.max(1, Math.floor(Number(d) || 7)))
@@ -270,12 +366,32 @@ export async function touchesByKind(
     if (!owner) return []
     await ensureTable(pool)
     const r = await pool.query(
+      /*
+       * COUNTED IN SQL, BUT ONLY OVER ACTS THAT STILL STAND.
+       *
+       * Two exclusions, and both are needed. A row that some LIVE correction
+       * names is not an act any more, so it must not be counted -- otherwise
+       * the summary keeps reporting a refusal the owner took back. And the
+       * correction itself is bookkeeping about the log, so counting it would
+       * report two refusals where the person was refused once and forgiven.
+       *
+       * The `NOT EXISTS` mirrors effectiveTouches for the depth this data
+       * actually has. A correction that is itself corrected (undo of an undo)
+       * is rare enough that the count may lag the fold by one; the fold is the
+       * authority for STATE, this is a tally for a dashboard, and the sql-shape
+       * test pins the two exclusions so neither is quietly dropped.
+       */
       `SELECT kind,
               count(*)::int AS total,
               count(*) FILTER (WHERE at > now() - ($2 || ' days')::interval)::int AS recent,
               max(at) AS last_at
-         FROM crm_touches
+         FROM crm_touches t
         WHERE owner_id = $1
+          AND t.reverts_id IS NULL
+          AND NOT EXISTS (
+                SELECT 1 FROM crm_touches c
+                 WHERE c.reverts_id = t.id AND c.owner_id = t.owner_id
+              )
         GROUP BY kind`,
       [String(owner), String(clampDays(days))]
     )
@@ -300,8 +416,15 @@ export async function sellerSendsSince(
     if (!owner) return 0
     await ensureTable(pool)
     const r = await pool.query(
+      /*
+       * `reverts_id IS NULL` even though a send is never taken back: a receipt
+       * cannot be revoked, because the message really left. The clause is here
+       * so that a correction row -- which carries the SAME kind as what it
+       * cancels -- can never be miscounted as another send.
+       */
       `SELECT count(*)::int AS n FROM crm_touches
         WHERE owner_id = $1 AND kind IN ('written', 'bought')
+          AND reverts_id IS NULL
           AND at > now() - ($2 || ' days')::interval
           AND (note LIKE $3 OR note LIKE $4)`,
       [

@@ -405,6 +405,7 @@ export async function leadContext(
 }
 
 import { segmentOf, type Segment } from './crm-segments'
+import { REFUSAL_HOLDS_DAYS } from './crm-stages'
 
 export type NextStep = 'reply' | 'deliver' | 'offer' | 'talk' | 'wait'
 
@@ -527,7 +528,7 @@ export async function leadCandidates(
       const touchDays = Math.floor(
         (now.getTime() - new Date(touch.at).getTime()) / 86400_000
       )
-      if (touch.kind === 'refused' && touchDays <= 30) {
+      if (touch.kind === 'refused' && touchDays <= REFUSAL_HOLDS_DAYS) {
         // A "no" in the last month outweighs every other signal: the
         // playbook says thirty days of silence, and the score must agree.
         score -= 10

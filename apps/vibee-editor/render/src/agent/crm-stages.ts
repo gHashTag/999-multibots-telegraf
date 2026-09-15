@@ -43,6 +43,17 @@ export interface StageInput {
   touches: Array<{ kind: TouchKind; at: string }>
   /** Days since their last visit, if known. */
   quietDays: number | null
+  /**
+   * The clock, as data.
+   *
+   * The refusal window needs to know what "now" is, and reading `Date.now()`
+   * inside would make this derivation impure -- which it has never been, and
+   * which its own tests depend on: they freeze NOW and build touch timestamps
+   * relative to it. A function that quietly consults the wall clock passes on
+   * the day it is written and fails a week later, for reasons that look like a
+   * logic bug. Defaulted, so every existing caller is unaffected.
+   */
+  now?: number
 }
 
 /**
@@ -52,6 +63,32 @@ export interface StageInput {
  * a stage nobody trusts, and the first question anybody asks a CRM is "why is
  * he in that column".
  */
+/**
+ * How long a refusal holds. ONE number, imported by everything that asks.
+ *
+ * It was a literal 30 in crm-segments.ts, a literal 30 in the lead scoring, and
+ * an absent window here -- three readings of one promise, two of which agreed
+ * by luck.
+ */
+export const REFUSAL_HOLDS_DAYS = 30
+
+/**
+ * WHOLE days between an ISO timestamp and now; Infinity when unparsable.
+ *
+ * Floored, because the other two readers of this window floor: chat-memory.ts
+ * computes `Math.floor((now - at) / 86400_000)` for the score penalty, and the
+ * segment does the same for touchAge. Unfloored, a refusal recorded exactly
+ * thirty days ago is 30.0000001 days old and would be released a day early --
+ * here and nowhere else. One number is only one number if it is also measured
+ * the same way.
+ */
+function ageInDays(at: string, now?: number): number {
+  const t = Date.parse(String(at || ''))
+  if (!Number.isFinite(t)) return Number.POSITIVE_INFINITY
+  const base = Number.isFinite(now) ? (now as number) : Date.now()
+  return Math.floor((base - t) / 86_400_000)
+}
+
 export function stageOf(input: StageInput): { stage: Stage; because: string } {
   const { paid, touches } = input
   const latest = touches[0]
@@ -74,7 +111,22 @@ export function stageOf(input: StageInput): { stage: Stage; because: string } {
    * kind. Only money overrides it -- see above -- because money is the person
    * changing their own mind.
    */
-  if (touches.some(t => t.kind === 'refused')) {
+  /*
+   * A REFUSAL HOLDS FOR THIRTY DAYS, NOT FOREVER.
+   *
+   * This used to read `touches.some(t => t.kind === 'refused')` -- any refusal
+   * ever recorded, with no window -- while segmentOf next door released the
+   * same person after thirty days and the button's own text promised thirty days
+   * of silence. So somebody refused four hundred days ago was out of the
+   * refused segment and back in the queues, while this column still called him
+   * refused. Nobody ever argued for the eternity; it was the absence of a
+   * window, and the two readings of one fact disagreed in public.
+   *
+   * The window wins, and the number now lives in one place that segmentOf and
+   * the lead scoring both import.
+   */
+  const refusal = touches.find(t => t.kind === 'refused')
+  if (refusal && ageInDays(refusal.at, input.now) <= REFUSAL_HOLDS_DAYS) {
     return { stage: 'refused', because: 'сказал нет' }
   }
 
@@ -162,7 +214,11 @@ export function waitingOn(input: WaitingInput): {
     return { waiting: 'ours', days: age, because: 'ответил, а мы молчим' }
   }
   if (latest.kind === 'later' && age >= input.laterAfterDays) {
-    return { waiting: 'due', days: age, because: 'просил позже — позже настало' }
+    return {
+      waiting: 'due',
+      days: age,
+      because: 'просил позже — позже настало',
+    }
   }
   if (latest.kind === 'written' && age >= input.noAnswerAfterDays) {
     return { waiting: 'theirs', days: age, because: 'написали, ответа нет' }

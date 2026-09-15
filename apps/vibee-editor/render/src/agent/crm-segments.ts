@@ -22,6 +22,8 @@
  * Caps bound what one day may start; the daily cap counts every send.
  */
 
+import { REFUSAL_HOLDS_DAYS } from './crm-stages'
+
 export const SEGMENTS = [
   'hot',
   'objection',
@@ -87,7 +89,9 @@ export function segmentOf(c: SegmentInput): Segment {
   const touch = c.lastTouch
   const touchAge = touch ? ageDays(touch.at, now) : null
   const refusedLately =
-    touch?.kind === 'refused' && touchAge !== null && touchAge <= 30
+    touch?.kind === 'refused' &&
+    touchAge !== null &&
+    touchAge <= REFUSAL_HOLDS_DAYS
 
   if (c.next === 'offer' || c.next === 'deliver') return 'hot'
   if (asked && days !== null && days <= 7) return 'hot'
