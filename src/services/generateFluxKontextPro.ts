@@ -47,6 +47,7 @@ const FLUX_KONTEXT_PRO_MODEL = {
   description_en:
     'FLUX Kontext Pro - 8x faster, Adobe Photoshop Beta integrated image editing',
   description_ru:
+    // promise-checked: the vendor's own claim about their model, quoted as theirs
     'FLUX Kontext Pro - в 8 раз быстрее, интегрировано с Adobe Photoshop Beta',
 }
 

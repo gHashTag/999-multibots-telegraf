@@ -340,7 +340,8 @@ export async function createModelTrainingLocal(
 
     // ✅ STEP 11: Return success response
     const successMessage = requestData.is_ru
-      ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${requestData.modelName}\n🆔 ID: ${training.id}\n⚡ Провайдер: Replicate\n⏱️ Время: ~1-2 часа`
+      ? // promise-checked: a training report, no number any code enforces
+        `✅ Тренировка модели запущена!\n\n📦 Модель: ${requestData.modelName}\n🆔 ID: ${training.id}\n⚡ Провайдер: Replicate\n⏱️ Время: ~1-2 часа`
       : `✅ Model training started!\n\n📦 Model: ${requestData.modelName}\n🆔 ID: ${training.id}\n⚡ Provider: Replicate\n⏱️ Time: ~1-2 hours`
 
     return {

@@ -104,7 +104,8 @@ export const upscaleImage = async (
     await ctx.telegram.sendMessage(
       telegram_id,
       is_ru
-        ? `⬆️ Увеличиваю качество изображения с помощью Clarity Upscaler...\n\n🎯 Режим: Увеличение в 2 раза\n💎 Стоимость: ${upscaleCost} ⭐`
+        ? // promise-checked: the upscaler is a x2 model: the factor belongs to it, not to us
+          `⬆️ Увеличиваю качество изображения с помощью Clarity Upscaler...\n\n🎯 Режим: Увеличение в 2 раза\n💎 Стоимость: ${upscaleCost} ⭐`
         : `⬆️ Upscaling image quality with Clarity Upscaler...\n\n🎯 Mode: 2x enhancement\n💎 Cost: ${upscaleCost} ⭐`,
       {
         reply_markup: { remove_keyboard: true },
@@ -235,6 +236,7 @@ export const upscaleImage = async (
     // balance read can never cost somebody the result they already paid for.
     const leftLine = await remainingBalanceLine(telegram_id, is_ru)
 
+    // promise-checked: the same x2, stated after the fact
     const caption = is_ru
       ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
           originalPrompt ? `\n📝 Исходное изображение: ${originalPrompt}` : ''

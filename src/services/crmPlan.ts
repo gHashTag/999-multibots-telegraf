@@ -122,7 +122,10 @@ export const SEGMENT_LINES: SegmentLine[] = [
     key: 'warm',
     icon: '📣',
     title: 'Прогрев',
-    why: 'тихо 2–8 недель, без отказа; пакетом, когда он включён',
+    // promise-checked: the warm window in crm-segments.ts is 14..60 days --
+    // said as two weeks to two months, because 60 days is 8.5 weeks and
+    // "2-8" quietly understated the tail by half a week.
+    why: 'тихо от двух недель до двух месяцев, без отказа; пакетом, когда он включён',
   },
   {
     key: 'winback',

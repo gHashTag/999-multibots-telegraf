@@ -65,6 +65,41 @@ describe('what the bot promises is what the code does', () => {
     ).toContain(`Молчу в этом чате ${minutes} минут`)
   })
 
+  it('the takeover pause is promised the same in BOTH places', () => {
+    /*
+     * `tri promises` found the second one: the line the OWNER reads when a
+     * client writes -- "answer yourself and I will stay quiet in this chat for
+     * 30 minutes" -- lives in businessBotService, beside the constant but
+     * typed separately. The other is the answer to the mute button, in the
+     * navigation layer. One window, two sentences, and only one of them was
+     * held.
+     */
+    const ms = constant(
+      read('services/businessBotService.ts'),
+      'OWNER_TAKEOVER_MS'
+    )
+    const minutes = ms / 60_000
+    expect(
+      read('services/businessBotService.ts'),
+      `the line the owner reads promises something other than ${minutes} minutes`
+    ).toContain(`замолчу в этом чате на ${minutes} минут`)
+  })
+
+  it('the "no answer" window is the one the waiting tool uses', () => {
+    /*
+     * Three copies of one number: the summary tool's default, the waiting
+     * tool's default, and the sentence that explains `theirs` to the model --
+     * "we wrote, no answer for 3 days". The sentence is what the model
+     * believes, so it now carries the constant rather than a typed 3.
+     */
+    const days = constant(renderFile('crm-segments.ts'), 'NO_ANSWER_AFTER_DAYS')
+    expect(
+      renderFile('crm-summary-tool.ts'),
+      `the model is told a window other than ${days} days`
+    ).toContain(`ответа нет ${'${NO_ANSWER_AFTER_DAYS}'} дня`)
+    expect(days).toBe(3)
+  })
+
   it('a refusal: the days in the message are REFUSAL_HOLDS_DAYS', () => {
     const days = constant(renderFile('crm-stages.ts'), 'REFUSAL_HOLDS_DAYS')
     expect(

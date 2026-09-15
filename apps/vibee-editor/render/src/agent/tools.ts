@@ -1578,6 +1578,7 @@ export const TOOLS: AgentTool[] = [
       return {
         готово: false,
         renderId,
+        // promise-checked: the deadline is in this file: Date.now() + 6 * 60 * 1000
         причина: 'не уложился в 6 минут — проверь render_status',
       }
     },

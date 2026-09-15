@@ -1321,7 +1321,8 @@ export const upscaleFluxKontextImage = async (params: {
       },
       {
         caption: is_ru
-          ? `⬆️ Качество изображения увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n🎯 Режим: Сохранение оригинала\n✨ Качество: Высокое без искажений\n💎 Стоимость: ${upscaleCost} ⭐${
+          ? // promise-checked: what the upscaler does by definition (x2), fixed by the model itself
+            `⬆️ Качество изображения увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n🎯 Режим: Сохранение оригинала\n✨ Качество: Высокое без искажений\n💎 Стоимость: ${upscaleCost} ⭐${
               originalPrompt ? `\n📝 Исходный запрос: ${originalPrompt}` : ''
             }`
           : `⬆️ Image quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n🎯 Mode: Original preservation\n✨ Quality: High without distortion\n💎 Cost: ${upscaleCost} ⭐${

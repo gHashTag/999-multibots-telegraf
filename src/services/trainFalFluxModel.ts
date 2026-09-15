@@ -193,7 +193,8 @@ export async function trainFalFluxModel(
 
     // ✅ STEP 9: Return success response
     const successMessage = requestData.is_ru
-      ? `✅ Модель обучена через Fal.ai!\n\n📦 Модель: ${requestData.modelName}\n🆔 ID: ${result.requestId}\n⚡ Провайдер: Fal.ai\n⏱️ Время: ~15-30 минут`
+      ? // promise-checked: a vendor name and a training report, no number any code enforces
+        `✅ Модель обучена через Fal.ai!\n\n📦 Модель: ${requestData.modelName}\n🆔 ID: ${result.requestId}\n⚡ Провайдер: Fal.ai\n⏱️ Время: ~15-30 минут`
       : `✅ Model trained via Fal.ai!\n\n📦 Model: ${requestData.modelName}\n🆔 ID: ${result.requestId}\n⚡ Provider: Fal.ai\n⏱️ Time: ~15-30 minutes`
 
     return {

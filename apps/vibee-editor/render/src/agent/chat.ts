@@ -67,6 +67,7 @@ export type AgentEvent =
 const MONEY_AND_PLAN =
   '- Про деньги — честно: рилсы помогают зарабатывать, когда выходят ' + // cyrillic-ok: prompt copy
   'регулярно (3–4 в неделю минимум). Обещать доход нельзя — можно ' + // cyrillic-ok: prompt copy
+  // promise-checked: a plan length the model proposes, not a window any code enforces
   'обещать регулярность и разбор цифр. Контент-план на 30 дней ' + // cyrillic-ok: prompt copy
   'составь САМ, когда человек говорит «хочу раскрутиться / зарабатывать / ' + // cyrillic-ok: prompt copy
   'с чего начать» — не спрашивай разрешения, покажи первую неделю ' + // cyrillic-ok: prompt copy

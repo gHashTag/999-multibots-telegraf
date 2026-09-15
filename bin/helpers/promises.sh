@@ -29,8 +29,36 @@ while IFS= read -r line; do
   f="${line%%:*}"
   rest="${line#*:}"
   n="${rest%%:*}"
-  prev=$((n - 1))
-  if sed -n "${n}p;${prev}p" "$f" 2>/dev/null | grep -q 'promise-checked:'; then
+  # СМОТРИМ ВВЕРХ — НО ДО ПЕРВОЙ НАСТОЯЩЕЙ СТРОКИ КОДА.
+  #
+  # Пометка стоит над строкой, а между ними бывает закрытие блочного
+  # комментария и голова выражения (`const caption = is_ru`). Одной строки
+  # назад мало.
+  #
+  # ПЕРВАЯ ВЕРСИЯ СМОТРЕЛА НА 15 СТРОК ВВЕРХ — и проверено обратной мутацией:
+  # новое обещание, дописанное под ЧУЖОЙ пометкой, исчезало из списка. То
+  # есть инструмент начинал врать «разобрано» — хуже, чем шум, который он
+  # убирал. Теперь подъём кончается на первой строке, которая не комментарий,
+  # не пустая и не голова того же выражения (одна такая допускается).
+  seen_code=0
+  found=0
+  i=$((n - 1))
+  while [ "$i" -ge 1 ] && [ $((n - i)) -le 12 ]; do
+    l=$(sed -n "${i}p" "$f" 2>/dev/null)
+    case "$l" in
+      *promise-checked:*) found=1; break ;;
+    esac
+    t=$(printf '%s' "$l" | sed 's/^[[:space:]]*//')
+    case "$t" in
+      ''|'//'*|'*'*|'/*'*|'*/'*) ;;
+      *)
+        seen_code=$((seen_code + 1))
+        [ "$seen_code" -ge 2 ] && break
+        ;;
+    esac
+    i=$((i - 1))
+  done
+  if [ "$found" = "1" ]; then
     checked=$((checked + 1))
     continue
   fi
@@ -40,7 +68,8 @@ done < <(
   for d in $DIRS; do
     [ -d "$d" ] || continue
     grep -rnE "['\"\`][^'\"\`]*[а-яё][^'\"\`]*[0-9]+ ?($UNITS)" "$d" --include='*.ts' 2>/dev/null |
-      grep -v '\.test\.ts' | grep -viE '^\S+: *(//|\*)' | grep -v 'promise-checked'
+      grep -v '\.test\.ts' | grep -viE '^\S+: *(//|\*)' | grep -v 'promise-checked' |
+      grep -v 'logger\.\|console\.'  # журнал -- не обещание человеку
   done
 )
 

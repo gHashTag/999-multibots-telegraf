@@ -65,6 +65,16 @@ export const DAILY_CAP_DEFAULT = 30
  */
 export const LATER_RETURNS_AFTER_DAYS = 14
 
+/**
+ * How long our own message may go unanswered before it is somebody's turn.
+ *
+ * Named for the same reason: `crm_waiting` explains itself to the model with
+ * "we wrote, no answer for 3 days", and the 3 was typed separately in the
+ * summary tool, in the waiting tool and in that sentence. Three copies of one
+ * number, and the sentence is what the model believes.
+ */
+export const NO_ANSWER_AFTER_DAYS = 3
+
 /** Caps from the environment: SELLER_SEGMENT_CAPS 'hot=10,waiting=20', SELLER_DAILY_CAP '30'. */
 export function segmentCaps(
   env: NodeJS.ProcessEnv = process.env

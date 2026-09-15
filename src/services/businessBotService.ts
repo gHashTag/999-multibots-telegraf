@@ -285,6 +285,7 @@ export function buildLeadNotification(msg: BusinessMessage): string {
   return (
     `🆕 Новый клиент в вашей личке: <b>${name}</b>${username}${body}\n\n` +
     `Открыть чат: tg://user?id=${msg.chat.id}\n` +
+    // promise-checked: OWNER_TAKEOVER_MS, held by promisesMatchTheCode.test.ts
     `Ответите сами — я замолчу в этом чате на 30 минут.`
   )
 }

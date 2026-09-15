@@ -36,6 +36,21 @@ export function salesPlaybook(who: {
     '5. Возражения: «дорого» — считай цену за результат, не за токен; «потом» — назначь дату и ' +
     // promise-checked: REFUSAL_HOLDS_DAYS, held by promisesMatchTheCode.test.ts
     'запиши crm_touch later; «не надо» — crm_touch refused и не возвращайся 30 дней.\n' +
+    /*
+     * promise-checked: NOTHING HOLDS THIS, AND THAT IS THE FINDING.
+     *
+     * The cascade asks the model to count: a reminder after two days, then
+     * after five, and stop after two unanswered. No code measures any of it.
+     * `waitingOn` reports how many days our last word has gone unanswered and
+     * nothing counts reminders per person, so the rule holds only as long as
+     * the model chooses to follow it -- and the model reads this brief fresh
+     * every sweep, with no memory of how many times it has already nudged.
+     *
+     * Not fixed here on purpose: counting reminders is a feature (a touch
+     * kind, or a counter beside the lead), and it decides what reaches a
+     * client. Left named rather than quietly trusted.
+     */
+    // promise-checked: NOTHING HOLDS THIS -- the block above says why
     '6. Каскад: ждёт ответа — сегодня; молчит после предложения — напоминание через 2 дня, ' +
     'потом через 5; больше двух напоминаний без ответа — стоп.\n' +
     '7. Никогда: рассылок, обещаний, которых нет в прайсе, отправки без кнопки владельца. ' +
@@ -48,6 +63,7 @@ export function salesPlaybook(who: {
     'signals (price/buy/service/urgency/objection), paid, days_since_their_last_word. ' +
     'Назови владельцу отобранных одной строкой каждый и готовь ОДНУ карточку за ход — по первому; ' +
     'следующий — после его кнопки: новая карточка заменяет прошлую, две сразу нельзя. Если никто не ' +
+    // promise-checked: REFUSAL_HOLDS_DAYS, held by promisesMatchTheCode.test.ts
     'подходит — скажи «никого», первого попавшегося не бери. Отказ за 30 дней и «просил позже» — ' +
     'пропускай даже внутри группы. Пакетный обход по списку — команда /sweep у бота ' +
     '(/sweep ждут, /sweep горячие, /sweep @username), не ты.'

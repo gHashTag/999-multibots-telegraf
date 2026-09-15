@@ -27,7 +27,13 @@ import { stageOf, waitingOn } from './crm-stages'
 import { whoPaid } from './crm-tools'
 import { displayOf } from './crm-offer-tool'
 import { zepConfigured, zepFlavor } from './zep-memory'
-import { countSegments, segmentCaps, type Segment } from './crm-segments'
+import {
+  countSegments,
+  segmentCaps,
+  LATER_RETURNS_AFTER_DAYS,
+  NO_ANSWER_AFTER_DAYS,
+  type Segment,
+} from './crm-segments'
 
 export const NEXT_STEPS = ['reply', 'deliver', 'offer', 'talk', 'wait'] as const
 export const STAGES = [
@@ -163,8 +169,8 @@ export function summarize(
       paid: paid.has(lead),
       touches,
       quietDays: quiet.get(lead) ?? null,
-      noAnswerAfterDays: 3,
-      laterAfterDays: 14,
+      noAnswerAfterDays: NO_ANSWER_AFTER_DAYS,
+      laterAfterDays: LATER_RETURNS_AFTER_DAYS,
       now,
     })
     if (w) waiting_by_touch[w.waiting] += 1
@@ -325,7 +331,8 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         zep: zepConfigured() ? zepFlavor() : 'не подключён',
         how_to_read:
           'waiting_for_reply — по сообщениям (его слово новее нашего); waiting_by_touch — по касаниям ' +
-          '(ours: он ответил, мы молчим; due: просил позже, пора; theirs: мы написали, ответа нет 3 дня). ' +
+          // promise-checked: NO_ANSWER_AFTER_DAYS, held by promisesMatchTheCode.test.ts
+          `(ours: он ответил, мы молчим; due: просил позже, пора; theirs: мы написали, ответа нет ${NO_ANSWER_AFTER_DAYS} дня). ` +
           'hot — сам говорил о цене или покупке. last_ingest_at — когда память обходила диалоги; зеркало ' +
           'личных ответов его не двигает. seller_sends_recent — сколько из «написали» ушло из карточек ' +
           'продавца. day_budget — сколько карточек за сутки уже ушло и сколько осталось по лимиту; ' +

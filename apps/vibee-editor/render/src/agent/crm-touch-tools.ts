@@ -20,6 +20,7 @@
 import type { AgentTool, ToolContext } from './tools'
 import { visibleScope, askSupabase, whoPaid, audienceOf } from './crm-tools'
 import { stageOf, waitingOn, type Stage } from './crm-stages'
+import { LATER_RETURNS_AFTER_DAYS, NO_ANSWER_AFTER_DAYS } from './crm-segments'
 import {
   recordTouch,
   touchesFor,
@@ -259,11 +260,11 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       const noAnswerAfterDays =
         Number(a?.no_answer_after_days) > 0
           ? Math.floor(Number(a.no_answer_after_days))
-          : 3
+          : NO_ANSWER_AFTER_DAYS
       const laterAfterDays =
         Number(a?.later_after_days) > 0
           ? Math.floor(Number(a.later_after_days))
-          : 14
+          : LATER_RETURNS_AFTER_DAYS
 
       const [people, paid, touches] = await Promise.all([
         audienceOf(scope),

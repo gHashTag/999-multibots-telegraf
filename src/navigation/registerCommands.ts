@@ -3000,6 +3000,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   const prepare = async (ctx: MyContext, lead: string) => {
     await sendLong(
       ctx,
+      // promise-checked: INGEST_TIMEOUT_MS is 170s in crmProactive.ts -- under three minutes
       `⏳ Готовлю для ${lead}: читаю переписку, спрашиваю агента (до 3 минут). Ничего не уйдёт без твоей кнопки.`,
       menuOnly()
     )
@@ -3024,6 +3025,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     await runTurn(ctx, { label: '[кнопка: обход]' }, null, crmCallback('sweep'))
   }
   const ingest = async (ctx: MyContext) => {
+    // promise-checked: the same INGEST_TIMEOUT_MS of 170s
     await sendLong(ctx, '📥 Загружаю переписку (до 3 минут)…', menuOnly())
     try {
       const { ingestChats } = await import('@/services/modelSwitch')
@@ -3175,7 +3177,8 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       await sendLong(
         ctx,
         n
-          ? `🤫 Молчу в этом чате 30 минут — отвечаешь ты.`
+          ? // promise-checked: OWNER_TAKEOVER_MS, held by promisesMatchTheCode.test.ts
+            `🤫 Молчу в этом чате 30 минут — отвечаешь ты.`
           : '🤫 Бизнес-подключения нет — в этом чате бот и так не отвечает.',
         afterTurnKeyboard(id)
       )

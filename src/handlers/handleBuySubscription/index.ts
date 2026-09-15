@@ -63,7 +63,8 @@ export async function handleBuySubscription({ ctx, isRu }: BuyParams) {
     if (isAdminTest) {
       title = isRu ? '🧪 Тестовая Подписка' : '🧪 Test Subscription'
       description = isRu
-        ? 'Тестовая оплата за 1 звезду'
+        ? // promise-checked: the 1 is the amount two lines below, in this same call
+          'Тестовая оплата за 1 звезду'
         : 'Test payment for 1 star'
     }
 

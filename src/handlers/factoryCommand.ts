@@ -33,6 +33,7 @@ export async function handleFactoryCommand(ctx: MyContext): Promise<void> {
   }
 
   const chatId = String(ctx.chat?.id ?? ctx.from?.id ?? '')
+  // promise-checked: an estimate of a human wait, not a number any code enforces
   const started = await ctx.reply('🏭 Завод запущен. Это займёт 10–20 минут.')
   let lastText = ''
 

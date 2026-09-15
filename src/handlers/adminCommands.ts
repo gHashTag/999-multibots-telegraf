@@ -96,7 +96,8 @@ Examples:
   if (Math.abs(amount) > 10000) {
     await ctx.reply(
       isRu
-        ? '❌ Максимальная сумма операции: 10,000 ⭐'
+        ? // promise-checked: the ceiling is the comparison three lines above, in this same guard
+          '❌ Максимальная сумма операции: 10,000 ⭐'
         : '❌ Maximum operation amount: 10,000 ⭐'
     )
     return
