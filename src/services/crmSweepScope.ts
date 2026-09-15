@@ -151,7 +151,19 @@ export function parseSweepArgs(rawArgs: string[]): ScopeSpec {
     if (BATCH_WORDS.includes(low))
       return {
         kind: 'error',
-        message: 'прогрев — только пакетом, не обходом: /batch прогрев',
+        /*
+         * A REFUSAL MUST NAME A PATH THAT EXISTS.
+         *
+         * This used to say "/batch прогрев" -- and `/batch` is registered
+         * nowhere. The owner typed what the bot told him to type and got
+         * silence, which reads as a broken bot and costs more than the
+         * refusal itself. Warming stays batch-only by design (it is the one
+         * segment worked as a reviewed group, never as a queue), and until
+         * that batch exists the honest instruction is the one that works
+         * today: ask the seller for the list, work the people one by one.
+         */
+        message:
+          'прогрев — не обходом: спроси в чате «покажи прогрев», и по одному: /sweep <id>',
       }
     const preset = PRESET_ALIASES[low]
     if (preset) {

@@ -143,10 +143,17 @@ describe('parseSweepArgs', () => {
     expect(parseSweepArgs(['вернуть'])).toMatchObject({
       predicates: [{ field: 'preset', value: 'winback' }],
     })
-    expect(parseSweepArgs(['прогрев'])).toMatchObject({
-      kind: 'error',
-      message: expect.stringContaining('только пакетом'),
-    })
+    /*
+     * Warming is refused as a QUEUE, and the refusal must point somewhere
+     * that works. It used to name `/batch`, which is registered nowhere, so
+     * the owner typed what he was told and got silence. Asserted as the
+     * property -- refused, and names a real command -- rather than as the
+     * sentence, which is the half that is allowed to change.
+     */
+    const warming = parseSweepArgs(['прогрев'])
+    expect(warming).toMatchObject({ kind: 'error' })
+    expect((warming as { message: string }).message).toContain('/sweep')
+    expect((warming as { message: string }).message).not.toContain('/batch')
     expect(parseSweepArgs(['limit=0'])).toMatchObject({ kind: 'error' })
     expect(parseSweepArgs(['limit=51'])).toMatchObject({ kind: 'error' })
   })
