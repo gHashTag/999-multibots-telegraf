@@ -412,6 +412,9 @@ describe('a subscription invoice', () => {
     const pool = {
       query: async (q: string, p: unknown[] = []) => {
         sql.push({ q, p })
+        // The duplicate-subscription guard reads this table too, and a pool
+        // that answers every SELECT with a row would make it refuse the mint.
+        if (/SELECT 1 FROM token_invoices/.test(q)) return { rows: [] }
         return { rows: [{ id: 7 }] }
       },
     }

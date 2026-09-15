@@ -5,6 +5,12 @@ import {
   recordSubscriptionChange,
   SUBSCRIPTION_NOTES,
 } from './src/agent/crm-subscription'
+import { composePitch } from './src/agent/crm-offer-tool'
+import {
+  hasOpenSubscription,
+  mintTokenInvoice,
+  forgetInvoiceColumnsForTests,
+} from './src/agent/token-invoice'
 
 /**
  * BotSubscriptionUpdated carries three fields and no more: the user, the
@@ -143,3 +149,131 @@ describe('what is written when a subscription changes', () => {
 })
 
 afterAll(() => vi.restoreAllMocks())
+
+/**
+ * AN AUTO-CHARGE HAS TO ANNOUNCE ITSELF, AND ONLY EXIST ONCE.
+ *
+ * Two different dangers, both about money taken without a fresh yes each
+ * time. The pitch has to say how much, how often and where to stop it in the
+ * message the person actually reads. And Telegram will happily run two
+ * subscriptions for the same person at once -- it says so in the reference --
+ * so the second invoice is refused rather than minted.
+ */
+describe('what a subscription pitch tells the person', () => {
+  const pitch = (subscription: boolean) =>
+    composePitch({
+      name: 'Кто-то',
+      tokens: 150,
+      stars: 174,
+      url: 'https://t.me/$inv',
+      subscription,
+    })
+
+  it('says it repeats, how often, and how to stop it', () => {
+    const p = pitch(true)
+    expect(p).toContain('каждый месяц')
+    expect(p).toContain('в месяц')
+    expect(p).toContain('отменить')
+    // Where to press, not just that it is possible somewhere.
+    expect(p).toContain('Мои звёзды')
+  })
+
+  it('promises none of that for a one-off, which repeats nothing', () => {
+    const p = pitch(false)
+    expect(p).not.toContain('каждый месяц')
+    expect(p).not.toContain('отменить')
+    expect(p).toContain('174')
+  })
+})
+
+describe('a person cannot be given two subscriptions at once', () => {
+  /**
+   * A pool that HONOURS the conditions in the query instead of answering the
+   * table name.
+   *
+   * The first version of this returned a fixed list for anything touching
+   * token_invoices, so deleting `cancelled_at IS NULL` from the real query
+   * changed nothing and every case still passed. It tested that a query ran,
+   * not what the query asked.
+   */
+  const pool = (
+    rows: Array<{ subscription?: boolean; cancelled_at?: string | null }>
+  ) => ({
+    query: async (sql: string) => {
+      if (!/FROM token_invoices/.test(sql)) return { rows: [] }
+      let kept = rows
+      if (/subscription = TRUE/.test(sql)) {
+        kept = kept.filter(r => r.subscription === true)
+      }
+      if (/cancelled_at IS NULL/.test(sql)) {
+        kept = kept.filter(r => !r.cancelled_at)
+      }
+      return { rows: kept }
+    },
+  })
+  const standing = [{ subscription: true, cancelled_at: null }]
+  const killed = [{ subscription: true, cancelled_at: '2026-09-15' }]
+
+  it('sees an invoice that is still standing', async () => {
+    expect(await hasOpenSubscription(pool(standing) as never, '9')).toBe(true)
+  })
+
+  it('does not count one the owner already killed', async () => {
+    // Cancelling the card is exactly how the owner says "not that one, this
+    // one" -- a killed draft must not block the replacement.
+    expect(await hasOpenSubscription(pool(killed) as never, '9')).toBe(false)
+  })
+
+  it('does not count the person one-off invoices', async () => {
+    expect(
+      await hasOpenSubscription(
+        pool([{ subscription: false, cancelled_at: null }]) as never,
+        '9'
+      )
+    ).toBe(false)
+  })
+
+  it('answers no when it cannot tell, rather than blocking every sale', async () => {
+    const broken = {
+      query: async () => {
+        throw new Error('no database')
+      },
+    }
+    expect(await hasOpenSubscription(broken as never, '9')).toBe(false)
+  })
+
+  it('refuses the second mint before Telegram is asked for anything', async () => {
+    const posted: unknown[] = []
+    const f = (async () => {
+      posted.push(1)
+      return { status: 200, json: async () => ({ ok: true, result: 'x' }) }
+    }) as unknown as typeof fetch
+    await expect(
+      mintTokenInvoice({
+        forTelegramId: '900000001',
+        tokens: 150,
+        subscription: true,
+        botToken: 'test-token', // secret-guard-ok: invented here
+        fetchImpl: f,
+        pool: pool(standing) as never,
+      } as never)
+    ).rejects.toThrow('уже есть наша подписка')
+    expect(posted, 'an invoice was minted anyway').toHaveLength(0)
+  })
+
+  it('leaves a one-off mint alone, however many subscriptions exist', async () => {
+    const posted: unknown[] = []
+    const f = (async () => {
+      posted.push(1)
+      return { status: 200, json: async () => ({ ok: true, result: 'x' }) }
+    }) as unknown as typeof fetch
+    await mintTokenInvoice({
+      forTelegramId: '900000001',
+      tokens: 150,
+      botToken: 'test-token', // secret-guard-ok: invented here
+      fetchImpl: f,
+      pool: pool(standing) as never,
+    } as never)
+    expect(posted).toHaveLength(1)
+  })
+})

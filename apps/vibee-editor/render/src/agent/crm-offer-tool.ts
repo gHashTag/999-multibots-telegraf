@@ -236,6 +236,8 @@ export function composePitch(input: {
   stars: number
   url: string
   note?: string
+  /** Charged every month until the person stops it, not once. */
+  subscription?: boolean
 }): string {
   const name = oneLine(input.name, 40)
   const note = oneLine(input.note, 120)
@@ -243,19 +245,33 @@ export function composePitch(input: {
   // a template's interpolation, and a nested template here read as code.
   const hello = name ? name + ', привет!' : 'Привет!'
   const task = note ? 'Под задачу «' + note + '» ' : ''
+  /*
+   * A RECURRING CHARGE SAYS SO BEFORE IT IS AGREED TO.
+   *
+   * Every month afterwards Telegram takes the stars without asking again, so
+   * how much, how often and where to stop it belong in the first message the
+   * person reads -- not in a follow-up and not in small print. That is why
+   * the wording is here, next to the price, rather than left to the model.
+   */
+  const monthly = input.subscription === true
   const offer =
     task +
     'предлагаю ' +
     String(input.tokens) +
-    ' токенов для генераций в Trinity S³AI — это ' +
+    ' токенов для генераций в Trinity S³AI' +
+    (monthly ? ' каждый месяц' : '') +
+    ' — это ' +
     String(input.stars) +
-    ' ⭐️ Stars, оплата в один тап прямо здесь:'
-  return [
-    hello,
-    offer,
-    input.url,
-    'После оплаты токены сразу на твоём балансе в приложении. Если что-то непонятно — спрашивай, я рядом.',
-  ].join('\n\n')
+    ' ⭐️ Stars' +
+    (monthly ? ' в месяц' : '') +
+    ', оплата в один тап прямо здесь:'
+  const after = monthly
+    ? 'Токены приходят сразу и обновляются раз в месяц. Списание ' +
+      'повторяется автоматически, пока ты его не остановишь — отменить ' +
+      'можно в любой момент в Telegram, в разделе «Мои звёзды». Если ' +
+      'что-то непонятно — спрашивай, я рядом.'
+    : 'После оплаты токены сразу на твоём балансе в приложении. Если что-то непонятно — спрашивай, я рядом.'
+  return [hello, offer, input.url, after].join('\n\n')
 }
 
 export const CRM_OFFER_TOOLS: AgentTool[] = [
@@ -279,6 +295,13 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
           description: 'сколько токенов предложить (1..)',
         },
         note: { type: 'string', description: 'под какую задачу, одной фразой' },
+        subscription: {
+          type: 'boolean',
+          description:
+            'списывать столько же каждый месяц, пока человек сам не отменит ' +
+            '(по умолчанию нет). Только если он сам сказал, что хочет ' +
+            'регулярно — автосписание без просьбы это не продажа',
+        },
       },
       required: ['chat'],
     },
@@ -347,9 +370,11 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
        * contains the real link and not a placeholder. A pitch approved with
        * "link goes here" is a pitch approved blind.
        */
+      const monthly = a?.subscription === true
       const minted = await mintTokenInvoice({
         forTelegramId: leadId,
         tokens,
+        subscription: monthly,
         pool: ctx?.pool as never,
         ...(cashier ? { botToken: cashier.token } : {}),
       })
@@ -368,6 +393,7 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
         stars: minted.stars,
         url: minted.url,
         note: a?.note ? String(a.note) : undefined,
+        subscription: monthly,
       })
 
       const p = propose(

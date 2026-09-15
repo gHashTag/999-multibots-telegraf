@@ -66,6 +66,42 @@ export interface MintInput {
   subscription?: boolean
 }
 
+/**
+ * Does this person already hold a subscription invoice we minted?
+ *
+ * Telegram is explicit that it will not stop us: "any number of subscriptions
+ * can be active for a given bot at the same time, including multiple
+ * concurrent subscriptions from the same user". So two cards approved a week
+ * apart would bill one person twice every month, and neither the owner nor
+ * the seller would see it anywhere.
+ *
+ * The second INVOICE is what creates the second subscription, so that is what
+ * this refuses. A cancelled draft (cancelled_at) no longer counts -- killing
+ * the card is exactly how the owner says "not that one, this one".
+ *
+ * Unknown answers do NOT block a sale: on a database error this says no and
+ * the mint goes ahead. The guard is an extra pair of eyes, not the only one
+ * -- the owner still reads the card, and Telegram shows every person their
+ * own subscriptions.
+ */
+export async function hasOpenSubscription(
+  pool: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+  forTelegramId: string
+): Promise<boolean> {
+  try {
+    await ensureInvoiceColumns(pool)
+    const r = (await pool.query(
+      `SELECT 1 FROM token_invoices
+        WHERE telegram_id = $1 AND subscription = TRUE AND cancelled_at IS NULL
+        LIMIT 1`,
+      [String(forTelegramId)]
+    )) as { rows?: unknown[] } | undefined
+    return Boolean(r?.rows?.length)
+  } catch {
+    return false
+  }
+}
+
 export function paymentBotToken(): string {
   return process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
 }
@@ -152,6 +188,12 @@ export async function mintTokenInvoice(
   // here so the rest of this file reads in one language.
   const { токенов: tokens, звёзд: stars } = ценаТокенов(Number(input.tokens)) // cyrillic-ok
   const monthly = input.subscription === true
+  if (monthly && input.pool && (await hasOpenSubscription(input.pool, forId))) {
+    throw new Error(
+      'у этого человека уже есть наша подписка — второй счёт спишет с него ' +
+        'дважды в месяц; отмените прежнюю карточку, если нужна другая сумма'
+    )
+  }
   if (monthly && stars > SUB_MAX_STARS) {
     // cyrillic-ok: pre-existing name
     // A different ceiling from the one-off one, and lower. Refusing here with
