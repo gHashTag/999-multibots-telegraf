@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useSetAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
+import { showLoginModalAtom } from '@/atoms'
+import { LoginModal } from '@/components/Auth/LoginModal'
+import '@/components/Auth/styles.css'
 import { answerIdentityRequests, queenPage } from '@/lib/hive'
 import { IS_EMBED } from '@/lib/embed'
 import { API_BASE } from '@/config'
@@ -61,29 +65,47 @@ export default function HivePage() {
   const [loaded, setLoaded] = useState(false)
   const page = queenPage(lang)
   const frameRef = useRef<HTMLIFrameElement>(null)
+  const setShowLoginModal = useSetAtom(showLoginModalAtom)
 
   // The framed game asks who the visitor is. The answer is a 300 s game token
   // minted from this app's credential, never the credential itself, and only
   // to this frame on https://t27.ai (lib/hive.ts answerIdentityRequests).
   // Only where this app's own session is trusted: top level, or framed by this
-  // app or Telegram. Framed by a t27.ai page, the Bearer session is already a
-  // guest, but Telegram's launch data still authenticates (framedSession.ts),
-  // and that page shares the origin of the game frame answered here, so it
-  // could ask through that frame and skip the bridge's consent.
+  // app or Telegram. Framed by a t27.ai page, the session and Telegram's
+  // launch data are already a guest's (framedSession.ts, telegram.ts), and
+  // that page shares the origin of the game frame answered here, so it could
+  // ask through that frame and skip the bridge's consent.
+  //
+  // Only while the frame still holds the Queen this page pointed it at. The
+  // frame's window survives navigation, so a link inside it to any other
+  // t27.ai page (twelve GitHub Pages sites share that origin) would inherit
+  // the answer. The Queen changes views by hash and never reloads itself, so
+  // a second `load` means another document: from then on nothing is
+  // answered, until this page sets the address again. A page loaded there can
+  // still ask before its own `load` fires; that window stays open.
+  //
+  // A signed-out game asks for sign-in with {v:1, type:'t27-app',
+  // kind:'sign-in'}; the login modal opens here and the Hive stays.
+  const loads = useRef(0)
+  useLayoutEffect(() => {
+    loads.current = 0
+  }, [page])
   useEffect(() => {
     if (IS_EMBED || !sessionTrustedIn(window as unknown as FramedWindow)) {
       return
     }
     return answerIdentityRequests({
       win: window,
-      frame: () => frameRef.current?.contentWindow,
+      frame: () =>
+        loads.current <= 1 ? frameRef.current?.contentWindow : null,
       credential: () => ({
         initData: getInitData(),
         accessToken: getAppAccessToken(), // secret-guard-ok: runtime session value, never a literal credential
       }),
       apiBase: API_BASE,
+      onSignIn: () => setShowLoginModal(true),
     })
-  }, [])
+  }, [setShowLoginModal])
 
   // Inside the game's TRI frame the hive IS the page around this frame.
   // Framing it again would nest game > app > game > app without end, so no
@@ -124,9 +146,13 @@ export default function HivePage() {
           title={t('hive.frameTitle')}
           allow="fullscreen; clipboard-write"
           referrerPolicy="strict-origin-when-cross-origin"
-          onLoad={() => setLoaded(true)}
+          onLoad={() => {
+            loads.current += 1
+            setLoaded(true)
+          }}
         />
       </div>
+      <LoginModal />
     </div>
   )
 }

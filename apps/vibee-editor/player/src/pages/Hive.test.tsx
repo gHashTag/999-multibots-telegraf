@@ -50,6 +50,8 @@ vi.mock('@/lib/framedSession', async importOriginal => {
   globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
+import { getDefaultStore } from 'jotai'
+import { showLoginModalAtom } from '@/atoms'
 import HivePage from './Hive'
 
 let container: HTMLDivElement
@@ -181,6 +183,124 @@ describe('the hive page answers its game frame', () => {
         headers: Record<string, string>
       }
       expect(init.headers['X-Telegram-Init-Data']).toBe('fake-init-1')
+      expect(post).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('sign-in asked by the game, and a frame that left the Queen', () => {
+    const SIGN_IN = { v: 1, type: 't27-app', kind: 'sign-in' }
+    const modal = () => container.querySelector('.login-modal')
+
+    beforeEach(() => {
+      language.lang = 'en'
+    })
+
+    afterEach(() => {
+      getDefaultStore().set(showLoginModalAtom, false)
+    })
+
+    function renderFrame() {
+      const { frame, post } = renderAndSpy()
+      const iframe = container.querySelector('iframe')!
+      const load = () =>
+        act(() => {
+          iframe.dispatchEvent(new Event('load'))
+        })
+      return { frame, post, load }
+    }
+
+    function deliver(
+      data: unknown,
+      source: MessageEventSource | null,
+      origin = 'https://t27.ai'
+    ) {
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent('message', { data, origin, source })
+        )
+      })
+    }
+
+    it('a sign-in request from its game frame opens the login modal and the page stays', async () => {
+      const before = window.location.href
+      const { frame, load } = renderFrame()
+      load()
+      expect(modal()).toBeNull()
+      deliver(SIGN_IN, frame)
+      await flush()
+      expect(modal()).not.toBeNull()
+      expect(window.location.href).toBe(before)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('control: the same message from another origin or window opens nothing', async () => {
+      const { frame, load } = renderFrame()
+      load()
+      deliver(SIGN_IN, frame, 'https://evil.example')
+      deliver(SIGN_IN, window)
+      await flush()
+      expect(modal()).toBeNull()
+    })
+
+    it('after the frame loads a second document it is not answered and cannot open the modal', async () => {
+      const { frame, post, load } = renderFrame()
+      load()
+      load()
+      send(frame)
+      deliver(SIGN_IN, frame)
+      await flush()
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(post).not.toHaveBeenCalled()
+      expect(modal()).toBeNull()
+    })
+
+    it('control: after the first load only, it is answered', async () => {
+      const { frame, post, load } = renderFrame()
+      load()
+      send(frame)
+      await flush()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(post).toHaveBeenCalledTimes(1)
+    })
+
+    it('a token minted while the frame navigated away is not delivered', async () => {
+      let finish: (value: unknown) => void = () => {}
+      fetchMock.mockImplementationOnce(
+        () => new Promise(resolve => (finish = resolve))
+      )
+      const { frame, post, load } = renderFrame()
+      load()
+      send(frame)
+      load()
+      finish({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          game_token: 'fake-game-1',
+          expires_in: 300,
+          telegram_id: '42',
+        }),
+      })
+      await flush()
+      await flush()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('a new game address set by the page itself (the language) is answered again', async () => {
+      const { load } = renderFrame()
+      load()
+      language.lang = 'ru'
+      act(() => root.render(<HivePage />))
+      const iframe = container.querySelector('iframe')!
+      expect(iframe.getAttribute('src')).toBe('https://t27.ai/?lang=ru#/queen')
+      load()
+      // jsdom gives the frame a new window when its src changes.
+      const frame = iframe.contentWindow!
+      const post = vi.spyOn(frame, 'postMessage').mockImplementation(() => {})
+      send(frame)
+      await flush()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(post).toHaveBeenCalledTimes(1)
     })
   })

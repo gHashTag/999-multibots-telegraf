@@ -123,10 +123,25 @@ export async function mintForGame(
 }
 
 /**
+ * The game, signed out inside the Hive, asks the page to sign the visitor in
+ * instead of navigating the whole app away: `{v:1, type:'t27-app',
+ * kind:'sign-in'}`.
+ */
+export function isSignInRequest(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false
+  const message = data as { v?: unknown; type?: unknown; kind?: unknown }
+  return (
+    message.v === 1 && message.type === 't27-app' && message.kind === 'sign-in'
+  )
+}
+
+/**
  * Answers identity requests from the game frame only: `event.source` must be
  * that frame's window and `event.origin` exactly https://t27.ai. The reply
  * goes back to the same window with targetOrigin https://t27.ai, and is
- * dropped if the page replaced the frame meanwhile. Returns the unsubscribe.
+ * dropped if `frame()` no longer returns that window (the page replaced the
+ * frame, or it has left the Queen). A sign-in request passing the same checks
+ * calls `onSignIn`. Returns the unsubscribe.
  */
 export function answerIdentityRequests(options: {
   win: Pick<Window, 'addEventListener' | 'removeEventListener'>
@@ -134,12 +149,17 @@ export function answerIdentityRequests(options: {
   credential: () => PlayerCredential
   apiBase: string
   fetchImpl?: typeof fetch
+  onSignIn?: () => void
 }): () => void {
-  const { win, frame, credential, apiBase, fetchImpl } = options
+  const { win, frame, credential, apiBase, fetchImpl, onSignIn } = options
   const onMessage = (event: MessageEvent) => {
     const target = frame()
     if (!target || event.source !== target) return
     if (event.origin !== GAME_ORIGIN) return
+    if (isSignInRequest(event.data)) {
+      onSignIn?.()
+      return
+    }
     const nonce = identityRequestNonce(event.data)
     if (nonce === null) return
     void mintForGame(nonce, credential(), apiBase, fetchImpl).then(reply => {
