@@ -769,6 +769,7 @@ PYEOF
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
+  scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true

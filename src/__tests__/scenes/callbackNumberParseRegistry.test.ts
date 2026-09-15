@@ -48,6 +48,30 @@ const REGISTERED: Record<string, string> = {
     'top_up_rub_(d+); amount taken from server-side sceneState.paymentInfo, not the parsed number',
   'scenes/starPaymentScene.ts':
     'top_up_(d+) -> handleTopUp -> handleBuy; proportional invoice (user pays for what they credit)',
+  /*
+   * crm:<verb>:<numeric id> and crm-prep-<numeric id>.
+   *
+   * NOT the money class, and the number is not a quantity: it is a TELEGRAM
+   * ID naming which person the owner's own CRM card is about. Nothing is
+   * priced from it -- an invoice made later takes its size from the single
+   * scale in agent/token-packs.ts, never from this number.
+   *
+   * Three guards, and the first two are in this repository:
+   *   - the shape: both regexes are anchored and take 5 to 15 digits only;
+   *   - the caller: ownerOnly (ADMIN_IDS_ARRAY) plus a private chat, checked
+   *     in registerCrmCommands before any verb runs;
+   *   - the far end: every CRM tool on the render re-checks the caller owns
+   *     the lead (requireOwner, crm-owner-gate.test.ts), so a crafted id
+   *     cannot reach somebody else's correspondence.
+   *
+   * RESIDUAL RISK, NAMED HONESTLY: the owner may pass any id at all and the
+   * seller will prepare a card about that person. That is the feature -- it
+   * is his own CRM -- not a bypass.
+   */
+  'navigation/helpers/crmMenu.ts':
+    'crm:<verb>:(d{5,15}) is a telegram id, not a price; anchored regex + ownerOnly/private chat + requireOwner on the render',
+  'navigation/registerCommands.ts':
+    'crm-prep-(d{5,15}) start payload, same telegram id and the same three guards; invoices are priced from agent/token-packs.ts',
   // Outside src/scenes, invisible until the population was widened. NOT in
   // the money class: the file holds zero money calls, and the parsed number
   // is a log-line count, not a price or a quantity of paid work.
