@@ -11,6 +11,7 @@ import {
   effectiveTouches,
   latestToRevert,
   revocationOf,
+  lastAct,
   type TouchRow,
 } from './crm-supersede'
 
@@ -124,5 +125,57 @@ describe('what a correction should name', () => {
     // The caller must say there is nothing to undo, rather than write one
     // that names nothing.
     expect(latestToRevert(allUndone, 'refused')).toBeUndefined()
+  })
+})
+
+/**
+ * A NOTE IS NOT AN ACT, AND THREE READERS TAKE THE TOP ROW.
+ *
+ * `lastAct` lived in crm-stages.ts and was applied only by stageOf and
+ * waitingOn. The three readers that actually CHOOSE THE QUEUE -- the score
+ * penalty, the veto on next='talk', and refusedLately -- all read a single row
+ * handed to them by touchedSince, and it still carried notes. So a note
+ * written on somebody who had refused made the refusal invisible to every one
+ * of them, while the stage, read from the full history, still said 'refused'.
+ * One card, two answers -- the very thing the fix before this one claimed to
+ * have ended.
+ */
+describe('the latest ACT, not the latest row', () => {
+  it('looks past a note to the act underneath', () => {
+    const log = rows(
+      { id: 3, kind: 'note', at: '2026-09-10' },
+      { id: 2, kind: 'refused', at: '2026-09-08' },
+      { id: 1, kind: 'written', at: '2026-09-01' }
+    )
+    expect(lastAct(log)?.id).toBe(2)
+  })
+
+  it('looks past several notes in a row', () => {
+    const log = rows(
+      { id: 4, kind: 'note', at: '2026-09-11' },
+      { id: 3, kind: 'note', at: '2026-09-10' },
+      { id: 2, kind: 'refused', at: '2026-09-08' }
+    )
+    expect(lastAct(log)?.id).toBe(2)
+  })
+
+  it('answers nothing when a person has only ever been noted', () => {
+    // Not an act at all: they should read as never touched, not as something.
+    expect(
+      lastAct(rows({ id: 1, kind: 'note', at: '2026-09-01' }))
+    ).toBeUndefined()
+    expect(lastAct([])).toBeUndefined()
+    expect(lastAct(undefined)).toBeUndefined()
+  })
+
+  it('composes with the fold: a cancelled act is not the act either', () => {
+    // The two are applied together everywhere: fold first, then the act.
+    const log = rows(
+      { id: 4, kind: 'note', at: '2026-09-12' },
+      { id: 3, kind: 'refused', at: '2026-09-11', revertsId: 2 },
+      { id: 2, kind: 'refused', at: '2026-09-08' },
+      { id: 1, kind: 'written', at: '2026-09-01' }
+    )
+    expect(lastAct(effectiveTouches(log))?.id).toBe(1)
   })
 })

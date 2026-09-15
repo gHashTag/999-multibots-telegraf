@@ -130,3 +130,28 @@ export function latestToRevert<T extends TouchRow>(
     r => r.kind === kind && typeof r.id === 'number'
   )
 }
+
+/**
+ * The last thing that ACTUALLY happened, ignoring notes.
+ *
+ * A `note` is a fact somebody wrote down, not an act: the owner writes one
+ * from crm_touch, and the seller writes one when a subscription is cancelled
+ * or a managed bot appears. Readers that take "the newest row" then treat a
+ * note as the latest act, and every one of them has a branch per kind and
+ * none for `note`.
+ *
+ * It lived in crm-stages.ts and was applied only by stageOf and waitingOn.
+ * The three readers that actually CHOOSE THE QUEUE -- the score penalty, the
+ * "talk" veto and refusedLately -- read a single row handed to them by
+ * touchedSince, and it still carried notes. So one card could say
+ * stage='refused' and segment='talk' at the same time: one fact, two answers,
+ * which is exactly what the fix before this one claimed to have ended.
+ *
+ * Here because this module is already the one place that says what still
+ * counts, and because both callers import it.
+ */
+export function lastAct<T extends { kind: string }>(
+  touches: readonly T[] | undefined
+): T | undefined {
+  return (touches ?? []).find(t => t?.kind !== 'note')
+}

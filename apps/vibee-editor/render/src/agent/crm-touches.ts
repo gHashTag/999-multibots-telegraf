@@ -240,8 +240,18 @@ export async function touchedSince(
       byLead.set(lead, list)
     }
     for (const [lead, list] of byLead) {
-      // Rows arrive newest-first, which is what the fold requires.
-      const live = effectiveTouches(list)[0]
+      /*
+       * Rows arrive newest-first, which is what the fold requires -- and the
+       * ACT is what the callers want, not merely the newest row.
+       *
+       * This map is the single `touch` behind three decisions that choose the
+       * queue: the score penalty, the veto on next='talk', and refusedLately
+       * in segmentOf. All three branch on `kind`, and none of them has a
+       * branch for `note`. So a note written on somebody who had refused made
+       * the refusal invisible to every one of them, while the stage -- read
+       * from the full history -- still said 'refused'. One card, two answers.
+       */
+      const live = lastAct(effectiveTouches(list))
       if (live) out.set(lead, { kind: live.kind as TouchKind, at: live.at })
     }
     return out
@@ -365,7 +375,7 @@ export async function touchesByLead(
  */
 export { SELLER_NOTE_PREFIXES } from './crm-notes'
 import { SELLER_NOTE_PREFIXES } from './crm-notes'
-import { effectiveTouches, type TouchRow } from './crm-supersede'
+import { effectiveTouches, lastAct, type TouchRow } from './crm-supersede'
 
 const clampDays = (d: unknown): number =>
   Math.min(90, Math.max(1, Math.floor(Number(d) || 7)))

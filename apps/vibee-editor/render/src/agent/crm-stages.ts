@@ -19,6 +19,7 @@
  */
 
 import type { TouchKind } from './crm-touches'
+import { lastAct } from './crm-supersede'
 
 export type Stage =
   /** Paid. Nothing to sell; there is something to serve. */
@@ -71,24 +72,6 @@ export interface StageInput {
  * by luck.
  */
 export const REFUSAL_HOLDS_DAYS = 30
-
-/**
- * The last thing that ACTUALLY happened with this person.
- *
- * A `note` is a fact somebody wrote down, not an act: the seller writes one
- * when a subscription is cancelled or a bot is created, and the owner writes
- * one from crm_touch. Reading the newest row blindly made a note behave like
- * an act -- it matched none of the branches below, so a person with a note on
- * top came back as stage 'new' ("ни разу не касались") after a month of
- * correspondence, and dropped out of crm_waiting entirely because waitingOn
- * returned null. The note stays in the history and on the card; it simply
- * stops pretending to be the latest act.
- */
-function lastAct<T extends { kind: string }>(
-  touches: readonly T[] | undefined
-): T | undefined {
-  return (touches ?? []).find(t => t?.kind !== 'note')
-}
 
 /**
  * WHOLE days between an ISO timestamp and now; Infinity when unparsable.

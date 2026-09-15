@@ -144,3 +144,90 @@ describe('the card reads the log raw, on purpose', () => {
     expect(got[1].id).toBe(2)
   })
 })
+
+/**
+ * AND THE LATEST ACT, NOT MERELY THE LATEST ROW.
+ *
+ * This map is the single `touch` behind three decisions that choose the
+ * queue: the score penalty, the veto on next='talk', and refusedLately in
+ * segmentOf. All three branch on `kind`, and none has a branch for `note`.
+ *
+ * So a note written on somebody who had refused made that refusal invisible
+ * to every one of them -- while the stage, read from the full history, still
+ * said 'refused'. One card, two answers. The fold alone did not help: a note
+ * is not a correction, so effectiveTouches passes it straight through.
+ */
+describe('a note does not become the latest touch', () => {
+  it('reports the act under the note', async () => {
+    const rows: Row[] = [
+      {
+        id: 3,
+        lead_id: LEAD,
+        kind: 'note',
+        at: '2026-09-10',
+        reverts_id: null,
+      },
+      {
+        id: 2,
+        lead_id: LEAD,
+        kind: 'refused',
+        at: '2026-09-08',
+        reverts_id: null,
+      },
+    ]
+    const got = await touchedSince(poolOf(rows), OWNER, 60)
+    expect(got.get(LEAD)?.kind, 'the refusal disappeared behind a note').toBe(
+      'refused'
+    )
+  })
+
+  it('reports nothing for somebody who has only been noted', async () => {
+    const rows: Row[] = [
+      {
+        id: 1,
+        lead_id: LEAD,
+        kind: 'note',
+        at: '2026-09-10',
+        reverts_id: null,
+      },
+    ]
+    const got = await touchedSince(poolOf(rows), OWNER, 60)
+    expect(got.get(LEAD)).toBeUndefined()
+  })
+
+  it('still folds a correction away under the note', async () => {
+    // Both rules apply, in order: cancel first, then look past the note.
+    const rows: Row[] = [
+      {
+        id: 4,
+        lead_id: LEAD,
+        kind: 'note',
+        at: '2026-09-12',
+        reverts_id: null,
+      },
+      {
+        id: 3,
+        lead_id: LEAD,
+        kind: 'refused',
+        at: '2026-09-11',
+        reverts_id: 2,
+      },
+      {
+        id: 2,
+        lead_id: LEAD,
+        kind: 'refused',
+        at: '2026-09-08',
+        reverts_id: null,
+      },
+      {
+        id: 1,
+        lead_id: LEAD,
+        kind: 'written',
+        at: '2026-09-01',
+        reverts_id: null,
+      },
+    ]
+    const got = await touchedSince(poolOf(rows), OWNER, 60)
+    expect(got.get(LEAD)?.kind).toBe('written')
+  })
+})
