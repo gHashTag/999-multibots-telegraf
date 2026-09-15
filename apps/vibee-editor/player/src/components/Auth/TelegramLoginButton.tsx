@@ -228,12 +228,18 @@ interface UserAvatarProps {
    * показывал «Пользователь не найден». Замерено вживую 07.09.2026.
    */
   onLogout?: () => void
+  /**
+   * Sign out on all devices. Optional for the same reason as onLogout, and
+   * narrower: Header passes it only for a browser session outside Telegram.
+   */
+  onLogoutAll?: () => void
 }
 
 export function UserAvatar({
   user,
   avatarUrl: rawAvatarUrl,
   onLogout,
+  onLogoutAll,
 }: UserAvatarProps) {
   const { t } = useLanguage()
   const [imgError, setImgError] = useState(false)
@@ -278,6 +284,16 @@ export function UserAvatar({
           title={t('auth.logout')}
         >
           &times;
+        </button>
+      )}
+      {onLogoutAll && (
+        <button
+          type="button"
+          onClick={onLogoutAll}
+          className="logout-all-btn"
+          title={t('auth.logoutAll')}
+        >
+          {t('auth.logoutAllShort')}
         </button>
       )}
     </div>

@@ -36,7 +36,11 @@ import './styles.css'
 import { LoginModal } from '@/components/Auth/LoginModal'
 import { brandingAtom, loadBrandingAtom } from '@/atoms/branding'
 import { getInitData, isTelegram } from '@/lib/telegram'
-import { getAppAccessToken } from '@/lib/appSession'
+import {
+  canSignOutEverywhere,
+  getAppAccessToken,
+  logoutAllAppSessions,
+} from '@/lib/appSession'
 import { AI_PIPELINE_STAGES } from '@/lib/aiPipeline'
 import { IS_EMBED } from '@/lib/embed'
 
@@ -116,6 +120,13 @@ export function Header() {
   const logout = useSetAtom(logoutAtom)
   const clearProfile = useSetAtom(clearProfileAtom)
   const handleLogout = useCallback(() => {
+    clearProfile()
+    logout()
+  }, [clearProfile, logout])
+  // Every session of the person on the server; this tab is cleared first,
+  // so the single-tab logout after it has nothing left to send.
+  const handleLogoutAll = useCallback(() => {
+    void logoutAllAppSessions()
     clearProfile()
     logout()
   }, [clearProfile, logout])
@@ -487,6 +498,9 @@ export function Header() {
                  * закрыть мини-апп, и кнопка, обещающая иное, лжёт.
                  */
                 onLogout={getAppAccessToken() ? handleLogout : undefined}
+                onLogoutAll={
+                  canSignOutEverywhere() ? handleLogoutAll : undefined
+                }
               />
             </div>
           ) : (

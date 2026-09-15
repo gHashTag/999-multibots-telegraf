@@ -469,6 +469,8 @@ const en: Translations = {
 
   // Auth
   'auth.logout': 'Logout',
+  'auth.logoutAll': 'Sign out on all devices, including this one',
+  'auth.logoutAllShort': 'Sign out everywhere',
 
   // Captions preview
   'captions.previewText': 'Hello',
@@ -2360,6 +2362,8 @@ const ru: Translations = {
 
   // Auth
   'auth.logout': 'Выйти',
+  'auth.logoutAll': 'Выйти на всех устройствах, включая это',
+  'auth.logoutAllShort': 'Выйти везде',
 
   // Captions preview
   'captions.previewText': 'Привет',

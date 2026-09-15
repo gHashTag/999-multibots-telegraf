@@ -1130,6 +1130,20 @@
   color: var(--status-error);
 }
 
+.logout-all-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.logout-all-btn:hover {
+  color: var(--status-error);
+}
+
 /* Login Modal */
 .login-modal-overlay {
   position: fixed;
