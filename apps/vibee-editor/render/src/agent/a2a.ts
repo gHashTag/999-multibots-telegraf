@@ -22,8 +22,7 @@ import type { IncomingMessage, ServerResponse } from 'http'
 import { randomUUID } from 'node:crypto'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
-import { chatIdentity, readBody } from './routes'
-import { verifiedTelegramId } from '../../auth'
+import { resolveIdentity, readBody } from './routes'
 
 const PROTOCOL_VERSION = '0.3.0'
 
@@ -211,9 +210,23 @@ export async function handleA2A(
   res: ServerResponse,
   getPool: () => any
 ) {
-  // Личность: подпись мини-аппа → сессия приложения → ключ агента. Синхронно и
-  // без pool — вся логика (включая сессии) свёрнута в chatIdentity (routes.ts).
-  const owner = chatIdentity(req, verifiedTelegramId(req))
+  /*
+   * FOUR IDENTITIES, AND THE FOURTH IS THE ONE THIS ROUTE ADVERTISES.
+   *
+   * This read `chatIdentity`, which knows the mini-app signature, an app
+   * session and keys from the ENVIRONMENT. A key a person issues to
+   * themselves lives in the database -- and the 401 below sends them to
+   * exactly that door: "get a key in the mini app (POST /api/agent/keys)".
+   * So the route told people how to connect and then refused the result.
+   * The same shape as a message naming a command nobody registered.
+   *
+   * `resolveIdentity` is the door /mcp and /api/agent/chat already use: the
+   * synchronous three first, then the server key with an explicitly named
+   * telegram_id, then the issued key read from `agent_keys`. Strictly wider,
+   * and the same answer everywhere -- two identity checks on one service
+   * drift apart exactly as the two doors in public_templates once did.
+   */
+  const owner = await resolveIdentity(req, getPool)
   if (!owner) {
     return json(res, 401, {
       jsonrpc: '2.0',

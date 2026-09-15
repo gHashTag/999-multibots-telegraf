@@ -78,3 +78,43 @@ describe('A2A tasks/get is owner-scoped (#901)', () => {
     )
   })
 })
+
+/**
+ * THE KEY THIS ROUTE TELLS PEOPLE TO GET MUST WORK ON IT.
+ *
+ * /a2a refused with "get a key in the mini app (POST /api/agent/keys)" and
+ * then could not read such a key: identity came from `chatIdentity`, which
+ * knows the mini-app signature, an app session and keys from the ENVIRONMENT.
+ * A key a person issues to themselves lives in the `agent_keys` table, and
+ * only `resolveIdentity` reads it -- the door /mcp and /api/agent/chat have
+ * always used.
+ *
+ * Same shape as a message naming a command nobody registered: the route said
+ * how to connect and refused the result.
+ */
+describe('A2A accepts the key it sends people to get', () => {
+  it('resolves identity through the door that reads issued keys', () => {
+    const s = code()
+    expect(
+      /const owner = await resolveIdentity\(req, getPool\)/.test(s),
+      'a2a is back on an identity that cannot see an issued key'
+    ).toBe(true)
+    expect(
+      /\bchatIdentity\s*\(/.test(s),
+      'the narrower identity is used again somewhere in this file'
+    ).toBe(false)
+  })
+
+  it('still names that door in the refusal, so the two agree', () => {
+    const s = code()
+    expect(s).toContain('/api/agent/keys')
+  })
+
+  it('and /mcp still uses the same door, so the two cannot drift', () => {
+    const routes = stripComments(
+      fs.readFileSync(path.join(__dirname, 'src', 'agent', 'routes.ts'), 'utf8')
+    )
+    const mcp = routes.slice(routes.indexOf('export async function handleMcp'))
+    expect(mcp.slice(0, 600)).toContain('await resolveIdentity(req, getPool)')
+  })
+})
