@@ -603,6 +603,10 @@ export async function* streamModel(
     // Режим размышления есть только у GLM. Подставлять его OpenAI нельзя —
     // неизвестное поле там ошибка, а не игнор.
     if (p.thinking) body.thinking = { type: 'enabled' }
+    // A prepaid vendor prices max_tokens up front and refuses (402) when the
+    // balance cannot cover the model ceiling. Only the reserve carries a
+    // ceiling (spec: agent-provider-chain.t27 RESERVE_SENDS_MAX_TOKENS).
+    if (p.maxTokens) body.max_tokens = p.maxTokens
 
     // Дедлайн на ВЕСЬ ответ провайдера. Без него зависшее соединение
     // (провайдер открыл поток и молчит) вешало reader.read() навсегда: канал
