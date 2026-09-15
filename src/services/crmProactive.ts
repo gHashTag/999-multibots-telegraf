@@ -95,8 +95,26 @@ export interface SweepOpts {
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
 const INGEST_TIMEOUT_MS = 170_000
 
-let running = false
-let lastPushAt = 0
+/*
+ * ONE SWEEP AND ONE HOLD **PER OWNER**, NOT ONE FOR THE WHOLE PROCESS.
+ *
+ * Both of these were plain module variables, and ADMIN_IDS in production
+ * names five people. Every one of them passes requireAdmin, so every one can
+ * run /sweep and gets cards about their OWN correspondence -- the render
+ * gates each CRM tool by the caller's identity. The state behind it was
+ * shared:
+ *
+ *   - one unpressed card held EVERYBODY for two hours, and the message the
+ *     others got -- "a card is still waiting for the owner's press" -- named
+ *     a card they cannot see and cannot press;
+ *   - a sweep running for one of them answered "busy" to all the rest.
+ *
+ * Keyed by owner now. That does mean up to one model turn per admin at a
+ * time rather than one in total; the limit was never written down as a
+ * capacity guard, and the render serves the mini-app concurrently anyway.
+ */
+const running = new Set<string>()
+const lastPushAt = new Map<string, number>()
 
 /**
  * A press on the card -- either button -- frees the next sweep, and moves a
@@ -105,7 +123,11 @@ let lastPushAt = 0
  * skip anybody).
  */
 export function noteResolved(owner?: string, cardId?: string): void {
-  lastPushAt = 0
+  // Whose hold to free is known from the press: a callback always carries
+  // the person who pressed. Without one, nothing is freed -- clearing every
+  // owner's hold on an anonymous press is how the shared state behaved, and
+  // it is the behaviour this replaces.
+  if (owner) lastPushAt.delete(String(owner))
   const s = owner ? scopes.get(String(owner)) : undefined
   if (!s || !s.waiting || s.inFlight) return
   if (s.waiting.kind === 'card') {
@@ -119,8 +141,8 @@ export function noteResolved(owner?: string, cardId?: string): void {
 
 /** For tests. */
 export function resetProactiveForTests(): void {
-  running = false
-  lastPushAt = 0
+  running.clear()
+  lastPushAt.clear()
 }
 
 export async function sweepOnce(
@@ -128,12 +150,14 @@ export async function sweepOnce(
   deps: SweepDeps,
   opts: SweepOpts = {}
 ): Promise<SweepOutcome> {
-  if (running) return { did: 'busy', why: 'предыдущий обход ещё идёт' }
-  running = true
+  const who = String(ownerId)
+  if (running.has(who)) return { did: 'busy', why: 'предыдущий обход ещё идёт' }
+  running.add(who)
   try {
     const now = deps.now?.() ?? Date.now()
     const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
-    if (lastPushAt && now - lastPushAt < holdMs) {
+    const held = lastPushAt.get(who) ?? 0
+    if (held && now - held < holdMs) {
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
     try {
@@ -152,7 +176,7 @@ export async function sweepOnce(
     ])
     if (answer.proposal) {
       await deps.push(ownerId, answer.proposal)
-      lastPushAt = now
+      lastPushAt.set(who, now)
       return {
         did: 'card',
         why: (answer.текст ?? '').slice(0, 200), // cyrillic-ok: pre-existing identifiers
@@ -201,7 +225,7 @@ export async function sweepOnce(
   } catch (e) {
     return { did: 'failed', why: e instanceof Error ? e.message : String(e) }
   } finally {
-    running = false
+    running.delete(who)
   }
 }
 

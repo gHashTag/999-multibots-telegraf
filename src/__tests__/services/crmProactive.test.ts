@@ -150,9 +150,38 @@ describe('a card nobody pressed is not evicted', () => {
       calls.filter(c => c === 'ask').length,
       'the agent was asked while a card waited'
     ).toBe(1)
-    noteResolved()
+    // The owner is named: the hold belongs to a person now, and a press
+    // carries who pressed. Freeing every owner's hold on an anonymous press
+    // is the shared-state behaviour this replaced.
+    noteResolved(OWNER)
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
     expect(calls.filter(c => c === 'ask').length).toBe(2)
+  })
+
+  /**
+   * ADMIN_IDS NAMES FIVE PEOPLE IN PRODUCTION.
+   *
+   * Each of them passes requireAdmin, so each can run /sweep, and the render
+   * gates every CRM tool by the caller's identity -- so each gets cards about
+   * their OWN correspondence. The hold behind those cards was one module
+   * variable: an unpressed card of one admin held all the others for two
+   * hours, and the message they got named a card they can neither see nor
+   * press.
+   */
+  it("one admin's unpressed card does not hold another admin", async () => {
+    const a = deps()
+    const b = deps()
+    expect((await sweepOnce(OWNER, a.d)).did).toBe('card')
+    expect(
+      (await sweepOnce('900000042', b.d)).did,
+      'the second admin was held by a card that is not his'
+    ).toBe('card')
+    // And his own card holds him, exactly as before.
+    expect((await sweepOnce('900000042', b.d)).did).toBe('held')
+    // Freeing one does not free the other.
+    noteResolved('900000042')
+    expect((await sweepOnce(OWNER, a.d)).did).toBe('held')
+    expect((await sweepOnce('900000042', b.d)).did).toBe('card')
   })
 
   it('the hold expires by itself', async () => {
@@ -185,6 +214,30 @@ describe('never two at once', () => {
     release(null)
     expect((await first).did).toBe('idle')
     expect(calls.filter(c => c === 'ask').length).toBe(1)
+  })
+
+  it("but another admin's sweep is not busy because of it", async () => {
+    // The five admins in ADMIN_IDS have five separate correspondences. One
+    // turn in flight used to answer "busy" to all the others, so a second
+    // admin could not sweep at all while the first was thinking.
+    let release: (v: unknown) => void = () => {}
+    const a = deps({
+      ask: async () => {
+        await new Promise(res => {
+          release = res
+        })
+        return { текст: 'тихо', инструменты: ['crm_leads'] } as never // cyrillic-ok: pre-existing identifiers
+      },
+    })
+    const b = deps()
+    const first = sweepOnce(OWNER, a.d)
+    await new Promise(res => setTimeout(res, 0))
+    expect(
+      (await sweepOnce('900000042', b.d)).did,
+      'a turn for one admin blocked every other admin'
+    ).toBe('card')
+    release(null)
+    expect((await first).did).toBe('idle')
   })
 })
 
