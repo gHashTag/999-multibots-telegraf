@@ -487,7 +487,23 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
   )
 }
 
-async function* streamModel(
+/**
+ * A SKIPPED PROVIDER SAYS WHY. Spec: t27 agent-provider-chain.t27
+ * SKIPPED_PROVIDER_IS_LOGGED / SKIP_LOG_PREFIX.
+ *
+ * 2026-09-15: the reserve route was moved first and the stream named zai.
+ * The reason lived in the reasons array and surfaced only inside the final "nobody
+ * answered" error -- when a later provider succeeds the reason vanishes, and
+ * a dead route stays invisible for as long as the others live. One warn line
+ * per skip, before the next provider is tried.
+ */
+export const SKIP_LOG_PREFIX = '[agent] provider skipped:'
+
+function skipped(reason: string): void {
+  console.warn(`${SKIP_LOG_PREFIX} ${reason}`)
+}
+
+export async function* streamModel(
   messages: ChatMessage[],
   opts: { toolsOnly?: boolean; denyTools?: ReadonlySet<string> } = {}
 ): AsyncGenerator<
@@ -607,7 +623,9 @@ async function* streamModel(
 
       if (!r.ok || !r.body) {
         const t = await r.text().catch(() => '')
-        причины.push(diagnose(p.id, r.status, t))
+        const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
+        skipped(почему) // cyrillic-ok: pre-existing identifier
+        причины.push(почему) // cyrillic-ok: pre-existing identifier
         continue
       }
 
@@ -682,7 +700,8 @@ async function* streamModel(
       // Уже отдали текст — молчаливый перевод на другого провайдера склеил бы
       // два ответа. Бросаем: пусть runAgent покажет, что ответ оборван.
       if (ужеОтдалиТекст) throw new Error(почему)
-      причины.push(почему)
+      skipped(почему) // cyrillic-ok: pre-existing identifier
+      причины.push(почему) // cyrillic-ok: pre-existing identifier
       continue
     } finally {
       clearTimeout(timer)
