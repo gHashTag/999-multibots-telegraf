@@ -171,6 +171,7 @@ async function readConversation(
  * the first, and a stop pressed on the draft means "this one", of which there
  * is only ever one visible.
  */
+// owner-scope: keyed by the person asking: their newer question aborts their older one
 const running = new Map<string, AbortController>()
 
 /**

@@ -50,6 +50,7 @@ function tokensFromEnv(env: NodeJS.ProcessEnv): string[] {
   return out
 }
 
+// owner-scope: per process: the farm map belongs to the deployment
 let farm: Promise<Map<string, string>> | undefined
 
 async function build(

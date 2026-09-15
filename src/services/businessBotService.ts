@@ -83,16 +83,19 @@ interface ConnectionInfo {
   connectedAt: number
 }
 
+// owner-scope: keyed by business connection id; each row names its own owner
 const connections = new Map<string, ConnectionInfo>()
 
 // Per-sender single-flight: while a reply is being generated for a chat,
 // drop further messages from it so one sender cannot spawn many concurrent
 // (paid, ~30s) LLM predictions. Added on entry, removed in finally — bounded
 // to the set of chats with a reply currently in flight.
+// owner-scope: keyed by connection and chat
 const businessReplyInFlight = new Set<string>()
 
 /** Owner replied manually in a chat: the AI stays silent there until this time (ms). */
 export const OWNER_TAKEOVER_MS = 30 * 60 * 1000
+// owner-scope: keyed by connection and chat -- one owner, one client
 const ownerTakeoverUntil = new Map<string, number>()
 
 /**
@@ -115,6 +118,7 @@ export function pauseAiFor(
 }
 
 /** `${connId}:${chatId}` -> UTC day the owner was told about this customer. */
+// owner-scope: keyed by connection and chat
 const leadNotifiedOn = new Map<string, string>()
 
 /**
@@ -308,6 +312,7 @@ interface DailyStats {
  *
  * Keyed by the owner the business connection belongs to (`conn.userId`).
  */
+// owner-scope: keyed by the owner the connection belongs to
 const statsByOwner = new Map<string, DailyStats>()
 
 function todayKey(): string {
@@ -515,6 +520,7 @@ async function lookupConnection(
   }
 }
 
+// owner-scope: keyed by business connection id
 const ingestedConnections = new Set<string>()
 
 async function mirrorExchange(

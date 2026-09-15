@@ -2784,6 +2784,7 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
  * assigning it here keeps ONE implementation, which is the property that
  * matters -- a second "prepare" would eventually stop matching the first.
  */
+// owner-scope: per process: ONE implementation of prepare, not a fact about a person
 let preparedForOwner: ((ctx: MyContext, lead: string) => Promise<void>) | null =
   null
 

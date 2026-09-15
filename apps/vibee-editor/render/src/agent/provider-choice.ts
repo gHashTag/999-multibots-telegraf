@@ -22,7 +22,9 @@ type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
 }
 
+// owner-scope: per DEPLOYMENT by design: one model chain for the service
 let chosen: ProviderId | null = null
+// owner-scope: per process: the DDL runs once
 let tableReady = false
 
 export function isProviderId(x: unknown): x is ProviderId {

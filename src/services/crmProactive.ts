@@ -113,7 +113,9 @@ const INGEST_TIMEOUT_MS = 170_000
  * time rather than one in total; the limit was never written down as a
  * capacity guard, and the render serves the mini-app concurrently anyway.
  */
+// owner-scope: holds owner ids -- the key IS the owner
 const running = new Set<string>()
+// owner-scope: keyed by owner: whose card is waiting
 const lastPushAt = new Map<string, number>()
 
 /**
@@ -435,6 +437,7 @@ interface Scope {
   deps: SweepDeps
   say: (text: string) => Promise<unknown>
 }
+// owner-scope: keyed by owner: whose queue this is
 const scopes = new Map<string, Scope>()
 const BUSY_RETRY_MS = 30_000
 const BUSY_RETRY_MAX = 10
@@ -669,6 +672,7 @@ export async function startScopedSweep(
  * time. Dedupe: process memory first; after a redeploy the marker written
  * to the shared transcript says whether today's plan already went out.
  */
+// owner-scope: keyed by owner: whose plan went out today
 const planSentOn = new Map<string, { day: string; fingerprint: string }>()
 
 export function resetPlanForTests(): void {

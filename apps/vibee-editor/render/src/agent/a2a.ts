@@ -189,10 +189,12 @@ function completedTask(
  * чтобы tasks/get по id не отвечал «не найдено» тому же клиенту в том же
  * процессе. Ёмкость ограничена: агент не должен течь по памяти.
  */
+// owner-scope: keyed by task id; ownership lives beside it in TASK_OWNERS
 const TASKS = new Map<string, any>()
 // Owner of each remembered task, tracked separately so it is never serialised
 // into the task returned over the wire. tasks/get consults it: a caller may
 // read only their own task. Kept in lock-step with TASKS on insert and eviction.
+// owner-scope: the owner check for TASKS -- never serialised over the wire
 const TASK_OWNERS = new Map<string, string>()
 function rememberTask(t: any, owner: string) {
   TASKS.set(t.id, t)

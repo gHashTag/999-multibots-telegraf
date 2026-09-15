@@ -161,6 +161,7 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
  * Idempotent: index.ts starts once, but the guard keeps a second call — a test,
  * a re-import — from stacking listeners.
  */
+// owner-scope: per process: the node handlers are registered once
 let globalHandlersRegistered = false
 export const setupGlobalErrorHandlers = (): void => {
   if (globalHandlersRegistered) return

@@ -49,6 +49,7 @@ const notifHistory: Record<string, { level: NotificationLevel; ts: number }> =
 const DAY = 86_400_000
 const THREE_DAYS = 3 * DAY
 const WEEK = 7 * DAY
+// owner-scope: per process on purpose -- it skips the boot tick, not a person
 let firstRunSkipped = false
 
 // -- Helpers --

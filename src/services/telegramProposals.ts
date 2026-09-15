@@ -85,6 +85,7 @@ export function cardLeadOf(p: {
  */
 const CARD_LEAD_TTL_MS = 15 * 60_000
 const CARD_LEAD_MAX = 200
+// owner-scope: keyed by card id; the press it answers is already owner-checked
 const cardLeads = new Map<string, { lead: string; at: number }>()
 
 export function rememberCard(p: {

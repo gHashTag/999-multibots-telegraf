@@ -350,6 +350,7 @@ function systemFor(surface?: string): string {
  * на каждый заход диалога — трата. Кандидаты путей покрывают локальный
  * запуск из исходников и Railway, где репо лежит целиком.
  */
+// owner-scope: per DEPLOYMENT: SOUL.md is one file, read once
 let soulCache: string | null | undefined
 export function soul(): string | null {
   if (soulCache !== undefined) return soulCache

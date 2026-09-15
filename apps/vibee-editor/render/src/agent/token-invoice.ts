@@ -240,6 +240,7 @@ export function paymentBotToken(): string {
  * journaled rather than fatal -- refusing to sell because a bookkeeping row did
  * not write would block payments the bot's handler processes perfectly well.
  */
+// owner-scope: per process: the DDL runs once
 let invoiceColumnsReady = false
 
 /**

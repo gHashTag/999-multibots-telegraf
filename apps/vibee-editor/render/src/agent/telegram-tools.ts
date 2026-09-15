@@ -268,6 +268,7 @@ function propose(
 }
 
 /** Session presence is a state of the service, announced once — not per call. */
+// owner-scope: per process: why MTProto is unavailable to this deployment
 let unavailableReason: string | null = null
 
 export function telegramUserUnavailable(): string | null {

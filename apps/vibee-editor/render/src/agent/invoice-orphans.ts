@@ -26,6 +26,7 @@ type Pool = {
 }
 type GetPool = () => Pool | Promise<Pool>
 
+// owner-scope: per process: wiring happens once
 let wired = false
 
 /**

@@ -29,6 +29,7 @@ export interface StoredMessage {
 }
 
 const TEXT_CAP = 4000
+// owner-scope: per process: the DDL runs once
 let tableReady = false
 
 /** For tests: the next call creates the table again. */

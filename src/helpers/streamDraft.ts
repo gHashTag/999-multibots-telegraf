@@ -22,6 +22,7 @@ import { держатьПечатает } from '@/helpers/telegramLongAnswer' //
  */
 
 /** Non-zero, per the reference; the same id animates rather than replaces. */
+// owner-scope: per process: a draft id only has to be non-zero and not repeat
 let nextDraftId = 1
 
 export interface DraftKeeper {

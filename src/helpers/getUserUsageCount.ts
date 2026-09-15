@@ -19,6 +19,7 @@ interface UserExperienceCache {
 
 // Cache TTL: 5 minutes for user experience data
 const CACHE_TTL = 5 * 60 * 1000
+// owner-scope: keyed by telegram id
 const userExperienceCache = new Map<string, UserExperienceCache>()
 
 /**

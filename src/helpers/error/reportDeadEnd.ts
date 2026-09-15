@@ -24,6 +24,7 @@ import { telegramLogService } from '@/services/telegram-log.service'
  */
 
 /** Once a minute per (place, person): a stuck user taps more than once. */
+// owner-scope: keyed by the dead end itself: log de-duplication, not a fact about anybody
 const lastReported = new Map<string, number>()
 const EVERY_MS = 60_000
 

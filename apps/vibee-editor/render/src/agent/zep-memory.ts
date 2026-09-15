@@ -48,6 +48,7 @@ export function zepFlavor(): ZepFlavor {
 }
 
 const b64url = (s: string) => Buffer.from(s).toString('base64url')
+// owner-scope: per process: the token is minted for the service secret
 let mintedFor: { secret: string; token: string } | null = null
 /** HS256, no expiry: the community server checks the signature, nothing more. */
 export function mintZepToken(secret: string, now = Date.now()): string {
@@ -92,6 +93,7 @@ function alreadyThere(r: { status: number; body: any }): boolean {
   return r.status === 400 && /exist/i.test(text)
 }
 
+// owner-scope: per process: log de-duplication, no facts about anybody
 const warnedPaths = new Set<string>()
 
 async function call(

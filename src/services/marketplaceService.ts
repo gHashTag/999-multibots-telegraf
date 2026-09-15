@@ -47,6 +47,7 @@ import { logger } from '@/utils/logger'
 // charge and released on every exit -- so a failed charge does not block a retry.
 // Self-bounding (entries are deleted on completion). In-process (resets on
 // restart); the durable key is the marketplace_purchases row.
+// owner-scope: keyed by buyer and item, released on every exit
 const purchasesInFlight = new Set<string>()
 
 export type MarketplaceItemType =

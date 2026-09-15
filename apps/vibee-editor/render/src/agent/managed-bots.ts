@@ -54,6 +54,7 @@ export function newBotLink(
   return title ? `${base}?name=${encodeURIComponent(title)}` : base
 }
 
+// owner-scope: per process: the DDL runs once
 let tableReady = false
 
 /** For tests: the next call runs the DDL again. */

@@ -2341,6 +2341,7 @@ TOOLS.push(...HIVE_TOOLS)
  * Thrown at module load rather than logged: a registry that lies about what
  * it offers should not start.
  */
+// owner-scope: module load only -- it checks the registry for duplicates
 const seen = new Set<string>()
 for (const t of TOOLS) {
   if (seen.has(t.name)) {
@@ -2372,6 +2373,7 @@ export function toolsForProvider<T extends { name: string }>(
   )
 }
 
+// owner-scope: per process: log de-duplication
 let compactWarned = false
 
 export function toOpenAITools(p?: {

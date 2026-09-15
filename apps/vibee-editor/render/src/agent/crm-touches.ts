@@ -99,6 +99,7 @@ export interface Touch {
   revertsId?: number | null
 }
 
+// owner-scope: per process: the DDL runs once, it is not about a person
 let tableReady = false
 
 /** For tests: make the next call run CREATE TABLE again. */

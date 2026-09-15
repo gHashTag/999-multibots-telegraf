@@ -229,6 +229,7 @@ export const LIFETIME_MS = lifetimeMinutes() * 60 * 1000
 /** A ceiling, so a stuck agent cannot grow this without bound. */
 const MAX_PENDING = 200
 
+// owner-scope: keyed by draft id; every read compares telegramId AND the secret
 const pending = new Map<string, PendingProposal>()
 
 /**
@@ -238,6 +239,7 @@ const pending = new Map<string, PendingProposal>()
  */
 export type OrphanReason = 'cancelled' | 'replaced' | 'expired' | 'failed'
 type OrphanListener = (p: PublicProposal, reason: OrphanReason) => void
+// owner-scope: per process: one listener for the service
 let orphanListener: OrphanListener | null = null
 
 /**
@@ -272,6 +274,7 @@ export interface ProposalStore {
   save: (p: PendingProposal) => void
   remove: (id: string) => void
 }
+// owner-scope: per process: one store, and the drafts inside it are keyed by owner
 let store: ProposalStore | null = null
 
 /** One store: a second registration replaces the first, and null removes it. */

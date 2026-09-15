@@ -24,6 +24,7 @@
  */
 export const ALBUM_QUIET_MS = 5 * 60 * 1000
 
+// owner-scope: keyed by connection and album -- swept by age, holds no facts
 const answered = new Map<string, number>()
 
 /**
