@@ -649,6 +649,32 @@ export async function handleBusinessMessage(
         ],
       },
     }
+    /*
+     * DID THE OWNER STEP IN WHILE WE WERE THINKING?
+     *
+     * The takeover is checked once, before the agent runs -- and the agent
+     * runs for seconds, sometimes minutes. In that window the owner can open
+     * the chat and answer the person himself, which sets the pause. Nothing
+     * looked at it again, so the answer went out ON TOP of his: the client
+     * got two replies to one message, one of them from a bot that had not
+     * heard what the owner just said, both signed with the owner's name.
+     *
+     * The turn is thrown away rather than queued. It was composed without the
+     * owner's message in the history, so sending it later would be answering
+     * a conversation that has moved on.
+     */
+    const tookOverMeanwhile =
+      (ownerTakeoverUntil.get(chatKey) ?? 0) > Date.now()
+    if (tookOverMeanwhile) {
+      ensureToday()
+      stats.takeoverSkipped++
+      logger.info('[Business] Owner stepped in mid-turn, answer dropped', {
+        connId,
+        chatId,
+      })
+      return
+    }
+
     // Telegram refuses a text over 4096 characters outright: the answer is
     // split, and the keyboard rides on the LAST chunk.
     const parts = разбитьДлинное(reply) // cyrillic-ok: pre-existing helper name
