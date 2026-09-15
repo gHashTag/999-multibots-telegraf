@@ -319,6 +319,9 @@ temp_*/
 .claude/settings.json
 .claude/logs/
 .claude/*.log
+# Скачанное один раз и восстановимое одной командой (tri api --refresh).
+# 552 КБ справочника Telegram в истории репозитория не нужны никому.
+.claude/cache/
 .claude/SECURITY_ALERT.txt
 .claude/COMPLETION_BLOCKED.txt
 .claude/activation-summary.txt
