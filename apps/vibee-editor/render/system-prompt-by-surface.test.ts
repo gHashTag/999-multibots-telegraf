@@ -77,3 +77,46 @@ describe('the creator in the app (other surfaces)', () => {
     }
   })
 })
+
+/**
+ * WHAT LANGUAGE THE PERSON IS ANSWERED IN.
+ *
+ * Found 2026-09-15 while reading the 2026 Telegram API: the language line
+ * lived in the shared tail of SYSTEM_TEMPLATE, so the seller was ordered to
+ * "answer in Russian" in the owner's DM too. A client who wrote in English
+ * got a Russian reply and left without appearing in any metric.
+ *
+ * The fix must NOT be language_code: that is the locale of the person's
+ * phone, and a Russian speaker with an English interface would then be
+ * answered in English -- worse than the bug. The prompt points the model at
+ * the words the person actually wrote, which are already in the context.
+ */
+describe('the language of the answer', () => {
+  const client = systemPrompt('business')
+  const owner = systemPrompt('bot')
+
+  it('never orders Russian at a client who did not write in Russian', () => {
+    expect(client).not.toContain('Отвечай по-русски')
+  })
+
+  it('points the seller at the language the person wrote in', () => {
+    expect(client).toContain('на том языке, на котором написал человек')
+    // Naming both directions matters: "reply in their language" alone was
+    // read by the model as licence to switch mid-dialogue.
+    expect(client).toContain('по-английски')
+    expect(client).toContain('Сам на другой язык не переходи')
+  })
+
+  it('leaves the owner in Russian -- he is not the one who changed', () => {
+    expect(owner).toContain('Отвечай по-русски')
+    expect(owner).not.toContain('на том языке, на котором написал человек')
+    expect(systemPrompt()).toContain('Отвечай по-русски')
+  })
+
+  it('keeps the rest of the line on both surfaces', () => {
+    for (const p of [client, owner]) {
+      expect(p).toContain('Коротко, числами из инструментов')
+      expect(p).not.toContain('%%LANGUAGE%%')
+    }
+  })
+})

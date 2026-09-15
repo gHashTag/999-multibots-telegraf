@@ -302,7 +302,31 @@ const SYSTEM_TEMPLATE = `Ты — агент внутри приложения T
   чем у 90% людей, которые только собираются».
 ${MONEY_AND_PLAN}
 
-Отвечай по-русски, коротко, числами из инструментов, а не примерными.`
+%%LANGUAGE%%`
+
+/*
+ * WHICH LANGUAGE THE ANSWER COMES BACK IN.
+ *
+ * The owner reads Russian and nothing changes for him. A client in his DM is
+ * somebody else's customer who may write in anything -- and until 2026-09-15
+ * this one template told the seller "answer in Russian" on BOTH surfaces,
+ * because the language line sat in the shared tail. A person who wrote in
+ * English got a Russian reply and left without appearing in any metric.
+ *
+ * The language comes from what the person actually WROTE, never from
+ * language_code: that field is the locale of their phone, so a Russian
+ * speaker with an English interface would be answered in English -- a worse
+ * answer than the bug we are fixing. Their own words are already in the
+ * prompt (buildBusinessMessages), so the model needs no new field to see
+ * them, and this also covers leads met by the sweep, who have no update at all.
+ */
+const BREVITY = 'Коротко, числами из инструментов, а не примерными.' // cyrillic-ok: prompt copy
+const OWNER_LANGUAGE = 'Отвечай по-русски. ' + BREVITY // cyrillic-ok: prompt copy
+const CLIENT_LANGUAGE = // cyrillic-ok: prompt copy
+  'Отвечай на том языке, на котором написал человек: написал по-русски — ' +
+  'отвечай по-русски, написал по-английски — отвечай по-английски. Сам на ' +
+  'другой язык не переходи. ' +
+  BREVITY
 
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
 function systemFor(surface?: string): string {
@@ -312,6 +336,10 @@ function systemFor(surface?: string): string {
   )
     .replace('%%TOKEN_LINE%%', tokenLine())
     .replace('%%PACKS_LINE%%', packsLine())
+    .replace(
+      '%%LANGUAGE%%',
+      surface === 'business' ? CLIENT_LANGUAGE : OWNER_LANGUAGE
+    )
 }
 
 /**
