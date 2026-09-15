@@ -15,6 +15,8 @@
  * any function file can import it without pulling in side effects.
  */
 
+import { resolveAdminChatId } from '@/helpers/adminChatId'
+
 export interface SafeModeEventLike {
   data?: unknown
 }
@@ -51,10 +53,15 @@ export function isSafeMode(event?: SafeModeEventLike | null): boolean {
  * Chat id that is allowed to receive messages in safe mode.
  * Returns `null` when `ADMIN_CHAT_ID` is not configured — callers must then
  * skip the send entirely (never fall back to the real user).
+ *
+ * Trimming was not enough. Production's value is a bare username, which
+ * Telegram refuses with "chat not found", so every safe-mode probe that
+ * believed it had delivered to the admin had delivered to nobody. The address
+ * rule lives in adminChatId.ts, which this defers to; it is a pure string
+ * function, so the module stays dependency-free as documented above.
  */
 export function safeModeAdminChatId(): string | null {
-  const id = (process.env.ADMIN_CHAT_ID || '').trim()
-  return id.length > 0 ? id : null
+  return resolveAdminChatId()
 }
 
 /**

@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { isChatGone, telegramErrorInfo } from './telegramErrors'
+import { normalizeChatId } from './adminChatId'
 
 /**
  * WHERE THE PULSE CHANNEL ACTUALLY IS.
@@ -25,12 +26,14 @@ const MEASURED_PULSE_CHAT_ID = '-1002298297094'
 export function resolvePulseChatId(
   env: NodeJS.ProcessEnv = process.env
 ): string {
-  const candidate =
-    (env.PULSE_CHAT_ID || '').trim() || (env.ADMIN_CHAT_ID || '').trim()
-  if (!candidate) return MEASURED_PULSE_CHAT_ID
-  // A @username reaches the same chat as its id, but only with the @.
-  if (/^-?\d+$/.test(candidate)) return candidate
-  return candidate.startsWith('@') ? candidate : `@${candidate}`
+  // The "@username only reaches the chat with the @" rule used to be written
+  // out here, and only here, while five other senders read ADMIN_CHAT_ID raw.
+  // It lives in adminChatId.ts now so there is one definition to be right.
+  return (
+    normalizeChatId(env.PULSE_CHAT_ID) ||
+    normalizeChatId(env.ADMIN_CHAT_ID) ||
+    MEASURED_PULSE_CHAT_ID
+  )
 }
 
 /**

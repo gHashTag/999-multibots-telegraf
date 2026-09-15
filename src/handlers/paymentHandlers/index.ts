@@ -15,6 +15,7 @@ import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { ModeEnum } from '@/interfaces'
 import { telegramLogService } from '@/services/telegram-log.service'
+import { resolveAdminChatId } from '@/helpers/adminChatId'
 
 /**
  * Валидация URL для серверных запросов бота: только http/https, хост не
@@ -151,19 +152,25 @@ export function parseTokensPayload(
 }
 
 async function sendNotification(ctx: MyContext, message: string) {
-  const adminChatId = process.env.ADMIN_CHAT_ID
-  if (adminChatId) {
-    try {
-      await ctx.telegram.sendMessage(adminChatId, message)
-    } catch (error) {
-      logger.error('❌ Error sending notification to admin', {
-        error: error instanceof Error ? error.message : String(error),
-        adminChatId,
-      })
-    }
-    console.log('🔔 Notification sent to admin')
-  } else {
+  // Through the resolver: production's ADMIN_CHAT_ID is a bare username, which
+  // Telegram refuses with "chat not found", so every payment notice raised an
+  // alert instead of reaching the owner.
+  const adminChatId = resolveAdminChatId()
+  if (!adminChatId) {
     logger.warn('⚠️ ADMIN_CHAT_ID not set. Notification not sent.')
+    return
+  }
+  try {
+    await ctx.telegram.sendMessage(adminChatId, message)
+    // Moved inside the try. It used to sit after the catch and printed
+    // "Notification sent to admin" on the failure path too -- a line that says
+    // the thing was delivered whether or not it was is worse than no line.
+    console.log('🔔 Notification sent to admin')
+  } catch (error) {
+    logger.error('❌ Error sending notification to admin', {
+      error: error instanceof Error ? error.message : String(error),
+      adminChatId,
+    })
   }
 }
 
