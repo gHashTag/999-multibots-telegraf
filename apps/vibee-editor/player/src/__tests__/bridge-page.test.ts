@@ -64,6 +64,8 @@ interface BootOptions {
   fetch?: () => Promise<unknown>
   /** What window.open returns; a fresh fake popup by default. */
   open?: () => unknown
+  /** The frame's query string: the game passes its language as ?lang=. */
+  search?: string
 }
 
 function session(extra: Record<string, string> = {}): Record<string, string> {
@@ -119,13 +121,25 @@ function boot(options: BootOptions = {}) {
   const listeners: Record<string, Listener[]> = {}
   const documentListeners: Record<string, Listener[]> = {}
   const clicks: Listener[] = []
-  const button = {
-    hidden: true,
-    addEventListener: (_type: string, fn: Listener) => clicks.push(fn),
+  const dismissClicks: Listener[] = []
+  const element = (hidden: boolean, onClick?: Listener[]) => ({
+    hidden,
+    textContent: '',
+    addEventListener: (_type: string, fn: Listener) => onClick?.push(fn),
+  })
+  const button = element(true, clicks)
+  // index.html: the prompt (purpose line, Continue, Not now, blocked line).
+  const elements: Record<string, ReturnType<typeof element>> = {
+    'tri-ask': element(true),
+    'tri-purpose': element(false),
+    'tri-continue': button,
+    'tri-dismiss': element(false, dismissClicks),
+    'tri-blocked': element(true),
   }
   const document = {
     visibilityState: 'visible',
-    getElementById: (id: string) => (id === 'tri-continue' ? button : null),
+    documentElement: { lang: 'en' },
+    getElementById: (id: string) => elements[id] ?? null,
     addEventListener: (type: string, fn: Listener) =>
       (documentListeners[type] ||= []).push(fn),
   }
@@ -141,6 +155,7 @@ function boot(options: BootOptions = {}) {
   )
   const target: Record<string, unknown> = {
     document,
+    location: { search: options.search ?? '' },
     sessionStorage: storage,
     parent,
     fetch,
@@ -174,6 +189,8 @@ function boot(options: BootOptions = {}) {
     keysRemoved,
     windowRead,
     parent,
+    elements,
+    document,
     ask(
       nonce = 'n-1',
       from: { origin?: string; source?: unknown; data?: unknown } = {}
@@ -189,6 +206,18 @@ function boot(options: BootOptions = {}) {
     },
     click(isTrusted = true) {
       for (const fn of clicks) fn({ isTrusted })
+    },
+    /** A click on Not now in this frame. */
+    dismiss(isTrusted = true) {
+      for (const fn of dismissClicks) fn({ isTrusted })
+    },
+    /** Not now in the consent popup; by default from the last popup opened. */
+    decline(from: { origin?: string; source?: unknown } = {}) {
+      dispatch({
+        data: { v: 1, type: 'tri-consent-declined' },
+        origin: from.origin ?? APP,
+        source: 'source' in from ? from.source : popups.at(-1),
+      })
     },
     /** The consent popup's message; by default from the last popup opened. */
     consent(from: { origin?: string; source?: unknown; data?: unknown } = {}) {
@@ -491,7 +520,7 @@ describe('no token before consent in a popup, in this tab', () => {
     await flush()
     expect(b.open).toHaveBeenCalledTimes(1)
     expect(b.open).toHaveBeenCalledWith(
-      CONSENT_URL,
+      `${CONSENT_URL}?lang=en`,
       '_blank',
       'popup,width=420,height=320'
     )
@@ -819,6 +848,8 @@ describe('what the bridge reads', () => {
   const ALLOWED_KEYS = new Set([ACCESS, EXPIRES, CONSENT])
   const ALLOWED_WINDOW = new Set([
     'document',
+    // ?lang= only: the query string the game passes.
+    'location',
     'sessionStorage',
     'parent',
     'fetch',
@@ -962,6 +993,216 @@ describe('the game hears about sign-out without asking', () => {
     b.values.delete(ACCESS)
     b.storageEvent(ACCESS)
     expect(b.posts.map(p => p.message.state)).toEqual(['signed-in'])
+  })
+})
+
+const CYRILLIC = /\p{Script=Cyrillic}/u
+const PURPOSE_EN = 't27.ai wants your TRI name and picture'
+
+describe('the prompt says who asks and why, in the game language', () => {
+  it('English by default: the purpose line, Continue, Not now, lang=en', () => {
+    const b = boot({ storage: session() })
+    expect(b.document.documentElement.lang).toBe('en')
+    expect(b.elements['tri-purpose'].textContent).toBe(PURPOSE_EN)
+    expect(b.button.textContent).toBe('Continue with TRI')
+    expect(b.elements['tri-dismiss'].textContent).toBe('Not now')
+  })
+
+  it('shown only while consent is required, and hidden again once signed in', async () => {
+    const b = boot({ storage: session() })
+    expect(b.elements['tri-ask'].hidden).toBe(true)
+    b.ask('n-1')
+    await flush()
+    expect(b.elements['tri-ask'].hidden).toBe(false)
+    expect(b.button.hidden).toBe(false)
+    b.click()
+    b.consent()
+    await flush()
+    expect(b.posts.at(-1)?.message.state).toBe('signed-in')
+    expect(b.elements['tri-ask'].hidden).toBe(true)
+    expect(b.button.hidden).toBe(true)
+  })
+
+  it('?lang=ru: Russian copy, lang=ru, and the popup opens with ?lang=ru', () => {
+    const b = boot({ storage: session(), search: '?lang=ru' })
+    expect(b.document.documentElement.lang).toBe('ru')
+    expect(b.elements['tri-purpose'].textContent).toContain('t27.ai')
+    expect(b.elements['tri-purpose'].textContent).toMatch(CYRILLIC)
+    expect(b.button.textContent).toMatch(CYRILLIC)
+    expect(b.elements['tri-dismiss'].textContent).toMatch(CYRILLIC)
+    expect(b.elements['tri-blocked'].textContent).toMatch(CYRILLIC)
+    b.ask('n-1')
+    b.click()
+    expect(b.open).toHaveBeenCalledWith(
+      `${CONSENT_URL}?lang=ru`,
+      '_blank',
+      'popup,width=420,height=320'
+    )
+  })
+
+  it.each(['?lang=de', '?embed=1&lang=en', '?xlang=ru', '?lang=rus', ''])(
+    'search %j is English',
+    search => {
+      const b = boot({ search })
+      expect(b.document.documentElement.lang).toBe('en')
+      expect(b.elements['tri-purpose'].textContent).toBe(PURPOSE_EN)
+    }
+  )
+})
+
+describe('Not now is as easy as Continue', () => {
+  const DISMISS = (nonce: string) => ({
+    v: 1,
+    type: 'tri-identity-dismiss',
+    nonce,
+  })
+  const kinds = (b: ReturnType<typeof boot>) =>
+    b.posts.map(p => String(p.message.state ?? p.message.type))
+
+  it('a real click on Not now hides the prompt and tells the game, on t27.ai', async () => {
+    const b = boot({ storage: session() })
+    b.ask('n-1')
+    await flush()
+    b.dismiss()
+    expect(b.posts.slice(1)).toEqual([
+      { message: DISMISS('n-1'), target: GAME },
+    ])
+    expect(b.elements['tri-ask'].hidden).toBe(true)
+    expect(b.button.hidden).toBe(true)
+    expect(b.fetch).not.toHaveBeenCalled()
+    expect(b.values.get(CONSENT)).toBeUndefined()
+  })
+
+  it('after Not now, the popup opened before gives no consent', async () => {
+    const b = boot({ storage: session() })
+    b.ask('n-1')
+    b.click()
+    b.dismiss()
+    b.consent()
+    await flush()
+    expect(b.fetch).not.toHaveBeenCalled()
+    expect(kinds(b)).toEqual(['consent-required', 'tri-identity-dismiss'])
+  })
+
+  it('a script-made click, or a click with nothing waiting, sends nothing', async () => {
+    const b = boot({ storage: session() })
+    b.dismiss()
+    b.ask('n-1')
+    await flush()
+    b.dismiss(false)
+    expect(kinds(b)).toEqual(['consent-required'])
+    expect(b.elements['tri-ask'].hidden).toBe(false)
+  })
+
+  it('the game can ask again later and is asked for consent again', async () => {
+    const b = boot({ storage: session() })
+    b.ask('n-1')
+    b.dismiss()
+    b.ask('n-2')
+    await flush()
+    expect(b.posts.at(-1)?.message).toEqual({
+      v: 1,
+      type: 'tri-identity',
+      nonce: 'n-2',
+      state: 'consent-required',
+    })
+    expect(b.elements['tri-ask'].hidden).toBe(false)
+  })
+
+  it('Not now in the popup this frame opened does the same', async () => {
+    const b = boot({ storage: session() })
+    b.ask('n-1')
+    b.click()
+    b.decline()
+    await flush()
+    expect(b.posts.slice(1)).toEqual([
+      { message: DISMISS('n-1'), target: GAME },
+    ])
+    expect(b.fetch).not.toHaveBeenCalled()
+    expect(b.values.get(CONSENT)).toBeUndefined()
+    expect(b.elements['tri-ask'].hidden).toBe(true)
+  })
+
+  it('a decline from any other window or origin is not a decline', async () => {
+    const b = boot({ storage: session() })
+    b.ask('n-1')
+    b.click()
+    b.decline({ source: { postMessage() {} } })
+    b.decline({ origin: GAME })
+    b.decline({ source: null })
+    await flush()
+    expect(kinds(b)).toEqual(['consent-required'])
+    expect(b.elements['tri-ask'].hidden).toBe(false)
+  })
+
+  it('negative control: without the popup source check another window dismisses', async () => {
+    const b = boot({
+      storage: session(),
+      source: mutate(
+        'if (popup === null || event.source !== popup) return',
+        'if (popup === null) return'
+      ),
+    })
+    b.ask('n-1')
+    b.click()
+    b.decline({ source: { postMessage() {} } })
+    await flush()
+    expect(kinds(b)).toContain('tri-identity-dismiss')
+  })
+
+  it("negative control: a dismiss posted to '*' is caught", async () => {
+    const b = boot({
+      storage: session(),
+      source: mutate(
+        "{ v: 1, type: 'tri-identity-dismiss', nonce: nonce },\n      GAME_ORIGIN",
+        "{ v: 1, type: 'tri-identity-dismiss', nonce: nonce },\n      '*'"
+      ),
+    })
+    b.ask('n-1')
+    b.dismiss()
+    expect(
+      b.posts.find(p => p.message.type === 'tri-identity-dismiss')?.target
+    ).toBe('*')
+  })
+})
+
+describe('a blocked popup is explained at once', () => {
+  it('window.open returning null shows the blocked line before the click returns', async () => {
+    const b = boot({ storage: session(), open: () => null })
+    b.ask('n-1')
+    await flush()
+    expect(b.elements['tri-blocked'].hidden).toBe(true)
+    b.click()
+    expect(b.elements['tri-blocked'].hidden).toBe(false)
+    expect(b.elements['tri-blocked'].textContent).toContain('app.t27.ai')
+    expect(b.elements['tri-ask'].hidden).toBe(false)
+  })
+
+  it('control: a popup that opens shows no blocked line, and one that opens on retry hides it', async () => {
+    let refuse = true
+    const b = boot({
+      storage: session(),
+      open: () => (refuse ? null : { postMessage() {} }),
+    })
+    b.ask('n-1')
+    await flush()
+    b.click()
+    expect(b.elements['tri-blocked'].hidden).toBe(false)
+    refuse = false
+    b.click()
+    expect(b.elements['tri-blocked'].hidden).toBe(true)
+  })
+
+  it('negative control: without the null check the line never shows', async () => {
+    const b = boot({
+      storage: session(),
+      open: () => null,
+      source: mutate('blocked.hidden = popup !== null', 'void popup'),
+    })
+    b.ask('n-1')
+    await flush()
+    b.click()
+    expect(b.elements['tri-blocked'].hidden).toBe(true)
   })
 })
 

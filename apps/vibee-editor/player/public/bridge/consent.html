@@ -4,7 +4,8 @@
   identity bridge (bridge.js) when the game on https://t27.ai first asks who
   the visitor is in this tab. A top-level window, so no page that frames the
   bridge can hide or cover it; nginx serves it with frame-ancestors 'none'.
-  It reads no storage and no session. Behaviour: consent.js.
+  It reads no storage and no session. The copy is English here and switched
+  to ?lang=ru by consent.js. Behaviour: consent.js.
 -->
 <html lang="en">
   <head>
@@ -15,11 +16,18 @@
   </head>
   <body>
     <p>
-      <strong>https://t27.ai</strong> asks who you are on TRI: your Telegram id,
-      name and picture.
+      <strong>https://t27.ai</strong>
+      <span id="tri-consent-asks"
+        >asks who you are on TRI: your Telegram id, name and picture.</span
+      >
     </p>
     <button id="tri-consent" type="button" hidden>Continue with TRI</button>
-    <p class="note">Close this window to say no.</p>
+    <button id="tri-decline" type="button" class="secondary" hidden>
+      Not now
+    </button>
+    <p class="note" id="tri-consent-note">
+      This lasts for this tab only. Sign out in TRI to withdraw it.
+    </p>
     <script src="/bridge/consent.js"></script>
   </body>
 </html>

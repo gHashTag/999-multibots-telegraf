@@ -16,7 +16,8 @@
  *    with targetOrigin https://t27.ai, never '*'.
  *  - Only three sessionStorage keys are touched: the access token, its expiry,
  *    and this tab's consent. Never the refresh token, never Telegram's
- *    '__telegram__initParams', never localStorage, never cookies.
+ *    '__telegram__initParams', never localStorage, never cookies. On window
+ *    the location is read for ?lang= only.
  *  - The first token in a tab needs consent given in a popup, not in this
  *    frame. The origin check admits every page on t27.ai (all of gHashTag's
  *    GitHub Pages), and any of them can make this frame invisible and put it
@@ -24,6 +25,14 @@
  *    click here only opens https://app.t27.ai/bridge/consent.html, a top-level
  *    window no framer can style or cover. Only a {v:1, type:'tri-consent'}
  *    message from that very window counts.
+ *  - The prompt says who asks and for what, in the game's language (?lang=,
+ *    ru or en), and refusing is as easy as agreeing: Not now here, or Not now
+ *    in the popup ({v:1, type:'tri-consent-declined'} from that same window),
+ *    drops the waiting request and tells the game
+ *    {v:1, type:'tri-identity-dismiss', nonce} so it can hide this frame. A
+ *    decline stores nothing and grants nothing.
+ *  - A popup the browser blocks (window.open returns null) is said at once,
+ *    in this frame.
  *  - Consent names the person: it is stored as "https://t27.ai|<telegram_id>"
  *    from the first mint after it. A later token for anyone else is dropped
  *    and consent is asked again, and every signed-out removes it.
@@ -44,7 +53,11 @@
 
   var GAME_ORIGIN = 'https://t27.ai'
   var APP_ORIGIN = 'https://app.t27.ai'
-  var CONSENT_URL = APP_ORIGIN + '/bridge/consent.html'
+  // The game passes its language as ?lang=; the prompt speaks ru and en.
+  var LANG = /(?:^\?|&)lang=ru(?:&|$)/i.test(window.location.search)
+    ? 'ru'
+    : 'en'
+  var CONSENT_URL = APP_ORIGIN + '/bridge/consent.html?lang=' + LANG
   var MINT_URL =
     'https://vibee-render-production.up.railway.app/api/auth/game-token'
   var ACCESS_KEY = 'trinity.app.session.access'
@@ -52,7 +65,34 @@
   var CONSENT_KEY = 'trinity.bridge.consent'
   var CONSENT_PREFIX = GAME_ORIGIN + '|'
 
-  var button = window.document.getElementById('tri-continue')
+  var TEXT = {
+    en: {
+      purpose: 't27.ai wants your TRI name and picture',
+      go: 'Continue with TRI',
+      no: 'Not now',
+      blocked:
+        'Pop-ups are blocked for app.t27.ai. Allow them, then press Continue again.',
+    },
+    ru: {
+      purpose: 't27.ai просит ваше имя и фото из TRI',
+      go: 'Продолжить с TRI',
+      no: 'Не сейчас',
+      blocked:
+        'Всплывающие окна для app.t27.ai заблокированы. Разрешите их и нажмите «Продолжить» ещё раз.',
+    },
+  }[LANG]
+
+  var document = window.document
+  var ask = document.getElementById('tri-ask')
+  var button = document.getElementById('tri-continue')
+  var dismissButton = document.getElementById('tri-dismiss')
+  var blocked = document.getElementById('tri-blocked')
+  document.documentElement.lang = LANG
+  document.getElementById('tri-purpose').textContent = TEXT.purpose
+  button.textContent = TEXT.go
+  dismissButton.textContent = TEXT.no
+  blocked.textContent = TEXT.blocked
+
   // The request waiting for consent; a newer request replaces it.
   var pendingNonce = null
   // The consent window this frame opened; only its message is consent.
@@ -75,6 +115,14 @@
     } catch (e) {
       // Storage refused: the next request asks for consent again.
     }
+  }
+
+  // The prompt: the purpose line with Continue and Not now. The blocked line
+  // shows only after a Continue whose popup did not open.
+  function showPrompt(on) {
+    ask.hidden = !on
+    button.hidden = !on
+    blocked.hidden = true
   }
 
   // The access token while the player's own expiry says it is alive.
@@ -112,7 +160,7 @@
   function signedOut(nonce) {
     pendingNonce = null
     popup = null
-    button.hidden = true
+    showPrompt(false)
     write(CONSENT_KEY, null)
     reply(nonce, 'signed-out')
   }
@@ -121,7 +169,7 @@
   function expired(nonce) {
     pendingNonce = null
     popup = null
-    button.hidden = true
+    showPrompt(false)
     reply(nonce, 'expired')
   }
 
@@ -132,8 +180,22 @@
 
   function askConsent(nonce) {
     pendingNonce = nonce
-    button.hidden = false
+    showPrompt(true)
     reply(nonce, 'consent-required')
+  }
+
+  // Not now, here or in the popup: the prompt goes, the waiting request is
+  // dropped, and the game is told so it can hide this frame. Nothing is
+  // stored; the game may ask again later and is asked for consent again.
+  function dismissed() {
+    var nonce = pendingNonce
+    pendingNonce = null
+    popup = null
+    showPrompt(false)
+    window.parent.postMessage(
+      { v: 1, type: 'tri-identity-dismiss', nonce: nonce },
+      GAME_ORIGIN
+    )
   }
 
   // expectedId: the telegram_id consent was stored for, or null right after
@@ -206,14 +268,15 @@
     var data = event.data
     if (!data || typeof data !== 'object' || data.v !== 1) return
 
-    // Consent, from the popup this frame opened and nothing else.
-    if (data.type === 'tri-consent') {
+    // From the popup this frame opened and nothing else: consent, or Not now.
+    if (data.type === 'tri-consent' || data.type === 'tri-consent-declined') {
       if (popup === null || event.source !== popup) return
       if (event.origin !== APP_ORIGIN || pendingNonce === null) return
+      if (data.type === 'tri-consent-declined') return dismissed()
       var waiting = pendingNonce
       pendingNonce = null
       popup = null
-      button.hidden = true
+      showPrompt(false)
       var token = accessToken()
       if (!token) return noSession(waiting)
       return mint(waiting, token, null)
@@ -232,6 +295,13 @@
     if (!event.isTrusted || pendingNonce === null) return
     popup =
       window.open(CONSENT_URL, '_blank', 'popup,width=420,height=320') || null
+    // A blocked popup is said now, not never.
+    blocked.hidden = popup !== null
+  })
+
+  dismissButton.addEventListener('click', function (event) {
+    if (pendingNonce === null || !event.isTrusted) return
+    dismissed()
   })
 
   // Tells the game once when the token went away (signed-out) or ran out
