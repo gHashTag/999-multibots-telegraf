@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
 import { systemPrompt } from './src/agent/chat'
 import { TOKEN_PRICES } from './src/agent/billing-shared'
 import { ПАКЕТЫ, ценаТокенов } from './src/agent/token-packs' // cyrillic-ok: pre-existing names
@@ -118,5 +120,77 @@ describe('the language of the answer', () => {
       expect(p).toContain('Коротко, числами из инструментов')
       expect(p).not.toContain('%%LANGUAGE%%')
     }
+  })
+})
+
+/**
+ * A PRICE WRITTEN INTO AN EXAMPLE IS STILL A PRICE.
+ *
+ * The prompt has one line that may never guess -- tokenLine() -- built from
+ * TOKEN_PRICES. But the proactivity rule carried an EXAMPLE with a literal
+ * number in it: "I will put a reel together for 2 tokens -- shall I?". The
+ * prices are derived from provider cost, so a provider raising theirs makes
+ * the prompt contradict itself: the price list says one number and the
+ * example the model copies says another. The model copies examples.
+ *
+ * Checked as a rule rather than as that one line: EVERY price the prompt
+ * states in words must be a price the tools actually charge.
+ */
+describe('no price in the prompt is written by hand', () => {
+  const surfaces = ['bot', 'business', 'miniapp'] as const
+
+  it('every "for N tokens" in the prompt is a real price', () => {
+    const real = new Set(Object.values(TOKEN_PRICES).map(Number))
+    for (const surface of surfaces) {
+      const p = systemPrompt(surface)
+      // Built from a string, not written as a regex literal: the Cyrillic
+      // guard cannot see inside a literal and blocks the commit. Fourth time
+      // in this repository, and it is in the skill that warns about it.
+      const PRICES_SAID = new RegExp('за (\\d+) токен[а-яё]*', 'g')
+      const said = [...p.matchAll(PRICES_SAID)].map(m => Number(m[1]))
+      expect(
+        said.filter(n => !real.has(n)),
+        `surface ${surface}: a price nobody charges is offered in the prompt`
+      ).toEqual([])
+    }
+  })
+
+  it('the reel example carries the reel price, whatever it becomes', () => {
+    // The positive control for the rule above: without a price in the text
+    // at all, that test passes on an empty list and guards nothing.
+    const p = systemPrompt('bot')
+    expect(p).toContain(`соберу рилс за ${TOKEN_PRICES.reel_render} токена`)
+  })
+
+  /**
+   * AND THE PRICE MUST BE DERIVED, WHICH ONLY THE SOURCE CAN SHOW.
+   *
+   * Measured with two mutations, both of which SURVIVED the tests above:
+   *
+   *   1. put the literal 2 back in place of the interpolation -- the rendered
+   *      text is identical today, because the reel really does cost 2;
+   *   2. raise the provider cost tenfold -- both ends move together, which is
+   *      exactly what the fix is for, so nothing can fail.
+   *
+   * So the property is not "the text says 2". It is "this number is TAKEN from
+   * the price list", and a number typed by hand looks the same until the day
+   * it is wrong. That day is the one this guard is for, and by then nobody is
+   * reading the prompt with the price list open.
+   */
+  it('takes the number from the price list rather than typing it', () => {
+    const src = fs.readFileSync(
+      path.join(__dirname, 'src', 'agent', 'chat.ts'),
+      'utf8'
+    )
+    const EXAMPLE = new RegExp('соберу рилс за ([^ ]+) токена')
+    const example = EXAMPLE.exec(src)
+    expect(
+      example,
+      'the proactivity example is gone from the prompt'
+    ).toBeTruthy()
+    expect(
+      example![1],
+      'a price typed by hand -- it will be wrong the first time provider cost moves'
+    ).toBe('${TOKEN_PRICES.reel_render}')
   })
 })
