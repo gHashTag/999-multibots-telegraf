@@ -110,7 +110,7 @@ describe('owner lead notification', () => {
     expect(dms[0][1]).not.toContain('<b>Eve')
     expect(dms[0][1]).toContain(`tg://user?id=555`)
     expect(customerSends(bot)).toHaveLength(2)
-    expect(svc.getBusinessStats().todayLeads).toBe(1)
+    expect(svc.getBusinessStats(OWNER_ID).todayLeads).toBe(1)
 
     await svc.handleBusinessMessage(dm({}, 556) as any, bot as any, BOT)
     expect(ownerDms(bot)).toHaveLength(2)
@@ -187,7 +187,7 @@ describe('messages that must never be answered', () => {
       BOT
     )
     expect(chatWithAI).not.toHaveBeenCalled()
-    expect(svc.getBusinessStats().todayTakeoverSkipped).toBe(1)
+    expect(svc.getBusinessStats(OWNER_ID).todayTakeoverSkipped).toBe(1)
     // Another chat is unaffected.
     await svc.handleBusinessMessage(dm({}, 556) as any, bot as any, BOT)
     expect(chatWithAI).toHaveBeenCalledTimes(1)
@@ -230,7 +230,74 @@ describe('messages that must never be answered', () => {
     )
     expect(customerSends(bot)).toHaveLength(1)
     expect(chatWithAI).not.toHaveBeenCalled()
-    expect(svc.getBusinessStats().todayNonText).toBe(2)
-    expect(svc.getBusinessStats().todayMediaRelayed).toBe(1)
+    expect(svc.getBusinessStats(OWNER_ID).todayNonText).toBe(2)
+    expect(svc.getBusinessStats(OWNER_ID).todayMediaRelayed).toBe(1)
+  })
+})
+
+/**
+ * TWO OWNERS IN ONE PROCESS -- AND THE FARM IS ALWAYS ONE PROCESS.
+ *
+ * The figures behind /business were a single object, and the connection list
+ * was every connection the process held, each with its owner's telegram id.
+ * ADMIN_IDS names five people in production, and every one passes
+ * requireAdmin: each of them saw the others' clients counted into their own
+ * numbers, and saw whose accounts were linked. With a second owner linking
+ * their own bot -- which is the whole product -- the numbers were wrong for
+ * both of them.
+ */
+describe('one owner does not see another owner numbers', () => {
+  const OTHER_ID = 900000042
+  const OTHER_CONN = 'conn-seller-2'
+  const otherConnection = () => ({
+    id: OTHER_CONN,
+    user: { id: OTHER_ID, first_name: 'Other' },
+    user_chat_id: 900000043,
+    date: 1,
+    is_enabled: true,
+    rights: { can_reply: true },
+  })
+
+  it('counts and connections belong to the owner who asks', async () => {
+    const svc = await fresh()
+    svc.handleBusinessConnection(otherConnection() as never)
+    const bot = fakeBot()
+    // One client writes to the first owner, two to the second.
+    await svc.handleBusinessMessage(dm({}, 555) as never, bot as never, BOT)
+    await svc.handleBusinessMessage(
+      { ...dm({}, 777), business_connection_id: OTHER_CONN } as never,
+      bot as never,
+      BOT
+    )
+    await svc.handleBusinessMessage(
+      { ...dm({}, 778), business_connection_id: OTHER_CONN } as never,
+      bot as never,
+      BOT
+    )
+
+    const mine = svc.getBusinessStats(OWNER_ID)
+    const theirs = svc.getBusinessStats(OTHER_ID)
+    expect(mine.todayMessages, 'another owner messages counted as mine').toBe(1)
+    expect(theirs.todayMessages).toBe(2)
+    expect(mine.todayUniqueUsers).toBe(1)
+    expect(theirs.todayUniqueUsers).toBe(2)
+
+    // And the listing: only my own link, never whose account is linked next.
+    expect(mine.activeConnections).toBe(1)
+    expect(mine.connections.map(c => c.id)).toEqual([CONN])
+    expect(
+      theirs.connections.map(c => c.userId),
+      "the other owner's connection leaked into this listing"
+    ).toEqual([OTHER_ID])
+  })
+
+  it('an owner with nothing linked sees zeroes, not the process total', async () => {
+    const svc = await fresh()
+    const bot = fakeBot()
+    await svc.handleBusinessMessage(dm() as never, bot as never, BOT)
+    const stranger = svc.getBusinessStats(900000099)
+    expect(stranger.todayMessages).toBe(0)
+    expect(stranger.activeConnections).toBe(0)
+    expect(stranger.connections).toEqual([])
   })
 })

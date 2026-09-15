@@ -141,7 +141,7 @@ describe('business DM: after a redeploy the registry is empty', () => {
     )
     expect(bot.telegram.callApi).toHaveBeenCalledTimes(1)
     expect(customerSends(bot)).toHaveLength(2)
-    expect(svc.getBusinessStats().activeConnections).toBe(1)
+    expect(svc.getBusinessStats(144022504).activeConnections).toBe(1)
   })
 
   it('a failed lookup drops the message: no reply, no LLM call, no throw', async () => {

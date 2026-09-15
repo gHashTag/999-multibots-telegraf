@@ -644,7 +644,15 @@ If not, continue on your own and click the "I myself" button`
     createBusinessMiddleware(bot as any)
 
     bot.command('business', requireAdmin(), async ctx => {
-      const s = getBusinessStats()
+      /*
+       * THE ADMIN'S OWN FIGURES, NOT THE PROCESS'S.
+       *
+       * requireAdmin passes for everybody in ADMIN_IDS -- five people in
+       * production -- and the farm runs every bot in one process. This used
+       * to print every business connection it held, with its owner's
+       * telegram id, and counters that added all of their clients together.
+       */
+      const s = getBusinessStats(ctx.from?.id ?? '')
       const connList =
         s.connections.length > 0
           ? s.connections
@@ -663,7 +671,8 @@ If not, continue on your own and click the "I myself" button`
           `Leads sent to owner today: ${s.todayLeads}\n` +
           `Non-text messages today: ${s.todayNonText}\n` +
           `Media relayed to owner today: ${s.todayMediaRelayed}\n` +
-          `Skipped (owner replied): ${s.todayTakeoverSkipped}\n\n` +
+          `Skipped (owner replied): ${s.todayTakeoverSkipped}\n` +
+          `Album elements kept quiet: ${s.todayAlbumQuiet}\n\n` +
           `Connections:\n${connList}`
       )
     })

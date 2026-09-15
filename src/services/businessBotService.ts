@@ -297,35 +297,49 @@ interface DailyStats {
   albumQuiet: number
 }
 
-let stats: DailyStats = {
-  date: todayKey(),
-  messagesHandled: 0,
-  uniqueUsers: new Set(),
-  leadsNotified: 0,
-  nonTextDropped: 0,
-  mediaRelayed: 0,
-  takeoverSkipped: 0,
-  albumQuiet: 0,
-}
+/*
+ * THE FIGURES BELONG TO AN OWNER, NOT TO THE PROCESS.
+ *
+ * This was one object. The farm runs every bot in ONE process, and a second
+ * owner linking their own account -- which is the whole product -- put their
+ * clients into the same counters: "unique users today" mixed two address
+ * books, and `/business` showed each admin the other's numbers. ADMIN_IDS
+ * names five people, and every one of them passes requireAdmin.
+ *
+ * Keyed by the owner the business connection belongs to (`conn.userId`).
+ */
+const statsByOwner = new Map<string, DailyStats>()
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-function ensureToday(): void {
-  const key = todayKey()
-  if (stats.date !== key) {
-    stats = {
-      date: key,
-      messagesHandled: 0,
-      uniqueUsers: new Set(),
-      leadsNotified: 0,
-      nonTextDropped: 0,
-      mediaRelayed: 0,
-      takeoverSkipped: 0,
-      albumQuiet: 0,
-    }
+function freshStats(): DailyStats {
+  return {
+    date: todayKey(),
+    messagesHandled: 0,
+    uniqueUsers: new Set(),
+    leadsNotified: 0,
+    nonTextDropped: 0,
+    mediaRelayed: 0,
+    takeoverSkipped: 0,
+    albumQuiet: 0,
   }
+}
+
+/** This owner's figures for today, rolled over at midnight UTC. */
+function ensureToday(owner: string | number): DailyStats {
+  const key = String(owner ?? '')
+  const have = statsByOwner.get(key)
+  if (have && have.date === todayKey()) return have
+  const made = freshStats()
+  statsByOwner.set(key, made)
+  return made
+}
+
+/** For tests: nobody has any figures yet. */
+export function resetBusinessStatsForTests(): void {
+  statsByOwner.clear()
 }
 
 // --- Sales system prompt ---
@@ -629,8 +643,7 @@ export async function handleBusinessMessage(
   }
   const pausedUntil = ownerTakeoverUntil.get(chatKey) ?? 0
   if (pausedUntil > Date.now()) {
-    ensureToday()
-    stats.takeoverSkipped++
+    ensureToday(conn.userId).takeoverSkipped++
     logger.info('[Business] Owner takeover active, AI silent', {
       connId,
       chatId,
@@ -646,8 +659,7 @@ export async function handleBusinessMessage(
   // the bare media with a service offer. Never a dead end.
   const media = customerMedia(msg)
   if (media) {
-    ensureToday()
-    stats.mediaRelayed++
+    ensureToday(conn.userId).mediaRelayed++
     await relayMediaToOwner(msg, media, conn, bot)
     /*
      * ONE ANSWER PER ALBUM -- AND THE GUARD STANDS ABOVE THE SPLIT.
@@ -670,7 +682,7 @@ export async function handleBusinessMessage(
      * is the line above.
      */
     if (answeredAlbumAlready(connId, msg.media_group_id)) {
-      stats.albumQuiet++
+      ensureToday(conn.userId).albumQuiet++
       logger.info('[Business] Album element after the first - staying quiet', {
         connId,
         chatId,
@@ -683,8 +695,7 @@ export async function handleBusinessMessage(
   const text =
     msg.text ?? (media && caption ? `[${media.note}] ${caption}` : undefined)
   if (!text) {
-    ensureToday()
-    stats.nonTextDropped++
+    ensureToday(conn.userId).nonTextDropped++
     logger.info('[Business] Non-text message', {
       connId,
       chatId,
@@ -775,8 +786,7 @@ export async function handleBusinessMessage(
     const tookOverMeanwhile =
       (ownerTakeoverUntil.get(chatKey) ?? 0) > Date.now()
     if (tookOverMeanwhile) {
-      ensureToday()
-      stats.takeoverSkipped++
+      ensureToday(conn.userId).takeoverSkipped++
       logger.info('[Business] Owner stepped in mid-turn, answer dropped', {
         connId,
         chatId,
@@ -814,9 +824,9 @@ export async function handleBusinessMessage(
         : []),
     ])
 
-    ensureToday()
-    stats.messagesHandled++
-    stats.uniqueUsers.add(String(chatId))
+    const today = ensureToday(conn.userId)
+    today.messagesHandled++
+    today.uniqueUsers.add(String(chatId))
 
     logger.info('[Business] Reply sent', { connId, chatId })
   } catch (error) {
@@ -919,8 +929,7 @@ async function notifyOwnerOfLead(
         ...(menu ? { reply_markup: menu.reply_markup } : {}),
       }
     )
-    ensureToday()
-    stats.leadsNotified++
+    ensureToday(conn.userId).leadsNotified++
     logger.info('[Business] Owner notified of a lead', { chatKey })
   } catch (error) {
     leadNotifiedOn.delete(chatKey)
@@ -959,7 +968,15 @@ export function createBusinessMiddleware(bot: Telegraf<any>) {
 
 // --- Admin stats ---
 
-export function getBusinessStats(): {
+/**
+ * One owner's figures and one owner's connections.
+ *
+ * `forOwner` is not optional by accident: a call without it used to return
+ * the whole process -- every owner's counters added together and every
+ * owner's connection listed with its telegram id. The only caller is the
+ * `/business` command, which knows exactly who pressed.
+ */
+export function getBusinessStats(forOwner: string | number): {
   activeConnections: number
   todayMessages: number
   todayUniqueUsers: number
@@ -970,17 +987,20 @@ export function getBusinessStats(): {
   todayAlbumQuiet: number
   connections: Array<{ id: string; userId: number; canReply: boolean }>
 } {
-  ensureToday()
+  const mine = ensureToday(forOwner)
+  const ours = Array.from(connections.entries()).filter(
+    ([, info]) => String(info.userId) === String(forOwner)
+  )
   return {
-    activeConnections: connections.size,
-    todayMessages: stats.messagesHandled,
-    todayUniqueUsers: stats.uniqueUsers.size,
-    todayLeads: stats.leadsNotified,
-    todayNonText: stats.nonTextDropped,
-    todayMediaRelayed: stats.mediaRelayed,
-    todayTakeoverSkipped: stats.takeoverSkipped,
-    todayAlbumQuiet: stats.albumQuiet,
-    connections: Array.from(connections.entries()).map(([id, info]) => ({
+    activeConnections: ours.length,
+    todayMessages: mine.messagesHandled,
+    todayUniqueUsers: mine.uniqueUsers.size,
+    todayLeads: mine.leadsNotified,
+    todayNonText: mine.nonTextDropped,
+    todayMediaRelayed: mine.mediaRelayed,
+    todayTakeoverSkipped: mine.takeoverSkipped,
+    todayAlbumQuiet: mine.albumQuiet,
+    connections: ours.map(([id, info]) => ({
       id,
       userId: info.userId,
       canReply: info.canReply,
