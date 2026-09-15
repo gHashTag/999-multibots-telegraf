@@ -16,6 +16,7 @@ import { logger, logSessionSafely } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
+import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
 import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -534,7 +535,16 @@ export const generateFluxKontext = async (
 
     return { image, prompt_id }
   } catch (error) {
-    logger.error('FLUX Kontext editing failed', {
+    /*
+     * This was alert #4 of the four the owner received at 08:56 on 2026-09-15,
+     * and it carried the customer's entire creative brief into a Telegram
+     * GROUP -- the alert channel is a group chat, see telegram-log.service.ts.
+     * Two separate repairs: the prompt itself is now redacted at the choke
+     * point in detailsForAlert (so the other ~250 logger.error sites are
+     * covered too), and an empty wallet no longer pages anybody from here.
+     */
+    const isCustomerWallet = isBalanceRefusal(error)
+    logger[isCustomerWallet ? 'warn' : 'error']('FLUX Kontext editing failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegram_id: params.telegram_id,
       prompt: params.prompt,

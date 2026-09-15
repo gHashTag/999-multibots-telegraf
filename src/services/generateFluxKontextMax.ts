@@ -14,6 +14,7 @@ import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
+import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
@@ -548,7 +549,11 @@ export const generateFluxKontextMax = async (
     const errorDetail =
       errorType === 'UNKNOWN' ? ` | ${errorMessage.substring(0, 100)}` : ''
 
-    logger.error(`${logMessage}${errorDetail}`, {
+    // See the note on the identical decision in generateSeeDream45.ts: the
+    // narrow predicate, not `errorType`, because that classifier matches the
+    // bare word 'balance' and would mute a database outage.
+    const isCustomerWallet = isBalanceRefusal(errorMessage)
+    logger[isCustomerWallet ? 'warn' : 'error'](`${logMessage}${errorDetail}`, {
       telegram_id: params.telegram_id,
       errorType,
       isRetriable,

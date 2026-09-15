@@ -77,6 +77,12 @@ const REACHABLE_FROM: string[] = [
   'src/services/generateFluxKontextMax.ts',
   'src/services/generateFluxKontextPro.ts',
   'src/services/generateGeminiImage.ts',
+  // Reviewed 2026-09-15. Reached only from avatarTransformScene's fallback
+  // chain, which fires once per user tap behind the superheroGenInFlight lock,
+  // and now stops at the first money refusal instead of asking the next model.
+  // The price is a module constant (5), never a parameter; a failure after the
+  // charge refunds exactly it, and only when the charge actually happened.
+  'src/services/generateGptImage25.ts',
   'src/services/generateImageFromPrompt.ts',
   'src/services/generateImageToPrompt.ts',
   'src/services/generateNanoBanana.ts',

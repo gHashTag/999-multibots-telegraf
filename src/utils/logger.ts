@@ -28,6 +28,74 @@ const ROUTED_META_KEYS = new Set([
 const ALERT_DETAILS_MAX = 1200
 
 /**
+ * WHAT A CUSTOMER WROTE IS NOT A DIAGNOSTIC.
+ *
+ * 2026-09-15 08:56: one person's transform failed for want of four stars, and
+ * the fourth alert of that incident carried their entire creative prompt into
+ * the owner's Telegram group -- because `generateFluxKontext` passes
+ * `prompt: params.prompt` in its catch-all meta, and everything in meta is
+ * rendered. Roughly two hundred and fifty `logger.error` sites feed this one
+ * function; fixing them one at a time is a list that is never finished, so the
+ * rule lives here, at the choke point, where a new site inherits it.
+ *
+ * The length is kept, because the length is the only part an operator can use
+ * ("the prompt was empty" is a real diagnosis; the prompt itself never is).
+ */
+const CONTENT_META_KEYS = new Set([
+  'prompt',
+  'originalPrompt',
+  'negativePrompt',
+  'promptText',
+  'userPrompt',
+  'eventData',
+  'body',
+  'rawBody',
+  'requestBody',
+  'callbackBody',
+])
+
+/**
+ * No single value may eat the whole alert.
+ *
+ * The cap below was on the finished blob only, so one long value truncated
+ * every key after it off the end -- the status code, the provider's answer, the
+ * model. A per-value ceiling keeps the facts an operator needs in the message
+ * even when something upstream logs a novel.
+ */
+const ALERT_VALUE_MAX = 300
+
+/** `<prompt: 412 chars>` -- the size, never the content. */
+const summarise = (label: string, length: number) =>
+  `<${label}: ${length} chars>`
+
+function renderValue(key: string, v: unknown): unknown {
+  if (v instanceof Error)
+    return `${v.message}${v.stack ? `\n${v.stack.split('\n').slice(1, 4).join('\n')}` : ''}`
+  if (Buffer.isBuffer(v)) return `<Buffer ${v.length} bytes>`
+
+  if (typeof v === 'string') {
+    if (CONTENT_META_KEYS.has(key)) return summarise(key, v.length)
+    return v.length > ALERT_VALUE_MAX
+      ? `${v.slice(0, ALERT_VALUE_MAX)}…(+${v.length - ALERT_VALUE_MAX} chars)`
+      : v
+  }
+  if (v === null || typeof v !== 'object') return v
+
+  // An object under a content key, or any object big enough to crowd out the
+  // rest of the alert, is reported by shape and size.
+  let serialised: string
+  try {
+    serialised = JSON.stringify(v) ?? ''
+  } catch {
+    return '<unserialisable>'
+  }
+  if (CONTENT_META_KEYS.has(key)) return summarise(key, serialised.length)
+  return serialised.length > ALERT_VALUE_MAX
+    ? summarise(Array.isArray(v) ? `${key}[]` : key, serialised.length)
+    : v
+}
+
+/**
  * The owner's alert used to carry only the message title -- the `meta` object
  * with the status code, the provider's error text, the model, the stack was
  * dropped on the floor. "[answerAi] xAI Grok API error" reached the owner; the
@@ -39,12 +107,7 @@ export function detailsForAlert(meta: unknown): string | undefined {
   const rest: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(meta as Record<string, unknown>)) {
     if (ROUTED_META_KEYS.has(k) || v === undefined) continue
-    rest[k] =
-      v instanceof Error
-        ? `${v.message}${v.stack ? `\n${v.stack.split('\n').slice(1, 4).join('\n')}` : ''}`
-        : Buffer.isBuffer(v)
-          ? `<Buffer ${v.length} bytes>`
-          : v
+    rest[k] = renderValue(k, v)
   }
   if (Object.keys(rest).length === 0) return undefined
   let text: string

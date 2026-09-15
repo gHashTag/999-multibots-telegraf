@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 126. Без заголовка: 0.
+Ратчетов: 129. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -27,6 +27,7 @@
 | `aiReelsDeliveryWebhookThrows.test.ts`                 | generateAIReelsFunction delivery handoff surfaces a non-2xx (no silent charged-not-delivered) |
 | `aiReelsRenderDisplayMatchesCharge.test.ts`            | AI Reels Render cost display matches the Step 6 charge                                        |
 | `aiReelsWizardRefundChecked.test.ts`                   | ai-reels-wizard critical-error refund checks its result (refundAndTell)                       |
+| `balanceRefusalIsToldApartFromAnOutage.test.ts`        | a balance refusal is told apart from an outage                                                |
 | `batchRefundReconciliation.test.ts`                    | aiPhotoshop batch refunds reconcile the exact charge                                          |
 | `cache-invalidation-isolated-ratchet.test.ts`          | every invalidateBalanceCache call is isolated in its own try (#1397)                          |
 | `charge-order.test.ts`                                 | деньги не уходят раньше работы                                                                |
@@ -83,6 +84,7 @@
 | `neurophoto-multi-batch-gate.test.ts`                  | generateNeuroPhotoMulti gates the full batch before charging                                  |
 | `no-fabricated-returns.test.ts`                        | нет выдуманных возвратов                                                                      |
 | `no-invented-price.test.ts`                            | цена не выдумывается                                                                          |
+| `oneEmptyWalletIsOneRefusal.test.ts`                   | the fallback chain stops at the first money refusal                                           |
 | `oneEventOneCharger.test.ts`                           | one event, at most one registered charger                                                     |
 | `ownerDebtPaymentsUnknown.test.ts`                     | owner debt: unknown payments are not zero payments                                            |
 | `paidServicesTableUnread.test.ts`                      | the two dollar-cost tables                                                                    |
@@ -102,6 +104,7 @@
 | `refund-needs-charge.test.ts`                          | возврат требует состоявшегося списания                                                        |
 | `refund-reason.test.ts`                                | возврат денег называет причину                                                                |
 | `refundFailureIsAnnounced.test.ts`                     | a refund that failed is announced too                                                         |
+| `refundHidesBehindTheChargeItClaims.test.ts`           | generateGptImage25 refunds only what it actually took                                         |
 | `refusalOffersAWayToPay.test.ts`                       | the shared money refusal hands over the button, not directions                                |
 | `refusalReachesTheCaller.test.ts`                      | a refusal that is returned still reaches somebody with a button                               |
 | `remainingBalanceNeverCostsTheResult.test.ts`          | the remaining balance is shown, and never costs the result                                    |

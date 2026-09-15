@@ -35,6 +35,8 @@ import { generateNanoBanana } from '@/services/generateNanoBanana'
 import { generateGptImage25 } from '@/services/generateGptImage25'
 // Legacy fallback
 import { generateFluxKontext } from '@/services/generateFluxKontext'
+import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // 🔴 DEBUG: Log when this scene loads (import time)
 console.log('🔴 [DEBUG avatarTransform] Module loaded')
@@ -2483,6 +2485,21 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // 🚀 COMPREHENSIVE AI GENERATION WITH FALLBACK LOGIC
       let result: string | null = null
       const attemptedModels: string[] = []
+      /*
+       * A FALLBACK CHAIN IS FOR BROKEN PROVIDERS, NOT FOR AN EMPTY WALLET.
+       *
+       * On 2026-09-15 at 08:56 one person with a balance of 0 tapped one
+       * transform. Every model in the chain checks the same balance against the
+       * same price, so the first refusal already decided the outcome -- and the
+       * three retries after it produced four alerts in the owner's channel, one
+       * of which carried the customer's whole prompt.
+       *
+       * This flag ends the chain at the first "no money" and makes the ending
+       * honest. It is set only by `isBalanceRefusal`, which reads the wording
+       * narrowly on purpose: a database that cannot ANSWER the balance question
+       * is an outage, must not stop the chain, and must still page the owner.
+       */
+      let refusedForMoney = false
 
       // Define the priority order for models with fallback
       const modelPriority = avatarModelPriority(selectedModel)
@@ -2594,6 +2611,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
                 break
               }
             } catch (fluxMaxError) {
+              // The legacy service checks the same balance against the same
+              // price, so retrying it after a money refusal cannot succeed --
+              // it only produces the fourth alert, the one that shipped the
+              // customer's prompt to the owner's channel. Hand it upward.
+              if (isBalanceRefusal(fluxMaxError)) throw fluxMaxError
+
               console.log('⚠️ FLUX Kontext Max failed, trying legacy FLUX...', {
                 telegramId,
               })
@@ -2627,6 +2650,23 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             stack: modelError instanceof Error ? modelError.stack : undefined,
           })
 
+          // Nothing further down the chain is cheaper or free: every model
+          // reads the same balance. Stop, and say so honestly below.
+          if (isBalanceRefusal(modelError)) {
+            refusedForMoney = true
+            logger.warn(
+              '[AvatarTransformScene] stopped the fallback chain: the balance is short',
+              {
+                telegramId,
+                model: modelToTry,
+                skippedModels: modelPriority.slice(
+                  modelPriority.indexOf(modelToTry) + 1
+                ),
+              }
+            )
+            break
+          }
+
           // Continue to next model in fallback chain
           logger.warn(
             `[AvatarTransformScene] ${modelToTry} failed, trying next model`,
@@ -2645,6 +2685,34 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // If all models failed
       if (!result) {
+        /*
+         * TWO ENDINGS, BECAUSE THERE ARE TWO REASONS.
+         *
+         * There used to be one: "all AI models are temporarily unavailable",
+         * sent with `remove_keyboard`. For the person whose balance was short
+         * that sentence was false in both halves -- the models were up, and the
+         * only thing standing between them and the picture was a top-up they
+         * were now given no way to make. It also paged the owner about a
+         * working system.
+         */
+        if (refusedForMoney) {
+          logger.warn('[AvatarTransformScene] refused: the balance is short', {
+            telegramId,
+            attemptedModels,
+            selectedModel,
+          })
+
+          await ctx.reply(
+            isRu
+              ? '⭐ Недостаточно звезд на балансе для этой генерации. Пополните баланс — и я сразу сделаю картинку.'
+              : '⭐ Not enough stars on your balance for this generation. Top up and I will make the image right away.',
+            standardButtons(isRu)
+          )
+
+          await ctx.scene.leave()
+          return
+        }
+
         console.error('🚨 ALL AI MODELS FAILED!', {
           telegramId,
           attemptedModels,
@@ -2661,7 +2729,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           isRu
             ? '❌ Извините, все AI модели временно недоступны. Попробуйте позже или обратитесь в поддержку.'
             : '❌ Sorry, all AI models are temporarily unavailable. Please try later or contact support.',
-          { reply_markup: { remove_keyboard: true } }
+          standardButtons(isRu)
         )
 
         await ctx.scene.leave()
