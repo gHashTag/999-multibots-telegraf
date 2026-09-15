@@ -2,22 +2,22 @@ import { act, Suspense } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { returnTargetOf } from '@/lib/returnTarget'
 
 /**
- * A GUEST IN THE GAME'S TRI FRAME IS TOLD HOW TO SIGN IN, NOT LEFT AT A DEAD END.
+ * A GUEST IN THE GAME'S TRI FRAME IS TOLD WHERE THE SCREEN WORKS, NOT LEFT AT A DEAD END.
  *
  * Inside the frame on t27.ai the app never holds a session
  * (lib/framedSession.ts). Measured on lang=en before this change: profile was
  * a hard-coded Russian "open the app inside Telegram" page, CRM showed four
  * "Could not load: 401" blocks, chat greeted in Russian while every call
- * returned 401, and script offered a Generate form. None offered a way to
- * sign in.
+ * returned 401, and script offered a Generate form. None offered a way out.
  *
  * Each of those screens now shows one panel in the game's language, with a
- * link (target _top) to the app's sign-in carrying ?return= back to the same
- * TRI screen. The route table is mounted for real; the pages the panel must
- * replace are sentinels, and the CRM pages are real so their 401 is real.
+ * link that opens the same screen in the app in a new tab. It does not send
+ * the tab to a sign-in that returns here: the frame is still a guest after
+ * signing in, which made that a loop. The route table is mounted for real;
+ * the pages the panel must replace are sentinels, and the CRM pages are real
+ * so their 401 is real.
  */
 
 const embed = vi.hoisted(() => ({ on: true }))
@@ -54,7 +54,11 @@ vi.mock('@/pages/Editor', () => ({
 import { AppRoutes } from '../App'
 
 const ACCESS = 'trinity.app.session.access'
+const EXPIRES = 'trinity.app.session.expires-at'
 const CYRILLIC = /\p{Script=Cyrillic}/u
+const STAGES = ['script', 'audio', 'image', 'avatar', 'video', 'editor']
+const appHref = (screen: string) =>
+  `https://app.t27.ai${STAGES.includes(screen) ? `/generate/${screen}` : `/${screen}`}`
 const GUEST_MODULE = import.meta.glob('../lib/embedGuest.ts')
 
 let host: HTMLDivElement
@@ -132,7 +136,7 @@ const GATED: Array<[string, string]> = [
 
 describe('a guest in the TRI frame', () => {
   it.each(GATED)(
-    '%s shows the sign-in panel back to screen=%s and sends nothing',
+    '%s shows the panel opening screen=%s in the app, and sends nothing',
     async (path, screen) => {
       await open(path)
       const p = panel()
@@ -143,15 +147,13 @@ describe('a guest in the TRI frame', () => {
       const links = p!.querySelectorAll('a')
       expect(links).toHaveLength(1)
       const link = links[0]
-      expect(link.getAttribute('target')).toBe('_top')
+      // A new tab: never _top, which would take the tab out of the game, the
+      // Hive or Telegram, to a sign-in that cannot change this frame.
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(link.getAttribute('rel')).toContain('noopener')
       expect(link.textContent?.trim()).toBeTruthy()
-      const url = new URL(link.getAttribute('href')!)
-      expect(`${url.origin}${url.pathname}`).toBe('https://app.t27.ai/')
-      expect([...url.searchParams.keys()]).toEqual(['return'])
-      const back = url.searchParams.get('return')
-      expect(back).toBe(`https://t27.ai/#/queen?tab=tri&screen=${screen}`)
-      // The app's own sign-in accepts it (lib/returnTarget.ts).
-      expect(returnTargetOf(back)).toBe(back)
+      expect(link.getAttribute('href')).toBe(appHref(screen))
+      expect(link.getAttribute('href')).not.toContain('return=')
 
       // lang=en: not one Cyrillic letter on the screen.
       expect(host.textContent).not.toMatch(CYRILLIC)
@@ -182,6 +184,61 @@ describe('a guest in the TRI frame', () => {
     await open('/chat')
     expect(panel()).toBeNull()
     expect(host.textContent).toContain('CHAT_PAGE_SENTINEL')
+  })
+})
+
+describe('the tab signed in on app.t27.ai, the frame by t27.ai stays a guest', () => {
+  // The sign-in stored a live session in the tab. A frame with a t27.ai
+  // ancestor never reads it (lib/framedSession.ts), so a link back to a
+  // sign-in that returns here would show this panel again, forever.
+  const realTop = Object.getOwnPropertyDescriptor(window, 'top')
+
+  beforeEach(() => {
+    sessionStorage.setItem(ACCESS, 'fake-access-1')
+    sessionStorage.setItem(EXPIRES, String(Date.now() + 600000))
+    Object.defineProperty(window, 'top', {
+      configurable: true,
+      get: () => ({ not: 'this window' }),
+    })
+  })
+
+  afterEach(() => {
+    if (realTop) Object.defineProperty(window, 'top', realTop)
+    delete (window.location as { ancestorOrigins?: unknown }).ancestorOrigins
+  })
+
+  function ancestors(list: string[]) {
+    Object.defineProperty(window.location, 'ancestorOrigins', {
+      configurable: true,
+      value: list,
+    })
+  }
+
+  it.each([
+    ['the TRI tab', ['https://t27.ai']],
+    ['the Hive', ['https://t27.ai', 'https://app.t27.ai']],
+  ])(
+    'in %s the panel opens the CRM in the app in a new tab, with no way back into this frame',
+    async (_where, list) => {
+      ancestors(list)
+      expect(window.self === window.top).toBe(false)
+      await open('/crm')
+      const p = panel()
+      expect(p?.dataset.embedGuest).toBe('crm')
+      const link = p!.querySelector('a')!
+      expect(link.getAttribute('href')).toBe('https://app.t27.ai/crm')
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(host.querySelector('a[target="_top"]')).toBeNull()
+      expect(host.querySelector('a[href*="return="]')).toBeNull()
+    }
+  )
+
+  it('control: framed by the app itself (app.t27.ai/game/), the same session opens the CRM', async () => {
+    ancestors([window.location.origin])
+    await open('/crm')
+    await settle(() => !!host.querySelector('.crm'))
+    expect(panel()).toBeNull()
+    expect(host.querySelector('.crm')).not.toBeNull()
   })
 })
 

@@ -3,10 +3,10 @@ import { useLocation } from 'react-router-dom'
 import { useLanguage } from '@/hooks/useLanguage'
 import { IS_EMBED } from '@/lib/embed'
 import {
+  appScreenHref,
   embedSignInNeeded,
   guestScreenOf,
   hasCredential,
-  signInReturnHref,
   subscribeEmbedSignInNeeded,
   type TriScreenId,
 } from '@/lib/embedGuest'
@@ -31,9 +31,10 @@ export function EmbedGuestGate({ children }: { children: ReactNode }) {
 }
 
 /**
- * One panel for every such screen, in the game's language. The link leaves
- * the frame (target _top): signing in happens top-level on app.t27.ai, which
- * sends the tab back to this TRI screen.
+ * One panel for every such screen, in the game's language. The link opens the
+ * same screen in the app in a new tab (target _blank), where the person can
+ * sign in. It never replaces the tab (no _top): this frame stays a guest after
+ * a sign-in, and the tab may be the Hive or a Telegram Mini App.
  */
 export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
   const { t } = useLanguage()
@@ -67,8 +68,9 @@ export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
         {t('embed.guest.body')}
       </p>
       <a
-        href={signInReturnHref(screen)}
-        target="_top"
+        href={appScreenHref(screen)}
+        target="_blank"
+        rel="noopener"
         style={{
           marginTop: 8,
           minHeight: 44,
@@ -82,7 +84,7 @@ export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
           textDecoration: 'none',
         }}
       >
-        {t('embed.guest.signIn')}
+        {t('embed.guest.open')}
       </a>
     </section>
   )

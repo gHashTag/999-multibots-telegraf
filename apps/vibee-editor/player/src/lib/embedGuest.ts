@@ -1,6 +1,6 @@
 import { APP_ORIGIN, IS_EMBED } from './embed'
 import { getAppAccessToken } from './appSession'
-import { GAME_ORIGIN, TRI_SCREEN_IDS } from './returnTarget'
+import { TRI_SCREEN_IDS } from './returnTarget'
 import { getInitData } from './telegram'
 
 /**
@@ -13,9 +13,17 @@ import { getInitData } from './telegram'
  * script forms whose calls all failed. None offered a way to sign in.
  *
  * So the screens that need a person (chat, profile, CRM, the AI stages) show
- * one panel instead, linking the whole tab to the app's sign-in with ?return=
- * back to the same TRI screen (lib/returnTarget.ts). Guests get the panel for
- * CRM too, as the safe default. The feed stays open.
+ * one panel instead. Guests get the panel for CRM too, as the safe default.
+ * The feed stays open.
+ *
+ * The panel does not offer a sign-in that comes back here. Framed by t27.ai
+ * (the TRI tab, and inside the Hive) this frame stays a guest after the tab
+ * signs in, so the returned screen showed the same panel, and a second press
+ * bounced straight back: a loop. The ?return= target is always
+ * https://t27.ai/#/queen, so the same holds from app.t27.ai/game/. The panel
+ * opens the same screen in the app in a new tab instead (target _blank):
+ * nothing is promised about this frame, and the tab never leaves the game,
+ * the Hive or Telegram.
  *
  * A frame that does send a credential (the game under app.t27.ai/game/, or a
  * Mini App) opens the screen; if the server then refuses it with 401, the CRM
@@ -25,6 +33,14 @@ import { getInitData } from './telegram'
 export type TriScreenId = (typeof TRI_SCREEN_IDS)[number]
 
 const AI_STAGE = /^\/generate\/(script|audio|image|avatar|video|editor)\/?$/
+const AI_STAGES: readonly TriScreenId[] = [
+  'script',
+  'audio',
+  'image',
+  'avatar',
+  'video',
+  'editor',
+]
 
 /** The TRI screen a route needs a person for, or null when a guest may use it. */
 export function guestScreenOf(pathname: string): TriScreenId | null {
@@ -35,10 +51,10 @@ export function guestScreenOf(pathname: string): TriScreenId | null {
   return stage ? (stage[1] as TriScreenId) : null
 }
 
-/** The app's sign-in, returning to this TRI screen in the game. */
-export function signInReturnHref(screen: TriScreenId): string {
-  const back = `${GAME_ORIGIN}/#/queen?tab=tri&screen=${screen}`
-  return `${APP_ORIGIN}/?return=${encodeURIComponent(back)}`
+/** The same screen in the app, top level, where the person can sign in. */
+export function appScreenHref(screen: TriScreenId): string {
+  const path = AI_STAGES.includes(screen) ? `/generate/${screen}` : `/${screen}`
+  return `${APP_ORIGIN}${path}`
 }
 
 /** Whether calls from this document carry a credential (lib/apiFetch.ts). */

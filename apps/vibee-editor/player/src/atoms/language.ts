@@ -388,10 +388,10 @@ const en: Translations = {
   'login.subtitle': 'Sign in with Telegram to get 3 free video renders!',
   'login.returnToGame': 'Sign in with Telegram to return to the game.',
   // The game's TRI frame, a screen that needs a person (EmbedGuestGate.tsx).
-  'embed.guest.title': 'Sign in to use this with your name',
+  'embed.guest.title': 'This screen works in the app',
   'embed.guest.body':
-    'You are here as a guest. Sign in with Telegram on app.t27.ai, and you will come back to this screen.',
-  'embed.guest.signIn': 'Sign in with Telegram',
+    'Here in the game you are a guest, and this screen needs your account. Open it on app.t27.ai and sign in with Telegram there.',
+  'embed.guest.open': 'Open in the app',
   'login.button': 'Login',
   'login.buttonFull': 'Sign in with Telegram',
 
@@ -2285,10 +2285,10 @@ const ru: Translations = {
     'Этот запуск не несёт подписанных данных, и сервер не может подтвердить, кто вы. Откройте приложение через кнопку меню бота или инлайн-кнопку — и всё заработает.',
   'login.subtitle': 'Войдите через Telegram и получите 3 бесплатных рендера!',
   'login.returnToGame': 'Войдите через Telegram, чтобы вернуться в игру.',
-  'embed.guest.title': 'Войдите, чтобы пользоваться этим от своего имени',
+  'embed.guest.title': 'Этот экран работает в приложении',
   'embed.guest.body':
-    'Сейчас вы здесь гость. Войдите через Telegram на app.t27.ai, и вы вернётесь на этот экран.',
-  'embed.guest.signIn': 'Войти через Telegram',
+    'Здесь, в игре, вы гость, а этому экрану нужен ваш аккаунт. Откройте его на app.t27.ai и войдите там через Telegram.',
+  'embed.guest.open': 'Открыть в приложении',
   'login.button': 'Войти',
   'login.buttonFull': 'Войти через Telegram',
 
