@@ -42,12 +42,24 @@ const SERVICE_IDS = new Set([
   '1087968824',
   '136817688',
 ])
-const DIALOGS_DEFAULT = 30
+/*
+ * THE NUMBERS THE MODEL IS TOLD ARE THESE NUMBERS.
+ *
+ * The parameter description said "at most 200" while the clamp allowed 2000 --
+ * ten times less than the owner asked for, and the comment right below says he
+ * asked for ALL dialogs. The description is not documentation: it is what the
+ * MODEL reads before choosing what to pass, so a stale sentence there is a cap
+ * nobody set. The automated path already asked for 2000; only the model was
+ * held back, and silently.
+ *
+ * Exported so the description is built from them and a test can hold both ends.
+ */
+export const DIALOGS_DEFAULT = 30
 // The owner asked for ALL dialogs. GramJS pages getDialogs itself; a
 // FLOOD_WAIT stops the walk and says where, and the next run resumes.
-const DIALOGS_MAX = 2000
-const DEPTH_DEFAULT = 100
-const DEPTH_MAX = 500
+export const DIALOGS_MAX = 2000
+export const DEPTH_DEFAULT = 100
+export const DEPTH_MAX = 500
 
 interface DialogLike {
   id?: { toString(): string }
@@ -89,12 +101,11 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       properties: {
         limit: {
           type: 'number',
-          description: 'сколько диалогов (по умолчанию 30, максимум 200)',
+          description: `сколько диалогов (по умолчанию ${DIALOGS_DEFAULT}, максимум ${DIALOGS_MAX})`,
         },
         depth: {
           type: 'number',
-          description:
-            'сколько сообщений на диалог (по умолчанию 100, максимум 500)',
+          description: `сколько сообщений на диалог (по умолчанию ${DEPTH_DEFAULT}, максимум ${DEPTH_MAX})`,
         },
       },
       additionalProperties: false,

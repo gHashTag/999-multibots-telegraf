@@ -243,13 +243,13 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       properties: {
         no_answer_after_days: {
           type: 'number',
-          description:
-            'через сколько дней тишины считать, что ответа нет (по умолчанию 3)',
+          // The default is the constant, not a copy of it: this sentence is
+          // what the model reads before deciding whether to pass anything.
+          description: `через сколько дней тишины считать, что ответа нет (по умолчанию ${NO_ANSWER_AFTER_DAYS})`,
         },
         later_after_days: {
           type: 'number',
-          description:
-            'через сколько дней возвращать тех, кто просил позже (по умолчанию 14)',
+          description: `через сколько дней возвращать тех, кто просил позже (по умолчанию ${LATER_RETURNS_AFTER_DAYS})`,
         },
       },
     },
