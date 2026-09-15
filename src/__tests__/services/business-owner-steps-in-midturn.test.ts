@@ -22,9 +22,17 @@ describe('an owner who steps in mid-turn is not talked over', () => {
 
   /** Where the answer is composed: the agent, or chatWithAI as its fallback. */
   const answerIdx = src.search(/await (answerClient|chatWithAI)\(/)
-  /** The re-read of the pause map that this guard is made of. */
+  /**
+   * The re-read of the pause map that this guard is made of.
+   *
+   * `\s+` where a space might be, not a literal space: prettier wrapped this
+   * very line the moment it was committed (it runs past eighty characters),
+   * and the first version of this test went red on formatting rather than on
+   * behaviour. A source assertion has to be written against the FORMATTED
+   * source, or it guards the layout instead of the code.
+   */
   const recheckIdx = src.search(
-    /const tookOverMeanwhile = \(ownerTakeoverUntil\.get\(chatKey\) \?\? 0\) > Date\.now\(\)/
+    /const tookOverMeanwhile\s*=\s*\(ownerTakeoverUntil\.get\(chatKey\)\s*\?\?\s*0\)\s*>\s*Date\.now\(\)/
   )
   /** Where the answer actually leaves for the client. */
   const sendIdx = src.search(/await sendAsOwner\(parts\[i\]/)
