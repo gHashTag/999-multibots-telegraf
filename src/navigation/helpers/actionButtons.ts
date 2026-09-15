@@ -168,6 +168,29 @@ export function buttonsForAnswer(
 }
 
 /**
+ * THE NUMBER ON A PAY BUTTON IS A PROMISE ABOUT MONEY.
+ *
+ * The amount was the FIRST star number anywhere in the answer, and an answer
+ * often names more than one. "100 tokens is 130 stars, 500 is 600; I made you
+ * an invoice for 500: <link>" put "Pay 130 stars" on a link that charges 600.
+ * The person taps a button promising one price and Telegram asks another --
+ * under the owner's own name, which is the whole point of this seller.
+ *
+ * The link itself carries no amount (Telegram's invoice slug is opaque), so
+ * the only source is the text. Rather than guess which number belongs to the
+ * link -- nearest, last before it, same sentence: all guesses, and a wrong
+ * number is worse than none -- the rule is DISTINCT amounts. One amount named,
+ * however many times, is unambiguous and goes on the button. Two different
+ * ones and the button says just "Pay": Telegram then shows the real sum on
+ * its own sheet, and nobody was told a price that is not true.
+ */
+function starsNamedOnce(text: string): string | null {
+  const found = new Set<string>()
+  for (const m of text.matchAll(/(\d+)\s*⭐/g)) found.add(m[1])
+  return found.size === 1 ? [...found][0] : null
+}
+
+/**
  * A Stars invoice link in an answer becomes the first row: one tap to pay.
  * Only when the answer already carries the link -- the agent writes one only
  * after the person asked to pay, so the button never offers payment first.
@@ -175,9 +198,9 @@ export function buttonsForAnswer(
 export function payRow(text: string): InlineKeyboardButton[] | null {
   const m = /https:\/\/t\.me\/\$[A-Za-z0-9_-]+/.exec(text)
   if (!m) return null
-  const stars = /(\d+)\s*⭐/.exec(text)
+  const stars = starsNamedOnce(text)
   return [
-    Markup.button.url(stars ? `Оплатить ${stars[1]} ⭐` : 'Оплатить ⭐', m[0]),
+    Markup.button.url(stars ? `Оплатить ${stars} ⭐` : 'Оплатить ⭐', m[0]),
   ]
 }
 

@@ -70,6 +70,32 @@ describe('the pay row and the markers', () => {
       text: 'Оплатить ⭐',
     })
     expect(payRow('зайди на https://t.me/neuro_blogger_bot')).toBeNull()
+  })
+
+  /**
+   * THE NUMBER ON A PAY BUTTON IS A PROMISE ABOUT MONEY.
+   *
+   * It used to be the FIRST star number in the answer, and an answer often
+   * names several: two packages compared, then an invoice for one of them.
+   * The button then promised one price while Telegram charged another --
+   * under the owner's own name.
+   */
+  it('names a price only when the answer names exactly one', () => {
+    expect(
+      payRow(
+        'Пакет 100 токенов — 130 ⭐, 500 токенов — 600 ⭐. Взял 500, вот счёт: https://t.me/$abc'
+      )?.[0]
+    ).toMatchObject({ text: 'Оплатить ⭐' })
+    // The same amount repeated is still one amount, and it is the right one.
+    expect(
+      payRow(
+        'Счёт на 65 ⭐: https://t.me/$abc. После оплаты 65 ⭐ спишутся сразу'
+      )?.[0]
+    ).toMatchObject({ text: 'Оплатить 65 ⭐' })
+    // A number that is not a price does not become one.
+    expect(
+      payRow('50 токенов, вот счёт: https://t.me/$abc')?.[0]
+    ).toMatchObject({ text: 'Оплатить ⭐' })
     const kb = buttonsForAnswer(
       'Готово, вот счёт 65 ⭐ https://t.me/$abc [[Пополнить|act:topup]]',
       true,
