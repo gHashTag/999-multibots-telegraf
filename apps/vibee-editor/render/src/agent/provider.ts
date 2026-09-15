@@ -76,6 +76,16 @@ export interface Provider {
   context: number
   /** A small context: the seller's tools only, not all sixty-odd. */
   compact: boolean
+  /**
+   * Ceiling on the answer, sent as `max_tokens`. Set for the reserve route
+   * only (spec: agent-provider-chain.t27 RESERVE_SENDS_MAX_TOKENS).
+   *
+   * Measured 2026-09-15 against OpenRouter: with no max_tokens the vendor
+   * priced the model ceiling (16000) against the prepaid balance (2506
+   * affordable) and answered 402 before reading the prompt. The other
+   * providers keep their own defaults -- their keys are not prepaid per call.
+   */
+  maxTokens?: number
 }
 
 /**
@@ -336,6 +346,7 @@ export function reserveEnv(): {
   model: string
   tools: boolean
   vision: boolean
+  maxTokens: number
 } | null {
   const base = (process.env.RESERVE_BASE_URL || '').trim()
   const key = (process.env.RESERVE_API_KEY || '').trim()
@@ -347,7 +358,21 @@ export function reserveEnv(): {
     model,
     tools: process.env.RESERVE_TOOLS !== '0',
     vision: process.env.RESERVE_VISION === '1',
+    maxTokens: reserveMaxTokens(process.env.RESERVE_MAX_TOKENS),
   }
+}
+
+/** Spec: agent-provider-chain.t27 RESERVE_MAX_TOKENS_DEFAULT. */
+export const RESERVE_MAX_TOKENS_DEFAULT = 1024
+
+/**
+ * RESERVE_MAX_TOKENS as a positive integer, else the default. "0", "-5",
+ * "abc" and "" all mean "the owner did not say" -- a zero ceiling would make
+ * every answer empty, which is worse than the default.
+ */
+export function reserveMaxTokens(raw: string | undefined): number {
+  const n = Number.parseInt((raw || '').trim(), 10)
+  return Number.isFinite(n) && n > 0 ? n : RESERVE_MAX_TOKENS_DEFAULT
 }
 
 function build(id: ProviderId, key: string): Provider {
@@ -365,6 +390,7 @@ function build(id: ProviderId, key: string): Provider {
       audio: c.audio,
       context: c.context,
       compact: c.context < COMPACT_BELOW,
+      maxTokens: r.maxTokens,
     }
   }
   // Our model's name comes from OLLAMA_MODEL; AGENT_MODEL is the paid
@@ -400,7 +426,15 @@ export function allProviders(): Provider[] {
 
 export function diagnose(id: ProviderId, status: number, body: string): string {
   const b = body.toLowerCase()
-  if (b.includes('insufficient balance') || b.includes('1113')) {
+  // 402 is the vendor's own word for it; OpenRouter says "requires more
+  // credits" (measured 2026-09-15), z.ai says code 1113. Spec:
+  // agent-provider-chain.t27 PAYMENT_REQUIRED_IS_DIAGNOSED.
+  if (
+    status === 402 ||
+    b.includes('insufficient balance') ||
+    b.includes('requires more credits') ||
+    b.includes('1113')
+  ) {
     return `${id}: на ключе нет средств — пополните баланс в кабинете провайдера`
   }
   if (
