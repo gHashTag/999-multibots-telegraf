@@ -66,6 +66,16 @@ async function ensureTable(pool: Pool): Promise<void> {
        PRIMARY KEY (owner_id, lead_id)
      )`
   )
+  /*
+   * Whether Telegram shows this person a photo -- NULL until an ingest has
+   * looked. It is a hint, not an authority: the ingest sees them through the
+   * owner's own account, and a privacy setting can hide from our bot a
+   * picture the owner can see. So this only keeps a portrait out of the
+   * QUEUE; crm_deliver_photo still asks the Bot API before it spends.
+   */
+  await pool.query(
+    `ALTER TABLE crm_people ADD COLUMN IF NOT EXISTS has_photo boolean`
+  )
   tableReady = true
 }
 
@@ -73,6 +83,8 @@ export interface PersonName {
   firstName: string | null
   lastName: string | null
   username: string | null
+  /** Has a profile photo; null when nobody has looked yet. */
+  hasPhoto?: boolean | null
 }
 
 const cut = (v: unknown, max: number): string | null => {
@@ -97,12 +109,15 @@ export async function rememberPerson(
 ): Promise<void> {
   await ensureTable(pool)
   await pool.query(
-    `INSERT INTO crm_people (owner_id, lead_id, first_name, last_name, username, seen_at)
-     VALUES ($1, $2, $3, $4, $5, now())
+    `INSERT INTO crm_people (owner_id, lead_id, first_name, last_name, username, has_photo, seen_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now())
      ON CONFLICT (owner_id, lead_id) DO UPDATE
        SET first_name = EXCLUDED.first_name,
            last_name  = EXCLUDED.last_name,
            username   = EXCLUDED.username,
+           -- Names are REPLACED, this one is not: a caller with nothing to
+           -- say about the photo must not erase what an earlier look found.
+           has_photo  = COALESCE(EXCLUDED.has_photo, crm_people.has_photo),
            seen_at    = now()`,
     [
       owner,
@@ -110,6 +125,7 @@ export async function rememberPerson(
       cut(p.firstName, 64),
       cut(p.lastName, 64),
       cut(p.username, 32),
+      typeof p.hasPhoto === 'boolean' ? p.hasPhoto : null,
     ]
   )
 }
@@ -121,7 +137,7 @@ export async function peopleFor(
 ): Promise<Map<string, PersonName>> {
   await ensureTable(pool)
   const r = await pool.query(
-    `SELECT lead_id, first_name, last_name, username FROM crm_people
+    `SELECT lead_id, first_name, last_name, username, has_photo FROM crm_people
       WHERE owner_id = $1`,
     [owner]
   )
@@ -131,6 +147,7 @@ export async function peopleFor(
       firstName: x.first_name ?? null,
       lastName: x.last_name ?? null,
       username: x.username ?? null,
+      hasPhoto: typeof x.has_photo === 'boolean' ? x.has_photo : null,
     })
   }
   return map
@@ -144,7 +161,7 @@ export async function personOf(
 ): Promise<PersonName | null> {
   await ensureTable(pool)
   const r = await pool.query(
-    `SELECT first_name, last_name, username FROM crm_people
+    `SELECT first_name, last_name, username, has_photo FROM crm_people
       WHERE owner_id = $1 AND lead_id = $2`,
     [owner, lead]
   )
@@ -154,6 +171,7 @@ export async function personOf(
     firstName: x.first_name ?? null,
     lastName: x.last_name ?? null,
     username: x.username ?? null,
+    hasPhoto: typeof x.has_photo === 'boolean' ? x.has_photo : null,
   }
 }
 
@@ -407,6 +425,20 @@ export async function leadContext(
 import { segmentOf, type Segment } from './crm-segments'
 import { REFUSAL_HOLDS_DAYS } from './crm-stages'
 
+/**
+ * Does their ask need THEIR OWN face?
+ *
+ * The `service` signal is deliberately wide -- video, reels, voice, montage --
+ * and most of that needs no avatar. Only a portrait is impossible without
+ * one, so only a portrait is held back. Somebody asking about a voiceover
+ * with no profile picture stays exactly where they were.
+ */
+const PORTRAIT =
+  /(фото|аватар|портрет|нейрофото|selfie|portrait|avatar|headshot)/i // cyrillic-ok: what clients call a portrait
+export function wantsPortrait(texts: string[]): boolean {
+  return PORTRAIT.test(texts.join(' '))
+}
+
 export type NextStep = 'reply' | 'deliver' | 'offer' | 'talk' | 'wait'
 
 export interface LeadCandidate {
@@ -429,6 +461,8 @@ export interface LeadCandidate {
   next: NextStep
   /** The one segment this person is in; see crm-segments.ts. */
   segment: Segment
+  /** Telegram shows them a photo; null when no ingest has looked yet. */
+  hasPhoto: boolean | null
   because: string
 }
 
@@ -578,6 +612,24 @@ export async function leadCandidates(
       touch?.kind !== 'later'
     )
       next = 'talk'
+    /*
+     * A PORTRAIT NEEDS A FACE TO DRAW FROM.
+     *
+     * The owner, 2026-09-15: the seller kept proposing a photo to people who
+     * have no picture in Telegram. Refusing at the tool was not enough -- by
+     * then the plan has already promised it. So the promise is not made:
+     * they asked for a price, so they still get an offer, and the same
+     * person with a voiceover ask is untouched.
+     */
+    const photo = people.get(lead)?.hasPhoto ?? null
+    if (
+      next === 'deliver' &&
+      photo === false &&
+      wantsPortrait(texts.get(lead) ?? [])
+    ) {
+      next = 'offer'
+      why.push('нет фото в Telegram — портрет рисовать не из чего')
+    }
     // A refusal parks the pitch, never the reply: their last word is answered.
     if (touch?.kind === 'refused' && score < 0 && !unanswered) next = 'wait'
     const segment = segmentOf({
@@ -595,6 +647,7 @@ export async function leadCandidates(
       name: fullName(people.get(lead)),
       username: people.get(lead)?.username ?? null,
       lastWords: words.get(lead) || null,
+      hasPhoto: photo,
       score,
       signals,
       total: Number(r.total),

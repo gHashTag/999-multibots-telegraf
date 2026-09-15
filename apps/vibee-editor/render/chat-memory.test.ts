@@ -420,6 +420,8 @@ describe('who they are', () => {
       firstName: 'Ольга',
       lastName: 'Иванова',
       username: 'pilot_client',
+      // Nobody has looked at this row's photo, and unknown is not "no".
+      hasPhoto: null,
     })
     expect(fullName(p)).toBe('Ольга Иванова')
     expect(
@@ -518,5 +520,114 @@ describe('a segment is chosen over the whole base', () => {
     expect(warm[0].segment).toBe('warm')
     expect(warm[0].daysSinceOut).toBeGreaterThanOrEqual(20)
     expect(top[0].segment).toBe('waiting')
+  })
+})
+
+/**
+ * A PORTRAIT NEEDS A FACE TO DRAW FROM.
+ *
+ * The owner, 2026-09-15: the seller proposed a photo to people with no
+ * picture in Telegram. Refusing inside the tool was too late -- the plan had
+ * already promised it -- so the promise is not made. The hard part is not
+ * over-reaching: `service` also covers video and voice, and those people
+ * must stay exactly where they were.
+ */
+describe('who has a face to draw', () => {
+  const now = D('2026-09-08T12:00:00Z')
+  const agg = (ids: string[]) =>
+    ids.map(lead_id => ({
+      lead_id,
+      total: 4,
+      inbound: 3,
+      last_in: '2026-09-07T09:00:00Z',
+      last_out: '2026-09-07T10:00:00Z',
+    }))
+  const base = (
+    said: Record<string, string>,
+    photos: Record<string, boolean | null>
+  ) =>
+    fakePool([
+      { when: /GROUP BY lead_id/, rows: agg(Object.keys(said)) },
+      {
+        when: /^SELECT lead_id, text FROM crm_messages/,
+        rows: Object.entries(said).map(([lead_id, text]) => ({
+          lead_id,
+          text,
+        })),
+      },
+      {
+        when: /FROM crm_people WHERE owner_id = \$1$/,
+        rows: Object.entries(photos).map(([lead_id, has_photo]) => ({
+          lead_id,
+          first_name: 'Кто-то',
+          has_photo,
+        })),
+      },
+    ])
+
+  it('a portrait ask with no avatar becomes an offer, and says why', async () => {
+    const list = await leadCandidates(
+      base(
+        { '900000001': 'хочу нейрофото, сколько стоит?' },
+        { '900000001': false }
+      ),
+      OWNER,
+      { now }
+    )
+    expect(list[0].next).toBe('offer')
+    expect(list[0].hasPhoto).toBe(false)
+    expect(list[0].because).toContain('нет фото в Telegram')
+  })
+
+  it('the same ask WITH an avatar still goes to deliver', async () => {
+    const list = await leadCandidates(
+      base(
+        { '900000002': 'хочу нейрофото, сколько стоит?' },
+        { '900000002': true }
+      ),
+      OWNER,
+      { now }
+    )
+    expect(list[0].next).toBe('deliver')
+    expect(list[0].hasPhoto).toBe(true)
+  })
+
+  it('a voiceover ask is untouched by a missing avatar', async () => {
+    // The whole reason the gate reads their words instead of the signal:
+    // a voiceover needs no face, and this person must not be demoted.
+    const list = await leadCandidates(
+      base(
+        { '900000003': 'сколько стоит озвучка ролика?' },
+        { '900000003': false }
+      ),
+      OWNER,
+      { now }
+    )
+    expect(list[0].next).toBe('deliver')
+  })
+
+  it('an unlooked-at person is not punished for what nobody checked', async () => {
+    const list = await leadCandidates(
+      base(
+        { '900000004': 'хочу нейрофото, сколько стоит?' },
+        { '900000004': null }
+      ),
+      OWNER,
+      { now }
+    )
+    expect(list[0].hasPhoto).toBeNull()
+    expect(list[0].next).toBe('deliver')
+  })
+
+  it('a caller who knows nothing about the photo does not erase what is known', async () => {
+    const pool = fakePool()
+    await rememberPerson(pool, OWNER, '900000005', { firstName: 'Кто-то' })
+    const q = pool.queries.find(x =>
+      x.sql.startsWith('INSERT INTO crm_people')
+    )!
+    expect(q.params[5], 'an unknown was written as a false').toBeNull()
+    expect(q.sql).toContain(
+      'COALESCE(EXCLUDED.has_photo, crm_people.has_photo)'
+    )
   })
 })

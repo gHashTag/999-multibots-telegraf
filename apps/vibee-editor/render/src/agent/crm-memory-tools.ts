@@ -60,6 +60,8 @@ interface DialogLike {
     firstName?: string
     lastName?: string
     username?: string
+    /** UserProfilePhoto, or UserProfilePhotoEmpty when there is none. */
+    photo?: { className?: string } | null
   }
 }
 interface MessageLike {
@@ -126,10 +128,19 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           if (!NUMERIC.test(lead) || SERVICE_IDS.has(lead)) continue
           // The name as Telegram shows it, kept even when there is nothing
           // new to read: a list of leads must say who is who.
+          // Whether they have a profile photo comes free with the dialog --
+          // no extra call per person -- and keeps portraits out of the queue
+          // for people who have no face to redraw.
+          const photo = d.entity?.photo
           await rememberPerson(pool, owner, lead, {
             firstName: d.entity?.firstName ?? null,
             lastName: d.entity?.lastName ?? null,
             username: d.entity?.username ?? null,
+            hasPhoto:
+              photo === undefined
+                ? null
+                : Boolean(photo) &&
+                  photo?.className !== 'UserProfilePhotoEmpty',
           }).catch(() => undefined)
           let raw: MessageLike[]
           try {
