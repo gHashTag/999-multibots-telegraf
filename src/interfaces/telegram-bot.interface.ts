@@ -14,6 +14,7 @@ import type {
 } from 'telegraf/typings/scenes'
 import { ModeEnum, type Mode } from './modes'
 import type { Translation } from './translations.interface'
+import type { AvatarModelId } from '@/scenes/avatarTransformScene/models'
 
 type SceneId = string
 type TranslationEntry = Translation
@@ -402,7 +403,10 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
 
   // Avatar transformation fields
-  selectedModel?: 'flux-kontext' | 'seedream45' | 'nano-banana' // Выбранная AI модель для трансформации
+  // The model list lives in one place now: scenes/avatarTransformScene/models.ts.
+  // This union used to be written out by hand here as well, and it was already
+  // one model behind the keyboard the person was looking at.
+  selectedModel?: AvatarModelId // Выбранная AI модель для трансформации
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
 

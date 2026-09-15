@@ -8,6 +8,13 @@ import { redactBotToken } from '@/utils/redactBotToken'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { avatarActionCaption, avatarActionKeyboard } from './actionPrompt'
+import {
+  avatarModelCard,
+  avatarModelDisplayName,
+  avatarModelFromButton,
+  avatarModelKeyboard,
+  avatarModelPriority,
+} from './models'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
 import { markAvatarTransformUsed } from '@/core/supabase/markAvatarTransformUsed'
 // 🚨 HERO VALIDATION SYSTEM
@@ -25,6 +32,7 @@ import { getBotNameByToken } from '@/core/bot'
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
 import { generateSeeDream45 } from '@/services/generateSeeDream45'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
+import { generateGptImage25 } from '@/services/generateGptImage25'
 // Legacy fallback
 import { generateFluxKontext } from '@/services/generateFluxKontext'
 
@@ -1388,23 +1396,19 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Показываем выбор AI модели
     await ctx.reply(
-      isRu
-        ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${gender === 'male' ? 'Мужской образ' : 'Женский образ'}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2025\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-        : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${gender === 'male' ? 'Male style' : 'Female style'}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2025 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+      avatarModelCard(
+        isRu,
+        gender === 'male'
+          ? isRu
+            ? 'Мужской образ'
+            : 'Male style'
+          : isRu
+            ? 'Женский образ'
+            : 'Female style'
+      ),
       {
         parse_mode: 'HTML',
-        reply_markup: Markup.keyboard([
-          [
-            isRu
-              ? '🤖 FLUX Kontext Max (Google)'
-              : '🤖 FLUX Kontext Max (Google)',
-            isRu
-              ? '🎭 SeeDream-4.5 (ByteDance)'
-              : '🎭 SeeDream-4.5 (ByteDance)',
-            isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
-          ],
-          [isRu ? 'Отмена' : 'Cancel', isRu ? '🔙 Назад' : '🔙 Back'],
-        ]).resize().reply_markup,
+        reply_markup: avatarModelKeyboard(isRu, true),
       }
     )
 
@@ -1492,30 +1496,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Обработка выбора модели
-    let selectedModel: 'flux-kontext' | 'seedream45' | 'nano-banana' | null =
-      null
+    const selectedModel = avatarModelFromButton(text)
 
-    if (
-      text ===
-      (isRu ? '🤖 FLUX Kontext Max (Google)' : '🤖 FLUX Kontext Max (Google)')
-    ) {
-      selectedModel = 'flux-kontext'
-      logger.info('[AvatarTransformScene] FLUX Kontext Max selected', {
+    if (selectedModel) {
+      logger.info('[AvatarTransformScene] Model selected from keyboard', {
         telegramId,
+        selectedModel,
       })
-    } else if (
-      text ===
-      (isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)')
-    ) {
-      selectedModel = 'seedream45'
-      logger.info('[AvatarTransformScene] SeeDream-4.5 selected', {
-        telegramId,
-      })
-    } else if (
-      text === (isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)')
-    ) {
-      selectedModel = 'nano-banana'
-      logger.info('[AvatarTransformScene] Nano Banana selected', { telegramId })
     }
 
     if (!selectedModel) {
@@ -1546,10 +1533,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         step: 'photo_obtained',
       })
 
-      const modelDisplayName =
-        selectedModel === 'flux-kontext'
-          ? 'FLUX Kontext Max (Google)'
-          : 'SeeDream-4.5 (ByteDance)'
+      const modelDisplayName = avatarModelDisplayName(selectedModel)
 
       const gender = ctx.session.selectedGender
       const genderDisplay =
@@ -1690,26 +1674,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             : 'Female style'
 
       // Показываем выбор AI модели заново
-      await ctx.reply(
-        isRu
-          ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2025\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-          : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2025 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: Markup.keyboard([
-            [
-              isRu
-                ? '🤖 FLUX Kontext Max (Google)'
-                : '🤖 FLUX Kontext Max (Google)',
-              isRu
-                ? '🎭 SeeDream-4.5 (ByteDance)'
-                : '🎭 SeeDream-4.5 (ByteDance)',
-              isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
-            ],
-            [isRu ? '🔙 Назад' : '🔙 Back'],
-          ]).resize().reply_markup,
-        }
-      )
+      await ctx.reply(avatarModelCard(isRu, genderDisplay), {
+        parse_mode: 'HTML',
+        reply_markup: avatarModelKeyboard(isRu, false),
+      })
 
       // Возвращаемся к шагу выбора модели (шаг 1, индекс 1)
       ctx.wizard.selectStep(1)
@@ -1911,10 +1879,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       const gender = ctx.session.selectedGender
       const selectedModel = ctx.session.selectedModel
-      const modelDisplayName =
-        selectedModel === 'flux-kontext'
-          ? 'FLUX Kontext Max (Google)'
-          : 'SeeDream-4.5 (ByteDance)'
+      const modelDisplayName = avatarModelDisplayName(selectedModel)
       const genderDisplay =
         gender === 'male'
           ? isRu
@@ -2520,12 +2485,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       const attemptedModels: string[] = []
 
       // Define the priority order for models with fallback
-      const modelPriority =
-        selectedModel === 'seedream45'
-          ? ['seedream45', 'flux-kontext', 'nano-banana']
-          : (selectedModel as string) === 'nano-banana'
-            ? ['nano-banana', 'flux-kontext', 'seedream45']
-            : ['flux-kontext', 'seedream45', 'nano-banana']
+      const modelPriority = avatarModelPriority(selectedModel)
 
       console.log('🎯 Starting AI generation with fallback logic:', {
         telegramId,
@@ -2542,7 +2502,28 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             telegramId,
           })
 
-          if (modelToTry === 'seedream45') {
+          if (modelToTry === 'gpt-image-25') {
+            console.log('🎨 Using GPT-Image-2.5...', { telegramId })
+            const gptImageResult = await generateGptImage25({
+              telegram_id: telegramId,
+              promptText: prompt,
+              inputImageUrl: userPhotoUrl,
+              username: ctx.from?.username || 'unknown',
+              is_ru: isRu,
+              ctx,
+              // Portrait, like every other model in this chain.
+              aspect_ratio: '9:16',
+              suppressUserErrors: true, // Don't show errors in fallback chain
+            })
+
+            if (gptImageResult) {
+              result = 'success'
+              console.log('✅ GPT-Image-2.5 generation successful!', {
+                telegramId,
+              })
+              break
+            }
+          } else if (modelToTry === 'seedream45') {
             console.log('🎭 Using SeeDream-4.5...', { telegramId })
             const seedreamResult = await generateSeeDream45({
               telegram_id: telegramId,

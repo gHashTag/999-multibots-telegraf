@@ -74,7 +74,7 @@ export async function checkWAN25TaskStatus(
     throw new Error('KIE_AI_API_KEY not configured')
   }
 
-  const url = `${WAN25_API_CONFIG.BASE_URL}${WAN25_API_CONFIG.ENDPOINTS.TASK_STATUS}?taskId=${taskId}`
+  const url = `${WAN25_API_CONFIG.BASE_URL}${WAN25_API_CONFIG.ENDPOINTS.RECORD_INFO}?taskId=${taskId}`
 
   const response = await fetch(url, {
     headers: {

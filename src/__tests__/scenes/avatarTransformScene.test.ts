@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { WizardContext } from 'telegraf/typings/scenes'
 import { MyContext } from '@/interfaces'
+import { AVATAR_MODELS } from '@/scenes/avatarTransformScene/models'
 
 // Add mock for missing dependencies BEFORE importing the scene
 vi.mock('@/core/supabase/checkSuperheroGenerationUsage')
@@ -187,15 +188,22 @@ describe('AvatarTransformScene', () => {
         expect.stringContaining('Выбор AI модели'),
         expect.objectContaining({
           reply_markup: expect.objectContaining({
-            keyboard: expect.arrayContaining([
-              expect.arrayContaining([
-                expect.stringContaining('🤖 FLUX Kontext Max'),
-                expect.stringContaining('🎭 SeeDream-4'),
-              ]),
-            ]),
+            keyboard: expect.any(Array),
           }),
         })
       )
+
+      // Which models, rather than which row they share: the keyboard is laid
+      // out two per row now that there are four of them, and the previous
+      // assertion required FLUX and SeeDream to sit side by side. Every model
+      // in the registry has to be offered -- that is the part worth pinning.
+      const [, extra] = (mockCtx.reply as any).mock.calls[0]
+      const labels = extra.reply_markup.keyboard
+        .flat()
+        .map((b: any) => (typeof b === 'string' ? b : b.text))
+      for (const model of AVATAR_MODELS) {
+        expect(labels).toContain(model.button)
+      }
     })
 
     it('should handle FLUX Kontext Max selection', async () => {
