@@ -120,6 +120,65 @@ describe('what the words say', () => {
   })
 })
 
+/**
+ * A REFUSAL IN WORDS MUST NOT READ AS AN INTENT TO BUY.
+ *
+ * The buy group matches stems for want / need / pay, and nothing looked at
+ * what stood in front of them. Every phrase below was reproduced against the
+ * shipped regex and came back as buy: "thanks, I do not need it" scored +3,
+ * and "no, no video needed" came back as buy+service, which is the pair that
+ * sets next='deliver'.
+ *
+ * What that costs: a person who refused in words goes to the top of the hot
+ * queue with "send them an invoice" beside their name, and the brief tells the
+ * model they asked about a price themselves -- so the rule about never
+ * offering payment first does not save them.
+ */
+describe('a refusal is not a purchase', () => {
+  const buys = (t: string) => intentSignals([t]).signals.includes('buy')
+
+  it('does not read "no" as "yes"', () => {
+    expect(buys('спасибо, мне не нужно')).toBe(false)
+    expect(buys('не хочу, спасибо')).toBe(false)
+    expect(buys('я не буду оплачивать')).toBe(false)
+    expect(buys('нет, не нужно видео')).toBe(false)
+  })
+
+  it('and calls those an objection, which is what they are', () => {
+    expect(intentSignals(['спасибо, мне не нужно']).signals).toContain(
+      'objection'
+    )
+    expect(intentSignals(['не хочу, спасибо']).signals).toContain('objection')
+  })
+
+  it('a refusal about a video does not become a delivery either', () => {
+    // buy + service is the pair that sets next='deliver' -- a card that draws
+    // a portrait and charges the RECIPIENT's tokens when it is sent.
+    expect(intentSignals(['нет, не нужно видео']).signals).not.toContain('buy')
+  })
+
+  it('still hears a real intent standing beside a refusal', () => {
+    /*
+     * Checked per occurrence, not per message. Cancelling the whole group on
+     * any negation anywhere would be the same mistake pointing the other way:
+     * the second stem here carries no denial and is a genuine ask.
+     */
+    expect(buys('не хочу ждать, давайте оплачу')).toBe(true)
+  })
+
+  it('leaves a plain intent alone', () => {
+    expect(buys('хочу заказать')).toBe(true)
+    expect(buys('готов оплатить сегодня')).toBe(true)
+    expect(buys('I want to pay')).toBe(true)
+  })
+
+  it('does not disarm a price question phrased with "не"', () => {
+    // A price question phrased with a "not" is still an ask, and `price` is
+    // not a group a negation flips -- only `buy` is.
+    expect(intentSignals(['не подскажете цену?']).signals).toContain('price')
+  })
+})
+
 describe('a word is a word, not a prefix of another', () => {
   it('the commonest conjunction is not an objection, a centre is not a price, bathing is not buying', () => {
     expect(

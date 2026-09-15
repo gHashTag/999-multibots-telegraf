@@ -252,7 +252,61 @@ const stems = (words: string[]) =>
       ')',
     'iu'
   )
-const SIGNALS: Array<{ name: string; score: number; re: RegExp }> = [
+/**
+ * A NEGATION IN FRONT OF A WORD TURNS IT INTO ITS OPPOSITE.
+ *
+ * The buy group matches stems for want / need / pay. Nothing looked at what
+ * stood before them, so the Russian for "thanks, I do not need it" scored +3
+ * as an intent to buy, and "no, no video needed" came out as buy+service,
+ * which is the combination that sets next='deliver'. A person who refused
+ * went to the top of the hot queue with "send them an invoice" beside their
+ * name -- and the brief tells the model they asked for a price themselves, so
+ * the rule about never offering payment first does not save them.
+ *
+ * Checked per OCCURRENCE, not per message: "I do not want to wait, let me
+ * pay" still counts, because the second stem carries no negation. The window
+ * is short and counted in characters, so a denial two clauses earlier does
+ * not reach the stem it never referred to.
+ */
+// Built from a string: the Cyrillic guard cannot see inside a regex literal
+// and blocks the commit, exactly as it does for the stem lists above.
+const NEGATIONS = ['не', 'нет', 'ни', 'not', "don'?t", 'no']
+const NEGATED_BEFORE = new RegExp(
+  '(?:^|[^\\p{L}])(?:' +
+    NEGATIONS.join('|') +
+    ')(?:[^\\p{L}]+\\p{L}+)?[^\\p{L}]*$',
+  'iu'
+)
+
+/** Is this match denied by something standing just in front of it? */
+function negatedAt(text: string, index: number): boolean {
+  return NEGATED_BEFORE.test(text.slice(Math.max(0, index - 24), index))
+}
+
+/**
+ * Does the group fire on at least one occurrence that is NOT negated?
+ *
+ * `re` has no global flag (it is shared and `lastIndex` would leak between
+ * calls), so a global copy is made per check.
+ */
+function firesUnnegated(re: RegExp, text: string): boolean {
+  const all = new RegExp(
+    re.source,
+    re.flags.includes('g') ? re.flags : re.flags + 'g'
+  )
+  for (const m of text.matchAll(all)) {
+    if (typeof m.index === 'number' && !negatedAt(text, m.index)) return true
+  }
+  return false
+}
+
+const SIGNALS: Array<{
+  name: string
+  score: number
+  re: RegExp
+  /** A negation in front of it cancels this occurrence. Only intent groups. */
+  denied?: boolean
+}> = [
   {
     name: 'price',
     score: 3,
@@ -274,6 +328,10 @@ const SIGNALS: Array<{ name: string; score: number; re: RegExp }> = [
   {
     name: 'buy',
     score: 3,
+    // The only group where a negation in front flips the meaning: asking a
+    // price is still asking even when the question is phrased with a "not",
+    // and an objection is already a negation by construction.
+    denied: true,
     re: stems([
       'купить',
       'куплю',
@@ -335,6 +393,10 @@ const SIGNALS: Array<{ name: string; score: number; re: RegExp }> = [
       'подумаю',
       'потом',
       'не надо',
+      'не нужно',
+      'не нужен',
+      'не хочу',
+      'не буду',
       'не интересно',
       'not now',
       'too expensive',
@@ -351,7 +413,8 @@ export function intentSignals(texts: string[]): {
   let score = 0
   const signals: string[] = []
   for (const s of SIGNALS) {
-    if (s.re.test(joined)) {
+    const fires = s.denied ? firesUnnegated(s.re, joined) : s.re.test(joined)
+    if (fires) {
       score += s.score
       signals.push(s.name)
     }
