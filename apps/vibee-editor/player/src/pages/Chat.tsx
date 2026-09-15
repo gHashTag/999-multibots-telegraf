@@ -156,13 +156,15 @@ function ChatPage() {
                   `Зачислено ${vd['зачислено_токенов']} токенов! Баланс: ${vd['баланс']}`
                 )
               } else if (vd['зачисление_провалено']) {
-                // Not "not visible yet" but "not credited": the invoice is
-                // already marked redeemed, so a retry cannot find it again.
-                // Promising it will catch up here is the same lie this
-                // change repairs one layer down.
+                // Not "not visible yet" but "not credited". Retrying inside
+                // the same minute cannot fix whatever just failed, so the
+                // three retries below are skipped. The invoice itself is no
+                // longer closed on this path -- the render leaves it open --
+                // so the next visit tries again, and the line says exactly
+                // that instead of promising nothing more can happen.
                 setTokens(vd['баланс'] ?? null)
                 setTopUpNote(
-                  'Оплата прошла, но токены не зачислены. Мы уже знаем — напишите в поддержку, вернём или начислим руками.'
+                  'Оплата прошла, а токены не зачислены. Счёт остался открытым — повторим при следующем входе. Если не дойдёт, напишите в поддержку: вернём или начислим руками.'
                 )
               } else {
                 setTopUpNote(
