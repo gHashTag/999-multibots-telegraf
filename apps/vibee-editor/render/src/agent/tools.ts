@@ -1472,6 +1472,7 @@ export const TOOLS: AgentTool[] = [
     name: 'reel_render',
     description:
       'Собрать рилс: отрендерить композицию Remotion в готовый mp4. Список композиций — templates_list. ' +
+      // promise-checked: the deadline is in this file: Date.now() + 6 * 60 * 1000
       'По умолчанию ждёт окончания (до 6 минут) и отдаёт прямую ссылку на видео — её сразу можно в feed_publish.',
     parameters: {
       type: 'object',

@@ -3200,7 +3200,8 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
           ctx,
           kind === 'later'
             ? `⏰ Записал: ${id} — позже. Вернётся в список через две недели.`
-            : `🚫 Записал отказ: ${id}. 30 дней не трогаем.`,
+            : // promise-checked: REFUSAL_HOLDS_DAYS, held by promisesMatchTheCode.test.ts
+              `🚫 Записал отказ: ${id}. 30 дней не трогаем.`,
           kind === 'later' ? leadMenu(id) : hub()
         )
       } catch (e) {

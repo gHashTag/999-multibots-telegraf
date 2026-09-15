@@ -249,6 +249,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         })),
         how_to_read:
           'Предлагай то, о чём человек сам спрашивал; не предлагай того, от чего он ' +
+          // promise-checked: REFUSAL_HOLDS_DAYS, held by promisesMatchTheCode.test.ts
           'отказался за 30 дней; если ждёт ответа — сначала ответ, потом продажа.',
       }
     },

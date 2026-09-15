@@ -204,6 +204,7 @@ export function leadMenu(
 ) {
   const second = o.confirmRefuse
     ? [
+        // promise-checked: REFUSAL_HOLDS_DAYS, held by promisesMatchTheCode.test.ts
         btn('🚫 Да, отказ на 30 дней', crmCallback('refuse!', lead)),
         btn('↩️ Нет', crmCallback('back', lead)),
       ]

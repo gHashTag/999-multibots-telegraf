@@ -92,6 +92,31 @@ describe('what the bot promises is what the code does', () => {
     ).toContain(`отказ за ${days} дней`)
   })
 
+  it('the refusal window is the same everywhere the MODEL is told it', () => {
+    /*
+     * FOUR MORE PLACES, ALL OF THEM BRIEFS.
+     *
+     * `tri promises` found them: the refusal window is stated to the model in
+     * the two crm_leads tool descriptions and twice in the playbook, none of
+     * which this test read. The model is what decides whom to propose, so a
+     * stale window there is worse than a stale sentence to the owner: he
+     * would notice, the model will not.
+     */
+    const days = constant(renderFile('crm-stages.ts'), 'REFUSAL_HOLDS_DAYS')
+    const briefs: Array<[string, string]> = [
+      ['crm-memory-tools.ts', `отказался за ${days} дней`],
+      ['crm-memory-tools.ts', `отказ за ${days} дней`],
+      ['crm-playbook.ts', `не возвращайся ${days} дней`],
+      ['crm-playbook.ts', `Отказ за ${days} дней`],
+    ]
+    for (const [file, phrase] of briefs) {
+      expect(
+        renderFile(file),
+        `${file} briefs the model with a window other than ${days} days`
+      ).toContain(phrase)
+    }
+  })
+
   it('"later": the words in the message are LATER_RETURNS_AFTER_DAYS', () => {
     // Prose, not digits: the sentence says "two weeks". Spelled out here so a
     // change to the window fails loudly instead of quietly making the bot lie.
