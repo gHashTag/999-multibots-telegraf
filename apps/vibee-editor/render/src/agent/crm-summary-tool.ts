@@ -260,24 +260,41 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         touched,
         paid: paidSet,
       })
-      const [known, history, kinds, sellerSends, paid] = await Promise.all([
-        (
-          pool as {
-            query: (q: string, p: unknown[]) => Promise<{ rows: any[] }>
-          }
-        )
-          .query(
-            `SELECT count(*)::int AS people_known, max(seen_at) AS last_ingest_at
-               FROM crm_people WHERE owner_id = $1`,
-            [owner]
+      const [known, history, kinds, sellerSends, sentLastDay, paid] =
+        await Promise.all([
+          (
+            pool as {
+              query: (q: string, p: unknown[]) => Promise<{ rows: any[] }>
+            }
           )
-          .catch(() => ({ rows: [] as any[] })),
-        touchesByLead(pool, owner),
-        touchesByKind(pool, owner, days),
-        sellerSendsSince(pool, owner, days),
-        Promise.resolve(paidSet),
-      ])
+            .query(
+              `SELECT count(*)::int AS people_known, max(seen_at) AS last_ingest_at
+               FROM crm_people WHERE owner_id = $1`,
+              [owner]
+            )
+            .catch(() => ({ rows: [] as any[] })),
+          touchesByLead(pool, owner),
+          touchesByKind(pool, owner, days),
+          sellerSendsSince(pool, owner, days),
+          /*
+           * A DAILY CAP THAT NOBODY COUNTS IS A NUMBER, NOT A CAP.
+           *
+           * `caps.day` was reported to the model and to nobody else: nothing
+           * measured how much of it was already spent, so the figure could
+           * neither be respected nor seen to be broken. The seller never
+           * sends by itself -- every card waits for the owner's press -- so
+           * this is a budget for how many cards a day are worth proposing,
+           * and the honest way to state it is what is LEFT.
+           *
+           * A rolling 24 hours, not a calendar day: nobody here knows the
+           * owner's timezone, and the same audit found a day-boundary
+           * comparison already reading a day wrong somewhere else.
+           */
+          sellerSendsSince(pool, owner, 1),
+          Promise.resolve(paidSet),
+        ])
       const now = Date.now()
+      const caps = segmentCaps()
       const core = summarize(list, history, kinds, paid, now)
       const { pendingFor } = await import('./tg-proposals')
       const pend = pendingFor(owner)
@@ -287,7 +304,12 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         people_known: Number(known.rows?.[0]?.people_known ?? 0),
         last_ingest_at: lastIngest ? new Date(lastIngest).toISOString() : null,
         ...core,
-        caps: segmentCaps(),
+        caps,
+        day_budget: {
+          cap: caps.day,
+          sent_last_24h: sentLastDay,
+          left: Math.max(0, caps.day - sentLastDay),
+        },
         seller_sends_recent: sellerSends,
         pending_card: pend
           ? {
@@ -306,7 +328,9 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
           '(ours: он ответил, мы молчим; due: просил позже, пора; theirs: мы написали, ответа нет 3 дня). ' +
           'hot — сам говорил о цене или покупке. last_ingest_at — когда память обходила диалоги; зеркало ' +
           'личных ответов его не двигает. seller_sends_recent — сколько из «написали» ушло из карточек ' +
-          'продавца. offer/deliver только у тех, кто САМ спрашивал цену. Не предлагай оплату первым. ' +
+          'продавца. day_budget — сколько карточек за сутки уже ушло и сколько осталось по лимиту; ' +
+          'лимит на предложения, а не на отправку: без нажатия владельца ничего не уходит. ' +
+          'offer/deliver только у тех, кто САМ спрашивал цену. Не предлагай оплату первым. ' +
           'Выборочно: crm_leads limit 50 и отбор по next/stage/signals/paid/days_since_their_last_word.',
       }
     },

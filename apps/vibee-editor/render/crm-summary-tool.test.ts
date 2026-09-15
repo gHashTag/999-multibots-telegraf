@@ -134,7 +134,18 @@ function fakePool(o: { throwOn?: RegExp } = {}) {
             },
           ],
         }
-      if (/note LIKE \$3/.test(flat)) return { rows: [{ n: 1 }] }
+      /*
+       * Seller sends, ANSWERED BY THE WINDOW ASKED FOR.
+       *
+       * The same query serves two different questions -- how many cards went
+       * out over the report's window, and how many in the last 24 hours for
+       * the daily budget. A fake that answered one number for both would
+       * make the budget untestable: it would look right while measuring the
+       * wrong period.
+       */
+      if (/note LIKE \$3/.test(flat)) {
+        return { rows: [{ n: String(params[1]) === '1' ? 2 : 5 }] }
+      }
       return { rows: [] }
     },
   }
@@ -233,7 +244,6 @@ describe('crm_summary', () => {
       recent: 0,
       last_at: null,
     })
-    expect(r.seller_sends_recent).toBe(1)
     expect(r.waiting_by_touch).toEqual({ ours: 1, due: 0, theirs: 1 })
     expect(r.top.map((t: any) => t.lead)).toEqual([A, B])
     expect(r.top[0]).toMatchObject({
@@ -263,6 +273,17 @@ describe('crm_summary', () => {
     })
     expect(r.objections).toEqual([])
     expect(r.caps).toMatchObject({ hot: 10, waiting: 20, warm: 10, day: 30 })
+    /*
+     * A DAILY CAP NOBODY COUNTS IS A NUMBER, NOT A CAP.
+     *
+     * `caps.day` was handed to the model and measured by nothing: it could
+     * be neither respected nor seen to be broken. What is reported now is
+     * what is LEFT of it -- over a rolling 24 hours, because nobody here
+     * knows the owner's timezone.
+     */
+    expect(r.seller_sends_recent, 'the window figure moved').toBe(5)
+    expect(r.day_budget).toEqual({ cap: 30, sent_last_24h: 2, left: 28 })
+    expect(r.how_to_read).toContain('day_budget')
     expect(r.how_to_read).toContain('Не предлагай оплату первым')
   })
 
@@ -343,7 +364,9 @@ describe('the touches helpers', () => {
         OWNER
       )
     ).toEqual([])
-    expect(await sellerSendsSince(pool as never, OWNER)).toBe(1)
+    // The fake answers by the window asked for: the default is seven days.
+    expect(await sellerSendsSince(pool as never, OWNER)).toBe(5)
+    expect(await sellerSendsSince(pool as never, OWNER, 1)).toBe(2)
     expect(
       await sellerSendsSince(fakePool({ throwOn: /note LIKE/ }) as never, OWNER)
     ).toBe(0)
