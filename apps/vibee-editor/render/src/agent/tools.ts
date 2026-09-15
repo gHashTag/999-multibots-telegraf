@@ -73,6 +73,13 @@ export interface ToolContext {
    * code, never from arguments.
    */
   chargeLater?: boolean
+  /**
+   * The bot whose initData proved `telegramId` on this request, as digits or
+   * 'unknown' (auth.ts initDataBotOf); absent for every other credential. Set
+   * only by code, for the per-bot privileged path counters
+   * (countInitDataToolCall). Counts only: no tool decides anything by it.
+   */
+  initDataBot?: string
 }
 
 export interface AgentTool {
@@ -742,9 +749,15 @@ import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
-import { visibilityOf } from '../hive/roles'
+import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
-import { TELEGRAM_TOOLS, withClient, COMPACT_HIDDEN } from './telegram-tools'
+import {
+  TELEGRAM_TOOLS,
+  withClient,
+  COMPACT_HIDDEN,
+  OWNER_TELEGRAM_ID,
+} from './telegram-tools'
+import { countInitDataBot } from '../auth/initdata-bot-counts'
 import { PROJECT_TOOLS } from './project-tools'
 
 export const TOOLS: AgentTool[] = [
@@ -2790,6 +2803,23 @@ for (const t of TOOLS) {
 }
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
+
+/**
+ * Count a tool call whose identity came from initData (ctx.initDataBot), per
+ * bot and privileged class (src/auth/initdata-bot-counts.ts InitDataPath):
+ * tg_* tools, and any tool called by the platform owner or a hive keeper --
+ * the people a primary-bot-only rule would lock out if they launch another
+ * bot. Called by every dispatcher that can hold initData (routes.ts /mcp,
+ * chat.ts) before the handler runs, whatever it then decides. Counts only.
+ */
+export function countInitDataToolCall(ctx: ToolContext, name: string): void {
+  if (!ctx.initDataBot) return
+  const who = String(ctx.telegramId)
+  if (name.startsWith('tg_')) countInitDataBot(ctx.initDataBot, 'tg_tool')
+  if (who === OWNER_TELEGRAM_ID) countInitDataBot(ctx.initDataBot, 'owner_tool')
+  else if (keepers().includes(who))
+    countInitDataBot(ctx.initDataBot, 'keeper_tool')
+}
 
 /** Формат OpenAI tool-calling. Схема ОДНА и та же, что уходит наружу по MCP. */
 /** The seller's kit for a model with a small context: CRM, Telegram, SOUL, one generator. */

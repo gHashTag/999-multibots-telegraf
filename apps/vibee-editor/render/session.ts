@@ -28,6 +28,18 @@ const ACCESS_TTL_SECONDS = 600
 const REFRESH_TTL_SECONDS = 60 * 24 * 3600
 
 /**
+ * Absolute age of a refresh family, counted from its session row
+ * (app_sessions.created_at, which rotation never changes).
+ *
+ * Each rotation issues a token for REFRESH_TTL_SECONDS from now, so without
+ * this a family that keeps rotating never ends: a refresh token copied out of
+ * the browser and rotated from a server every few days stayed a live session
+ * indefinitely. Rotation must not extend the original lifetime (RFC 10017
+ * 6.3.2.3). The cost: a web user signs in again every 60 days.
+ */
+const FAMILY_MAX_AGE_SECONDS = 60 * 24 * 3600
+
+/**
  * Clock skew allowance when checking `exp`/`iat`.
  *
  * Device clocks drift, and a person whose phone is 40 seconds fast should not
@@ -316,27 +328,48 @@ export function revocationMark(): number {
 export function setRevokedSessions(
   ids: Iterable<string>,
   cutoffs: Iterable<[string, number]> = [],
-  readAfterMark?: number
+  readAfterMark?: number,
+  /** Game-token cutoffs (`gameNotBefore`), merged by the same rule. */
+  gameCutoffs: Iterable<[string, number]> = []
 ): void {
   const nextRevoked = new Set(ids)
-  const nextNotBefore = new Map(cutoffs)
   if (readAfterMark === undefined) {
     pendingRevokes.clear()
-    pendingCutoffs.clear()
   } else {
     for (const [sid, mark] of pendingRevokes) {
       if (mark <= readAfterMark) pendingRevokes.delete(sid)
       else nextRevoked.add(sid)
     }
-    for (const [id, c] of pendingCutoffs) {
-      if (c.mark <= readAfterMark) pendingCutoffs.delete(id)
-      else
-        nextNotBefore.set(id, Math.max(nextNotBefore.get(id) ?? 0, c.seconds))
-    }
   }
   revoked = nextRevoked
-  notBefore = nextNotBefore
+  notBefore = withPendingCutoffs(cutoffs, pendingCutoffs, readAfterMark)
+  gameNotBefore = withPendingCutoffs(
+    gameCutoffs,
+    pendingGameCutoffs,
+    readAfterMark
+  )
   revocationsSyncedAt = Date.now()
+}
+
+/**
+ * What a poll read, plus the local marks it may have missed: see
+ * setRevokedSessions. A cutoff only moves forward, so the later value wins.
+ */
+function withPendingCutoffs(
+  read: Iterable<[string, number]>,
+  pending: Map<string, { seconds: number; mark: number }>,
+  readAfterMark: number | undefined
+): Map<string, number> {
+  const next = new Map(read)
+  if (readAfterMark === undefined) {
+    pending.clear()
+    return next
+  }
+  for (const [id, c] of pending) {
+    if (c.mark <= readAfterMark) pending.delete(id)
+    else next.set(id, Math.max(next.get(id) ?? 0, c.seconds))
+  }
+  return next
 }
 
 /** Mark a session revoked immediately, without waiting for the next poll. */
@@ -349,6 +382,32 @@ export function revokeNow(sessionId: string): void {
 export function markNotBefore(telegramId: string, seconds: number): void {
   notBefore.set(telegramId, Math.max(notBefore.get(telegramId) ?? 0, seconds))
   pendingCutoffs.set(telegramId, { seconds, mark: ++lastMark })
+}
+
+/**
+ * Per-person cutoff for GAME TOKENS ONLY, left by a plain sign-out
+ * (/api/auth/logout): telegram_id -> epoch seconds.
+ *
+ * A game token names no session (GameClaims has no sid), so revoking the family
+ * that signed out does not reach it, and before this a token minted a moment
+ * before "Sign out" kept answering for up to GAME_TOKEN_TTL_SECONDS. This
+ * refuses a game token issued before the person's last sign-out, by iat.
+ *
+ * Nothing else of the person's is touched: their other browser keeps its
+ * session and mints a new game token at once. Seconds, compared with `<`, as
+ * `notBefore`. Kept in memory and refreshed by the same poll, with the same
+ * pending marks, and refused on the same stale state (verifyGameToken).
+ */
+let gameNotBefore = new Map<string, number>()
+const pendingGameCutoffs = new Map<string, { seconds: number; mark: number }>()
+
+/** Set a person's game-token cutoff immediately, without waiting for the next poll. */
+export function markGameNotBefore(telegramId: string, seconds: number): void {
+  gameNotBefore.set(
+    telegramId,
+    Math.max(gameNotBefore.get(telegramId) ?? 0, seconds)
+  )
+  pendingGameCutoffs.set(telegramId, { seconds, mark: ++lastMark })
 }
 
 /**
@@ -550,6 +609,9 @@ export function verifyGameToken(
       'revoked'
     )
   }
+  if (claims.iat < (gameNotBefore.get(claims.sub) ?? 0)) {
+    throw new SessionError('game token issued before sign-out', 'revoked')
+  }
   return claims
 }
 
@@ -595,7 +657,10 @@ export const REUSE_GRACE_SECONDS = 10
 
 export type RotateOutcome =
   | { ok: true; next: RefreshIssue }
-  | { ok: false; reason: 'unknown' | 'expired' | 'revoked' }
+  | {
+      ok: false
+      reason: 'unknown' | 'expired' | 'revoked' | 'family_expired'
+    }
   | { ok: false; reason: 'reused'; familyId: string }
   /**
    * Тот же токен предъявлен дважды почти одновременно. Семья НЕ гасится:
@@ -653,6 +718,8 @@ export async function rotateRefreshToken(
       usedAt: Date | null
       revokedAt: Date | null
       expiresAt: Date
+      /** When the family's session row was created (app_sessions.created_at). */
+      familyCreatedAt: Date
     } | null>
     consumeAndInsert(
       hash: string,
@@ -670,6 +737,19 @@ export async function rotateRefreshToken(
   if (row.revokedAt) return { ok: false, reason: 'revoked' }
   if (row.expiresAt.getTime() <= t.getTime())
     return { ok: false, reason: 'expired' }
+  /*
+   * The family's absolute age (FAMILY_MAX_AGE_SECONDS), checked before anything
+   * is spent or revoked: an over-age family is over, whoever presents it. A
+   * store that cannot say when the family began is refused, not waved through:
+   * an unknown age is not a young one.
+   */
+  const bornAt = row.familyCreatedAt?.getTime()
+  if (
+    typeof bornAt !== 'number' ||
+    !Number.isFinite(bornAt) ||
+    t.getTime() - bornAt >= FAMILY_MAX_AGE_SECONDS * 1000
+  )
+    return { ok: false, reason: 'family_expired' }
 
   if (row.usedAt) {
     const прошлоСекунд = (t.getTime() - row.usedAt.getTime()) / 1000
@@ -690,5 +770,6 @@ export async function rotateRefreshToken(
 export const SESSION_TUNING = {
   ACCESS_TTL_SECONDS,
   REFRESH_TTL_SECONDS,
+  FAMILY_MAX_AGE_SECONDS,
   CLOCK_SKEW_SECONDS,
 } as const

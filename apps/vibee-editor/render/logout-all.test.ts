@@ -52,6 +52,7 @@ function memoryPool() {
   >()
   const assertions = new Set<string>()
   const notBefore = new Map<string, number>()
+  const gameNotBefore = new Map<string, number>()
 
   const client = {
     async query(sql: string, params: unknown[] = []) {
@@ -208,6 +209,23 @@ function memoryPool() {
       if (s.startsWith('INSERT INTO app_user_not_before')) {
         notBefore.set(p0, Number(params[1]))
         return { rows: [] }
+      }
+      // A plain sign-out's game-token cutoff, and the poll's read of it.
+      if (s.startsWith('INSERT INTO app_user_game_not_before')) {
+        gameNotBefore.set(p0, Number(params[1]))
+        return { rows: [] }
+      }
+      if (
+        s.startsWith(
+          'SELECT telegram_id, EXTRACT(EPOCH FROM not_before) AS not_before FROM app_user_game_not_before'
+        )
+      ) {
+        return {
+          rows: [...gameNotBefore].map(([telegram_id, at]) => ({
+            telegram_id,
+            not_before: `${at}.000000`,
+          })),
+        }
       }
       if (
         s.startsWith(

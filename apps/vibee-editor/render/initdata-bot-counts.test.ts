@@ -160,24 +160,55 @@ describe('per-request initData bot counters', () => {
     expect(botLines()[0]).not.toContain(`bot=${BOT_A}`)
   })
 
-  it('no route reads the counters: only auth.ts imports the module', () => {
+  it('no route reads the counters: only session-store.ts takes them, into a table nothing else names', () => {
+    /*
+     * The module is imported where initData is verified or a privileged path is
+     * reached, and those callers only count. Taking the aggregates out is
+     * session-store.ts alone, which writes app_initdata_bot_daily from the
+     * revocation poll; no other source names that table, so no route reads it.
+     * Comments are stripped: prose about the table is not a reader.
+     */
     const render = __dirname
-    const importers: string[] = []
+    const sources: Array<[string, string]> = []
     const walk = (dir: string) => {
       for (const name of fs.readdirSync(dir)) {
         if (['node_modules', 'dist'].includes(name) || name.startsWith('.'))
           continue
         const full = path.join(dir, name)
         if (fs.statSync(full).isDirectory()) walk(full)
-        else if (
-          name.endsWith('.ts') &&
-          !name.endsWith('.test.ts') &&
-          fs.readFileSync(full, 'utf8').includes('initdata-bot-counts')
-        )
-          importers.push(path.relative(render, full))
+        else if (name.endsWith('.ts') && !name.endsWith('.test.ts'))
+          sources.push([
+            path.relative(render, full),
+            fs
+              .readFileSync(full, 'utf8')
+              .replace(/\/\*[\s\S]*?\*\//g, '')
+              .replace(/^\s*\/\/.*$/gm, ''),
+          ])
       }
     }
     walk(render)
-    expect(importers.sort()).toEqual(['auth.ts'])
+    const naming = (s: string) =>
+      sources
+        .filter(([, text]) => text.includes(s))
+        .map(([file]) => file)
+        .sort()
+    expect(naming('takeInitDataBotCounts')).toEqual([
+      'session-store.ts',
+      'src/auth/initdata-bot-counts.ts',
+    ])
+    expect(naming('returnInitDataBotCounts')).toEqual([
+      'session-store.ts',
+      'src/auth/initdata-bot-counts.ts',
+    ])
+    expect(naming('app_initdata_bot_daily')).toEqual(['session-store.ts'])
+    expect(naming("from './src/auth/initdata-bot-counts'")).toEqual([
+      'auth.ts',
+      'render-server.ts',
+      'session-routes.ts',
+      'session-store.ts',
+    ])
+    expect(naming("from '../auth/initdata-bot-counts'")).toEqual([
+      'src/agent/tools.ts',
+    ])
   })
 })

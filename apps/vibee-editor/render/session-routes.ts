@@ -41,17 +41,20 @@ import {
   digest,
   revokeNow,
   markNotBefore,
+  markGameNotBefore,
   signGameToken,
   GAME_AUDIENCES,
   GAME_TOKEN_TTL_SECONDS,
   SESSION_TUNING,
   SessionError,
 } from './session'
+import { countInitDataBot } from './src/auth/initdata-bot-counts'
 import {
   ensureAuthTables,
   refreshStore,
   revokeAllFamiliesOf,
   setNotBefore,
+  setGameNotBefore,
   signedOutSince,
   pairingCodeSignedOut,
   issuePairingCode,
@@ -518,6 +521,53 @@ function signedByBot(botId: string | undefined): string {
 }
 
 /**
+ * Why a Login Widget sign-in was refused, as a class. Only the class reaches
+ * the journal and the console; the verifier's own text stays in the response.
+ */
+type WidgetRefusal =
+  | 'rate'
+  | 'malformed'
+  | 'signature'
+  | 'expired'
+  | 'unconfigured'
+  | 'replay'
+  | 'stale'
+  | 'signed-out'
+
+function widgetRefusalOf(reason: string): WidgetRefusal {
+  if (reason === 'widget signature mismatch') return 'signature'
+  if (reason === 'widget authorization is expired') return 'expired'
+  if (reason === 'login bot token is not configured') return 'unconfigured'
+  return 'malformed'
+}
+
+let widgetRateNotedAt = 0
+
+/**
+ * A refused Login Widget sign-in: one console line and one journal row with no
+ * subject. Before verification nobody is known, and after it the row is the
+ * keeper's business rather than a note in the person's own feed (the journal
+ * shows a subjectless event to keepers only). `signature` is attention: a
+ * payload that fails the HMAC is somebody trying.
+ *
+ * A 429 costs its sender nothing, and a row per 429 would turn a flood into
+ * database writes, so rate refusals are noted at most once a minute.
+ */
+function noteWidgetRefused(pool: Pool, reason: WidgetRefusal): void {
+  if (reason === 'rate') {
+    const now = Date.now()
+    if (now - widgetRateNotedAt < 60_000) return
+    widgetRateNotedAt = now
+  }
+  console.warn(`[widget] outcome=refused reason=${reason}`)
+  void record(pool, {
+    kind: 'sign-in-refused',
+    what: `widget: ${reason}`,
+    severity: reason === 'signature' ? 'attention' : 'normal',
+  })
+}
+
+/**
  * Numeric ids of the bots whose initData may mint a game token.
  *
  * Read on every call, like the bot tokens in auth.ts, so a change needs no
@@ -664,6 +714,7 @@ export async function handleAuthRoute(
       })
       return true
     }
+    countInitDataBot(v.botId, 'auth_telegram')
 
     /*
      * THE MOST COMMON SIGN-IN WAS THE LEAST VISIBLE ONE.
@@ -708,6 +759,7 @@ export async function handleAuthRoute(
     {
       const пуск = пуститьВход(req)
       if (!пуск.можно) {
+        noteWidgetRefused(pool, 'rate')
         res.setHeader('Retry-After', String(пуск.ждатьСекунд))
         json(res, 429, {
           error: 'слишком часто — подождите и попробуйте снова',
@@ -720,11 +772,13 @@ export async function handleAuthRoute(
     try {
       body = JSON.parse((await readBody(req)) || '{}')
     } catch {
+      noteWidgetRefused(pool, 'malformed')
       json(res, 400, { error: 'тело запроса не разобрано как JSON' })
       return true
     }
     const verified = verifyTelegramLoginWidget(body)
     if (!verified.ok) {
+      noteWidgetRefused(pool, widgetRefusalOf(verified.reason))
       json(res, 401, {
         error: 'подпись Telegram Login Widget не принята',
         detail: verified.reason,
@@ -738,14 +792,30 @@ export async function handleAuthRoute(
         await signedOutSince(pool, verified.telegramId, verified.user.auth_date)
       ) {
         await revokeMinted(pool, session.sessionId)
+        noteWidgetRefused(pool, 'signed-out')
         return refuseSignedOut(res)
       }
+      /*
+       * The only session kind that can mint a game token wrote nothing here,
+       * the same blind spot /api/auth/telegram had. The journal row carries its
+       * subject, as every sign-in row does; the console line names no one.
+       */
+      console.log('[widget] outcome=sign-in')
+      void record(pool, {
+        kind: 'sign-in',
+        who: verified.telegramId,
+        what: `widget; ${safeDeviceName(body.device_name)}`,
+      })
       json(res, 200, { ...session.response, telegram_user: verified.user })
     } catch (error) {
       if (
         error instanceof StaleWidgetProfileAssertion ||
         error instanceof ReplayedWidgetAssertion
       ) {
+        noteWidgetRefused(
+          pool,
+          error instanceof ReplayedWidgetAssertion ? 'replay' : 'stale'
+        )
         json(res, 409, { error: 'Telegram assertion already used or stale' })
         return true
       }
@@ -810,6 +880,7 @@ export async function handleAuthRoute(
       })
       return true
     }
+    countInitDataBot(v.botId, 'pair_start')
 
     const { code, expiresAt } = await issuePairingCode(
       pool,
@@ -1067,6 +1138,8 @@ export async function handleAuthRoute(
           : 'auth_refresh_failed'
       json(res, 401, {
         error: code,
+        // The class a client may branch on, e.g. family_expired after 60 days.
+        reason: outcome.reason,
         detail:
           outcome.reason === 'reused'
             ? 'этот токен уже использован — все сессии этого устройства отозваны'
@@ -1166,145 +1239,176 @@ export async function handleAuthRoute(
    * Public (auth.ts PUBLIC_EXACT): this block is the whole identity check.
    */
   if (path === '/api/auth/game-token' && req.method === 'POST') {
-    const origin = String(req.headers['origin'] ?? '')
-    if (origin !== PLAYER_ORIGIN) {
-      json(res, 403, {
-        error: 'game_token_origin_refused',
-        detail: `Origin must be exactly ${PLAYER_ORIGIN}`,
-      })
-      return true
-    }
-    let aud: unknown
-    try {
-      aud = JSON.parse((await readBody(req)) || '{}')?.aud
-    } catch {
-      json(res, 400, {
-        error: 'game_token_bad_request',
-        detail: 'the body must be JSON: {"aud": "<game origin>"}',
-      })
-      return true
-    }
-    if (typeof aud !== 'string' || !GAME_AUDIENCES.includes(aud)) {
-      json(res, 400, {
-        error: 'game_token_audience_refused',
-        detail: `aud must be exactly one of: ${GAME_AUDIENCES.join(', ')}`,
-      })
-      return true
-    }
-
-    let telegramId: string
+    /*
+     * ONE LOG LINE PER OUTCOME, AND NOTHING IN IT THAT NAMES OR WORKS AS A PERSON.
+     *
+     * Measured 2026-09-15: 14 h of live logs held four '📥 POST' lines for this
+     * route and no outcome, so a wave of refusals and silence looked alike.
+     * Every answer below leaves exactly one line:
+     *   [game-token] outcome=<code|minted|error> parent=<web|initdata|none> aud=<aud|none|invalid>
+     * `parent` is the credential class the request presented (a Bearer is the
+     * web path, whatever its session turns out to be). `aud` is printed only
+     * when it is a game origin, so a caller cannot write into the log. No
+     * telegram_id, no token, no initData.
+     */
     const bearer = (req.headers['authorization'] as string | undefined) || ''
     const initData =
       (req.headers['x-telegram-init-data'] as string | undefined) ||
       (req.headers['x-telegram-initdata'] as string | undefined) ||
       ''
-    if (bearer.startsWith('Bearer ')) {
-      let sid: string
+    const presented = bearer.startsWith('Bearer ')
+      ? 'web'
+      : initData
+        ? 'initdata'
+        : 'none'
+    let aud: unknown
+    let logged = false
+    const logOutcome = (outcome: string) => {
+      if (logged) return
+      logged = true
+      const audience =
+        aud === undefined
+          ? 'none'
+          : typeof aud === 'string' && GAME_AUDIENCES.includes(aud)
+            ? aud
+            : 'invalid'
+      const line = `[game-token] outcome=${outcome} parent=${presented} aud=${audience}`
+      if (outcome === 'minted') console.log(line)
+      else if (outcome === 'error') console.error(line)
+      else console.warn(line)
+    }
+    const answer = (status: number, body: Record<string, unknown>): true => {
+      logOutcome(typeof body.error === 'string' ? body.error : 'minted')
+      json(res, status, body)
+      return true
+    }
+    try {
+      const origin = String(req.headers['origin'] ?? '')
+      if (origin !== PLAYER_ORIGIN) {
+        return answer(403, {
+          error: 'game_token_origin_refused',
+          detail: `Origin must be exactly ${PLAYER_ORIGIN}`,
+        })
+      }
       try {
-        const claims = verifyAppSession(bearer.slice(7).trim())
-        telegramId = claims.sub
-        sid = claims.sid
-      } catch (e) {
-        const code = e instanceof SessionError ? e.code : 'malformed'
-        json(res, 401, {
-          error: 'game_token_credential_rejected',
-          detail: `session rejected: ${code}`,
+        aud = JSON.parse((await readBody(req)) || '{}')?.aud
+      } catch {
+        return answer(400, {
+          error: 'game_token_bad_request',
+          detail: 'the body must be JSON: {"aud": "<game origin>"}',
         })
-        return true
       }
-      /*
-       * Only a Login Widget session stands behind a game token. A session
-       * minted from initData (kind launch, or app through a pairing code) rests
-       * on a signature from any bot this server accepts. Accepting it let any
-       * of those bots mint here with one extra request -- exchange the initData
-       * at /api/auth/telegram, present the access token -- past the
-       * LAUNCH_BOT_IDS check below. A legacy row cannot show which it is, so it
-       * is refused as well. Read from the database, which also refuses a session
-       * revoked on a replica this one has not heard from yet.
-       */
-      const parent = await pool.query(
-        `SELECT kind FROM app_sessions WHERE id = $1 AND revoked_at IS NULL`,
-        [sid]
+      if (typeof aud !== 'string' || !GAME_AUDIENCES.includes(aud)) {
+        return answer(400, {
+          error: 'game_token_audience_refused',
+          detail: `aud must be exactly one of: ${GAME_AUDIENCES.join(', ')}`,
+        })
+      }
+
+      let telegramId: string
+      if (bearer.startsWith('Bearer ')) {
+        let sid: string
+        try {
+          const claims = verifyAppSession(bearer.slice(7).trim())
+          telegramId = claims.sub
+          sid = claims.sid
+        } catch (e) {
+          const code = e instanceof SessionError ? e.code : 'malformed'
+          return answer(401, {
+            error: 'game_token_credential_rejected',
+            detail: `session rejected: ${code}`,
+          })
+        }
+        /*
+         * Only a Login Widget session stands behind a game token. A session
+         * minted from initData (kind launch, or app through a pairing code) rests
+         * on a signature from any bot this server accepts. Accepting it let any
+         * of those bots mint here with one extra request -- exchange the initData
+         * at /api/auth/telegram, present the access token -- past the
+         * LAUNCH_BOT_IDS check below. A legacy row cannot show which it is, so it
+         * is refused as well. Read from the database, which also refuses a session
+         * revoked on a replica this one has not heard from yet.
+         */
+        const parent = await pool.query(
+          `SELECT kind FROM app_sessions WHERE id = $1 AND revoked_at IS NULL`,
+          [sid]
+        )
+        if (!parent.rows.length) {
+          return answer(401, {
+            error: 'game_token_credential_rejected',
+            detail: 'session rejected: revoked',
+          })
+        }
+        if (parent.rows[0].kind !== 'web') {
+          return answer(403, {
+            error: 'game_token_parent_not_web',
+            detail:
+              'only a browser sign-in (Telegram Login Widget) session may mint a game token; inside Telegram send X-Telegram-Init-Data',
+          })
+        }
+      } else if (initData) {
+        const launchBots = launchBotIds()
+        if (!launchBots.length) {
+          return answer(403, {
+            error: 'game_token_launch_bots_unset',
+            detail:
+              'LAUNCH_BOT_IDS is not configured, so Telegram initData cannot mint a game token yet',
+          })
+        }
+        const v = verifyTelegramInitData(initData)
+        const id = v.ok ? verifiedTelegramIdFrom(initData) : null
+        if (!v.ok || !id) {
+          return answer(401, {
+            error: 'game_token_credential_rejected',
+            detail: `initData rejected: ${v.reason ?? 'no user.id in the signed string'}`,
+          })
+        }
+        if (!launchBots.includes(v.botId ?? '')) {
+          return answer(403, {
+            error: 'game_token_bot_not_allowed',
+            detail:
+              'the bot that signed this initData is not in LAUNCH_BOT_IDS',
+          })
+        }
+        // A replica that has not polled yet admits a launch older than the
+        // cutoff; the database does not.
+        if (await signedOutSince(pool, id, authDateOf(initData))) {
+          return answer(401, {
+            error: 'game_token_credential_rejected',
+            detail: 'initData rejected: issued before sign-out everywhere',
+          })
+        }
+        telegramId = id
+      } else {
+        return answer(401, {
+          error: 'game_token_credential_required',
+          detail:
+            'send Authorization: Bearer <access token> or X-Telegram-Init-Data',
+        })
+      }
+
+      const allowed = allowPerKey(
+        `game-token:${telegramId}`,
+        GAME_TOKENS_PER_WINDOW
       )
-      if (!parent.rows.length) {
-        json(res, 401, {
-          error: 'game_token_credential_rejected',
-          detail: 'session rejected: revoked',
+      if (!allowed.ok) {
+        res.setHeader('Retry-After', String(allowed.retryAfterSeconds))
+        return answer(429, {
+          error: 'game_token_rate_limited',
+          retry_after_seconds: allowed.retryAfterSeconds,
         })
-        return true
       }
-      if (parent.rows[0].kind !== 'web') {
-        json(res, 403, {
-          error: 'game_token_parent_not_web',
-          detail:
-            'only a browser sign-in (Telegram Login Widget) session may mint a game token; inside Telegram send X-Telegram-Init-Data',
-        })
-        return true
-      }
-    } else if (initData) {
-      const launchBots = launchBotIds()
-      if (!launchBots.length) {
-        json(res, 403, {
-          error: 'game_token_launch_bots_unset',
-          detail:
-            'LAUNCH_BOT_IDS is not configured, so Telegram initData cannot mint a game token yet',
-        })
-        return true
-      }
-      const v = verifyTelegramInitData(initData)
-      const id = v.ok ? verifiedTelegramIdFrom(initData) : null
-      if (!v.ok || !id) {
-        json(res, 401, {
-          error: 'game_token_credential_rejected',
-          detail: `initData rejected: ${v.reason ?? 'no user.id in the signed string'}`,
-        })
-        return true
-      }
-      if (!launchBots.includes(v.botId ?? '')) {
-        json(res, 403, {
-          error: 'game_token_bot_not_allowed',
-          detail: 'the bot that signed this initData is not in LAUNCH_BOT_IDS',
-        })
-        return true
-      }
-      // A replica that has not polled yet admits a launch older than the
-      // cutoff; the database does not.
-      if (await signedOutSince(pool, id, authDateOf(initData))) {
-        json(res, 401, {
-          error: 'game_token_credential_rejected',
-          detail: 'initData rejected: issued before sign-out everywhere',
-        })
-        return true
-      }
-      telegramId = id
-    } else {
-      json(res, 401, {
-        error: 'game_token_credential_required',
-        detail:
-          'send Authorization: Bearer <access token> or X-Telegram-Init-Data',
-      })
-      return true
-    }
 
-    const allowed = allowPerKey(
-      `game-token:${telegramId}`,
-      GAME_TOKENS_PER_WINDOW
-    )
-    if (!allowed.ok) {
-      res.setHeader('Retry-After', String(allowed.retryAfterSeconds))
-      json(res, 429, {
-        error: 'game_token_rate_limited',
-        retry_after_seconds: allowed.retryAfterSeconds,
+      return answer(200, {
+        game_token: signGameToken({ telegramId, audience: aud }),
+        expires_in: GAME_TOKEN_TTL_SECONDS,
+        telegram_id: telegramId,
       })
-      return true
+    } catch (error) {
+      // A database failure answers 503 in handleAuthRouteSafely: still one line.
+      logOutcome('error')
+      throw error
     }
-
-    json(res, 200, {
-      game_token: signGameToken({ telegramId, audience: aud }),
-      expires_in: GAME_TOKEN_TTL_SECONDS,
-      telegram_id: telegramId,
-    })
-    return true
   }
 
   // ─── Logout everywhere ─────────────────────────────────────────────────
@@ -1387,9 +1491,13 @@ export async function handleAuthRoute(
     const bearer = (req.headers['authorization'] as string | undefined) || ''
     let sid: string | null = null
     let familyId: string | null = null
+    /** Whose sign-out this is, for the game-token cutoff below. */
+    let who: string | null = null
     try {
       if (bearer.startsWith('Bearer ')) {
-        sid = verifyAppSession(bearer.slice(7).trim()).sid
+        const claims = verifyAppSession(bearer.slice(7).trim())
+        sid = claims.sid
+        who = claims.sub
       }
     } catch {
       // An expired access token is ordinary. The one-time refresh secret in
@@ -1450,6 +1558,34 @@ export async function handleAuthRoute(
         [sid]
       )
       if (own.rows.length) familyId = String(own.rows[0].family_id)
+    }
+
+    /*
+     * THIS PERSON'S GAME TOKENS END HERE TOO, NOT ONLY THIS FAMILY'S SESSIONS.
+     *
+     * A game token names no session, so revoking the family below does not
+     * reach it: a token minted a moment before "Sign out" kept answering on the
+     * game origin for up to five minutes. The cutoff refuses every game token
+     * of the person issued before now (session.ts gameNotBefore), here at once
+     * and on other replicas from the next poll. Their other browser keeps its
+     * session and mints a new game token.
+     *
+     * Written before the revocation, as logout-all writes its cutoff first. A
+     * sign-out proved by the refresh token alone names its person through the
+     * session row; that proof is enough, since whoever holds the refresh token
+     * can already do more than end five-minute tokens.
+     */
+    if (!who) {
+      const owner = await pool.query(
+        `SELECT telegram_id FROM app_sessions WHERE id = $1 LIMIT 1`,
+        [sid]
+      )
+      if (owner.rows.length) who = String(owner.rows[0].telegram_id)
+    }
+    if (who) {
+      const cutoff = Math.floor(Date.now() / 1000)
+      await setGameNotBefore(pool, who, cutoff)
+      markGameNotBefore(who, cutoff)
     }
 
     if (familyId) {
