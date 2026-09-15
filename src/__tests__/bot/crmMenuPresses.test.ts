@@ -183,6 +183,10 @@ describe('every press is answered first, and only for the owner in a private cha
     expect(m[0].payload.text).toContain('Pilot')
     expect(keyboardOf(m[0])).toEqual([
       'crm:prep:900000001',
+      // The chat itself, and the way to stop hearing about this person: both
+      // were reachable only by scrolling back to find the conversation.
+      'tg://user?id=900000001',
+      'crm:mute:900000001',
       'crm:later:900000001',
       'crm:refuse:900000001',
       'crm:leads',

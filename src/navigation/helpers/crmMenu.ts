@@ -226,23 +226,47 @@ export function emptyLeadsKeyboard() {
   ])
 }
 
-/** Under a person's brief. */
+/**
+ * Under a person's brief.
+ *
+ * Four things can be done about a human being: write to them, go and write it
+ * yourself, put them off, or refuse them. The first two used to be one, and
+ * the second one had no button at all here -- the owner had to leave the bot,
+ * find the chat by hand, and remember to mute the agent first, which is
+ * exactly the step people skip.
+ *
+ * A REFUSAL IS THE EXCEPTION. Its confirmation shows the two answers to the
+ * question it just asked and nothing else: a destructive second press is not
+ * the moment to offer five other things to tap.
+ */
 export function leadMenu(
   lead: string,
   o: { next?: string | null; confirmRefuse?: boolean } = {}
 ) {
-  const second = o.confirmRefuse
-    ? [
+  if (o.confirmRefuse)
+    return keyboard([
+      [btn(`${prepLabel(o.next)}`, crmCallback('prep', lead))],
+      [
         btn('🚫 Да, отказ на 30 дней', crmCallback('refuse!', lead)),
         btn('↩️ Нет', crmCallback('back', lead)),
-      ]
-    : [
-        btn('⏰ Позже', crmCallback('later', lead)),
-        btn('🚫 Отказ', crmCallback('refuse', lead)),
-      ]
+      ],
+      [
+        btn('👥 Кому писать', crmCallback('leads')),
+        btn('🏠 Меню', crmCallback('menu')),
+      ],
+    ])
   return keyboard([
     [btn(`${prepLabel(o.next)}`, crmCallback('prep', lead))],
-    second,
+    [
+      // The url opens the real conversation; the mute stops the agent
+      // answering over the owner's shoulder while they are in it.
+      Markup.button.url('💬 Открыть чат', `tg://user?id=${lead}`),
+      btn('🤫 Отвечу сам', crmCallback('mute', lead)),
+    ],
+    [
+      btn('⏰ Позже', crmCallback('later', lead)),
+      btn('🚫 Отказ', crmCallback('refuse', lead)),
+    ],
     [
       btn('👥 Кому писать', crmCallback('leads')),
       btn('🏠 Меню', crmCallback('menu')),
