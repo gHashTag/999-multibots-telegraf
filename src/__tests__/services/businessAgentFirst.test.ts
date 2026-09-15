@@ -43,7 +43,23 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('answerClient', () => {
-  it('asks the agent as the client on the business surface, and writes the turn down', async () => {
+  /*
+   * THESE TWO EXPECTATIONS WERE THE WRONG WAY ROUND, AND THEY FROZE A DEFECT.
+   *
+   * They used to demand two records on SUCCESS and none on the fallback --
+   * which is precisely the bug. The render's /api/agent/chat already records
+   * both replies on its way through (its own comment says so, and says the
+   * catch-up route exists "But the bot has a FALLBACK"). Neither side
+   * deduplicates, so every normal exchange landed in the history TWICE,
+   * halving a memory window that is read as the last forty replies. And the
+   * spare model's answer, written when the render is down, reached the
+   * history never -- so the next turn read a question with no answer beside
+   * it and the seller answered it again.
+   *
+   * The owner's own path in registerCommands.ts had this right from the
+   * start: it records only in the fallback branch.
+   */
+  it('asks the agent as the client, and lets the render keep the record', async () => {
     const { answerClient } = await import('@/services/businessBotService')
     const fallback = vi.fn(async () => 'fallback')
     const said = await answerClient('555', 'хочу оплатить', fallback)
@@ -53,11 +69,14 @@ describe('answerClient', () => {
     ])
     expect(fallback).not.toHaveBeenCalled()
     await new Promise(r => setTimeout(r, 0))
-    expect(recorded[0]?.surface).toBe('business')
-    expect(recorded[0]?.turns).toHaveLength(2)
+    expect(
+      recorded,
+      'the successful turn was written a second time, on top of the render'
+    ).toEqual([])
   })
 
-  it('an unreachable agent falls back to the prompt-only responder', async () => {
+  it('writes BOTH replies when the agent was never reached', async () => {
+    // Nothing exists on the render's side: the request never arrived.
     agentAnswer = async () => {
       throw new Error('render 502')
     }
@@ -67,7 +86,25 @@ describe('answerClient', () => {
       'из запасного ответчика'
     )
     expect(fallback).toHaveBeenCalledTimes(1)
-    expect(recorded).toEqual([])
+    await new Promise(r => setTimeout(r, 0))
+    expect(recorded[0]?.surface).toBe('business')
+    expect(recorded[0]?.turns).toEqual([
+      { role: 'user', content: 'привет' },
+      { role: 'assistant', content: 'из запасного ответчика' },
+    ])
+  })
+
+  it('writes only the ANSWER when the agent was reached but said nothing', async () => {
+    // The request got through, so the render stored the question; only the
+    // spare answer is missing. Writing the question again would duplicate it.
+    agentAnswer = async () => ({ текст: '' }) // cyrillic-ok: pre-existing field
+    const { answerClient } = await import('@/services/businessBotService')
+    const fallback = vi.fn(async () => 'запасной')
+    expect(await answerClient('555', 'привет', fallback)).toBe('запасной')
+    await new Promise(r => setTimeout(r, 0))
+    expect(recorded[0]?.turns).toEqual([
+      { role: 'assistant', content: 'запасной' },
+    ])
   })
 
   it('an empty answer is not an answer: fallback', async () => {

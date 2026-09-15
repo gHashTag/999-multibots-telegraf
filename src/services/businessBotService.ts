@@ -389,21 +389,35 @@ export async function answerClient(
   text: string,
   fallback: () => Promise<string>
 ): Promise<string> {
+  /*
+   * WHO WRITES THE HISTORY, AND WHEN.
+   *
+   * The render's /api/agent/chat records BOTH replies on its way through: the
+   * person's before runAgent, the assembled answer after the stream. Its own
+   * comment says so and says what the catch-up route is for -- "for a normal
+   * exchange nothing else is needed. But the bot has a FALLBACK".
+   *
+   * This function did exactly the opposite. It recorded on the SUCCESS branch,
+   * where the render had already written the pair, and wrote nothing at all on
+   * the fallback. Neither side deduplicates -- both are plain INSERTs against
+   * the same telegram_id -- so every normal exchange landed twice, halving a
+   * memory window that is read as the last forty replies. And when the render
+   * was down and the spare model answered, that answer never reached the
+   * history at all: the next turn read a question with no answer beside it.
+   *
+   * `recordedQuestion` is the difference between the two failures. A thrown
+   * call means the render never saw the turn and neither reply exists; an
+   * empty answer means it stored the question and only the answer is missing.
+   */
+  let recordedQuestion = false
   try {
     const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
+    // The request reached the render, so the question is on record whatever
+    // the answer turned out to be.
+    recordedQuestion = true
     // Markers are the bot chat's syntax; a client must never see bracket soup.
     const said = stripAgentMarkers((answer.текст ?? '').trim()) // cyrillic-ok: pre-existing field
-    if (said) {
-      void recordTurns(
-        chatId,
-        [
-          { role: 'user', content: text },
-          { role: 'assistant', content: said },
-        ],
-        'business'
-      )
-      return said
-    }
+    if (said) return said
     logger.warn('[Business] agent answered nothing, falling back', { chatId })
   } catch (error) {
     logger.warn('[Business] agent unreachable, falling back', {
@@ -411,7 +425,18 @@ export async function answerClient(
       error: error instanceof Error ? error.message : String(error),
     })
   }
-  return fallback()
+  const spare = await fallback()
+  void recordTurns(
+    chatId,
+    recordedQuestion
+      ? [{ role: 'assistant', content: spare }]
+      : [
+          { role: 'user', content: text },
+          { role: 'assistant', content: spare },
+        ],
+    'business'
+  )
+  return spare
 }
 
 export function buildBusinessMessages(
