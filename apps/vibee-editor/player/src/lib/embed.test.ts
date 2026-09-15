@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  announceStorageBlockedFrom,
   detectEmbed,
   embedLangOf,
+  postErrorToParentFrom,
   postToParentFrom,
   widgetFrameAllowedFor,
   type EmbedWindow,
@@ -234,8 +236,80 @@ describe('postToParentFrom', () => {
       '/chat'
     )
     expect(postMessage).toHaveBeenCalledWith(
-      { type: 't27-app', kind: 'route', path: '/chat' },
+      { v: 1, type: 't27-app', kind: 'route', path: '/chat' },
       'https://t27.ai'
     )
+  })
+})
+
+describe('postErrorToParentFrom: a screen that cannot work says why', () => {
+  it('posts nothing outside embed', () => {
+    const postMessage = vi.fn()
+    postErrorToParentFrom(null, { parent: { postMessage } }, 'boundary')
+    expect(postMessage).not.toHaveBeenCalled()
+  })
+
+  it('posts {v:1, type:t27-app, kind:error, code} to the exact parent origin', () => {
+    const postMessage = vi.fn()
+    postErrorToParentFrom(
+      { parent: 'https://t27.ai', lang: 'en' },
+      { parent: { postMessage } },
+      'boundary'
+    )
+    expect(postMessage).toHaveBeenCalledTimes(1)
+    expect(postMessage).toHaveBeenCalledWith(
+      { v: 1, type: 't27-app', kind: 'error', code: 'boundary' },
+      'https://t27.ai'
+    )
+  })
+})
+
+describe('announceStorageBlockedFrom: storage whose getter throws is reported', () => {
+  const STATE = { parent: 'https://t27.ai', lang: 'en' as const }
+
+  function frame(blocked: Array<'localStorage' | 'sessionStorage'>) {
+    const postMessage = vi.fn()
+    const w = { parent: { postMessage } } as Record<string, unknown> & {
+      parent: { postMessage: typeof postMessage }
+    }
+    for (const name of ['localStorage', 'sessionStorage'] as const) {
+      Object.defineProperty(w, name, {
+        get() {
+          if (blocked.includes(name)) {
+            throw new DOMException(
+              'The operation is insecure.',
+              'SecurityError'
+            )
+          }
+          return {}
+        },
+      })
+    }
+    return { w, postMessage }
+  }
+
+  it.each([['localStorage'], ['sessionStorage']] as const)(
+    'in embed, a %s getter that throws posts storage_blocked once',
+    name => {
+      const { w, postMessage } = frame([name])
+      expect(announceStorageBlockedFrom(STATE, w)).toBe(true)
+      expect(postMessage).toHaveBeenCalledTimes(1)
+      expect(postMessage).toHaveBeenCalledWith(
+        { v: 1, type: 't27-app', kind: 'error', code: 'storage_blocked' },
+        'https://t27.ai'
+      )
+    }
+  )
+
+  it('control: storage that works posts nothing', () => {
+    const { w, postMessage } = frame([])
+    expect(announceStorageBlockedFrom(STATE, w)).toBe(false)
+    expect(postMessage).not.toHaveBeenCalled()
+  })
+
+  it('control: outside embed nothing is posted, blocked or not', () => {
+    const { w, postMessage } = frame(['localStorage', 'sessionStorage'])
+    expect(announceStorageBlockedFrom(null, w)).toBe(false)
+    expect(postMessage).not.toHaveBeenCalled()
   })
 })

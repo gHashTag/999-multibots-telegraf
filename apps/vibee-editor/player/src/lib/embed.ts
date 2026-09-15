@@ -143,6 +143,10 @@ export function widgetFrameAllowedFor(
 
 export type EmbedMessageKind = 'ready' | 'route'
 
+interface ParentWindow {
+  parent: { postMessage(message: unknown, targetOrigin: string): void }
+}
+
 /**
  * A structured object, never a JSON string: telegram-web-app.js inside the
  * frame posts JSON strings to the parent with '*', and the game tells the two
@@ -150,14 +154,54 @@ export type EmbedMessageKind = 'ready' | 'route'
  */
 export function postToParentFrom(
   state: EmbedState | null,
-  win: {
-    parent: { postMessage(message: unknown, targetOrigin: string): void }
-  },
+  win: ParentWindow,
   kind: EmbedMessageKind,
   path: string
 ): void {
   if (!state) return
-  win.parent.postMessage({ type: 't27-app', kind, path }, state.parent)
+  win.parent.postMessage({ v: 1, type: 't27-app', kind, path }, state.parent)
+}
+
+/**
+ * Why the screen in the frame cannot work, so the game can offer a way out
+ * instead of waiting for a `ready`:
+ *  - 'boundary': the page threw into the app's ErrorBoundary; no `ready`
+ *    follows for this document.
+ *  - 'storage_blocked': the browser refuses this frame its storage (the
+ *    getter throws). The screen may still render and say `ready`, but nothing
+ *    persists and a sign-in inside the frame cannot hold.
+ */
+export type EmbedErrorCode = 'boundary' | 'storage_blocked'
+
+export function postErrorToParentFrom(
+  state: EmbedState | null,
+  win: ParentWindow,
+  code: EmbedErrorCode
+): void {
+  if (!state) return
+  win.parent.postMessage(
+    { v: 1, type: 't27-app', kind: 'error', code },
+    state.parent
+  )
+}
+
+/**
+ * Posts 'storage_blocked' once when reading localStorage or sessionStorage
+ * throws (site data blocked). True when it posted.
+ */
+export function announceStorageBlockedFrom(
+  state: EmbedState | null,
+  win: ParentWindow & { localStorage?: unknown; sessionStorage?: unknown }
+): boolean {
+  if (!state) return false
+  try {
+    void win.localStorage
+    void win.sessionStorage
+    return false
+  } catch {
+    postErrorToParentFrom(state, win, 'storage_blocked')
+    return true
+  }
 }
 
 const EMBED: EmbedState | null =
@@ -184,4 +228,14 @@ export function widgetFrameAllowed(): boolean {
 export function postToParent(kind: EmbedMessageKind, path: string): void {
   if (typeof window === 'undefined') return
   postToParentFrom(EMBED, window, kind, path)
+}
+
+export function postErrorToParent(code: EmbedErrorCode): void {
+  if (typeof window === 'undefined') return
+  postErrorToParentFrom(EMBED, window, code)
+}
+
+export function announceStorageBlocked(): void {
+  if (typeof window === 'undefined') return
+  announceStorageBlockedFrom(EMBED, window)
 }

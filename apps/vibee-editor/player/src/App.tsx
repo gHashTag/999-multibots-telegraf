@@ -313,6 +313,11 @@ function App() {
                 <PageTransition>
                   <Suspense fallback={<PageLoader />}>
                     <AppRoutes />
+                    {/* Tells the game around the TRI frame which route this
+                        is. Inside this Suspense, after the routes, so its
+                        `ready` waits for the lazy page to render; renders
+                        nothing and does nothing outside embed. */}
+                    <EmbedBridge />
                   </Suspense>
                 </PageTransition>
                 {/* Both live inside <BrowserRouter> (they use useLocation /
@@ -327,9 +332,6 @@ function App() {
                 {/* Back to the game after signing in, when its chip sent
                     the person here with ?return=. */}
                 <ReturnToGame />
-                {/* Tells the game around the TRI frame which route this is;
-                    renders nothing and does nothing outside embed. */}
-                <EmbedBridge />
                 <TelegramTabBar />
                 <ToastContainer />
               </>
