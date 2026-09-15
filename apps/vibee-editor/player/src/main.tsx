@@ -8,6 +8,10 @@ import './styles/design-system.css'
 import './styles/telegram.css'
 import App from './App.tsx'
 import { initSentry } from './lib/sentry'
+import { captureReturnTarget } from './lib/returnTarget'
+import { sessionStore } from './lib/framedSession'
+import { IS_EMBED, announceStorageBlocked } from './lib/embed'
+import { isTelegram } from './lib/telegram'
 
 // Initialize Sentry error tracking
 initSentry()
@@ -111,6 +115,18 @@ if ('serviceWorker' in navigator) {
 }
 
 installGlobalClientErrorReporting()
+
+// `?return=` from the game's sign-in chip, read before LaunchRedirect drops the
+// query. Top level on the open web only (lib/returnTarget.ts).
+captureReturnTarget(
+  window,
+  sessionStore(),
+  window.self === window.top && !IS_EMBED && !isTelegram()
+)
+
+// Inside the game's TRI frame, a browser that refuses this frame its storage
+// is reported to the game once (lib/embed.ts). The screen still renders.
+announceStorageBlocked()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

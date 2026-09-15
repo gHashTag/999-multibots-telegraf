@@ -13,6 +13,8 @@ import {
   resumeAppSessionRefresh,
 } from '@/lib/appSession'
 import { shouldUseTelegramFallback } from '@/lib/telegramWidget'
+import { takeReturnTarget } from '@/lib/returnTarget'
+import { sessionStore } from '@/lib/framedSession'
 
 declare global {
   interface Window {
@@ -97,6 +99,12 @@ export function TelegramLoginButton({
             is_admin: false,
           }
           setUser(user)
+          // Came from the game's sign-in chip: back to it, in this tab.
+          const back = takeReturnTarget(sessionStore())
+          if (back) {
+            window.location.assign(back)
+            return
+          }
           await fetchMyProfile(user)
           await fetchQuota()
           onSuccess?.()
@@ -220,12 +228,18 @@ interface UserAvatarProps {
    * показывал «Пользователь не найден». Замерено вживую 07.09.2026.
    */
   onLogout?: () => void
+  /**
+   * Sign out on all devices. Optional for the same reason as onLogout, and
+   * narrower: Header passes it only for a browser session outside Telegram.
+   */
+  onLogoutAll?: () => void
 }
 
 export function UserAvatar({
   user,
   avatarUrl: rawAvatarUrl,
   onLogout,
+  onLogoutAll,
 }: UserAvatarProps) {
   const { t } = useLanguage()
   const [imgError, setImgError] = useState(false)
@@ -270,6 +284,16 @@ export function UserAvatar({
           title={t('auth.logout')}
         >
           &times;
+        </button>
+      )}
+      {onLogoutAll && (
+        <button
+          type="button"
+          onClick={onLogoutAll}
+          className="logout-all-btn"
+          title={t('auth.logoutAll')}
+        >
+          {t('auth.logoutAllShort')}
         </button>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { API_BASE } from '../config'
 import { sessionStore, type SessionStore } from './framedSession'
+import { isTelegram } from './telegram'
 
 const ACCESS_KEY = 'trinity.app.session.access'
 const REFRESH_KEY = 'trinity.app.session.refresh'
@@ -30,6 +31,12 @@ const storage = (): SessionStore => sessionStore()
 
 export function getAppAccessToken(): string {
   return storage()?.getItem(ACCESS_KEY) || ''
+}
+
+/** An access token whose stored expiry is still ahead. */
+export function hasLiveAppSession(): boolean {
+  const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
+  return !!getAppAccessToken() && expiresAt > Date.now()
 }
 
 export function storeAppSession(session: AppSession): void {
@@ -175,6 +182,39 @@ export async function logoutAppSession(): Promise<void> {
     // The short-lived access token will expire server-side. Local credentials
     // are already gone, which is the security boundary this function owns.
   }
+}
+
+/**
+ * SIGN OUT ON ALL DEVICES, INCLUDING THIS ONE.
+ *
+ * POST /api/auth/logout-all revokes every live session family of the person
+ * and takes only a live Bearer access token (render session-routes.ts). Local
+ * first, like logoutAppSession: this tab's credentials are gone before the
+ * request starts, so a stalled network or a closed tab leaves nothing behind.
+ * Resolves true only when the server confirmed.
+ */
+export async function logoutAllAppSessions(): Promise<boolean> {
+  const access = getAppAccessToken()
+  clearAppSession()
+  if (!access) return false
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/logout-all`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access}` },
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Offered only for a browser session on the open web. Inside Telegram the
+ * launch signs the person in again at once, so the action would promise what
+ * it cannot keep on this device.
+ */
+export function canSignOutEverywhere(): boolean {
+  return !!getAppAccessToken() && !isTelegram()
 }
 
 /**

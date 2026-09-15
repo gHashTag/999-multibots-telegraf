@@ -35,6 +35,8 @@ interface BootOptions {
   opener?: boolean
   focused?: boolean
   visibility?: string
+  /** The popup's query string: the bridge forwards ?lang=. */
+  search?: string
 }
 
 function boot(options: BootOptions = {}) {
@@ -50,9 +52,20 @@ function boot(options: BootOptions = {}) {
   const listeners: Record<string, Listener[]> = {}
   const documentListeners: Record<string, Listener[]> = {}
   const clicks: Listener[] = []
-  const button = {
+  const declineClicks: Listener[] = []
+  const element = (onClick?: Listener[]) => ({
     hidden: true,
-    addEventListener: (_type: string, fn: Listener) => clicks.push(fn),
+    textContent: '',
+    addEventListener: (_type: string, fn: Listener) => onClick?.push(fn),
+  })
+  const button = element(clicks)
+  const decline = element(declineClicks)
+  // consent.html: what is shared, Continue, Not now, how long it lasts.
+  const elements: Record<string, ReturnType<typeof element>> = {
+    'tri-consent': button,
+    'tri-decline': decline,
+    'tri-consent-asks': element(),
+    'tri-consent-note': element(),
   }
   const state = {
     focused: options.focused ?? true,
@@ -63,13 +76,16 @@ function boot(options: BootOptions = {}) {
       return state.visibility
     },
     hasFocus: () => state.focused,
-    getElementById: (id: string) => (id === 'tri-consent' ? button : null),
+    documentElement: { lang: 'en' },
+    title: '',
+    getElementById: (id: string) => elements[id] ?? null,
     addEventListener: (type: string, fn: Listener) =>
       (documentListeners[type] ||= []).push(fn),
   }
   const close = vi.fn()
   const target: Record<string, unknown> = {
     document,
+    location: { search: options.search ?? '' },
     opener,
     close,
     addEventListener: (type: string, fn: Listener) =>
@@ -93,10 +109,16 @@ function boot(options: BootOptions = {}) {
   return {
     posts,
     button,
+    decline,
+    elements,
+    document,
     close,
     windowRead,
     click(isTrusted = true) {
       for (const fn of clicks) fn({ isTrusted })
+    },
+    notNow(isTrusted = true) {
+      for (const fn of declineClicks) fn({ isTrusted })
     },
     focus() {
       state.focused = true
@@ -207,6 +229,8 @@ describe('the consent popup', () => {
         k =>
           ![
             'document',
+            // ?lang= only, forwarded by the bridge.
+            'location',
             'opener',
             'top',
             'self',
@@ -273,5 +297,79 @@ describe('the consent popup', () => {
     p.blur()
     p.click()
     expect(p.posts).toHaveLength(1)
+  })
+})
+
+const CYRILLIC = /\p{Script=Cyrillic}/u
+
+describe('Not now, and the language the game plays in', () => {
+  const DECLINED = { v: 1, type: 'tri-consent-declined' }
+
+  it('English by default: what is shared, for how long, Continue and Not now', () => {
+    const p = boot()
+    expect(p.document.documentElement.lang).toBe('en')
+    expect(p.document.title).toBe('TRI: continue on t27.ai?')
+    expect(p.elements['tri-consent-asks'].textContent).toBe(
+      'asks who you are on TRI: your Telegram id, name and picture.'
+    )
+    expect(p.elements['tri-consent-note'].textContent).toBe(
+      'This lasts for this tab only. Sign out in TRI to withdraw it.'
+    )
+    expect(p.button.textContent).toBe('Continue with TRI')
+    expect(p.decline.textContent).toBe('Not now')
+  })
+
+  it('?lang=ru: Russian copy and lang=ru', () => {
+    const p = boot({ search: '?lang=ru' })
+    expect(p.document.documentElement.lang).toBe('ru')
+    for (const text of [
+      p.document.title,
+      p.elements['tri-consent-asks'].textContent,
+      p.elements['tri-consent-note'].textContent,
+      p.button.textContent,
+      p.decline.textContent,
+    ]) {
+      expect(text).toMatch(CYRILLIC)
+    }
+  })
+
+  it('Not now tells the opener, on app.t27.ai only, and closes, with no wait', () => {
+    const p = boot()
+    expect(p.decline.hidden).toBe(false)
+    p.notNow()
+    expect(p.posts).toEqual([{ message: DECLINED, target: APP }])
+    expect(p.close).toHaveBeenCalledTimes(1)
+    expect(p.button.hidden).toBe(true)
+    expect(p.decline.hidden).toBe(true)
+  })
+
+  it('framed, or without an opener, Not now is hidden and sends nothing', () => {
+    for (const p of [boot({ framed: true }), boot({ opener: false })]) {
+      expect(p.decline.hidden).toBe(true)
+      p.notNow()
+      expect(p.posts).toEqual([])
+      expect(p.close).not.toHaveBeenCalled()
+    }
+  })
+
+  it('control: Continue still waits 500 ms next to Not now', () => {
+    const p = boot()
+    later(499)
+    p.click()
+    expect(p.posts).toEqual([])
+    later(1)
+    p.click()
+    expect(p.posts).toEqual([{ message: CONSENT, target: APP }])
+  })
+
+  it("negative control: a decline posted to '*' is caught", () => {
+    const p = boot({
+      source: mutate(
+        "opener.postMessage({ v: 1, type: 'tri-consent-declined' }, APP_ORIGIN)",
+        "opener.postMessage({ v: 1, type: 'tri-consent-declined' }, '*')"
+      ),
+    })
+    p.notNow()
+    expect(p.posts).toEqual([{ message: DECLINED, target: '*' }])
   })
 })

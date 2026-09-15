@@ -386,6 +386,12 @@ const en: Translations = {
   'login.tgUnsignedBody':
     "This launch carries no signed data, so the server cannot verify who you are. Open the app from the bot's menu button or an inline button, and everything will work.",
   'login.subtitle': 'Sign in with Telegram to get 3 free video renders!',
+  'login.returnToGame': 'Sign in with Telegram to return to the game.',
+  // The game's TRI frame, a screen that needs a person (EmbedGuestGate.tsx).
+  'embed.guest.title': 'This screen works in the app',
+  'embed.guest.body':
+    'Here in the game you are a guest, and this screen needs your account. Open it on app.t27.ai and sign in with Telegram there.',
+  'embed.guest.open': 'Open in the app',
   'login.button': 'Login',
   'login.buttonFull': 'Sign in with Telegram',
 
@@ -468,6 +474,8 @@ const en: Translations = {
 
   // Auth
   'auth.logout': 'Logout',
+  'auth.logoutAll': 'Sign out on all devices, including this one',
+  'auth.logoutAllShort': 'Sign out everywhere',
 
   // Captions preview
   'captions.previewText': 'Hello',
@@ -2276,6 +2284,11 @@ const ru: Translations = {
   'login.tgUnsignedBody':
     'Этот запуск не несёт подписанных данных, и сервер не может подтвердить, кто вы. Откройте приложение через кнопку меню бота или инлайн-кнопку — и всё заработает.',
   'login.subtitle': 'Войдите через Telegram и получите 3 бесплатных рендера!',
+  'login.returnToGame': 'Войдите через Telegram, чтобы вернуться в игру.',
+  'embed.guest.title': 'Этот экран работает в приложении',
+  'embed.guest.body':
+    'Здесь, в игре, вы гость, а этому экрану нужен ваш аккаунт. Откройте его на app.t27.ai и войдите там через Telegram.',
+  'embed.guest.open': 'Открыть в приложении',
   'login.button': 'Войти',
   'login.buttonFull': 'Войти через Telegram',
 
@@ -2358,6 +2371,8 @@ const ru: Translations = {
 
   // Auth
   'auth.logout': 'Выйти',
+  'auth.logoutAll': 'Выйти на всех устройствах, включая это',
+  'auth.logoutAllShort': 'Выйти везде',
 
   // Captions preview
   'captions.previewText': 'Привет',

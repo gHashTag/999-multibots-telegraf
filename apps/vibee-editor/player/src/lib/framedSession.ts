@@ -18,8 +18,9 @@
  * it does (a sign-in, a logout) touches the tab's real session.
  *
  * Without location.ancestorOrigins (Firefox) the framer cannot be known, so a
- * framed page counts as untrusted. A Telegram Web launch there still
- * authenticates: authHeaders sends the signed initData first.
+ * framed page counts as untrusted. Telegram launch data follows the same rule
+ * (lib/telegram.ts getInitData); there, a framed page without
+ * ancestorOrigins uses it only when it arrived in the page's own URL hash.
  *
  * Left as is while such a frame is a guest: telegram-web-app.js posts its
  * outgoing WebApp events to window.parent with targetOrigin '*'.

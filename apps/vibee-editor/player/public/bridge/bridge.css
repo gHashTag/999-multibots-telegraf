@@ -1,5 +1,6 @@
-/* The bridge frame is small and shown by the game only while consent is
-   needed; the button fills it. Nothing else is ever drawn. */
+/* The bridge frame is small (about 360x140) and shown by the game only while
+   consent is needed. The prompt fills it: who asks and for what, Continue,
+   Not now, and a line when the popup was blocked. Nothing else is drawn. */
 html,
 body {
   margin: 0;
@@ -7,23 +8,57 @@ body {
   background: transparent;
 }
 body {
-  display: flex;
   font:
-    600 15px/1.2 system-ui,
+    13px/1.3 system-ui,
     -apple-system,
     'Segoe UI',
     sans-serif;
+  color: #0a0a0a;
+}
+#tri-ask {
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #faf8f3;
+}
+#tri-purpose {
+  margin: 0;
+  font-weight: 600;
+}
+.actions {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-height: 40px;
 }
 button {
-  flex: 1;
   margin: 0;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 0;
   border-radius: 10px;
   background: #e6e0d2;
   color: #0a0a0a;
   font: inherit;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
+}
+#tri-continue {
+  flex: 1;
+}
+#tri-dismiss {
+  background: transparent;
+  border: 1px solid #c9c2b2;
+  font-weight: 500;
+}
+#tri-blocked {
+  margin: 0;
+  font-size: 12px;
+  color: #8a2c0d;
 }
 [hidden] {
   display: none !important;

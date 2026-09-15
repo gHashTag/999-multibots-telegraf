@@ -6,6 +6,8 @@
 // web (vibee-editor.up.railway.app and the marketing landing).
 // ===============================
 
+import { sessionTrustedIn, type FramedWindow } from './framedSession'
+
 /** The raw WebApp object, or null when not running inside Telegram. */
 export function getWebApp(): TelegramWebApp | null {
   if (typeof window === 'undefined') return null
@@ -66,8 +68,55 @@ export function getTelegramUser(): TelegramWebAppUser | null {
   return getWebApp()?.initDataUnsafe?.user ?? null
 }
 
+/**
+ * WHERE TELEGRAM LAUNCH DATA MAY AUTHENTICATE: WHERE THE SESSION IS TRUSTED.
+ *
+ * telegram-web-app.js restores `__telegram__initParams` from the tab's
+ * sessionStorage. A frame by another t27.ai page (app.t27.ai > t27.ai >
+ * app.t27.ai) shares that storage, so without this rule the guest frame that
+ * lib/framedSession.ts keeps out of the Bearer session was the Mini App user
+ * again through initData.
+ *
+ * Trusted: top level, or every ancestor is this origin or *.telegram.org (the
+ * same predicate as the session). Without location.ancestorOrigins (Firefox)
+ * the framer is unknown: only launch data that arrived in this document's own
+ * URL hash counts, never data restored from storage.
+ *
+ * "Arrived in the hash" is decided the way telegram-web-app.js parses it
+ * (urlParseHashParams): after '#', everything up to the first '?' is a path,
+ * and only the part after it holds parameters. In '#tgWebAppData=?x' the key
+ * is part of the path, so the script copies the stored signed value in.
+ */
+export function initDataTrustedIn(
+  win: FramedWindow,
+  launchHash: string
+): boolean {
+  if (win.self === win.top) return true
+  const list = win.location.ancestorOrigins
+  if (!list || typeof list.length !== 'number' || list.length === 0) {
+    const hash = launchHash.replace(/^#/, '')
+    const q = hash.indexOf('?')
+    const params = new URLSearchParams(q >= 0 ? hash.slice(q + 1) : hash)
+    return !!params.get('tgWebAppData')
+  }
+  return sessionTrustedIn(win)
+}
+
+/** This document's launch hash, read before the router can rewrite the URL. */
+const LAUNCH_HASH = (() => {
+  try {
+    return typeof window === 'undefined' ? '' : window.location.hash
+  } catch {
+    return ''
+  }
+})()
+
 /** Raw initData string, to be sent to the backend for HMAC verification. */
 export function getInitData(): string {
+  if (typeof window === 'undefined') return ''
+  if (!initDataTrustedIn(window as unknown as FramedWindow, LAUNCH_HASH)) {
+    return ''
+  }
   return getWebApp()?.initData ?? ''
 }
 

@@ -17,6 +17,8 @@ import {
   LaunchRedirect,
 } from '@/components/Navigation/RouteMemory'
 import { EmbedBridge } from '@/components/Navigation/EmbedBridge'
+import { ReturnToGame } from '@/components/Navigation/ReturnToGame'
+import { EmbedGuestGate } from '@/components/Navigation/EmbedGuestGate'
 import './App.css'
 
 // Lazy load pages for code splitting
@@ -246,6 +248,16 @@ function ProfileNeedsSignIn() {
  * bridge around it. `App` below renders exactly this.
  */
 export function AppRoutes() {
+  // Inside the game's TRI frame, screens that need a person show a guest the
+  // sign-in panel instead (components/Navigation/EmbedGuestGate.tsx).
+  return (
+    <EmbedGuestGate>
+      <RouteTable />
+    </EmbedGuestGate>
+  )
+}
+
+function RouteTable() {
   return (
     <Routes>
       {/* The root opens where the person was interrupted, or on the feed
@@ -312,6 +324,11 @@ function App() {
                 <PageTransition>
                   <Suspense fallback={<PageLoader />}>
                     <AppRoutes />
+                    {/* Tells the game around the TRI frame which route this
+                        is. Inside this Suspense, after the routes, so its
+                        `ready` waits for the lazy page to render; renders
+                        nothing and does nothing outside embed. */}
+                    <EmbedBridge />
                   </Suspense>
                 </PageTransition>
                 {/* Both live inside <BrowserRouter> (they use useLocation /
@@ -323,9 +340,9 @@ function App() {
                 {/* Порядок важен: TelegramProvider первым, чтобы диплинк по
                     start_param отработал раньше восстановления экрана. */}
                 <RouteMemory />
-                {/* Tells the game around the TRI frame which route this is;
-                    renders nothing and does nothing outside embed. */}
-                <EmbedBridge />
+                {/* Back to the game after signing in, when its chip sent
+                    the person here with ?return=. */}
+                <ReturnToGame />
                 <TelegramTabBar />
                 <ToastContainer />
               </>

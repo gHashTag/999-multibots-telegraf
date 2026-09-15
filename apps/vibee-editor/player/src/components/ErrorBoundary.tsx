@@ -1,4 +1,5 @@
 import React, { Component, type ReactNode } from 'react'
+import { postErrorToParent } from '@/lib/embed'
 
 // Inline brand colors to avoid importing @vibee/atoms at top-level
 // This prevents circular dependency issues with Jotai atoms
@@ -39,6 +40,12 @@ class ErrorBoundaryClass extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
     this.setState({ errorInfo })
+
+    // Inside the game's TRI frame the game hears that the screen is gone, so
+    // it can offer a way out instead of waiting for `ready`. A boundary with
+    // its own fallback guards one panel, and the page around it lives on.
+    // Outside embed this posts nothing.
+    if (!this.props.fallback) postErrorToParent('boundary')
 
     // Auto-reload on chunk load failure (happens after deploy when old chunks are gone)
     const isChunkLoadError =

@@ -3,6 +3,7 @@ import {
   GAME_ORIGIN,
   answerIdentityRequests,
   identityRequestNonce,
+  isSignInRequest,
   mintForGame,
 } from './hive'
 
@@ -180,6 +181,92 @@ describe('mintForGame', () => {
   })
 })
 
+describe('isSignInRequest', () => {
+  it('accepts the game asking the Hive to sign the visitor in', () => {
+    expect(isSignInRequest({ v: 1, type: 't27-app', kind: 'sign-in' })).toBe(
+      true
+    )
+  })
+
+  it.each([
+    [
+      'a JSON string',
+      JSON.stringify({ v: 1, type: 't27-app', kind: 'sign-in' }),
+    ],
+    ['v 2', { v: 2, type: 't27-app', kind: 'sign-in' }],
+    ['no v', { type: 't27-app', kind: 'sign-in' }],
+    ['another type', { v: 1, type: 'tri-identity-request', kind: 'sign-in' }],
+    ['another kind', { v: 1, type: 't27-app', kind: 'route' }],
+    ['null', null],
+  ])('refuses %s', (_label, data) => {
+    expect(isSignInRequest(data)).toBe(false)
+  })
+})
+
+describe('answerIdentityRequests: sign-in from the game frame', () => {
+  const SIGN_IN = { v: 1, type: 't27-app', kind: 'sign-in' }
+  const flush = () => new Promise(resolve => setTimeout(resolve, 0))
+
+  function setup(withHandler = true) {
+    let onMessage: ((event: MessageEvent) => void) | null = null
+    const frameWindow = { postMessage: vi.fn() } as unknown as Window
+    let frame: Window | null = frameWindow
+    const onSignIn = vi.fn()
+    const fetch = fakeFetch()
+    answerIdentityRequests({
+      win: {
+        addEventListener: (_type: string, fn: never) => {
+          onMessage = fn
+        },
+        removeEventListener: vi.fn(),
+      } as never,
+      frame: () => frame,
+      credential: () => ({ initData: '', accessToken: '' }),
+      apiBase: API,
+      fetchImpl: fetch,
+      ...(withHandler ? { onSignIn } : {}),
+    })
+    return {
+      frameWindow,
+      onSignIn,
+      fetch,
+      leave: () => {
+        frame = null
+      },
+      send: (data: unknown, origin: string, source: unknown) =>
+        onMessage!({ data, origin, source } as MessageEvent),
+    }
+  }
+
+  it('from the frame on https://t27.ai: asks the page to sign in, mints nothing', async () => {
+    const s = setup()
+    s.send(SIGN_IN, 'https://t27.ai', s.frameWindow)
+    await flush()
+    expect(s.onSignIn).toHaveBeenCalledTimes(1)
+    expect(s.fetch).not.toHaveBeenCalled()
+    expect(s.frameWindow.postMessage).not.toHaveBeenCalled()
+  })
+
+  it('from another origin, another window, or a frame that left the Queen: ignored', async () => {
+    const s = setup()
+    s.send(SIGN_IN, 'https://evil.example', s.frameWindow)
+    s.send(SIGN_IN, 'https://app.t27.ai', s.frameWindow)
+    s.send(SIGN_IN, 'https://t27.ai', { postMessage: vi.fn() })
+    s.send(SIGN_IN, 'https://t27.ai', null)
+    s.leave()
+    s.send(SIGN_IN, 'https://t27.ai', s.frameWindow)
+    await flush()
+    expect(s.onSignIn).not.toHaveBeenCalled()
+  })
+
+  it('without a handler the message is ignored', async () => {
+    const s = setup(false)
+    expect(() => s.send(SIGN_IN, 'https://t27.ai', s.frameWindow)).not.toThrow()
+    await flush()
+    expect(s.fetch).not.toHaveBeenCalled()
+  })
+})
+
 describe('answerIdentityRequests', () => {
   function setup() {
     let onMessage: ((event: MessageEvent) => void) | null = null
@@ -268,6 +355,14 @@ describe('answerIdentityRequests', () => {
     await flush()
     expect(s.fetch).toHaveBeenCalledTimes(1)
     expect(s.post).not.toHaveBeenCalled()
+  })
+
+  it('a frame that is no longer the Queen (frame() null) is not answered', async () => {
+    const s = setup()
+    s.replaceFrame()
+    s.send(REQUEST, 'https://t27.ai', s.frameWindow)
+    await flush()
+    expect(s.fetch).not.toHaveBeenCalled()
   })
 
   it('unsubscribes the same listener it added', () => {
