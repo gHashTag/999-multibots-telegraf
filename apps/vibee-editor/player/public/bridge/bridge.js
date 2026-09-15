@@ -27,6 +27,11 @@
  *  - Consent names the person: it is stored as "https://t27.ai|<telegram_id>"
  *    from the first mint after it. A later token for anyone else is dropped
  *    and consent is asked again, and every signed-out removes it.
+ *  - An access token and its expiry still stored, but past the expiry, is
+ *    'expired', not 'signed-out': logoutAppSession removes both keys, so the
+ *    tab never signed out, only nothing refreshed the token outside the app.
+ *    Consent stays, so the way back (the player refreshes and returns to the
+ *    game) asks for no second popup.
  *  - When the access token disappears (sign-out in another document of this
  *    tab, or on return to a hidden tab), the game is told at once.
  *
@@ -79,6 +84,13 @@
     return Number(read(EXPIRES_KEY)) > Date.now() ? token : null
   }
 
+  // Both keys still stored and the expiry passed: nobody signed out.
+  function expiredToken() {
+    var expires = read(EXPIRES_KEY)
+    if (!read(ACCESS_KEY) || expires === null || expires === '') return false
+    return Number(expires) <= Date.now()
+  }
+
   // The telegram_id consent was given for in this tab, or null.
   function consentedId() {
     var value = read(CONSENT_KEY)
@@ -103,6 +115,19 @@
     button.hidden = true
     write(CONSENT_KEY, null)
     reply(nonce, 'signed-out')
+  }
+
+  // Not a sign-out: the consent is kept.
+  function expired(nonce) {
+    pendingNonce = null
+    popup = null
+    button.hidden = true
+    reply(nonce, 'expired')
+  }
+
+  // No live token: expired when the tab still holds one, else signed-out.
+  function noSession(nonce) {
+    return expiredToken() ? expired(nonce) : signedOut(nonce)
   }
 
   function askConsent(nonce) {
@@ -133,8 +158,8 @@
               return {}
             })
             .then(function (body) {
-              // Signed out while the request ran: that token is not theirs now.
-              if (accessToken() !== token) return signedOut(nonce)
+              // Signed out or expired while the request ran: not for them now.
+              if (accessToken() !== token) return noSession(nonce)
               if (
                 response.ok &&
                 typeof body.game_token === 'string' &&
@@ -171,7 +196,7 @@
 
   function answer(nonce) {
     var token = accessToken()
-    if (!token) return signedOut(nonce)
+    if (!token) return noSession(nonce)
     var id = consentedId()
     if (id === null) return askConsent(nonce)
     mint(nonce, token, id)
@@ -190,7 +215,7 @@
       popup = null
       button.hidden = true
       var token = accessToken()
-      if (!token) return signedOut(waiting)
+      if (!token) return noSession(waiting)
       return mint(waiting, token, null)
     }
 
@@ -209,9 +234,13 @@
       window.open(CONSENT_URL, '_blank', 'popup,width=420,height=320') || null
   })
 
+  // Tells the game once when the token went away (signed-out) or ran out
+  // (expired), without being asked.
   function recheck() {
     if (lastState === null || lastState === 'signed-out') return
-    if (!accessToken()) signedOut(null)
+    if (accessToken()) return
+    if (!expiredToken()) signedOut(null)
+    else if (lastState !== 'expired') expired(null)
   }
 
   window.addEventListener('storage', function (event) {

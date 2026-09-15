@@ -311,16 +311,14 @@ describe('without a session the game is told signed-out', () => {
     expect(b.button.hidden).toBe(true)
   })
 
-  it('an access token past its expiry is no session', async () => {
-    const b = boot({
-      storage: session({
-        [EXPIRES]: String(Date.now() - 1),
-        [CONSENT]: CONSENTED,
-      }),
-    })
+  it('an access token with no expiry stored is no session, and the consent goes', async () => {
+    const storage = session({ [CONSENT]: CONSENTED })
+    delete storage[EXPIRES]
+    const b = boot({ storage })
     b.ask('n-1')
     await flush()
     expect(b.posts.map(p => p.message.state)).toEqual(['signed-out'])
+    expect(b.values.get(CONSENT)).toBeUndefined()
     expect(b.fetch).not.toHaveBeenCalled()
   })
 
@@ -335,6 +333,136 @@ describe('without a session the game is told signed-out', () => {
     b.ask('n-1')
     await flush()
     expect(b.fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('an access token past its expiry is expired, not signed-out', () => {
+  // The tab never signed out: logoutAppSession removes the access token and
+  // its expiry, so both still being there means only that nothing refreshed
+  // the token outside app.t27.ai. Keeping the consent means the way back
+  // (the player refreshes, returns to the game) asks for no second popup.
+  const expiredSession = (extra: Record<string, string> = {}) =>
+    session({ [EXPIRES]: String(Date.now() - 1), ...extra })
+
+  it('replies expired, keeps the consent, and calls nothing', async () => {
+    const b = boot({ storage: expiredSession({ [CONSENT]: CONSENTED }) })
+    b.ask('n-1')
+    await flush()
+    expect(b.posts).toEqual([
+      {
+        message: { v: 1, type: 'tri-identity', nonce: 'n-1', state: 'expired' },
+        target: GAME,
+      },
+    ])
+    expect(b.values.get(CONSENT)).toBe(CONSENTED)
+    expect(b.keysRemoved).toEqual([])
+    expect(b.keysWritten).toEqual([])
+    expect(b.fetch).not.toHaveBeenCalled()
+    expect(b.button.hidden).toBe(true)
+  })
+
+  it('without consent it is expired too, and asks for nothing', async () => {
+    const b = boot({ storage: expiredSession() })
+    b.ask('n-1')
+    b.click()
+    await flush()
+    expect(b.posts.map(p => p.message.state)).toEqual(['expired'])
+    expect(b.open).not.toHaveBeenCalled()
+    expect(b.values.get(CONSENT)).toBeUndefined()
+  })
+
+  it('consent arriving after the token ran out mints nothing and answers expired', async () => {
+    const b = boot({ storage: session() })
+    b.ask('n-1')
+    b.click()
+    b.values.set(EXPIRES, String(Date.now() - 1))
+    b.consent()
+    await flush()
+    expect(b.fetch).not.toHaveBeenCalled()
+    expect(b.posts.map(p => p.message.state)).toEqual([
+      'consent-required',
+      'expired',
+    ])
+  })
+
+  it('a signed-in game hears expired once when the token runs out, then signed-out on a real sign-out', async () => {
+    const b = boot({ storage: session({ [CONSENT]: CONSENTED }) })
+    b.ask('n-1')
+    await flush()
+    b.values.set(EXPIRES, String(Date.now() - 1))
+    b.becomeVisible()
+    b.becomeVisible()
+    b.storageEvent(EXPIRES)
+    expect(b.posts.map(p => [p.message.state, p.message.nonce])).toEqual([
+      ['signed-in', 'n-1'],
+      ['expired', null],
+    ])
+    expect(b.values.get(CONSENT)).toBe(CONSENTED)
+
+    // logoutAppSession removes all three keys.
+    b.values.delete(ACCESS)
+    b.values.delete(REFRESH)
+    b.values.delete(EXPIRES)
+    b.storageEvent(ACCESS)
+    expect(b.posts.at(-1)?.message).toEqual({
+      v: 1,
+      type: 'tri-identity',
+      nonce: null,
+      state: 'signed-out',
+    })
+    expect(b.values.get(CONSENT)).toBeUndefined()
+  })
+
+  it('a token that runs out while it is being minted is answered expired, not delivered', async () => {
+    let finish: (value: unknown) => void = () => {}
+    const b = boot({
+      storage: session({ [CONSENT]: CONSENTED }),
+      fetch: () => new Promise(resolve => (finish = resolve)),
+    })
+    b.ask('n-1')
+    b.values.set(EXPIRES, String(Date.now() - 1))
+    finish(response(200, SIGNED_IN))
+    await flush()
+    expect(JSON.stringify(b.posts)).not.toContain('fake-game-1')
+    expect(b.posts.map(p => p.message.state)).toEqual(['expired'])
+    expect(b.values.get(CONSENT)).toBe(CONSENTED)
+  })
+
+  it('the expired path reads no refresh token and no Telegram data', async () => {
+    const b = boot({ storage: expiredSession({ [CONSENT]: CONSENTED }) })
+    b.ask('n-1')
+    b.becomeVisible()
+    await flush()
+    expect(b.keysRead.length).toBeGreaterThan(0)
+    expect(b.keysRead).not.toContain(REFRESH)
+    expect(b.keysRead).not.toContain('__telegram__initParams')
+  })
+
+  it('negative control: an expired answer that removes the consent is caught', async () => {
+    const b = boot({
+      source: mutate(
+        "    reply(nonce, 'expired')",
+        "    write(CONSENT_KEY, null)\n    reply(nonce, 'expired')"
+      ),
+      storage: expiredSession({ [CONSENT]: CONSENTED }),
+    })
+    b.ask('n-1')
+    await flush()
+    expect(b.values.get(CONSENT)).toBeUndefined()
+  })
+
+  it('negative control: without the expired branch the game hears signed-out and the consent is lost', async () => {
+    const b = boot({
+      source: mutate(
+        'return expiredToken() ? expired(nonce) : signedOut(nonce)',
+        'return signedOut(nonce)'
+      ),
+      storage: expiredSession({ [CONSENT]: CONSENTED }),
+    })
+    b.ask('n-1')
+    await flush()
+    expect(b.posts.map(p => p.message.state)).toEqual(['signed-out'])
+    expect(b.values.get(CONSENT)).toBeUndefined()
   })
 })
 
