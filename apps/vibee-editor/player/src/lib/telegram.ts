@@ -81,6 +81,11 @@ export function getTelegramUser(): TelegramWebAppUser | null {
  * same predicate as the session). Without location.ancestorOrigins (Firefox)
  * the framer is unknown: only launch data that arrived in this document's own
  * URL hash counts, never data restored from storage.
+ *
+ * "Arrived in the hash" is decided the way telegram-web-app.js parses it
+ * (urlParseHashParams): after '#', everything up to the first '?' is a path,
+ * and only the part after it holds parameters. In '#tgWebAppData=?x' the key
+ * is part of the path, so the script copies the stored signed value in.
  */
 export function initDataTrustedIn(
   win: FramedWindow,
@@ -89,7 +94,10 @@ export function initDataTrustedIn(
   if (win.self === win.top) return true
   const list = win.location.ancestorOrigins
   if (!list || typeof list.length !== 'number' || list.length === 0) {
-    return /(?:^#|&)tgWebAppData=/.test(launchHash)
+    const hash = launchHash.replace(/^#/, '')
+    const q = hash.indexOf('?')
+    const params = new URLSearchParams(q >= 0 ? hash.slice(q + 1) : hash)
+    return !!params.get('tgWebAppData')
   }
   return sessionTrustedIn(win)
 }

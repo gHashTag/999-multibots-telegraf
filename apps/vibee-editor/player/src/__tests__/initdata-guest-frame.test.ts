@@ -60,6 +60,17 @@ describe('initDataTrustedIn', () => {
     ['', false],
     ['#tgWebAppVersion=8.0', false],
     ['#xtgWebAppData=fake', false],
+    // telegram-web-app.js takes everything before the first '?' as a path, so
+    // the key below is not in the hash for it, and it restores the stored
+    // signed value. None of these may count as launch data in the hash.
+    ['#tgWebAppData=?x', false],
+    ['#tgWebAppData=?', false],
+    ['#a&tgWebAppData=?b', false],
+    ['#tgWebAppData=fake?x', false],
+    ['#tgWebAppData', false],
+    ['#tgWebAppData=', false],
+    // Parameters after the '?' are read by the script.
+    ['#/feed?tgWebAppData=fake-init&tgWebAppVersion=8.0', true],
   ])('no ancestorOrigins (Firefox), launch hash %j: %s', (hash, trusted) => {
     expect(initDataTrustedIn(framed(null), hash)).toBe(trusted)
   })
