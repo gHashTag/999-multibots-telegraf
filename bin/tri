@@ -45,6 +45,7 @@ tri — оболочка Trinity S³AI
   tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
+  tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri open       что ещё открыто по pipeline-STATUS.md
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
@@ -766,6 +767,8 @@ PYEOF
   mutate) shift; bash "$ROOT/bin/helpers/mutate.sh" "$@" ;;
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
+
+  wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true
