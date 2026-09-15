@@ -358,7 +358,7 @@ describe('the names it reads and the shape of what it sends', () => {
     expect(resolveOwner({})).toBe('')
   })
 
-  it('the caption carries the title, one line of the body and the way back', () => {
+  it('the caption carries the title, the body and the way back', () => {
     const c = captionFor(reel({ name: 'Заголовок' }))
     expect(c.startsWith('Заголовок')).toBe(true)
     expect(c).toContain('первая строка')
@@ -367,6 +367,56 @@ describe('the names it reads and the shape of what it sends', () => {
     expect(
       captionFor(reel({ description: 'д'.repeat(4000) })).length
     ).toBeLessThanOrEqual(1024)
+  })
+
+  /*
+   * THE FIXTURE ABOVE IS NOT WHAT THE PRODUCER EMITS, AND THAT IS HOW THE
+   * DUPLICATION SHIPPED.
+   *
+   * `igText` in scripts/agent-autopilot.ts builds the description STARTING WITH
+   * THE TITLE, then a blank line, then the body, the star CTA, the hashtags and
+   * the AI disclosure. Against that real shape the old captionFor emitted the
+   * headline, a blank line and the same headline again -- roughly 120 of the
+   * 1024 characters Telegram allows, with the measurement and the CTA dropped.
+   *
+   * A fixture of the producer's actual shape is the whole point of this case.
+   */
+  const asProduced = (title: string) =>
+    [
+      title,
+      '',
+      'Прогон в 30 проходов показал слепое пятно в пороге отказов. Весь разбор — на t27.ai.',
+      '',
+      'Понравилось? Тапни ⭐ под роликом — звезда падает автору на баланс.',
+      '',
+      '#TrinityS3AI #t27 #блог',
+      '',
+      '🤖 Собрано агентом Trinity.',
+    ].join('\n')
+
+  it('does not print the title twice when the producer leads with it', () => {
+    const title = 'Тридцать эпох'
+    const c = captionFor(reel({ name: title, description: asProduced(title) }))
+    // Once as the headline, and nowhere else.
+    expect(c.split(title).length - 1).toBe(1)
+  })
+
+  it('keeps the body, the star CTA, the hashtags and the AI disclosure', () => {
+    const title = 'Тридцать эпох'
+    const c = captionFor(reel({ name: title, description: asProduced(title) }))
+    expect(c).toContain('слепое пятно')
+    expect(c).toContain('звезда падает автору')
+    expect(c).toContain('#TrinityS3AI')
+    expect(c).toContain('Собрано агентом Trinity')
+    expect(c).toContain('app.t27.ai/feed')
+    // Measured against the old behaviour, which shipped 121 characters.
+    expect(c.length).toBeGreaterThan(200)
+  })
+
+  it('still works when the description does NOT repeat the title', () => {
+    const c = captionFor(reel({ name: 'Заголовок', description: 'тело поста' }))
+    expect(c).toContain('Заголовок')
+    expect(c).toContain('тело поста')
   })
 
   it('it sends a URL with the resolved credentials', async () => {

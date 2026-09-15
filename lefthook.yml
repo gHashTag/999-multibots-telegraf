@@ -89,6 +89,11 @@ pre-commit:
     #    test file shipped with Cyrillic test names and this gate said nothing,
     #    because .swift was in neither the glob nor the script. Both lists must
     #    agree -- the glob decides which files reach the script at all.
+    # The reel factory's topic queue: a bad entry does not crash, it publishes.
+    # Only when a queue is actually staged, so an ordinary commit pays nothing.
+    topics:
+      glob: "*topics*.json"
+      run: node loop/validate-topics.mjs {staged_files}
     no-cyrillic:
       glob: "*.{ts,tsx,js,jsx,mjs,cjs,swift}"
       run: node scripts/no-cyrillic-guard.cjs staged

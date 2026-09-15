@@ -299,3 +299,57 @@ keys (prettier strips quotes) — use English comments, string `.includes`, and
 Open: the first live scoped sweep (`/sweep ждут`) not yet observed; the pay button and
 DM mirror verified by tests and deploy only; crm_leads / scope selections see the top
 50 by score — a bigger base needs paging.
+
+## Cycle 6 — 2026-09-09: three Explorers, and the one link that prepares
+
+The owner asked for an Explorer over the SKILLS, in the style of `#/specs` and
+bound to the t27 specs; then the same for CRM clients; then for the crons on
+Railway, "systematised"; and that only he may see his own data.
+
+Shipped in `gHashTag/trinity` PR #973 (branch
+`feat/explorer-tabs-skills-clients-crons`): three tabs on one shared shell
+(`explorerTheme`, `ExplorerHeader`, `ExplorerLibrary`, `useHashParams`).
+
+- `#/skills` — 26 published skills of the two PUBLIC repositories, each with
+  its `.t27` spec. Forward link declared (`specs:` frontmatter, or the site's
+  `bindings.json`); backward link derived at index time and never written into
+  a spec. A declared reference that stops resolving fails the build;
+  `link-baseline.json` caps the unbound count and may only come down.
+- `#/crons` — 33 scheduled jobs read out of the source: 6 Inngest crons, 14
+  long-lived timers (bot + render), 12 GitHub Actions schedules, 1 Railway cron
+  service. The two schedules on the bot repository are marked as not firing.
+- `#/clients` — the owner's CRM. Not in the navigation, `noindex`, no data of
+  its own: live `/mcp` calls, refused server-side for anyone but the owner.
+
+Bot side, PR on `feat/crm-prep-deep-link`: `/start crm-prep-<id>` from an admin
+in a private chat runs the same `prepare` the menu button runs, so the console's
+single action prepares a card and sends nothing; plus `crm-owner-gate.test.ts`,
+which asserts every tool in all five CRM registries refuses a stranger BEFORE
+touching the database (the pool throws on any query, so read-then-check would
+show up as a database error rather than a refusal).
+
+Decisions taken, both reversible with one line and both stated in the PR: the
+private bot repository's 45 skills are withheld from the public site (the site
+republishes only what is already public); ten trinity skills carry a hardcoded
+home directory and were published as they are (already public on GitHub) with a
+follow-up task raised to fix them at the source.
+
+A four-agent workflow built and then adversarially verified the two catalogs.
+The verification earned its cost: three of ten spec bindings were plausible but
+FALSE (a directory-name coincidence, a homonym, and the wrong registry), eight
+classes of lying manifest passed both gates, and four guard rails in the cron
+scan excused timers by file rather than by line. All fixed.
+
+Lessons: `--experimental-strip-types` needs Node 22, the syncs run on Node 20,
+and there is no Chrome on this Mac — the browser audits only run in CI, so
+generated text must be marked `data-lang-exempt` by construction rather than
+discovered by a local audit. A contract that greps for a literal header name
+also catches the comment explaining why the header is banned; keep the rule
+literal and reword the comment. And a display bug survives every contract: the
+console printed `summary.people` and `summary.messages` when the tool returns
+`people_known` and `messages.total` — only reading the tool's own return
+statement caught it.
+
+Open: BotFather `/setdomain t27.ai` (owner's action) before the Login Widget
+door works; the agent-key door works today. Batch mode (a warm batch under one
+press) is designed and not started.

@@ -51,6 +51,11 @@ import {
   spendClaimId,
 } from '../src/broll-spend'
 import {
+  leadSentence,
+  measurementPlate,
+  sentences,
+} from '../src/autopilot-text'
+import {
   attemptTalkingPortrait,
   kieProvider,
   portraitRecord,
@@ -200,6 +205,7 @@ async function call(name: string, args: Record<string, unknown> = {}) {
  * очередь близка к концу: производство не должно замолкать только потому,
  * что восемь тем кончились.
  */
+
 async function blogTopics(published: string[]): Promise<Topic[]> {
   try {
     const r = await fetch(`${BASE}/api/blog`, {
@@ -209,19 +215,23 @@ async function blogTopics(published: string[]): Promise<Topic[]> {
     const d = (await r.json()) as {
       items?: { title: string; description: string; pubDate: string }[]
     }
-    return (d.items || [])
-      .filter(it => it.title && !published.includes(it.title))
-      .slice(0, 5)
-      .map(it => ({
-        title: it.title,
-        subtitle: (it.description || '').slice(0, 110).trim(),
-        lesson: 'Весь разбор с числами и единицами — на t27.ai',
-        tags: ['блог', 't27'],
-        plates: [
-          { label: 'полный разбор', value: 't27.ai/#/blog' },
-          { label: 'формат', value: 'измерение, не обещание' },
-        ],
-      }))
+    return (
+      (d.items || [])
+        // `published` now carries undecorated topic titles as well as feed names,
+        // so a style-B post can no longer slip back into the queue as "new".
+        .filter(it => it.title && !published.includes(it.title))
+        .slice(0, 5)
+        .map(it => ({
+          title: it.title,
+          subtitle: leadSentence(it.description || ''),
+          lesson: 'Весь разбор с числами и единицами — на t27.ai',
+          tags: ['блог', 't27'],
+          plates: [
+            { label: 'полный разбор', value: 't27.ai/#/blog' },
+            { label: 'формат', value: 'измерение, не обещание' },
+          ],
+        }))
+    )
   } catch {
     return []
   }
@@ -430,7 +440,24 @@ async function main() {
   // 2a. Доподливка из блога: рукотворных тем осталось меньше двух — тянем
   // свежие посты t27.ai. Это то же живое производство, а не выдумка.
   const mine = { записи: feedRecords } // cyrillic-ok: response field
+  /*
+   * TWO LISTS, BECAUSE THE NAME IS NOT THE IDENTITY.
+   *
+   * `names` is what the feed shows; a style-B post carries a decorated title
+   * there. Comparing an undecorated queue title against those let the same post
+   * republish -- the guard looked at a string the producer had already changed.
+   *
+   * `posted` is the identity: the topic title as the queue knows it, written
+   * into template_settings at publish time. Old rows have no such field, so the
+   * name list stays as the fallback and the guard only ever gets stricter.
+   */
   const names: string[] = (mine?.записи || []).map((x: any) => String(x.name))
+  const posted = new Set<string>(
+    (mine?.записи || []) // cyrillic-ok: pre-existing tool response field
+      .map((x: any) => String(x?.template_settings?.topic_title || '').trim())
+      .filter(Boolean)
+  )
+  const alreadyPosted = (t: string) => posted.has(t.trim()) || names.includes(t)
   // The same title-resolved cursor the pick below uses: asking "how much queue
   // is left" against a stale raw index would top up at the wrong moment.
   if (
@@ -441,7 +468,11 @@ async function main() {
       ) <
     2
   ) {
-    const fromBlog = await blogTopics([...names, ...topics.map(t => t.title)])
+    const fromBlog = await blogTopics([
+      ...names,
+      ...posted,
+      ...topics.map(t => t.title),
+    ])
     if (fromBlog.length) {
       topics.push(...fromBlog)
       fs.mkdirSync(LOOP_DIR, { recursive: true })
@@ -478,7 +509,7 @@ async function main() {
     return
   }
   // 3. Дубль-защита: название не должно встречаться в моих последних постах.
-  if (names.some(n => n === topic.title)) {
+  if (alreadyPosted(topic.title)) {
     log(`тема «${topic.title}» уже опубликована — двигаю очередь дальше`)
     await writeState({
       ...state,
@@ -496,9 +527,17 @@ async function main() {
   const abStyle = state.postsToday % 2 === 0 ? 'A' : 'B'
   let title = topic.title
   if (abStyle === 'B') {
-    const plate = (topic.plates || []).find((pl: any) =>
-      /\d/.test(String(pl.value))
-    )
+    /*
+     * A MEASUREMENT STARTS WITH ITS NUMBER. `/\d/` merely asks whether a digit
+     * appears anywhere, and the blog plate 't27.ai/#/blog' satisfies it through
+     * the '27' in the domain -- so every odd post of the day opened on a web
+     * address, engraved in the one gold element the format allows itself.
+     *
+     * The same string then defeated both duplicate guards, which compare the
+     * RAW blog title against feed names that carry this prefix, and the post
+     * went out a second time. One predicate, two defects.
+     */
+    const plate = measurementPlate(topic.plates)
     if (plate && !title.startsWith(String(plate.value))) {
       title = `${plate.value}: ${title}`
     }
@@ -958,10 +997,15 @@ async function main() {
   // хук (IG обрезает всё после неё в превью), тело с абзацами, CTA звезды,
   // блок хештегов в конце (3–5, не больше — размытие охвата), честная
   // AI-маркировка (SB 942 / EU AI Act).
+  /*
+   * Deduped before the slice. The constants already contain 't27' and the blog
+   * topics carry it again in their tag list, so every blog-sourced post shipped
+   * '#TrinityS3AI #t27 #блог #t27' -- the visible fingerprint of a generator
+   * nobody is reading, spending one of the five slots the cap below treats as
+   * scarce on a repeat.
+   */
   const hashtags = [
-    '#TrinityS3AI',
-    '#t27',
-    ...topic.tags.map(t => '#' + t),
+    ...new Set(['#TrinityS3AI', '#t27', ...topic.tags.map(t => '#' + t)]),
   ].slice(0, 5)
   const igText = [
     title,
@@ -969,7 +1013,11 @@ async function main() {
     // A face reel is not about the queued topic -- its words are the clip's
     // own. Describing it with the topic's subtitle would caption one video
     // with another video's meaning.
-    faceDescription || `${topic.subtitle}. ${topic.lesson}.`,
+    // `join` rather than `${a}. ${b}.`: the subtitle is now a whole sentence
+    // and already ends in its own punctuation. The old template appended a
+    // second full stop, which is what made an amputated number read as a
+    // finished thought.
+    faceDescription || sentences([topic.subtitle, topic.lesson]),
     '',
     'Понравилось? Тапни ⭐ под роликом — звезда падает автору на баланс.',
     '',
@@ -985,6 +1033,9 @@ async function main() {
       compositionId,
       props: renderProps,
       ab_style: abStyle,
+      // The queue's own title, undecorated: what the duplicate guard compares
+      // against next time. `name` above may carry the style-B prefix.
+      topic_title: topic.title,
       // Present only when the portrait switch is on, so a feed row published
       // with it off is byte-identical to what this factory published before.
       ...(talking ? { talking } : {}),

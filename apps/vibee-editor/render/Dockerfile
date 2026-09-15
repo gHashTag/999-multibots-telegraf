@@ -11,13 +11,19 @@ FROM node:20-bookworm-slim
 
 # Chrome's shared-library dependencies plus fonts. Without the fonts, text in
 # rendered compositions falls back to boxes; without libnss3/libatk/etc Chrome
-# exits before it opens a page. ffmpeg is used for muxing.
+# exits before it opens a page. ffmpeg is used for muxing, and now also to pull
+# the soundtrack out of an attached video so the agent can hear it.
+#
+# poppler-utils is here for `pdftotext`: a person attaching a PDF used to reach
+# the model as a filename and a link it cannot open, so the answer was about the
+# name. Two mature binaries beat megabytes of JavaScript for the same job, and a
+# subprocess with a timeout is a sandbox a library call is not.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates fonts-liberation fonts-noto-color-emoji fonts-dejavu-core \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libcairo2 libcups2 \
     libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libnspr4 libnss3 libpango-1.0-0 \
     libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
-    libxrandr2 xdg-utils wget ffmpeg \
+    libxrandr2 xdg-utils wget ffmpeg poppler-utils \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

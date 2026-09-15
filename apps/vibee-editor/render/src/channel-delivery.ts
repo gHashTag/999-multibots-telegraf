@@ -266,22 +266,40 @@ export const MARK_ATTEMPT = `UPDATE public_templates
     WHERE id = $1`
 
 /**
- * Channel caption: title, the first line of the description, and the way back
- * into the feed. Telegram refuses a caption over 1024 characters outright.
+ * Channel caption. Telegram refuses a caption over 1024 characters outright.
+ *
+ * WHAT THIS USED TO DO, AND WHY NOBODY NOTICED. It printed `reel.name`, then
+ * "the first non-empty line of the description" -- and the producer builds that
+ * description STARTING WITH THE TITLE (`igText` in scripts/agent-autopilot.ts).
+ * So the two were the same string, every time. A subscriber received the
+ * headline, a blank line, the same headline again and a link: about 120 of the
+ * 1024 characters available, with the measurement, the star CTA that funds the
+ * author, the hashtags and the AI disclosure all discarded on the floor.
+ *
+ * The test that should have caught it could not: its fixture was
+ * `{name: 'Рилс', description: 'первая строка\nвторая'}` -- a shape the real
+ * producer never emits, so the duplication had nothing to collide with.
+ *
+ * The body is therefore taken as everything AFTER a leading line that merely
+ * repeats the title, and the paragraphs the producer assembled are kept rather
+ * than reduced to one truncated line.
  */
 export function captionFor(reel: PendingReel): string {
-  const firstLine =
-    String(reel.description || '')
-      .split('\n')
-      .find(l => l.trim()) ?? ''
-  return [
-    String(reel.name),
-    '',
-    firstLine.slice(0, 220),
-    '',
-    'Смотреть в ленте: https://app.t27.ai/feed',
-  ]
+  const title = String(reel.name || '').trim()
+  const lines = String(reel.description || '').split('\n')
+  // Drop a leading run of blank lines and, with it, a first line that is the
+  // title again. Compared trimmed: the producer pads with blank lines.
+  let start = 0
+  while (start < lines.length && !lines[start].trim()) start += 1
+  if (start < lines.length && lines[start].trim() === title) {
+    start += 1
+    while (start < lines.length && !lines[start].trim()) start += 1
+  }
+  const body = lines.slice(start).join('\n').trim()
+  return [title, '', body, '', 'Смотреть в ленте: https://app.t27.ai/feed']
+    .filter((part, i) => part !== '' || i === 1 || i === 3)
     .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
     .slice(0, 1024)
 }
 

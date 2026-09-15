@@ -61,6 +61,8 @@ const MAX_TAGS = 3
 const URLISH = /https?:|\/|[a-z]\.[a-z]{2,}/i
 
 const DIGIT = /\d/
+/** A measurement begins with its number; `t27.ai/#/blog` does not. */
+const LEADING_NUMBER = /^[-−+≤≥~]?\d/
 
 /** One violation: file, index, rule id, human sentence. */
 function violation(list, index, rule, message) {
@@ -76,8 +78,21 @@ function isNonEmptyString(v) {
  * Kept as a copy on purpose: the point of the check is to predict what THAT
  * code will print, so it has to model that code and not a tidier version.
  */
+/**
+ * The headline the B style would actually print.
+ *
+ * THE PREDICATE CHANGED UNDER THIS RULE, ON PURPOSE. It used to be
+ * `/\d/.test(value)` -- "contains a digit anywhere" -- which a domain satisfies
+ * through its own name, and that is how "t27.ai/#/blog: …" reached the feed in
+ * gold. agent-autopilot.ts now requires the value to BEGIN with a number,
+ * because that is what a measurement looks like. This mirror moves with it: a
+ * validator that models the old behaviour would keep failing queues that are
+ * now fine, and would stop catching the case it exists for.
+ */
 function renderedTitle(topic) {
-  const plate = (topic.plates || []).find(pl => DIGIT.test(String(pl?.value)))
+  const plate = (topic.plates || []).find(pl =>
+    LEADING_NUMBER.test(String(pl?.value).trim())
+  )
   if (!plate) return { title: topic.title, plate: null }
   const value = String(plate.value)
   if (String(topic.title).startsWith(value)) {
@@ -165,8 +180,10 @@ function checkFile(file) {
       seen.set(t.title, i)
     }
 
-    // R4: the trap that is live in the feed right now. The B style prints the
-    // first plate whose value merely contains a digit; a domain qualifies.
+    // R4: the trap this rule was written for is fixed in the producer, so the
+    // rule now guards the fix rather than describing the bug. A value that
+    // begins with a number but is still an address (say "27.ai") would slip
+    // past the predicate, and that is exactly what this catches.
     const { title: shown, plate } = renderedTitle(t)
     if (plate && URLISH.test(String(plate.value))) {
       violation(

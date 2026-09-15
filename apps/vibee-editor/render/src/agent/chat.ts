@@ -25,6 +25,7 @@ import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic
 import { salesPlaybook } from './crm-playbook'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
+import { perceiveAttachments } from './attachment-perception'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -397,12 +398,15 @@ export function systemPrompt(surface?: string): string {
 }
 
 async function* streamModel(
-  messages: ChatMessage[]
+  messagesIn: ChatMessage[]
 ): AsyncGenerator<
   | { kind: 'reasoning'; text: string }
   | { kind: 'content'; text: string }
   | { kind: 'done'; message: any }
 > {
+  // Local and mutable: the no-capable-provider branch below appends one note
+  // turn rather than mutating the caller's array, which the agent loop reuses.
+  let messages = messagesIn
   /*
    * A TURN WITH A PICTURE GOES TO A PROVIDER THAT CAN SEE IT.
    *
@@ -444,12 +448,33 @@ async function* streamModel(
    */
   const useParts = kinds.size > 0 && capable.length > 0
   if (kinds.size > 0 && !useParts) {
+    /*
+     * SAID TO THE MODEL, NOT ONLY TO THE LOG.
+     *
+     * This branch used to warn on the server and answer from the marker text,
+     * so the PERSON got a confident answer about a picture nobody looked at and
+     * no way to know it. Blindness that announces itself is worth more than
+     * blindness that reads as unhelpfulness. The note rides in the system turn,
+     * so it costs nothing on the ordinary path and cannot be mistaken for the
+     * person's own words.
+     */
     console.warn(
       '[agent] во вложении есть ' +
         [...kinds].join(', ') +
         ', но ни один настроенный провайдер это не воспринимает — ' +
         'отвечаю по тексту вложения'
     )
+    messages = [
+      ...messages,
+      {
+        role: 'system',
+        content:
+          'ВЛОЖЕНИЕ НЕ ПОКАЗАНО ТЕБЕ: ни одна из настроенных моделей не умеет ' +
+          `воспринимать ${[...kinds].join(', ')}. Ты видишь только имя файла. ` +
+          'Скажи это человеку прямо и предложи прислать текстом — не делай вид, ' +
+          'что посмотрел.',
+      } as ChatMessage,
+    ]
   }
   const providers = useParts ? capable : configured
 
@@ -629,7 +654,8 @@ export async function* runAgent(
   const dmContext =
     opts?.surface === 'business' ? await dmHistoryBlock(ctx) : ''
 
-  const messages: ChatMessage[] = [
+  // `let`: perceiveAttachments below rewrites the last turn in place.
+  let messages: ChatMessage[] = [
     {
       role: 'system',
       content:
@@ -653,6 +679,32 @@ export async function* runAgent(
     },
     ...history,
   ]
+
+  /*
+   * READ THE ATTACHMENTS BEFORE THE FIRST STEP, AND ONLY ONCE.
+   *
+   * `withMediaParts` further down turns an `[attached image: …]` marker into a
+   * part the provider can see, and an `[attached audio: …]` marker into one it
+   * can hear -- but it drops `video` and `file` on the floor, so a PDF reached
+   * the model as a filename and a link it cannot open. `perceiveAttachments`
+   * fills those two in: a document becomes its text, a video becomes its
+   * soundtrack re-attached as an audio marker, which the existing path then
+   * carries. See src/agent/attachment-perception.ts.
+   *
+   * HERE rather than inside `streamModel`: this loop re-sends the whole array
+   * on every tool step, and reading a PDF once per step would repeat a
+   * subprocess and a download for the rest of the conversation.
+   *
+   * Never throws by contract; a failure leaves `messages` as they were, which
+   * is exactly today's behaviour.
+   */
+  try {
+    const perceived = await perceiveAttachments(messages as any)
+    messages = perceived.messages as any
+    for (const note of perceived.notes) console.log('[вложение]', note)
+  } catch (e) {
+    console.error('[вложение] восприятие не вышло', e)
+  }
 
   for (let step = 0; step < MAX_STEPS; step++) {
     let assistant: any = null

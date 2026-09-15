@@ -37,6 +37,21 @@ const STEPS = [
   ['test:player', 'bun', ['run', 'test:player']],
   ['test:vitest', 'bun', ['run', 'test:vitest']],
   ['test-gate', 'node', ['scripts/test-gate.cjs']],
+  // The autopilot's topic queue is the only human-written input to the reel
+  // factory, and nothing between the file and a published reel checked it: a
+  // malformed entry does not crash, it PUBLISHES. The validator was written,
+  // committed, and then called by nothing -- on 2026-09-15 it failed with ten
+  // violations on both committed queues, one of which (R4) named a defect that
+  // was live in the feed. A gate nobody runs is a gate that does not exist.
+  [
+    'check:topics',
+    'node',
+    [
+      'loop/validate-topics.mjs',
+      'apps/vibee-editor/render/loop/topics.json',
+      'loop/topics.json',
+    ],
+  ],
 ]
 
 // One step is a known flake, not a code signal: test:bun runs its files under a
