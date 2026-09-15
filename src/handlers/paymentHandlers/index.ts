@@ -3,6 +3,7 @@ import { setPayments } from '@/core/supabase/setPayments'
 
 import { logger } from '@/utils/logger'
 
+import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import {
   Currency,
@@ -137,6 +138,74 @@ export function starsCreditVerdict(outcome: {
   if (outcome.credited === true) return 'credited'
   if (/redeliver/i.test(outcome.reason ?? '')) return 'already'
   return 'failed'
+}
+
+/**
+ * Forward a subscription change to the ledger's own service.
+ *
+ * Same key and same shape as postStarsCredit: the touch log lives in the
+ * render's database, not in Supabase, so the bot carries the fact across.
+ */
+export async function postSubscriptionChange(change: {
+  payload: string
+  state: string
+  botName?: string
+}): Promise<{ ok: boolean; recorded?: number; reason?: string }> {
+  const r = await fetch(
+    'https://vibee-render-production.up.railway.app/api/crm/subscription',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': process.env.RENDER_API_KEY || '',
+      },
+      body: JSON.stringify(change),
+    }
+  )
+  return (await r.json()) as { ok: boolean; recorded?: number; reason?: string }
+}
+
+/**
+ * THE DAY SOMEBODY STOPPED PAYING, INSTEAD OF A MONTH OF SILENCE.
+ *
+ * Bot API 10.2 (14 Jul 2026) sends BotSubscriptionUpdated to the bot that
+ * issued the invoice. Telegraf 4.16.3 has no type for it, but `Composer.on`
+ * is a plain `filter in update` check, so naming the key is enough -- and
+ * src/index.ts must list `subscription` in allowedUpdates or nothing arrives.
+ *
+ * Money is NOT touched here. A renewal charge comes separately as an ordinary
+ * successful_payment (SuccessfulPayment.is_recurring) and credits through the
+ * existing path; this handler only writes down what happened.
+ */
+export function registerSubscriptionUpdates(bot: Telegraf<MyContext>): void {
+  // Two casts, both because 4.16.3 predates the update type: the key is not
+  // in its union, and without the second one ctx narrows to `never`.
+  const onSubscription = async (ctx: MyContext) => {
+    const sub = (ctx.update as Record<string, any>)?.subscription
+    const payload = String(sub?.invoice_payload ?? '')
+    const state = String(sub?.state ?? '')
+    if (!payload || !state) return
+    try {
+      const out = await postSubscriptionChange({
+        payload,
+        state,
+        botName: ctx.botInfo?.username,
+      })
+      logger.info('[subscription] change recorded', {
+        state,
+        recorded: out.recorded,
+        reason: out.reason,
+      })
+    } catch (error) {
+      // Nothing is retried and nothing is shown to anybody: the money path is
+      // elsewhere, and a lost note must not become a lost payment.
+      logger.error('[subscription] change not recorded', {
+        state,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+  bot.on('subscription' as never, onSubscription as never)
 }
 
 /**

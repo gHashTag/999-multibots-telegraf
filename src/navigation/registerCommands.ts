@@ -49,6 +49,7 @@ import {
   summaryKeyboard,
   nextOf,
 } from '@/navigation/helpers/crmMenu'
+import { registerSubscriptionUpdates } from '@/handlers/paymentHandlers'
 import { scopedPrompt } from '@/services/crmSweepScope'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
@@ -278,6 +279,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      * state, and a press that is not theirs falls through untouched.
      */
     registerProposalButtons(bot)
+    // A subscription cancelled, resumed or failed to charge becomes a line in
+    // the person's CRM history the same day. See paymentHandlers.
+    registerSubscriptionUpdates(bot)
     registerCrmCommands(bot)
 
     // 3. Добавляем Stage middleware - теперь ctx.scene доступен!

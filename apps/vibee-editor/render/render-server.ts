@@ -8417,6 +8417,56 @@ const server = createServer(async (req, res) => {
        * ходит в /api/star-paid. Маршрут намеренно НЕ внесён ни в один
        * публичный список: без ключа он отвечает 401, и это проверено тестом.
        */
+      /*
+       * A SUBSCRIPTION CHANGED: cancelled, resumed, or a charge that failed.
+       *
+       * Bot API 10.2 (14 Jul 2026) sends BotSubscriptionUpdated to the bot
+       * that issued the invoice -- a farm bot, not this service. The bot
+       * forwards it with the same key it already carries credits with,
+       * because the touch log lives in THIS service's database.
+       *
+       * The server key is required for the same reason crediting requires it:
+       * the body names a person, and with a mini-app signature alone anybody
+       * could write a line into somebody else's CRM.
+       */
+      const subscriptionPath = (req.url || '').split('?')[0]
+      if (
+        subscriptionPath === '/api/crm/subscription' &&
+        req.method === 'POST'
+      ) {
+        if (authenticate(req).via !== 'api-key') {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'этот маршрут принимает только ключ сервера',
+            })
+          )
+          return
+        }
+        try {
+          const body = JSON.parse((await readBody(req)) || '{}')
+          const { recordSubscriptionChange } = await import(
+            './src/agent/crm-subscription'
+          )
+          const out = await recordSubscriptionChange(getPool(), {
+            payload: body.payload,
+            state: body.state,
+            botName: body.botName ?? null,
+          })
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, ...out }))
+        } catch (e) {
+          // A CRM note that could not be written must never look to the bot
+          // like a payment that failed: 200 with ok:false. The detail goes to
+          // the log, not into the response -- see error-disclosure-ratchet.
+          console.error('[crm] подписка не записана:', e) // cyrillic-ok: log text
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'касание не записано' }))
+        }
+        return
+      }
+
       const путьЗачисления = (req.url || '').split('?')[0]
       if (путьЗачисления === '/api/stars/credit' && req.method === 'POST') {
         /*

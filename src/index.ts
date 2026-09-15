@@ -555,6 +555,13 @@ async function initializeBots() {
         'business_connection',
         'business_message',
         'inline_query',
+        /*
+         * A subscription was cancelled, resumed, or failed to charge (Bot API
+         * 10.2, 14 Jul 2026). It is NOT in Telegram's default set, so without
+         * naming it here the update never arrives at all -- and the only sign
+         * a subscriber left would go back to being a month of silence.
+         */
+        'subscription',
       ])
 
       botPromises.push(botPromise)
