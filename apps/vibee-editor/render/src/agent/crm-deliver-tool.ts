@@ -9,6 +9,7 @@ import {
   владелец, // cyrillic-ok: public API field
 } from './billing-shared'
 import { LEAD_MAGNET_MODEL } from '../kie-image'
+import { record } from '../hive/journal'
 
 /**
  * THE SERVICE, DELIVERED IN THE DM -- AND, BY DEFAULT, THE LEAD MAGNET.
@@ -105,6 +106,51 @@ export interface CrmDeliverDeps {
   ) => Promise<string>
 }
 
+/**
+ * A REFUSED GIFT LEAVES A LINE, BECAUSE NOTHING ELSE DOES.
+ *
+ * MEASURED 2026-09-16: gpt_image_edit -- the lead magnet's op -- appears ZERO
+ * times in the journal, over 62 prepared cards, while four of the top five
+ * candidates every tick ask for exactly that step. Everything it needs is in
+ * place: the tool wired with the lead's avatar, 7571 tokens against a price
+ * of 12, 4947 credits at the drawing provider, the tool in the compact kit.
+ *
+ * And I could not find out why, because a refusal here goes back to the model
+ * as a field it is free to ignore -- and it does, writing text instead. Three
+ * cycles of reading the code produced three wrong causes: the FAL balance (a
+ * different provider), the wiring (present), a crowded queue (not crowded).
+ *
+ * So the refusal is written down. One line per refusal, with the reason and
+ * nothing about the person: after the next deploy the question is answered by
+ * a query instead of by another guess.
+ */
+async function noteGiftRefused(
+  ctx: unknown,
+  why: unknown,
+  stage: string
+): Promise<void> {
+  try {
+    const c = ctx as { pool?: never; telegramId?: string }
+    if (!c?.pool) return
+    await record(c.pool, {
+      kind: 'gift-refused',
+      who: String(c.telegramId ?? '') || null,
+      // Stage first so a hundred of these read as a tally: the reason text is
+      // ours, never the client's words.
+      what: `${stage}: ${String(why ?? '').slice(0, 150)}`,
+      severity: 'normal',
+    })
+  } catch {
+    /*
+     * Bookkeeping: a journal that is down must not change what the seller
+     * does. The real protection is inside `record`, which swallows its own
+     * failures -- proven by mutation, this catch can be removed without any
+     * test noticing. It stays as a second belt for the ctx access above, and
+     * is documented as redundant rather than left to look load-bearing.
+     */
+  }
+}
+
 export function makeCrmDeliverTools(
   lookup: (name: string) => AgentTool | undefined,
   deps: CrmDeliverDeps = {}
@@ -162,6 +208,7 @@ export function makeCrmDeliverTools(
         const prompt = String(a?.prompt ?? '').trim()
         if (!prompt) throw new Error('не сказано, что нарисовать')
         if (String(ctx?.surface ?? '') !== 'bot') {
+          await noteGiftRefused(ctx, 'surface is not the bot chat', 'surface')
           return {
             proposal: true,
             action: 'send',
@@ -184,6 +231,11 @@ export function makeCrmDeliverTools(
           ? Number.POSITIVE_INFINITY
           : ((await balanceOf(pool, lead.id)) ?? FIRST_ROW_GRANT)
         if (!gift && have < price) {
+          await noteGiftRefused(
+            ctx,
+            `balance ${have} < price ${price}`,
+            'balance'
+          )
           return {
             delivered: false,
             // cyrillic-ok: public API field
@@ -246,6 +298,11 @@ export function makeCrmDeliverTools(
           model = 'image_generate'
         }
         if (!made?.url) {
+          await noteGiftRefused(
+            ctx,
+            made?.причина ?? made?.reason, // cyrillic-ok: public API field
+            source ? 'edit' : 'generate'
+          )
           return {
             delivered: false,
             // cyrillic-ok: public API field

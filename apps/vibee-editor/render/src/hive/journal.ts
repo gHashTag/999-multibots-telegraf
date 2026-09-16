@@ -97,6 +97,8 @@ export type EventKind =
   | 'sweep-idle'
   | 'sweep-card'
   | 'sweep-failed'
+  /** The lead magnet refused to be made, and why. */
+  | 'gift-refused'
   // other
   | 'failure'
 
