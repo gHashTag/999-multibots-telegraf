@@ -63,6 +63,16 @@ export const TOUCH_KINDS: TouchKind[] = [
   'note',
 ]
 
+/**
+ * A usable event time, or null for "now". Junk is not written as 1970.
+ */
+function whenHappened(at: Date | string | undefined): string | null {
+  if (at === undefined || at === null) return null
+  const d = at instanceof Date ? at : new Date(String(at))
+  const ms = d.getTime()
+  return Number.isFinite(ms) ? d.toISOString() : null
+}
+
 export interface Touch {
   /** Who reached out: the bot owner, not the lead. */
   owner: string
@@ -72,6 +82,19 @@ export interface Touch {
   botName: string | null
   kind: TouchKind
   note?: string
+  /**
+   * When it HAPPENED, if that is not now.
+   *
+   * The column defaulted to now() and nothing ever overrode it, which was
+   * wrong in two ways at once. A sweep re-reading an old dialogue stamped
+   * today onto an answer from three weeks ago; and worse, a touch derived
+   * from a message was stamped AFTER the message it describes was already
+   * stored, so "our last outbound is older than this touch" -- the comparison
+   * crm-segments.ts and crm-replies.ts both lean on -- read backwards.
+   *
+   * NULL means "now", so every existing caller keeps its behaviour exactly.
+   */
+  at?: Date | string
 }
 
 let tableReady = false
@@ -99,9 +122,31 @@ async function ensureTable(pool: Pool): Promise<void> {
    * with these people in the last N days". Without it that is a sequential scan
    * of the whole table on every list the person opens.
    */
+  /*
+   * THE COLUMN SHIPS WITHOUT ITS WRITER, ON PURPOSE.
+   *
+   * Nothing writes `reverts_id` yet -- the fold that reads corrections is a
+   * separate change and it is not here. But the reply query in crm-replies.ts
+   * already asks `reverts_id IS NULL`, and against a table without the column
+   * that is not a wrong answer, it is a thrown error which noteReply swallows
+   * by design. The result would be a writer that is wired, tested, deployed
+   * and silently records nothing.
+   *
+   * So the column exists and stays empty until something fills it. ADD COLUMN
+   * IF NOT EXISTS inside ensureTable, by the precedent of tools.ts and
+   * token-invoice.ts: this database has no migrations directory.
+   */
+  await pool.query(
+    'ALTER TABLE crm_touches ADD COLUMN IF NOT EXISTS reverts_id bigint'
+  )
   await pool.query(
     `CREATE INDEX IF NOT EXISTS crm_touches_owner_lead_at
        ON crm_touches (owner_id, lead_id, at DESC)`
+  )
+  /* The reply query asks "was this row cancelled"; without this that scans. */
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS crm_touches_reverts
+       ON crm_touches (reverts_id) WHERE reverts_id IS NOT NULL`
   )
   tableReady = true
 }
@@ -122,14 +167,16 @@ export async function recordTouch(
     if (!TOUCH_KINDS.includes(t.kind)) return 'not recorded'
     await ensureTable(pool)
     await pool.query(
-      `INSERT INTO crm_touches (owner_id, lead_id, bot_name, kind, note)
-       VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO crm_touches (owner_id, lead_id, bot_name, kind, note, at)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, now()))`,
       [
         String(t.owner),
         String(t.lead),
         t.botName ?? null,
         t.kind,
         t.note ? String(t.note).slice(0, 2000) : null,
+        // NULL means "now", so every existing caller keeps its behaviour.
+        whenHappened(t.at),
       ]
     )
     return 'recorded'

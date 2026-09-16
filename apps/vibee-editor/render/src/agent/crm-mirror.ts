@@ -14,9 +14,15 @@
  * not be posted twice. A Zep failure is logged, never raised -- the memory in
  * Postgres is already written, and a mirror that is down must not stop an
  * ingest or a send.
+ *
+ * Since 2026-09-15 the same funnel also derives ONE fact from what it sees: a
+ * client answering us writes a `replied` touch. It belongs here for the same
+ * reason everything else does -- every message passes through, so the fact
+ * has one writer instead of one per path. See crm-replies.ts.
  */
 
 import { rememberMessagesFresh, type StoredMessage } from './chat-memory'
+import { noteReply } from './crm-replies'
 import {
   zepConfigured,
   zepEnsureUser,
@@ -34,6 +40,9 @@ export async function mirrorNow(
   name?: string | null
 ): Promise<{ fresh: number; zep: number }> {
   const fresh = await rememberMessagesFresh(pool, owner, lead, msgs)
+  // After the messages are stored, never before: the reply is decided by
+  // reading the correspondence, and this batch is part of it.
+  await noteReply(pool as never, owner, lead, fresh)
   let zep = 0
   if (fresh.length && zepConfigured()) {
     try {
