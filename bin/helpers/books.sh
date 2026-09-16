@@ -114,36 +114,68 @@ for f in files:
         if writes(text, k):
             m = sh('git', 'show', 'origin/main:' + f)
             ok = m.returncode == 0 and writes(m.stdout, k)
-            writers[k].append((f, ok))
+            # WHEN THE WRITER APPEARED, not when the file was last touched.
+            #
+            # The first version asked for the file's most recent commit, which
+            # is a different question with a comfortable wrong answer:
+            # tg-proposals.ts had been writing `bought` for weeks and came back
+            # as "46 hours old, too young to judge" because somebody edited
+            # something else in it. `git log -S` walks to the commit that first
+            # introduced the kind into that file, which is what "had time to
+            # fire" actually means.
+            since = ''
+            if ok:
+                hist = sh('git', 'log', '--format=%ct', '-S', "'" + k + "'",
+                          'origin/main', '--', f).stdout.split()
+                since = hist[-1] if hist else ''
+            writers[k].append((f, ok, int(since) if since.isdigit() else 0))
 
 uses = {}
 for line in open('/tmp/tri-books-uses'):
     k, n = line.split('\t')
     uses[k] = int(n)
 
-dead, stranded, unreached = [], [], []
+import time
+now_s = time.time()
+# A WRITER NEEDS TIME TO HAVE HAD AN OCCASION.
+# 2026-09-16: `replied` was merged and deployed, and the very next run of this
+# command called it unreached -- twenty minutes after the deploy, before a
+# single ingest had seen a new message. Judging a writer before it could
+# possibly have fired sends the next cycle to fix what is not broken.
+YOUNG_H = 48
+dead, stranded, unreached, young = [], [], [], []
 print('-- kto pishet fakt, lezhit li on v prode, skolko zapisano --')
 print()
 for k in KINDS:
     v = kinds.get(k) or {}
     total = int(v.get('total') or 0)
     ws = writers[k]
-    shipped = [f for f, ok in ws if ok]
+    shipped = [f for f, ok, _ in ws if ok]
+    # The OLDEST deployed writer decides. The question is whether this fact
+    # has had a chance at all, and it has if any writer has been there long
+    # enough -- taking the newest would reset the clock every time a second
+    # writer was added.
+    oldest = min((t for _, ok, t in ws if ok and t), default=0)
+    age_h = (now_s - oldest) / 3600.0 if oldest else None
     if not ws:
         verdict, mark = 'NIKTO NIGDE ne pishet', 'X'
         if uses.get(k):
             dead.append(k)
     elif not shipped:
         verdict, mark = 'pisatel EST, no NE na main', 'P'
-        stranded.append((k, [os.path.basename(f) for f, _ in ws]))
+        stranded.append((k, [os.path.basename(f) for f, _, _ in ws]))
+    elif total == 0 and age_h is not None and age_h < YOUNG_H:
+        verdict, mark = 'pisatel V PRODE %d ch -- rano sudit' % age_h, '.'
+        young.append((k, age_h))
     elif total == 0:
-        verdict, mark = 'pisatel V PRODE, a zapisey net', '?'
-        unreached.append((k, [os.path.basename(f) for f in shipped]))
+        days = int(age_h / 24) if age_h else 0
+        verdict, mark = 'V PRODE %d dn, zapisey net' % days, '?'
+        unreached.append((k, [os.path.basename(f) for f in shipped], days))
     else:
         verdict, mark = 'pishetsya', '.'
     print('  %s %-9s zapisano %-5d vetvleniy %-3d  %s'
           % (mark, k, total, uses.get(k, 0), verdict))
-    for f, ok in ws:
+    for f, ok, _ in ws:
         print('        %s %s' % ('+' if ok else '!', f))
 
 print()
@@ -157,12 +189,18 @@ if unreached:
     print('  ?  PISATEL V PRODE, A ZAPISEY NET -- do nego ne dohodit upravlenie.')
     print('     Ishchi ne pisatelya, a PUT k nemu: risuetsya li knopka,')
     print('     vypolnyaetsya li uslovie, zovut li obrabotchik.')
-    for k, fs in unreached:
-        print('       %-9s %s' % (k, ', '.join(fs)))
+    for k, fs, days in unreached:
+        print('       %-9s %2d dn v prode: %s' % (k, days, ', '.join(fs)))
     print()
 if dead:
     print('  X  NIKTO NIGDE NE PISHET, a logika chitaet: %s' % ', '.join(dead))
     print('     Vot eto -- nastoyashchaya rabota po kodu.')
+    print()
+if young:
+    print('  .  SLISHKOM MOLODOY, chtoby sudit (< %d ch v prode):' % YOUNG_H)
+    for k, h in young:
+        print('       %-9s %.0f ch' % (k, h))
+    print('     Ne nahodka. Vernis, kogda povod uzhe byl.')
     print()
 if not (stranded or unreached or dead):
     print('  OK: u kazhdogo fakta est pisatel, on v prode, i on pishet')
