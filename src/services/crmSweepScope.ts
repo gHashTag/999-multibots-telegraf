@@ -27,11 +27,46 @@ export const SWEEP_RULES =
   'и без счёта; next=deliver и есть токены — crm_deliver_photo по его просьбе; ' +
   'next=offer — crm_offer, и только если человек САМ спрашивал цену или хотел купить. ' +
   'НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ: клиент должен захотеть сам. '
+/*
+ * STEP 4 CONTRADICTED STEP 2, AND STEP 4 WON.
+ *
+ * Step 2 says "take the FIRST whose next is not wait" -- scan past the waits.
+ * Step 4 said "if there are no candidates OR THE FIRST is wait, answer quiet"
+ * -- stop at the first. Both cannot hold, and a model reading the tail
+ * literally goes silent whenever candidate #1 happens to be `wait`.
+ *
+ * That is not a rare shape. Production, 2026-09-16: 544 people out of 881 sit
+ * on `wait`, so the top of any five is often one of them. The hive journal
+ * has the seller saying it in as many words -- "crm_leads: 1 candidate, all
+ * next=wait" -- and going idle with four unexamined rows in hand.
+ *
+ * The tail now asks the same question step 2 asks: is there ANY candidate to
+ * work. Quiet stays quiet when there genuinely is none.
+ */
 export const SWEEP_TAIL =
-  '4) Если кандидатов нет или у первого next=wait — ответь одним словом «тихо» и ' +
-  'ничего не готовь. Шаг 1 (crm_leads) обязателен всегда, даже для «тихо»: ответ ' +
+  '4) Если НИ У ОДНОГО из кандидатов next не отличается от wait — или ' +
+  'кандидатов нет вовсе — ответь одним словом «тихо» и ничего не готовь. ' +
+  'Один wait в начале списка не повод молчать: смотри дальше по списку. ' +
+  'Шаг 1 (crm_leads) обязателен всегда, даже для «тихо»: ответ ' +
   'без вызова инструментов не засчитывается. НИЧЕГО НЕ ОТПРАВЛЯЙ САМ: только ' +
   'подготовь; владелец нажмёт кнопку. Ответ — одна строка: кому и что подготовлено.'
+
+/*
+ * WHY ONE GOOD CARD BEATS THREE ORDINARY ONES.
+ *
+ * Sixteen competitor pages were read on 2026-09-16 and not one of them
+ * advertises a human press before a message goes out; the human in that copy
+ * is the cost being removed. Here the press is the product, which makes the
+ * owner's attention the scarce thing and not the sweep's time.
+ *
+ * And a card is not free to prepare: one draft per owner, so a weak card
+ * DISPLACES the next one. Between 12 and 16 September the journal recorded
+ * forty-one drafts replaced with "the picture was made, but not sent".
+ */
+export const SWEEP_WORTH =
+  'Готовь только то, что владельцу захочется отправить: одна хорошая карточка ' +
+  'лучше трёх проходных. Карточка одна на владельца — слабая ВЫТЕСНЯЕТ следующую. ' +
+  'Если ничего стоящего нет — «тихо» честнее. '
 
 export const NEXT_VALUES = [
   'reply',

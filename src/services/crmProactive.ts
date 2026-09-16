@@ -7,6 +7,7 @@ import {
   SWEEP_HEAD,
   SWEEP_RULES,
   SWEEP_TAIL,
+  SWEEP_WORTH,
   SYNTAX,
   parseSweepArgs,
   filterRows,
@@ -79,7 +80,7 @@ export type SweepOutcome =
   | { did: 'failed'; why: string }
 
 /** The brief. One proposal at most, nothing sent, memory first. */
-export const SWEEP_PROMPT = SWEEP_HEAD + SWEEP_RULES + SWEEP_TAIL
+export const SWEEP_PROMPT = SWEEP_HEAD + SWEEP_RULES + SWEEP_WORTH + SWEEP_TAIL
 
 /** How long a pushed card keeps the next sweep from evicting it. */
 export const HOLD_MS_DEFAULT = 120 * 60_000
