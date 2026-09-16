@@ -772,6 +772,7 @@ PYEOF
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
+  waiting) shift; bash "$ROOT/bin/helpers/waiting.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true
