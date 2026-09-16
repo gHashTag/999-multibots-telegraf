@@ -110,12 +110,28 @@ let lastPushAt = 0
  *
  * The `running` flag was cleared only by `finally`; a history fetch that
  * hangs without a FIN kept it set forever, and every later tick answered
- * `busy` -- logged as info, skipped by the hive note. The longest honest
- * sweep is ingest (170 s) plus two model calls (2 x 180 s), so anything
- * older than ten minutes is a hang: the flag is released with an error in
+ * `busy` -- logged as info, skipped by the hive note. So anything older than
+ * the longest HONEST sweep is a hang: the flag is released with an error in
  * the log and the tick proceeds.
+ *
+ * THE ARITHMETIC, RECOMPUTED 2026-09-16. This comment used to read "ingest
+ * (170 s) plus two model calls (2 x 180 s)" = 530 s, and the ten-minute
+ * ceiling was set from it. That sum went stale twice over:
+ *
+ *   ingest           INGEST_TIMEOUT_MS      170 s  (crm_ingest_chats)
+ *   crm_leads        TOOL_TIMEOUT_MS        170 s  (modelSwitch, added later)
+ *   model turn       agent turn ceiling     180 s  (trinityAgent)
+ *   transport retry  agent turn ceiling     180 s  (once per sweep, below)
+ *   no-tools retry   agent turn ceiling     180 s
+ *                                          ------
+ *                                           880 s = 14 min 40 s
+ *
+ * An honest but slow sweep therefore tripped a ten-minute check, which pages
+ * ("sweep stuck, releasing the flag") and then FALLS THROUGH to start a
+ * second concurrent sweep -- a false alarm that also doubles the work. Fifteen
+ * minutes clears the real worst case with room for the push.
  */
-export const STUCK_SWEEP_MS = 10 * 60_000
+export const STUCK_SWEEP_MS = 15 * 60_000
 /*
  * MEMORY THAT STOPPED REFRESHING IS A FAILURE, NOT A WARNING (P1 #4).
  *
@@ -198,27 +214,68 @@ function toolsOf(answer: ОтветАгента): string[] {
  * Consecutive failed sweeps, for the alert channel. The first failure and
  * every sixth after it (three hours at the default cadence) go out as errors;
  * the ones between are warnings, so a stuck model is reported, not
- * broadcast twice an hour. Recovery is logged once, with the count.
+ * broadcast twice an hour. Recovery is logged once, with the count. THAT RULE
+ * IS UNCHANGED -- it is the part of this function that works.
+ *
+ * WHAT THE COUNT MEANT BEFORE, AND WHY IT WAS A LIE (production 2026-09-16).
+ *
+ * The owner's phone showed
+ *
+ *   09:00:29 [ERROR] sweep FAILED {"why":"terminated","consecutive":1}
+ *   09:01:15 [WARN]  sweep FAILED {"why":"terminated","consecutive":2}
+ *
+ * and read as "it failed, then failed again". It was not: `runProactiveTickAll`
+ * sweeps the sellers of ONE tick in turn (the owner, then @playom), and a
+ * single module-level counter shared by all of them turned two people failing
+ * once each into one person failing twice. The count is now kept PER SELLER,
+ * so it answers the question the owner is actually asking -- how long has THIS
+ * account been broken.
+ *
+ * Two smaller lies went with it:
+ *   - `held` and `busy` reset the streak. Nothing was attempted in either:
+ *     a card is still waiting, or a run overlapped. Clearing a week-long
+ *     outage because a card sat unpressed -- and printing "sweep recovered"
+ *     to say so -- is a false all-clear. They no longer touch the streak.
+ *   - the counter is process memory, so the first failure after any deploy is
+ *     always `consecutive: 1` at ERROR. That cannot be fixed here, so the
+ *     alert now says `sinceProcessStart: true` rather than implying history it
+ *     does not have.
  */
-let failStreak = 0
-export function reportSweepOutcome(r: SweepOutcome): 'error' | 'warn' | 'info' {
+const failStreaks = new Map<string, number>()
+/** The key used when a caller does not name the seller. */
+const NO_OWNER = '-'
+export function reportSweepOutcome(
+  r: SweepOutcome,
+  owner?: string
+): 'error' | 'warn' | 'info' {
+  const key = owner ? String(owner) : NO_OWNER
   if (r.did === 'failed') {
-    failStreak += 1
-    const level = failStreak === 1 || failStreak % 6 === 0 ? 'error' : 'warn'
+    const streak = (failStreaks.get(key) ?? 0) + 1
+    failStreaks.set(key, streak)
+    const level = streak === 1 || streak % 6 === 0 ? 'error' : 'warn'
     logger[level]('[crm-proactive] sweep FAILED', {
       did: r.did,
       why: r.why,
-      consecutive: failStreak,
+      owner: key,
+      consecutive: streak,
+      sinceProcessStart: true,
     })
     return level
   }
-  if (failStreak) {
-    logger.info('[crm-proactive] sweep recovered', {
-      afterFailures: failStreak,
-    })
-    failStreak = 0
+  // Nothing was attempted: not a recovery, not a failure, not evidence.
+  if (r.did === 'held' || r.did === 'busy') {
+    logger.info('[crm-proactive] sweep', { did: r.did, why: r.why, owner: key })
+    return 'info'
   }
-  logger.info('[crm-proactive] sweep', { did: r.did, why: r.why })
+  const had = failStreaks.get(key) ?? 0
+  if (had) {
+    logger.info('[crm-proactive] sweep recovered', {
+      owner: key,
+      afterFailures: had,
+    })
+    failStreaks.delete(key)
+  }
+  logger.info('[crm-proactive] sweep', { did: r.did, why: r.why, owner: key })
   return 'info'
 }
 
@@ -246,7 +303,7 @@ export function resetProactiveForTests(): void {
   running = false
   runningSince = 0
   lastPushAt = 0
-  failStreak = 0
+  failStreaks.clear()
   ingestFailStreak = 0
 }
 
@@ -254,6 +311,57 @@ export function resetProactiveForTests(): void {
 export function markRunningForTests(since: number): void {
   running = true
   runningSince = since
+}
+
+/**
+ * A DEAD WIRE IS NOT A BAD ANSWER (production 2026-09-16).
+ *
+ * The owner's phone received one word, twice in two minutes: `terminated`.
+ * Nothing in this repository ever writes that word -- it is undici's message
+ * for one specific event, and the catch-all at the bottom of `sweepOnce`
+ * copied it into `why` verbatim. Reproduced on node v22.22.0, which is what
+ * the deploy runs:
+ *
+ *   socket dies mid-body      -> TypeError "terminated"
+ *                                (cause "other side closed", UND_ERR_SOCKET)
+ *   socket dies before headers-> TypeError "fetch failed"
+ *   our own AbortController   -> DOMException "This operation was aborted"
+ *
+ * So `terminated` proves the render answered 200, began the NDJSON agent
+ * stream, and then dropped the connection half-way through the body. The
+ * sweep did NOT time out at the model (that is the third message) and the
+ * model did not refuse. Told apart from "the model produced junk" because the
+ * two deserve different words in the owner's alert, and because only this one
+ * is worth a second attempt: when the wire dies nothing has been delivered to
+ * anybody, so re-asking cannot double-send.
+ */
+export function isTransportDeath(e: unknown): boolean {
+  const cause = (e as { cause?: { code?: unknown } } | null | undefined)?.cause
+  const code = typeof cause?.code === 'string' ? cause.code : ''
+  if (code.startsWith('UND_ERR_') || code === 'ECONNRESET' || code === 'EPIPE')
+    return true
+  const message = e instanceof Error ? e.message : String(e ?? '')
+  // trinityAgent re-throws the raw undici failure wrapped in a sentence that
+  // names the upstream and the call, so the bare `cause` no longer survives.
+  // Match that sentence too, or the wrapper would make the retry unreachable.
+  if (message.startsWith('the agent stream broke')) return true
+  return (
+    message === 'terminated' ||
+    message === 'fetch failed' ||
+    message === 'socket hang up'
+  )
+}
+
+/**
+ * Who the tick already knew was waiting, for the alert. The no-tools branch
+ * has said this since 2026-09-13; the catch-all said nothing at all, so a
+ * transport death reached the owner without naming the customer it stranded.
+ */
+function waitingClause(looked: Array<Record<string, unknown>> | null): string {
+  const due = looked?.find(isDue)
+  return due
+    ? `ждёт ${String(due.display ?? due.lead ?? '?')} (next=${String(due.next)}), `
+    : ''
 }
 
 export async function sweepOnce(
@@ -273,12 +381,51 @@ export async function sweepOnce(
   }
   running = true
   runningSince = startedAt
+  /*
+   * Hoisted out of the `try` ON PURPOSE: the catch-all at the bottom needs
+   * them to say who was left waiting and where the sweep died. Before
+   * 2026-09-16 both were inside, so the alert was a bare error message.
+   */
+  let looked: Array<Record<string, unknown>> | null = null
+  let stage = 'подготовка'
+  let transportRetried = false
+  /*
+   * ONE RETRY, AND ONLY FOR A DEAD WIRE.
+   *
+   * A stream that died mid-body delivered nothing: no card was pushed, no
+   * message was sent, the owner saw nothing. Re-asking is therefore the one
+   * retry in this file that cannot double-send -- and it turns a thirty-minute
+   * hole for a waiting customer into a few extra seconds. The budget is ONE
+   * PER SWEEP, shared by the main turn and the no-tools retry: a second dead
+   * wire is not a hiccup, it is an outage, and it must reach the owner as
+   * `failed` rather than be retried into silence. The recovery itself is a
+   * warning, not an alert -- the alert is for the failure it prevented.
+   */
+  const ask = async (text: string): ReturnType<SweepDeps['ask']> => {
+    try {
+      return await deps.ask(ownerId, text)
+    } catch (e) {
+      if (transportRetried || !isTransportDeath(e)) throw e
+      transportRetried = true
+      logger.warn(
+        '[crm-proactive] agent stream died mid-body, asking once more',
+        {
+          owner: ownerId,
+          upstream: BASE,
+          stage,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      )
+      return await deps.ask(ownerId, text)
+    }
+  }
   try {
     const now = startedAt
     const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
     if (lastPushAt && now - lastPushAt < holdMs) {
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
+    stage = 'обновление памяти'
     try {
       if (opts.ingest !== false) {
         await deps.ingest(ownerId)
@@ -317,7 +464,7 @@ export async function sweepOnce(
      * candidate and does not read crm_leads. A failing fetch falls back to
      * the old path -- the model looks -- and says so in the log.
      */
-    let looked: Array<Record<string, unknown>> | null = null
+    stage = 'crm_leads'
     if (deps.leads && !opts.prompt) {
       try {
         looked = await deps.leads(ownerId)
@@ -340,7 +487,8 @@ export async function sweepOnce(
     }
     const brief =
       opts.prompt ?? (looked ? SWEEP_PROMPT + leadsNote(looked) : SWEEP_PROMPT)
-    let answer = await deps.ask(ownerId, brief)
+    stage = 'ход модели'
+    let answer = await ask(brief)
     /*
      * ONE SECOND CHANCE, WITH THE RULE SPELLED OUT.
      *
@@ -353,8 +501,8 @@ export async function sweepOnce(
      * cheap; a third would just be the same model in the same mood.
      */
     if (!toolsOf(answer).length && !answer.proposal) {
-      answer = await deps.ask(
-        ownerId,
+      stage = 'повторный ход модели'
+      answer = await ask(
         brief + (looked ? SWEEP_RETRY_NOTE_LOOKED : SWEEP_RETRY_NOTE)
       )
     }
@@ -367,6 +515,7 @@ export async function sweepOnce(
       ])
     }
     if (answer.proposal) {
+      stage = 'карточка владельцу'
       await deps.push(ownerId, answer.proposal)
       lastPushAt = now
       return {
@@ -421,7 +570,29 @@ export async function sweepOnce(
 
     return { did: 'idle', why: (answer.текст ?? 'тихо').slice(0, 200) } // cyrillic-ok: pre-existing identifiers
   } catch (e) {
-    return { did: 'failed', why: e instanceof Error ? e.message : String(e) }
+    /*
+     * THE ALERT MUST NAME SOMETHING (production 2026-09-16).
+     *
+     * This used to be `why: e.message`, and on the live deploy that produced a
+     * push notification whose entire content was the word `terminated`: no
+     * upstream, no stage, no customer. Meanwhile the no-tools branch twenty
+     * lines above builds a sentence a human can act on. Same treatment here --
+     * who was waiting, which step died, and, for a dropped connection, the
+     * address that dropped it, because the fix for that one lives in another
+     * service and the owner needs to know which.
+     */
+    const raw = e instanceof Error ? e.message : String(e)
+    const dead = isTransportDeath(e)
+    return {
+      did: 'failed',
+      why:
+        waitingClause(looked) +
+        (dead
+          ? `связь с агентом оборвалась на шаге «${stage}» — ${BASE} ответил и закрыл поток на полпути` +
+            (transportRetried ? ' (и после повтора тоже)' : '') +
+            `: ${raw}`
+          : `обход упал на шаге «${stage}»: ${raw}`),
+    }
   } finally {
     running = false
   }
@@ -686,7 +857,9 @@ export async function runProactiveTick(
    * exactly like a quiet afternoon. The other extreme -- the same failure
    * as a fresh alert twice an hour -- is handled in reportSweepOutcome.
    */
-  reportSweepOutcome(r)
+  // Named: one tick sweeps several sellers in turn, and an unattributed
+  // alert made two sellers failing once each look like one failing twice.
+  reportSweepOutcome(r, owner)
   return r
 }
 
@@ -782,10 +955,11 @@ interface Scope {
 }
 const scopes = new Map<string, Scope>()
 const BUSY_RETRY_MS = 30_000
-// A timer sweep may honestly last ingest (170 s) + two model calls (360 s);
-// ten retries of 30 s dropped a scoped sweep that merely waited its turn
-// (CRM audit 2026-09-12, P2 #10). Twenty covers the longest honest sweep.
-const BUSY_RETRY_MAX = 20
+// A timer sweep may honestly last as long as STUCK_SWEEP_MS (see the
+// arithmetic there: 880 s, after the crm_leads fetch and the one transport
+// retry were added). Ten retries of 30 s dropped a scoped sweep that merely
+// waited its turn (CRM audit 2026-09-12, P2 #10); thirty covers the ceiling.
+const BUSY_RETRY_MAX = 30
 const FAILED_IN_A_ROW_MAX = 3
 
 export function activeScope(

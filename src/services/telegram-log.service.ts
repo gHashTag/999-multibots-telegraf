@@ -312,7 +312,14 @@ class TelegramLogService {
 
     let message = `❌ Ошибка`
     if (context) {
-      message += ` в ${context}`
+      // Escaped like the body below. Until contextFromMessage landed, `context`
+      // was always a developer literal and this interpolation could not carry a
+      // '<'; it is now DERIVED FROM THE MESSAGE, so a tag such as '[Item<T>]' --
+      // or a redaction placeholder like '<redacted>' -- would put a stray angle
+      // bracket in a parse_mode:HTML payload and Telegram would reject the WHOLE
+      // alert with 400. The owner would then get nothing at all for that
+      // incident, which is the loudest possible way to go silent.
+      message += ` в ${this.escapeHtml(context)}`
     }
     if (telegramId) {
       message += ` у пользователя ${username ? `@${username}` : `ID:${telegramId}`}`
@@ -423,8 +430,40 @@ ${this.escapeHtml(truncatedError)}`
     message: string,
     options: LogOptions
   ): void {
+    /*
+     * THE ECHO OF AN ALERT IS NOT A SECOND INCIDENT.
+     *
+     * Every `log()` mirrors the composed alert back into winston here, and
+     * 'error' used to pass straight through -- so each alert that was actually
+     * sent wrote TWO error records locally: the originating `logger.error` at
+     * the call site, and this copy of the Telegram message. Measured on the live
+     * deploy 2026-09-16, that is what produced the second half of
+     *
+     *   09:00:15 [ERROR]: '[TelegramLog] ❌ Ошибка в logger.error'
+     *
+     * and it doubles the number an operator reads off the log when they ask how
+     * many errors there were today.
+     *
+     * The echo is kept, at info: it is the receipt proving the alert was
+     * composed and attempted, and losing it would be muting rather than
+     * de-duplicating. It simply stops being COUNTED as an incident, and stops
+     * reaching logs/error.log, which is bound at level 'error'.
+     *
+     * NOTHING LOUD IS LOST. The originating logger.error is untouched. Both
+     * genuine machinery failures of this service -- 'НЕ ПОДКЛЮЧЁН' when the
+     * channel was never wired, and 'alert NOT delivered' when Telegram refuses
+     * -- call logger.error DIRECTLY, not through here, precisely so that a
+     * dead alert channel still shouts.
+     *
+     * The '[TelegramLog] ' prefix below must stay exactly as it is: the
+     * recursion guard in utils/logger.ts keys on it, and demoting the level
+     * does not by itself stop a re-send -- it stops the double count.
+     */
     const winstonLevel =
-      level === 'system' || level === 'payment' || level === 'user'
+      level === 'error' ||
+      level === 'system' ||
+      level === 'payment' ||
+      level === 'user'
         ? 'info'
         : level
     const meta = {

@@ -53,11 +53,52 @@ interface PendingMessage {
 }
 
 /**
+ * AN IDLE POLLER NARRATED ITSELF FIVE TIMES A MINUTE.
+ *
+ * Measured on the live deploy 2026-09-16: a 500-line window held 313 INFO lines
+ * and almost all of them were this one timer. `setupNotificationProcessor`
+ * below runs `processNotificationQueue` every 60 seconds, and an IDLE tick --
+ * the normal state -- used to emit five info lines before returning:
+ *
+ *   09:53:32 [INFO]: 🚀 Начинаем обработку очереди уведомлений...
+ *   09:53:32 [INFO]: ✅ Подключение к Supabase успешно
+ *   09:53:32 [INFO]: 🔍 Выполняем запрос к Supabase pending_messages...
+ *   09:53:32 [INFO]: 🔍 Запрос к Supabase завершен: {"hasData":true,"dataLength":0,…}
+ *   09:53:32 [INFO]: ✅ Нет уведомлений для отправки
+ *
+ * Five a minute is 7200 a day: a real incident does not get lost in that log,
+ * it gets BURIED in it, which is the only reason any of this matters.
+ *
+ * SILENCE IS NOT ZERO, so the cut cannot simply delete those lines. The one
+ * thing they bought was liveness -- they were the only way to tell "the poller
+ * is alive and idle" from "the poller is dead". Nothing else in the process
+ * carried that signal: there is no heartbeat anywhere else in src, the startup
+ * lines fire once, the hourly cleanup is a DIFFERENT timer that keeps logging
+ * while this one is wedged, and exclusiveTick only speaks when a tick overlaps
+ * or throws -- never while the poller is healthy.
+ *
+ * So the narration moves to debug (dropped in production, where LOG_LEVEL is
+ * unset and utils/logger.ts defaults to 'info') and the signal is made explicit
+ * instead: one info line every fifteenth completed poll, carrying a count that
+ * RISES. A rising count is what distinguishes alive from dead; a heartbeat that
+ * never incremented would be as useless as silence. ~7200 idle lines a day
+ * become ~96.
+ *
+ * The first completed poll also beats, so a fresh deploy proves it reached
+ * Supabase without a fifteen-minute wait.
+ */
+export const HEARTBEAT_EVERY_POLLS = 15
+
+/**
  * Обработчик уведомлений для отправки сообщений из таблицы pending_messages
  */
 export class NotificationHandler {
   private bot: Telegraf<MyContext>
   private isProcessing = false
+  /** Polls that reached Supabase and got an answer. Only ever goes up. */
+  private polls = 0
+  /** Messages picked up since the last heartbeat, so an idle beat reads as 0. */
+  private pickedUpSinceHeartbeat = 0
 
   constructor(bot: Telegraf<MyContext>) {
     this.bot = bot
@@ -73,7 +114,8 @@ export class NotificationHandler {
     }
 
     this.isProcessing = true
-    logger.info('🚀 Начинаем обработку очереди уведомлений...')
+    // Narration, not signal: see the heartbeat note above the class.
+    logger.debug('🚀 Начинаем обработку очереди уведомлений...')
 
     try {
       // Проверяем подключение к Supabase
@@ -91,9 +133,9 @@ export class NotificationHandler {
         return
       }
 
-      logger.info('✅ Подключение к Supabase успешно')
+      logger.debug('✅ Подключение к Supabase успешно')
       // Получаем неотправленные сообщения из очереди
-      logger.info('🔍 Выполняем запрос к Supabase pending_messages...')
+      logger.debug('🔍 Выполняем запрос к Supabase pending_messages...')
       const { data: messages, error } = await supabase
         .from('pending_messages')
         .select('*')
@@ -103,7 +145,9 @@ export class NotificationHandler {
         .order('created_at', { ascending: true })
         .limit(50) // Обрабатываем максимум 50 сообщений за раз
 
-      logger.info('🔍 Запрос к Supabase завершен:', {
+      // The line from the report: once a minute, a query that returned nothing
+      // announcing that it returned nothing. The facts survive at debug.
+      logger.debug('🔍 Запрос к Supabase завершен:', {
         hasData: !!messages,
         dataLength: messages?.length || 0,
         hasError: !!error,
@@ -119,8 +163,28 @@ export class NotificationHandler {
         return
       }
 
+      /*
+       * THE LIVENESS SIGNAL, COUNTED HERE BECAUSE SUPABASE HAS NOW ANSWERED.
+       *
+       * Incrementing earlier would let a heartbeat beat while the database was
+       * unreachable, which is precisely the state an operator is trying to tell
+       * apart. A beat therefore means: the timer fired, the connection probe
+       * passed, and the select returned.
+       */
+      this.polls += 1
+      this.pickedUpSinceHeartbeat += messages?.length || 0
+      if (this.polls === 1 || this.polls % HEARTBEAT_EVERY_POLLS === 0) {
+        logger.info('💓 [notifications] poller alive', {
+          polls: this.polls,
+          queued: messages?.length || 0,
+          pickedUpSinceHeartbeat: this.pickedUpSinceHeartbeat,
+          everyPolls: HEARTBEAT_EVERY_POLLS,
+        })
+        this.pickedUpSinceHeartbeat = 0
+      }
+
       if (!messages || messages.length === 0) {
-        logger.info('✅ Нет уведомлений для отправки')
+        logger.debug('✅ Нет уведомлений для отправки')
         return
       }
 
