@@ -633,14 +633,39 @@ export function remember(
     if (badWhen) throw new Error(badWhen)
   }
   /*
-   * ONE PENDING PROPOSAL PER PERSON.
+   * ONE PENDING PROPOSAL PER PERSON -- ENFORCED AT ISSUE, NOT HERE.
    *
-   * Two drafts waiting at once is how somebody confirms the wrong one: the
-   * buttons look identical and the chat has moved on. A new proposal replaces
-   * the previous, and the previous can no longer be confirmed by its id.
+   * The rule is unchanged: two pressable drafts at once is how somebody
+   * confirms the wrong one, since the buttons look identical and the chat has
+   * moved on. What changed is WHEN the previous one goes.
+   *
+   * It used to go right here, the moment a new draft was created. But a draft
+   * is created by a TOOL CALL in the middle of a model turn, and a turn can
+   * die after that call -- our own 180 s abort, a dropped stream, a provider
+   * error. Production, 16.09.2026:
+   *
+   *   15:02:49  draft-unsent  a photo draft replaced: picture made, not sent
+   *   15:03:03  sweep-failed  the sweep died at the model turn: aborted
+   *
+   * The turn that died had already evicted the card the owner was holding --
+   * and delivered nothing in its place. Two pictures paid for, one card
+   * destroyed, no card produced. Four of the eight evictions that day sat
+   * next to an aborted turn like this.
+   *
+   * A draft that was never ISSUED is not pressable: its secret never left the
+   * process. So it cannot be the second identical button the rule is about,
+   * and there is no reason for it to displace anything. Only a draft that
+   * actually becomes a card does that -- see `issueFor`.
+   *
+   * What still goes here: this person's earlier UNISSUED drafts. Those belong
+   * to turns that are over, `issueFor` matches on the turn token and would
+   * never hand them out, and leaving them would grow the queue by one per
+   * dead turn. They leave as `expired`, which is what they are: prepared,
+   * never shown, and now unshowable -- the same word `restoreProposals` uses
+   * for the same thing after a restart.
    */
   for (const old of pending.values()) {
-    if (old.telegramId === p.telegramId) drop(old, 'replaced')
+    if (old.telegramId === p.telegramId && !old.issued) drop(old, 'expired')
   }
   const minted = randomBytes(16).toString('hex')
   const saved: PendingProposal = {
@@ -685,6 +710,17 @@ export function issueFor(
   if (!turn) return null
   for (const p of pending.values()) {
     if (p.telegramId !== mine || p.issued || p.turn !== turn) continue
+    /*
+     * THE MOMENT THIS BECOMES A CARD, THE PREVIOUS CARD STOPS BEING ONE.
+     *
+     * This is the one-per-person rule, moved to the instant it is actually
+     * about: a second PRESSABLE button. Done before the flag flips so the
+     * loop cannot reach the draft being issued.
+     */
+    for (const old of pending.values()) {
+      if (old.id === p.id) continue
+      if (old.telegramId === mine && old.issued) drop(old, 'replaced')
+    }
     p.issued = true
     // The flag is the difference between a card that comes back after a
     // restart and one that cannot: persist it the moment it flips.

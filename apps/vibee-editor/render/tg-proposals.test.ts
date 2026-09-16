@@ -1157,11 +1157,84 @@ describe('an invoice does not outlive its draft', () => {
     expect(seen).toEqual([])
   })
 
-  it('a new draft reports the one it replaces', () => {
-    draft('old', 7)
-    draft('new', 8)
+  /*
+   * REPLACED WHEN THE NEW ONE BECOMES A CARD -- NOT WHEN IT IS PREPARED.
+   *
+   * A draft is created by a tool call inside a model turn, and the turn can
+   * die afterwards. Evicting at creation meant a turn that delivered nothing
+   * still destroyed the card the owner was holding: production 16.09.2026,
+   * an eviction at 15:02:49 and the turn aborted at 15:03:03.
+   *
+   * The invoice protection this file exists for is unchanged -- the evicted
+   * draft is still reported, so its pending row is still closed. Only the
+   * moment moved.
+   */
+  const issue = (id: string, invoiceId?: number, turn = id) => {
+    remember({
+      id,
+      telegramId: WHO,
+      action: 'send',
+      target: '1',
+      turn,
+      ...(invoiceId === undefined ? {} : { invoiceId }),
+    } as never)
+    return issueFor(WHO, turn)
+  }
+
+  it('a new draft reports the one it replaces, at the moment it becomes a card', () => {
+    issue('old', 7)
+    remember({
+      id: 'new',
+      telegramId: WHO,
+      action: 'send',
+      target: '1',
+      turn: 'new',
+      invoiceId: 8,
+    } as never)
+    expect(
+      seen,
+      'старую карточку убили ещё до того, как новая стала карточкой'
+    ).toEqual([])
+
+    expect(issueFor(WHO, 'new')).toBeTruthy()
     expect(seen).toEqual([{ id: 'old', invoiceId: 7, reason: 'replaced' }])
     expect(pendingFor(WHO)?.id).toBe('new')
+  })
+
+  /*
+   * THE WHOLE POINT, IN ONE CASE.
+   *
+   * A turn prepares a draft and then dies. Nothing was ever shown for it, so
+   * the card the owner is holding must still be there -- and the abandoned
+   * draft must not pile up either.
+   */
+  it('a draft whose turn died takes nothing with it', () => {
+    issue('card', 7)
+    // The doomed turn: a draft is created, its turn never asks for it.
+    remember({
+      id: 'doomed',
+      telegramId: WHO,
+      action: 'send',
+      target: '1',
+      turn: 'aborted-turn',
+      invoiceId: 9,
+    } as never)
+    expect(
+      pendingFor(WHO)?.id,
+      'карточка владельца исчезла из-за хода, который ничего не показал'
+    ).toBe('card')
+    expect(seen).toEqual([])
+
+    // And the next turn clears the abandoned one rather than growing the queue.
+    remember({
+      id: 'next',
+      telegramId: WHO,
+      action: 'send',
+      target: '1',
+      turn: 'next',
+    } as never)
+    expect(seen).toEqual([{ id: 'doomed', invoiceId: 9, reason: 'expired' }])
+    expect(pendingCount()).toBe(2)
   })
 
   it('an expired draft is reported the next time the queue looks', () => {
@@ -1190,9 +1263,11 @@ describe('an invoice does not outlive its draft', () => {
       telegramId: WHO,
       action: 'send',
       target: '1',
+      turn: 'ph1',
       media: { kind: 'photo', url: 'https://s3/x.png' },
-    })
-    draft('after', 5)
+    } as never)
+    expect(issueFor(WHO, 'ph1')).toBeTruthy()
+    issue('after', 5)
     expect(seen.map(s => [s.id, s.reason])).toEqual([['ph1', 'replaced']])
   })
 
