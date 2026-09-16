@@ -145,6 +145,7 @@ export function planFingerprint(s: PlanSummary): string {
 
 /** One line, so the Cyrillic stays inside literals on single rows. */
 function sentLine(sent: number, cap: number, prepared: number | null): string {
+  // headroom-ok: the prepared count below turns this from headroom into losses
   const head = `Сегодня ушло: ${sent} из ${cap}.` // cyrillic-ok
   if (prepared === null || prepared <= sent) return head
   return `${head} Подготовлено карточек: ${prepared} — остальные заменены.` // cyrillic-ok
