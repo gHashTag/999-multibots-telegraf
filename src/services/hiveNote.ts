@@ -31,6 +31,25 @@ export type HiveNote = {
   severity: 'normal' | 'attention' | 'alarm'
 }
 
+/*
+ * THE DURATION, IN A SHAPE A TOOL CAN READ BACK.
+ *
+ * Plain ASCII on purpose: `123s`, not `123с`. The two look identical in a
+ * terminal and the second one is Cyrillic, so a parser written against the
+ * wrong letter finds nothing and reports a journal with no timings -- which
+ * is indistinguishable from a journal that has none.
+ *
+ * Appended after the reason is cut, never before it: the line is read by a
+ * person first, and the first words must stay the person and the step.
+ */
+const TOOK_CHARS = 12
+
+function withTook(text: string, ms?: number): string {
+  const body = text.slice(0, 300 - TOOK_CHARS)
+  if (!Number.isFinite(ms) || (ms as number) < 0) return text.slice(0, 300)
+  return `${body} [${Math.round((ms as number) / 1000)}s]`
+}
+
 /** What the journal should say about this outcome, or null for non-sweeps. */
 export function noteForSweep(
   owner: string,
@@ -43,14 +62,14 @@ export function noteForSweep(
       return {
         kind: 'sweep-idle',
         who: owner,
-        what: (prefix + r.why).slice(0, 300),
+        what: withTook(prefix + r.why, r.ms),
         severity: 'normal',
       }
     case 'card':
       return {
         kind: 'sweep-card',
         who: owner,
-        what: (prefix + r.why).slice(0, 300),
+        what: withTook(prefix + r.why, r.ms),
         severity: 'normal',
       }
     case 'failed':
@@ -59,7 +78,7 @@ export function noteForSweep(
       return {
         kind: 'sweep-failed',
         who: owner,
-        what: (prefix + r.why).slice(0, 300),
+        what: withTook(prefix + r.why, r.ms),
         severity: 'attention',
       }
     default:

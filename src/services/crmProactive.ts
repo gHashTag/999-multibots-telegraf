@@ -72,12 +72,27 @@ export interface SweepDeps {
   now?: () => number
 }
 
-export type SweepOutcome =
+/**
+ * HOW LONG IT TOOK, BECAUSE IT WAS ALREADY BEING MEASURED AND THROWN AWAY.
+ *
+ * The Inngest step wrapped the call in `Date.now()` and returned `ms` in its
+ * outcome -- into a payload nothing reads. The log line that IS read carried
+ * did/why/owner and no duration, and the journal carried none either. So the
+ * one number that answers "is the 180 s model budget tight" existed, was
+ * computed every half hour, and was unavailable to anybody asking.
+ *
+ * Measured 16.09.2026 the only way left -- the gap between a cron tick and
+ * its journal entry -- the median sweep ran 117 s. That estimate covers the
+ * whole sweep, not the model turn the budget applies to, which is exactly why
+ * guessing a new budget from it would have been the wrong move.
+ */
+export type SweepOutcome = (
   | { did: 'idle'; why: string }
   | { did: 'held'; why: string }
   | { did: 'card'; why: string; id: string }
   | { did: 'busy'; why: string }
   | { did: 'failed'; why: string }
+) & { ms?: number }
 
 /** The brief. One proposal at most, nothing sent, memory first. */
 export const SWEEP_PROMPT = SWEEP_HEAD + SWEEP_RULES + SWEEP_WORTH + SWEEP_TAIL
@@ -335,6 +350,7 @@ export function reportSweepOutcome(
       did: r.did,
       why: r.why,
       owner: key,
+      ...(r.ms === undefined ? {} : { ms: r.ms }),
       consecutive: streak,
       sinceProcessStart: true,
     })
@@ -342,7 +358,12 @@ export function reportSweepOutcome(
   }
   // Nothing was attempted: not a recovery, not a failure, not evidence.
   if (r.did === 'held' || r.did === 'busy') {
-    logger.info('[crm-proactive] sweep', { did: r.did, why: r.why, owner: key })
+    logger.info('[crm-proactive] sweep', {
+      did: r.did,
+      why: r.why,
+      owner: key,
+      ...(r.ms === undefined ? {} : { ms: r.ms }),
+    })
     return 'info'
   }
   const had = failStreaks.get(key) ?? 0
@@ -969,7 +990,12 @@ export async function runProactiveTick(
       return { did: 'paused', why: `scoped sweep active: ${active.label}` }
     }
   }
-  const r = await sweepOnce(owner, deps, { holdMs: opts.holdMs })
+  const startedAt = Date.now()
+  const r = { ...(await sweepOnce(owner, deps, { holdMs: opts.holdMs })) }
+  // Timed HERE rather than inside the step above: the step's own measurement
+  // never left the Inngest payload, and this one reaches the log and the
+  // journal, which are the two places anybody actually looks.
+  r.ms = Date.now() - startedAt
   // The diary entry, too: every run that ran is visible in the hive
   // (hiveNote.ts) -- quiet ones included, which the alert channel never was.
   void noteSweepToHive(owner, r)
