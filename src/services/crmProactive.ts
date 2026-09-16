@@ -239,6 +239,9 @@ function toolsOf(answer: ОтветАгента): string[] {
  * the ones between are warnings, so a stuck model is reported, not
  * broadcast twice an hour. Recovery is logged once, with the count.
  */
+// owner-scope: per process on purpose -- alert CADENCE, not a fact about a
+// person. Making it per owner would change how often the channel is written
+// to, which is its own change with its own call-site review.
 let failStreak = 0
 export function reportSweepOutcome(r: SweepOutcome): 'error' | 'warn' | 'info' {
   if (r.did === 'failed') {
@@ -738,6 +741,8 @@ export async function runProactiveTick(
  * the bots are up (index.ts), and the cron reads it on every run. Absent
  * carrier = the bots are not up yet = the run reports 'paused', not an error.
  */
+// owner-scope: per process -- one bot farm, one carrier. The owner it
+// carries travels inside opts, so a second seller does not need a second one.
 let carrier: { bot: Telegraf<MyContext>; opts: TickOpts } | null = null
 
 export function setCrmCarrier(bot: Telegraf<MyContext>, opts: TickOpts): void {
