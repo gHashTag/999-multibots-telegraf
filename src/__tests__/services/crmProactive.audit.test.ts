@@ -47,7 +47,7 @@ beforeEach(() => resetProactiveForTests())
 
 describe('P1 #3: a stuck sweep is released', () => {
   it('a flag younger than the limit still means busy', async () => {
-    markRunningForTests(1_000_000 - STUCK_SWEEP_MS + 1000)
+    markRunningForTests(1_000_000 - STUCK_SWEEP_MS + 1000, OWNER)
     const { d, calls } = deps()
     const r = await sweepOnce(OWNER, d)
     expect(r.did).toBe('busy')
@@ -55,7 +55,7 @@ describe('P1 #3: a stuck sweep is released', () => {
   })
 
   it('a flag older than ten minutes is a hang: the tick proceeds', async () => {
-    markRunningForTests(1_000_000 - STUCK_SWEEP_MS - 1)
+    markRunningForTests(1_000_000 - STUCK_SWEEP_MS - 1, OWNER)
     const { d, calls } = deps()
     const r = await sweepOnce(OWNER, d)
     expect(r.did).toBe('card')
@@ -110,5 +110,40 @@ describe('P2 #14: markers of the wrong shape never reach a person', () => {
     )
     expect(text).toBe('Готово.')
     expect(buttons).toEqual([])
+  })
+})
+
+describe('the sweep state belongs to an owner, not to the process', () => {
+  /*
+   * MEASURED IN PRODUCTION 2026-09-16: crm_sellers returns TWO sellers, one
+   * of whom does not own this deployment. Everything below was shared by
+   * both of them until this change.
+   */
+  it("one seller's dead Telegram session does not mark the others failed", async () => {
+    // A revoked session is permanent, so the streak reaches the limit fast.
+    // Shared, it put every other seller past the limit on their FIRST tick
+    // and the alert named the wrong person.
+    const { d } = deps({
+      ingest: async (owner: string) => {
+        if (owner === '9000000042') throw new Error('Сессия Telegram отозвана') // cyrillic-ok
+      },
+      now: () => Date.now(),
+    })
+    for (let i = 0; i < INGEST_FAILURES_BEFORE_FAILED + 1; i += 1) {
+      await sweepOnce('9000000042', d, { holdMs: 0 })
+    }
+    expect((await sweepOnce('9000000042', d, { holdMs: 0 })).did).toBe('failed')
+    expect(
+      (await sweepOnce(OWNER, d, { holdMs: 0 })).did,
+      "another seller's dead session reported this one as broken"
+    ).toBe('card')
+  })
+
+  it('a sweep stuck for one seller does not make another seller busy', async () => {
+    markRunningForTests(0, 'somebody else')
+    const { d, calls } = deps()
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did, "another seller's hang stopped this one").toBe('card')
+    expect(calls).toContain('ask')
   })
 })

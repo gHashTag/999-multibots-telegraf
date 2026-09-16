@@ -102,9 +102,49 @@ export interface SweepOpts {
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
 const INGEST_TIMEOUT_MS = 170_000
 
-let running = false
-let runningSince = 0
-let lastPushAt = 0
+/**
+ * ONE SWEEP STATE PER OWNER, NOT ONE FOR THE WHOLE PROCESS.
+ *
+ * MEASURED IN PRODUCTION 2026-09-16: `crm_sellers` returns TWO sellers, and
+ * one of them is not the owner of this deployment -- a second person whose
+ * own account is connected and whose own clients are being sold to.
+ *
+ * These three lived at module scope, so they were shared by everybody:
+ *
+ *   lastPushAt   after ONE seller got a card, every other seller's sweep
+ *                answered `held` -- "the card is still waiting for the
+ *                owner's press" -- about somebody else's card, for the whole
+ *                two-hour hold. The second seller could not be sold for.
+ *   running      one seller's sweep made the others answer `busy`; with two
+ *                drivers (the in-process timer and the Inngest cron) that
+ *                is not hypothetical.
+ *   ingestFail   one revoked Telegram session marked EVERY seller `failed`
+ *                after three ticks, and the alert named the wrong person.
+ *
+ * `noteResolved` had the mirror of it: one person's press on their own card
+ * cleared the hold for all of them.
+ *
+ * Keyed by owner id, created on first use. Nothing is evicted: the number of
+ * sellers is small and bounded by people who connected an account by hand.
+ */
+interface SweepState {
+  running: boolean
+  runningSince: number
+  lastPushAt: number
+  ingestFailStreak: number
+}
+
+const sweepState = new Map<string, SweepState>()
+
+function stateOf(owner: string): SweepState {
+  const key = String(owner)
+  let st = sweepState.get(key)
+  if (!st) {
+    st = { running: false, runningSince: 0, lastPushAt: 0, ingestFailStreak: 0 }
+    sweepState.set(key, st)
+  }
+  return st
+}
 /*
  * A SWEEP THAT NEVER CAME BACK IS NOT "BUSY" (CRM audit 2026-09-12, P1 #3).
  *
@@ -128,7 +168,6 @@ export const STUCK_SWEEP_MS = 10 * 60_000
  * through the alert channel and the hive journal with the reconnect hint.
  */
 export const INGEST_FAILURES_BEFORE_FAILED = 3
-let ingestFailStreak = 0
 
 /**
  * `[[Подпись|tg_send]]` -- the whole answer is one button marker whose id is
@@ -229,7 +268,8 @@ export function reportSweepOutcome(r: SweepOutcome): 'error' | 'warn' | 'info' {
  * skip anybody).
  */
 export function noteResolved(owner?: string, cardId?: string): void {
-  lastPushAt = 0
+  // A press frees the hold of THE PERSON WHO PRESSED, and nobody else's.
+  if (owner) stateOf(String(owner)).lastPushAt = 0
   const s = owner ? scopes.get(String(owner)) : undefined
   if (!s || !s.waiting || s.inFlight) return
   if (s.waiting.kind === 'card') {
@@ -243,17 +283,15 @@ export function noteResolved(owner?: string, cardId?: string): void {
 
 /** For tests. */
 export function resetProactiveForTests(): void {
-  running = false
-  runningSince = 0
-  lastPushAt = 0
+  sweepState.clear()
   failStreak = 0
-  ingestFailStreak = 0
 }
 
-/** For tests: pretend a sweep has been running since `since`. */
-export function markRunningForTests(since: number): void {
-  running = true
-  runningSince = since
+/** For tests: pretend THIS owner's sweep has been running since `since`. */
+export function markRunningForTests(since: number, owner = 'test-owner'): void {
+  const st = stateOf(owner)
+  st.running = true
+  st.runningSince = since
 }
 
 export async function sweepOnce(
@@ -262,42 +300,44 @@ export async function sweepOnce(
   opts: SweepOpts = {}
 ): Promise<SweepOutcome> {
   const startedAt = deps.now?.() ?? Date.now()
-  if (running) {
-    if (runningSince && startedAt - runningSince > STUCK_SWEEP_MS) {
+  const st = stateOf(ownerId)
+  if (st.running) {
+    if (st.runningSince && startedAt - st.runningSince > STUCK_SWEEP_MS) {
       logger.error('[crm-proactive] sweep stuck, releasing the flag', {
-        stuckForMs: startedAt - runningSince,
+        owner: String(ownerId),
+        stuckForMs: startedAt - st.runningSince,
       })
     } else {
       return { did: 'busy', why: 'предыдущий обход ещё идёт' }
     }
   }
-  running = true
-  runningSince = startedAt
+  st.running = true
+  st.runningSince = startedAt
   try {
     const now = startedAt
     const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
-    if (lastPushAt && now - lastPushAt < holdMs) {
+    if (st.lastPushAt && now - st.lastPushAt < holdMs) {
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
     try {
       if (opts.ingest !== false) {
         await deps.ingest(ownerId)
-        ingestFailStreak = 0
+        st.ingestFailStreak = 0
       }
     } catch (e) {
-      ingestFailStreak += 1
+      st.ingestFailStreak += 1
       const error = e instanceof Error ? e.message : String(e)
-      if (ingestFailStreak >= INGEST_FAILURES_BEFORE_FAILED) {
+      if (st.ingestFailStreak >= INGEST_FAILURES_BEFORE_FAILED) {
         return {
           did: 'failed',
-          why: `память не обновляется ${ingestFailStreak} обхода подряд: ${error}. Если сессия Telegram истекла — переподключи её в профиле`,
+          why: `память не обновляется ${st.ingestFailStreak} обхода подряд: ${error}. Если сессия Telegram истекла — переподключи её в профиле`,
         }
       }
       // Memory refresh is best-effort: a FLOOD_WAIT on ingest must not
       // silence a person who has been waiting since yesterday.
       logger.warn('[crm-proactive] ingest failed, sweeping on stale memory', {
         error,
-        consecutive: ingestFailStreak,
+        consecutive: st.ingestFailStreak,
       })
     }
     /*
@@ -368,7 +408,7 @@ export async function sweepOnce(
     }
     if (answer.proposal) {
       await deps.push(ownerId, answer.proposal)
-      lastPushAt = now
+      st.lastPushAt = now
       return {
         did: 'card',
         why: (answer.текст ?? '').slice(0, 200), // cyrillic-ok: pre-existing identifiers
@@ -423,7 +463,7 @@ export async function sweepOnce(
   } catch (e) {
     return { did: 'failed', why: e instanceof Error ? e.message : String(e) }
   } finally {
-    running = false
+    st.running = false
   }
 }
 

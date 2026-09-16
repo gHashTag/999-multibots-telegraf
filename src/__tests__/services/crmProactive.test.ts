@@ -299,9 +299,38 @@ describe('a card nobody pressed is not evicted', () => {
       calls.filter(c => c === 'ask').length,
       'the agent was asked while a card waited'
     ).toBe(1)
-    noteResolved()
+    // The press names WHOSE card it was. Without an owner it frees nobody:
+    // one seller's press used to clear the hold for every seller at once.
+    noteResolved(OWNER)
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
     expect(calls.filter(c => c === 'ask').length).toBe(2)
+  })
+
+  it("one seller's card does not hold another seller", async () => {
+    /*
+     * MEASURED IN PRODUCTION 2026-09-16: crm_sellers returns two sellers, one
+     * of whom does not own this deployment. `lastPushAt` lived at module
+     * scope, so after ONE of them got a card, the other's sweep answered
+     * `held` -- "the card is still waiting for the owner's press" -- about
+     * somebody else's card, for the whole two-hour hold. The second seller
+     * could not be sold for at all.
+     */
+    const { d, calls } = deps()
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+    const other = await sweepOnce('9000000042', d)
+    expect(other.did, "another seller's card held this one").toBe('card')
+    expect(calls.filter(c => c === 'ask').length).toBe(2)
+  })
+
+  it("and a press by one seller does not free the other's hold", async () => {
+    const { d } = deps()
+    await sweepOnce(OWNER, d)
+    await sweepOnce('9000000042', d)
+    noteResolved('9000000042')
+    expect(
+      (await sweepOnce(OWNER, d)).did,
+      "somebody else's press let this card be replaced before it was seen"
+    ).toBe('held')
   })
 
   it('the hold expires by itself', async () => {
