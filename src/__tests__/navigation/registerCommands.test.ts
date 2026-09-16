@@ -30,9 +30,20 @@ vi.mock('apify-client', () => ({
   })),
 }))
 
-// TODO: Fix apify-client package resolution issue in Vite
-// These tests are skipped until the package issue is resolved
-describe.skip('registerCommands module', () => {
+/*
+ * SKIPPED FOR A REASON THAT NO LONGER EXISTS.
+ *
+ * This read "TODO: Fix apify-client package resolution issue in Vite. These
+ * tests are skipped until the package issue is resolved". The package
+ * resolution is handled by the `apify-client` mock twenty lines above, and with
+ * it the suite passes 2/2 -- measured by un-skipping before this change.
+ *
+ * The skip outlived its reason, which is the worst kind of skip: it looks like
+ * a deliberate decision while in fact nobody re-checked the condition. Such a
+ * test's name appears in no red report, because a skipped test does not fail --
+ * it is silent.
+ */
+describe('registerCommands module', () => {
   describe('exports', () => {
     it('экспортирует функцию registerCommands', async () => {
       // Динамический импорт чтобы моки применились

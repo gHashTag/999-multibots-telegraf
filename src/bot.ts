@@ -26,6 +26,8 @@ import {
   handlePreCheckoutQuery,
 } from './handlers/paymentHandlers'
 import { setBotCommands } from './setCommands'
+import { discoverBotTokens } from '@/utils/discoverBotTokens'
+import { stopBotsQuietly } from '@/utils/stopBotsQuietly'
 // ✅ ДОБАВЛЯЕМ IMPORT LANGUAGE MIDDLEWARE
 import { languageMiddleware } from './middlewares/languageMiddleware'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
@@ -209,18 +211,20 @@ async function initializeBots() {
     )
   } else {
     // В продакшене используем все активные боты
-    const botTokens = [
-      process.env.BOT_TOKEN_1,
-      process.env.BOT_TOKEN_2,
-      process.env.BOT_TOKEN_3,
-      process.env.BOT_TOKEN_4,
-      process.env.BOT_TOKEN_5,
-      process.env.BOT_TOKEN_6,
-      process.env.BOT_TOKEN_7,
-      process.env.BOT_TOKEN_8,
-      process.env.BOT_TOKEN_9,
-      process.env.BOT_TOKEN_10,
-    ].filter((token): token is string => Boolean(token))
+    /*
+     * THE LIST WAS WRITTEN BY HAND AND STOPPED AT THE TENTH.
+     *
+     * Production runs twelve bots: BOT_TOKEN_1..10 and BOT_TOKEN_12
+     * (BOT_TOKEN_11 is absent; that slot belongs to OM_AI_Digital_studio_bot).
+     * This file is not what Railway starts -- but it IS declared an entrypoint
+     * by scripts/probe-reachability.cjs and probe-will-it-write.cjs, and eight
+     * tests hold it in parity with src/index.ts. That is exactly why drifting
+     * here is dangerous: the tool that decides which code is reachable was
+     * walking a list that never brings up the last two bots.
+     *
+     * One scan, in one place -- utils/discoverBotTokens.
+     */
+    const botTokens = discoverBotTokens() // secret-guard-ok: reads env at runtime, no literal
 
     let currentPort = 3001
 
@@ -411,9 +415,13 @@ async function initializeBots() {
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
   logger.debug(`🚨 Получен сигнал ${signal}. Завершение работы...`)
-  for (const bot of botInstances) {
-    logger.debug(`🚫 Остановка бота ${bot.botInfo?.username}...`)
-    await bot.stop()
+  // The same shutdown as index.ts: see utils/stopBotsQuietly.
+  for (const o of await stopBotsQuietly(botInstances)) {
+    if (o.result === 'failed') {
+      logger.error(`⚠️ Бот ${o.name}: остановка не удалась`, o.error)
+    } else {
+      logger.debug(`🚫 Бот ${o.name}: ${o.result}`)
+    }
   }
   process.exit(0)
 }
