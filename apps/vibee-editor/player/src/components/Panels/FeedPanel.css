@@ -1090,42 +1090,150 @@
    FULLSCREEN MODE - Action Buttons on RIGHT
    ======================================== */
 
+/* THE RAIL LIVES IN A BOX THE CARD GIVES IT, NOT AT A MAGIC OFFSET.
+   It used to be `bottom: 120px` with six fixed-size buttons, so its height was
+   a constant 388px and its top landed wherever the card's height put it. On a
+   short card that was outside the card, and .feed-card is overflow: hidden, so
+   three of six controls were CUT AWAY (measured live at 1087x430: link, sound
+   and star absent from elementsFromPoint entirely). On a taller frame the top
+   button instead landed inside the floating Recent/Popular chips and hit-tested
+   to them. Two different-looking bugs, one cause: the rail was not bounded by
+   anything.
+   Now it is bounded top and bottom, and its contents scale with the viewport
+   height, which is what TikTok's own embed does (`top: 0; height: 100%`, and
+   not one height media query in their whole player stylesheet). The top inset
+   is the chips' band, so the rail cannot enter our own chrome -- the Apple HIG
+   reading of a safe area, which counts your own toolbars, and the same idea as
+   Telegram's contentSafeAreaInset.
+   The clamp floor is 24px: WCAG 2.5.8 AA asks for 24x24 CSS px targets, so the
+   rail may shrink to fit but never below a pressable size. */
 .feed-panel.fullscreen .feed-card-actions {
   position: absolute;
   right: 8px;
-  bottom: 120px;
-  gap: 20px;
+  top: var(--feed-chrome-top, 70px);
+  bottom: var(--feed-rail-bottom, 120px);
+  height: auto;
+  justify-content: flex-end;
+  gap: clamp(6px, 3.33vh, 24px);
   z-index: calc(var(--z-elevated) + 10);
+
+  /* A BOUNDED BOX IS A BIGGER BOX, AND AN EMPTY BOX STILL TAKES TAPS.
+     The rail used to be exactly as tall as its buttons (388px). Bounded, it
+     spans from the chrome inset to the bottom reserve -- 454px at 1723x720 and
+     618px on a phone -- with the buttons clustered at the bottom and NOTHING
+     above them. The base rule sets pointer-events: auto on this container, so
+     that empty column would have swallowed every tap meant for the video
+     behind it: a new dead zone created by the fix for a dead zone.
+     The container stops taking events; the buttons take their own. */
+  pointer-events: none;
+}
+
+/* The coefficients are chosen so the desktop does not move: at 720px of
+   viewport height 5vh is 36px and 3.33vh is 24px, exactly what the min-width:
+   768px rule used to pin, and the caps hold them there on taller windows.
+   Below 720px they fall, and the 24px floor is WCAG 2.5.8's minimum target. */
+.feed-panel.fullscreen .action-btn svg {
+  width: clamp(24px, 5vh, 36px);
+  height: clamp(24px, 5vh, 36px);
+}
+
+.feed-panel.fullscreen .action-btn span {
+  font-size: clamp(9px, 1.8vh, 13px);
 }
 
 .feed-panel.fullscreen .action-btn {
   gap: 4px;
+  /* The rail container gives up pointer events (see above), so the buttons take
+     their own. Declared here, on a selector of the same specificity as every
+     other rule on these boxes, rather than on a deeper one: the contract test
+     guards that specificity precisely so a later rule cannot quietly win. */
+  pointer-events: auto;
 }
 
-.feed-panel.fullscreen .action-btn svg {
-  width: 32px;
-  height: 32px;
-}
-
-.feed-panel.fullscreen .action-btn span {
-  font-size: 12px;
-}
+/* The fixed 32px icon and 12px label that used to sit here are now the upper
+   end of the clamps above. Left in place they would have won on order alone and
+   the rail would have kept its constant height -- the whole defect. */
 
 /* Desktop - slightly larger */
 @media (min-width: 768px) {
+  /* The desktop band keeps its 140px of space above the card text, but it says
+     so through the variable the rail reads, so one number governs the box.
+     The icon and gap sizes that used to be pinned here are the clamps' upper
+     bound now: at 720px of viewport height and above they resolve to exactly
+     the 36px and 24px this rule used to set, so nothing moves on a desktop --
+     below that they shrink instead of being cut off. */
+  .feed-panel.fullscreen {
+    --feed-rail-bottom: 140px;
+  }
+
   .feed-panel.fullscreen .feed-card-actions {
     right: 12px;
-    bottom: 140px;
-    gap: 24px;
+  }
+}
+
+/* THE RAIL HAS TO FIT INSIDE THE CARD, OR THE CARD CUTS IT OFF.
+   .feed-card is overflow: hidden and one viewport tall (100dvh - 56px), so a
+   rail that needs more room than the card has is not "hanging over the edge" --
+   it is GONE. Measured on the live site at 1087x430, the size the game's TRI
+   tab gives the embedded player: the rail is 388px tall and sits at
+   bottom: 140px, so it needs 528px inside a 374px card. Its top 154px were cut
+   away: link, sound and star were absent from elementsFromPoint entirely (a
+   COVERED element still appears in that list, below its coverer -- a clipped
+   one does not), and the star of the card above hit-tested to the app header.
+   Three of six controls, invisible and unpressable, on every short window.
+   844x390 and 1280x500 are the same class.
+   The rail itself is bounded and clamped above, so it no longer needs a step to
+   stop being cropped. What is left for this band is the chrome: the floating
+   pill goes, the tab bar's height is reserved for the text, and the rail sits
+   closer to the bottom because there is less card to spend. Nothing is dropped:
+   a control a person cannot reach is worse than a small one. */
+@media (max-height: 560px) {
+  /* The floating "COMMUNITY FEED" pill takes the top of the card, and at
+     844x390 the shrunk rail still ran into it: link-btn hit-tested to
+     .panel-header. The product already drops this pill on phones
+     (max-width: 768px below) because the tab row names the surface anyway;
+     a landscape phone is the same situation seen sideways. */
+  .feed-panel.fullscreen .panel-header {
+    display: none;
+  }
+
+  .feed-panel.fullscreen {
+    --feed-rail-bottom: 72px;
   }
 
   .feed-panel.fullscreen .action-btn svg {
-    width: 36px;
-    height: 36px;
+    width: 22px;
+    height: 22px;
   }
 
   .feed-panel.fullscreen .action-btn span {
-    font-size: 13px;
+    font-size: 10px;
+  }
+
+  /* The bottom tab bar appears on a landscape phone too, and at 844x390 it ate
+     the last line of the description ("Anonymous" was cut). The phone rule
+     below already reserves --app-tabbar-total, which the tab bar publishes
+     itself through a ResizeObserver; 844px is wider than that rule's 768px, so
+     the reserve never reached this case. Same bar, same reserve. */
+  .feed-panel.fullscreen .feed-card-info {
+    padding-bottom: calc(20px + var(--app-tabbar-total, 57px));
+  }
+}
+
+/* THE RAIL ALSO HAS TO CLEAR OUR OWN FLOATING CHROME.
+   .feed-sort -- the Recent/Popular chips -- is position: fixed at top: 70px
+   with z-index: var(--z-dropdown), which is above the rail. Measured inside the
+   game's REAL frame at 804x610 (not in a harness): the rail's top button sat at
+   y 83..119, inside the chips' band, and hit-tested to .feed-sort. Copy link
+   was unreachable there.
+   The top inset on the rail is what actually keeps it out of that row now. This
+   band only gives it a little more room to breathe by taking less space at the
+   bottom, so the buttons are not squeezed against the card text on a window
+   that is short but not tiny. Bounded below by 560px, where the band above
+   takes over with a smaller reserve. */
+@media (max-height: 700px) and (min-height: 561px) {
+  .feed-panel.fullscreen {
+    --feed-rail-bottom: 100px;
   }
 }
 
@@ -1161,9 +1269,12 @@
     height: 14px;
   }
 
+  .feed-panel.fullscreen {
+    --feed-rail-bottom: 120px;
+  }
+
   .feed-panel.fullscreen .feed-card-actions {
     right: 8px;
-    bottom: 120px;
     gap: 18px;
   }
 
@@ -1255,9 +1366,12 @@
     padding: 40px 12px 16px;
   }
 
+  .feed-panel.fullscreen {
+    --feed-rail-bottom: 100px;
+  }
+
   .feed-panel.fullscreen .feed-card-actions {
     right: 6px;
-    bottom: 100px;
     gap: 16px;
   }
 
@@ -1334,8 +1448,11 @@
     padding-bottom: calc(20px + var(--app-tabbar-total, 57px));
   }
 
-  .feed-panel.fullscreen .feed-card-actions {
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  /* Same reserve, written where the rail now reads it. env(safe-area-inset-*)
+     is zero inside the Telegram WebView -- styles/telegram.css says so -- and
+     the tab bar's own height is what --app-tabbar-total carries for the text. */
+  .feed-panel.fullscreen {
+    --feed-rail-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   }
 
   .feed-panel.fullscreen::after,

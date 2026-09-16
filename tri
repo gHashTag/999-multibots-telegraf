@@ -208,6 +208,29 @@ CHECKS THAT EACH COST A CYCLE
         and flag the ones that DISCARD the result. Use when a point-fix lands
         to find its siblings. A flagged site is a hypothesis -- read it.
 
+  tri reachable <url> [--size WxH ...] [--gate]
+        Which controls on a LIVE page can a finger actually reach. Hit-tests
+        every control's centre with elementFromPoint and names what is on top
+        when the answer is not the control itself. A scripted click proves the
+        handler, never the pixel: that mistake reported 11 of 11 TRI buttons
+        working while nobody could press one. Offscreen (scrolled past the
+        edge) and blocked (covered by something) are reported separately,
+        because only the second is a defect. Default sizes include 1087x430,
+        the short frame the game gives the embedded player.
+
+  tri reachable-check | tri достижимо-проверка
+        Renders one clear button and one deliberately covered button and
+        demands exactly one finding. A ruler that can only pass is not a ruler.
+
+  tri player-deploy [--check] | tri выкатка-плеера
+        Redeploy app.t27.ai and WAIT for the served bundle hash to change.
+        Merging the player deploys nothing on its own: the vibee-editor service
+        builds from the root railway.toml, which does not watch
+        apps/vibee-editor/**, and the dashboard keeps showing the previous
+        build's SUCCESS. The hash the site actually serves is the only honest
+        signal, so it is read before and polled after. --check only prints what
+        is live right now.
+
   tri ratchets | tri линейки
         Run every gated safety-class ratchet in one shot, by exit code
         (double-charge / scene-id / unbilled-paid / OOM / cross-bot). Names
@@ -3728,6 +3751,36 @@ cmd_disk() {
   done
 }
 
+# MERGING THE PLAYER IS NOT DEPLOYING IT, AND THE SERVICE WILL NOT TELL YOU.
+#
+# The vibee-editor service builds from the bot's root railway.toml, which does
+# not watch apps/vibee-editor/**: a merge that only touches the player deploys
+# NOTHING and the dashboard still says SUCCESS -- the previous build's success.
+# The only honest signal is the bundle hash the site actually serves, so this
+# reads it before, redeploys, and waits for it to CHANGE. Without that wait the
+# next probe measures the old bundle and reports the fix as not working.
+cmd_player_deploy () {
+  local origin="${PLAYER_ORIGIN:-https://app.t27.ai}"
+  local before after waited=0
+  before="$(curl -s -m 20 "$origin/" | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1)"
+  [ -n "$before" ] || { bad "cannot read the live bundle from $origin"; return 1; }
+  printf '  live now: %s\n' "$before"
+  if [ "${1:-}" = "--check" ]; then return 0; fi
+  railway redeploy --service vibee-editor --from-source -y >/dev/null 2>&1 || {
+    bad "railway redeploy failed"; return 1; }
+  printf '  redeploy requested, waiting for the served bundle to change\n'
+  while [ "$waited" -lt 900 ]; do
+    sleep 20; waited=$((waited + 20))
+    after="$(curl -s -m 20 "$origin/" | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1)"
+    if [ -n "$after" ] && [ "$after" != "$before" ]; then
+      good "deployed: $before -> $after (${waited}s)"
+      return 0
+    fi
+  done
+  bad "the served bundle is still $before after ${waited}s -- the deploy did not land"
+  return 1
+}
+
 action="${1:-помощь}"
 # THE SHIFT IS WHY SUBCOMMANDS FORWARD "$@" AND NOT "${@:2}".
 #
@@ -3811,6 +3864,13 @@ case "$action" in
   sweep|развёртка)  cmd_sweep "$@" ;;
   buttons|кнопки)      node "$ROOT/scripts/button-census.cjs" "$@" ;;
   urls|адреса)         node "$ROOT/scripts/url-reachability.cjs" "$@" ;;
+  # THE OTHER HALF OF `buttons`. That census asks whether a button has a
+  # handler; this one asks whether a finger can reach it. Both were needed:
+  # a probe once reported 11 of 11 TRI controls working while nobody could
+  # press one, because it called element.click() instead of hit-testing.
+  reachable|достижимо) node "$ROOT/scripts/reachability-live.mjs" "$@" ;;
+  reachable-check|достижимо-проверка) node "$ROOT/scripts/reachability-live.mjs" --self-check ;;
+  player-deploy|выкатка-плеера) cmd_player_deploy "$@" ;;
   methods|способы)     node "$ROOT/scripts/payment-method-census.cjs" "$@" ;;
   reconcile|сверка)    node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
   lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
