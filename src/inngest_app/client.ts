@@ -6,6 +6,7 @@
 import { Inngest } from 'inngest'
 import { isProbeFailureEvent } from './safeMode'
 import { logger } from '@/utils/logger'
+import { resolveAdminChatId } from '@/helpers/adminChatId'
 
 // Кэшированный экземпляр клиента
 let _inngestClient: Inngest | null = null
@@ -191,8 +192,14 @@ export const createInngestFailureHandler = (functionName: string) => {
       eventName: event?.name,
     })
 
-    // Send Telegram notification to admin
-    const adminChatId = process.env.ADMIN_CHAT_ID
+    // Send Telegram notification to admin.
+    //
+    // Addressed through the resolver, not the raw variable: production sets
+    // ADMIN_CHAT_ID to a bare username, which Telegram answers with 400 "chat
+    // not found". And `fetch` does not throw on a 400, so the catch below was
+    // never the thing that noticed -- `resp.ok` has to be read for a refused
+    // send to be distinguishable from a delivered one.
+    const adminChatId = resolveAdminChatId()
     const botToken = process.env.BOT_TOKEN_1
     if (adminChatId && botToken) {
       try {
@@ -203,7 +210,7 @@ export const createInngestFailureHandler = (functionName: string) => {
           `*Run:* \`${runId}\`\n` +
           `*Event:* ${event?.name || 'unknown'}`
         const url = `https://api.telegram.org/bot${botToken}/sendMessage`
-        await fetch(url, {
+        const resp = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -212,6 +219,17 @@ export const createInngestFailureHandler = (functionName: string) => {
             parse_mode: 'Markdown',
           }),
         })
+        if (!resp.ok) {
+          // warn, not error: the failure itself was already logged above at
+          // error and reached the owner. This line says the SECOND channel is
+          // broken, and doubling every Inngest failure into two alerts to say
+          // so would be its own storm.
+          logger.warn('Inngest failure notice was refused by Telegram', {
+            chatId: adminChatId,
+            status: resp.status,
+            description: await resp.text().catch(() => ''),
+          })
+        }
       } catch (notifyErr) {
         logger.warn('Failed to send Inngest failure notification to admin', {
           error:

@@ -114,10 +114,30 @@ describe('the number of money refusals with nothing to press does not grow', () 
   const THROWN = /\bthrow\s+new\s+\w*Error\s*\(/
   const CONDITION =
     /^\s*(?:\}\s*else\s+)?if\s*\(|\.includes\s*\(|^\s*[!&|]{1,2}\s*\w/
+  /*
+   * THE SENTINEL'S DECLARATION IS NOT A REFUSAL, IT IS THE PROTOCOL.
+   *
+   * `throw new Error('Not enough stars')` was already excluded above as a
+   * signal to the caller. Those five throws have since been replaced by one
+   * exported constant that the shared helper throws and five catch sites match
+   * -- so the exact text this rule exists to exclude moved from five excluded
+   * lines to one counted line, and the count went UP by one while the product
+   * got strictly better. Counting a protocol constant as a refusal with
+   * nothing to press would make this number measure the refactor rather than
+   * the product.
+   *
+   * Kept as narrow as the thing it describes: an exported SCREAMING_SNAKE name
+   * bound to a bare string literal and nothing else on the line. A real
+   * refusal has a ternary, a template, an interpolation, or a lowercase name
+   * -- the survivors below pin every one of those.
+   */
+  const SENTINEL_DECL =
+    /^\s*(?:export\s+)?const\s+[A-Z][A-Z0-9_]*\s*=\s*'[^']*'\s*$/
   const isRefusal = (line: string) =>
     PHRASE.test(line) &&
     !NOISE.test(line) &&
     !THROWN.test(line) &&
+    !SENTINEL_DECL.test(line) &&
     !CONDITION.test(line)
 
   /** Blank out comments, keeping newlines so the window still lines up. */
@@ -257,6 +277,10 @@ describe('the number of money refusals with nothing to press does not grow', () 
     expect(
       isRefusal("        !errorMessageToUser.includes('Not enough stars')")
     ).toBe(false)
+    // The sentinel's one declaration: a protocol constant, not a sentence.
+    expect(
+      isRefusal("export const INSUFFICIENT_FUNDS_SENTINEL = 'Not enough stars'")
+    ).toBe(false)
 
     // AND THE THINGS THAT MUST SURVIVE. Without these the rules above would be
     // satisfied by a matcher that dropped everything.
@@ -268,6 +292,22 @@ describe('the number of money refusals with nothing to press does not grow', () 
     ).toBe(true)
     expect(
       isRefusal('      const errorMsg = `Недостаточно средств. Баланс: ${b}`')
+    ).toBe(true)
+
+    // THE SENTINEL EXCLUSION, PUSHED ON. It is the newest and therefore the
+    // least trusted rule here; these are the shapes a real refusal takes that
+    // it must not swallow.
+    expect(
+      isRefusal("  const message = 'Недостаточно средств на балансе'"),
+      'a lowercase name is an ordinary variable holding a sentence'
+    ).toBe(true)
+    expect(
+      isRefusal("  const MESSAGE = 'Not enough stars' + suffix"),
+      'anything past the literal means it is being built, not declared'
+    ).toBe(true)
+    expect(
+      isRefusal('  const MSG = `Недостаточно звезд: ${n}`'),
+      'a template with an interpolation is a sentence about this person'
     ).toBe(true)
   })
 

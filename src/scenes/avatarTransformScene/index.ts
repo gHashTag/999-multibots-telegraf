@@ -1074,6 +1074,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         hasUnlimitedAccess: false,
         resetDate: null,
         reason: 'quota check unavailable',
+        // Nothing was counted, so nothing is known. Access stays open (above);
+        // the free generation does not.
+        quotaKnown: false,
       } as Awaited<ReturnType<typeof checkSuperheroGenerationUsage>>
     }
 
@@ -1275,13 +1278,34 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // 🎯 ЛИДMАГНЕТ: Делаем первое использование БЕСПЛАТНЫМ
-    ctx.session.bypass_payment_check = true
+    //
+    // processBalanceOperation honours bypass_payment_check ONLY when
+    // session.mode is ModeEnum.AvatarTransform. This scene never set
+    // session.mode at all, so the flag always landed in the "bypass in a
+    // non-AvatarTransform mode" branch: a SECURITY warning about the customer,
+    // the flag deleted, and the full price charged. Every person the scene has
+    // ever greeted with the free-demonstration promise below (line 1315) paid
+    // for it. Setting the mode is what makes that sentence true.
+    ctx.session.mode = ModeEnum.AvatarTransform
+
+    // Only give the free one away against a quota we actually read. When the
+    // count is unknown the person still generates (canGenerate stayed true
+    // above) -- they just pay, instead of a database hiccup turning into
+    // unlimited free paid generations.
+    if (generationCheck.quotaKnown) {
+      ctx.session.bypass_payment_check = true
+    }
 
     logger.info(
-      '[AvatarTransformScene] Lead magnet enabled - FREE transformation',
+      generationCheck.quotaKnown
+        ? '[AvatarTransformScene] Lead magnet enabled - FREE transformation'
+        : '[AvatarTransformScene] Lead magnet withheld - the quota could not be read; charging normally',
       {
         telegramId,
         step: 'lead_magnet_enabled',
+        quotaKnown: generationCheck.quotaKnown,
+        currentUsage: generationCheck.currentUsage,
+        maxUsage: generationCheck.maxUsage,
       }
     )
 

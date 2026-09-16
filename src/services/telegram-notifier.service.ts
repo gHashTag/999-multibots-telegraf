@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '../interfaces'
 import { FixResult } from '../webhooks/github-autofixer.service'
+import { normalizeChatId, resolveAdminChatId } from '../helpers/adminChatId'
 
 export interface AutoFixStartNotification {
   prNumber: number
@@ -38,8 +39,9 @@ export class TelegramNotifierService {
 
   constructor() {
     const botToken = process.env.BOT_TOKEN_1
-    this.adminChatId = process.env.ADMIN_CHAT_ID || ''
-    this.devChannelId = process.env.DEV_CHANNEL_ID || ''
+    // A bare username is not a chat id; see helpers/adminChatId.ts.
+    this.adminChatId = resolveAdminChatId() || ''
+    this.devChannelId = normalizeChatId(process.env.DEV_CHANNEL_ID)
 
     if (botToken) {
       this.bot = new Telegraf<MyContext>(botToken)

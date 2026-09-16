@@ -7,7 +7,11 @@ import { pulse } from '@/helpers/pulse'
 import { getUserBalance } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger } from '@/utils/logger'
-import { processBalanceOperation } from '@/price/helpers'
+import {
+  processBalanceOperation,
+  refuseUnpaidGeneration,
+  BalanceRefusedError,
+} from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -80,10 +84,17 @@ export const generateFluxKontextPro = async (
   // service missing this refund.
   let totalCost = 0
   let refunded = false
-  // Only refund when a REAL charge for this call occurred. processBalanceOperation
-  // returns success:false on insufficient funds yet the service continues, so
-  // refunding an uncharged failure would credit against an unrelated prior charge
-  // (refundUser is ledger-guarded but keying on a real charge is the honest gate).
+  // Only refund when a REAL charge for this call occurred, so an uncharged
+  // failure cannot credit against an unrelated prior charge (refundUser is
+  // ledger-guarded, but keying on a real charge is the honest gate).
+  //
+  // This comment used to read "processBalanceOperation returns success:false on
+  // insufficient funds yet the service continues". That was true, and writing it
+  // down was as far as it went: the refund side got a guard and the DELIVERY
+  // side never did, so the unpaid customer the sentence describes was served the
+  // paid generation for free. refuseUnpaidGeneration now stops the call there,
+  // which is why `charged` is a plain `true` below -- past the refusal there is
+  // no unpaid path left to represent.
   let charged = false
 
   try {
@@ -159,11 +170,25 @@ export const generateFluxKontextPro = async (
         is_ru,
         bot_name: ctx.botInfo.username,
       })
+      // Refuse BEFORE the status message and the provider call. Without this
+      // the function announced that it was processing the image (line 207) and
+      // ran the paid generation for a customer who had just been told they had
+      // no stars.
+      refuseUnpaidGeneration(balanceResult, {
+        service: 'FluxKontextPro',
+        telegram_id,
+      })
+      // `balanceResult.success === true` rather than a bare `true`, even though
+      // refuseUnpaidGeneration above guarantees it. The refund downstream turns
+      // on this flag, and a money guard should be readable as correct without
+      // first reading another file to learn that a helper throws.
       charged = balanceResult.success === true
 
       logger.info('🟢 [FluxKontextPro] Balance check result:', {
         telegram_id,
-        balanceCheckSuccess: !!balanceResult,
+        // was `!!balanceResult`: the truthiness of the RESULT OBJECT, which is
+        // always true. The log said success on every refusal.
+        balanceCheckSuccess: balanceResult.success,
       })
     } else {
       // Batch mode: the caller already charged (chargedCostOverride) before the loop.
@@ -347,6 +372,22 @@ export const generateFluxKontextPro = async (
       prompt_id: promptId || 0,
     }
   } catch (error) {
+    // A refused charge is not a service failure. Re-thrown here, before
+    // anything else in this catch, for two separate reasons:
+    //
+    //   1. ALERTS. Every logger.error in this process is a Telegram message to
+    //      the owner (utils/logger.ts). Logging "FluxKontextPro Service error" for an empty
+    //      wallet would page a human for a working system, once per broke
+    //      customer.
+    //   2. MONEY. The refund below must not run. The refusal happens before any
+    //      charge, so a refund here would credit stars that were never taken --
+    //      refundUser is ledger-guarded, but its guard matches any charge of
+    //      sufficient size in the window, not this one.
+    //
+    // The caller decides what the person sees; refuseUnpaidGeneration has
+    // already said whether they were told.
+    if (error instanceof BalanceRefusedError) throw error
+
     logger.error('💥 [FluxKontextPro] Service error:', {
       telegram_id: params.telegram_id,
       error: error instanceof Error ? error.message : String(error),

@@ -12,7 +12,11 @@ import {
 import { IMAGES_MODELS } from '@/price/models'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
-import { processBalanceOperation, refundUser } from '@/price/helpers'
+import {
+  processBalanceOperation,
+  refundUser,
+  refuseUnpaidGeneration,
+} from '@/price/helpers'
 // import { PaymentType } from '@/interfaces/payments.interface'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -88,9 +92,16 @@ export const generateTextToImageDirect = async (
     })
     console.log(balanceCheck, 'balanceCheck')
 
-    if (!balanceCheck.success) {
-      throw new Error('Not enough stars')
-    }
+    // Was `throw new Error('Not enough stars')` for ANY failed charge. Five
+    // catch sites downstream turn that exact string into a top-up prompt, so
+    // a customer WITH stars whose balance WRITE failed -- or whose price
+    // computed to zero -- was told they were broke, and the operator incident
+    // was filed as poverty. refuseUnpaidGeneration keeps the sentinel for the
+    // one case it describes and carries the real reason for the rest.
+    refuseUnpaidGeneration(balanceCheck, {
+      service: 'TextToImageDirect',
+      telegram_id: String(telegram_id),
+    })
 
     // 🔄 СОХРАНЯЕМ СТОИМОСТЬ для возможного возврата при ошибке
     const chargedAmount = totalCost

@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger'
+import { resolveAdminChatId } from '@/helpers/adminChatId'
 
 interface ProviderStatus {
   name: string
@@ -71,22 +72,52 @@ export function healthAction(
   return prev && !prev.available ? 'recovered' : 'ok'
 }
 
+/**
+ * THIS FUNCTION HAD NOT DELIVERED A MESSAGE IN MONTHS, AND SAID NOTHING.
+ *
+ * Two defects, and each one hid the other.
+ *
+ * The address: production sets `ADMIN_CHAT_ID=neuro_blogger_pulse`, and a bare
+ * username is not a chat id. Telegram answers `400 Bad Request: chat not found`
+ * -- measured against the live API on 2026-09-15, and `@neuro_blogger_pulse`
+ * resolves to the supergroup fine.
+ *
+ * The silence: `fetch` does not throw on a 400. It resolves, `resp.ok` was
+ * never read, and so the `catch` written to report exactly this failure could
+ * never run. A send that never arrives and never complains is the worst of both
+ * -- the designed alert channel was dead and the evidence of its death was
+ * discarded by the same line that should have raised it.
+ *
+ * Silence is not zero. A refused send now says so, once, with the answer
+ * Telegram actually gave.
+ */
 async function notifyAdmin(message: string) {
-  const chatId = process.env.ADMIN_CHAT_ID
+  const chatId = resolveAdminChatId()
   const token = process.env.BOT_TOKEN_1
   if (!chatId || !token) return
 
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML',
-      }),
-      signal: AbortSignal.timeout(probeTimeoutMs()),
-    })
+    const resp = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML',
+        }),
+        signal: AbortSignal.timeout(probeTimeoutMs()),
+      }
+    )
+    if (!resp.ok) {
+      logger.error('Provider alert was refused by Telegram', {
+        chatId,
+        status: resp.status,
+        description: await resp.text().catch(() => ''),
+        hint: 'ADMIN_CHAT_ID must be a numeric id or an @username the bot can post to',
+      })
+    }
   } catch (e) {
     logger.error('Failed to notify admin about provider status', { error: e })
   }

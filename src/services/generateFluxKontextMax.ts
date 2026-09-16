@@ -12,7 +12,11 @@ import {
 } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
-import { processBalanceOperation } from '@/price/helpers'
+import {
+  processBalanceOperation,
+  refuseUnpaidGeneration,
+  BalanceRefusedError,
+} from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
 import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
 import { MyContext } from '@/interfaces'
@@ -196,13 +200,19 @@ export const generateFluxKontextMax = async (
         telegram_id,
       })
 
-      if (!balanceCheck.success) {
-        console.error('🚨 [FluxKontextMax] Balance check failed:', {
-          telegram_id,
-          balanceCheck,
-        })
-        throw new Error('Not enough stars')
-      }
+      // This refused correctly and then threw away WHY. `balanceCheck.error`
+      // carries at least three distinct meanings -- an empty wallet, a failed
+      // balance WRITE, and a price that would not compute -- and all three
+      // collapsed into `new Error('Not enough stars')`, the sentinel five call
+      // sites match to decide whether to show a top-up prompt. So a customer
+      // with plenty of stars was told they had none whenever our own write
+      // failed, and the operator incident behind it was filed as a broke
+      // customer. The shared refusal keeps the sentinel for the one case it
+      // describes and reports the others as what they are.
+      refuseUnpaidGeneration(balanceCheck, {
+        service: 'FluxKontextMax',
+        telegram_id,
+      })
       charged = true
     } else {
       // Batch (skipBalanceCheck) was already charged by the caller and may be
@@ -457,6 +467,12 @@ export const generateFluxKontextMax = async (
         /* already gone or never created */
       }
     }
+
+    // A refused charge is not a service failure and must not be classified as
+    // one. The classifier below decides what the customer is told and whether
+    // the owner is paged; refuseUnpaidGeneration has already made both of those
+    // decisions with the real reason in hand.
+    if (error instanceof BalanceRefusedError) throw error
 
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
