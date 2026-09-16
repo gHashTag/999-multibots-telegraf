@@ -73,7 +73,10 @@ for e in events:
     if e.get('kind') not in KINDS:
         continue
     raw = str(e.get('at') or e.get('created_at') or '')[:19]
-    text = str(e.get('text') or '')
+    # ПОЛЕ НАЗЫВАЕТСЯ `note`. Поля `text` у события улья нет вовсе, и чтение
+    # его отдавало пустую строку на каждой записи: столбец пояснений в этом
+    # выводе был пуст с самого начала, и я этого не заметил.
+    text = str(e.get('note') or e.get('text') or '')
     try:
         t = datetime.strptime(raw, '%Y-%m-%dT%H:%M:%S')
     except Exception:
@@ -92,6 +95,9 @@ for e in events:
 if not rows:
     print('🛑 ни одного обхода, привязанного к тику — вывода НЕ делаю.'); sys.exit(2)
 
+if rows and not any(r[3] for r in rows):
+    print('⚠️  ни у одной записи нет пояснения — возможно, поле переименовали;')
+    print('    длительности ниже верны, пояснения справа читать нельзя.')
 rows.sort(reverse=True)
 took_all = sorted(r[0] for r in rows)
 near = [t for t in took_all if t >= budget_s * 0.9]
