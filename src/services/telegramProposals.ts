@@ -119,6 +119,14 @@ const CARD_LEAD_MAX = 200
  * into that turn's brief; the rest would only pad the prompt.
  */
 const CARD_WHAT_CHARS = 300
+/*
+ * How much of their last message the card quotes.
+ *
+ * Long enough to recognise the conversation, short enough that their sentence
+ * cannot outweigh ours: the owner is approving OUR words, and a quote that
+ * fills the card turns the decision into a reading exercise.
+ */
+const THEIR_WORDS_CHARS = 160
 const cardLeads = new Map<string, { lead: string; what: string; at: number }>()
 
 const draftWords = (p: { what?: string; media?: BotMedia }): string => {
@@ -530,7 +538,34 @@ export function proposalCard(
     .trim()
     .slice(0, 120)
   const why = whyLine ? `\n${isRu ? 'Почему' : 'Why'}: ${whyLine}` : ''
-  const head = `${ask}\n\n${label}: ${to}${why}${fromLine}${warn}${price}${when}`
+  /*
+   * WHAT THEY SAID, SO THE CARD ANSWERS "ANSWERING WHAT?".
+   *
+   * The second reason to open the chat, after "who is this": what are we
+   * replying to. One line, labelled and quoted, above our own words and
+   * plainly separated from them -- the owner must never be able to read their
+   * sentence as the one he is about to send.
+   *
+   * The label is neutral on purpose. A Russian verb would guess a gender from
+   * nothing, and the CRM holds people whose gender it has no business
+   * inventing.
+   */
+  const theirsFull = String((p as { theirWords?: unknown }).theirWords ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  // A CUT THAT DOES NOT SAY IT CUT IS A LIE ABOUT WHAT THEY SAID.
+  //
+  // Without the ellipsis the quote ends mid-word and reads as the whole of
+  // their message -- which is exactly the impression the owner would decide
+  // on. The same rule the draft's own truncation already follows.
+  const theirs =
+    theirsFull.length > THEIR_WORDS_CHARS
+      ? theirsFull.slice(0, THEIR_WORDS_CHARS - 1).trimEnd() + '…'
+      : theirsFull
+  const quote = theirs
+    ? `\n${isRu ? 'Последнее сообщение' : 'Their last message'}: «${theirs}»`
+    : ''
+  const head = `${ask}\n\n${label}: ${to}${why}${quote}${fromLine}${warn}${price}${when}`
   const tail = cut
     ? isRu
       ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`

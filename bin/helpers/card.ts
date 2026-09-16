@@ -79,9 +79,10 @@ async function main(): Promise<void> {
         id: 'demo',
         action: 'send',
         target: String(c.username ? '@' + c.username : (c.lead ?? '')),
-        what: words || '(здесь будут слова продавца)',
+        what: '(здесь будут слова продавца)',
         display: String(c.display ?? ''),
         secret: 'x'.repeat(24),
+        theirWords: words,
       } as never,
       true,
       { rewrite: true, because: String(c.because ?? '') }

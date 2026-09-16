@@ -100,6 +100,20 @@ export interface PendingProposal {
   lead?: string
   /** Whose bot the lead belongs to, for the touch's own visibility scope. */
   bot?: string | null
+  /**
+   * THEIR OWN LAST MESSAGE, SO THE CARD ANSWERS "ANSWERING WHAT?".
+   *
+   * The bulk lead query has computed this for a while, and its comment says
+   * what it is for: the line the owner reads to remember who this is before
+   * deciding anything. He never saw it. The card showed the recipient and our
+   * draft, and nothing of theirs -- so deciding meant opening the chat, which
+   * is the work the card exists to save.
+   *
+   * Third-party text. Flattened and cut where it enters, quoted and
+   * attributed where it is shown, and never adjacent to our own words without
+   * a label between them.
+   */
+  theirWords?: string
   createdAt: number
   /**
    * THE ONE-TIME SECRET, AND WHY THE ID IS NOT ENOUGH.
