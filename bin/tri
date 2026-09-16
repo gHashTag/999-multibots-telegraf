@@ -46,6 +46,7 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
+  tri card       как выглядит карточка владельца на живых данных
   tri scan       чем этот код может соврать: обзор сторожей и дыр
   tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
   tri promises   обещания в тексте, за которыми стоит число в другом файле
@@ -793,6 +794,7 @@ PYEOF
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
+  card)   shift; bash "$ROOT/bin/helpers/card.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;

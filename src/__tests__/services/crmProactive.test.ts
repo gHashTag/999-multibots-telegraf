@@ -519,3 +519,98 @@ describe('alerting on failed sweeps', () => {
     expect(reportSweepOutcome({ did: 'failed', why: 'y' })).toBe('error')
   })
 })
+
+/*
+ * THE LINE THAT DECIDES THE PRESS WAS DEAD AT BOTH ENDS.
+ *
+ * `because` has been in the queue since the cards were built, with a comment
+ * saying it is for the card. Measured 17.09.2026 end to end: no caller passed
+ * it into `propose`, and `proposalCard` never read it. The brief now asks for
+ * it and the card prints it.
+ */
+describe('why this person, on the card', () => {
+  it('the brief tells the model its line goes on the card', () => {
+    expect(SWEEP_PROMPT).toContain('НА КАРТОЧКУ')
+    expect(SWEEP_PROMPT).toContain('почему ИМЕННО этот')
+  })
+
+  /*
+   * THE LINE TRAVELS. Checked through the push the sweep actually performs,
+   * because a line the card could show and the sweep never sends is the same
+   * dead field in a new place.
+   */
+  it('the sweep hands its own line to the card', async () => {
+    const seen: Array<{ because?: string }> = []
+    const { d } = deps({
+      answer: {
+        текст: 'ему обещали разбор во вторник и он ждёт', // cyrillic-ok: pre-existing identifiers
+        proposal: draft,
+      },
+    })
+    d.push = async (_o, _draft, opts) => {
+      seen.push({ because: opts?.because })
+    }
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+    expect(seen[0]?.because).toBe('ему обещали разбор во вторник и он ждёт')
+  })
+
+  it('the card prints it right under the recipient', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      {
+        id: 'p1',
+        action: 'send',
+        target: '900000033',
+        what: 'привет',
+        secret: 's',
+      } as never,
+      true,
+      { because: 'спрашивал цену во вторник и замолчал' }
+    )
+    const lines = card.text.split('\n')
+    const to = lines.findIndex(l => l.startsWith('Кому:'))
+    expect(to, 'в карточке нет строки «Кому»').toBeGreaterThanOrEqual(0)
+    expect(lines[to + 1], 'строка «Почему» не сразу под адресатом').toContain(
+      'Почему: спрашивал цену во вторник'
+    )
+  })
+
+  it('without it the card is exactly what it was', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const bare = {
+      id: 'p1',
+      action: 'send',
+      target: '900000033',
+      what: 'привет',
+      secret: 's',
+    }
+    const a = proposalCard(bare as never, true)
+    const b = proposalCard(bare as never, true, { because: '' })
+    expect(a.text).toBe(b.text)
+    expect(a.text).not.toContain('Почему')
+  })
+
+  /*
+   * A CARD MUST NOT BE ABLE TO GROW A SECOND MESSAGE INSIDE ITSELF.
+   * The line is composed on our side, but it is flattened and cut anyway.
+   */
+  it('a long or multi-line reason cannot take over the card', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      {
+        id: 'p1',
+        action: 'send',
+        target: '900000033',
+        what: 'привет',
+        secret: 's',
+      } as never,
+      true,
+      { because: 'строка\nвторая строка\n' + 'я'.repeat(400) }
+    )
+    const why = card.text.split('\n').find(l => l.startsWith('Почему:')) ?? ''
+    expect(why.length).toBeLessThanOrEqual(128)
+    expect(
+      card.text.split('\n').filter(l => l.startsWith('Почему:')).length
+    ).toBe(1)
+  })
+})
