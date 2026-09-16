@@ -15,53 +15,6 @@ Every real defect in this stack passed `npm run build`. Every one was caught by
 loading the deployed page and measuring it. If a change is not verified against
 the running service, it is not done.
 
-## ДЕНЬГИ С 09.09.2026: учёт живёт на Railway, Supabase — архив. Забудь про старое.
-
-Владелец, 2026-09-09: «старая база на Supabase, новая на Railway, там Postgres,
-своя таблица уже давно. Забудь про старое уже». Это решение, а не наблюдение.
-
-**Где новый учёт.** Railway-сервис `Postgres-NFrq` (в `vibee-render` это
-`DATABASE_URL`, хост `postgres-nfrq.railway.internal`; снаружи —
-`DATABASE_PUBLIC_URL` того же сервиса, `ballast.proxy.rlwy.net`). Таблицы:
-
-- `user_tokens` — остаток токенов человека (`telegram_id text PK, balance int`);
-- `token_ledger` — **книга записей**: каждая покупка, грант, списание, возврат
-  и корректировка одной строкой (`delta`, `balance_after`, `kind`, `reason`,
-  `ref`, `meta`). Единственный писатель `user_tokens` —
-  `apps/vibee-editor/render/src/token-ledger.ts` (`moveTokens`,
-  `grantWelcomeIfNew`); структурный тест `token-ledger.test.ts` запрещает
-  прямой `UPDATE/INSERT user_tokens` где-либо ещё. `SUM(delta) = balance`
-  проверяет `ledgerDrift`; первое движение человека с остатком, накопленным
-  до книги, пишет строку `adjustment` «opening balance before the ledger»;
-- `star_payments` — замок идемпотентности Stars-платежей (`charge_id PK`),
-  создаётся по требованию в `src/stars-credit.ts`;
-- `token_invoices` — счета мини-аппа (`/api/tokens/invoice`, `/verify`);
-- `template_stars` — звёзды-подарки авторам роликов (между людьми, не токены);
-- `autopilot_spend` — расходы фабрики контента, `hive_events` — журнал событий.
-
-**Что старое.** Supabase-проект `yuukfqcsdhkyxegfwlcb`, таблица `payments_v2`
-(17 140 строк, 629 человек, всё до 2026-09-07) — экономика ботов Telegram.
-Читать для истории можно, **строить на ней новое нельзя**. Её копия
-`payments_v2` в Railway `Postgres-NFrq` — снимок до 2026-08-27, не живая
-(бот пишет только в Supabase). В той базе есть триггер, переписывающий
-`service_type` в белый список (замер 2026-09-09: записал 2286 строк, сохранилось
-696), и RPC, которых нет в репозитории (`get_user_balance_v3`,
-`add_stars_to_balance`, `fix_user_balance`, …) — не трогай.
-
-**Правила.**
-
-1. Новая функция с деньгами пишет в `token_ledger` через `moveTokens` с
-   человеческим `reason` и `ref` (charge id, job id). Без строки в книге —
-   не сделано.
-2. «Кто платил» для нового проекта — `star_payments` / `token_invoices`, а не
-   Supabase `payments_v2` (в `src/agent/crm-tools.ts` `платившие()` ещё читает
-   старое — долг).
-3. Для запроса к Railway-базе бери `DATABASE_PUBLIC_URL` сервиса
-   `Postgres-NFrq` из `railway variables --service Postgres-NFrq --json` в
-   переменную, значение не печатай; `psql` установлен в /opt/homebrew/bin.
-4. Раздел «В боевом реестре платежей лежат ТЕСТОВЫЕ данные» ниже — про
-   архив; он верен исторически и больше не руководство к действию.
-
 ## Dead code that looks alive
 
 This codebase has a repeated pattern: a component is built, committed, and wired
@@ -1113,10 +1066,6 @@ Replicate свой CDN держит долго, поэтому проблема 
 мертва — этого вопроса я не задавал.
 
 ## В боевом реестре платежей лежат ТЕСТОВЫЕ данные
-
-> **Архив с 09.09.2026.** Речь о Supabase `payments_v2`, которая больше не
-> является учётом нового проекта — см. раздел «ДЕНЬГИ С 09.09.2026» в начале.
-> Тестовая серия владельца (12 удвоений) переведена в FAILED 2026-09-09.
 
 `payments_v2` — источник истины для баланса: баланс считается суммированием
 строк. В нём **883 строки с описанием `TEST_DATA: System/Bonus/Testing` на
@@ -5341,28 +5290,15 @@ Rules that follow:
 
 ## PRICE IS DERIVED FROM COST — CHANGE THEM TOGETHER
 
-`billing-shared.ts`: `price = ceil(OPERATION_COST_USD × НАЦЕНКА / 0.005)`, and
-**the markup belongs in that formula**. It is stated here with the markup
-because this page carried the same formula WITHOUT the markup for as long as
-the markup existed (the literal is not repeated here: the guard greps these
-pages for a formula that omits it, and a quotation reads exactly like the
-defect), and this is the page an agent is told to read _before_ touching
-billing. Anybody recomputing a price from the old line got exactly half, which
-is the defect PR #2283 was opened to remove: every shop window quoted half of
-what the wallet paid. A document that teaches the wrong arithmetic reinfects the
-code it was written to protect, and cites itself as authority while doing it.
+`billing-shared.ts`: `price = ceil(OPERATION_COST_USD / 0.005)`. Swapping
+`KIE_WEB_MODEL.lipsync` from `veed/fabric-1` ($0.09/s) to `infinitalk/from-audio`
+($0.015/s) without touching the cost would have charged **18 tokens for a
+3-token operation** — six times over. The cost entry must name the same provider
+that sits in the allowlist.
 
-Swapping `KIE_WEB_MODEL.lipsync` from `veed/fabric-1` ($0.09/s) to
-`infinitalk/from-audio` ($0.015/s) without touching the cost would have charged
-**36 tokens for a 6-token operation** — six times over. The cost entry must name
-the same provider that sits in the allowlist.
-
-And some prices are **per second**: lipsync bills `6 × ceil(audio duration)`
+And some prices are **per second**: lipsync bills `3 × ceil(audio duration)`
 (`billedSeconds`). A client that compares a balance against the unit price will
 promise "enough" and be refused. State the unit.
-
-Never restate a price as a number here. Read it from `TOKEN_PRICES`, which is
-built by calling `priceFor` — the same function the charge uses.
 
 ## ONE ALLOWLIST, NOT TWO
 
@@ -10764,3 +10700,54 @@ contents, or it lies exactly when they are missing.
 for each, whether the reference is unconditional and whether its subject is.
 Test by composing the prompt in the branch WITHOUT the optional part and
 asserting that no reference to it survives.
+
+## Контролы в ленте: рейл обязан быть ограничен карточкой (2026-09-16)
+
+**Симптом, которого не видно на десктопе.** На `app.t27.ai/feed` три кнопки из
+шести (`link`, `sound`, `star`) были нарисованы, но нажать их было невозможно на
+любом низком окне, а внутри кадра игры «копировать ссылку» срабатывала как
+переход по вкладке шапки.
+
+**Причина одна на оба случая.** `.feed-card-actions` висел на `bottom: 140px` с
+шестью кнопками фиксированного размера, то есть имел ПОСТОЯННУЮ высоту 388px,
+а `.feed-card` — высотой в один вьюпорт и с `overflow: hidden`. На 1087×430
+рейлу нужно 528px внутри карточки в 374px: верхние 154px просто срезаны.
+
+**Как отличить «срезано» от «перекрыто» (это решает, какой будет починка).**
+Перекрытый элемент ОСТАЁТСЯ в `document.elementsFromPoint` — ниже накрывшего.
+Срезанного там нет вовсе. Проверяйте стек, а не только `elementFromPoint`.
+
+**Чем чинить.** Привязкой к контейнеру, а не брейкпоинтом: `top` = инсет под
+собственный хром, `bottom` = резерв через переменную, `height: auto`, размеры
+через `clamp()` с полом 24px (WCAG 2.5.8). Коэффициенты подобраны так, что при
+высоте ≥720px `5vh` = ровно прежние 36px — десктоп не двигается. Так делает сам
+TikTok в своём embed (`top:0; height:100%`, ни одного медиазапроса по высоте);
+Vimeo гейтит по высоте только ВТОРИЧНЫЙ хром; Telegram и Discord дают
+safe-area-инсеты, а Apple HIG прямо включает в safe area ваши собственные
+тулбары.
+
+**Ловушка, которую создаёт сама починка.** Ограниченный рейл ВЫШЕ своих кнопок
+(454px на 1723×720, 618px на телефоне), кнопки прижаты к низу, сверху пусто. У
+контейнера `pointer-events: auto` — эта пустая колонка съедает нажатия по видео.
+Контейнер обязан отдать события (`none`), кнопки — взять свои (`auto`), причём
+на правиле ТОЙ ЖЕ специфичности, иначе падает охрана специфичности в контракте.
+
+**Про линейки этого прохода.**
+
+- `?embed=1` верхним уровнем и локальная рамка с чужим origin НЕ включают embed:
+  нужен кадр + `?embed=1` + родитель `t27.ai`/`app.t27.ai`. Геометрия оттуда
+  правдива, состав хрома — нет.
+- Рабочее дерево владельца отстаёт от `origin/main`; `grep` по нему говорил «в
+  репозитории этого нет», когда `git show origin/main:путь` находил дважды.
+- Контракт про ТЕКСТ проходит 6 из 7 проверок на сломанном рейле: тест, который
+  не краснеет на баге, его не покрывает. Новый класс — новый контракт с
+  мутантами.
+- Мутация через пересборку однажды дала ложное «разницы нет»; опыт в ОДНОМ
+  документе с ОДНОЙ переменной (переключить свойство и померить ту же точку)
+  решает вопрос честнее и быстрее.
+
+**Команды.** `tri reachable <url> [--size WxH] [--gate]` — перепись достижимости
+по живой странице (и `tri reachable-check` — самопроверка на заведомо закрытой
+кнопке). `tri player-deploy` — редеплой vibee-editor с ожиданием СМЕНЫ хеша
+бандла: мерж в main плеер не выкатывает, а панель Railway показывает SUCCESS от
+прошлой сборки.
