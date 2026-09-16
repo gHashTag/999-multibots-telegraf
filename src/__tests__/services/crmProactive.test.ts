@@ -299,7 +299,11 @@ describe('a card nobody pressed is not evicted', () => {
       calls.filter(c => c === 'ask').length,
       'the agent was asked while a card waited'
     ).toBe(1)
-    noteResolved()
+    // A press carries the person who pressed -- a Telegram callback always
+    // does. It used to be optional here because the hold was one variable for
+    // the whole process; now it names whose hold to free, and an anonymous
+    // press deliberately frees nobody rather than everybody.
+    noteResolved(OWNER)
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
     expect(calls.filter(c => c === 'ask').length).toBe(2)
   })
