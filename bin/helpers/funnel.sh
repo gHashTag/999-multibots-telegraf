@@ -76,6 +76,21 @@ for k in ('reply', 'deliver', 'offer', 'talk', 'wait'):
 # THE LEAK. The one number a board makes obvious and a list never does.
 cards = sum(1 for e in ev if e.get('kind') == 'sweep-card')
 dropped = sum(1 for e in ev if e.get('kind') == 'card-dropped')
+# A PICTURE THAT WAS DRAWN, PAID FOR, AND THROWN AWAY.
+#
+# Measured 2026-09-16: forty-one of these in five days, against sixty cards --
+# two cards out of three carried an image the provider had already billed us
+# for. `card-dropped` is still silent (PR #2436 is unmerged), but THIS line the
+# journal has been writing all along, and nobody was reading it.
+#
+# The mechanism is one draft per owner: any later proposal replaces the waiting
+# one, and that includes the owner's own next question to the agent. So asking
+# the seller something discards the picture it drew a minute ago.
+burnt = [
+    e for e in ev
+    if 'не отправлена' in str(e.get('note', ''))
+    and 'картинка сделана' in str(e.get('note', ''))
+]
 refused = sum(1 for e in ev if e.get('kind') == 'gift-refused')
 touches = (s.get('touches_by_kind') or {})
 sent = (touches.get('written') or {}).get('total', 0)
@@ -87,6 +102,14 @@ if dropped:
     print('    умерло       %d' % dropped)
 else:
     print('    умерло       НЕИЗВЕСТНО — записей card-dropped нет (PR #2436)')
+if burnt:
+    days = len({str(e['at'])[:10] for e in burnt})
+    print()
+    print('    🔥 нарисовано и ВЫБРОШЕНО: %d картин(ы) за %d дн. (~%.0f в день)'
+          % (len(burnt), days, len(burnt) / max(1, days)))
+    print('       Провайдеру за них заплачено, человек их не увидел.')
+    print('       Снимает карточку ЛЮБАЯ следующая заявка — включая ваш же')
+    print('       вопрос агенту: спросили продавца, и рисунок ушёл в корзину.')
 if refused:
     print('    подарок отказан %d (PR #2440 включён)' % refused)
 
