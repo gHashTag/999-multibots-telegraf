@@ -482,4 +482,52 @@ describe('alerting on failed sweeps', () => {
     // The streak is over: the next failure is fresh news again.
     expect(reportSweepOutcome({ did: 'failed', why: 'y' })).toBe('error')
   })
+
+  it('the line says WHOSE sweep it was', async () => {
+    /*
+     * PRODUCTION, 2026-09-16 07:02:19 -- two lines in the same second:
+     *
+     *   [crm-proactive] sweep {"did":"card","why":"…"}
+     *   [crm-proactive] sweep {"did":"held","why":"карточка ещё ждёт нажатия"}
+     *
+     * With two sellers that reads two ways: one held behind the OTHER one's
+     * card, or one seller swept twice by the two drivers and correctly held
+     * the second time. Without the owner on the line nobody can tell, and
+     * the evidence for a live bug is unusable.
+     */
+    const { logger } = await import('@/utils/logger')
+    const seen: Array<Record<string, unknown>> = []
+    const spy = vi.spyOn(logger, 'info').mockImplementation(((
+      _m: string,
+      meta: Record<string, unknown>
+    ) => {
+      seen.push(meta ?? {})
+    }) as never)
+    try {
+      reportSweepOutcome({ did: 'held', why: 'карточка ждёт' }, '9000000042')
+    } finally {
+      spy.mockRestore()
+    }
+    expect(seen.some(m => m.owner === '9000000042')).toBe(true)
+  })
+
+  it('wired: the tick actually hands the owner over', () => {
+    /*
+     * Proven necessary by mutation: with only the direct call tested above,
+     * deleting the argument at the CALL SITE left every test green -- the
+     * function would keep taking an owner that nobody ever gave it, which is
+     * the shape of four separate bugs this repository has already paid for.
+     */
+    const src = fs.readFileSync(
+      path.join(process.cwd(), 'src/services/crmProactive.ts'),
+      'utf8'
+    )
+    expect(src).toMatch(/reportSweepOutcome\(r,\s*owner\)/)
+  })
+
+  it('an outcome with no owner still gets logged, without guessing one', () => {
+    // A guessed owner would be worse than none: it would name the wrong
+    // person on somebody else's failure.
+    expect(reportSweepOutcome({ did: 'idle', why: 'тихо' })).toBe('info')
+  })
 })

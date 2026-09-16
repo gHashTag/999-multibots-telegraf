@@ -243,11 +243,30 @@ function toolsOf(answer: ОтветАгента): string[] {
 // person. Making it per owner would change how often the channel is written
 // to, which is its own change with its own call-site review.
 let failStreak = 0
-export function reportSweepOutcome(r: SweepOutcome): 'error' | 'warn' | 'info' {
+export function reportSweepOutcome(
+  r: SweepOutcome,
+  owner?: string
+): 'error' | 'warn' | 'info' {
+  /*
+   * WHOSE SWEEP. Production, 2026-09-16 07:02:19, two lines in one second:
+   *
+   *   [crm-proactive] sweep {"did":"card","why":"…"}
+   *   [crm-proactive] sweep {"did":"held","why":"карточка ещё ждёт нажатия"}
+   *
+   * With two sellers, that reads two ways -- one seller held behind the
+   * OTHER one's card, which is the bug the per-owner state above fixes, or
+   * one seller swept twice by the two drivers and correctly held the second
+   * time. The log could not tell them apart, so neither could I: I had the
+   * evidence in front of me and could not use it.
+   *
+   * Optional, because an outcome with no owner is still worth logging; the
+   * field is simply absent then, rather than a guess.
+   */
   if (r.did === 'failed') {
     failStreak += 1
     const level = failStreak === 1 || failStreak % 6 === 0 ? 'error' : 'warn'
     logger[level]('[crm-proactive] sweep FAILED', {
+      owner: owner ? String(owner) : undefined,
       did: r.did,
       why: r.why,
       consecutive: failStreak,
@@ -256,11 +275,16 @@ export function reportSweepOutcome(r: SweepOutcome): 'error' | 'warn' | 'info' {
   }
   if (failStreak) {
     logger.info('[crm-proactive] sweep recovered', {
+      owner: owner ? String(owner) : undefined,
       afterFailures: failStreak,
     })
     failStreak = 0
   }
-  logger.info('[crm-proactive] sweep', { did: r.did, why: r.why })
+  logger.info('[crm-proactive] sweep', {
+    owner: owner ? String(owner) : undefined,
+    did: r.did,
+    why: r.why,
+  })
   return 'info'
 }
 
@@ -729,7 +753,7 @@ export async function runProactiveTick(
    * exactly like a quiet afternoon. The other extreme -- the same failure
    * as a fresh alert twice an hour -- is handled in reportSweepOutcome.
    */
-  reportSweepOutcome(r)
+  reportSweepOutcome(r, owner)
   return r
 }
 
