@@ -57,15 +57,38 @@ describe('каталог в приложении не разошёлся с ре
   it('модель, берущая деньги за пустой запрос, помечена и в приложении', () => {
     // Пометка нужна не экрану, а следующему автору: она единственная причина,
     // по которой будущий автопробник обойдёт её стороной.
+    //
+    // THE FENCE IS WIDER THAN THE CATALOGUE, BY DESIGN (2026-09-16). This
+    // check used to demand that EVERY id in NEVER_PROBE appear in the Swift
+    // catalogue -- so fencing a model required shipping it first. But the
+    // list is named, in its own comment, as a defence against "a sweep of a
+    // NEW catalogue", and the only case where that matters is a model we do
+    // not have yet. `sunburst` is exactly that: never run, never offered,
+    // fenced in advance.
+    //
+    // So the invariant is: a dangerous model the app SHOWS must be marked.
+    // One fenced and not shown is not a divergence.
+    const inRegistry = new Set(KIE_MODELS.map(m => m.id))
+    let checked = 0
     for (const опасная of NEVER_PROBE) {
+      if (!inRegistry.has(опасная)) continue // cyrillic-ok: existing loop name
       const строка = swift
         .split('\n')
         .find(l => l.includes(`Модель(id: "${опасная}"`))
-      expect(строка, `${опасная} пропала из Swift`).toBeTruthy()
+      expect(
+        строка,
+        `${опасная} есть в реестре, но пропала из Swift`
+      ).toBeTruthy()
       expect(строка, `${опасная}: не помечена опасной`).toContain(
         'опасная: true'
       )
+      checked += 1
     }
+    // Otherwise a check that compared nothing would read as green.
+    expect(
+      checked,
+      'no dangerous model was there to compare at all'
+    ).toBeGreaterThan(0)
   })
 
   it('приостановленные показаны, а не вырезаны', () => {
@@ -104,7 +127,9 @@ describe('цены не разошлись с сопоставлением', () 
     // «null там, где nil». Односторонняя проверка пропустила бы цену,
     // проставленную модели, которой её никто не называл.
     const безЦеныSwift = new Set(
-      [...swift.matchAll(/Модель\(id: "([^"]+)"[^\n]*ценаUSD: nil/g)].map(m => m[1])
+      [...swift.matchAll(/Модель\(id: "([^"]+)"[^\n]*ценаUSD: nil/g)].map(
+        m => m[1]
+      )
     )
     /*
      * ПРИЧИН «НЕТ ЦЕНЫ» ДВЕ, И ОБЕ ЗАКОННЫ.
@@ -137,7 +162,9 @@ describe('цены не разошлись с сопоставлением', () 
     for (const l of swift.split('\n').filter(l => l.includes('Модель(id:'))) {
       const ценаNil = /ценаUSD: nil/.test(l)
       const единицаNil = /единица: nil/.test(l)
-      expect(ценаNil, `${l.slice(0, 60)}: цена и единица разошлись`).toBe(единицаNil)
+      expect(ценаNil, `${l.slice(0, 60)}: цена и единица разошлись`).toBe(
+        единицаNil
+      )
     }
   })
 })

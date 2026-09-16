@@ -15,6 +15,7 @@
  * она и есть причина отказа, и по ней сторожит тест.
  */
 export const СЕБЕСТОИМОСТЬ_USD: Record<string, number | null> = {
+  'gpt-image-2-5-flare-image-to-image': 0.03,
   'seedream/5-lite-text-to-image': 0.0275,
   'seedream/5-pro-text-to-image': 0.035,
   'seedream/5-pro-image-to-image': 0.035,
@@ -67,6 +68,7 @@ export const СЕБЕСТОИМОСТЬ_USD: Record<string, number | null> = {
 
 /** Единица измерения цены: «за секунду», «за картинку» и т. п. */
 export const ЕДИНИЦА_ЦЕНЫ: Record<string, string | null> = {
+  'gpt-image-2-5-flare-image-to-image': 'за картинку',
   'seedream/5-lite-text-to-image': 'за картинку',
   'seedream/5-pro-text-to-image': 'за картинку',
   'seedream/5-pro-image-to-image': 'за картинку',
