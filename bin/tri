@@ -59,6 +59,7 @@ tri — оболочка Trinity S³AI
   tri binary     исходники, невидимые для grep из-за нулевого байта
   tri facts      на чём стоят факты CRM в ПРОДЕ: не пуст ли журнал под выводом
   tri books      какие факты код читает, а прод НИ РАЗУ не записал
+  tri vs-main <команда…>  падает ли это и БЕЗ ваших правок (копия на main)
   tri funnel     воронка владельца одним экраном: этапы, шаги, утечка карточек
   tri headroom   числа, которые говорят про запас, а не про потери (форма 54)
   tri sweep [hive|log] [n]  обходы продавца в проде: журнал улья (навсегда)
@@ -789,6 +790,7 @@ PYEOF
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
   rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
   books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
+  vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
