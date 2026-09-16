@@ -58,6 +58,7 @@ tri — оболочка Trinity S³AI
   tri lost       коммиты, до которых не достаёт ни одна ветка (сеть под reset)
   tri binary     исходники, невидимые для grep из-за нулевого байта
   tri facts      на чём стоят факты CRM в ПРОДЕ: не пуст ли журнал под выводом
+  tri books      какие факты код читает, а прод НИ РАЗУ не записал
   tri funnel     воронка владельца одним экраном: этапы, шаги, утечка карточек
   tri headroom   числа, которые говорят про запас, а не про потери (форма 54)
   tri sweep [hive|log] [n]  обходы продавца в проде: журнал улья (навсегда)
@@ -787,6 +788,7 @@ PYEOF
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
   rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
+  books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
