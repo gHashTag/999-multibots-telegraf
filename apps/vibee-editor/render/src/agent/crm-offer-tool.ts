@@ -30,11 +30,7 @@
  * refuses rather than mint a link that would credit nobody -- or the owner.
  */
 import type { AgentTool, ToolContext } from './tools'
-import {
-  propose,
-  client,
-  requireSeller,
-} from './telegram-tools'
+import { propose, client, requireSeller } from './telegram-tools'
 import { hangUp } from './hang-up'
 import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot } from './bot-farm'
@@ -215,20 +211,44 @@ export async function resolveLead(
  * escaping -- the message is sent verbatim with no parse mode -- but removing
  * the two things that could make a stranger's text act like ours.
  */
-export function oneLine(text: string | null | undefined, max: number): string {
-  return (
-    String(text ?? '')
-      .replace(/\s+/g, ' ')
-      .replace(/\S*(?:https?:\/\/|t\.me\/|tg:\/\/)\S*/gi, '')
-      // A bare domain is a link too: Telegram auto-links "evil.example" with
-      // no scheme and no parse mode. ASCII labels only, so a Cyrillic name
-      // with an initial and a dot in it is left alone.
-      .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/\S*)?/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, max)
-      .trim()
-  )
+/*
+ * `mark` — SAY THAT IT WAS CUT, WHERE THE CUT CAN MISLEAD.
+ *
+ * Off by default, because most callers here trim a NAME: "Александра" cut to
+ * forty characters is still a name, and an ellipsis on it would be noise.
+ *
+ * A MESSAGE is different. `crm_leads` hands the model each person's last words
+ * at 160 characters, and a silent cut turns "we still need to check whether"
+ * into a finished thought -- the rest of it was "we can pay in instalments".
+ * The model then answers half a sentence and sounds like it was not
+ * listening, which in the only sense that matters it was not.
+ */
+export function oneLine(
+  text: string | null | undefined,
+  max: number,
+  mark = false
+): string {
+  const out = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/\S*(?:https?:\/\/|t\.me\/|tg:\/\/)\S*/gi, '')
+    // A bare domain is a link too: Telegram auto-links "evil.example" with
+    // no scheme and no parse mode. ASCII labels only, so a Cyrillic name
+    // with an initial and a dot in it is left alone.
+    .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/\S*)?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+    .trim()
+  if (!mark) return out
+  // Compared against the CLEANED text, not the raw one: stripping a URL
+  // shortens it, and a message that only lost a link was not cut at all.
+  const whole = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/\S*(?:https?:\/\/|t\.me\/|tg:\/\/)\S*/gi, '')
+    .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/\S*)?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return whole.length > out.length ? out + '…' : out
 }
 
 export function composePitch(input: {

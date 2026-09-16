@@ -651,9 +651,15 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             last_inbound: l.lastInboundAt?.toISOString() ?? null,
             messages: l.total,
             inbound: l.inbound,
-            // Their words, framed: data for the model, a quote for the owner.
+            /*
+             * Their words, framed: data for the model, a quote for the owner.
+             *
+             * Marked when cut. Until 17.09.2026 the cut was silent, so a
+             * message that ran past 160 characters reached the model as a
+             * finished sentence -- and the seller answered the half it saw.
+             */
             last_words: l.lastWords
-              ? foreignText(oneLine(l.lastWords, 160))
+              ? foreignText(oneLine(l.lastWords, 160, true))
               : null,
             last_touch: l.lastTouch,
           }
