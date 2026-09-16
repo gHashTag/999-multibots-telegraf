@@ -145,6 +145,48 @@ export function detailsForAlert(meta: unknown): string | undefined {
     : text
 }
 
+/**
+ * THE ALERT WAS TITLED AFTER THE PIPE THAT CARRIED IT.
+ *
+ * Measured on the live deploy 2026-09-16: the owner's group, and the local log
+ * with it, filled with lines that named nothing at all --
+ *
+ *   09:00:15 [ERROR]: '[TelegramLog] ❌ Ошибка в logger.error'
+ *   09:00:29 [ERROR]: '[TelegramLog] ❌ Ошибка в logger.error'
+ *
+ * because `sendToTelegram` fell back to the LITERAL STRING 'logger.error'
+ * whenever a winston record carried neither `context` nor `function`, and the
+ * overwhelming majority of the ~1050 logger.error sites in this repository pass
+ * neither. telegram-log.service.ts renders the title as `❌ Ошибка в <context>`,
+ * so every push was headlined with the name of the transport and the owner had
+ * to open the alert to learn which subsystem had broken.
+ *
+ * The diagnosis was never missing -- it is the first thing in the message, which
+ * the transport already forwards verbatim as `error:`. About 600 of those sites
+ * open with a bracketed subsystem tag, usually behind an emoji:
+ *
+ *   '[answerAi] xAI Grok API error'
+ *   '❌ [CreateUserScene] Error processing…'
+ *   '[TON NATIVE PAYMENT] Error creating payment'
+ *
+ * That tag is lifted here, at the choke point, rather than by editing a
+ * thousand call sites -- the same reason the throttle and the redaction live in
+ * this file.
+ *
+ * WHEN THERE IS NO TAG THIS RETURNS undefined ON PURPOSE. The service then omits
+ * the ` в …` clause entirely (telegram-log.service.ts:313-316) and the title is a
+ * plain `❌ Ошибка` above the unchanged body. A short honest title beats a long
+ * false one; 'в logger.error' was the false one.
+ *
+ * The four-character head allowance covers a leading emoji and a space (an
+ * astral emoji such as 🚀 is two UTF-16 units) without letting a bracket buried
+ * mid-sentence -- '❌ getFile failed [job-7]: …' -- be mistaken for a subsystem.
+ */
+export function contextFromMessage(message: string): string | undefined {
+  const tag = /^[^[\n]{0,4}\[([^\]\n]{1,60})\]/.exec(String(message ?? ''))?.[1]
+  return tag?.trim() || undefined
+}
+
 class TelegramLogTransport extends Transport {
   private telegramLogService: any = null
   private isInitialized = false
@@ -184,7 +226,16 @@ class TelegramLogTransport extends Transport {
       await this.telegramLogService.logError({
         // Both halves, one rule. The message used to skip this entirely.
         error: redactSecrets(message),
-        context: meta?.context || meta?.function || 'logger.error',
+        /*
+         * Never the literal 'logger.error' again -- see contextFromMessage.
+         * Derived from the REDACTED message, because the derived tag goes into
+         * the alert TITLE and a title is not exempt from the rule the rest of
+         * this file enforces.
+         */
+        context:
+          meta?.context ||
+          meta?.function ||
+          contextFromMessage(redactSecrets(message)),
         telegramId: meta?.telegramId || meta?.telegram_id,
         username: meta?.username,
         botName: meta?.botName || meta?.bot_name,

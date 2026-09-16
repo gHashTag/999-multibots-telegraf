@@ -1,9 +1,13 @@
 import { Context } from 'telegraf'
 import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
-import { MyContext } from '@/interfaces'
+import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { updateUserLanguage } from '@/core/supabase/updateUserLanguage'
 import { getUserLanguageFromDB } from '@/core/supabase/getUserLanguage'
 import { logger } from '@/utils/logger'
+// senderOf lives in its own dependency-free module so that languageMiddleware
+// can import it WITHOUT pulling '@/store' (and therefore the whole scene graph)
+// into the bootstrap middleware. See its doc comment.
+import { senderOf, statedLanguageCode } from '@/helpers/senderOf'
 import { defaultSession } from '@/store'
 
 // Оригинальная функция была простым телеграм-чекером. Теперь расширяем её:
@@ -18,7 +22,7 @@ export const isRussian = (ctx: Context): boolean => {
     return stateLanguage === 'ru'
   }
 
-  return isRussianLanguageCode(ctx.from?.language_code)
+  return isRussianLanguageCode(statedLanguageCode(senderOf(ctx)))
 }
 
 // ✅ НОВАЯ СИСТЕМА ЯЗЫКОВ: БД → Сессия → Telegram
@@ -30,8 +34,13 @@ export const isRussian = (ctx: Context): boolean => {
  * @returns Promise<'ru' | 'en'> - язык пользователя
  */
 export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
-  const telegramId = ctx.from?.id?.toString()
-  const telegramLanguage = ctx.from?.language_code
+  // senderOf, not ctx.from: see its doc comment -- telegraf resolves no sender
+  // at all for a business update, so this used to read `undefined` for both.
+  const sender = senderOf(ctx)
+  const telegramId = sender?.id?.toString()
+  const telegramLanguage = sender?.language_code
+  // Decide on this, log the raw value above: an absent code means Russian here.
+  const statedLanguage = statedLanguageCode(sender)
 
   // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
   logger.info(`[getUserLanguage] 🌍 LANGUAGE CHECK (DB ONLY):`, {
@@ -44,9 +53,7 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
     logger.warn(
       '[getUserLanguage] No telegram ID found, using Telegram fallback'
     )
-    const fallback = isRussianLanguageCode(ctx.from?.language_code)
-      ? 'ru'
-      : 'en'
+    const fallback = isRussianLanguageCode(statedLanguage) ? 'ru' : 'en'
     logger.info(`[getUserLanguage] NO_ID fallback result: ${fallback}`)
     return fallback
   }
@@ -76,7 +83,7 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
       }
     )
 
-    const newLanguage = isRussianLanguageCode(telegramLanguage) ? 'ru' : 'en'
+    const newLanguage = isRussianLanguageCode(statedLanguage) ? 'ru' : 'en'
     await updateUserLanguage(telegramId, newLanguage)
 
     logger.info(`[getUserLanguage] ✅ CREATED in DB: ${newLanguage}`, {
@@ -94,7 +101,7 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
       telegramLanguage,
     })
 
-    const fallback = isRussianLanguageCode(telegramLanguage) ? 'ru' : 'en'
+    const fallback = isRussianLanguageCode(statedLanguage) ? 'ru' : 'en'
     logger.info(`[getUserLanguage] 🚨 ERROR fallback result: ${fallback}`)
     return fallback
   }
@@ -106,8 +113,9 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
  * @returns 'ru' | 'en' - язык пользователя
  */
 export const getUserLanguageSync = (ctx: MyContext): 'ru' | 'en' => {
-  const telegramId = ctx.from?.id?.toString()
-  const telegramLanguage = ctx.from?.language_code
+  const sender = senderOf(ctx)
+  const telegramId = sender?.id?.toString()
+  const telegramLanguage = sender?.language_code
   const sessionLanguage = ctx.session?.userLanguage
 
   // ✅ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
@@ -133,7 +141,7 @@ export const getUserLanguageSync = (ctx: MyContext): 'ru' | 'en' => {
   }
 
   // Фоллбэк на Telegram язык
-  const result = isRussianLanguageCode(ctx.from?.language_code) ? 'ru' : 'en'
+  const result = isRussianLanguageCode(statedLanguageCode(sender)) ? 'ru' : 'en'
   logger.info(`[getUserLanguageSync] Using TELEGRAM fallback: ${result}`, {
     telegramId,
     telegramLanguage,
@@ -150,7 +158,7 @@ export const getUserLanguageSync = (ctx: MyContext): 'ru' | 'en' => {
 export const toggleUserLanguage = async (
   ctx: MyContext
 ): Promise<'ru' | 'en'> => {
-  const telegramId = ctx.from?.id?.toString()
+  const telegramId = senderOf(ctx)?.id?.toString()
 
   logger.info(`[toggleUserLanguage] 🔄 LANGUAGE TOGGLE STARTED:`, {
     telegramId,
@@ -197,7 +205,7 @@ export const toggleUserLanguage = async (
 export const isRussianWithUserChoice = async (
   ctx: MyContext
 ): Promise<boolean> => {
-  const telegramId = ctx.from?.id?.toString()
+  const telegramId = senderOf(ctx)?.id?.toString()
   const detectedLanguage = await getUserLanguage(ctx)
   const isRussian = detectedLanguage === 'ru'
 
@@ -220,9 +228,16 @@ export const setUserLanguage = async (
   ctx: MyContext,
   language: 'ru' | 'en'
 ): Promise<boolean> => {
-  const telegramId = ctx.from?.id?.toString()
+  const telegramId = senderOf(ctx)?.id?.toString()
 
   if (!telegramId) {
+    // Stays at error, and stays reachable. Resolving the business sender means
+    // this no longer fires for an update whose sender telegraf simply could not
+    // see -- that was our machinery being wrong, not a real failure. An update
+    // that genuinely identifies nobody still cannot have its language saved,
+    // and that IS our machinery failing, so it must still page. Pinned by
+    // "an update that identifies nobody still logs at error" in
+    // businessLanguageResolution.test.ts.
     logger.error('[setUserLanguage] No telegram ID found')
     return false
   }

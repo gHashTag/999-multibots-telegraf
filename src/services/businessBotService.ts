@@ -13,6 +13,14 @@ import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
 import { разбитьДлинное } from '@/helpers/telegramLongAnswer' // cyrillic-ok: pre-existing helper name
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import { delay } from '@/helpers/delay'
+/*
+ * The transient/standing vocabulary is not invented here: provider-health-
+ * monitor.ts:19-38 already defines what the two words mean and why an
+ * unclassified failure must be treated as standing. Type-only import, so
+ * nothing of that module is loaded at runtime.
+ */
+import type { ProviderFault } from '@/services/provider-health-monitor'
 import { chatWithAI, ChatMessage } from '@/services/aiChatService'
 import { спроситьАгента, recordTurns } from '@/services/trinityAgent' // cyrillic-ok: pre-existing identifiers
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
@@ -344,41 +352,250 @@ export function sanitizeSenderName(name: string | undefined): string {
  * than instructions it obeys.
  */
 /**
+ * NOTHING A SECOND ATTEMPT CAN CHANGE.
+ *
+ * A key that was never set, a credential the vendor rejected (401/403), a
+ * balance that cannot cover the call (402), a model or endpoint that is gone
+ * (404). Somebody has to do something, and waiting three seconds only delays
+ * telling them. Checked BEFORE the transient pattern on purpose: a chain whose
+ * reasons mix "no balance" with "try again later" still needs a human.
+ */
+const AGENT_STANDING_RE = new RegExp(
+  [
+    // The render's own wording for a key that is not set / not configured.
+    'не задан',
+    'не настроен',
+    'Ключ модели',
+    'недостаточно средств',
+    '\\b40[1234]\\b',
+    'unauthorized',
+    'forbidden',
+    'invalid api key',
+    'payment required',
+    'insufficient',
+    'not found for account',
+  ].join('|'),
+  'i'
+)
+
+/**
+ * A SECOND LOOK CAN GIVE A DIFFERENT ANSWER.
+ *
+ * Measured in production 2026-09-16 09:30:26: a customer wrote to a business
+ * account, the whole provider chain refused, and the single reason carried
+ * back was nemotron answering
+ *   ResourceExhausted: Worker local total request limit reached (16/16)
+ * That 16/16 is NVIDIA's own CONCURRENCY ceiling (the vendor's, not a pool we
+ * configure -- see apps/vibee-editor/render/src/agent/provider.ts:217-245), so
+ * a slot frees as soon as any in-flight request of theirs finishes: seconds,
+ * not a quota window. Nothing on the customer's path retried, so the turn was
+ * silently answered by chatWithAI -- a model with NO tools, which cannot
+ * invoice, generate or read a balance.
+ *
+ * SIBLING COPY, KNOWINGLY DUPLICATED: apps/vibee-editor/render/src/agent/
+ * crm-duet-tool.ts:365-397 owns the same classification (LIMIT_RE,
+ * isLimitError, SELLER_RETRY_ON_LIMIT) and wires it only to the duet
+ * simulation. That package has its own tsconfig and is not reachable from the
+ * bot's compilation unit, so the knowledge has to live twice. Change one, look
+ * at the other.
+ */
+const AGENT_TRANSIENT_RE = new RegExp(
+  [
+    'resourceexhausted',
+    'limit reached',
+    'rate.?limit',
+    'too many requests',
+    '\\b429\\b',
+    '\\b5\\d\\d\\b',
+    'quota',
+    'overload',
+    'unavailable',
+    'bad gateway',
+    'timeout',
+    'timed out',
+    'abort',
+    'fetch failed',
+    'econn',
+    'etimedout',
+    'socket hang up',
+    'temporarily',
+    // How the render says "limit", "timeout" and "did not answer within Ns".
+    'лимит',
+    'таймаут',
+    'не ответил за',
+  ].join('|'),
+  'i'
+)
+
+/**
+ * Which kind of failure ended the customer's turn.
+ *
+ * Unrecognised means 'standing', which is the house position stated at
+ * src/services/provider-health-monitor.ts:15-17: a failure nobody labelled
+ * must be loud, never quietly debounced. The transport's fingerprint throttle
+ * (src/utils/alertThrottle.ts, 10 min) bounds what that can cost.
+ */
+export function classifyAgentFault(message: string): ProviderFault {
+  if (AGENT_STANDING_RE.test(message)) return 'standing'
+  if (AGENT_TRANSIENT_RE.test(message)) return 'transient'
+  return 'standing'
+}
+
+/**
+ * HOW LONG THE RETRY WAITS, AND WHY IT IS NOT THE DUET'S 30 SECONDS.
+ *
+ * 16/16 is a concurrency ceiling, not a per-minute quota, so a few seconds is
+ * enough for an in-flight request to free a slot. Longer is actively harmful
+ * here: a live customer is holding a typing indicator, trinityAgent's own
+ * deadline already gives each attempt 180 s, and `businessReplyInFlight` DROPS
+ * every further
+ * message from that customer while the turn is in flight -- so a long pause
+ * converts one slow answer into several silently discarded ones.
+ */
+export const AGENT_RETRY_PAUSE_MS = 3_000
+/** One replay, never a storm: the ceiling clears or it does not. */
+export const AGENT_RETRY_ON_TRANSIENT = 1
+
+/**
+ * HOW MANY TURNS IN A ROW THE AGENT MAY FAIL BEFORE THE OWNER IS WOKEN.
+ *
+ * One exhausted provider is not an outage and must not ring a phone at 3am;
+ * an agent that has answered nobody for three customers in a row is our
+ * machinery being down, which by the house rule belongs on the owner's phone.
+ * Shaped after src/services/crmProactive.ts:197-223 (`reportSweepOutcome`),
+ * which solved the same problem for the sweep.
+ */
+export const AGENT_FAILURES_BEFORE_PAGE = 3
+/** After the threshold, every sixth further failure repeats the page. */
+const AGENT_PAGE_EVERY = 6
+let agentFailStreak = 0
+
+/** Consecutive business turns the agent has failed to answer. For tests. */
+export const getAgentFailStreak = (): number => agentFailStreak
+
+/**
  * THE AGENT ANSWERS THE CLIENT, with its tools: an invoice when the client
  * asks to pay (tokens_invoice), a picture when asked for one (the client's
  * own tokens), the balance when they say they have paid. The old
  * prompt-only responder stays as the fallback for the minute the render
  * service is unreachable -- it can talk, it cannot bill, and it must never
  * invent a tariff.
+ *
+ * TWO THINGS THE PRODUCTION LINE OF 2026-09-16 09:30:26 ADDED HERE.
+ *
+ * 1. A transient provider-capacity refusal gets ONE more attempt before the
+ *    customer is handed to the tool-less fallback. See AGENT_TRANSIENT_RE.
+ * 2. The level branches. Before, this path could only ever produce `warn`,
+ *    so an agent down for an hour was indistinguishable from one blip and
+ *    nobody was ever told. Now: a rescued blip is `info` (nothing happened --
+ *    the customer got the real agent), a standing fault pages on the FIRST
+ *    turn (no retry conjures a key), and a run of AGENT_FAILURES_BEFORE_PAGE
+ *    failed turns pages once at the crossing.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO. The agent client throws away the list of
+ * tools the failed turn already called, so the retry cannot refuse to replay a
+ * turn that already paid for a generation the way the duet does
+ * (crm-duet-tool.ts:387-397 `retryAllowed`). The replay is bounded to one and
+ * to transient faults, and the observed failure is the whole chain refusing
+ * before any provider produced anything; closing the gap properly needs
+ * trinityAgent to surface its tool list on the thrown error.
  */
 export async function answerClient(
   chatId: string,
   text: string,
   fallback: () => Promise<string>
 ): Promise<string> {
-  try {
-    const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
-    // Markers are the bot chat's syntax; a client must never see bracket soup.
-    const said = stripAgentMarkers((answer.текст ?? '').trim()) // cyrillic-ok: pre-existing field
-    if (said) {
-      void recordTurns(
+  let attempts = 0
+  let lastFault: ProviderFault = 'standing'
+  let lastError = ''
+
+  for (;;) {
+    attempts += 1
+    try {
+      const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
+      // Markers are the bot chat's syntax; a client must never see bracket soup.
+      const said = stripAgentMarkers((answer.текст ?? '').trim()) // cyrillic-ok: pre-existing field
+      if (said) {
+        void recordTurns(
+          chatId,
+          [
+            { role: 'user', content: text },
+            { role: 'assistant', content: said },
+          ],
+          'business'
+        )
+        noteAgentAnswered(chatId, attempts, lastError)
+        return said
+      }
+      // No error, no text: a replay would re-run whatever tools this turn
+      // already called for nothing, so this one is counted, never retried.
+      lastFault = 'transient'
+      lastError = 'the agent returned an empty answer'
+      break
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
+      lastFault = classifyAgentFault(lastError)
+      if (lastFault !== 'transient' || attempts > AGENT_RETRY_ON_TRANSIENT)
+        break
+      logger.info('[Business] agent hit a transient limit, retrying once', {
         chatId,
-        [
-          { role: 'user', content: text },
-          { role: 'assistant', content: said },
-        ],
-        'business'
-      )
-      return said
+        attempt: attempts,
+        error: lastError,
+      })
+      await delay(AGENT_RETRY_PAUSE_MS)
     }
-    logger.warn('[Business] agent answered nothing, falling back', { chatId })
-  } catch (error) {
-    logger.warn('[Business] agent unreachable, falling back', {
+  }
+
+  noteAgentFailed(chatId, lastFault, lastError, attempts)
+  return fallback()
+}
+
+/** The agent answered: the streak is over, and a rescue is worth one line. */
+function noteAgentAnswered(
+  chatId: string,
+  attempts: number,
+  lastError: string
+): void {
+  if (attempts > 1) {
+    // Deliberately quiet: the customer got the real agent with its tools, so
+    // nothing happened to anyone. The control that pays for this demotion is
+    // the streak branch below -- the same path, one turn longer, still pages.
+    logger.info('[Business] agent recovered on retry', {
       chatId,
-      error: error instanceof Error ? error.message : String(error),
+      attempts,
+      error: lastError,
     })
   }
-  return fallback()
+  if (agentFailStreak) {
+    logger.info('[Business] agent reachable again', {
+      chatId,
+      afterFailures: agentFailStreak,
+    })
+    agentFailStreak = 0
+  }
+}
+
+/** The customer is about to be answered by the tool-less fallback. */
+function noteAgentFailed(
+  chatId: string,
+  fault: ProviderFault,
+  error: string,
+  attempts: number
+): void {
+  agentFailStreak += 1
+  const sustained =
+    agentFailStreak === AGENT_FAILURES_BEFORE_PAGE ||
+    (agentFailStreak > AGENT_FAILURES_BEFORE_PAGE &&
+      agentFailStreak % AGENT_PAGE_EVERY === 0)
+  const level: 'error' | 'warn' =
+    fault === 'standing' || sustained ? 'error' : 'warn'
+  logger[level]('[Business] agent unreachable, falling back', {
+    chatId,
+    fault,
+    attempts,
+    consecutive: agentFailStreak,
+    error,
+  })
 }
 
 export function buildBusinessMessages(
@@ -429,7 +646,30 @@ async function lookupConnection(
   }
 }
 
-const ingestedConnections = new Set<string>()
+/**
+ * CONNECTION ID -> WHEN ITS CORRESPONDENCE IMPORT LAST STARTED (ms).
+ *
+ * It used to be a `Set` the guard ADDED TO BEFORE doing the work, and never
+ * restored on failure. Proven live: an owner connected their account, the
+ * one-shot import of their whole correspondence timed out against the 170 s
+ * ceiling `callTool` imposes (modelSwitch.ts:70) while walking
+ * {limit: 2000, depth: 500}, the catch warned, and the flag stayed set for the
+ * life of the process. Within a process `handleBusinessConnection` runs for a
+ * given id at most once more, so that was the only second chance there was:
+ * the owner then used a CRM that silently had no history in it, and nobody was
+ * told. Every "the bot doesn't remember our conversations" report traces here.
+ *
+ * The same file already had the correct shape 330 lines below --
+ * `notifyOwnerOfLead` deletes its guard key in the catch. The two now agree.
+ *
+ * A timestamp rather than a boolean so a process that stays up for weeks is not
+ * poisoned by one bad day either: a SUCCESSFUL import is not repeated inside
+ * INGEST_REPEAT_AFTER_MS, and after it the walk may refresh. This is NOT the
+ * 5-second debounce of navigation/registerCommands.ts: that is a double-tap
+ * guard, this is a once-per-connection import.
+ */
+const ingestStartedAt = new Map<string, number>()
+export const INGEST_REPEAT_AFTER_MS = 6 * 60 * 60 * 1000
 
 async function mirrorExchange(
   owner: number,
@@ -451,6 +691,18 @@ async function mirrorExchange(
   }
 }
 
+/**
+ * May the correspondence import run for this connection now? Yes when it has
+ * never run, when the last attempt FAILED (the catch gave the claim back), or
+ * when the last successful walk is older than INGEST_REPEAT_AFTER_MS. Prunes
+ * expired entries on the way so the map cannot grow without bound.
+ */
+function shouldIngest(connId: string, now = Date.now()): boolean {
+  for (const [id, at] of ingestStartedAt)
+    if (now - at > INGEST_REPEAT_AFTER_MS) ingestStartedAt.delete(id)
+  return !ingestStartedAt.has(connId)
+}
+
 async function ingestOnConnect(owner: string, connId: string): Promise<void> {
   try {
     const { ingestChats } = await import('@/services/modelSwitch')
@@ -463,7 +715,20 @@ async function ingestOnConnect(owner: string, connId: string): Promise<void> {
       zep: r.zep_mirrored,
     })
   } catch (error) {
-    logger.warn('[Business] ingest on connect failed', {
+    /*
+     * THE GUARD IS RELEASED FIRST, so the next connection event for this id
+     * gets a real second chance. Marking the ATTEMPT instead of the SUCCESS is
+     * what made this failure permanent for the life of the process.
+     */
+    ingestStartedAt.delete(connId)
+    /*
+     * AND IT PAGES. An import that silently does not happen is worse than one
+     * that visibly fails: this is our machinery failing, not a customer doing
+     * anything, so by the house rule it belongs on the owner's phone. The
+     * transport's fingerprint throttle (alertThrottle.ts, 10 min) keeps a
+     * flapping render from turning this into a flood.
+     */
+    logger.error('[Business] ingest on connect failed', {
       connId,
       owner,
       error: error instanceof Error ? error.message : String(error),
@@ -507,8 +772,10 @@ export function handleBusinessConnection(connection: BusinessConnection): void {
      * know the history. Every dialog, deep, into Postgres and Zep -- once
      * per connection per process, in the background.
      */
-    if (!ingestedConnections.has(connection.id)) {
-      ingestedConnections.add(connection.id)
+    if (shouldIngest(connection.id)) {
+      // Claimed BEFORE the work only so two events arriving together cannot
+      // start two walks; `ingestOnConnect` gives the claim back if it fails.
+      ingestStartedAt.set(connection.id, Date.now())
       void ingestOnConnect(String(connection.user.id), connection.id)
     }
   } else {

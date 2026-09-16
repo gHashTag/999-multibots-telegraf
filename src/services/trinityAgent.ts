@@ -157,6 +157,121 @@ async function readConversation(
 }
 
 /**
+ * A TRANSPORT DEATH, TOLD APART FROM A BUG IN OUR OWN PARSING.
+ *
+ * MEASURED IN PRODUCTION 2026-09-16:
+ *   09:00:15 [ERROR] ❌ [INNGEST FAILURE] crm-proactive-sweep
+ *   09:00:29 [ERROR] [crm-proactive] sweep FAILED {"why":"terminated"}
+ *
+ * `terminated` is not a word this repository writes. It is undici's message
+ * for exactly one event: the peer closed the TCP connection AFTER the response
+ * headers arrived, while the body was still being read. The render answered
+ * 200, started the NDJSON agent stream and then dropped the socket mid-body.
+ * The neighbouring shapes are deliberately NOT transport-fatal-vs-ours
+ * ambiguous:
+ *   socket dies before headers -> "TypeError: fetch failed"
+ *   socket dies mid-body       -> "TypeError: terminated" (UND_ERR_SOCKET,
+ *                                 cause 'other side closed')
+ *   our own 180 s abort       -> "This operation was aborted" (NOT here:
+ *                                 the caller asked to stop, nothing broke)
+ *
+ * WHY IDENTITY AND NOT `catch (e) {}`. Everything below the reader loop --
+ * JSON handling, the event switch, the logging -- can also throw, and a
+ * blanket catch would turn a genuine crash in our parsing into a silent
+ * partial success. That is precisely the swallow this file must never do. So
+ * the decision is made on the error's own identity (undici's code, its
+ * message, its cause chain) and on nothing else.
+ */
+const TRANSPORT_CODES = new Set([
+  'UND_ERR_SOCKET',
+  'ECONNRESET',
+  'EPIPE',
+  'ECONNREFUSED',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+])
+const TRANSPORT_MESSAGE =
+  /^terminated$|fetch failed|other side closed|socket hang up|premature close/i
+
+export function isTransportError(e: unknown): boolean {
+  for (
+    let cur: any = e, depth = 0;
+    cur && depth < 6;
+    cur = cur.cause, depth++
+  ) {
+    if (cur?.name === 'AbortError' || cur?.name === 'TimeoutError') return false
+    if (typeof cur.code === 'string' && TRANSPORT_CODES.has(cur.code))
+      return true
+    if (typeof cur.message === 'string' && TRANSPORT_MESSAGE.test(cur.message))
+      return true
+  }
+  return false
+}
+
+/**
+ * ONE RETRY, ONLY ON A LIMIT, ONLY WHEN NOTHING WAS ALREADY PAID FOR.
+ *
+ * MEASURED IN PRODUCTION 2026-09-16:
+ *   09:30:26 [WARN] [Business] agent unreachable, falling back
+ *     {"chatId":"435572800","error":"<no model provider answered>
+ *       nemotron: ResourceExhausted:
+ *       Worker local total request limit reached (16/16)"}
+ *
+ * 16/16 is NVIDIA's own concurrency ceiling, not a pool this repository owns
+ * (there is no semaphore here to queue against). A CONCURRENCY ceiling frees a
+ * slot the moment any in-flight request anywhere finishes -- seconds, not a
+ * quota window -- so one short retry is the whole fix. Nothing on the live
+ * customer path retried before this: the customer at 09:30 was silently
+ * downgraded to a model with NO TOOLS (it cannot invoice, cannot read a
+ * balance) and the CRM never recorded the turn.
+ *
+ * WHY 4 s AND NOT THE DUET'S 30 s (crm-duet-tool.ts SELLER_RETRY_PAUSE_MS).
+ * The duet is a simulation with nobody waiting. Here a live customer is
+ * holding a typing indicator; the wait ceiling is already 180 s per attempt, so a
+ * naive second attempt plus 30 s can reach six minutes -- and
+ * `businessReplyInFlight` DROPS every follow-up message from that customer
+ * while a turn is in flight, so a long retry silently discards their next
+ * messages instead of merely being slow.
+ *
+ * The classifier is copied in shape from crm-duet-tool.ts:365-397, which the
+ * repository already trusts -- but wired, at last, to the paying customer.
+ */
+const RETRY_ON_LIMIT = 1
+const RETRY_PAUSE_MS = 4_000
+// "limit" covers "rate limit" and "limit reached"; the last alternative is the
+// word the render's provider.ts diagnose() uses for 429 in Russian.
+const LIMIT_RE =
+  /429|limit|ResourceExhausted|too many requests|\u043b\u0438\u043c\u0438\u0442/i
+
+export function isLimitError(error: string | undefined): boolean {
+  return !!error && LIMIT_RE.test(error)
+}
+
+/**
+ * A tool whose call already spent money or already reached a human. Replaying
+ * a turn that fired one of these would bill twice or send twice -- the duet's
+ * rule (PAID_TOOLS) applied to the live path.
+ */
+const SIDE_EFFECT_TOOL =
+  /^(image_generate|image_edit|audio_generate|video_generate|reel_render|invoice|tg_send)/
+
+/** Only once, only on a limit, only when the failed attempt paid for nothing. */
+export function retryAllowed(
+  retriesDone: number,
+  error: string | undefined,
+  toolsUsed: string[]
+): boolean {
+  return (
+    retriesDone < RETRY_ON_LIMIT &&
+    isLimitError(error) &&
+    !toolsUsed.some(name => SIDE_EFFECT_TOOL.test(name))
+  )
+}
+
+const pause = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms))
+
+/**
  * Спросить агента и дождаться готового ответа.
  *
  * Поток NDJSON собирается здесь целиком: в Telegram нельзя «печатать по
@@ -189,7 +304,20 @@ export async function спроситьАгента(
 
   const прерыватель = new AbortController()
   const таймер = setTimeout(() => прерыватель.abort(), ЖДАТЬ_МС)
-  try {
+
+  /*
+   * ONE controller and ONE timer for BOTH attempts, on purpose: the retry
+   * below must not buy itself a fresh 180 s. The total budget of attempt +
+   * pause + retry stays the single ceiling the caller already reasons about.
+   */
+  // The tools the CURRENT attempt has already called. Read by retryAllowed
+  // after a failure: a turn that already generated or already sent is never
+  // replayed, whatever the error says.
+  let toolsUsed: string[] = []
+
+  // One try of the whole round trip: request, stream, parse. The return type
+  // is inferred so this line stays free of the module's Cyrillic type name.
+  const attempt = async () => {
     const о = await fetch(
       `${БАЗА}/api/agent/chat?telegram_id=${encodeURIComponent(telegramId)}`,
       {
@@ -221,6 +349,9 @@ export async function спроситьАгента(
     let хвост = ''
     const части: string[] = []
     const инструменты: string[] = []
+    toolsUsed = инструменты // cyrillic-ok: pre-existing identifiers of this parser
+    // Counted so a fatal break can say HOW FAR the stream got before dying.
+    let eventsSeen = 0
     let ошибка = ''
     let provider: string | undefined
     let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
@@ -251,23 +382,74 @@ export async function спроситьАгента(
         // pre-existing and Cyrillic, and quoting keeps it data, not code.
         else if (ev['тип'] === 'proposal' && ev.proposal?.secret)
           proposal = ev.proposal
+        eventsSeen++
       } catch {
         // Неразобранная строка — не повод терять остальные.
       }
     }
 
-    if (reader) {
-      const dec = new TextDecoder()
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        хвост += dec.decode(value, { stream: true })
-        const строки = хвост.split('\n')
-        хвост = строки.pop() ?? ''
-        строки.forEach(строку)
+    /*
+     * KEEP WHAT ALREADY ARRIVED (production 2026-09-16).
+     *
+     * The render answers 200, streams the tool events, the answer text and a
+     * COMPLETE proposal -- with its one-time secret -- and then drops the
+     * socket. Before this catch the error propagated out of the whole function
+     * and threw away every one of those events: the owner never saw a card the
+     * seller had already earned, while the draft and its live secret sat on the
+     * render. The sweep logged one word, "terminated", and retried the whole
+     * turn.
+     *
+     * So on a TRANSPORT death (and ONLY on one -- see isTransportError) the
+     * tail is flushed and whatever was collected is returned. When NOTHING
+     * usable was collected there is nothing to keep and the call must still
+     * fail loudly -- house rule: silence is not zero.
+     */
+    try {
+      if (reader) {
+        const dec = new TextDecoder()
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          хвост += dec.decode(value, { stream: true }) // cyrillic-ok: pre-existing identifiers of this parser
+          const строки = хвост.split('\n') // cyrillic-ok: pre-existing identifiers of this parser
+          хвост = строки.pop() ?? '' // cyrillic-ok: pre-existing identifiers of this parser
+          строки.forEach(строку) // cyrillic-ok: pre-existing identifiers of this parser
+        }
+      } else {
+        ;(await о.text()).split('\n').forEach(строку) // cyrillic-ok: pre-existing identifiers of this parser
       }
-    } else {
-      ;(await о.text()).split('\n').forEach(строку)
+    } catch (e) {
+      if (!isTransportError(e)) throw e
+      строку(хвост) // cyrillic-ok: pre-existing identifiers of this parser
+      хвост = '' // cyrillic-ok: pre-existing identifiers of this parser
+      const partial = части.join('').trim() // cyrillic-ok: pre-existing identifiers of this parser
+      const usable = !!proposal || инструменты.length > 0 || !!partial // cyrillic-ok: pre-existing identifiers of this parser
+      if (usable) {
+        // WARN, not ERROR: the socket died but the work survived and the owner
+        // gets their card. Waking a phone for a delivery that succeeded is the
+        // noise this project is trying to stop. The loud half is the throw
+        // below, which still pages when the turn is genuinely lost.
+        logger.warn('[trinityAgent] stream died mid-body, kept what arrived', {
+          telegram_id: telegramId,
+          upstream: `${БАЗА}/api/agent/chat`,
+          events: eventsSeen,
+          tools: инструменты.length, // cyrillic-ok: pre-existing identifiers of this parser
+          proposal: !!proposal,
+          chars: partial.length,
+          error: e instanceof Error ? e.message : String(e),
+        })
+        return { текст: partial, инструменты, provider, proposal } // cyrillic-ok: fields of ОтветАгента
+      }
+      /*
+       * NAME THE CALL AND THE UPSTREAM. The owner's phone used to buzz with a
+       * push notification whose entire content was the word "terminated": it
+       * named neither the upstream, nor the call, nor who was left waiting.
+       */
+      throw new Error(
+        `the agent stream broke (${БАЗА}/api/agent/chat, telegram_id=${telegramId}) ` +
+          `after ${eventsSeen} events, nothing usable arrived: ` +
+          (e instanceof Error ? e.message : String(e))
+      )
     }
     строку(хвост)
 
@@ -283,6 +465,30 @@ export async function спроситьАгента(
     })
 
     return { текст: собрано, инструменты, provider, proposal } // cyrillic-ok: fields of ОтветАгента
+  }
+
+  try {
+    for (let retries = 0; ; retries++) {
+      try {
+        return await attempt()
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        if (!retryAllowed(retries, message, toolsUsed)) throw e
+        // Still ERROR-free on purpose: this attempt failed but the customer
+        // has not been failed yet. The throw above is what pages when the
+        // second attempt loses too.
+        logger.warn('[trinityAgent] provider limit, one short retry', {
+          telegram_id: telegramId,
+          upstream: `${БАЗА}/api/agent/chat`,
+          pause_ms: RETRY_PAUSE_MS,
+          error: message.slice(0, 200),
+        })
+        await pause(RETRY_PAUSE_MS)
+        // The shared deadline may have passed while we waited; a second
+        // attempt on an aborted signal would only rename the error.
+        if (прерыватель.signal.aborted) throw e // cyrillic-ok: pre-existing identifiers of this parser
+      }
+    }
   } finally {
     clearTimeout(таймер)
   }
