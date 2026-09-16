@@ -2069,6 +2069,13 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     void import('@/services/crmProactive').then(m =>
       m.noteResolved(String(ctx.from?.id ?? ''), id)
     )
+    // THE PRESS ITSELF, WRITTEN DOWN. Nothing recorded it before: the touch
+    // needs a lead, the log has no line for a success, and the journal had no
+    // kind. Fire-and-forget on purpose -- a journal that is down must never
+    // eat a press.
+    void import('@/services/hiveNote').then(m =>
+      m.notePressToHive(String(ctx.from?.id ?? ''), 'sent')
+    )
     /*
      * THREE ANSWERS, BECAUSE THERE ARE THREE STATES.
      *
@@ -2114,6 +2121,11 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
     // moves a scoped sweep on to the next person.
     void import('@/services/crmProactive').then(m =>
       m.noteResolved(String(ctx.from?.id ?? ''), id)
+    )
+    // Both buttons: "he refused it" is as much an answer as "he sent it", and
+    // counting only sends would make a careful owner look like an idle one.
+    void import('@/services/hiveNote').then(m =>
+      m.notePressToHive(String(ctx.from?.id ?? ''), 'cancelled')
     )
     /*
      * Said plainly, and said even when the cancel call failed. The draft is

@@ -120,6 +120,7 @@ const NAMES: Record<string, string> = {
   approved: 'одобрили работу агента',
   'sweep-idle': 'обход продавца: тихо',
   'sweep-card': 'обход продавца: подготовил карточку',
+  'card-pressed': 'владелец нажал на карточке', // cyrillic-ok: report text
   'sweep-failed': 'обход продавца: сбой',
   failure: 'сбой',
 }
