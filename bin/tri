@@ -13,6 +13,7 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RENDER="$ROOT/apps/vibee-editor/render"
 LOOP="$ROOT/.claude/loop-opus"
+CACHE="$ROOT/.claude/cache"
 # Прогонщик тестов требует Node 20; в оболочке по умолчанию 18.
 NODE20="$HOME/.nvm/versions/node/v20.19.0/bin"
 # ...И ЭТОГО МАЛО, ЕСЛИ ПЕРЕМЕННУЮ ТОЛЬКО ОБЪЯВИТЬ.
@@ -68,6 +69,28 @@ tri — оболочка Trinity S³AI
   tri tg-as <telegram_id> [tool]  что инструменты Telegram отвечают ЭТОМУ человеку на проде
   tri crm-ingest [dialogs] [depth]  переписки владельца в память CRM (и в Zep, если задан)
   tri crm-leads [n]        кому писать следующему, со счётом и причиной
+  tri facts      на чём стоят факты CRM в ПРОДЕ: не пуст ли журнал под выводом
+  tri funnel     воронка владельца одним экраном: этапы, шаги, утечка карточек
+  tri sweep [hive|log] [n]  обходы продавца в проде: журнал улья (навсегда)
+  tri headroom   числа, которые говорят про запас, а не про потери (форма 54)
+
+  Виток: где я и что доедет
+  tri loop       с чего начинать виток: где я, что занято, что не сделано
+  tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
+  tri landing    доедет ли работа этой ветки до main и что застрянет с ней
+  tri waiting    что лежит в открытом PR и чем рискует — по группам
+  tri lost       коммиты, до которых не достаёт ни одна ветка (сеть под reset)
+  Проверка СВОЕЙ работы (сторож, который не падает, -- не сторож)
+  tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
+  tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
+  tri self      сама оболочка: достижима ли каждая команда и на месте ли хелпер
+  tri scan       чем этот код может соврать: обзор сторожей и дыр
+  tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
+  tri promises   обещания в тексте, за которыми стоит число в другом файле
+  tri clock [дней] [render|bot|all]  прогон так, будто прошло N дней:
+                 два прогона, фон вычитается — видно только то, что сгниёт
+  tri binary     исходники, невидимые для grep из-за нулевого байта
+  tri api <имя>  метод или класс Bot API из справочника Telegram
 U
 }
 
@@ -730,9 +753,61 @@ PYEOF
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
-    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3) ;;
+    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3)
+    # САМА ОБОЛОЧКА -- ТОЖЕ ЧАСТЬ СМЕНЫ. Инструмент, который молча
+    # перестал звать свой хелпер, отправляет работать не туда весь виток.
+    echo; echo "── оболочка ──"; bash "$ROOT/bin/helpers/self.sh" "$ROOT" | tail -2 ;;
   # 64 = "not mine", so the root tri can tell an unknown command from a
   # command that ran and failed. Any other exit code is the command's own.
   # Under the bridge the root prints the one usage; two for one typo is noise.
+  api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
+  binary) shift; bash "$ROOT/bin/helpers/binary.sh" "$ROOT" "$@" ;;
+  clock)  shift; bash "$ROOT/bin/helpers/clock.sh" "$ROOT" "$@" ;;
+  facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
+  funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
+  headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
+  landing) shift; bash "$ROOT/bin/helpers/landing.sh" "$ROOT" "$@" ;;
+  loop)
+    # С ЧЕГО НАЧИНАЕТСЯ КАЖДЫЙ ВИТОК.
+    #
+    # Крон бьёт каждые 15 минут, а задача живёт часами. Половина риска
+    # автономного цикла не в коде, а в том, что новый виток не знает о
+    # прошлом: делает работу заново или поверх неё. Три вопроса разом —
+    # где я, что уже занято, что не сделано.
+    echo "── где я ──"
+    echo "  ветка:  $(git -C "$ROOT" branch --show-current)"
+    git -C "$ROOT" log --oneline -3 | sed "s/^/  /"
+    N=$(git -C "$ROOT" status --porcelain | wc -l | tr -d " ")
+    [ "$N" != "0" ] && echo "  НЕЗАКОММИЧЕНО: $N файл(ов) — следующий виток их не увидит"
+    echo
+    echo "── что в работе ──"
+    sed -n "/^## СЕЙЧАС В РАБОТЕ/,/^## Что уже есть/p" "$LOOPSTATE" |
+      grep -v "^## " | sed "/^$/d" | sed "s/^/  /"
+    echo
+    echo "── не сделано (первые 5) ──"
+    grep -n "^- \[ \]" "$LOOPSTATE" | head -5 | sed "s/^/  /" ||
+      echo "  всё помечено сделанным — пора писать новый план"
+    ;;
+  loop-note)
+    # ОПЫТ, КОТОРЫЙ ИНАЧЕ ПОТЕРЯЕТСЯ.
+    #
+    # Виток обрывается внезапно. Всё, что не записано в память, следующая
+    # смена выведет заново — а чаще не выведет и наступит на то же место.
+    shift
+    if [ $# -eq 0 ]; then
+      echo "нужен текст: tri loop-note \"что выяснилось\""; exit 2
+    fi
+    printf "\n- %s: %s\n" "$(date "+%d.%m.%Y %H:%M")" "$*" >> "$LOOPSTATE"
+    echo "записано в ${LOOPSTATE#$ROOT/}"
+    ;;
+  lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
+  mutate) shift; bash "$ROOT/bin/helpers/mutate.sh" "$@" ;;
+  owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
+  promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
+  scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
+  sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
+  waiting) shift; bash "$ROOT/bin/helpers/waiting.sh" "$ROOT" "$@" ;;
+  wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
+  self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
   *) [ -n "${TRI_BRIDGE:-}" ] || usage; exit 64 ;;
 esac
