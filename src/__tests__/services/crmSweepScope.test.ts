@@ -3,6 +3,7 @@ import {
   SWEEP_HEAD,
   SWEEP_RULES,
   SWEEP_TAIL,
+  SWEEP_WORTH,
   parseSweepArgs,
   matchRow,
   filterRows,
@@ -14,6 +15,7 @@ import {
   progressLine,
   SYNTAX,
 } from '@/services/crmSweepScope'
+import { SWEEP_PROMPT } from '@/services/crmProactive'
 
 /**
  * The seller, pointed at somebody: what the owner may type after /sweep,
@@ -279,9 +281,39 @@ describe('the items and the brief', () => {
   })
 
   it('the generic brief is head + rules + tail, and the progress line reads like a list row', () => {
-    const generic = SWEEP_HEAD + SWEEP_RULES + SWEEP_TAIL
+    /*
+     * THE ASSEMBLED PROMPT, NOT MY OWN RE-ASSEMBLY.
+     *
+     * This line used to concatenate the pieces here, which meant the test
+     * proved its own arithmetic rather than the code's: a reverse mutation
+     * that removed SWEEP_WORTH from SWEEP_PROMPT left it green. What the
+     * model receives is SWEEP_PROMPT, so that is what is read.
+     */
+    const generic = SWEEP_PROMPT
+    expect(
+      generic,
+      'every piece of the brief must actually be in what is sent'
+    ).toContain(SWEEP_WORTH.trim())
     expect(generic).toContain('crm_leads с limit 5')
-    expect(generic).toContain('4) Если кандидатов нет')
+    /*
+     * STEP 4 MUST NOT CONTRADICT STEP 2.
+     *
+     * Step 2 says take the first whose next is not wait -- scan past the
+     * waits. Step 4 used to say "or THE FIRST is wait, answer quiet", which
+     * stops at the first. A model reading the tail literally went silent
+     * whenever candidate #1 happened to be wait, and in production 544 of 881
+     * people sit on wait. The journal has the seller saying exactly that and
+     * going idle with four unexamined rows in hand.
+     */
+    expect(generic, 'the tail must ask about ALL candidates').toContain(
+      'НИ У ОДНОГО'
+    )
+    expect(
+      generic,
+      'the tail still stops at the first candidate'
+    ).not.toContain('у первого next=wait')
+    // And the reason a weak card costs something: one draft per owner.
+    expect(generic).toContain('ВЫТЕСНЯЕТ')
     expect(
       progressLine(1, 7, {
         chat: '900000001',
