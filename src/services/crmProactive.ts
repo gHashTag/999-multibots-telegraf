@@ -1033,9 +1033,17 @@ export async function buildPlan(
   keyboard: ReturnType<typeof planKeyboard>
   fingerprint: string
 }> {
-  const { fetchSummary } = await import('./crmSummary')
+  const { fetchSummary, fetchCardFlow } = await import('./crmSummary')
   const s = await fetchSummary(owner, 1)
-  const text = buildPlanText(s, scopeLine(owner), now, tz)
+  // A second call, and a failing one must not take the morning plan with it.
+  const cards = await fetchCardFlow(owner).catch(() => null)
+  const text = buildPlanText(
+    s,
+    scopeLine(owner),
+    now,
+    tz,
+    cards ? cards.prepared : null
+  )
   const keyboard = planKeyboard(s, {
     scopeActive: Boolean(activeScope(owner)),
     stale: isStale(s, now),
