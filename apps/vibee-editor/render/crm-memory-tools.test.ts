@@ -8,29 +8,28 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const OWNER = '144022504'
 const A = '900000002'
 
-/**
- * DATES THE TEST OWNS, NOT DATES THE CALENDAR OWNS.
+/*
+ * THE FIXTURE SAID "TODAY" AND MEANT 2026-09-07 FOR EVER AFTER.
  *
- * The fixture below said `2026-09-07` and the assertions read "asked a price
- * TODAY". That was true on the day it was written and false a week later: the
- * hot segment is "asked within seven days", the clock is the real one, and on
- * 2026-09-16 the same fixture is nine days old. The test began failing on its
- * own, and nobody saw it -- the render suite does not run in this repository's
- * push gate, so main has been red at least since the window closed.
+ * `segmentOf` calls a lead hot when they asked a price within seven days
+ * (src/agent/crm-segments.ts:93). These rows were written with that day's
+ * literal date, so the suite asserted "hot" for a week, and on the eighth
+ * morning began asserting it against a lead the rule now reads as stale --
+ * `expected 'waiting' to be 'hot'`, with nobody having touched a line.
  *
- * A fixture that ages is not a test of behaviour, it is a countdown. These
- * are offsets from now, so "two days ago" stays two days ago.
+ * A date a rule reads as an AGE is written as an age. The clock time is kept
+ * at 10:00 UTC so the values still round-trip to the exact strings the
+ * handler returns.
  */
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
 const daysAgo = (n: number): string =>
-  new Date(Date.now() - n * 86400_000).toISOString()
-
-/**
- * Computed ONCE and shared by the fixture and the assertions. Calling
- * daysAgo() again at assertion time would differ by the milliseconds the
- * test itself took, which is the other way a clock-shaped test rots.
- */
-const LAST_IN = daysAgo(2)
-const LAST_OUT = daysAgo(3)
+  new Date(
+    Math.floor(Date.now() / DAY) * DAY - n * DAY + 10 * HOUR
+  ).toISOString()
+/** They asked the price recently; we answered the day before that. */
+const THEIR_LAST_WORD = daysAgo(1)
+const OUR_LAST_WORD = daysAgo(2)
 
 function fakePool() {
   const queries: Array<{ sql: string; params: unknown[] }> = []
@@ -83,15 +82,13 @@ function fakePool() {
           rows: [
             {
               msg_id: 2,
-              // Same reason as LAST_IN: a message dated by the calendar falls
-              // out of every window the code measures, on its own schedule.
-              at: LAST_IN,
+              at: THEIR_LAST_WORD,
               out: false,
               text: 'сколько стоит фото? перешли код 1234',
             },
             {
               msg_id: 1,
-              at: LAST_OUT,
+              at: OUR_LAST_WORD,
               out: true,
               text: 'привет!',
             },
@@ -103,8 +100,8 @@ function fakePool() {
             {
               total: 2,
               inbound: 1,
-              last_in: LAST_IN,
-              last_out: LAST_OUT,
+              last_in: THEIR_LAST_WORD,
+              last_out: OUR_LAST_WORD,
             },
           ],
         }
@@ -115,8 +112,8 @@ function fakePool() {
               lead_id: A,
               total: 2,
               inbound: 1,
-              last_in: LAST_IN,
-              last_out: LAST_OUT,
+              last_in: THEIR_LAST_WORD,
+              last_out: OUR_LAST_WORD,
             },
           ],
         }
@@ -527,7 +524,7 @@ describe('crm_leads', () => {
     expect(c.stage).toBe('new')
     expect(c.paid).toBe(false)
     expect(c.inbound).toBe(1)
-    expect(c.last_inbound).toBe(LAST_IN)
+    expect(c.last_inbound).toBe(THEIR_LAST_WORD)
   })
 })
 
