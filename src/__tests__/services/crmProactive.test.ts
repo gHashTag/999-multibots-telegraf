@@ -332,3 +332,67 @@ describe('wired (source-level: the bot is not booted here)', () => {
     expect(s).toContain('startCrmProactive(carrier')
   })
 })
+
+/**
+ * ONE LOOP PER OWNER -- MEASURED IN PRODUCTION, NOT IMAGINED.
+ *
+ * Both src/bot.ts and src/index.ts call startCrmProactive, and the Railway
+ * logs show exactly two sweeps per tick, to the second, tick after tick:
+ *
+ *   2  2026-09-15 23:01:33
+ *   2  2026-09-15 23:30:00
+ *   2  2026-09-16 00:00:00
+ *
+ * Harmless while both are held by the same unpressed card. Not harmless the
+ * moment the hold expires with the model free: two turns for one person, two
+ * cards in one second, twice the spend.
+ */
+describe('the proactive loop is claimed, not doubled', () => {
+  it('a second start for the same owner returns the first loop', async () => {
+    const m = await import('@/services/crmProactive')
+    m.resetProactiveLoopsForTests()
+    const bot = { botInfo: { username: 'b' }, telegram: {} } as never
+    const ticks: number[] = []
+    const stopA = m.startCrmProactive(bot, {
+      ownerId: '144022504',
+      everyMs: 60_000,
+      firstDelayMs: 10_000_000,
+    })
+    const stopB = m.startCrmProactive(bot, {
+      ownerId: '144022504',
+      everyMs: 60_000,
+      firstDelayMs: 10_000_000,
+    })
+    expect(stopB, 'a second timer was started for the same owner').toBe(stopA)
+    expect(ticks).toEqual([])
+    stopA()
+    // And after stopping, the owner can be started again -- a stop is a stop,
+    // not a permanent claim.
+    const stopC = m.startCrmProactive(bot, {
+      ownerId: '144022504',
+      everyMs: 60_000,
+      firstDelayMs: 10_000_000,
+    })
+    expect(stopC).not.toBe(stopA)
+    stopC()
+    m.resetProactiveLoopsForTests()
+  })
+
+  it('another owner gets their own loop', async () => {
+    const m = await import('@/services/crmProactive')
+    m.resetProactiveLoopsForTests()
+    const bot = { botInfo: { username: 'b' }, telegram: {} } as never
+    const a = m.startCrmProactive(bot, {
+      ownerId: '144022504',
+      everyMs: 60_000,
+      firstDelayMs: 10_000_000,
+    })
+    const b = m.startCrmProactive(bot, {
+      ownerId: '900000042',
+      everyMs: 60_000,
+      firstDelayMs: 10_000_000,
+    })
+    expect(b, 'two owners were handed the same loop').not.toBe(a)
+    m.resetProactiveLoopsForTests()
+  })
+})

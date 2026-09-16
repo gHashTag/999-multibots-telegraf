@@ -347,6 +347,28 @@ export interface PlanOpts {
   tz: string
 }
 
+/*
+ * ONE LOOP PER OWNER, MEASURED IN PRODUCTION.
+ *
+ * Both `src/bot.ts` and `src/index.ts` call this, and the logs show what that
+ * means: TWO sweeps per tick, to the second, three ticks in a row --
+ *
+ *   2  2026-09-15 23:01:33
+ *   2  2026-09-15 23:30:00
+ *   2  2026-09-16 00:00:00
+ *
+ * Today it costs nothing: both are held by the same unpressed card, and the
+ * per-owner `running` set answers "busy" to the second one when they are not.
+ * But the duplication is nobody's decision -- it is two entry points that
+ * both grew the same line -- and the day the hold expires with the model free
+ * is the day two turns run for one person and two cards land in one second.
+ *
+ * So the loop is now claimed by owner. A second call gets the FIRST loop's
+ * stop function, not a second timer, and says so in the log.
+ */
+// owner-scope: keyed by owner -- one proactive loop each
+const loops = new Map<string, () => void>()
+
 export function startCrmProactive(
   bot: Telegraf<MyContext>,
   opts: {
@@ -358,6 +380,14 @@ export function startCrmProactive(
     plan?: PlanOpts
   }
 ): () => void {
+  const already = loops.get(String(opts.ownerId))
+  if (already) {
+    logger.info('[crm-proactive] already running for this owner, not doubled', {
+      owner: opts.ownerId,
+      bot: bot.botInfo?.username ?? null,
+    })
+    return already
+  }
   const deps = liveDeps(bot)
   const run = async () => {
     // The plan first, and never deferred: a queue or a card in flight is
@@ -404,10 +434,19 @@ export function startCrmProactive(
     everyMinutes: Math.round(opts.everyMs / 60_000),
     bot: bot.botInfo?.username ?? null,
   })
-  return () => {
+  const stop = () => {
     clearTimeout(first)
     clearInterval(timer)
+    loops.delete(String(opts.ownerId))
   }
+  loops.set(String(opts.ownerId), stop)
+  return stop
+}
+
+/** For tests: nobody is running. */
+export function resetProactiveLoopsForTests(): void {
+  for (const stop of loops.values()) stop()
+  loops.clear()
 }
 
 /*
