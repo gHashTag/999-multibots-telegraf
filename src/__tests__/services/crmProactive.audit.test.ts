@@ -47,7 +47,7 @@ beforeEach(() => resetProactiveForTests())
 
 describe('P1 #3: a stuck sweep is released', () => {
   it('a flag younger than the limit still means busy', async () => {
-    markRunningForTests(1_000_000 - STUCK_SWEEP_MS + 1000)
+    markRunningForTests(1_000_000 - STUCK_SWEEP_MS + 1000, OWNER)
     const { d, calls } = deps()
     const r = await sweepOnce(OWNER, d)
     expect(r.did).toBe('busy')
@@ -55,7 +55,7 @@ describe('P1 #3: a stuck sweep is released', () => {
   })
 
   it('a flag older than ten minutes is a hang: the tick proceeds', async () => {
-    markRunningForTests(1_000_000 - STUCK_SWEEP_MS - 1)
+    markRunningForTests(1_000_000 - STUCK_SWEEP_MS - 1, OWNER)
     const { d, calls } = deps()
     const r = await sweepOnce(OWNER, d)
     expect(r.did).toBe('card')

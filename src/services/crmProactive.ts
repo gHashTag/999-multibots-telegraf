@@ -102,9 +102,77 @@ export interface SweepOpts {
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
 const INGEST_TIMEOUT_MS = 170_000
 
-let running = false
-let runningSince = 0
-let lastPushAt = 0
+/*
+ * ONE HOLD PER SELLER, NOT ONE FOR EVERYBODY.
+ *
+ * These were three module-level variables, and ADMIN_IDS names more than one
+ * person. `runProactiveTickAll` walks every connected seller inside a single
+ * tick, so the FIRST of them to get a card set `lastPushAt` -- and every other
+ * seller was answered `held` for the next two hours, about a card they cannot
+ * see and cannot press. `running` did the same for `busy`.
+ *
+ * Production, 2026-09-16 07:02:19, two lines in one second:
+ *
+ *   [crm-proactive] sweep {"did":"card"}
+ *   [crm-proactive] sweep {"did":"held","why":"карточка ещё ждёт нажатия"}
+ *
+ * That is two sellers in one tick: one served, one refused on the other's
+ * card. main has already keyed the FAILURE streak by owner (#2448); this is
+ * the same correction for the state that decides whether a sweep runs at all.
+ */
+interface SweepState {
+  running: boolean
+  runningSince: number
+  lastPushAt: number
+  ingestFailStreak: number
+  /** Cards pushed to this owner that no press has answered. */
+  unpressed: number
+}
+
+// owner-scope: the key IS the owner
+const sweepState = new Map<string, SweepState>()
+
+function stateOf(owner: string): SweepState {
+  const key = String(owner)
+  let st = sweepState.get(key)
+  if (!st) {
+    st = {
+      running: false,
+      runningSince: 0,
+      lastPushAt: 0,
+      ingestFailStreak: 0,
+      unpressed: 0,
+    }
+    sweepState.set(key, st)
+  }
+  return st
+}
+
+/*
+ * A CARD NOBODY PRESSES COSTS MONEY, SO ASK LESS OFTEN.
+ *
+ * Measured in the hive journal on 2026-09-16: forty-one photo drafts in five
+ * days carried the line "the picture was made, but not sent" -- two cards in
+ * three were images the provider had already billed us for, replaced unseen.
+ * Preparing them at the same rate into the same silence is the expensive half
+ * of that.
+ *
+ * So the hold grows once an owner has left three in a row unanswered: two
+ * hours, then four, eight, sixteen, capped at a day. A single press resets it
+ * -- the backoff is about silence, not about punishment, and an owner who
+ * comes back gets the next card at the next tick.
+ */
+export const UNPRESSED_BEFORE_BACKOFF = 3
+export const BACKOFF_CAP_MS = 24 * 60 * 60_000
+
+export function holdFor(unpressed: number, base = HOLD_MS_DEFAULT): number {
+  const over = Math.max(
+    0,
+    Math.trunc(unpressed) - (UNPRESSED_BEFORE_BACKOFF - 1)
+  )
+  if (over === 0) return base
+  return Math.min(base * 2 ** over, BACKOFF_CAP_MS)
+}
 /*
  * A SWEEP THAT NEVER CAME BACK IS NOT "BUSY" (CRM audit 2026-09-12, P1 #3).
  *
@@ -144,7 +212,6 @@ export const STUCK_SWEEP_MS = 15 * 60_000
  * through the alert channel and the hive journal with the reconnect hint.
  */
 export const INGEST_FAILURES_BEFORE_FAILED = 3
-let ingestFailStreak = 0
 
 /**
  * `[[Подпись|tg_send]]` -- the whole answer is one button marker whose id is
@@ -286,7 +353,14 @@ export function reportSweepOutcome(
  * skip anybody).
  */
 export function noteResolved(owner?: string, cardId?: string): void {
-  lastPushAt = 0
+  // Whose hold to free is known from the press: a callback always carries the
+  // person who pressed. Without one nothing is freed -- clearing every owner's
+  // hold on an anonymous press is exactly the shared behaviour this replaces.
+  if (owner) {
+    const st = stateOf(String(owner))
+    st.lastPushAt = 0
+    st.unpressed = 0
+  }
   const s = owner ? scopes.get(String(owner)) : undefined
   if (!s || !s.waiting || s.inFlight) return
   if (s.waiting.kind === 'card') {
@@ -300,17 +374,15 @@ export function noteResolved(owner?: string, cardId?: string): void {
 
 /** For tests. */
 export function resetProactiveForTests(): void {
-  running = false
-  runningSince = 0
-  lastPushAt = 0
+  sweepState.clear()
   failStreaks.clear()
-  ingestFailStreak = 0
 }
 
-/** For tests: pretend a sweep has been running since `since`. */
-export function markRunningForTests(since: number): void {
-  running = true
-  runningSince = since
+/** For tests: pretend THIS owner's sweep has been running since `since`. */
+export function markRunningForTests(since: number, owner: string): void {
+  const st = stateOf(owner)
+  st.running = true
+  st.runningSince = since
 }
 
 /**
@@ -370,17 +442,20 @@ export async function sweepOnce(
   opts: SweepOpts = {}
 ): Promise<SweepOutcome> {
   const startedAt = deps.now?.() ?? Date.now()
-  if (running) {
-    if (runningSince && startedAt - runningSince > STUCK_SWEEP_MS) {
+  // WHOSE sweep. Everything below reads and writes THIS seller's state.
+  const st = stateOf(ownerId)
+  if (st.running) {
+    if (st.runningSince && startedAt - st.runningSince > STUCK_SWEEP_MS) {
       logger.error('[crm-proactive] sweep stuck, releasing the flag', {
-        stuckForMs: startedAt - runningSince,
+        owner: String(ownerId),
+        stuckForMs: startedAt - st.runningSince,
       })
     } else {
       return { did: 'busy', why: 'предыдущий обход ещё идёт' }
     }
   }
-  running = true
-  runningSince = startedAt
+  st.running = true
+  st.runningSince = startedAt
   /*
    * Hoisted out of the `try` ON PURPOSE: the catch-all at the bottom needs
    * them to say who was left waiting and where the sweep died. Before
@@ -421,30 +496,32 @@ export async function sweepOnce(
   }
   try {
     const now = startedAt
-    const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
-    if (lastPushAt && now - lastPushAt < holdMs) {
+    // A scoped run passes its own short hold; otherwise the wait grows with
+    // the silence, because a card nobody presses was drawn at a real cost.
+    const holdMs = opts.holdMs ?? holdFor(st.unpressed)
+    if (st.lastPushAt && now - st.lastPushAt < holdMs) {
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
     stage = 'обновление памяти'
     try {
       if (opts.ingest !== false) {
         await deps.ingest(ownerId)
-        ingestFailStreak = 0
+        st.ingestFailStreak = 0
       }
     } catch (e) {
-      ingestFailStreak += 1
+      st.ingestFailStreak += 1
       const error = e instanceof Error ? e.message : String(e)
-      if (ingestFailStreak >= INGEST_FAILURES_BEFORE_FAILED) {
+      if (st.ingestFailStreak >= INGEST_FAILURES_BEFORE_FAILED) {
         return {
           did: 'failed',
-          why: `память не обновляется ${ingestFailStreak} обхода подряд: ${error}. Если сессия Telegram истекла — переподключи её в профиле`,
+          why: `память не обновляется ${st.ingestFailStreak} обхода подряд: ${error}. Если сессия Telegram истекла — переподключи её в профиле`,
         }
       }
       // Memory refresh is best-effort: a FLOOD_WAIT on ingest must not
       // silence a person who has been waiting since yesterday.
       logger.warn('[crm-proactive] ingest failed, sweeping on stale memory', {
         error,
-        consecutive: ingestFailStreak,
+        consecutive: st.ingestFailStreak,
       })
     }
     /*
@@ -517,7 +594,10 @@ export async function sweepOnce(
     if (answer.proposal) {
       stage = 'карточка владельцу'
       await deps.push(ownerId, answer.proposal)
-      lastPushAt = now
+      st.lastPushAt = now
+      // Counted here, cleared by a press in noteResolved: the number IS the
+      // run of cards this owner has left unanswered.
+      st.unpressed += 1
       return {
         did: 'card',
         why: (answer.текст ?? '').slice(0, 200), // cyrillic-ok: pre-existing identifiers
@@ -594,7 +674,7 @@ export async function sweepOnce(
           : `обход упал на шаге «${stage}»: ${raw}`),
     }
   } finally {
-    running = false
+    st.running = false
   }
 }
 
