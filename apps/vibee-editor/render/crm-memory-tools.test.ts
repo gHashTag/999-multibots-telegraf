@@ -8,6 +8,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const OWNER = '144022504'
 const A = '900000002'
 
+/**
+ * DATES THE TEST OWNS, NOT DATES THE CALENDAR OWNS (form 33).
+ *
+ * The refusal window is thirty days and the clock is the real one, so a
+ * fixture dated by hand is a countdown: this file's own "still refused after
+ * he writes again" case was green today and red in three weeks. Found by
+ * `tri clock 30`, which runs the suite as if a month had passed.
+ *
+ * Computed ONCE and shared, because calling the helper again inside an
+ * assertion differs by the milliseconds the test itself took.
+ */
+const daysAgo = (n: number): string =>
+  new Date(Date.now() - n * 86400_000).toISOString()
+const REPLIED_AT = daysAgo(2)
+const REFUSED_AT = daysAgo(4)
+
 function fakePool() {
   const queries: Array<{ sql: string; params: unknown[] }> = []
   const seen = new Set<string>()
@@ -452,7 +468,7 @@ describe('crm_leads reads the whole touch history', () => {
                 id: 2,
                 lead_id: A,
                 kind: 'replied',
-                at: '2026-09-07T11:00:00Z',
+                at: REPLIED_AT,
                 reverts_id: null,
               },
             ],
@@ -469,14 +485,14 @@ describe('crm_leads reads the whole touch history', () => {
                 id: 2,
                 lead_id: A,
                 kind: 'replied',
-                at: '2026-09-07T11:00:00Z',
+                at: REPLIED_AT,
                 reverts_id: null,
               },
               {
                 id: 1,
                 lead_id: A,
                 kind: 'refused',
-                at: '2026-09-05T09:00:00Z',
+                at: REFUSED_AT,
                 reverts_id: null,
               },
             ],

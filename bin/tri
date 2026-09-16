@@ -773,6 +773,7 @@ PYEOF
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
   waiting) shift; bash "$ROOT/bin/helpers/waiting.sh" "$ROOT" "$@" ;;
+  clock)  shift; bash "$ROOT/bin/helpers/clock.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true
