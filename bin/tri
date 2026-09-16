@@ -13,6 +13,11 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RENDER="$ROOT/apps/vibee-editor/render"
 LOOP="$ROOT/.claude/loop-opus"
+# Память автономного цикла по CRM. Отдельно от $LOOP: там скрипты смены,
+# здесь единственный файл, который переживает виток крона.
+LOOPSTATE="$ROOT/.claude/loop-state/crm-loop.md"
+# Для того, что качается один раз и чему не место в репозитории.
+CACHE="$ROOT/.claude/cache"
 # Прогонщик тестов требует Node 20; в оболочке по умолчанию 18.
 NODE20="$HOME/.nvm/versions/node/v20.19.0/bin"
 # ...И ЭТОГО МАЛО, ЕСЛИ ПЕРЕМЕННУЮ ТОЛЬКО ОБЪЯВИТЬ.
@@ -36,6 +41,25 @@ tri — оболочка Trinity S³AI
   tri prices     таблица цен: модель, токены, единица
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
+  tri loop       с чего начинать виток: где я, что занято, что не сделано
+  tri loop-note <текст>   записать вывод витка в память (иначе потеряется)
+  tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
+  tri api <имя>  метод или класс Bot API из справочника Telegram
+  tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
+  tri scan       чем этот код может соврать: обзор сторожей и дыр
+  tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
+  tri promises   обещания в тексте, за которыми стоит число в другом файле
+  tri waiting    что лежит в открытом PR и чем рискует — по группам
+  tri clock [дней] [render|bot|all]  прогон так, будто прошло N дней:
+                 два прогона, фон вычитается — видно только то, что сгниёт
+  tri landing    доедет ли работа этой ветки до main и что застрянет с ней
+  tri lost       коммиты, до которых не достаёт ни одна ветка (сеть под reset)
+  tri binary     исходники, невидимые для grep из-за нулевого байта
+  tri facts      на чём стоят факты CRM в ПРОДЕ: не пуст ли журнал под выводом
+  tri funnel     воронка владельца одним экраном: этапы, шаги, утечка карточек
+  tri headroom   числа, которые говорят про запас, а не про потери (форма 54)
+  tri sweep [hive|log] [n]  обходы продавца в проде: журнал улья (навсегда)
+                 или лог Railway (с последнего деплоя)
   tri open       что ещё открыто по pipeline-STATUS.md
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
@@ -730,6 +754,59 @@ PYEOF
     # стало ноль. `npm ci` ставит РОВНО то, что в локе, и вылечил оба разом:
     # 75 наборов, 621 тест.
     (cd "$RENDER" && PATH="$NODE20:$PATH" npm ci) ;;
+  loop)
+    # С ЧЕГО НАЧИНАЕТСЯ КАЖДЫЙ ВИТОК.
+    #
+    # Крон бьёт каждые 15 минут, а задача живёт часами. Половина риска
+    # автономного цикла не в коде, а в том, что новый виток не знает о
+    # прошлом: делает работу заново или поверх неё. Три вопроса разом —
+    # где я, что уже занято, что не сделано.
+    echo "── где я ──"
+    echo "  ветка:  $(git -C "$ROOT" branch --show-current)"
+    git -C "$ROOT" log --oneline -3 | sed "s/^/  /"
+    N=$(git -C "$ROOT" status --porcelain | wc -l | tr -d " ")
+    [ "$N" != "0" ] && echo "  НЕЗАКОММИЧЕНО: $N файл(ов) — следующий виток их не увидит"
+    echo
+    echo "── что в работе ──"
+    sed -n "/^## СЕЙЧАС В РАБОТЕ/,/^## Что уже есть/p" "$LOOPSTATE" |
+      grep -v "^## " | sed "/^$/d" | sed "s/^/  /"
+    echo
+    echo "── не сделано (первые 5) ──"
+    grep -n "^- \[ \]" "$LOOPSTATE" | head -5 | sed "s/^/  /" ||
+      echo "  всё помечено сделанным — пора писать новый план"
+    ;;
+
+  loop-note)
+    # ОПЫТ, КОТОРЫЙ ИНАЧЕ ПОТЕРЯЕТСЯ.
+    #
+    # Виток обрывается внезапно. Всё, что не записано в память, следующая
+    # смена выведет заново — а чаще не выведет и наступит на то же место.
+    shift
+    if [ $# -eq 0 ]; then
+      echo "нужен текст: tri loop-note \"что выяснилось\""; exit 2
+    fi
+    printf "\n- %s: %s\n" "$(date "+%d.%m.%Y %H:%M")" "$*" >> "$LOOPSTATE"
+    echo "записано в ${LOOPSTATE#$ROOT/}"
+    ;;
+
+  mutate) shift; bash "$ROOT/bin/helpers/mutate.sh" "$@" ;;
+
+  api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
+
+  wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
+  scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
+  owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
+  promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
+  waiting) shift; bash "$ROOT/bin/helpers/waiting.sh" "$ROOT" "$@" ;;
+  clock)  shift; bash "$ROOT/bin/helpers/clock.sh" "$ROOT" "$@" ;;
+  landing) shift; bash "$ROOT/bin/helpers/landing.sh" "$ROOT" "$@" ;;
+  facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
+  sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
+  funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
+  headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
+  lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
+  binary) shift; bash "$ROOT/bin/helpers/binary.sh" "$ROOT" "$@" ;;
+
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
