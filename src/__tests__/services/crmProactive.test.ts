@@ -11,6 +11,8 @@ import {
   SWEEP_RETRY_NOTE_LOOKED,
   leadsNote,
   HOLD_MS_DEFAULT,
+  holdFor,
+  BACKOFF_CAP_MS,
   reportSweepOutcome,
   type SweepDeps,
 } from '@/services/crmProactive'
@@ -304,6 +306,73 @@ describe('a card nobody pressed is not evicted', () => {
     noteResolved(OWNER)
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
     expect(calls.filter(c => c === 'ask').length).toBe(2)
+  })
+
+  it('waits longer each time nobody presses, and a press resets it', async () => {
+    /*
+     * MEASURED FROM THE HIVE JOURNAL 2026-09-16: 62 cards over five and a
+     * half days against five `written` touches in the whole log. One draft
+     * per person means each card REPLACES the last unpressed one, so eleven
+     * a day is eleven thrown away -- each costing an ingest and two model
+     * calls to produce.
+     */
+    let t = 1_000_000
+    const { d, calls } = deps({ now: () => t })
+    const step = async () => (await sweepOnce(OWNER, d)).did
+
+    // Three cards at the plain two-hour hold: nothing has gone wrong yet.
+    expect(await step()).toBe('card')
+    t += HOLD_MS_DEFAULT + 1
+    expect(await step()).toBe('card')
+    t += HOLD_MS_DEFAULT + 1
+    expect(await step()).toBe('card')
+
+    // The fourth is where it slows down: two hours is no longer enough.
+    t += HOLD_MS_DEFAULT + 1
+    expect(await step(), 'a fourth unpressed card at the same pace').toBe(
+      'held'
+    )
+    t += HOLD_MS_DEFAULT
+    expect(await step(), 'four hours should be').toBe('card')
+
+    /*
+     * A press puts it back to the first step -- and the proof has to look
+     * PAST the press itself. `noteResolved` also clears the hold, so the
+     * very next sweep succeeds whether the counter was reset or not; the
+     * question is what happens to the one AFTER it. Proven by mutation:
+     * without this second step, deleting the reset left the test green.
+     */
+    noteResolved(OWNER)
+    t += 1
+    expect(await step()).toBe('card')
+    t += HOLD_MS_DEFAULT + 1
+    expect(
+      await step(),
+      'the press did not end the backoff -- the counter kept climbing'
+    ).toBe('card')
+  })
+
+  it('the backoff is capped, and the steps are the ones written down', () => {
+    expect(holdFor(0)).toBe(HOLD_MS_DEFAULT)
+    expect(holdFor(2)).toBe(HOLD_MS_DEFAULT)
+    expect(holdFor(3)).toBe(HOLD_MS_DEFAULT * 2)
+    expect(holdFor(4)).toBe(HOLD_MS_DEFAULT * 4)
+    expect(holdFor(99), 'an unread owner must not be silenced forever').toBe(
+      BACKOFF_CAP_MS
+    )
+  })
+
+  it('somebody who ASKED for a sweep is never backed off', async () => {
+    // /sweep and the queue name their own hold. Backing off a person who
+    // just asked would be a bug in the clothes of a feature.
+    let t = 1_000_000
+    const { d } = deps({ now: () => t })
+    for (let i = 0; i < 5; i += 1) {
+      t += HOLD_MS_DEFAULT + 1
+      await sweepOnce(OWNER, d)
+    }
+    t += 60_000
+    expect((await sweepOnce(OWNER, d, { holdMs: 0 })).did).toBe('card')
   })
 
   it("one seller's card does not hold another seller", async () => {

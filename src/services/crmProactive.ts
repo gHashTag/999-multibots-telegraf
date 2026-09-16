@@ -83,6 +83,43 @@ export const SWEEP_PROMPT = SWEEP_HEAD + SWEEP_RULES + SWEEP_TAIL
 
 /** How long a pushed card keeps the next sweep from evicting it. */
 export const HOLD_MS_DEFAULT = 120 * 60_000
+
+/**
+ * A CARD NOBODY PRESSED IS AN ANSWER TOO, AND EVENTUALLY IT IS THE ANSWER.
+ *
+ * MEASURED FROM THE HIVE JOURNAL 2026-09-16: 62 cards prepared over five and
+ * a half days, about eleven a day -- one every two hours, exactly as the hold
+ * allows. The proposal store keeps ONE draft per person: a new card REPLACES
+ * the previous, which can no longer be confirmed. So a person busy for a day
+ * loses twelve proposals and sees the twelfth.
+ *
+ * Meanwhile the touch log holds five `written` rows in total. Even allowing
+ * for the model forgetting to record them, the shape is unmistakable: cards
+ * are prepared far faster than anybody presses them, each one costs an ingest
+ * and two model calls, and the one before is thrown away to make room.
+ *
+ * So the seller waits longer each time nobody presses: 2h, 2h, 2h, then 4h,
+ * 8h, 16h, capped at a day. A press resets it to the first step. It is the
+ * rule the playbook already applies to a client who does not answer -- "more
+ * than two reminders without a reply, stop" -- turned towards the owner, who
+ * is also a person with a limit.
+ *
+ * IT NEVER APPLIES WHEN THE CALLER NAMES A HOLD. `/sweep` and the queue pass
+ * their own, so somebody who asks for a card gets one immediately, backed off
+ * or not: backing off a person who just asked would be a bug in the clothes
+ * of a feature.
+ */
+export const UNPRESSED_BEFORE_BACKOFF = 3
+export const BACKOFF_CAP_MS = 24 * 60 * 60_000
+
+export function holdFor(unpressed: number, base = HOLD_MS_DEFAULT): number {
+  const over = Math.max(
+    0,
+    Math.trunc(unpressed) - (UNPRESSED_BEFORE_BACKOFF - 1)
+  )
+  if (over === 0) return base
+  return Math.min(base * 2 ** over, BACKOFF_CAP_MS)
+}
 /**
  * A card made by a PRESS is held only as long as the render keeps the draft
  * alive (ten minutes): the owner is at the keyboard and a stale hold would
@@ -132,6 +169,8 @@ interface SweepState {
   runningSince: number
   lastPushAt: number
   ingestFailStreak: number
+  /** Cards pushed in a row that nobody pressed. Reset by a press. */
+  unpressed: number
 }
 
 const sweepState = new Map<string, SweepState>()
@@ -140,7 +179,13 @@ function stateOf(owner: string): SweepState {
   const key = String(owner)
   let st = sweepState.get(key)
   if (!st) {
-    st = { running: false, runningSince: 0, lastPushAt: 0, ingestFailStreak: 0 }
+    st = {
+      running: false,
+      runningSince: 0,
+      lastPushAt: 0,
+      ingestFailStreak: 0,
+      unpressed: 0,
+    }
     sweepState.set(key, st)
   }
   return st
@@ -295,8 +340,13 @@ export function reportSweepOutcome(
  * skip anybody).
  */
 export function noteResolved(owner?: string, cardId?: string): void {
-  // A press frees the hold of THE PERSON WHO PRESSED, and nobody else's.
-  if (owner) stateOf(String(owner)).lastPushAt = 0
+  // A press frees the hold of THE PERSON WHO PRESSED, and nobody else's --
+  // and ends the backoff: somebody is at the keyboard again.
+  if (owner) {
+    const st = stateOf(String(owner))
+    st.lastPushAt = 0
+    st.unpressed = 0
+  }
   const s = owner ? scopes.get(String(owner)) : undefined
   if (!s || !s.waiting || s.inFlight) return
   if (s.waiting.kind === 'card') {
@@ -342,7 +392,7 @@ export async function sweepOnce(
   st.runningSince = startedAt
   try {
     const now = startedAt
-    const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
+    const holdMs = opts.holdMs ?? holdFor(st.unpressed)
     if (st.lastPushAt && now - st.lastPushAt < holdMs) {
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
@@ -436,6 +486,10 @@ export async function sweepOnce(
     if (answer.proposal) {
       await deps.push(ownerId, answer.proposal)
       st.lastPushAt = now
+      // The card that was waiting has just been replaced by this one. Count
+      // it: the store keeps a single draft per person, so the previous one is
+      // gone whether anybody looked at it or not.
+      st.unpressed += 1
       return {
         did: 'card',
         why: (answer.текст ?? '').slice(0, 200), // cyrillic-ok: pre-existing identifiers
