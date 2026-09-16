@@ -7,7 +7,11 @@ import { pulse } from '@/helpers/pulse'
 import { getUserBalance } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger } from '@/utils/logger'
-import { processBalanceOperation } from '@/price/helpers'
+import {
+  processBalanceOperation,
+  refuseUnpaidGeneration,
+  BalanceRefusedError,
+} from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -167,11 +171,23 @@ export const generateSeedEdit3 = async (
         is_ru,
         bot_name: ctx.botInfo.username,
       })
+      // Refuse BEFORE the status message and the provider call -- see the
+      // sibling FluxKontextPro. `charged` guarded the refund and nothing
+      // guarded the delivery.
+      refuseUnpaidGeneration(balanceResult, {
+        service: 'SeedEdit3',
+        telegram_id,
+      })
+      // `balanceResult.success === true` rather than a bare `true`, even though
+      // refuseUnpaidGeneration above guarantees it. The refund downstream turns
+      // on this flag, and a money guard should be readable as correct without
+      // first reading another file to learn that a helper throws.
       charged = balanceResult.success === true
 
       logger.info('🟢 [SeedEdit3] Balance check result:', {
         telegram_id,
-        balanceCheckSuccess: !!balanceResult,
+        // was `!!balanceResult`: the truthiness of the RESULT OBJECT, always true.
+        balanceCheckSuccess: balanceResult.success,
       })
     } else {
       // Batch mode: the caller already charged (chargedCostOverride) before the loop.
@@ -348,6 +364,22 @@ export const generateSeedEdit3 = async (
       prompt_id: promptId || 0,
     }
   } catch (error) {
+    // A refused charge is not a service failure. Re-thrown here, before
+    // anything else in this catch, for two separate reasons:
+    //
+    //   1. ALERTS. Every logger.error in this process is a Telegram message to
+    //      the owner (utils/logger.ts). Logging "SeedEdit3 Service error" for an empty
+    //      wallet would page a human for a working system, once per broke
+    //      customer.
+    //   2. MONEY. The refund below must not run. The refusal happens before any
+    //      charge, so a refund here would credit stars that were never taken --
+    //      refundUser is ledger-guarded, but its guard matches any charge of
+    //      sufficient size in the window, not this one.
+    //
+    // The caller decides what the person sees; refuseUnpaidGeneration has
+    // already said whether they were told.
+    if (error instanceof BalanceRefusedError) throw error
+
     logger.error('💥 [SeedEdit3] Service error:', {
       telegram_id: params.telegram_id,
       error: error instanceof Error ? error.message : String(error),

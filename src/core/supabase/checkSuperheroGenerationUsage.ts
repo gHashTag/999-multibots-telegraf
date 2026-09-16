@@ -24,6 +24,21 @@ export const checkSuperheroGenerationUsage = async (
   maxUsage: number
   resetDate?: string
   reason?: string
+  /**
+   * `false` when the monthly count could not be read and this answer is a
+   * fail-open guess rather than a measurement.
+   *
+   * The two error paths below return `canGenerate: true` and call it a "safe
+   * default". That was safe only while the thing it gates was broken: the free
+   * AvatarTransform bypass compared session.mode against the enum KEY instead
+   * of its value, so it never fired and every "free" generation was paid for
+   * anyway. Repairing the bypass makes these paths mean "unlimited free paid
+   * generations during a database hiccup". Callers must keep letting the person
+   * generate when this is `false` -- that is the access decision, and staying
+   * open there is deliberate -- but must NOT hand out the free one on a count
+   * nobody could read.
+   */
+  quotaKnown: boolean
 }> => {
   const telegramIdStr = telegram_id.toString()
   const numericTelegramId = parseInt(telegramIdStr, 10)
@@ -52,6 +67,7 @@ export const checkSuperheroGenerationUsage = async (
       currentUsage: 0,
       maxUsage: -1, // -1 означает безлимит
       reason: 'Admin privileges',
+      quotaKnown: true,
     }
   }
 
@@ -78,6 +94,7 @@ export const checkSuperheroGenerationUsage = async (
         currentUsage: 0,
         maxUsage: -1,
         reason: 'NEUROTESTER subscription',
+        quotaKnown: true,
       }
     }
 
@@ -118,6 +135,9 @@ export const checkSuperheroGenerationUsage = async (
         currentUsage: 0,
         maxUsage: maxUsage,
         reason: 'Database error - allowing generation',
+        // Access stays open; the FREE generation does not ride on a count
+        // nobody could read.
+        quotaKnown: false,
       }
     }
 
@@ -142,6 +162,7 @@ export const checkSuperheroGenerationUsage = async (
       reason: canGenerate
         ? `${currentUsage}/${maxUsage} generations used`
         : `Monthly limit reached (${currentUsage}/${maxUsage})`,
+      quotaKnown: true,
     }
   } catch (error) {
     logger.error('[checkSuperheroGenerationUsage] Unexpected error', {
@@ -157,6 +178,7 @@ export const checkSuperheroGenerationUsage = async (
       currentUsage: 0,
       maxUsage: 3,
       reason: 'Error occurred - allowing generation',
+      quotaKnown: false,
     }
   }
 }

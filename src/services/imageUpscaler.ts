@@ -9,7 +9,10 @@ import {
 } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
-import { processBalanceOperation } from '@/price/helpers'
+import {
+  processBalanceOperation,
+  refuseUnpaidGeneration,
+} from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
 import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
 import { MyContext } from '@/interfaces'
@@ -93,9 +96,16 @@ export const upscaleImage = async (
       is_ru,
     })
 
-    if (!balanceCheck.success) {
-      throw new Error('Not enough stars')
-    }
+    // Was `throw new Error('Not enough stars')` for ANY failed charge. Five
+    // catch sites downstream turn that exact string into a top-up prompt, so
+    // a customer WITH stars whose balance WRITE failed -- or whose price
+    // computed to zero -- was told they were broke, and the operator incident
+    // was filed as poverty. refuseUnpaidGeneration keeps the sentinel for the
+    // one case it describes and carries the real reason for the rest.
+    refuseUnpaidGeneration(balanceCheck, {
+      service: 'ImageUpscaler',
+      telegram_id: String(telegram_id),
+    })
 
     // Отправка сообщения о начале upscaling
     logger.info('📨 Sending initial upscaling message', { telegram_id })

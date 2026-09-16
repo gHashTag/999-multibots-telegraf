@@ -1,6 +1,7 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult, MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
 import { SERVICE_DESCRIPTION_PREFIX } from '@/utils/serviceMapping'
@@ -54,8 +55,17 @@ export const processBalanceOperation = async ({
   }
 
   // 🎁 ЛИДMАГНЕТ: Проверяем флаг обхода платежа (ТОЛЬКО для AvatarTransform!)
-  // ✅ БЕЗОПАСНОСТЬ: Bypass работает ТОЛЬКО для mode = 'AvatarTransform'
-  const isAvatarTransformMode = ctx?.session?.mode === 'AvatarTransform'
+  // ✅ БЕЗОПАСНОСТЬ: Bypass работает ТОЛЬКО для mode = ModeEnum.AvatarTransform
+  //
+  // This compared against 'AvatarTransform' -- the enum KEY -- while the enum
+  // VALUE is 'avatar_transform' (interfaces/modes.ts:24). Nothing ever writes
+  // the key into session.mode, so the comparison was false on every call, the
+  // free path below was dead, and every lead-magnet generation fell through to
+  // the "SECURITY violation" branch, which logged a warning about the customer
+  // and deleted the flag. The funnel that avatarTransformScene advertises as a
+  // free demonstration (index.ts:1315) has never once run free. Compare against
+  // the enum member so the two sides cannot drift again.
+  const isAvatarTransformMode = ctx?.session?.mode === ModeEnum.AvatarTransform
 
   if (ctx?.session?.bypass_payment_check && isAvatarTransformMode) {
     console.log(
@@ -117,6 +127,9 @@ export const processBalanceOperation = async ({
       modePrice: 0,
       paymentAmount: 0,
       currentBalance: 0,
+      // An operator incident, not a broke customer. See the note on the
+      // insufficient-funds return below.
+      insufficientFunds: false,
     }
   }
 
@@ -144,6 +157,21 @@ export const processBalanceOperation = async ({
         modePrice: paymentAmount,
         paymentAmount: paymentAmount,
         currentBalance,
+        // THE ONLY refusal here that means "the customer is short".
+        //
+        // This helper returns success:false for four unrelated reasons and
+        // every caller had to guess which one by reading `error`, a piece of
+        // user-facing prose in two languages. So they stopped guessing: four
+        // image generators ignored the answer entirely and served the work for
+        // free, and FluxKontextMax flattened all four into one
+        // `throw new Error('Not enough stars')` -- telling a customer whose
+        // balance WRITE failed that they were broke, and filing an operator
+        // incident as a broke customer.
+        //
+        // The flag already existed and was already documented for exactly this
+        // (payments.interface.ts) -- the video path has used it for a while.
+        // The image path never adopted it. It does now.
+        insufficientFunds: true,
       }
     }
 
@@ -192,6 +220,10 @@ export const processBalanceOperation = async ({
         modePrice: paymentAmount,
         paymentAmount: paymentAmount,
         currentBalance,
+        // The customer had the stars; the WRITE failed. Charging them the
+        // "you are broke" message for our database's bad day is the specific
+        // misreport this flag exists to prevent.
+        insufficientFunds: false,
       }
     }
 
@@ -211,6 +243,9 @@ export const processBalanceOperation = async ({
       modePrice: paymentAmount,
       paymentAmount: paymentAmount,
       currentBalance: await getUserBalance(telegram_id.toString()),
+      // Whatever threw here, it was not the customer's balance: the
+      // insufficient-funds path returns above without throwing.
+      insufficientFunds: false,
     }
   }
 }

@@ -11,11 +11,12 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 129. Без заголовка: 0.
+Ратчетов: 131. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | `aRefusalIsNotAnnouncedAsSuccess.test.ts`              | a refusal is shown as a refusal                                                               |
+| `aRefusedChargeStopsTheGeneration.test.ts`             | refuseUnpaidGeneration tells an empty wallet from a broken one                                |
 | `aiCoverRefundChecked.test.ts`                         | aiCover refund result is checked and reported truthfully                                      |
 | `aiPhotoshopAllModelsConsumeInput.test.ts`             | aiPhotoshopScene all_models branch consumes input before returning (no stale re-charge)       |
 | `aiPhotoshopBatchRefundReconciled.test.ts`             | aiPhotoshopScene batch skipBalanceCheck calls reconcile refunds to the charge                 |
@@ -121,6 +122,7 @@
 | `stuckPaymentsWatchdog.test.ts`                        | the stuck-payment watchdog cannot report a comfortable zero                                   |
 | `superheroQuotaCounterAccumulates.test.ts`             | superhero generation quota counter accumulates (no upsert-overwrite)                          |
 | `theFreeDemoOfferSurvivesTheMenu.test.ts`              | the offer at the end of the free demo survives the menu that follows                          |
+| `theFreeGenerationWasNeverFree.test.ts`                | the two halves of the bypass agree on one string                                              |
 | `theSignIsSetByTypeOnEveryWriter.test.ts`              | the sign is set by type, on every writer                                                      |
 | `theTwoCohortsAreReadApart.test.ts`                    | the two cohorts are read apart                                                                |
 | `ton-payment-claim-once.test.ts`                       | %s credits a TON payment once                                                                 |

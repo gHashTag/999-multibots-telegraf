@@ -14,7 +14,12 @@ import { FLUX_KONTEXT_MODELS } from '@/price/models'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
-import { processBalanceOperation } from '@/price/helpers'
+import {
+  processBalanceOperation,
+  refuseUnpaidGeneration,
+  BalanceRefusedError,
+  INSUFFICIENT_FUNDS_SENTINEL,
+} from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
 import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
 import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
@@ -133,13 +138,16 @@ export const generateFluxKontext = async (
       telegram_id,
     })
 
-    if (!balanceCheck.success) {
-      console.error('🚨 [CRITICAL] Balance check failed:', {
-        telegram_id,
-        balanceCheck,
-      })
-      throw new Error('Not enough stars')
-    }
+    // Was `throw new Error('Not enough stars')` for ANY failed charge. Five
+    // catch sites downstream turn that exact string into a top-up prompt, so
+    // a customer WITH stars whose balance WRITE failed -- or whose price
+    // computed to zero -- was told they were broke, and the operator incident
+    // was filed as poverty. refuseUnpaidGeneration keeps the sentinel for the
+    // one case it describes and carries the real reason for the rest.
+    refuseUnpaidGeneration(balanceCheck, {
+      service: 'FluxKontext',
+      telegram_id: String(telegram_id),
+    })
 
     logger.info(
       '[generateFluxKontext] Balance check passed, sending status message',
@@ -728,7 +736,19 @@ export const generateAdvancedFluxKontext = async (
         )
       }
 
-      throw new Error('Not enough stars')
+      // The ONE place in this repository where the no-stars sentinel is the
+      // literal truth: the balance was read and compared against the price
+      // right here, so there is no other reason it could be. Thrown as the
+      // typed error anyway, so the census over `new Error('Not enough stars')`
+      // can be absolute -- a bare throw of that string is always someone
+      // guessing why a charge failed, and this is the only counter-example
+      // that would have forced the ratchet to carry an exception list.
+      throw new BalanceRefusedError({
+        message: INSUFFICIENT_FUNDS_SENTINEL,
+        insufficientFunds: true,
+        reason: `balance ${currentBalance} below price ${cost} (pre-check, nothing charged)`,
+        userAlreadyNotified: Boolean(ctx && ctx.telegram),
+      })
     }
 
     console.log('✅ [BALANCE CHECK] Sufficient balance:', {
@@ -1236,13 +1256,16 @@ export const upscaleFluxKontextImage = async (params: {
       telegram_id,
     })
 
-    if (!balanceCheck.success) {
-      console.error('🚨 [CRITICAL] Balance check failed:', {
-        telegram_id,
-        balanceCheck,
-      })
-      throw new Error('Not enough stars')
-    }
+    // Was `throw new Error('Not enough stars')` for ANY failed charge. Five
+    // catch sites downstream turn that exact string into a top-up prompt, so
+    // a customer WITH stars whose balance WRITE failed -- or whose price
+    // computed to zero -- was told they were broke, and the operator incident
+    // was filed as poverty. refuseUnpaidGeneration keeps the sentinel for the
+    // one case it describes and carries the real reason for the rest.
+    refuseUnpaidGeneration(balanceCheck, {
+      service: 'FluxKontext',
+      telegram_id: String(telegram_id),
+    })
 
     // Отправка сообщения о начале upscaling
     if (ctx && ctx.telegram) {

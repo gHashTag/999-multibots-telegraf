@@ -7,7 +7,11 @@ import { pulse } from '@/helpers/pulse'
 import { getUserBalance } from '@/core/supabase'
 import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger } from '@/utils/logger'
-import { processBalanceOperation } from '@/price/helpers'
+import {
+  processBalanceOperation,
+  refuseUnpaidGeneration,
+  BalanceRefusedError,
+} from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -69,6 +73,12 @@ export const generateQwenImageEdit = async (
 
   // Объявляем переменные до try для доступности в catch
   let totalCost = 0
+  // This service refunded on `totalCost > 0` alone -- no record of whether a
+  // charge ever happened. refundUser is ledger-guarded, but its guard matches
+  // any charge of sufficient size in the window rather than this one, so an
+  // uncharged failure could credit against an unrelated purchase. Mirrors the
+  // `charged` gate the Pro and SeedEdit3 siblings already had.
+  let charged = false
   // saveFileLocally persists a local copy that delivery never uses (it sends the
   // REMOTE imageUrl), so unlink it on every path -- same leak as fluxKontextPro
   // (#1537). Declared here so the finally can reach it.
@@ -160,11 +170,28 @@ export const generateQwenImageEdit = async (
         bot_name: ctx.botInfo.username,
       })
 
+      // Refuse BEFORE the status message and the provider call. This service
+      // did not even keep the answer -- it read the result and dropped it.
+      refuseUnpaidGeneration(balanceResult, {
+        service: 'QwenImageEdit',
+        telegram_id,
+      })
+
+      // `balanceResult.success === true` rather than a bare `true`, even though
+      // refuseUnpaidGeneration above guarantees it. The refund downstream turns
+      // on this flag, and a money guard should be readable as correct without
+      // first reading another file to learn that a helper throws.
+      charged = balanceResult.success === true
+
       logger.info('🟢 [QwenImageEdit] Balance check result:', {
         telegram_id,
-        balanceCheckSuccess: !!balanceResult,
+        // was `!!balanceResult`: the truthiness of the RESULT OBJECT, always true.
+        balanceCheckSuccess: balanceResult.success,
       })
     } else {
+      // Batch mode: the caller charged before the loop, so a failure here
+      // still owes a refund.
+      charged = true
       logger.info(
         '⏭️ [QwenImageEdit] Skipping balance check (already verified)',
         {
@@ -347,6 +374,22 @@ export const generateQwenImageEdit = async (
       prompt_id: promptId || 0,
     }
   } catch (error) {
+    // A refused charge is not a service failure. Re-thrown here, before
+    // anything else in this catch, for two separate reasons:
+    //
+    //   1. ALERTS. Every logger.error in this process is a Telegram message to
+    //      the owner (utils/logger.ts). Logging "QwenImageEdit Service error" for an empty
+    //      wallet would page a human for a working system, once per broke
+    //      customer.
+    //   2. MONEY. The refund below must not run. The refusal happens before any
+    //      charge, so a refund here would credit stars that were never taken --
+    //      refundUser is ledger-guarded, but its guard matches any charge of
+    //      sufficient size in the window, not this one.
+    //
+    // The caller decides what the person sees; refuseUnpaidGeneration has
+    // already said whether they were told.
+    if (error instanceof BalanceRefusedError) throw error
+
     logger.error('💥 [QwenImageEdit] Service error:', {
       telegram_id: params.telegram_id,
       error: error instanceof Error ? error.message : String(error),
@@ -355,7 +398,7 @@ export const generateQwenImageEdit = async (
 
     // ✅ Refund on any outer error (if not already refunded in inner catch)
     try {
-      if (totalCost > 0 && params.ctx) {
+      if (charged && totalCost > 0 && params.ctx) {
         await refundUser(params.ctx, totalCost, {
           silent: params.silent || false,
           reason: 'generation_failed',
