@@ -59,6 +59,27 @@ for b in $LIST; do
   else
     BAD=$((BAD + 1)); printf '  🛑 %s:\n' "$b"
     git diff --name-only --diff-filter=U | sed 's/^/       /'
+    # ПОКАЗАТЬ СПОРНОЕ МЕСТО, А НЕ ТОЛЬКО ИМЯ ФАЙЛА.
+    #
+    # Имя файла говорит «тут будет больно» и ничего больше. А спор почти
+    # всегда виден в пяти строках, и по ним сразу ясно, спор ли это вообще:
+    # две ветки, заменяющие ОДНУ строку разными дополнениями, — это не
+    # разногласие, а соседство, и разрешается оно объединением, не выбором.
+    git diff --diff-filter=U 2>/dev/null | python3 -c '
+import re, sys
+# КОММЕНТАРИИ НЕ СПОРЯТ. Их в этом репозитории больше, чем кода, и в спорном
+# куске они забивают собой ту единственную строку, ради которой всё читается.
+skip = re.compile(r"^\s*(\*|//|/\*|#)")
+shown = 0
+for line in sys.stdin:
+    if shown >= 10:
+        break
+    body = line[2:].rstrip() if line[:2] in ("++", "+ ") else None
+    if body is None or not body.strip() or skip.match(body):
+        continue
+    print("         " + body[:78])
+    shown += 1
+'
     CONF="$CONF $b"
     git merge --abort 2>/dev/null
   fi
