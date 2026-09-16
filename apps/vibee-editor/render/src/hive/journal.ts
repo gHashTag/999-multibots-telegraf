@@ -110,6 +110,18 @@ export type EventKind =
    * enough not to be noise, frequent enough that silence becomes evidence.
    */
   | 'sweep-held'
+  /**
+   * NOBODY HAS SWEPT FOR HALF A DAY, AND THAT IS NOT A PAUSE ANY MORE.
+   *
+   * Written by the render, not by the sweep -- a seller that has stopped
+   * cannot report that it stopped. The render is a different service on a
+   * different process, so it survives exactly the failure this is for.
+   *
+   * Depends on `sweep-held` existing: without a heartbeat a legitimate hold
+   * is silent for twelve hours and this would cry wolf every night. The two
+   * ship together or not at all.
+   */
+  | 'seller-silent'
   /*
    * THE PRESS ITSELF. The central act of this product left no trace anywhere.
    *
