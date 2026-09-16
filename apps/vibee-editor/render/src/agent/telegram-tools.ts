@@ -31,6 +31,7 @@
 
 import crypto from 'node:crypto'
 import type { AgentTool, ToolContext } from './tools'
+import { reasonFor } from './crm-reason'
 import { remember } from './tg-proposals'
 import type { ProposalMedia, ProposalCharge } from './tg-proposals'
 
@@ -756,12 +757,30 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
        * is confident — especially then, because confidence is exactly what a
        * well-written injection produces.
        */
+      /*
+       * WHY THIS PERSON, ON THIS CARD TOO.
+       *
+       * The offer card got this first; most cards are ordinary letters from
+       * the sweep, and they went out with only a recipient and a text. The
+       * lead here is the target itself when it is a numeric id -- exactly
+       * what cardLeadOf does on the other side.
+       *
+       * The lead argument of propose() is deliberately NOT set: that one also
+       * decides whether a confirmed send records a `written` touch, and this
+       * change is about the card, not about the books.
+       */
+      const chat = String(args.chat ?? '')
+      const lead = /^\d{5,15}$/.test(chat) ? chat : ''
+      const because = lead ? await reasonFor(ctx, lead).catch(() => '') : ''
       return propose(
         'send',
         args.chat,
         args.text,
         'Отправка ждёт подтверждения человека. Покажи адресата и текст целиком.',
-        ctx
+        ctx,
+        undefined,
+        undefined,
+        because ? { because } : undefined
       )
     },
   },
