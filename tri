@@ -3766,8 +3766,18 @@ cmd_player_deploy () {
   [ -n "$before" ] || { bad "cannot read the live bundle from $origin"; return 1; }
   printf '  live now: %s\n' "$before"
   if [ "${1:-}" = "--check" ]; then return 0; fi
-  railway redeploy --service vibee-editor --from-source -y >/dev/null 2>&1 || {
-    bad "railway redeploy failed"; return 1; }
+  # DO NOT SWALLOW THE ERROR. The first version sent stderr to /dev/null and
+  # printed "railway redeploy failed", which is the same amount of information
+  # as silence: the real cause was that the Railway link lives in the main
+  # checkout, and this ran from a worktree. A command that hides its own
+  # diagnosis makes the next person re-discover it.
+  local out
+  if ! out="$(railway redeploy --service vibee-editor --from-source -y 2>&1)"; then
+    bad "railway redeploy failed:"
+    printf '%s\n' "$out" | tail -5
+    warn "the Railway link is per-directory; run this from the main checkout, not a worktree"
+    return 1
+  fi
   printf '  redeploy requested, waiting for the served bundle to change\n'
   while [ "$waited" -lt 900 ]; do
     sleep 20; waited=$((waited + 20))
