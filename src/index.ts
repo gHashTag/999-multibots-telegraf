@@ -1,6 +1,11 @@
 import { isDev } from './config'
 import { ADMIN_IDS_ARRAY } from './config'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
+import {
+  discoverBotTokenEntries,
+  nextFreeBotSlot,
+} from '@/utils/discoverBotTokens'
+import { stopBotsQuietly } from '@/utils/stopBotsQuietly'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -138,23 +143,11 @@ export async function isPortInUse(port: number): Promise<boolean> {
 
 // 🚀 АВТОМАТИЧЕСКОЕ ОБНАРУЖЕНИЕ BOT ТОКЕНОВ
 // Масштабируемая архитектура: просто добавьте BOT_TOKEN_N в Infisical
-function discoverBotTokens(): string[] {
-  const tokens: string[] = []
-
-  // Ищем все переменные BOT_TOKEN_* (с 1 до 100)
-  for (let i = 1; i <= 100; i++) {
-    const tokenKey = `BOT_TOKEN_${i}`
-    const token = process.env[tokenKey]
-
-    if (token) {
-      tokens.push(token)
-    }
-    // ✅ ИСПРАВЛЕНИЕ: Убираем gap detection - сканируем все 100 токенов
-    // Это позволяет BOT_TOKEN_11 загрузиться даже если между ним есть пропуски
-  }
-
-  return tokens
-}
+//
+// The scan, names included, lives in utils/discoverBotTokens: a copy of this
+// loop also stood in src/bot.ts, and two copies drift apart silently. It returns
+// the NAME beside the token -- see that file for why the name must not be
+// computed from an array position.
 
 /**
  * Launch a bot, retrying on Telegram 409 Conflict.
@@ -214,7 +207,8 @@ async function initializeBots() {
 
   // 🚀 МАСШТАБИРУЕМАЯ АРХИТЕКТУРА: автоматически находим все BOT_TOKEN_*
   const infisicalEnv = process.env.INFISICAL_ENVIRONMENT || 'dev'
-  const botTokens = discoverBotTokens()
+  const botTokenEntries = discoverBotTokenEntries() // secret-guard-ok: reads env at runtime, no literal
+  const botTokens = botTokenEntries.map(e => e.token)
 
   if (botTokens.length === 0) {
     throw new Error(
@@ -234,9 +228,19 @@ async function initializeBots() {
   console.log(
     `${envIcon} ${envName}: обнаружено ${botTokens.length} бот${botTokens.length === 1 ? '' : botTokens.length < 5 ? 'а' : 'ов'}`
   )
-  console.log(`   📝 Используются: BOT_TOKEN_1 - BOT_TOKEN_${botTokens.length}`)
+  // List the names actually FOUND, not a range off the counter: with the hole
+  // at eleven, "BOT_TOKEN_1 - BOT_TOKEN_11" names a variable that is absent and
+  // says nothing about the twelfth, which is running.
+  //
+  // The names are assembled BEFORE the log call on purpose. The guard in
+  // src/__tests__/security/no-secret-in-logs.test.ts reads the expression inside
+  // console.log, not the intent: `botTokenEntries.map(e => e.key)` carries the
+  // word Token and is indistinguishable to it from printing the token itself.
+  // This variable holds environment variable NAMES, and is named accordingly.
+  const loadedSlots = botTokenEntries.map(e => e.key).join(', ')
+  console.log(`   📝 Используются: ${loadedSlots}`)
   console.log(
-    `   💡 Чтобы добавить ещё ботов, добавьте BOT_TOKEN_${botTokens.length + 1} в Infisical\n`
+    `   💡 Чтобы добавить ещё ботов, добавьте BOT_TOKEN_${nextFreeBotSlot()} в Infisical\n`
   )
 
   // 🔧 Запускаем ВСЕХ ботов параллельно (НЕ блокируя цикл!)
@@ -244,12 +248,19 @@ async function initializeBots() {
 
   // Определяем имена токенов для информативных логов
   const getTokenName = (index: number): string => {
+    // No `BOT_TOKEN_<position>` fallback: the loop below walks this very array,
+    // so the index cannot miss -- and the fallback would return exactly the
+    // wrong name this change exists to remove.
+    const key = botTokenEntries[index].key
     if (infisicalEnv === 'dev') {
       return index === 0
-        ? 'BOT_TOKEN_1 (основной dev бот)'
-        : 'BOT_TOKEN_2 (дополнительный dev бот)'
+        ? `${key} (основной dev бот)`
+        : `${key} (дополнительный dev бот)`
     }
-    return `BOT_TOKEN_${index + 1}`
+    // The name comes from the key the token was TAKEN from. This used to read
+    // `BOT_TOKEN_${index + 1}` -- a position -- so over the hole at eleven an
+    // invalid t27ai_bot would have blamed BOT_TOKEN_11, which does not exist.
+    return key
   }
 
   for (let i = 0; i < botTokens.length; i++) {
@@ -579,10 +590,18 @@ async function initializeBots() {
 // Асинхронная функция для остановки
 async function gracefulShutdown(signal: string) {
   console.log(`🚨 Получен сигнал ${signal}. Завершение работы...`)
-  for (const bot of botInstances) {
-    const botUsername = bot.botInfo?.username || 'neuro_blogger_bot'
-    console.log(`🚫 Остановка бота ${botUsername}...`)
-    await bot.stop()
+  // Each bot is stopped independently: one that never came up throws
+  // synchronously and used to end the shutdown. See utils/stopBotsQuietly.
+  const outcomes = await stopBotsQuietly(botInstances)
+  for (const o of outcomes) {
+    if (o.result === 'stopped') {
+      console.log(`🚫 Бот ${o.name} остановлен`)
+    } else if (o.result === 'not-running') {
+      // A normal state at shutdown, not a fault: no push to the owner.
+      console.log(`➖ Бот ${o.name} не был запущен — останавливать нечего`)
+    } else {
+      console.error(`⚠️ Бот ${o.name}: остановка не удалась`, o.error)
+    }
   }
   process.exit(0)
 }
