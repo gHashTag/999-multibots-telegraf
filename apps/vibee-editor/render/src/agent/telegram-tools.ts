@@ -148,6 +148,23 @@ export interface ProposalExtras {
   invoiceId?: number
   media?: ProposalMedia
   charge?: ProposalCharge
+  /** Why this person, in one line, for the card the owner presses. */
+  because?: string
+}
+
+/**
+ * One short line out of anything, including somebody else's words.
+ *
+ * The card is plain text, so markup cannot fire -- but a newline would break
+ * the layout and three hundred characters would push the buttons off a phone
+ * screen. Cut here as well as at the card: the field travels over the wire in
+ * between, and whoever draws it next should not have to remember.
+ */
+export function oneLine(text: string, max: number): string {
+  const flat = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return flat.length > max ? flat.slice(0, max - 1) + '…' : flat
 }
 
 /**
@@ -195,6 +212,7 @@ function propose(
     ...(extra?.display ? { display: extra.display } : {}),
     ...(extra?.media ? { media: extra.media } : {}),
     ...(extra?.charge ? { charge: extra.charge } : {}),
+    ...(extra?.because ? { because: oneLine(extra.because, 160) } : {}),
   }
   /*
    * A SHORT ID, BECAUSE THE BUTTON HAS 64 BYTES.
@@ -244,6 +262,7 @@ function propose(
       invoiceId: extra?.invoiceId,
       media: extra?.media,
       charge: extra?.charge,
+      ...(extra?.because ? { because: oneLine(extra.because, 160) } : {}),
     })
   }
   /*

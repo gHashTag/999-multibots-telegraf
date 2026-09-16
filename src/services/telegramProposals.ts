@@ -60,6 +60,17 @@ export interface Proposal {
   charge?: { telegramId: string; op: string; tokens: number }
   /** The person in the base this draft is for, when the server knew one. */
   lead?: string
+  /**
+   * Why this person, in one line, composed by the server.
+   *
+   * Measured 16.09.2026: five cards have ever left the seller, four of them
+   * in the last week, against 316 people waiting -- and the limiter is this
+   * press. What stands in front of it is having to open the chat to remember
+   * who this is and what they said. The card said WHO and WHAT WILL BE SENT;
+   * this is the third thing, and it carries THEIR words, so it is trimmed the
+   * way `display` is.
+   */
+  because?: string
 }
 
 const NUMERIC_LEAD = /^\d{5,15}$/
@@ -276,7 +287,17 @@ export function proposalCard(
       ? `\nСпишется у получателя: ${p.charge.tokens} токенов`
       : `\nThe recipient will be charged: ${p.charge.tokens} tokens`
     : ''
-  const head = `${ask}\n\n${isRu ? 'Кому' : 'To'}: ${to}${price}`
+  /*
+   * Their own words, and the queue's opinion, as the server composed them.
+   * Third-party text: flattened to one line and cut, exactly like `display`
+   * two lines above. The card is plain text, so nothing here can render.
+   */
+  const reason = String(p.because ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200)
+  const why = reason ? `\n${isRu ? 'Почему он' : 'Why them'}: ${reason}` : ''
+  const head = `${ask}\n\n${isRu ? 'Кому' : 'To'}: ${to}${why}${price}`
   const tail = cut
     ? isRu
       ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`

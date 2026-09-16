@@ -772,3 +772,73 @@ describe('a photo card shows the service under the same two buttons', () => {
     expect(block).toContain('${card.photo}')
   })
 })
+
+/**
+ * THE CARD SAYS WHY THIS PERSON, NOT ONLY WHO AND WHAT.
+ *
+ * Measured 16.09.2026 in production: five cards have ever left the seller,
+ * four of them in the last week, against 316 people waiting -- and the
+ * limiter is the owner's press, by design. What stands in front of a press is
+ * having to open the chat to remember who this is and what they said.
+ *
+ * So the server composes one line from facts it already holds -- what the
+ * queue says about them, and their own last words -- and the card prints it
+ * between the recipient and the text. Their words are third-party text: one
+ * line, cut, and the card is plain text so nothing can render.
+ */
+describe('the card carries the reason this person was chosen', () => {
+  const base = {
+    id: 'abc123456789',
+    action: 'send' as const,
+    target: '900000001',
+    what: 'Готов сделать рилс сегодня',
+    secret: 'f'.repeat(32),
+  }
+
+  it('prints it between the recipient and the text', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      {
+        ...base,
+        because: 'ответил, а мы молчим, 3 дн.; сам писал: «а сколько стоит?»',
+      },
+      true
+    )
+    const to = card.text.indexOf('Кому')
+    const why = card.text.indexOf('Почему он')
+    const body = card.text.indexOf('Готов сделать рилс')
+    expect(why, 'the reason is not on the card').toBeGreaterThan(to)
+    expect(
+      why,
+      'the reason is below the message instead of above it'
+    ).toBeLessThan(body)
+    expect(card.text).toContain('а сколько стоит?')
+  })
+
+  it('a card without a reason looks exactly as it did', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(base, true)
+    expect(card.text).not.toContain('Почему он')
+    expect(card.text).toContain('Кому')
+  })
+
+  it('their words cannot break the card', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    // A newline would split the layout; three hundred characters would push
+    // the buttons off a phone. Both are cut here as well as on the server.
+    const card = proposalCard(
+      { ...base, because: 'сам писал: «строка\nвторая» ' + 'я'.repeat(400) },
+      true
+    )
+    const line = card.text
+      .split('\n')
+      .find(l => l.startsWith('Почему он')) as string
+    expect(line, 'the reason lost its own line').toBeTruthy()
+    expect(line.length).toBeLessThan(230)
+    // ONE line: the second half of a two-line quote has to be on the SAME
+    // line as the label, not below it. Asserted on that line rather than on
+    // the whole card -- a newline that survives puts the quote's second half
+    // on its own line, and a card-wide search finds it either way.
+    expect(line, 'a newline in their words split the card').toContain('вторая')
+  })
+})

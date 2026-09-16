@@ -67,6 +67,21 @@ export interface PendingProposal {
   lead?: string
   /** Whose bot the lead belongs to, for the touch's own visibility scope. */
   bot?: string | null
+  /**
+   * WHY THIS PERSON, IN ONE LINE, FOR THE CARD.
+   *
+   * Measured this cycle: five cards have ever left the seller, four of them
+   * in the last week, against 316 people waiting -- and the limiter is the
+   * owner's press, by design. What stands between him and the button is not
+   * the button: it is having to open the chat to remember who this is and
+   * what they last said.
+   *
+   * Composed on the server from facts it already holds (what the queue says
+   * about them, and their own last words). Third-party text passes through
+   * here, so it arrives already cut to one short line; the card trims it
+   * again, the way it trims `display`.
+   */
+  because?: string
   createdAt: number
   /**
    * THE ONE-TIME SECRET, AND WHY THE ID IS NOT ENOUGH.
