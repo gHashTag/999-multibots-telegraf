@@ -37,6 +37,11 @@ export function wireInvoiceOrphans(getPool: GetPool): void {
   if (wired) return
   wired = true
   onOrphaned((p, reason) => {
+    // THE FILTER LIVES HERE NOW, not in the queue. An invoice to un-pend or
+    // a picture already made and never sent is this module's business; a
+    // plain text draft is somebody else's (card-journal.ts) and used to be
+    // nobody's.
+    if (p.invoiceId === undefined && !p.media) return
     // Fire and forget: nobody awaits a hang-up note, and a slow database
     // must not hold the button press that caused it.
     void markOrphaned(getPool, p, reason)

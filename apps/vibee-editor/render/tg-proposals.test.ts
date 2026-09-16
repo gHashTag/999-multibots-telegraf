@@ -1154,12 +1154,25 @@ describe('an invoice does not outlive its draft', () => {
     expect(seen.map(s => [s.id, s.reason])).toEqual([['ph1', 'replaced']])
   })
 
-  it('a draft without an invoice never wakes the listener', () => {
+  it('a draft WITHOUT an invoice wakes the listener too, now', () => {
+    /*
+     * This used to assert the opposite, and that assertion was the hole.
+     * A plain text draft -- the ordinary card, the one the seller makes
+     * eleven times a day -- was reported to nobody, so 62 cards over five
+     * days left five traces and "57 nowhere" could not be counted.
+     *
+     * The filter did not disappear; it moved to the listener that needs it
+     * (invoice-orphans.ts), where a bookkeeper of invoices ignores text and
+     * the funnel does not.
+     */
     const d = draft('n1')
     claim(WHO, 'n1', d.secret, 'cancel')
     draft('n2')
     draft('n3')
-    expect(seen).toEqual([])
+    expect(
+      seen.map(x => `${x.id}:${x.reason}`),
+      'a plain card is invisible again'
+    ).toContain('n1:cancelled')
   })
 
   it('a listener that throws does not break the press', () => {
@@ -1182,19 +1195,31 @@ describe('an invoice does not outlive its draft', () => {
     }
   })
 
-  it('a second registration replaces the first, and null removes it', () => {
+  it('registrations ADD UP, and null removes them all', () => {
+    /*
+     * Also the opposite of what it used to say. One listener meant one
+     * filter, and the strictest one won: the invoice bookkeeper's. Two
+     * listeners with their own filters is what lets the funnel see a card
+     * the bookkeeper has no business with.
+     *
+     * `null` still clears everything, which is what a test finishing up
+     * means by it.
+     */
     const other: string[] = []
     onOrphaned(p => {
       other.push(p.id)
     })
     const d = draft('r1', 3)
     claim(WHO, 'r1', d.secret, 'cancel')
-    expect(seen).toEqual([])
+    expect(
+      seen.map(x => `${x.id}:${x.reason}`),
+      'the first listener stopped hearing'
+    ).toContain('r1:cancelled')
     expect(other).toEqual(['r1'])
     onOrphaned(null)
     const d2 = draft('r2', 4)
     claim(WHO, 'r2', d2.secret, 'cancel')
-    expect(other).toEqual(['r1'])
+    expect(other, 'null did not remove them').toEqual(['r1'])
   })
 
   it('a send that failed AFTER the press reports the invoice as failed', () => {
@@ -1208,11 +1233,13 @@ describe('an invoice does not outlive its draft', () => {
     expect(seen).toEqual([{ id: 'f1', invoiceId: 11, reason: 'failed' }])
   })
 
-  it('reportOrphan on a draft without an invoice is silent', () => {
+  it('reportOrphan on a draft without an invoice speaks up, now', () => {
+    // A send that failed is worth a line whether or not money was attached:
+    // the owner pressed, and nothing reached the client.
     const d = draft('f2')
     const taken = claim(WHO, 'f2', d.secret)
     reportOrphan((taken as { proposal: never }).proposal, 'failed')
-    expect(seen).toEqual([])
+    expect(seen.map(x => `${x.id}:${x.reason}`)).toContain('f2:failed')
   })
 
   it('the listener receives the public shape: no secret, no turn', () => {

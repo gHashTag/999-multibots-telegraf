@@ -97,6 +97,8 @@ export type EventKind =
   | 'sweep-idle'
   | 'sweep-card'
   | 'sweep-failed'
+  /** A card left the queue unsent: replaced, expired, cancelled or failed. */
+  | 'card-dropped'
   // other
   | 'failure'
 

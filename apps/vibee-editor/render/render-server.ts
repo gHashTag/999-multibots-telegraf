@@ -11355,6 +11355,14 @@ async function main() {
   } catch (e) {
     console.warn('[STARS] orphan wiring failed:', String(e).slice(0, 120))
   }
+  // And the funnel line for EVERY dropped card, invoice or not: 62 prepared
+  // against 5 sent was not a fact anybody could look up until this listener.
+  try {
+    const cards = await import('./src/agent/card-journal')
+    cards.wireCardJournal(() => getPool())
+  } catch (e) {
+    console.warn('[cards] journal wiring failed:', String(e).slice(0, 120))
+  }
 
   /*
    * And the queue itself is mirrored to a table, so a deploy stops eating the

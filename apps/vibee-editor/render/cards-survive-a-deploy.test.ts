@@ -313,8 +313,13 @@ describe('a card minted by the other container during a deploy', () => {
     const out = await claimAcrossDeploy(WHO, 'sweep-4', secret)
     expect(out.ok).toBe(false)
     expect(rows.has('sweep-4')).toBe(false)
-    // A plain text draft is not reported; only invoices and media are.
-    expect(seen).toEqual([])
+    /*
+     * And it is REPORTED, which it was not until 2026-09-16: a plain text
+     * draft woke nobody, so a card that expired unseen across a deploy left
+     * no trace anywhere. That is the ordinary card, and after a redeploy is
+     * exactly when it happens.
+     */
+    expect(seen).toEqual(['sweep-4:expired'])
   })
 
   it('a row that was never issued cannot be pressed into existence', async () => {

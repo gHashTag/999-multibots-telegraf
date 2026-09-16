@@ -300,16 +300,30 @@ const pending = new Map<string, PendingProposal>()
  */
 export type OrphanReason = 'cancelled' | 'replaced' | 'expired' | 'failed'
 type OrphanListener = (p: PublicProposal, reason: OrphanReason) => void
-let orphanListener: OrphanListener | null = null
+// owner-scope: per process -- the queue has one set of listeners, like the
+// queue itself; each is handed the owner with every call.
+const orphanListeners = new Set<OrphanListener>()
 
 /**
  * The queue owns no database. Whoever does (render-server, at startup)
- * registers here, and the queue reports every draft that leaves unsent with
- * an invoice attached. One listener: a second registration replaces the
- * first, so a test can install its own and take it away.
+ * registers here, and the queue reports EVERY draft that leaves unsent.
+ *
+ * MORE THAN ONE LISTENER, AND THE FILTER MOVED TO THEM.
+ *
+ * Until 2026-09-16 there was a single listener and a filter here: a draft
+ * with neither an invoice nor a picture was reported to nobody. That is the
+ * ordinary card -- a proposal to write to somebody -- and it is the one the
+ * seller makes eleven times a day. So 62 cards over five days left FIVE
+ * traces in total, and "62 prepared, 5 sent, 57 nowhere" could not be
+ * counted from anything the system kept.
+ *
+ * Each listener now filters its own business: the invoice bookkeeper still
+ * ignores plain text, the journal does not. `null` removes them all, which
+ * is what a test finishing up means by it.
  */
 export function onOrphaned(fn: OrphanListener | null): void {
-  orphanListener = fn
+  if (fn === null) orphanListeners.clear()
+  else orphanListeners.add(fn)
 }
 
 /**
@@ -473,15 +487,17 @@ export function restoreProposals(rows: PendingProposal[]): {
  * the draft has already left the queue, so there is nothing left to drop.
  */
 export function reportOrphan(p: PublicProposal, reason: OrphanReason): void {
-  // An invoice to un-pend, or a picture already made and never sent: both
-  // are worth a line somewhere. A plain text draft is not.
-  if ((p.invoiceId === undefined && !p.media) || !orphanListener) return
-  try {
-    orphanListener(p, reason)
-  } catch (e) {
-    // The listener is bookkeeping. The draft is gone whether or not the
-    // note about it lands.
-    console.warn('[proposal] orphan listener failed:', String(e).slice(0, 120))
+  for (const listen of orphanListeners) {
+    try {
+      listen(p, reason)
+    } catch (e) {
+      // A listener is bookkeeping. The draft is gone whether or not the note
+      // about it lands -- and one listener failing must not silence the next.
+      console.warn(
+        '[proposal] orphan listener failed:',
+        String(e).slice(0, 120)
+      )
+    }
   }
 }
 
