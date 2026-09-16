@@ -46,8 +46,8 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
-  tri spelling   тесты, сторожащие написание исходника, а не свойство
   tri scan       чем этот код может соврать: обзор сторожей и дыр
+  tri spelling   тесты, сторожащие написание исходника, а не свойство
   tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
   tri promises   обещания в тексте, за которыми стоит число в другом файле
   tri waiting    что лежит в открытом PR и чем рискует — по группам
@@ -794,8 +794,8 @@ PYEOF
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
-  spelling) shift; bash "$ROOT/bin/helpers/spelling.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
+  spelling) shift; bash "$ROOT/bin/helpers/spelling.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
