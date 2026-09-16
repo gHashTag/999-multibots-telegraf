@@ -460,3 +460,6 @@ apps/vibee-editor/render/node_modules
 
 # Vite cache — per worktree, never in the shared node_modules (see vitest.config.ts)
 .vite-cache/
+
+# tri api: downloaded Bot API reference, re-fetched on demand
+.claude/cache/
