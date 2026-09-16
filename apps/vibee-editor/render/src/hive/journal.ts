@@ -97,6 +97,19 @@ export type EventKind =
   | 'sweep-idle'
   | 'sweep-card'
   | 'sweep-failed'
+  /**
+   * THE SELLER SAYING IT IS ALIVE WHILE IT DELIBERATELY DOES NOTHING.
+   *
+   * A sweep that holds -- a card is still pressable, so drawing another would
+   * evict it -- writes nothing, on purpose: a line every half hour would bury
+   * the days when something happened. The cost of that silence is that a hold
+   * and a dead cron look identical, and for fifteen cycles the only way to
+   * tell them apart was to reason about backoff arithmetic.
+   *
+   * So: at most one of these per HEARTBEAT, and only while holding. Rare
+   * enough not to be noise, frequent enough that silence becomes evidence.
+   */
+  | 'sweep-held'
   /*
    * THE PRESS ITSELF. The central act of this product left no trace anywhere.
    *

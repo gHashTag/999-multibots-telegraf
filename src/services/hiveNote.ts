@@ -25,7 +25,12 @@ const BASE =
 const TIMEOUT_MS = 10_000
 
 export type HiveNote = {
-  kind: 'sweep-idle' | 'sweep-card' | 'sweep-failed' | 'card-pressed'
+  kind:
+    | 'sweep-idle'
+    | 'sweep-card'
+    | 'sweep-failed'
+    | 'sweep-held'
+    | 'card-pressed'
   who: string | null
   what: string
   severity: 'normal' | 'attention' | 'alarm'
@@ -51,6 +56,27 @@ export function noteForSweep(
         kind: 'sweep-card',
         who: owner,
         what: (prefix + r.why).slice(0, 300),
+        severity: 'normal',
+      }
+    /*
+     * A HOLD IS SILENT BY DESIGN, AND ONCE IN A WHILE IT SAYS SO.
+     *
+     * Writing every hold would put a line in the journal every half hour and
+     * bury the days when something happened -- which is why it was silent.
+     * But silence costs more than noise here: a seller holding a card and a
+     * seller whose cron died look exactly the same, and telling them apart
+     * meant reasoning about backoff arithmetic against a 24-hour cap.
+     *
+     * The caller decides WHEN (once per HEARTBEAT_MS); this decides what it
+     * says. Its own kind, not `sweep-idle`, because idle means the seller
+     * looked and found nothing to do -- counting the two together would spoil
+     * the only number that says whether anybody is worth writing to.
+     */
+    case 'held':
+      return {
+        kind: 'sweep-held',
+        who: owner,
+        what: ('жив, держу паузу: ' + prefix + r.why).slice(0, 300),
         severity: 'normal',
       }
     case 'failed':

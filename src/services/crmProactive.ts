@@ -104,6 +104,33 @@ export interface SweepOpts {
 const INGEST_TIMEOUT_MS = 170_000
 
 /*
+ * HOW OFTEN A HOLDING SELLER SAYS IT IS ALIVE.
+ *
+ * Six hours: four lines a day at most, against a journal that gets dozens of
+ * events in a busy hour -- rare enough that it is not noise, frequent enough
+ * that a gap of a working day means something is wrong rather than quiet.
+ *
+ * Deliberately not tied to the hold itself, which grows from two hours to
+ * twenty-four: the point is a steady pulse, and a pulse that slows down
+ * exactly when the silence gets longest would be the least useful shape.
+ */
+const HEARTBEAT_MS = 6 * 60 * 60_000
+
+/**
+ * Is it time for a holding seller to say out loud that it is alive?
+ *
+ * A separate function because the alternative is a condition buried in the
+ * tick, reachable only by standing up a bot, a queue and a clock -- and a
+ * rule nobody can test cheaply is a rule that drifts. `0` means it has never
+ * spoken, which must count as due: the first hold after a restart is exactly
+ * when somebody is wondering.
+ */
+export function heartbeatDue(lastAliveAt: number, now: number): boolean {
+  if (!lastAliveAt) return true
+  return now - lastAliveAt >= HEARTBEAT_MS
+}
+
+/*
  * ONE HOLD PER SELLER, NOT ONE FOR EVERYBODY.
  *
  * These were three module-level variables, and ADMIN_IDS names more than one
@@ -129,6 +156,15 @@ interface SweepState {
   /** Cards pushed to this owner that no press has answered. */
   unpressed: number
   /**
+   * When this owner's seller last said out loud that it is alive.
+   *
+   * A hold writes nothing, which is right for noise and wrong for doubt: a
+   * seller holding a card and a seller whose cron died are the same silence.
+   * Measured 16.09.2026: four hours and thirteen minutes of nothing, and the
+   * only way to judge it was arithmetic over a backoff cap.
+   */
+  lastAliveAt: number
+  /**
    * When the card this owner is holding stops being pressable, as the render
    * itself reported it. 0 when no card is waiting.
    *
@@ -152,6 +188,7 @@ function stateOf(owner: string): SweepState {
       lastPushAt: 0,
       ingestFailStreak: 0,
       unpressed: 0,
+      lastAliveAt: 0,
       cardDiesAt: 0,
     }
     sweepState.set(key, st)
@@ -970,9 +1007,27 @@ export async function runProactiveTick(
     }
   }
   const r = await sweepOnce(owner, deps, { holdMs: opts.holdMs })
+  /*
+   * A HOLD SPEAKS AT MOST ONCE PER HEARTBEAT.
+   *
+   * Every other outcome goes to the journal as it happens. A hold is the one
+   * that repeats every half hour for hours, so writing each would bury the
+   * days when something happened -- and NOT writing any is what made a held
+   * seller and a dead cron the same silence.
+   *
+   * The rate limit lives here rather than in hiveNote because the clock it
+   * needs is this owner's state; hiveNote decides what a note says, not when.
+   */
+  let note = true
+  if (r.did === 'held') {
+    const st = stateOf(owner)
+    const now = deps.now?.() ?? Date.now()
+    if (!heartbeatDue(st.lastAliveAt, now)) note = false
+    else st.lastAliveAt = now
+  }
   // The diary entry, too: every run that ran is visible in the hive
   // (hiveNote.ts) -- quiet ones included, which the alert channel never was.
-  void noteSweepToHive(owner, r)
+  if (note) void noteSweepToHive(owner, r)
   /*
    * A FAILED SWEEP IS AN ERROR, NOT A DIARY ENTRY.
    *

@@ -10,14 +10,18 @@ const OWNER = '144022504'
 afterEach(() => vi.unstubAllEnvs())
 
 describe('what the journal is told', () => {
-  it('idle and card are normal notes, failed is attention, held/busy are not sweeps', () => {
-    expect(noteForSweep(OWNER, { did: 'idle', why: 'crm_leads: кандидатов нет' })).toEqual({
+  it('idle and card are normal notes, failed is attention, held is a heartbeat', () => {
+    expect(
+      noteForSweep(OWNER, { did: 'idle', why: 'crm_leads: кандидатов нет' })
+    ).toEqual({
       kind: 'sweep-idle',
       who: OWNER,
       what: 'crm_leads: кандидатов нет',
       severity: 'normal',
     })
-    expect(noteForSweep(OWNER, { did: 'card', why: 'ответ Тиму', id: 'p1' })).toMatchObject({
+    expect(
+      noteForSweep(OWNER, { did: 'card', why: 'ответ Тиму', id: 'p1' })
+    ).toMatchObject({
       kind: 'sweep-card',
       severity: 'normal',
     })
@@ -27,12 +31,35 @@ describe('what the journal is told', () => {
         why: 'ждёт Tim (next=reply), модель написала имя инструмента tg_send вместо вызова [модель ollama/qwen3:1.7b]: [[Подпись|tg_send]]',
       })
     ).toMatchObject({ kind: 'sweep-failed', severity: 'attention' })
-    expect(noteForSweep(OWNER, { did: 'held', why: 'карточка ждёт' })).toBeNull()
+    /*
+     * A HOLD USED TO WRITE NOTHING, AND THAT SILENCE HAD A PRICE.
+     *
+     * Every half hour a held seller wrote nothing, which kept the journal
+     * clean and made a held seller and a dead cron indistinguishable --
+     * production 16.09.2026 went four hours and thirteen minutes without a
+     * line, and judging it meant arithmetic over a backoff cap.
+     *
+     * So a hold gets a note of its OWN kind. Not `sweep-idle`: idle means the
+     * seller looked and found nobody worth writing to, and counting the two
+     * together would spoil the only number that answers that question.
+     *
+     * The rate limit is not here -- hiveNote decides what a note says, the
+     * tick decides how often (HEARTBEAT_MS).
+     */
+    const held = noteForSweep(OWNER, { did: 'held', why: 'карточка ждёт' })
+    expect(held).toMatchObject({ kind: 'sweep-held', severity: 'normal' })
+    expect(held?.what).toContain('жив')
+    expect(held?.what).toContain('карточка ждёт')
+    // busy means another sweep is mid-flight: that one will write its own line.
     expect(noteForSweep(OWNER, { did: 'busy', why: 'ещё идёт' })).toBeNull()
   })
 
   it('a scoped item carries its label, and the note is capped at 300 chars', () => {
-    const n = noteForSweep(OWNER, { did: 'idle', why: 'x'.repeat(400) }, '3/5 Анна')
+    const n = noteForSweep(
+      OWNER,
+      { did: 'idle', why: 'x'.repeat(400) },
+      '3/5 Анна'
+    )
     expect(n?.what.startsWith('3/5 Анна: xxx')).toBe(true)
     expect(n?.what.length).toBe(300)
   })
@@ -46,11 +73,18 @@ describe('sending it', () => {
       sent.push({ url, init })
       return new Response('{"ok":true}', { status: 200 })
     }) as never
-    const out = await noteSweepToHive(OWNER, { did: 'idle', why: 'тихо' }, { fetchImpl })
+    const out = await noteSweepToHive(
+      OWNER,
+      { did: 'idle', why: 'тихо' },
+      { fetchImpl }
+    )
     expect(out).toBe('noted')
     expect(sent[0].url).toContain('/api/hive/note')
     expect(sent[0].init.headers['X-Api-Key']).toBe('k')
-    expect(JSON.parse(sent[0].init.body)).toMatchObject({ kind: 'sweep-idle', who: OWNER })
+    expect(JSON.parse(sent[0].init.body)).toMatchObject({
+      kind: 'sweep-idle',
+      who: OWNER,
+    })
   })
 
   it('no key: not noted, no request; held: skipped; refused or down: not noted', async () => {
@@ -59,16 +93,42 @@ describe('sending it', () => {
       calls += 1
       return new Response('{}', { status: 403 })
     }) as never
-    expect(await noteSweepToHive(OWNER, { did: 'idle', why: 'x' }, { fetchImpl: counting })).toBe('not noted')
+    expect(
+      await noteSweepToHive(
+        OWNER,
+        { did: 'idle', why: 'x' },
+        { fetchImpl: counting }
+      )
+    ).toBe('not noted')
     expect(calls).toBe(0)
     vi.stubEnv('RENDER_API_KEY', 'k')
-    expect(await noteSweepToHive(OWNER, { did: 'held', why: 'x' }, { fetchImpl: counting })).toBe('skipped')
+    // A hold is now a note like any other: what used to be skipped here is
+    // rate-limited in the tick instead, where this owner's clock lives.
+    expect(
+      await noteSweepToHive(
+        OWNER,
+        { did: 'busy', why: 'x' },
+        { fetchImpl: counting }
+      )
+    ).toBe('skipped')
     expect(calls).toBe(0)
-    expect(await noteSweepToHive(OWNER, { did: 'idle', why: 'x' }, { fetchImpl: counting })).toBe('not noted')
+    expect(
+      await noteSweepToHive(
+        OWNER,
+        { did: 'idle', why: 'x' },
+        { fetchImpl: counting }
+      )
+    ).toBe('not noted')
     expect(calls).toBe(1)
     const down = (async () => {
       throw new Error('ECONNREFUSED')
     }) as never
-    expect(await noteSweepToHive(OWNER, { did: 'failed', why: 'x' }, { fetchImpl: down })).toBe('not noted')
+    expect(
+      await noteSweepToHive(
+        OWNER,
+        { did: 'failed', why: 'x' },
+        { fetchImpl: down }
+      )
+    ).toBe('not noted')
   })
 })

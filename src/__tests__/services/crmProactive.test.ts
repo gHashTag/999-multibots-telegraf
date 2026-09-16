@@ -11,6 +11,8 @@ import {
   SWEEP_RETRY_NOTE_LOOKED,
   leadsNote,
   HOLD_MS_DEFAULT,
+  heartbeatDue,
+  BACKOFF_CAP_MS,
   reportSweepOutcome,
   type SweepDeps,
 } from '@/services/crmProactive'
@@ -517,5 +519,44 @@ describe('alerting on failed sweeps', () => {
     expect(reportSweepOutcome({ did: 'idle', why: 'тихо' })).toBe('info')
     // The streak is over: the next failure is fresh news again.
     expect(reportSweepOutcome({ did: 'failed', why: 'y' })).toBe('error')
+  })
+})
+
+/*
+ * SILENCE THAT MEANS NOTHING IS WORSE THAN A LINE NOBODY READS.
+ *
+ * A holding seller wrote nothing at all, so a held card and a dead cron were
+ * the same silence. Production 16.09.2026: four hours and thirteen minutes
+ * without a line, and the only way to judge it was arithmetic over a backoff
+ * cap. A hold now says it is alive -- rarely, and never on every tick.
+ */
+describe('a holding seller says it is alive, once in a while', () => {
+  const H = 6 * 60 * 60_000
+  const T = 1_000_000_000
+
+  it('the first hold after a restart always speaks', () => {
+    // Zero is not "spoke at the epoch" -- it is "never spoke", and the first
+    // hold after a restart is exactly when somebody is wondering.
+    expect(heartbeatDue(0, T)).toBe(true)
+  })
+
+  it('a second hold inside the window stays silent', () => {
+    expect(heartbeatDue(T, T + H - 1)).toBe(false)
+    expect(heartbeatDue(T, T + 60_000)).toBe(false)
+  })
+
+  it('once the window has passed it speaks again', () => {
+    expect(heartbeatDue(T, T + H)).toBe(true)
+    expect(heartbeatDue(T, T + H * 3)).toBe(true)
+  })
+
+  /*
+   * The pulse must not slow down with the backoff: the hold grows from two
+   * hours to twenty-four, and a heartbeat that stretched with it would go
+   * quietest exactly when the silence is longest and the doubt greatest.
+   */
+  it('the window is a constant, not the hold', () => {
+    expect(H).toBeLessThan(BACKOFF_CAP_MS)
+    expect(heartbeatDue(T, T + H + 1)).toBe(true)
   })
 })
