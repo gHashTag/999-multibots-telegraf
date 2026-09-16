@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { waitingOn, nudgesSince } from './src/agent/crm-stages'
+import { waitingOn, nudgesSince, stageOf } from './src/agent/crm-stages'
 
 /**
  * TWO PROMISES THE FACT MODEL COULD NOT KEEP.
@@ -225,5 +225,69 @@ describe('a conversation nobody recorded a touch for', () => {
       lastInboundAt: daysAgo(2),
     })
     expect(w).toBeNull()
+  })
+})
+
+describe('a conversation with nobody in it: talking, derived from messages', () => {
+  /*
+   * MEASURED IN PRODUCTION 2026-09-16. The stage model, reading touches
+   * alone, reported the funnel like this:
+   *
+   *   talking   0     while 316 people were waiting for a reply
+   *   new     753     of 881 people who have actually corresponded
+   *
+   * Nobody is ever "talking" because nothing writes a `replied` touch. A
+   * funnel saying "nobody is in conversation and 753 were never touched" is
+   * a picture of an empty log, not of the business.
+   */
+  const base = { paid: false, quietDays: null, touches: [] }
+
+  it('their word is the last one: talking, with no touch at all', () => {
+    const r = stageOf({ ...base, lastInboundAt: daysAgo(1) })
+    expect(r.stage).toBe('talking')
+    expect(r.because).toContain('написал последним') // cyrillic-ok
+  })
+
+  it('we answered after them: not talking', () => {
+    const r = stageOf({
+      ...base,
+      lastInboundAt: daysAgo(2),
+      lastOutboundAt: daysAgo(1),
+    })
+    expect(r.stage).toBe('new')
+  })
+
+  it('a touch newer than their message still wins', () => {
+    // We wrote after their last word: the explicit fact is the fresher one.
+    const r = stageOf({
+      ...base,
+      touches: [{ kind: 'written', at: daysAgo(1) }],
+      lastInboundAt: daysAgo(5),
+    })
+    expect(r.stage).toBe('written')
+  })
+
+  it('money and a refusal still come first', () => {
+    expect(
+      stageOf({ ...base, paid: true, lastInboundAt: daysAgo(1) }).stage
+    ).toBe('client')
+    expect(
+      stageOf({
+        ...base,
+        touches: [{ kind: 'refused', at: daysAgo(9) }],
+        lastInboundAt: daysAgo(1),
+      }).stage
+    ).toBe('refused')
+  })
+
+  it('an owner with no messages gets exactly the old answer', () => {
+    expect(stageOf(base).stage).toBe('new')
+  })
+
+  it('OUR message alone never makes somebody a conversation', () => {
+    // An outbound is usually the bot delivering what was asked for. Reading
+    // it as a sales approach nobody answered is a different claim, and not
+    // one these two timestamps support.
+    expect(stageOf({ ...base, lastOutboundAt: daysAgo(3) }).stage).toBe('new')
   })
 })

@@ -43,6 +43,26 @@ export interface StageInput {
   touches: Array<{ kind: TouchKind; at: string }>
   /** Days since their last visit, if known. */
   quietDays: number | null
+  /**
+   * When the person last said something, and when we last did, from
+   * `crm_messages`, if they are known.
+   *
+   * MEASURED IN PRODUCTION 2026-09-16. The stage model, reading touches
+   * alone, reported the funnel like this:
+   *
+   *   talking   0        while 316 people were waiting for a reply
+   *   new     753        of 881 people who have actually corresponded
+   *
+   * Nobody is ever "talking" because nothing writes a `replied` touch: the
+   * model is asked to and forgets. So a funnel that says "nobody is in
+   * conversation, 753 have never been touched" is not a picture of the
+   * business -- it is a picture of an empty log.
+   *
+   * Optional, as on waitingOn: an owner with no connected Telegram account
+   * has no messages, and for them the touch-only answer is the best there is.
+   */
+  lastInboundAt?: string | null
+  lastOutboundAt?: string | null
 }
 
 /**
@@ -84,6 +104,25 @@ export function stageOf(input: StageInput): { stage: Stage; because: string } {
   if (latest?.kind === 'replied') {
     return { stage: 'talking', because: 'ответил, ход за нами' }
   }
+
+  /*
+   * AN ANSWER NOBODY WROTE DOWN PUTS THEM IN CONVERSATION ALL THE SAME.
+   *
+   * Only this one stage is derived from messages, and deliberately so. If
+   * their last word is newer than ours, we are in a conversation with the
+   * ball on our side -- that is not an inference, it is what the two
+   * timestamps say. The other stages are left alone: `written` from an
+   * outbound message would label every finished picture and every receipt as
+   * a sales approach nobody answered, and that is a different claim.
+   */
+  const inb = input.lastInboundAt ? Date.parse(input.lastInboundAt) : NaN
+  if (!Number.isNaN(inb)) {
+    const outb = input.lastOutboundAt ? Date.parse(input.lastOutboundAt) : NaN
+    const newerThanTouch = !latest || inb > Date.parse(latest.at)
+    if ((Number.isNaN(outb) || inb > outb) && newerThanTouch) {
+      return { stage: 'talking', because: 'написал последним, ход за нами' }
+    }
+  }
   if (latest?.kind === 'written' || latest?.kind === 'bought') {
     // `bought` without a payment row means somebody recorded a sale that the
     // ledger has not seen. Treated as written, not as a client: the ledger is
@@ -122,33 +161,11 @@ export interface WaitingInput extends StageInput {
   noAnswerAfterDays: number
   /** Days after a "later" before it comes back. */
   laterAfterDays: number
-  /**
-   * When the person last said something, from `crm_messages`, if it is known.
-   *
-   * MEASURED IN PRODUCTION 2026-09-16. The touch log held FIVE rows for 2394
-   * people, and not one of them was `replied`; `crm_messages` held 25 302
-   * inbound. Nothing writes a touch when a person answers -- the model is
-   * asked to, and it forgets, which is what asking a model to keep a ledger
-   * always comes to.
-   *
-   * So on the touches alone, somebody who answered us yesterday reads as
-   * "we wrote, no answer" -- the module's own most expensive mistake, exactly
-   * inverted: the person is waiting on US and is reported as owing US a reply.
-   *
-   * Optional on purpose. An owner who has not connected a Telegram account
-   * has no messages at all, and for them the touch-only answer is still the
-   * best available one.
+  /*
+   * The message facts live on StageInput now, which WaitingInput extends:
+   * both questions -- what stage is this, and whose turn is it -- were being
+   * answered from the same empty log.
    */
-  lastInboundAt?: string | null
-  /**
-   * When we last said anything to them, from `crm_messages`, if it is known.
-   *
-   * Only ever used to decide whose turn it is. It is deliberately NOT counted
-   * as a reminder: most outbound messages are the bot doing its ordinary work
-   * -- a finished picture, a receipt -- and treating those as chasing would
-   * silence the queue for people nobody has actually pestered.
-   */
-  lastOutboundAt?: string | null
   /**
    * How many unanswered reminders before we stop chasing. Default 2, which is
    * what the playbook has promised in words since it was written: "two days,

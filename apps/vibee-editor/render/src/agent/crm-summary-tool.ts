@@ -129,10 +129,16 @@ export function summarize(
   const stages = new Map<string, string>()
   for (const c of list) {
     by_next[c.next] = (by_next[c.next] ?? 0) + 1
+    // `lastIn` is taken in this scope by the running maximum below.
+    const saidAt = c.lastInboundAt ? c.lastInboundAt.toISOString() : null
     const st = stageOf({
       paid: paid.has(c.lead),
       touches: (c.lastTouch ? [c.lastTouch] : []) as never,
       quietDays: c.daysSinceInbound ?? 999,
+      lastInboundAt: saidAt,
+      // "Answered" is an outbound at the same moment as their message, which
+      // is exactly what `unanswered: false` means.
+      lastOutboundAt: c.unanswered ? null : saidAt,
     }).stage
     stages.set(c.lead, st)
     by_stage[st] = (by_stage[st] ?? 0) + 1

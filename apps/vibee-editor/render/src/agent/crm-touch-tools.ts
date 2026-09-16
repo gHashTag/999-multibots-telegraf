@@ -377,7 +377,13 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           olderThanWindow += 1
           continue
         }
-        const st = stageOf({ paid: paid.has(leadId), touches: list, quietDays })
+        const st = stageOf({
+          paid: paid.has(leadId),
+          touches: list,
+          quietDays,
+          lastInboundAt: msg?.lastIn ?? null,
+          lastOutboundAt: msg && !msg.unanswered ? msg.lastIn : null,
+        })
         out.push({
           telegram_id: leadId,
           name: person.first_name || null,
