@@ -231,8 +231,38 @@ describe('the sweep looks first, then asks', () => {
     expect(r.did).toBe('card')
     expect(texts[0]).toContain(SWEEP_PROMPT)
     expect(texts[0]).toContain(leadsNote([quiet, waiting]))
-    expect(texts[0]).toContain('Анна (555): next=reply')
+    // The brief NAMES the person and the tool now, rather than listing five
+    // and repeating a rule the model re-decided every tick. Measured
+    // 2026-09-16: four of the top five candidates were `deliver`, and all 62
+    // cards prepared were text.
+    expect(texts[0]).toContain('РАБОТАЙ С ЭТИМ ЧЕЛОВЕКОМ: Анна (555)')
+    expect(texts[0]).toContain('next=reply')
+    expect(texts[0]).toContain('tg_send')
     expect(texts[0]).toContain('ШАГ 1 УЖЕ ВЫПОЛНЕН')
+  })
+
+  it('a deliver candidate is named with crm_deliver_photo, not tg_send', async () => {
+    /*
+     * The step this was written for. Everything the gift needs was in place
+     * -- the tool wired with the lead's avatar, 7571 tokens against a price
+     * of 12, 4947 credits at the drawing provider -- and gpt_image_edit has
+     * never run once. A rule the model re-decides every tick is not a rule.
+     */
+    const note = leadsNote([
+      { lead: '777', display: 'Пётр', next: 'deliver' }, // cyrillic-ok
+      { lead: '555', display: 'Анна', next: 'reply' }, // cyrillic-ok
+    ])
+    expect(note).toContain('Пётр (777)') // cyrillic-ok
+    expect(note).toContain('crm_deliver_photo')
+    expect(note, 'the other candidate must not be offered').not.toContain(
+      'Анна' // cyrillic-ok
+    )
+  })
+
+  it('all rows waiting: the brief says so instead of naming nobody', () => {
+    const note = leadsNote([{ lead: '1', next: 'wait' }])
+    expect(note).toContain('тихо') // cyrillic-ok
+    expect(note).not.toContain('РАБОТАЙ С ЭТИМ') // cyrillic-ok
   })
 
   it('somebody due and two no-tools answers: failed, naming who waits; the retry note skips step 1', async () => {

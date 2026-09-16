@@ -250,18 +250,68 @@ export const isDue = (c: Record<string, unknown>): boolean =>
  * The candidates, appended to the brief so step 1 is already done. One line
  * per row, the fields the brief reasons about; nothing else from the row.
  */
+/** The tool each step is made with. The brief names one; the model picks none. */
+export const STEP_TOOL: Record<string, string> = {
+  reply: 'tg_send',
+  talk: 'tg_send',
+  deliver: 'crm_deliver_photo',
+  offer: 'crm_offer',
+}
+
+/**
+ * THE CODE PICKS THE PERSON. The rule is the one the brief already stated --
+ * the first row whose `next` is not `wait` -- so nothing about WHO changes.
+ * What changes is who decides.
+ */
+export function chooseCandidate(
+  rows: Array<Record<string, unknown>>
+): Record<string, unknown> | null {
+  for (const r of rows) {
+    const next = String(r.next ?? '')
+    if (next && next !== 'wait' && STEP_TOOL[next]) return r
+  }
+  return null
+}
+
+/**
+ * The candidates, appended to the brief so step 1 is already done.
+ *
+ * NAMED, NOT LISTED. Until 2026-09-16 this printed five rows and repeated the
+ * rule "start with the first whose next is not wait", leaving the choice to
+ * the model. Measured that day, the choice was always the same one:
+ *
+ *   top five candidates by score:  deliver 4, wait 1  (all hot)
+ *   cards actually prepared:       62, every one of them text
+ *   gpt_image_edit in the journal: zero, ever
+ *
+ * Everything the gift needs was in place -- the tool wired with the lead's
+ * avatar, 7571 tokens in the owner's wallet against a price of 12, 4947
+ * credits at the drawing provider -- and the step was still never taken. A
+ * rule the model re-decides every tick is not a rule.
+ *
+ * So the row is chosen here and named, with the one tool that step is made
+ * with. If gifts still do not happen after this, the cause is inside
+ * crm_deliver_photo, and that is a different search with a different answer.
+ */
 export function leadsNote(rows: Array<Record<string, unknown>>): string {
-  const lines = rows.slice(0, LOOK_LIMIT).map(c => {
-    const who = c.display
-      ? `${String(c.display)} (${String(c.lead ?? '')})`
-      : String(c.lead ?? '')
-    return `- ${who}: next=${String(c.next ?? '')}`
-  })
+  const chosen = chooseCandidate(rows)
+  if (!chosen) {
+    return (
+      ' ШАГ 1 УЖЕ ВЫПОЛНЕН: crm_leads вернул ' +
+      `${rows.length} кандидат(ов), и ни у кого next не требует действия. ` +
+      'Ответь одним словом «тихо».'
+    )
+  }
+  const who = chosen.display
+    ? `${String(chosen.display)} (${String(chosen.lead ?? '')})`
+    : String(chosen.lead ?? '')
+  const next = String(chosen.next ?? '')
   return (
     ' ШАГ 1 УЖЕ ВЫПОЛНЕН: crm_leads вернул ' +
-    `${rows.length} кандидат(ов), первые ${lines.length}:\n` +
-    lines.join('\n') +
-    '\nНачинай с шага 2 (crm_lead_context по первому, у кого next не wait).'
+    `${rows.length} кандидат(ов). РАБОТАЙ С ЭТИМ ЧЕЛОВЕКОМ: ${who}, ` +
+    `next=${next}. Сначала crm_lead_context по нему, затем РОВНО ОДНО ` +
+    `действие — ${STEP_TOOL[next]}. Другого человека не бери и другой ` +
+    'инструмент для действия не выбирай: шаг уже определён по его же словам.'
   )
 }
 
