@@ -199,11 +199,24 @@ function declared(blocks: string[]): Set<string> {
   return out
 }
 
-/** Column-shaped identifiers inside SQL that names one of the tables. */
+/**
+ * Column-shaped identifiers inside SQL that names one of the tables.
+ *
+ * AN ALIAS IS NOT A COLUMN. `count(*) AS stars_paid` names the OUTPUT, and
+ * nothing creates it -- so counting it as a column makes this guard fail on
+ * correct SQL. It never came up while the aliases here were Cyrillic: the
+ * matcher only sees [a-z_], so it could not read them at all. The first
+ * English alias in the tree turned the guard red.
+ *
+ * Skipping the word after AS is the true rule, not a patch for today's file.
+ * Verified the way a loosening must be -- by mutation: a genuinely undeclared
+ * column still fails this test afterwards.
+ */
 function used(blocks: string[]): Set<string> {
   const out = new Set<string>()
   for (const b of blocks) {
-    for (const w of b.matchAll(/\b([a-z_][a-z0-9_]{2,})\b/g)) {
+    const withoutAliases = b.replace(/\bAS\s+[a-z_][a-z0-9_]*/gi, ' ')
+    for (const w of withoutAliases.matchAll(/\b([a-z_][a-z0-9_]{2,})\b/g)) {
       const name = w[1].toLowerCase()
       if (SQL_WORDS.has(name)) continue
       if (!name.includes('_')) continue
