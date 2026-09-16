@@ -960,7 +960,21 @@ export async function runProactiveTick(
   if (active) {
     const holdMs = opts.holdMs ?? HOLD_MS_DEFAULT
     if (!active.inFlight && Date.now() - active.lastActivityAt > holdMs) {
-      dropScope(owner, 'карточка не нажата два часа — обход остановлен')
+      /*
+       * THE SENTENCE SAYS THE WAIT THAT ACTUALLY HAPPENED.
+       *
+       * It used to say "two hours" flat, which is the default -- but a sweep
+       * started from the menu passes MENU_HOLD_MS, ten minutes. So the owner
+       * waited ten minutes and was told he had waited two hours, about his
+       * own system, in the message that explains why it stopped.
+       *
+       * Built from `holdMs`, the number the comparison above just used. There
+       * is no second place for it to drift from.
+       */
+      dropScope(
+        owner,
+        `карточка не нажата ${waitInWords(holdMs)} — обход остановлен`
+      )
     } else {
       logger.info('[crm-proactive] paused: scoped sweep active', {
         label: active.label,
@@ -1115,6 +1129,20 @@ export function stopScope(owner: string): string {
   if (!s) return 'Обхода нет.'
   scopes.delete(String(owner))
   return `Обход «${s.label}» остановлен на ${Math.min(s.cursor + 1, s.items.length)} из ${s.items.length}.`
+}
+
+/**
+ * A wait, in the words a person uses for it.
+ *
+ * Minutes below an hour, hours above -- and never "0 hours", which is what
+ * plain division gives for anything under sixty minutes and reads as a bug
+ * report rather than a duration.
+ */
+export function waitInWords(ms: number): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000))
+  if (minutes < 60) return `${minutes} мин`
+  const hours = Math.round(minutes / 60)
+  return `${hours} ч`
 }
 
 function dropScope(owner: string, why: string): void {

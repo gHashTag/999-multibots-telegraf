@@ -11,6 +11,8 @@ import {
   SWEEP_RETRY_NOTE_LOOKED,
   leadsNote,
   HOLD_MS_DEFAULT,
+  MENU_HOLD_MS,
+  waitInWords,
   reportSweepOutcome,
   type SweepDeps,
 } from '@/services/crmProactive'
@@ -375,6 +377,34 @@ describe('a card nobody pressed is not evicted', () => {
     await sweepOnce(OWNER, d)
     t += HOLD_MS_DEFAULT + 1
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+})
+
+/*
+ * THE MESSAGE SAYS THE WAIT THAT ACTUALLY HAPPENED.
+ *
+ * It used to say "two hours" flat, which is the default. A sweep started from
+ * the menu passes MENU_HOLD_MS -- ten minutes -- so the owner waited ten
+ * minutes and was told he had waited two hours, about his own system, in the
+ * sentence that explains why it stopped.
+ */
+describe('the stopped sweep names the real wait', () => {
+  it('minutes below an hour, hours above', () => {
+    expect(waitInWords(MENU_HOLD_MS)).toBe('10 мин')
+    expect(waitInWords(HOLD_MS_DEFAULT)).toBe('2 ч')
+  })
+
+  /*
+   * Plain division gives "0 ч" for anything under an hour, which reads as a
+   * bug report rather than a duration.
+   */
+  it('never says zero', () => {
+    expect(waitInWords(1000)).toBe('1 мин')
+    expect(waitInWords(0)).toBe('1 мин')
+  })
+
+  it('the two known waits do not describe each other', () => {
+    expect(waitInWords(MENU_HOLD_MS)).not.toBe(waitInWords(HOLD_MS_DEFAULT))
   })
 })
 
