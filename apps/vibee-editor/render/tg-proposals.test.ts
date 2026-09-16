@@ -1107,3 +1107,66 @@ describe('the sent message goes into the memory at once', () => {
     expect(mirrorNow).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * "ALREADY CONFIRMED OR EXPIRED" IS THE WRONG ANSWER TO THE OWNER.
+ *
+ * The queue holds one draft per owner, so a newer card drops the older one.
+ * Measured in production: the sweep proposes again two hours after a card,
+ * and a card stays pressable for twelve -- so an owner opening Telegram in
+ * the evening presses buttons that were replaced hours ago, and each answers
+ * "already confirmed or expired".
+ *
+ * The two halves differ in the only way he cares about: "confirmed" means a
+ * client got something, "replaced" means nobody did. The vague sentence is
+ * right for a stranger and wrong for the person holding the button.
+ */
+describe('a card that is gone says WHY, to its owner', () => {
+  const OWNER = '144022504'
+
+  /** remember() mints the secret itself, so the fixture takes it back. */
+  const draft = (id: string) => ({
+    id,
+    action: 'send' as const,
+    target: '@someone',
+    what: 'привет',
+    telegramId: OWNER,
+  })
+
+  it('a replaced draft says nothing was sent, and points at the new card', async () => {
+    const m = await import('./src/agent/tg-proposals')
+    m.forgetGoneProposalsForTests()
+    const first = m.remember(draft('first-one-12') as never)
+    // A second card for the same owner replaces the first.
+    m.remember(draft('second-one2') as never)
+    const r = m.claim(OWNER, 'first-one-12', first.secret)
+    expect(r.ok).toBe(false)
+    expect((r as { why: string }).why).toContain('заменён новым')
+    expect((r as { why: string }).why).toContain('ничего не ушло')
+  })
+
+  it('a stranger, or a wrong secret, still learns nothing', async () => {
+    const m = await import('./src/agent/tg-proposals')
+    m.forgetGoneProposalsForTests()
+    const first = m.remember(draft('first-one-12') as never)
+    m.remember(draft('second-one2') as never)
+    const vague = 'это действие уже подтверждено или истекло'
+    expect(
+      (m.claim('900000042', 'first-one-12', first.secret) as { why: string })
+        .why,
+      'somebody else learned what happened to a card that was not theirs'
+    ).toBe(vague)
+    expect(
+      (m.claim(OWNER, 'first-one-12', 'a'.repeat(32)) as { why: string }).why,
+      'a guessed id without the secret learned the reason'
+    ).toBe(vague)
+  })
+
+  it('an id nobody ever issued gets the vague answer', async () => {
+    const m = await import('./src/agent/tg-proposals')
+    m.forgetGoneProposalsForTests()
+    expect(
+      (m.claim(OWNER, 'never-existed', 'f'.repeat(32)) as { why: string }).why
+    ).toBe('это действие уже подтверждено или истекло')
+  })
+})

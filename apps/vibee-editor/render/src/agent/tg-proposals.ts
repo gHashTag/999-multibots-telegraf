@@ -415,9 +415,68 @@ export function reportOrphan(p: PublicProposal, reason: OrphanReason): void {
 }
 
 /** Remove a draft that will never be sent, telling the listener why. */
+/*
+ * WHY A CARD IS NO LONGER PRESSABLE -- FOR THE PERSON WHOSE CARD IT WAS.
+ *
+ * The queue holds ONE draft per owner: a newer card drops the older one as
+ * `replaced`. Measured in production, the sweep proposes again two hours
+ * after the last card, and a card stays pressable for twelve -- so an owner
+ * who opens Telegram in the evening is looking at buttons that were replaced
+ * hours ago, and every one of them answers "already confirmed or expired".
+ *
+ * That sentence is deliberately vague, and it is the right answer to a
+ * STRANGER: it must not say whether a draft exists. To the owner holding the
+ * button it is the wrong answer, because the two halves differ in the only
+ * way he cares about -- "confirmed" means something went to a client, and
+ * "replaced" means nothing did. He is left unsure whether he sent it.
+ *
+ * So the reason is remembered for a while, with the owner and the secret it
+ * takes to prove ownership. Only a caller who passes BOTH -- which only the
+ * button carries -- gets the precise sentence; anybody else keeps the vague
+ * one. Bounded and swept: this is a courtesy, not a record.
+ */
+const GONE_TTL_MS = 24 * 60 * 60 * 1000
+const GONE_MAX = 200
+// owner-scope: keyed by draft id, and every read compares owner AND secret
+const gone = new Map<
+  string,
+  { owner: string; secretDigest: string; reason: OrphanReason; at: number }
+>()
+
+function rememberGone(p: PendingProposal, reason: OrphanReason): void {
+  const now = Date.now()
+  for (const [id, g] of gone) if (now - g.at > GONE_TTL_MS) gone.delete(id)
+  while (gone.size >= GONE_MAX) {
+    const oldest = gone.keys().next().value as string
+    gone.delete(oldest)
+  }
+  gone.set(p.id, {
+    owner: p.telegramId,
+    secretDigest: p.secretDigest,
+    reason,
+    at: now,
+  })
+}
+
+/** For tests: nothing is remembered. */
+export function forgetGoneProposalsForTests(): void {
+  gone.clear()
+}
+
+/** What to tell the owner about a card that is no longer there. */
+const GONE_WHY: Record<OrphanReason, string> = {
+  replaced:
+    'этот черновик заменён новым — ничего не ушло, открой свежую карточку',
+  expired: 'черновик истёк — ничего не ушло',
+  cancelled: 'этот черновик уже отменён — ничего не ушло',
+  failed:
+    'по этому черновику отправка не удалась — посмотри чат перед повтором',
+}
+
 function drop(p: PendingProposal, reason: OrphanReason): void {
   pending.delete(p.id)
   persistRemove(p.id)
+  rememberGone(p, reason)
   reportOrphan(redact(p), reason)
 }
 
@@ -645,7 +704,22 @@ export function claim(
 ): { ok: true; proposal: PublicProposal } | { ok: false; why: string } {
   dropExpired()
   const p = pending.get(id)
-  if (!p) return { ok: false, why: 'это действие уже подтверждено или истекло' }
+  if (!p) {
+    /*
+     * The precise reason, but only to somebody who proves the card was
+     * theirs: the owner id AND the secret from the button. A probe with a
+     * guessed id has neither and learns nothing new.
+     */
+    const g = gone.get(id)
+    if (
+      g &&
+      g.owner === String(telegramId) &&
+      sameSecret(g.secretDigest, secret)
+    ) {
+      return { ok: false, why: GONE_WHY[g.reason] }
+    }
+    return { ok: false, why: 'это действие уже подтверждено или истекло' }
+  }
   if (p.telegramId !== String(telegramId)) {
     // Fail-closed and worded without confirming the id exists: a probe should
     // not learn whether somebody else has a draft waiting.
