@@ -15,7 +15,12 @@ import { calculateFinalImageCostInStars } from '@/price/models/IMAGES_MODELS'
 import { logger, logSessionSafely } from '@/utils/logger'
 import { processBalanceOperation } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
-import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
+import {
+  BalanceRefusedError,
+  INSUFFICIENT_FUNDS_SENTINEL,
+} from '@/price/helpers/refuseUnpaidGeneration'
+import { isContentRefusal } from '@/helpers/isContentRefusal'
+import { classifyGenerationFailure } from '@/helpers/classifyGenerationFailure'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
@@ -245,7 +250,30 @@ export const generateSeeDream45 = async (
         requiredCost: totalCost,
       })
 
-      throw new Error('Insufficient balance')
+      /*
+       * Typed, because the phrase is not evidence. Five sibling catch sites now
+       * ask `error instanceof BalanceRefusedError && error.insufficientFunds`
+       * (registerCommands.ts:1897, imageUpscalerWizard:111, aiPhotoshopScene
+       * :2352 and :5581, generateFluxKontext.ts:1110 and :1424), and a bare
+       * `new Error('Insufficient balance')` answers none of them: every one of
+       * those scenes fell through to its own logger.error -- a page -- and told
+       * the customer to try again later instead of offering the top-up. The
+       * string was ambiguous besides: kie-ai-webhook.routes.ts:71 uses the same
+       * words for the OPPOSITE fact, OUR provider account running out of credit,
+       * which must page.
+       *
+       * The balance was read and compared against the price right here, so
+       * `insufficientFunds: true` is the literal truth and not a guess -- the
+       * same argument generateFluxKontext.ts:746 makes for its pre-check.
+       */
+      throw new BalanceRefusedError({
+        message: INSUFFICIENT_FUNDS_SENTINEL,
+        insufficientFunds: true,
+        reason: `balance ${currentBalance} below price ${totalCost} (pre-check, nothing charged)`,
+        // The message above went out only when errors are not suppressed; in
+        // fallback mode nobody has been told yet and the caller must do it.
+        userAlreadyNotified: !params.suppressUserErrors,
+      })
     }
 
     // Send status message
@@ -498,83 +526,16 @@ export const generateSeeDream45 = async (
 
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
-    const errorMsgLower = errorMessage.toLowerCase()
 
-    // Classify error for better logging
-    let errorType = 'UNKNOWN'
-    let isRetriable = false
-
-    if (
-      errorMsgLower.includes('e005') ||
-      errorMsgLower.includes('flagged as sensitive') ||
-      errorMsgLower.includes('nsfw') ||
-      errorMsgLower.includes('safety')
-    ) {
-      errorType = 'NSFW_DETECTED'
-      isRetriable = true
-    } else if (
-      errorMsgLower.includes('rate') ||
-      errorMsgLower.includes('limit') ||
-      errorMsgLower.includes('429') ||
-      errorMsgLower.includes('too many')
-    ) {
-      errorType = 'RATE_LIMIT'
-      isRetriable = true
-    } else if (
-      errorMsgLower.includes('timeout') ||
-      errorMsgLower.includes('etimedout') ||
-      errorMsgLower.includes('econnreset') ||
-      errorMsgLower.includes('socket')
-    ) {
-      errorType = 'TIMEOUT'
-      isRetriable = true
-    } else if (
-      errorMsgLower.includes('balance') ||
-      errorMsgLower.includes('insufficient') ||
-      errorMsgLower.includes('funds') ||
-      errorMsgLower.includes('not enough')
-    ) {
-      errorType = 'INSUFFICIENT_BALANCE'
-      isRetriable = false
-    } else if (
-      errorMsgLower.includes('user') &&
-      errorMsgLower.includes('not') &&
-      errorMsgLower.includes('exist')
-    ) {
-      errorType = 'USER_NOT_FOUND'
-      isRetriable = false
-    } else if (
-      errorMsgLower.includes('invalid') ||
-      errorMsgLower.includes('validation') ||
-      errorMsgLower.includes('parse')
-    ) {
-      errorType = 'VALIDATION_ERROR'
-      isRetriable = false
-    } else if (
-      errorMsgLower.includes('download') ||
-      errorMsgLower.includes('fetch') ||
-      errorMsgLower.includes('enotfound')
-    ) {
-      errorType = 'DOWNLOAD_ERROR'
-      isRetriable = true
-    } else if (
-      errorMsgLower.includes('api') ||
-      errorMsgLower.includes('500') ||
-      errorMsgLower.includes('502') ||
-      errorMsgLower.includes('503')
-    ) {
-      errorType = 'API_ERROR'
-      isRetriable = true
-    } else if (errorMsgLower.includes('cancel')) {
-      errorType = 'CANCELLED'
-      isRetriable = false
-    } else if (
-      errorMsgLower.includes('1k') ||
-      errorMsgLower.includes('resolution not supported')
-    ) {
-      errorType = 'UNSUPPORTED_RESOLUTION'
-      isRetriable = false
-    }
+    /*
+     * The label the alert is built from. It used to be sorted here by a chain
+     * of substring tests, one of which was the bare word 'rate' -- and 'rate'
+     * is inside 'generated', so the wrapper thrown at the download/save site
+     * above ("Failed to process generated image: ...") was reported to the
+     * owner as a provider rate limit that would retry itself. The chain now
+     * lives in one tested place; see helpers/classifyGenerationFailure.ts.
+     */
+    const { errorType, isRetriable } = classifyGenerationFailure(errorMessage)
 
     console.error('🚨 [SeeDream4.5] Generation failed:', {
       telegram_id: params.telegram_id,
@@ -596,14 +557,33 @@ export const generateSeeDream45 = async (
      *
      * Every logger.error reaches the owner's alert group. A customer with no
      * stars is not something the owner can act on, and the guard above has
-     * already told the customer. Note that the decision is NOT taken on
-     * `errorType`: that classifier matches the bare word 'balance', so
-     * "Failed to fetch user balance" -- a real outage -- lands in the same
-     * branch. `isBalanceRefusal` requires the money word next to the thing
-     * there is not enough of, and anything it cannot recognise stays an alert.
+     * already told the customer. The wallet answer is taken from the TYPE the
+     * guard threw, not from its wording: this file is the only place that knows
+     * the balance was read and compared against the price, and re-deriving that
+     * from prose is how "insufficient balance" came to mean both an empty
+     * customer wallet and an empty provider account (kie-ai-webhook.routes.ts
+     * :71) in one repository.
+     *
+     * The second customer cause is the same shape. This service classified a
+     * refused photo as NSFW_DETECTED, set isRetriable, told the owner
+     * "automatic retry via fallback" -- and paged him anyway, once per model in
+     * the chain, each with a different fingerprint so the throttle could not
+     * collapse them. A safety filter refusing a stranger's selfie is not an
+     * incident: there is nothing to restart and the fallback has already fired.
+     * `isContentRefusal` is narrow for the same reason `isBalanceRefusal` is --
+     * it will not accept the bare word 'safety', so "safety checker service
+     * unavailable" is still an alert. Everything else here -- API_ERROR,
+     * TIMEOUT, DOWNLOAD_ERROR, UNSUPPORTED_RESOLUTION, UNKNOWN -- keeps paging.
+     *
+     * `errorType` is now sorted by these same two predicates
+     * (helpers/classifyGenerationFailure.ts), so the headline the owner reads
+     * can no longer contradict the level it arrived at.
      */
-    const isCustomerWallet = isBalanceRefusal(errorMessage)
-    logger[isCustomerWallet ? 'warn' : 'error'](`${logMessage}${errorDetail}`, {
+    const isCustomerWallet =
+      error instanceof BalanceRefusedError && error.insufficientFunds
+    const isCustomerContent = isContentRefusal(error)
+    const customerCaused = isCustomerWallet || isCustomerContent
+    logger[customerCaused ? 'warn' : 'error'](`${logMessage}${errorDetail}`, {
       telegram_id: params.telegram_id,
       errorType,
       isRetriable,

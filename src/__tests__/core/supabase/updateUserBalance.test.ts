@@ -250,7 +250,18 @@ describe('updateUserBalance', () => {
       )
 
       expect(result).toBe(false)
-      expect(logger.error).toHaveBeenCalledWith(
+      // The LEVEL is the assertion, not decoration. logger.error is bound to a
+      // Telegram transport, so it pages the owner; logger.warn does not. This
+      // guard returns before any write, so an empty wallet here is the
+      // customer's own state and there is nothing for an operator to do.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Недостаточно средств'),
+        expect.any(Object)
+      )
+      expect(
+        logger.error,
+        'a refused charge must not page the owner'
+      ).not.toHaveBeenCalledWith(
         expect.stringContaining('Недостаточно средств'),
         expect.any(Object)
       )
@@ -468,6 +479,119 @@ describe('updateUserBalance', () => {
       // the payments_v2 row committed -> the charge stands -> must return true,
       // never false (a false negative makes the caller deliver-unbilled / retry)
       expect(result).toBe(true)
+    })
+  })
+
+  /**
+   * THE LEVEL IS A ROUTING DECISION, NOT A SEVERITY ADJECTIVE.
+   *
+   * `logger.error` is bound to a Telegram transport in src/utils/logger.ts, so
+   * every logger.error in this process is a push notification to the owner.
+   * logger.warn and logger.info are not. This block fixes which side of that
+   * line each refusal in this file sits on, so a later edit cannot quietly
+   * move one across.
+   */
+  describe('which refusals page the owner', () => {
+    it('an empty wallet does not page: it is the customer, not our machinery', async () => {
+      setupSupabaseMocks({ userExists: true, balance: 5 })
+
+      const result = await updateUserBalance(
+        '123456789',
+        50,
+        PaymentType.MONEY_OUTCOME,
+        'Test withdrawal'
+      )
+
+      expect(result).toBe(false)
+      // The guard returns before every write in this function, so nothing was
+      // inserted and there is nothing for an operator to reconcile at 3am.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Недостаточно средств'),
+        expect.objectContaining({ description: 'Insufficient funds' })
+      )
+      expect(
+        logger.error,
+        'a refused charge must not ring the owner'
+      ).not.toHaveBeenCalledWith(
+        expect.stringContaining('Недостаточно средств'),
+        expect.any(Object)
+      )
+    })
+
+    it.each([
+      ['null', null],
+      ['undefined', undefined],
+    ])(
+      'an RPC that answers %s reports no error, reads as a zero balance, and still only warns',
+      async (_label, rpcValue) => {
+        // `currentBalance = Number(balanceData) || 0` turns a missing RPC
+        // result into a zero balance WITHOUT setting balanceError -- undefined
+        // goes through NaN on the way. So this refusal can fire for somebody
+        // who has money, during an outage that reports no error. That is
+        // exactly why the level here is warn and not info: the line has to
+        // stay visible in the log. It is still not a page, because the charge
+        // was refused safely and no row was written.
+        setupSupabaseMocks({ userExists: true })
+        ;(supabase.rpc as Mock).mockResolvedValue({
+          data: rpcValue,
+          error: null,
+        })
+
+        const result = await updateUserBalance(
+          '123456789',
+          4,
+          PaymentType.MONEY_OUTCOME,
+          'Test withdrawal'
+        )
+
+        expect(result).toBe(false)
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Недостаточно средств'),
+          expect.objectContaining({ balance: 0, required_amount: 4 })
+        )
+        expect(logger.error).not.toHaveBeenCalledWith(
+          expect.stringContaining('Недостаточно средств'),
+          expect.any(Object)
+        )
+      }
+    )
+
+    it('an inverted posting still pages: a negative amount is our bug', async () => {
+      // 114 rows of -9 stars credited 1026 instead of deducting. Somebody has
+      // to hear about this one.
+      setupSupabaseMocks({ userExists: true, balance: 1000 })
+
+      const result = await updateUserBalance(
+        '123456789',
+        -50,
+        PaymentType.MONEY_OUTCOME,
+        'Test withdrawal'
+      )
+
+      expect(result).toBe(false)
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Отрицательная сумма'),
+        expect.any(Object)
+      )
+    })
+
+    it('a top-up with no profile still pages: the money already left the customer', async () => {
+      setupSupabaseMocks({ userExists: false })
+
+      const result = await updateUserBalance(
+        '123456789',
+        50,
+        PaymentType.MONEY_INCOME,
+        'Test deposit'
+      )
+
+      expect(result).toBe(false)
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Пополнение отклонено'),
+        expect.objectContaining({
+          description: 'PAYMENT RECEIVED BUT NOT CREDITED: no users row',
+        })
+      )
     })
   })
 })

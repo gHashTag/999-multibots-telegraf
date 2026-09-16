@@ -5,6 +5,7 @@ import { createHelpCancelKeyboard, handleHelpCancel } from '@/navigation'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { BalanceRefusedError } from '@/price/helpers/refuseUnpaidGeneration'
 
 export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageUpscaler,
@@ -90,6 +91,31 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
 
         return ctx.scene.leave()
       } catch (error) {
+        /*
+         * AN EMPTY WALLET IS NOT AN OUTAGE, AND THIS CATCH USED TO CALL IT ONE.
+         *
+         * `upscaleImage` refuses through refuseUnpaidGeneration, which already
+         * logged the short balance at info and already told the person, with a
+         * top-up button under it (processBalanceOperation sends that message
+         * itself). Re-logging it here at error was a SECOND notification for
+         * the same non-event -- logger.error is the owner's Telegram push
+         * (utils/logger.ts binds the transport at level 'error') -- and the
+         * reply below then told the customer the system broke and to try
+         * again later, which is false and points them away from paying.
+         *
+         * Only `insufficientFunds` is demoted. A provider outage, a Telegram
+         * send failure, and a BalanceRefusedError with insufficientFunds:false
+         * (bad price, failed balance write, exception) all keep the error and
+         * the apology.
+         */
+        if (error instanceof BalanceRefusedError && error.insufficientFunds) {
+          logger.warn('imageUpscalerWizard: refused, the balance is short', {
+            telegramId: ctx.from?.id,
+            reason: error.reason,
+          })
+          return ctx.scene.leave()
+        }
+
         logger.error('Error in imageUpscalerWizard:', {
           error: error instanceof Error ? error.message : 'Unknown error',
           telegramId: ctx.from?.id,

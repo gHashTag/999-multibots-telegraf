@@ -16,6 +16,10 @@ import { ModeEnum } from '@/interfaces/modes'
 import * as path from 'path'
 import { getModelsByInputType } from '@/config/unified-video-models.config'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import {
+  isUserCausedTelegramError,
+  telegramErrorInfo,
+} from '@/helpers/telegramErrors'
 
 // ✅ ПОЛУЧАЕМ МОДЕЛИ МОРФИНГА ИЗ ЕДИНОГО КОНФИГА
 const getMorphingModels = () => getModelsByInputType('morph')
@@ -1185,10 +1189,29 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     )
 
     if (!balanceResult.success || balanceResult.newBalance === undefined) {
-      logger.error('[startMorphingGeneration] Balance check failed', {
-        telegramId: ctx.from?.id,
-        error: balanceResult.error,
-      })
+      /*
+       * THE DISCRIMINATOR WAS READ FOR THE BUTTON AND NOT FOR THE LEVEL.
+       *
+       * Ten lines below, `insufficientFunds` already decides whether the
+       * customer gets a top-up keyboard. The same flag decides whether the
+       * OWNER is woken: logger.error is the Telegram push (utils/logger.ts
+       * binds the transport at level 'error'), and "Balance check failed" for
+       * a person who is four stars short reads like a balance-service outage
+       * that does not exist. The producing helper already agrees --
+       * priceHelper.ts logs the same event at warn before returning the flag.
+       *
+       * The error branch is load-bearing: the same helper answers
+       * success:false with no flag for an unknown model, a non-positive price
+       * and a failed balance WRITE, and those three are our machinery.
+       */
+      logger[balanceResult.insufficientFunds ? 'warn' : 'error'](
+        '[startMorphingGeneration] Balance check failed',
+        {
+          telegramId: ctx.from?.id,
+          insufficientFunds: !!balanceResult.insufficientFunds,
+          error: balanceResult.error,
+        }
+      )
       // Only when the failure IS "not enough stars": the same error field
       // carries "unknown model" too, and a top-up button on that is worse than
       // none. The helper says which, so the caller does not have to guess.
@@ -1415,7 +1438,11 @@ morphingWizard.action('morphing_restart', async ctx => {
 morphingWizard.action('morphing_cancel', async ctx => {
   try {
     console.log('❌ [MORPHING_CANCEL] Action triggered!')
-    await ctx.answerCbQuery()
+    // A stale button is the commonest throw on this line ('query is too old'),
+    // and it used to abort the whole cancel: the reply, the scene.leave and
+    // the menu below never ran, so the person stayed trapped in the wizard AND
+    // the owner was paged. Acknowledging is best-effort; the cancel is not.
+    await ctx.answerCbQuery().catch(() => {})
     const isRu = isRussianFromState(ctx)
 
     await ctx.reply(
@@ -1433,6 +1460,21 @@ morphingWizard.action('morphing_cancel', async ctx => {
     const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
+    /*
+     * What is left in here is `ctx.reply`, `ctx.scene.leave()` and
+     * `showMainMenu`. The only customer-caused failures among those are
+     * Telegram's own rejections -- the person blocked the bot, or the chat is
+     * gone -- and there is nothing an operator can do about a customer who
+     * left. Everything else (a TypeError inside showMainMenu, a broken scene
+     * transition) is our bug and must keep reaching the owner.
+     */
+    if (isUserCausedTelegramError(error)) {
+      logger.warn('Morphing cancel: the customer is gone', {
+        telegramId: ctx.from?.id,
+        description: telegramErrorInfo(error).description,
+      })
+      return
+    }
     logger.error('Error cancelling morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,

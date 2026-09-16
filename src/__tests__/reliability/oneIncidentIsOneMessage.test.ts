@@ -102,6 +102,51 @@ describe('one incident is one message', () => {
     )
   })
 
+  it('one broken step across many jobs is ONE incident, not one per job', () => {
+    /*
+     * The digit rule alone did not reach this. Seventeen titles in the reels
+     * render pipeline read `Failed to … for job ${job_id}`, and a job id is a
+     * uuid -- letters and all -- so masking digits left `#a#bc#-d#ef-…`, still
+     * unique per job. Twenty jobs hitting one broken step was twenty pushes.
+     */
+    const a = 'Failed to render job 7c9e6679-7425-40de-944b-e07fc1f90ae7:'
+    const b = 'Failed to render job 110ec58a-a0f2-4ac4-8393-c866d813b8d1:'
+    expect(fingerprint(a)).toBe(fingerprint(b))
+
+    // Casing is not a second incident either.
+    expect(fingerprint('job 7C9E6679-7425-40DE-944B-E07FC1F90AE7 died')).toBe(
+      fingerprint('job 7c9e6679-7425-40de-944b-e07fc1f90ae7 died')
+    )
+
+    // A provider's opaque task id behaves the same way.
+    expect(
+      fingerprint('kie task d41d8cd98f00b204e9800998ecf8427e failed')
+    ).toBe(fingerprint('kie task 5eb63bbbe01eeed093cb22bb8f5acdc3 failed'))
+  })
+
+  it('but a DIFFERENT step on the same job is still a different incident', () => {
+    // The whole point of the masking is that only the identifier collapses.
+    const id = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+    expect(fingerprint(`Failed to render job ${id}:`)).not.toBe(
+      fingerprint(`Failed to upload result for job ${id}:`)
+    )
+  })
+
+  it('two different failure descriptions are never merged into one', () => {
+    /*
+     * The mistake that would be worse than the noise. Normalising the PROSE --
+     * an attractive way to make the throttle match more often -- would hide the
+     * second, genuinely different failure for ten minutes. Only identifiers are
+     * masked, never the words.
+     */
+    expect(fingerprint('Ошибка Supabase: connection refused')).not.toBe(
+      fingerprint('Ошибка Supabase: permission denied')
+    )
+    expect(fingerprint('xAI 401 Unauthorized')).not.toBe(
+      fingerprint('xAI 404 Model not found')
+    )
+  })
+
   it('a full table evicts the coldest, never stops alerting', () => {
     // The failure that matters: a bounded map must not become "never alert
     // again" once it fills, nor "never throttle again".

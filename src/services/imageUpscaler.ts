@@ -10,6 +10,7 @@ import {
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
 import {
+  BalanceRefusedError,
   processBalanceOperation,
   refuseUnpaidGeneration,
 } from '@/price/helpers'
@@ -23,6 +24,7 @@ import { Markup } from 'telegraf'
 import { getMainMenuText } from '@/navigation'
 import {
   ACTION_PREFIX,
+  standardButtons,
   topupButtonLabel,
 } from '@/navigation/helpers/actionButtons'
 import { remainingBalanceLine } from '@/price/helpers/remainingBalanceLine'
@@ -351,11 +353,24 @@ export const upscaleImage = async (
 
     return { image: Buffer.alloc(0), prompt_id }
   } catch (error) {
-    logger.error('Image upscaling failed', {
+    // An empty wallet is not an incident. refuseUnpaidGeneration has already
+    // written this refusal at info, and every logger.error in this process is
+    // a push notification to the owner's group -- so the same broke customer
+    // arriving here used to wake someone who has nothing to do about it.
+    // The cause is read off the typed error rather than off its prose: the
+    // sentinel text is a protocol between two files, and re-deriving a cause
+    // from a message is exactly what refuseUnpaidGeneration exists to stop.
+    // A charge that failed for an operator reason carries insufficientFunds
+    // false and still pages, as it must.
+    const refusedForMoney =
+      error instanceof BalanceRefusedError && error.insufficientFunds
+
+    logger[refusedForMoney ? 'warn' : 'error']('Image upscaling failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegram_id: params.telegram_id,
       originalPrompt: params.originalPrompt,
       service: 'standalone_upscaler',
+      context: 'imageUpscaler',
     })
 
     // Возврат средств при ошибке
@@ -381,7 +396,7 @@ export const upscaleImage = async (
 
     let errorMessageToUser = '❌ Произошла ошибка при увеличении качества.'
     if (error instanceof Error) {
-      if (error.message && error.message.includes('Not enough stars')) {
+      if (refusedForMoney) {
         errorMessageToUser = params.is_ru
           ? '❌ Недостаточно звёзд для увеличения качества изображения.'
           : '❌ Not enough stars for image upscaling.'
@@ -397,11 +412,18 @@ export const upscaleImage = async (
       }
     }
 
+    // The last thing this service said to a customer who ran out of stars was
+    // "not enough stars" with the keyboard torn off -- the one moment they are
+    // most willing to pay and the only screen with no way to do it. A refusal
+    // for money leaves the top-up button; any other failure leaves the retry
+    // keyboard. Neither removes what the person already has.
     await params.ctx.telegram.sendMessage(
       params.telegram_id,
       errorMessageToUser,
       {
-        reply_markup: { remove_keyboard: true },
+        reply_markup: refusedForMoney
+          ? standardButtons(params.is_ru).reply_markup
+          : createUpscalerResultKeyboard(params.is_ru).reply_markup,
       }
     )
 

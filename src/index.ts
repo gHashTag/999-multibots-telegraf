@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import { isDev } from './config'
 import { ADMIN_IDS_ARRAY } from './config'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
@@ -55,9 +54,10 @@ import { setBotInstance } from './api_server/routes/kie-ai-webhook.routes'
 // ✅ Импортируем supabase для диагностики
 import { supabase } from './core/supabase'
 
-// Log-safe fingerprint of a secret: 8 hex chars of SHA-256, never the value itself.
-const secretFingerprint = (value: string): string =>
-  createHash('sha256').update(value).digest('hex').slice(0, 8)
+// Log-safe fingerprint of a secret: 8 hex chars of SHA-256, never the value
+// itself. PR #2363 decided this here; the helper now lives in one place so the
+// other six sites that printed prefixes could be moved onto the same rule.
+import { secretFingerprint } from '@/utils/secretFingerprint'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []

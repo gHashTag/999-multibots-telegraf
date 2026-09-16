@@ -27,7 +27,21 @@ export async function handleCallbackQuery(ctx: MyContext): Promise<boolean> {
     })
 
     try {
-      await ctx.answerCbQuery()
+      /*
+       * ACKNOWLEDGING THE PRESS IS NOT PART OF THE WORK.
+       *
+       * This middleware runs on EVERY callback query of every bot. When the
+       * query id has expired -- a press on an old message, a redelivered
+       * update -- answerCbQuery throws 400 'query is too old', and it threw
+       * FIRST, before scene.leave and showMainMenu had run. So an expired
+       * press aborted the menu AND paged the owner with 'Error handling main
+       * menu', which reads like the menu is down when the menu is fine.
+       *
+       * The press is already lost; nothing is gained by throwing here. What
+       * remains inside the try is the actual work, so the alert below now
+       * means exactly what it says: the main menu failed to render.
+       */
+      await ctx.answerCbQuery().catch(() => undefined)
       await ctx.scene.leave()
       await showMainMenu(ctx)
       return true
@@ -59,7 +73,9 @@ export async function handleCallbackQuery(ctx: MyContext): Promise<boolean> {
     })
 
     try {
-      await ctx.answerCbQuery()
+      // Same as the main-menu branch above: an expired query id must not abort
+      // the cancel, and must not page anybody.
+      await ctx.answerCbQuery().catch(() => undefined)
       await ctx.scene.leave()
       await showMainMenu(ctx)
       return true
@@ -90,17 +106,19 @@ export async function handleCallbackQuery(ctx: MyContext): Promise<boolean> {
       currentScene: ctx.scene?.current?.id,
     })
 
-    try {
-      await ctx.answerCbQuery()
-      // Для глобальной помощи можно показать базовую справку
-      return true
-    } catch (error) {
-      logger.error('❌ [Callback] Error handling help:', {
-        error,
-        telegramId: ctx.from?.id,
-      })
-      return true
-    }
+    /*
+     * NO try/catch HERE ON PURPOSE.
+     *
+     * This branch never had any work in it -- no scene.leave, no menu, only
+     * the acknowledgement and a note that global help could be shown one day.
+     * So its catch could only ever fire for a failed answerCbQuery, and the
+     * alert it raised ('Error handling help') could only ever mean that a
+     * customer pressed a button whose query id had expired. With the answer
+     * made non-fatal there is nothing left that can throw, and a catch that
+     * cannot fire is a worse lie than no catch at all.
+     */
+    await ctx.answerCbQuery().catch(() => undefined)
+    return true
   }
 
   return false

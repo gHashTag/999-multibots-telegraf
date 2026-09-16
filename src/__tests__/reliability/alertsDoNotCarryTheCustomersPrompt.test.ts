@@ -23,7 +23,12 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { detailsForAlert } from '@/utils/logger'
+import { detailsForAlert, redactSecrets } from '@/utils/logger'
+import { withSuppressedCount } from '@/utils/alertThrottle'
+import {
+  SYNTHETIC_BOT_TOKEN,
+  SYNTHETIC_OPENAI_KEY,
+} from '../helpers/secretShapes'
 
 const ROOT = path.join(__dirname, '..', '..', '..')
 
@@ -120,6 +125,86 @@ describe('no single value fills the alert', () => {
     const d = detailsForAlert({ status: 400, model: 'grok-2-latest' })!
     expect(d).toContain('"status": 400')
     expect(d).toContain('"model": "grok-2-latest"')
+  })
+})
+
+describe('a key never reaches the alert, from EITHER half of it', () => {
+  /*
+   * The redaction lived at the bottom of `detailsForAlert`, so it scrubbed the
+   * meta blob and the message went out verbatim -- and the message is the half
+   * that is always sent. Twenty-three alert titles here are template literals
+   * built from an upstream error body:
+   *
+   *   `❌ Ошибка ${endpoint}: ${response.status} - ${errorText}`
+   *
+   * and a 401 body habitually quotes back the credential it rejected. The
+   * owner's alert group has ordinary members in it.
+   */
+  const SAMPLES: Array<[string, string]> = [
+    ['an OpenAI key', `Incorrect API key provided: ${SYNTHETIC_OPENAI_KEY}`],
+    ['an xAI key', 'auth failed for xai-9ZyXwVuTsRqPoNmLkJiHgFeD'],
+    ['a Replicate token', 'unauthorized: r8_QwErTyUiOpAsDfGhJkLzXcVbN'],
+    ['a GitHub token', 'bad credentials ghp_1234567890abcdefghijKLMNOP'],
+    ['a bot token', `getMe failed for ${SYNTHETIC_BOT_TOKEN}`],
+  ]
+
+  it.each(SAMPLES)('scrubs %s out of the message', (_what, text) => {
+    const cleaned = redactSecrets(text)
+    const secret = text.split(/[\s:]+/).pop()!
+    expect(cleaned, `the raw value survived: ${cleaned}`).not.toContain(secret)
+  })
+
+  it.each(SAMPLES)('scrubs %s out of the details too', (_what, text) => {
+    const d = detailsForAlert({ providerError: text })!
+    const secret = text.split(/[\s:]+/).pop()!
+    expect(d).not.toContain(secret)
+  })
+
+  it('still says what happened, so the alert keeps its point', () => {
+    const cleaned = redactSecrets(
+      `Incorrect API key provided: ${SYNTHETIC_OPENAI_KEY}`
+    )
+    expect(cleaned).toContain('Incorrect API key provided')
+    expect(cleaned).toContain('<key>')
+  })
+
+  it('leaves ordinary text alone', () => {
+    // A scrubber that eats the diagnosis is the same blindness by another road.
+    const plain = 'Ошибка Supabase: connection refused after 3 attempts'
+    expect(redactSecrets(plain)).toBe(plain)
+  })
+
+  it('the delivery path uses it on the message, not only on the meta', () => {
+    // The wiring, not just the helper: a scrubber nobody calls is decoration.
+    const src = fs.readFileSync(path.join(ROOT, 'src/utils/logger.ts'), 'utf8')
+    expect(src).toMatch(/error:\s*redactSecrets\(message\)/)
+  })
+})
+
+describe('the count survives a long alert', () => {
+  /*
+   * `logError` kept the first 500 characters of a title and dropped the rest.
+   * The throttle appends its tally to the END -- "(+47 more in the last 10
+   * min)" -- which is the single thing that makes suppression honest instead of
+   * muting. Any title long enough to be cut lost exactly that, and it was lost
+   * precisely in the storms where the number is the whole message.
+   */
+  it('elides the middle and keeps the tail', () => {
+    const src = fs.readFileSync(
+      path.join(ROOT, 'src/services/telegram-log.service.ts'),
+      'utf8'
+    )
+    expect(src, 'the old head-only cut is back').not.toMatch(
+      /errorMessage\.substring\(0,\s*500\)\s*\+\s*'\.\.\.'/
+    )
+    expect(src).toContain('errorMessage.slice(-TAIL)')
+  })
+
+  it('withSuppressedCount puts the number where the tail keeps it', () => {
+    const long = 'x'.repeat(2000)
+    const withCount = withSuppressedCount(long, 47)
+    expect(withCount.endsWith('то же самое)')).toBe(true)
+    expect(withCount).toContain('+47')
   })
 })
 

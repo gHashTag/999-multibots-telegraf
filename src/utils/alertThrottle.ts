@@ -43,9 +43,33 @@ export interface ThrottleState {
  * Digits are removed on purpose: a retry counter, a row id or a millisecond
  * duration inside the text would otherwise make every repetition unique, and a
  * throttle that never matches is not a throttle.
+ *
+ * DIGITS ALONE WERE NOT ENOUGH. That rule collapses the numeric identifiers --
+ * telegram ids, timestamps, `test-${Date.now()}` -- and leaves every identifier
+ * that contains a letter intact. Seventeen alert titles in the reels render
+ * pipeline are built as `Failed to … for job ${job_id}`, and a job id on a
+ * Supabase table is a uuid (the schema this repository writes by hand declares
+ * `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`); masking its digits leaves
+ * `#a#bc#-d#ef-…`, still unique per job. One broken render step across twenty
+ * jobs was therefore twenty incidents and twenty pushes, when it is one defect.
+ *
+ * So opaque identifiers are masked too -- and ONLY those. Deliberately NOT the
+ * prose: `Ошибка Supabase: connection refused` and `…: permission denied` are
+ * two different failures, and a fingerprint that merged them would hide the
+ * second one for ten minutes. Over-normalising is the worse mistake, because
+ * the noise it removes is visible and the incident it swallows is not.
  */
 export function fingerprint(message: string, context?: string): string {
-  return `${context || ''}|${String(message).replace(/\d+/g, '#').slice(0, 160)}`
+  const normalised = String(message)
+    // uuid v1-v5 in any casing, the shape Supabase row ids take.
+    .replace(
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+      '#uuid'
+    )
+    // A long unbroken hex run: a provider task id, a checksum, a request id.
+    .replace(/\b[0-9a-f]{16,}\b/gi, '#hex')
+    .replace(/\d+/g, '#')
+  return `${context || ''}|${normalised.slice(0, 160)}`
 }
 
 export interface Decision {

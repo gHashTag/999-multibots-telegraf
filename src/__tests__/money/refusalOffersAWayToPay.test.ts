@@ -390,8 +390,17 @@ describe('the number of money refusals with nothing to press does not grow', () 
       // sides -- clean main fails at 42, this branch fails at 37 and passes at
       // 38. Measuring the two sides with different instruments is how the first
       // version of this claim came out wrong.
+      //
+      // 14 -> 13, and the ceiling comes down WITH it: services/imageUpscaler.ts
+      // was the fourteenth. Its catch-all told a person short of stars exactly
+      // that and sent `remove_keyboard: true` with it -- the one screen where
+      // somebody is most willing to pay, and the only one with nothing to press.
+      // It now sends standardButtons. Measured, not assumed: the list this
+      // message prints came back with thirteen named sites, none of them in
+      // services/imageUpscaler.ts, so a ceiling of 14 would no longer see the
+      // repair being undone.
       `refusals with nothing to press:\n${mute.map(m => `  ${m.file}:${m.line}`).join('\n')}`
-    ).toBeLessThanOrEqual(14)
+    ).toBeLessThanOrEqual(13)
   })
 
   /**
@@ -416,6 +425,10 @@ describe('the number of money refusals with nothing to press does not grow', () 
       'ai-reels-inngest-wizard',
       'ai-reels-render-wizard',
       'veed-fabric-wizard',
+      // Closed 2026-09-16. The standalone upscaler's catch-all stripped the
+      // keyboard on the way out. Named by its directory so this pins the
+      // service and not the wizard that calls it.
+      'services/imageUpscaler',
     ]
     const still = fixed.filter(name =>
       sites.some(s => s.file.includes(name) && !s.keyboard)

@@ -51,8 +51,12 @@ function sourceFiles(fragment) {
   return fragment ? out.filter(f => f.includes(fragment)) : out
 }
 
-/** `0,016` and `0.016` are the same number written by two people. */
-const num = t => Number(String(t).replace(',', '.'))
+/**
+ * `0,016` and `0.016` are the same number written by two people, and so are
+ * `60_000` and `60000` -- the separator is JavaScript's, and comments copy it
+ * from the code they describe.
+ */
+const num = t => Number(String(t).replace(/_/g, '').replace(',', '.'))
 
 /**
  * Evaluate a flat token list with the usual precedence.
@@ -82,7 +86,13 @@ function evaluate(tokens) {
   return acc
 }
 
-const NUMBER = String.raw`\d+(?:[.,]\d+)?`
+// The `_` group must be part of the NUMBER, not merely tolerated by `num`.
+// Without it the matcher starts INSIDE the literal, at the digits after the
+// separator, and judges a third of the number against the whole claim: a
+// correct line about 60_000 bytes was reported as claiming ten from zero.
+// (Written out in prose on purpose -- spelling the bad parse here would make
+// this very comment a false claim, and the census reads its own source.)
+const NUMBER = String.raw`\d+(?:_\d{3})*(?:[.,]\d+)?`
 const OP = String.raw`[*×x/+\-]`
 // One short word may follow an operand: `60 credits * $0.005` is arithmetic
 // with a unit, not prose. Bounded to a single word of at most twelve letters
@@ -205,6 +215,13 @@ function selfCheckMe() {
       0,
       0,
     ],
+    // A JavaScript numeric separator belongs to the number it is written in.
+    // This is the real line from dm-delivery.test.ts, and the first version
+    // matched from `000` onwards and reported 0 against a claimed 10.
+    ['// 60_000 bytes / 6000 ≈ 10s of opus-quality voice', 1, 0],
+    // ...and the control that keeps that honest: reading the separator must
+    // not mean waving the claim through. Same shape, wrong answer, caught.
+    ['// 60_000 / 6000 = 12', 1, 1],
     ['// just prose about the code, no numbers at all', 0, 0],
     ['// bumped the retry limit to 5', 0, 0],
   ]

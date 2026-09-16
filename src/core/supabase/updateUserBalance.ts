@@ -363,8 +363,75 @@ export const updateUserBalanceUnlocked = async (
       })
 
       // Проверка достаточности средств для списания
+      //
+      // THE LEVEL OF A REFUSED CHARGE, SOURCE VERSUS ECHO, WRITTEN DOWN ONCE.
+      //
+      // Read this before changing the level of any "the balance is short" line
+      // anywhere in the repository; it was reconstructed from seven files once
+      // already, and once is enough.
+      //
+      // The class is WARN. An empty wallet is written down, never paged.
+      //
+      // INFO is reserved for the SOURCE -- the line that decides the refusal
+      // in the same breath as the customer is handed the top-up prompt, where
+      // the message to the customer is the record and a second operator entry
+      // would count one refusal twice. Two sites, both deliberate:
+      //   * price/helpers/refuseUnpaidGeneration.ts -- processBalanceOperation
+      //     already sent the prompt, with buttons, one frame below;
+      //   * helpers/checkUserBalance.ts -- it sends that message itself.
+      //
+      // WARN is the ECHO -- a catch further up that re-states a refusal
+      // already decided below so its handler can stop quietly. The echo is the
+      // operator's record that a paid action was abandoned, and it is what a
+      // question like "how many refusals today" actually counts. Today:
+      // scenes/imageUpscalerWizard, scenes/aiPhotoshopScene (both upscale
+      // entry points), scenes/avatarTransformScene (chain guard and outer
+      // catch), and the withErrorHandling wrapper in navigation/
+      // registerCommands.ts -- which was the last holdout at info and moved to
+      // warn with this note, because one class logged at two levels cannot be
+      // counted with one query and the miss is silent.
+      //
+      // A refusal that tells the customer nothing where it is logged -- this
+      // guard, directPayment.ts, the two videoGenerator price helpers, the
+      // model-training balance check -- is an operator record as well: it
+      // returns false or throws and leaves the speaking to the caller, so it
+      // is warn too. The list is the census as it stood, not a closed set;
+      // what is closed is the rule above it.
+      //
+      // Said out loud rather than left for the next reader to trip over:
+      // checkUserBalance's path ends at info with no warn above it, so those
+      // refusals are invisible to a warn-level count. That is a real gap in
+      // the census, not a tidy exception.
+      //
+      // warn, not error: logger.error is a push notification to the owner's
+      // Telegram group, and a customer who cannot afford a generation is not
+      // something an operator acts on at 3am.
+      //
+      // This is a PRE-WRITE guard. It returns before the update and the insert
+      // further down, so no row was written and there is nothing to reconcile.
+      //
+      // warn rather than info, deliberately, for two reasons:
+      //
+      //  1. The house level for a refused charge is warn everywhere else --
+      //     pinned by balanceRefusalIsToldApartFromAnOutage.test.ts and
+      //     oneEmptyWalletIsOneRefusal.test.ts. Dropping this one to info
+      //     would split one class across two levels.
+      //
+      //  2. `currentBalance` is not guaranteed to be the customer's real
+      //     balance. Above, `Number(balanceData) || 0` turns a null/undefined
+      //     RPC result into 0 WITHOUT setting balanceError, and the other
+      //     branch recomputes the balance by hand from payments_v2 exactly
+      //     when the RPC is down. So this line can fire during an outage for
+      //     somebody who does have money. That case deserves a trace in the
+      //     log; it does not deserve a page, because the charge was refused
+      //     safely and no money moved.
+      //
+      // Every sibling in this file stays at error on purpose: bad telegram_id,
+      // bad amount, a negative amount, a failed payments-history fetch, a
+      // top-up rejected after the customer already paid, and the write
+      // failures. Those are our machinery; this one is not.
       if (currentBalance < safeAmount) {
-        logger.error('❌ Недостаточно средств на балансе:', {
+        logger.warn('❌ Недостаточно средств на балансе:', {
           description: 'Insufficient funds',
           telegram_id,
           balance: currentBalance,

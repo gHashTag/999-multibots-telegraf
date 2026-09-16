@@ -1,3 +1,5 @@
+import { secretFingerprint } from '@/utils/secretFingerprint'
+
 const Replicate = require('replicate')
 
 // ✅ ЛЕНИВАЯ ИНИЦИАЛИЗАЦИЯ: клиент создается при первом вызове
@@ -17,7 +19,7 @@ function getReplicateClient() {
     })
     console.log(
       '✅ [REPLICATE] Client initialized with token:',
-      token.substring(0, 10) + '...'
+      `${secretFingerprint(token)} (${token.length} chars)`
     )
   }
   return _replicateClient

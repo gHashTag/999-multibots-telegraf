@@ -96,6 +96,29 @@ function renderValue(key: string, v: unknown): unknown {
 }
 
 /**
+ * REDACTION BELONGS TO THE ALERT, NOT TO ONE HALF OF IT.
+ *
+ * This was three chained `.replace` calls at the end of `detailsForAlert`, so
+ * it scrubbed the meta blob and nothing else -- while the MESSAGE, which is the
+ * part that always reaches Telegram, went out verbatim. That is not a
+ * theoretical gap: 23 alert titles in this repository are template literals
+ * built from a provider's own error text
+ *
+ *   `❌ Ошибка ${endpoint}: ${response.status} - ${errorText}`
+ *   `Ошибка при получении ботов из Supabase: ${error.message}`
+ *
+ * and an upstream 401 body routinely quotes back the key it rejected. The
+ * owner's alert group is an ordinary Telegram group with ordinary members.
+ *
+ * Named and exported so both halves use the same rule and a test can hold it.
+ */
+export function redactSecrets(text: string): string {
+  return redactBotToken(text)
+    .replace(/\b\d{8,10}:[A-Za-z0-9_-]{30,}/g, '<bot token>')
+    .replace(/\b(sk|xai|r8|ghp|glpat|sk-proj)[-_][A-Za-z0-9_-]{6,}/g, '<key>')
+}
+
+/**
  * The owner's alert used to carry only the message title -- the `meta` object
  * with the status code, the provider's error text, the model, the stack was
  * dropped on the floor. "[answerAi] xAI Grok API error" reached the owner; the
@@ -116,9 +139,7 @@ export function detailsForAlert(meta: unknown): string | undefined {
   } catch {
     text = String(rest)
   }
-  text = redactBotToken(text)
-    .replace(/\b\d{8,10}:[A-Za-z0-9_-]{30,}/g, '<bot token>')
-    .replace(/\b(sk|xai|r8|ghp|glpat|sk-proj)[-_][A-Za-z0-9_-]{6,}/g, '<key>')
+  text = redactSecrets(text)
   return text.length > ALERT_DETAILS_MAX
     ? `${text.slice(0, ALERT_DETAILS_MAX)}…`
     : text
@@ -161,7 +182,8 @@ class TelegramLogTransport extends Transport {
 
     try {
       await this.telegramLogService.logError({
-        error: message,
+        // Both halves, one rule. The message used to skip this entirely.
+        error: redactSecrets(message),
         context: meta?.context || meta?.function || 'logger.error',
         telegramId: meta?.telegramId || meta?.telegram_id,
         username: meta?.username,

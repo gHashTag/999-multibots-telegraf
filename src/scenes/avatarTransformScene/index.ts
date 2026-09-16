@@ -36,6 +36,11 @@ import { generateGptImage25 } from '@/services/generateGptImage25'
 // Legacy fallback
 import { generateFluxKontext } from '@/services/generateFluxKontext'
 import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
+import { isContentRefusal } from '@/helpers/isContentRefusal'
+// The typed refusal, asked alongside the wording predicate: the generators are
+// mid-migration from `new Error('Insufficient balance')` to this class, and a
+// guard that knows only one of the two is wrong on one side of that change.
+import { BalanceRefusedError } from '@/price/helpers/refuseUnpaidGeneration'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 // 🔴 DEBUG: Log when this scene loads (import time)
@@ -2525,6 +2530,17 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
        */
       let refusedForMoney = false
 
+      /*
+       * The models that refused this particular photograph on a content rule.
+       * Unlike the money flag this one does NOT stop the chain: the next
+       * provider runs a different classifier and often says yes, which is the
+       * entire reason the chain has four of them. It is counted instead, so
+       * the ending can tell "your photo was refused by all of them" apart from
+       * "we are broken" -- two facts that used to arrive as the same alert and
+       * the same apology.
+       */
+      const contentRefusals: string[] = []
+
       // Define the priority order for models with fallback
       const modelPriority = avatarModelPriority(selectedModel)
 
@@ -2691,6 +2707,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             break
           }
 
+          // A refusal of the PHOTO, not of the machinery. Recorded and then
+          // ignored: the next provider has its own classifier.
+          if (isContentRefusal(modelError)) {
+            contentRefusals.push(modelToTry)
+          }
+
           // Continue to next model in fallback chain
           logger.warn(
             `[AvatarTransformScene] ${modelToTry} failed, trying next model`,
@@ -2740,19 +2762,52 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         console.error('🚨 ALL AI MODELS FAILED!', {
           telegramId,
           attemptedModels,
+          contentRefusals,
           selectedModel,
         })
 
-        logger.error('[AvatarTransformScene] All AI models failed', {
-          telegramId,
-          attemptedModels,
-          selectedModel,
-        })
+        /*
+         * A THIRD ENDING, ON THE SAME PRINCIPLE AS THE MONEY ONE.
+         *
+         * "All AI models failed" is true of a dead provider and of a selfie
+         * every safety classifier declined, and only one of those is an
+         * incident. The test is deliberately the strict one: EVERY model that
+         * was tried threw, and every throw was a recognised content refusal.
+         * One unexplained failure anywhere in the chain and this pages as
+         * before -- an outage hiding behind one refused photo is exactly the
+         * trade this must not make.
+         *
+         * It is conservative in the safe direction by construction:
+         * generateGptImage25 and generateNanoBanana swallow their errors and
+         * return null (generateGptImage25.ts:340, generateNanoBanana.ts:532),
+         * so a refusal from either never reaches this counter and the chain
+         * keeps paging. Making those two speak is a separate job; until then
+         * this quietens only the cases it can actually prove.
+         */
+        const allRefusedForContent =
+          contentRefusals.length > 0 &&
+          contentRefusals.length === attemptedModels.length
+
+        logger[allRefusedForContent ? 'warn' : 'error'](
+          allRefusedForContent
+            ? '[AvatarTransformScene] every model refused the photo on content'
+            : '[AvatarTransformScene] All AI models failed',
+          {
+            telegramId,
+            attemptedModels,
+            contentRefusals,
+            selectedModel,
+          }
+        )
 
         await ctx.reply(
-          isRu
-            ? '❌ Извините, все AI модели временно недоступны. Попробуйте позже или обратитесь в поддержку.'
-            : '❌ Sorry, all AI models are temporarily unavailable. Please try later or contact support.',
+          allRefusedForContent
+            ? isRu
+              ? '🛡️ AI не смог обработать это фото: сработали фильтры безопасности. Попробуйте другое фото — например, где лицо видно целиком и кадр без лишних деталей.'
+              : '🛡️ The AI could not process this photo: its safety filters rejected it. Try another one -- a clear, straightforward shot of the face works best.'
+            : isRu
+              ? '❌ Извините, все AI модели временно недоступны. Попробуйте позже или обратитесь в поддержку.'
+              : '❌ Sorry, all AI models are temporarily unavailable. Please try later or contact support.',
           standardButtons(isRu)
         )
 
@@ -3154,11 +3209,77 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         throw new Error('Generation failed - no image URL returned')
       }
     } catch (error) {
-      logger.error('[AvatarTransformScene] Custom prompt generation failed', {
-        telegramId,
-        error: error.message,
-        customPrompt,
-      })
+      /*
+       * THE SECOND DOOR INTO THE SAME GENERATORS.
+       *
+       * This scene calls generateSeeDream45 and generateFluxKontextMax from
+       * two places. The model ladder above learned to ask WHY a generation
+       * failed before choosing a level; this step, which calls the very same
+       * two services a hundred lines below it, kept a flat logger.error -- and
+       * `utils/logger.ts` binds TelegramLogTransport at level 'error', so the
+       * level is a routing decision: this line rang the owner's phone for a
+       * customer with an empty wallet and for a selfie a safety filter
+       * declined. Neither is an incident. There is no key to rotate, no
+       * service to restart, and the generator has already spoken to the
+       * person.
+       *
+       * THE MONEY CASE ALSO SENT A SECOND, CONTRADICTING MESSAGE.
+       * generateSeeDream45 replies "Insufficient stars balance... Top up and
+       * we continue" with the top-up keyboard under it (generateSeeDream45.ts
+       * :226-231) and then throws. The reply below -- "Generation Error ...
+       * Simplify description / Use different words / Try again later" -- then
+       * told somebody who only had to pay that the machine was broken, and
+       * pointed them away from the one action that would have worked. That is
+       * the same defect that was removed at imageUpscalerWizard:112,
+       * aiPhotoshopScene:2353 and :5582, and registerCommands:1898; this door
+       * was missed. So on the money path there is no second message at all.
+       *
+       * WRITTEN TO SURVIVE THE TYPING OF THAT THROW. Today the generator
+       * throws `new Error('Insufficient balance')` and only the wording test
+       * recognises it; when it throws `BalanceRefusedError` instead, the flag
+       * is the authority and the wording no longer matters. Both are asked,
+       * so the guard is correct before and after that change.
+       *
+       * `insufficientFunds: false` is deliberately NOT caught: that is a
+       * charge that failed for an operator reason -- a bad price, a failed
+       * balance write -- where money may not have moved as recorded. It falls
+       * through to logger.error with every unrecognised failure, which is the
+       * direction this must fail in.
+       */
+      const refusedForMoney =
+        (error instanceof BalanceRefusedError && error.insufficientFunds) ||
+        isBalanceRefusal(error)
+      const refusedForContent = !refusedForMoney && isContentRefusal(error)
+      const customerCaused = refusedForMoney || refusedForContent
+
+      logger[customerCaused ? 'warn' : 'error'](
+        refusedForMoney
+          ? '[AvatarTransformScene] custom prompt refused: the balance is short'
+          : refusedForContent
+            ? '[AvatarTransformScene] custom prompt refused on content'
+            : '[AvatarTransformScene] Custom prompt generation failed',
+        {
+          telegramId,
+          error: error instanceof Error ? error.message : String(error),
+          // Named for the operator, so the surviving page still says which
+          // service was asked -- the ladder's alert names its models for the
+          // same reason. `selectedModel` itself is scoped to the try block.
+          model: ctx.session?.selectedModel,
+          // `promptText`, not `customPrompt`: utils/logger.ts reports the keys
+          // it recognises by SIZE and prints the rest, and `customPrompt` is
+          // not one of the names it knows. What a customer wrote is not a
+          // diagnostic; its length is.
+          promptText: customPrompt,
+        }
+      )
+
+      if (refusedForMoney) {
+        // No reply. The top-up message with its keyboard is the last thing
+        // this person saw, and it is the correct one; a second message here is
+        // exactly what contradicted it.
+        await ctx.scene.leave()
+        return
+      }
 
       await ctx.reply(
         isRu

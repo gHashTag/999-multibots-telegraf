@@ -10,6 +10,8 @@ import { scrubCallbackSecrets } from '@/utils/scrubCallbackSecrets'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { isUserCausedTelegramError } from '@/helpers/telegramErrors'
+import { BalanceRefusedError } from '@/price/helpers/refuseUnpaidGeneration'
 import {
   replyWitness,
   silenceNet,
@@ -1869,11 +1871,63 @@ function withErrorHandling<T extends MyContext>(
     try {
       await handler(ctx)
     } catch (error) {
-      logger.error(`Error in ${actionName} action:`, {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        telegramId: ctx.from?.id,
-      })
+      /*
+       * WHAT WOULD THE OWNER DO WITH THIS AT 3AM?
+       *
+       * This wrapper is the last catch for two dozen registered actions, and
+       * it sent every throw to logger.error -- which is the level the Telegram
+       * transport is bound at, so every throw was a push notification. Two
+       * whole classes of throw arriving here are the customer's own situation
+       * and carry nothing to do:
+       *
+       *   1. An empty wallet. `refuseUnpaidGeneration` logs that at info on
+       *      purpose and throws BalanceRefusedError{insufficientFunds:true};
+       *      the customer has ALREADY been told, with top-up buttons attached.
+       *      It reached here through upscaleImage, was logged as an incident
+       *      and answered with a second, contradicting message.
+       *   2. A Telegram rejection the customer caused -- an expired callback
+       *      query, a button on a message they deleted, a bot they blocked.
+       *
+       * A charge that failed for an operator reason is the OPPOSITE case:
+       * BalanceRefusedError{insufficientFunds:false} carries no sentinel, and
+       * it falls through to logger.error below with everything else -- a
+       * throwing beforeEnter, a scene that was never registered, a failed
+       * write, a TypeError in a handler. Those still page, unchanged.
+       */
+      if (error instanceof BalanceRefusedError && error.insufficientFunds) {
+        // warn, not info. This catch is an ECHO: the refusal was decided and
+        // the customer told one frame below, and what this line records is
+        // that a registered action was abandoned for want of stars. That is
+        // the operator's copy, and the house level for it is warn -- the same
+        // sentence is written at warn by the five scene catches
+        // (imageUpscalerWizard, aiPhotoshopScene's two upscale entry points,
+        // avatarTransformScene's chain guard and outer catch). At info, this
+        // one line sat below every warn-level read of the class, so a count of
+        // today's refusals skipped everything that came through the last catch
+        // behind two dozen buttons -- and a miss like that looks like a zero.
+        // The source-vs-echo convention is written down in one place:
+        // core/supabase/updateUserBalance.ts, above the pre-write guard.
+        logger.warn(`${actionName}: refused, the balance is short`, {
+          telegramId: ctx.from?.id,
+          reason: error.reason,
+        })
+        // No reply: `userAlreadyNotified` is exactly what it says, and the
+        // top-up prompt the customer is looking at must not be followed by
+        // '❌ An error occurred. Please try again later.'
+        return
+      }
+      if (isUserCausedTelegramError(error)) {
+        logger.warn(`Telegram refused ${actionName} for the customer:`, {
+          error: error instanceof Error ? error.message : String(error),
+          telegramId: ctx.from?.id,
+        })
+      } else {
+        logger.error(`Error in ${actionName} action:`, {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          telegramId: ctx.from?.id,
+        })
+      }
       const isRu = isRussianFromState(ctx)
       try {
         await ctx.reply(
@@ -1905,7 +1959,10 @@ function createSceneActionHandler(
       telegramId: ctx.from?.id,
     })
 
-    await ctx.answerCbQuery()
+    // The acknowledgement is not the work: an expired query id ('query is too
+    // old') must not abort the scene the customer asked for, and must not page
+    // anybody. Eleven registered actions come through this factory.
+    await ctx.answerCbQuery().catch(() => undefined)
 
     // Проверка доступа к функции (справка + баланс)
     if (options?.requireFeatureAccess && sceneId in ModeEnum) {
@@ -1946,7 +2003,9 @@ function createMessageActionHandler(
       telegramId: ctx.from?.id,
     })
 
-    await ctx.answerCbQuery()
+    // Same as the scene factory above: a press that cannot be acknowledged
+    // still deserves its message.
+    await ctx.answerCbQuery().catch(() => undefined)
 
     if (options?.beforeReply) {
       await options.beforeReply(ctx)

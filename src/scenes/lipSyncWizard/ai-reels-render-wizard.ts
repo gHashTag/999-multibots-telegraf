@@ -15,6 +15,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
+import { secretFingerprint } from '@/utils/secretFingerprint'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
@@ -29,6 +30,11 @@ import {
 import { videoTaskStore } from '@/services/video-task-store'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { showMainMenu } from '@/navigation/helpers/menuKeyboard'
+import {
+  isUserCausedTelegramError,
+  telegramErrorInfo,
+} from '@/helpers/telegramErrors'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -1301,9 +1307,12 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         }
       }
 
+      // The avatar id is not a credential and stays readable. The key is one:
+      // the digest still tells the cocoage fallback apart from a user key,
+      // which is the only question this line was ever asked to answer.
       console.log('🔴 [STEP 6] HeyGen config:', {
         avatarId: heygenAvatarId?.substring(0, 15),
-        apiKeyPrefix: heygenApiKey?.substring(0, 15),
+        apiKey: secretFingerprint(heygenApiKey),
         fromSession: true,
       })
 
@@ -1505,8 +1514,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           hedra: payload.avatar_settings.voice_id || null,
         })
         console.log(
-          '🔴 [STEP 6] CRITICAL: Payload eleven_labs_api_key (first 10 chars):',
-          payload.eleven_labs_api_key?.substring(0, 10)
+          '🔴 [STEP 6] CRITICAL: Payload eleven_labs_api_key:',
+          secretFingerprint(payload.eleven_labs_api_key)
         )
 
         // ✅ СОХРАНЯЕМ TASK CONTEXT В STORE ПЕРЕД ОТПРАВКОЙ
@@ -1650,7 +1659,12 @@ aiReelsRenderWizard.leave(async ctx => {
 
 aiReelsRenderWizard.action('ai_reels_cancel', async ctx => {
   try {
-    await ctx.answerCbQuery()
+    // Best-effort. Telegram answers '400: query is too old and response
+    // timeout expired' when somebody taps Cancel on yesterday's message, and
+    // the unguarded await made that one customer action cost two things: the
+    // cancel below never ran, so the person stayed in a paid wizard, and the
+    // catch paged the owner about it.
+    await ctx.answerCbQuery().catch(() => {})
     const isRu = isRussianFromState(ctx)
 
     logger.info('🎬 [AI REELS RENDER] User cancelled wizard', {
@@ -1675,11 +1689,46 @@ aiReelsRenderWizard.action('ai_reels_cancel', async ctx => {
 
     await ctx.scene.leave()
   } catch (error) {
+    // The reply above promises a menu; a Telegram rejection on it means the
+    // person is gone (blocked, kicked, chat deleted) and there is nothing an
+    // operator could do at 3am. A broken scene transition is ours and pages.
+    if (isUserCausedTelegramError(error)) {
+      logger.warn('[AI REELS RENDER] cancel: the customer is gone', {
+        telegramId: ctx.from?.id,
+        description: telegramErrorInfo(error).description,
+      })
+      return
+    }
     logger.error('❌ [AI REELS RENDER] Error handling cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
     })
+    return
   }
+
+  /*
+   * THE SENTENCE ABOVE NAMED A SCREEN THIS HANDLER NEVER SHOWED.
+   *
+   * The reply above (see the two-language literal in this handler) tells the
+   * person the bot is returning to the main menu and sets remove_keyboard;
+   * then the handler left the scene and stopped -- so somebody cancelling a
+   * paid render was promised a menu and got a blank composer instead.
+   * fluxKontextScene and aiPhotoshopScene already end their cancels with
+   * showMainMenu; this one just did not.
+   *
+   * OUTSIDE THE TRY, ON PURPOSE. showMainMenu owns its own failure reporting
+   * (navigation/helpers/menuKeyboard.ts logs at error and then retries the
+   * reply, which rethrows), so calling it inside the try would route a
+   * blocked customer's failed greeting into the catch above and page twice
+   * for one person leaving. A menu that does not render is not an incident:
+   * the scene is already left and the session already cleared.
+   */
+  await showMainMenu(ctx).catch(error => {
+    logger.warn('[AI REELS RENDER] cancel: main menu was not shown', {
+      telegramId: ctx.from?.id,
+      description: telegramErrorInfo(error).description,
+    })
+  })
 })
 
 export default aiReelsRenderWizard

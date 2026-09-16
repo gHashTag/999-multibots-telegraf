@@ -22,6 +22,13 @@ const devDeps = new Set(Object.keys(pkg.devDependencies ?? {}))
  */
 const STANDALONE = new Set([
   'src/inngest_app/mcp-server.ts', // `inngest:mcp-server` script, dev-only stdio server
+  // `inngest:mcp-proxy` script + .mcp.json + scripts/inngest-mcp-enable.sh --
+  // every one of them starts it with `npx tsx` as the process entry point, and
+  // the file refuses to start any other way (`process.argv[1]` guard, :275).
+  // Nothing in `src` imports it (only its own test does), so the module graph
+  // the bot boots never reaches @modelcontextprotocol/sdk and the outage this
+  // ratchet was written for cannot happen through this file.
+  'src/inngest_app/mcp-rest-proxy.ts',
 ])
 
 const BUILTINS = new Set([
@@ -73,6 +80,36 @@ describe('runtime imports are installed in production', () => {
       }
     }
     expect(offenders).toEqual([])
+  })
+
+  /*
+   * THE EXEMPTION IS A CLAIM, SO CHECK THE CLAIM.
+   *
+   * Every STANDALONE entry says the same thing: "nothing imports this, so its
+   * devDependencies never reach the bot's module graph". That is true on the
+   * day it is written and silently false the day somebody adds an import --
+   * and the failure it lets through is the original outage, a production boot
+   * into `Cannot find module`. So the exemption is not taken on trust: the
+   * moment a runtime file imports one of these, the exemption fails here and
+   * the file has to earn a real dependency instead.
+   */
+  it('nothing in src imports a file the list exempts', () => {
+    const importers: string[] = []
+    for (const file of walk(join(ROOT, 'src'))) {
+      const rel = relative(ROOT, file).split('\\').join('/')
+      if (STANDALONE.has(rel)) continue
+      const src = readFileSync(file, 'utf8')
+      for (const exempt of STANDALONE) {
+        // 'src/inngest_app/mcp-server.ts' -> 'mcp-server', the stem every
+        // relative or alias import of it must end with.
+        const stem = exempt.replace(/^.*\//, '').replace(/\.ts$/, '')
+        const re = new RegExp(
+          `from\\s*['"][^'"]*\\b${stem}['"]|require\\(\\s*['"][^'"]*\\b${stem}['"]`
+        )
+        if (re.test(src)) importers.push(`${rel} -> ${exempt}`)
+      }
+    }
+    expect(importers).toEqual([])
   })
 
   it('exceljs is a runtime dependency (the excelCompat shim needs it)', () => {

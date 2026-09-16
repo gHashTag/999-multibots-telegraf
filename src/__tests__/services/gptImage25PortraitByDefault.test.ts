@@ -86,7 +86,8 @@ describe('GPT-Image-2.5 schema', () => {
     const dims = getGptImage25Dimensions('9:16')
     expect(dims).not.toBeNull()
     expect(dims!.height).toBeGreaterThan(dims!.width)
-    // Measured 940 x 1672 -> 0.5622. The derived figure must agree on shape.
+    // Measured 940 / 1672 = 0.5622, a ratio -- not a product. The derived
+    // figure must agree on shape.
     expect(dims!.width / dims!.height).toBeCloseTo(9 / 16, 2)
 
     // The FLUX bug in miniature: a square must not come back for a wide ratio.

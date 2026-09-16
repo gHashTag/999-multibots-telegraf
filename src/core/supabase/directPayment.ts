@@ -133,7 +133,25 @@ async function directPaymentProcessorUnlocked(
       currentBalance < normalizedAmount
     ) {
       const errorMsg = `Недостаточно средств. Баланс: ${currentBalance}, требуется: ${normalizedAmount}`
-      logger.error('⚠️ [DIRECT_PAYMENT v2.0] Недостаточно средств', {
+      // warn, not error: logger.error is a push notification to the owner's
+      // Telegram group, and there is nothing for an operator to do here.
+      //
+      // This is a PRE-WRITE guard. It fires before the only write in this
+      // function (the payments_v2 insert below) and returns at the next line,
+      // so nothing was inserted and nothing is half-done -- no reconciliation,
+      // no stuck money. The balance it compares against came from a plain
+      // getUserBalance above and was logged there, so an empty wallet here is
+      // the customer's own state, not ours.
+      //
+      // This is the shared floor under every direct-charge spend path
+      // (generateNeuroPhotoDirect, plan_b/generateImageToPrompt), so at error
+      // it pages the owner once per person who cannot afford a generation.
+      // warn rather than info keeps it in the log at the same level the rest
+      // of the repository already uses for a refused charge -- see
+      // src/__tests__/money/balanceRefusalIsToldApartFromAnOutage.test.ts.
+      //
+      // The caller is told regardless: `{ success: false, error: errorMsg }`.
+      logger.warn('⚠️ [DIRECT_PAYMENT v2.0] Недостаточно средств', {
         telegram_id,
         currentBalance,
         requiredAmount: normalizedAmount,
@@ -268,8 +286,25 @@ async function directPaymentProcessorUnlocked(
         }
       )
     } catch (notifyError) {
-      logger.error('❌ [DIRECT_PAYMENT v2.0] Ошибка при отправке уведомления', {
-        /* ... */
+      /*
+       * THE THIRD COPY OF THE SAME EVENT, AND IT IS UNREACHABLE.
+       *
+       * `sendTransactionNotificationTest` has a catch-all that returns
+       * `{ success: false }`; it does not throw. So this branch never runs --
+       * and if a future refactor lets it throw, the notification helper will
+       * ALREADY have decided whether the failure deserves the owner's group.
+       * Paging here would restate that decision a third time.
+       *
+       * The try/catch stays: a receipt must never take down a payment that is
+       * already committed. Only the level changes.
+       */
+      logger.warn('❌ [DIRECT_PAYMENT v2.0] Ошибка при отправке уведомления', {
+        telegram_id,
+        operationId,
+        error:
+          notifyError instanceof Error
+            ? notifyError.message
+            : String(notifyError),
       })
     }
 

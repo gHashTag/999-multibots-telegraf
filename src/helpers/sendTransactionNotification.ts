@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger'
+import { isUserCausedTelegramError } from '@/helpers/telegramErrors'
 import { getBotByName } from '@/core/bot'
 import { BotName } from '@/interfaces/telegram-bot.interface'
 interface TransactionNotificationParams {
@@ -91,7 +92,20 @@ New balance: ${newBalanceNumber} ⭐️`
       new_balance: newBalanceNumber,
     })
   } catch (error) {
-    logger.error('❌ Ошибка при отправке уведомления:', {
+    /*
+     * A CATCH THAT RETHROWS MUST NOT ALSO PAGE.
+     *
+     * This function is only ever reached through
+     * `sendTransactionNotificationTest`, which catches what we throw and logs
+     * the same four fields again. Every failed notification therefore arrived
+     * in the owner's group TWICE -- and the commonest cause is not a fault at
+     * all: a customer who blocked the bot, or deleted the chat, still gets
+     * charged and still gets a notification attempt.
+     *
+     * `warn` keeps the detail in the file (where forensics happen) and leaves
+     * the routing decision to the one caller that owns it.
+     */
+    logger.warn('❌ Ошибка при отправке уведомления:', {
       description: 'Error sending transaction notification',
       error: error instanceof Error ? error.message : String(error),
       telegram_id,
@@ -160,13 +174,40 @@ export async function sendTransactionNotificationTest(
 
     return { success: true }
   } catch (error) {
-    logger.error('❌ Ошибка при отправке уведомления о транзакции:', {
+    /*
+     * THE ONE PLACE THAT DECIDES, AND IT DECIDES BY CAUSE.
+     *
+     * `logger.error` is a push to the owner's Telegram group; `logger.warn` is
+     * a line in the file. Which one a failed receipt deserves depends entirely
+     * on who caused it:
+     *
+     *   - the customer blocked the bot, deleted the chat, or is being rate
+     *     limited -- nothing is broken, nobody can act on it, and it happens
+     *     every day. That is a `warn`.
+     *   - anything else -- the bot instance is missing from the registry, the
+     *     token is rejected, Telegram is down -- means receipts are silently
+     *     failing for EVERY customer, and somebody has to be woken up.
+     *
+     * Note what is deliberately NOT in the user-caused list: `can't parse
+     * entities`. That is broken markup this code built, and it must keep
+     * paging (src/helpers/telegramErrors.ts).
+     */
+    const userCaused = isUserCausedTelegramError(error)
+    // Called through `logger`, not through a detached reference: winston's
+    // level methods read `this`.
+    const detail = {
       description: 'Error sending transaction notification',
+      user_caused: userCaused,
       error: error instanceof Error ? error.message : String(error),
       telegram_id: params.telegram_id,
       operationId: params.operationId,
       amount: params.amount,
-    })
+    }
+    if (userCaused) {
+      logger.warn('❌ Ошибка при отправке уведомления о транзакции:', detail)
+    } else {
+      logger.error('❌ Ошибка при отправке уведомления о транзакции:', detail)
+    }
     return { success: false }
   }
 }

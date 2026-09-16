@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { hangUp } from './src/agent/hang-up'
 import { withClient } from './src/agent/telegram-tools'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * HANG UP = destroy(), NOT disconnect().
@@ -50,8 +52,10 @@ describe('hangUp', () => {
       fs.readFileSync(require.resolve('telegram/client/updates.js'), 'utf8')
     )
     expect(upd).toContain('while (!client._destroyed)')
-    const destroyBody = src.slice(src.indexOf('async destroy()'))
-    expect(destroyBody.slice(0, 200)).toContain('this._destroyed = true')
+    // If gramjs renames destroy(), a bare slice(indexOf(...)) yields the
+    // file's last character and this reads as a vendor change nobody noticed.
+    const destroyBody = sliceFrom(src, 'async destroy()', 200)
+    expect(destroyBody).toContain('this._destroyed = true')
     const disconnectBody = src.slice(
       src.indexOf('async disconnect()'),
       src.indexOf('get disconnected()')
