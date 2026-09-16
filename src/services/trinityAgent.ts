@@ -63,6 +63,12 @@ export interface ОтветАгента {
     display?: string
     media?: { kind: 'photo'; url: string }
     charge?: { telegramId: string; op: string; tokens: number }
+    /**
+     * When this card stops being pressable, in epoch milliseconds, as the
+     * render reported it. Absent from an older render, and the caller must
+     * treat absence as "unknown" rather than as "already dead".
+     */
+    expiresAt?: number
   }
 }
 

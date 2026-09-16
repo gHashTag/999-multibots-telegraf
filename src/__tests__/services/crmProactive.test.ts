@@ -315,6 +315,67 @@ describe('a card nobody pressed is not evicted', () => {
     t += HOLD_MS_DEFAULT + 1
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
   })
+
+  /*
+   * THE TIMER IS SHORTER THAN THE CARD.
+   *
+   * The backoff starts at two hours; a draft is pressable for twelve. So the
+   * sweep came back while the card was still on the owner's screen, drew a
+   * second one, and the queue evicted the first -- together with the picture
+   * that had already been generated for it. Production, 16.09.2026: four such
+   * evictions in a day, each a picture bought and never sent.
+   */
+  it('a card still alive holds the sweep after the timer has run out', async () => {
+    let t = 1_000_000
+    const alive = { ...draft, expiresAt: t + 12 * 60 * 60_000 }
+    const { d, calls } = deps({
+      now: () => t,
+      answer: { текст: 'подготовил', proposal: alive }, // cyrillic-ok: pre-existing identifiers
+    })
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+
+    t += HOLD_MS_DEFAULT + 1
+    const held = await sweepOnce(OWNER, d)
+    expect(held.did).toBe('held')
+    expect(held.why).toContain('оплаченной картинкой')
+    expect(
+      calls.filter(c => c === 'ask').length,
+      'the agent was asked while a pressable card was still waiting'
+    ).toBe(1)
+
+    // And the hold is the CARD, not a second timer: once it can no longer be
+    // pressed there is nothing to evict, so the seller goes back to work.
+    t = alive.expiresAt + 1
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+
+  it('a press frees it long before the card would have died', async () => {
+    let t = 1_000_000
+    const alive = { ...draft, expiresAt: t + 12 * 60 * 60_000 }
+    const { d } = deps({
+      now: () => t,
+      answer: { текст: 'подготовил', proposal: alive }, // cyrillic-ok: pre-existing identifiers
+    })
+    await sweepOnce(OWNER, d)
+    noteResolved(OWNER)
+    t += 1
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+
+  /*
+   * A CARD THAT DOES NOT SAY WHEN IT DIES LEAVES THE GUARD OFF.
+   *
+   * The instant comes over the wire from the render. An older render sends
+   * none, and inventing one here would hold a seller for twelve hours on a
+   * number nobody reported -- the expensive direction of a wrong guess.
+   */
+  it('without the instant, the old timer still rules', async () => {
+    let t = 1_000_000
+    const { d } = deps({ now: () => t })
+    await sweepOnce(OWNER, d)
+    t += HOLD_MS_DEFAULT + 1
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
 })
 
 describe('never two at once', () => {
