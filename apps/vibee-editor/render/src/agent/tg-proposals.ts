@@ -678,7 +678,7 @@ export function remember(
 export function issueFor(
   telegramId: string,
   turn: string
-): (PublicProposal & { secret: string }) | null {
+): (PublicProposal & { secret: string; expiresAt: number }) | null {
   dropExpired()
   const mine = String(telegramId)
   // No turn, no answer. An empty token must never match a draft that has none.
@@ -689,7 +689,22 @@ export function issueFor(
     // The flag is the difference between a card that comes back after a
     // restart and one that cannot: persist it the moment it flips.
     persistSave(p)
-    return { ...redact(p), secret: p.secret }
+    /*
+     * THE CARD SAYS WHEN IT DIES, SO NOBODY HAS TO REMEMBER.
+     *
+     * The bot holds its sweep while a card is still pressable -- drawing a
+     * second one would evict the first, and the first carries a picture that
+     * has already been paid for. To hold, it needs the instant this card
+     * stops being pressable, and there are only two ways to know it: ship it
+     * with the card, or keep a copy of LIFETIME_MS on the other side of the
+     * wire. A copied constant is right until somebody changes the original,
+     * and then it is quietly wrong in the direction that spends money.
+     */
+    return {
+      ...redact(p),
+      secret: p.secret,
+      expiresAt: p.createdAt + LIFETIME_MS,
+    }
   }
   return null
 }

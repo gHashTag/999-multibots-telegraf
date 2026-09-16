@@ -906,6 +906,49 @@ describe('the secret comes out of exactly one door', () => {
     ).toBeNull()
   })
 
+  /*
+   * THE CARD CARRIES THE INSTANT IT STOPS BEING PRESSABLE.
+   *
+   * The bot holds its sweep while a card can still be pressed, because a
+   * second card evicts the first and the first carries a picture that was
+   * already generated and paid for. To hold, it needs that instant -- and the
+   * only alternative to shipping it is a copy of LIFETIME_MS on the far side
+   * of the wire, which stays right until somebody changes this one.
+   *
+   * Checked against the QUEUE, not against the arithmetic: a test that
+   * recomputed createdAt + LIFETIME_MS would agree with any wrong number this
+   * file produced, as long as it produced it twice.
+   */
+  it('the issued card names the instant the queue stops honouring it', () => {
+    vi.useFakeTimers()
+    try {
+      const t0 = new Date('2026-09-16T10:00:00Z').getTime()
+      vi.setSystemTime(new Date(t0))
+      remember({ ...draft('p1', '144022504', 'важное'), turn: 'ход-1' })
+      const card = issueFor('144022504', 'ход-1')
+      expect(card?.expiresAt, 'карточка не сказала, когда умирает').toBeTruthy()
+      const dies = Number(card?.expiresAt)
+
+      // One millisecond before: still there to be pressed.
+      vi.setSystemTime(new Date(dies - 1))
+      remember(draft('sweeper', '999', 'чужой черновик двигает очередь'))
+      expect(
+        pendingFor('144022504'),
+        'очередь выбросила карточку РАНЬШЕ названного ею срока'
+      ).not.toBeNull()
+
+      // One after: gone, and the holder was right to stop holding.
+      vi.setSystemTime(new Date(dies + 1))
+      remember(draft('sweeper2', '998', 'и ещё раз'))
+      expect(
+        pendingFor('144022504'),
+        'карточка пережила названный ею же срок — держатель ждал бы впустую'
+      ).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a new draft opens the door again', () => {
     // The gate is per proposal. A fresh message must still get its card.
     remember({ ...draft('p1', '144022504', 'первое'), turn: 'ход-1' })

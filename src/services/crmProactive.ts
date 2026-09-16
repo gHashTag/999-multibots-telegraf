@@ -128,6 +128,15 @@ interface SweepState {
   ingestFailStreak: number
   /** Cards pushed to this owner that no press has answered. */
   unpressed: number
+  /**
+   * When the card this owner is holding stops being pressable, as the render
+   * itself reported it. 0 when no card is waiting.
+   *
+   * Not computed here on purpose: the lifetime belongs to the queue that
+   * enforces it, and a second copy of that number on this side of the wire
+   * would keep answering after somebody changed the first one.
+   */
+  cardDiesAt: number
 }
 
 // owner-scope: the key IS the owner
@@ -143,6 +152,7 @@ function stateOf(owner: string): SweepState {
       lastPushAt: 0,
       ingestFailStreak: 0,
       unpressed: 0,
+      cardDiesAt: 0,
     }
     sweepState.set(key, st)
   }
@@ -361,6 +371,8 @@ export function noteResolved(owner?: string, cardId?: string): void {
     const st = stateOf(String(owner))
     st.lastPushAt = 0
     st.unpressed = 0
+    // The card is gone from the queue, so nothing is left to evict.
+    st.cardDiesAt = 0
   }
   const s = owner ? scopes.get(String(owner)) : undefined
   if (!s || !s.waiting || s.inFlight) return
@@ -503,6 +515,34 @@ export async function sweepOnce(
     if (st.lastPushAt && now - st.lastPushAt < holdMs) {
       return { did: 'held', why: 'карточка ещё ждёт нажатия владельца' }
     }
+    /*
+     * A LIVE CARD IS NOT A TIMER THAT RAN OUT.
+     *
+     * The queue keeps ONE draft per owner: a new card evicts the one waiting,
+     * and the evicted one is not an empty slot -- it carries a picture that
+     * was generated and paid for, and it leaves as `replaced` in the journal
+     * with the line "картинка сделана, но не отправлена".
+     *
+     * The hold above is a timer, and a card outlives it: the backoff starts
+     * at two hours while a draft is pressable for twelve. So the sweep came
+     * back at the fourth hour, drew a second card, and destroyed the first --
+     * not once, but every time the timer expired, for as long as the owner
+     * did not press. Measured 16.09.2026 in production: four such lines in
+     * one day, each one a picture bought and thrown away.
+     *
+     * Nothing was gained by it either. One card can wait at a time by design,
+     * so the owner saw exactly one card before and after -- the difference is
+     * only WHICH, and the newer one costs a generation.
+     *
+     * A scoped run (`opts.holdMs`) is exempt: the owner is present and asked
+     * for that specific thing, and answering it is worth the eviction.
+     */
+    if (opts.holdMs === undefined && st.cardDiesAt > now) {
+      return {
+        did: 'held',
+        why: 'прошлая карточка ещё жива — новая стёрла бы её вместе с оплаченной картинкой',
+      }
+    }
     stage = 'обновление памяти'
     try {
       if (opts.ingest !== false) {
@@ -596,6 +636,9 @@ export async function sweepOnce(
       stage = 'карточка владельцу'
       await deps.push(ownerId, answer.proposal)
       st.lastPushAt = now
+      // Taken from the card, never guessed: a proposal that arrived without
+      // the instant leaves the guard off rather than inventing a deadline.
+      st.cardDiesAt = Number(answer.proposal.expiresAt) || 0
       // Counted here, cleared by a press in noteResolved: the number IS the
       // run of cards this owner has left unanswered.
       st.unpressed += 1
