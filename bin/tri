@@ -51,6 +51,7 @@ tri — оболочка Trinity S³AI
   tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
   tri promises   обещания в тексте, за которыми стоит число в другом файле
   tri waiting    что лежит в открытом PR и чем рискует — по группам
+  tri rotten [n] какие открытые PR конфликтуют и ПОЧЕМУ — по общей причине
   tri clock [дней] [render|bot|all]  прогон так, будто прошло N дней:
                  два прогона, фон вычитается — видно только то, что сгниёт
   tri landing    доедет ли работа этой ветки до main и что застрянет с ней
@@ -793,6 +794,7 @@ PYEOF
 
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
+  rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
