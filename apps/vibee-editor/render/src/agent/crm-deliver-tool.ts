@@ -9,6 +9,7 @@ import {
   владелец, // cyrillic-ok: public API field
 } from './billing-shared'
 import { LEAD_MAGNET_MODEL } from '../kie-image'
+import { noteImagesFailed, noteImagesWorked } from './image-health'
 
 /**
  * THE SERVICE, DELIVERED IN THE DM -- AND, BY DEFAULT, THE LEAD MAGNET.
@@ -246,6 +247,10 @@ export function makeCrmDeliverTools(
           model = 'image_generate'
         }
         if (!made?.url) {
+          // The one place that knows whether pictures actually work: a real
+          // attempt just came back. The playbook reads this instead of asking
+          // the provider, which would cost a generation to find out.
+          noteImagesFailed(made?.причина ?? made?.reason) // cyrillic-ok: field name
           return {
             delivered: false,
             // cyrillic-ok: public API field
@@ -254,6 +259,7 @@ export function makeCrmDeliverTools(
             source: source ? 'фото человека' : 'по описанию',
           }
         }
+        noteImagesWorked()
         const caption = oneLine(
           a?.caption
             ? String(a.caption)
