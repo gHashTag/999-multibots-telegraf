@@ -20,11 +20,12 @@ import type { SweepOutcome } from './crmProactive'
  * seller; the alert channel for failures (reportSweepOutcome) is untouched.
  */
 const BASE =
-  process.env.RENDER_BASE_URL || 'https://vibee-render-production.up.railway.app'
+  process.env.RENDER_BASE_URL ||
+  'https://vibee-render-production.up.railway.app'
 const TIMEOUT_MS = 10_000
 
 export type HiveNote = {
-  kind: 'sweep-idle' | 'sweep-card' | 'sweep-failed'
+  kind: 'sweep-idle' | 'sweep-card' | 'sweep-failed' | 'card-pressed'
   who: string | null
   what: string
   severity: 'normal' | 'attention' | 'alarm'
@@ -66,6 +67,45 @@ export function noteForSweep(
   }
 }
 
+/*
+ * THE PRESS ITSELF, WHICH NOTHING RECORDED.
+ *
+ * A sweep writes three outcomes into the journal. The act those outcomes
+ * exist for -- the owner pressing a button on the card -- wrote nothing at
+ * all: a confirmed send records a `written` touch only when the draft carried
+ * a lead, a successful press has no log line, and the journal had no kind for
+ * it. So the question the whole design's throughput reduces to, "how often
+ * does the owner press", could not be answered from production. An
+ * investigation on 2026-09-16 listed it as the one thing it could not
+ * establish, and it was right: there was nothing to read.
+ *
+ * Both buttons are written, because "he refused it" is as much an answer as
+ * "he sent it" -- and because counting only the sends would make a careful
+ * owner look like an idle one.
+ *
+ * `normal`, not `attention`: a press is the product working, not a problem.
+ */
+export function noteForPress(
+  owner: string,
+  action: 'sent' | 'cancelled'
+): HiveNote {
+  return {
+    kind: 'card-pressed',
+    who: owner,
+    what: action === 'sent' ? 'отправил' : 'не отправил', // cyrillic-ok: journal text
+    severity: 'normal',
+  }
+}
+
+/** Write a press. Never throws; a journal that is down must not eat a press. */
+export async function notePressToHive(
+  owner: string,
+  action: 'sent' | 'cancelled',
+  opts: { fetchImpl?: typeof fetch } = {}
+): Promise<'noted' | 'not noted'> {
+  return postNote(noteForPress(owner, action), opts.fetchImpl)
+}
+
 export async function noteSweepToHive(
   owner: string,
   r: SweepOutcome,
@@ -73,9 +113,17 @@ export async function noteSweepToHive(
 ): Promise<'noted' | 'skipped' | 'not noted'> {
   const note = noteForSweep(owner, r, opts.label)
   if (!note) return 'skipped'
+  return postNote(note, opts.fetchImpl)
+}
+
+/** One door to the journal, shared by the sweep and the press. */
+async function postNote(
+  note: HiveNote,
+  fetchImpl?: typeof fetch
+): Promise<'noted' | 'not noted'> {
   const key = process.env.RENDER_API_KEY || ''
   if (!key) return 'not noted'
-  const doFetch = opts.fetchImpl ?? fetch
+  const doFetch = fetchImpl ?? fetch
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS)
   try {

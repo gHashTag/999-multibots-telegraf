@@ -97,6 +97,17 @@ export type EventKind =
   | 'sweep-idle'
   | 'sweep-card'
   | 'sweep-failed'
+  /*
+   * THE PRESS ITSELF. The central act of this product left no trace anywhere.
+   *
+   * A confirmed card wrote a `written` touch only when the draft carried a
+   * lead, the log line for a successful press does not exist, and the journal
+   * had nothing for it. So "how often does the owner press" -- the number the
+   * whole design's throughput IS -- could not be answered from production at
+   * all. An investigation on 2026-09-16 named it as the one thing it could
+   * not establish, and it was right: there was nothing to read.
+   */
+  | 'card-pressed'
   // other
   | 'failure'
 

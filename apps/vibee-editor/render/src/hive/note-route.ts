@@ -23,6 +23,8 @@ export const NOTABLE_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   'sweep-idle',
   'sweep-card',
   'sweep-failed',
+  // The owner's press, written by the bot: the one act nothing recorded.
+  'card-pressed',
 ])
 
 const SEVERITIES: ReadonlySet<Severity> = new Set<Severity>([
@@ -62,7 +64,10 @@ export async function handleHiveNote(
   if (!NOTABLE_KINDS.has(kind)) {
     return {
       status: 400,
-      body: { ok: false, error: `kind must be one of ${[...NOTABLE_KINDS].join(', ')}` },
+      body: {
+        ok: false,
+        error: `kind must be one of ${[...NOTABLE_KINDS].join(', ')}`,
+      },
     }
   }
   const severity = SEVERITIES.has(parsed.severity as Severity)
