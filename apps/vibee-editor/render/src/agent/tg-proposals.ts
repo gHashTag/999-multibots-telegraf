@@ -400,12 +400,14 @@ export function restoreProposals(rows: PendingProposal[]): {
     if (pending.has(row.id)) continue
     if (row.createdAt < edge) {
       expired++
+      rememberGone(row, 'expired')
       reportOrphan(redact(row), 'expired')
       persistRemove(row.id)
       continue
     }
     if (!row.issued) {
       unissued++
+      rememberGone(row, 'expired')
       reportOrphan(redact(row), 'expired')
       persistRemove(row.id)
       continue
@@ -434,6 +436,7 @@ export function restoreProposals(rows: PendingProposal[]): {
     if (!held || row.createdAt > held.createdAt) {
       if (held) {
         replaced++
+        rememberGone(held, 'replaced')
         reportOrphan(redact(held), 'replaced')
         persistRemove(held.id)
       }
@@ -441,6 +444,7 @@ export function restoreProposals(rows: PendingProposal[]): {
       continue
     }
     replaced++
+    rememberGone(row, 'replaced')
     reportOrphan(redact(row), 'replaced')
     persistRemove(row.id)
   }
@@ -452,6 +456,7 @@ export function restoreProposals(rows: PendingProposal[]): {
     )
     if (live) {
       replaced++
+      rememberGone(row, 'replaced')
       reportOrphan(redact(row), 'replaced')
       persistRemove(row.id)
       continue
@@ -480,10 +485,71 @@ export function reportOrphan(p: PublicProposal, reason: OrphanReason): void {
   }
 }
 
+/**
+ * WHY THE CARD IS GONE, TO THE PERSON WHOSE CARD IT WAS.
+ *
+ * MEASURED FROM THE HIVE JOURNAL 2026-09-16: 62 cards prepared in five and a
+ * half days. The store keeps one draft per person, so each new card takes the
+ * previous one's id out of the queue -- while the Telegram message with its
+ * buttons stays in the chat, looking alive. Press one from an hour ago and
+ * the answer is "already confirmed or expired".
+ *
+ * That sentence is deliberately vague, and it is the RIGHT answer to a
+ * stranger: it must not say whether a draft exists. To the owner holding the
+ * button it is the wrong answer, and wrong in the only way he cares about --
+ * "confirmed" means something went to a client, "replaced" means nothing did.
+ * He is left unsure whether he sent it, which is the worst state to leave
+ * somebody in about a message to their own customer.
+ *
+ * So the reason is kept for a day, together with the owner and the digest of
+ * the secret it takes to prove the card was theirs. Only a caller who passes
+ * BOTH -- which only the button carries -- gets the precise sentence; anybody
+ * else keeps the vague one, including somebody who guesses an id. Bounded and
+ * swept on every write: this is a courtesy, not a record.
+ */
+const GONE_TTL_MS = 24 * 60 * 60 * 1000
+const GONE_MAX = 200
+// owner-scope: keyed by draft id, and every read compares owner AND secret
+const gone = new Map<
+  string,
+  { owner: string; secretDigest: string; reason: OrphanReason; at: number }
+>()
+
+function rememberGone(p: PendingProposal, reason: OrphanReason): void {
+  const now = Date.now()
+  for (const [id, g] of gone) if (now - g.at > GONE_TTL_MS) gone.delete(id)
+  while (gone.size >= GONE_MAX) {
+    const oldest = gone.keys().next().value as string
+    gone.delete(oldest)
+  }
+  gone.set(p.id, {
+    owner: p.telegramId,
+    secretDigest: p.secretDigest,
+    reason,
+    at: now,
+  })
+}
+
+/** For tests: nothing is remembered. */
+export function forgetGoneProposalsForTests(): void {
+  gone.clear()
+}
+
+/** What to tell the owner about a card that is no longer there. */
+const GONE_WHY: Record<OrphanReason, string> = {
+  replaced:
+    'этот черновик заменён новым — ничего не ушло, открой свежую карточку',
+  expired: 'черновик истёк — ничего не ушло',
+  cancelled: 'этот черновик уже отменён — ничего не ушло',
+  failed:
+    'по этому черновику отправка не удалась — посмотри чат перед повтором',
+}
+
 /** Remove a draft that will never be sent, telling the listener why. */
 function drop(p: PendingProposal, reason: OrphanReason): void {
   pending.delete(p.id)
   persistRemove(p.id)
+  rememberGone(p, reason)
   reportOrphan(redact(p), reason)
 }
 
@@ -774,7 +840,22 @@ export function claim(
 ): { ok: true; proposal: PublicProposal } | { ok: false; why: string } {
   dropExpired()
   const p = pending.get(id)
-  if (!p) return { ok: false, why: 'это действие уже подтверждено или истекло' }
+  if (!p) {
+    /*
+     * The precise reason, but only to somebody who proves the card was
+     * theirs: the owner id AND the secret from the button. A probe with a
+     * guessed id has neither and learns nothing new.
+     */
+    const g = gone.get(id)
+    if (
+      g &&
+      g.owner === String(telegramId) &&
+      sameSecret(g.secretDigest, secret)
+    ) {
+      return { ok: false, why: GONE_WHY[g.reason] }
+    }
+    return { ok: false, why: 'это действие уже подтверждено или истекло' }
+  }
   if (p.telegramId !== String(telegramId)) {
     // Fail-closed and worded without confirming the id exists: a probe should
     // not learn whether somebody else has a draft waiting.
