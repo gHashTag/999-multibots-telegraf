@@ -36,14 +36,33 @@
 прорепетирован в одноразовой копии: **тринадцать идут подряд без единого
 конфликта**, к трём оставшимся ответы написаны комментариями прямо в PR.
 
-Проверенный порядок (`tri rehearse` повторяет проверку):
+Проверенный порядок для ВСЕЙ очереди — 25 веток подряд без единого
+конфликта, включая работу прошлых сессий (`tri rehearse` повторяет проверку,
+`tri rehearse --test` ещё и прогоняет тесты на объединённом дереве):
 
 ```
 rescue-five-tools → tri-stale-v2 → tri-attention → tri-spelling
 tri-card → their-words-v2 → evict-at-issue → sweep-heartbeat
 funnel-same-window → funnel-young-v2 → clipped-words
+orphan-aliases → alarm-names-the-subject
+the-lead-magnet-model-has-now-been-run
+the-morning-plan-counts-prepared-cards
+the-summary-screen-shows-the-leak
+talking-is-derived-from-messages
+kie-is-a-provider-the-owner-can-see
+no-gift-promised-when-pictures-are-down
+card-says-why-it-is-gone → crm-nudge-cap
+nul-byte-in-tools → stars-credit-rollback
 rescue-forms → rescue-loop-state
 ```
+
+Тесты на объединённом дереве прогнаны отдельно: **2020 рендера + 1202 бота**,
+шлюз событий отдаёт 0, `tri self` видит 60 команд при 60 строках справки.
+
+**Шесть требуют разбора** (каждый — пересечение по одной функции, не спор):
+cold-leads, deadlines, turn-time (ответы написаны комментариями в PR),
+a-refused-gift-leaves-a-line, the-sweep-names-the-person-and-the-step,
+card-dropped-is-a-fact, crm-proactive-per-owner.
 
 Три с конфликтами и готовыми ответами: **#2473** (объединить оба изменения у
 `deps.push`), **#2462** (объединить поля карты `cardLeads`), **#2465** (взять
@@ -74,6 +93,18 @@ rescue-forms → rescue-loop-state
 - Нажато **не больше пяти** (строгая граница: столько отправок за 30 дней).
 - Из 18 в очереди возврата 17 не получили ничего; поручение обхода на этот
   список **не смотрит вовсе** — дыра в замысле, не ошибка модели.
+
+### Живое слабое место, починка которого УЖЕ в очереди
+
+`tri facts` 17.09.2026: людей 1014, входящих сообщений 25320, **касаний
+всего девять** (3 replied, 6 written). На вопрос «кто ждёт ответа» два
+ответа — 315 по переписке и 4 по касаниям, разница в семьдесят девять раз, и
+модель получает оба.
+
+Таблица касаний пуста не сама по себе: `written` пишется по нажатию, а
+нажатий было около пяти за месяц. То есть это симптом того же узкого места.
+Починка того, ЧТО из этого читает инструмент «кто ждёт», лежит в **#2433**
+(MERGEABLE, из прошлой сессии).
 
 ### Что заблокировано на владельце
 
