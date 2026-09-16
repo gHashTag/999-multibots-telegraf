@@ -46,6 +46,12 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
+  tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
+  tri rotten [n] какие открытые PR конфликтуют и ПОЧЕМУ — по общей причине
+  tri books      какие факты код читает, а прод НИ РАЗУ не записал
+  tri alive      дышит ли продавец: сколько прошло с последнего обхода
+  tri vs-main <команда…>  падает ли это и БЕЗ ваших правок (копия на main)
+  tri queue [n]  очередь открытых PR: что свободно, а что стоит за другим
   tri scan       чем этот код может соврать: обзор сторожей и дыр
   tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
   tri promises   обещания в тексте, за которыми стоит число в другом файле
@@ -793,6 +799,12 @@ PYEOF
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
+  queue)  shift; bash "$ROOT/bin/helpers/queue.sh" "$ROOT" "$@" ;;
+  self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
+  rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
+  books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
+  alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
+  vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
