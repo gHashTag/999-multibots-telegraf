@@ -26,6 +26,22 @@ git fetch -q origin 2>/dev/null || true
 
 # Без аргументов — порядок открытых PR, как их отдаёт gh: снизу вверх по номеру.
 # Это НЕ рекомендация, а отправная точка: свой порядок передайте аргументами.
+# --test: ПОСЛЕ СЛИЯНИЯ ПРОГНАТЬ ТЕСТЫ НА ОБЪЕДИНЁННОМ ДЕРЕВЕ.
+#
+# Репетиция без этого отвечает только на «сольётся ли», а зелёный PR по
+# отдельности не обещает зелёное ПОСЛЕ слияния: main уходит вперёд, соседи
+# добавляют своё, и ломается обычно не код, а реестры — список команд, набор
+# видов события, перепись подписок.
+#
+# Стоит минут, поэтому не по умолчанию. 17.09.2026 прогон по четырнадцати
+# веткам дал 2020 тестов рендера и 1202 бота, все зелёные, и `tri self` на
+# объединённом дереве увидел 60 команд при 60 строках справки — то есть шесть
+# веток, каждая регистрировавшая свою команду, собрались в связную оболочку.
+WITH_TESTS=0
+case "${1:-}" in
+  --test) WITH_TESTS=1; shift ;;
+esac
+
 LIST="$*"
 if [ -z "$LIST" ]; then
   LIST=$(gh pr list --state open --limit 40 --json number,headRefName,baseRefName \
@@ -96,3 +112,20 @@ if [ "$BAD" -gt 0 ]; then
   exit 1
 fi
 echo "  ✅ весь порядок проходит без единого конфликта."
+[ "$WITH_TESTS" = "1" ] || exit 0
+
+# Копия одноразовая и без node_modules: связываем с рабочими, не копируя.
+echo
+echo "── тесты на ОБЪЕДИНЁННОМ дереве ──"
+ln -s "$ROOT/node_modules" "$W/node_modules" 2>/dev/null
+ln -s "$ROOT/apps/vibee-editor/render/node_modules" \
+      "$W/apps/vibee-editor/render/node_modules" 2>/dev/null
+RC=0
+(cd "$W/apps/vibee-editor/render" && npx vitest run --reporter=dot 2>&1 |
+  grep -E '^ +(Tests|Test Files) |FAIL ' | sed 's/^/  рендер:/') || RC=1
+(cd "$W" && npx vitest run src/__tests__/services/ src/__tests__/bot/ \
+  --reporter=dot 2>&1 | grep -E '^ +(Tests|Test Files) |FAIL ' |
+  sed 's/^/  бот:/') || RC=1
+(cd "$W" && node scripts/orphan-events.cjs >/dev/null 2>&1 &&
+  echo "  шлюз событий: ✅" || { echo "  шлюз событий: 🛑"; RC=1; })
+exit $RC
