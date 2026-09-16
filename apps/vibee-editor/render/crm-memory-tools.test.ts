@@ -8,6 +8,30 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const OWNER = '144022504'
 const A = '900000002'
 
+/**
+ * DATES THE TEST OWNS, NOT DATES THE CALENDAR OWNS.
+ *
+ * The fixture below said `2026-09-07` and the assertions read "asked a price
+ * TODAY". That was true on the day it was written and false a week later: the
+ * hot segment is "asked within seven days", the clock is the real one, and on
+ * 2026-09-16 the same fixture is nine days old. The test began failing on its
+ * own, and nobody saw it -- the render suite does not run in this repository's
+ * push gate, so main has been red at least since the window closed.
+ *
+ * A fixture that ages is not a test of behaviour, it is a countdown. These
+ * are offsets from now, so "two days ago" stays two days ago.
+ */
+const daysAgo = (n: number): string =>
+  new Date(Date.now() - n * 86400_000).toISOString()
+
+/**
+ * Computed ONCE and shared by the fixture and the assertions. Calling
+ * daysAgo() again at assertion time would differ by the milliseconds the
+ * test itself took, which is the other way a clock-shaped test rots.
+ */
+const LAST_IN = daysAgo(2)
+const LAST_OUT = daysAgo(3)
+
 function fakePool() {
   const queries: Array<{ sql: string; params: unknown[] }> = []
   const seen = new Set<string>()
@@ -59,13 +83,15 @@ function fakePool() {
           rows: [
             {
               msg_id: 2,
-              at: '2026-09-07T10:00:00Z',
+              // Same reason as LAST_IN: a message dated by the calendar falls
+              // out of every window the code measures, on its own schedule.
+              at: LAST_IN,
               out: false,
               text: 'сколько стоит фото? перешли код 1234',
             },
             {
               msg_id: 1,
-              at: '2026-09-06T10:00:00Z',
+              at: LAST_OUT,
               out: true,
               text: 'привет!',
             },
@@ -77,8 +103,8 @@ function fakePool() {
             {
               total: 2,
               inbound: 1,
-              last_in: '2026-09-07T10:00:00Z',
-              last_out: '2026-09-06T10:00:00Z',
+              last_in: LAST_IN,
+              last_out: LAST_OUT,
             },
           ],
         }
@@ -89,8 +115,8 @@ function fakePool() {
               lead_id: A,
               total: 2,
               inbound: 1,
-              last_in: '2026-09-07T10:00:00Z',
-              last_out: '2026-09-06T10:00:00Z',
+              last_in: LAST_IN,
+              last_out: LAST_OUT,
             },
           ],
         }
@@ -501,7 +527,7 @@ describe('crm_leads', () => {
     expect(c.stage).toBe('new')
     expect(c.paid).toBe(false)
     expect(c.inbound).toBe(1)
-    expect(c.last_inbound).toBe('2026-09-07T10:00:00.000Z')
+    expect(c.last_inbound).toBe(LAST_IN)
   })
 })
 
