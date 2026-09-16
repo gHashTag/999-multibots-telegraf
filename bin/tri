@@ -53,6 +53,7 @@ tri — оболочка Trinity S³AI
   tri vs-main <команда…>  падает ли это и БЕЗ ваших правок (копия на main)
   tri queue [n]  очередь открытых PR: что свободно, а что стоит за другим
   tri stale [N…]  не сделано ли то, что лежит в PR, уже на main
+  tri attention   на кого продавец тратит карточки и кто остаётся без них
   tri scan       чем этот код может соврать: обзор сторожей и дыр
   tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
   tri promises   обещания в тексте, за которыми стоит число в другом файле
@@ -800,6 +801,7 @@ PYEOF
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
+  attention) shift; bash "$ROOT/bin/helpers/attention.sh" "$ROOT" "$@" ;;
   stale)  shift; bash "$ROOT/bin/helpers/stale.sh" "$ROOT" "$@" ;;
   queue)  shift; bash "$ROOT/bin/helpers/queue.sh" "$ROOT" "$@" ;;
   self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
