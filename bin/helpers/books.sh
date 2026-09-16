@@ -143,7 +143,26 @@ now_s = time.time()
 # single ingest had seen a new message. Judging a writer before it could
 # possibly have fired sends the next cycle to fix what is not broken.
 YOUNG_H = 48
+# РАЗОБРАННЫЕ НУЛИ. Ноль бывает верным ответом, и тогда он не находка.
+#
+# 16.09.2026: `bought` держался восемь дней как «писатель в проде, записей
+# нет». Разбор показал, что ноль ПРАВИЛЬНЫЙ. Заряд на карточку ставится
+# только при `gift: false`; подарок — значение по умолчанию
+# (`gift = a?.gift !== false`), бриф обхода слова `gift` не содержит вовсе, а
+# playbook прямо говорит «gift по умолчанию: получатель не платит». Значит
+# тернарник `p.charge ? 'bought' : 'written'` не может дать `bought` — и не
+# должен: платных доставок никто не покупал, потому что предлагать их
+# продавцу не велено («не предлагай оплату первым»).
+#
+# Записано здесь, а не забыто, ровно по причине из формы 62: инструмент,
+# который каждый виток показывает разобранное как новое, отправляет чинить
+# то, что уже объяснено. Снимать запись — когда изменится причина, а не
+# когда надоест.
+EXPLAINED = {
+    'bought': 'ноль верен: заряд только при gift=false, а подарок -- умолчание',
+}
 dead, stranded, unreached, young = [], [], [], []
+explained = []
 print('-- kto pishet fakt, lezhit li on v prode, skolko zapisano --')
 print()
 for k in KINDS:
@@ -164,6 +183,9 @@ for k in KINDS:
     elif not shipped:
         verdict, mark = 'pisatel EST, no NE na main', 'P'
         stranded.append((k, [os.path.basename(f) for f, _, _ in ws]))
+    elif total == 0 and k in EXPLAINED:
+        verdict, mark = 'ноль razobran: ' + EXPLAINED[k], '. '
+        explained.append((k, EXPLAINED[k]))
     elif total == 0 and age_h is not None and age_h < YOUNG_H:
         verdict, mark = 'pisatel V PRODE %d ch -- rano sudit' % age_h, '.'
         young.append((k, age_h))
@@ -195,6 +217,11 @@ if unreached:
 if dead:
     print('  X  NIKTO NIGDE NE PISHET, a logika chitaet: %s' % ', '.join(dead))
     print('     Vot eto -- nastoyashchaya rabota po kodu.')
+    print()
+if explained:
+    print('  .  RAZOBRANO -- nol verniy, ne nahodka:')
+    for k, why in explained:
+        print('       %-9s %s' % (k, why))
     print()
 if young:
     print('  .  SLISHKOM MOLODOY, chtoby sudit (< %d ch v prode):' % YOUNG_H)
