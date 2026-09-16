@@ -252,6 +252,60 @@ export function leadOfTarget(target: unknown): string | undefined {
 }
 
 /*
+ * A CARD ADDRESSED BY @USERNAME KEPT NO BOOKS.
+ *
+ * `p.lead` decides two separate things on the other side: the reason shown on
+ * the card, and -- in tg-proposals -- whether a confirmed send records a
+ * `written` touch at all. A @username yields no lead, so pressing such a card
+ * sent the message and wrote NOTHING.
+ *
+ * That is not a small gap in a ledger, it is the number the owner reads. The
+ * board counts sends by counting `written` touches, and on 2026-09-16 it said
+ * five sends in total while the card waiting for a press at that moment was
+ * addressed by @username -- so pressing it would not have moved the five. For
+ * seven cycles that five was reported as a leak between preparing a card and
+ * pressing it. Part of it was never behaviour; it was bookkeeping.
+ *
+ * `crm_people` already carries (owner_id, lead_id, username) from the ingest,
+ * so the id is one scoped query away.
+ *
+ * SCOPED, AND AMBIGUITY REFUSED. The lookup is keyed by the asking owner --
+ * one owner's contact list must never answer another's question. Two people
+ * under one username (a rename that the ingest has seen twice) returns
+ * nothing: writing the touch onto a guess puts it on the wrong person's
+ * history, and a missing touch is recoverable where a wrong one is not.
+ */
+const USERNAME = /^@?([A-Za-z][A-Za-z0-9_]{4,31})$/
+
+export async function leadOfTargetIn(
+  ctx: ToolContext | undefined,
+  target: unknown
+): Promise<string | undefined> {
+  const direct = leadOfTarget(target)
+  if (direct) return direct
+  const m = USERNAME.exec(String(target ?? '').trim())
+  const pool = ctx?.pool as
+    | { query: (sql: string, params?: unknown[]) => Promise<{ rows?: any[] }> }
+    | undefined
+  const owner = String(ctx?.telegramId ?? '')
+  if (!m || !pool || !owner) return undefined
+  try {
+    const r = await pool.query(
+      `SELECT lead_id FROM crm_people
+        WHERE owner_id = $1 AND lower(username) = lower($2)
+        LIMIT 2`,
+      [owner, m[1]]
+    )
+    const rows = r?.rows ?? []
+    if (rows.length !== 1) return undefined
+    return leadOfTarget(String(rows[0].lead_id ?? ''))
+  } catch {
+    // A card that cannot look up its lead is still a card worth sending.
+    return undefined
+  }
+}
+
+/*
  * The model writes an ISO string (that is what it can name); the draft keeps
  * an epoch number (that is what the wire needs). Date.parse of garbage is
  * NaN, and NaN is handed on deliberately: `scheduleProblem` refuses it in
@@ -1096,7 +1150,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         args.text,
         'Отправка ждёт подтверждения человека. Покажи адресата и текст целиком.',
         ctx,
-        leadOfTarget(args.chat),
+        await leadOfTargetIn(ctx, args.chat),
         undefined,
         scheduleExtra(args)
       )
@@ -1132,7 +1186,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         args.caption,
         'Голосовое ждёт подтверждения человека. Назови адресата и длительность.',
         ctx,
-        leadOfTarget(args.chat),
+        await leadOfTargetIn(ctx, args.chat),
         undefined,
         {
           media: {
@@ -1168,7 +1222,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         args.caption,
         'Видео ждёт подтверждения человека. Назови адресата.',
         ctx,
-        leadOfTarget(args.chat),
+        await leadOfTargetIn(ctx, args.chat),
         undefined,
         {
           media: {
@@ -1211,7 +1265,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         args.caption,
         'Файл ждёт подтверждения человека. Назови адресата и имя файла.',
         ctx,
-        leadOfTarget(args.chat),
+        await leadOfTargetIn(ctx, args.chat),
         undefined,
         {
           media: {
@@ -1269,7 +1323,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         undefined,
         `Альбом из ${urls.length} фото ждёт подтверждения человека.`,
         ctx,
-        leadOfTarget(args.chat),
+        await leadOfTargetIn(ctx, args.chat),
         undefined,
         {
           media: {
