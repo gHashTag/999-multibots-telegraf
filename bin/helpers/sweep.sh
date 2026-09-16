@@ -14,8 +14,105 @@
 # Ничего не отправляет и не меняет: только чтение логов Railway.
 set -u
 ROOT="${1:?нужен корень репозитория}"
-LINES="${2:-800}"
+MODE="${2:-hive}"
+LINES="${3:-800}"
 cd "$ROOT" || exit 1
+
+if [ "$MODE" = "log" ] || [ "$MODE" = "hive" ]; then
+  :
+else
+  # Числом вторым аргументом пользовались до появления режимов — не ломаем.
+  case "$MODE" in
+    ''|*[!0-9]*) echo "tri sweep [hive|log] [строк]"; exit 2 ;;
+    *) LINES="$MODE"; MODE="log" ;;
+  esac
+fi
+
+# ЖУРНАЛ УЛЬЯ — ИСТОЧНИК ПО УМОЛЧАНИЮ, И ЭТО ГЛАВНОЕ ОТЛИЧИЕ ОТ ЛОГА.
+#
+# Лог Railway начинается с последнего деплоя: замер 16.09.2026 — окно 48
+# минут при кроне раз в полчаса, то есть один-два исхода. Журнал улья хранит
+# те же обходы навсегда (noteSweepToHive), и в нём за те же сутки нашлось 76
+# записей за пять дней. Разница между «нечего сказать» и «62 карточки против
+# пяти касаний» — это выбор источника, а не удача.
+#
+# Журнал НЕ пишет held и busy: это не обходы, а отложенные. За ними — в лог.
+if [ "$MODE" = "hive" ]; then
+  AK=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) |
+        grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
+  if [ -z "$AK" ]; then
+    echo "🛑 нет ключа агента — журнал не прочитан. Это НЕ значит, что обходов не было."
+    echo "   (значение ключа не печатается никогда — только его наличие)"
+    exit 2
+  fi
+  BASE="${RENDER_BASE_URL:-https://vibee-render-production.up.railway.app}"
+  RESP=$(curl -s --max-time 60 "$BASE/mcp" -H "X-Agent-Key: $AK" \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"hive_events","arguments":{"limit":200}}}')
+  RESP="$RESP" python3 - <<'PYHIVE'
+import json, os, re, sys
+from collections import Counter, defaultdict
+
+raw = os.environ.get('RESP', '')
+try:
+    d = json.loads(raw)
+except Exception:
+    sys.stderr.write('журнал не прочитан (первые 200 знаков):\n%s\n' % raw[:200])
+    raise SystemExit(2)
+if 'error' in d:
+    sys.stderr.write('сервис отказал: %s\n' % str(d['error'].get('message'))[:200])
+    raise SystemExit(2)
+t = json.loads(d['result']['content'][0]['text'])
+ev = [e for e in t.get('events', []) if str(e.get('kind','')).startswith('sweep')]
+
+print('── журнал улья: %s ──' % t.get('scope'))
+if not ev:
+    print('  записей об обходах нет в последних 200 событиях журнала')
+    raise SystemExit(0)
+
+print('  обходов в выборке: %d  (%s … %s)'
+      % (len(ev), str(ev[-1].get('at'))[:10], str(ev[0].get('at'))[:10]))
+print()
+per_day = defaultdict(Counter)
+per_owner = Counter()
+for e in ev:
+    per_day[str(e.get('at'))[:10]][str(e.get('kind'))] += 1
+    per_owner[str(e.get('who'))] += 1
+print('  по дням:')
+for day in sorted(per_day):
+    print('    %s  %s' % (day, dict(per_day[day])))
+
+print()
+print('  по владельцам (id не печатаются):')
+for i, (_who, n) in enumerate(per_owner.most_common()):
+    print('    продавец #%d: %d' % (i + 1, n))
+if len(per_owner) > 1:
+    top = per_owner.most_common()
+    if top[0][1] > 5 * max(1, top[-1][1]):
+        print('    ⚠️  перекос больше чем впятеро: у одного продавца обходов'
+              ' на порядок больше, чем у другого.')
+
+fails = [e for e in ev if e.get('kind') == 'sweep-failed']
+if fails:
+    print()
+    print('  падения (%d), без имён:' % len(fails))
+    seen = set()
+    for f in fails:
+        note = re.sub(r'[^\s(]{1,40}\s*\(@[^)]+\)', '<человек>', str(f.get('note') or ''))
+        note = note.replace('\n', ' ')[:100]
+        if note in seen:
+            continue
+        seen.add(note)
+        print('    %s  %s' % (str(f.get('at'))[:16], note))
+
+cards = sum(1 for e in ev if e.get('kind') == 'sweep-card')
+print()
+print('  карточек подготовлено: %d' % cards)
+print('  СРАВНИТЕ с числом отправленных: tri facts (касания «written»).')
+print('  Подготовленная карточка ЗАМЕНЯЕТ прошлую неподнажатую — одна на человека.')
+PYHIVE
+  exit $?
+fi
 
 # ВЫВОД ПРОВЕРЯЕМ, А НЕ ПРЕДПОЛАГАЕМ.
 #
