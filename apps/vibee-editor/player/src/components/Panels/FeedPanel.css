@@ -402,6 +402,11 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+  /* Not load-bearing today -- .feed-card-info is a block, so this row is not
+     itself a flex item and its min-width: auto never binds. It is here so the
+     whole chain down to the title carries the same declaration: the day
+     .feed-card-info becomes a flex container, the 564px title comes back. */
+  min-width: 0;
 }
 
 .feed-card-avatar {
@@ -409,6 +414,9 @@
   height: 24px;
   border-radius: 50%;
   object-fit: cover;
+  /* Needed by the min-width: 0 below: once the row is allowed to shrink, a
+     flex item with a declared width is shrunk too unless it says otherwise. */
+  flex-shrink: 0;
 }
 
 .feed-card-meta {
@@ -430,6 +438,11 @@
 .feed-card-creator {
   font-size: 11px;
   color: var(--text-secondary, #888);
+  /* Same treatment as the title above: a long handle is a single unbreakable
+     token, and without this it grew the row instead of ending in an ellipsis. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .feed-card-creator-link {
@@ -439,6 +452,16 @@
   text-decoration: none;
   color: inherit;
   transition: opacity 0.2s;
+
+  /* THE OVERFLOW ITSELF.
+     A flex item's min-width is auto, which means "never smaller than my
+     content" -- and the content here is a nowrap title. .feed-card-meta had
+     min-width: 0 already, but it is the child: the link between it and
+     .feed-card-header kept growing, so the title measured 564px inside a
+     374px card and ran under the action rail (measured at 1723, 1440, 820
+     and 390 CSS px). The ellipsis on .feed-card-name could never engage,
+     because the box was never narrower than the text. */
+  min-width: 0;
 }
 
 .feed-card-creator-link:hover {
@@ -601,6 +624,28 @@
   background: #000;
   position: relative;
   overflow-x: hidden; /* Prevent horizontal scroll */
+
+  /* THE COLUMN THE CARD TEXT MAY NOT ENTER.
+     The action rail is absolutely positioned over the card at right: 12px and
+     its buttons measure 36px wide here, so it occupies 48px from the card's
+     right edge -- measured at 1723, 1440, 1280, 844 and 820 CSS px, the same
+     48px at every one. This number is that 48px plus a 12px gap: it is derived
+     from the rail, not chosen. Anything above that is taken straight out of
+     the title, the author line and the description.
+     Why the surplus is expensive: the card these paddings eat into is sized
+     from the viewport HEIGHT (.feed-card-inner max-width below), not its
+     width, so a short window pays in full. At 844x390 -- a phone in landscape,
+     which is >= 768px and therefore on the desktop band -- the whole card is
+     188px wide. Reserving 96px there left a 68px title column, three glyphs
+     and an ellipsis, for a rail half that size and mostly off-screen.
+     Consumed by the two .feed-card-info padding shorthands: the fullscreen
+     rule below and the min-width: 768px one. Phones do NOT use it -- at
+     <= 768px both are overridden by rules that pull the info box clear with
+     `right: 65px / 60px / 55px` instead, so changing this number moves
+     nothing there.
+     It has to live INSIDE the shorthand: as a separate padding-right
+     declaration the next rule that wrote `padding` silently dropped it. */
+  --feed-rail-reserve: 60px;
 }
 
 /* Floating header - centered within feed panel */
@@ -728,8 +773,12 @@
   left: 0;
   right: 0;
   background: linear-gradient(transparent 0%, rgba(0, 0, 0, 0.9) 100%);
-  padding: 60px 16px 24px;
-  padding-right: 96px; /* Leave space for action buttons */
+  /* The reserve goes INSIDE the shorthand. Written as `padding: 60px 16px 24px`
+     followed by `padding-right: 96px` it lasted exactly until the next rule
+     that set the shorthand -- the min-width: 768px rule below did, so on every
+     desktop width the reserve was 24px against a rail that occupies 48px, and
+     the text ran under the buttons. */
+  padding: 60px var(--feed-rail-reserve) 24px 16px;
   z-index: var(--z-elevated);
 }
 
@@ -847,8 +896,6 @@
  * не исчезала даже после того, как человек пролистал. Кадры scrollPulse и
  * scrollBounce удалены вместе с ней — других пользователей у них нет. */
 
-
-
 /* Hide scroll indicator when scrolled */
 .feed-panel.fullscreen .feed-list:not(:first-child)::after,
 .feed-panel.fullscreen .feed-list:not(:first-child)::before {
@@ -858,7 +905,7 @@
 /* Responsive: larger cards on desktop */
 @media (min-width: 768px) {
   .feed-panel.fullscreen .feed-card-info {
-    padding: 100px 24px 32px;
+    padding: 100px var(--feed-rail-reserve) 32px 24px;
   }
 
   .feed-panel.fullscreen .feed-card-name {
