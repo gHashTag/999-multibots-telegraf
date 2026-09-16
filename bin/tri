@@ -53,6 +53,7 @@ tri — оболочка Trinity S³AI
   tri clock [дней] [render|bot|all]  прогон так, будто прошло N дней:
                  два прогона, фон вычитается — видно только то, что сгниёт
   tri landing    доедет ли работа этой ветки до main и что застрянет с ней
+  tri lost       коммиты, до которых не достаёт ни одна ветка (сеть под reset)
   tri facts      на чём стоят факты CRM в ПРОДЕ: не пуст ли журнал под выводом
   tri sweep [hive|log] [n]  обходы продавца в проде: журнал улья (навсегда)
                  или лог Railway (с последнего деплоя)
@@ -795,6 +796,7 @@ PYEOF
   landing) shift; bash "$ROOT/bin/helpers/landing.sh" "$ROOT" "$@" ;;
   facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
   sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
+  lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true
