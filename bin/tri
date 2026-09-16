@@ -48,6 +48,7 @@ tri — оболочка Trinity S³AI
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
   tri scan       чем этот код может соврать: обзор сторожей и дыр
   tri spelling   тесты, сторожащие написание исходника, а не свойство
+  tri boundary   держат ли инструменты обещание не отправлять без нажатия
   tri rehearse [ветки…]  сольются ли открытые PR друг с другом, по порядку
   tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
   tri promises   обещания в тексте, за которыми стоит число в другом файле
@@ -797,6 +798,7 @@ PYEOF
 
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
   rehearse) shift; bash "$ROOT/bin/helpers/rehearse.sh" "$ROOT" "$@" ;;
+  boundary) shift; bash "$ROOT/bin/helpers/boundary.sh" "$ROOT" "$@" ;;
   spelling) shift; bash "$ROOT/bin/helpers/spelling.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
