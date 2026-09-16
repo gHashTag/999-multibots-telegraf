@@ -1,8 +1,43 @@
 import { supabase } from '../core/supabase'
 import { exclusiveTick } from '@/utils/exclusiveTick'
+import { isUserCausedTelegramError } from '@/helpers/telegramErrors'
 import { logger } from '../utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '../interfaces'
+
+/**
+ * THE VERDICT USED TO BE COMPUTED AFTER THE PAGE HAD ALREADY BEEN SENT.
+ *
+ * `utils/logger.ts` binds the Telegram transport at level 'error', so the level
+ * picked at each site below is a ROUTING decision, not a severity adjective:
+ * `logger.error` is a push notification to the owner's phone, `logger.warn` and
+ * `logger.info` are not.
+ *
+ * Every update site in this file called `logger.error` unconditionally and only
+ * then asked whether the cause was a transient fetch failure, adding a quieter
+ * `logger.warn` underneath. The branch written to keep a 60-second sweep's
+ * network blip off the owner's phone therefore ran one line too late and could
+ * never prevent anything -- it could only add a second line to the log. The
+ * verdict is now computed first and the level comes from it.
+ *
+ * The non-transient arm stays at error on purpose: an update that fails for a
+ * schema, permission or constraint reason is a real write failure and the
+ * pending_messages queue stalls behind it. A genuine Supabase outage also still
+ * pages from the connection probe and the select in processNotificationQueue,
+ * which are deliberately left alone.
+ *
+ * The pattern list is kept at least as wide as the `message.includes('fetch')`
+ * test it replaces, so nothing that was quiet yesterday starts paging today.
+ */
+const TRANSIENT_NETWORK = /fetch|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN/i
+
+function isTransientSupabaseError(error: unknown): boolean {
+  if (!error) return false
+  const { code, message } = error as { code?: string; message?: unknown }
+  // PostgREST's "JWT expired / connection lost" answer: the next sweep retries.
+  if (code === 'PGRST301') return true
+  return TRANSIENT_NETWORK.test(String(message ?? ''))
+}
 
 interface PendingMessage {
   id: string
@@ -139,10 +174,23 @@ export class NotificationHandler {
         `✅ Уведомление для пользователя ${message.telegram_id} отправлено успешно`
       )
     } catch (error) {
-      logger.error(
-        `❌ Ошибка при отправке уведомления пользователю ${message.telegram_id}:`,
-        error
-      )
+      /*
+       * A person who blocked the bot is not an incident.
+       *
+       * This fires once per tick per undeliverable message, and the commonest
+       * cause by far is the customer's own doing -- a blocked bot, a deleted
+       * account, a chat that no longer exists. There is nothing an operator can
+       * do about any of them at 3am, and the retry cap below already stops the
+       * message after three attempts. Anything NOT on the closed list in
+       * helpers/telegramErrors.ts -- a 401 with the wrong token, a 500 from
+       * Telegram, broken markup we built -- is ours and keeps paging.
+       */
+      const level = isUserCausedTelegramError(error) ? 'warn' : 'error'
+      logger[level]('❌ Ошибка при отправке уведомления пользователю', {
+        telegram_id: message.telegram_id,
+        messageId: message.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
       await this.markMessageAsFailed(message, error)
     }
   }
@@ -161,37 +209,29 @@ export class NotificationHandler {
         .eq('id', messageId)
 
       if (error) {
-        logger.error(
-          `❌ Ошибка при обновлении статуса сообщения ${messageId}:`,
-          {
-            error: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint,
-          }
-        )
-
-        // Для сетевых ошибок просто логируем, но не выбрасываем исключение
-        if (error.message?.includes('fetch') || error.code === 'PGRST301') {
-          logger.warn(
-            `⚠️ Сетевая ошибка при обновлении статуса сообщения ${messageId}, продолжаем`
-          )
-          return
-        }
+        // The id travels in meta, not in the headline: the throttle fingerprints
+        // on the message text, so a per-row id in the title makes every repeat a
+        // fresh incident. detailsForAlert renders meta into the alert body, so
+        // the operator still gets the id on a failure that does page.
+        const level = isTransientSupabaseError(error) ? 'warn' : 'error'
+        logger[level]('❌ Ошибка при обновлении статуса сообщения', {
+          messageId,
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        })
       }
     } catch (error) {
-      logger.error(
-        `❌ Ошибка при пометке сообщения ${messageId} как отправленного:`,
-        error
-      )
-
-      // Для сетевых ошибок просто логируем
-      if (error instanceof Error && error.message?.includes('fetch')) {
-        logger.warn(
-          `⚠️ Сетевая ошибка при пометке сообщения ${messageId} как отправленного`
-        )
-        return
-      }
+      // A thrown Error's own fields are non-enumerable, so handing the raw error
+      // to the logger as meta leaves detailsForAlert with nothing to render.
+      // Name the fields explicitly or the alert arrives as a bare headline.
+      const level = isTransientSupabaseError(error) ? 'warn' : 'error'
+      logger[level]('❌ Ошибка при пометке сообщения как отправленного', {
+        messageId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
     }
   }
 
@@ -221,41 +261,25 @@ export class NotificationHandler {
         .eq('id', messageId)
 
       if (updateError) {
-        logger.error(
-          `❌ Ошибка при обновлении статуса неудачного сообщения ${messageId}:`,
-          {
-            error: updateError.message,
-            code: updateError.code,
-            details: updateError.details,
-            hint: updateError.hint,
-          }
-        )
-
-        // Для сетевых ошибок просто логируем
-        if (
-          updateError.message?.includes('fetch') ||
-          updateError.code === 'PGRST301'
-        ) {
-          logger.warn(
-            `⚠️ Сетевая ошибка при обновлении статуса неудачного сообщения ${messageId}`
-          )
-        }
+        const level = isTransientSupabaseError(updateError) ? 'warn' : 'error'
+        logger[level]('❌ Ошибка при обновлении статуса неудачного сообщения', {
+          messageId,
+          error: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+          hint: updateError.hint,
+        })
       }
     } catch (updateError) {
-      logger.error(
-        `❌ Ошибка при пометке сообщения ${messageId} как неудачного:`,
-        updateError
-      )
-
-      // Для сетевых ошибок просто логируем
-      if (
-        updateError instanceof Error &&
-        updateError.message?.includes('fetch')
-      ) {
-        logger.warn(
-          `⚠️ Сетевая ошибка при пометке сообщения ${messageId} как неудачного`
-        )
-      }
+      const level = isTransientSupabaseError(updateError) ? 'warn' : 'error'
+      logger[level]('❌ Ошибка при пометке сообщения как неудачного', {
+        messageId,
+        error:
+          updateError instanceof Error
+            ? updateError.message
+            : String(updateError),
+        stack: updateError instanceof Error ? updateError.stack : undefined,
+      })
     }
   }
 
@@ -277,12 +301,25 @@ export class NotificationHandler {
         )
 
       if (error) {
-        logger.error('❌ Ошибка при очистке старых сообщений:', error)
+        // Hourly, so the ten-minute throttle never collapses a repeat: a single
+        // persistent network fault here is 24 pages a day. Same rule as above --
+        // transient is a warn, anything else is a real delete failure.
+        const level = isTransientSupabaseError(error) ? 'warn' : 'error'
+        logger[level]('❌ Ошибка при очистке старых сообщений', {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        })
       } else {
         logger.info('✅ Старые сообщения очищены')
       }
     } catch (error) {
-      logger.error('❌ Ошибка при очистке старых сообщений:', error)
+      const level = isTransientSupabaseError(error) ? 'warn' : 'error'
+      logger[level]('❌ Ошибка при очистке старых сообщений', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
     }
   }
 }

@@ -5,6 +5,10 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
+import {
+  ContentRefusalError,
+  isContentRefusal,
+} from '@/helpers/isContentRefusal'
 import { replicate } from '@/core/replicate'
 
 // Увеличиваем размер буфера до 50MB для обработки больших выводов от FFmpeg
@@ -564,11 +568,26 @@ export async function createMorphingVideo(
 
     return finalVideoPath
   } catch (error) {
-    logger.error('❌ [LOCAL MORPHING] Video generation failed', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegram_id,
-      tempDir,
-    })
+    /*
+     * The refusal thrown by generateSingleClipWithRetry travels up through
+     * here, so demoting that one site alone would have removed one push
+     * notification out of two and left the survivor wearing the more
+     * misleading title of the pair. Ask the error what it was before choosing
+     * the level: a content refusal is the customer's photographs, everything
+     * else -- a failed ffmpeg, a dead download, an empty Replicate output --
+     * is ours and still pages.
+     */
+    const contentRefusal = isContentRefusal(error)
+    logger[contentRefusal ? 'warn' : 'error'](
+      contentRefusal
+        ? '🛡️ [LOCAL MORPHING] Content refused by the provider'
+        : '❌ [LOCAL MORPHING] Video generation failed',
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        telegram_id,
+        tempDir,
+      }
+    )
     throw error
   }
 }
@@ -732,7 +751,17 @@ async function generateSingleClipWithRetry(
             continue
           } else {
             // ❌ ВСЕ МОДЕЛИ KLING ИСЧЕРПАНЫ - БРОСАЕМ ФИНАЛЬНУЮ ОШИБКУ
-            logger.error('🛡️ All Kling models rejected content (E005)', {
+            /*
+             * The same fact as the warn one rung up, at the end of the ladder
+             * instead of the middle of it, and the level should not change
+             * because the ladder ran out. Every logger.error is a push to the
+             * owner's phone; this one said a safety filter had refused a
+             * stranger's photographs after the machinery had done everything
+             * it was built to do -- MAX_RETRIES on every model in
+             * FALLBACK_KLING_MODELS. The customer is told exactly what to try
+             * instead, three lines below.
+             */
+            logger.warn('🛡️ All Kling models rejected content (E005)', {
               ...errorDetails,
               attemptedModels: FALLBACK_KLING_MODELS.slice(
                 0,
@@ -758,7 +787,16 @@ async function generateSingleClipWithRetry(
               '💡 Solution: Try using different images (landscapes, objects, abstractions)\n' +
               '🤖 Model: Kling v2.1 Pro (latest version)'
 
-            throw new Error(`${userErrorRu}\n\n---\n\n${userErrorEn}`)
+            /*
+             * Typed, not merely worded. The message this carries is product
+             * copy for the customer -- it names no error code, so the outer
+             * catch cannot read a refusal out of it and used to page on it as
+             * an unexplained generation failure. The class carries the verdict
+             * we already made here, right where we read the provider's.
+             */
+            throw new ContentRefusalError(
+              `${userErrorRu}\n\n---\n\n${userErrorEn}`
+            )
           }
         }
       }

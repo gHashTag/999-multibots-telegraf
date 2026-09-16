@@ -7,6 +7,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const {
+  sliceBetween,
+} = require('../../../../../../scripts/lib/anchored-slice.cjs')
 
 const src = readFileSync(join(__dirname, 'WelcomeOnboarding.tsx'), 'utf8')
 const dict = readFileSync(
@@ -39,7 +43,10 @@ describe('WelcomeOnboarding: every step is mandatory', () => {
     // own button and from goPlay -- the fast road's exit into the hive
     // (owner, 2026-09-12), which closes the road first. Nowhere else.
     expect(src.match(/onDone\b/g)?.length).toBe(4)
-    const play = src.slice(src.indexOf('const goPlay'), src.indexOf('const total'))
+    // sliceBetween: a missing CLOSING anchor does not shrink this region to
+    // nothing, it runs it to the end of the file, and the positive match below
+    // then passes over text that is not goPlay.
+    const play = sliceBetween(src, 'const goPlay', 'const total')
     expect(play).toMatch(/onDone\(\)[\s\S]*navigate\(WELCOME_EXIT_ROUTE\)/)
   })
 })

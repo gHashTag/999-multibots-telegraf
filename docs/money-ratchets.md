@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 131. Без заголовка: 0.
+Ратчетов: 133. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -28,6 +28,7 @@
 | `aiReelsDeliveryWebhookThrows.test.ts`                 | generateAIReelsFunction delivery handoff surfaces a non-2xx (no silent charged-not-delivered) |
 | `aiReelsRenderDisplayMatchesCharge.test.ts`            | AI Reels Render cost display matches the Step 6 charge                                        |
 | `aiReelsWizardRefundChecked.test.ts`                   | ai-reels-wizard critical-error refund checks its result (refundAndTell)                       |
+| `anEmptyWalletDoesNotWakeTheOwner.test.ts`             | the standalone upscaler (services/imageUpscaler.ts)                                           |
 | `balanceRefusalIsToldApartFromAnOutage.test.ts`        | a balance refusal is told apart from an outage                                                |
 | `batchRefundReconciliation.test.ts`                    | aiPhotoshop batch refunds reconcile the exact charge                                          |
 | `cache-invalidation-isolated-ratchet.test.ts`          | every invalidateBalanceCache call is isolated in its own try (#1397)                          |
@@ -44,6 +45,7 @@
 | `creditSiteCensus.test.ts`                             | credit-site census: no unreviewed mint surface                                                |
 | `creditedIsNotOk.test.ts`                              | ok is not credited                                                                            |
 | `directPaymentPostCommit.test.ts`                      | directPayment isolates post-commit side-effects from the committed return (#1397)             |
+| `directPaymentRefusalDoesNotPage.test.ts`              | directPaymentProcessor: which refusals page the owner                                         |
 | `emailWizardPriceAllowlist.test.ts`                    | emailWizard setPayments is allowlist-guarded                                                  |
 | `fluxKontextSendRefund.test.ts`                        | generateFluxKontext refunds a send failure (no charged-no-refund)                             |
 | `fluxMaxBatchRefundExactCharge.test.ts`                | generateFluxKontextMax batch refund reconciles the exact charge                               |

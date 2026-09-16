@@ -52,6 +52,27 @@ function translateErrorToRussian(errorMessage: string): string {
   return errorMessage
 }
 
+/**
+ * A PROVIDER REFUSAL THAT IS ACTUALLY OUR ACCOUNT.
+ *
+ * successFlag 3 means the provider refused the customer's own prompt or photo
+ * (see the interface below), which is everyday traffic on a multi-bot platform
+ * and nothing an operator can act on — so the content-policy handlers log it at
+ * warn rather than paging the owner.
+ *
+ * But the translation map above carries two strings that are NOT the customer:
+ * 'Insufficient credits' and 'Rate limit exceeded' describe OUR account with the
+ * provider, and every generation stops until somebody tops it up. Flag 2 is the
+ * documented place for those, so the overlap is unlikely — and a wrong guess
+ * here costs a page, while the other way round costs an outage nobody is told
+ * about. If one ever arrives under flag 3, it keeps paging.
+ */
+function isProviderAccountError(errorMessage?: string): boolean {
+  return /insufficient credits|insufficient balance|rate limit exceeded|quota/i.test(
+    errorMessage || ''
+  )
+}
+
 // ✅ MULTI-BOT SUPPORT: Храним Map всех bot instances
 const botInstances: Map<string, Telegraf> = new Map()
 let defaultBotInstance: Telegraf | null = null
@@ -443,7 +464,14 @@ async function sendVideoDirectly(
         }
       }
     } catch (notifyError) {
-      logger.error(
+      // A SECOND PAGE FOR AN INCIDENT ALREADY PAGED. This catch is nested in
+      // the outer one, whose first statement above is an unconditional
+      // logger.error for this same invocation, so nothing reaches here without
+      // the owner already having been woken; and the error is rethrown below,
+      // where the callers page a third time. The commonest cause is the
+      // customer having blocked the bot (helpers/telegramErrors.ts), which no
+      // operator can undo. Warn keeps the record without the duplicate push.
+      logger.warn(
         '❌ [SEND VIDEO DIRECTLY] Failed to notify user about error',
         {
           telegramId,
@@ -962,17 +990,29 @@ async function processGenericVideoWebhook(
 
   // Fallback: старая логика через videoTaskStore
   if (!taskId) {
-    logger.error('❌ [GENERIC VIDEO WEBHOOK] No task ID found in payload', {
-      payloadKeys: Object.keys(payload),
-    })
+    // THE SIGNATURE DECIDES WHETHER THIS IS AN INCIDENT. This route is public
+    // (api_server/index.ts mounts it with no auth), so a body with nothing that
+    // looks like a task id is most often a scanner — rejected traffic, and
+    // logger.error is a push notification to the owner (utils/logger.ts).
+    // `tokenOk` above is true only for a callback whose address WE signed; a
+    // request we asked for that carries no task id IS our machinery failing
+    // (the job can no longer be reconciled), so that one keeps paging.
+    logger[tokenOk ? 'error' : 'warn'](
+      '❌ [GENERIC VIDEO WEBHOOK] No task ID found in payload',
+      {
+        payloadKeys: Object.keys(payload),
+      }
+    )
     return
   }
 
   if (!videoUrl && success) {
+    // payloadKeys above is the diagnosis; the body itself is untrusted text and
+    // `payload` is not a content key in utils/logger.ts, so it used to be
+    // rendered verbatim into the owner's Telegram group.
     logger.error('❌ [GENERIC VIDEO WEBHOOK] Success but no video URL found', {
       taskId,
       payloadKeys: Object.keys(payload),
-      payload,
     })
   }
 
@@ -1030,8 +1070,18 @@ router.post('/kie-ai/sora-callback', async (req: any, res: any) => {
 
     // ✅ Валидация обязательных полей
     if (!taskId) {
+      // Keys, not the body: this endpoint is public and `payload` is not a
+      // content key in utils/logger.ts, so a small malformed body was rendered
+      // verbatim into the owner's Telegram group.
+      //
+      // The LEVEL stays at error, unlike the sibling checks in the AI Reels
+      // callback: a Kie.ai callback carries no signature of ours, so nothing
+      // here can tell a scanner from a real provider callback whose payload
+      // shape changed — and the second one means tasks stop being reconciled
+      // with no other alarm, the periodic stuck-task monitor having been
+      // switched off (inngest_app/functions/kieAiWebhookMonitor.ts).
       logger.error('❌ [SORA WEBHOOK] Missing taskId', {
-        payload,
+        payloadKeys: Object.keys(payload || {}),
         hasData: !!payload.data,
         dataKeys: payload.data ? Object.keys(payload.data) : [],
       })
@@ -1157,9 +1207,10 @@ async function handleSoraSuccess(
   const watermarkUrl = payload.resultWaterMarkUrls?.[0]
 
   if (!videoUrl) {
+    // Keys, not the body — `payload` is not a content key in utils/logger.ts.
     logger.error('❌ [SORA WEBHOOK] Success but no video URL', {
       taskId,
-      payload,
+      payloadKeys: Object.keys(payload || {}),
     })
     return
   }
@@ -1462,13 +1513,27 @@ async function handleSoraContentPolicy(
     errorMessage || (payload.data as any)?.failMsg || 'Некорректный контент'
   const translatedError = translateErrorToRussian(actualErrorMessage)
 
-  logger.error('🚫 [SORA WEBHOOK] Sora content policy violation', {
-    taskId,
-    errorMessage: actualErrorMessage,
-    translatedError,
-    errorCode,
-    telegramId,
-  })
+  // THE CUSTOMER'S OWN UPLOAD WAS REFUSED — NOT AN INCIDENT.
+  //
+  // The recurring texts are in ERROR_TRANSLATIONS at the top of this file:
+  // "This image contains photorealistic people.", "Image contains faces." —
+  // people sending selfies to an image-to-video model. Everything this handler
+  // does is translate the refusal and pass it on (editMessageText below, or the
+  // direct sendMessage), so at 3am there is nothing to do but read a stranger's
+  // rejected upload. logger.error is a push notification to the owner
+  // (utils/logger.ts binds the Telegram transport at level 'error'); warn keeps
+  // the record without the page. The neighbouring failure handler stays at
+  // error — flag 2 mixes refusals with genuine provider outages.
+  logger[isProviderAccountError(actualErrorMessage) ? 'error' : 'warn'](
+    '🚫 [SORA WEBHOOK] Sora content policy violation',
+    {
+      taskId,
+      errorMessage: actualErrorMessage,
+      translatedError,
+      errorCode,
+      telegramId,
+    }
+  )
 
   const taskContext = videoTaskStore.getTask(taskId)
   if (taskContext) {
@@ -1613,8 +1678,17 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
 
     // ✅ Валидация обязательных полей
     if (!taskId) {
+      // Keys, not the body: this endpoint is public (no auth on the mount, no
+      // token check in this handler) and `payload` is not a content key in
+      // utils/logger.ts, so an anonymous POST could put text of its own
+      // choosing into the owner's Telegram group.
+      //
+      // The LEVEL stays at error for the same reason as the Sora twin above:
+      // there is no signature to tell a scanner from a real Kie.ai callback
+      // whose payload shape changed, and silencing both would leave a provider
+      // format change with no alarm at all.
       logger.error('❌ [KIE.AI WEBHOOK] Missing taskId', {
-        payload,
+        payloadKeys: Object.keys(payload || {}),
         hasData: !!payload.data,
         dataKeys: payload.data ? Object.keys(payload.data) : [],
       })
@@ -1660,9 +1734,14 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
       errorMessage: payload.errorMessage || (payload.data as any)?.errorMessage,
     }
 
+    // Unreachable today: successFlag is a `number` on every branch above and is
+    // assigned into normalizedPayload after the spread, so this never fires.
+    // Kept as a guard for whoever changes that; the body is logged by shape
+    // only, since `payload` is not a content key in utils/logger.ts.
     if (typeof normalizedPayload.successFlag !== 'number') {
       logger.error('❌ [KIE.AI WEBHOOK] Missing or invalid successFlag', {
-        payload,
+        taskId,
+        payloadKeys: Object.keys(payload || {}),
         successFlagType: typeof normalizedPayload.successFlag,
       })
       return
@@ -1771,10 +1850,12 @@ async function handleSuccessfulGeneration(
   })
 
   if (!videoUrl) {
+    // payloadKeys is the diagnosis; the body itself is untrusted text and
+    // `payload` is not a content key in utils/logger.ts, so it used to be
+    // rendered verbatim into the owner's Telegram group.
     logger.error('❌ [KIE.AI WEBHOOK] Success callback but no video URL', {
       taskId,
       payloadKeys: Object.keys(payload),
-      payload,
     })
 
     // Обрабатываем как ошибку
@@ -1921,13 +2002,28 @@ async function handleContentPolicyError(
     errorMessage || 'Некорректный контент'
   )
 
-  logger.error('🚫 [KIE.AI WEBHOOK] Content policy violation', {
-    taskId,
-    errorMessage,
-    translatedError,
-    errorCode,
-    telegramId,
-  })
+  // THE CUSTOMER'S OWN UPLOAD WAS REFUSED — NOT AN INCIDENT.
+  //
+  // successFlag 3 is the provider telling us the input broke its rules (see the
+  // flag table at the top of this file). Nothing here is ours to fix: the
+  // handler translates the refusal and forwards it to the same customer. warn
+  // keeps the record; error would push it to the owner's Telegram, because
+  // utils/logger.ts binds the Telegram transport at level 'error'.
+  //
+  // The discriminator is the RAW errorMessage, never translatedError: the map
+  // at the top of this file also translates 'Insufficient credits' and 'Rate
+  // limit exceeded', which are OUR account with the provider. If one of those
+  // ever arrives under flag 3 it still pages.
+  logger[isProviderAccountError(errorMessage) ? 'error' : 'warn'](
+    '🚫 [KIE.AI WEBHOOK] Content policy violation',
+    {
+      taskId,
+      errorMessage,
+      translatedError,
+      errorCode,
+      telegramId,
+    }
+  )
 
   await notifyJobCompletion(taskId, {
     success: false,
@@ -2114,12 +2210,29 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
             result.message || 'Неизвестная ошибка'
           )
 
-          logger.error('❌ [KIE.AI WEBHOOK] Generation failed', {
-            taskId,
-            message: result.message,
-            translatedError,
-            code: result.code,
-          })
+          // ONE REJECTION IS ONE RECORD, AND ONLY OURS IS A PAGE.
+          //
+          // This is a shared sink: every caller of notifyJobCompletion with
+          // success:false lands here, so it must keep paging by default — a
+          // provider outage or a failed charge arrives through this same line.
+          // The single exception is the code handleContentPolicyError sets: it
+          // has already logged that refusal above, and the throttle fingerprints
+          // on the message text (utils/alertThrottle.ts), so the two titles can
+          // never collapse. Without this discriminator one refused selfie woke
+          // the owner twice.
+          //
+          // Note result.message is ALREADY translated by the caller, so it
+          // cannot be classified here; the raw text is only in scope upstream,
+          // which is why the account-level check lives there and not here.
+          logger[result.code === 'CONTENT_POLICY_VIOLATION' ? 'warn' : 'error'](
+            '❌ [KIE.AI WEBHOOK] Generation failed',
+            {
+              taskId,
+              message: result.message,
+              translatedError,
+              code: result.code,
+            }
+          )
 
           // Ошибка генерации - отправляем сообщение об ошибке
           await botInstance.telegram.sendMessage(

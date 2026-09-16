@@ -2,6 +2,8 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { telegramLogService } from '@/services/telegram-log.service'
+import { isUserCausedTelegramError } from '@/helpers/telegramErrors'
+import { secretFingerprint } from '@/utils/secretFingerprint'
 
 // supportRequest is gone with its only call site: it existed to reach the
 // owner, and winston's transport now does that for every logger.error, once.
@@ -80,9 +82,11 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         description: 'Telegram API Authorization Error',
         bot_name: ctx?.botInfo?.username || 'unknown',
         error: error.message,
-        token_prefix: ctx?.telegram?.token
-          ? ctx.telegram.token.substring(0, 10) + '...'
-          : 'unknown',
+        // This alert GOES TO TELEGRAM, and the ten characters it used to carry
+        // were the start of a live bot token. The digest answers the only
+        // question a 401 raises -- "is the running token the one I think it
+        // is?" -- without publishing any of it to a group with members in it.
+        token: secretFingerprint(ctx?.telegram?.token), // secret-guard-ok: a digest call, not a value
         method: error.on?.method || 'unknown',
         update_id: ctx?.update?.update_id,
       })
@@ -117,17 +121,54 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         update_id: ctx?.update?.update_id,
       })
     } else {
-      logger.error('❌ Ошибка Telegram API:', {
-        description: 'Telegram API Error',
-        bot_name: ctx?.botInfo?.username || 'unknown',
-        error_code: error_code,
-        error: error.message,
-        method: error.on?.method || 'unknown',
-        user_id: userId,
-        username: username,
-        chat_id: chatId,
-        update_id: ctx?.update?.update_id,
-      })
+      /*
+       * THIS BRANCH IS THE FUNNEL FOR EVERY BOT, AND IT CLASSIFIED NOTHING.
+       *
+       * Above it there are exactly two discriminators, both substring tests on
+       * the message: '401: Unauthorized' and '403: Forbidden'. `error_code` is
+       * collected at the top of the handler and PRINTED, never tested. So every
+       * Telegram 400 that reached bot.catch -- a press on yesterday's message
+       * ('query is too old'), a second tap on the same toggle ('message is not
+       * modified'), a wizard cancelled after the customer deleted the chat
+       * ('message to delete not found') -- went out at `error`, and in this
+       * repository `error` is the level the Telegram transport is bound at.
+       * That is a push to the owner's phone for a person tapping a stale
+       * button, from every handler of every bot.
+       *
+       * The verdict is not "any 400": broken markup we generated ("can't parse
+       * entities") is a 400 too and is our defect. The closed list lives in
+       * helpers/telegramErrors.ts so there is one answer to this question in
+       * the codebase, not a second copy here.
+       *
+       * Everything else is untouched and still pages: a TypeError thrown
+       * inside a handler carries no Telegram response at all, so it fails the
+       * test and lands on the same logger.error as before.
+       */
+      if (isUserCausedTelegramError(err)) {
+        logger.warn('🙈 Telegram отклонил действие пользователя:', {
+          description: 'User-caused Telegram rejection',
+          bot_name: ctx?.botInfo?.username || 'unknown',
+          error_code: error_code,
+          error: error.message,
+          method: error.on?.method || 'unknown',
+          user_id: userId,
+          username: username,
+          chat_id: chatId,
+          update_id: ctx?.update?.update_id,
+        })
+      } else {
+        logger.error('❌ Ошибка Telegram API:', {
+          description: 'Telegram API Error',
+          bot_name: ctx?.botInfo?.username || 'unknown',
+          error_code: error_code,
+          error: error.message,
+          method: error.on?.method || 'unknown',
+          user_id: userId,
+          username: username,
+          chat_id: chatId,
+          update_id: ctx?.update?.update_id,
+        })
+      }
 
       /*
        * The direct call that used to sit here is gone: `logger.error` above

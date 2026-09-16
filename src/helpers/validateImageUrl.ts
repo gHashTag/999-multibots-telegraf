@@ -138,7 +138,7 @@ export async function validateImageUrl(
       status: response.status,
     }
   } catch (error) {
-    logger.error(`[validateImageUrl] Validation error for ${url}:`, error)
+    logger.warn(`[validateImageUrl] Validation error for ${url}:`, error)
     return {
       isValid: false,
       reason: `Network error: ${

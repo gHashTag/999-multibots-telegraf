@@ -1,6 +1,38 @@
 import { replicate } from '@/core/replicate'
 import { logger } from '@/utils/logger'
 
+/*
+ * READING A VISION MODEL'S ANSWER WITHOUT MATCHING THE MIDDLE OF A WORD.
+ *
+ * The prompt below asks Moondream for `FACE:yes/no GENDER:male/female/unclear`,
+ * and the reply was read with bare `String.includes`. Two of those substrings
+ * live inside ordinary English words, so the reader answered questions the
+ * model had not been asked:
+ *
+ *   'yes'    is inside 'eyes'    -- "FACE:no ... the cat's eyes are visible"
+ *   'person' is inside 'no person'
+ *
+ * Either one alone flipped hasFace to true, which hands a stranger's cat to
+ * the welcome-portrait lead magnet (scenes/createUserScene.ts:181) and writes
+ * a gender guessed from a photograph with no face in it.
+ *
+ * So: the structured verdict first, because that is what we asked for; a
+ * word-boundary reading of the prose only when the model ignored the format;
+ * and an explicit denial ("no face", "no person") beats both, because a
+ * sentence that mentions a face to say it is absent is not an affirmation.
+ */
+
+/** The answer we asked for: `FACE:yes`, `face: no`. */
+const FACE_VERDICT = /face\s*:\s*(yes|no)\b/
+/** The answer we asked for: `GENDER:female`, `gender: unclear`. */
+const GENDER_VERDICT = /gender\s*:\s*(female|male|unclear|unknown)\b/
+/** The model saying there is nobody in the picture, in prose. */
+const DENIES_FACE =
+  /\bno\s+(?:human\s+|visible\s+)?(?:faces?|persons?|people|humans?)\b|\bnot\s+a\s+(?:face|person|human)\b|\bnobody\b/
+/** The model saying there is somebody in the picture, in prose. */
+const AFFIRMS_FACE =
+  /\b(?:yes|faces?|persons?|people|human|man|woman|portrait|selfie)\b/
+
 /**
  * Result of avatar analysis
  */
@@ -59,32 +91,35 @@ export async function analyzeAvatar(
     // Parse the response
     const response = String(output).toLowerCase()
 
-    // Detect face presence
-    const hasFace =
-      response.includes('face:yes') ||
-      (response.includes('yes') && !response.includes('no face')) ||
-      response.includes('human face') ||
-      response.includes('person')
+    // Detect face presence: the asked-for verdict, then a denial, then prose.
+    const faceVerdict = FACE_VERDICT.exec(response)?.[1]
+    const hasFace = faceVerdict
+      ? faceVerdict === 'yes'
+      : !DENIES_FACE.test(response) && AFFIRMS_FACE.test(response)
 
     // Detect gender
     let gender: 'male' | 'female' | 'unknown' = 'unknown'
     let confidence = 0
 
     if (hasFace) {
-      if (
-        response.includes('gender:male') ||
-        (response.includes('male') && !response.includes('female'))
-      ) {
+      const genderVerdict = GENDER_VERDICT.exec(response)?.[1]
+      // `\bmale\b` does not match inside 'female', and `\bman\b` does not
+      // match inside 'woman' -- which is the whole point of the boundaries.
+      const saysMale = /\bmale\b/.test(response)
+      const saysFemale = /\bfemale\b/.test(response)
+      const saysWoman = /\bwoman\b/.test(response)
+
+      if (genderVerdict === 'male' || genderVerdict === 'female') {
+        // The asked-for answer wins outright; prose is only a fallback.
+        gender = genderVerdict
+        confidence = 80
+      } else if (saysMale && !saysFemale) {
         gender = 'male'
         confidence = 80
-      } else if (
-        response.includes('gender:female') ||
-        response.includes('female') ||
-        response.includes('woman')
-      ) {
+      } else if (saysFemale || saysWoman) {
         gender = 'female'
         confidence = 80
-      } else if (response.includes('man') && !response.includes('woman')) {
+      } else if (/\bman\b/.test(response) && !saysWoman) {
         gender = 'male'
         confidence = 70
       } else {
@@ -133,7 +168,9 @@ export async function quickFaceCheck(imageUrl: string): Promise<boolean> {
     )
 
     const response = String(output).toLowerCase()
-    return response.includes('yes')
+    // Not `includes('yes')`: 'yes' is inside 'eyes', and a one-word prompt
+    // about faces invites an answer that mentions eyes.
+    return /\byes\b/.test(response) && !DENIES_FACE.test(response)
   } catch (error) {
     logger.error('[QuickFaceCheck] Failed', { error })
     return false

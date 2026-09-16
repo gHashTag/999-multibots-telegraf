@@ -3,6 +3,8 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Readable } from 'node:stream'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * SIGN OUT EVERYWHERE -- EVERY FAMILY OF THE CALLER, AND ONLY THE CALLER.
@@ -167,7 +169,10 @@ function memoryPool() {
 
       // Revocation: obey the WHERE clause that was actually sent.
       if (s.startsWith('UPDATE app_sessions SET revoked_at = now()')) {
-        const where = s.slice(s.indexOf(' WHERE ') + 7)
+        // A revocation UPDATE with no WHERE is the one shape this fake must
+        // never wave through: indexOf would return -1, `slice(6)` would hand
+        // back the whole statement, and every filter test below would match it.
+        const where = sliceFrom(s, ' WHERE ').slice(7)
         const hit = sessions.filter(
           r =>
             (!/\btelegram_id = \$1\b/.test(where) || r.telegramId === p0) &&
@@ -181,7 +186,10 @@ function memoryPool() {
         }
       }
       if (s.startsWith('UPDATE app_refresh_tokens SET revoked_at = now()')) {
-        const where = s.slice(s.indexOf(' WHERE ') + 7)
+        // A revocation UPDATE with no WHERE is the one shape this fake must
+        // never wave through: indexOf would return -1, `slice(6)` would hand
+        // back the whole statement, and every filter test below would match it.
+        const where = sliceFrom(s, ' WHERE ').slice(7)
         const ofOwner =
           /family_id IN \(SELECT family_id FROM app_sessions WHERE telegram_id = \$1\)/.test(
             where

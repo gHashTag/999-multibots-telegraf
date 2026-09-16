@@ -90,27 +90,80 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
       rawPayload: payload,
     })
 
+    // THE LEVEL IS A ROUTING DECISION, AND ONLY A VALID MARK TELLS THE TWO
+    // SENDERS APART.
+    //
+    // This route is mounted with no auth (api_server/index.ts) and logger.error
+    // is a push notification to the owner (utils/logger.ts binds the Telegram
+    // transport at level 'error'), so anyone who can reach the host can choose
+    // the level of the shape checks below unless we make them prove who they
+    // are. The discriminator used to be the mere PRESENCE of ?cb, which is a
+    // string a stranger can type: `?cb=deadbeefdeadbeef` with body {} took the
+    // loud branch on all three checks — three distinct sentences, each its own
+    // fingerprint in utils/alertThrottle.ts — which is exactly the paging the
+    // comment here claimed to prevent. And it was wrong in the other direction
+    // too: buildCallbackToken returns null when SECRET_API_KEY is falsy
+    // (utils/callbackToken.ts) and render-server-client.ts interpolates it as
+    // `?cb=${... ?? ''}`, so in that configuration our OWN render server's
+    // callbacks arrive with an empty, falsy cb and a broken contract — a paid
+    // render about to be lost — demoted itself to warn.
+    //
+    // So VERIFY the mark instead of noticing it, the way the sibling webhook
+    // already does (kie-ai-webhook.routes.ts: `logger[tokenOk ? ... ]`). The
+    // recipient the mark is keyed on comes from the untrusted body, and that
+    // costs nothing: choosing the telegramId does not help anyone produce
+    // HMAC(SECRET_API_KEY, `video-callback:<id>`) for it.
+    //
+    // FAIL CLOSED. With no SECRET_API_KEY verifyCallbackToken is false for
+    // everything, so nothing can be proved ours and nothing pages — and that
+    // same configuration already drops every callback at the delivery check
+    // below, so there is no delivery left to page about.
+    const telegramId =
+      payload.metadata?.telegram_id ||
+      payload.metadata?.chat_id ||
+      (jobId ? extractTelegramIdFromJobId(jobId) : null)
+
+    const isOurSignedCallback = telegramId
+      ? verifyCallbackToken(telegramId, req.query?.cb)
+      : false
+    const shapeLevel = isOurSignedCallback ? 'error' : 'warn'
+
     // Валидация обязательных полей
+    // Only the SHAPE is logged. The body is a stranger's text and `payload` is
+    // not a content key in utils/logger.ts, so a small malformed body used to be
+    // rendered verbatim into the owner's Telegram group. Which keys arrived is
+    // the whole diagnosis.
     if (!jobId) {
-      logger.error('❌ [AI REELS CALLBACK] Cannot extract job_id', { payload })
+      // WARN UNCONDITIONALLY, because this is the one check that precedes any
+      // id worth keying a mark on. Our own server posts { download_url } and
+      // nothing else (functions/render/helpers/renderSteps.ts), so when no job
+      // id can be parsed out of it there is no telegramId either, the mark is
+      // unverifiable, and the sender is simply unknown. Unknown is not a
+      // diagnosis in either direction, and the quiet answer is the one a
+      // stranger cannot abuse.
+      logger.warn('❌ [AI REELS CALLBACK] Cannot extract job_id', {
+        bodyKeys: Object.keys(payload || {}),
+      })
       return
     }
 
     if (!videoUrl) {
-      logger.error('❌ [AI REELS CALLBACK] No video URL found', { payload })
+      logger[shapeLevel]('❌ [AI REELS CALLBACK] No video URL found', {
+        jobId,
+        bodyKeys: Object.keys(payload || {}),
+      })
       return
     }
 
-    // Извлекаем Telegram ID из metadata или job_id
-    const telegramId =
-      payload.metadata?.telegram_id ||
-      payload.metadata?.chat_id ||
-      extractTelegramIdFromJobId(jobId)
-
     if (!telegramId) {
-      logger.error('❌ [AI REELS CALLBACK] Cannot extract Telegram ID', {
+      // shapeLevel is provably 'warn' on this branch — the mark is keyed on the
+      // very id we just failed to derive, so nothing here can be shown to be
+      // ours. Spelled as the same expression as its sibling above so the rule
+      // reads once, and so it follows if the derivation ever gains a source.
+      logger[shapeLevel]('❌ [AI REELS CALLBACK] Cannot extract Telegram ID', {
         jobId,
-        metadata: payload.metadata,
+        // metadata is an open map from the same untrusted body — keys only.
+        metadataKeys: Object.keys(payload.metadata || {}),
       })
       return
     }
@@ -125,7 +178,8 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
     // закрыл /api/video-callback (PR #527).
     //
     // Отказ ЗАКРЫТЫЙ: без совпавшей метки ничего не отправляем.
-    if (!verifyCallbackToken(telegramId, req.query?.cb)) {
+    // (Computed above, where it also decides the level of the shape checks.)
+    if (!isOurSignedCallback) {
       logger.warn('⛔ [AI REELS CALLBACK] Отклонено: метка не совпала', {
         jobId,
         telegramId,
@@ -167,7 +221,11 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
       duration: `${duration}ms`,
     })
   } catch (error) {
-    logger.error('❌ [AI REELS CALLBACK] CAUGHT ERROR', { error })
+    // ONE INCIDENT IS ONE MESSAGE. There used to be a 'CAUGHT ERROR' line here
+    // logging the same exception under a second title. The throttle fingerprints
+    // on the message text (utils/alertThrottle.ts), so the two could never
+    // collapse: every throw in this handler woke the owner twice, and the first
+    // page carried strictly less than the second. The record below is complete.
     logger.error('❌ [AI REELS CALLBACK] Processing error', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -465,7 +523,14 @@ async function handleCompletedRender(
         '⚠️ Видео готово, но произошла ошибка при отправке. Попробуйте ещё раз.'
       )
     } catch (sendError) {
-      logger.error('❌ [AI REELS CALLBACK] Failed to send error message', {
+      // A SECOND PAGE FOR AN INCIDENT ALREADY PAGED. This catch is nested
+      // inside the outer one, whose first statement above is an unconditional
+      // logger.error for this same invocation — so no path reaches here without
+      // the owner having been woken already. All this line adds is that the
+      // apology could not be delivered too, which is usually the customer
+      // blocking the bot (helpers/telegramErrors.ts) and in every case is
+      // nothing anyone can act on. Kept as a warn so the record survives.
+      logger.warn('❌ [AI REELS CALLBACK] Failed to send error message', {
         error:
           sendError instanceof Error ? sendError.message : String(sendError),
       })

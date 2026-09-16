@@ -22,6 +22,7 @@ import {
 } from '@/price/helpers'
 import { refundUser } from '@/price/helpers/refundUser'
 import { isBalanceRefusal } from '@/price/helpers/isBalanceRefusal'
+import { isContentRefusal } from '@/helpers/isContentRefusal'
 import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
@@ -1095,11 +1096,36 @@ export const generateAdvancedFluxKontext = async (
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-    const isContentModeration =
-      errorMsg.toLowerCase().includes('e005') ||
-      errorMsg.toLowerCase().includes('flagged as sensitive') ||
-      errorMsg.toLowerCase().includes('nsfw') ||
-      errorMsg.toLowerCase().includes('safety')
+    /*
+     * THIS TEST RUNS FIRST, SO IT HAD TO STOP GUESSING.
+     *
+     * The branch below is consulted before the wallet branch, and it chooses
+     * warn over error -- and utils/logger.ts binds TelegramLogTransport at
+     * level 'error', so whatever answers here decides whether the owner's phone
+     * rings. It used to be four substrings, two of them bare: 'nsfw' and
+     * 'safety'. "safety checker service unavailable" and "NSFW classifier
+     * unavailable" are our own machinery dying and both carry the word that
+     * bought silence, so a dead moderation hop could take every FLUX Kontext
+     * edit down without one notification -- and, running first, it could also
+     * swallow a refusal that the typed wallet test below was about to classify
+     * correctly.
+     *
+     * isContentRefusal is the single vocabulary for the question (see its
+     * docblock for why a bare 'safety' is deliberately absent): the content
+     * word must stand next to a word of verdict, and anything it cannot
+     * recognise stays an alert. It reads the error itself, not the flattened
+     * message, so a ContentRefusalError thrown further up is recognised by its
+     * type rather than by its wording.
+     */
+    const isContentModeration = isContentRefusal(error)
+
+    // An empty wallet is the customer's own business, not an incident: this
+    // function refused the charge itself a few hundred lines up, told the
+    // person what it cost and gave them the top-up button. Paging the owner
+    // about it as well wakes someone who has nothing to do at 3am. The cause
+    // is taken from the typed error, not from its wording.
+    const isCustomerWallet =
+      error instanceof BalanceRefusedError && error.insufficientFunds
 
     // ✅ Content moderation = WARN (expected behavior), not ERROR
     if (isContentModeration) {
@@ -1109,12 +1135,15 @@ export const generateAdvancedFluxKontext = async (
         reason: 'CONTENT_MODERATION',
       })
     } else {
-      logger.error('Advanced FLUX Kontext editing failed', {
-        error: errorMsg,
-        telegram_id: params.telegram_id,
-        prompt: params.prompt,
-        mode: params.mode,
-      })
+      logger[isCustomerWallet ? 'warn' : 'error'](
+        'Advanced FLUX Kontext editing failed',
+        {
+          error: errorMsg,
+          telegram_id: params.telegram_id,
+          prompt: params.prompt,
+          mode: params.mode,
+        }
+      )
     }
 
     let errorMessageToUser = '❌ Произошла ошибка при обработке изображения.'
@@ -1402,10 +1431,22 @@ export const upscaleFluxKontextImage = async (params: {
 
     return { image: Buffer.alloc(0), prompt_id } // Возвращаем пустой буфер, т.к. файл уже отправлен
   } catch (error) {
-    logger.error('Image upscaling failed', {
+    // Same rule as every other refusal in this file: the customer's empty
+    // wallet was already written at info by refuseUnpaidGeneration, and a
+    // second line at error would push it to the owner's phone. Only our own
+    // machinery pages from here.
+    // `context` is not decoration: the transport fingerprints the throttle on
+    // message plus context (utils/logger.ts:229), and imageUpscaler.ts logs
+    // the very same sentence -- without it, a real outage in one upscaler
+    // silences the other for ten minutes.
+    const isCustomerWallet =
+      error instanceof BalanceRefusedError && error.insufficientFunds
+
+    logger[isCustomerWallet ? 'warn' : 'error']('Image upscaling failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegram_id: params.telegram_id,
       originalPrompt: params.originalPrompt,
+      context: 'upscaleFluxKontextImage',
     })
 
     // Возврат средств при ошибке (если деньги уже списались)

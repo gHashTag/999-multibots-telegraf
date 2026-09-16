@@ -1,5 +1,6 @@
 // Import config to load .env before checking ELEVENLABS_API_KEY
 import '@/config'
+import { secretFingerprint } from '@/utils/secretFingerprint'
 
 // Mock-класс для ElevenLabs API
 class MockElevenLabsClient {
@@ -71,9 +72,12 @@ const createElevenLabsClient = () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { ElevenLabsClient } = require('elevenlabs')
 
+    // The digest tells two environments apart just as well as a prefix did,
+    // without putting key material into Railway's log retention. The length
+    // stays: a truncated key is a real and common misconfiguration.
     console.log(
       '[ElevenLabs] Initializing ElevenLabsClient with key:',
-      apiKey.substring(0, 10) + '...'
+      `${secretFingerprint(apiKey)} (${apiKey.length} chars)`
     )
 
     const client = new ElevenLabsClient({
@@ -88,7 +92,7 @@ const createElevenLabsClient = () => {
         // Debug logging to see what API key is being used
         console.log(
           '[ElevenLabs] DEBUG: Checking voice existence with API key:',
-          process.env.ELEVENLABS_API_KEY?.substring(0, 10) + '...'
+          secretFingerprint(process.env.ELEVENLABS_API_KEY)
         )
         console.log('[ElevenLabs] DEBUG: Looking for voice ID:', voiceId)
 

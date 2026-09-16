@@ -281,10 +281,33 @@ class TelegramLogService {
     const errorMessage = error instanceof Error ? error.message : error
     const stack = error instanceof Error ? error.stack : undefined
 
-    // Обрезаем сообщение об ошибке до 500 символов
+    /*
+     * THE CUT TAKES THE MIDDLE, BECAUSE THE TAIL IS WHERE THE COUNT IS.
+     *
+     * This kept the first 500 characters and dropped the rest. The throttle in
+     * utils/alertThrottle.ts appends its tally to the END of the message --
+     * "(+47 раз за последние 10 мин — то же самое)" -- which is the single
+     * thing that makes suppression honest rather than muting: one alert means
+     * it happened once, an alert with a tally means it is a storm.
+     *
+     * Any title long enough to be truncated therefore lost exactly that, and
+     * long titles are not rare: 23 alert titles in this repository interpolate
+     * a provider's raw error body. The loss was worst precisely when it mattered
+     * most -- a storm large enough to produce a long error is a storm whose
+     * count the owner needs.
+     *
+     * So the elision is taken out of the middle. The head keeps what the alert
+     * IS; the tail keeps how many times.
+     */
+    const MAX = 500
+    const TAIL = 120
     const truncatedError =
-      errorMessage.length > 500
-        ? errorMessage.substring(0, 500) + '...'
+      errorMessage.length > MAX
+        ? // Kept: (MAX - TAIL) head + TAIL tail = MAX. So the number DROPPED is
+          // length - MAX. Writing `- MAX + TAIL` overstated every elision by
+          // exactly TAIL characters: a 700-char alert claimed 320 lost when 200
+          // were.
+          `${errorMessage.slice(0, MAX - TAIL)}\n…[${errorMessage.length - MAX} символов пропущено]…\n${errorMessage.slice(-TAIL)}`
         : errorMessage
 
     let message = `❌ Ошибка`

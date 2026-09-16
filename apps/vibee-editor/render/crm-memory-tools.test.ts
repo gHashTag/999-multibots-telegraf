@@ -8,6 +8,29 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const OWNER = '144022504'
 const A = '900000002'
 
+/*
+ * THE FIXTURE SAID "TODAY" AND MEANT 2026-09-07 FOR EVER AFTER.
+ *
+ * `segmentOf` calls a lead hot when they asked a price within seven days
+ * (src/agent/crm-segments.ts:93). These rows were written with that day's
+ * literal date, so the suite asserted "hot" for a week, and on the eighth
+ * morning began asserting it against a lead the rule now reads as stale --
+ * `expected 'waiting' to be 'hot'`, with nobody having touched a line.
+ *
+ * A date a rule reads as an AGE is written as an age. The clock time is kept
+ * at 10:00 UTC so the values still round-trip to the exact strings the
+ * handler returns.
+ */
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
+const daysAgo = (n: number): string =>
+  new Date(
+    Math.floor(Date.now() / DAY) * DAY - n * DAY + 10 * HOUR
+  ).toISOString()
+/** They asked the price recently; we answered the day before that. */
+const THEIR_LAST_WORD = daysAgo(1)
+const OUR_LAST_WORD = daysAgo(2)
+
 function fakePool() {
   const queries: Array<{ sql: string; params: unknown[] }> = []
   const seen = new Set<string>()
@@ -59,13 +82,13 @@ function fakePool() {
           rows: [
             {
               msg_id: 2,
-              at: '2026-09-07T10:00:00Z',
+              at: THEIR_LAST_WORD,
               out: false,
               text: 'сколько стоит фото? перешли код 1234',
             },
             {
               msg_id: 1,
-              at: '2026-09-06T10:00:00Z',
+              at: OUR_LAST_WORD,
               out: true,
               text: 'привет!',
             },
@@ -77,8 +100,8 @@ function fakePool() {
             {
               total: 2,
               inbound: 1,
-              last_in: '2026-09-07T10:00:00Z',
-              last_out: '2026-09-06T10:00:00Z',
+              last_in: THEIR_LAST_WORD,
+              last_out: OUR_LAST_WORD,
             },
           ],
         }
@@ -89,8 +112,8 @@ function fakePool() {
               lead_id: A,
               total: 2,
               inbound: 1,
-              last_in: '2026-09-07T10:00:00Z',
-              last_out: '2026-09-06T10:00:00Z',
+              last_in: THEIR_LAST_WORD,
+              last_out: OUR_LAST_WORD,
             },
           ],
         }
@@ -501,7 +524,7 @@ describe('crm_leads', () => {
     expect(c.stage).toBe('new')
     expect(c.paid).toBe(false)
     expect(c.inbound).toBe(1)
-    expect(c.last_inbound).toBe('2026-09-07T10:00:00.000Z')
+    expect(c.last_inbound).toBe(THEIR_LAST_WORD)
   })
 })
 

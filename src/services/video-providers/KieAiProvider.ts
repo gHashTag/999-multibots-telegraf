@@ -3,6 +3,10 @@ import { logger } from '@/utils/logger'
 import { getAvailableCallbackUrl } from '@/utils/webhookHealthCheck'
 import { inngest } from '@/inngest_app/client'
 import { KIE_JOBS, readKieJobRecord } from '@/config/kie-jobs'
+import {
+  ContentRefusalError,
+  isContentRefusal,
+} from '@/helpers/isContentRefusal'
 
 interface KieAiCredits {
   credits: number
@@ -897,11 +901,20 @@ export class KieAiProvider {
         }
       } else if (normalizedSuccessFlag === 3) {
         // Ошибка политики контента Google
-        logger.error(
+        /*
+         * Google refused the customer's prompt or image. `utils/logger.ts`
+         * binds the Telegram transport at level 'error', so this line used to
+         * be a push notification to the owner -- about a verdict he cannot
+         * appeal, on a prompt he has never seen, with no key to rotate and no
+         * service to restart. warn keeps the record in the LOGS tab without
+         * waking anybody. The throw is unchanged; it is typed so the catch
+         * below can tell this apart from a poll that genuinely broke.
+         */
+        logger.warn(
           '[KieAiProvider] Video generation rejected by content policy',
           { taskId, errorCode: data.errorCode, errorMessage: data.errorMessage }
         )
-        throw new Error(
+        throw new ContentRefusalError(
           data.errorMessage ||
             'Content rejected by Google policy. Please try different prompt or image.'
         )
@@ -936,10 +949,21 @@ export class KieAiProvider {
         }
       }
     } catch (error) {
-      logger.error('[KieAiProvider] Error checking video status', {
-        taskId,
-        error,
-      })
+      /*
+       * This catch receives two different things and used to call both an
+       * incident. A broken poll -- axios refused, the endpoint 500ed, the
+       * response had no shape we understand -- is ours and must page. The
+       * content refusal rethrown from the successFlag 3 branch above is the
+       * customer's prompt, and titling it "Error checking video status" told
+       * the woken owner the poller had failed when it had not.
+       */
+      const contentRefusal = isContentRefusal(error)
+      logger[contentRefusal ? 'warn' : 'error'](
+        contentRefusal
+          ? '[KieAiProvider] Video status check ended in a content refusal'
+          : '[KieAiProvider] Error checking video status',
+        { taskId, error }
+      )
       return {
         success: false,
         cost: { usd: 0, stars: 0 },

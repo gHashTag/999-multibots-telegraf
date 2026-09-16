@@ -35,6 +35,12 @@ function validateUserInput(input: any): {
 import { promisify } from 'util'
 import { calculateFinalPriceInStars } from '@/interfaces/paidServices'
 import { reportDeadEnd } from '@/helpers/error/reportDeadEnd'
+import {
+  isUserCausedTelegramError,
+  telegramErrorInfo,
+} from '@/helpers/telegramErrors'
+import { isContentRefusal } from '@/helpers/isContentRefusal'
+import { BalanceRefusedError } from '@/price/helpers/refuseUnpaidGeneration'
 
 const writeFile = promisify(fs.writeFile)
 const mkdir = promisify(fs.mkdir)
@@ -2332,16 +2338,38 @@ aiPhotoshopScene.on('text', async ctx => {
           await showDialogInterface(ctx)
           return
         } catch (error) {
-          logger.error('🚨 AI Photoshop: Upscaler failed in dialog mode', {
-            telegramId: ctx.from?.id,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          })
+          /*
+           * `upscaleImage` refuses an empty wallet through
+           * refuseUnpaidGeneration, which has already logged it at info and
+           * already told the person, with a top-up button under the message.
+           * Re-reporting it here made the same non-event cost a second
+           * notification to the owner AND a sentence telling the customer the
+           * system broke -- which is false and points them at retrying instead
+           * of paying. Only `insufficientFunds` is demoted; a provider
+           * failure, a Telegram failure, and a BalanceRefusedError with
+           * insufficientFunds:false (bad price, failed balance write) keep
+           * both the page and the apology.
+           */
+          if (error instanceof BalanceRefusedError && error.insufficientFunds) {
+            logger.warn(
+              'AI Photoshop upscale (dialog): refused, the balance is short',
+              {
+                telegramId: ctx.from?.id,
+                reason: error.reason,
+              }
+            )
+          } else {
+            logger.error('🚨 AI Photoshop: Upscaler failed in dialog mode', {
+              telegramId: ctx.from?.id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })
 
-          await ctx.reply(
-            isRu
-              ? '❌ Произошла ошибка при увеличении качества. Попробуйте другую команду для улучшения фото.'
-              : '❌ Error occurred during upscaling. Try another command to improve the photo.'
-          )
+            await ctx.reply(
+              isRu
+                ? '❌ Произошла ошибка при увеличении качества. Попробуйте другую команду для улучшения фото.'
+                : '❌ Error occurred during upscaling. Try another command to improve the photo.'
+            )
+          }
           return
         } finally {
           ctx.session.aiPhotoshopUpscaleInProgress = false
@@ -2404,7 +2432,12 @@ aiPhotoshopScene.on('text', async ctx => {
       !ctx.session?.aiPhotoshopImage &&
       !ctx.session?.morphingImages?.length
     ) {
-      logger.error('🚨 AI Photoshop: REJECTED - no image', {
+      // Somebody typed a prompt before sending a picture. That is the steps in
+      // the wrong order, answered in-band on the next line -- not an incident,
+      // and there is no operator action in it. It was the loudest-LOOKING line
+      // in the alert group (logger.error is the owner's Telegram push) with the
+      // least behind it, which is how a siren stops meaning anything.
+      logger.warn('AI Photoshop: text arrived before any image', {
         telegramId: ctx.from?.id,
         hasImage: !!ctx.session?.aiPhotoshopImage,
         hasMorphingImages: !!ctx.session?.morphingImages?.length,
@@ -3101,19 +3134,29 @@ const processAiPhotoshopRequest = async (
       ctx.session.morphingImages.length > 0)
 
   if (!aiPhotoshopModel || !hasImages || !ctx.from?.id) {
-    logger.error('Missing required data for AI Photoshop processing', {
-      telegramId: ctx.from?.id,
-      model: aiPhotoshopModel,
-      hasImage: !!aiPhotoshopImage,
-      hasMorphingImages: ctx.session?.morphingImages?.length || 0,
-      sessionState: {
-        aiPhotoshopModel: ctx.session?.aiPhotoshopModel,
-        aiPhotoshopStyle: ctx.session?.aiPhotoshopStyle,
-        aiPhotoshopSize: ctx.session?.aiPhotoshopSize,
-        aiPhotoshopStep: ctx.session?.aiPhotoshopStep,
-        aiPhotoshopPrompt: !!ctx.session?.aiPhotoshopPrompt,
-      },
-    })
+    /*
+     * THIS IS A DEAD END, NOT AN INCIDENT -- BUT IT IS NOT NOTHING EITHER.
+     *
+     * The commonest way in is a person tapping "continue with the same photo"
+     * after an all_models run, because the run clears the session on purpose.
+     * That is the guard working as designed, and it used to page the owner.
+     *
+     * A bare warn would have been wrong in the other direction: the
+     * `!aiPhotoshopModel` limb can also mean the session was WIPED, which is
+     * ours. reportDeadEnd keeps that distinction -- it lists the session keys
+     * that were present beside the ones that were missing, logs at warn, and
+     * still reports to the owner once a minute per person instead of on every
+     * tap.
+     */
+    await reportDeadEnd(
+      ctx,
+      'aiPhotoshopScene processAiPhotoshopRequest',
+      [
+        !aiPhotoshopModel && 'aiPhotoshopModel',
+        !hasImages && 'an image',
+        !ctx.from?.id && 'a telegram id',
+      ].filter(Boolean) as string[]
+    )
 
     await ctx.reply(
       isRu
@@ -3226,6 +3269,20 @@ const processAiPhotoshopRequest = async (
           errorMsg.toLowerCase().includes('nsfw') ||
           errorMsg.toLowerCase().includes('safety')
 
+        /*
+         * NOTHING REACHES THIS CATCH, AND THAT IS WHY THE WALLET IS NOT
+         * CLASSIFIED HERE.
+         *
+         * I put an empty-wallet branch in this block first, then measured it:
+         * the try above holds three session assignments, two log lines, a
+         * setTimeout sleep and `processSingleAiPhotoshopModel`, and that
+         * function contains no `throw` anywhere in its body -- it catches its
+         * own failures and returns. So a refusal cannot arrive here, and a
+         * branch that cannot run is a picture of protection rather than
+         * protection. The per-model refusal is classified where it actually
+         * happens, at the `balanceCheck.insufficientFunds` guard inside
+         * processSingleAiPhotoshopModel.
+         */
         // ✅ Content moderation errors are WARN (expected behavior), not ERROR
         if (isContentModeration) {
           logger.warn(
@@ -4272,10 +4329,34 @@ const processSingleAiPhotoshopModel = async (
         })
 
         if (!balanceCheck.success) {
-          logger.error(`❌ Insufficient balance for ${modelKey}, skipping`, {
-            telegram_id: userId.toString(),
-            required: totalCostForAllImages,
-          })
+          /*
+           * `!success` covers FOUR outcomes, and the old single line asserted
+           * "Insufficient balance" for all of them: it paged the owner about a
+           * broke customer AND mislabelled three machinery failures as
+           * poverty. processBalanceOperation returns `insufficientFunds: true`
+           * for the wallet and `false` for a non-positive price, a failed
+           * balance WRITE and a thrown exception -- so branch on the flag
+           * rather than re-deriving the cause from prose.
+           *
+           * The wallet half does not page: the customer was already told by
+           * processBalanceOperation with a top-up button attached, the word in
+           * the message is the code's own "skipping", and the only actor who
+           * can resolve it is the person, by paying. The other half keeps the
+           * owner's Telegram push, because a balance write that failed is
+           * money that did not move.
+           */
+          if (balanceCheck.insufficientFunds) {
+            logger.warn(`Insufficient balance for ${modelKey}, skipping`, {
+              telegram_id: userId.toString(),
+              required: totalCostForAllImages,
+            })
+          } else {
+            logger.error(`Balance operation failed for ${modelKey}, skipping`, {
+              telegram_id: userId.toString(),
+              required: totalCostForAllImages,
+              error: balanceCheck.error,
+            })
+          }
           // Skip this model - do not process images
         } else {
           // Balance check passed - process selected images (up to variations count)
@@ -4638,11 +4719,25 @@ const processSingleAiPhotoshopModel = async (
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-    const isContentModeration =
-      errorMsg.toLowerCase().includes('e005') ||
-      errorMsg.toLowerCase().includes('flagged as sensitive') ||
-      errorMsg.toLowerCase().includes('nsfw') ||
-      errorMsg.toLowerCase().includes('safety')
+    /*
+     * THE BARE WORD 'safety' DECIDED WHETHER ANYBODY WAS WOKEN.
+     *
+     * This is the live catch of processSingleAiPhotoshopModel, and the branch
+     * below picks warn over error. utils/logger.ts binds TelegramLogTransport
+     * at level 'error', so that choice is the routing decision for every
+     * failure in this scene. It used to be four substrings, two of them bare:
+     * 'nsfw' and 'safety'. "safety checker service unavailable" and "NSFW
+     * classifier unavailable" are OUR machinery dying, and each one contains
+     * the word that bought silence -- every AI Photoshop generation could fail
+     * for hours with nothing reaching the owner.
+     *
+     * isContentRefusal is the single vocabulary for this question, and its
+     * docblock says why a bare 'safety' is deliberately not in it: the content
+     * word must stand next to a word of verdict, and whatever it cannot
+     * recognise stays an alert. generateSeeDream45.ts already answers the same
+     * wording that way; this file used to answer the opposite.
+     */
+    const isContentModeration = isContentRefusal(error)
 
     // ✅ Content moderation = WARN (expected behavior when user content is flagged)
     if (isContentModeration) {
@@ -4780,7 +4875,12 @@ aiPhotoshopScene.action('ai_photoshop_back_to_styles', async ctx => {
 // Cancel button
 aiPhotoshopScene.action('ai_photoshop_cancel', async ctx => {
   try {
-    await ctx.answerCbQuery()
+    // Best-effort, like the sibling at ai_photoshop_upscale_last. Tapping
+    // Cancel on yesterday's message answers '400: query is too old', and an
+    // unguarded acknowledgement turned that into two failures at once: the
+    // cancel below never ran, so the person stayed in the scene, and the owner
+    // was paged about a customer who had already left.
+    await ctx.answerCbQuery().catch(() => {})
     const isRu = isRussianFromState(ctx)
 
     await ctx.reply(
@@ -4798,6 +4898,19 @@ aiPhotoshopScene.action('ai_photoshop_cancel', async ctx => {
     const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
+    /*
+     * What remains in the try is a reply, a scene.leave and the main menu. A
+     * Telegram rejection here means the customer blocked the bot or the chat
+     * is gone -- nothing to do about somebody who left. A TypeError inside
+     * showMainMenu or a broken scene transition is ours and keeps paging.
+     */
+    if (isUserCausedTelegramError(error)) {
+      logger.warn('AI Photoshop cancel: the customer is gone', {
+        telegramId: ctx.from?.id,
+        description: telegramErrorInfo(error).description,
+      })
+      return
+    }
     logger.error('Error handling AI Photoshop cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
@@ -5112,10 +5225,19 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
     )
 
     if (!ctx.session.morphingImages || ctx.session.morphingImages.length < 1) {
-      logger.error('AI Photoshop: No images found for processing', {
-        telegramId: ctx.from?.id,
-        imageCount: ctx.session.morphingImages?.length || 0,
-      })
+      /*
+       * A DEAD END, NOT AN OUTAGE. Confirming a multi-photo job whose images are
+       * no longer in the session is either a person who tapped a stale button
+       * after a /start wiped the session, or a session we dropped ourselves --
+       * and a page at 3am cannot tell those apart, which is exactly why the old
+       * logger.error here was a siren with nothing behind it. reportDeadEnd
+       * still tells the owner, but through the dead-end channel and with the
+       * evidence that separates the two stories: which session keys were there
+       * and which were empty. Names only, never values (#2235/#2236).
+       */
+      await reportDeadEnd(ctx, 'aiPhotoshopScene multi-photo confirm', [
+        'morphingImages',
+      ])
       await ctx.reply(
         isRu
           ? '❌ Недостаточно изображений для обработки. Попробуйте загрузить фото снова.'
@@ -5274,7 +5396,9 @@ aiPhotoshopScene.action('ai_photoshop_multi_confirm', async ctx => {
 // Cancel multi-photo processing
 aiPhotoshopScene.action('ai_photoshop_multi_cancel', async ctx => {
   try {
-    await ctx.answerCbQuery()
+    // Best-effort: '400: query is too old' on a button tapped a day later must
+    // not stop the cancel below from running.
+    await ctx.answerCbQuery().catch(() => {})
     const isRu = isRussianFromState(ctx)
 
     // Clear multi-photo session data
@@ -5287,8 +5411,20 @@ aiPhotoshopScene.action('ai_photoshop_multi_cancel', async ctx => {
       ctx.session.aiPhotoshopSize = undefined
     }
 
-    // Delete message
-    await ctx.deleteMessage()
+    // Delete message. Its own try/catch, like the sibling at the confirm
+    // handler: Telegram refuses to delete a message older than 48 hours and
+    // answers '400: message to delete not found' for one the person removed
+    // themselves. Neither is a reason to abandon the cancel -- the unguarded
+    // await used to throw past the reply and the model list below, so the
+    // person stayed stuck with their album AND the owner got paged for it.
+    try {
+      await ctx.deleteMessage()
+    } catch (error) {
+      logger.warn('Failed to delete the album confirmation message', {
+        telegramId: ctx.from?.id,
+        description: telegramErrorInfo(error).description,
+      })
+    }
 
     await ctx.reply(
       isRu
@@ -5299,6 +5435,16 @@ aiPhotoshopScene.action('ai_photoshop_multi_cancel', async ctx => {
     // Show model selection again
     await showAiPhotoshopModels(ctx)
   } catch (error) {
+    // What is left in the try is the reply and the model keyboard: a Telegram
+    // rejection there means the person blocked the bot or left the chat.
+    // Anything else -- a throw inside showAiPhotoshopModels, say -- is ours.
+    if (isUserCausedTelegramError(error)) {
+      logger.warn('AI Photoshop album cancel: the customer is gone', {
+        telegramId: ctx.from?.id,
+        description: telegramErrorInfo(error).description,
+      })
+      return
+    }
     logger.error('Error cancelling multi-photo AI Photoshop', {
       error: error instanceof Error ? error.message : 'Unknown error',
       telegramId: ctx.from?.id,
@@ -5445,16 +5591,28 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
       // Show dialog interface again after upscaling
       await showDialogInterface(ctx)
     } catch (error) {
-      logger.error('🚨 AI Photoshop: Upscaler button failed', {
-        telegramId: ctx.from?.id,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
+      // Same refusal, same button, second entry point: see the dialog-mode
+      // upscale catch above for why only `insufficientFunds` is demoted.
+      if (error instanceof BalanceRefusedError && error.insufficientFunds) {
+        logger.warn(
+          'AI Photoshop upscale (button): refused, the balance is short',
+          {
+            telegramId: ctx.from?.id,
+            reason: error.reason,
+          }
+        )
+      } else {
+        logger.error('🚨 AI Photoshop: Upscaler button failed', {
+          telegramId: ctx.from?.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
 
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при увеличении качества. Попробуйте позже.'
-          : '❌ Error occurred during upscaling. Please try again later.'
-      )
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при увеличении качества. Попробуйте позже.'
+            : '❌ Error occurred during upscaling. Please try again later.'
+        )
+      }
     } finally {
       ctx.session.aiPhotoshopUpscaleInProgress = false
     }
