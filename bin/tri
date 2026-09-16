@@ -46,6 +46,13 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
+  tri scan       чем этот код может соврать: обзор сторожей и дыр
+  tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
+  tri promises   обещания в тексте, за которыми стоит число в другом файле
+  tri waiting    что лежит в открытом PR и чем рискует — по группам
+  tri clock [дней] [render|bot|all]  прогон так, будто прошло N дней:
+                 два прогона, фон вычитается — видно только то, что сгниёт
+  tri landing    доедет ли работа этой ветки до main и что застрянет с ней
   tri open       что ещё открыто по pipeline-STATUS.md
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
@@ -774,6 +781,7 @@ PYEOF
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;
   waiting) shift; bash "$ROOT/bin/helpers/waiting.sh" "$ROOT" "$@" ;;
   clock)  shift; bash "$ROOT/bin/helpers/clock.sh" "$ROOT" "$@" ;;
+  landing) shift; bash "$ROOT/bin/helpers/landing.sh" "$ROOT" "$@" ;;
 
   doctor)
     echo "── копия ──";     fresh || true
