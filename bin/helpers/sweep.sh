@@ -63,7 +63,9 @@ if 'error' in d:
     sys.stderr.write('сервис отказал: %s\n' % str(d['error'].get('message'))[:200])
     raise SystemExit(2)
 t = json.loads(d['result']['content'][0]['text'])
-ev = [e for e in t.get('events', []) if str(e.get('kind','')).startswith('sweep')]
+allev = t.get('events', [])
+ev = [e for e in allev if str(e.get('kind','')).startswith('sweep')]
+dropped = [e for e in allev if e.get('kind') == 'card-dropped']
 
 print('── журнал улья: %s ──' % t.get('scope'))
 if not ev:
@@ -108,6 +110,18 @@ if fails:
 cards = sum(1 for e in ev if e.get('kind') == 'sweep-card')
 print()
 print('  карточек подготовлено: %d' % cards)
+
+# СКОЛЬКО ИЗ НИХ УМЕРЛО, НЕ ДОЙДЯ ДО КЛИЕНТА.
+#
+# Ноль здесь нельзя печатать как «ничего не потеряно»: до PR #2436 обычная
+# текстовая карточка вообще не оставляла следа (фильтр в reportOrphan), и
+# отсутствие записей означало отсутствие ЗАПИСИ, а не отсутствие потерь.
+if dropped:
+    why = Counter(str(e.get('note') or '').split(':')[0] for e in dropped)
+    print('  из них ушло в никуда: %d  %s' % (len(dropped), dict(why)))
+else:
+    print('  сколько из них умерло не дойдя — НЕИЗВЕСТНО: записей card-dropped')
+    print('  в журнале нет. Это молчание журнала, а не отсутствие потерь (#2436).')
 print('  СРАВНИТЕ с числом отправленных: tri facts (касания «written»).')
 print('  Подготовленная карточка ЗАМЕНЯЕТ прошлую неподнажатую — одна на человека.')
 PYHIVE
