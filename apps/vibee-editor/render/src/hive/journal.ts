@@ -108,6 +108,22 @@ export type EventKind =
    * not establish, and it was right: there was nothing to read.
    */
   | 'card-pressed'
+  /*
+   * A DRAWING NOBODY SENT IS A COST, NOT A FAILURE.
+   *
+   * One draft per owner, so a later proposal -- including the owner's own
+   * next question -- replaces a waiting card, and a picture that was already
+   * paid for at the provider goes unseen. That is expected behaviour with a
+   * price, and it was being written as `failure`.
+   *
+   * Measured 2026-09-16: FORTY-ONE of the forty-one failures in the journal's
+   * window were this one line. A channel where every entry is the same entry
+   * is not a channel -- and the thing it was burying is the one that matters,
+   * `tokens-refunded` turning into `failure` when a refund does NOT go
+   * through. Somebody's money not coming back must not sit in a list of
+   * eight-a-day expected events.
+   */
+  | 'draft-unsent'
   // other
   | 'failure'
 

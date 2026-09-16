@@ -68,10 +68,15 @@ export async function markOrphaned(
       // left unsent. Nothing to un-pend; somebody should still see it.
       const { record } = await import('../hive/journal')
       await record(pool as never, {
-        kind: 'failure',
+        // Its own kind since 2026-09-16: this is an expected cost, and while
+        // it wore `failure` it made up 41 of the 41 failures in the window --
+        // burying the one that matters, a refund that did not go through.
+        kind: 'draft-unsent',
         who: p.telegramId,
         what: `фото-черновик ${p.id} ${reason}: картинка сделана, но не отправлена`,
-        severity: 'attention',
+        // `normal`, not `attention`: the total belongs on the funnel board,
+        // which shows it, and not in a queue meant for things gone wrong.
+        severity: 'normal',
       })
       return true
     }

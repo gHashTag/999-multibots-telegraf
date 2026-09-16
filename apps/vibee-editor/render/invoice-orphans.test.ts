@@ -104,11 +104,27 @@ describe('a cancelled draft marks its invoice', () => {
           'replaced'
         )
       ).toBe(true)
+      /*
+       * ITS OWN KIND, NOT `failure` (2026-09-16).
+       *
+       * One draft per owner, so a later proposal replaces a waiting card and
+       * a picture already paid for at the provider goes unseen. That is an
+       * expected cost. While it wore `failure` it was 41 of the 41 failures
+       * in the journal's window -- and the entry it buried is the one that
+       * matters: a refund that did NOT go through.
+       */
       expect(
         pool.queries.some(
-          q => q.sql.startsWith('JOURNAL failure') && q.sql.includes('replaced')
-        )
+          q =>
+            q.sql.startsWith('JOURNAL draft-unsent') &&
+            q.sql.includes('replaced')
+        ),
+        'the unsent drawing must be its own kind'
       ).toBe(true)
+      expect(
+        pool.queries.some(q => q.sql.startsWith('JOURNAL failure')),
+        'an expected cost must not sit in the failure channel'
+      ).toBe(false)
       expect(pool.queries.some(q => q.sql.startsWith('UPDATE'))).toBe(false)
     } finally {
       vi.doUnmock('./src/hive/journal')
