@@ -627,12 +627,25 @@
 
   /* THE COLUMN THE CARD TEXT MAY NOT ENTER.
      The action rail is absolutely positioned over the card at right: 12px and
-     measures 36px wide at this width (48px from the card's right edge), so the
-     title, the author line and the description have to stop before that.
-     One number, used by every .feed-card-info padding below: as two separate
-     declarations the reserve was silently dropped by the next rule that wrote
-     the `padding` shorthand. */
-  --feed-rail-reserve: 96px;
+     its buttons measure 36px wide here, so it occupies 48px from the card's
+     right edge -- measured at 1723, 1440, 1280, 844 and 820 CSS px, the same
+     48px at every one. This number is that 48px plus a 12px gap: it is derived
+     from the rail, not chosen. Anything above that is taken straight out of
+     the title, the author line and the description.
+     Why the surplus is expensive: the card these paddings eat into is sized
+     from the viewport HEIGHT (.feed-card-inner max-width below), not its
+     width, so a short window pays in full. At 844x390 -- a phone in landscape,
+     which is >= 768px and therefore on the desktop band -- the whole card is
+     188px wide. Reserving 96px there left a 68px title column, three glyphs
+     and an ellipsis, for a rail half that size and mostly off-screen.
+     Consumed by the two .feed-card-info padding shorthands: the fullscreen
+     rule below and the min-width: 768px one. Phones do NOT use it -- at
+     <= 768px both are overridden by rules that pull the info box clear with
+     `right: 65px / 60px / 55px` instead, so changing this number moves
+     nothing there.
+     It has to live INSIDE the shorthand: as a separate padding-right
+     declaration the next rule that wrote `padding` silently dropped it. */
+  --feed-rail-reserve: 60px;
 }
 
 /* Floating header - centered within feed panel */
