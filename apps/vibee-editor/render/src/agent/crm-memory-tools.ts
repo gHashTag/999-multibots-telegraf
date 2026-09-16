@@ -34,6 +34,7 @@ import {
   type MtprotoMediaLike,
 } from './media-library'
 import { s3PutBytes } from '../lib/s3-put'
+import { imagesLookDown } from './image-health'
 
 /**
  * THE SELLER'S MEMORY, AS TOOLS.
@@ -589,6 +590,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         touched,
         paid: paidSet,
         segment: wanted as Segment | undefined,
+        // What the platform can actually do today travels with the plan.
+        imagesDown: imagesLookDown(),
       })
       /*
        * FULL DATA, NOT A LIST OF NUMBERS.

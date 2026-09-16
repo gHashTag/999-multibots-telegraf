@@ -7,6 +7,13 @@ import {
   forgetImageHealthForTests,
 } from './src/agent/image-health'
 import { salesPlaybook } from './src/agent/crm-playbook'
+import {
+  leadCandidates,
+  forgetMemoryTableForTests,
+} from './src/agent/chat-memory'
+
+// The render config supplies none; leadCandidates reads it at module load.
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost'
 
 /**
  * A PROMISE THE PLATFORM CANNOT KEEP, MADE TO A REAL CLIENT.
@@ -111,5 +118,76 @@ describe('the playbook does not promise what cannot be made', () => {
 
   it('a stranger still gets no playbook at all', () => {
     expect(salesPlaybook({ seller: false, giftIsDown: 'HTTP 403' })).toBe('')
+  })
+})
+
+/*
+ * THE PLAN MUST NOT NAME A STEP THE PLATFORM CANNOT TAKE.
+ *
+ * Measured in production 2026-09-16: FAL answers 403, its balance spent, and
+ * of the five candidates the sweep actually looks at, FOUR carried
+ * next='deliver'. The brief takes the first one that is not `wait`, so the
+ * seller spent its turns preparing a picture nothing could draw.
+ *
+ * The owner already ruled on this shape once, 2026-09-15, for the other half
+ * of it -- a portrait proposed to somebody with no picture in Telegram.
+ * Refusing at the tool is too late: by then the plan has promised it.
+ */
+describe('a delivery needs something to deliver with', () => {
+  const OWNER = '144022504'
+  const now = new Date('2026-09-16T12:00:00Z')
+  // service + price is the combination that sets next='deliver'.
+  const WANTS = 'нужна услуга, сколько стоит фото?'
+  const pool = {
+    query: async (sql: string) => {
+      const flat = sql.replace(/\s+/g, ' ')
+      if (/GROUP BY lead_id/.test(flat))
+        return {
+          rows: [
+            {
+              lead_id: '900000071',
+              total: 6,
+              inbound: 3,
+              last_in: '2026-09-16T09:00:00Z',
+              last_out: '2026-09-16T10:00:00Z',
+            },
+          ],
+        }
+      if (/^SELECT lead_id, text FROM crm_messages/.test(flat))
+        return { rows: [{ lead_id: '900000071', text: WANTS }] }
+      return { rows: [] }
+    },
+  }
+
+  beforeEach(() => forgetMemoryTableForTests())
+
+  it('with the pictures working, the step is still deliver', async () => {
+    const [l] = await leadCandidates(pool as never, OWNER, { now })
+    expect(l.next).toBe('deliver')
+  })
+
+  it('with the pictures down, the step is an offer -- their price ask is still answerable', async () => {
+    const [l] = await leadCandidates(pool as never, OWNER, {
+      now,
+      imagesDown: { why: 'HTTP 403 Exhausted balance', minutesAgo: 4 },
+    })
+    expect(l.next).toBe('offer')
+  })
+
+  it('and the reason travels with it, so the owner sees WHY the plan changed', async () => {
+    const [l] = await leadCandidates(pool as never, OWNER, {
+      now,
+      imagesDown: { why: 'HTTP 403 Exhausted balance', minutesAgo: 4 },
+    })
+    expect(l.because).toContain('403')
+    expect(l.because).toContain('4')
+  })
+
+  it('a verdict that has expired is no verdict: null does not withdraw anything', async () => {
+    const [l] = await leadCandidates(pool as never, OWNER, {
+      now,
+      imagesDown: null,
+    })
+    expect(l.next).toBe('deliver')
   })
 })
