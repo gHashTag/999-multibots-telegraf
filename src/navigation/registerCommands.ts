@@ -3130,15 +3130,21 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   }
   const showSummary = async (ctx: MyContext, days?: number) => {
     try {
-      const { fetchSummary, formatSummary } = await import(
+      const { fetchSummary, formatSummary, fetchCardFlow } = await import(
         '@/services/crmSummary'
       )
       const { scopeLine, activeScope } = await import('@/services/crmProactive')
       const s = await fetchSummary(ownerId(ctx), days)
+      /*
+       * The card flow is a SECOND call, and a failing one must not take the
+       * summary with it: the screen worked without these three numbers for
+       * months, and half a screen beats an error.
+       */
+      const cards = await fetchCardFlow(ownerId(ctx)).catch(() => null)
       const line = scopeLine(ownerId(ctx))
       await sendLong(
         ctx,
-        formatSummary(s, line),
+        formatSummary(s, line, cards),
         summaryKeyboard(s, Boolean(activeScope(ownerId(ctx))))
       )
     } catch (e) {
