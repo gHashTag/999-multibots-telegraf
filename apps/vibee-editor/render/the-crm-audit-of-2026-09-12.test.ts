@@ -34,7 +34,13 @@ describe('P0: the lead rides with a tg_send draft', () => {
     )
     const at = src.indexOf("'Отправка ждёт подтверждения человека.")
     expect(at).toBeGreaterThan(-1)
-    expect(src.slice(at, at + 200)).toMatch(/ctx,\s*leadOfTarget\(args\.chat\)/)
+    // The guard is "a lead rides with the draft", not "this helper is called".
+    // `leadOfTargetIn` is the same promise kept for one more case: a
+    // @username the owner has corresponded with now resolves to an id, so a
+    // card addressed that way records its `written` touch when pressed.
+    expect(src.slice(at, at + 200)).toMatch(
+      /ctx,\s*(await\s+)?leadOfTargetIn?\(\s*(ctx,\s*)?args\.chat\)/
+    )
   })
 })
 
