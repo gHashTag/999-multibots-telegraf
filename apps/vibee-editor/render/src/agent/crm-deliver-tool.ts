@@ -1,6 +1,7 @@
 import type { AgentTool, ToolContext } from './tools'
 import { propose, requireSeller } from './telegram-tools'
 import { resolveLead, oneLine } from './crm-offer-tool'
+import { personOf } from './chat-memory'
 import { reachable } from './crm-touch-tools'
 import {
   TOKEN_PRICES,
@@ -171,8 +172,48 @@ export function makeCrmDeliverTools(
               '«Отправить / Отмена». Скажи человеку открыть бота и повторить просьбу.',
           }
         }
-        const lead = await resolveLead(ctx, chat)
         const gift = a?.gift !== false
+        /*
+         * A GIFT MAY REACH SOMEBODY WITH NO WALLET. THAT IS THE POINT OF IT.
+         *
+         * resolveLead accepts a bare number only for a person already in
+         * `users`, and the reason it gives is exact: an invoice credits
+         * whatever id is in it, so a mistyped number sends the lead's Stars to
+         * a stranger. The same comment names the way out -- "somebody not in
+         * the base is named by @username, which Telegram resolves for real".
+         *
+         * The sweep cannot take that way out. crm_leads hands the model a
+         * NUMERIC lead, so the gift is refused for exactly the people it
+         * exists for. Production, 2026-09-15, the seller's own words in the
+         * hive journal: "deliver is not possible for him -- crm_deliver_photo
+         * refused (not in the base, name him by @username)".
+         *
+         * None of the money reasoning applies to a gift: price is 0, no
+         * invoice is minted, no charge rides on the card (`charge` is
+         * undefined when `gift`), and the house pays the drawing. So for the
+         * GIFT path only, a person our own CRM knows by @username is resolved
+         * the way the comment says -- through Telegram, which verifies the
+         * name for real. The paid path keeps the gate untouched.
+         */
+        let lead: Awaited<ReturnType<typeof resolveLead>>
+        try {
+          lead = await resolveLead(ctx, chat)
+        } catch (e) {
+          const numeric = /^\d{5,15}$/.test(chat)
+          const known =
+            gift && numeric && ctx?.pool
+              ? await personOf(
+                  ctx.pool as never,
+                  String(ctx?.telegramId ?? ''),
+                  chat
+                ).catch(() => null)
+              : null
+          const handle = String(known?.username ?? '').replace(/^@/, '')
+          if (!handle) throw e
+          // Telegram resolves the name, so a wrong one fails here rather than
+          // reaching a stranger.
+          lead = await resolveLead(ctx, '@' + handle)
+        }
         const fromPhoto = a?.from_photo !== false
         const aspectRatio = a?.aspect_ratio
           ? String(a.aspect_ratio)
