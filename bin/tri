@@ -57,6 +57,7 @@ tri — оболочка Trinity S³AI
   tri binary     исходники, невидимые для grep из-за нулевого байта
   tri facts      на чём стоят факты CRM в ПРОДЕ: не пуст ли журнал под выводом
   tri funnel     воронка владельца одним экраном: этапы, шаги, утечка карточек
+  tri headroom   числа, которые говорят про запас, а не про потери (форма 54)
   tri sweep [hive|log] [n]  обходы продавца в проде: журнал улья (навсегда)
                  или лог Railway (с последнего деплоя)
   tri open       что ещё открыто по pipeline-STATUS.md
@@ -799,6 +800,7 @@ PYEOF
   facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
   sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
   funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
+  headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
   lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
   binary) shift; bash "$ROOT/bin/helpers/binary.sh" "$ROOT" "$@" ;;
 
