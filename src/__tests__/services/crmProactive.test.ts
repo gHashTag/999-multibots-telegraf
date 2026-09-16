@@ -502,26 +502,14 @@ describe('wired (source-level: the bot is not booted here)', () => {
   })
 })
 
-describe('alerting on failed sweeps', () => {
-  it('first failure and every sixth are errors, the rest warnings, recovery once', () => {
-    const levels: string[] = []
-    for (let i = 0; i < 7; i++)
-      levels.push(reportSweepOutcome({ did: 'failed', why: 'x' }))
-    expect(levels).toEqual([
-      'error',
-      'warn',
-      'warn',
-      'warn',
-      'warn',
-      'error',
-      'warn',
-    ])
-    expect(reportSweepOutcome({ did: 'idle', why: 'тихо' })).toBe('info')
-    // The streak is over: the next failure is fresh news again.
-    expect(reportSweepOutcome({ did: 'failed', why: 'y' })).toBe('error')
-  })
-})
-
+/*
+ * PLACED BEFORE A NEIGHBOUR, AND BEFORE A DIFFERENT ONE THAN THE SIBLING
+ * BRANCH CHOSE.
+ *
+ * The end of a file is a shared anchor and two branches appending there
+ * collide over nothing. So is any single neighbour: two blocks that both
+ * chose the same one would collide exactly the same way.
+ */
 /*
  * SILENCE THAT MEANS NOTHING IS WORSE THAN A LINE NOBODY READS.
  *
@@ -558,5 +546,25 @@ describe('a holding seller says it is alive, once in a while', () => {
   it('the window is a constant, not the hold', () => {
     expect(H).toBeLessThan(BACKOFF_CAP_MS)
     expect(heartbeatDue(T, T + H + 1)).toBe(true)
+  })
+})
+
+describe('alerting on failed sweeps', () => {
+  it('first failure and every sixth are errors, the rest warnings, recovery once', () => {
+    const levels: string[] = []
+    for (let i = 0; i < 7; i++)
+      levels.push(reportSweepOutcome({ did: 'failed', why: 'x' }))
+    expect(levels).toEqual([
+      'error',
+      'warn',
+      'warn',
+      'warn',
+      'warn',
+      'error',
+      'warn',
+    ])
+    expect(reportSweepOutcome({ did: 'idle', why: 'тихо' })).toBe('info')
+    // The streak is over: the next failure is fresh news again.
+    expect(reportSweepOutcome({ did: 'failed', why: 'y' })).toBe('error')
   })
 })
