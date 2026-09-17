@@ -24,6 +24,11 @@
   --app-content-safe-top: 0px;
   --app-content-safe-bottom: 0px;
 
+  /* Room the app leaves free at the top. Zero everywhere except Telegram
+     fullscreen, where useTelegramWebApp sets it to the device inset plus the
+     room Telegram's own Close and menu buttons need (lib/telegramFullscreen). */
+  --app-top-inset: 0px;
+
   /* Height reserved for the fixed bottom tab bar, so pages can pad themselves
      out from under it. Overridden per-breakpoint in TelegramTabBar.css. */
   --app-tabbar-height: 56px;
@@ -52,6 +57,35 @@ html[data-tg='1'] #root {
   /* Stops a scroll at the top edge from turning into the "drag to dismiss"
      gesture that closes the Mini App. */
   overscroll-behavior-y: contain;
+}
+
+/*
+ * FULLSCREEN: THE APP'S BOX STARTS BELOW TELEGRAM'S BUTTONS.
+ *
+ * In fullscreen (Bot API 8.0) the WebView runs under the status bar and the
+ * client floats its Close and menu buttons over the top of the page. Padding
+ * individual headers would mean finding every `position: fixed; top: 0` in the
+ * app -- there are more than a dozen -- and missing the next one written.
+ *
+ * So the BODY is the box: fixed in place, starting at the inset, as tall as
+ * the already-shortened --app-vh-stable. The transform is what makes it work
+ * for fixed descendants: it turns the body into their containing block, so
+ * "top: 0" means the top of the app, not the top of the phone. The body does
+ * not scroll (#root does), so fixed children stay put while content scrolls.
+ *
+ * The band above belongs to the status bar and Telegram's buttons; the html
+ * background shows through it, in the app's own black.
+ */
+html[data-tg='1'][data-tg-fullscreen='1'] {
+  background: var(--bg-primary, #000);
+}
+
+html[data-tg='1'][data-tg-fullscreen='1'] body {
+  position: fixed;
+  top: var(--app-top-inset);
+  left: 0;
+  right: 0;
+  transform: translateZ(0);
 }
 
 /* Keyboard open (set by useTelegramWebApp from viewportHeight vs

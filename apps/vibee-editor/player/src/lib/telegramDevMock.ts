@@ -62,7 +62,10 @@ export function включитьПодставнойTelegram(): void {
 
   // Уже настоящий Telegram — не трогаем. Подставка, затирающая живой WebApp,
   // сделала бы отладку внутри Telegram невозможной.
-  if (window.Telegram?.WebApp?.platform && window.Telegram.WebApp.platform !== 'unknown') {
+  if (
+    window.Telegram?.WebApp?.platform &&
+    window.Telegram.WebApp.platform !== 'unknown'
+  ) {
     return
   }
 
@@ -114,7 +117,13 @@ export function включитьПодставнойTelegram(): void {
       notificationOccurred() {},
     },
     BackButton: { show() {}, hide() {}, onClick() {}, offClick() {} },
-    MainButton: { show() {}, hide() {}, setText() {}, onClick() {}, offClick() {} },
+    MainButton: {
+      show() {},
+      hide() {},
+      setText() {},
+      onClick() {},
+      offClick() {},
+    },
     onEvent() {},
     offEvent() {},
     setHeaderColor() {},
@@ -122,6 +131,9 @@ export function включитьПодставнойTelegram(): void {
     enableClosingConfirmation() {},
     disableVerticalSwipes() {},
   }
+
+  // cyrillic-ok-next-line: pre-existing local name
+  installFullscreenMock(WebApp, параметры.get('mock-fullscreen'))
 
   ;(window as unknown as { Telegram?: unknown }).Telegram = { WebApp }
 
@@ -133,6 +145,96 @@ export function включитьПодставнойTelegram(): void {
     `[${МЕТКА}] Telegram ПОДДЕЛАН для разработки: id=${пользователь.id}. ` +
       'Подписи нет — запросы к серверу за чужими данными получат 401.'
   )
+}
+
+/**
+ * A PHONE IN FULLSCREEN, FOR LOOKING AT THE TOP OF EVERY SCREEN.
+ *
+ * `?mock-telegram=1&mock-fullscreen=59,46` -- the device inset and the room
+ * Telegram's own buttons take, in pixels; bare `mock-fullscreen=1` means an
+ * iPhone with a Dynamic Island (59 and 46).
+ *
+ * Fullscreen moves the app's whole box down (styles/telegram.css), and the
+ * only place that could be seen was a real phone after a deploy. The mock
+ * answers `requestFullscreen()` the way the client does -- it flips
+ * `isFullscreen`, publishes the insets and fires `fullscreenChanged` -- and it
+ * DRAWS what would cover the page: the status bar strip and the two floating
+ * pills. Without the drawing a header sitting under Telegram's Close button
+ * looks perfectly fine in a browser.
+ *
+ * Installed onto the mock itself rather than spread into it: `isFullscreen`
+ * is read later, and a spread would have copied today's `false` for good.
+ */
+function installFullscreenMock(
+  target: Record<string, unknown>,
+  request: string | null
+): void {
+  if (!request) return
+  const [device, content] = request.split(',').map(Number)
+  const deviceTop = Number.isFinite(device) && device > 1 ? device : 59
+  const contentTop = Number.isFinite(content) && content > 0 ? content : 46
+
+  const listeners = new Map<string, Set<() => void>>()
+  const emit = (name: string) => listeners.get(name)?.forEach(cb => cb())
+  const zero = { top: 0, bottom: 0, left: 0, right: 0 }
+
+  Object.assign(target, {
+    version: '8.0',
+    isFullscreen: false,
+    viewportHeight: window.innerHeight,
+    viewportStableHeight: window.innerHeight,
+    safeAreaInset: { ...zero },
+    contentSafeAreaInset: { ...zero },
+    onEvent(name: string, cb: () => void) {
+      if (!listeners.has(name)) listeners.set(name, new Set())
+      listeners.get(name)!.add(cb)
+    },
+    offEvent(name: string, cb: () => void) {
+      listeners.get(name)?.delete(cb)
+    },
+    setBottomBarColor() {},
+    requestFullscreen() {
+      target.isFullscreen = true
+      target.safeAreaInset = { ...zero, top: deviceTop, bottom: 34 }
+      target.contentSafeAreaInset = { ...zero, top: contentTop }
+      drawTelegramChrome(deviceTop, contentTop)
+      emit('fullscreenChanged')
+    },
+    exitFullscreen() {
+      target.isFullscreen = false
+      target.safeAreaInset = { ...zero }
+      target.contentSafeAreaInset = { ...zero }
+      document.getElementById('mock-telegram-chrome')?.remove()
+      emit('fullscreenChanged')
+    },
+  })
+}
+
+/**
+ * What the phone and the client put over the page in fullscreen. A child of
+ * <html>, not of <body>: the body becomes a transformed box in fullscreen, and
+ * this strip has to stay glued to the top of the screen the way the real one
+ * is.
+ */
+function drawTelegramChrome(deviceTop: number, contentTop: number): void {
+  document.getElementById('mock-telegram-chrome')?.remove()
+  const strip = document.createElement('div')
+  strip.id = 'mock-telegram-chrome'
+  strip.style.cssText =
+    `position:fixed;top:0;left:0;right:0;height:${deviceTop + contentTop}px;` +
+    'z-index:2147483647;pointer-events:none;font:600 15px system-ui;color:#fff'
+  const pill =
+    'position:absolute;height:32px;border-radius:16px;padding:0 12px;' +
+    'display:flex;align-items:center;background:rgba(120,120,128,.55)'
+  const pillTop = deviceTop + (contentTop - 32) / 2
+  strip.innerHTML =
+    `<div style="position:absolute;top:0;left:0;right:0;height:${deviceTop}px;` +
+    'display:flex;align-items:flex-end;justify-content:space-between;' +
+    'padding:0 28px 8px;box-sizing:border-box;outline:1px dashed rgba(255,80,80,.7)">' +
+    '<span>9:41</span><span>5G 100%</span></div>' +
+    `<div style="${pill};top:${pillTop}px;left:12px">Close</div>` +
+    `<div style="${pill};top:${pillTop}px;right:12px">&middot;&middot;&middot;</div>`
+  document.documentElement.appendChild(strip)
 }
 
 /**
@@ -154,13 +256,18 @@ function подставитьКодСпаривания(параметры: URLS
 
   const настоящий = window.fetch.bind(window)
   window.fetch = async (вход: RequestInfo | URL, опции?: RequestInit) => {
-    const адрес = typeof вход === 'string' ? вход : вход instanceof URL ? вход.href : вход.url
+    const адрес =
+      typeof вход === 'string'
+        ? вход
+        : вход instanceof URL
+          ? вход.href
+          : вход.url
     if (адрес.includes('/api/auth/pair/start')) {
       console.warn(`[${МЕТКА}] выдача кода ПОДДЕЛАНА: ${код}`)
-      return new Response(
-        JSON.stringify({ code: код, expires_in: 120 }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ code: код, expires_in: 120 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
     return настоящий(вход, опции)
   }

@@ -97,6 +97,9 @@ interface TelegramWebApp {
     callback?: (status: 'paid' | 'cancelled' | 'failed') => void
   ): void
 
+  // Bot API 7.10+ — the strip under the WebView on phones.
+  setBottomBarColor?: (color: string) => void
+
   // Bot API 7.7+ — absent on older clients, hence optional.
   disableVerticalSwipes?: () => void
   enableVerticalSwipes?: () => void
