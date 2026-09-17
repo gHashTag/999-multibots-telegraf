@@ -13,6 +13,7 @@ import {
   SWEEP_RULES,
   SWEEP_TAIL,
   SWEEP_WORTH,
+  SWEEP_WHY,
   SYNTAX,
   parseSweepArgs,
   filterRows,
@@ -64,7 +65,11 @@ export type Draft = NonNullable<ОтветАгента['proposal']> // cyrillic-
 export interface SweepDeps {
   ask: (telegramId: string, text: string) => Promise<ОтветАгента> // cyrillic-ok: pre-existing identifiers
   ingest: (telegramId: string) => Promise<unknown>
-  push: (telegramId: string, draft: Draft) => Promise<void>
+  push: (
+    telegramId: string,
+    draft: Draft,
+    opts?: { because?: string }
+  ) => Promise<void>
   record?: (
     telegramId: string,
     turns: Array<{ role: 'user' | 'assistant'; content: string }>
@@ -112,7 +117,8 @@ export type SweepOutcome = (
 ) & { ms?: number }
 
 /** The brief. One proposal at most, nothing sent, memory first. */
-export const SWEEP_PROMPT = SWEEP_HEAD + SWEEP_RULES + SWEEP_WORTH + SWEEP_TAIL
+export const SWEEP_PROMPT =
+  SWEEP_HEAD + SWEEP_RULES + SWEEP_WORTH + SWEEP_WHY + SWEEP_TAIL
 
 /** How long a pushed card keeps the next sweep from evicting it. */
 export const HOLD_MS_DEFAULT = 120 * 60_000
@@ -895,7 +901,24 @@ export async function sweepOnce(
     }
     if (answer.proposal) {
       stage = 'карточка владельцу'
-      await deps.push(ownerId, answer.proposal)
+      /*
+       * THE MODEL'S OWN LINE GOES ON THE CARD.
+       *
+       * The brief already demands one line about who this is for and why --
+       * it is what the journal shows and what the alert quotes. It was never
+       * shown to the person who has to decide, so the card named a recipient
+       * and printed the words, and answered the owner's first question --
+       * why this person, now -- nowhere.
+       *
+       * Carried from here rather than added as a tool parameter: the compact
+       * tool kit has under a hundred characters of room before it stops
+       * fitting a small model's window, and a `why` parameter costs eighty-
+       * five. This line is already written, already paid for, and already
+       * about exactly this.
+       */
+      await deps.push(ownerId, answer.proposal, {
+        because: (answer.текст ?? '').trim(), // cyrillic-ok: pre-existing identifiers
+      })
       // Whose card this was, so the next tick can offer somebody else. Taken
       // from the draft itself; a draft without a numeric lead marks nobody.
       const drawnFor = cardLeadOf(answer.proposal as never)
@@ -1142,8 +1165,9 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
     ask: (owner, text) => спроситьАгента(owner, text, { toolsOnly: true }), // cyrillic-ok: pre-existing identifiers
     ingest: ingestViaRender,
     pendingCard: pendingCardViaRender,
-    push: (owner, draft) =>
+    push: (owner, draft, opts) =>
       pushCard(bot.telegram as never, owner, draft, {
+        ...(opts?.because ? { because: opts.because } : {}),
         // The owner reads the person's history before approving the words,
         // and can send the draft back to be written differently.
         extraRows: ADMIN_IDS_ARRAY.includes(Number(owner))

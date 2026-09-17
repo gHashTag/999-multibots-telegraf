@@ -388,6 +388,22 @@ export interface CardOpts {
   rewrite?: boolean
   /** Draw the style list in place of the rewrite button. */
   expanded?: boolean
+  /**
+   * WHY THIS PERSON, IN ONE LINE, UNDER THE RECIPIENT.
+   *
+   * Measured 16.09.2026: 56 cards in four and a half days, at most five of
+   * them pressed. What stands between the owner and the button is not the
+   * button -- it is having to open the chat to remember who this is and what
+   * they last said. The card named the recipient and showed the words, and
+   * answered that question nowhere.
+   *
+   * Passed as an OPTION rather than carried on the proposal: the line comes
+   * from the sweep's own answer, which the brief already demands, so nothing
+   * new crosses the wire and the compact tool kit -- which has under a
+   * hundred characters of room before it stops fitting a small model's
+   * window -- pays nothing for it.
+   */
+  because?: string
 }
 
 /**
@@ -523,7 +539,24 @@ export function proposalCard(
     : ''
   const label =
     p.action === 'read' ? (isRu ? 'Чат' : 'Chat') : isRu ? 'Кому' : 'To'
-  const head = `${ask}\n\n${label}: ${to}${fromLine}${warn}${price}${when}`
+  /*
+   * WHY THIS PERSON, ON THE CARD.
+   *
+   * Right under the recipient, before the words, because it answers the
+   * question the owner asks first and the words answer second. One line, cut
+   * hard: the moment it takes two lines it competes with the draft itself.
+   *
+   * Third-party text never reaches here -- the render composes this line from
+   * facts it already holds about the queue, not from anything the person
+   * wrote -- but it is cut and flattened all the same, on the principle that
+   * a card must not be able to grow a second message inside itself.
+   */
+  const whyLine = String(opts.because ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+  const why = whyLine ? `\n${isRu ? 'Почему' : 'Why'}: ${whyLine}` : ''
+  const head = `${ask}\n\n${label}: ${to}${why}${fromLine}${warn}${price}${when}`
   const tail = cut
     ? isRu
       ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`

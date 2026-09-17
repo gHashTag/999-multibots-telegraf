@@ -39,6 +39,7 @@ tri — оболочка Trinity S³AI
   tri disk       освободить место и проверить сам инструмент чистки
   tri pipeline   проверка конвейера без единой траты кредитов
   tri prices     таблица цен: модель, токены, единица
+  tri card       как выглядит карточка владельца на живых данных
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri loop       с чего начинать виток: где я, что занято, что не сделано
@@ -170,6 +171,7 @@ case "${1:-}" in
   fresh)    fresh ;;
   disk)     bash "$LOOP/check-free-disk.sh" && bash "$LOOP/free-disk.sh" ;;
   pipeline) (cd "$RENDER" && npx tsx scripts/pipeline-check.ts) ;;
+  card)   shift; bash "$ROOT/bin/helpers/card.sh" "$ROOT" "$@" ;;
   prices)   (cd "$RENDER" && npx tsx scripts/prices.ts) ;;
   feed)
     # В ЛЕНТЕ НЕТ ССЫЛОК НА ПОСТЫ — ни в вебе, ни в приложении. Сослаться на

@@ -69,6 +69,19 @@ export interface ОтветАгента {
      * treat absence as "unknown" rather than as "already dead".
      */
     expiresAt?: number
+    /**
+     * WHY THIS PERSON, IN ONE LINE, WRITTEN BY THE TURN THAT PREPARED IT.
+     *
+     * The queue has carried this field since the cards were built, with a
+     * comment saying it is for the card -- and nothing ever set it and
+     * nothing ever printed it. Measured 17.09.2026 end to end: no caller
+     * passed it into `propose`, and `proposalCard` did not read it.
+     *
+     * It matters because of what it was for. What stands between the owner
+     * and the button is not the button: it is having to open the chat to
+     * remember who this is and what they last said.
+     */
+    because?: string
   }
 }
 
