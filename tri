@@ -354,6 +354,22 @@ CHECKS THAT EACH COST A CYCLE
         string literal and was never blocked at all. A suppression nobody
         removes becomes evidence that the line needs one.
 
+  tri truncates [--verify <script>]
+        Which scripts lose their own output when something READS them.
+        `process.exit` does not wait for writes already queued on a pipe --
+        Node's documentation calls the result "truncated and lost" -- and stderr
+        is a pipe under lefthook and under every tool that reads a gate.
+
+        Measured on the Cyrillic gate, 2026-09-17: three runs of one script on
+        one commit printed 966, 7706 and 8484 of the same 8484 complaints. The
+        verdict was right every time; the evidence was a lottery.
+
+        The plain list is a LIST OF SUSPECTS -- a script that prints two lines
+        loses nothing, whatever it calls. `--verify` decides: it runs the script
+        redirected to a file, then through a real pipe with a reader that sleeps
+        first, and compares. Ground truth it is pinned against: 3 lines survive
+        either way, 4000 lines come back as 1960.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1512,6 +1528,16 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_truncates() {
+  # Which scripts lose their own output when something reads them.
+  # `process.exit` throws away writes still queued on a PIPE (Node's own docs:
+  # "truncated and lost"), and every gate's output goes through one.
+  #   tri truncates                     the suspect list, ranked
+  #   tri truncates --verify <script>   MEASURE one: file redirect vs slow pipe
+  # The list is a hypothesis. Only --verify turns one into a finding.
+  ( cd "$ROOT" && node "$ROOT/scripts/exit-truncates.cjs" "$@" )
 }
 
 cmd_cyrillic() {
@@ -3892,6 +3918,7 @@ case "$action" in
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
   cyrillic|кириллица) cmd_cyrillic "$@" ;;
+  truncates|обрезка) cmd_truncates "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;

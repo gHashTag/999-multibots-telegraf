@@ -265,4 +265,11 @@ if (undeclared.length) {
   console.log('Build the receiver, or stop offering it. Wiring up the invoice')
   console.log('alone is how x402 collected twelve payments and credited none.')
 }
-process.exit(process.argv.includes('--gate') && undeclared.length ? 1 : 0)
+/*
+ * exitCode, not exit(): process.exit throws away writes still queued on a pipe,
+ * and this script prints a list that a person reads through one. Node's own
+ * documentation calls the result "truncated and lost". Measured on the Cyrillic
+ * gate, 2026-09-17: 966, 7706 and 8484 of the same 8484 lines on three runs.
+ * Safe here because this is the last statement at the top level.
+ */
+process.exitCode = process.argv.includes('--gate') && undeclared.length ? 1 : 0
