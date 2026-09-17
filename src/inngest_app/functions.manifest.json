@@ -1266,7 +1266,7 @@
       "cron": "*/30 * * * *",
       "tz": "UTC",
       "file": "src/inngest_app/functions/crm/crmProactiveSweep.ts",
-      "steps": ["sweep"],
+      "steps": ["resolve-sellers", "sweep-${owner}"],
       "retries": 0,
       "on_failure": "admin-telegram",
       "side_effects": ["messages-user", "paid-api", "db-write"],
@@ -1281,7 +1281,8 @@
         "2026-09-12: the proactive seller sweep (services/crmProactive.ts runProactiveTick) moved from an in-process setInterval to this cron; CRM_SWEEP_DRIVER=timer restores the interval, CRM_PROACTIVE_MINUTES=0 disables both",
         "retries 0 and concurrency 1: a tick may push a card to the owner; a retry or an overlap would push a second one",
         "safe mode (e2e_test=true probe): skipped entirely, nothing is sent; the run COMPLETES with {skipped:true}",
-        "no carrier registered (bots not up yet in this process): run returns did=paused, not an error"
+        "no carrier registered (bots not up yet in this process): run returns did=paused, not an error",
+        "2026-09-17: three FAILED runs on 2026-09-16 (15 s, 2m02s, 5m00s) all read HTTP 502 before the SDK responded -- the single step.run(sweep) carried every seller in one HTTP request, each seller allowed up to INGEST_TIMEOUT_MS=170 s; the Railway edge does not wait that long. Now resolve-sellers is a step and every seller is a sweep-<id> step: one request per seller, finished sellers memoized, the trace names the seller a 502 landed on. Retries stay 0. Spec: t27 specs/functions/crm-proactive-sweep.t27"
       ]
     }
   ]
