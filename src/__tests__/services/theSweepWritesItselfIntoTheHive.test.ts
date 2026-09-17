@@ -132,3 +132,61 @@ describe('sending it', () => {
     ).toBe('not noted')
   })
 })
+
+/*
+ * HOW LONG IT TOOK, IN THE LINE THAT IS ACTUALLY READ.
+ *
+ * The duration was measured every half hour and thrown away: the Inngest step
+ * returned `ms` into a payload nothing reads, while the log and the journal
+ * carried none. The one number that says whether the model budget is tight
+ * existed and was unavailable.
+ */
+describe('the journal says how long the sweep took', () => {
+  const OWNER_T = '144022504'
+
+  it('appends the duration in whole seconds', () => {
+    const n = noteForSweep(OWNER_T, {
+      did: 'card',
+      why: 'подготовил подарок',
+      id: 'p1',
+      ms: 117_400,
+    })
+    expect(n?.what).toContain('подготовил подарок')
+    expect(n?.what.endsWith(' [117s]'), n?.what).toBe(true)
+  })
+
+  /*
+   * ASCII, NOT CYRILLIC. `[117s]` and `[117с]` are the same picture in a
+   * terminal and different bytes. A tool written against the wrong letter
+   * finds nothing and reports a journal with no timings, which reads exactly
+   * like a journal that has none.
+   */
+  it('the marker is ASCII, so a reader can find it', () => {
+    const n = noteForSweep(OWNER_T, { did: 'idle', why: 'тихо', ms: 1_000 })
+    const tail = n?.what.slice(-5) ?? ''
+    expect(
+      [...tail].every(c => c.charCodeAt(0) < 128),
+      tail
+    ).toBe(true)
+    expect(/\[\d+s\]$/.test(n?.what ?? ''), n?.what).toBe(true)
+  })
+
+  it('without a duration nothing is appended and nothing is invented', () => {
+    const n = noteForSweep(OWNER_T, { did: 'idle', why: 'тихо' })
+    expect(n?.what).toBe('тихо')
+  })
+
+  it('a nonsense duration is dropped rather than printed', () => {
+    for (const ms of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const n = noteForSweep(OWNER_T, { did: 'idle', why: 'тихо', ms })
+      expect(n?.what, String(ms)).toBe('тихо')
+    }
+  })
+
+  it('a long reason makes room for the duration instead of losing it', () => {
+    const long = 'я'.repeat(400)
+    const n = noteForSweep(OWNER_T, { did: 'failed', why: long, ms: 9_000 })
+    expect(n!.what.length).toBeLessThanOrEqual(300)
+    expect(n!.what.endsWith(' [9s]'), n!.what.slice(-10)).toBe(true)
+  })
+})

@@ -31,6 +31,7 @@ import {
   FileText,
   Loader2,
   MessageCircle,
+  Mic,
   Smartphone,
   Sparkles,
   Star,
@@ -46,6 +47,7 @@ import {
   type ClubBuyOutcome,
 } from '@/atoms/club'
 import { saveSoulAtom, soulErrorAtom, soulSavingAtom } from '@/atoms/soul'
+import { cloneReadyAtom, loadCloneStatusAtom } from '@/atoms/clone'
 import { ConnectTelegram } from './ConnectTelegram'
 import {
   WELCOME_EXIT_ROUTE,
@@ -179,6 +181,8 @@ export function WelcomeOnboarding({ facts, onDone }: WelcomeOnboardingProps) {
       )}
 
       {step === 'soul' && <SoulStep onSaved={() => setStep('done')} />}
+
+      {step === 'voice' && <VoiceStep onVoiceFound={() => setStep('done')} />}
 
       {step === 'done' && (
         <div className="welcome__card welcome__card--center">
@@ -477,3 +481,74 @@ function SoulStep(props: { onSaved: () => void }) {
 }
 
 export default WelcomeOnboarding
+
+/**
+ * THE VOICE: THE ONE PIECE OF THE CLONE THAT LIVES IN THE BOT.
+ *
+ * Recording a voice needs Telegram's own recorder and the bot's wizard, which
+ * already exists and already writes the voice onto the user row. Building a
+ * second recorder in the browser would be a second thing to keep working, for a
+ * job the bot does well.
+ *
+ * So this step is a door, not a form: it opens the wizard by deep link and then
+ * re-asks the server. `?start=svc_voiceclone` is a real registered card -- the
+ * one that leads to the voice CLONE and not to text-to-speech, which reads a
+ * text aloud and makes no copy of anyone.
+ */
+function VoiceStep({ onVoiceFound }: { onVoiceFound: () => void }) {
+  const { t } = useLanguage()
+  const reload = useSetAtom(loadCloneStatusAtom)
+  const ready = useAtomValue(cloneReadyAtom)
+  const [waiting, setWaiting] = useState(false)
+
+  /*
+   * NOT A SKIP, AND THE NAME SAYS SO.
+   *
+   * Every step here is mandatory: the road moves on only when the thing is
+   * done. The wizard finishes in the BOT, not in this window, so the only
+   * honest signal is the server saying the voice now exists -- a button that
+   * merely closed the card would be the "later" this road refuses to have.
+   */
+  if (waiting && ready.voice === true) onVoiceFound()
+
+  const open = () => {
+    setWaiting(true)
+    const wa = (
+      window as unknown as {
+        Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } }
+      }
+    ).Telegram?.WebApp
+    const url = 'https://t.me/t27ai_bot?start=svc_voiceclone'
+    if (wa?.openTelegramLink) wa.openTelegramLink(url)
+    else window.open(url, '_blank')
+  }
+
+  return (
+    <div className="welcome__card">
+      <h2>{t('welcome.voice.title')}</h2>
+      <p className="welcome__lead">{t('welcome.voice.lead')}</p>
+      <ul className="welcome__bullets">
+        <li>
+          <Mic size={18} aria-hidden="true" />
+          <span>{t('welcome.voice.how')}</span>
+        </li>
+      </ul>
+      <div className="welcome__actions">
+        <button
+          type="button"
+          className="welcome__btn welcome__btn--primary"
+          onClick={open}
+        >
+          {t('welcome.voice.open')}
+        </button>
+        <button
+          type="button"
+          className="welcome__btn"
+          onClick={() => void reload()}
+        >
+          {t('welcome.voice.check')}
+        </button>
+      </div>
+    </div>
+  )
+}

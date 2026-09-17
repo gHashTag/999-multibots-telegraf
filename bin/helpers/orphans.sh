@@ -76,6 +76,37 @@ stamps = sorted(x for x in (at(e) for e in events) if x)
 print(f'окно: {stamps[0]} … {stamps[-1]} UTC, событий: {len(events)}')
 
 RE = re.compile(r'(фото-черновик|черновик)\s+(\S+)\s+(cancelled|replaced|expired|failed)')
+
+# ЧТО ИЗ ЭТОГО ВЫШЛО — ВАЖНЕЕ, ЧЕМ САМ ФАКТ ВЫТЕСНЕНИЯ.
+#
+# Вытеснение ради новой карточки — обмен: одна картинка на другую. Вытеснение,
+# за которым НИЧЕГО не последовало, — чистая потеря: ход умер после того, как
+# сделал картинку, и владелец остался вообще без карточки.
+#
+# Понять это по списку вытеснений нельзя, поэтому к каждому подставляется
+# ближайшее следующее событие обхода. 16.09.2026 именно это и оказалось
+# решающим: половина вытеснений стояла рядом с прерванным ходом.
+SWEEP = {'sweep-card', 'sweep-idle', 'sweep-failed'}
+after = []
+for e in events:
+    if e.get('kind') in SWEEP and at(e):
+        after.append((at(e), e.get('kind'), str(e.get('text') or '')[:40]))
+after.sort()
+
+def outcome_of(stamp):
+    for ts, kind, text in after:
+        if ts < stamp:
+            continue
+        if ts > stamp[:11] + '23:59:59':
+            break
+        # Минута — с запасом: замеры показали разрыв в 4-14 секунд.
+        if (int(ts[17:19]) + int(ts[14:16]) * 60 + int(ts[11:13]) * 3600) - (
+            int(stamp[17:19]) + int(stamp[14:16]) * 60 + int(stamp[11:13]) * 3600
+        ) <= 60:
+            return kind
+        break
+    return None
+
 photo, plain = {}, {}
 lines = []
 for e in events:
@@ -86,7 +117,7 @@ for e in events:
     kind, cid, why = m.group(1), m.group(2), m.group(3)
     (photo if kind == 'фото-черновик' else plain)[why] = \
         (photo if kind == 'фото-черновик' else plain).get(why, 0) + 1
-    lines.append((at(e), kind, cid, why))
+    lines.append((at(e), kind, cid, why, outcome_of(at(e))))
 
 if not lines:
     print('✅ ни одна карточка не ушла не нажатой — в этом окне.')
@@ -99,15 +130,29 @@ for label, box in (('ФОТО (картинка уже сделана)', photo),
         print(f'  {label}: {parts}')
 
 print()
-for ts, kind, cid, why in lines[:20]:
+WHAT = {
+    'sweep-card': 'взамен вышла карточка',
+    'sweep-idle': '🛑 взамен НИЧЕГО (обход решил молчать)',
+    'sweep-failed': '🛑 взамен НИЧЕГО (ход упал)',
+    None: '🛑 взамен НИЧЕГО за минуту',
+}
+lost = 0
+for ts, kind, cid, why, out in lines[:20]:
     mark = '💸' if kind == 'фото-черновик' else '  '
-    print(f'  {mark} {ts}  {cid}  {why}')
+    print(f'  {mark} {ts}  {cid}  {why:<9} {WHAT.get(out, out)}')
+for _, kind, _, _, out in lines:
+    if kind == 'фото-черновик' and out != 'sweep-card':
+        lost += 1
 
 worst = photo.get('replaced', 0)
-if worst:
+if worst or lost:
     print()
-    print(f'🛑 {worst} готовых КАРТИНОК вытеснено новой карточкой и не отправлено.')
-    print('   Вытеснение — не истечение: карточку было ещё можно нажать.')
+    if worst:
+        print(f'🛑 {worst} готовых КАРТИНОК вытеснено и не отправлено.')
+        print('   Вытеснение — не истечение: карточку было ещё можно нажать.')
+    if lost:
+        print(f'🛑 из них {lost} — ЧИСТАЯ ПОТЕРЯ: карточка исчезла, взамен не')
+        print('   появилось ничего. Это ход, умерший после того, как заплатил.')
     raise SystemExit(1)
 raise SystemExit(0)
 PYEOF

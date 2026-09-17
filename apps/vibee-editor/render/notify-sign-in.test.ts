@@ -94,11 +94,21 @@ describe('the code sign-in route sends the notification', () => {
     expect(SRC).toContain('notifySignIn(sendToTelegram')
   })
 
-  it('does NOT await it: the sign-in must not depend on somebody else network', () => {
-    // An `await` here would make issuing the session depend on Telegram being
-    // reachable -- that is, sometimes break the sign-in for the sake of the
-    // notification about it.
-    expect(SRC).toContain('void notifySignIn(')
+  /*
+   * THE WAITING IS NOW CHECKED BY WAITING.
+   *
+   * pairing-e2e.test.ts makes the notification hang FOREVER and claims a code
+   * anyway: the session must still be issued. A mutation turning the `void`
+   * into an `await` is killed there.
+   *
+   * These two lines could not see that. They match characters, so they go red
+   * on a reformat and stay silent if the wait arrives by another route -- the
+   * call moving inside something that is itself awaited, for instance.
+   *
+   * What is left here is the absence of a second, awaited call: only the text
+   * can show that nobody added one elsewhere in the file.
+   */
+  it('no awaited notification anywhere in the route file', () => {
     expect(SRC).not.toContain('await notifySignIn(')
   })
 

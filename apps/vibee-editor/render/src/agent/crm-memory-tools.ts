@@ -34,6 +34,7 @@ import {
   type MtprotoMediaLike,
 } from './media-library'
 import { s3PutBytes } from '../lib/s3-put'
+import { imagesLookDown } from './image-health'
 
 /**
  * THE SELLER'S MEMORY, AS TOOLS.
@@ -589,6 +590,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         touched,
         paid: paidSet,
         segment: wanted as Segment | undefined,
+        // What the platform can actually do today travels with the plan.
+        imagesDown: imagesLookDown(),
       })
       /*
        * FULL DATA, NOT A LIST OF NUMBERS.
@@ -627,10 +630,13 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           const base = fromBase.get(l.lead)
           const name = l.name ?? base?.first_name ?? null
           const username = l.username ?? base?.username ?? null
+          const lastIn = l.lastInboundAt ? l.lastInboundAt.toISOString() : null
           const st = stageOf({
             paid: paid.has(l.lead),
             touches: (l.lastTouch ? [l.lastTouch] : []) as never,
             quietDays: l.daysSinceInbound,
+            lastInboundAt: lastIn,
+            lastOutboundAt: l.unanswered ? null : lastIn,
           })
           return {
             lead: l.lead,
@@ -651,9 +657,15 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             last_inbound: l.lastInboundAt?.toISOString() ?? null,
             messages: l.total,
             inbound: l.inbound,
-            // Their words, framed: data for the model, a quote for the owner.
+            /*
+             * Their words, framed: data for the model, a quote for the owner.
+             *
+             * Marked when cut. Until 17.09.2026 the cut was silent, so a
+             * message that ran past 160 characters reached the model as a
+             * finished sentence -- and the seller answered the half it saw.
+             */
             last_words: l.lastWords
-              ? foreignText(oneLine(l.lastWords, 160))
+              ? foreignText(oneLine(l.lastWords, 160, true))
               : null,
             last_touch: l.lastTouch,
           }

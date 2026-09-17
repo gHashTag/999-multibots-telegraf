@@ -178,8 +178,26 @@ export function reportText(events: JournalRow[]): string {
         day: '2-digit',
         month: '2-digit',
       })
+      /*
+       * AN ALARM NAMES ITS SUBJECT, BECAUSE THAT IS THE FIRST QUESTION.
+       *
+       * The line used to read "14:32 -- payment forged" and stop there. For a
+       * tally that is right: nobody wants twenty names under "signed in". For
+       * an alarm it leaves out the one thing the reader reaches for -- WITH
+       * WHOM -- and sends them to the agent to ask a question the line could
+       * have answered.
+       *
+       * The id rather than a name: resolving one would mean a query per alarm
+       * inside a function that is only formatting text, and a report that
+       * fails because a lookup failed is worse than a report with an id in
+       * it. Some alarms are about the system and carry no subject at all;
+       * those simply do not get the clause.
+       */
+      const subject = String(a.who ?? '').trim()
       lines.push(
-        `  ${when} — ${humanName(a.kind)}${a.what ? ` (${a.what})` : ''}`
+        `  ${when} — ${humanName(a.kind)}` +
+          (subject ? `, у ${subject}` : '') +
+          (a.what ? ` (${a.what})` : '')
       )
     }
     if (alarms.length > 5) {

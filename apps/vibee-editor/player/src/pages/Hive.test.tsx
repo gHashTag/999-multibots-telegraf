@@ -93,7 +93,15 @@ describe('the hive page', () => {
 describe('the hive page answers its game frame', () => {
   const REQUEST = { v: 1, type: 'tri-identity-request', nonce: 'n-1' }
   const flush = () => new Promise(resolve => setTimeout(resolve, 0))
-  let fetchMock: ReturnType<typeof vi.fn>
+  /*
+   * `ReturnType<typeof vi.fn>` resolves to Mock<any[], unknown>, and newer
+   * vitest types refuse to assign a precisely-typed arrow to it. What this
+   * suite tests is the page's answer to its game frame, not the shape of the
+   * double, so the variable is typed loosely rather than the double being bent
+   * to fit a name.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchMock: any
 
   beforeEach(() => {
     sessionStorage.setItem('trinity.app.session.access', 'fake-access-1')
