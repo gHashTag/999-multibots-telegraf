@@ -96,10 +96,36 @@ export function forgetTokenLedgerTables(): void {
   tablesReady = false
 }
 
+/**
+ * A CONNECTION ALREADY BORROWED FROM A POOL IS NOT A POOL.
+ *
+ * This decided "pool or plain client" by asking whether `connect` is a
+ * function -- and a pg PoolClient HAS one. pg-pool's _acquireClient only
+ * attaches `release`; Client.prototype.connect is untouched. So when
+ * creditStarsPayment borrowed a client, opened its transaction and handed
+ * that client here, this called connect() on it a second time, and pg
+ * refuses: "Client has already been connected. You cannot reuse a client."
+ *
+ * The whole credit then rolled back. Not an edge case: EVERY Stars payment on
+ * both routes. The person was charged, no tokens arrived, no row reached
+ * star_payments, and the bot told them "the payment went through but
+ * crediting failed". On the mini-app route it is worse, because the invoice is
+ * marked redeemed before the credit, so a later verify can no longer find it.
+ *
+ * `release` is the honest signal: a Pool does not have one, a borrowed client
+ * does. A borrowed connection means somebody else owns the transaction, so the
+ * work runs on it directly -- which is exactly what the caller intended when
+ * it passed its own client in.
+ */
+function isBorrowedConnection(pool: MaybePool): boolean {
+  return typeof (pool as { release?: unknown })?.release === 'function'
+}
+
 async function inTransaction<T>(
   pool: MaybePool,
   work: (q: Queryable) => Promise<T>
 ): Promise<T> {
+  if (isBorrowedConnection(pool)) return work(pool)
   if (typeof pool.connect !== 'function') return work(pool)
   const client = await pool.connect()
   try {

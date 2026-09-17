@@ -28,6 +28,7 @@ import { whoPaid, visibleScope } from './crm-tools'
 import { displayOf } from './crm-offer-tool'
 import { zepConfigured, zepFlavor } from './zep-memory'
 import { countSegments, segmentCaps, type Segment } from './crm-segments'
+import { imagesLookDown } from './image-health'
 
 export const NEXT_STEPS = ['reply', 'deliver', 'offer', 'talk', 'wait'] as const
 export const STAGES = [
@@ -129,10 +130,16 @@ export function summarize(
   const stages = new Map<string, string>()
   for (const c of list) {
     by_next[c.next] = (by_next[c.next] ?? 0) + 1
+    // `lastIn` is taken in this scope by the running maximum below.
+    const saidAt = c.lastInboundAt ? c.lastInboundAt.toISOString() : null
     const st = stageOf({
       paid: paid.has(c.lead),
       touches: (c.lastTouch ? [c.lastTouch] : []) as never,
       quietDays: c.daysSinceInbound ?? 999,
+      lastInboundAt: saidAt,
+      // "Answered" is an outbound at the same moment as their message, which
+      // is exactly what `unanswered: false` means.
+      lastOutboundAt: c.unanswered ? null : saidAt,
     }).stage
     stages.set(c.lead, st)
     by_stage[st] = (by_stage[st] ?? 0) + 1
@@ -248,6 +255,9 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         limit: 100_000,
         touched,
         paid: paidSet,
+        // The board and the queue must agree. Counting `deliver` here while
+        // crm_leads hands out `offer` would show the owner two boards.
+        imagesDown: imagesLookDown(),
       })
       const [known, history, kinds, sellerSends, paid] = await Promise.all([
         (
@@ -268,7 +278,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
       ])
       const now = Date.now()
       const core = summarize(list, history, kinds, paid, now)
-      const { pendingFor } = await import('./tg-proposals')
+      const { pendingFor, LIFETIME_MS } = await import('./tg-proposals')
       const pend = pendingFor(owner)
       const lastIngest = known.rows?.[0]?.last_ingest_at
       return {
@@ -278,6 +288,20 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         ...core,
         caps: segmentCaps(),
         seller_sends_recent: sellerSends,
+        /*
+         * WHEN IT STOPS BEING PRESSABLE, NOT JUST HOW OLD IT IS.
+         *
+         * The bot holds its sweep while a card can still be pressed, because
+         * a new card evicts the waiting one along with the picture already
+         * generated for it. Its own memory of having pushed one does not
+         * survive a deploy -- proved in production on 16.09.2026, where the
+         * first tick after a restart evicted a card drawn half an hour
+         * earlier -- so after a restart it has to ASK. This is what it reads.
+         *
+         * An age alone cannot answer it: turning age into "still alive" needs
+         * the lifetime, and a copy of that constant on the far side of the
+         * wire is right until somebody changes this one.
+         */
         pending_card: pend
           ? {
               id: pend.id,
@@ -287,6 +311,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
                 0,
                 Math.round((now - pend.createdAt) / 60_000)
               ),
+              expires_at: new Date(pend.createdAt + LIFETIME_MS).toISOString(),
             }
           : null,
         zep: zepConfigured() ? zepFlavor() : 'не подключён',

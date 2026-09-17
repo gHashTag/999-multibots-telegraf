@@ -136,3 +136,71 @@ describe('fetchSummary', () => {
     })
   })
 })
+
+describe('the screen shows what happens between a card and a press', () => {
+  /*
+   * MEASURED 2026-09-16: 63 cards prepared in five and a half days against
+   * five `written` touches in the whole CRM -- and nobody saw it for five
+   * days, because this screen said how many people are at each stage and
+   * nothing about the cards in between.
+   */
+  it('prints prepared, sent and died', () => {
+    const t = formatSummary(sample as never, null, {
+      prepared: 63,
+      dropped: 57,
+      giftRefused: 0,
+    })
+    expect(t).toContain('подготовлено 63')
+    expect(t).toContain('умерло 57')
+  })
+
+  it('says UNKNOWN, not zero, while the journal cannot answer', () => {
+    // A zero from an unwired counter reads exactly like a zero from a healthy
+    // funnel. Until the card-journal listener ships, the honest word is
+    // "unknown".
+    const t = formatSummary(sample as never, null, {
+      prepared: 63,
+      dropped: null,
+      giftRefused: 0,
+    })
+    expect(t).toContain('умерло неизвестно')
+    expect(t).not.toContain('умерло 0')
+  })
+
+  it('names the leak when preparing outruns sending threefold', () => {
+    // The sample holds 23 `written` touches, so the leak line needs more
+    // than 69 prepared. Production on 2026-09-16 was the real shape of it:
+    // 63 prepared against FIVE sends.
+    const t = formatSummary(sample as never, null, {
+      prepared: 100,
+      dropped: null,
+      giftRefused: 0,
+    })
+    expect(t).toContain('теряется между карточкой и нажатием')
+  })
+
+  it('and says nothing of the sort when they are comparable', () => {
+    const t = formatSummary(sample as never, null, {
+      prepared: 4,
+      dropped: 1,
+      giftRefused: 0,
+    })
+    expect(t).not.toContain('теряется между карточкой')
+  })
+
+  it('the screen without the card numbers is exactly what it was', () => {
+    // The second call can fail; half a screen beats an error.
+    const t = formatSummary(sample as never, null, null)
+    expect(t).not.toContain('Карточки (в окне журнала)')
+    expect(t).toContain('Сводка по переписке')
+  })
+
+  it('a refused gift is counted where the owner can see it', () => {
+    const t = formatSummary(sample as never, null, {
+      prepared: 10,
+      dropped: 2,
+      giftRefused: 4,
+    })
+    expect(t).toContain('подарок отказан 4')
+  })
+})

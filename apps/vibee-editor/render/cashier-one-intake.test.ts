@@ -205,9 +205,20 @@ describe('два пути зачисления — один замок', () => {
      * THROWS when that landmark is missing -- so the region can neither
      * shrink silently nor run to end of file.
      */
+    /*
+     * AND THEN THE ANCHOR ITSELF MOVED, FOR A REASON.
+     *
+     * The region used to start at `SET redeemed = TRUE`, because the invoice
+     * was settled first and credited second. That order lost money -- a
+     * credit that throws left the row closed for ever -- so the credit now
+     * comes FIRST and the settle second, and an anchor on the settle no
+     * longer has the call after it. The region is the whole handler now,
+     * which is what this test was always about: this branch credits through
+     * the one door and keeps no INSERT of its own.
+     */
     const доКонцаВетки = sliceBetween(
       СЕРВЕР,
-      'SET redeemed = TRUE',
+      "'/api/tokens/verify'",
       'оплаты пока не видно'
     )
     expect(доКонцаВетки).toContain('await creditStarsPayment(pool, {')

@@ -21,6 +21,7 @@ import { track } from '@/services/trackEvent'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import { payMethodOf } from '@/helpers/railsForThisPerson'
 import {
   attachmentFromMessage,
   buildAgentTurn,
@@ -2460,6 +2461,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
 
       // Handle start parameters (invite code / клуб)
       let wantsFoundryClub = false
+      let wantsSubscription: { plan: string; method: string | null } | null =
+        null
       let inlineService: ServiceCard | undefined
       if (ctx.message && 'text' in ctx.message) {
         const parts = ctx.message.text.split(' ')
@@ -2505,6 +2508,21 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             wantsFoundryClub = true
             ctx.session.foundryDeepLink = true
             logger.info('Foundry deep-link', { telegramId, startParam })
+          } else if (subscribeIntent(startParam)) {
+            // The mini app's paywall sends the person here with the plan and
+            // the payment method they chose. Land them in front of a cashier.
+            wantsSubscription = subscribeIntent(startParam)
+            // Carried into the session because the scene is entered after a
+            // possible trip through CreateUserScene, and a local variable does
+            // not survive that.
+            const chosen = payMethodOf(wantsSubscription?.method)
+            if (chosen) ctx.session.payMethod = chosen
+            logger.info('Paywall deep-link', {
+              telegramId,
+              startParam,
+              plan: wantsSubscription?.plan,
+              method: wantsSubscription?.method,
+            })
           } else if (startParam.startsWith(START_PARAM_PREFIX)) {
             // Inline card "open in the bot" (src/handlers/inlineQuery.ts):
             // an existing user lands straight in that service's scene.
@@ -2538,6 +2556,15 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       } else if (wantsFoundryClub) {
         console.log('🔴 [DEBUG /start] Foundry deep-link, showing club...')
         await handleClubCommand(ctx)
+      } else if (wantsSubscription) {
+        /*
+         * A person who pressed "pay" in the mini app is not browsing. The
+         * greeting, however friendly, is the wrong screen: they already chose
+         * a plan and a way to pay, and every extra step is somewhere to drop
+         * out. Straight to the cashier the bot actually has.
+         */
+        ctx.session.mode = ModeEnum.SubscriptionScene
+        await ctx.scene.enter(ModeEnum.SubscriptionScene)
       } else {
         console.log('🔴 [DEBUG /start] User exists, showing start greeting...')
         // The project greeting with a door for every thing and every one,
@@ -3016,6 +3043,35 @@ export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
  * The lead a /start payload names, when it names one for an admin in a private
  * chat. Exported for the test: the guard is the interesting part, not the reply.
  */
+/**
+ * THE PAYWALL'S BUTTONS HAD NOWHERE TO LAND.
+ *
+ * The mini app's paywall offers three ways to pay -- card, Stars, TON -- and
+ * every one of them does the same thing: opens
+ * `t.me/<bot>?start=subscribe_<plan>_<method>`. The component says so itself,
+ * `// TODO: Integrate with payment API`.
+ *
+ * That payload arrived as an ordinary `/start` and was dropped. The only
+ * handler matching `subscribe_` in this file is `bot.action`, which fires on a
+ * BUTTON CALLBACK, never on a start payload -- so a client who chose a plan and
+ * a payment method got the ordinary greeting, and the intent was gone. Nobody
+ * saw an error, which is why it survived: from the outside it looks like the
+ * person changed their mind.
+ *
+ * Returns the plan when the payload is one of these links, so `/start` can put
+ * the person in front of a cashier instead of a menu.
+ */
+const SUBSCRIBE_PAYLOAD = /^subscribe_([a-z0-9-]+)(?:_([a-z]+))?$/i
+
+export function subscribeIntent(
+  payload: string | undefined
+): { plan: string; method: string | null } | null {
+  if (!payload) return null
+  const m = SUBSCRIBE_PAYLOAD.exec(payload)
+  if (!m) return null
+  return { plan: m[1].toLowerCase(), method: m[2]?.toLowerCase() ?? null }
+}
+
 export function crmPrepLead(payload: string | undefined): string | null {
   if (!payload) return null
   const m = CRM_PREP_PAYLOAD.exec(payload)
@@ -3142,15 +3198,21 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
   }
   const showSummary = async (ctx: MyContext, days?: number) => {
     try {
-      const { fetchSummary, formatSummary } = await import(
+      const { fetchSummary, formatSummary, fetchCardFlow } = await import(
         '@/services/crmSummary'
       )
       const { scopeLine, activeScope } = await import('@/services/crmProactive')
       const s = await fetchSummary(ownerId(ctx), days)
+      /*
+       * The card flow is a SECOND call, and a failing one must not take the
+       * summary with it: the screen worked without these three numbers for
+       * months, and half a screen beats an error.
+       */
+      const cards = await fetchCardFlow(ownerId(ctx)).catch(() => null)
       const line = scopeLine(ownerId(ctx))
       await sendLong(
         ctx,
-        formatSummary(s, line),
+        formatSummary(s, line, cards),
         summaryKeyboard(s, Boolean(activeScope(ownerId(ctx))))
       )
     } catch (e) {

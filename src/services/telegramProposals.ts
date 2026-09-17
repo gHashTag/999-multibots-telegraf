@@ -108,6 +108,23 @@ export function cardLeadOf(p: {
  * press. Fifteen minutes, two hundred entries; a restart in between simply
  * means a follow-up without the person's buttons, never a wrong person.
  */
+/*
+ * FIFTEEN MINUTES WAS SHORTER THAN THE CARD IT DESCRIBES (form 72).
+ *
+ * The memo below expired in fifteen minutes while the card it describes stays
+ * pressable for twelve hours -- and the owner's press is, by design, whenever
+ * he next picks up the phone. So for the normal press, hours later, the memo
+ * was always gone: the follow-up lost the person's buttons and "write it
+ * shorter" had nothing to be shorter than.
+ *
+ * The card now says when it stops being pressable (`expiresAt`, shipped with
+ * the draft by the render, which owns the lifetime), so the memo keeps pace
+ * with the card instead of with a number chosen beside it. This stays as the
+ * FALLBACK for a card that arrives without the instant -- unchanged behaviour
+ * where nothing is known, rather than a twelve-hour guess.
+ *
+ * Memory is bounded by CARD_LEAD_MAX, not by the clock, and always was.
+ */
 const CARD_LEAD_TTL_MS = 15 * 60_000
 const CARD_LEAD_MAX = 200
 /**
@@ -119,7 +136,10 @@ const CARD_LEAD_MAX = 200
  * into that turn's brief; the rest would only pad the prompt.
  */
 const CARD_WHAT_CHARS = 300
-const cardLeads = new Map<string, { lead: string; what: string; at: number }>()
+const cardLeads = new Map<
+  string,
+  { lead: string; what: string; at: number; until: number }
+>()
 
 const draftWords = (p: { what?: string; media?: BotMedia }): string => {
   const body =
@@ -137,18 +157,24 @@ export function rememberCard(p: {
   target: string
   what?: string
   media?: BotMedia
+  /** When the card stops being pressable, as the render reported it. */
+  expiresAt?: number
 }): void {
   const lead = cardLeadOf(p)
   if (!lead) return
   const now = Date.now()
-  for (const [id, v] of cardLeads)
-    if (now - v.at > CARD_LEAD_TTL_MS) cardLeads.delete(id)
+  // The card's own instant when it came with one; otherwise the old window.
+  // Never both, and never a number invented here.
+  const said = Number(p.expiresAt)
+  const until =
+    Number.isFinite(said) && said > now ? said : now + CARD_LEAD_TTL_MS
+  for (const [id, v] of cardLeads) if (now > v.until) cardLeads.delete(id)
   while (cardLeads.size >= CARD_LEAD_MAX) {
     const oldest = cardLeads.keys().next().value
     if (oldest === undefined) break
     cardLeads.delete(oldest)
   }
-  cardLeads.set(p.id, { lead, what: draftWords(p), at: now })
+  cardLeads.set(p.id, { lead, what: draftWords(p), at: now, until })
 }
 
 export function takeCardLead(id: string): string | null {
@@ -162,7 +188,7 @@ export function takeCardDraft(
   const v = cardLeads.get(id)
   if (!v) return null
   cardLeads.delete(id)
-  if (Date.now() - v.at > CARD_LEAD_TTL_MS) return null
+  if (Date.now() > v.until) return null
   return { lead: v.lead, what: v.what }
 }
 
@@ -176,7 +202,7 @@ export function takeCardDraft(
 export function peekCardLead(id: string): string | null {
   const v = cardLeads.get(id)
   if (!v) return null
-  return Date.now() - v.at > CARD_LEAD_TTL_MS ? null : v.lead
+  return Date.now() > v.until ? null : v.lead
 }
 
 export function forgetCardLeadsForTests(): void {

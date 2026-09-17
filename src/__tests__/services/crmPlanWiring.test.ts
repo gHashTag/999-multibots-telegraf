@@ -14,6 +14,15 @@ const fetchSummary = vi.fn(async () => ({
 }))
 vi.mock('@/services/crmSummary', () => ({
   fetchSummary: (...a: unknown[]) => fetchSummary(...(a as [])),
+  /*
+   * The plan asks the journal how many cards were prepared. It is a SECOND
+   * call and the plan survives without it -- which is exactly what this
+   * double asserts by refusing: a mock that answers would hide whether the
+   * caller really tolerates a failure.
+   */
+  fetchCardFlow: async () => {
+    throw new Error('journal unavailable in this test')
+  },
 }))
 const history: Array<{ role: string; content: string }> = []
 const recorded: Array<{ role: string; content: string }[]> = []

@@ -405,11 +405,17 @@ function stableJson(v: unknown): string {
  * paid for, and there is nothing to charge for a second time.
  */
 function renderFingerprint(compositionId: string, props: unknown): string {
-  return createHash('sha256')
-    .update(String(compositionId))
-    .update(' ')
-    .update(stableJson(props ?? {}))
-    .digest('hex')
+  return (
+    createHash('sha256')
+      .update(String(compositionId))
+      // A zero byte, written as the ESCAPE: the same byte reaches the hash,
+      // but the file stays text. As a raw byte it made grep call all 2888
+      // lines of this registry binary, and every shell-side check went
+      // blind to the file that decides which tools the model is offered.
+      .update('\0')
+      .update(stableJson(props ?? {}))
+      .digest('hex')
+  )
 }
 
 /** A finished file with the same fingerprint: if it exists, there is no work. */

@@ -386,6 +386,57 @@ CHECKS THAT EACH COST A CYCLE
         The server caps the window at 200 events, so the oldest day in the
         output is partial and its count means nothing on its own.
 
+  tri pay [--invoice] | tri оплата
+        Can a client pay RIGHT NOW, rail by rail.
+
+        Answering this by hand cost an hour on 2026-09-17, and none of it was
+        written down: which routes exist, which keys sit on which service, what
+        the mini app's three pay buttons actually do.
+
+        What it found that day, and what it now re-checks in one command:
+          Stars     works end to end -- the cashier minted a real invoice
+          roubles   keys on the BOT service, no route on the render
+          crypto    same
+          profile   the mini app's profile page has NO way to pay; only chat
+          paywall   its buttons open ?start=subscribe_..., which the bot
+                    ignored until it was taught the word
+
+        Read-only by default; keys are read into variables and never printed.
+        `--invoice` also mints one real invoice, which writes a row, so it is
+        opt-in rather than part of the check.
+
+  tri clone [id] | tri клон
+        Which pieces of a person's digital clone exist: a voice of their own,
+        a face to render from.
+
+        Two of the three were BUILT and unreachable, which took an hour to
+        establish by hand: the voice wizard had no deep link and no status
+        route, and the Telegram avatar sat in `users.photo_url` since
+        registration with nothing reading it. A missing piece is what the
+        welcome road opens a step for -- and it could not, until the route
+        existed.
+
+        The SOUL is not in this output on purpose: it lives behind an agent
+        tool call rather than on the user row, and a line that says "not
+        asked" every time is furniture.
+
+  tri readers [--gate] | tri читатели
+        Tests that read source as TEXT, and the paths they still believe in.
+
+        `vitest related` follows the IMPORT graph, and reading a file with fs
+        is not importing it. So such a guard can be broken by MOVING code, and
+        the pre-push gate will not say a word.
+
+        Measured 2026-09-18: 180 test files read source this way. One of them
+        guards a money path -- "a failed credit stops the retries and says so"
+        -- and went red when the top-up flow moved into a shared hook. The
+        behaviour had not changed; only the file had. It surfaced two days
+        later, dragged into a run by an unrelated import.
+
+        `--gate` reds when a path no longer exists. A path that exists is not a
+        promise: only running the test says whether the string it looks for is
+        still in there.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1573,6 +1624,33 @@ cmd_cyrillic() {
   #   tri cyrillic          the branch range (same window the gate uses)
   #   tri cyrillic staged   what is in the index right now, before committing
   ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
+}
+
+cmd_clone() {
+  # Which pieces of a person's digital clone exist: voice, photo.
+  # Two of the three were BUILT and unreachable -- the voice had no route, the
+  # avatar sat in a column nobody read. That took an hour to find by hand.
+  #   tri clone            the account behind the agent key
+  #   tri clone <id>       somebody else
+  ( cd "$ROOT" && node "$ROOT/scripts/clone-state.cjs" "$@" )
+}
+
+cmd_readers() {
+  # Tests that read source as TEXT -- invisible to `vitest related`, which
+  # follows the import graph. Moving code breaks them and the pre-push gate
+  # does not notice: a money guard sat broken for two days that way.
+  #   tri readers            the inventory, and any path that no longer exists
+  #   tri readers --gate     exit 1 when a target is missing
+  ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
+}
+
+cmd_pay() {
+  # Can a client pay RIGHT NOW. Answering this by hand cost an hour on
+  # 2026-09-17: which routes exist, which keys sit on which service, what the
+  # mini app's buttons really do. Read-only; keys never printed.
+  #   tri pay              the state of every rail
+  #   tri pay --invoice    ALSO mint one real invoice (writes a row)
+  ( cd "$ROOT" && node "$ROOT/scripts/can-a-client-pay.cjs" "$@" )
 }
 
 cmd_ratchets() {
@@ -3944,6 +4022,9 @@ case "$action" in
   cyrillic|кириллица) cmd_cyrillic "$@" ;;
   truncates|обрезка) cmd_truncates "$@" ;;
   failures|потери)    cmd_failures "$@" ;;
+  pay|оплата)        cmd_pay "$@" ;;
+  readers|читатели)  cmd_readers "$@" ;;
+  clone|клон)        cmd_clone "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;

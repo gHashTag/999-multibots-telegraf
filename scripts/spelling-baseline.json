@@ -1,0 +1,10 @@
+[
+  "apps/vibee-editor/player/src/components/Profile/SoulCard.test.ts:(вне it)",
+  "apps/vibee-editor/render/delete-own-photo.test.ts:в запросе есть все три условия",
+  "apps/vibee-editor/render/generation-owner-contract.test.ts:(вне it)",
+  "apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts:(вне it)",
+  "apps/vibee-editor/render/kie-web-provider.test.ts:(вне it)",
+  "apps/vibee-editor/render/notify-sign-in.test.ts:an empty name does not become an empty string in the text",
+  "apps/vibee-editor/render/telegram-tools-hangup.test.ts:every reading tool goes through withClient, and withClient",
+  "apps/vibee-editor/render/the-lock-and-the-credit-commit-together.test.ts:a pool without connect keeps the old path and still credit"
+]

@@ -78,6 +78,42 @@ describe('реестр описывает то, что измерено', () => 
     expect(живые().length).toBeGreaterThan(35)
   })
 
+  it("models that actually DRAW are never probed with an empty input -- that is the owner's money", () => {
+    /*
+     * grok-imagine earned its place by billing twice for a probe that was
+     * meant to be free. The gift models were listed BEFORE anything probed
+     * them, which is the only moment at which listing them is worth
+     * anything.
+     *
+     * The guard exists because taking a name back out is easy and nothing
+     * would go red: the next catalogue sweep would simply send an empty
+     * input and create a billable job. This test is the only thing that
+     * would say so.
+     */
+    for (const id of [
+      'gpt-image-2-5-flare-image-to-image',
+      'gpt-image-2-5-sunburst-image-to-image',
+    ]) {
+      expect(
+        NEVER_PROBE as readonly string[],
+        `${id}: draws for real, so an empty probe may create a billable job`
+      ).toContain(id)
+    }
+  })
+
+  it('the lead magnet is in the registry with the contract that is ITS OWN', () => {
+    // input_urls, not image_urls: one shape for both models would be
+    // refused by one of them, and that refusal would arrive only after a
+    // person had pressed the button and waited.
+    const m = KIE_MODELS.find(
+      x => x.id === 'gpt-image-2-5-flare-image-to-image'
+    )
+    expect(m, 'the gift model must be in the registry').toBeTruthy()
+    expect(m!.needs).toContain('input_urls')
+    expect(m!.needs).not.toContain('image_urls')
+    expect(m!.needs).toContain('resolution')
+  })
+
   it('опасные для пробы модели перечислены и исключены', () => {
     // Самое дорогое утверждение файла. grok-imagine/image-to-video принимает
     // пустой вход и СОЗДАЁТ задание — проба по ней не замер, а покупка.
