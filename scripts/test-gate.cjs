@@ -21,7 +21,11 @@
  *   node scripts/test-gate.cjs --save     запомнить текущее состояние
  *   node scripts/test-gate.cjs            сравнить с запомненным
  *
- * Код возврата 1 — есть подтверждённые регрессии.
+ * Exit code 1 -- there are confirmed regressions OR vanished tests. These are
+ * different troubles and the report separates them: FAILING means the code
+ * broke, VANISHED means the name no longer exists (a rename or a deletion).
+ * Both go red, but they are fixed differently, and calling them by one word
+ * trains you to ignore red.
  */
 const { execFileSync } = require('child_process')
 const fs = require('fs')
@@ -56,6 +60,18 @@ function passingSet(report) {
     }
   }
   return set
+}
+
+/** Every name in the run with its status: "path :: name" -> passed|failed|skipped. */
+function statusMap(report) {
+  const map = new Map()
+  for (const file of report.testResults || []) {
+    const rel = path.relative(REPO, file.name)
+    for (const a of file.assertionResults || []) {
+      map.set(`${rel} :: ${a.fullName || a.title}`, a.status)
+    }
+  }
+  return map
 }
 
 function fileOf(id) {
@@ -103,9 +119,27 @@ function main() {
   // зелёное, — шум, а не регрессия.
   const files = [...new Set(suspects.map(fileOf))]
   console.log(`\nподозреваемых: ${suspects.length} в ${files.length} файлах — перепроверяю…`)
-  const recheck = passingSet(runVitest(files))
-  const confirmed = suspects.filter(id => !recheck.has(id))
+  const recheckReport = runVitest(files)
+  const recheck = passingSet(recheckReport)
+  const status = statusMap(recheckReport)
+
   const flaky = suspects.filter(id => recheck.has(id))
+  /**
+   * FAILING and VANISHED are different events; calling them one word was a bug.
+   *
+   * A name that is not in the recheck AT ALL did not "stop passing" -- it no
+   * longer exists. Usually that means a rename, and that is exactly what
+   * happened here: voiceValidation.test.ts was rewritten in #1496, fourteen old
+   * names became thirteen new ones, and the file is green in full. Since then
+   * the gate had been shouting "REGRESSIONS: 14" about work that broke nothing.
+   *
+   * The cost of that confusion is not inconvenience. Red that people learn to
+   * skip devalues the red that is real: "no regressions" stops meaning
+   * anything. So the gate still goes red (a deleted test is lost coverage, not
+   * a trifle) but tells the truth about WHAT happened and names the next step.
+   */
+  const failed = suspects.filter(id => status.get(id) === 'failed')
+  const vanished = suspects.filter(id => !status.has(id))
 
   if (flaky.length) {
     console.log(`\nнестабильных (со второго раза зелёные): ${flaky.length}`)
@@ -113,13 +147,34 @@ function main() {
     if (flaky.length > 10) console.log(`  ... ещё ${flaky.length - 10}`)
   }
 
-  if (!confirmed.length) {
+  if (!failed.length && !vanished.length) {
     console.log('\n✅ Подтверждённых регрессий нет — всё подозрительное оказалось нестабильным.')
     return
   }
 
-  console.log(`\n❌ РЕГРЕССИИ: ${confirmed.length}`)
-  for (const id of confirmed) console.log(`  - ${id}`)
+  if (failed.length) {
+    console.log(`\n❌ REGRESSIONS (test exists and fails): ${failed.length}`)
+    for (const id of failed) console.log(`  - ${id}`)
+  }
+
+  if (vanished.length) {
+    const byFile = {}
+    for (const id of vanished) byFile[fileOf(id)] = (byFile[fileOf(id)] || 0) + 1
+    console.log(`\n⚠️  VANISHED (name absent from the run -- renamed or deleted): ${vanished.length}`)
+    for (const [f, n] of Object.entries(byFile)) {
+      // How many names took their place: a file where the old ones are gone and
+      // just as many new ones stand is almost certainly a rename, not a loss.
+      const nowInFile = [...status.keys()].filter(id => fileOf(id) === f).length
+      console.log(`  ${f}: ${n} gone, ${nowInFile} in the file now`)
+    }
+    for (const id of vanished.slice(0, 10)) console.log(`  - ${id}`)
+    if (vanished.length > 10) console.log(`  ... and ${vanished.length - 10} more`)
+    console.log(
+      '\n  If the rename was intentional, refresh the snapshot: npm run test:gate:save\n' +
+        '  If a test was deleted without a replacement, that is lost coverage -- bring it back.'
+    )
+  }
+
   process.exit(1)
 }
 

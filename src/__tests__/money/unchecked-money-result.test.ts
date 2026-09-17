@@ -60,12 +60,18 @@ const DEBT: Record<string, number> = {
   // these each loop; fix means DELETING the dead code, tracked separately.
   //   x402.routes.ts: router imported + setX402BotInstance called but NEVER
   //     app.use'd (unmounted); settle endpoint returns 'not implemented'.
-  //   ai-reels-inngest-wizard.ts: aiReelsInngestWizard exported but not in
-  //     scenesToRegister -> never entered.
-  //   fal-render-wizard.ts: dead branch (long-standing).
+  //   fal-render-wizard.ts: dead branch (long-standing); tsc confirms it with
+  //     TS7027 under --allowUnreachableCode false.
   // (updateUserBalance.ts removed: it was a // comment, false positive #1347.)
+  //
+  // ai-reels-inngest-wizard.ts left this list when its charge was fixed: the
+  // debit result is now bound and tested, and the catch refunds what was
+  // actually taken. The scene is still unregistered, so this was not a live
+  // bug -- but a dead site that stays broken becomes a live bug the day
+  // somebody registers the scene, and until then it kept the last entry on
+  // scripts/probe-claims.cjs's "live money claims" line, where a non-zero
+  // number should always mean something.
   'src/api_server/routes/x402.routes.ts': 2,
-  'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts': 1,
   'src/scenes/lipSyncWizard/fal-render-wizard.ts': 2,
 }
 
@@ -111,16 +117,24 @@ function countByFile(): Record<string, number> {
 }
 
 describe('результат денежной операции не выбрасывается', () => {
-  it('разбор находит места — иначе тест пустой', () => {
-    // Страховка от самого себя: если шаблон сломается, всё станет зелёным.
-    // Safety against the detection pattern silently breaking (which would
-    // make every commit pass). The floor tracks cleanup progress: as
-    // discarded-result sites are fixed the count legitimately drops, so the
-    // floor is loosened as the discarded-result campaign cleans siblings
-    // (10 -> 8 -> 2 across #1190/#1194/#1196...). The latent/dead/phantom
-    // files (x402, marketplace, a dead fal branch, a commented call) keep the
-    // count above 2, so a truly broken pattern (~0) is still caught. A broken pattern would return ~0, still far below 8.
-    expect(Object.keys(countByFile()).length).toBeGreaterThan(2)
+  it('the scan actually reads the repository', () => {
+    /**
+     * Safety against myself, and it had to be rebuilt.
+     *
+     * This used to be a floor on the NUMBER OF DIRTY FILES
+     * (`toBeGreaterThan(2)`), loosened every time the campaign cleaned a
+     * sibling: 10 -> 8 -> 2. That floor has the cleanup backwards -- it fails
+     * BECAUSE the code got better, and it reaches zero meaning exactly when
+     * the debt reaches zero, which is when a broken detector would matter
+     * most. It fired on this very change.
+     *
+     * The thing actually worth guarding is different: if `collect()` ever
+     * returns an empty list (a renamed directory, a broken walk), every other
+     * test here passes over nothing at all. That check never goes stale, and
+     * the detection pattern itself is pinned by the synthetic cases below.
+     */
+    expect(collect().length).toBeGreaterThan(500)
+    expect(collect().some(f => f.endsWith('.ts'))).toBe(true)
   })
 
   it('разбор не считает присвоение выброшенным результатом', () => {

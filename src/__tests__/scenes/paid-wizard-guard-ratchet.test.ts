@@ -21,14 +21,27 @@ import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 
-// wizard file -> its in-flight guard flag
-const GUARDED_PAID_WIZARDS: Record<string, string> = {
+// wizard file -> its in-flight guard flag, or several when one file guards more
+// than one paid path.
+//
+// The value used to be a single flag, and that shape was itself the gap: one
+// file can only appear once as a key, so `aiPhotoshopUpscaleInProgress` (a
+// second guarded path inside aiPhotoshopScene) could not be registered at all
+// and the completeness check below stayed red. `improvePromptInProgress`
+// (#1586) was simply never added. Neither was a missing guard -- both exist in
+// the code and have tests of their own -- but a registry that cannot express
+// them leaves a permanently failing check, and a check nobody can make green
+// stops being read.
+const GUARDED_PAID_WIZARDS: Record<string, string | string[]> = {
   'src/scenes/neuroPhotoWizard/index.ts': 'neuroPhotoInProgress',
   'src/scenes/textToSpeechWizard/index.ts': 'textToSpeechInProgress',
   'src/scenes/musicGenerationWizard/index.ts': 'musicGenerationInProgress',
   'src/scenes/videoTranscriptionWizard/index.ts':
     'videoTranscriptionInProgress',
-  'src/scenes/aiPhotoshopScene/index.ts': 'aiPhotoshopInProgress',
+  'src/scenes/aiPhotoshopScene/index.ts': [
+    'aiPhotoshopInProgress',
+    'aiPhotoshopUpscaleInProgress',
+  ],
   'src/scenes/lipSyncWizard/index.ts': 'lipSyncInProgress',
   'src/scenes/lipSyncWizard/ai-reels-wizard.ts': 'aiReelsInProgress',
   'src/scenes/lipSyncWizard/veed-fabric-wizard.ts': 'veedFabricInProgress',
@@ -49,32 +62,35 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/imageToPromptWizard/index.ts': 'imageToPromptInProgress',
   'src/scenes/aiChatWizard/index.ts': 'aiChatInProgress',
   'src/scenes/chatWithAvatarWizard/index.ts': 'chatWithAvatarInProgress',
+  'src/scenes/improvePromptWizard/index.ts': 'improvePromptInProgress',
 }
 
 describe('paid wizards keep their in-flight guard', () => {
-  for (const [file, flag] of Object.entries(GUARDED_PAID_WIZARDS)) {
+  for (const [file, flags] of Object.entries(GUARDED_PAID_WIZARDS)) {
     describe(path.basename(path.dirname(file)), () => {
       const src = fs.readFileSync(file, 'utf8')
 
-      it(`arms ${flag} (set true) and releases it (set false)`, () => {
-        expect(src, `${flag} is never set true`).toContain(`${flag} = true`)
-        expect(src, `${flag} is never released`).toContain(`${flag} = false`)
-      })
+      for (const flag of [flags].flat()) {
+        it(`arms ${flag} (set true) and releases it (set false)`, () => {
+          expect(src, `${flag} is never set true`).toContain(`${flag} = true`)
+          expect(src, `${flag} is never released`).toContain(`${flag} = false`)
+        })
 
-      it(`rejects a re-entry: checks ${flag} before setting it`, () => {
-        const checkIdx = src.search(new RegExp(`if \\([^)]*${flag}\\)`))
-        const setIdx = src.indexOf(`${flag} = true`)
-        expect(checkIdx, `no "if (... ${flag})" guard`).toBeGreaterThan(-1)
-        expect(
-          checkIdx,
-          'the guard must reject BEFORE it sets the flag'
-        ).toBeLessThan(setIdx)
-      })
+        it(`rejects a re-entry: checks ${flag} before setting it`, () => {
+          const checkIdx = src.search(new RegExp(`if \\([^)]*${flag}\\)`))
+          const setIdx = src.indexOf(`${flag} = true`)
+          expect(checkIdx, `no "if (... ${flag})" guard`).toBeGreaterThan(-1)
+          expect(
+            checkIdx,
+            'the guard must reject BEFORE it sets the flag'
+          ).toBeLessThan(setIdx)
+        })
+      }
     })
   }
 
   it('every *InProgress guard in src/scenes is registered here', () => {
-    const registered = new Set(Object.values(GUARDED_PAID_WIZARDS))
+    const registered = new Set(Object.values(GUARDED_PAID_WIZARDS).flat())
     const found = new Set<string>()
 
     const walk = (dir: string) => {

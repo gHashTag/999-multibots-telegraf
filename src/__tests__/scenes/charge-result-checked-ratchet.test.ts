@@ -31,9 +31,14 @@ const CAPTURED =
 // Scenes whose charge call is DEAD (unreachable / unwired) -> discarding the
 // result is harmless because the charge never runs. Each is separately proven
 // dead + SAFE (with a self-verifying assertion) in paid-wizard-guard-ratchet.
+//
+// ai-reels-inngest-wizard left this list when its charge was fixed: the debit
+// result is now captured, checked, and refunded on a dispatch failure. It is
+// still an unwired scene, so this was never a live leak -- but a dead site left
+// broken becomes a live one the day somebody registers the scene, and the
+// allowlist entry would have hidden it then.
 const DEAD_DISCARD_ALLOWLIST = new Set<string>([
   'src/scenes/lipSyncWizard/fal-render-wizard.ts',
-  'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts',
 ])
 
 const stripComments = (s: string) =>

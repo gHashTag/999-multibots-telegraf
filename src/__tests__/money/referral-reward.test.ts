@@ -32,6 +32,7 @@ import {
   referralInvoiceId,
   REFERRAL_BONUS_STARS,
 } from '@/core/referral/rewardInviter'
+import { buildRewardPromise } from '@/scenes/inviteScene/rewardPromise'
 
 beforeEach(() => {
   directPaymentProcessor.mockReset()
@@ -77,31 +78,80 @@ describe('награда за приглашение', () => {
   })
 })
 
-describe('текст сцены приглашения обещает только выполнимое', () => {
-  const raw = fs.readFileSync('src/scenes/inviteScene/index.ts', 'utf8')
-  // Комментарии человеку не показывают — а в них как раз перечислено то, чего
-  // обещать нельзя. Сравнивать надо с кодом, а не с рассказом о нём.
-  const scene = raw
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1')
-
-  it('разбор находит текст — иначе тест пустой', () => {
-    expect(scene).toMatch(/Пригласите друга/)
+describe('the invite scene promises only what is deliverable', () => {
+  /**
+   * This used to read the scene's SOURCE and match `bonus > 0 ?` with a regular
+   * expression. Two things were wrong with that: it depended on where prettier
+   * put a line break, and it would have passed on any rewrite that kept the
+   * shape while losing the meaning. It broke on the change that added the
+   * second side even though that change preserved the property exactly.
+   *
+   * The promise is now a pure function, so what gets checked is the text it
+   * produces.
+   */
+  it('says nothing about stars while both rewards are off', () => {
+    // The unconditional promise is where the whole story started.
+    expect(
+      buildRewardPromise({ isRu: true, inviterStars: 0, invitedStars: 0 })
+    ).toBe('')
+    expect(
+      buildRewardPromise({ isRu: false, inviterStars: 0, invitedStars: 0 })
+    ).toBe('')
   })
 
-  it('обещание звёзд стоит под условием включённой награды', () => {
-    // Безусловное обещание — это то, с чего всё началось.
-    expect(scene).toMatch(/REFERRAL_BONUS_STARS/)
-    // \s* instead of a literal space: prettier wraps the long ternary, so
-    // `bonus > 0 ?` becomes `bonus > 0\n  ? ...`. What is checked is the
-    // condition, not how the formatter placed the line breaks.
-    expect(scene).toMatch(/bonus > 0\s*\?/)
+  it('names the real amount for each side that is on', () => {
+    const both = buildRewardPromise({
+      isRu: true,
+      inviterStars: 60,
+      invitedStars: 40,
+    })
+    expect(both).toContain('60')
+    expect(both).toContain('40')
+
+    // And a side that is off is not mentioned at all -- not with a zero, not
+    // with a vague "bonus stars".
+    const onlyInviter = buildRewardPromise({
+      isRu: true,
+      inviterStars: 60,
+      invitedStars: 0,
+    })
+    expect(onlyInviter).toContain('60')
+    expect(onlyInviter).not.toContain('друг получит')
   })
 
-  it('не обещает уровней и эксклюзивных функций', () => {
-    // Ни того, ни другого не существует: level равен нулю у 2351 из 2354.
+  it('leaves no stray blank line when only the second side is on', () => {
+    // The sides switch on independently, so every combination has to read as a
+    // message and not as a formatting accident.
+    const onlyInvited = buildRewardPromise({
+      isRu: true,
+      inviterStars: 0,
+      invitedStars: 40,
+    })
+    expect(onlyInvited.startsWith('\n\n')).toBe(true)
+    expect(onlyInvited).not.toMatch(/\n\n\n/)
+    expect(onlyInvited.trimEnd()).toBe(onlyInvited)
+  })
+
+  it('does not promise levels or exclusive features', () => {
+    // Neither exists: `level` is zero for 2,351 profiles out of 2,354. Checked
+    // on the scene itself, because that is where the old promise lived.
+    const raw = fs.readFileSync('src/scenes/inviteScene/index.ts', 'utf8')
+    const scene = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+    expect(scene).toMatch(/Пригласите друга/) // the parse found the text, cyrillic-ok
     expect(scene).not.toMatch(
       /Повышение уровня|Level up|эксклюзивным функциям|exclusive features/i
     )
+  })
+
+  it('is wired to the real switches, not to numbers of its own', () => {
+    // The function is honest about whatever it is handed; the scene has to hand
+    // it the constants the payment code reads. Nothing but the source can say
+    // whether those two are the same numbers.
+    const raw = fs.readFileSync('src/scenes/inviteScene/index.ts', 'utf8')
+    expect(raw).toMatch(/inviterStars:\s*REFERRAL_BONUS_STARS/)
+    expect(raw).toMatch(/invitedStars:\s*REFERRAL_INVITED_BONUS_STARS/)
   })
 })

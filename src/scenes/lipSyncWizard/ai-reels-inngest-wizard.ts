@@ -15,6 +15,7 @@ import {
 } from '@/inngest_app/send-event'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { calculateLipSyncCostStars } from '@/config/lipsync-models.config'
 import { WAN25ModelType, calculateWAN25CostStars } from '@/config/wan25-config'
@@ -205,6 +206,11 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    // Declared OUTSIDE the try so the catch below can tell "the money was
+    // taken" from "it never was". A refund decided on a flag the handler
+    // cannot see would either skip a real refund or mint stars out of nothing.
+    let chargedAmount = 0
+
     try {
       let text: string = ''
       let audioUrl: string | null = null
@@ -317,8 +323,13 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      // Списание средств
-      await updateUserBalance(
+      // The charge. `updateUserBalance` returns false and does NOT throw when
+      // the write fails (a schema/insert failure, or a ghost payer with no
+      // `users` row -- 44 of those exist, docs/audit/ghost-payers.md).
+      // Discarding the result meant the reply below stated "Charged: N" and a
+      // new balance computed by subtraction, while the money was still there:
+      // an assertion the code had not checked.
+      const charged = await updateUserBalance(
         telegramId,
         totalCost,
         PaymentType.MONEY_OUTCOME,
@@ -328,6 +339,21 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
           service_type: 'ai_reels_inngest',
         }
       )
+
+      if (!charged) {
+        logger.error(
+          '[ai-reels-inngest] charge failed — not dispatching a job nobody paid for',
+          { telegramId, totalCost }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось списать средства. Генерация не запущена, деньги на месте. Попробуйте позже.'
+            : '❌ The charge did not go through. Nothing was started and your balance is untouched. Please try again later.'
+        )
+        return ctx.scene.leave()
+      }
+
+      chargedAmount = totalCost
 
       // Отправляем событие в Inngest
       const { eventId } = await sendAIReelsEvent({
@@ -377,11 +403,34 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
     } catch (error) {
       logger.error('❌ [AI REELS INNGEST] Error sending event', { error })
 
-      await ctx.reply(
-        isRu
-          ? '❌ Произошла ошибка при отправке запроса. Попробуйте позже.'
-          : '❌ Error sending request. Try again later.'
-      )
+      // A throw between the charge and the dispatch used to leave the person
+      // paid up and empty-handed: the old reply said only "error, try later"
+      // and the stars stayed gone. Refund only what was actually taken --
+      // `chargedAmount` is 0 until the debit returns true, so an exception
+      // thrown before the charge cannot mint stars.
+      //
+      // refundAndTell replies by itself and, unlike a bare updateUserBalance,
+      // tells the truth when the credit ALSO fails (it returns false and never
+      // throws -- a ghost payer has no `users` row at all).
+      if (chargedAmount > 0) {
+        await refundAndTell({
+          ctx,
+          telegramId,
+          amount: chargedAmount,
+          description: 'Refund: AI Reels Inngest dispatch failed',
+          reason: {
+            ru: 'Произошла ошибка при отправке запроса',
+            en: 'Error sending the request',
+          },
+          isRu,
+        })
+      } else {
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при отправке запроса. Попробуйте позже.'
+            : '❌ Error sending request. Try again later.'
+        )
+      }
 
       return ctx.scene.leave()
     }

@@ -15,3 +15,15 @@
 // types/typings и наличие @types/<пакет>. Если что-то из этого есть — шим
 // не нужен и вреден.
 declare module 'adm-zip'
+
+// picomatch: no types of its own, @types/picomatch is not installed. Declare
+// exactly what we use (one function) rather than a bodiless `declare module` --
+// by the rule at the top of this file that would turn the whole package into
+// any.
+declare module 'picomatch' {
+  function picomatch(
+    patterns: string | string[],
+    options?: { dot?: boolean }
+  ): (path: string) => boolean
+  export default picomatch
+}

@@ -47,7 +47,7 @@ vi.mock('@/core/referral/rewardInviter', () => ({
   rewardInviter: (...a: unknown[]) => rewardInviter(...a),
 }))
 
-import { rewardInviterOnFirstTopUp } from '@/core/referral/rewardOnFirstTopUp'
+import { rewardReferralOnFirstTopUp } from '@/core/referral/rewardOnFirstTopUp'
 
 beforeEach(() => {
   rewardInviter.mockReset()
@@ -70,7 +70,7 @@ describe('награда за первое пополнение приглашё
       },
     } as unknown as Record<string, unknown[]>
 
-    await rewardInviterOnFirstTopUp({ invitedTelegramId: '42', botName: 'b' })
+    await rewardReferralOnFirstTopUp({ invitedTelegramId: '42', botName: 'b' })
     expect(rewardInviter).not.toHaveBeenCalled()
   })
 
@@ -85,7 +85,7 @@ describe('награда за первое пополнение приглашё
       },
     } as unknown as Record<string, unknown[]>
 
-    await rewardInviterOnFirstTopUp({ invitedTelegramId: '42', botName: 'b' })
+    await rewardReferralOnFirstTopUp({ invitedTelegramId: '42', botName: 'b' })
 
     expect(rewardInviter).toHaveBeenCalledTimes(1)
     expect(rewardInviter.mock.calls[0][0]).toMatchObject({
@@ -99,7 +99,7 @@ describe('награда за первое пополнение приглашё
     // систему повторять успешный вызов.
     failOn = 'users'
     await expect(
-      rewardInviterOnFirstTopUp({ invitedTelegramId: '42', botName: 'b' })
+      rewardReferralOnFirstTopUp({ invitedTelegramId: '42', botName: 'b' })
     ).resolves.toBeUndefined()
     expect(rewardInviter).not.toHaveBeenCalled()
   })
@@ -119,7 +119,7 @@ describe('награда привязана к пополнению, а не к 
     )
     // Именно ВЫЗОВ, а не импорт: первая версия проверяла просто вхождение
     // имени, и удаление вызова её не роняло — имя оставалось в строке импорта.
-    expect(src).toMatch(/rewardInviterOnFirstTopUp\s*\(\s*\{/)
+    expect(src).toMatch(/rewardReferralOnFirstTopUp\s*\(\s*\{/)
   })
 
   it('награда стоит ПОСЛЕ отметки об оплате', () => {
@@ -129,7 +129,7 @@ describe('награда привязана к пополнению, а не к 
       fs.readFileSync('src/api_server/routes/robokassa.routes.ts', 'utf8')
     )
     expect(src.indexOf('status: PaymentStatus.COMPLETED')).toBeLessThan(
-      src.indexOf('rewardInviterOnFirstTopUp')
+      src.indexOf('rewardReferralOnFirstTopUp')
     )
   })
 })

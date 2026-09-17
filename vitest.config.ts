@@ -38,6 +38,39 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      /**
+       * NESTED WORKING COPIES. Never run someone else's snapshot of the repo.
+       *
+       * `git worktree` puts full copies of the project inside the project
+       * itself -- right now `.claude/worktrees/tg-social` and
+       * `.claude/worktrees/bot-alerts`, 1745 test files between them. The root
+       * run collected them alongside its own.
+       *
+       * The damage, measured rather than assumed:
+       *
+       * 1. PHANTOM FAILURES. `npx vitest run src/__tests__/money/*` collected
+       *    SIX files instead of two and reported two failures. The code was
+       *    not broken -- an OLD copy of a ratchet test was. Vitest has one
+       *    root, so the worktree's copy reads the MAIN repo's `src/` while
+       *    carrying its own week-old known-debt list. The same run with
+       *    `--exclude '.claude/worktrees/**'`: ten green out of ten. Half an
+       *    hour went into investigating a "regression" that did not exist.
+       *
+       * 2. FALSE REGRESSIONS IN THE GATE. `npm run test:gate` compares SETS of
+       *    "path :: name". Tests from a copy carry their own paths
+       *    (`.claude/worktrees/...`) and would enter the snapshot -- then, the
+       *    day the worktree is deleted, hundreds of names vanish at once. The
+       *    gate would call that a regression: formally right, substantively
+       *    empty.
+       *
+       * `.test-baseline.txt` was taken before the copies existed (2406 lines,
+       * not one worktree path), so this is closed before it set in, not after.
+       *
+       * The pattern is deliberately wider than today's two directories: the
+       * next copy will arrive under a different name.
+       */
+      '**/worktrees/**',
+      '**/.worktrees/**',
       // Three more files fail at MODULE LOAD, so not one assertion in them
       // ever runs — the same reason as the list below:
       //   plugin-neurophoto/**/generateImage.test.ts imports 'bun:test';
