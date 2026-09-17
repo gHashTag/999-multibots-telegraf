@@ -23,6 +23,24 @@
 'use strict'
 
 const { execSync } = require('node:child_process')
+
+/**
+ * `-z` AND A NUL SPLIT, BECAUSE A NEWLINE IN A NAME IS LEGAL.
+ *
+ * `git ls-files` separates by newline and QUOTES a name that contains one, so a
+ * plain split drops that file from the population and the tool goes blind
+ * without saying anything. The repository already guards against this
+ * (no-silent-blindness.test.ts) and it caught these three the moment they were
+ * looked at properly.
+ */
+const listTracked = () =>
+  execSync('git ls-files -z', {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split('\0')
+    .filter(Boolean)
+
 const fs = require('node:fs')
 const guard = require('./no-cyrillic-guard.cjs')
 
@@ -106,12 +124,9 @@ function shapeOf(line) {
  * literal; a next-line directive is unused when the line below it has none.
  */
 function reportUnused() {
-  const files = execSync('git ls-files', {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split('\n')
-    .filter(f => /\.(ts|tsx|js|jsx|mjs|cjs|swift)$/.test(f))
+  const files = listTracked().filter(f =>
+    /\.(ts|tsx|js|jsx|mjs|cjs|swift)$/.test(f)
+  )
 
   let unused = 0
   for (const f of files) {

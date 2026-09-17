@@ -31,6 +31,23 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { execSync } = require('node:child_process')
 
+/**
+ * `-z` AND A NUL SPLIT, BECAUSE A NEWLINE IN A NAME IS LEGAL.
+ *
+ * `git ls-files` separates by newline and QUOTES a name that contains one, so a
+ * plain split drops that file from the population and the tool goes blind
+ * without saying anything. The repository already guards against this
+ * (no-silent-blindness.test.ts) and it caught these three the moment they were
+ * looked at properly.
+ */
+const listTracked = () =>
+  execSync('git ls-files -z', {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split('\0')
+    .filter(Boolean)
+
 /*
  * COLOUR ONLY FOR A TERMINAL.
  *
@@ -75,6 +92,42 @@ function codeOnly(source) {
     .join('\n')
 }
 
+/**
+ * ONE LEVEL DOWN, BECAUSE THE ENUMERATION IS OFTEN NOT IN THE TEST.
+ *
+ * The money-ratchet index caught a change of mine on 2026-09-17 and the gate
+ * said nothing. The test itself reads no directory -- it requires
+ * `scripts/gen-money-ratchets.cjs`, and THAT lists the money folder. Scanning
+ * only the test's own text answers "nobody watches this", which is how the
+ * index went stale in a push that should have been stopped.
+ *
+ * So a local script a test requires is read too. One level, not a graph: these
+ * guards call a generator directly, and a full traversal would be a different
+ * tool with a different cost.
+ */
+const REQUIRED = /require\(\s*['"]([^'"]+\.(?:cjs|mjs|js))['"]\s*\)/g
+
+function enumerates(file, code) {
+  if (/readdirSync\s*\(|git ls-files/.test(code)) return true
+  let m
+  REQUIRED.lastIndex = 0
+  while ((m = REQUIRED.exec(code))) {
+    if (!m[1].startsWith('.')) continue
+    const dep = path.resolve(path.dirname(file), m[1])
+    try {
+      if (
+        /readdirSync\s*\(|git ls-files/.test(
+          codeOnly(fs.readFileSync(dep, 'utf8'))
+        )
+      )
+        return true
+    } catch {
+      /* a path we cannot read is not evidence of anything */
+    }
+  }
+  return false
+}
+
 function targetsIn(file, source) {
   const found = []
   let m
@@ -102,12 +155,7 @@ function targetsIn(file, source) {
  */
 function forFiles(targets) {
   const wanted = new Set(targets.map(t => path.resolve(ROOT, t)))
-  const files = execSync('git ls-files', {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split('\n')
-    .filter(f => /\.test\.(ts|tsx)$/.test(f))
+  const files = listTracked().filter(f => /\.test\.(ts|tsx)$/.test(f))
 
   const hits = []
   for (const f of files) {
@@ -118,6 +166,24 @@ function forFiles(targets) {
       continue
     }
     const code = codeOnly(src)
+    /*
+     * A GUARD THAT ENUMERATES WATCHES EVERYTHING.
+     *
+     * Exact paths were the whole of the first version, and it missed both
+     * guards that caught me on 2026-09-17: the money-ratchet index reads the
+     * money DIRECTORY, and no-silent-blindness lists the tracked tree. Neither
+     * names a file, so neither matched, and both broke without the gate saying
+     * a word -- one of them because of a change made ten minutes earlier.
+     *
+     * A test that enumerates is watching whatever is in there, so it reads any
+     * change. Few of them exist and they are cheap; the alternative is a lookup
+     * that quietly answers "nobody" for exactly the guards with the widest
+     * reach.
+     */
+    if (enumerates(path.join(ROOT, f), code)) {
+      hits.push(f)
+      continue
+    }
     if (!/readFileSync\s*\(/.test(code)) continue
     if (targetsIn(path.join(ROOT, f), code).some(t => wanted.has(t)))
       hits.push(f)
@@ -129,12 +195,7 @@ function main() {
   const at = process.argv.indexOf('--for')
   if (at !== -1) return forFiles(process.argv.slice(at + 1))
   const gate = process.argv.includes('--gate')
-  const files = execSync('git ls-files', {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split('\n')
-    .filter(f => /\.test\.(ts|tsx)$/.test(f))
+  const files = listTracked().filter(f => /\.test\.(ts|tsx)$/.test(f))
 
   let readers = 0
   let dead = 0

@@ -29,6 +29,23 @@
 const fs = require('node:fs')
 const { execSync } = require('node:child_process')
 
+/**
+ * `-z` AND A NUL SPLIT, BECAUSE A NEWLINE IN A NAME IS LEGAL.
+ *
+ * `git ls-files` separates by newline and QUOTES a name that contains one, so a
+ * plain split drops that file from the population and the tool goes blind
+ * without saying anything. The repository already guards against this
+ * (no-silent-blindness.test.ts) and it caught these three the moment they were
+ * looked at properly.
+ */
+const listTracked = () =>
+  execSync('git ls-files -z', {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split('\0')
+    .filter(Boolean)
+
 const PRINT = /console\.(log|error|warn|info)\s*\(/
 const EXIT = /process\.exit\s*\(/
 
@@ -78,12 +95,9 @@ function exitLines(source) {
 }
 
 function listCandidates() {
-  const files = execSync('git ls-files', {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split('\n')
-    .filter(f => /^(scripts|bin|tools)\/.*\.(cjs|mjs|js)$/.test(f))
+  const files = listTracked().filter(f =>
+    /^(scripts|bin|tools)\/.*\.(cjs|mjs|js)$/.test(f)
+  )
 
   const found = []
   for (const f of files) {
