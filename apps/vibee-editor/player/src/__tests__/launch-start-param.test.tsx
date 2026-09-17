@@ -129,11 +129,18 @@ describe('the start parameter of a bot launch', () => {
     expect(telegram.launchStartParam()).toBeNull()
   })
 
-  it('opens the tab that holds the sign-in code, end to end', async () => {
+  it('opens the screen that holds the sign-in code, end to end', async () => {
     /*
      * The journey `/app` advertises: bot button -> mini app -> the card with
      * the code. Driven through the real provider and the real route map, so
      * breaking any link of it fails here.
+     *
+     * The address below is a literal on purpose — this test owns the WIRING
+     * (parameter read from the launch URL, matched, navigated to, replacing
+     * history), not the choice of screen. Whether that screen actually shows a
+     * code is followed through to the component in
+     * components/Telegram/__tests__/startParamContract.test.ts; it moved from
+     * /profile to /profile?tab=agent to /pair, and each move was a fix.
      */
     telegramLaunch('/?tgWebAppStartParam=pair')
     const { provider } = await freshModules()
@@ -147,7 +154,7 @@ describe('the start parameter of a bot launch', () => {
       )
     })
 
-    expect(navigations.map(n => n.to)).toEqual(['/profile?tab=agent'])
+    expect(navigations.map(n => n.to)).toEqual(['/pair'])
     expect(navigations[0].opts).toEqual({ replace: true })
   })
 

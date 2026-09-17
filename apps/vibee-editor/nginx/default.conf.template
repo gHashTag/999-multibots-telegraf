@@ -91,6 +91,36 @@ server {
         try_files $uri =404;
     }
 
+    # The app sign-in code (pages/Pair.tsx). One button that mints a
+    # credential, which is the same object class as /bridge/consent.html above
+    # — and gets the same treatment, narrowed to the one ancestor under which
+    # it can work at all.
+    #
+    # NOT the server-level policy: that admits 'self' and https://t27.ai, and
+    # the comment on /index.html spells out what both mean. t27.ai is every
+    # GitHub Pages site published there, and 'self' is the /hive chain
+    # app.t27.ai > t27.ai > app.t27.ai, which shares this app's sessionStorage
+    # — Telegram launch data included (measured in Chrome).
+    #
+    # Neither can make a code today: getInitData() returns '' when an ancestor
+    # is not Telegram, so the mint answers 401 — fail-closed. What a frame CAN
+    # do right now is render the real button, because canAuthorizeRequestsAtom
+    # reads wa.initData without checking ancestors; a decoy laid over it is
+    # exactly the attack the consent popup's 'none' exists to prevent.
+    #
+    # Telegram is kept because the Mini App genuinely runs in an iframe on
+    # web.telegram.org. Regex, not `location = /pair`: an exact match would
+    # leave /pair/ — which React Router resolves to the same page — falling
+    # through to `location /` and the permissive policy.
+    location ~ ^/pair/?$ {
+        add_header Content-Security-Policy "frame-ancestors https://web.telegram.org https://*.telegram.org;" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        try_files /index.html =404;
+    }
+
     # Данные — до SPA-fallback. Иначе отсутствующий manifest.json отдавался
     # как index.html с кодом 200: парсер получал HTML вместо JSON, и поломка
     # была не видна ни в консоли, ни в логах. Ровно так и случилось.

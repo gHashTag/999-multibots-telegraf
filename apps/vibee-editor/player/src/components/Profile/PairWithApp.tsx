@@ -10,17 +10,17 @@ import './PairWithApp.css'
 const PANEL_TITLE = 'Войти в приложение на телефоне'
 
 /**
- * Что стоит на месте кнопки, когда подписи нет.
+ * WHAT STANDS WHERE THE BUTTON WOULD BE, WHEN THE LAUNCH CARRIES NO SIGNATURE.
  *
- * Вкладка «Агент» не может просто опустеть: сюда ведёт диплинк start_param
- * 'pair' (TelegramProvider), человек приходит СПЕЦИАЛЬНО за кодом. Поэтому
- * здесь не «недоступно», а дорога к подписанному запуску: команда /app
- * отвечает инлайн-кнопкой web_app, и вот её запуск initData уже несёт
- * (src/commands/appLoginCommand.ts).
+ * This screen may not simply go blank: the 'pair' deep link leads here
+ * (TelegramProvider -> /pair, pages/Pair.tsx) and the person came SPECIFICALLY
+ * for a code. So it is not "unavailable" but the road to a signed launch: the
+ * /app command answers with an inline web_app button, and that launch does
+ * carry initData (src/commands/appLoginCommand.ts).
  *
- * Формулировка зависит от isTelegram() только на словах: «вы в браузере» и
- * «вы в Telegram, но запуск без подписи» — разные ситуации для человека, хотя
- * сервер отвергает обе одинаково.
+ * The wording depends on isTelegram() in words only: "you are in a browser"
+ * and "you are in Telegram, but this launch is unsigned" are different
+ * situations for a person, though the server refuses both the same way.
  */
 function PairUnavailable({ inTelegram }: { inTelegram: boolean }) {
   return (
@@ -34,7 +34,12 @@ function PairUnavailable({ inTelegram }: { inTelegram: boolean }) {
       <ol className="pair-with-app__steps">
         <li>{'Откройте личный чат с ботом в Telegram.'}</li>
         <li>{'Отправьте команду /app и нажмите кнопку в его ответе.'}</li>
-        <li>{'Профиль → «Агент»: кнопка с кодом будет здесь.'}</li>
+        {/* This step used to read "Profile -> Agent", and on 2026-09-17 a
+            person following it landed on the welcome road with a 10 000-Star
+            bill. The bot's button opens the code screen itself now (/pair);
+            there is nowhere to walk to, and the instruction pointed at the one
+            place where the code had stopped being visible. */}
+        <li>{'Откроется это же окно, но уже с кнопкой «Показать код».'}</li>
       </ol>
     </section>
   )

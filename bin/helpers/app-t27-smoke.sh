@@ -58,7 +58,7 @@ hdr() { # file, name
 
 PATHS=(/lipsync /assets /icons /backgrounds /healthz / /feed /t27_dev
   /lipsync/captions.json /nope.json /index.html '/profile?tab=agent'
-  '/feed?post=abc' /manifest.json /lipsync/lipsync.mp4
+  /pair '/feed?post=abc' /manifest.json /lipsync/lipsync.mp4
   /bridge /bridge/bridge.js /bridge/consent.html)
 
 echo "-- $BASE --"
@@ -121,7 +121,7 @@ rows "directory redirects are exactly 301 loc=<dir>/" "$(awk -F'\t' '
 # so directives are split on both ; and , -- a match must not run from one
 # policy into the next. Each frame-ancestors present must allow Telegram Web.
 rows "SPA routes are 200 text/html, framable by https://web.telegram.org" "$(awk -F'\t' '
-  index(" / /feed /t27_dev /index.html /profile?tab=agent /feed?post=abc ", " " $1 " ") {
+  index(" / /feed /t27_dev /index.html /profile?tab=agent /pair /feed?post=abc ", " " $1 " ") {
     fa = 0; open = 1
     n = split(substr($4, 5), d, /[;,]/)
     for (j = 1; j <= n; j++) if (d[j] ~ /^ *frame-ancestors /) {
@@ -131,6 +131,17 @@ rows "SPA routes are 200 text/html, framable by https://web.telegram.org" "$(awk
   }' "$TMP/table")"
 
 rows "/nope.json is 404, not the SPA fallback" "$(awk -F'\t' '$1 == "/nope.json" && $2 != 404' "$TMP/table")"
+
+# Экран кода входа (/pair) отдаётся со своей политикой: рамка — только
+# Telegram. 'self' — это цепочка /hive (app.t27.ai > t27.ai > app.t27.ai), где
+# рамка делит sessionStorage с приложением; https://t27.ai — любой сайт
+# gHashTag на GitHub Pages. Обе могут показать настоящую кнопку под подделкой.
+# Кода они не получат (без Telegram нет подписи, сервер ответит 401), но и
+# рамка им не нужна. Плюс ответ не должен кешироваться: на нём живёт код.
+rows "/pair framable by Telegram only, no-store" "$(awk -F'\t' '
+  $1 == "/pair" && ($2 != 200 || $6 !~ /^ct=text\/html/ ||
+    $4 !~ /frame-ancestors https:\/\/web\.telegram\.org https:\/\/\*\.telegram\.org;/ ||
+    $4 ~ /'"'"'self'"'"'/ || $4 ~ /t27\.ai/ || $5 !~ /no-store/)' "$TMP/table")"
 
 # The identity bridge the game frames (player/public/bridge/) has its own
 # policy, compared whole: frame-ancestors exactly https://t27.ai, never 'self'.

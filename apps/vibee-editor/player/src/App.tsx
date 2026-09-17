@@ -39,6 +39,7 @@ const InstagramCallbackPage = lazy(() => import('@/pages/InstagramCallback'))
 const PrivacyPolicyPage = lazy(() => import('@/pages/PrivacyPolicy'))
 const TermsServicePage = lazy(() => import('@/pages/TermsService'))
 const LearnPage = lazy(() => import('@/pages/Learn'))
+const PairPage = lazy(() => import('@/pages/Pair'))
 
 // Redirect /profile to /:username for current user
 // Экспортируется РАДИ ПРОВЕРОК: три ветки этой функции (имя есть / имя знает
@@ -299,6 +300,12 @@ function RouteTable() {
       <Route path="/terms-of-service" element={<TermsServicePage />} />
       <Route path="/learn" element={<LearnPage />} />
       <Route path="/profile" element={<ProfileRedirect />} />
+      {/* The app sign-in code. Its own address because the profile is behind
+          the welcome road, and the road's third card is the club price -- so
+          the one screen the bot advertises as "a window with your code" was
+          answering with a bill. Declared before `/:username`, like /crm above,
+          or a profile named "pair" would swallow it. */}
+      <Route path="/pair" element={<PairPage />} />
       <Route path="/:username" element={<ProfilePage />} />
     </Routes>
   )

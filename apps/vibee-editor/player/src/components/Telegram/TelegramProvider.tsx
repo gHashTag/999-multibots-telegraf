@@ -60,19 +60,30 @@ const START_PARAM_ROUTES: Record<string, string> = {
    * while `app_pairing_codes` gained no row in 24 hours. No code existed for
    * a single second; all three claims failed as `unknown`.
    *
-   * Points at `/profile` because the card that shows the code
-   * (`PairWithApp`) lives there. No separate route was added: one screen with
-   * two addresses is one more pair that will eventually drift apart.
-   */
-  /*
-   * НА ВКЛАДКУ, ГДЕ КОД, А НЕ «КУДА-НИБУДЬ В ПРОФИЛЬ».
+   * ── THE ADDRESS HAS NOW MOVED TWICE, FOR THE SAME REASON BOTH TIMES ──────
    *
-   * Бот пишет: «Нажмите кнопку — откроется окно с кодом». Кнопка вела на
-   * `/profile`, профиль открывался на «Шаблонах», а код живёт во вкладке
-   * «Агент» — о которой в сообщении ни слова. Человек, пришедший за кодом по
-   * единственному рекламируемому пути, кода не видел.
+   * It pointed at `/profile` first, because `PairWithApp` lives on that screen
+   * and one screen with two addresses is one more pair that can drift apart.
+   * That was too coarse: `/profile` opens on the "Templates" tab, and the code
+   * is on "Agent", which the bot's message never mentions. So it became
+   * `/profile?tab=agent` on 2026-09-07 (#2112).
+   *
+   * Then the profile itself stopped being reachable. The welcome road landed
+   * there on 2026-09-09 (#2304) and lost its "later" button on 09-10 (#2320);
+   * `pages/Profile.tsx` returns `<WelcomeOnboarding/>` ABOVE `<ProfileTabs/>`,
+   * so the tab holding the code is not mounted for anyone the road applies to
+   * -- and the road's third card is the 10 000-Star club price. Measured
+   * 2026-09-17: a person who had paid for a subscription pressed the sign-in
+   * button and was shown a bill.
+   *
+   * Hence `/pair` (pages/Pair.tsx): the same component, on an address the road
+   * does not guard. The drift this map used to fear is now cheaper than the
+   * coupling -- three times in two weeks this one value has been silently
+   * invalidated by a change to a screen it borrows. `startParamContract.test.ts`
+   * now checks that every value here names a route App.tsx actually declares,
+   * which is the check that would have caught all three.
    */
-  pair: '/profile?tab=agent',
+  pair: '/pair',
 }
 
 const TELEGRAM_HOME = '/feed'

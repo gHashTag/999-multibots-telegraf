@@ -17,11 +17,15 @@ const TEMPLATE = path.resolve(__dirname, '../../../nginx/default.conf.template')
 
 /** Every problem with the policy lines, as text; empty means the file is right. */
 function problems(conf: string): string[] {
-  // The bridge locations carry their own policy, frame-ancestors https://t27.ai
-  // only (the consent popup: 'none'), pinned by bridge-nginx.test.ts.
+  // Locations that carry their own policy are removed before counting, and
+  // each is pinned whole by a test of its own -- otherwise this checker would
+  // demand https://t27.ai on a line whose entire point is not to have it:
+  //  - the bridge, frame-ancestors https://t27.ai only, and the consent popup
+  //    'none' (bridge-nginx.test.ts);
+  //  - /pair, the sign-in code, Telegram only (pair-nginx.test.ts).
   const lines = conf
     .replace(
-      /\n {4}location (= \/bridge|= \/bridge\/consent\.html|\^~ \/bridge\/) \{\n[\s\S]*?\n {4}\}\n/g,
+      /\n {4}location (= \/bridge|= \/bridge\/consent\.html|\^~ \/bridge\/|~ \^\/pair\/\?\$) \{\n[\s\S]*?\n {4}\}\n/g,
       '\n'
     )
     .split('\n')
