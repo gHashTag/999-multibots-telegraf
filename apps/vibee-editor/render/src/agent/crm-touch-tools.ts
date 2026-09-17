@@ -19,7 +19,8 @@
 
 import type { AgentTool, ToolContext } from './tools'
 import { visibleScope, askSupabase, whoPaid, audienceOf } from './crm-tools'
-import { stageOf, waitingOn, type Stage } from './crm-stages'
+import { stageOf, waitingOn, nudgesSince, type Stage } from './crm-stages'
+import { leadCandidates } from './chat-memory'
 import {
   recordTouch,
   touchesFor,
@@ -27,6 +28,15 @@ import {
   TOUCH_KINDS,
   type TouchKind,
 } from './crm-touches'
+
+/**
+ * How old a silence may be and still count as today's queue.
+ *
+ * Thirty days is not a rule of the business, it is a rule of attention: a
+ * list that reaches back a year is a list nobody opens twice. Everybody
+ * older is counted and reported, never dropped in silence.
+ */
+const WITHIN_DAYS_DEFAULT = 30
 
 /** Days since an ISO timestamp, or null when it cannot be read. */
 function daysSince(iso: string | null | undefined): number | null {
@@ -218,6 +228,22 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
     description:
       'Кто ждёт ОТВЕТА, а не «кому можно написать». Три вида: ours — человек ответил, а мы молчим ' +
       '(самое дорогое); theirs — мы написали и тишина; due — просил вернуться позже, и позже настало. ' +
+      /*
+       * THE NEW FACTS ARE IN THE ANSWER, NOT IN THIS SENTENCE, AND THAT IS
+       * DELIBERATE.
+       *
+       * Every row now carries `nudges`, and after two unanswered reminders
+       * the person leaves this list -- enforced in waitingOn (maxNudges,
+       * default 2), pinned by crm-nudge-cap.test.ts, explained to the model
+       * in the playbook, which this kit does not count.
+       *
+       * Not written here because provider.test.ts holds the compact kit under
+       * 6000 tokens for a 16k model, and MEASURED TODAY the kit stands at
+       * 5998 of them. Two tokens of headroom: the next sentence anybody adds
+       * to any tool description, including this one, does not fit. A budget
+       * that tight is a finding, not a formality -- and the answer to it is
+       * not a bigger number in the test.
+       */
       'Стадия и причина считаются из фактов, руками ничего не проставляется. Ничего не отправляет.',
     parameters: {
       type: 'object',
@@ -247,6 +273,11 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           ? Math.floor(Number(a.later_after_days))
           : 14
 
+      const withinDays =
+        Number(a?.within_days) > 0
+          ? Math.floor(Number(a.within_days))
+          : WITHIN_DAYS_DEFAULT
+
       const [people, paid, touches] = await Promise.all([
         audienceOf(scope),
         whoPaid(scope),
@@ -254,18 +285,75 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       ])
 
       /*
-       * Only people this owner has actually touched can be waiting: waiting is
-       * a property of a conversation, and there is no conversation with
-       * somebody nobody has written to. Starting from the touch table rather
-       * than from the audience also keeps this cheap -- the audience is
-       * thousands of rows, the touched are dozens.
+       * THE MESSAGES, NOT ONLY THE TOUCHES.
+       *
+       * MEASURED IN PRODUCTION 2026-09-16. This tool answered "2 people are
+       * waiting" while `crm_summary`, for the same owner at the same moment,
+       * said 316. Both numbers were computed honestly -- from different
+       * facts. `crm_touches` had five rows in total; `crm_messages` had
+       * 25 302 inbound. The tool whose entire job is "who is waiting for an
+       * answer" was reading the empty one.
+       *
+       * Two answers to one question is worse than a wrong answer: the model
+       * gets both and cannot tell which to believe.
+       *
+       * A union, not a replacement. Touches stay authoritative where they
+       * exist -- they are explicit facts somebody recorded on purpose -- and
+       * an owner with no connected Telegram account still gets exactly what
+       * this tool gave before, because there are no messages to add.
+       */
+      let fromMessages = new Map<
+        string,
+        { lastIn: string | null; unanswered: boolean }
+      >()
+      try {
+        const cands = await leadCandidates(
+          ctx.pool as never,
+          String(ctx.telegramId),
+          { limit: 10_000, paid }
+        )
+        fromMessages = new Map(
+          cands.map(c => [
+            String(c.lead),
+            {
+              lastIn: c.lastInboundAt ? c.lastInboundAt.toISOString() : null,
+              /*
+               * `unanswered` is taken as the boolean it is, not rebuilt from
+               * `daysSinceOut`. That field is a whole number of days, so a
+               * reply sent an hour after their message rounds to the same
+               * day and the reconstruction can put the two in the wrong
+               * order -- reporting a conversation that was answered as one
+               * that was ignored, which is the very mistake being fixed.
+               */
+              unanswered: c.unanswered,
+            },
+          ])
+        )
+      } catch {
+        // No messages for this owner, or the table is not there yet. The
+        // touch-only answer below is then the whole answer, as it was before.
+      }
+
+      /*
+       * Everybody with a touch OR a message, not only the touched. The older
+       * comment here said "there is no conversation with somebody nobody has
+       * written to" -- true, and it quietly assumed that a conversation
+       * leaves a touch behind. It does not: the model is asked to record one
+       * and forgets, which is how this tool came to see 2 people out of 316.
        */
       const known = new Map(people.map(p => [String(p.telegram_id), p]))
+      const everyone = new Set<string>([
+        ...touches.keys(),
+        ...fromMessages.keys(),
+      ])
       const out: Array<Record<string, unknown>> = []
-      for (const [leadId, list] of touches) {
+      let olderThanWindow = 0
+      for (const leadId of everyone) {
         const person = known.get(leadId)
         // Outside the caller's visibility, or gone from `users` entirely.
         if (!person) continue
+        const list = touches.get(leadId) ?? []
+        const msg = fromMessages.get(leadId)
         const quietDays = daysSince(person.updated_at)
         const w = waitingOn({
           paid: paid.has(leadId),
@@ -273,8 +361,22 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           quietDays,
           noAnswerAfterDays,
           laterAfterDays,
+          lastInboundAt: msg?.lastIn ?? null,
+          /*
+           * "Answered" is expressed as an outbound at the same moment as
+           * their message, which is exactly what `unanswered: false` means
+           * and all this function needs to know: whose turn it is.
+           */
+          lastOutboundAt: msg && !msg.unanswered ? msg.lastIn : null,
         })
         if (!w) continue
+        // NOT SILENTLY DROPPED. Somebody who wrote in March and never got an
+        // answer is a real debt, but they are not today's queue; the count
+        // goes back in the answer so the number can be asked about.
+        if (w.days > withinDays) {
+          olderThanWindow += 1
+          continue
+        }
         const st = stageOf({ paid: paid.has(leadId), touches: list, quietDays })
         out.push({
           telegram_id: leadId,
@@ -285,6 +387,8 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
           days: w.days,
           stage: st.stage,
           because: w.because,
+          nudges: nudgesSince({ touches: list, lastInboundAt: msg?.lastIn }),
+          from: list.length > 0 ? 'touches' : 'messages',
         })
       }
 
@@ -304,6 +408,8 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
         ours: out.filter(x => x.waiting === 'ours').length,
         due: out.filter(x => x.waiting === 'due').length,
         theirs: out.filter(x => x.waiting === 'theirs').length,
+        older_than_window: olderThanWindow,
+        window_days: withinDays,
         waiting: out.slice(0, 50),
         what_to_do:
           out.length === 0
