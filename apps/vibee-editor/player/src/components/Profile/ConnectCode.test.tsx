@@ -191,6 +191,48 @@ describe('the screen says where the code actually went', () => {
   })
 })
 
+describe('the way to the code is on the screen that asks for it', () => {
+  it('opens the "Telegram" chat -- for an in-app code, inside Telegram', () => {
+    /*
+     * "Look for the Telegram chat" sent the owner hunting through his chat
+     * list on 2026-09-16 and 17. The chat is one tap away, so the tap is here.
+     */
+    const onOpenChat = vi.fn()
+    draw({ delivery: 'app', onOpenChat })
+    const open = host.querySelector<HTMLButtonElement>('.tg-code__open-chat')!
+    expect(open.textContent).toBe('connect.code.openChat')
+    // Leaving a half-finished login feels like abandoning it; the line under
+    // the button is what says it will still be here.
+    expect(host.textContent).toContain('connect.code.openChatHint')
+    act(() => open.click())
+    expect(onOpenChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('is not offered where that chat does not hold the code', () => {
+    // An SMS or an email is not in the "Telegram" chat: the button would send
+    // the person to look in the one place the code is known not to be.
+    for (const delivery of ['sms', 'email', 'call', 'unknown'] as const) {
+      draw({ delivery, onOpenChat: vi.fn() })
+      expect(host.querySelector('.tg-code__open-chat'), delivery).toBeNull()
+    }
+  })
+
+  it('is not drawn outside Telegram, where there is no chat to open', () => {
+    draw({ delivery: 'app', onOpenChat: undefined })
+    expect(host.querySelector('.tg-code__open-chat')).toBeNull()
+    expect(host.textContent).not.toContain('connect.code.openChatHint')
+  })
+
+  it('does not take the person away in the middle of a check', () => {
+    const onOpenChat = vi.fn()
+    draw({ delivery: 'app', onOpenChat, busy: true })
+    const open = host.querySelector<HTMLButtonElement>('.tg-code__open-chat')!
+    expect(open.disabled).toBe(true)
+    act(() => open.click())
+    expect(onOpenChat).not.toHaveBeenCalled()
+  })
+})
+
 describe('one real input under the cells', () => {
   it('there is exactly one field, not one per digit', () => {
     /*

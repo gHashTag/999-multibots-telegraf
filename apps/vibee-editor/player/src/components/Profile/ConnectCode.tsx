@@ -62,6 +62,11 @@ export interface ConnectCodeProps {
   onSubmit: () => void
   onBack: () => void
   onResend: () => void
+  /**
+   * Opens the chat named "Telegram", where an in-app code arrives. Absent
+   * outside Telegram -- there is no such chat to open from a browser tab.
+   */
+  onOpenChat?: () => void
 }
 
 export function ConnectCode(props: ConnectCodeProps) {
@@ -148,6 +153,31 @@ export function ConnectCode(props: ConnectCodeProps) {
       */}
       {props.delivery === 'app' && (
         <p className="tg-code__hint">{t('connect.code.appHint')}</p>
+      )}
+
+      {/*
+        THE CODE IS ONE TAP AWAY, SO THE TAP IS HERE.
+
+        "Look for the Telegram chat" sends a person out of this screen to hunt
+        through their chat list, and most never find a chat they have had
+        archived for years. The button opens it. Only for the in-app channel,
+        and only inside Telegram: an SMS is not in that chat, and a browser tab
+        has no chat to open. The login in progress is kept while they are away
+        (connectAttemptStore), and the line under the button says so -- without
+        it, leaving a half-finished login feels like abandoning it.
+      */}
+      {props.delivery === 'app' && props.onOpenChat && (
+        <div className="tg-code__chat">
+          <button
+            type="button"
+            className="tg-code__open-chat"
+            onClick={props.onOpenChat}
+            disabled={props.busy}
+          >
+            {t('connect.code.openChat')}
+          </button>
+          <p className="tg-code__hint">{t('connect.code.openChatHint')}</p>
+        </div>
       )}
 
       <button

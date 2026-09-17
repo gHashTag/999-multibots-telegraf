@@ -5,6 +5,14 @@ import { authHeaders } from '@/lib/apiFetch'
 import { useLanguage } from '@/hooks/useLanguage'
 import { ConnectCode } from './ConnectCode'
 import { NOTHING_SENT, readSentCode, type SentCode } from './connectDelivery'
+import {
+  browserStore,
+  clearAttempt,
+  loadAttempt,
+  remainingWait,
+  saveAttempt,
+} from './connectAttemptStore'
+import { getWebApp, isTelegram } from '@/lib/telegram'
 import { useSetAtom } from 'jotai'
 import { agentTelegramConnectedAtom } from '@/atoms/agentTelegram'
 
@@ -40,6 +48,13 @@ import { agentTelegramConnectedAtom } from '@/atoms/agentTelegram'
  */
 
 type Step = 'checking' | 'connected' | 'phone' | 'code' | 'password'
+
+/**
+ * The chat named "Telegram": the service account behind +42777, which is where
+ * a login code for a session from our server arrives. A phone-number link, so
+ * it opens the chat itself rather than a search.
+ */
+const TELEGRAM_SERVICE_CHAT = 'https://t.me/+42777'
 
 export function ConnectTelegram() {
   const { t } = useLanguage()
@@ -94,7 +109,34 @@ export function ConnectTelegram() {
           setPhoneFromTelegram(true)
         }
         setConnected(!!d['подключено'])
-        setStep(d['подключено'] ? 'connected' : 'phone')
+        if (d['подключено']) {
+          clearAttempt(browserStore())
+          setStep('connected')
+          return
+        }
+        /*
+         * BACK FROM THE "TELEGRAM" CHAT: THE LOGIN IS WHERE IT WAS LEFT.
+         *
+         * On a client that closes the Mini App when another chat is opened,
+         * the person returned to an empty phone form, asked for a code again,
+         * and killed the code they had just gone to read. An attempt younger
+         * than the server's ten minutes is resumed on the code screen, with
+         * only the wait they still owe.
+         */
+        const now = Date.now()
+        const saved = loadAttempt(browserStore(), now)
+        if (saved) {
+          setHandle(saved.handle)
+          setPhone(saved.phone)
+          setSent({
+            ...saved.sent,
+            resendAfter: remainingWait(saved, now),
+            round: 1,
+          })
+          setStep('code')
+          return
+        }
+        setStep('phone')
       })
       .catch(() => {
         // Could not ask -- show the form. Claiming "not connected" would be a
@@ -121,6 +163,12 @@ export function ConnectTelegram() {
    * "something went wrong" would hide the only clue anybody has, and this screen
    * has already cost one evening of that.
    */
+  /** The server no longer has its half: ten minutes passed, or a deploy. */
+  function attemptIsGone(raw: string): boolean {
+    const up = raw.toUpperCase()
+    return up.includes('ВХОД НЕ НАЧАТ') || up.includes('ИСТЁК')
+  }
+
   function inPlainWords(raw: string): string {
     const up = raw.toUpperCase()
     if (up.includes('PHONE_CODE_INVALID'))
@@ -142,7 +190,7 @@ export function ConnectTelegram() {
     if (up.includes('SESSION_PASSWORD_NEEDED'))
       return 'Нужен пароль двухфакторной защиты.'
     if (up.includes('PASSWORD_HASH_INVALID')) return 'Пароль не подошёл.'
-    if (up.includes('ВХОД НЕ НАЧАТ') || up.includes('ИСТЁК'))
+    if (attemptIsGone(raw))
       return 'Вход истёк — начните заново, код живёт пару минут.'
     return raw
   }
@@ -153,7 +201,11 @@ export function ConnectTelegram() {
     try {
       await job()
     } catch (e) {
-      setError(inPlainWords(e instanceof Error ? e.message : String(e)))
+      const raw = e instanceof Error ? e.message : String(e)
+      // A remembered attempt the server has dropped would bring the person
+      // back to a dead code screen on the next launch.
+      if (attemptIsGone(raw)) clearAttempt(browserStore())
+      setError(inPlainWords(raw))
     } finally {
       setBusy(false)
     }
@@ -165,6 +217,11 @@ export function ConnectTelegram() {
       setHandle(d.handle)
       setPhone(d.phone)
       setSent(was => readSentCode(d, was.round + 1))
+      saveAttempt(
+        browserStore(),
+        { handle: d.handle, phone: d.phone, sent: readSentCode(d, 1) },
+        Date.now()
+      )
       setCode('')
       setStep('code')
     })
@@ -181,8 +238,20 @@ export function ConnectTelegram() {
     run(async () => {
       const d = await ask('/api/tg/connect/resend', 'POST', { handle })
       setSent(was => readSentCode(d, was.round + 1))
+      saveAttempt(
+        browserStore(),
+        { handle, phone, sent: readSentCode(d, 1) },
+        Date.now()
+      )
       setCode('')
     })
+
+  /** Absent outside Telegram, so the code screen does not draw the button. */
+  const webApp = isTelegram() ? getWebApp() : null
+  const openServiceChat =
+    typeof webApp?.openTelegramLink === 'function'
+      ? () => webApp.openTelegramLink(TELEGRAM_SERVICE_CHAT)
+      : undefined
 
   if (step === 'checking') return null
 
@@ -198,6 +267,7 @@ export function ConnectTelegram() {
           onClick={() =>
             void run(async () => {
               await ask('/api/tg/connect', 'DELETE')
+              clearAttempt(browserStore())
               setConnected(false)
               setStep('phone')
             })
@@ -224,10 +294,13 @@ export function ConnectTelegram() {
         busy={busy}
         error={error}
         onBack={() => {
+          // A different number is a different login: the old one is let go.
+          clearAttempt(browserStore())
           setError(null)
           setStep('phone')
         }}
         onResend={() => void resendCode()}
+        onOpenChat={openServiceChat}
         onSubmit={() =>
           void run(async () => {
             const d = await ask('/api/tg/connect/code', 'POST', {
@@ -235,6 +308,9 @@ export function ConnectTelegram() {
               code,
             })
             setCode('')
+            // Signed in, or on to the password: the code step is over either
+            // way, and a finished attempt must not be resumed.
+            clearAttempt(browserStore())
             if (!d['нужен_пароль']) setConnected(true)
             setStep(d['нужен_пароль'] ? 'password' : 'connected')
           })

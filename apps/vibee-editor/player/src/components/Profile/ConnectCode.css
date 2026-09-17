@@ -239,3 +239,28 @@
   line-height: 1.45;
   color: var(--text-muted, #888);
 }
+
+/* The way to the code, right under the sentence that says where it is. A
+   secondary button on purpose: the primary one on this screen is Confirm. */
+.tg-code__chat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tg-code__open-chat {
+  align-self: flex-start;
+  min-height: var(--touch-target, 44px);
+  padding: 8px 16px;
+  font-size: 16px;
+  color: var(--vibee-green, #00ff88);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.tg-code__open-chat:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
