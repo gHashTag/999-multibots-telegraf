@@ -230,3 +230,12 @@
      Without this they push the panel sideways. */
   overflow-wrap: anywhere;
 }
+
+/* One fact under the sentence it qualifies: where an in-app code can arrive.
+   Smaller and dimmer than the sentence, so it reads as its footnote. */
+.tg-code__hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted, #888);
+}

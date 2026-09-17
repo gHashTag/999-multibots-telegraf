@@ -90,6 +90,19 @@ function поддельныйПул() {
   return { пул, строки, события }
 }
 
+/**
+ * What Telegram answers to `auth.sendCode` for a third-party api_id: the code
+ * goes into the Telegram app, and no other channel is offered. A plain object
+ * with `className`, because the code under test reads exactly that.
+ */
+function sentCodeAnswer() {
+  return {
+    className: 'auth.SentCode',
+    type: { className: 'auth.SentCodeTypeApp', length: 5 },
+    phoneCodeHash: 'HASH',
+  }
+}
+
 describe('телефон и код приводятся к виду, который примет Telegram', () => {
   it('человеческие разделители убираются', () => {
     expect(нормализоватьТелефон('+7 (999) 123-45-67')).toBe('+79991234567')
@@ -177,9 +190,6 @@ describe('чужой вход нельзя завершить', () => {
       apiId: 1,
       apiHash: 'h',
       session: { save: () => 'НОВАЯ-СЕССИЯ' },
-      async sendCode() {
-        return { phoneCodeHash: 'HASH' }
-      },
       /*
        * THE FAKE REFUSES WHAT GRAMJS REFUSES.
        *
@@ -197,6 +207,9 @@ describe('чужой вход нельзя завершить', () => {
         if (!request || request.classType !== 'request') {
           throw new Error('You can only invoke MTProtoRequests')
         }
+        // The login now starts with the raw request, not the `sendCode`
+        // helper, so the refusal above guards this call as well.
+        if (request.className === 'auth.SendCode') return sentCodeAnswer()
         if (request.className === 'auth.SignIn') {
           if (!request.phoneNumber) throw new Error('phoneNumber missing')
           if (!request.phoneCodeHash) throw new Error('phoneCodeHash missing')
@@ -277,10 +290,9 @@ describe('маршруты подключения: личность строже
       apiId: 1,
       apiHash: 'h',
       session: { save: () => 'НОВАЯ' },
-      async sendCode() {
-        return { phoneCodeHash: 'HASH' }
+      async invoke(request: any) {
+        if (request?.className === 'auth.SendCode') return sentCodeAnswer()
       },
-      async invoke() {},
       async signInWithPassword() {},
       async disconnect() {},
     }),
@@ -403,6 +415,7 @@ describe('маршруты подключения: личность строже
      */
     for (const путь of [
       '/api/tg/connect/start',
+      '/api/tg/connect/resend',
       '/api/tg/connect/code',
       '/api/tg/connect/password',
       '/api/tg/connect/status',

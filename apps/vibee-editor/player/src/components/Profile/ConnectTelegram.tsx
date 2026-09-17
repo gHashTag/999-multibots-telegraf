@@ -4,6 +4,7 @@ import { API_BASE } from '../../config'
 import { authHeaders } from '@/lib/apiFetch'
 import { useLanguage } from '@/hooks/useLanguage'
 import { ConnectCode } from './ConnectCode'
+import { NOTHING_SENT, readSentCode, type SentCode } from './connectDelivery'
 import { useSetAtom } from 'jotai'
 import { agentTelegramConnectedAtom } from '@/atoms/agentTelegram'
 
@@ -47,7 +48,8 @@ export function ConnectTelegram() {
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [handle, setHandle] = useState('')
-  const [viaApp, setViaApp] = useState(true)
+  /** What Telegram said about the code it sent: channel, next one, wait. */
+  const [sent, setSent] = useState<SentCode>(NOTHING_SENT)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   /** Number filled in, not typed. Affects only the caption under the field. */
@@ -133,6 +135,10 @@ export function ConnectTelegram() {
         ? `Слишком много попыток. Подождите ${Math.ceil(Number(secs) / 60)} мин.`
         : 'Слишком много попыток — подождите немного.'
     }
+    if (up.includes('SEND_CODE_UNAVAILABLE'))
+      return 'У Telegram нет другого способа доставить код на этот номер. Откройте Telegram там, где этот номер уже вошёл: код в чате «Telegram».'
+    if (up.includes('PHONE_NUMBER_FLOOD'))
+      return 'Код для этого номера запрашивали слишком часто. Telegram снимет ограничение сам, обычно через несколько часов.'
     if (up.includes('SESSION_PASSWORD_NEEDED'))
       return 'Нужен пароль двухфакторной защиты.'
     if (up.includes('PASSWORD_HASH_INVALID')) return 'Пароль не подошёл.'
@@ -153,15 +159,29 @@ export function ConnectTelegram() {
     }
   }
 
-  /** Shared by "Get the code" and "Request a new code" -- one login start. */
   const startLogin = () =>
     run(async () => {
       const d = await ask('/api/tg/connect/start', 'POST', { phone })
       setHandle(d.handle)
       setPhone(d.phone)
-      setViaApp(d.viaApp !== false)
+      setSent(was => readSentCode(d, was.round + 1))
       setCode('')
       setStep('code')
+    })
+
+  /**
+   * "Request a new code" is NOT a second login start.
+   *
+   * It used to call `startLogin`, which is `auth.sendCode` again: the same
+   * code through the same channel, however often it was pressed. The resend
+   * route continues the same attempt with `auth.resendCode`, which is the call
+   * that moves Telegram to its next channel. The handle does not change.
+   */
+  const resendCode = () =>
+    run(async () => {
+      const d = await ask('/api/tg/connect/resend', 'POST', { handle })
+      setSent(was => readSentCode(d, was.round + 1))
+      setCode('')
     })
 
   if (step === 'checking') return null
@@ -194,7 +214,11 @@ export function ConnectTelegram() {
     return (
       <ConnectCode
         phone={phone}
-        viaApp={viaApp}
+        delivery={sent.delivery}
+        emailPattern={sent.emailPattern}
+        canResend={sent.canResend}
+        resendAfter={sent.resendAfter}
+        round={sent.round}
         code={code}
         onCode={setCode}
         busy={busy}
@@ -203,7 +227,7 @@ export function ConnectTelegram() {
           setError(null)
           setStep('phone')
         }}
-        onResend={() => void startLogin()}
+        onResend={() => void resendCode()}
         onSubmit={() =>
           void run(async () => {
             const d = await ask('/api/tg/connect/code', 'POST', {
