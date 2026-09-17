@@ -31,6 +31,7 @@ import { salesPlaybook } from './crm-playbook'
 import { imagesLookDown } from './image-health'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
+import { inlineUnperceivedMedia } from './media-inline'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -566,11 +567,18 @@ export async function* streamModel(
    */
   const useParts = kinds.size > 0 && capable.length > 0
   if (kinds.size > 0 && !useParts) {
+    /*
+     * Not a silent degrade any more: `runAgent` has already read this
+     * attachment into the turn as text, or written a line saying it could
+     * not. This warning is for the owner reading the log -- it means the one
+     * provider that declares this sense is missing or rate-limited, which is
+     * a thing to fix and not a thing to live with.
+     */
     console.warn(
-      '[agent] во вложении есть ' +
+      '[agent] this turn carries ' +
         [...kinds].join(', ') +
-        ', но ни один настроенный провайдер это не воспринимает — ' +
-        'отвечаю по тексту вложения'
+        ', and no configured provider perceives it — ' +
+        'answering from the inlined text instead'
     )
   }
   const providers = useParts ? capable : configured
@@ -795,7 +803,7 @@ export async function* runAgent(
     }
   })()
 
-  const messages: ChatMessage[] = [
+  let messages: ChatMessage[] = [
     {
       role: 'system',
       content:
@@ -823,6 +831,35 @@ export async function* runAgent(
     },
     ...history,
   ]
+
+  /*
+   * Read the attachments the provider chain will not be able to perceive, and
+   * append them to this turn as TEXT (media-inline.ts).
+   *
+   * HERE, and not in `streamModel`, for two reasons.
+   *
+   * ONCE PER TURN. `streamModel` is entered again on every tool step and again
+   * for every provider it falls through, so a read placed there would be paid
+   * for several times for one question -- including the transcription, which
+   * costs money.
+   *
+   * IT HAS TO PERSIST. Native media parts only ever travel on step 0: after
+   * that the last message is a tool result, and `withMediaParts` leaves the
+   * array untouched. Words appended to the person's own turn stay in it for
+   * every step that follows, so the agent still knows what the file said while
+   * it is calling tools about it.
+   *
+   * A failure here must not cost the turn: falling back to the marker line is
+   * exactly today's behaviour.
+   */
+  messages = await inlineUnperceivedMedia(messages, {
+    pool: ctx.pool,
+    owner: ctx.telegramId,
+    toolsOnly: opts?.toolsOnly,
+  }).catch(e => {
+    console.warn('[agent] could not read the attachments:', String(e))
+    return messages
+  })
 
   for (let step = 0; step < MAX_STEPS; step++) {
     let assistant: any = null
