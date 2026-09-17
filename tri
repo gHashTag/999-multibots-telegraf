@@ -334,6 +334,26 @@ CHECKS THAT EACH COST A CYCLE
         Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
         build is reported as not measured, never as passing.
 
+  tri cyrillic [staged | --unused]
+        WHY the Cyrillic gate blocks a line, not just which line. Prints, per
+        refusal: which Cyrillic word this commit does not also remove (so the
+        reflow exemption cannot apply), and the way out for that SHAPE --
+        a call the formatter broke open, JSX, an object key, a regex literal.
+
+        The marker is not always the answer, and reaching for it blindly costs
+        a round trip through prettier each time: measured 2026-09-17, five
+        attempts on one file, each one recreating the same complaint.
+
+        Reads the same records the gate decides on, so the explanation cannot
+        drift from the verdict. Exit code matches the gate: 0 clean, 1 blocked,
+        2 the diff could not be read.
+
+        `--unused` is `eslint --report-unused-disable-directives` for this
+        marker: every  cyrillic-ok  that no longer guards anything. First run,
+        2026-09-17: 234 of them, most on lines whose Cyrillic sits inside a
+        string literal and was never blocked at all. A suppression nobody
+        removes becomes evidence that the line needs one.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1492,6 +1512,17 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_cyrillic() {
+  # WHY a line is blocked, not just WHICH. The gate prints refused lines and
+  # nothing else; this prints which exemption nearly applied, which Cyrillic
+  # word is the new one, and the way out for that SHAPE -- a broken-open call,
+  # JSX, an object key, a regex literal. Five attempts on one file went into
+  # guessing that on 2026-09-17.
+  #   tri cyrillic          the branch range (same window the gate uses)
+  #   tri cyrillic staged   what is in the index right now, before committing
+  ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
 }
 
 cmd_ratchets() {
@@ -3860,6 +3891,7 @@ case "$action" in
   idempotency-keys|ключи) cmd_idempotency_keys ;;
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
+  cyrillic|кириллица) cmd_cyrillic "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
