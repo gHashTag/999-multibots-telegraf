@@ -4,6 +4,7 @@
 import { запомнитьНомер } from './src/agent/known-phone'
 import { soul } from './src/agent/chat'
 import { удалитьСвоёФото } from './src/assets/delete-own-photo'
+import { serviceOwnerFromKey } from './src/auth/service-owner'
 import { KIE_MODELS } from './src/agent/kie-models'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
@@ -372,12 +373,10 @@ function verifiedViewerId(req: IncomingMessage): string | null {
 function generationOwnerId(req: IncomingMessage): string | null {
   const viewer = verifiedViewerId(req)
   if (viewer) return viewer
-  const rawInternalKey = req.headers['x-api-key']
-  const internalKey = Array.isArray(rawInternalKey)
-    ? rawInternalKey[0]
-    : rawInternalKey
-  if (!internalKey?.trim()) return null
-  return `service:${createHash('sha256').update(internalKey).digest('hex')}`
+  // The digest lives in src/auth/service-owner.ts, where a test can call it:
+  // importing THIS file starts the server, so the only guard possible here
+  // was a test reading the source for the words createHash('sha256').
+  return serviceOwnerFromKey(req.headers['x-api-key'])
 }
 
 /**
