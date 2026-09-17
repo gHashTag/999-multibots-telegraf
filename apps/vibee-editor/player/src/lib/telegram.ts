@@ -38,6 +38,69 @@ export function isTelegram(): boolean {
 }
 
 /**
+ * THE START PARAMETER OF THIS LAUNCH -- FROM THE URL TOO, NOT ONLY FROM
+ * TELEGRAM'S OWN FIELD.
+ *
+ * `initDataUnsafe.start_param` is filled by Telegram ONLY for a launch from a
+ * direct link (`t.me/bot/app?startapp=x`) or from the attachment menu
+ * (`?startattach=x`). Telegram's docs say exactly that, and
+ * telegram-web-app.js builds `initDataUnsafe` from the signed `#tgWebAppData`
+ * fragment alone -- the string `tgWebAppStartParam` does not occur in that file
+ * at all. The direction is Telegram -> app; writing the parameter into a URL
+ * ourselves does not make Telegram hand it back.
+ *
+ * Every door the bot opens is a `web_app` button, and its URL is built as
+ * `…/?tgWebAppStartParam=pair` (src/navigation/config/miniApp.config.ts). So
+ * the value arrives in the QUERY STRING while `start_param` stays undefined,
+ * and the route table in TelegramProvider matched NOTHING -- for `/app`
+ * sign-in, for the hive, the agent and the club doors in the /start greeting,
+ * for every button that names a screen.
+ *
+ * Measured in production on 2026-09-18: `app_pairing_codes` holds 17 codes
+ * ever minted and every single one belongs to one telegram_id -- the owner's,
+ * who reaches the card by tapping the tab by hand. Two people onboarded on
+ * 16-17 September, sent to `/app` and promised "a window with your code",
+ * produced no row at all.
+ *
+ * SNAPSHOT AT MODULE LOAD, for the same reason as LAUNCH_PATH in
+ * TelegramProvider: `<Navigate>` rewrites "/" to the feed or the remembered
+ * screen, and that rewrite DROPS the query string. By the time an effect looks
+ * at `window.location`, the parameter is gone.
+ */
+function readLaunchStartParam(): string | null {
+  if (typeof window === 'undefined') return null
+  const fromQuery = new URLSearchParams(window.location.search).get(
+    'tgWebAppStartParam'
+  )
+  if (fromQuery) return fromQuery
+  /*
+   * Telegram appends its launch data as a #fragment, and the docs promise the
+   * value "in the GET-parameter tgWebAppStartParam" without saying which half
+   * of the URL carries it. Reading both costs one line and removes the guess.
+   */
+  const hash = window.location.hash.replace(/^#/, '')
+  return new URLSearchParams(hash).get('tgWebAppStartParam')
+}
+
+const LAUNCH_START_PARAM = readLaunchStartParam()
+
+/**
+ * Telegram's own field first -- it is the one Telegram itself signed; the URL
+ * is the fallback for launches where Telegram never fills it.
+ *
+ * Read by TelegramProvider (where to send the person) and by LaunchRedirect
+ * (a named screen outranks the remembered one). One accessor, because two
+ * copies of this decision already existed and both read the dead field.
+ *
+ * Not a trust boundary: the value is only ever matched against a fixed route
+ * map, so the most a hand-written parameter can do is open a screen whose
+ * address the person could have typed anyway.
+ */
+export function launchStartParam(): string | null {
+  return getWebApp()?.initDataUnsafe?.start_param || LAUNCH_START_PARAM
+}
+
+/**
  * True only when Telegram supplied SIGNED launch data.
  *
  * This is the gate for anything that needs a verified user server-side.

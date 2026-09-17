@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { myProfileAtom } from '@/atoms'
-import { getWebApp } from '@/lib/telegram'
+import { launchStartParam } from '@/lib/telegram'
 import { IS_EMBED } from '@/lib/embed'
 
 /**
@@ -78,7 +78,9 @@ function readRemembered(): string | null {
  */
 export function LaunchRedirect() {
   // Прямая ссылка сильнее памяти: человек попросил конкретный экран.
-  const startParam = getWebApp()?.initDataUnsafe?.start_param
+  // One source for that parameter, app-wide (lib/telegram.ts). What stood here
+  // was a read of Telegram's own field, which a bot button never fills.
+  const startParam = launchStartParam()
   // Inside the game's TRI frame the game chose the screen; the remembered one
   // belongs to the real app.
   const target =
