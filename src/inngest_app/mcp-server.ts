@@ -285,18 +285,40 @@ class InngestMCPServer {
   }
 
   private async listFunctions() {
-    const response = await axios.get(`${INNGEST_DEV_URL}/v1/functions`)
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            functions: response.data.data || response.data,
-            count: response.data.data?.length || response.data.length,
-          }),
-        },
-      ],
+    // Modern inngest-cli dev server has no REST /v1/functions endpoint --
+    // try it for compatibility, fall back to GraphQL /v0/gql on error.
+    try {
+      const response = await axios.get(`${INNGEST_DEV_URL}/v1/functions`)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              functions: response.data.data || response.data,
+              count: response.data.data?.length || response.data.length,
+            }),
+          },
+        ],
+      }
+    } catch {
+      const gql = await axios.post(`${INNGEST_DEV_URL}/v0/gql`, {
+        query: 'query { apps { id name functions { id name slug } } }',
+      })
+      const apps = gql.data?.data?.apps || []
+      const functions = apps.flatMap((app: any) =>
+        (app.functions || []).map((fn: any) => ({
+          ...fn,
+          app: app.name,
+        }))
+      )
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ functions, count: functions.length }),
+          },
+        ],
+      }
     }
   }
 

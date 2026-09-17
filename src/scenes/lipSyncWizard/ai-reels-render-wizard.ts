@@ -11,6 +11,7 @@
  * 5. Получение результата через webhook
  */
 
+import { resolveAvatarPhoto } from '@/helpers/resolveAvatarPhoto'
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -1317,10 +1318,20 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       })
 
       // Создание payload с ПРАВИЛЬНЫМ voice_id (HeyGen default или user) и NEW API STRUCTURE
+      /*
+       * A person who never uploaded a picture still has one: the Telegram
+       * avatar stored on their user row at registration. Without this the
+       * Hedra branch of the event schema refuses the whole render, which reads
+       * as the feature being broken rather than a step being missing.
+       */
+      const avatarPhoto = await resolveAvatarPhoto(
+        ctx,
+        ctx.session.aiReelsRender.imageUrl
+      )
       const payload = createRenderAvatarPayload(
         telegramId,
         ctx.session.aiReelsRender.text || '',
-        ctx.session.aiReelsRender.imageUrl || '',
+        avatarPhoto,
         voiceIdToUse, // ✅ Используем дефолтный voice_id для HeyGen или user voice_id для Hedra/Fal
         {
           coverUrl:

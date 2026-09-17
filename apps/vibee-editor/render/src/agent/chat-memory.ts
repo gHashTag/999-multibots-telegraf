@@ -440,6 +440,42 @@ export interface LeadCandidate {
  * The rule is written down so the owner can argue with it, not tuned by a
  * model that cannot say why.
  */
+/**
+ * ONE PERSON'S LAST WORD, FOR THE CARD.
+ *
+ * The bulk query above computes this for every lead at once and its comment
+ * has always said what the line is for: "the line the owner reads to remember
+ * who this is before deciding anything". He never saw it -- the card showed
+ * who and what we propose to send, and nothing of what they said.
+ *
+ * A separate one-row read rather than a slice of the bulk one: a card is made
+ * for a single person at a time, and making the card wait on a ninety-day
+ * scan of everybody would be a strange price for one quote.
+ */
+export async function lastWordsOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string | null> {
+  try {
+    const r = await pool.query(
+      `SELECT text FROM crm_messages
+        WHERE owner_id = $1 AND lead_id = $2 AND NOT "out"
+        ORDER BY at DESC LIMIT 1`,
+      [String(owner), String(lead)]
+    )
+    const text = (r.rows?.[0] as { text?: unknown } | undefined)?.text
+    const one = String(text ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return one || null
+  } catch {
+    // A card without the quote is still a card. A card that never appears
+    // because a quote could not be read is a lost turn.
+    return null
+  }
+}
+
 export async function leadCandidates(
   pool: Pool,
   owner: string,
@@ -451,6 +487,11 @@ export async function leadCandidates(
     paid?: Set<string>
     /** Keep only this segment -- applied to the WHOLE base, before the limit. */
     segment?: Segment
+    /**
+     * The image provider's recent verdict, when there is one. A plan must not
+     * name a step the platform cannot take today.
+     */
+    imagesDown?: { why: string; minutesAgo: number } | null
   } = {}
 ): Promise<LeadCandidate[]> {
   await ensureTable(pool)
@@ -595,6 +636,33 @@ export async function leadCandidates(
       now.getTime() - new Date(touch.at).getTime() < 3 * 86400_000
     )
       next = 'wait'
+    /*
+     * A DELIVERY NEEDS SOMETHING TO DELIVER WITH.
+     *
+     * The owner already ruled on this shape once, on 2026-09-15, for the
+     * other half of it: a portrait was being proposed to people who have no
+     * picture in Telegram, and refusing at the tool was too late, because by
+     * then the plan had promised it. The promise is not made instead.
+     *
+     * The same hole is open one step further out. Measured in production on
+     * 2026-09-16: FAL answers 403, its balance spent; of the five candidates
+     * the sweep actually looks at, FOUR carried next='deliver'. The brief
+     * takes the first one that is not `wait`, so the seller spent its turns
+     * preparing a picture nothing could draw -- which is the shape of 64
+     * cards prepared against 5 sent.
+     *
+     * They asked for a price, so they still get an `offer`: that part of
+     * their own words is still true and still answerable with text. Only the
+     * picture is withdrawn, and the reason travels with it so the owner sees
+     * a plan that changed for a reason rather than a plan that changed.
+     */
+    if (next === 'deliver' && opts.imagesDown) {
+      next = 'offer'
+      why.push(
+        `картинки не выходят ${opts.imagesDown.minutesAgo} мин.: ` +
+          opts.imagesDown.why
+      )
+    }
     const segment = segmentOf({
       unanswered,
       next,

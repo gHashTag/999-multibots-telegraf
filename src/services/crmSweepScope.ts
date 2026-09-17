@@ -68,6 +68,25 @@ export const SWEEP_WORTH =
   'лучше трёх проходных. Карточка одна на владельца — слабая ВЫТЕСНЯЕТ следующую. ' +
   'Если ничего стоящего нет — «тихо» честнее. '
 
+/*
+ * THE ONE LINE THAT DECIDES THE PRESS.
+ *
+ * The queue has carried a `because` field for the card since the cards were
+ * built, with a comment saying what it is for: what stands between the owner
+ * and the button is not the button, it is having to open the chat to remember
+ * who this is. Measured 17.09.2026: nothing ever set it and nothing ever
+ * printed it -- dead at both ends.
+ *
+ * Asked for HERE rather than composed on the server, because the turn that
+ * just read the person's context is the only place that knows why this person
+ * and why now. The server can name the queue they sit in; it cannot say
+ * "he asked about the price on Tuesday and went quiet".
+ */
+export const SWEEP_WHY =
+  'Твоя итоговая строка уйдёт ВЛАДЕЛЬЦУ НА КАРТОЧКУ — по ней он решает, не ' +
+  'открывая чат. Поэтому пиши в ней не «подготовил», а почему ИМЕННО этот ' +
+  'человек и почему сейчас: его словами и его историей. '
+
 export const NEXT_VALUES = [
   'reply',
   'deliver',

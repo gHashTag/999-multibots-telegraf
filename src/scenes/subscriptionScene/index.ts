@@ -9,6 +9,7 @@ import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { TranslationButton } from '@/interfaces/supabase.interface'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { showRublesTo } from '@/helpers/railsForThisPerson'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { escapeMarkdownV2 } from '@/helpers/escapeMarkdown'
 
@@ -126,7 +127,19 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         keyboardRows[row] = []
       }
 
-      const showRubles = shouldShowRubles(ctx)
+      /*
+       * THE BOT DECIDES WHAT IS POSSIBLE; THE PERSON NARROWS IT.
+       *
+       * `shouldShowRubles` is a property of the bot -- some of them must not
+       * offer roubles at all. What the person chose in the mini app's paywall
+       * can only take options away, never add them: asking for roubles where
+       * roubles are forbidden still shows Stars, and asking for Stars hides the
+       * rouble buttons so nobody has to say it twice.
+       */
+      const showRubles = showRublesTo(
+        shouldShowRubles(ctx),
+        ctx.session?.payMethod
+      )
       let buttonText = ''
 
       // Получаем текст кнопки из перевода, если он есть, иначе используем тип подписки

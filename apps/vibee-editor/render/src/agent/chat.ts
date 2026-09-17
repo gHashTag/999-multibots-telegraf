@@ -28,6 +28,7 @@ import {
 import { TOKEN_PRICES } from './billing-shared'
 import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic-ok: pre-existing names
 import { salesPlaybook } from './crm-playbook'
+import { imagesLookDown } from './image-health'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { readFileSync } from 'node:fs'
@@ -804,6 +805,7 @@ export async function* runAgent(
               surface: opts?.surface,
               telegramId: ctx.telegramId,
               seller,
+              giftIsDown: imagesLookDown()?.why ?? null,
             }) +
             '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
             'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
@@ -816,6 +818,7 @@ export async function* runAgent(
               surface: opts?.surface,
               telegramId: ctx.telegramId,
               seller,
+              giftIsDown: imagesLookDown()?.why ?? null,
             })) + dmContext,
     },
     ...history,

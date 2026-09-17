@@ -41,6 +41,19 @@ const CYRILLIC = /[\u0400-\u04FF]/
 const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|swift)$/
 const SWIFT_EXT = /\.swift$/
 const MARKER = 'cyrillic-ok'
+/*
+ * THE DIRECTIONAL FORM, BORROWED FROM ESLINT.
+ *
+ * `eslint-disable-next-line` exists because a trailing comment has nowhere to
+ * go on plenty of lines -- JSX children, a line a formatter owns, a line inside
+ * an argument list. This gate had only the trailing form and hit exactly that
+ * wall. The answer other linters settled on decades ago is an explicit
+ * directive on the line ABOVE, and it costs one more constant here.
+ *
+ * Explicit beats the shape heuristic below wherever the author can reach: the
+ * heuristic guesses, this one is written down.
+ */
+const NEXT_LINE = 'cyrillic-ok-next-line'
 
 // Remove complete quoted literals (single, double, template), honouring
 // backslash escapes. Cyrillic that lived inside a string is gone after this;
@@ -189,27 +202,63 @@ function isReflowOfExistingCyrillic(line, removedText) {
   return runs.every(r => removedText.includes(r))
 }
 
-function checkStaged(mode = 'staged') {
-  if (mergeInProgress()) {
-    console.log(
-      'no-cyrillic-guard: merge in progress, skipping the staged check ' +
-        '(the incoming lines were gated on their own commits).'
-    )
-    return
-  }
+/**
+ * A MARKER THE FORMATTER MOVED IS STILL THIS LINE'S MARKER.
+ *
+ * The escape hatch is a comment on the offending line. For a Cyrillic-named
+ * helper called across several lines there is nowhere to put it: a comment
+ * written after the opening `(` is moved by prettier down onto a line of its
+ * own, and the line left behind -- the bare `name(` -- is a changed line
+ * carrying unmarked Cyrillic. Writing the marker there does not merely fail,
+ * it CREATES the complaint, and writing it a second time duplicates the
+ * comment.
+ *
+ * Measured on apps/vibee-editor/render/pairing-e2e.test.ts, 2026-09-17: five
+ * attempts, each one reintroducing the same line. An escape hatch a formatter
+ * can close is not an escape hatch.
+ *
+ * HOW NARROW, AND WHY THAT NARROW.
+ *
+ * The first version of this accepted a marker on either neighbouring line.
+ * Run across all 1107 branches in the repository that version turned four
+ * branches from blocked to clean, and every one of them was an accident: a
+ * Cyrillic word inside a REGEX literal (which nothing here strips) and a
+ * Cyrillic object key, each sitting next to a marker written for something
+ * else. A neighbour's marker is not consent.
+ *
+ * So the rule matches one shape and nothing else: a line that is exactly a
+ * call opening -- an identifier and `(`, nothing after it -- with a
+ * comment-only marker line directly below, in the same hunk. That is what the
+ * formatter's move leaves behind, and it matched none of the 130 branches that
+ * the gate blocks today.
+ */
+const CALL_OPENED = /^\s*[\p{L}_$][\p{L}\p{N}_$]*\($/u
 
-  const cmd =
-    mode === 'range'
-      ? rangeDiffCommand()
-      : 'git diff --cached --unified=0 --no-color'
-  let diff = ''
-  try {
-    diff = execSync(cmd, { encoding: 'utf8', maxBuffer: 128 * 1024 * 1024 })
-  } catch (err) {
-    console.error(`no-cyrillic-guard: failed to read the ${mode} diff`)
-    process.exit(2)
-  }
+function directiveAbove(added, i) {
+  const prev = added[i - 1]
+  if (!prev || prev.hunk !== added[i].hunk) return false
+  return /^\s*(\/\/|\*|\/\*)/.test(prev.line) && prev.line.includes(NEXT_LINE)
+}
 
+function markerMovedOutOfCall(added, i) {
+  if (!CALL_OPENED.test(added[i].line)) return false
+  const next = added[i + 1]
+  if (!next || next.hunk !== added[i].hunk) return false
+  return /^\s*\/\//.test(next.line) && next.line.includes(MARKER)
+}
+
+/**
+ * EVERY ADDED LINE WITH CYRILLIC OUTSIDE A LITERAL, AND WHY IT PASSED OR DID NOT.
+ *
+ * The gate and `tri cyrillic` read the same records, so the explanation cannot
+ * drift from the decision. When this was only a list of blocked lines, a night
+ * went into guessing WHICH of the two exemptions had failed and why; the answer
+ * was in the data all along, it was simply not printed.
+ *
+ * A record is `{ file, line, hunk, exempt }`, where `exempt` is null for a
+ * blocked line and otherwise names the rule that let it through.
+ */
+function scanDiff(diff) {
   // First pass: what this commit REMOVES, per file. Needed before the added
   // lines are judged, so it cannot be folded into the loop below.
   const removedByFile = new Map()
@@ -231,29 +280,47 @@ function checkStaged(mode = 'staged') {
     }
   }
 
-  const violations = []
-  let file = null
-  let scan = false
-  let swift = false
-  let inMultiline = false
+  const records = []
 
-  for (const raw of diff.split('\n')) {
-    if (raw.startsWith('diff --git')) {
-      file = null
-      scan = false
-      continue
+  /*
+   * Added lines, in order, per file, tagged with the hunk they belong to.
+   *
+   * Order and adjacency are what the marker rule below needs, and adjacency is
+   * only meaningful INSIDE one hunk: the last line of one hunk and the first of
+   * the next sit side by side in the diff and far apart in the file.
+   */
+  const addedByFile = new Map()
+  {
+    let f = null
+    let hunk = 0
+    for (const raw of diff.split('\n')) {
+      if (raw.startsWith('diff --git')) {
+        f = null
+        continue
+      }
+      if (raw.startsWith('+++')) {
+        const m = raw.match(/^\+\+\+ b\/(.*)$/)
+        f = m && CODE_EXT.test(m[1]) ? m[1] : null
+        continue
+      }
+      if (raw.startsWith('@@')) {
+        hunk++
+        continue
+      }
+      if (f && raw.startsWith('+')) {
+        if (!addedByFile.has(f)) addedByFile.set(f, [])
+        addedByFile.get(f).push({ line: raw.slice(1), hunk })
+      }
     }
-    if (raw.startsWith('+++ ')) {
-      const m = raw.match(/^\+\+\+ b\/(.*)$/)
-      file = m ? m[1] : null
-      scan = !!file && CODE_EXT.test(file)
-      swift = !!file && SWIFT_EXT.test(file)
-      inMultiline = false
-      continue
-    }
-    if (!scan) continue
-    if (raw.startsWith('+') && !raw.startsWith('+++')) {
-      const line = raw.slice(1)
+  }
+
+  for (const [file, added] of addedByFile) {
+    const swift = SWIFT_EXT.test(file)
+    const removed = removedByFile.get(file)
+    let inMultiline = false
+
+    for (let i = 0; i < added.length; i++) {
+      const line = added[i].line
       /*
        * Swift multiline strings ("""), tracked across the added lines.
        *
@@ -278,13 +345,46 @@ function checkStaged(mode = 'staged') {
           continue
         }
       }
-      if (line.includes(MARKER)) continue
-      if (cyrillicOutsideStrings(line, swift)) {
-        if (isReflowOfExistingCyrillic(line, removedByFile.get(file))) continue
-        violations.push({ file, text: line.trim() })
-      }
+      if (!cyrillicOutsideStrings(line, swift)) continue
+      const hunk = added[i].hunk
+      let exempt = null
+      if (line.includes(MARKER)) exempt = 'marker'
+      else if (isReflowOfExistingCyrillic(line, removed)) exempt = 'reflow'
+      else if (directiveAbove(added, i)) exempt = 'next-line'
+      else if (markerMovedOutOfCall(added, i)) exempt = 'moved-marker'
+      records.push({ file, line, hunk, exempt })
     }
   }
+
+  return { records, removedByFile }
+}
+
+function checkStaged(mode = 'staged') {
+  if (mergeInProgress()) {
+    console.log(
+      'no-cyrillic-guard: merge in progress, skipping the staged check ' +
+        '(the incoming lines were gated on their own commits).'
+    )
+    return
+  }
+
+  const cmd =
+    mode === 'range'
+      ? rangeDiffCommand()
+      : 'git diff --cached --unified=0 --no-color'
+  let diff = ''
+  try {
+    diff = execSync(cmd, { encoding: 'utf8', maxBuffer: 128 * 1024 * 1024 })
+  } catch (err) {
+    console.error(`no-cyrillic-guard: failed to read the ${mode} diff`)
+    process.exitCode = 2
+    return
+  }
+
+  const { records } = scanDiff(diff)
+  const violations = records
+    .filter(r => !r.exempt)
+    .map(r => ({ file: r.file, text: r.line.trim() }))
 
   if (violations.length) {
     console.error(
@@ -302,21 +402,35 @@ function checkStaged(mode = 'staged') {
       console.error('  ' + v.file + ':  ' + v.text)
     }
     console.error('\n' + violations.length + ' line(s) blocked.')
-    process.exit(1)
+    /*
+     * exitCode, NOT exit(). THE GATE WAS TRUNCATING ITS OWN EVIDENCE.
+     *
+     * `process.exit` discards writes still queued on a pipe, and stderr IS a
+     * pipe under lefthook and under every tool that reads this output. Measured
+     * 2026-09-17 on a branch with 8484 complaints: three consecutive runs of the
+     * SAME script on the SAME commit printed 966, 7706 and 8484 lines. Redirected
+     * to a file -- where writes are synchronous -- all of them printed 8484.
+     *
+     * The verdict was never wrong, but the evidence was a lottery, and anything
+     * reading this text (`tri gate` prints the first five) was reading a random
+     * sample. Setting the code and letting the process end flushes everything.
+     */
+    process.exitCode = 1
   }
 }
 
 function checkMessage(pathArg) {
   if (!pathArg) {
     console.error('no-cyrillic-guard: commit-message file path is missing')
-    process.exit(2)
+    process.exitCode = 2
+    return
   }
   let content = ''
   try {
     content = fs.readFileSync(pathArg, 'utf8')
   } catch (err) {
-    // No message file to read — nothing to block.
-    process.exit(0)
+    // No message file to read - nothing to block.
+    return
   }
 
   // Drop everything from the verbose-commit scissors line onward (it carries a
@@ -332,7 +446,7 @@ function checkMessage(pathArg) {
     console.error(
       '\nThe commit message contains Cyrillic. Write commit messages in English.\n'
     )
-    process.exit(1)
+    process.exitCode = 1
   }
 }
 
@@ -344,11 +458,13 @@ if (require.main === module) {
     checkMessage(process.argv[3])
   } else {
     console.error('usage: no-cyrillic-guard.cjs staged | range | msg <file>')
-    process.exit(2)
+    process.exitCode = 2
   }
 }
 
 module.exports = {
+  NEXT_LINE,
+  scanDiff,
   stripStrings,
   lineCommentStart,
   cyrillicOutsideStrings,

@@ -326,12 +326,17 @@ describe('the server is wired (source-level: no test boots render-server)', () =
     expect(stmt).toContain('redeemed = FALSE')
   })
 
-  it('redeeming a row clears its cancellation', () => {
+  it('redeeming a row clears its cancellation, and only touches an open one', () => {
     const s = src()
     const a = at(s, 'SET redeemed = TRUE')
     const stmt = s.slice(a, a + 220)
     expect(stmt).toContain('cancelled_at = NULL')
-    expect(stmt).toContain('redeemed = FALSE RETURNING id')
+    // `RETURNING id` was here while this UPDATE was also the CLAIM: the row
+    // was closed first and the claim decided whether to credit. The credit
+    // now runs first -- a throw in it used to leave the row closed for ever
+    // -- so nothing reads the result any more. `redeemed = FALSE` stays: a
+    // row somebody else has already settled must not be stamped twice.
+    expect(stmt).toContain('redeemed = FALSE')
   })
 
   it('verify adds the columns through the once-per-process helper, not inline', () => {

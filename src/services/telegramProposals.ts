@@ -108,6 +108,23 @@ export function cardLeadOf(p: {
  * press. Fifteen minutes, two hundred entries; a restart in between simply
  * means a follow-up without the person's buttons, never a wrong person.
  */
+/*
+ * FIFTEEN MINUTES WAS SHORTER THAN THE CARD IT DESCRIBES (form 72).
+ *
+ * The memo below expired in fifteen minutes while the card it describes stays
+ * pressable for twelve hours -- and the owner's press is, by design, whenever
+ * he next picks up the phone. So for the normal press, hours later, the memo
+ * was always gone: the follow-up lost the person's buttons and "write it
+ * shorter" had nothing to be shorter than.
+ *
+ * The card now says when it stops being pressable (`expiresAt`, shipped with
+ * the draft by the render, which owns the lifetime), so the memo keeps pace
+ * with the card instead of with a number chosen beside it. This stays as the
+ * FALLBACK for a card that arrives without the instant -- unchanged behaviour
+ * where nothing is known, rather than a twelve-hour guess.
+ *
+ * Memory is bounded by CARD_LEAD_MAX, not by the clock, and always was.
+ */
 const CARD_LEAD_TTL_MS = 15 * 60_000
 const CARD_LEAD_MAX = 200
 /**
@@ -119,7 +136,18 @@ const CARD_LEAD_MAX = 200
  * into that turn's brief; the rest would only pad the prompt.
  */
 const CARD_WHAT_CHARS = 300
-const cardLeads = new Map<string, { lead: string; what: string; at: number }>()
+/*
+ * How much of their last message the card quotes.
+ *
+ * Long enough to recognise the conversation, short enough that their sentence
+ * cannot outweigh ours: the owner is approving OUR words, and a quote that
+ * fills the card turns the decision into a reading exercise.
+ */
+const THEIR_WORDS_CHARS = 160
+const cardLeads = new Map<
+  string,
+  { lead: string; what: string; at: number; until: number }
+>()
 
 const draftWords = (p: { what?: string; media?: BotMedia }): string => {
   const body =
@@ -137,18 +165,24 @@ export function rememberCard(p: {
   target: string
   what?: string
   media?: BotMedia
+  /** When the card stops being pressable, as the render reported it. */
+  expiresAt?: number
 }): void {
   const lead = cardLeadOf(p)
   if (!lead) return
   const now = Date.now()
-  for (const [id, v] of cardLeads)
-    if (now - v.at > CARD_LEAD_TTL_MS) cardLeads.delete(id)
+  // The card's own instant when it came with one; otherwise the old window.
+  // Never both, and never a number invented here.
+  const said = Number(p.expiresAt)
+  const until =
+    Number.isFinite(said) && said > now ? said : now + CARD_LEAD_TTL_MS
+  for (const [id, v] of cardLeads) if (now > v.until) cardLeads.delete(id)
   while (cardLeads.size >= CARD_LEAD_MAX) {
     const oldest = cardLeads.keys().next().value
     if (oldest === undefined) break
     cardLeads.delete(oldest)
   }
-  cardLeads.set(p.id, { lead, what: draftWords(p), at: now })
+  cardLeads.set(p.id, { lead, what: draftWords(p), at: now, until })
 }
 
 export function takeCardLead(id: string): string | null {
@@ -162,7 +196,7 @@ export function takeCardDraft(
   const v = cardLeads.get(id)
   if (!v) return null
   cardLeads.delete(id)
-  if (Date.now() - v.at > CARD_LEAD_TTL_MS) return null
+  if (Date.now() > v.until) return null
   return { lead: v.lead, what: v.what }
 }
 
@@ -176,7 +210,7 @@ export function takeCardDraft(
 export function peekCardLead(id: string): string | null {
   const v = cardLeads.get(id)
   if (!v) return null
-  return Date.now() - v.at > CARD_LEAD_TTL_MS ? null : v.lead
+  return Date.now() > v.until ? null : v.lead
 }
 
 export function forgetCardLeadsForTests(): void {
@@ -362,6 +396,22 @@ export interface CardOpts {
   rewrite?: boolean
   /** Draw the style list in place of the rewrite button. */
   expanded?: boolean
+  /**
+   * WHY THIS PERSON, IN ONE LINE, UNDER THE RECIPIENT.
+   *
+   * Measured 16.09.2026: 56 cards in four and a half days, at most five of
+   * them pressed. What stands between the owner and the button is not the
+   * button -- it is having to open the chat to remember who this is and what
+   * they last said. The card named the recipient and showed the words, and
+   * answered that question nowhere.
+   *
+   * Passed as an OPTION rather than carried on the proposal: the line comes
+   * from the sweep's own answer, which the brief already demands, so nothing
+   * new crosses the wire and the compact tool kit -- which has under a
+   * hundred characters of room before it stops fitting a small model's
+   * window -- pays nothing for it.
+   */
+  because?: string
 }
 
 /**
@@ -497,7 +547,51 @@ export function proposalCard(
     : ''
   const label =
     p.action === 'read' ? (isRu ? 'Чат' : 'Chat') : isRu ? 'Кому' : 'To'
-  const head = `${ask}\n\n${label}: ${to}${fromLine}${warn}${price}${when}`
+  /*
+   * WHY THIS PERSON, ON THE CARD.
+   *
+   * Right under the recipient, before the words, because it answers the
+   * question the owner asks first and the words answer second. One line, cut
+   * hard: the moment it takes two lines it competes with the draft itself.
+   *
+   * Third-party text never reaches here -- the render composes this line from
+   * facts it already holds about the queue, not from anything the person
+   * wrote -- but it is cut and flattened all the same, on the principle that
+   * a card must not be able to grow a second message inside itself.
+   */
+  const whyLine = String(opts.because ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+  const why = whyLine ? `\n${isRu ? 'Почему' : 'Why'}: ${whyLine}` : ''
+  /*
+   * WHAT THEY SAID, SO THE CARD ANSWERS "ANSWERING WHAT?".
+   *
+   * The second reason to open the chat, after "who is this": what are we
+   * replying to. One line, labelled and quoted, above our own words and
+   * plainly separated from them -- the owner must never be able to read their
+   * sentence as the one he is about to send.
+   *
+   * The label is neutral on purpose. A Russian verb would guess a gender from
+   * nothing, and the CRM holds people whose gender it has no business
+   * inventing.
+   */
+  const theirsFull = String((p as { theirWords?: unknown }).theirWords ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  // A CUT THAT DOES NOT SAY IT CUT IS A LIE ABOUT WHAT THEY SAID.
+  //
+  // Without the ellipsis the quote ends mid-word and reads as the whole of
+  // their message -- which is exactly the impression the owner would decide
+  // on. The same rule the draft's own truncation already follows.
+  const theirs =
+    theirsFull.length > THEIR_WORDS_CHARS
+      ? theirsFull.slice(0, THEIR_WORDS_CHARS - 1).trimEnd() + '…'
+      : theirsFull
+  const quote = theirs
+    ? `\n${isRu ? 'Последнее сообщение' : 'Their last message'}: «${theirs}»`
+    : ''
+  const head = `${ask}\n\n${label}: ${to}${why}${quote}${fromLine}${warn}${price}${when}`
   const tail = cut
     ? isRu
       ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`

@@ -436,3 +436,61 @@ describe('читать можно только свой аккаунт', () => {
     expect(before).toContain('requireIdentity(')
   })
 })
+
+/*
+ * THEIR LAST WORD TRAVELS WITH THE DRAFT, ON THE WIRE.
+ *
+ * Read from the database at card time and NOT asked of the model: the compact
+ * tool kit has under a hundred characters of room before it stops fitting a
+ * small model's window, so a parameter would cost more than the feature.
+ */
+describe('the draft carries their last message', () => {
+  const CTX = (pool: unknown) =>
+    ({ telegramId: '144022504', surface: 'bot', pool }) as never
+
+  const poolWith = (text: string | null) => ({
+    query: async (sql: string) =>
+      /crm_messages/.test(sql) && /NOT "out"/.test(sql)
+        ? { rows: text === null ? [] : [{ text }] }
+        : { rows: [] },
+  })
+
+  it('the lead last inbound line reaches the queued draft', async () => {
+    forgetProposals()
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    await t.handler(
+      { chat: '900000002', text: 'привет' },
+      CTX(poolWith('  а когда\n будет готово? '))
+    )
+    const waiting = pendingFor(OWNER)! as unknown as { theirWords?: string }
+    expect(waiting.theirWords, 'их слова не доехали').toBe(
+      'а когда будет готово?'
+    )
+  })
+
+  it('nothing received from them means nothing is attached', async () => {
+    forgetProposals()
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    await t.handler({ chat: '900000002', text: 'привет' }, CTX(poolWith(null)))
+    const waiting = pendingFor(OWNER)! as unknown as { theirWords?: string }
+    expect(waiting.theirWords).toBeUndefined()
+  })
+
+  /*
+   * A CARD WITHOUT THE QUOTE IS STILL A CARD. A CARD THAT NEVER APPEARS
+   * BECAUSE A QUOTE COULD NOT BE READ IS A LOST TURN.
+   */
+  it('a database that throws does not cost the card', async () => {
+    forgetProposals()
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    const answer = (await t.handler(
+      { chat: '900000002', text: 'привет' },
+      CTX({
+        query: async () => {
+          throw new Error('connection terminated')
+        },
+      })
+    )) as { id?: string }
+    expect(pendingFor(OWNER)?.id).toBe(answer.id)
+  })
+})

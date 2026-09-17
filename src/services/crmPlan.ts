@@ -143,11 +143,30 @@ export function planFingerprint(s: PlanSummary): string {
   )
 }
 
+/** One line, so the Cyrillic stays inside literals on single rows. */
+function sentLine(sent: number, cap: number, prepared: number | null): string {
+  // headroom-ok: the prepared count below turns this from headroom into losses
+  const head = `Сегодня ушло: ${sent} из ${cap}.` // cyrillic-ok
+  if (prepared === null || prepared <= sent) return head
+  return `${head} Подготовлено карточек: ${prepared} — остальные заменены.` // cyrillic-ok
+}
+
 export function buildPlanText(
   s: PlanSummary,
   scopeLine: string | null,
   now: number,
-  tz: string
+  tz: string,
+  /**
+   * Cards the sweep actually prepared, from the hive journal, when it is
+   * known.
+   *
+   * MEASURED 2026-09-16: "Сегодня ушло: 4 из 30" is the first line the owner
+   * reads every morning, and it frames the day as capacity unused -- 26 more
+   * could go. In the same days the seller prepared SIXTY-THREE cards, each
+   * replacing the last unpressed one. The constraint is not capacity, it is
+   * that cards die before a press, and the morning screen said the opposite.
+   */
+  preparedCards: number | null = null
 ): string {
   const seg = (s.segments ?? {}) as Record<string, number>
   const caps = (s.caps ?? {}) as Record<string, number>
@@ -172,8 +191,8 @@ export function buildPlanText(
     .map(l => `${l.title.toLowerCase()} ${n(caps[l.key])}`)
     .join(' · ')
   lines.push(
-    `Сегодня ушло: ${n(s.seller_sends_recent)} из ${n(caps.day) || 30}.` +
-      (capLine ? ` Лимит на день: ${capLine}.` : '')
+    sentLine(n(s.seller_sends_recent), n(caps.day) || 30, preparedCards) +
+      (capLine ? ` Лимит на день: ${capLine}.` : '') // cyrillic-ok
   )
   if (s.pending_card) {
     lines.push(

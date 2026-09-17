@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import crypto from 'node:crypto'
-import { Readable } from 'node:stream'
+import { routeRequest, routeResponse } from './test-support/route-double'
 
 /**
  * ОДИН ЗАПУСК МИНИ-АППА — ОДНА СЕМЬЯ ТОКЕНОВ.
@@ -35,7 +35,10 @@ function подписать(поля: Record<string, string>): string {
     .update(ТОКЕН)
     .digest()
   const p = new URLSearchParams(поля)
-  p.set('hash', crypto.createHmac('sha256', секрет).update(строка).digest('hex'))
+  p.set(
+    'hash',
+    crypto.createHmac('sha256', секрет).update(строка).digest('hex')
+  )
   return p.toString()
 }
 
@@ -120,36 +123,13 @@ function если(да: boolean, дело: () => void) {
   if (да) дело()
 }
 
-function запрос(путь: string, тело: unknown) {
-  const r = Readable.from([Buffer.from(JSON.stringify(тело))]) as any
-  r.url = путь
-  r.method = 'POST'
-  r.headers = {}
-  r.socket = { remoteAddress: `10.0.0.${сессии.length + 1}` }
-  return r
-}
+// The shared harness: the same request and response double the other route
+// tests use. The address stays unique per call -- anything throttling must
+// not see two unrelated calls as one client.
+const запрос = (путь: string, тело: unknown) =>
+  routeRequest(путь, тело, { from: `10.0.0.${сессии.length + 1}` })
 
-function ответ() {
-  const о: any = {
-    код: 0,
-    тело: null as any,
-    get status() {
-      return о.код
-    }, // cyrillic-ok
-    get json() {
-      return о.тело
-    }, // cyrillic-ok
-    setHeader() {}, // cyrillic-ok
-    writeHead(c: number) {
-      о.код = c
-      return о
-    }, // cyrillic-ok
-    end(s: string) {
-      о.тело = s ? JSON.parse(s) : null
-    },
-  }
-  return о
-}
+const ответ = routeResponse
 
 describe('вход по initData: одна строка — одна семья', () => {
   let handleAuthRoute: typeof import('./session-routes').handleAuthRoute
@@ -175,7 +155,11 @@ describe('вход по initData: одна строка — одна семья'
 
   const войти = async (initData: string) => {
     const о = ответ()
-    await handleAuthRoute(запрос('/api/auth/telegram', { init_data: initData }), о, пул as any)
+    await handleAuthRoute(
+      запрос('/api/auth/telegram', { init_data: initData }),
+      о,
+      пул as any
+    )
     return о
   }
 

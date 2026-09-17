@@ -2,12 +2,18 @@ import { logger } from '@/utils/logger'
 import type { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { спроситьАгента, recordTurns, type ОтветАгента } from './trinityAgent' // cyrillic-ok: pre-existing identifiers
-import { proposalCard, rememberCard, cardLeadOf } from './telegramProposals'
+import {
+  proposalCard,
+  rememberCard,
+  cardLeadOf,
+  peekCardLead,
+} from './telegramProposals'
 import {
   SWEEP_HEAD,
   SWEEP_RULES,
   SWEEP_TAIL,
   SWEEP_WORTH,
+  SWEEP_WHY,
   SYNTAX,
   parseSweepArgs,
   filterRows,
@@ -59,7 +65,11 @@ export type Draft = NonNullable<ОтветАгента['proposal']> // cyrillic-
 export interface SweepDeps {
   ask: (telegramId: string, text: string) => Promise<ОтветАгента> // cyrillic-ok: pre-existing identifiers
   ingest: (telegramId: string) => Promise<unknown>
-  push: (telegramId: string, draft: Draft) => Promise<void>
+  push: (
+    telegramId: string,
+    draft: Draft,
+    opts?: { because?: string }
+  ) => Promise<void>
   record?: (
     telegramId: string,
     turns: Array<{ role: 'user' | 'assistant'; content: string }>
@@ -70,17 +80,45 @@ export interface SweepDeps {
    */
   leads?: (telegramId: string) => Promise<Array<Record<string, unknown>>>
   now?: () => number
+  /**
+   * Is a card already waiting for this owner, and until when.
+   *
+   * Asked ONLY when this process has no memory of pushing one -- which is
+   * exactly the state a deploy leaves behind. Null means "nothing waiting";
+   * a thrown error or an unreachable render means the answer is unknown, and
+   * unknown must not be read as "nothing", so the caller keeps the old timer
+   * instead of drawing over a card it failed to see.
+   */
+  pendingCard?: (
+    telegramId: string
+  ) => Promise<{ expiresAt: number } | null | undefined>
 }
 
-export type SweepOutcome =
+/**
+ * HOW LONG IT TOOK, BECAUSE IT WAS ALREADY BEING MEASURED AND THROWN AWAY.
+ *
+ * The Inngest step wrapped the call in `Date.now()` and returned `ms` in its
+ * outcome -- into a payload nothing reads. The log line that IS read carried
+ * did/why/owner and no duration, and the journal carried none either. So the
+ * one number that answers "is the 180 s model budget tight" existed, was
+ * computed every half hour, and was unavailable to anybody asking.
+ *
+ * Measured 16.09.2026 the only way left -- the gap between a cron tick and
+ * its journal entry -- the median sweep ran 117 s. That estimate covers the
+ * whole sweep, not the model turn the budget applies to, which is exactly why
+ * guessing a new budget from it would have been the wrong move.
+ */
+export type SweepOutcome = (
   | { did: 'idle'; why: string }
   | { did: 'held'; why: string }
   | { did: 'card'; why: string; id: string }
   | { did: 'busy'; why: string }
   | { did: 'failed'; why: string }
+) & { ms?: number }
 
 /** The brief. One proposal at most, nothing sent, memory first. */
-export const SWEEP_PROMPT = SWEEP_HEAD + SWEEP_RULES + SWEEP_WORTH + SWEEP_TAIL
+export const SWEEP_PROMPT =
+  SWEEP_HEAD + SWEEP_RULES + SWEEP_WORTH + SWEEP_WHY + SWEEP_TAIL
 
 /** How long a pushed card keeps the next sweep from evicting it. */
 export const HOLD_MS_DEFAULT = 120 * 60_000
@@ -102,6 +140,56 @@ export interface SweepOpts {
 }
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
 const INGEST_TIMEOUT_MS = 170_000
+/*
+ * A SHORT DEADLINE, BECAUSE THIS QUESTION IS NOT THE WORK.
+ *
+ * Asked once per process, before anything is spent, to learn whether a card
+ * is already waiting. If the render cannot answer in fifteen seconds the
+ * sweep proceeds on its old timer rather than burning a tick on the question
+ * -- the answer is worth a lot, but not a whole half-hour.
+ */
+const PENDING_CARD_TIMEOUT_MS = 15_000
+
+/*
+ * HOW LONG AN UNPRESSED CARD KEEPS ITS PERSON OUT OF THE QUEUE.
+ *
+ * A day: long enough that the owner is not shown the same face twice between
+ * two sleeps, short enough that somebody who genuinely is the best candidate
+ * comes back tomorrow rather than being dropped.
+ *
+ * Deliberately NOT tied to the card's twelve-hour life. A card dying is not
+ * the owner saying "ask me again" -- it is the same silence that put the
+ * person here, and re-offering the moment it expires is what produced
+ * seventeen cards for one person in four days.
+ */
+const COLD_MS = 24 * 60 * 60_000
+
+/*
+ * HOW OFTEN A HOLDING SELLER SAYS IT IS ALIVE.
+ *
+ * Six hours: four lines a day at most, against a journal that gets dozens of
+ * events in a busy hour -- rare enough that it is not noise, frequent enough
+ * that a gap of a working day means something is wrong rather than quiet.
+ *
+ * Deliberately not tied to the hold itself, which grows from two hours to
+ * twenty-four: the point is a steady pulse, and a pulse that slows down
+ * exactly when the silence gets longest would be the least useful shape.
+ */
+const HEARTBEAT_MS = 6 * 60 * 60_000
+
+/**
+ * Is it time for a holding seller to say out loud that it is alive?
+ *
+ * A separate function because the alternative is a condition buried in the
+ * tick, reachable only by standing up a bot, a queue and a clock -- and a
+ * rule nobody can test cheaply is a rule that drifts. `0` means it has never
+ * spoken, which must count as due: the first hold after a restart is exactly
+ * when somebody is wondering.
+ */
+export function heartbeatDue(lastAliveAt: number, now: number): boolean {
+  if (!lastAliveAt) return true
+  return now - lastAliveAt >= HEARTBEAT_MS
+}
 
 /*
  * ONE HOLD PER SELLER, NOT ONE FOR EVERYBODY.
@@ -129,6 +217,39 @@ interface SweepState {
   /** Cards pushed to this owner that no press has answered. */
   unpressed: number
   /**
+   * When this owner's seller last said out loud that it is alive.
+   *
+   * A hold writes nothing, which is right for noise and wrong for doubt: a
+   * seller holding a card and a seller whose cron died are the same silence.
+   * Measured 16.09.2026: four hours and thirteen minutes of nothing, and the
+   * only way to judge it was arithmetic over a backoff cap.
+   */
+  lastAliveAt: number
+  /**
+   * People whose card was drawn and NOT pressed, with when it was drawn.
+   *
+   * Measured 16.09.2026: 56 cards over four and a half days went to ten
+   * people, and three of them took thirty-seven. Not a targeting defect --
+   * the top of the work queue is exactly who gets cards, because those three
+   * write every day and stay at the top of every tick. So the owner was shown
+   * the same three faces again and again, and pressed none of them.
+   *
+   * A card that was not pressed is an answer of a kind. It does not mean
+   * never -- it means not now, and the next tick is better spent on somebody
+   * else. They come back after COLD_MS.
+   */
+  cold: Map<string, number>
+  /**
+   * The last card pushed to this owner: its id and the person it was for.
+   *
+   * Kept HERE rather than looked up through the card-to-lead memo in
+   * telegramProposals, which expires on its own schedule -- fifteen minutes
+   * on main today. The owner presses when he next picks up the phone, so a
+   * clear that depends on that memo would essentially never fire, and the
+   * person he DID answer would stay out of the queue for a day.
+   */
+  lastCard: { id: string; lead: string } | null
+  /**
    * When the card this owner is holding stops being pressable, as the render
    * itself reported it. 0 when no card is waiting.
    *
@@ -152,7 +273,10 @@ function stateOf(owner: string): SweepState {
       lastPushAt: 0,
       ingestFailStreak: 0,
       unpressed: 0,
+      lastAliveAt: 0,
       cardDiesAt: 0,
+      cold: new Map(),
+      lastCard: null,
     }
     sweepState.set(key, st)
   }
@@ -260,12 +384,37 @@ export const isDue = (c: Record<string, unknown>): boolean =>
  * The candidates, appended to the brief so step 1 is already done. One line
  * per row, the fields the brief reasons about; nothing else from the row.
  */
-export function leadsNote(rows: Array<Record<string, unknown>>): string {
-  const lines = rows.slice(0, LOOK_LIMIT).map(c => {
+export function leadsNote(
+  rows: Array<Record<string, unknown>>,
+  cold: ReadonlySet<string> = new Set()
+): string {
+  /*
+   * THE ONES ALREADY OFFERED GO LAST, AND THE BRIEF SAYS SO.
+   *
+   * Step 2 of the brief is "take the FIRST whose next is not wait", so the
+   * order of these lines IS the choice. Moving a person the owner did not
+   * press to the end of the list is therefore the whole mechanism -- no new
+   * instruction to follow, nothing for the model to weigh.
+   *
+   * They are moved, never dropped. If every candidate has been offered
+   * before, the list is the same list in the same order and the sweep works
+   * exactly as it did: silence about everybody is not a reason to go quiet.
+   */
+  const ordered =
+    cold.size === 0
+      ? rows
+      : [
+          ...rows.filter(c => !cold.has(String(c.lead ?? ''))),
+          ...rows.filter(c => cold.has(String(c.lead ?? ''))),
+        ]
+  const lines = ordered.slice(0, LOOK_LIMIT).map(c => {
     const who = c.display
       ? `${String(c.display)} (${String(c.lead ?? '')})`
       : String(c.lead ?? '')
-    return `- ${who}: next=${String(c.next ?? '')}`
+    const seen = cold.has(String(c.lead ?? ''))
+      ? ' — ему уже готовили карточку, её не нажали'
+      : ''
+    return `- ${who}: next=${String(c.next ?? '')}${seen}`
   })
   return (
     ' ШАГ 1 УЖЕ ВЫПОЛНЕН: crm_leads вернул ' +
@@ -335,6 +484,7 @@ export function reportSweepOutcome(
       did: r.did,
       why: r.why,
       owner: key,
+      ...(r.ms === undefined ? {} : { ms: r.ms }),
       consecutive: streak,
       sinceProcessStart: true,
     })
@@ -342,7 +492,12 @@ export function reportSweepOutcome(
   }
   // Nothing was attempted: not a recovery, not a failure, not evidence.
   if (r.did === 'held' || r.did === 'busy') {
-    logger.info('[crm-proactive] sweep', { did: r.did, why: r.why, owner: key })
+    logger.info('[crm-proactive] sweep', {
+      did: r.did,
+      why: r.why,
+      owner: key,
+      ...(r.ms === undefined ? {} : { ms: r.ms }),
+    })
     return 'info'
   }
   const had = failStreaks.get(key) ?? 0
@@ -373,6 +528,27 @@ export function noteResolved(owner?: string, cardId?: string): void {
     st.unpressed = 0
     // The card is gone from the queue, so nothing is left to evict.
     st.cardDiesAt = 0
+    /*
+     * A PRESS TAKES THE PERSON OFF THE COLD LIST IMMEDIATELY.
+     *
+     * The list exists because silence about somebody is an answer. A press is
+     * the opposite answer, and it arrives about a specific card -- so the
+     * person behind that card becomes eligible again at once, rather than
+     * waiting out a day that was meant for people the owner ignored.
+     *
+     * `peekCardLead` rather than `takeCardLead`: the follow-up after the press
+     * consumes that entry itself, and consuming it here would leave the owner
+     * without the person's buttons.
+     */
+    if (cardId) {
+      const id = String(cardId)
+      const lead =
+        st.lastCard && st.lastCard.id === id
+          ? st.lastCard.lead
+          : peekCardLead(id)
+      if (lead) st.cold.delete(String(lead))
+      if (st.lastCard && st.lastCard.id === id) st.lastCard = null
+    }
   }
   const s = owner ? scopes.get(String(owner)) : undefined
   if (!s || !s.waiting || s.inFlight) return
@@ -420,6 +596,30 @@ export function markRunningForTests(since: number, owner: string): void {
  * is worth a second attempt: when the wire dies nothing has been delivered to
  * anybody, so re-asking cannot double-send.
  */
+/**
+ * OUR OWN TIMEOUT, TOLD APART FROM EVERYTHING ELSE.
+ *
+ * The third line of the table above: an AbortController we armed ourselves
+ * produces a DOMException whose name is `AbortError` and whose message is
+ * "This operation was aborted". It is not a provider refusing and not a wire
+ * dying -- it is the model taking longer than the budget we set.
+ *
+ * Measured in the hive journal, 2026-09-16, twice in one afternoon:
+ *
+ *   15:03:03  sweep-failed  one lead waiting (next=deliver), the sweep died at
+ *                           the model turn: This operation was aborted
+ *   15:35:15  sweep-failed  another lead waiting (next=reply), the same
+ *
+ * Each cost a waiting customer the full thirty minutes to the next tick, for a
+ * turn that delivered nothing to anybody.
+ */
+export function isOurOwnAbort(e: unknown): boolean {
+  const name = (e as { name?: unknown } | null | undefined)?.name
+  if (name === 'AbortError' || name === 'TimeoutError') return true
+  const message = e instanceof Error ? e.message : String(e ?? '')
+  return /this operation was aborted|the operation was aborted/i.test(message)
+}
+
 export function isTransportDeath(e: unknown): boolean {
   const cause = (e as { cause?: { code?: unknown } } | null | undefined)?.cause
   const code = typeof cause?.code === 'string' ? cause.code : ''
@@ -478,25 +678,38 @@ export async function sweepOnce(
   let stage = 'подготовка'
   let transportRetried = false
   /*
-   * ONE RETRY, AND ONLY FOR A DEAD WIRE.
+   * ONE RETRY, FOR THE TWO FAILURES THAT DELIVERED NOTHING.
    *
    * A stream that died mid-body delivered nothing: no card was pushed, no
    * message was sent, the owner saw nothing. Re-asking is therefore the one
    * retry in this file that cannot double-send -- and it turns a thirty-minute
-   * hole for a waiting customer into a few extra seconds. The budget is ONE
-   * PER SWEEP, shared by the main turn and the no-tools retry: a second dead
-   * wire is not a hiccup, it is an outage, and it must reach the owner as
-   * `failed` rather than be retried into silence. The recovery itself is a
-   * warning, not an alert -- the alert is for the failure it prevented.
+   * hole for a waiting customer into a few extra seconds.
+   *
+   * OUR OWN TIMEOUT JOINS IT, for exactly the same reason and not for a
+   * general one. The abort fires inside the model turn, which is upstream of
+   * `deps.push`: when it throws, nothing has reached anybody, so a second ask
+   * cannot deliver twice. Twice on 2026-09-16 that cost a waiting customer the
+   * full half hour. What is NOT retried stays unretried: a provider that
+   * refuses, a model that answers junk, anything at or after the card.
+   *
+   * The budget is ONE PER SWEEP, shared by the main turn, the no-tools retry
+   * and now the abort: a second one is not a hiccup, it is an outage, and it
+   * must reach the owner as `failed` rather than be retried into silence. The
+   * second attempt costs another turn of the same 180 s budget, which the
+   * ten-minute ceiling above already accounts for.
    */
   const ask = async (text: string): ReturnType<SweepDeps['ask']> => {
     try {
       return await deps.ask(ownerId, text)
     } catch (e) {
-      if (transportRetried || !isTransportDeath(e)) throw e
+      const dead = isTransportDeath(e)
+      const aborted = isOurOwnAbort(e)
+      if (transportRetried || !(dead || aborted)) throw e
       transportRetried = true
       logger.warn(
-        '[crm-proactive] agent stream died mid-body, asking once more',
+        dead
+          ? '[crm-proactive] agent stream died mid-body, asking once more'
+          : '[crm-proactive] the model turn ran past its budget, asking once more',
         {
           owner: ownerId,
           upstream: BASE,
@@ -537,6 +750,52 @@ export async function sweepOnce(
      * A scoped run (`opts.holdMs`) is exempt: the owner is present and asked
      * for that specific thing, and answering it is worth the eviction.
      */
+    /*
+     * MEMORY OF A PUSH DOES NOT SURVIVE A DEPLOY. THE QUEUE DOES.
+     *
+     * `st` lives in this process. A deploy erases it, and the very first tick
+     * afterwards drew a card over one that was still pressable -- production
+     * 16.09.2026, twenty minutes after the fix that was supposed to stop
+     * exactly that. The guard was right; the thing it consulted was not.
+     *
+     * So when this process has no memory of a push, it ASKS -- once, because
+     * from then on it remembers again. The read goes through the door that
+     * already exposes a waiting card to a key holder (crm_summary), so it
+     * adds no surface; the route that used to hand out a draft's TEXT was
+     * removed on purpose and stays removed.
+     *
+     * An error is not an answer. If the question cannot be asked, the old
+     * timer stands: holding forever on an unreachable render would be its own
+     * outage, and drawing over a card because a request failed is the defect
+     * this exists to stop.
+     */
+    if (opts.holdMs === undefined && !st.lastPushAt && deps.pendingCard) {
+      try {
+        const live = await deps.pendingCard(ownerId)
+        const until = Number(live?.expiresAt)
+        if (Number.isFinite(until) && until > now) {
+          st.cardDiesAt = until
+          logger.info('[crm-proactive] a card is already waiting, adopted', {
+            owner: ownerId,
+            untilIso: new Date(until).toISOString(),
+          })
+          // Decided HERE rather than left to the check below. Both would
+          // behave the same, and that is the problem: a condition nothing can
+          // observe cannot be tested, and a mutation run proved it -- taking
+          // `until > now` out changed no outcome at all. Returning on the
+          // spot makes this comparison the one that decides.
+          return {
+            did: 'held',
+            why: 'карточка уже ждёт нажатия — новая стёрла бы её вместе с оплаченной картинкой',
+          }
+        }
+      } catch (e) {
+        logger.warn('[crm-proactive] could not ask whether a card waits', {
+          owner: ownerId,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
+    }
     if (opts.holdMs === undefined && st.cardDiesAt > now) {
       return {
         did: 'held',
@@ -603,8 +862,16 @@ export async function sweepOnce(
           : 'crm_leads: кандидатов нет',
       }
     }
+    // Only the still-cold ones: an entry older than COLD_MS is forgotten here
+    // rather than swept elsewhere, so the map cannot outlive its meaning.
+    const stillCold = new Set<string>()
+    for (const [lead, at] of st.cold) {
+      if (now - at < COLD_MS) stillCold.add(lead)
+      else st.cold.delete(lead)
+    }
     const brief =
-      opts.prompt ?? (looked ? SWEEP_PROMPT + leadsNote(looked) : SWEEP_PROMPT)
+      opts.prompt ??
+      (looked ? SWEEP_PROMPT + leadsNote(looked, stillCold) : SWEEP_PROMPT)
     stage = 'ход модели'
     let answer = await ask(brief)
     /*
@@ -634,7 +901,34 @@ export async function sweepOnce(
     }
     if (answer.proposal) {
       stage = 'карточка владельцу'
-      await deps.push(ownerId, answer.proposal)
+      /*
+       * THE MODEL'S OWN LINE GOES ON THE CARD.
+       *
+       * The brief already demands one line about who this is for and why --
+       * it is what the journal shows and what the alert quotes. It was never
+       * shown to the person who has to decide, so the card named a recipient
+       * and printed the words, and answered the owner's first question --
+       * why this person, now -- nowhere.
+       *
+       * Carried from here rather than added as a tool parameter: the compact
+       * tool kit has under a hundred characters of room before it stops
+       * fitting a small model's window, and a `why` parameter costs eighty-
+       * five. This line is already written, already paid for, and already
+       * about exactly this.
+       */
+      await deps.push(ownerId, answer.proposal, {
+        because: (answer.текст ?? '').trim(), // cyrillic-ok: pre-existing identifiers
+      })
+      // Whose card this was, so the next tick can offer somebody else. Taken
+      // from the draft itself; a draft without a numeric lead marks nobody.
+      const drawnFor = cardLeadOf(answer.proposal as never)
+      if (drawnFor) {
+        st.cold.set(String(drawnFor), now)
+        st.lastCard = {
+          id: String(answer.proposal.id),
+          lead: String(drawnFor),
+        }
+      }
       st.lastPushAt = now
       // Taken from the card, never guessed: a proposal that arrived without
       // the instant leaves the guard off rather than inventing a deadline.
@@ -767,6 +1061,67 @@ export async function pushCard(
 
 const BASE = 'https://vibee-render-production.up.railway.app'
 
+/**
+ * Is a card already waiting for this owner, and until when.
+ *
+ * Reads `pending_card` off crm_summary -- the door that already shows a key
+ * holder that a card is pending. Nothing here reads the draft's words: the
+ * route that used to hand those out was removed on purpose, and this asks a
+ * narrower question than that route answered.
+ *
+ * THROWS rather than returning null when it cannot ask. Null means "nothing
+ * is waiting", and a failed request is not that; the caller distinguishes the
+ * two and keeps its old timer when the answer is unknown.
+ */
+async function pendingCardViaRender(
+  telegramId: string
+): Promise<{ expiresAt: number } | null> {
+  const key = process.env.RENDER_API_KEY || ''
+  if (!key) throw new Error('RENDER_API_KEY не задан')
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), PENDING_CARD_TIMEOUT_MS)
+  try {
+    const r = await fetch(
+      `${BASE}/mcp?telegram_id=${encodeURIComponent(telegramId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Api-Key': key },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'crm_summary', arguments: { days: 1 } },
+        }),
+        signal: ac.signal,
+      }
+    )
+    if (!r.ok) throw new Error(`crm_summary HTTP ${r.status}`)
+    const body = (await r.json()) as {
+      error?: unknown
+      result?: {
+        structuredContent?: unknown
+        content?: Array<{ text?: string }>
+      }
+    }
+    // An error envelope is not an empty answer (form 71): parsed with
+    // defaults it becomes "no card waiting", which is the reading that
+    // spends money.
+    if (body?.error) throw new Error('crm_summary ответил ошибкой')
+    const res = body?.result
+    if (!res) throw new Error('в ответе crm_summary нет result')
+    const shaped = (res.structuredContent ??
+      JSON.parse(String(res.content?.[0]?.text ?? '{}'))) as {
+      pending_card?: { expires_at?: string } | null
+    }
+    const raw = shaped?.pending_card?.expires_at
+    if (!raw) return null
+    const at = Date.parse(String(raw))
+    return Number.isFinite(at) ? { expiresAt: at } : null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** The render's ingest tool, called as the owner over the server key. */
 async function ingestViaRender(telegramId: string): Promise<unknown> {
   const key = process.env.RENDER_API_KEY || ''
@@ -809,8 +1164,10 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
     // answer would be filed as a failure anyway -- better an honest one.
     ask: (owner, text) => спроситьАгента(owner, text, { toolsOnly: true }), // cyrillic-ok: pre-existing identifiers
     ingest: ingestViaRender,
-    push: (owner, draft) =>
+    pendingCard: pendingCardViaRender,
+    push: (owner, draft, opts) =>
       pushCard(bot.telegram as never, owner, draft, {
+        ...(opts?.because ? { because: opts.because } : {}),
         // The owner reads the person's history before approving the words,
         // and can send the draft back to be written differently.
         extraRows: ADMIN_IDS_ARRAY.includes(Number(owner))
@@ -983,10 +1340,33 @@ export async function runProactiveTick(
       return { did: 'paused', why: `scoped sweep active: ${active.label}` }
     }
   }
-  const r = await sweepOnce(owner, deps, { holdMs: opts.holdMs })
+  const startedAt = Date.now()
+  const r = { ...(await sweepOnce(owner, deps, { holdMs: opts.holdMs })) }
+  // Timed HERE rather than inside the step above: the step's own measurement
+  // never left the Inngest payload, and this one reaches the log and the
+  // journal, which are the two places anybody actually looks.
+  r.ms = Date.now() - startedAt
+  /*
+   * A HOLD SPEAKS AT MOST ONCE PER HEARTBEAT.
+   *
+   * Every other outcome goes to the journal as it happens. A hold is the one
+   * that repeats every half hour for hours, so writing each would bury the
+   * days when something happened -- and NOT writing any is what made a held
+   * seller and a dead cron the same silence.
+   *
+   * The rate limit lives here rather than in hiveNote because the clock it
+   * needs is this owner's state; hiveNote decides what a note says, not when.
+   */
+  let note = true
+  if (r.did === 'held') {
+    const st = stateOf(owner)
+    const now = deps.now?.() ?? Date.now()
+    if (!heartbeatDue(st.lastAliveAt, now)) note = false
+    else st.lastAliveAt = now
+  }
   // The diary entry, too: every run that ran is visible in the hive
   // (hiveNote.ts) -- quiet ones included, which the alert channel never was.
-  void noteSweepToHive(owner, r)
+  if (note) void noteSweepToHive(owner, r)
   /*
    * A FAILED SWEEP IS AN ERROR, NOT A DIARY ENTRY.
    *
@@ -1359,9 +1739,17 @@ export async function buildPlan(
   keyboard: ReturnType<typeof planKeyboard>
   fingerprint: string
 }> {
-  const { fetchSummary } = await import('./crmSummary')
+  const { fetchSummary, fetchCardFlow } = await import('./crmSummary')
   const s = await fetchSummary(owner, 1)
-  const text = buildPlanText(s, scopeLine(owner), now, tz)
+  // A second call, and a failing one must not take the morning plan with it.
+  const cards = await fetchCardFlow(owner).catch(() => null)
+  const text = buildPlanText(
+    s,
+    scopeLine(owner),
+    now,
+    tz,
+    cards ? cards.prepared : null
+  )
   const keyboard = planKeyboard(s, {
     scopeActive: Boolean(activeScope(owner)),
     stale: isStale(s, now),

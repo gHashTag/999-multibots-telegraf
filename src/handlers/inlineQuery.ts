@@ -58,6 +58,31 @@ export const SERVICE_CARDS: readonly ServiceCard[] = [
     description: 'Ваша цифровая копия для видео',
     keywords: ['аватар', 'avatar', 'цифровой', 'двойник', 'копия'],
   },
+  /*
+   * TWO DIFFERENT THINGS WERE BOTH CALLED "VOICE".
+   *
+   * `voice` below is text-to-speech: it reads a text aloud. Making a copy of
+   * the person's OWN voice is a different scene (ModeEnum.Voice, the avatar
+   * voice wizard), it writes an ElevenLabs voice_id onto the user row, and it
+   * had no deep link at all -- so nothing outside the bot menu could send
+   * anybody to it. That is the piece the welcome screen needs to finish a
+   * digital clone: SOUL is a step, the avatar is stored at registration, and
+   * the voice was reachable only by someone who already knew where it lived.
+   */
+  {
+    key: 'voiceclone',
+    mode: ModeEnum.Voice,
+    emoji: '🧬',
+    title: 'Клон голоса',
+    description: 'Ваш голос для видео и озвучки',
+    keywords: [
+      'клон голоса',
+      'voice clone',
+      'мой голос',
+      'слепок',
+      'копия голоса',
+    ],
+  },
   {
     key: 'voice',
     mode: ModeEnum.TextToSpeech,

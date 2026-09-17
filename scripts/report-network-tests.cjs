@@ -66,4 +66,11 @@ console.log('\nкуда ходили:')
 for (const [u, n] of Object.entries(byUrl).sort((a, b) => b[1] - a[1])) {
   console.log(`  ${String(n).padStart(4)}  ${u}`)
 }
-process.exit(1)
+/*
+ * exitCode, not exit(): process.exit throws away writes still queued on a pipe,
+ * and this script prints a list that a person reads through one. Node's own
+ * documentation calls the result "truncated and lost". Measured on the Cyrillic
+ * gate, 2026-09-17: 966, 7706 and 8484 of the same 8484 lines on three runs.
+ * Safe here because this is the last statement at the top level.
+ */
+process.exitCode = 1

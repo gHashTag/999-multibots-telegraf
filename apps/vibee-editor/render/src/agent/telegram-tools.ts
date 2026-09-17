@@ -192,6 +192,12 @@ export interface Proposal {
 
 /** What a caller may attach to a draft beyond the message itself. */
 export interface ProposalExtras {
+  /**
+   * Their own last message, for the card. Third-party text: flattened and cut
+   * here, quoted and attributed there, never mixed with the draft.
+   */
+  theirWords?: string
+
   display?: string
   invoiceId?: number
   media?: ProposalMedia
@@ -312,6 +318,27 @@ export async function leadOfTargetIn(
  * `remember` with a text that tells the model the format to use, instead of
  * a silent "send now" nobody chose.
  */
+/**
+ * Attach the person's own last message to whatever else travels with a draft.
+ *
+ * Returns the extras unchanged when there is no lead, no pool, or nothing was
+ * ever received from them -- a card without the quote is still a card, and a
+ * card that fails to appear because a quote could not be read is a lost turn.
+ */
+async function withTheirWords(
+  ctx: ToolContext | undefined,
+  lead: string | undefined,
+  extra: ProposalExtras | undefined
+): Promise<ProposalExtras | undefined> {
+  const pool = (ctx as { pool?: unknown } | undefined)?.pool
+  const owner = String(ctx?.telegramId ?? '')
+  if (!lead || !pool || !owner) return extra
+  const { lastWordsOf } = await import('./chat-memory')
+  const words = await lastWordsOf(pool as never, owner, String(lead))
+  if (!words) return extra
+  return { ...(extra ?? {}), theirWords: words.slice(0, 200) }
+}
+
 function scheduleExtra(args: Record<string, any>): ProposalExtras | undefined {
   if (!args?.schedule_at) return undefined
   return { scheduleAt: Date.parse(String(args.schedule_at)) }
@@ -388,6 +415,7 @@ function propose(
       charge: extra?.charge,
       gift: extra?.gift,
       args: extra?.args,
+      theirWords: extra?.theirWords,
     })
   }
   /*
@@ -582,16 +610,39 @@ export interface LiveClient {
  * already in hand into an error, and must not hide the real failure when
  * `fn` threw.
  */
-export async function withClient<T>(
-  ctx: ToolContext | undefined,
+/**
+ * THE PROMISE THIS KEEPS: THE CLIENT IS HUNG UP, WHATEVER HAPPENS INSIDE.
+ *
+ * Separated from `withClient` so it can be CALLED. Every reading tool goes
+ * through here, and a client left connected is a zombie update loop pinging
+ * Telegram for the life of the process -- measured 13.09.2026 as twenty-one
+ * timeout lines a minute, hours after the last tool call returned.
+ *
+ * Until now the only guard on that was a test reading this file for the words
+ * `await hangUp(c)`. That test goes red when somebody renames the variable
+ * and stays silent if the `finally` becomes a plain `then` -- which is the
+ * one change that would actually bring the zombies back (form 87).
+ *
+ * The factory is a parameter, so a test can hand it a fake and make `fn`
+ * throw. `withClient` below is this function with the real one.
+ */
+export async function withClientOf<T>(
+  make: () => Promise<LiveClient>,
   fn: (c: LiveClient) => Promise<T>
 ): Promise<T> {
-  const c = (await client(ctx)) as LiveClient
+  const c = await make()
   try {
     return await fn(c)
   } finally {
     await hangUp(c)
   }
+}
+
+export async function withClient<T>(
+  ctx: ToolContext | undefined,
+  fn: (c: LiveClient) => Promise<T>
+): Promise<T> {
+  return withClientOf(async () => (await client(ctx)) as LiveClient, fn)
 }
 
 /** Диалог в том виде, в каком его отдаёт GramJS — только нужные поля. */
@@ -1144,15 +1195,24 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
        * reply" and the next sweep prepared a second answer for them. A
        * numeric chat id IS the lead; a @username is not resolved here.
        */
+      /*
+       * THEIR LAST WORD TRAVELS WITH THE DRAFT.
+       *
+       * Read here, on the wire, and NOT asked of the model: the compact tool
+       * kit has under a hundred characters of room before it stops fitting a
+       * small model's window, so a parameter costs more than the feature is
+       * worth. A single-row query costs nothing the model can feel.
+       */
+      const leadId = await leadOfTargetIn(ctx, args.chat)
       return propose(
         'send',
         args.chat,
         args.text,
         'Отправка ждёт подтверждения человека. Покажи адресата и текст целиком.',
         ctx,
-        await leadOfTargetIn(ctx, args.chat),
+        leadId,
         undefined,
-        scheduleExtra(args)
+        await withTheirWords(ctx, leadId, scheduleExtra(args))
       )
     },
   },

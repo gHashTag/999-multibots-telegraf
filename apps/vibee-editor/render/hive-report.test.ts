@@ -140,8 +140,8 @@ describe('queen report: the cursor', () => {
 
     expect(out).toEqual({ what: 'sent', events: 1 })
     expect(post.sent).toHaveLength(1)
-    expect(post.sent[0].text).toContain("оплатили")
-    expect(post.sent[0].text).not.toContain("вошли в приложение")
+    expect(post.sent[0].text).toContain('оплатили')
+    expect(post.sent[0].text).not.toContain('вошли в приложение')
   })
 
   it('silence is not sent -- otherwise the channel becomes noise', async () => {
@@ -210,8 +210,8 @@ describe('queen report: the cursor', () => {
     const out = await report(pool, goodPost.send, NO_GAP)
 
     expect(out).toEqual({ what: 'sent', events: 2 })
-    expect(goodPost.sent[0].text).toContain("оплатили")
-    expect(goodPost.sent[0].text).toContain("создали материал")
+    expect(goodPost.sent[0].text).toContain('оплатили')
+    expect(goodPost.sent[0].text).toContain('создали материал')
   })
 
   it('without HIVE_KEEPERS there is nobody to report to, and it says so', async () => {
@@ -276,7 +276,7 @@ describe('queen report: the gap', () => {
     const out = await report(pool, post.send, { now: 1_000_000 + 60_000 })
 
     expect(out.what).toBe('sent')
-    expect(post.sent[0].text).toContain("не подошёл код входа")
+    expect(post.sent[0].text).toContain('не подошёл код входа')
   })
 
   it('when the gap has passed everything accumulated arrives', async () => {
@@ -348,8 +348,8 @@ describe('queen report: a person reads the text', () => {
 
   it('kinds are named in words, not in log fragments', () => {
     const t = reportText([anEvent('code-refused'), anEvent('tokens-spent')])
-    expect(t).toContain("не подошёл код входа")
-    expect(t).toContain("потратили токены")
+    expect(t).toContain('не подошёл код входа')
+    expect(t).toContain('потратили токены')
     expect(t).not.toMatch(/code-refused/)
   })
 
@@ -358,7 +358,7 @@ describe('queen report: a person reads the text', () => {
       anEvent('sign-in'),
       anEvent('code-refused', 'alarm', 'exhausted'),
     ])
-    expect(t).toContain("Требует внимания")
+    expect(t).toContain('Требует внимания')
     expect(t).toMatch(/exhausted/)
   })
 
@@ -378,14 +378,75 @@ describe('queen report: a person reads the text', () => {
       .split('\n')
       .filter(l => /^ {2}\d{2}\.\d{2}/.test(l) || /^ {2}\d{2}:\d{2}/.test(l))
     expect(listed).toHaveLength(5)
-    expect(t).toContain("и ещё 4")
+    expect(t).toContain('и ещё 4')
   })
 
   it('Russian numerals agree: 1 event, 2 events, 5 events', () => {
-    expect(reportText([anEvent('sign-in')])).toContain("1 событие ")
-    expect(reportText(Array(2).fill(anEvent('sign-in')))).toContain("2 события ")
-    expect(reportText(Array(5).fill(anEvent('sign-in')))).toContain("5 событий ")
-    expect(reportText(Array(11).fill(anEvent('sign-in')))).toContain("11 событий ")
-    expect(reportText(Array(21).fill(anEvent('sign-in')))).toContain("21 событие ")
+    expect(reportText([anEvent('sign-in')])).toContain('1 событие ')
+    expect(reportText(Array(2).fill(anEvent('sign-in')))).toContain(
+      '2 события '
+    )
+    expect(reportText(Array(5).fill(anEvent('sign-in')))).toContain(
+      '5 событий '
+    )
+    expect(reportText(Array(11).fill(anEvent('sign-in')))).toContain(
+      '11 событий '
+    )
+    expect(reportText(Array(21).fill(anEvent('sign-in')))).toContain(
+      '21 событие '
+    )
+  })
+})
+
+/*
+ * AN ALARM NAMES ITS SUBJECT.
+ *
+ * The tally above is deliberately nameless -- nobody wants twenty names under
+ * "signed in". An alarm is the opposite: "payment forged" without a person is
+ * a line that sends the reader to the agent to ask the one thing it could
+ * have said.
+ */
+describe('the alarm line says with whom', () => {
+  const at = '2026-09-17T14:32:00.000Z'
+  const row = (over: Record<string, unknown> = {}) =>
+    ({
+      id: 1,
+      kind: 'payment-forged',
+      who: '900000077',
+      bot: null,
+      amount: null,
+      what: 'подпись не сошлась',
+      severity: 'alarm',
+      at,
+      ...over,
+    }) as never
+
+  it('puts the subject between the kind and the note', () => {
+    const text = reportText([row()])
+    expect(text).toContain('у 900000077')
+    expect(text).toContain('подпись не сошлась')
+    expect(text.indexOf('у 900000077')).toBeLessThan(
+      text.indexOf('подпись не сошлась')
+    )
+  })
+
+  /*
+   * Some alarms are about the system rather than a person -- the seller has
+   * stopped, a disk is full. A dangling "у" with nothing after it would be
+   * worse than no clause.
+   */
+  it('says nothing when the alarm has no subject', () => {
+    const text = reportText([row({ who: null })])
+    expect(text).not.toContain('у ')
+    expect(text).toContain('подпись не сошлась')
+  })
+
+  it('an empty subject is treated as no subject', () => {
+    expect(reportText([row({ who: '   ' })])).not.toContain('у ')
+  })
+
+  it('ordinary events stay nameless in the tally', () => {
+    const text = reportText([row({ kind: 'sign-in', severity: 'normal' })])
+    expect(text).not.toContain('900000077')
   })
 })

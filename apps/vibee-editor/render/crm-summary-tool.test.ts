@@ -246,7 +246,7 @@ describe('crm_summary', () => {
     expect(pool.queries.some(q => /GROUP BY kind/.test(q))).toBe(true)
   })
 
-  it('a pending card is named with its age', async () => {
+  it('a pending card is named with its age AND when it stops being pressable', async () => {
     const q = await import('./src/agent/tg-proposals')
     q.forgetProposals()
     q.remember({
@@ -265,7 +265,43 @@ describe('crm_summary', () => {
       action: 'send',
       target: '@pilot_client',
       age_minutes: 4,
+      expires_at: r.pending_card.expires_at,
     })
+    /*
+     * THE INSTANT IS CHECKED AGAINST THE QUEUE, NOT AGAINST ARITHMETIC.
+     *
+     * The bot holds its sweep on this number after a restart, when its own
+     * memory of pushing a card is gone. Recomputing createdAt + LIFETIME_MS
+     * here would agree with any wrong number this file produced, as long as
+     * it produced it twice -- so the check is that the queue still holds the
+     * card one millisecond before, and has let it go one after.
+     */
+    const dies = Date.parse(r.pending_card.expires_at)
+    expect(Number.isFinite(dies)).toBe(true)
+
+    vi.setSystemTime(new Date(dies - 1))
+    q.remember({
+      id: 'other',
+      telegramId: '999',
+      action: 'send',
+      target: '1',
+    } as never)
+    expect(
+      q.pendingFor(OWNER),
+      'очередь выбросила карточку раньше названного срока'
+    ).not.toBeNull()
+
+    vi.setSystemTime(new Date(dies + 1))
+    q.remember({
+      id: 'other2',
+      telegramId: '998',
+      action: 'send',
+      target: '1',
+    } as never)
+    expect(
+      q.pendingFor(OWNER),
+      'карточка пережила названный ею же срок'
+    ).toBeNull()
   })
 
   it('a person without a connected account is refused before any CRM query', async () => {
