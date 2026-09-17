@@ -42,7 +42,8 @@
 
 import { mirrorNow } from './crm-mirror'
 import { allProviders, type Provider } from './provider'
-import { usableMediaUrl } from './media-parts'
+import { usableMediaUrl, shelfObject } from './media-parts'
+import { s3GetBytes } from '../lib/s3-put'
 import {
   describeImageWithVision,
   describeVideoWithVision,
@@ -311,7 +312,17 @@ export async function saveTranscript(
 /* ── describing ───────────────────────────────────────────────────────── */
 
 const TEXT_LIKE_MIME = /^(text\/|application\/json$|application\/xml$)/i
-const TEXT_LIKE_EXT = /\.(txt|md|markdown|csv|json|xml|log|yaml|yml)$/i
+/*
+ * Widened 18.09.2026 with formats a person actually attaches in Telegram and
+ * that are plain text on disk. Deliberately still a LIST and not "anything not
+ * obviously binary": a format that is not really text reads as mojibake, and
+ * mojibake handed to a model is worse than a clean "I cannot read this" -- the
+ * model will find meaning in it, exactly the failure this whole change is
+ * about. `.pdf`, `.docx`, `.xlsx` are NOT here and are not readable by this
+ * repository at all: no extractor is installed (see media-inline.ts).
+ */
+const TEXT_LIKE_EXT =
+  /\.(txt|md|markdown|csv|tsv|json|xml|log|yaml|yml|ini|conf|toml|sql|srt|vtt|html?)$/i
 
 /** A document a model can read as plain text. */
 export function isTextLikeDocument(
@@ -392,7 +403,14 @@ export function resetWhisperForTests(): void {
 async function transcribeWithWhisper(
   w: WhisperConfig,
   url: string,
-  name: string | null
+  name: string | null,
+  /*
+   * The sweep keeps the generous default, because nothing is waiting on it.
+   * A live turn passes its own, much shorter deadline: a person watching a
+   * "печатает…" indicator for three minutes has been failed either way, and a
+   * short honest "не расслышал" beats a long silence.
+   */
+  timeoutMs: number = WHISPER_TIMEOUT_MS
 ): Promise<string | null> {
   const got = await fetchWithDeadline(url)
   if (!got.ok) throw new Error(`shelf answered ${got.status}`)
@@ -408,7 +426,7 @@ async function transcribeWithWhisper(
     name || 'audio.ogg'
   )
   const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), WHISPER_TIMEOUT_MS)
+  const timer = setTimeout(() => ac.abort(), timeoutMs)
   let r: Response
   try {
     r = await fetch(`${w.base}/audio/transcriptions`, {
@@ -450,18 +468,97 @@ async function fetchWithDeadline(
   }
 }
 
-async function readTextDocument(url: string): Promise<string | null> {
-  const r = await fetchWithDeadline(url)
-  if (!r.ok) throw new Error(`HTTP ${r.status}`)
-  const declared = Number(r.headers.get('content-length'))
-  if (Number.isFinite(declared) && declared > TEXT_DOC_MAX_BYTES) return null
-  const buf = Buffer.from(await r.arrayBuffer())
-  if (buf.length > TEXT_DOC_MAX_BYTES) return null
+/** Bytes to readable words, or null when there were no words. */
+function decodeTextDocument(buf: Buffer): string | null {
   const text = buf
     .toString('utf8')
     .replace(/\u0000/g, '')
     .trim()
   return text ? text.slice(0, TRANSCRIPT_CAP) : null
+}
+
+/**
+ * Read a text document from OUR OWN SHELF, straight out of the bucket.
+ *
+ * This replaces an HTTP fetch of the same URL, for two independent reasons --
+ * either would be enough on its own.
+ *
+ * It never worked. `/s3/` streams images, audio and `.json` back and sends
+ * every other extension into its ffmpeg transcode branch, so fetching a `.txt`
+ * through the proxy returned an ffmpeg failure, never the file. The document
+ * branch of `describeMedia` has been dead in production for as long as it has
+ * existed.
+ *
+ * It took any URL. Its argument is a marker line inside a message a PERSON
+ * wrote, and the old code fetched whatever that line named -- so a pasted
+ * `[attached file: x; mime=text/plain; url=http://169.254.169.254/…]` made
+ * this server fetch it and hand the body to the model. Reading through the
+ * bucket leaves no URL to aim anywhere: only a key on our own shelf.
+ */
+export async function readShelfDocument(url: string): Promise<string | null> {
+  const found = shelfObject(url)
+  if (!found) return null
+  const bytes = await s3GetBytes(found.key, TEXT_DOC_MAX_BYTES)
+  if (!bytes.length) return null
+  return decodeTextDocument(bytes)
+}
+
+/**
+ * Transcribe a shelf recording NOW, on the turn's own clock, and never throw.
+ *
+ * Separate from `describeMedia` on purpose. That one is for the background
+ * sweep: it retries, it may take six minutes, and it reports failure by
+ * throwing `DescribeFailed` so the row can be queued again. A person is
+ * waiting on this one, so the deadline is short, there is one attempt, and a
+ * failure is simply "no transcript" -- which the caller turns into an honest
+ * line saying the recording was not heard. Never `saveTranscript(null)`: a
+ * failed listen is not a finished one.
+ */
+export async function transcribeShelfAudioNow(
+  url: string,
+  name: string | null,
+  timeoutMs: number
+): Promise<string | null> {
+  const safe = usableMediaUrl(url, 'audio')
+  if (!safe) return null
+  const w = whisperConfig()
+  if (!w) return null
+  try {
+    return await transcribeWithWhisper(w, safe, name, timeoutMs)
+  } catch (e) {
+    console.warn('[media] live transcription failed', String(e))
+    return null
+  }
+}
+
+/**
+ * Descriptions already on record for these exact URLs, keyed by URL.
+ *
+ * Scoped to ONE owner, like every other read here: the table is keyed by
+ * `(owner_id, lead_id, url)`, and a URL alone is guessable, so answering by
+ * URL without the owner would hand one person's transcripts to another. Lead
+ * is deliberately NOT in the filter -- the same file described in a seller's
+ * thread is the same file, and the owner is the boundary that matters.
+ */
+export async function mediaByUrls(
+  pool: Pool,
+  ownerId: string,
+  urls: string[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  const wanted = [...new Set(urls.filter(Boolean))]
+  if (!wanted.length) return out
+  await ensureTable(pool)
+  const { rows } = await pool.query(
+    `SELECT url, description FROM user_media
+      WHERE owner_id = $1 AND url = ANY($2) AND description IS NOT NULL`,
+    [String(ownerId), wanted]
+  )
+  for (const row of rows as Array<{ url: string; description: string }>) {
+    const text = String(row.description ?? '').trim()
+    if (text) out.set(row.url, text)
+  }
+  return out
 }
 
 /**
@@ -574,7 +671,7 @@ export async function describeMedia(
     if (kind === 'file') {
       if (!isTextLikeDocument(mime, name)) return null
       if (isTelegramFileUrl(url)) return null
-      return await readTextDocument(url)
+      return await readShelfDocument(url)
     }
     // Only our own shelf, only an extension the provider was shown to take.
     const safe = usableMediaUrl(url, kind)

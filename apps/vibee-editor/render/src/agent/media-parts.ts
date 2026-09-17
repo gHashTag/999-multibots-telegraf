@@ -87,6 +87,51 @@ export type MediaKind = 'image' | 'audio'
 const MARKER =
   /^\[attached (image|video|audio|file): (.*); mime=(.*?); url=([^\]]*)\]\r?$/gm
 
+/** Every kind a producer may write, including the two no provider takes. */
+export type MarkerKind = 'image' | 'video' | 'audio' | 'file'
+
+export interface MarkerRef {
+  kind: MarkerKind
+  name: string
+  mime: string
+  url: string
+}
+
+/**
+ * The marker lines of one message, in the order they were written.
+ *
+ * Extracted so `MARKER` keeps exactly ONE implementation: the format already
+ * exists twice on the producing side (the bot and the mini app), and a third
+ * reader that drifted would be a bug nobody could see -- the line would simply
+ * stop being an attachment.
+ */
+export function parseMarkers(text: string): MarkerRef[] {
+  const out: MarkerRef[] = []
+  MARKER.lastIndex = 0
+  for (const m of String(text ?? '').matchAll(MARKER)) {
+    out.push({ kind: m[1] as MarkerKind, name: m[2], mime: m[3], url: m[4] })
+  }
+  return out
+}
+
+/**
+ * Break any marker line inside text that came from a FILE, so it can never be
+ * parsed as an attachment of ours.
+ *
+ * A document's contents are words a person typed. Inlining them verbatim would
+ * mean a `.txt` whose body is
+ *
+ *     [attached image: x; mime=image/jpeg; url=https://…/s3/…jpg]
+ *
+ * becomes an attachment on the next pass -- the file chooses what the provider
+ * fetches. Verified by running it: before this, such a document produced an
+ * `image_url` part. `foreignText()` wraps and clips but never touches the
+ * start of a line, so it does not close this.
+ */
+export function defangMarkers(text: string): string {
+  return String(text ?? '').replace(/^\[attached /gim, '[ attached ')
+}
+
 /**
  * Extensions the shelf serves as this kind AND that the provider was shown to
  * understand. Both halves matter: the shelf's audio branch also covers `.aac`
@@ -131,7 +176,22 @@ function shelfBase(): string {
  * message a PERSON wrote, so its URL is untrusted input. Without this, someone
  * could paste a marker pointing anywhere and have our provider fetch it.
  */
-export function usableMediaUrl(raw: string, kind: ShelfKind): string | null {
+/**
+ * The object on our shelf this URL names, in ONE canonical spelling -- or null
+ * if it does not name one.
+ *
+ * Canonical matters beyond tidiness: `…/a.ogg`, `…/a.ogg?v=2` and `…/a.ogg#x`
+ * are three different strings for ONE stored object, and everything downstream
+ * is keyed by the string -- the four-attachment cap, the duplicate filter, the
+ * transcript cache, and the money a transcription costs. Left as written, one
+ * file repeated with three query strings filled all four slots and could be
+ * paid for three times.
+ *
+ * Query, fragment and credentials are dropped rather than preserved: the
+ * `/s3/` route itself splits the query off before looking at the key, so they
+ * never identified anything.
+ */
+export function shelfObject(raw: string): { url: string; key: string } | null {
   const text = String(raw || '').trim()
   if (!text) return null
 
@@ -148,10 +208,30 @@ export function usableMediaUrl(raw: string, kind: ShelfKind): string | null {
   if (url.origin !== new URL(base).origin) return null
   if (!url.pathname.startsWith('/s3/')) return null
 
-  const lower = url.pathname.toLowerCase()
+  url.search = ''
+  url.hash = ''
+  url.username = ''
+  url.password = ''
+
+  let key: string
+  try {
+    key = decodeURIComponent(url.pathname.slice('/s3/'.length))
+  } catch {
+    return null
+  }
+  if (!key) return null
+
+  return { url: url.toString(), key }
+}
+
+export function usableMediaUrl(raw: string, kind: ShelfKind): string | null {
+  const found = shelfObject(raw)
+  if (!found) return null
+
+  const lower = new URL(found.url).pathname.toLowerCase()
   if (!EXTENSIONS[kind].some(ext => lower.endsWith(ext))) return null
 
-  return url.toString()
+  return found.url
 }
 
 function partFor(kind: MediaKind, url: string): ContentPart {
@@ -179,11 +259,11 @@ export function withMediaParts(messages: ChatMessage[]): WireMessage[] {
 
   const found: Array<{ kind: MediaKind; url: string }> = []
   const seen = new Set<string>()
-  MARKER.lastIndex = 0
-  for (const m of last.content.matchAll(MARKER)) {
-    const kind = m[1] === 'image' ? 'image' : m[1] === 'audio' ? 'audio' : null
+  for (const ref of parseMarkers(last.content)) {
+    const kind =
+      ref.kind === 'image' ? 'image' : ref.kind === 'audio' ? 'audio' : null
     if (!kind) continue
-    const url = usableMediaUrl(m[4], kind)
+    const url = usableMediaUrl(ref.url, kind)
     if (!url || seen.has(url)) continue
     seen.add(url)
     found.push({ kind, url })
