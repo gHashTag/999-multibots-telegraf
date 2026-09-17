@@ -168,3 +168,47 @@ describe('splitting the window at the running build', () => {
     }
   })
 })
+
+describe('the later of two deploys is the ruler', () => {
+  /*
+   * THE FIRST VERSION SPLIT AT THE RENDER'S START AND THEN JUDGED THE SWEEP BY
+   * IT. The sweep lives in the bot. Two deployments with their own restarts
+   * were being measured with one ruler, and the wrong one -- the render
+   * redeploys on nearly every merge, so the window kept resetting to nothing
+   * while the bot sat unchanged for hours.
+   *
+   * Later of the two, on purpose: only past that moment is the whole pipeline
+   * the new one. It can call a fixed thing unproven; it cannot call a broken
+   * thing fixed.
+   */
+  it('takes the later instant', () => {
+    expect(census.laterOf('2026-09-17T07:09:51Z', '2026-09-17T07:15:32Z')).toBe(
+      '2026-09-17T07:15:32Z'
+    )
+    expect(census.laterOf('2026-09-17T07:15:32Z', '2026-09-17T07:09:51Z')).toBe(
+      '2026-09-17T07:15:32Z'
+    )
+  })
+
+  /*
+   * One service unreachable is not the same as no information: the half that
+   * answered still anchors the split, and the header says which half is
+   * missing.
+   */
+  it('uses whichever half answered when the other did not', () => {
+    expect(census.laterOf(null, '2026-09-17T07:15:32Z')).toBe(
+      '2026-09-17T07:15:32Z'
+    )
+    expect(census.laterOf('2026-09-17T07:09:51Z', null)).toBe(
+      '2026-09-17T07:09:51Z'
+    )
+  })
+
+  it('has nothing to anchor on when neither answered', () => {
+    expect(census.laterOf(null, null)).toBeNull()
+    // and the split refuses to date anything, which splitAtDeploy already pins
+    expect(
+      census.splitAtDeploy([{ at: 'x' }], census.laterOf(null, null)).dated
+    ).toBe(false)
+  })
+})
