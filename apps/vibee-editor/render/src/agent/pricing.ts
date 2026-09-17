@@ -168,6 +168,34 @@ export const PROVIDERS: Record<
     как: 'platform.openai.com/api-keys',
     стоимость: 'pay-as-you-go',
   },
+  /*
+   * KIE WAS PINGED AND UNLISTED, WHICH IS THE WORST OF BOTH.
+   *
+   * `providers_status` has checked Kie for a while ("Kie.ai — media
+   * pipeline", credits endpoint) and counts it among the working ones. This
+   * reference -- the one that says what a provider GIVES and how to fix it --
+   * did not mention it at all. So the owner reading "which providers do I
+   * have" saw six, and not the one his first move to a new client runs on.
+   *
+   * Measured 2026-09-16: 4947 credits on the account, roughly 820 lead
+   * magnets at 6 credits per 1K image-to-image.
+   */
+  kie: {
+    // cyrillic-ok: this reference map has Russian field names throughout
+    даёт: 'подарок-портрет из аватарки (gpt-image-2-5-flare, img2img), липсинк infinitalk', // cyrillic-ok
+    статус: 'работает', // cyrillic-ok
+    env: 'KIE_AI_API_KEY',
+    как: 'Ключ и пополнение — kie.ai; баланс виден на GET api.kie.ai/api/v1/chat/credit', // cyrillic-ok
+    // cyrillic-ok
+    // cyrillic-ok
+    стоимость:
+      'кредиты: img2img 1K = 6 кредитов (~$0.03), 2K = $0.05, 4K = $0.08', // cyrillic-ok
+    // cyrillic-ok
+    // cyrillic-ok
+    заметка:
+      'НА НЁМ ЛИД-МАГНИТ ПРОДАВЦА. Замер 16.09.2026: 4947 кредитов (~820 подарков). ' + // cyrillic-ok
+      'При этом ни одного живого запуска этой модели из нашего кода ещё не было.', // cyrillic-ok
+  },
   pollinations: {
     даёт: 'бесплатный img2img (сцены из фото)',
     статус: 'работает',
