@@ -106,6 +106,49 @@ function isOtherFailure(row) {
   )
 }
 
+/**
+ * WHICH BUILD IS ACTUALLY RUNNING, AND SINCE WHEN.
+ *
+ * A census with no build in it invites the mistake this command was written to
+ * stop. On 2026-09-17 I reported that the picture leak was waiting on an
+ * unmerged pull request; the render had in fact been running that fix since
+ * 15:15 the day before, and the leak continued under it. Same number, opposite
+ * conclusion, and the difference was one line from /health.
+ *
+ * Covers the render service only. The bot is a separate deployment with its own
+ * restart, so a bot-side change is NOT dated by this.
+ */
+function build() {
+  try {
+    const out = execSync(
+      `curl -s --max-time 20 ${JSON.stringify(`${BASE}/health`)}`,
+      { encoding: 'utf8', shell: '/bin/sh' }
+    )
+    const h = JSON.parse(out)
+    return { version: h.version || 'unknown', startedAt: h.startedAt || null }
+  } catch {
+    return { version: 'unreachable', startedAt: null }
+  }
+}
+
+/**
+ * Split the events at the moment the running build started.
+ *
+ * Returns both halves plus the count each, so a caller cannot report one
+ * without the other -- reporting only "since" hides that the sample is nine
+ * events, and reporting only the total hides that a fix has already shipped.
+ */
+function splitAtDeploy(rows, startedAt) {
+  if (!startedAt) return { before: [], since: rows, dated: false }
+  const t = Date.parse(startedAt)
+  if (Number.isNaN(t)) return { before: [], since: rows, dated: false }
+  return {
+    before: rows.filter(r => Date.parse(r.at) <= t),
+    since: rows.filter(r => Date.parse(r.at) > t),
+    dated: true,
+  }
+}
+
 function tally(rows, pick) {
   const m = new Map()
   for (const r of rows) {
@@ -150,6 +193,15 @@ function main() {
     bold(`${rows.length} events over ${days.toFixed(1)} days`) +
       dim(`  (newest ${rows[0].at})`)
   )
+  const running = build()
+  console.log(
+    dim(
+      `  render build ${running.version}` +
+        (running.startedAt
+          ? `, up since ${running.startedAt}`
+          : ', start time unknown')
+    )
+  )
   console.log(
     silentHours > 3
       ? red(
@@ -160,6 +212,62 @@ function main() {
 
   const lost = rows.filter(isLostPicture)
   const failures = rows.filter(isOtherFailure)
+
+  /*
+   * THE SPLIT, PRINTED WHETHER OR NOT IT FLATTERS THE LAST FIX.
+   *
+   * "41 before the build, 3 since" is a different sentence from "44 lost", and
+   * only the first one can be acted on.
+   */
+  const half = splitAtDeploy(rows, running.startedAt)
+  if (half.dated) {
+    const lb = half.before.filter(isLostPicture).length
+    const ls = half.since.filter(isLostPicture).length
+    const cb = half.before.filter(r => r.kind === 'sweep-card').length
+    const cs = half.since.filter(r => r.kind === 'sweep-card').length
+    const pb = half.before.filter(r => r.kind === 'card-pressed').length
+    const ps = half.since.filter(r => r.kind === 'card-pressed').length
+    console.log()
+    console.log(
+      bold('                    before this build   since this build')
+    )
+    console.log(
+      `  events            ${String(half.before.length).padStart(10)}${String(half.since.length).padStart(19)}`
+    )
+    console.log(
+      `  cards prepared    ${String(cb).padStart(10)}${String(cs).padStart(19)}`
+    )
+    console.log(
+      `  pictures lost     ${String(lb).padStart(10)}${String(ls).padStart(19)}`
+    )
+    console.log(
+      `  cards pressed     ${String(pb).padStart(10)}${String(ps).padStart(19)}`
+    )
+    /*
+     * A ZERO THAT MIGHT MEAN "NOT RECORDED" MUST SAY SO.
+     *
+     * `card-pressed` was added to the journal on 2026-09-16. Before that the
+     * press left no trace anywhere, so a zero in this row is not evidence that
+     * nobody pressed -- and a census that prints it bare invites exactly the
+     * wrong conclusion about the product's throughput.
+     */
+    if (pb + ps === 0) {
+      console.log(
+        dim(
+          '  no press was recorded at all: the journal only gained ' +
+            '`card-pressed` on 2026-09-16, so this zero cannot be told apart ' +
+            'from "not written down yet"'
+        )
+      )
+    }
+    if (half.since.length < 30) {
+      console.log(
+        dim(
+          `  the "since" column is ${half.since.length} events -- too few to call a trend`
+        )
+      )
+    }
+  }
 
   console.log()
   if (lost.length) {
@@ -209,4 +317,10 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { isLostPicture, reasonOf, isOtherFailure, tally }
+module.exports = {
+  isLostPicture,
+  reasonOf,
+  isOtherFailure,
+  tally,
+  splitAtDeploy,
+}

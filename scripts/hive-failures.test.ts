@@ -124,3 +124,47 @@ describe('tally', () => {
     ])
   })
 })
+
+describe('splitting the window at the running build', () => {
+  const row = (at: string, kind = 'sweep-card') => ({ at, kind, note: 'x' })
+
+  it('puts an event before the start on the left and after it on the right', () => {
+    const rows = [
+      row('2026-09-16T16:00:00.000Z'),
+      row('2026-09-16T14:00:00.000Z'),
+    ]
+    const half = census.splitAtDeploy(rows, '2026-09-16T15:15:15.762Z')
+    expect(half.dated).toBe(true)
+    expect(half.before).toHaveLength(1)
+    expect(half.since).toHaveLength(1)
+    expect(half.before[0].at).toBe('2026-09-16T14:00:00.000Z')
+  })
+
+  /*
+   * An event stamped exactly at the start belongs to what came before: the
+   * process was not yet serving when it was written.
+   */
+  it('counts an event at the exact start as before', () => {
+    const half = census.splitAtDeploy(
+      [row('2026-09-16T15:15:15.762Z')],
+      '2026-09-16T15:15:15.762Z'
+    )
+    expect(half.before).toHaveLength(1)
+    expect(half.since).toHaveLength(0)
+  })
+
+  /*
+   * With no start time there is no split to make, and pretending otherwise
+   * would date every event to a build nobody can name. Everything lands in one
+   * column and `dated` says the column means nothing.
+   */
+  it('refuses to date anything when the build start is unknown', () => {
+    const rows = [row('2026-09-16T16:00:00.000Z')]
+    for (const bad of [null, undefined, '', 'not a date']) {
+      const half = census.splitAtDeploy(rows, bad as never)
+      expect(half.dated).toBe(false)
+      expect(half.before).toHaveLength(0)
+      expect(half.since).toHaveLength(1)
+    }
+  })
+})
