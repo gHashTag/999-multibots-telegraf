@@ -3,6 +3,8 @@ import {
   withMediaParts,
   mediaKindsPresent,
   usableMediaUrl,
+  imagesAttachedNow,
+  lastAttachedImage,
 } from './src/agent/media-parts'
 import type { ChatMessage } from './src/agent/chat'
 
@@ -277,5 +279,85 @@ describe('hearing an attached recording', () => {
     const both = `${marker(IMG)}\n${VOICE_LINE}`
     const parts = withMediaParts([user(both)])[0].content as any[]
     expect(parts.map(p => p.type)).toEqual(['text', 'image_url', 'audio_url'])
+  })
+})
+
+/**
+ * THE SAME MARKERS, READ FOR THE TOOLS -- which is what makes img2img the
+ * default rather than a thing the person has to ask for twice.
+ *
+ * Two questions, deliberately different. "What arrived WITH this request"
+ * decides whether a drawing tool should be redrawing instead, so it must not
+ * see older turns: a photo from five turns ago would turn "нарисуй кота" into
+ * a redraw of a face nobody mentioned. "What is the newest photo anywhere"
+ * answers the follow-up that carries no file of its own ("а теперь в рыжий"),
+ * where the alternative is the Telegram avatar -- the actual measured bug.
+ */
+describe('the attachments the tools are allowed to reach for', () => {
+  const OTHER = `${SHELF}/s3/assets/1789-dog.png`
+
+  it('the image of the turn being answered', () => {
+    expect(imagesAttachedNow([user(`что тут?\n${marker(IMG)}`)])).toEqual([IMG])
+  })
+
+  it('an older turn’s photo is invisible to the current one', () => {
+    const history = [
+      user(`старое\n${marker(IMG)}`),
+      assistant('ответил'),
+      user('нарисуй кота'),
+    ]
+    expect(imagesAttachedNow(history)).toEqual([])
+    // ...but the follow-up path still finds it.
+    expect(lastAttachedImage(history)).toBe(IMG)
+  })
+
+  it('the newest photo wins when several turns carried one', () => {
+    expect(
+      lastAttachedImage([
+        user(marker(IMG)),
+        assistant('ок'),
+        user(marker(OTHER)),
+      ])
+    ).toBe(OTHER)
+  })
+
+  it('a picture the ASSISTANT mentioned is not the person’s attachment', () => {
+    // Otherwise the agent's own previous result becomes the next source, and a
+    // conversation slowly redraws its own output instead of the photo.
+    expect(
+      lastAttachedImage([user('нарисуй кота'), assistant(marker(IMG))])
+    ).toBe(null)
+    expect(imagesAttachedNow([user('привет'), assistant(marker(IMG))])).toEqual(
+      []
+    )
+  })
+
+  it('a voice message is not an image', () => {
+    expect(imagesAttachedNow([user(VOICE_LINE)])).toEqual([])
+    expect(lastAttachedImage([user(VOICE_LINE)])).toBe(null)
+  })
+
+  /*
+   * THE SECURITY ONE, and it matters more here than on the wire: this URL is
+   * handed to an image provider as the thing to FETCH and redraw. The marker
+   * line lives inside text a person wrote, so it is untrusted input.
+   */
+  it('somebody else’s host never becomes a source', () => {
+    const hostile = [
+      'https://evil.example/s3/a.jpg',
+      'http://169.254.169.254/s3/a.jpg',
+      `${SHELF}/api/agent/keys.jpg`,
+      `${SHELF}/s3/assets/1788-file`,
+    ]
+    for (const url of hostile) {
+      expect(imagesAttachedNow([user(marker(url))])).toEqual([])
+      expect(lastAttachedImage([user(marker(url))])).toBe(null)
+    }
+  })
+
+  it('nothing at all, and nothing thrown', () => {
+    expect(imagesAttachedNow([])).toEqual([])
+    expect(lastAttachedImage([])).toBe(null)
+    expect(imagesAttachedNow([user('просто текст')])).toEqual([])
   })
 })
