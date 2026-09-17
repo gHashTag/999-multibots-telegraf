@@ -334,6 +334,25 @@ CHECKS THAT EACH COST A CYCLE
         Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
         build is reported as not measured, never as passing.
 
+  tri pay [--invoice] | tri оплата
+        Can a client pay RIGHT NOW, rail by rail.
+
+        Answering this by hand cost an hour on 2026-09-17, and none of it was
+        written down: which routes exist, which keys sit on which service, what
+        the mini app's three pay buttons actually do.
+
+        What it found that day, and what it now re-checks in one command:
+          Stars     works end to end -- the cashier minted a real invoice
+          roubles   keys on the BOT service, no route on the render
+          crypto    same
+          profile   the mini app's profile page has NO way to pay; only chat
+          paywall   its buttons open ?start=subscribe_..., which the bot
+                    ignored until it was taught the word
+
+        Read-only by default; keys are read into variables and never printed.
+        `--invoice` also mints one real invoice, which writes a row, so it is
+        opt-in rather than part of the check.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1492,6 +1511,15 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_pay() {
+  # Can a client pay RIGHT NOW. Answering this by hand cost an hour on
+  # 2026-09-17: which routes exist, which keys sit on which service, what the
+  # mini app's buttons really do. Read-only; keys never printed.
+  #   tri pay              the state of every rail
+  #   tri pay --invoice    ALSO mint one real invoice (writes a row)
+  ( cd "$ROOT" && node "$ROOT/scripts/can-a-client-pay.cjs" "$@" )
 }
 
 cmd_ratchets() {
@@ -3860,6 +3888,7 @@ case "$action" in
   idempotency-keys|ключи) cmd_idempotency_keys ;;
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
+  pay|оплата)        cmd_pay "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
