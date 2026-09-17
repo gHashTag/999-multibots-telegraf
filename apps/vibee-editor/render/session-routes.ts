@@ -873,6 +873,28 @@ export async function handleAuthRoute(
       console.warn(
         `🔑 [pair] start ОТКАЗ: ${v.reason ?? 'в подписанной строке нет user.id'}`
       )
+      /*
+       * A REFUSED CODE REQUEST LEAVES A LINE, BECAUSE OTHERWISE IT LEAVES NONE.
+       *
+       * Owner, 2026-09-17: "why does the code not reach the user?" The journal
+       * held 23 sign-ins and NOT ONE `code-issued` -- so no code had been minted
+       * at all, and the refusals that explain why were in a log line nobody
+       * reads and in no channel at all. The one question a person asks
+       * ("I pressed sign in and nothing came") could not be answered from the
+       * journal, which is the place we look first.
+       *
+       * The reason travels; `initData` never does -- it carries the signature
+       * that would let somebody present themselves as that person. Nobody is
+       * named: a refusal happens precisely because the signature did not name
+       * anybody, and inventing a person for it would pollute a per-person
+       * journal. The reason is what tells the two repairs apart.
+       */
+      void record(pool, {
+        kind: 'code-refused',
+        who: '-',
+        what: `код не выдан: ${v.reason ?? 'в подписанной строке нет user.id'}`, // cyrillic-ok: journal text
+        severity: 'attention',
+      })
       json(res, 401, {
         error: 'подпись Telegram не принята',
         detail: v.reason ?? 'в подписанной строке нет поля user.id',
