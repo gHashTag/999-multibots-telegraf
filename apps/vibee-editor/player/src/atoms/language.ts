@@ -170,6 +170,22 @@ const en: Translations = {
   'connect.code.going': 'Checking…',
   'connect.code.resend': 'Request a new code',
   'connect.code.resendIn': 'A new code can be requested in {sec} s',
+  'connect.code.useQr': 'The code does not come? Connect with a QR code',
+  'connect.qr.offer': 'Connect with a QR code instead',
+  'connect.qr.offerHint':
+    'No number and no code: you confirm the login in your own Telegram. Needs a second screen.',
+  'connect.qr.title': 'Scan with your phone',
+  'connect.qr.alt': 'QR code for connecting your Telegram',
+  'connect.qr.step1':
+    'On your phone open Telegram → Settings → Devices → Link Desktop Device.',
+  'connect.qr.step2': 'Point the camera at this code.',
+  'connect.qr.step3':
+    'Confirm the login in Telegram. This screen continues by itself.',
+  'connect.qr.secondScreen':
+    'The code has to be on a different screen than the phone that scans it. If this is that phone, open app.t27.ai on a computer, or this bot in Telegram Desktop.',
+  'connect.qr.openHere': 'Confirm on this phone',
+  'connect.qr.waiting': 'Waiting for the scan…',
+  'connect.done.account': 'Connected account: {name}',
   'connect.code.noOtherWay':
     'Telegram offers no other way to deliver a code to this number. Open Telegram on a device where this number is signed in, or go back and check the number.',
   'connect.pass.title': 'Two-factor password',
@@ -2098,6 +2114,21 @@ const ru: Translations = {
   'connect.code.going': 'Проверяю…',
   'connect.code.resend': 'Запросить новый код',
   'connect.code.resendIn': 'Новый код можно запросить через {sec} с',
+  'connect.code.useQr': 'Код не приходит? Подключите по QR-коду',
+  'connect.qr.offer': 'Подключить по QR-коду',
+  'connect.qr.offerHint':
+    'Без номера и без кода: вход подтверждается в вашем Telegram. Нужен второй экран.',
+  'connect.qr.title': 'Отсканируйте телефоном',
+  'connect.qr.alt': 'QR-код для подключения вашего Telegram',
+  'connect.qr.step1':
+    'На телефоне откройте Telegram → Настройки → Устройства → Подключить устройство.',
+  'connect.qr.step2': 'Наведите камеру на этот код.',
+  'connect.qr.step3': 'Подтвердите вход в Telegram. Этот экран продолжит сам.',
+  'connect.qr.secondScreen':
+    'Код должен быть на другом экране, не на том телефоне, которым сканируют. Если это тот самый телефон, откройте app.t27.ai на компьютере или этого бота в Telegram Desktop.',
+  'connect.qr.openHere': 'Подтвердить на этом телефоне',
+  'connect.qr.waiting': 'Жду сканирования…',
+  'connect.done.account': 'Подключён аккаунт: {name}',
   'connect.code.noOtherWay':
     'У Telegram нет другого способа доставить код на этот номер. Откройте Telegram на устройстве, где этот номер уже вошёл, или вернитесь и проверьте номер.',
   'connect.pass.title': 'Пароль двухфакторной защиты',

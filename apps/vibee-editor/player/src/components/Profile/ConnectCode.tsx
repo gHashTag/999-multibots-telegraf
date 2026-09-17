@@ -67,6 +67,8 @@ export interface ConnectCodeProps {
    * outside Telegram -- there is no such chat to open from a browser tab.
    */
   onOpenChat?: () => void
+  /** Leaves the code behind for the QR login, which needs no delivery. */
+  onUseQr?: () => void
 }
 
 export function ConnectCode(props: ConnectCodeProps) {
@@ -282,6 +284,26 @@ export function ConnectCode(props: ConnectCodeProps) {
           onClick={props.onResend}
         >
           {t('connect.code.resend')}
+        </button>
+      )}
+
+      {/*
+        THE WAY OUT OF A CODE THAT NEVER COMES.
+
+        Everything above assumes the code arrives. When it does not -- the
+        number is another account's, or Telegram drops codes for our server --
+        nothing on this screen can help, and the owner sat on it for two days.
+        The QR login needs no code at all, so the door to it is here, at the
+        bottom, where somebody who has run out of things to try will look.
+      */}
+      {props.onUseQr && (
+        <button
+          type="button"
+          className="tg-code__use-qr"
+          disabled={props.busy}
+          onClick={props.onUseQr}
+        >
+          {t('connect.code.useQr')}
         </button>
       )}
     </section>

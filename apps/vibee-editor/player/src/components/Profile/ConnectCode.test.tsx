@@ -233,6 +233,35 @@ describe('the way to the code is on the screen that asks for it', () => {
   })
 })
 
+describe('the way out of a code that never comes', () => {
+  it('leads to the QR login, from the bottom of the screen', () => {
+    /*
+     * The owner sat on this screen for two days. Everything on it assumes the
+     * code arrives; when it does not, the only useful thing it can offer is
+     * the login that needs no code.
+     */
+    const onUseQr = vi.fn()
+    draw({ onUseQr })
+    const door = host.querySelector<HTMLButtonElement>('.tg-code__use-qr')!
+    expect(door.textContent).toBe('connect.code.useQr')
+    // Below the warning and the resend line: it is the LAST thing to try.
+    const order = [...host.querySelectorAll('.tg-code__warn, .tg-code__use-qr')]
+    expect(order.at(-1)).toBe(door)
+    act(() => door.click())
+    expect(onUseQr).toHaveBeenCalledTimes(1)
+  })
+
+  it('is absent where no QR login is wired, and idle during a check', () => {
+    draw({ onUseQr: undefined })
+    expect(host.querySelector('.tg-code__use-qr')).toBeNull()
+    const onUseQr = vi.fn()
+    draw({ onUseQr, busy: true })
+    const door = host.querySelector<HTMLButtonElement>('.tg-code__use-qr')!
+    act(() => door.click())
+    expect(onUseQr).not.toHaveBeenCalled()
+  })
+})
+
 describe('one real input under the cells', () => {
   it('there is exactly one field, not one per digit', () => {
     /*
