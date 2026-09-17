@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { fetchMyProfileAtom } from '@/atoms'
 import { useTelegramWebApp } from '@/hooks/useTelegramWebApp'
-import { getWebApp, getInitData, isTelegram } from '@/lib/telegram'
+import { getInitData, isTelegram, launchStartParam } from '@/lib/telegram'
 import { telegramAutoLoginAtom } from '@/atoms/telegramAuth'
 import { exchangeTelegramLaunch } from '@/lib/appSession'
 
@@ -19,8 +19,10 @@ import { exchangeTelegramLaunch } from '@/lib/appSession'
  * marketing landing (HomePage), which is exactly the page the tab bar hides on,
  * so without this redirect a Mini App user sees a landing page and no tabs.
  *
- * start_param (?startapp=... / t.me/bot/app?startapp=feed) is honoured when it
- * names a known tab, so deep links keep working.
+ * The start parameter is honoured when it names a known screen, so deep links
+ * keep working. WHERE that parameter is read from is not obvious, and reading
+ * it from Telegram's field alone is why this whole table matched nothing for
+ * every button the bot shows -- see `launchStartParam` in lib/telegram.ts.
  */
 const START_PARAM_ROUTES: Record<string, string> = {
   feed: '/feed',
@@ -139,7 +141,7 @@ export function TelegramProvider() {
     // Переписываем только маршрут запуска.
     if (LAUNCH_PATH !== '/') return
 
-    const startParam = getWebApp()?.initDataUnsafe?.start_param
+    const startParam = launchStartParam()
     const target = startParam && START_PARAM_ROUTES[startParam]
 
     redirected.current = true
