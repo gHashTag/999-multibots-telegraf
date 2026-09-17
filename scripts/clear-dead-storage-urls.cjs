@@ -34,25 +34,38 @@ const s3 = new S3Client({
 })
 
 /** Только nullable-колонки: остальное очистить нечем. */
-const CLEARABLE = [['users', 'photo_url', 'id'], ['users', 'avatar_url', 'id']]
+const CLEARABLE = [
+  ['users', 'photo_url', 'id'],
+  ['users', 'avatar_url', 'id'],
+]
 /** NOT NULL — сюда только отчёт. */
-const REPORT_ONLY = [['avatars', 'avatar_url', 'bot_name'], ['model_trainings', 'zip_url', 'id']]
+const REPORT_ONLY = [
+  ['avatars', 'avatar_url', 'bot_name'],
+  ['model_trainings', 'zip_url', 'id'],
+]
 
-const SUPA = /^https:\/\/[a-z0-9]+\.supabase\.co\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/
+const SUPA =
+  /^https:\/\/[a-z0-9]+\.supabase\.co\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/
 
 /** Живая ли ссылка: сначала HEAD по самому URL, затем — по объекту в MinIO. */
 async function isAlive(url) {
   try {
     const r = await fetch(url, { method: 'HEAD' })
     if (r.ok) return true
-  } catch { /* сеть — не приговор, проверим бакет */ }
+  } catch {
+    /* сеть — не приговор, проверим бакет */
+  }
 
   const m = SUPA.exec(url)
   if (m) {
     try {
-      await s3.send(new HeadObjectCommand({ Bucket: MINIO_BUCKET, Key: `${m[1]}/${m[2]}` }))
+      await s3.send(
+        new HeadObjectCommand({ Bucket: MINIO_BUCKET, Key: `${m[1]}/${m[2]}` })
+      )
       return true
-    } catch { return false }
+    } catch {
+      return false
+    }
   }
   return false
 }
@@ -71,20 +84,28 @@ async function ensureBackup(c) {
 
 async function main() {
   console.log(APPLY ? '=== APPLY ===' : '=== DRY RUN (ничего не пишу) ===\n')
-  const c = new Client({ connectionString: PG, ssl: { rejectUnauthorized: false } })
+  const c = new Client({
+    connectionString: PG,
+    ssl: { rejectUnauthorized: false },
+  })
   await c.connect()
   if (APPLY) await ensureBackup(c)
 
-  let cleared = 0, alive = 0
+  let cleared = 0,
+    alive = 0
 
   for (const [table, col, pk] of CLEARABLE) {
     const { rows } = await c.query(
       `select "${pk}"::text as pk, "${col}" as url from "${table}"
         where "${col}" is not null and "${col}" <> '' and "${col}" like 'http%'`
     )
-    let dead = 0, ok = 0
+    let dead = 0,
+      ok = 0
     for (const r of rows) {
-      if (await isAlive(r.url)) { ok++; continue }
+      if (await isAlive(r.url)) {
+        ok++
+        continue
+      }
       dead++
       if (APPLY) {
         await c.query(
@@ -92,12 +113,17 @@ async function main() {
            values ($1,$2,$3,$4)`,
           [table, r.pk, col, r.url]
         )
-        await c.query(`update "${table}" set "${col}" = NULL where "${pk}"::text = $1`, [r.pk])
+        await c.query(
+          `update "${table}" set "${col}" = NULL where "${pk}"::text = $1`,
+          [r.pk]
+        )
         cleared++
       }
     }
     alive += ok
-    console.log(`  ${(table + '.' + col).padEnd(26)} всего ${String(rows.length).padStart(5)}  живых ${String(ok).padStart(4)}  мёртвых ${String(dead).padStart(5)}${APPLY ? ' -> очищено' : ''}`)
+    console.log(
+      `  ${(table + '.' + col).padEnd(26)} всего ${String(rows.length).padStart(5)}  живых ${String(ok).padStart(4)}  мёртвых ${String(dead).padStart(5)}${APPLY ? ' -> очищено' : ''}`
+    )
   }
 
   console.log('\n  NOT NULL, очистить нечем — только отчёт:')
@@ -107,17 +133,28 @@ async function main() {
     )
     const dead = []
     for (const r of rows) if (!(await isAlive(r.url))) dead.push(r.pk)
-    console.log(`  ${(table + '.' + col).padEnd(26)} мёртвых ${dead.length}${dead.length ? ' -> ' + dead.slice(0, 5).join(', ') : ''}`)
+    console.log(
+      `  ${(table + '.' + col).padEnd(26)} мёртвых ${dead.length}${dead.length ? ' -> ' + dead.slice(0, 5).join(', ') : ''}`
+    )
   }
 
   await c.end()
   if (APPLY) {
-    console.log(`\nочищено ${cleared} значений, копии в dead_storage_urls_backup`)
-    console.log('откат: update users u set photo_url = b.old_value from dead_storage_urls_backup b')
-    console.log('       where b.source_table=\'users\' and b.source_column=\'photo_url\' and u.id::text=b.source_pk;')
+    console.log(
+      `\nочищено ${cleared} значений, копии в dead_storage_urls_backup`
+    )
+    console.log(
+      'откат: update users u set photo_url = b.old_value from dead_storage_urls_backup b'
+    )
+    console.log(
+      "       where b.source_table='users' and b.source_column='photo_url' and u.id::text=b.source_pk;"
+    )
   } else {
     console.log('\nповторите с --apply')
   }
 }
 
-main().catch(e => { console.error('FAILED:', e.message); process.exit(1) })
+main().catch(e => {
+  console.error('FAILED:', e.message)
+  process.exit(1)
+})

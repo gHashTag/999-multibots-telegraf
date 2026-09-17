@@ -18,7 +18,8 @@ const url = process.env.SUPABASE_URL.replace(/\/$/, '')
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 const H = { apikey: key, Authorization: `Bearer ${key}` }
 
-const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+const strip = s =>
+  s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 const files = []
 ;(function walk(dir) {
@@ -94,8 +95,10 @@ async function main() {
   for (const [name, status, detail] of missing) {
     console.log(`  ${name}   [HTTP ${status}]`)
     console.log(`      ${detail.replace(/\s+/g, ' ')}`)
-    for (const where of used.get(name).slice(0, 6)) console.log(`      ${where}`)
-    if (used.get(name).length > 6) console.log(`      ... ещё ${used.get(name).length - 6}`)
+    for (const where of used.get(name).slice(0, 6))
+      console.log(`      ${where}`)
+    if (used.get(name).length > 6)
+      console.log(`      ... ещё ${used.get(name).length - 6}`)
   }
 
   // Отдельно: пустые таблицы, в которые пишут — признак, что запись не доходит.
@@ -108,9 +111,13 @@ async function main() {
     console.log('   (таблица заведена, код к ней обращается, строк ноль)\n')
     for (const [name] of emptyButWritten) {
       console.log(`  ${name}  — обращений в коде: ${used.get(name).length}`)
-      for (const where of used.get(name).slice(0, 3)) console.log(`      ${where}`)
+      for (const where of used.get(name).slice(0, 3))
+        console.log(`      ${where}`)
     }
   }
 }
 
-main().catch(e => { console.error('ERR', e.message); process.exit(1) })
+main().catch(e => {
+  console.error('ERR', e.message)
+  process.exit(1)
+})

@@ -24,7 +24,9 @@ const path = require('path')
 
 /** Убирает блочные комментарии, СОХРАНЯЯ количество строк. */
 const strip = s =>
-  s.replace(/\/\*[\s\S]*?\*\//g, m => '\n'.repeat((m.match(/\n/g) || []).length))
+  s.replace(/\/\*[\s\S]*?\*\//g, m =>
+    '\n'.repeat((m.match(/\n/g) || []).length)
+  )
 
 /** Обращение к человеку. */
 const SPEAKS =
@@ -133,21 +135,29 @@ function main() {
         noLog++
         continue
       }
-      silentHits.push({ file: f, line: b.line, first: b.body.trim().split('\n')[0].slice(0, 66) })
+      silentHits.push({
+        file: f,
+        line: b.line,
+        first: b.body.trim().split('\n')[0].slice(0, 66),
+      })
     }
   }
 
   console.log('=== Блоки catch рядом с человеком ===')
   console.log(`  всего:                       ${total}`)
   console.log(`  отвечают человеку:           ${withReply}`)
-  console.log(`  пробрасывают выше:           ${rethrown}  (отвечать будет тот, кто поймает)`)
+  console.log(
+    `  пробрасывают выше:           ${rethrown}  (отвечать будет тот, кто поймает)`
+  )
   console.log(`  без записи в журнал вовсе:   ${noLog}`)
   console.log(`  МОЛЧАТ (журнал есть, ответа нет): ${silentHits.length}`)
 
   const byFile = {}
   for (const h of silentHits) byFile[h.file] = (byFile[h.file] || 0) + 1
   console.log('\n=== Где молчат чаще всего ===')
-  for (const [f, n] of Object.entries(byFile).sort((a, b) => b[1] - a[1]).slice(0, 15)) {
+  for (const [f, n] of Object.entries(byFile)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)) {
     console.log(`  ${String(n).padStart(3)}  ${f}`)
   }
   console.log('\n=== Первые двадцать мест ===')

@@ -66,29 +66,45 @@ async function main() {
   const formula = rows =>
     rows.reduce(
       (s, r) =>
-        r.status !== 'COMPLETED' ? s : r.type === 'MONEY_OUTCOME' ? s - n(r.stars) : s + n(r.stars),
+        r.status !== 'COMPLETED'
+          ? s
+          : r.type === 'MONEY_OUTCOME'
+            ? s - n(r.stars)
+            : s + n(r.stars),
       0
     )
-  const sample = [...byUser.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 6)
+  const sample = [...byUser.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 6)
   let ok = 0
   for (const [uid, rows] of sample) {
     const mine = r2(formula(rows))
     const real = r2(await rpcBalance(uid))
     const match = Math.abs(mine - real) < 0.011
     if (match) ok++
-    console.log(`  uid=${uid.padEnd(13)} моя формула ${String(mine).padStart(12)}  база ${String(real).padStart(12)}  ${match ? '✓' : '✗'}`)
+    console.log(
+      `  uid=${uid.padEnd(13)} моя формула ${String(mine).padStart(12)}  база ${String(real).padStart(12)}  ${match ? '✓' : '✗'}`
+    )
   }
   console.log(`  совпало: ${ok}/${sample.length}`)
-  console.log('  => баланс = сумма stars по COMPLETED; MONEY_OUTCOME вычитается,')
-  console.log('     остальные типы прибавляются. Ничего другого не участвует.\n')
+  console.log(
+    '  => баланс = сумма stars по COMPLETED; MONEY_OUTCOME вычитается,'
+  )
+  console.log(
+    '     остальные типы прибавляются. Ничего другого не участвует.\n'
+  )
 
   // --- 2. Что делает статус -------------------------------------------
   console.log('=== 2. Роль статуса ===')
   const st = {}
   for (const p of pay) st[String(p.status)] = (st[String(p.status)] || 0) + 1
   console.log('  статусы:', JSON.stringify(st))
-  const pendingStars = pay.filter(p => p.status !== 'COMPLETED').reduce((s, p) => s + n(p.stars), 0)
-  console.log(`  звёзд в НЕ-completed строках: ${r2(pendingStars)} — они НЕ в балансе`)
+  const pendingStars = pay
+    .filter(p => p.status !== 'COMPLETED')
+    .reduce((s, p) => s + n(p.stars), 0)
+  console.log(
+    `  звёзд в НЕ-completed строках: ${r2(pendingStars)} — они НЕ в балансе`
+  )
   console.log('  => перевод строки в COMPLETED и ЕСТЬ начисление\n')
 
   // --- 3. Один счёт — одна строка -------------------------------------
@@ -100,14 +116,20 @@ async function main() {
     inv.set(k, (inv.get(k) || 0) + 1)
   }
   const dups = [...inv.values()].filter(c => c > 1).length
-  console.log(`  строк с номером счёта: ${[...inv.values()].reduce((a, b) => a + b, 0)}`)
+  console.log(
+    `  строк с номером счёта: ${[...inv.values()].reduce((a, b) => a + b, 0)}`
+  )
   console.log(`  разных номеров: ${inv.size}, из них с дублями: ${dups}`)
   console.log(`  без номера счёта: ${pay.filter(p => !p.inv_id).length}`)
-  console.log('  => вторую строку с тем же номером база не примет (код 23505)\n')
+  console.log(
+    '  => вторую строку с тем же номером база не примет (код 23505)\n'
+  )
 
   // --- 4. Кто и как пополняет -----------------------------------------
   console.log('=== 4. Способы пополнения (COMPLETED, доход) ===')
-  const inc = pay.filter(p => p.status === 'COMPLETED' && p.type !== 'MONEY_OUTCOME')
+  const inc = pay.filter(
+    p => p.status === 'COMPLETED' && p.type !== 'MONEY_OUTCOME'
+  )
   const pm = {}
   for (const p of inc) {
     const k = String(p.payment_method)
@@ -115,23 +137,39 @@ async function main() {
     pm[k].n++
     pm[k].stars += n(p.stars)
   }
-  console.log('  способ'.padEnd(28) + 'строк'.padStart(7) + 'звёзд'.padStart(14))
-  for (const [k, v] of Object.entries(pm).sort((a, b) => b[1].stars - a[1].stars)) {
-    console.log(`  ${k.padEnd(26)}${String(v.n).padStart(7)}${String(r2(v.stars)).padStart(14)}`)
+  console.log(
+    '  способ'.padEnd(28) + 'строк'.padStart(7) + 'звёзд'.padStart(14)
+  )
+  for (const [k, v] of Object.entries(pm).sort(
+    (a, b) => b[1].stars - a[1].stars
+  )) {
+    console.log(
+      `  ${k.padEnd(26)}${String(v.n).padStart(7)}${String(r2(v.stars)).padStart(14)}`
+    )
   }
 
   // --- 5. Что нельзя нарушать -----------------------------------------
   console.log('\n=== 5. Инварианты, найденные в данных ===')
-  const negOutcome = pay.filter(p => p.type === 'MONEY_OUTCOME' && n(p.stars) < 0).length
-  const negIncome = pay.filter(p => p.type === 'MONEY_INCOME' && n(p.stars) < 0).length
-  const noStars = pay.filter(p => p.status === 'COMPLETED' && n(p.stars) === 0).length
-  console.log(`  списаний с отрицательными звёздами: ${negOutcome} (должно быть 0 — они НАЧИСЛЯЮТ)`)
+  const negOutcome = pay.filter(
+    p => p.type === 'MONEY_OUTCOME' && n(p.stars) < 0
+  ).length
+  const negIncome = pay.filter(
+    p => p.type === 'MONEY_INCOME' && n(p.stars) < 0
+  ).length
+  const noStars = pay.filter(
+    p => p.status === 'COMPLETED' && n(p.stars) === 0
+  ).length
+  console.log(
+    `  списаний с отрицательными звёздами: ${negOutcome} (должно быть 0 — они НАЧИСЛЯЮТ)`
+  )
   console.log(`  пополнений с отрицательными звёздами: ${negIncome}`)
   console.log(`  завершённых строк с нулём звёзд: ${noStars}`)
   const types = {}
   for (const p of pay) types[String(p.type)] = (types[String(p.type)] || 0) + 1
   console.log(`  типы операций: ${JSON.stringify(types)}`)
-  console.log('  => любой НОВЫЙ тип попадёт в ветку «прибавить» и станет начислением')
+  console.log(
+    '  => любой НОВЫЙ тип попадёт в ветку «прибавить» и станет начислением'
+  )
 }
 
 main().catch(e => {

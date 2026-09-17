@@ -29,9 +29,14 @@ async function main() {
     for (const d of [9, 10, 11, 12, 13, 14, 15, 16, 20, 40]) {
       const r = await probe(t, c, d)
       const hit = /overflow|precision|22003/i.test(r.body)
-      console.log(`  ${String(d).padStart(2)} digits -> ${r.status} ${hit ? 'OVERFLOW ' + r.body : (r.status === 200 ? 'ok' : r.body)}`)
+      console.log(
+        `  ${String(d).padStart(2)} digits -> ${r.status} ${hit ? 'OVERFLOW ' + r.body : r.status === 200 ? 'ok' : r.body}`
+      )
       if (hit) break
     }
   }
 }
-main().catch(e => { console.error('ERR', e.message); process.exit(1) })
+main().catch(e => {
+  console.error('ERR', e.message)
+  process.exit(1)
+})

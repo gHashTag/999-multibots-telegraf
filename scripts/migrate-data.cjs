@@ -27,14 +27,24 @@ const PG = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL
 const APPLY = process.argv.includes('--apply')
 
 if (!SUPABASE_URL || !KEY || !PG) {
-  console.error('need SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_PUBLIC_URL')
+  console.error(
+    'need SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_PUBLIC_URL'
+  )
   process.exit(1)
 }
 
 // Ordered so that anything referenced comes first.
 const TABLES = [
-  'users', 'payments_v2', 'assets', 'model_trainings', 'prompts_history',
-  'avatars', 'translations', 'superhero_generations', 'jobs', 'attachments',
+  'users',
+  'payments_v2',
+  'assets',
+  'model_trainings',
+  'prompts_history',
+  'avatars',
+  'translations',
+  'superhero_generations',
+  'jobs',
+  'attachments',
   'templates',
 ]
 
@@ -63,7 +73,9 @@ async function pgColumns(c, table) {
 /** Everything that is not already text is fetched as ::text and cast back. */
 function selectList(cols) {
   return cols
-    .map(c => (c.data_type === 'text' ? c.column_name : `${c.column_name}::text`))
+    .map(c =>
+      c.data_type === 'text' ? c.column_name : `${c.column_name}::text`
+    )
     .join(',')
 }
 
@@ -78,7 +90,10 @@ async function fetchPage(table, sel, from) {
       Prefer: 'count=exact',
     },
   })
-  if (!res.ok) throw new Error(`${table} ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  if (!res.ok)
+    throw new Error(
+      `${table} ${res.status}: ${(await res.text()).slice(0, 200)}`
+    )
   return res.json()
 }
 
@@ -122,7 +137,10 @@ async function copyTable(c, table) {
 
 async function main() {
   console.log(APPLY ? '=== APPLY ===' : '=== DRY RUN (no writes) ===')
-  const c = new Client({ connectionString: PG, ssl: { rejectUnauthorized: false } })
+  const c = new Client({
+    connectionString: PG,
+    ssl: { rejectUnauthorized: false },
+  })
   await c.connect()
 
   if (APPLY) {
@@ -130,12 +148,14 @@ async function main() {
     // reference one that has not been inserted yet — the first attempt died on
     // users_inviter_fkey. Bulk loads defer referential checks and validate
     // afterwards; that is what the verification step below is for.
-    await c.query("set session_replication_role = replica")
+    await c.query('set session_replication_role = replica')
   }
 
   for (const t of TABLES) {
     const r = await copyTable(c, t)
-    console.log(`  ${String(r.rows ?? '-').padStart(6)}  ${t}${r.skipped ? '  (' + r.skipped + ')' : ''}`)
+    console.log(
+      `  ${String(r.rows ?? '-').padStart(6)}  ${t}${r.skipped ? '  (' + r.skipped + ')' : ''}`
+    )
   }
 
   if (APPLY) {
@@ -149,7 +169,7 @@ async function main() {
     }
     console.log('sequences advanced past max(pk)')
 
-    await c.query("set session_replication_role = origin")
+    await c.query('set session_replication_role = origin')
 
     // Prove the deferred checks actually hold, rather than assuming it.
     const { rows: orphans } = await c.query(

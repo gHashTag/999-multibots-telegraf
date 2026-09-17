@@ -18,13 +18,11 @@ async function walk(bucket, prefix, acc, depth) {
   }
   let offset = 0
   for (;;) {
-    const { data, error } = await db.storage
-      .from(bucket)
-      .list(prefix, {
-        limit: 100,
-        offset,
-        sortBy: { column: 'name', order: 'asc' },
-      })
+    const { data, error } = await db.storage.from(bucket).list(prefix, {
+      limit: 100,
+      offset,
+      sortBy: { column: 'name', order: 'asc' },
+    })
     if (error) {
       acc.errors.push(`${prefix || '/'}: ${error.message}`)
       return

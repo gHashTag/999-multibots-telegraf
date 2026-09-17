@@ -31,14 +31,19 @@ const path = require('path')
 /** Убирает блочные комментарии, СОХРАНЯЯ количество строк. */
 const strip = s =>
   s
-    .replace(/\/\*[\s\S]*?\*\//g, m => '\n'.repeat((m.match(/\n/g) || []).length))
+    .replace(/\/\*[\s\S]*?\*\//g, m =>
+      '\n'.repeat((m.match(/\n/g) || []).length)
+    )
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 const CLAIMS = [
   ['деньги вернули', /(возвращен|возврат сделан|refunded|refund complete)/i],
   ['деньги списали', /(списано|списан[оы]|charged|deducted)/i],
   ['деньги начислили', /(начислен|зачислен|credited|added to your balance)/i],
-  ['итог достигнут', /(успешно|готово!|завершен|отправлен|complete[d]?!|success)/i],
+  [
+    'итог достигнут',
+    /(успешно|готово!|завершен|отправлен|complete[d]?!|success)/i,
+  ],
   ['срок назван', /(займ[её]т|в течение|через \d+|takes? \d+|within \d+)/i],
 ]
 
@@ -54,7 +59,10 @@ function main() {
   `
   const hits = scanText(SELF, 'самопроверка')
   if (hits.length !== 2) {
-    console.error('❌ САМОПРОВЕРКА НЕ ПРОШЛА: ожидалось 2 утверждения, найдено', hits.length)
+    console.error(
+      '❌ САМОПРОВЕРКА НЕ ПРОШЛА: ожидалось 2 утверждения, найдено',
+      hits.length
+    )
     process.exit(2)
   }
   console.log('самопроверка пройдена: оба утверждения найдены\n')
@@ -74,7 +82,8 @@ function main() {
   for (const f of files) {
     if (f.includes('__tests__') || f.includes('/test/')) continue
     const text = strip(fs.readFileSync(f, 'utf8'))
-    messages += (text.match(/ctx\.reply|sendMessage|editMessageText/g) || []).length
+    messages += (text.match(/ctx\.reply|sendMessage|editMessageText/g) || [])
+      .length
     all.push(...scanText(text, f))
   }
 
@@ -87,14 +96,20 @@ function main() {
   console.log('\n=== По видам утверждений ===')
   for (const [k, v] of Object.entries(byKind).sort((a, b) => b[1] - a[1])) {
     const unver = all.filter(h => h.kind === k && !h.verified).length
-    console.log(`  ${k.padEnd(20)} ${String(v).padStart(4)}  из них без проверки рядом: ${unver}`)
+    console.log(
+      `  ${k.padEnd(20)} ${String(v).padStart(4)}  из них без проверки рядом: ${unver}`
+    )
   }
 
   const money = all.filter(h => /деньги/.test(h.kind) && !h.verified)
-  console.log(`\n=== Денежные утверждения без проверки рядом: ${money.length} ===`)
+  console.log(
+    `\n=== Денежные утверждения без проверки рядом: ${money.length} ===`
+  )
   const byFile = {}
   for (const h of money) byFile[h.file] = (byFile[h.file] || 0) + 1
-  for (const [f, n] of Object.entries(byFile).sort((a, b) => b[1] - a[1]).slice(0, 12)) {
+  for (const [f, n] of Object.entries(byFile)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)) {
     console.log(`  ${String(n).padStart(3)}  ${f}`)
   }
   console.log('\n=== Первые пятнадцать ===')
@@ -114,7 +129,8 @@ function main() {
 function scanText(text, file) {
   const lines = text.split('\n')
   const out = []
-  const SPEAK = /(ctx\.reply|ctx\.replyWith|\.telegram\.sendMessage|editMessageText|sendMessageToUser)\s*\(/
+  const SPEAK =
+    /(ctx\.reply|ctx\.replyWith|\.telegram\.sendMessage|editMessageText|sendMessageToUser)\s*\(/
   for (let i = 0; i < lines.length; i++) {
     if (!SPEAK.test(lines[i])) continue
     // тело вызова: до закрывающей скобки, но не длиннее двенадцати строк
@@ -140,7 +156,9 @@ function scanText(text, file) {
         line: i + 1,
         kind,
         verified: VERIFIED.test(around),
-        text: (msg.match(new RegExp('.*(' + re.source + ').*', 'i')) || [''])[0].trim().slice(0, 72),
+        text: (msg.match(new RegExp('.*(' + re.source + ').*', 'i')) || [''])[0]
+          .trim()
+          .slice(0, 72),
       })
       break
     }

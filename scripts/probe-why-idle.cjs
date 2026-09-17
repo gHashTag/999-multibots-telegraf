@@ -66,21 +66,38 @@ async function main() {
     'payments_v2',
     'telegram_id,payment_date,type,status,stars,bot_name,service_type'
   )
-  const prompts = await fetchAll('prompts_history', 'telegram_id,created_at,bot_name,status')
+  const prompts = await fetchAll(
+    'prompts_history',
+    'telegram_id,created_at,bot_name,status'
+  )
 
-  console.log(`профилей ${users.length}, платежей ${pay.length}, промптов ${prompts.length}\n`)
+  console.log(
+    `профилей ${users.length}, платежей ${pay.length}, промптов ${prompts.length}\n`
+  )
 
   const newUsers = byMonth(users, 'created_at', 'telegram_id')
-  const payers = byMonth(pay, 'payment_date', 'telegram_id', r =>
-    r.status === 'COMPLETED' && r.type !== 'MONEY_OUTCOME' && n(r.stars) > 0
+  const payers = byMonth(
+    pay,
+    'payment_date',
+    'telegram_id',
+    r =>
+      r.status === 'COMPLETED' && r.type !== 'MONEY_OUTCOME' && n(r.stars) > 0
   )
-  const spenders = byMonth(pay, 'payment_date', 'telegram_id', r =>
-    r.status === 'COMPLETED' && r.type === 'MONEY_OUTCOME'
+  const spenders = byMonth(
+    pay,
+    'payment_date',
+    'telegram_id',
+    r => r.status === 'COMPLETED' && r.type === 'MONEY_OUTCOME'
   )
   const creators = byMonth(prompts, 'created_at', 'telegram_id')
 
   const months = [
-    ...new Set([...newUsers.keys(), ...payers.keys(), ...spenders.keys(), ...creators.keys()]),
+    ...new Set([
+      ...newUsers.keys(),
+      ...payers.keys(),
+      ...spenders.keys(),
+      ...creators.keys(),
+    ]),
   ]
     .filter(Boolean)
     .sort()
@@ -106,11 +123,15 @@ async function main() {
   // --- Сколько людей завели профиль и ничего не сделали -----------------
   console.log('\n=== Доходят ли до дела ===')
   const everSpent = new Set(
-    pay.filter(p => p.status === 'COMPLETED' && p.type === 'MONEY_OUTCOME').map(p => String(p.telegram_id))
+    pay
+      .filter(p => p.status === 'COMPLETED' && p.type === 'MONEY_OUTCOME')
+      .map(p => String(p.telegram_id))
   )
   const everCreated = new Set(prompts.map(p => String(p.telegram_id)))
   const silent = users.filter(
-    u => !everSpent.has(String(u.telegram_id)) && !everCreated.has(String(u.telegram_id))
+    u =>
+      !everSpent.has(String(u.telegram_id)) &&
+      !everCreated.has(String(u.telegram_id))
   )
   console.log(`  профилей всего:        ${users.length}`)
   console.log(`  хоть раз тратили:      ${everSpent.size}`)
@@ -131,8 +152,12 @@ async function main() {
     }
     lastByBot.get(b).n++
   }
-  for (const [b, v] of [...lastByBot.entries()].sort((a, b2) => b2[1].last.localeCompare(a[1].last))) {
-    console.log(`  ${b.padEnd(28)} последнее ${v.last.slice(0, 10)}  всего ${v.n}`)
+  for (const [b, v] of [...lastByBot.entries()].sort((a, b2) =>
+    b2[1].last.localeCompare(a[1].last)
+  )) {
+    console.log(
+      `  ${b.padEnd(28)} последнее ${v.last.slice(0, 10)}  всего ${v.n}`
+    )
   }
 
   // --- Что именно генерировали в последний живой период -----------------
@@ -149,7 +174,12 @@ async function main() {
     svc[k].people.add(String(p.telegram_id))
   }
   const rows = Object.entries(svc).sort((a, b) => b[1].stars - a[1].stars)
-  console.log('  услуга'.padEnd(28) + 'раз'.padStart(6) + 'людей'.padStart(7) + 'звёзд'.padStart(10))
+  console.log(
+    '  услуга'.padEnd(28) +
+      'раз'.padStart(6) +
+      'людей'.padStart(7) +
+      'звёзд'.padStart(10)
+  )
   for (const [k, v] of rows.slice(0, 12)) {
     console.log(
       `  ${k.padEnd(26)}${String(v.n).padStart(6)}${String(v.people.size).padStart(7)}${String(Math.round(v.stars)).padStart(10)}`

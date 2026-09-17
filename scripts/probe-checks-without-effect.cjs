@@ -31,8 +31,7 @@ const path = require('path')
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '')
 
 /** Записи в журнал, говорящие об ОШИБКЕ, а не о ходе работы. */
-const ERROR_LOG =
-  /(logger\.(error|warn)|console\.(error|warn))\s*\(/
+const ERROR_LOG = /(logger\.(error|warn)|console\.(error|warn))\s*\(/
 /** Следствия, которые считаются настоящими. */
 const EFFECT =
   /\b(return|throw|res\s*\.\s*status|continue|break|process\.exit|reject\()/
@@ -116,7 +115,8 @@ function main() {
   }
 
   // Приоритет — там, где цена ошибки выше.
-  const MONEY = /(payment|balance|charge|refund|price|stars|webhook|callback|auth|token|secret)/i
+  const MONEY =
+    /(payment|balance|charge|refund|price|stars|webhook|callback|auth|token|secret)/i
   const hot = all.filter(h => MONEY.test(h.file) || MONEY.test(h.cond))
   const rest = all.filter(h => !hot.includes(h))
 

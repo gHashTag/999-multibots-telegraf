@@ -74,7 +74,13 @@ async function main() {
     bot_name: '',
   }
 
-  for (const c of ['storage_path', 'text', 'bot_name', 'trigger_word', 'type']) {
+  for (const c of [
+    'storage_path',
+    'text',
+    'bot_name',
+    'trigger_word',
+    'type',
+  ]) {
     const row = { ...base, [c]: null }
     const { data, error: e } = await db.from('assets').insert(row).select('id')
     if (e) {

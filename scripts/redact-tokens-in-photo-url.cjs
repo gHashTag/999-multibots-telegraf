@@ -56,7 +56,9 @@ async function main() {
 
   // Второе место: вложенный объект в платежах.
   const pays = await fetchAll('payments_v2', 'id,telegram_id,metadata')
-  const badPays = pays.filter(r => TOKEN_URL.test(JSON.stringify(r.metadata || {})))
+  const badPays = pays.filter(r =>
+    TOKEN_URL.test(JSON.stringify(r.metadata || {}))
+  )
   console.log(`строк с токеном в payments_v2.metadata: ${badPays.length}`)
 
   const botIds = new Set()
@@ -74,7 +76,10 @@ async function main() {
   let alive = 0
   for (const r of bad.slice(0, 5)) {
     try {
-      const res = await fetch(r.photo_url, { method: 'HEAD', signal: AbortSignal.timeout(15000) })
+      const res = await fetch(r.photo_url, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(15000),
+      })
       checked++
       if (res.ok) alive++
     } catch {
@@ -85,7 +90,9 @@ async function main() {
 
   if (!APPLY) {
     console.log('\nСУХОЙ ПРОГОН. Ничего не изменено.')
-    console.log('Для записи: --apply. Перед этим перевыпустите токены у @BotFather.')
+    console.log(
+      'Для записи: --apply. Перед этим перевыпустите токены у @BotFather.'
+    )
     return
   }
 
@@ -94,7 +101,11 @@ async function main() {
   for (const r of bad) {
     const res = await fetch(`${url}/rest/v1/users?id=eq.${r.id}`, {
       method: 'PATCH',
-      headers: { ...H, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      headers: {
+        ...H,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
       body: JSON.stringify({ photo_url: null }),
     })
     if (res.ok) done++
@@ -112,7 +123,11 @@ async function main() {
     }
     const res = await fetch(`${url}/rest/v1/payments_v2?id=eq.${r.id}`, {
       method: 'PATCH',
-      headers: { ...H, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      headers: {
+        ...H,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
       body: JSON.stringify({ metadata: meta }),
     })
     if (res.ok) donePays++
