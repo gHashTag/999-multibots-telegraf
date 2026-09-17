@@ -1110,6 +1110,10 @@
 .feed-panel.fullscreen .feed-card-actions {
   position: absolute;
   right: 8px;
+  /* Published by FeedPanel from the chips' own box (chromeInsetPx). The 70px
+     here is the pre-JS fallback and the value the chips happen to have on a
+     desktop; they sit elsewhere below 768px and 480px, which is exactly why
+     the number is no longer written down twice. */
   top: var(--feed-chrome-top, 70px);
   bottom: var(--feed-rail-bottom, 120px);
   height: auto;
