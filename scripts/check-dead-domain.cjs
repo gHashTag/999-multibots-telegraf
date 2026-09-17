@@ -151,7 +151,14 @@ if (hits.length) {
   console.error(
     'Если упоминание намеренное — поставьте // dead-domain-ok: причина на строке выше.'
   )
-  process.exit(1)
+  /*
+   * exitCode, not exit(): process.exit drops writes still queued on a pipe, and
+   * every gate's output goes through one. Measured on the Cyrillic gate the same
+   * day: three runs of one script on one commit printed 966, 7706 and 8484 of
+   * the same 8484 lines. See scripts/no-cyrillic-guard.cjs for the long note.
+   */
+  process.exitCode = 1
+  return
 }
 
 console.log(

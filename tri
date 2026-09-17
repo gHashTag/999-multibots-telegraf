@@ -334,6 +334,58 @@ CHECKS THAT EACH COST A CYCLE
         Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
         build is reported as not measured, never as passing.
 
+  tri cyrillic [staged | --unused]
+        WHY the Cyrillic gate blocks a line, not just which line. Prints, per
+        refusal: which Cyrillic word this commit does not also remove (so the
+        reflow exemption cannot apply), and the way out for that SHAPE --
+        a call the formatter broke open, JSX, an object key, a regex literal.
+
+        The marker is not always the answer, and reaching for it blindly costs
+        a round trip through prettier each time: measured 2026-09-17, five
+        attempts on one file, each one recreating the same complaint.
+
+        Reads the same records the gate decides on, so the explanation cannot
+        drift from the verdict. Exit code matches the gate: 0 clean, 1 blocked,
+        2 the diff could not be read.
+
+        `--unused` is `eslint --report-unused-disable-directives` for this
+        marker: every  cyrillic-ok  that no longer guards anything. First run,
+        2026-09-17: 234 of them, most on lines whose Cyrillic sits inside a
+        string literal and was never blocked at all. A suppression nobody
+        removes becomes evidence that the line needs one.
+
+  tri truncates [--verify <script>]
+        Which scripts lose their own output when something READS them.
+        `process.exit` does not wait for writes already queued on a pipe --
+        Node's documentation calls the result "truncated and lost" -- and stderr
+        is a pipe under lefthook and under every tool that reads a gate.
+
+        Measured on the Cyrillic gate, 2026-09-17: three runs of one script on
+        one commit printed 966, 7706 and 8484 of the same 8484 complaints. The
+        verdict was right every time; the evidence was a lottery.
+
+        The plain list is a LIST OF SUSPECTS -- a script that prints two lines
+        loses nothing, whatever it calls. `--verify` decides: it runs the script
+        redirected to a file, then through a real pipe with a reader that sleeps
+        first, and compares. Ground truth it is pinned against: 3 lines survive
+        either way, 4000 lines come back as 1960.
+
+  tri failures | tri потери
+        What the seller is LOSING, counted from the hive journal in one read.
+
+        The journal has held this answer for weeks and nobody asked it this way:
+        the events scroll past one at a time, so a steady bleed reads as noise.
+        Two hundred of them at once show the shape.
+
+        First run, 2026-09-17, a 4.6-day window: 44 of 200 events were a picture
+        that was generated and never reached the person it was made for -- 22% of
+        everything recorded. 41 of the 44 say `replaced`: a newer draft evicted a
+        pending one. Per day: 5, 8, 6, 12, 13. It is getting worse, not better.
+
+        Read-only. The service key is read into a variable and never printed.
+        The server caps the window at 200 events, so the oldest day in the
+        output is partial and its count means nothing on its own.
+
   tri pay [--invoice] | tri оплата
         Can a client pay RIGHT NOW, rail by rail.
 
@@ -1543,6 +1595,35 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_failures() {
+  # What the seller is LOSING, counted from the hive journal in one read.
+  # The events scroll past one at a time, so a steady bleed reads as noise;
+  # 200 of them at once show the shape. Read-only, key never printed.
+  #   tri failures [--limit N]
+  ( cd "$ROOT" && node "$ROOT/scripts/hive-failures.cjs" "$@" )
+}
+
+cmd_truncates() {
+  # Which scripts lose their own output when something reads them.
+  # `process.exit` throws away writes still queued on a PIPE (Node's own docs:
+  # "truncated and lost"), and every gate's output goes through one.
+  #   tri truncates                     the suspect list, ranked
+  #   tri truncates --verify <script>   MEASURE one: file redirect vs slow pipe
+  # The list is a hypothesis. Only --verify turns one into a finding.
+  ( cd "$ROOT" && node "$ROOT/scripts/exit-truncates.cjs" "$@" )
+}
+
+cmd_cyrillic() {
+  # WHY a line is blocked, not just WHICH. The gate prints refused lines and
+  # nothing else; this prints which exemption nearly applied, which Cyrillic
+  # word is the new one, and the way out for that SHAPE -- a broken-open call,
+  # JSX, an object key, a regex literal. Five attempts on one file went into
+  # guessing that on 2026-09-17.
+  #   tri cyrillic          the branch range (same window the gate uses)
+  #   tri cyrillic staged   what is in the index right now, before committing
+  ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
 }
 
 cmd_clone() {
@@ -3938,6 +4019,9 @@ case "$action" in
   idempotency-keys|ключи) cmd_idempotency_keys ;;
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
+  cyrillic|кириллица) cmd_cyrillic "$@" ;;
+  truncates|обрезка) cmd_truncates "$@" ;;
+  failures|потери)    cmd_failures "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
