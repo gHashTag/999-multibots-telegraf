@@ -12,9 +12,7 @@ import { inngest as inngestFnClient } from './client'
 import { logger } from '@/utils/logger'
 
 // Content Functions
-import { analyzeCompetitorReels } from './functions/content/analyzeCompetitorReels'
 import { extractTopContent } from './functions/content/extractTopContent'
-import { findCompetitors } from './functions/content/findCompetitors'
 import { generateContentScripts } from './functions/content/generateContentScripts'
 import { generateDetailedScript } from './functions/content/generateDetailedScript'
 import { generateScenarioClips } from './functions/content/generateScenarioClips'
@@ -34,7 +32,6 @@ import {
 } from './functions/monitoring/logMonitor'
 
 // Training Functions
-import { modelTrainingV2 } from './functions/training/modelTrainingV2'
 import { morphImages } from './functions/training/morphImages'
 import { checkStuckTrainings } from './functions/training/checkStuckTrainings'
 import { welcomeAvatarGeneration } from './functions/welcomeAvatarGeneration'
@@ -55,7 +52,6 @@ import { createHandleModelTrainingCompletedFunction } from './functions/existing
 import { validateWebhookBeforeGeneration } from './functions/webhookHealthGuard'
 
 // Generation Functions
-import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
 
 // Payment Functions
 import { processPayment } from './functions/payments/paymentProcessing'
@@ -68,7 +64,6 @@ import { aiReelsCallbackFunction } from './functions/ai-reels-callback'
 
 // Render Functions
 import { renderFunction } from './functions/render/render'
-import { renderAvatarVideoFunction } from './functions/render/renderAvatarVideo'
 import { renderRiddleFunction } from './functions/render/renderRiddle'
 
 // CRM Functions
@@ -89,10 +84,11 @@ const handleModelTrainingCompleted =
   createHandleModelTrainingCompletedFunction(inngestFnClient)
 
 const allFunctionsRaw = [
-  // Content (6)
-  analyzeCompetitorReels,
+  // Content (4). analyzeCompetitorReels and findCompetitors withdrawn
+  // 2026-09-17 (specs/functions/instagram-*.t27 in t27, CONTROL
+  // code-only/unregistered): they pay RapidAPI and then "save" into the stub
+  // in src/core/instagram/index.ts. Re-register once the write is real.
   extractTopContent,
-  findCompetitors,
   generateContentScripts,
   generateDetailedScript,
   generateScenarioClips,
@@ -107,8 +103,10 @@ const allFunctionsRaw = [
   logMonitor,
   triggerLogMonitor,
 
-  // Training (4)
-  modelTrainingV2,
+  // Training (3). modelTrainingV2 withdrawn 2026-09-17 (specs/functions/
+  // training-model-v2-start.t27): get-bot returns the Telegraf instance, so
+  // the bot token lands in the step output; the DB row is written after the
+  // paid call; the BFL branch has no completion handler.
   morphImages,
   handleModelTrainingCompleted,
   // Stuck-training watchdog: a 30-min cron that re-fires the lost
@@ -122,8 +120,10 @@ const allFunctionsRaw = [
   // Webhook guard (1)
   validateWebhookBeforeGeneration,
 
-  // Generation (1)
-  neuroImageGeneration,
+  // Generation (0). neuroImageGeneration withdrawn 2026-09-17 (specs/functions/
+  // neuro-image-generate.t27): nothing in the repo sends neuro/image.generate
+  // (scripts/orphan-events.cjs), and it charges before generating with no
+  // refund and no inv_id. Re-register as reserve -> generate -> commit.
 
   // Welcome lead-magnet (1): a free SeeDream-4.5 hero portrait from the new
   // user's Telegram photo. Fires once per new user with a detectable face
@@ -140,9 +140,10 @@ const allFunctionsRaw = [
   // Callback (1)
   aiReelsCallbackFunction,
 
-  // Render (3)
+  // Render (2). renderAvatarVideoFunction withdrawn 2026-09-17 (specs/
+  // functions/render-avatar-video-run.t27): hedra/heygen/kieAI/elevenLabs are
+  // stub services, a run would report a video that was never rendered.
   renderFunction,
-  renderAvatarVideoFunction,
   renderRiddleFunction,
 
   // Analytics (2)
