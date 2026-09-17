@@ -370,6 +370,22 @@ CHECKS THAT EACH COST A CYCLE
         first, and compares. Ground truth it is pinned against: 3 lines survive
         either way, 4000 lines come back as 1960.
 
+  tri failures | tri потери
+        What the seller is LOSING, counted from the hive journal in one read.
+
+        The journal has held this answer for weeks and nobody asked it this way:
+        the events scroll past one at a time, so a steady bleed reads as noise.
+        Two hundred of them at once show the shape.
+
+        First run, 2026-09-17, a 4.6-day window: 44 of 200 events were a picture
+        that was generated and never reached the person it was made for -- 22% of
+        everything recorded. 41 of the 44 say `replaced`: a newer draft evicted a
+        pending one. Per day: 5, 8, 6, 12, 13. It is getting worse, not better.
+
+        Read-only. The service key is read into a variable and never printed.
+        The server caps the window at 200 events, so the oldest day in the
+        output is partial and its count means nothing on its own.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1528,6 +1544,14 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_failures() {
+  # What the seller is LOSING, counted from the hive journal in one read.
+  # The events scroll past one at a time, so a steady bleed reads as noise;
+  # 200 of them at once show the shape. Read-only, key never printed.
+  #   tri failures [--limit N]
+  ( cd "$ROOT" && node "$ROOT/scripts/hive-failures.cjs" "$@" )
 }
 
 cmd_truncates() {
@@ -3919,6 +3943,7 @@ case "$action" in
   charge|заряд)       cmd_charge ;;
   cyrillic|кириллица) cmd_cyrillic "$@" ;;
   truncates|обрезка) cmd_truncates "$@" ;;
+  failures|потери)    cmd_failures "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
