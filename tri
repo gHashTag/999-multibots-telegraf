@@ -353,6 +353,21 @@ CHECKS THAT EACH COST A CYCLE
         `--invoice` also mints one real invoice, which writes a row, so it is
         opt-in rather than part of the check.
 
+  tri clone [id] | tri клон
+        Which pieces of a person's digital clone exist: a voice of their own,
+        a face to render from.
+
+        Two of the three were BUILT and unreachable, which took an hour to
+        establish by hand: the voice wizard had no deep link and no status
+        route, and the Telegram avatar sat in `users.photo_url` since
+        registration with nothing reading it. A missing piece is what the
+        welcome road opens a step for -- and it could not, until the route
+        existed.
+
+        The SOUL is not in this output on purpose: it lives behind an agent
+        tool call rather than on the user row, and a line that says "not
+        asked" every time is furniture.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1511,6 +1526,15 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_clone() {
+  # Which pieces of a person's digital clone exist: voice, photo.
+  # Two of the three were BUILT and unreachable -- the voice had no route, the
+  # avatar sat in a column nobody read. That took an hour to find by hand.
+  #   tri clone            the account behind the agent key
+  #   tri clone <id>       somebody else
+  ( cd "$ROOT" && node "$ROOT/scripts/clone-state.cjs" "$@" )
 }
 
 cmd_pay() {
@@ -3889,6 +3913,7 @@ case "$action" in
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
   pay|оплата)        cmd_pay "$@" ;;
+  clone|клон)        cmd_clone "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
