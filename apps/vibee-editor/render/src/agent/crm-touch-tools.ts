@@ -86,6 +86,21 @@ export async function reachable(
   }
 }
 
+/*
+ * A SENTENCE THAT PROMISES A NUMBER, AND THE NUMBER ITSELF.
+ *
+ * These two defaults were written twice: once as a fallback in the handler,
+ * once as a digit inside the parameter description the MODEL reads. Nothing
+ * held them together -- change the fallback and the sentence keeps telling the
+ * model the old value, quietly, in the one place the model trusts about how
+ * the tool behaves.
+ *
+ * Now the sentence is built from the constant, so drifting apart is not a
+ * thing that can happen rather than a thing a test catches after it has.
+ */
+const NO_ANSWER_AFTER_DAYS = 3
+const LATER_AFTER_DAYS = 14
+
 export const CRM_TOUCH_TOOLS: AgentTool[] = [
   {
     name: 'crm_touch',
@@ -224,13 +239,13 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       properties: {
         no_answer_after_days: {
           type: 'number',
-          description:
-            'через сколько дней тишины считать, что ответа нет (по умолчанию 3)',
+          // promise-checked: the number in the sentence IS the fallback below
+          description: `через сколько дней тишины считать, что ответа нет (по умолчанию ${NO_ANSWER_AFTER_DAYS})`,
         },
         later_after_days: {
           type: 'number',
-          description:
-            'через сколько дней возвращать тех, кто просил позже (по умолчанию 14)',
+          // promise-checked: the number in the sentence IS the fallback below
+          description: `через сколько дней возвращать тех, кто просил позже (по умолчанию ${LATER_AFTER_DAYS})`,
         },
       },
     },
@@ -241,11 +256,11 @@ export const CRM_TOUCH_TOOLS: AgentTool[] = [
       const noAnswerAfterDays =
         Number(a?.no_answer_after_days) > 0
           ? Math.floor(Number(a.no_answer_after_days))
-          : 3
+          : NO_ANSWER_AFTER_DAYS
       const laterAfterDays =
         Number(a?.later_after_days) > 0
           ? Math.floor(Number(a.later_after_days))
-          : 14
+          : LATER_AFTER_DAYS
 
       const [people, paid, touches] = await Promise.all([
         audienceOf(scope),
