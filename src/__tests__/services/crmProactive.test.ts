@@ -349,6 +349,83 @@ describe('a card nobody pressed is not evicted', () => {
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
   })
 
+  /*
+   * A DEPLOY ERASES THE MEMORY OF A PUSH. IT DOES NOT ERASE THE CARD.
+   *
+   * Production, 16.09.2026: the fix above shipped at 15:13, and the 15:30
+   * tick drew a card over one made at 15:03 that was still pressable. The
+   * guard was right; what it consulted -- this process's own memory -- had
+   * been wiped by the very deploy that delivered the guard.
+   *
+   * So with no memory of a push, the sweep asks the queue, which survives.
+   */
+  it('after a restart it asks the queue, and holds on a live card', async () => {
+    const t = 1_000_000
+    const { d, calls } = deps({ now: () => t })
+    d.pendingCard = async () => {
+      calls.push('pendingCard')
+      return { expiresAt: t + 6 * 60 * 60_000 }
+    }
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('held')
+    expect(r.why).toContain('оплаченной картинкой')
+    expect(
+      calls.filter(c => c === 'ask').length,
+      'потратил ход модели, хотя карточка уже ждала'
+    ).toBe(0)
+  })
+
+  it('asks ONCE: after its own push it remembers instead of asking again', async () => {
+    let t = 1_000_000
+    const alive = { ...draft, expiresAt: t + 12 * 60 * 60_000 }
+    const { d, calls } = deps({
+      now: () => t,
+      answer: { текст: 'подготовил', proposal: alive }, // cyrillic-ok: pre-existing identifiers
+    })
+    d.pendingCard = async () => {
+      calls.push('pendingCard')
+      return null
+    }
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+    t += HOLD_MS_DEFAULT + 1
+    expect((await sweepOnce(OWNER, d)).did).toBe('held')
+    expect(
+      calls.filter(c => c === 'pendingCard').length,
+      'спрашивает каждый тик — это лишний запрос на ровном месте'
+    ).toBe(1)
+  })
+
+  it('nothing waiting means the sweep works, as before', async () => {
+    const { d } = deps()
+    d.pendingCard = async () => null
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+
+  /*
+   * UNKNOWN IS NOT NOTHING (form 71).
+   *
+   * A failed request parsed leniently becomes "no card waiting" -- the
+   * reading that spends money. It must not silence the sweep either: holding
+   * forever because the render is unreachable is its own outage.
+   */
+  it('a question that could not be asked leaves the old timer in charge', async () => {
+    const { d, calls } = deps()
+    d.pendingCard = async () => {
+      calls.push('pendingCard')
+      throw new Error('render unreachable')
+    }
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('card')
+    expect(calls.filter(c => c === 'pendingCard').length).toBe(1)
+  })
+
+  it('a card that already died does not hold anything', async () => {
+    const t = 1_000_000
+    const { d } = deps({ now: () => t })
+    d.pendingCard = async () => ({ expiresAt: t - 1 })
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+
   it('a press frees it long before the card would have died', async () => {
     let t = 1_000_000
     const alive = { ...draft, expiresAt: t + 12 * 60 * 60_000 }

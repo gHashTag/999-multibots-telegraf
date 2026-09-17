@@ -278,7 +278,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
       ])
       const now = Date.now()
       const core = summarize(list, history, kinds, paid, now)
-      const { pendingFor } = await import('./tg-proposals')
+      const { pendingFor, LIFETIME_MS } = await import('./tg-proposals')
       const pend = pendingFor(owner)
       const lastIngest = known.rows?.[0]?.last_ingest_at
       return {
@@ -288,6 +288,20 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         ...core,
         caps: segmentCaps(),
         seller_sends_recent: sellerSends,
+        /*
+         * WHEN IT STOPS BEING PRESSABLE, NOT JUST HOW OLD IT IS.
+         *
+         * The bot holds its sweep while a card can still be pressed, because
+         * a new card evicts the waiting one along with the picture already
+         * generated for it. Its own memory of having pushed one does not
+         * survive a deploy -- proved in production on 16.09.2026, where the
+         * first tick after a restart evicted a card drawn half an hour
+         * earlier -- so after a restart it has to ASK. This is what it reads.
+         *
+         * An age alone cannot answer it: turning age into "still alive" needs
+         * the lifetime, and a copy of that constant on the far side of the
+         * wire is right until somebody changes this one.
+         */
         pending_card: pend
           ? {
               id: pend.id,
@@ -297,6 +311,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
                 0,
                 Math.round((now - pend.createdAt) / 60_000)
               ),
+              expires_at: new Date(pend.createdAt + LIFETIME_MS).toISOString(),
             }
           : null,
         zep: zepConfigured() ? zepFlavor() : 'не подключён',
