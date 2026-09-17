@@ -15,6 +15,10 @@
  *
  *   node scripts/text-readers.cjs            the inventory
  *   node scripts/text-readers.cjs --gate     exit 1 if any target is missing
+ *   node scripts/text-readers.cjs --for <file...>
+ *                                            which tests READ these files, one
+ *                                            per line -- the list `vitest
+ *                                            related` cannot produce
  *
  * WHAT THIS CAN AND CANNOT SEE. It resolves the paths and says which no longer
  * exist -- the loud half of the breakage. It cannot know whether the STRING a
@@ -71,7 +75,45 @@ function targetsIn(file, source) {
   return found
 }
 
+/**
+ * WHICH TESTS READ THESE FILES.
+ *
+ * This is the half `vitest related` structurally cannot do, and the half that
+ * would have caught the two-day breakage: the top-up flow moved out of one file
+ * and a money guard reading it went red with nobody watching.
+ *
+ * Prints one test path per line and nothing else, so a hook can feed it
+ * straight to a runner. Silence means no text guard watches those files, which
+ * is the common case and needs no words.
+ */
+function forFiles(targets) {
+  const wanted = new Set(targets.map(t => path.resolve(ROOT, t)))
+  const files = execSync('git ls-files', {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split('\n')
+    .filter(f => /\.test\.(ts|tsx)$/.test(f))
+
+  const hits = []
+  for (const f of files) {
+    let src
+    try {
+      src = fs.readFileSync(f, 'utf8')
+    } catch {
+      continue
+    }
+    const code = codeOnly(src)
+    if (!/readFileSync\s*\(/.test(code)) continue
+    if (targetsIn(path.join(ROOT, f), code).some(t => wanted.has(t)))
+      hits.push(f)
+  }
+  for (const h of hits) console.log(h)
+}
+
 function main() {
+  const at = process.argv.indexOf('--for')
+  if (at !== -1) return forFiles(process.argv.slice(at + 1))
   const gate = process.argv.includes('--gate')
   const files = execSync('git ls-files', {
     encoding: 'utf8',
