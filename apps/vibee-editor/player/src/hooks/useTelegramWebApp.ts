@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { getWebApp, isTelegram, isVersionAtLeast } from '@/lib/telegram'
+import {
+  CHROME_COLOR,
+  appBox,
+  shouldRequestFullscreen,
+  viewportVars,
+} from '@/lib/telegramFullscreen'
 
 // ===============================
 // Telegram Mini App runtime wiring.
@@ -49,20 +55,45 @@ function applyKeyboard(open: boolean) {
 }
 
 function applyViewport(wa: TelegramWebApp) {
+  // The keyboard is judged on Telegram's raw numbers: both heights lose the
+  // same top inset in fullscreen, so their difference is unchanged either way.
   applyKeyboard(keyboardIsOpen(wa.viewportHeight, wa.viewportStableHeight))
-  // viewportStableHeight excludes the transient keyboard/expanding area, so it
-  // is the right basis for fixed chrome like a bottom tab bar. viewportHeight
-  // is the live value, used for scrollable content.
-  // A missing height (dev mock, a desktop client before its first viewport
-  // event) used to become the literal 'undefinedpx' and invalidate every
-  // calc() built on this variable; the CSS default (100dvh) must survive.
-  if (Number.isFinite(wa.viewportHeight))
-    setVar('--app-vh', `${wa.viewportHeight}px`)
-  // A missing height (dev mock, a desktop client before its first viewport
-  // event) used to become the literal 'undefinedpx' and invalidate every
-  // calc() built on this variable; the CSS default (100dvh) must survive.
-  if (Number.isFinite(wa.viewportStableHeight))
-    setVar('--app-vh-stable', `${wa.viewportStableHeight}px`)
+  /*
+   * In fullscreen the viewport is the whole screen, status bar included, and
+   * the app's own box starts below Telegram's buttons. `appBox` shortens the
+   * heights by that inset ONCE, here, so every layout built on --app-vh* stays
+   * right; styles/telegram.css moves the box down by --app-top-inset.
+   */
+  const box = appBox(wa)
+  document.documentElement.setAttribute(
+    'data-tg-fullscreen',
+    box.fullscreen ? '1' : '0'
+  )
+  // A height Telegram has not reported yet is simply not in the list, so the
+  // CSS default (100dvh) survives instead of becoming 'undefinedpx'.
+  for (const [name, value] of Object.entries(viewportVars(wa))) {
+    setVar(name, value)
+  }
+}
+
+/**
+ * Paint what Telegram draws AROUND the WebView in the app's own black.
+ *
+ * Left alone, the client uses its theme colour: on a light-themed phone that
+ * is a white header over a black interface (the owner's photo, 2026-09-17).
+ * Each call is version-gated and guarded -- an old client throws on a method
+ * it does not know, and a cosmetic call must never break the launch.
+ */
+function paintChrome(wa: TelegramWebApp) {
+  try {
+    if (isVersionAtLeast('6.1')) {
+      wa.setHeaderColor(CHROME_COLOR)
+      wa.setBackgroundColor(CHROME_COLOR)
+    }
+    if (isVersionAtLeast('7.10')) wa.setBottomBarColor?.(CHROME_COLOR)
+  } catch {
+    // Cosmetic. The app works under a header of the wrong colour.
+  }
 }
 
 function applySafeArea(wa: TelegramWebApp) {
@@ -121,6 +152,28 @@ export function useTelegramWebApp() {
 
     wa.ready()
     wa.expand()
+    paintChrome(wa)
+
+    /*
+     * THE WHOLE SCREEN, ON PHONES.
+     *
+     * `expand()` stops at a full-height sheet: rounded corners, the chat
+     * visible above, Telegram's header on top. The owner asked for the whole
+     * screen, which is this call (Bot API 8.0). It is asked from here rather
+     * than left to BotFather's launch mode because the app is opened five
+     * ways -- menu button, inline button, reply keyboard, direct link, the
+     * TRI tab -- and that setting covers one of them.
+     *
+     * A refusal is not an error: the client answers `fullscreenFailed` and the
+     * app stays a sheet, exactly as before.
+     */
+    if (shouldRequestFullscreen(wa)) {
+      try {
+        wa.requestFullscreen?.()
+      } catch {
+        // Stays a sheet.
+      }
+    }
 
     // A downward drag anywhere minimises the Mini App on iOS/Android. This app
     // has a vertically-swiped feed and a vertically-dragged timeline, both of
@@ -138,12 +191,16 @@ export function useTelegramWebApp() {
       applySafeArea(wa)
     }
     const onThemeChanged = () => applyTheme(wa)
-    const onSafeAreaChanged = () => applySafeArea(wa)
 
     wa.onEvent('viewportChanged', onViewportChanged)
     wa.onEvent('themeChanged', onThemeChanged)
-    wa.onEvent('safeAreaChanged', onSafeAreaChanged)
-    wa.onEvent('contentSafeAreaChanged', onSafeAreaChanged)
+    // The insets are part of the app's box in fullscreen, so a change in them
+    // is a change of viewport, not only of padding.
+    wa.onEvent('safeAreaChanged', onViewportChanged)
+    wa.onEvent('contentSafeAreaChanged', onViewportChanged)
+    // Entering and leaving fullscreen: by our request, or by the person using
+    // the client's own menu. Either way the box has just changed.
+    wa.onEvent('fullscreenChanged', onViewportChanged)
 
     // The reported viewport is stale for ~300-600ms after launch on iOS and
     // there is no resize event to hang this off, so re-read once settled.
@@ -153,9 +210,11 @@ export function useTelegramWebApp() {
       window.clearTimeout(settle)
       wa.offEvent('viewportChanged', onViewportChanged)
       wa.offEvent('themeChanged', onThemeChanged)
-      wa.offEvent('safeAreaChanged', onSafeAreaChanged)
-      wa.offEvent('contentSafeAreaChanged', onSafeAreaChanged)
+      wa.offEvent('safeAreaChanged', onViewportChanged)
+      wa.offEvent('contentSafeAreaChanged', onViewportChanged)
+      wa.offEvent('fullscreenChanged', onViewportChanged)
       document.documentElement.removeAttribute('data-tg')
+      document.documentElement.removeAttribute('data-tg-fullscreen')
       document.documentElement.removeAttribute('data-tg-platform')
     }
   }, [inTelegram])
