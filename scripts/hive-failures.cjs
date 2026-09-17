@@ -107,28 +107,60 @@ function isOtherFailure(row) {
 }
 
 /**
- * WHICH BUILD IS ACTUALLY RUNNING, AND SINCE WHEN.
+ * WHICH BUILDS ARE ACTUALLY RUNNING, AND SINCE WHEN.
  *
  * A census with no build in it invites the mistake this command was written to
  * stop. On 2026-09-17 I reported that the picture leak was waiting on an
- * unmerged pull request; the render had in fact been running that fix since
- * 15:15 the day before, and the leak continued under it. Same number, opposite
+ * unmerged pull request; the render had been running that fix since 15:15 the
+ * day before, and the leak continued under it. Same number, opposite
  * conclusion, and the difference was one line from /health.
  *
- * Covers the render service only. The bot is a separate deployment with its own
- * restart, so a bot-side change is NOT dated by this.
+ * TWO SERVICES, AND THE FIRST VERSION ASKED ONLY ONE.
+ *
+ * It split at the render's start time -- and then judged the SWEEP by it, which
+ * lives in the bot. Two deployments with their own restarts were being measured
+ * with one ruler, and the wrong one: the render redeploys on almost every merge
+ * (it serves the whole front end), so the window kept resetting to nothing while
+ * the bot, whose behaviour was the question, sat unchanged for hours.
+ *
+ * So both are asked, and the split is the LATER of the two: only past that
+ * moment is the whole pipeline the new one. Conservative on purpose -- it can
+ * call a fixed thing unproven, never a broken thing fixed.
  */
-function build() {
+function builds() {
+  const out = { render: null, bot: null, renderVersion: 'unreachable' }
   try {
-    const out = execSync(
-      `curl -s --max-time 20 ${JSON.stringify(`${BASE}/health`)}`,
-      { encoding: 'utf8', shell: '/bin/sh' }
+    const health = JSON.parse(
+      execSync(`curl -s --max-time 20 ${JSON.stringify(`${BASE}/health`)}`, {
+        encoding: 'utf8',
+        shell: '/bin/sh',
+      })
     )
-    const h = JSON.parse(out)
-    return { version: h.version || 'unknown', startedAt: h.startedAt || null }
+    out.render = health.startedAt || null
+    out.renderVersion = health.version || 'unknown'
   } catch {
-    return { version: 'unreachable', startedAt: null }
+    /* an unreachable render leaves its half unknown, which the caller prints */
   }
+  try {
+    const raw = execSync(
+      'railway service 999-multibots-telegraf >/dev/null 2>&1; ' +
+        'railway deployment list --json 2>/dev/null',
+      { encoding: 'utf8', shell: '/bin/sh', maxBuffer: 16 * 1024 * 1024 }
+    )
+    const list = JSON.parse(raw)
+    const ok = list.find(d => d.status === 'SUCCESS')
+    out.bot = ok?.createdAt || null
+  } catch {
+    /* no railway link here: the bot half stays unknown rather than guessed */
+  }
+  return out
+}
+
+/** The later of two instants, or whichever one exists. */
+function laterOf(a, b) {
+  if (!a) return b
+  if (!b) return a
+  return Date.parse(a) >= Date.parse(b) ? a : b
 }
 
 /**
@@ -193,13 +225,13 @@ function main() {
     bold(`${rows.length} events over ${days.toFixed(1)} days`) +
       dim(`  (newest ${rows[0].at})`)
   )
-  const running = build()
+  const running = builds()
+  const anchor = laterOf(running.render, running.bot)
   console.log(
     dim(
-      `  render build ${running.version}` +
-        (running.startedAt
-          ? `, up since ${running.startedAt}`
-          : ', start time unknown')
+      `  render ${running.renderVersion}` +
+        (running.render ? ` up since ${running.render}` : ' start unknown') +
+        (running.bot ? `, bot deployed ${running.bot}` : ', bot deploy unknown')
     )
   )
   console.log(
@@ -219,7 +251,7 @@ function main() {
    * "41 before the build, 3 since" is a different sentence from "44 lost", and
    * only the first one can be acted on.
    */
-  const half = splitAtDeploy(rows, running.startedAt)
+  const half = splitAtDeploy(rows, anchor)
   if (half.dated) {
     const lb = half.before.filter(isLostPicture).length
     const ls = half.since.filter(isLostPicture).length
@@ -228,9 +260,7 @@ function main() {
     const pb = half.before.filter(r => r.kind === 'card-pressed').length
     const ps = half.since.filter(r => r.kind === 'card-pressed').length
     console.log()
-    console.log(
-      bold('                    before this build   since this build')
-    )
+    console.log(bold('                    before both up       since both up'))
     console.log(
       `  events            ${String(half.before.length).padStart(10)}${String(half.since.length).padStart(19)}`
     )
@@ -260,6 +290,13 @@ function main() {
         )
       )
     }
+    /*
+     * THE ANCHOR IS THE LATER OF TWO DEPLOYS, and the reason belongs next to
+     * the number. Judging a sweep -- which lives in the bot -- by the render's
+     * start time was the first version's mistake: the render redeploys on
+     * nearly every merge, so the window kept resetting while the thing being
+     * measured had not changed.
+     */
     if (half.since.length < 30) {
       console.log(
         dim(
@@ -323,4 +360,5 @@ module.exports = {
   isOtherFailure,
   tally,
   splitAtDeploy,
+  laterOf,
 }
