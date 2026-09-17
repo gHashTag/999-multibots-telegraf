@@ -28,6 +28,7 @@
 import { createHash } from 'node:crypto'
 import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
+import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import {
@@ -2781,6 +2782,15 @@ TOOLS.push(...HIVE_TOOLS)
  * One catalogue tool instead of a hundred per-function tools (inngest-tools.ts).
  */
 TOOLS.push(...INNGEST_TOOLS)
+/*
+ * Search and one-page reading (web-tools.ts). The agent could describe the
+ * internet from memory and could not check anything in it -- so it answered
+ * about a 2025 world with today's confidence, which is the failure this closes.
+ *
+ * Registered here like any other family, and then gated below: these are the
+ * only tools whose RESULT is text a stranger wrote.
+ */
+TOOLS.push(...WEB_TOOLS)
 
 /*
  * NO TOOL IS REGISTERED TWICE.
@@ -2806,6 +2816,31 @@ for (const t of TOOLS) {
     )
   }
   seen.add(t.name)
+}
+
+/*
+ * A TURN THAT READ THE INTERNET CANNOT ACT ON THE WORLD.
+ *
+ * Wrapped over the WHOLE registry, in one place, on purpose. There are three
+ * entrances to these handlers -- the mini-app chat (chat.ts), external MCP
+ * (`POST /mcp` in routes.ts) and /a2a -- and a check written at any one of
+ * them would silently not apply to the other two. The most dangerous tool in
+ * the registry, `feed_publish`, posts to a public Telegram channel with
+ * `post_to_telegram` defaulting to true and no human in the loop; a check that
+ * covers only the mini app is not a check.
+ *
+ * `webTaintRefusal` returns null for every tool that is not outward-facing and
+ * for every turn that never touched the web, so the ordinary path pays one Set
+ * lookup and nothing else. The rule and the list live in web-tools.ts.
+ */
+for (let i = 0; i < TOOLS.length; i += 1) {
+  const tool = TOOLS[i]
+  const inner = tool.handler
+  TOOLS[i] = {
+    ...tool,
+    handler: async (args, ctx) =>
+      webTaintRefusal(ctx, tool.name) ?? inner(args, ctx),
+  }
 }
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))

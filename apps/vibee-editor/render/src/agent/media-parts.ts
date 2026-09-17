@@ -127,9 +127,24 @@ export function parseMarkers(text: string): MarkerRef[] {
  * fetches. Verified by running it: before this, such a document produced an
  * `image_url` part. `foreignText()` wraps and clips but never touches the
  * start of a line, so it does not close this.
+ *
+ * ── THE SECOND MARKER LANGUAGE: BUTTONS ────────────────────────────────────
+ *
+ * `[[Подпись|act:id]]` is the other syntax the model's free text can speak.
+ * `parseAgentButtons` (src/navigation/helpers/actionButtons.ts) turns it into a
+ * real inline keyboard, and its ids include `topup` -- the top-up flow. So a
+ * fetched page containing that marker, echoed by the model into its answer,
+ * renders a PAYMENT button underneath what reads as our own reply. The label
+ * is whatever the page wrote.
+ *
+ * Breaking `[[` closes it at the source and costs nothing: a double bracket in
+ * prose is not meaningful, and the alternative — trusting the model never to
+ * copy a marker it was shown — is not a defence.
  */
 export function defangMarkers(text: string): string {
-  return String(text ?? '').replace(/^\[attached /gim, '[ attached ')
+  return String(text ?? '')
+    .replace(/^\[attached /gim, '[ attached ')
+    .replace(/\[\[/g, '[ [')
 }
 
 /**
