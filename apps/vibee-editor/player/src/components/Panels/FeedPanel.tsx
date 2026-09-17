@@ -95,6 +95,16 @@ export function FeedPanel({ fullscreen = false }: FeedPanelProps) {
       panel.style.setProperty('--feed-chrome-top', `${inset}px`)
     }
     publish()
+    // AND AGAIN AFTER THE LAYOUT SETTLES. Measured on the deployed site, the
+    // value published on mount was a pixel short -- 67 against 68 at 1723x720,
+    // 82 against 83 at 390x844 -- because the app's chrome was still mounting
+    // and the panel's own top was still moving. A MOVE resizes neither the
+    // panel nor the chips, so the observers below never fire to correct it and
+    // the stale number simply stays. One frame later the layout is settled.
+    const frame =
+      typeof requestAnimationFrame !== 'undefined'
+        ? requestAnimationFrame(publish)
+        : null
     // Guarded because jsdom has no ResizeObserver: the value published on mount
     // still holds, it simply stops following later changes.
     const ro =
@@ -105,6 +115,7 @@ export function FeedPanel({ fullscreen = false }: FeedPanelProps) {
     }
     window.addEventListener('resize', publish)
     return () => {
+      if (frame !== null) cancelAnimationFrame(frame)
       ro?.disconnect()
       window.removeEventListener('resize', publish)
       panel.style.removeProperty('--feed-chrome-top')
