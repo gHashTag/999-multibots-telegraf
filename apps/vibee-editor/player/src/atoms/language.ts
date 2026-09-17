@@ -147,6 +147,9 @@ const en: Translations = {
     'Telegram sent the code as a message — look for the "Telegram" chat',
   'connect.code.appHint':
     'It comes only to devices where this number is already signed in to Telegram. Another account on this phone will not receive it.',
+  'connect.code.openChat': 'Open the “Telegram” chat',
+  'connect.code.openChatHint':
+    'This screen will wait for you: read the code there, come back and type it.',
   'connect.code.viaSms': 'The code was sent to you by SMS',
   'connect.code.viaCall':
     'Telegram is calling you — a voice will read the code',
@@ -2072,6 +2075,9 @@ const ru: Translations = {
     'Telegram прислал код сообщением — ищите чат «Telegram»',
   'connect.code.appHint':
     'Он приходит только на устройства, где этот номер уже вошёл в Telegram. Другой аккаунт на этом телефоне его не получит.',
+  'connect.code.openChat': 'Открыть чат «Telegram»',
+  'connect.code.openChatHint':
+    'Этот экран вас подождёт: прочитайте код там, вернитесь и введите его.',
   'connect.code.viaSms': 'Код отправлен вам по SMS',
   'connect.code.viaCall': 'Telegram звонит вам — голос продиктует код',
   'connect.code.viaMissedCall':
