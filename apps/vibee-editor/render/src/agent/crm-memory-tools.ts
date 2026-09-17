@@ -630,10 +630,13 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           const base = fromBase.get(l.lead)
           const name = l.name ?? base?.first_name ?? null
           const username = l.username ?? base?.username ?? null
+          const lastIn = l.lastInboundAt ? l.lastInboundAt.toISOString() : null
           const st = stageOf({
             paid: paid.has(l.lead),
             touches: (l.lastTouch ? [l.lastTouch] : []) as never,
             quietDays: l.daysSinceInbound,
+            lastInboundAt: lastIn,
+            lastOutboundAt: l.unanswered ? null : lastIn,
           })
           return {
             lead: l.lead,
