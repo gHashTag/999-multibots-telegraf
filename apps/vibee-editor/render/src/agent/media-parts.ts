@@ -160,6 +160,67 @@ function partFor(kind: MediaKind, url: string): ContentPart {
     : { type: 'audio_url', audio_url: { url } }
 }
 
+export type Attachment = { kind: MediaKind; url: string }
+
+/**
+ * The usable attachments of ONE message, in the order the producer wrote them.
+ *
+ * One scanner, used by the wire conversion below AND by the tool context
+ * (chat.ts): the marker format already exists in two copies and is pinned by a
+ * test for exactly that reason, so it is READ in a single place.
+ */
+function attachmentsOf(content: unknown): Attachment[] {
+  if (typeof content !== 'string') return []
+  const found: Attachment[] = []
+  const seen = new Set<string>()
+  MARKER.lastIndex = 0
+  for (const m of content.matchAll(MARKER)) {
+    const kind = m[1] === 'image' ? 'image' : m[1] === 'audio' ? 'audio' : null
+    if (!kind) continue
+    const url = usableMediaUrl(m[4], kind)
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    found.push({ kind, url })
+    if (found.length >= MAX_ATTACHMENTS) break
+  }
+  return found
+}
+
+/**
+ * THE IMAGES THE PERSON ATTACHED TO THE TURN BEING ANSWERED.
+ *
+ * Strict on purpose, because this is what makes img2img the DEFAULT: a tool
+ * about to draw may only reach for a photo that arrived WITH the request it is
+ * answering. A picture from an older turn would turn "нарисуй кота" into a
+ * redraw of a face nobody mentioned.
+ */
+export function imagesAttachedNow(messages: ChatMessage[]): string[] {
+  const last = messages[messages.length - 1]
+  if (!last || last.role !== 'user') return []
+  return attachmentsOf(last.content)
+    .filter(a => a.kind === 'image')
+    .map(a => a.url)
+}
+
+/**
+ * The newest image the person attached ANYWHERE in this conversation.
+ *
+ * Lenient on purpose, and cheap: only a URL is chosen here, so the reason
+ * withMediaParts looks at a single turn -- re-sending the media on every tool
+ * step -- does not apply. "А теперь в рыжий" arrives one turn after the photo,
+ * and falling back to the Telegram avatar there is precisely how a person's
+ * own photo got silently replaced by their profile picture.
+ */
+export function lastAttachedImage(messages: ChatMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role !== 'user') continue
+    const image = attachmentsOf(m.content).find(a => a.kind === 'image')
+    if (image) return image.url
+  }
+  return null
+}
+
 /**
  * Build the wire messages, turning media in the LAST user turn into parts.
  *
@@ -177,19 +238,7 @@ export function withMediaParts(messages: ChatMessage[]): WireMessage[] {
     return messages as WireMessage[]
   }
 
-  const found: Array<{ kind: MediaKind; url: string }> = []
-  const seen = new Set<string>()
-  MARKER.lastIndex = 0
-  for (const m of last.content.matchAll(MARKER)) {
-    const kind = m[1] === 'image' ? 'image' : m[1] === 'audio' ? 'audio' : null
-    if (!kind) continue
-    const url = usableMediaUrl(m[4], kind)
-    if (!url || seen.has(url)) continue
-    seen.add(url)
-    found.push({ kind, url })
-    if (found.length >= MAX_ATTACHMENTS) break
-  }
-
+  const found = attachmentsOf(last.content)
   if (!found.length) return messages as WireMessage[]
 
   const parts: ContentPart[] = [

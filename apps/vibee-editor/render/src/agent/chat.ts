@@ -30,7 +30,12 @@ import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic
 import { salesPlaybook } from './crm-playbook'
 import { imagesLookDown } from './image-health'
 import { allProviders, diagnose } from './provider'
-import { withMediaParts, mediaKindsPresent } from './media-parts'
+import {
+  withMediaParts,
+  mediaKindsPresent,
+  imagesAttachedNow,
+  lastAttachedImage,
+} from './media-parts'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -730,6 +735,32 @@ export async function* streamModel(
  * История передаётся целиком: серверная сессия пережила бы перезапуск хуже,
  * чем клиент переживёт повторную отправку, а перезапуски здесь регулярны.
  */
+/**
+ * THE TOOLS ARE TOLD WHAT THE PERSON ATTACHED -- on every surface at once.
+ *
+ * The markers are produced by the bot, the mini app and the phone, and parsed
+ * here on the way in, so "redraw the photo I just sent" behaves the same
+ * everywhere instead of once per client. Nothing is copied from arguments: the
+ * URLs come from the shelf-checked parser in media-parts.ts.
+ *
+ * A COPY, never a mutation of the caller's ctx: the same object is reused
+ * across requests by some callers, and a turn's attachment must not leak into
+ * the next person's.
+ */
+export function withAttachments(
+  ctx: ToolContext,
+  history: ChatMessage[]
+): ToolContext {
+  const attachedImages = imagesAttachedNow(history)
+  const recentImage = lastAttachedImage(history)
+  if (!attachedImages.length && !recentImage) return ctx
+  return {
+    ...ctx,
+    attachedImages,
+    ...(recentImage ? { recentImage } : {}),
+  }
+}
+
 export async function* runAgent(
   history: ChatMessage[],
   ctx: ToolContext,
@@ -794,6 +825,11 @@ export async function* runAgent(
       return false
     }
   })()
+
+  // Decided once per turn from the incoming history -- the loop appends
+  // assistant and tool turns to `messages`, and an attachment belongs to the
+  // person's request, not to a tool's answer.
+  const toolCtx = withAttachments(ctx, history)
 
   const messages: ChatMessage[] = [
     {
@@ -878,7 +914,7 @@ export async function* runAgent(
         try {
           значение = await tool.handler(
             call.function.arguments ? JSON.parse(call.function.arguments) : {},
-            ctx
+            toolCtx
           )
         } catch (e) {
           значение = { ошибка: String(e).slice(0, 400) }
