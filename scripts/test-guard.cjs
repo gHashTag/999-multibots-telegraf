@@ -279,15 +279,94 @@ if (fresh.length === 0) {
   process.exit(0)
 }
 
+/**
+ * A FAILURE IS CONFIRMED BEFORE IT BLOCKS ANYTHING.
+ *
+ * Measured 2026-09-17: a push was refused by this gate, the same gate run twice
+ * more on the same files reported nothing, and the push went through on the
+ * second attempt. Nothing was broken -- 188 test files run under load, on a
+ * machine that is also building, and something timed out.
+ *
+ * That is the worst possible state for a gate. It teaches "just push again",
+ * and a habit of pushing again passes real breakage too, silently. The repair
+ * is not to loosen it: it is to make the gate tell a BROKEN test apart from a
+ * NOISY one, which is a question it can answer itself by asking twice.
+ *
+ * So the fresh failures are re-run alone -- a handful of files instead of 188,
+ * seconds instead of minutes. What fails again blocks the push. What passes is
+ * reported LOUDLY as flaky, by name, and does not block: a test that cannot
+ * make up its mind is a real problem, and it is a different problem from the
+ * change being pushed.
+ *
+ * What this must never become: a retry that hides an intermittent defect. The
+ * flaky names are printed every time, at the top, so they accumulate in front
+ * of somebody rather than in a log nobody opens.
+ */
+const confirm = list => {
+  if (!list.length) return { real: [], flaky: [] }
+  const OUT2 = OUT.replace(/\.json$/, '.confirm.json')
+  try {
+    if (existsSync(OUT2)) unlinkSync(OUT2)
+  } catch {
+    /* a stale report is replaced below anyway */
+  }
+  try {
+    execFileSync(
+      'npx',
+      ['vitest', 'run', '--reporter=json', `--outputFile=${OUT2}`, ...list],
+      { cwd: root, stdio: ['ignore', 'ignore', 'inherit'], env: nodeEnv() }
+    )
+  } catch {
+    // Non-zero here means "some of them failed again", which is the answer.
+  }
+  if (!existsSync(OUT2)) {
+    // No report at all: the re-run itself did not happen, so nothing was
+    // confirmed and nothing may be excused. Everything stays a real failure.
+    return { real: list, flaky: [] }
+  }
+  const again = JSON.parse(readFileSync(OUT2, 'utf8')).testResults || []
+  const failedAgain = new Set(
+    again
+      .filter(r => r.status === 'failed')
+      .map(r => r.name.replace(root + '/', ''))
+  )
+  return {
+    real: list.filter(f => failedAgain.has(f)),
+    flaky: list.filter(f => !failedAgain.has(f)),
+  }
+}
+
+console.log('[тесты] проверяю упавшие ещё раз, по одному файлу…')
+const { real, flaky } = confirm(fresh)
+
+if (flaky.length) {
+  console.error('')
+  console.error(
+    '⚠️  Эти тесты упали в общем прогоне и ПРОШЛИ поодиночке — они шумят, ' +
+      'а не сломаны вашей правкой:'
+  )
+  for (const f of flaky) console.error(`   ${f}`)
+  console.error(
+    '   Шум в воротах учит «просто запушь ещё раз», и эта привычка однажды ' +
+      'пропустит настоящую поломку. Их стоит чинить отдельно.'
+  )
+}
+
+if (real.length === 0) {
+  console.error('')
+  console.error('Ничего не подтвердилось — push пропущен.')
+  process.exit(0)
+}
+
 console.error('')
 console.error(
-  '🛑 Упали тесты, которых НЕ было в базе — это сломала ваша правка:'
+  '🛑 Упали тесты, которых НЕ было в базе, и упали ПОВТОРНО — это сломала ваша правка:'
 )
-for (const f of fresh) console.error(`   ${f}`)
+for (const f of real) console.error(`   ${f}`)
 console.error('')
 console.error(
   '   Посмотреть подробности:  npx vitest related --run ' +
-    files.slice(0, 3).join(' ')
+    real.slice(0, 3).join(' ')
 )
 /*
  * exitCode, not exit(): process.exit throws away writes still queued on a pipe,

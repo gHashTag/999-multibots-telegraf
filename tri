@@ -437,6 +437,21 @@ CHECKS THAT EACH COST A CYCLE
         promise: only running the test says whether the string it looks for is
         still in there.
 
+  tri flaky <test-file> [--times N] | tri шумит
+        Is this test broken, or does it just not make up its mind.
+
+        A push was refused on 2026-09-17, the same gate run twice more on the
+        same files reported nothing, and the push went through on the second
+        attempt. Nothing was broken. That is the worst state a gate can be in:
+        it teaches "just push again", and that habit passes real breakage too.
+
+        The gate now re-runs a fresh failure ALONE and blocks only on what
+        fails twice; a noisy one is named and let through. This is the tool for
+        going back to the named one.
+
+        Exit code: 0 stable, 1 flaky or broken, 2 the runner never started.
+        Passing four times in five is not passing -- it is a coin.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1633,6 +1648,14 @@ cmd_clone() {
   #   tri clone            the account behind the agent key
   #   tri clone <id>       somebody else
   ( cd "$ROOT" && node "$ROOT/scripts/clone-state.cjs" "$@" )
+}
+
+cmd_flaky() {
+  # Is this test broken, or does it just not make up its mind. The push gate
+  # now re-runs a fresh failure alone and only blocks on what fails twice; the
+  # noisy one it names and moves on. This is the coming back for it.
+  #   tri flaky <test-file> [--times N]
+  ( cd "$ROOT" && node "$ROOT/scripts/is-it-flaky.cjs" "$@" )
 }
 
 cmd_readers() {
@@ -4024,6 +4047,7 @@ case "$action" in
   failures|потери)    cmd_failures "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
+  flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
