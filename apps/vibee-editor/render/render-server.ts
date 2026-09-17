@@ -4,6 +4,7 @@
 import { запомнитьНомер } from './src/agent/known-phone'
 import { soul } from './src/agent/chat'
 import { удалитьСвоёФото } from './src/assets/delete-own-photo'
+import { serviceOwnerFromKey } from './src/auth/service-owner'
 import { KIE_MODELS } from './src/agent/kie-models'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
@@ -372,12 +373,10 @@ function verifiedViewerId(req: IncomingMessage): string | null {
 function generationOwnerId(req: IncomingMessage): string | null {
   const viewer = verifiedViewerId(req)
   if (viewer) return viewer
-  const rawInternalKey = req.headers['x-api-key']
-  const internalKey = Array.isArray(rawInternalKey)
-    ? rawInternalKey[0]
-    : rawInternalKey
-  if (!internalKey?.trim()) return null
-  return `service:${createHash('sha256').update(internalKey).digest('hex')}`
+  // The digest lives in src/auth/service-owner.ts, where a test can call it:
+  // importing THIS file starts the server, so the only guard possible here
+  // was a test reading the source for the words createHash('sha256').
+  return serviceOwnerFromKey(req.headers['x-api-key'])
 }
 
 /**
@@ -8533,109 +8532,141 @@ const server = createServer(async (req, res) => {
               )
             })
             if (match) {
-              const upd = await pool.query(
-                `UPDATE token_invoices
-                    SET redeemed = TRUE, star_tx_id = $2,
-                        cancelled_at = NULL, cancel_reason = NULL
-                  WHERE id = $1 AND redeemed = FALSE RETURNING id`,
-                [row.id, match.id]
+              /*
+               * THE CREDIT COMES FIRST, THE INVOICE IS CLOSED SECOND.
+               *
+               * The order used to be the other way round, and it cost money.
+               * The row was stamped `redeemed = TRUE` BEFORE the credit, and
+               * a credit can throw -- a dropped connection, a failed query.
+               * Control then went to this handler's catch, the answer was a
+               * 500, and the invoice stayed closed for ever: every later
+               * verify looks for `redeemed = FALSE` and no longer finds it.
+               * The money was taken, the tokens were never issued, and no
+               * retry could reach it again -- not in this visit, not in any.
+               *
+               * Reversed now. This opens no double credit: the lock on
+               * crediting is the primary key of `star_payments` (the charge
+               * id), not this flag, and a second attempt on the same id gets
+               * a conflict and answers redelivery. `redeemed` only ever
+               * meant "this invoice is settled", and it is stamped exactly
+               * when the tokens behind it have really arrived.
+               */
+              /*
+               * ОДИН ЗАМОК НА ОБА ПУТИ ЗАЧИСЛЕНИЯ.
+               *
+               * Здесь стоял свой INSERT в user_tokens, а у пути бота —
+               * creditStarsPayment. Замки были РАЗНЫЕ: тут
+               * `token_invoices.redeemed`, там `star_payments.charge_id`.
+               * Общего ключа нет, значит первая же реальная продажа
+               * зачислилась бы ДВАЖДЫ: мини-апп зовёт verify сразу по
+               * `status === 'paid'` (Chat.tsx), а боту тот же платёж
+               * приезжает опросом. Не гонка — оба срабатывают наверняка.
+               *
+               * Дефект был спящим, пока вебхук кассира не работал и verify
+               * оставался единственным путём. Починка приёма апдейтов его
+               * РАЗБУДИЛА бы — поэтому чинится здесь же.
+               *
+               * Ключ общий и он не выдуман: Telegram документирует, что
+               * `StarTransaction.id` совпадает с
+               * `SuccessfulPayment.telegram_payment_charge_id` для входящих
+               * оплат. Значит обе стороны кладут в star_payments один и тот
+               * же идентификатор, и второй по счёту получает конфликт по
+               * первичному ключу и не начисляет.
+               *
+               * `token_invoices.redeemed` stays -- below, after the credit:
+               * it marks "this invoice is settled", which is a different
+               * fact from "the tokens were added".
+               */
+              /*
+               * THE VERDICT IS READ, NOT DISCARDED.
+               *
+               * `creditStarsPayment` returns `{ credited, reason }`, and
+               * this call threw the answer away and then reported the
+               * invoice's full token count to the browser regardless --
+               * the count is written in words here because the guard in
+               * creditedIsNotOk.test.ts greps this file for the literal,
+               * and a comment quoting it reads as the defect itself.
+               * The payload contradicted itself in that case: the balance
+               * below is read from the table and would show the
+               * UN-incremented number beside a claim that tokens had just
+               * been added. Chat.tsx shows that claim to the person.
+               *
+               * Three outcomes, three answers -- the same split the bot's
+               * handler uses, because it is the same ledger:
+               *   credited            -> tokens were added now
+               *   redelivery          -> they were added earlier, and are
+               *                          there; say so without claiming a
+               *                          second credit
+               *   anything else       -> the money arrived and the tokens
+               *                          did not. Say it, and shout.
+               */
+              const credit = await creditStarsPayment(pool, {
+                chargeId: String(match.id),
+                telegramId: String(who),
+                amount: row.tokens,
+              })
+              const bal = await pool.query(
+                `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
+                [who]
               )
-              if (upd.rows.length) {
-                /*
-                 * ОДИН ЗАМОК НА ОБА ПУТИ ЗАЧИСЛЕНИЯ.
-                 *
-                 * Здесь стоял свой INSERT в user_tokens, а у пути бота —
-                 * creditStarsPayment. Замки были РАЗНЫЕ: тут
-                 * `token_invoices.redeemed`, там `star_payments.charge_id`.
-                 * Общего ключа нет, значит первая же реальная продажа
-                 * зачислилась бы ДВАЖДЫ: мини-апп зовёт verify сразу по
-                 * `status === 'paid'` (Chat.tsx), а боту тот же платёж
-                 * приезжает опросом. Не гонка — оба срабатывают наверняка.
-                 *
-                 * Дефект был спящим, пока вебхук кассира не работал и verify
-                 * оставался единственным путём. Починка приёма апдейтов его
-                 * РАЗБУДИЛА бы — поэтому чинится здесь же.
-                 *
-                 * Ключ общий и он не выдуман: Telegram документирует, что
-                 * `StarTransaction.id` совпадает с
-                 * `SuccessfulPayment.telegram_payment_charge_id` для входящих
-                 * оплат. Значит обе стороны кладут в star_payments один и тот
-                 * же идентификатор, и второй по счёту получает конфликт по
-                 * первичному ключу и не начисляет.
-                 *
-                 * `token_invoices.redeemed` выше остаётся: это отметка «счёт
-                 * погашен», отдельная от «деньги зачислены».
-                 */
-                /*
-                 * THE VERDICT IS READ, NOT DISCARDED.
-                 *
-                 * `creditStarsPayment` returns `{ credited, reason }`, and
-                 * this call threw the answer away and then reported the
-                 * invoice's full token count to the browser regardless --
-                 * the count is written in words here because the guard in
-                 * creditedIsNotOk.test.ts greps this file for the literal,
-                 * and a comment quoting it reads as the defect itself.
-                 * The payload contradicted itself in that case: the balance
-                 * below is read from the table and would show the
-                 * UN-incremented number beside a claim that tokens had just
-                 * been added. Chat.tsx shows that claim to the person.
-                 *
-                 * Three outcomes, three answers -- the same split the bot's
-                 * handler uses, because it is the same ledger:
-                 *   credited            -> tokens were added now
-                 *   redelivery          -> they were added earlier, and are
-                 *                          there; say so without claiming a
-                 *                          second credit
-                 *   anything else       -> the money arrived and the tokens
-                 *                          did not. Say it, and shout.
-                 */
-                const credit = await creditStarsPayment(pool, {
-                  chargeId: String(match.id),
-                  telegramId: String(who),
-                  amount: row.tokens,
-                })
-                const bal = await pool.query(
-                  `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
-                  [who]
+              const баланс = bal.rows[0]?.balance ?? null
+              const redelivered = /redeliver/i.test(credit.reason || '')
+              if (!credit.credited && !redelivered) {
+                console.error(
+                  `[STARS] verify: оплата ${match.id} принята, токены НЕ зачислены для ${who}: ${credit.reason}. Счёт ${row.id} оставлен открытым для следующей попытки`
                 )
-                const баланс = bal.rows[0]?.balance ?? null
-                const redelivered = /redeliver/i.test(credit.reason || '')
-                if (!credit.credited && !redelivered) {
-                  console.error(
-                    `[STARS] verify: счёт ${row.id} погашен, но токены НЕ зачислены для ${who}: ${credit.reason}`
-                  )
-                  res.writeHead(200, { 'Content-Type': 'application/json' })
-                  res.end(
-                    JSON.stringify({
-                      ok: false,
-                      /*
-                       * A FLAG, NOT PROSE. The client retries `ok:false`
-                       * three times and then says the credit "will catch
-                       * up on the next visit" -- true while the payment is
-                       * merely not visible yet, and false here: the invoice
-                       * is already marked redeemed, so no later verify will
-                       * find it again. Retrying cannot help, and promising
-                       * it is the same lie one layer up. The client must be
-                       * able to tell the two apart without reading Russian.
-                       */
-                      зачисление_провалено: true, // cyrillic-ok: API field
-                      причина: `оплата принята, токены не зачислены: ${credit.reason}`, // cyrillic-ok: existing field name
-                      баланс,
-                    })
-                  )
-                  return
-                }
                 res.writeHead(200, { 'Content-Type': 'application/json' })
                 res.end(
                   JSON.stringify({
-                    ok: true,
-                    зачислено_токенов: credit.credited ? row.tokens : 0,
-                    уже_зачислено: !credit.credited, // cyrillic-ok: API field
+                    ok: false,
+                    /*
+                     * A FLAG, NOT PROSE. `ok:false` alone means "the
+                     * payment is not visible yet", and the client answers
+                     * it by retrying. This is the other case: the money
+                     * arrived and the credit did not. Retrying inside the
+                     * same minute cannot fix whatever just failed, so the
+                     * client must be able to tell the two apart without
+                     * reading Russian.
+                     *
+                     * The invoice is NOT marked redeemed on this path any
+                     * more -- it stays open, and the next visit's verify
+                     * finds it again. So the honest line for the person is
+                     * "we will try again", not "nothing more can happen".
+                     */
+                    зачисление_провалено: true, // cyrillic-ok: API field
+                    причина: `оплата принята, токены не зачислены: ${credit.reason}`, // cyrillic-ok: existing field name
                     баланс,
                   })
                 )
                 return
               }
+              /*
+               * Settled AFTER the credit, and only for a credit that
+               * happened.
+               *
+               * `WHERE redeemed = FALSE` is kept: a concurrent verify may
+               * have settled the same invoice while this credit was running.
+               * Then this UPDATE touches nothing, and the answer below is
+               * still true -- the tokens are there, and nobody added them
+               * twice (the second call answers redelivery).
+               */
+              await pool.query(
+                `UPDATE token_invoices
+                    SET redeemed = TRUE, star_tx_id = $2,
+                        cancelled_at = NULL, cancel_reason = NULL
+                  WHERE id = $1 AND redeemed = FALSE`,
+                [row.id, match.id]
+              )
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(
+                JSON.stringify({
+                  ok: true,
+                  зачислено_токенов: credit.credited ? row.tokens : 0,
+                  уже_зачислено: !credit.credited, // cyrillic-ok: API field
+                  баланс,
+                })
+              )
+              return
             }
           }
           res.writeHead(200, { 'Content-Type': 'application/json' })

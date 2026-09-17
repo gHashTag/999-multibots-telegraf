@@ -117,13 +117,62 @@ describe('the mini-app verify path reads the verdict', () => {
       "const redelivered = /redeliver/i.test(credit.reason || '')"
     )
   })
+
+  /**
+   * THE INVOICE IS CLOSED BY A CREDIT, NOT BEFORE ONE.
+   *
+   * The row was marked `redeemed = TRUE` first and credited second. A credit
+   * that throws -- a dropped connection, a failed query -- then left the
+   * money taken, the tokens unissued and the invoice closed FOREVER: every
+   * later verify looks for `redeemed = FALSE` and no longer finds it. Not a
+   * rare shape either; it is the whole `catch` of this handler.
+   *
+   * Crediting first opens no double credit: the lock is the primary key of
+   * `star_payments` (the charge id), and a second attempt on the same id
+   * answers redelivery. `redeemed` only ever meant "this invoice is settled".
+   */
+  it('credits first and settles the invoice second', () => {
+    const verify = server.slice(
+      server.indexOf("'/api/tokens/verify'"),
+      server.indexOf('оплаты пока не видно')
+    )
+    const credit = verify.indexOf(
+      'const credit = await creditStarsPayment(pool, {'
+    )
+    const settle = verify.indexOf('SET redeemed = TRUE')
+    expect(credit, 'the credit call was not found').toBeGreaterThan(-1)
+    expect(settle, 'the invoice is never settled at all').toBeGreaterThan(-1)
+    expect(
+      settle,
+      'the invoice is closed before the credit: a throw loses the money'
+    ).toBeGreaterThan(credit)
+    expect(
+      verify.split('SET redeemed = TRUE').length - 1,
+      'more than one place closes the invoice; one of them may still be first'
+    ).toBe(1)
+  })
+
+  it('leaves the invoice open when the credit failed, and says so in the log', () => {
+    // The person gets another chance on their next visit only if nothing
+    // closed the row on the way out.
+    const fail = server.indexOf('if (!credit.credited && !redelivered)')
+    const settle = server.indexOf('SET redeemed = TRUE')
+    expect(fail).toBeGreaterThan(-1)
+    expect(
+      fail,
+      'the invoice is already closed by the time the failure is handled'
+    ).toBeLessThan(settle)
+    expect(server).toContain('оставлен открытым для следующей попытки')
+  })
 })
 
 /**
  * The browser's own branch: `ok:false` used to mean only "not visible yet",
- * and the client promised the credit would catch up on the next visit. After
- * a genuine failure the invoice is already marked redeemed, so no later
- * verify finds it -- the promise could never come true.
+ * and the client answered it with three retries and a promise that the credit
+ * would catch up. A genuine failure needs a different line -- retrying inside
+ * the same minute cannot fix what just failed. Since the render now leaves the
+ * invoice OPEN on that path, the honest line is "we will try again on your
+ * next visit", and the retries still belong to the other case.
  */
 describe('the browser tells the two apart', () => {
   const chat = fs.readFileSync(

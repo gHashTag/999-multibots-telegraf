@@ -17,7 +17,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { KIE_MODELS } from '../src/agent/kie-models'
+import { KIE_MODELS, NEVER_PROBE } from '../src/agent/kie-models'
 import { ИМЯ_В_ПРАЙСЕ, АДРЕС_ПРАЙСА } from '../src/agent/kie-price-names'
 import { ПОЛЯ_МАРШРУТА } from '../src/agent/kie-web-provider'
 import { ВИДИМЫЕ_ИМЕНА } from '../src/agent/kie-display-names'
@@ -39,7 +39,9 @@ async function прайс(): Promise<Строка[]> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pageNum: стр, pageSize: 100 }),
     })
-    const т = (await о.json()) as { data?: { records?: Строка[]; total?: number } }
+    const т = (await о.json()) as {
+      data?: { records?: Строка[]; total?: number }
+    }
     const порция = т.data?.records ?? []
     все.push(...порция)
     if (!порция.length || все.length >= (т.data?.total ?? 0)) break
@@ -87,7 +89,42 @@ function входИзвне(м: { id: string; needs?: string[] }): boolean {
  * выбрать файл». Смешивать нельзя: первое прячет модель, второе гасит кнопку
  * до выбора.
  */
-const ПОЛЯ_ИСХОДНИКА = ['image_url', 'image_urls', 'image', 'video_url', 'audio_url']
+/*
+ * `input_urls` added 2026-09-16, with the first model that uses it.
+ *
+ * GPT Image 2.5 names its source `input_urls` where nano-banana names it
+ * `image_urls` -- kie-image.ts has said so since the model was documented.
+ * The list here knew only the nano-banana spelling, so the first entry that
+ * edits a photo through the new contract was generated as needing no source
+ * at all: the app would light the button with nothing to edit, and the
+ * refusal would come from the provider after the person had waited.
+ *
+ * That is the failure the comment above this list warns about, arriving
+ * through a field name rather than through a wrong flag.
+ */
+const ПОЛЯ_ИСХОДНИКА = [
+  'image_url',
+  'image_urls',
+  'input_urls',
+  'image',
+  'video_url',
+  'audio_url',
+]
+
+/*
+ * DANGER IS DECIDED BY THE LIST THAT DEFINES IT.
+ *
+ * `опасная` used to be read only from kie-display-names.ts, a hand-kept file,
+ * while NEVER_PROBE in kie-models.ts is what actually stops a probe. Two lists
+ * that must agree and nothing making them: adding a model to NEVER_PROBE left
+ * the app calling it safe, and the drift would show only as a bill.
+ *
+ * NEVER_PROBE is the source now; a manual flag can still raise the warning,
+ * never lower it.
+ */
+function fencedFromProbes(id: string): boolean {
+  return (NEVER_PROBE as readonly string[]).includes(id)
+}
 
 function нуженИсходник(м: { needs?: string[] }): boolean {
   return (м.needs ?? []).some(поле => ПОЛЯ_ИСХОДНИКА.includes(поле))
@@ -103,7 +140,10 @@ function нуженИсходник(м: { needs?: string[] }): boolean {
 function видИсходника(м: { needs?: string[] }): string {
   const н = м.needs ?? []
   if (н.includes('video_url')) return '"видео"'
-  if (н.some(п => ['image_url', 'image_urls', 'image'].includes(п))) return '"фото"'
+  if (
+    н.some(п => ['image_url', 'image_urls', 'input_urls', 'image'].includes(п))
+  )
+    return '"фото"'
   if (н.includes('audio_url')) return '"звук"'
   return 'nil'
 }
@@ -165,15 +205,23 @@ async function main() {
 
   const записи = KIE_MODELS.map(м => {
     const видимое = ВИДИМЫЕ_ИМЕНА[м.id]
-    if (!видимое) throw new Error(`${м.id} без названия — правьте kie-display-names.ts`)
+    if (!видимое)
+      throw new Error(`${м.id} без названия — правьте kie-display-names.ts`)
     const имя = ИМЯ_В_ПРАЙСЕ[м.id]
     if (имя === undefined) {
-      throw new Error(`${м.id} не сопоставлен с прайсом — правьте kie-price-names.ts`)
+      throw new Error(
+        `${м.id} не сопоставлен с прайсом — правьте kie-price-names.ts`
+      )
     }
     if (имя === null) {
       // Модели нет в прайсе вовсе: ни цены, ни единицы. Написать единицу
       // здесь значило бы её выдумать.
-      return { м, видимое, цена: null as null | Строка, единицаБезЦены: null as null | Строка }
+      return {
+        м,
+        видимое,
+        цена: null as null | Строка,
+        единицаБезЦены: null as null | Строка,
+      }
     }
     const rs = подходящие(имя)
     if (!rs.length) throw new Error(`имени «${имя}» нет в прайсе (${м.id})`)
@@ -323,7 +371,9 @@ enum КаталогKie {
 ${записи
   .map(({ м, видимое, цена }) => {
     const ц = цена ? `${+цена.usdPrice}` : 'nil'
-    const е = цена ? `"${экр(ЕДИНИЦА[цена.creditUnit] ?? цена.creditUnit)}"` : 'nil'
+    const е = цена
+      ? `"${экр(ЕДИНИЦА[цена.creditUnit] ?? цена.creditUnit)}"`
+      : 'nil'
     /**
      * «Нужно» ВЫВОДИТСЯ ИЗ ЗАМЕРЕННОГО КОНТРАКТА, а не пишется руками.
      *
@@ -355,7 +405,7 @@ ${записи
     const требует = отЧеловека.length
       ? [...new Set(отЧеловека)].join(' + ')
       : видимое.требует
-    return `    Модель(id: "${экр(м.id)}", название: "${экр(видимое.название)}", вид: .${видимое.вид}, живая: ${м.state === 'live'}, требует: "${экр(требует)}", опасная: ${видимое.опасная === true}, ценаUSD: ${ц}, единица: ${е}, входИзвне: ${входИзвне(м)}, нуженИсходник: ${нуженИсходник(м)}, видИсходника: ${видИсходника(м)}),`
+    return `    Модель(id: "${экр(м.id)}", название: "${экр(видимое.название)}", вид: .${видимое.вид}, живая: ${м.state === 'live'}, требует: "${экр(требует)}", опасная: ${fencedFromProbes(м.id) || видимое.опасная === true}, ценаUSD: ${ц}, единица: ${е}, входИзвне: ${входИзвне(м)}, нуженИсходник: ${нуженИсходник(м)}, видИсходника: ${видИсходника(м)}), // cyrillic-ok: generated UI catalogue`
   })
   .join('\n')}
   ]

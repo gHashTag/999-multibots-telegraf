@@ -27,6 +27,10 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'google/imagen4-ultra': 'google imagen4, text-to-image, Ultra',
   'google/imagen4': 'google imagen4, text-to-image, default',
   'google/nano-banana-edit': 'Google nano banana edit',
+  // Read from the price list on 2026-09-16 and then CONFIRMED by a real
+  // run: six credits, which is what this row says. cyrillic-ok
+  'gpt-image-2-5-flare-image-to-image':
+    'gpt-image-2-5-flare, image-to-image, 1K',
   'google/nano-banana': 'Google nano banana',
   'grok-imagine/text-to-image': 'grok-imagine-image-2-0',
   'grok-imagine/image-to-image': 'grok-imagine-image-2-0',
@@ -41,8 +45,10 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'wan/2-7-image': 'wan 2.7 image',
 
   // — видео —
-  'grok-imagine/text-to-video': 'grok-imagine-video-1-5-preview, image-to-video, 480p',
-  'grok-imagine/image-to-video': 'grok-imagine-video-1-5-preview, image-to-video, 480p',
+  'grok-imagine/text-to-video':
+    'grok-imagine-video-1-5-preview, image-to-video, 480p',
+  'grok-imagine/image-to-video':
+    'grok-imagine-video-1-5-preview, image-to-video, 480p',
   'kling/ai-avatar-standard': 'Kling AI Avtar',
   'kling/v2-1-pro': 'Kling 2.1',
   'kling/v3-turbo-text-to-video': 'kling 3.0 turbo',
@@ -64,7 +70,8 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'volcengine/video-to-video-lip-sync': 'volcengine',
 
   // — звук —
-  'elevenlabs/text-to-speech-multilingual-v2': 'Elevenlabs Text to Speech, multilingual v2',
+  'elevenlabs/text-to-speech-multilingual-v2':
+    'Elevenlabs Text to Speech, multilingual v2',
   'elevenlabs/text-to-speech-turbo-2-5': 'Elevenlabs Text to Speech, turbo 2.5',
   'elevenlabs/audio-isolation': null,
   'google/gemini-3-1-flash-tts': 'Gemini 3.1 Flash TTS',

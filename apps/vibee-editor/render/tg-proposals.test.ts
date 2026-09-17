@@ -11,6 +11,7 @@ import {
   idFromBody,
   execute,
   issueFor,
+  forgetGoneProposalsForTests,
 } from './src/agent/tg-proposals'
 
 /**
@@ -1536,5 +1537,92 @@ describe('remember caps the schedule a draft may carry', () => {
     expect(() =>
       remember(base({ id: 'sch-nan', scheduleAt: Number.NaN }))
     ).toThrow('ISO')
+  })
+})
+
+describe('a card that is gone says WHY, to the person whose card it was', () => {
+  /*
+   * MEASURED FROM THE HIVE JOURNAL 2026-09-16: 62 cards prepared in five and
+   * a half days. One draft per person, so each new card takes the previous
+   * one's id out of the queue -- while the Telegram message with its buttons
+   * stays in the chat, looking alive.
+   *
+   * Pressing one from an hour ago answered "already confirmed or expired".
+   * Half of that sentence says a message reached a client. It did not, and
+   * being unsure which happened is the worst place to leave somebody about a
+   * message to their own customer.
+   */
+  const OWNER = '144022504'
+
+  beforeEach(() => {
+    forgetProposals()
+    forgetGoneProposalsForTests()
+  })
+
+  it('a replaced card tells the owner that nothing was sent', () => {
+    const secret = remember(draft('old', OWNER, 'первое')).secret
+    // The next sweep mints another card for the same person.
+    remember(draft('new', OWNER, 'второе'))
+
+    const r = claim(OWNER, 'old', secret)
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.why).toContain('заменён новым')
+      expect(r.why, 'the owner must be told nothing left').toContain(
+        'ничего не ушло'
+      )
+    }
+  })
+
+  it('a cancelled card says so, and still says nothing was sent', () => {
+    const secret = remember(draft('c1', OWNER)).secret
+    expect(claim(OWNER, 'c1', secret, 'cancel').ok).toBe(true)
+    const again = claim(OWNER, 'c1', secret)
+    expect(again.ok).toBe(false)
+    if (!again.ok) expect(again.why).toContain('уже отменён')
+  })
+
+  it('a STRANGER holding the id learns nothing', () => {
+    // The vague sentence is the right answer here and must stay vague: it
+    // must not confirm that a draft ever existed.
+    const secret = remember(draft('old', OWNER)).secret
+    remember(draft('new', OWNER))
+    const r = claim('900000009', 'old', secret)
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.why).toBe('это действие уже подтверждено или истекло')
+      expect(r.why).not.toContain('заменён')
+    }
+  })
+
+  it('the owner WITHOUT the secret learns nothing either', () => {
+    // The button carries the secret. A guessed id does not.
+    remember(draft('old', OWNER))
+    remember(draft('new', OWNER))
+    const r = claim(OWNER, 'old', 'не тот секрет')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.why).toBe('это действие уже подтверждено или истекло')
+  })
+
+  it('an id nobody ever issued gets the vague answer', () => {
+    const r = claim(OWNER, 'никогда-не-было', 'что-то')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.why).toBe('это действие уже подтверждено или истекло')
+  })
+
+  it('the courtesy is bounded: old entries do not accumulate', () => {
+    // 200 is the cap. Well past it, the oldest reasons are gone and their
+    // owners get the vague sentence -- a courtesy, not a record.
+    const secrets: string[] = []
+    for (let i = 0; i < 205; i += 1) {
+      secrets.push(remember(draft(`d${i}`, OWNER)).secret)
+    }
+    const first = claim(OWNER, 'd0', secrets[0])
+    expect(first.ok).toBe(false)
+    if (!first.ok)
+      expect(first.why).toBe('это действие уже подтверждено или истекло')
+    const recent = claim(OWNER, 'd203', secrets[203])
+    expect(recent.ok).toBe(false)
+    if (!recent.ok) expect(recent.why).toContain('заменён новым')
   })
 })

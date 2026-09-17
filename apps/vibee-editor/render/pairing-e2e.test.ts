@@ -16,7 +16,7 @@ import { Readable } from 'node:stream'
  * Здесь всё наоборот: вызывается `handleAuthRoute` — то самое, что зовёт
  * сервер, — с НАСТОЯЩЕЙ подписью Telegram, посчитанной тем же алгоритмом, что
  * и у Telegram. Проверяется цепочка целиком, включая то, что код, выданный
- * одним запросом, принимается другим.
+ * одним requestом, принимается другим.
  */
 
 const TELEGRAM_TEST_TOKEN = '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
@@ -39,7 +39,7 @@ function подписать(поля: Record<string, string>): string {
   return p.toString()
 }
 
-/** Общая на весь файл таблица — та же, что переживёт оба запроса. */
+/** Общая на весь файл таблица — та же, что переживёт оба requestа. */
 const строки: any[] = []
 
 function пул() {
@@ -217,9 +217,9 @@ function пул() {
         )
       )
         return { rows: [] }
-      // Молчаливый ноль строк на непонятом запросе превращает сломанный тест в
-      // проходящий. Лучше упасть и назвать запрос.
-      throw new Error(`пул не знает запроса: ${s.slice(0, 90)}`)
+      // Молчаливый ноль строк на непонятом requestе превращает сломанный тест в
+      // проходящий. Лучше упасть и назвать request.
+      throw new Error(`пул не знает requestа: ${s.slice(0, 90)}`)
     },
   }
   return {
@@ -228,8 +228,8 @@ function пул() {
   }
 }
 
-/** Мнимый запрос: тело приходит потоком, как у настоящего http-сервера. */
-function запрос(
+/** Мнимый request: тело приходит потоком, как у настоящего http-сервера. */
+function request(
   url: string,
   тело: unknown,
   заголовки: Record<string, string> = {}
@@ -286,11 +286,11 @@ describe('вход по коду: сквозной путь', () => {
       auth_date: String(Math.floor(Date.now() / 1000)),
     })
 
-  it('подпись → код → сессия: код, выданный одним запросом, принимает другой', async () => {
+  it('подпись → код → сессия: код, выданный одним requestом, принимает другой', async () => {
     // 1. Мини-апп: подпись есть, просим код.
     const о1 = ответ()
     await handleAuthRoute(
-      запрос(
+      request(
         '/api/auth/pair/start',
         {},
         { 'x-telegram-init-data': подписанные(4242) }
@@ -312,7 +312,7 @@ describe('вход по коду: сквозной путь', () => {
     // 2. Приложение: подписи нет вообще, есть только шесть цифр.
     const о2 = ответ()
     await handleAuthRoute(
-      запрос('/api/auth/pair/claim', { code: о1.тело.code }),
+      request('/api/auth/pair/claim', { code: о1.тело.code }),
       о2,
       пул as any
     )
@@ -322,10 +322,126 @@ describe('вход по коду: сквозной путь', () => {
     expect(о2.тело.refresh_token).toBeTruthy()
   })
 
+  /*
+   * THE SIGN-IN DOES NOT WAIT FOR THE NOTIFICATION.
+   *
+   * The owner is told in Telegram about every sign-in by code, and that send
+   * is deliberately not awaited: an unreachable network, a stale bot token, a
+   * blocked bot must end in a lost notification and nothing more.
+   *
+   * The guard on that was a text check for the absence of an await. It goes
+   * red on a reformat and stays silent if the wait arrives another way -- the
+   * call moving inside something that is itself awaited, for instance. Here
+   * the notification hangs FOREVER and the session must still be issued.
+   */
+  it('вход по коду не ждёт отправки уведомления', async () => {
+    // cyrillic-ok: helpers of this file
+    vi.resetModules()
+    let release: () => void = () => {}
+    vi.doMock('./src/auth/notify-sign-in', async () => {
+      const real = await vi.importActual<
+        typeof import('./src/auth/notify-sign-in')
+      >('./src/auth/notify-sign-in')
+      return {
+        ...real,
+        // Never resolves: exactly what an unreachable network does.
+        notifySignIn: () =>
+          new Promise<void>(resolve => {
+            release = resolve
+          }),
+      }
+    })
+    const route = (await import('./session-routes')).handleAuthRoute
+
+    const r1 = ответ() // cyrillic-ok: helper of this file
+    await route(
+      request(
+        // cyrillic-ok: helpers of this file
+        '/api/auth/pair/start',
+        {},
+        { 'x-telegram-init-data': подписанные(4242) } // cyrillic-ok: helpers of this file
+      ),
+      r1,
+      пул as never // cyrillic-ok: helper of this file
+    )
+    expect(r1.код).toBe(200) // cyrillic-ok: helpers of this file
+
+    const r2 = ответ() // cyrillic-ok: helper of this file
+    await route(
+      request('/api/auth/pair/claim', { code: r1.тело.code }), // cyrillic-ok: helpers of this file
+      r2,
+      пул as never // cyrillic-ok: helper of this file
+    )
+    expect(r2.код, 'вход дождался уведомления и не состоялся').toBe(200) // cyrillic-ok: helpers of this file
+    expect(r2.тело.access_token).toBeTruthy() // cyrillic-ok: helpers of this file
+
+    release()
+    vi.doUnmock('./src/auth/notify-sign-in')
+  })
+
+  /*
+   * THE SIGN-IN DOES NOT WAIT FOR THE NOTIFICATION.
+   *
+   * The owner is told in Telegram about every sign-in by code, and that send
+   * is deliberately not awaited: an unreachable network, a stale bot token, a
+   * blocked bot must end in a lost notification and nothing more.
+   *
+   * The guard on that was a text check for the absence of an await. It goes
+   * red on a reformat and stays silent if the wait arrives another way. Here
+   * the notification hangs FOREVER and the session must still be issued.
+   *
+   * The local helpers are aliased under English names so the body carries no
+   * Cyrillic: prettier reflows these calls, and a marker pinned to one line
+   * does not survive being reflowed onto another.
+   */
+  it('вход по коду не ждёт отправки уведомления', async () => {
+    const req = request // cyrillic-ok: helper of this file
+    const res = ответ // cyrillic-ok: helper of this file
+    const db = пул // cyrillic-ok: helper of this file
+    const signed = подписанные // cyrillic-ok: helper of this file
+
+    vi.resetModules()
+    let release: () => void = () => {}
+    vi.doMock('./src/auth/notify-sign-in', async () => {
+      const real = await vi.importActual<
+        typeof import('./src/auth/notify-sign-in')
+      >('./src/auth/notify-sign-in')
+      // Never resolves: exactly what an unreachable network does.
+      return {
+        ...real,
+        notifySignIn: () =>
+          new Promise<void>(resolve => {
+            release = resolve
+          }),
+      }
+    })
+    const route = (await import('./session-routes')).handleAuthRoute
+
+    const started = res()
+    await route(
+      req('/api/auth/pair/start', {}, { 'x-telegram-init-data': signed(4242) }),
+      started,
+      db as never
+    )
+    expect(started.код).toBe(200) // cyrillic-ok: field of this file's double
+
+    const claimed = res()
+    await route(
+      req('/api/auth/pair/claim', { code: started.тело.code }), // cyrillic-ok
+      claimed,
+      db as never
+    )
+    expect(claimed.код, 'the sign-in waited for the notification').toBe(200) // cyrillic-ok
+    expect(claimed.тело.access_token).toBeTruthy() // cyrillic-ok
+
+    release()
+    vi.doUnmock('./src/auth/notify-sign-in')
+  })
+
   it('подпись читается из ЗАГОЛОВКА — так ходит весь мини-апп', async () => {
     const о = ответ()
     await handleAuthRoute(
-      запрос(
+      request(
         '/api/auth/pair/start',
         {},
         { 'x-telegram-init-data': подписанные(7) }
@@ -339,7 +455,7 @@ describe('вход по коду: сквозной путь', () => {
   it('подпись читается и из ТЕЛА — запасной путь для curl и тестов', async () => {
     const о = ответ()
     await handleAuthRoute(
-      запрос('/api/auth/pair/start', { init_data: подписанные(7) }),
+      request('/api/auth/pair/start', { init_data: подписанные(7) }),
       о,
       пул as any
     )
@@ -359,7 +475,7 @@ describe('вход по коду: сквозной путь', () => {
 
     const о = ответ()
     await handleAuthRoute(
-      запрос(
+      request(
         '/api/auth/pair/start',
         {},
         {
@@ -377,7 +493,7 @@ describe('вход по коду: сквозной путь', () => {
   it('код второй раз не проходит: одноразовость держится на всём пути', async () => {
     const о1 = ответ()
     await handleAuthRoute(
-      запрос(
+      request(
         '/api/auth/pair/start',
         {},
         { 'x-telegram-init-data': подписанные(4242) }
@@ -389,7 +505,7 @@ describe('вход по коду: сквозной путь', () => {
 
     const о2 = ответ()
     await handleAuthRoute(
-      запрос('/api/auth/pair/claim', { code: код }),
+      request('/api/auth/pair/claim', { code: код }),
       о2,
       пул as any
     )
@@ -397,7 +513,7 @@ describe('вход по коду: сквозной путь', () => {
 
     const о3 = ответ()
     await handleAuthRoute(
-      запрос('/api/auth/pair/claim', { code: код }),
+      request('/api/auth/pair/claim', { code: код }),
       о3,
       пул as any
     )
@@ -416,7 +532,7 @@ describe('вход по коду: сквозной путь', () => {
  * sentences explaining it. Three aliases are cheaper than that repair.
  */
 const mkReply = ответ // cyrillic-ok
-const mkRequest = запрос // cyrillic-ok
+const mkRequest = request // cyrillic-ok
 const fakePool = пул // cyrillic-ok
 const TEST_BOT_TOKEN = TELEGRAM_TEST_TOKEN
 const fakeRows = строки // cyrillic-ok
