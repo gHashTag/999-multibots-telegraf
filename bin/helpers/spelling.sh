@@ -19,8 +19,12 @@ set -u
 ROOT="${1:?нужен корень репозитория}"
 cd "$ROOT" || exit 1
 
-python3 - <<'PYEOF'
-import os, re, subprocess, sys
+# РЕЖИМ ЧЕРЕЗ ОКРУЖЕНИЕ. У python, читающего скрипт из heredoc, argv пуст:
+# флаги, переданные ЭТОМУ файлу, до него не доходят. Первая версия молча
+# игнорировала --gate и печатала обычный вывод с кодом 0 — то есть ворота
+# были бы всегда зелёными.
+SPELL_MODE="${2:-}" python3 - <<'PYEOF'
+import json, os, re, subprocess, sys
 
 files = subprocess.run(['git', 'ls-files', '*.test.ts', '*.spec.ts'],
                        capture_output=True, text=True).stdout.split()
@@ -103,6 +107,58 @@ print(f'  из них проверяют ОТСУТСТВИЕ (законно): 
 print(f'  смотрят на ВЫЗОВ в тексте (форма 87):  {len(suspect)}')
 print(f'  прочее, решать глазами:                {len(other)}')
 print()
+# ── БАЗА ИЗВЕСТНОГО ДОЛГА ─────────────────────────────────────────────────
+#
+# Восемь сторожей, следящих за написанием, существуют. Требовать их починки
+# одним движением — значит остановить работу всем и получить выключенные
+# ворота к обеду. Поэтому как у orphan-events: база фиксирует нынешнее, а
+# падают ворота только на НОВЫХ.
+#
+# Смысл не в том, чтобы долг уменьшался сам, а в том, чтобы он не рос молча.
+# ОТНОСИТЕЛЬНО КОРНЯ, В КОТОРЫЙ СКРИПТ УЖЕ ПЕРЕШЁЛ.
+#
+# Считать путь от `__file__` здесь нельзя: у python, читающего скрипт из
+# heredoc, это `<stdin>`, и abspath дал `/Users/scripts/...` — каталог, где
+# базы нет и быть не может.
+BASE = os.path.join('scripts', 'spelling-baseline.json')
+key = lambda r: f'{r[0]}:{r[2]}'
+
+MODE = os.environ.get('SPELL_MODE', '')
+
+if MODE == '--update-baseline':
+    with open(BASE, 'w', encoding='utf-8') as fh:
+        json.dump(sorted(key(r) for r in suspect), fh, ensure_ascii=False, indent=2)
+        fh.write('\n')
+    print(f'база обновлена: {len(suspect)} записей → {BASE}')
+    sys.exit(0)
+
+if MODE == '--gate':
+    try:
+        with open(BASE, encoding='utf-8') as fh:
+            known = set(json.load(fh))
+    except Exception:
+        print('🛑 базы нет или она не читается — судить НЕ берусь.')
+        print(f'   Создать: tri spelling --update-baseline  ({BASE})')
+        sys.exit(2)
+    fresh = [r for r in suspect if key(r) not in known]
+    gone = len(known) - (len(suspect) - len(fresh))
+    print(f'сторожа за буквами: {len(suspect)}; в базе: {len(known)}')
+    if gone > 0:
+        print(f'  ✅ починено с прошлого раза: {gone}. Обновите базу:'
+              ' tri spelling --update-baseline')
+    if not fresh:
+        print('  ✅ новых не появилось.')
+        sys.exit(0)
+    print(f'  🛑 НОВЫЕ сторожа за написанием: {len(fresh)}')
+    for f, ln, name, claim in fresh:
+        print(f'     {f}:{ln}  «{name}»')
+        print(f'        {claim}')
+    print()
+    print('  Результат такого сторожа наблюдаем: очередь, ответ, строка в базе.')
+    print('  Проверяйте его, а не текст исходника — иначе он краснеет на')
+    print('  переименовании и молчит на подмене (форма 87).')
+    sys.exit(1)
+
 if suspect:
     print('── СМОТРЯТ НА ВЫЗОВ: результат наблюдаем, значит сторожат буквы ──')
     for f, ln, name, claim in suspect:
