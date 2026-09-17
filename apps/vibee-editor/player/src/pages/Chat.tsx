@@ -15,6 +15,7 @@ import type {
   Message,
 } from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
+import { useTokenTopUp } from '@/hooks/useTokenTopUp'
 import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
 import { API_BASE } from '@/config'
@@ -154,165 +155,17 @@ function ChatThread({ client }: { client: string | null }) {
   // Занятость — в атоме: она принадлежит разговору, а не странице.
   const busy = useAtomValue(agentBusyAtom)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
-  const [tokens, setTokens] = useState<number | null>(null)
   const [topUp, setTopUp] = useState(false)
-  const [topUpNote, setTopUpNote] = useState<string | null>(null)
+  /*
+   * The balance and the buy flow moved to useTokenTopUp so the PROFILE can use
+   * the same one. A second copy is how one of the two quietly stops verifying.
+   */
+  const { tokens, note: topUpNote, buy } = useTokenTopUp()
   const [attachments, setAttachments] = useState<AgentAttachment[]>([])
   const [uploading, setUploading] = useState(false)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Пополнение: инвойс создаёт сервер (XTR), открывает Telegram.WebApp.
-  // Серверной верификацией занимается вебхук кассира — клиенту не верим.
-  const buy = async (pack: string) => {
-    setTopUpNote(null)
-    try {
-      const headers = authHeaders()
-      const devKey = import.meta.env.DEV
-        ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-        : undefined
-      if (devKey && !headers.has('X-Telegram-Init-Data')) {
-        headers.set('X-Agent-Key', devKey)
-      }
-      const res = await fetch(`${API_BASE}/api/tokens/invoice`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ pack }),
-      })
-      const d = await res.json()
-      if (!d.ok) {
-        setTopUpNote(String(d.error ?? 'не получилось'))
-        return
-      }
-      const wa = (window as any).Telegram?.WebApp
-      if (wa?.openInvoice) {
-        wa.openInvoice(d.link, async (status: string) => {
-          if (status === 'paid') {
-            setTopUpNote('Оплачено! Проверяю зачисление…')
-            // Верификация по первоисточнику (getStarTransactions):
-            // вебхук может спать, звёзды — не спят.
-            try {
-              const vres = await fetch(`${API_BASE}/api/tokens/verify`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ pack }),
-              })
-              const vd = await vres.json()
-              if (vd.ok) {
-                setTokens(vd['баланс'])
-                setTopUpNote(
-                  `Зачислено ${vd['зачислено_токенов']} токенов! Баланс: ${vd['баланс']}`
-                )
-              } else if (vd['зачисление_провалено']) {
-                // Not "not visible yet" but "not credited": the invoice is
-                // already marked redeemed, so a retry cannot find it again.
-                // Promising it will catch up here is the same lie this
-                // change repairs one layer down.
-                setTokens(vd['баланс'] ?? null)
-                setTopUpNote(
-                  'Оплата прошла, но токены не зачислены. Мы уже знаем — напишите в поддержку, вернём или начислим руками.'
-                )
-              } else {
-                setTopUpNote(
-                  'Оплата прошла — проверяю зачисление ещё пару раз…'
-                )
-                // Транзакция звёзд появляется в Bot API с задержкой:
-                // держим обещание реальными повторами, а не пустым таймером.
-                for (let attempt = 0; attempt < 3; attempt++) {
-                  await new Promise(r => setTimeout(r, 25_000))
-                  try {
-                    const r2 = await fetch(`${API_BASE}/api/tokens/verify`, {
-                      method: 'POST',
-                      headers,
-                    })
-                    const vd2 = await r2.json()
-                    if (vd2?.ok) {
-                      setTokens(vd2['баланс'])
-                      setTopUpNote(
-                        `Зачислено ${vd2['зачислено_токенов']} токенов! Баланс: ${vd2['баланс']}`
-                      )
-                      return
-                    }
-                  } catch {
-                    /* сеть шалит — следующая попытка через 25с */
-                  }
-                }
-                setTopUpNote(
-                  'Оплата видна Telegram — зачисление догонит при следующем входе в чат'
-                )
-                reportPayOutcome('tokens', 'pending')
-              }
-            } catch {
-              setTopUpNote('Оплата прошла — зачисление подтвердится чуть позже')
-            }
-          } else if (status === 'failed') {
-            setTopUpNote('Оплата не прошла')
-            reportPayOutcome('tokens', 'failed')
-          } else if (status === 'cancelled') {
-            reportPayOutcome('tokens', 'cancelled')
-          }
-        })
-      } else {
-        setTopUpNote('Покупка доступна внутри Telegram')
-        reportPayOutcome('tokens', 'unsupported')
-      }
-    } catch {
-      setTopUpNote('сеть подвела — попробуй ещё')
-    }
-  }
-
-  // Баланс токенов — в шапке чата: человек видит цену генераций всегда,
-  // а не после первой списанной. Бесплатный инструмент, те же заголовки,
-  // что и чат.
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const headers = authHeaders()
-        const devKey = import.meta.env.DEV
-          ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-          : undefined
-        if (devKey && !headers.has('X-Telegram-Init-Data')) {
-          headers.set('X-Agent-Key', devKey)
-        }
-        const res = await fetch(`${API_BASE}/mcp`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'tools/call',
-            params: { name: 'my_balance', arguments: {} },
-          }),
-        })
-        const d = await res.json()
-        const bal = d?.result?.structuredContent?.['баланс_токенов']
-        if (typeof bal === 'number') setTokens(bal)
-
-        // Вебхук кассира периодически спит (бот живёт в polling у бэкенда),
-        // и оплата, совершённая «мимо» verify, повисала бы незачисленной.
-        // Тихий фоновый verify при входе: гасит забытые инвойсы прошлого
-        // визита по первоисточнику getStarTransactions.
-        try {
-          const vres = await fetch(`${API_BASE}/api/tokens/verify`, {
-            method: 'POST',
-            headers,
-          })
-          const vd = await vres.json()
-          if (vd?.ok) {
-            setTokens(vd['баланс'])
-            setTopUpNote(
-              `Зачислено ${vd['зачислено_токенов']} токенов — оплата прошлого визита дошла`
-            )
-          }
-        } catch {
-          /* авто-verify — фоновый, тишина нормальна */
-        }
-      } catch {
-        /* баланс — украшение, а не блокировщик чата */
-      }
-    })()
-  }, [])
 
   /**
    * ОБЩИЙ РАЗГОВОР: история подтягивается С СЕРВЕРА, а не только из браузера.
