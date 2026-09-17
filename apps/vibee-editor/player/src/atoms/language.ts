@@ -1149,6 +1149,12 @@ const en: Translations = {
     'Club, Telegram and SOUL are in place. From here the agent works; you steer.',
   'welcome.done.first':
     'Write to the agent in the chat — ask for a first reel, a plan for the week or a reply to a client.',
+  'welcome.voice.title': 'Now give it your voice',
+  'welcome.voice.lead':
+    'Your clone speaks in your own voice. Record one voice message in the bot and it is done -- everything made afterwards can use it.',
+  'welcome.voice.how': 'One voice message in the bot, about fifteen seconds',
+  'welcome.voice.open': 'Record in the bot',
+  'welcome.voice.check': 'I recorded it',
   'welcome.done.soul':
     'The SOUL tab holds the full file; the twin re-reads it on every change.',
   'welcome.done.go': 'Open my profile',
@@ -3050,6 +3056,12 @@ const ru: Translations = {
     'Клуб, Telegram и SOUL на месте. Дальше работает агент, а ты рулишь.',
   'welcome.done.first':
     'Напиши агенту в чате — попроси первый рилс, план на неделю или ответ клиенту.',
+  'welcome.voice.title': 'Теперь голос',
+  'welcome.voice.lead':
+    'Клон говорит вашим голосом. Запишите одно голосовое в боте — этого достаточно, дальше он будет звучать как вы.',
+  'welcome.voice.how': 'Одно голосовое в боте, секунд пятнадцать',
+  'welcome.voice.open': 'Записать в боте',
+  'welcome.voice.check': 'Я записал',
   'welcome.done.soul':
     'Во вкладке SOUL лежит полный файл; двойник перечитывает его при каждом изменении.',
   'welcome.done.go': 'Открыть мой профиль',

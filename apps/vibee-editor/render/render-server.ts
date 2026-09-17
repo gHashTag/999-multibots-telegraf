@@ -76,6 +76,7 @@ import {
   sweepClubRenewals,
   sweepClubGrants,
 } from './src/agent/club-membership'
+import { isClonePath, handleClone } from './src/agent/clone-readiness'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
@@ -7996,6 +7997,21 @@ const server = createServer(async (req, res) => {
         usernameOf: r => verifiedTelegramUsername(r as any),
       },
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
+  /*
+   * Which pieces of the person's digital clone are already in place. The
+   * welcome road needs this the way it needs club status: a step that cannot
+   * tell when it is done is a step that asks forever.
+   */
+  if (isClonePath(req.url?.split('?')[0] || '')) {
+    const out = await handleClone(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))

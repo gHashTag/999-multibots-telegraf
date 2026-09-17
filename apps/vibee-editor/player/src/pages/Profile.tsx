@@ -14,12 +14,16 @@ import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import { WelcomeOnboarding } from '@/components/Profile/WelcomeOnboarding'
-import { profileScreen, shouldAskClubPrice } from '@/components/Profile/profileGate'
+import {
+  profileScreen,
+  shouldAskClubPrice,
+} from '@/components/Profile/profileGate'
 import {
   agentTelegramConnectedAtom,
   loadAgentTelegramStatusAtom,
 } from '@/atoms/agentTelegram'
 import { clubErrorAtom, clubStatusAtom, loadClubStatusAtom } from '@/atoms/club'
+import { cloneReadyAtom, loadCloneStatusAtom } from '@/atoms/clone'
 import { loadSoulAtom, soulAtom, soulLoadedAtom } from '@/atoms/soul'
 import '@/components/Profile/Profile.css'
 
@@ -42,6 +46,8 @@ export function ProfilePage() {
   const soul = useAtomValue(soulAtom)
   const soulLoaded = useAtomValue(soulLoadedAtom)
   const loadSoul = useSetAtom(loadSoulAtom)
+  const cloneReady = useAtomValue(cloneReadyAtom)
+  const loadClone = useSetAtom(loadCloneStatusAtom)
   // The welcome road has no "later" (owner, 2026-09-09, evening): the
   // profile opens only when club, Telegram and SOUL are all in place and the
   // person pressed the last button. Until then every visit lands on the road.
@@ -85,6 +91,23 @@ export function ProfilePage() {
     if (isOwn && connected === true && club?.active && !soulLoaded)
       void loadSoul()
   }, [isOwn, connected, club, soulLoaded, loadSoul])
+  /*
+   * AND ONE MORE: DOES THIS PERSON ALREADY HAVE A VOICE.
+   *
+   * Asked last and only once, on the same terms as the SOUL: the voice step is
+   * the final one on the road, and a person who never got past the paywall does
+   * not need the question answered. Unanswered stays `undefined`, which the
+   * road reads as "do not ask" -- never as "no voice".
+   */
+  useEffect(() => {
+    if (
+      isOwn &&
+      connected === true &&
+      club?.active &&
+      cloneReady.voice === undefined
+    )
+      void loadClone()
+  }, [isOwn, connected, club, cloneReady.voice, loadClone])
 
   const clubActive: boolean | null =
     club !== null ? club.active : clubError ? false : null
@@ -199,6 +222,7 @@ export function ProfilePage() {
                 club: clubActive === true,
                 connected: connected === true,
                 soul: soulExists === true,
+                voice: cloneReady.voice,
               }}
               onDone={finishWelcome}
             />
