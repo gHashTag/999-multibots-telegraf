@@ -1559,17 +1559,52 @@ describe('a card that is gone says WHY, to the person whose card it was', () => 
     forgetGoneProposalsForTests()
   })
 
+  /*
+   * TWO DIFFERENT DEATHS, TWO DIFFERENT SENTENCES.
+   *
+   * Eviction moved from creation to ISSUE, and the two cases separated. A card
+   * that was SHOWN and then displaced by the next card was replaced -- its
+   * buttons may well still be on the owner's screen. A draft prepared inside a
+   * turn that died was never shown to anybody, and calling that "replaced by a
+   * new one" describes a card that never existed.
+   *
+   * Both still end in "nothing was sent", because that is the half the owner is
+   * actually asking about.
+   */
   it('a replaced card tells the owner that nothing was sent', () => {
-    const secret = remember(draft('old', OWNER, 'первое')).secret
-    // The next sweep mints another card for the same person.
-    remember(draft('new', OWNER, 'второе'))
+    remember({ ...draft('old', OWNER, 'первое'), turn: 'ход-1' })
+    const shown = issueFor(OWNER, 'ход-1')
+    expect(shown?.secret, 'the first card was never issued').toBeTruthy()
 
-    const r = claim(OWNER, 'old', secret)
+    // The next sweep mints another card for the same person, and ISSUING it is
+    // what displaces the one already on screen.
+    remember({ ...draft('new', OWNER, 'второе'), turn: 'ход-2' })
+    expect(issueFor(OWNER, 'ход-2')?.secret).toBeTruthy()
+
+    const r = claim(OWNER, 'old', String(shown?.secret))
     expect(r.ok).toBe(false)
     if (!r.ok) {
       expect(r.why).toContain('заменён новым')
       expect(r.why, 'the owner must be told nothing left').toContain(
         'ничего не ушло'
+      )
+    }
+  })
+
+  it('a draft that was never shown says it expired, not that it was replaced', () => {
+    const secret = remember(draft('old', OWNER, 'первое')).secret
+    // A second draft for the same person; neither was ever issued.
+    remember(draft('new', OWNER, 'второе'))
+
+    const r = claim(OWNER, 'old', secret)
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.why).toContain('истёк')
+      expect(r.why, 'the owner must be told nothing left').toContain(
+        'ничего не ушло'
+      )
+      expect(r.why, 'nothing was on screen to replace').not.toContain(
+        'заменён новым'
       )
     }
   })
@@ -1623,6 +1658,8 @@ describe('a card that is gone says WHY, to the person whose card it was', () => 
       expect(first.why).toBe('это действие уже подтверждено или истекло')
     const recent = claim(OWNER, 'd203', secrets[203])
     expect(recent.ok).toBe(false)
-    if (!recent.ok) expect(recent.why).toContain('заменён новым')
+    // None of these were ever issued, so the honest word is the one for a draft
+    // prepared and never shown.
+    if (!recent.ok) expect(recent.why).toContain('истёк')
   })
 })
