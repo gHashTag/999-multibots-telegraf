@@ -76,7 +76,20 @@ describe('withClient hangs up with destroy()', () => {
       s.indexOf('export async function withClient'),
       s.indexOf('export interface СыройДиалог') // cyrillic-ok: pre-existing identifier
     )
-    expect(body).toContain('await hangUp(c)')
+    /*
+     * WHAT IS LEFT FOR THE SOURCE TO SAY.
+     *
+     * That hanging up happens in a `finally` is now checked by CALLING it --
+     * see the describe at the bottom of this file, where a throwing body
+     * still hangs up and a mutation turning the `finally` into a sequential
+     * call is killed. The old line here could not see that: it matched
+     * characters that survive exactly that change.
+     *
+     * These two remain because only the text can show them: the wrapper
+     * delegates rather than growing a second copy of the rule, and nobody in
+     * the agent reaches past hangUp to a bare disconnect.
+     */
+    expect(body).toContain('withClientOf(')
     expect(body).not.toContain('c.disconnect()')
     // And nobody in the agent reaches past hangUp to a bare disconnect().
     for (const f of [
@@ -90,5 +103,75 @@ describe('withClient hangs up with destroy()', () => {
       expect(t, f).toContain('hangUp(')
     }
     void withClient
+  })
+})
+
+/*
+ * THE PROMISE IS NOW RUN INSTEAD OF READ.
+ *
+ * Every reading tool goes through withClient, and a client left connected is
+ * a zombie update loop pinging Telegram for the life of the process --
+ * twenty-one timeout lines a minute, measured on 13.09.2026, hours after the
+ * last tool call had returned.
+ *
+ * The guard on that used to be a test matching the words `await hangUp(c)` in
+ * the source. It would go red on a renamed variable and stay SILENT if the
+ * `finally` became a plain `then` -- the one change that actually brings the
+ * zombies back.
+ */
+describe('withClient hangs up whatever happens inside', () => {
+  const fake = () => {
+    const calls: string[] = []
+    const c = {
+      destroy: async () => {
+        calls.push('destroy')
+      },
+      disconnect: async () => {
+        calls.push('disconnect')
+      },
+    }
+    return { c, calls }
+  }
+
+  it('hangs up after a normal return', async () => {
+    const { withClientOf } = await import('./src/agent/telegram-tools')
+    const { c, calls } = fake()
+    const out = await withClientOf(
+      async () => c as never,
+      async () => 'готово'
+    )
+    expect(out).toBe('готово')
+    expect(calls).toEqual(['destroy'])
+  })
+
+  /*
+   * The case the whole thing exists for. A tool that throws is the normal way
+   * a call ends when Telegram refuses, and that is exactly when a leaked
+   * client is never noticed.
+   */
+  it('hangs up when the body throws, and lets the error through', async () => {
+    const { withClientOf } = await import('./src/agent/telegram-tools')
+    const { c, calls } = fake()
+    await expect(
+      withClientOf(
+        async () => c as never,
+        async () => {
+          throw new Error('телеграм отказал')
+        }
+      )
+    ).rejects.toThrow('телеграм отказал')
+    expect(calls, 'клиент остался подключённым после ошибки').toEqual([
+      'destroy',
+    ])
+  })
+
+  it('destroy, not disconnect: disconnect leaves the update loop alive', async () => {
+    const { withClientOf } = await import('./src/agent/telegram-tools')
+    const { c, calls } = fake()
+    await withClientOf(
+      async () => c as never,
+      async () => null
+    )
+    expect(calls).not.toContain('disconnect')
   })
 })

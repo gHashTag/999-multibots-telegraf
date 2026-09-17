@@ -2359,3 +2359,60 @@
   font-size: 0.9rem;
   line-height: 1.5;
 }
+
+/*
+ * THE CASHIER ON THE PROFILE.
+ *
+ * Plain and quiet on purpose: this sits under a person's own SOUL card, and a
+ * loud paywall in the middle of somebody's own page reads as a demand rather
+ * than an option. Same shape as the chat's top-up strip, which people have
+ * already learned.
+ */
+.profile-topup {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: var(--card, rgba(255, 255, 255, 0.04));
+}
+
+.profile-topup__title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.profile-topup__packs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-topup__pack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-topup__pack:hover {
+  border-color: var(--accent, #7c5cff);
+}
+
+.profile-topup__pack span {
+  opacity: 0.7;
+  font-size: 13px;
+}
+
+.profile-topup__note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  opacity: 0.75;
+}

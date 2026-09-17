@@ -35,6 +35,7 @@ import {
   type JournalRow,
 } from './journal'
 import { keepers } from './roles'
+import { checkSellerSilence } from './seller-silence'
 
 /** The cursor lives in the database: a Railway container does not survive a deploy. */
 async function ensureCursorTable(pool: JournalPool): Promise<void> {
@@ -177,8 +178,26 @@ export function reportText(events: JournalRow[]): string {
         day: '2-digit',
         month: '2-digit',
       })
+      /*
+       * AN ALARM NAMES ITS SUBJECT, BECAUSE THAT IS THE FIRST QUESTION.
+       *
+       * The line used to read "14:32 -- payment forged" and stop there. For a
+       * tally that is right: nobody wants twenty names under "signed in". For
+       * an alarm it leaves out the one thing the reader reaches for -- WITH
+       * WHOM -- and sends them to the agent to ask a question the line could
+       * have answered.
+       *
+       * The id rather than a name: resolving one would mean a query per alarm
+       * inside a function that is only formatting text, and a report that
+       * fails because a lookup failed is worse than a report with an id in
+       * it. Some alarms are about the system and carry no subject at all;
+       * those simply do not get the clause.
+       */
+      const subject = String(a.who ?? '').trim()
       lines.push(
-        `  ${when} — ${humanName(a.kind)}${a.what ? ` (${a.what})` : ''}`
+        `  ${when} — ${humanName(a.kind)}` +
+          (subject ? `, у ${subject}` : '') +
+          (a.what ? ` (${a.what})` : '')
       )
     }
     if (alarms.length > 5) {
@@ -239,6 +258,20 @@ export async function report(
     // "the project is quiet".
     return { what: 'no keepers' }
   }
+
+  /*
+   * SILENCE IS CHECKED BEFORE THE EVENTS, BECAUSE SILENCE HAS NO EVENTS.
+   *
+   * Below, `if (!fresh.length) continue` -- an empty journal produces an empty
+   * report. That is right for a quiet night and wrong for a seller that has
+   * stopped: the one state worth waking somebody for is the one that writes
+   * nothing at all.
+   *
+   * So the watchdog runs first and writes its finding INTO the journal. From
+   * there the ordinary machinery does the rest: an `alarm` severity skips the
+   * three-hour gap and goes out at once.
+   */
+  await checkSellerSilence(pool, now)
 
   let outcome: ReportOutcome = { what: 'nothing to say' }
 

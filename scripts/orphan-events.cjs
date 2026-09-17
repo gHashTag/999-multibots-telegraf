@@ -105,9 +105,40 @@ const isRegistered = file => {
     registeredSrc.includes(`/${base}'`) || registeredSrc.includes(`/${base}"`)
   )
 }
-const unreachable = unused.filter(e =>
+/*
+ * A RENAME ALIAS IS NOT AN ORPHAN.
+ *
+ * A function can subscribe to two names at once: the canonical one and the
+ * old one, kept for senders that have not moved yet. The code says so:
+ *
+ *   // Canonical event first, legacy event kept for existing senders.
+ *   [{ event: 'broadcast/message.send' }, { event: 'broadcast/send-message' }]
+ *
+ * The legacy name has no sender -- that is the point of the move -- but the
+ * function is not unreachable: the canonical name starts it perfectly well.
+ *
+ * On 17.09.2026 such a move was under way across a dozen functions and this
+ * list grew from 17 to 39. Thirty-nine lines on every push is exactly how
+ * people stop reading a gate, and a real orphan would drown among them.
+ *
+ * So: if the SAME FILE subscribes to another event that does have a sender,
+ * this is an alias. It is printed separately and quietly.
+ */
+const filesOf = e => new Set(subscribed.get(e).map(loc => loc.split(':')[0]))
+const hasLiveSibling = e => {
+  const mine = filesOf(e)
+  return [...subscribed.keys()].some(
+    other =>
+      other !== e &&
+      sent.has(other) &&
+      [...filesOf(other)].some(f => mine.has(f))
+  )
+}
+const registeredUnused = unused.filter(e =>
   subscribed.get(e).some(loc => isRegistered(loc.split(':')[0]))
 )
+const aliases = registeredUnused.filter(hasLiveSibling)
+const unreachable = registeredUnused.filter(e => !hasLiveSibling(e))
 
 console.log(`отправляется событий:  ${sent.size}`)
 console.log(`подписок:              ${subscribed.size}`)
@@ -120,20 +151,67 @@ console.log(
 )
 console.log('Список ниже — кандидаты на проверку, а не приговор.')
 console.log()
+/*
+ * COUNT FUNCTIONS, NOT NAMES.
+ *
+ * The fact this section exists for is "nothing in this code can start this
+ * function". A function is one thing however many names it answers to, and
+ * printing it twice doubles the list without adding a finding.
+ *
+ * That is exactly how 17 unreachable became 39 in a day: the rename came
+ * through a dozen functions at once, and each arrived as a pair.
+ */
+const byFile = new Map()
+for (const e of unreachable) {
+  for (const loc of subscribed.get(e)) {
+    const f = loc.split(':')[0]
+    if (!byFile.has(f)) byFile.set(f, { events: new Set(), locs: new Set() })
+    byFile.get(f).events.add(e)
+    byFile.get(f).locs.add(loc)
+  }
+}
 console.log(
-  `🚨 ЗАРЕГИСТРИРОВАНА, НО НЕДОСТИЖИМА ИЗ КОДА — триггер никто не шлёт (${unreachable.length}):`
+  `🚨 ЗАРЕГИСТРИРОВАНА, НО НЕДОСТИЖИМА ИЗ КОДА — триггер никто не шлёт ` +
+    `(функций: ${byFile.size}, имён: ${unreachable.length}):`
 )
-for (const e of unreachable)
-  console.log(`   ${e}\n      ← ${subscribed.get(e).join(', ')}`)
+for (const [f, v] of [...byFile.entries()].sort())
+  console.log(`   ${[...v.events].sort().join(' / ')}\n      ← ${f}`)
+if (aliases.length) {
+  console.log()
+  console.log(
+    `· старое имя при переименовании — функция достижима каноническим (${aliases.length}):`
+  )
+  console.log(`   ${aliases.join(', ')}`)
+}
 console.log()
 console.log(`❌ ОТПРАВЛЯЕТСЯ, НО НИКТО НЕ СЛУШАЕТ (${orphans.length}):`)
 for (const e of orphans)
   console.log(`   ${e}\n      ← ${sent.get(e).join(', ')}`)
+/*
+ * A RENAME ALIAS BELONGS IN NEITHER BUCKET.
+ *
+ * Taking the aliases out of `unreachable` without taking them out of here
+ * simply moved them: nine events dropped into "subscribed but the function is
+ * not registered", which the baseline then read as nine NEW problems and the
+ * gate failed. Measured before pushing -- main exits 0, that version exited 1.
+ *
+ * They are a third category: a name kept on purpose for senders that have not
+ * moved yet, on a function that is reachable through its canonical name.
+ */
+const notRegistered = unused.filter(
+  x => !unreachable.includes(x) && !aliases.includes(x)
+)
+
 console.log()
 console.log(
-  `⚠️  ПОДПИСКА ЕСТЬ, НО НИКТО НЕ ШЛЁТ, функция НЕ зарегистрирована (${unused.length - unreachable.length}):`
+  // COUNTED FROM THE LIST, NOT ALONGSIDE IT.
+  //
+  // This said `unused.length - unreachable.length`, which happened to equal
+  // the list underneath until a third bucket appeared -- then the heading
+  // said 16 and the lines below it numbered 7. A count computed a second way
+  // drifts from the thing it labels, and the label is what gets believed.
+  `⚠️  ПОДПИСКА ЕСТЬ, НО НИКТО НЕ ШЛЁТ, функция НЕ зарегистрирована (${notRegistered.length}):`
 )
-const notRegistered = unused.filter(x => !unreachable.includes(x))
 for (const e of notRegistered) console.log(`   ${e}  (${subscribed.get(e)[0]})`)
 
 // BASELINE. На момент подключения скрипта к pre-push в репозитории уже было

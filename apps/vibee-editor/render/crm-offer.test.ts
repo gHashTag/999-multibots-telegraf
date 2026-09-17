@@ -746,3 +746,51 @@ describe("the invoice comes from the lead's own bot of the farm", () => {
     expect(q.pendingFor(OWNER)).toBeTruthy()
   })
 })
+
+/*
+ * A CUT THAT DOES NOT SAY IT CUT CHANGES THE MEANING.
+ *
+ * crm_leads hands the model each person's last words at 160 characters. Until
+ * 17.09.2026 the cut was silent, so a message that ran past the limit reached
+ * the model as a finished sentence -- and the seller answered the half it
+ * saw, sounding like it had not been listening.
+ *
+ * Marking is opt-in because most callers here trim a NAME, where an ellipsis
+ * would be noise.
+ */
+describe('oneLine says when it cut a message', () => {
+  const oneLineOf = async () =>
+    (await import('./src/agent/crm-offer-tool')).oneLine
+  it('marks a message that ran past the limit', async () => {
+    const oneLine = await oneLineOf()
+    const long = 'нужно ещё уточнить, можно ли ' + 'а'.repeat(200)
+    const out = oneLine(long, 160, true)
+    expect(out.endsWith('…'), out.slice(-12)).toBe(true)
+    expect(out.length).toBeLessThanOrEqual(161)
+  })
+
+  it('leaves a short message exactly as it was', async () => {
+    const oneLine = await oneLineOf()
+    expect(oneLine('а когда будет готово?', 160, true)).toBe(
+      'а когда будет готово?'
+    )
+  })
+
+  /*
+   * A message that only lost a URL was not cut. Comparing against the RAW
+   * text would put an ellipsis on every message that mentioned a link, which
+   * tells the model a lie in the other direction.
+   */
+  it('stripping a link is not a cut', async () => {
+    const oneLine = await oneLineOf()
+    const withLink = 'смотри https://example.com/very/long/path вот это'
+    expect(oneLine(withLink, 160, true).endsWith('…')).toBe(false)
+  })
+
+  it('without the flag nothing changes, which is what names rely on', async () => {
+    const oneLine = await oneLineOf()
+    const long = 'а'.repeat(200)
+    expect(oneLine(long, 40)).toBe('а'.repeat(40))
+    expect(oneLine(long, 40).endsWith('…')).toBe(false)
+  })
+})

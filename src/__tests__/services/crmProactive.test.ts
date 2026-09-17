@@ -11,6 +11,8 @@ import {
   SWEEP_RETRY_NOTE_LOOKED,
   leadsNote,
   HOLD_MS_DEFAULT,
+  heartbeatDue,
+  BACKOFF_CAP_MS,
   reportSweepOutcome,
   type SweepDeps,
 } from '@/services/crmProactive'
@@ -349,6 +351,83 @@ describe('a card nobody pressed is not evicted', () => {
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
   })
 
+  /*
+   * A DEPLOY ERASES THE MEMORY OF A PUSH. IT DOES NOT ERASE THE CARD.
+   *
+   * Production, 16.09.2026: the fix above shipped at 15:13, and the 15:30
+   * tick drew a card over one made at 15:03 that was still pressable. The
+   * guard was right; what it consulted -- this process's own memory -- had
+   * been wiped by the very deploy that delivered the guard.
+   *
+   * So with no memory of a push, the sweep asks the queue, which survives.
+   */
+  it('after a restart it asks the queue, and holds on a live card', async () => {
+    const t = 1_000_000
+    const { d, calls } = deps({ now: () => t })
+    d.pendingCard = async () => {
+      calls.push('pendingCard')
+      return { expiresAt: t + 6 * 60 * 60_000 }
+    }
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('held')
+    expect(r.why).toContain('оплаченной картинкой')
+    expect(
+      calls.filter(c => c === 'ask').length,
+      'потратил ход модели, хотя карточка уже ждала'
+    ).toBe(0)
+  })
+
+  it('asks ONCE: after its own push it remembers instead of asking again', async () => {
+    let t = 1_000_000
+    const alive = { ...draft, expiresAt: t + 12 * 60 * 60_000 }
+    const { d, calls } = deps({
+      now: () => t,
+      answer: { текст: 'подготовил', proposal: alive }, // cyrillic-ok: pre-existing identifiers
+    })
+    d.pendingCard = async () => {
+      calls.push('pendingCard')
+      return null
+    }
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+    t += HOLD_MS_DEFAULT + 1
+    expect((await sweepOnce(OWNER, d)).did).toBe('held')
+    expect(
+      calls.filter(c => c === 'pendingCard').length,
+      'спрашивает каждый тик — это лишний запрос на ровном месте'
+    ).toBe(1)
+  })
+
+  it('nothing waiting means the sweep works, as before', async () => {
+    const { d } = deps()
+    d.pendingCard = async () => null
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+
+  /*
+   * UNKNOWN IS NOT NOTHING (form 71).
+   *
+   * A failed request parsed leniently becomes "no card waiting" -- the
+   * reading that spends money. It must not silence the sweep either: holding
+   * forever because the render is unreachable is its own outage.
+   */
+  it('a question that could not be asked leaves the old timer in charge', async () => {
+    const { d, calls } = deps()
+    d.pendingCard = async () => {
+      calls.push('pendingCard')
+      throw new Error('render unreachable')
+    }
+    const r = await sweepOnce(OWNER, d)
+    expect(r.did).toBe('card')
+    expect(calls.filter(c => c === 'pendingCard').length).toBe(1)
+  })
+
+  it('a card that already died does not hold anything', async () => {
+    const t = 1_000_000
+    const { d } = deps({ now: () => t })
+    d.pendingCard = async () => ({ expiresAt: t - 1 })
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+
   it('a press frees it long before the card would have died', async () => {
     let t = 1_000_000
     const alive = { ...draft, expiresAt: t + 12 * 60 * 60_000 }
@@ -375,6 +454,123 @@ describe('a card nobody pressed is not evicted', () => {
     await sweepOnce(OWNER, d)
     t += HOLD_MS_DEFAULT + 1
     expect((await sweepOnce(OWNER, d)).did).toBe('card')
+  })
+})
+
+/*
+ * PLACED BEFORE A NEIGHBOUR RATHER THAN APPENDED AT THE END OF THE FILE.
+ *
+ * The end of a file is a shared anchor: three branches that each append their
+ * describe there conflict with one another over nothing. A merge rehearsal on
+ * 17.09.2026 found it twice in this very file. An insertion point is as much
+ * an interface between branches as a function name.
+ */
+/*
+ * A CARD NOBODY PRESSED IS AN ANSWER OF A KIND.
+ *
+ * Production 16.09.2026: 56 cards over four and a half days went to ten
+ * people, three of whom took thirty-seven. Not a targeting defect -- those
+ * three write daily and sit at the top of the work queue on every tick, so
+ * the owner was shown the same three faces again and again and pressed none.
+ *
+ * Step 2 of the brief is "take the FIRST whose next is not wait", so the
+ * ORDER of the candidate lines is the choice. Moving somebody already offered
+ * to the end of that list is the whole mechanism.
+ */
+describe('somebody already offered goes to the back of the list', () => {
+  const A = '900000011'
+  const B = '900000022'
+  const rows = [
+    { lead: A, display: 'первый', next: 'deliver' },
+    { lead: B, display: 'второй', next: 'reply' },
+  ]
+
+  it('without a cold set the note is exactly what it always was', () => {
+    expect(leadsNote(rows, new Set())).toBe(leadsNote(rows))
+  })
+
+  it('a cold lead is listed last and named as already offered', () => {
+    const note = leadsNote(rows, new Set([A]))
+    expect(note.indexOf(B)).toBeLessThan(note.indexOf(A))
+    expect(note).toContain('её не нажали')
+    // and the fresh one carries no such mark
+    const freshLine = note.split('\n').find(l => l.includes(B)) ?? ''
+    expect(freshLine).not.toContain('не нажали')
+  })
+
+  /*
+   * IF EVERYBODY HAS BEEN OFFERED, NOTHING CHANGES.
+   *
+   * Silence about every candidate is not a reason to go quiet -- that would
+   * turn a quiet week into a dead seller.
+   */
+  it('when all candidates are cold the order is untouched', () => {
+    const note = leadsNote(rows, new Set([A, B]))
+    expect(note.indexOf(A)).toBeLessThan(note.indexOf(B))
+  })
+
+  /*
+   * CHECKED THROUGH THE BRIEF, NOT THROUGH A TEST HATCH.
+   *
+   * The brief is what the model actually reads, so asserting on it proves the
+   * mechanism end to end. A getter for the internal map would have proved
+   * only that the map was written.
+   */
+  it('after a card, the next brief puts that person last; a press undoes it', async () => {
+    const texts: string[] = []
+    let t = 1_000_000
+    const { d } = deps({
+      now: () => t,
+      leads: async () => rows,
+      ask: async (_o, text) => {
+        texts.push(text)
+        return {
+          текст: 'подготовил', // cyrillic-ok: pre-existing identifiers
+          proposal: { ...draft, lead: A, target: A },
+        } as never
+      },
+    })
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+    expect(texts[0].indexOf(A), 'первый обход уже кого-то двигал').toBeLessThan(
+      texts[0].indexOf(B)
+    )
+
+    // Second tick, no press in between: the person just offered goes last.
+    t += HOLD_MS_DEFAULT + 1
+    await sweepOnce(OWNER, d)
+    expect(texts[1], 'второй обход предложил того же первым').toContain(
+      'её не нажали'
+    )
+    expect(texts[1].indexOf(B)).toBeLessThan(texts[1].indexOf(A))
+
+    // A press about that card makes the person eligible again at once.
+    noteResolved(OWNER, String(draft.id))
+    t += HOLD_MS_DEFAULT + 1
+    await sweepOnce(OWNER, d)
+    expect(texts[2].indexOf(A)).toBeLessThan(texts[2].indexOf(B))
+  })
+
+  it('a day later the person comes back on their own', async () => {
+    const texts: string[] = []
+    let t = 1_000_000
+    const { d } = deps({
+      now: () => t,
+      leads: async () => rows,
+      ask: async (_o, text) => {
+        texts.push(text)
+        return {
+          текст: 'подготовил', // cyrillic-ok: pre-existing identifiers
+          proposal: { ...draft, lead: A, target: A },
+        } as never
+      },
+    })
+    await sweepOnce(OWNER, d)
+    t += 24 * 60 * 60_000 + 1
+    await sweepOnce(OWNER, d)
+    expect(
+      texts[1].indexOf(A),
+      'через сутки человек так и не вернулся в начало'
+    ).toBeLessThan(texts[1].indexOf(B))
   })
 })
 
@@ -497,6 +693,53 @@ describe('wired (source-level: the bot is not booted here)', () => {
     expect(s).toMatch(
       /if \(driver === 'timer'\) \{\s*startCrmProactive\(carrier/
     )
+  })
+})
+
+/*
+ * PLACED BEFORE A NEIGHBOUR, AND BEFORE A DIFFERENT ONE THAN THE SIBLING
+ * BRANCH CHOSE.
+ *
+ * The end of a file is a shared anchor and two branches appending there
+ * collide over nothing. So is any single neighbour: two blocks that both
+ * chose the same one would collide exactly the same way.
+ */
+/*
+ * SILENCE THAT MEANS NOTHING IS WORSE THAN A LINE NOBODY READS.
+ *
+ * A holding seller wrote nothing at all, so a held card and a dead cron were
+ * the same silence. Production 16.09.2026: four hours and thirteen minutes
+ * without a line, and the only way to judge it was arithmetic over a backoff
+ * cap. A hold now says it is alive -- rarely, and never on every tick.
+ */
+describe('a holding seller says it is alive, once in a while', () => {
+  const H = 6 * 60 * 60_000
+  const T = 1_000_000_000
+
+  it('the first hold after a restart always speaks', () => {
+    // Zero is not "spoke at the epoch" -- it is "never spoke", and the first
+    // hold after a restart is exactly when somebody is wondering.
+    expect(heartbeatDue(0, T)).toBe(true)
+  })
+
+  it('a second hold inside the window stays silent', () => {
+    expect(heartbeatDue(T, T + H - 1)).toBe(false)
+    expect(heartbeatDue(T, T + 60_000)).toBe(false)
+  })
+
+  it('once the window has passed it speaks again', () => {
+    expect(heartbeatDue(T, T + H)).toBe(true)
+    expect(heartbeatDue(T, T + H * 3)).toBe(true)
+  })
+
+  /*
+   * The pulse must not slow down with the backoff: the hold grows from two
+   * hours to twenty-four, and a heartbeat that stretched with it would go
+   * quietest exactly when the silence is longest and the doubt greatest.
+   */
+  it('the window is a constant, not the hold', () => {
+    expect(H).toBeLessThan(BACKOFF_CAP_MS)
+    expect(heartbeatDue(T, T + H + 1)).toBe(true)
   })
 })
 

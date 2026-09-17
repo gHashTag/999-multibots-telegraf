@@ -23,6 +23,9 @@ export const NOTABLE_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   'sweep-idle',
   'sweep-card',
   'sweep-failed',
+  // Alive while deliberately idle: the heartbeat that turns silence from an
+  // ambiguity into evidence. Rate-limited by the bot, not here.
+  'sweep-held',
   // The owner's press, written by the bot: the one act nothing recorded.
   'card-pressed',
 ])

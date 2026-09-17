@@ -52,9 +52,27 @@ export const EDIT_MODEL = 'google/nano-banana-edit'
  * api.kie.ai/client/v1/model-pricing/page): image-to-image 1K = 6 credits =
  * $0.03 per image, 2K = $0.05, 4K = $0.08. nano-banana-edit is $0.02.
  *
- * STATUS: documented, not yet probed by us -- no live run of this model has
- * been made from this code base. The catalogue in kie-models.ts records only
- * measured probes and deliberately does not list it until one exists.
+ * STATUS: RUN, 2026-09-16, at the owner's word ("запусти подарок за $0.03").
+ * The first live call to this model from this code base, on the owner's own
+ * avatar so that nothing reached a client: 75 seconds, a 941x1672 PNG (9:16
+ * to within a pixel), face preserved and framed in the central third the way
+ * the suffix asks. It cost SIX credits -- which is the price read from the
+ * price list above, confirmed to the unit rather than merely believed.
+ *
+ * Two things the run settled that reading could not. The contract holds: this
+ * model really does want `input_urls` where nano-banana wants `image_urls`,
+ * and editInputFor already sends the right one. And the 12 tokens the gift
+ * charges a recipient are not a guess -- the charge came back as 12.
+ *
+ * NOT probed by the free empty-input method the catalogue was built with.
+ * That method has a named hole three paragraphs into kie-models.ts:
+ * grok-imagine answered an empty input by CREATING a billable job. A model
+ * that draws for real on a full request is exactly the shape that might do
+ * the same on an empty one, and guessing costs the owner money. A paid run
+ * that succeeded is the stronger evidence anyway.
+ *
+ * `sunburst` remains unrun. It is the premium sibling, and nothing needs it
+ * yet.
  */
 export const GPT_IMAGE_25_EDIT_MODELS = [
   'gpt-image-2-5-flare-image-to-image',

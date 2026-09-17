@@ -16,6 +16,95 @@ set -u
 ROOT="${1:?нужен корень репозитория}"
 cd "$ROOT" || exit 1
 
+# ── tri promises --defaults ────────────────────────────────────────────────
+#
+# ЧАСТЬ ОБЕЩАНИЙ ПРОВЕРЯЕТСЯ МАШИНОЙ.
+#
+# Общий список — 82 фразы — разбирается только глазами. Но одна их порода
+# проверяется целиком: «(по умолчанию N)» в описании параметра инструмента и
+# запасной вариант в обработчике того же инструмента. Эту фразу читает МОДЕЛЬ,
+# и разойтись они могут молча — поменяли запасной вариант, а описание осталось
+# и продолжает рассказывать про старое поведение.
+#
+# ЧЕСТНОСТЬ ЭТОЙ СВЕРКИ СТОИЛА ОДНОЙ ПЕРЕДЕЛКИ. Первая версия искала запасной
+# вариант ПО ВСЕМУ файлу и выдала пять «расхождений» — все пять оказались
+# ложными: она хватала первое попавшееся число, из другого инструмента. Теперь
+# ищет только ПОСЛЕ фразы и в пределах шестидесяти строк, то есть внутри того
+# же объекта. Инструмент, показывающий пять несуществующих поломок, хуже, чем
+# отсутствие инструмента: по нему пойдут проверять (форма 95).
+if [ "${2:-}" = "--defaults" ] || [ "${1:-}" = "--defaults" ]; then
+  python3 - <<'PYEOF'
+import re, subprocess, sys
+
+PROMISE = re.compile(r'по умолчанию\s+(\d+)')
+KEY = re.compile(r"\s*([a-z_][a-z0-9_]*)\s*:\s*\{")
+WINDOW = 60
+
+files = subprocess.run(['git', 'ls-files', '*.ts'],
+                       capture_output=True, text=True).stdout.split()
+rows = []
+for f in files:
+    if '.test.' in f or '/node_modules/' in f:
+        continue
+    try:
+        lines = open(f, encoding='utf-8').read().splitlines()
+    except Exception:
+        continue
+    for i, l in enumerate(lines):
+        m = PROMISE.search(l)
+        if not m:
+            continue
+        promised = int(m.group(1))
+        name = None
+        for j in range(i, max(-1, i - 6), -1):
+            k = KEY.match(lines[j])
+            if k:
+                name = k.group(1)
+                break
+        if not name:
+            continue
+        after = '\n'.join(lines[i:i + WINDOW])
+        pats = [rf"\b{re.escape(name)}\b[^\n]{{0,80}}\?\?\s*(\d+)",
+                rf"\b{re.escape(name)}\b[^\n]{{0,80}}\|\|\s*(\d+)",
+                rf"\b{re.escape(name)}\b[\s\S]{{0,160}}?:\s*(\d+)\b"]
+        found = None
+        for p in pats:
+            mm = re.search(p, after)
+            if mm:
+                found = int(mm.group(1))
+                break
+        rows.append((f, i + 1, name, promised, found))
+
+if not rows:
+    print('🛑 ни одной фразы «по умолчанию N» — вывода НЕ делаю.')
+    sys.exit(2)
+bad = [r for r in rows if r[4] is not None and r[4] != r[3]]
+ok = [r for r in rows if r[4] == r[3]]
+none = [r for r in rows if r[4] is None]
+print(f'обещанных умолчаний: {len(rows)}')
+print(f'  сошлось с кодом:        {len(ok)}')
+print(f'  РАЗОШЛОСЬ:              {len(bad)}')
+print(f'  запасной вариант не рядом (судить нельзя): {len(none)}')
+for f, ln, n, p, a in bad:
+    print(f'  🛑 {f}:{ln}  {n}: обещано {p}, рядом {a}')
+if none:
+    print()
+    print('  «Не рядом» — не находка: умолчание может жить в другой функции,')
+    print('  а число в описании быть телефоном или идентификатором. Судить о')
+    print('  них можно только глазами.')
+if bad:
+    print()
+    print('  Описание параметра читает МОДЕЛЬ. Разойдясь, оно рассказывает ей')
+    print('  про поведение, которого больше нет. Лучше всего строить фразу ИЗ')
+    print('  постоянной — тогда расхождение невозможно, а не ловится тестом.')
+    sys.exit(1)
+print()
+print('  ✅ ни одно обещанное умолчание не разошлось с кодом.')
+PYEOF
+  exit $?
+fi
+
+
 DIRS="src/navigation src/services src/handlers apps/vibee-editor/render/src/agent"
 # Число с единицей ВНУТРИ строки с кириллицей: срок, цена, количество.
 UNITS='минут|мин\.|часа|часов|дней|дня|суток|недел|токен|звёзд|звезд|⭐|раз'

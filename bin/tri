@@ -47,9 +47,21 @@ tri — оболочка Trinity S³AI
   tri mutate <файл> <было> <стало> -- <тесты>   убил ли тест мутацию
   tri api <имя>  метод или класс Bot API из справочника Telegram
   tri wired <имя>  зовёт ли кто-то эту функцию из рабочего пути (не из тестов)
+  tri self       сама оболочка: достижима ли каждая команда и на месте ли хелпер
+  tri rotten [n] какие открытые PR конфликтуют и ПОЧЕМУ — по общей причине
+  tri books      какие факты код читает, а прод НИ РАЗУ не записал
+  tri alive      дышит ли продавец: сколько прошло с последнего обхода
+  tri vs-main <команда…>  падает ли это и БЕЗ ваших правок (копия на main)
+  tri queue [n]  очередь открытых PR: что свободно, а что стоит за другим
+  tri stale [N…]  не сделано ли то, что лежит в PR, уже на main
   tri scan       чем этот код может соврать: обзор сторожей и дыр
+  tri spelling   тесты, сторожащие написание исходника, а не свойство
+  tri spelling --gate|--update-baseline  ворота: падать только на НОВЫХ
+  tri boundary   держат ли инструменты обещание не отправлять без нажатия
+  tri rehearse [ветки…]  сольются ли открытые PR друг с другом, по порядку
   tri owners <файл>  кто ещё держит состояние этого модуля между вызовами
   tri promises   обещания в тексте, за которыми стоит число в другом файле
+  tri promises --defaults  сверить «по умолчанию N» с запасным вариантом в коде
   tri waiting    что лежит в открытом PR и чем рискует — по группам
   tri clock [дней] [render|bot|all]  прогон так, будто прошло N дней:
                  два прогона, фон вычитается — видно только то, что сгниёт
@@ -94,6 +106,8 @@ tri — оболочка Trinity S³AI
   tri crm-ingest [dialogs] [depth]  переписки владельца в память CRM (и в Zep, если задан)
   tri crm-leads [n]        кому писать следующему, со счётом и причиной
   tri orphans [n]          сколько карточек ушло НЕ нажатыми (и сколько картинок зря)
+  tri deadlines [что]      все сроки проекта в одном столбике, по возрастанию
+  tri turn-time [n]        сколько длится ход обхода против его бюджета
 U
 }
 
@@ -591,6 +605,10 @@ sys.stderr.write(str(len(ts)))
         echo "  $ID -> $ANSWER"
       done
     echo "готово. вернуть можно повторной публикацией — скрытие обратимо" ;;
+  turn-time)
+    bash "$ROOT/bin/helpers/turn-time.sh" "$ROOT" "${2:-200}" ;;
+  deadlines)
+    bash "$ROOT/bin/helpers/deadlines.sh" "$ROOT" "${2:-}" ;;
   orphans)
     bash "$ROOT/bin/helpers/orphans.sh" "$ROOT" "${2:-200}" ;;
   crm-waiting)
@@ -795,7 +813,17 @@ PYEOF
 
   api)    shift; bash "$ROOT/bin/helpers/tg-api.sh" "$CACHE" "$@" ;;
 
+  stale)  shift; bash "$ROOT/bin/helpers/stale.sh" "$ROOT" "$@" ;;
+  queue)  shift; bash "$ROOT/bin/helpers/queue.sh" "$ROOT" "$@" ;;
+  self)   shift; bash "$ROOT/bin/helpers/self.sh" "$ROOT" "$@" ;;
+  rotten) shift; bash "$ROOT/bin/helpers/rotten.sh" "$ROOT" "$@" ;;
+  books)  shift; bash "$ROOT/bin/helpers/books.sh" "$ROOT" "$@" ;;
+  alive)  shift; bash "$ROOT/bin/helpers/alive.sh" "$ROOT" "$@" ;;
+  vs-main) shift; bash "$ROOT/bin/helpers/vs-main.sh" "$ROOT" "$@" ;;
   wired)  shift; bash "$ROOT/bin/helpers/wired.sh" "$ROOT" "$@" ;;
+  rehearse) shift; bash "$ROOT/bin/helpers/rehearse.sh" "$ROOT" "$@" ;;
+  boundary) shift; bash "$ROOT/bin/helpers/boundary.sh" "$ROOT" "$@" ;;
+  spelling) shift; bash "$ROOT/bin/helpers/spelling.sh" "$ROOT" "$@" ;;
   scan)   shift; bash "$ROOT/bin/helpers/scan.sh" "$ROOT" "$@" ;;
   owners) shift; bash "$ROOT/bin/helpers/owners.sh" "$ROOT" "$@" ;;
   promises) shift; bash "$ROOT/bin/helpers/promises.sh" "$ROOT" "$@" ;;

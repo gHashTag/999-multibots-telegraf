@@ -35,17 +35,47 @@ describe('welcomeStart', () => {
 })
 
 describe('the road', () => {
-  it('has six steps in the owner\u2019s order', () => {
+  it('has seven steps in the owner\u2019s order', () => {
+    // `voice` joined after SOUL on 2026-09-18: the bot has been making
+    // ElevenLabs voices all along, and nothing outside it could ask whether one
+    // existed, so the road could not have a step for the third piece of the
+    // clone.
     expect(WELCOME_STEPS).toEqual([
       'value',
       'how',
       'club',
       'connect',
       'soul',
+      'voice',
       'done',
     ])
     expect(welcomeIndex('value')).toBe(1)
-    expect(welcomeIndex('done')).toBe(6)
+    expect(welcomeIndex('done')).toBe(7)
+  })
+
+  /*
+   * ABSENT IS NOT FALSE. The voice fact arrives from a server call that can
+   * still be in flight, or answer "cannot tell" when the database is briefly
+   * unreachable. Only a definite no opens the step; anything else leaves the
+   * road finished, because asking somebody to record a voice they already have
+   * is the one outcome worse than not asking.
+   */
+  it('opens the voice step only on a definite no', () => {
+    const done = { club: true, connected: true, soul: true }
+    expect(welcomeStart({ ...done, voice: false })).toBe('voice')
+    expect(welcomeStart({ ...done, voice: true })).toBe('done')
+    expect(welcomeStart({ ...done })).toBe('done')
+    expect(welcomeStart({ ...done, voice: undefined })).toBe('done')
+  })
+
+  /*
+   * A person who has no club and no voice must still be sent to the paywall
+   * first: the order of the road is the order of the road.
+   */
+  it('does not let the voice jump the queue', () => {
+    expect(
+      welcomeStart({ club: false, connected: false, soul: false, voice: false })
+    ).toBe('value')
   })
 
   it('moves one step at a time and stops at the ends', () => {
@@ -154,7 +184,9 @@ describe('the paywall tells the truth of the server', () => {
 
 describe('the fast road (owner, 2026-09-12)', () => {
   it('seeds the SOUL from the Telegram profile so the button is live at once', () => {
-    expect(soulSeed({ first_name: 'Sam', last_name: 'Hold', username: 'SamHold' })).toEqual({
+    expect(
+      soulSeed({ first_name: 'Sam', last_name: 'Hold', username: 'SamHold' })
+    ).toEqual({
       who: 'Sam Hold @SamHold',
       sell: '',
       voice: '',
@@ -170,7 +202,9 @@ describe('the fast road (owner, 2026-09-12)', () => {
   })
 
   it('an invited guest with the club open starts at the Telegram step, and the exit is the hive', () => {
-    expect(welcomeStart({ club: true, connected: false, soul: false })).toBe('connect')
+    expect(welcomeStart({ club: true, connected: false, soul: false })).toBe(
+      'connect'
+    )
     expect(WELCOME_EXIT_ROUTE).toBe('/hive')
   })
 })
