@@ -80,6 +80,62 @@ export interface ToolContext {
    * (countInitDataToolCall). Counts only: no tool decides anything by it.
    */
   initDataBot?: string
+  /**
+   * THE PHOTO THE PERSON ACTUALLY SENT, so img2img is what happens by default.
+   *
+   * Filled by runAgent from the marker lines all three clients append to the
+   * message text (media-parts.ts), never from tool arguments: the URL is
+   * checked against our own shelf before it lands here, because the marker
+   * lives inside text a PERSON wrote.
+   *
+   * `attachedImages` is THIS turn only -- the request being answered.
+   * `recentImage` is the newest photo anywhere in the conversation, for the
+   * follow-up ("а теперь в рыжий") that carries no file of its own.
+   */
+  attachedImages?: readonly string[]
+  recentImage?: string
+}
+
+/**
+ * WHICH PICTURE img2img REDRAWS -- the photo the person sent, not their
+ * profile picture.
+ *
+ * Until now the only fallback was the Telegram avatar, so "make a Barbie out of
+ * this photo" sent WITH a photo redrew the avatar instead. Silently: an avatar
+ * is a perfectly valid image and nothing failed, so the person got back a
+ * stranger's face and no explanation. Measured on a live client 2026-09-17,
+ * who then had to instruct the agent -- "always use img2img for such tasks" --
+ * herself.
+ *
+ * Returns null for "nothing was sent, fall back to the avatar" -- the fetch is
+ * left to the caller so this decision stays pure and testable.
+ */
+export function chooseEditSource(
+  args: { image_url?: unknown },
+  ctx: Pick<ToolContext, 'attachedImages' | 'recentImage'>
+): { url: string; from: string } | null {
+  if (args.image_url)
+    return { url: String(args.image_url), from: 'указанный файл' } // cyrillic-ok
+  const now = ctx.attachedImages?.[0]
+  if (now) return { url: now, from: 'фото из этого сообщения' } // cyrillic-ok
+  if (ctx.recentImage)
+    return { url: ctx.recentImage, from: 'последнее присланное фото' } // cyrillic-ok
+  return null
+}
+
+/**
+ * A photo in the SAME message means redraw it, not invent something new.
+ *
+ * Returns the URL image_generate must hand to img2img instead of drawing from
+ * scratch, or null when there is nothing attached -- or when the caller has
+ * explicitly said this request is not about the attachment.
+ */
+export function redrawInsteadOfDrawing(
+  args: { ignore_attached?: unknown },
+  ctx: Pick<ToolContext, 'attachedImages'>
+): string | null {
+  if (args.ignore_attached) return null
+  return ctx.attachedImages?.[0] ?? null
 }
 
 export interface AgentTool {
@@ -1250,10 +1306,12 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'image_edit',
     description:
-      'ПЕРЕРИСОВАТЬ ФОТО по описанию (img2img). Без image_url берётся АВАТАРКА ' +
-      'самого человека из Telegram — то есть «сделай историю про меня» работает ' +
-      'без единого файла от него. Лицо сохраняется. Файл ложится в S3 и в «мои ' +
-      'файлы», ссылку можно сразу отдавать в reel_render или в ленту.',
+      'ПЕРЕРИСОВАТЬ ФОТО по описанию (img2img) — ЭТО ПУТЬ ПО УМОЛЧАНИЮ, когда ' +
+      'человек прислал фото: берётся именно ЕГО фото из этого сообщения, даже ' +
+      'если ты не указал image_url. Нет фото в сообщении — берётся последнее ' +
+      'присланное, и только потом АВАТАРКА из Telegram (поэтому «сделай историю ' +
+      'про меня» работает без файлов). Лицо сохраняется. Файл ложится в S3 и в ' +
+      '«мои файлы», ссылку можно сразу отдавать в reel_render или в ленту.',
     parameters: {
       type: 'object',
       properties: {
@@ -1264,7 +1322,8 @@ export const TOOLS: AgentTool[] = [
         image_url: {
           type: 'string',
           description:
-            'что перерисовывать. Не задан — берётся аватарка вызывающего',
+            'что перерисовывать. Не задан — берётся фото из этого сообщения, ' +
+            'потом последнее присланное фото, и только потом аватарка',
         },
         aspect_ratio: {
           type: 'string',
@@ -1316,14 +1375,18 @@ export const TOOLS: AgentTool[] = [
             'ничего не списано',
         }
 
-      const source = args.image_url
-        ? String(args.image_url)
-        : await ownerAvatarUrl(ctx)
+      // The photo the person sent beats their profile picture; the avatar is
+      // fetched only when nothing was sent at all (chooseEditSource).
+      const picked = chooseEditSource(args, ctx) ?? {
+        url: await ownerAvatarUrl(ctx),
+        from: 'аватарка из Telegram', // cyrillic-ok
+      }
+      const source = picked.url
       if (!source)
         return {
           done: false,
           reason:
-            'нечего перерисовывать: аватарка не читается, а image_url не задан',
+            'нечего перерисовывать: фото не присылали, аватарка не читается, а image_url не задан',
         }
 
       const charge = await spendTokens(ctx, op)
@@ -1421,7 +1484,10 @@ export const TOOLS: AgentTool[] = [
         // "the file exists but nobody can find it".
         inGallery: assetId != null,
         ...(assetError ? { galleryError: assetError } : {}),
-        source: args.image_url ? 'указанный файл' : 'аватарка из Telegram',
+        // Which picture was actually redrawn, named out loud: the agent can
+        // tell the person WHICH photo it redrew, so a wrong source becomes
+        // visible instead of arriving as a stranger's face.
+        source: picked.from,
         model,
         providerCredits: edited.credits,
         charged: TOKEN_PRICES[op],
@@ -1431,12 +1497,20 @@ export const TOOLS: AgentTool[] = [
 
   {
     name: 'image_generate',
+    /*
+     * THIS TOOL IS IN THE SMALL-MODEL KIT, so every word here is paid for on
+     * every request (provider.test.ts pins the kit at under 6k tokens, and it
+     * was 2 tokens under before `ignore_attached` existed). The provider chain
+     * used to be listed by model name here AND described again under `model`
+     * below; one telling is enough, and the room went to the img2img rule,
+     * which changes what the model DOES rather than what it knows.
+     */
     description:
-      'Сгенерировать картинку по описанию. Провайдер выбирается сам: сначала FAL, ' +
-      'потом Replicate flux-schnell, потом Kie google/nano-banana — кто первый сделает. ' +
-      'В ответе поле «провайдер» говорит, кто нарисовал, а «отказы» — кто не смог и почему. ' +
-      'Файл сохраняется в S3 и появляется в «моих файлах», отдаёт прямую ссылку — ' +
-      'её можно сразу отдавать в reel_render или публиковать в ленту.',
+      'Нарисовать картинку с нуля по описанию. Человек прислал фото — по умолчанию ' +
+      'перерисовываем ЕГО через image_edit, а не рисуем новое. Провайдер выбирается ' +
+      'сам (FAL, Replicate, Kie): в ответе «провайдер» — кто нарисовал, «отказы» — ' +
+      'кто не смог. Файл ложится в S3 и в «мои файлы», прямую ссылку можно сразу ' +
+      'отдавать в reel_render или в ленту.',
     parameters: {
       type: 'object',
       properties: {
@@ -1451,18 +1525,42 @@ export const TOOLS: AgentTool[] = [
           // from Replicate or Kie and the id asked for was never used. A caller
           // told otherwise would report the wrong model in its own artefacts.
           type: 'string',
+          // The failover warning moved up into the tool description, where it
+          // is said once for the whole tool instead of twice per request.
           description:
             'ПОЖЕЛАНИЕ по модели FAL, не гарантия: fal-ai/nano-banana-pro (по умолчанию), ' +
-            'fal-ai/flux/dev, fal-ai/flux-pro/v1.1-ultra, fal-ai/reve/text-to-image. ' +
-            'Если FAL откажет, рисовать будет другой провайдер — смотри «провайдер» в ответе.',
+            'fal-ai/flux/dev, fal-ai/flux-pro/v1.1-ultra, fal-ai/reve/text-to-image',
         },
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
+        ignore_attached: {
+          type: 'boolean',
+          description: 'true — рисовать с нуля, хотя прислано фото не про это',
+        },
       },
       required: ['prompt'],
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      /**
+       * A PHOTO IN THE SAME MESSAGE MEANS REDRAW IT.
+       *
+       * Drawing something new from scratch while the person's own photo sits
+       * in the very message being answered is the failure the owner named: the
+       * file is ignored without a word. Refused BEFORE any charge, with the
+       * exact next call in hand -- and with a way to say "this request is not
+       * about that photo" rather than a wall.
+       */
+      const redraw = redrawInsteadOfDrawing(args, ctx)
+      if (redraw) {
+        const askForEdit =
+          'человек прислал фото в этом же сообщении — по умолчанию перерисовываем ЕГО: ' +
+          'вызови image_edit с этим image_url. Если просьба не про это фото — ' +
+          'вызови image_generate снова с ignore_attached=true. Ничего не списано.'
+        // The field names are this API's own, Russian like the rest of the file.
+        // cyrillic-ok-next-line
+        return { сделано: false, причина: askForEdit, image_url: redraw }
+      }
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false,
