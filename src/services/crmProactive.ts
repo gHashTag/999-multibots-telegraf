@@ -553,6 +553,30 @@ export function markRunningForTests(since: number, owner: string): void {
  * is worth a second attempt: when the wire dies nothing has been delivered to
  * anybody, so re-asking cannot double-send.
  */
+/**
+ * OUR OWN TIMEOUT, TOLD APART FROM EVERYTHING ELSE.
+ *
+ * The third line of the table above: an AbortController we armed ourselves
+ * produces a DOMException whose name is `AbortError` and whose message is
+ * "This operation was aborted". It is not a provider refusing and not a wire
+ * dying -- it is the model taking longer than the budget we set.
+ *
+ * Measured in the hive journal, 2026-09-16, twice in one afternoon:
+ *
+ *   15:03:03  sweep-failed  one lead waiting (next=deliver), the sweep died at
+ *                           the model turn: This operation was aborted
+ *   15:35:15  sweep-failed  another lead waiting (next=reply), the same
+ *
+ * Each cost a waiting customer the full thirty minutes to the next tick, for a
+ * turn that delivered nothing to anybody.
+ */
+export function isOurOwnAbort(e: unknown): boolean {
+  const name = (e as { name?: unknown } | null | undefined)?.name
+  if (name === 'AbortError' || name === 'TimeoutError') return true
+  const message = e instanceof Error ? e.message : String(e ?? '')
+  return /this operation was aborted|the operation was aborted/i.test(message)
+}
+
 export function isTransportDeath(e: unknown): boolean {
   const cause = (e as { cause?: { code?: unknown } } | null | undefined)?.cause
   const code = typeof cause?.code === 'string' ? cause.code : ''
@@ -611,25 +635,38 @@ export async function sweepOnce(
   let stage = 'подготовка'
   let transportRetried = false
   /*
-   * ONE RETRY, AND ONLY FOR A DEAD WIRE.
+   * ONE RETRY, FOR THE TWO FAILURES THAT DELIVERED NOTHING.
    *
    * A stream that died mid-body delivered nothing: no card was pushed, no
    * message was sent, the owner saw nothing. Re-asking is therefore the one
    * retry in this file that cannot double-send -- and it turns a thirty-minute
-   * hole for a waiting customer into a few extra seconds. The budget is ONE
-   * PER SWEEP, shared by the main turn and the no-tools retry: a second dead
-   * wire is not a hiccup, it is an outage, and it must reach the owner as
-   * `failed` rather than be retried into silence. The recovery itself is a
-   * warning, not an alert -- the alert is for the failure it prevented.
+   * hole for a waiting customer into a few extra seconds.
+   *
+   * OUR OWN TIMEOUT JOINS IT, for exactly the same reason and not for a
+   * general one. The abort fires inside the model turn, which is upstream of
+   * `deps.push`: when it throws, nothing has reached anybody, so a second ask
+   * cannot deliver twice. Twice on 2026-09-16 that cost a waiting customer the
+   * full half hour. What is NOT retried stays unretried: a provider that
+   * refuses, a model that answers junk, anything at or after the card.
+   *
+   * The budget is ONE PER SWEEP, shared by the main turn, the no-tools retry
+   * and now the abort: a second one is not a hiccup, it is an outage, and it
+   * must reach the owner as `failed` rather than be retried into silence. The
+   * second attempt costs another turn of the same 180 s budget, which the
+   * ten-minute ceiling above already accounts for.
    */
   const ask = async (text: string): ReturnType<SweepDeps['ask']> => {
     try {
       return await deps.ask(ownerId, text)
     } catch (e) {
-      if (transportRetried || !isTransportDeath(e)) throw e
+      const dead = isTransportDeath(e)
+      const aborted = isOurOwnAbort(e)
+      if (transportRetried || !(dead || aborted)) throw e
       transportRetried = true
       logger.warn(
-        '[crm-proactive] agent stream died mid-body, asking once more',
+        dead
+          ? '[crm-proactive] agent stream died mid-body, asking once more'
+          : '[crm-proactive] the model turn ran past its budget, asking once more',
         {
           owner: ownerId,
           upstream: BASE,
