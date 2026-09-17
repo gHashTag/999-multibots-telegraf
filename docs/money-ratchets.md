@@ -51,7 +51,7 @@
 | `fluxMaxBatchRefundExactCharge.test.ts`                | generateFluxKontextMax batch refund reconciles the exact charge                               |
 | `geminiChargedNoRefund.test.ts`                        | generateGeminiImage refunds a failed paid generation (no charged-no-refund)                   |
 | `guardsAssumeOneProcess.test.ts`                       | the money guards assume exactly one process                                                   |
-| `hedraRefundChecked.test.ts`                           | hedra-render refund result is checked (no silent unrefunded charge)                           |
+| `hedraRefundChecked.test.ts`                           | a failed refund on the no-voice path leaves a trace                                           |
 | `heygenRefundChecked.test.ts`                          | heygen-render refund result is checked and reported truthfully                                |
 | `i2v-deduct-result-checked.test.ts`                    | generateImageToVideo checks every deductBalanceAfterSuccess result                            |
 | `i2v-sora-webhook-no-double-charge.test.ts`            | Sora i2v webhook path does not double-charge via the status button                            |
