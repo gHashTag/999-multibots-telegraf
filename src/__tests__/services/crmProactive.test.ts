@@ -455,6 +455,123 @@ describe('a card nobody pressed is not evicted', () => {
   })
 })
 
+/*
+ * PLACED BEFORE A NEIGHBOUR RATHER THAN APPENDED AT THE END OF THE FILE.
+ *
+ * The end of a file is a shared anchor: three branches that each append their
+ * describe there conflict with one another over nothing. A merge rehearsal on
+ * 17.09.2026 found it twice in this very file. An insertion point is as much
+ * an interface between branches as a function name.
+ */
+/*
+ * A CARD NOBODY PRESSED IS AN ANSWER OF A KIND.
+ *
+ * Production 16.09.2026: 56 cards over four and a half days went to ten
+ * people, three of whom took thirty-seven. Not a targeting defect -- those
+ * three write daily and sit at the top of the work queue on every tick, so
+ * the owner was shown the same three faces again and again and pressed none.
+ *
+ * Step 2 of the brief is "take the FIRST whose next is not wait", so the
+ * ORDER of the candidate lines is the choice. Moving somebody already offered
+ * to the end of that list is the whole mechanism.
+ */
+describe('somebody already offered goes to the back of the list', () => {
+  const A = '900000011'
+  const B = '900000022'
+  const rows = [
+    { lead: A, display: 'первый', next: 'deliver' },
+    { lead: B, display: 'второй', next: 'reply' },
+  ]
+
+  it('without a cold set the note is exactly what it always was', () => {
+    expect(leadsNote(rows, new Set())).toBe(leadsNote(rows))
+  })
+
+  it('a cold lead is listed last and named as already offered', () => {
+    const note = leadsNote(rows, new Set([A]))
+    expect(note.indexOf(B)).toBeLessThan(note.indexOf(A))
+    expect(note).toContain('её не нажали')
+    // and the fresh one carries no such mark
+    const freshLine = note.split('\n').find(l => l.includes(B)) ?? ''
+    expect(freshLine).not.toContain('не нажали')
+  })
+
+  /*
+   * IF EVERYBODY HAS BEEN OFFERED, NOTHING CHANGES.
+   *
+   * Silence about every candidate is not a reason to go quiet -- that would
+   * turn a quiet week into a dead seller.
+   */
+  it('when all candidates are cold the order is untouched', () => {
+    const note = leadsNote(rows, new Set([A, B]))
+    expect(note.indexOf(A)).toBeLessThan(note.indexOf(B))
+  })
+
+  /*
+   * CHECKED THROUGH THE BRIEF, NOT THROUGH A TEST HATCH.
+   *
+   * The brief is what the model actually reads, so asserting on it proves the
+   * mechanism end to end. A getter for the internal map would have proved
+   * only that the map was written.
+   */
+  it('after a card, the next brief puts that person last; a press undoes it', async () => {
+    const texts: string[] = []
+    let t = 1_000_000
+    const { d } = deps({
+      now: () => t,
+      leads: async () => rows,
+      ask: async (_o, text) => {
+        texts.push(text)
+        return {
+          текст: 'подготовил', // cyrillic-ok: pre-existing identifiers
+          proposal: { ...draft, lead: A, target: A },
+        } as never
+      },
+    })
+    expect((await sweepOnce(OWNER, d)).did).toBe('card')
+    expect(texts[0].indexOf(A), 'первый обход уже кого-то двигал').toBeLessThan(
+      texts[0].indexOf(B)
+    )
+
+    // Second tick, no press in between: the person just offered goes last.
+    t += HOLD_MS_DEFAULT + 1
+    await sweepOnce(OWNER, d)
+    expect(texts[1], 'второй обход предложил того же первым').toContain(
+      'её не нажали'
+    )
+    expect(texts[1].indexOf(B)).toBeLessThan(texts[1].indexOf(A))
+
+    // A press about that card makes the person eligible again at once.
+    noteResolved(OWNER, String(draft.id))
+    t += HOLD_MS_DEFAULT + 1
+    await sweepOnce(OWNER, d)
+    expect(texts[2].indexOf(A)).toBeLessThan(texts[2].indexOf(B))
+  })
+
+  it('a day later the person comes back on their own', async () => {
+    const texts: string[] = []
+    let t = 1_000_000
+    const { d } = deps({
+      now: () => t,
+      leads: async () => rows,
+      ask: async (_o, text) => {
+        texts.push(text)
+        return {
+          текст: 'подготовил', // cyrillic-ok: pre-existing identifiers
+          proposal: { ...draft, lead: A, target: A },
+        } as never
+      },
+    })
+    await sweepOnce(OWNER, d)
+    t += 24 * 60 * 60_000 + 1
+    await sweepOnce(OWNER, d)
+    expect(
+      texts[1].indexOf(A),
+      'через сутки человек так и не вернулся в начало'
+    ).toBeLessThan(texts[1].indexOf(B))
+  })
+})
+
 describe('never two at once', () => {
   it('a sweep started while one runs is busy, not a second turn', async () => {
     let release: (v: unknown) => void = () => {}

@@ -2,7 +2,12 @@ import { logger } from '@/utils/logger'
 import type { Telegraf } from 'telegraf'
 import type { MyContext } from '@/interfaces'
 import { спроситьАгента, recordTurns, type ОтветАгента } from './trinityAgent' // cyrillic-ok: pre-existing identifiers
-import { proposalCard, rememberCard, cardLeadOf } from './telegramProposals'
+import {
+  proposalCard,
+  rememberCard,
+  cardLeadOf,
+  peekCardLead,
+} from './telegramProposals'
 import {
   SWEEP_HEAD,
   SWEEP_RULES,
@@ -140,6 +145,20 @@ const INGEST_TIMEOUT_MS = 170_000
 const PENDING_CARD_TIMEOUT_MS = 15_000
 
 /*
+ * HOW LONG AN UNPRESSED CARD KEEPS ITS PERSON OUT OF THE QUEUE.
+ *
+ * A day: long enough that the owner is not shown the same face twice between
+ * two sleeps, short enough that somebody who genuinely is the best candidate
+ * comes back tomorrow rather than being dropped.
+ *
+ * Deliberately NOT tied to the card's twelve-hour life. A card dying is not
+ * the owner saying "ask me again" -- it is the same silence that put the
+ * person here, and re-offering the moment it expires is what produced
+ * seventeen cards for one person in four days.
+ */
+const COLD_MS = 24 * 60 * 60_000
+
+/*
  * ONE HOLD PER SELLER, NOT ONE FOR EVERYBODY.
  *
  * These were three module-level variables, and ADMIN_IDS names more than one
@@ -165,6 +184,30 @@ interface SweepState {
   /** Cards pushed to this owner that no press has answered. */
   unpressed: number
   /**
+   * People whose card was drawn and NOT pressed, with when it was drawn.
+   *
+   * Measured 16.09.2026: 56 cards over four and a half days went to ten
+   * people, and three of them took thirty-seven. Not a targeting defect --
+   * the top of the work queue is exactly who gets cards, because those three
+   * write every day and stay at the top of every tick. So the owner was shown
+   * the same three faces again and again, and pressed none of them.
+   *
+   * A card that was not pressed is an answer of a kind. It does not mean
+   * never -- it means not now, and the next tick is better spent on somebody
+   * else. They come back after COLD_MS.
+   */
+  cold: Map<string, number>
+  /**
+   * The last card pushed to this owner: its id and the person it was for.
+   *
+   * Kept HERE rather than looked up through the card-to-lead memo in
+   * telegramProposals, which expires on its own schedule -- fifteen minutes
+   * on main today. The owner presses when he next picks up the phone, so a
+   * clear that depends on that memo would essentially never fire, and the
+   * person he DID answer would stay out of the queue for a day.
+   */
+  lastCard: { id: string; lead: string } | null
+  /**
    * When the card this owner is holding stops being pressable, as the render
    * itself reported it. 0 when no card is waiting.
    *
@@ -189,6 +232,8 @@ function stateOf(owner: string): SweepState {
       ingestFailStreak: 0,
       unpressed: 0,
       cardDiesAt: 0,
+      cold: new Map(),
+      lastCard: null,
     }
     sweepState.set(key, st)
   }
@@ -296,12 +341,37 @@ export const isDue = (c: Record<string, unknown>): boolean =>
  * The candidates, appended to the brief so step 1 is already done. One line
  * per row, the fields the brief reasons about; nothing else from the row.
  */
-export function leadsNote(rows: Array<Record<string, unknown>>): string {
-  const lines = rows.slice(0, LOOK_LIMIT).map(c => {
+export function leadsNote(
+  rows: Array<Record<string, unknown>>,
+  cold: ReadonlySet<string> = new Set()
+): string {
+  /*
+   * THE ONES ALREADY OFFERED GO LAST, AND THE BRIEF SAYS SO.
+   *
+   * Step 2 of the brief is "take the FIRST whose next is not wait", so the
+   * order of these lines IS the choice. Moving a person the owner did not
+   * press to the end of the list is therefore the whole mechanism -- no new
+   * instruction to follow, nothing for the model to weigh.
+   *
+   * They are moved, never dropped. If every candidate has been offered
+   * before, the list is the same list in the same order and the sweep works
+   * exactly as it did: silence about everybody is not a reason to go quiet.
+   */
+  const ordered =
+    cold.size === 0
+      ? rows
+      : [
+          ...rows.filter(c => !cold.has(String(c.lead ?? ''))),
+          ...rows.filter(c => cold.has(String(c.lead ?? ''))),
+        ]
+  const lines = ordered.slice(0, LOOK_LIMIT).map(c => {
     const who = c.display
       ? `${String(c.display)} (${String(c.lead ?? '')})`
       : String(c.lead ?? '')
-    return `- ${who}: next=${String(c.next ?? '')}`
+    const seen = cold.has(String(c.lead ?? ''))
+      ? ' — ему уже готовили карточку, её не нажали'
+      : ''
+    return `- ${who}: next=${String(c.next ?? '')}${seen}`
   })
   return (
     ' ШАГ 1 УЖЕ ВЫПОЛНЕН: crm_leads вернул ' +
@@ -415,6 +485,27 @@ export function noteResolved(owner?: string, cardId?: string): void {
     st.unpressed = 0
     // The card is gone from the queue, so nothing is left to evict.
     st.cardDiesAt = 0
+    /*
+     * A PRESS TAKES THE PERSON OFF THE COLD LIST IMMEDIATELY.
+     *
+     * The list exists because silence about somebody is an answer. A press is
+     * the opposite answer, and it arrives about a specific card -- so the
+     * person behind that card becomes eligible again at once, rather than
+     * waiting out a day that was meant for people the owner ignored.
+     *
+     * `peekCardLead` rather than `takeCardLead`: the follow-up after the press
+     * consumes that entry itself, and consuming it here would leave the owner
+     * without the person's buttons.
+     */
+    if (cardId) {
+      const id = String(cardId)
+      const lead =
+        st.lastCard && st.lastCard.id === id
+          ? st.lastCard.lead
+          : peekCardLead(id)
+      if (lead) st.cold.delete(String(lead))
+      if (st.lastCard && st.lastCard.id === id) st.lastCard = null
+    }
   }
   const s = owner ? scopes.get(String(owner)) : undefined
   if (!s || !s.waiting || s.inFlight) return
@@ -691,8 +782,16 @@ export async function sweepOnce(
           : 'crm_leads: кандидатов нет',
       }
     }
+    // Only the still-cold ones: an entry older than COLD_MS is forgotten here
+    // rather than swept elsewhere, so the map cannot outlive its meaning.
+    const stillCold = new Set<string>()
+    for (const [lead, at] of st.cold) {
+      if (now - at < COLD_MS) stillCold.add(lead)
+      else st.cold.delete(lead)
+    }
     const brief =
-      opts.prompt ?? (looked ? SWEEP_PROMPT + leadsNote(looked) : SWEEP_PROMPT)
+      opts.prompt ??
+      (looked ? SWEEP_PROMPT + leadsNote(looked, stillCold) : SWEEP_PROMPT)
     stage = 'ход модели'
     let answer = await ask(brief)
     /*
@@ -723,6 +822,16 @@ export async function sweepOnce(
     if (answer.proposal) {
       stage = 'карточка владельцу'
       await deps.push(ownerId, answer.proposal)
+      // Whose card this was, so the next tick can offer somebody else. Taken
+      // from the draft itself; a draft without a numeric lead marks nobody.
+      const drawnFor = cardLeadOf(answer.proposal as never)
+      if (drawnFor) {
+        st.cold.set(String(drawnFor), now)
+        st.lastCard = {
+          id: String(answer.proposal.id),
+          lead: String(drawnFor),
+        }
+      }
       st.lastPushAt = now
       // Taken from the card, never guessed: a proposal that arrived without
       // the instant leaves the guard off rather than inventing a deadline.
