@@ -368,6 +368,23 @@ CHECKS THAT EACH COST A CYCLE
         tool call rather than on the user row, and a line that says "not
         asked" every time is furniture.
 
+  tri readers [--gate] | tri читатели
+        Tests that read source as TEXT, and the paths they still believe in.
+
+        `vitest related` follows the IMPORT graph, and reading a file with fs
+        is not importing it. So such a guard can be broken by MOVING code, and
+        the pre-push gate will not say a word.
+
+        Measured 2026-09-18: 180 test files read source this way. One of them
+        guards a money path -- "a failed credit stops the retries and says so"
+        -- and went red when the top-up flow moved into a shared hook. The
+        behaviour had not changed; only the file had. It surfaced two days
+        later, dragged into a run by an unrelated import.
+
+        `--gate` reds when a path no longer exists. A path that exists is not a
+        promise: only running the test says whether the string it looks for is
+        still in there.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1535,6 +1552,15 @@ cmd_clone() {
   #   tri clone            the account behind the agent key
   #   tri clone <id>       somebody else
   ( cd "$ROOT" && node "$ROOT/scripts/clone-state.cjs" "$@" )
+}
+
+cmd_readers() {
+  # Tests that read source as TEXT -- invisible to `vitest related`, which
+  # follows the import graph. Moving code breaks them and the pre-push gate
+  # does not notice: a money guard sat broken for two days that way.
+  #   tri readers            the inventory, and any path that no longer exists
+  #   tri readers --gate     exit 1 when a target is missing
+  ( cd "$ROOT" && node "$ROOT/scripts/text-readers.cjs" "$@" )
 }
 
 cmd_pay() {
@@ -3913,6 +3939,7 @@ case "$action" in
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
   pay|оплата)        cmd_pay "$@" ;;
+  readers|читатели)  cmd_readers "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
