@@ -192,6 +192,12 @@ export interface Proposal {
 
 /** What a caller may attach to a draft beyond the message itself. */
 export interface ProposalExtras {
+  /**
+   * Their own last message, for the card. Third-party text: flattened and cut
+   * here, quoted and attributed there, never mixed with the draft.
+   */
+  theirWords?: string
+
   display?: string
   invoiceId?: number
   media?: ProposalMedia
@@ -312,6 +318,27 @@ export async function leadOfTargetIn(
  * `remember` with a text that tells the model the format to use, instead of
  * a silent "send now" nobody chose.
  */
+/**
+ * Attach the person's own last message to whatever else travels with a draft.
+ *
+ * Returns the extras unchanged when there is no lead, no pool, or nothing was
+ * ever received from them -- a card without the quote is still a card, and a
+ * card that fails to appear because a quote could not be read is a lost turn.
+ */
+async function withTheirWords(
+  ctx: ToolContext | undefined,
+  lead: string | undefined,
+  extra: ProposalExtras | undefined
+): Promise<ProposalExtras | undefined> {
+  const pool = (ctx as { pool?: unknown } | undefined)?.pool
+  const owner = String(ctx?.telegramId ?? '')
+  if (!lead || !pool || !owner) return extra
+  const { lastWordsOf } = await import('./chat-memory')
+  const words = await lastWordsOf(pool as never, owner, String(lead))
+  if (!words) return extra
+  return { ...(extra ?? {}), theirWords: words.slice(0, 200) }
+}
+
 function scheduleExtra(args: Record<string, any>): ProposalExtras | undefined {
   if (!args?.schedule_at) return undefined
   return { scheduleAt: Date.parse(String(args.schedule_at)) }
@@ -388,6 +415,7 @@ function propose(
       charge: extra?.charge,
       gift: extra?.gift,
       args: extra?.args,
+      theirWords: extra?.theirWords,
     })
   }
   /*
@@ -1167,15 +1195,24 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
        * reply" and the next sweep prepared a second answer for them. A
        * numeric chat id IS the lead; a @username is not resolved here.
        */
+      /*
+       * THEIR LAST WORD TRAVELS WITH THE DRAFT.
+       *
+       * Read here, on the wire, and NOT asked of the model: the compact tool
+       * kit has under a hundred characters of room before it stops fitting a
+       * small model's window, so a parameter costs more than the feature is
+       * worth. A single-row query costs nothing the model can feel.
+       */
+      const leadId = await leadOfTargetIn(ctx, args.chat)
       return propose(
         'send',
         args.chat,
         args.text,
         'Отправка ждёт подтверждения человека. Покажи адресата и текст целиком.',
         ctx,
-        await leadOfTargetIn(ctx, args.chat),
+        leadId,
         undefined,
-        scheduleExtra(args)
+        await withTheirWords(ctx, leadId, scheduleExtra(args))
       )
     },
   },

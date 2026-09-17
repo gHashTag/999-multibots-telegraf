@@ -857,3 +857,70 @@ describe('why this person, on the card', () => {
     ).toBe(1)
   })
 })
+
+/*
+ * THE CARD ANSWERS "ANSWERING WHAT?".
+ *
+ * After "who is this", the second reason to open the chat is "what are we
+ * replying to". The bulk lead query has computed their last words for a
+ * while, with a comment saying it is the line the owner reads to remember who
+ * this is before deciding anything -- and the card never showed it.
+ */
+describe('their last message, on the card', () => {
+  const bare = {
+    id: 'p1',
+    action: 'send',
+    target: '900000044',
+    what: 'наш черновик',
+    secret: 's',
+  }
+
+  it('is quoted, labelled, and above our own words', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      { ...bare, theirWords: 'а когда будет готово?' } as never,
+      true
+    )
+    expect(card.text).toContain('Последнее сообщение: «а когда будет готово?»')
+    expect(
+      card.text.indexOf('Последнее сообщение'),
+      'их слова оказались ниже нашего черновика'
+    ).toBeLessThan(card.text.indexOf('наш черновик'))
+  })
+
+  /*
+   * A CUT THAT DOES NOT SAY IT CUT IS A LIE ABOUT WHAT THEY SAID: the quote
+   * would end mid-word and read as the whole of their message.
+   */
+  it('a long message is cut WITH an ellipsis', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      { ...bare, theirWords: 'я'.repeat(400) } as never,
+      true
+    )
+    const line =
+      card.text.split('\n').find(l => l.startsWith('Последнее')) ?? ''
+    expect(line).toContain('…')
+    expect(line.length).toBeLessThanOrEqual(200)
+  })
+
+  it('a multi-line message cannot grow the card', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const card = proposalCard(
+      { ...bare, theirWords: 'первая\nвторая\nтретья' } as never,
+      true
+    )
+    expect(
+      card.text.split('\n').filter(l => l.startsWith('Последнее')).length
+    ).toBe(1)
+    expect(card.text).toContain('«первая вторая третья»')
+  })
+
+  it('without it the card is exactly what it was', async () => {
+    const { proposalCard } = await import('@/services/telegramProposals')
+    const a = proposalCard(bare as never, true)
+    const b = proposalCard({ ...bare, theirWords: '' } as never, true)
+    expect(a.text).toBe(b.text)
+    expect(a.text).not.toContain('Последнее сообщение')
+  })
+})

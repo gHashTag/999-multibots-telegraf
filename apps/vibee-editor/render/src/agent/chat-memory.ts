@@ -440,6 +440,42 @@ export interface LeadCandidate {
  * The rule is written down so the owner can argue with it, not tuned by a
  * model that cannot say why.
  */
+/**
+ * ONE PERSON'S LAST WORD, FOR THE CARD.
+ *
+ * The bulk query above computes this for every lead at once and its comment
+ * has always said what the line is for: "the line the owner reads to remember
+ * who this is before deciding anything". He never saw it -- the card showed
+ * who and what we propose to send, and nothing of what they said.
+ *
+ * A separate one-row read rather than a slice of the bulk one: a card is made
+ * for a single person at a time, and making the card wait on a ninety-day
+ * scan of everybody would be a strange price for one quote.
+ */
+export async function lastWordsOf(
+  pool: Pool,
+  owner: string,
+  lead: string
+): Promise<string | null> {
+  try {
+    const r = await pool.query(
+      `SELECT text FROM crm_messages
+        WHERE owner_id = $1 AND lead_id = $2 AND NOT "out"
+        ORDER BY at DESC LIMIT 1`,
+      [String(owner), String(lead)]
+    )
+    const text = (r.rows?.[0] as { text?: unknown } | undefined)?.text
+    const one = String(text ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return one || null
+  } catch {
+    // A card without the quote is still a card. A card that never appears
+    // because a quote could not be read is a lost turn.
+    return null
+  }
+}
+
 export async function leadCandidates(
   pool: Pool,
   owner: string,

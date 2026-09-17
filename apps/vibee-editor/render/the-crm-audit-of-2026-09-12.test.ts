@@ -27,20 +27,31 @@ describe('P0: the lead rides with a tg_send draft', () => {
     expect(leadOfTarget(undefined)).toBeUndefined()
   })
 
-  it('tg_send passes it to propose (source)', () => {
-    const src = readFileSync(
-      join(__dirname, 'src/agent/telegram-tools.ts'),
-      'utf8'
+  /*
+   * ASSERTED ON THE DRAFT, NOT ON THE SOURCE TEXT.
+   *
+   * This check used to read telegram-tools.ts and match a regex over the two
+   * hundred characters after the refusal sentence -- while its own comment
+   * said the guard is "a lead rides with the draft", not "this helper is
+   * called". 17.09.2026 the call moved into a local variable, the behaviour
+   * was untouched, and the guard went red: it was watching the spelling.
+   *
+   * A queued draft either carries the lead or it does not, and that is the
+   * promise: without it a confirmed send writes no `written` touch, mirrors
+   * nothing, and the person stays "waiting for a reply" forever.
+   */
+  it('a numeric chat leaves the lead on the queued draft', async () => {
+    const { TELEGRAM_TOOLS } = await import('./src/agent/telegram-tools')
+    const { forgetProposals, pendingFor } = await import(
+      './src/agent/tg-proposals'
     )
-    const at = src.indexOf("'Отправка ждёт подтверждения человека.")
-    expect(at).toBeGreaterThan(-1)
-    // The guard is "a lead rides with the draft", not "this helper is called".
-    // `leadOfTargetIn` is the same promise kept for one more case: a
-    // @username the owner has corresponded with now resolves to an id, so a
-    // card addressed that way records its `written` touch when pressed.
-    expect(src.slice(at, at + 200)).toMatch(
-      /ctx,\s*(await\s+)?leadOfTargetIn?\(\s*(ctx,\s*)?args\.chat\)/
-    )
+    forgetProposals()
+    const t = TELEGRAM_TOOLS.find(x => x.name === 'tg_send')!
+    await t.handler({ chat: '900000002', text: 'привет' }, {
+      telegramId: '144022504',
+      surface: 'bot',
+    } as never)
+    expect(pendingFor('144022504')?.lead).toBe('900000002')
   })
 })
 
