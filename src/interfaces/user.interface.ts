@@ -15,6 +15,12 @@ export interface User {
   updated_at?: string
   gender?: string
   level?: number
+  /**
+   * The Telegram profile photo, stored at registration by createUserScene with
+   * the bot's own photo as a fallback. `select('*')` has always returned it;
+   * the type simply did not say so, so every reader had to cast.
+   */
+  photo_url?: string | null
   voiceId?: string
   finetuneId?: string
   aspectRatio?: string
