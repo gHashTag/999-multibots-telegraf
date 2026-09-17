@@ -175,7 +175,25 @@ describe('the mini-app verify path reads the verdict', () => {
  * next visit", and the retries still belong to the other case.
  */
 describe('the browser tells the two apart', () => {
-  const chat = fs.readFileSync(
+  /*
+   * THIS GUARD BROKE WHEN THE CODE MOVED, AND NOTHING CAUGHT IT.
+   *
+   * It read Chat.tsx as TEXT. On 2026-09-18 the top-up flow moved into the
+   * shared hook so the profile could use it too, and this went red -- not
+   * because the behaviour changed (it did not) but because the file no longer
+   * contains the words.
+   *
+   * Worse, the pre-push gate did not notice: `vitest related` follows the
+   * IMPORT graph, and a test that reads a file with fs is not in the import
+   * graph of that file. So the guard on a money path can be broken by a move
+   * and stay broken until something unrelated drags it into a run.
+   *
+   * Pointed at the file that owns the behaviour now. The text check itself
+   * stays, because what it guards is an ORDER inside one function -- the
+   * failed-credit branch must come before the retry promise -- and an order
+   * between two branches is what a reader can see and a caller cannot.
+   */
+  const flow = fs.readFileSync(
     path.join(
       __dirname,
       '..',
@@ -185,23 +203,46 @@ describe('the browser tells the two apart', () => {
       'vibee-editor',
       'player',
       'src',
-      'pages',
-      'Chat.tsx'
+      'hooks',
+      'useTokenTopUp.ts'
     ),
     'utf8'
   )
 
   it('the file under test is the one that calls verify', () => {
-    expect(chat).toContain('/api/tokens/verify')
+    expect(flow).toContain('/api/tokens/verify')
   })
 
   it('a failed credit stops the retries and says so', () => {
-    expect(chat).toContain("vd['зачисление_провалено']")
-    expect(chat).toContain('токены не зачислены')
+    expect(flow).toContain("vd['зачисление_провалено']")
+    expect(flow).toContain('токены не зачислены')
     // The retry promise must not be what a failed credit reaches.
-    const failedBranch = chat.indexOf("vd['зачисление_провалено']")
-    const retryPromise = chat.indexOf('проверяю зачисление ещё пару раз')
+    const failedBranch = flow.indexOf("vd['зачисление_провалено']")
+    const retryPromise = flow.indexOf('проверяю зачисление ещё пару раз')
     expect(failedBranch).toBeGreaterThan(-1)
     expect(retryPromise).toBeGreaterThan(failedBranch)
+  })
+
+  /*
+   * And the page that used to hold it must still be able to reach it, or the
+   * chat quietly stops verifying while this file goes on passing.
+   */
+  it('the chat still reaches that flow', () => {
+    const chat = fs.readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'apps',
+        'vibee-editor',
+        'player',
+        'src',
+        'pages',
+        'Chat.tsx'
+      ),
+      'utf8'
+    )
+    expect(chat).toContain('useTokenTopUp')
   })
 })
