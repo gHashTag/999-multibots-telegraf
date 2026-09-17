@@ -19,7 +19,14 @@
  * back button. Where the road starts is still decided from facts, so a
  * person who already did a step is not asked to do it twice.
  */
-export type WelcomeStep = 'value' | 'how' | 'club' | 'connect' | 'soul' | 'done'
+export type WelcomeStep =
+  | 'value'
+  | 'how'
+  | 'club'
+  | 'connect'
+  | 'soul'
+  | 'voice'
+  | 'done'
 
 export const WELCOME_STEPS: readonly WelcomeStep[] = [
   'value',
@@ -27,6 +34,7 @@ export const WELCOME_STEPS: readonly WelcomeStep[] = [
   'club',
   'connect',
   'soul',
+  'voice',
   'done',
 ]
 
@@ -37,12 +45,30 @@ export interface WelcomeFacts {
   connected: boolean
   /** A non-empty SOUL.md exists (agent tool soul_get). */
   soul: boolean
+  /**
+   * A voice of their own exists (server: /api/clone/status).
+   *
+   * THE THIRD PIECE OF THE CLONE, AND THE ONE THAT HID THE LONGEST. The bot's
+   * voiceAvatarWizard has been making ElevenLabs voices and writing them to the
+   * user row all along; nothing outside the bot could ask whether one existed,
+   * so this road could not have a step for it. Two finished pieces sat
+   * unreachable while the clone was described as unbuilt.
+   *
+   * Absent (undefined) is NOT false: it means the answer has not arrived, or
+   * the server said it could not tell. The road must not send somebody to
+   * record a voice on the strength of a question that was never answered.
+   */
+  voice?: boolean
 }
 
 export function welcomeStart(facts: WelcomeFacts): WelcomeStep {
   if (!facts.club) return 'value'
   if (!facts.connected) return 'connect'
   if (!facts.soul) return 'soul'
+  // Only a definite NO opens this step. `undefined` -- the request is still in
+  // flight, or the server answered "cannot tell" -- leaves the road finished
+  // rather than asking for work that may already be done.
+  if (facts.voice === false) return 'voice'
   return 'done'
 }
 
@@ -132,4 +158,3 @@ export function soulSeed(user: SoulSeedSource | null | undefined): {
 
 /** Where the last card of the road sends a person: the game. */
 export const WELCOME_EXIT_ROUTE = '/hive'
-

@@ -327,6 +327,11 @@ const PUBLIC_EXACT = new Set([
   '/api/club/invoice',
   '/api/club/status',
   '/api/club/verify',
+  // Which pieces of a person's digital clone exist (clone-readiness.ts). Same
+  // principle: the handler refuses without an identity rather than answering a
+  // default, because "no voice" read as a fact would ask somebody to redo work
+  // they have already done.
+  '/api/clone/status',
   // POST /api/assets (сохранить фото в профиль аватара) — тот же принцип:
   // обработчик сам проверяет личность (подпись или ключ агента) и пишет
   // файл строго от проверенного владельца. Гвард здесь мешал бы dev-ключу.
