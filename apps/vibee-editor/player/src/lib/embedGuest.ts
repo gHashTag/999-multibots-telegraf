@@ -46,6 +46,15 @@ const AI_STAGES: readonly TriScreenId[] = [
 export function guestScreenOf(pathname: string): TriScreenId | null {
   if (/^\/chat\/?$/.test(pathname)) return 'chat'
   if (/^\/profile\/?$/.test(pathname)) return 'profile'
+  /*
+   * `/pair` mints a credential, so it belongs here for the same reason
+   * `/profile` does -- it is the profile's most sensitive widget on its own
+   * address (pages/Pair.tsx), and a new route that inherits a screen's danger
+   * without inheriting its defenses is the quiet way this list goes stale.
+   * Counted as 'profile': the panel's job is to point at the app where a
+   * person can sign in, and that is the screen it should point at.
+   */
+  if (/^\/pair\/?$/.test(pathname)) return 'profile'
   if (/^\/crm(?:\/|$)/.test(pathname)) return 'crm'
   const stage = AI_STAGE.exec(pathname)
   return stage ? (stage[1] as TriScreenId) : null
