@@ -100,11 +100,25 @@ function mintInvoice() {
   }
 }
 
-/** Does the mini app have a way to pay on a given page. */
+/**
+ * Does the mini app have a way to pay on a given page.
+ *
+ * A DIRECT CALL IS NOT THE ONLY WAY IN, and assuming it was made this check
+ * lie the moment the flow was shared. The top-up moved into `useTokenTopUp`
+ * so the chat and the profile could stop keeping two copies of it -- and this
+ * function, which looked for the route literal, went on reporting that the
+ * profile could not pay while the button sat right there.
+ *
+ * A probe that checks for yesterday's spelling of a thing is a probe that
+ * reports the refactor as a regression.
+ */
 function miniAppEntry(file) {
   try {
     const src = fs.readFileSync(file, 'utf8')
-    return /\/api\/tokens\/(invoice|verify)/.test(src)
+    return (
+      /\/api\/tokens\/(invoice|verify)/.test(src) ||
+      /useTokenTopUp|TokenTopUpCard/.test(src)
+    )
   } catch {
     return false
   }

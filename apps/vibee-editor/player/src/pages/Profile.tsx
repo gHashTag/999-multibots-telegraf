@@ -24,6 +24,8 @@ import {
 } from '@/atoms/agentTelegram'
 import { clubErrorAtom, clubStatusAtom, loadClubStatusAtom } from '@/atoms/club'
 import { cloneReadyAtom, loadCloneStatusAtom } from '@/atoms/clone'
+import { useTokenTopUp } from '@/hooks/useTokenTopUp'
+import { TokenTopUpCard } from '@/components/Profile/TokenTopUpCard'
 import { loadSoulAtom, soulAtom, soulLoadedAtom } from '@/atoms/soul'
 import '@/components/Profile/Profile.css'
 
@@ -47,6 +49,12 @@ export function ProfilePage() {
   const soulLoaded = useAtomValue(soulLoadedAtom)
   const loadSoul = useSetAtom(loadSoulAtom)
   const cloneReady = useAtomValue(cloneReadyAtom)
+  /*
+   * THE SAME TOP-UP THE CHAT USES, not a second one. The profile is where a
+   * person looks at their balance, and until now it was the one screen that
+   * showed the number and offered no way to change it.
+   */
+  const topUp = useTokenTopUp()
   const loadClone = useSetAtom(loadCloneStatusAtom)
   // The welcome road has no "later" (owner, 2026-09-09, evening): the
   // profile opens only when club, Telegram and SOUL are all in place and the
@@ -270,6 +278,19 @@ export function ProfilePage() {
               username={profile.username}
               isOwn={своя}
               onEdit={() => setShowEdit(true)}
+            />
+          )}
+          {/*
+            A WAY TO PAY ON THE SCREEN THAT SHOWS THE BALANCE.
+
+            Own profile only: somebody else's balance is not ours to top up,
+            and the buttons would mint an invoice against the viewer anyway.
+          */}
+          {isOwn && (
+            <TokenTopUpCard
+              tokens={topUp.tokens}
+              note={topUp.note}
+              buy={p => void topUp.buy(p)}
             />
           )}
           <ProfileTabs />

@@ -1149,6 +1149,11 @@ const en: Translations = {
     'Club, Telegram and SOUL are in place. From here the agent works; you steer.',
   'welcome.done.first':
     'Write to the agent in the chat — ask for a first reel, a plan for the week or a reply to a client.',
+  'topup.balance': 'Balance',
+  'topup.tokens': 'tokens',
+  'topup.loading': 'Loading prices…',
+  'topup.unavailable': 'The cashier is unavailable right now',
+  'topup.best': 'best value',
   'welcome.voice.title': 'Now give it your voice',
   'welcome.voice.lead':
     'Your clone speaks in your own voice. Record one voice message in the bot and it is done -- everything made afterwards can use it.',
@@ -3056,6 +3061,11 @@ const ru: Translations = {
     'Клуб, Telegram и SOUL на месте. Дальше работает агент, а ты рулишь.',
   'welcome.done.first':
     'Напиши агенту в чате — попроси первый рилс, план на неделю или ответ клиенту.',
+  'topup.balance': 'Баланс',
+  'topup.tokens': 'токенов',
+  'topup.loading': 'Загружаю цены…',
+  'topup.unavailable': 'Касса сейчас недоступна',
+  'topup.best': 'выгоднее всех',
   'welcome.voice.title': 'Теперь голос',
   'welcome.voice.lead':
     'Клон говорит вашим голосом. Запишите одно голосовое в боте — этого достаточно, дальше он будет звучать как вы.',
