@@ -42,11 +42,18 @@ describe('a note from the bot lands in the journal', () => {
      * reduces to -- was recorded nowhere at all: the `written` touch needs a
      * lead on the draft, a successful press has no log line, and the journal
      * had no kind for it.
+     *
+     * `sweep-held` was added on 2026-09-17 for the opposite reason: a hold
+     * wrote NOTHING, on purpose, so a seller holding a card and a seller
+     * whose cron had died were the same silence. Production went four hours
+     * and thirteen minutes without a line that day and nothing in the journal
+     * could say which it was. The bot rate-limits it to one per six hours.
      */
     expect([...NOTABLE_KINDS]).toEqual([
       'sweep-idle',
       'sweep-card',
       'sweep-failed',
+      'sweep-held',
       'card-pressed',
     ])
   })

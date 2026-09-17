@@ -206,3 +206,35 @@ describe('when the plan is due', () => {
     expect(planMarker('2026-09-09')).toBe('[план продавца 2026-09-09]')
   })
 })
+
+describe('the morning line stops framing the day as capacity unused', () => {
+  /*
+   * MEASURED 2026-09-16. "Сегодня ушло: 4 из 30" is the first line the owner
+   * reads every morning, and it says 26 more could go. In those same days the
+   * seller prepared SIXTY-THREE cards, each replacing the last unpressed one.
+   * The constraint is not capacity; it is that cards die before a press, and
+   * the screen said the opposite.
+   */
+  it('names the cards prepared when more were made than sent', () => {
+    const t = buildPlanText(summary, null, NOW, TZ, 63)
+    expect(t).toContain('Подготовлено карточек: 63')
+    expect(t).toContain('остальные заменены')
+  })
+
+  it('says nothing extra when everything prepared was sent', () => {
+    // No lecture where there is no leak: the line stays as it was.
+    const sent = Number(
+      (summary as { seller_sends_recent?: number }).seller_sends_recent ?? 0
+    )
+    const t = buildPlanText(summary, null, NOW, TZ, sent)
+    expect(t).not.toContain('Подготовлено карточек')
+  })
+
+  it('and nothing at all when the journal could not be read', () => {
+    // The plan worked without this number for months; a failing second call
+    // must not take the morning screen with it.
+    const t = buildPlanText(summary, null, NOW, TZ, null)
+    expect(t).not.toContain('Подготовлено карточек')
+    expect(t).toContain('Сегодня ушло:')
+  })
+})

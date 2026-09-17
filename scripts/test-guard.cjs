@@ -144,9 +144,45 @@ function narrowToBranch(declared) {
 
 const isCode = f => /\.(ts|tsx|js|jsx)$/.test(f)
 const passed = process.argv.slice(2).filter(isCode)
-const files = passed.length
+const changed = passed.length
   ? narrowToBranch(passed)
   : filesBeingPushed().filter(isCode)
+
+/**
+ * THE TESTS THAT READ A FILE INSTEAD OF IMPORTING IT.
+ *
+ * `vitest related` walks the IMPORT graph. A guard that opens a source file
+ * with `fs.readFileSync` and asserts on its contents is not in that graph, so
+ * moving code breaks it and this gate says nothing.
+ *
+ * That is not hypothetical. On 2026-09-16 the top-up flow moved out of Chat.tsx
+ * into a shared hook -- the behaviour unchanged -- and the guard on a MONEY
+ * path ("a failed credit stops the retries and says so") went red. Nothing
+ * noticed for two days; it surfaced when an unrelated file dragged it into a
+ * run. `tri readers` counts 180 test files in this class.
+ *
+ * So the changed files are also asked in reverse: which tests READ you. The
+ * answer is appended to the list, and vitest includes a test file passed
+ * directly. Silence is the common case and costs one process.
+ */
+const readersOf = list => {
+  if (!list.length) return []
+  try {
+    const out = execFileSync(
+      'node',
+      [resolve(root, 'scripts', 'text-readers.cjs'), '--for', ...list],
+      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    )
+    return out.split('\n').filter(Boolean)
+  } catch {
+    // A broken inventory must not block a push: this is an addition to the
+    // gate, and a gate that fails closed on its own helper is worse than the
+    // hole it covers.
+    return []
+  }
+}
+
+const files = [...new Set([...changed, ...readersOf(changed)])]
 if (files.length === 0) {
   console.log('[тесты] в push нет файлов с кодом — проверять нечего')
   process.exit(0)
@@ -253,4 +289,11 @@ console.error(
   '   Посмотреть подробности:  npx vitest related --run ' +
     files.slice(0, 3).join(' ')
 )
-process.exit(1)
+/*
+ * exitCode, not exit(): process.exit throws away writes still queued on a pipe,
+ * and this script prints a list that a person reads through one. Node's own
+ * documentation calls the result "truncated and lost". Measured on the Cyrillic
+ * gate, 2026-09-17: 966, 7706 and 8484 of the same 8484 lines on three runs.
+ * Safe here because this is the last statement at the top level.
+ */
+process.exitCode = 1

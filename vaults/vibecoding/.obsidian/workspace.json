@@ -1,0 +1,211 @@
+{
+  "main": {
+    "id": "bb7abedab977db38",
+    "type": "split",
+    "children": [
+      {
+        "id": "a2c837a89a6fccc0",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "2db6fdb65ff8ca2d",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "📱 TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - ОСНОВЫ.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "📚 TELEGRAM ПОСТЫ - ОСНОВЫ"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "d4f46b2f652b9463",
+    "type": "split",
+    "children": [
+      {
+        "id": "ee6c09bb2ca67451",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5c698a3dfc7f489b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "6dbf2fde414dec9d",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "fbafa01ab89f0439",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "82a3bfedf3a9146a",
+    "type": "split",
+    "children": [
+      {
+        "id": "b47f361b3406c764",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ffe93158f04ddba7",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки"
+            }
+          },
+          {
+            "id": "1aec9b4d7f1bd026",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки"
+            }
+          },
+          {
+            "id": "698eaba0d020411a",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "352cb37db3f25f4b",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "publish:Публикация изменений": false
+    }
+  },
+  "active": "2db6fdb65ff8ca2d",
+  "lastOpenFiles": [
+    "📱 TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - РАЗВИТИЕ.md",
+    "💥 МИФЫ О VIBECODING.md",
+    "📚 VIBECODING - ГЛАВНАЯ КНИГА.md",
+    "📱 TELEGRAM ПОСТЫ/ПЛАН_ПРОДАЮЩИХ_ПОСТОВ_VIBECODER.md",
+    "📱 TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - АНАЛИТИКА.md",
+    "📱 TELEGRAM ПОСТЫ/�� TELEGRAM ПОСТЫ - АНАЛИТИКА.md",
+    "📱 TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - ПРАКТИКИ.md",
+    "📱 TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - ОСНОВЫ.md",
+    "📱 TELEGRAM ПОСТЫ/�� TELEGRAM ПОСТЫ - РАЗВИТИЕ.md",
+    "📱 TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - ИНСТРУМЕНТЫ.md",
+    "TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - ПРАКТИКИ.md",
+    "TELEGRAM ПОСТЫ/📚 TELEGRAM ПОСТЫ - ОСНОВЫ.md",
+    "TELEGRAM ПОСТЫ",
+    "📱 TELEGRAM ПОСТЫ",
+    "01-ОСНОВЫ/📚 TELEGRAM ПОСТЫ - ПРАКТИКИ.md",
+    "01-ОСНОВЫ/📚 TELEGRAM ПОСТЫ - ОСНОВЫ.md",
+    "_RES/ComfyUI_00001_.png",
+    "🏠 БИБЛИЯ ВАЙБКОДИНГА.md",
+    "06-АРХИВ/README.md",
+    "05-АНАЛИТИКА/README.md",
+    "04-РАЗВИТИЕ/README.md",
+    "🌟 АНАЛИЗ СОВРЕМЕННЫХ ТРЕНДОВ И УЛУЧШЕНИЯ 2025.md",
+    "06-АРХИВ/🔥 ЛЕНДИНГ - VIBECODER.md",
+    "06-АРХИВ/🌟 АНАЛИЗ СОВРЕМЕННЫХ ТРЕНДОВ И УЛУЧШЕНИЯ 2025.md",
+    "05-АНАЛИТИКА/📑 ТЕМАТИЧЕСКИЙ УКАЗАТЕЛЬ.md",
+    "05-АНАЛИТИКА/📊 МОЙ ПРОГРЕСС VIBECODING.md",
+    "⚡ ЭКСТРЕМАЛЬНЫЙ ВЫЗОВ - НАЧНИ СЕГОДНЯ.md",
+    "04-РАЗВИТИЕ/🗺️ КАРТА ЗНАНИЙ.md",
+    "04-РАЗВИТИЕ/🎯 ВЫБОР ПРОЕКТА - ИНТЕНСИВ.md",
+    "06-АРХИВ",
+    "05-АНАЛИТИКА",
+    "04-РАЗВИТИЕ",
+    "03-ИНСТРУМЕНТЫ",
+    "02-ПРАКТИКИ",
+    "01-ОСНОВЫ",
+    "🛠️ ИНСТРУМЕНТЫ",
+    "04-ИНСТРУМЕНТЫ",
+    "_RES/ComfyUI_00001_ (1).png",
+    "_RES/ComfyUI_00001_ (2).png"
+  ]
+}

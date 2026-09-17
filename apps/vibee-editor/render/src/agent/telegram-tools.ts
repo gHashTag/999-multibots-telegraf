@@ -610,16 +610,39 @@ export interface LiveClient {
  * already in hand into an error, and must not hide the real failure when
  * `fn` threw.
  */
-export async function withClient<T>(
-  ctx: ToolContext | undefined,
+/**
+ * THE PROMISE THIS KEEPS: THE CLIENT IS HUNG UP, WHATEVER HAPPENS INSIDE.
+ *
+ * Separated from `withClient` so it can be CALLED. Every reading tool goes
+ * through here, and a client left connected is a zombie update loop pinging
+ * Telegram for the life of the process -- measured 13.09.2026 as twenty-one
+ * timeout lines a minute, hours after the last tool call returned.
+ *
+ * Until now the only guard on that was a test reading this file for the words
+ * `await hangUp(c)`. That test goes red when somebody renames the variable
+ * and stays silent if the `finally` becomes a plain `then` -- which is the
+ * one change that would actually bring the zombies back (form 87).
+ *
+ * The factory is a parameter, so a test can hand it a fake and make `fn`
+ * throw. `withClient` below is this function with the real one.
+ */
+export async function withClientOf<T>(
+  make: () => Promise<LiveClient>,
   fn: (c: LiveClient) => Promise<T>
 ): Promise<T> {
-  const c = (await client(ctx)) as LiveClient
+  const c = await make()
   try {
     return await fn(c)
   } finally {
     await hangUp(c)
   }
+}
+
+export async function withClient<T>(
+  ctx: ToolContext | undefined,
+  fn: (c: LiveClient) => Promise<T>
+): Promise<T> {
+  return withClientOf(async () => (await client(ctx)) as LiveClient, fn)
 }
 
 /** Диалог в том виде, в каком его отдаёт GramJS — только нужные поля. */

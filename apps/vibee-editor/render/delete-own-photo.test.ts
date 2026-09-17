@@ -80,7 +80,10 @@ describe('удаляется только своё фото аватара', () 
     const строки = мои()
     const итог = await удалитьСвоёФото(пул(строки), { кто: '111', id: 2 })
     expect(итог).toBe('не найдено')
-    expect(строки.some(r => r.id === 2), 'чужая строка исчезла').toBe(true)
+    expect(
+      строки.some(r => r.id === 2),
+      'чужая строка исчезла'
+    ).toBe(true)
   })
 
   it('свой файл ДРУГОГО типа не удаляется этим маршрутом', async () => {
@@ -131,8 +134,26 @@ describe('маршрут пользуется вынесенным услови�
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
 
+  /*
+   * BY NAME, NOT BY SIGNATURE.
+   *
+   * It used to match the call together with its first argument, so changing
+   * that argument turned the guard red while the wiring was intact -- and
+   * passing the WRONG pool without touching those characters left it silent.
+   * Red on the harmless, quiet on the dangerous (form 87).
+   *
+   * It cannot simply go. Its neighbour below guards the ABSENCE of a second
+   * copy of the query; this one guards the PRESENCE of the call. Lose the
+   * call and deletion stops working with nobody noticing.
+   *
+   * The real cure is elsewhere: five of the eight source-reading guards in
+   * this repository read render-server.ts, because its routes cannot be
+   * called from a test -- eleven thousand lines with no seam. Until that seam
+   * exists, reading the source is the lesser evil, and the job is to be
+   * brittle exactly as much as necessary.
+   */
   it('обработчик зовёт удалитьСвоёФото', () => {
-    expect(СЕРВЕР).toContain('удалитьСвоёФото(pool,')
+    expect(СЕРВЕР).toContain('удалитьСвоёФото(')
   })
 
   it('второй копии запроса на удаление в сервере не осталось', () => {

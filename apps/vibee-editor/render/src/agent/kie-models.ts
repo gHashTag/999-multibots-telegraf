@@ -61,6 +61,39 @@ export interface KieModel {
  * which a boolean could never do.
  */
 export const KIE_MODELS: KieModel[] = [
+  /*
+   * THE ONE ENTRY NOT ESTABLISHED BY THE EMPTY-INPUT PROBE.
+   *
+   * The lead magnet's model was run for real on 2026-09-16, at the owner's
+   * word, against his own avatar so that nothing reached a client. It drew a
+   * 941x1672 portrait in 75 seconds for six credits -- the exact price the
+   * price list names for image-to-image at 1K, confirmed rather than believed.
+   *
+   * It was deliberately NOT probed with empty input. That method has a hole
+   * named at the top of this file: grok-imagine answered an empty request by
+   * CREATING a billable job. A model that draws on a full request is exactly
+   * the shape that might bill on an empty one, and the guess would be spent
+   * from the owner's balance. `needs` here is the contract the vendor's own
+   * documentation names and the successful call then exercised, so `probed`
+   * records what the run returned instead of a validation sentence.
+   *
+   * WHICH IS WHY IT IS IN NEVER_PROBE, AND NOT ONLY FOR THE MONEY. The test
+   * that checks "the state agrees with its own quote" runs `probed` through
+   * the state-from-answer helper, which returns 'live' for ANY text it does
+   * not recognise as a refusal. Prose would have sailed through it by
+   * default rather than by agreement -- a green that proves nothing. Listing
+   * the id makes the test skip this entry deliberately, which is what the
+   * comment beside that skip already says it is for.
+   */
+  {
+    id: 'gpt-image-2-5-flare-image-to-image',
+    title: 'GPT Image 2.5 Flare (lead magnet)',
+    kind: 'image',
+    state: 'live',
+    needs: ['prompt', 'input_urls', 'aspect_ratio', 'resolution'],
+    probed:
+      'run for real 2026-09-16: 941x1672 in 75s, 6 credits at resolution 1K',
+  },
   {
     id: 'seedream/5-lite-text-to-image',
     title: 'seedream/5-lite-text-to-image',
@@ -275,7 +308,8 @@ export const KIE_MODELS: KieModel[] = [
     kind: 'video',
     state: 'live',
     needs: ['prompt'],
-    probed: 'Server exception, please try again later or contact customer service',
+    probed:
+      'Server exception, please try again later or contact customer service',
   },
   {
     id: 'hailuo/02-text-to-video-pro',
@@ -470,7 +504,26 @@ export const KIE_DEAD_NAMES = ['veo3', 'veo3_fast'] as const
  * is added to the catalogue, assume it belongs here until a single manual
  * check proves otherwise — the cost of being wrong runs one way only.
  */
-export const NEVER_PROBE = ['grok-imagine/image-to-video'] as const
+/*
+ * MODELS NOTHING MAY PROBE WITH AN EMPTY INPUT.
+ *
+ * grok-imagine earned its place by billing twice for a probe that was
+ * supposed to be free.
+ *
+ * The two GPT Image 2.5 edit models were added on 2026-09-16 BEFORE anything
+ * probed them, which is the only moment at which adding them is worth
+ * anything. The reasoning is the grok lesson applied forwards rather than
+ * backwards: a model that draws for real on a full request is exactly the
+ * shape that might create a job on an empty one, and the difference is spent
+ * from the owner's balance. Flare was established by a paid run that
+ * succeeded; sunburst is not established at all and must stay that way until
+ * somebody decides to spend on it deliberately.
+ */
+export const NEVER_PROBE = [
+  'grok-imagine/image-to-video',
+  'gpt-image-2-5-flare-image-to-image',
+  'gpt-image-2-5-sunburst-image-to-image',
+] as const
 
 export const KIE_ENDPOINT = 'https://api.kie.ai/api/v1/jobs/createTask'
 
