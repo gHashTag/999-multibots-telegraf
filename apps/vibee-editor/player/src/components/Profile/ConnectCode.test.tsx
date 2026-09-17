@@ -36,7 +36,10 @@ let root: Root
 function draw(extra: Partial<Parameters<typeof ConnectCode>[0]> = {}) {
   const props = {
     phone: '+79991234567',
-    viaApp: true,
+    delivery: 'app' as const,
+    canResend: true,
+    resendAfter: 60,
+    round: 1,
     code: '',
     onCode: vi.fn(),
     busy: false,
@@ -121,7 +124,7 @@ describe('there is always a way back', () => {
 
 describe('the screen says where the code actually went', () => {
   it('in-app delivery is named as such', () => {
-    draw({ viaApp: true })
+    draw({ delivery: 'app' })
     expect(host.textContent).toContain('connect.code.viaApp')
     expect(host.textContent).not.toContain('connect.code.viaSms')
   })
@@ -133,9 +136,58 @@ describe('the screen says where the code actually went', () => {
      * false and people scrolled their chats hunting for something that was
      * sitting in the notification shade.
      */
-    draw({ viaApp: false })
+    draw({ delivery: 'sms' })
     expect(host.textContent).toContain('connect.code.viaSms')
     expect(host.textContent).not.toContain('connect.code.viaApp')
+  })
+
+  it('a login email is not described as an SMS, and carries its address', () => {
+    /*
+     * The two-sentence screen said "sent by SMS" for every answer that was
+     * not the app -- including a code lying in the person's mailbox. The
+     * masked address is what lets them recognise WHICH mailbox.
+     */
+    draw({ delivery: 'email', emailPattern: 'd***@gmail.com' })
+    const where = host.querySelector('.tg-code__where')!.textContent!
+    expect(where).toContain('connect.code.viaEmail')
+    expect(where).toContain('d***@gmail.com')
+    expect(where).not.toContain('connect.code.viaSms')
+    // "sent to your login email ... to +7999" would be nonsense.
+    expect(where).not.toContain('connect.code.to')
+  })
+
+  it('every channel gets a sentence of its own', () => {
+    const channels = [
+      'app',
+      'sms',
+      'call',
+      'missed_call',
+      'email',
+      'email_setup',
+      'fragment',
+      'unknown',
+    ] as const
+    const sentences = channels.map(delivery => {
+      draw({ delivery })
+      return host.querySelector('.tg-code__where')!.textContent!.split(' ')[0]
+    })
+    expect(new Set(sentences).size).toBe(channels.length)
+    for (const s of sentences) expect(s).toMatch(/^connect\.code\.via/)
+  })
+
+  it('says where an in-app code can arrive -- and only for that channel', () => {
+    /*
+     * The owner, 2026-09-16: a login from our server gets its code only
+     * inside Telegram, on devices ALREADY signed in with that number. He
+     * waited for a message that had gone to another account on the same
+     * phone. Under an SMS the same sentence would be false.
+     */
+    draw({ delivery: 'app' })
+    expect(host.querySelector('.tg-code__hint')?.textContent).toBe(
+      'connect.code.appHint'
+    )
+    draw({ delivery: 'sms' })
+    expect(host.querySelector('.tg-code__hint')).toBeNull()
   })
 })
 
@@ -198,9 +250,9 @@ describe('asking for another code', () => {
   it('is not offered instantly -- and says when it will be', () => {
     /*
      * A resend button live from the first second gets pressed immediately,
-     * before the first code has arrived. Each press starts a fresh login on
-     * Telegram's side and invalidates the code already in flight, so the
-     * fastest way to never log in is to keep pressing it.
+     * before the first code has arrived. Each press moves Telegram on to its
+     * next channel and the code already in flight stops being the one to
+     * type, so the fastest way to never log in is to keep pressing it.
      */
     draw()
     expect(host.querySelector('.tg-code__resend.is-waiting')).toBeTruthy()
@@ -221,6 +273,58 @@ describe('asking for another code', () => {
     expect(again.className).not.toContain('is-waiting')
     act(() => again.click())
     expect(p.onResend).toHaveBeenCalledTimes(1)
+  })
+
+  it("waits Telegram's time, not ours", () => {
+    // Sixty seconds was a constant of this screen. Telegram sends its own
+    // `timeout`, and asking earlier than that is simply refused.
+    draw({ resendAfter: 120 })
+    act(() => {
+      vi.advanceTimersByTime(61_000)
+    })
+    expect(host.querySelector('button.tg-code__resend')).toBeNull()
+    expect(host.textContent).toContain('connect.code.resendIn')
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(host.querySelector('button.tg-code__resend')).toBeTruthy()
+  })
+
+  it('a press does not restart the wait; a code Telegram really sent does', () => {
+    /*
+     * The countdown used to reset on the press. A resend Telegram refused
+     * then cost another full minute of waiting for a code that was never
+     * sent. `round` grows only when the server confirms a new code.
+     */
+    draw()
+    act(() => {
+      vi.advanceTimersByTime(61_000)
+    })
+    act(() =>
+      host.querySelector<HTMLButtonElement>('button.tg-code__resend')!.click()
+    )
+    expect(host.querySelector('button.tg-code__resend')).toBeTruthy()
+
+    draw({ round: 2, resendAfter: 30 })
+    expect(host.querySelector('button.tg-code__resend')).toBeNull()
+    expect(host.textContent).toContain('connect.code.resendIn:30')
+  })
+
+  it('no next channel: no countdown, no button, and then the way that works', () => {
+    /*
+     * For a login from our server Telegram usually offers the app and nothing
+     * else. `auth.resendCode` then answers SEND_CODE_UNAVAILABLE, so a
+     * countdown would be counting towards a button that is known to fail.
+     */
+    const p = draw({ canResend: false })
+    expect(host.textContent).not.toContain('connect.code.resendIn')
+    expect(host.textContent).not.toContain('connect.code.noOtherWay')
+    act(() => {
+      vi.advanceTimersByTime(61_000)
+    })
+    expect(host.querySelector('button.tg-code__resend')).toBeNull()
+    expect(host.textContent).toContain('connect.code.noOtherWay')
+    expect(p.onResend).not.toHaveBeenCalled()
   })
 })
 

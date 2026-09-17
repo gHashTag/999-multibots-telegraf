@@ -145,7 +145,20 @@ const en: Translations = {
   'connect.code.title': 'Enter the code',
   'connect.code.viaApp':
     'Telegram sent the code as a message — look for the "Telegram" chat',
+  'connect.code.appHint':
+    'It comes only to devices where this number is already signed in to Telegram. Another account on this phone will not receive it.',
   'connect.code.viaSms': 'The code was sent to you by SMS',
+  'connect.code.viaCall':
+    'Telegram is calling you — a voice will read the code',
+  'connect.code.viaMissedCall':
+    'Telegram will call and hang up — the code is the last digits of the number that called',
+  'connect.code.viaEmail': 'Telegram sent the code to your login email {email}',
+  'connect.code.viaEmailSetup':
+    'Telegram sent no code: it asks this account to set a login email first. In Telegram open Settings → Privacy and Security → Login Email, then come back.',
+  'connect.code.viaFragment':
+    'The code is on fragment.com — sign in there with the wallet that owns this number',
+  'connect.code.viaUnknown':
+    'Telegram sent the code but did not say how — check the Telegram app and your SMS',
   'connect.code.to': 'to {phone}',
   'connect.code.change': 'Change the number',
   'connect.code.label': 'Code from Telegram',
@@ -154,6 +167,8 @@ const en: Translations = {
   'connect.code.going': 'Checking…',
   'connect.code.resend': 'Request a new code',
   'connect.code.resendIn': 'A new code can be requested in {sec} s',
+  'connect.code.noOtherWay':
+    'Telegram offers no other way to deliver a code to this number. Open Telegram on a device where this number is signed in, or go back and check the number.',
   'connect.pass.title': 'Two-factor password',
   'connect.pass.hint':
     'Your account has two-factor protection switched on. The password is not stored.',
@@ -2055,7 +2070,20 @@ const ru: Translations = {
   'connect.code.title': 'Введите код',
   'connect.code.viaApp':
     'Telegram прислал код сообщением — ищите чат «Telegram»',
+  'connect.code.appHint':
+    'Он приходит только на устройства, где этот номер уже вошёл в Telegram. Другой аккаунт на этом телефоне его не получит.',
   'connect.code.viaSms': 'Код отправлен вам по SMS',
+  'connect.code.viaCall': 'Telegram звонит вам — голос продиктует код',
+  'connect.code.viaMissedCall':
+    'Telegram позвонит и сбросит — код в последних цифрах номера, с которого звонили',
+  'connect.code.viaEmail':
+    'Telegram отправил код на вашу почту для входа {email}',
+  'connect.code.viaEmailSetup':
+    'Telegram не отправил код: он просит сначала задать почту для входа. В Telegram откройте Настройки → Конфиденциальность → Почта для входа, затем вернитесь сюда.',
+  'connect.code.viaFragment':
+    'Код лежит на fragment.com — войдите там кошельком, которому принадлежит этот номер',
+  'connect.code.viaUnknown':
+    'Telegram отправил код, но не сказал как — проверьте приложение Telegram и SMS',
   'connect.code.to': 'на {phone}',
   'connect.code.change': 'Изменить номер',
   'connect.code.label': 'Код из Telegram',
@@ -2064,6 +2092,8 @@ const ru: Translations = {
   'connect.code.going': 'Проверяю…',
   'connect.code.resend': 'Запросить новый код',
   'connect.code.resendIn': 'Новый код можно запросить через {sec} с',
+  'connect.code.noOtherWay':
+    'У Telegram нет другого способа доставить код на этот номер. Откройте Telegram на устройстве, где этот номер уже вошёл, или вернитесь и проверьте номер.',
   'connect.pass.title': 'Пароль двухфакторной защиты',
   'connect.pass.hint':
     'У вас включена двухфакторная защита. Пароль не сохраняется.',

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
+import { GOES_TO_PHONE, WHERE_KEY, type CodeDelivery } from './connectDelivery'
 import './ConnectCode.css'
 
 /**
@@ -42,13 +43,18 @@ import './ConnectCode.css'
 const MIN_CELLS = 5
 const MAX_DIGITS = 7
 
-/** Seconds before the person may ask Telegram for another code. */
-const RESEND_AFTER_S = 60
-
 export interface ConnectCodeProps {
   phone: string
-  /** Did Telegram deliver the code inside the app, or by SMS? */
-  viaApp: boolean
+  /** Where Telegram says the code went -- its answer, not our guess. */
+  delivery: CodeDelivery
+  /** Masked login email ("d***@gmail.com"), only for `delivery: 'email'`. */
+  emailPattern?: string
+  /** Telegram named a next channel, so asking again can change something. */
+  canResend: boolean
+  /** Seconds before another code may be asked for: Telegram's own number. */
+  resendAfter: number
+  /** Grows with every code Telegram sends; restarts the countdown. */
+  round: number
   code: string
   onCode: (v: string) => void
   busy: boolean
@@ -62,7 +68,18 @@ export function ConnectCode(props: ConnectCodeProps) {
   const { t } = useLanguage()
   const field = useRef<HTMLInputElement>(null)
   const [focused, setFocused] = useState(false)
-  const [left, setLeft] = useState(RESEND_AFTER_S)
+  const [left, setLeft] = useState(props.resendAfter)
+
+  /*
+   * THE COUNTDOWN RESTARTS WHEN TELEGRAM SENDS, NOT WHEN THE BUTTON IS PRESSED.
+   *
+   * It used to reset on the press itself. A resend Telegram refused then cost
+   * the person another full minute of staring at a number, for a code that
+   * was never sent. `round` changes only after the server confirms a new code.
+   */
+  useEffect(() => {
+    setLeft(props.resendAfter)
+  }, [props.round, props.resendAfter])
 
   useEffect(() => {
     if (left <= 0) return
@@ -102,13 +119,36 @@ export function ConnectCode(props: ConnectCodeProps) {
         chose SMS the sentence was simply false, and the person scrolled their
         chats looking for something that was in their notification shade. The
         server now passes `isCodeViaApp` through, so this line reports.
+
+        2026-09-17: two sentences were still a guess. Telegram has eight
+        answers; a login email and "set up a login email first" were both
+        shown as "SMS". Each channel now has its own sentence, and the number
+        finishes it only where the code really travels to that number.
       */}
       <p className="tg-code__where">
-        {props.viaApp ? t('connect.code.viaApp') : t('connect.code.viaSms')}{' '}
-        <span className="tg-code__phone">
-          {t('connect.code.to', { phone: props.phone })}
-        </span>
+        {t(WHERE_KEY[props.delivery], { email: props.emailPattern ?? '' })}
+        {GOES_TO_PHONE.has(props.delivery) && (
+          <>
+            {' '}
+            <span className="tg-code__phone">
+              {t('connect.code.to', { phone: props.phone })}
+            </span>
+          </>
+        )}
       </p>
+
+      {/*
+        THE ONE FACT THAT EXPLAINS A CODE THAT NEVER COMES.
+
+        For a login from our server Telegram delivers the code only inside
+        Telegram, to sessions ALREADY signed in with that number. The owner
+        waited on this screen for a message that went to a different account
+        on the same phone. Said once, under the sentence it qualifies, and
+        only for the channel it is true of.
+      */}
+      {props.delivery === 'app' && (
+        <p className="tg-code__hint">{t('connect.code.appHint')}</p>
+      )}
 
       <button
         type="button"
@@ -186,7 +226,21 @@ export function ConnectCode(props: ConnectCodeProps) {
       */}
       <p className="tg-code__warn">{t('connect.code.warn')}</p>
 
-      {left > 0 ? (
+      {/*
+        NO BUTTON THAT CANNOT HELP, AND NO COUNTDOWN TOWARDS ONE.
+
+        When Telegram names no next channel, asking again is refused with
+        SEND_CODE_UNAVAILABLE. A countdown there promises a button that will
+        fail, so the wait is silent and afterwards the screen says what does
+        work: the device where this number is already signed in.
+      */}
+      {!props.canResend ? (
+        left <= 0 && (
+          <p className="tg-code__resend is-waiting">
+            {t('connect.code.noOtherWay')}
+          </p>
+        )
+      ) : left > 0 ? (
         <p className="tg-code__resend is-waiting">
           {t('connect.code.resendIn', { sec: left })}
         </p>
@@ -195,10 +249,7 @@ export function ConnectCode(props: ConnectCodeProps) {
           type="button"
           className="tg-code__resend"
           disabled={props.busy}
-          onClick={() => {
-            setLeft(RESEND_AFTER_S)
-            props.onResend()
-          }}
+          onClick={props.onResend}
         >
           {t('connect.code.resend')}
         </button>

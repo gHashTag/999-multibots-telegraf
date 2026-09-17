@@ -40,6 +40,11 @@
 import { узнатьНомер, забытьНомер } from './known-phone'
 import { hangUp } from './hang-up'
 import { ingestAfterConnect } from './crm-ingest-on-connect'
+import {
+  requestCode,
+  requestResend,
+  type CodeDelivery,
+} from './tg-code-delivery'
 
 /** Сколько живёт незаконченный вход. Дольше и не нужно: код Telegram тоже. */
 const ЖИЗНЬ_ПОПЫТКИ_МС = 10 * 60 * 1000
@@ -198,7 +203,7 @@ export async function начатьВход(
   сыройТелефон: string,
   создатьКлиент: () => Promise<any>,
   случайныйКлюч: () => string
-): Promise<{ handle: string; phone: string; viaApp: boolean }> {
+): Promise<{ handle: string; phone: string; viaApp: boolean } & CodeDelivery> {
   убратьПротухшие()
   if (попытки.size >= МАКС_ПОПЫТОК) {
     throw new Error(
@@ -217,11 +222,15 @@ export async function начатьВход(
    * the login is broken.
    *
    * GramJS hands the value back; nothing here needed inventing, only asking.
+   *
+   * 2026-09-17: "app or SMS" turned out to be a guess as well. The helper
+   * `client.sendCode()` keeps two fields of `auth.sentCode` and drops the
+   * rest, so a login email and a voice call were both reported as "SMS", and
+   * the screen had no `next_type` or `timeout` to be honest about resending.
+   * The raw call in tg-code-delivery.ts keeps the whole answer. `viaApp` stays
+   * in the response because the iOS app and older bundles still read it.
    */
-  const { phoneCodeHash, isCodeViaApp } = await client.sendCode(
-    { apiId: client.apiId, apiHash: client.apiHash },
-    phone
-  )
+  const { phoneCodeHash, ...sent } = await requestCode(client, phone)
   const handle = случайныйКлюч()
   попытки.set(handle, {
     telegramId: String(telegramId),
@@ -230,7 +239,49 @@ export async function начатьВход(
     client,
     создана: Date.now(),
   })
-  return { handle, phone, viaApp: !!isCodeViaApp }
+  return { handle, phone, viaApp: sent.delivery === 'app', ...sent }
+}
+
+/**
+ * Step 1b: ask for the code again -- through Telegram's NEXT channel.
+ *
+ * "Request a new code" used to call `/start` again, which is `auth.sendCode`
+ * a second time: the same code, the same channel, and a second half-open
+ * MTProto client left behind for ten minutes. A person who never received the
+ * first message could press it for an hour and nothing would change.
+ *
+ * `auth.resendCode` continues the SAME attempt and moves to `next_type`. The
+ * hash is taken from the new answer, the way official clients do: signing in
+ * against a stale hash fails with PHONE_CODE_EXPIRED on a code that is right.
+ *
+ * The attempt belongs to a person, exactly as in the code step: a handle alone
+ * must not let somebody else make Telegram call or text a stranger's phone.
+ */
+export async function resendCode(
+  telegramId: string,
+  handle: string
+): Promise<{ handle: string; phone: string; viaApp: boolean } & CodeDelivery> {
+  убратьПротухшие() // cyrillic-ok: pre-existing local name
+  const attempt = попытки.get(handle) // cyrillic-ok: pre-existing local name
+  if (!attempt) throw new Error('вход не начат или истёк — начните заново')
+  if (attempt.telegramId !== String(telegramId)) {
+    throw new Error('этот вход начат другим человеком')
+  }
+  const { phoneCodeHash, ...sent } = await requestResend(
+    attempt.client,
+    attempt.phone,
+    attempt.phoneCodeHash
+  )
+  attempt.phoneCodeHash = phoneCodeHash
+  // A fresh code deserves a fresh ten minutes: without this a resend late in
+  // the window hands over a code whose attempt is swept before it is typed.
+  attempt.создана = Date.now() // cyrillic-ok: pre-existing field name
+  return {
+    handle,
+    phone: attempt.phone,
+    viaApp: sent.delivery === 'app',
+    ...sent,
+  }
 }
 
 /**
@@ -339,6 +390,7 @@ export interface ЗависимостиМаршрута {
 /** Пути, которые обслуживает этот модуль. */
 export const ПУТИ_ПОДКЛЮЧЕНИЯ = [
   '/api/tg/connect/start',
+  '/api/tg/connect/resend',
   '/api/tg/connect/code',
   '/api/tg/connect/password',
   '/api/tg/connect/status',
@@ -445,7 +497,17 @@ export async function обработатьПодключение(
       // опечатку до того, как начнёт ждать сообщение впустую.
       return {
         код: 200, // cyrillic-ok: pre-existing response shape
-        тело: { ok: true, handle: r.handle, phone: r.phone, viaApp: r.viaApp }, // cyrillic-ok
+        тело: { ok: true, ...r }, // cyrillic-ok: pre-existing response shape
+      }
+    }
+
+    // cyrillic-ok-next-line: pre-existing local name
+    if (путь === '/api/tg/connect/resend') {
+      // cyrillic-ok-next-line: pre-existing local names
+      const r = await resendCode(кто, String(тело.handle ?? ''))
+      return {
+        код: 200, // cyrillic-ok: pre-existing response shape
+        тело: { ok: true, ...r }, // cyrillic-ok: pre-existing response shape
       }
     }
 

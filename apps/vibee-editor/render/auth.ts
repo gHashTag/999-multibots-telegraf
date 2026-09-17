@@ -235,6 +235,7 @@ const PUBLIC_EXACT = new Set([
    * постороннего: Telegram прислал бы код ничего не подозревающему человеку.
    */
   '/api/tg/connect/start',
+  '/api/tg/connect/resend',
   '/api/tg/connect/code',
   '/api/tg/connect/password',
   '/api/tg/connect/status',
