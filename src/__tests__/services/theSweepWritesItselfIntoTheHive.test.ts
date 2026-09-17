@@ -10,7 +10,7 @@ const OWNER = '144022504'
 afterEach(() => vi.unstubAllEnvs())
 
 describe('what the journal is told', () => {
-  it('idle and card are normal notes, failed is attention, held/busy are not sweeps', () => {
+  it('idle and card are normal notes, failed is attention, held is a heartbeat', () => {
     expect(
       noteForSweep(OWNER, { did: 'idle', why: 'crm_leads: кандидатов нет' })
     ).toEqual({
@@ -31,9 +31,26 @@ describe('what the journal is told', () => {
         why: 'ждёт Tim (next=reply), модель написала имя инструмента tg_send вместо вызова [модель ollama/qwen3:1.7b]: [[Подпись|tg_send]]',
       })
     ).toMatchObject({ kind: 'sweep-failed', severity: 'attention' })
-    expect(
-      noteForSweep(OWNER, { did: 'held', why: 'карточка ждёт' })
-    ).toBeNull()
+    /*
+     * A HOLD USED TO WRITE NOTHING, AND THAT SILENCE HAD A PRICE.
+     *
+     * Every half hour a held seller wrote nothing, which kept the journal
+     * clean and made a held seller and a dead cron indistinguishable --
+     * production 16.09.2026 went four hours and thirteen minutes without a
+     * line, and judging it meant arithmetic over a backoff cap.
+     *
+     * So a hold gets a note of its OWN kind. Not `sweep-idle`: idle means the
+     * seller looked and found nobody worth writing to, and counting the two
+     * together would spoil the only number that answers that question.
+     *
+     * The rate limit is not here -- hiveNote decides what a note says, the
+     * tick decides how often (HEARTBEAT_MS).
+     */
+    const held = noteForSweep(OWNER, { did: 'held', why: 'карточка ждёт' })
+    expect(held).toMatchObject({ kind: 'sweep-held', severity: 'normal' })
+    expect(held?.what).toContain('жив')
+    expect(held?.what).toContain('карточка ждёт')
+    // busy means another sweep is mid-flight: that one will write its own line.
     expect(noteForSweep(OWNER, { did: 'busy', why: 'ещё идёт' })).toBeNull()
   })
 
@@ -85,10 +102,12 @@ describe('sending it', () => {
     ).toBe('not noted')
     expect(calls).toBe(0)
     vi.stubEnv('RENDER_API_KEY', 'k')
+    // A hold is now a note like any other: what used to be skipped here is
+    // rate-limited in the tick instead, where this owner's clock lives.
     expect(
       await noteSweepToHive(
         OWNER,
-        { did: 'held', why: 'x' },
+        { did: 'busy', why: 'x' },
         { fetchImpl: counting }
       )
     ).toBe('skipped')

@@ -35,6 +35,7 @@ import {
   type JournalRow,
 } from './journal'
 import { keepers } from './roles'
+import { checkSellerSilence } from './seller-silence'
 
 /** The cursor lives in the database: a Railway container does not survive a deploy. */
 async function ensureCursorTable(pool: JournalPool): Promise<void> {
@@ -257,6 +258,20 @@ export async function report(
     // "the project is quiet".
     return { what: 'no keepers' }
   }
+
+  /*
+   * SILENCE IS CHECKED BEFORE THE EVENTS, BECAUSE SILENCE HAS NO EVENTS.
+   *
+   * Below, `if (!fresh.length) continue` -- an empty journal produces an empty
+   * report. That is right for a quiet night and wrong for a seller that has
+   * stopped: the one state worth waking somebody for is the one that writes
+   * nothing at all.
+   *
+   * So the watchdog runs first and writes its finding INTO the journal. From
+   * there the ordinary machinery does the rest: an `alarm` severity skips the
+   * three-hour gap and goes out at once.
+   */
+  await checkSellerSilence(pool, now)
 
   let outcome: ReportOutcome = { what: 'nothing to say' }
 
