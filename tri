@@ -452,6 +452,28 @@ CHECKS THAT EACH COST A CYCLE
         Exit code: 0 stable, 1 flaky or broken, 2 the runner never started.
         Passing four times in five is not passing -- it is a coin.
 
+  tri deploy-config [service ...] | tri конфиг-деплоя
+        Does each Railway service read ITS OWN railway.toml, and did a merge get
+        stuck because of it.
+
+        2026-09-17: the mini app (vibee-editor, Root Directory apps/vibee-editor)
+        had its config file set to /railway.toml. Railway resolves that path from
+        the REPOSITORY root, so the service read the bot's file, watched src/**,
+        and answered "No changes to watched files" to every merge that touched
+        only the player. Four merges sat undeployed while the right file,
+        apps/vibee-editor/railway.toml, was in the repository.
+
+        Railway does not expose the setting to the CLI, so this reads what each
+        deployment RECORDED -- config file, Root Directory, applied patterns --
+        and checks: the config is inside the Root Directory; its [service] name
+        is this service; the running build applied that file's watchPatterns; no
+        recent SKIPPED deploy changed files the service's own file watches; and
+        no commit since the running build is waiting on those files.
+
+        After fixing the setting in the UI, the first three clear on the next
+        deployment Railway evaluates (even a skipped one records its config).
+        Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1674,6 +1696,16 @@ cmd_pay() {
   #   tri pay              the state of every rail
   #   tri pay --invoice    ALSO mint one real invoice (writes a row)
   ( cd "$ROOT" && node "$ROOT/scripts/can-a-client-pay.cjs" "$@" )
+}
+
+cmd_deploy_config() {
+  # Does each Railway service read ITS OWN railway.toml, and did anything get
+  # stuck. 2026-09-17: vibee-editor read the bot's /railway.toml (the path is
+  # resolved from the repo root, not the Root Directory), watched src/**, and
+  # every mini-app merge was SKIPPED. Read-only.
+  #   tri deploy-config              every service named in a repo railway.toml
+  #   tri deploy-config vibee-editor just one
+  ( cd "$ROOT" && node "$ROOT/scripts/railway-config-check.cjs" "$@" )
 }
 
 cmd_ratchets() {
@@ -4049,6 +4081,7 @@ case "$action" in
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
   clone|клон)        cmd_clone "$@" ;;
+  deploy-config|конфиг-деплоя) cmd_deploy_config "$@" ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
