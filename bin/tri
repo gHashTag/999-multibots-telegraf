@@ -93,6 +93,7 @@ tri — оболочка Trinity S³AI
   tri crm-ingest [dialogs] [depth]  переписки владельца в память CRM (и в Zep, если задан)
   tri crm-leads [n]        кому писать следующему, со счётом и причиной
   tri orphans [n]          сколько карточек ушло НЕ нажатыми (и сколько картинок зря)
+  tri deadlines [что]      все сроки проекта в одном столбике, по возрастанию
 U
 }
 
@@ -589,6 +590,8 @@ sys.stderr.write(str(len(ts)))
         echo "  $ID -> $ANSWER"
       done
     echo "готово. вернуть можно повторной публикацией — скрытие обратимо" ;;
+  deadlines)
+    bash "$ROOT/bin/helpers/deadlines.sh" "$ROOT" "${2:-}" ;;
   orphans)
     bash "$ROOT/bin/helpers/orphans.sh" "$ROOT" "${2:-200}" ;;
   crm-waiting)
