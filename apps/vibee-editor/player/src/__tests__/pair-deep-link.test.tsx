@@ -89,19 +89,42 @@ function ЗаписатьАдрес({ onПуть }: { onПуть: (п: string) =
   return null
 }
 
-describe('ссылка бота указывает на вкладку с кодом', () => {
-  const ПРОВАЙДЕР = fs
+describe("the bot's link does not lead into the profile", () => {
+  const PROVIDER = fs
     .readFileSync(
-      path.join(__dirname, '..', 'components', 'Telegram', 'TelegramProvider.tsx'),
+      path.join(
+        __dirname,
+        '..',
+        'components',
+        'Telegram',
+        'TelegramProvider.tsx'
+      ),
       'utf8'
     )
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
 
-  it('start_param «pair» ведёт на вкладку агента, а не в профиль вообще', () => {
-    expect(ПРОВАЙДЕР).toContain("pair: '/profile?tab=agent'")
-    // Голый '/profile' высаживал на «Шаблоны» — именно это и чинится.
-    expect(ПРОВАЙДЕР).not.toMatch(/pair: '\/profile',/)
+  it('start_param "pair" names a screen outside the profile', () => {
+    /*
+     * THE PROFILE IS NO LONGER A PLACE A STRANGER CAN BE SENT.
+     *
+     * This assertion used to read `toContain("pair: '/profile?tab=agent'")`,
+     * and on 2026-09-17 that exact value showed a paying person a 10 000-Star
+     * bill: the welcome road landed on the profile (#2304, hardened #2320), so
+     * `pages/Profile.tsx` renders `<WelcomeOnboarding/>` INSTEAD of the tabs
+     * for anyone the road applies to, and the tab holding the code is never
+     * mounted. The literal was green; the door was shut.
+     *
+     * So this file — which exists to check that the advertised path keeps its
+     * promise — now checks the one property that made the promise breakable:
+     * the sign-in code must not be quartered inside a screen that belongs to
+     * onboarding. Where it DOES live is checked at the other end, by following
+     * the route to the component, in
+     * components/Telegram/__tests__/startParamContract.test.ts.
+     */
+    const target = /pair:\s*'([^']+)'/.exec(PROVIDER)?.[1]
+    expect(target, 'the map has no `pair` at all').toBeTruthy()
+    expect(target!.startsWith('/profile')).toBe(false)
   })
 })
 
