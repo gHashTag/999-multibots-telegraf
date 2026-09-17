@@ -21,7 +21,11 @@
  * the point of storing media is that a provider can be handed the link.
  */
 
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3'
 
 const S3_ENDPOINT =
   process.env.AWS_ENDPOINT_URL_S3 || 'https://fly.storage.tigris.dev'
@@ -87,6 +91,47 @@ export async function s3PutObject(
       ContentType: contentType,
     })
   )
+}
+
+/**
+ * Read at most `maxBytes` of `key`, straight from the bucket.
+ *
+ * NOT over `${PUBLIC_URL}/s3/<key>`, and that is the whole reason this exists.
+ * The proxy route in `render-server.ts` branches on the extension: images,
+ * audio and `.json` are streamed back, and EVERYTHING ELSE -- including every
+ * text document -- falls into the branch that downloads the object and runs
+ * ffmpeg on it to transcode a video. A `.txt` fetched that way comes back as
+ * an ffmpeg failure, so the HTTP path has never been able to read the very
+ * documents it was written for.
+ *
+ * The cap is a `Range` header rather than a slice afterwards: the object is a
+ * file a PERSON attached, so its size is their choice, and a gigabyte would
+ * otherwise be pulled into this process in full before anything trimmed it.
+ * S3 answers 206 with the partial body and returns a shorter object whole.
+ */
+export async function s3GetBytes(
+  key: string,
+  maxBytes: number
+): Promise<Buffer> {
+  const cap = Math.max(1, Math.floor(maxBytes))
+  const got = await s3().send(
+    new GetObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      Range: `bytes=0-${cap - 1}`,
+    })
+  )
+  const body = got.Body as AsyncIterable<Uint8Array> | undefined
+  if (!body) return Buffer.alloc(0)
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of body) {
+    chunks.push(Buffer.from(chunk))
+    total += chunk.length
+    // A server that ignores the range must not become unbounded memory here.
+    if (total >= cap) break
+  }
+  return Buffer.concat(chunks).subarray(0, cap)
 }
 
 /** Bytes in, our own URL out. */

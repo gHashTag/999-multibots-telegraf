@@ -415,11 +415,43 @@ describe('describeMedia', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('reads a text-like document as text, capped', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('hello from the brief', { status: 200 }))
-    )
+  /**
+   * REWRITTEN 18.09.2026, and the reason is the point of the test.
+   *
+   * It used to stub `fetch` and assert the document came back over HTTP --
+   * and it passed, for months, while this branch could not work in
+   * production for a single file. `/s3/` streams images, audio and `.json`
+   * and sends every OTHER extension into an ffmpeg transcode, so a real
+   * `.md` fetched through the proxy returned an ffmpeg failure. The stub
+   * answered the request the shelf would have refused, so the test was
+   * measuring the stub.
+   *
+   * The read now goes through the bucket, and what this pins is the KEY it
+   * asks for -- which is the thing that can silently become wrong.
+   */
+  it('reads a text-like document out of the bucket, by key', async () => {
+    const asked: string[] = []
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    vi.doMock('@aws-sdk/client-s3', () => {
+      class GetObjectCommand {
+        constructor(public input: Record<string, unknown>) {}
+      }
+      class PutObjectCommand {
+        constructor(public input: Record<string, unknown>) {}
+      }
+      class S3Client {
+        async send(cmd: { input: Record<string, unknown> }) {
+          asked.push(String(cmd.input.Key))
+          return {
+            Body: (async function* () {
+              yield Buffer.from('hello from the brief', 'utf8')
+            })(),
+          }
+        }
+      }
+      return { S3Client, GetObjectCommand, PutObjectCommand }
+    })
     const { describeMedia } = await import('./src/agent/media-library')
     expect(
       await describeMedia(
@@ -429,6 +461,10 @@ describe('describeMedia', () => {
         'brief.md'
       )
     ).toBe('hello from the brief')
+    expect(asked).toEqual(['assets/1-brief.md'])
+    // Nothing left this process over HTTP: there is no URL to aim any more.
+    expect(fetchSpy).not.toHaveBeenCalled()
+    vi.doUnmock('@aws-sdk/client-s3')
   })
 
   it('audio goes to Whisper when a key is set: the bytes are fetched from OUR shelf and posted as a file', async () => {
