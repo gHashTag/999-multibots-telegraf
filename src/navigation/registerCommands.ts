@@ -21,6 +21,7 @@ import { track } from '@/services/trackEvent'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import { payMethodOf } from '@/helpers/railsForThisPerson'
 import {
   attachmentFromMessage,
   buildAgentTurn,
@@ -2511,6 +2512,11 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             // The mini app's paywall sends the person here with the plan and
             // the payment method they chose. Land them in front of a cashier.
             wantsSubscription = subscribeIntent(startParam)
+            // Carried into the session because the scene is entered after a
+            // possible trip through CreateUserScene, and a local variable does
+            // not survive that.
+            const chosen = payMethodOf(wantsSubscription?.method)
+            if (chosen) ctx.session.payMethod = chosen
             logger.info('Paywall deep-link', {
               telegramId,
               startParam,

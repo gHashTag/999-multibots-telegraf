@@ -291,6 +291,12 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   inviteCode?: string
   /** Deep-link t.me/t27ai_bot?start=foundry: показать клуб после регистрации */
   foundryDeepLink?: boolean
+  /**
+   * How this person said they want to pay, in the mini app's paywall, before
+   * they were sent here. It may only NARROW what the bot offers -- see
+   * helpers/railsForThisPerson.
+   */
+  payMethod?: 'robokassa' | 'stars' | 'ton'
   inviter?: string
   paymentAmount?: number
   botName?: string
