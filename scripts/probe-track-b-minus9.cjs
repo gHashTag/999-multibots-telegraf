@@ -12,9 +12,23 @@ const url = process.env.SUPABASE_URL.replace(/\/$/, '')
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const COLS = [
-  'id', 'telegram_id', 'payment_date', 'amount', 'stars', 'cost', 'currency',
-  'type', 'status', 'service_type', 'description', 'category', 'bot_name',
-  'model_name', 'is_system_payment', 'is_test', 'payment_method',
+  'id',
+  'telegram_id',
+  'payment_date',
+  'amount',
+  'stars',
+  'cost',
+  'currency',
+  'type',
+  'status',
+  'service_type',
+  'description',
+  'category',
+  'bot_name',
+  'model_name',
+  'is_system_payment',
+  'is_test',
+  'payment_method',
 ].join(',')
 
 async function fetchAll(table, select, filter = '') {
@@ -58,7 +72,8 @@ function show(title, pairs, limit = 12) {
   for (const [k, c] of pairs.slice(0, limit)) {
     console.log(`    ${String(c).padStart(6)}  ${k}`)
   }
-  if (pairs.length > limit) console.log(`    ... ещё ${pairs.length - limit} значений`)
+  if (pairs.length > limit)
+    console.log(`    ... ещё ${pairs.length - limit} значений`)
 }
 
 async function main() {
@@ -69,7 +84,11 @@ async function main() {
   // --- Распределение отрицательных звёзд ---------------------------------
   const neg = all.filter(r => n(r.stars) < 0)
   console.log(`\nСтрок с отрицательными stars: ${neg.length}`)
-  show('топ значений stars (отрицательные)', tally(neg, r => n(r.stars)), 15)
+  show(
+    'топ значений stars (отрицательные)',
+    tally(neg, r => n(r.stars)),
+    15
+  )
 
   // --- Трек B: ровно -9 --------------------------------------------------
   const m9 = all.filter(r => n(r.stars) === -9)
@@ -83,24 +102,70 @@ async function main() {
   console.log(`  сумма amount: ${m9.reduce((s, r) => s + n(r.amount), 0)}`)
   console.log(`  сумма cost:   ${m9.reduce((s, r) => s + n(r.cost), 0)}`)
 
-  show('type', tally(m9, r => r.type))
-  show('status', tally(m9, r => r.status))
-  show('service_type', tally(m9, r => r.service_type))
-  show('category', tally(m9, r => r.category))
-  show('currency', tally(m9, r => r.currency))
-  show('description', tally(m9, r => r.description))
-  show('bot_name', tally(m9, r => r.bot_name))
-  show('model_name', tally(m9, r => r.model_name))
-  show('is_test', tally(m9, r => r.is_test))
-  show('is_system_payment', tally(m9, r => r.is_system_payment))
-  show('amount', tally(m9, r => r.amount))
-  show('cost', tally(m9, r => r.cost))
+  show(
+    'type',
+    tally(m9, r => r.type)
+  )
+  show(
+    'status',
+    tally(m9, r => r.status)
+  )
+  show(
+    'service_type',
+    tally(m9, r => r.service_type)
+  )
+  show(
+    'category',
+    tally(m9, r => r.category)
+  )
+  show(
+    'currency',
+    tally(m9, r => r.currency)
+  )
+  show(
+    'description',
+    tally(m9, r => r.description)
+  )
+  show(
+    'bot_name',
+    tally(m9, r => r.bot_name)
+  )
+  show(
+    'model_name',
+    tally(m9, r => r.model_name)
+  )
+  show(
+    'is_test',
+    tally(m9, r => r.is_test)
+  )
+  show(
+    'is_system_payment',
+    tally(m9, r => r.is_system_payment)
+  )
+  show(
+    'amount',
+    tally(m9, r => r.amount)
+  )
+  show(
+    'cost',
+    tally(m9, r => r.cost)
+  )
 
   const dates = m9.map(r => String(r.payment_date).slice(0, 10)).sort()
   console.log(`\n  диапазон дат: ${dates[0]} … ${dates[dates.length - 1]}`)
-  show('по месяцам', tally(m9, r => String(r.payment_date).slice(0, 7)).sort((a, b) => a[0] < b[0] ? -1 : 1), 24)
+  show(
+    'по месяцам',
+    tally(m9, r => String(r.payment_date).slice(0, 7)).sort((a, b) =>
+      a[0] < b[0] ? -1 : 1
+    ),
+    24
+  )
 
-  show('на пользователя (сколько раз)', tally(m9, r => r.telegram_id), 10)
+  show(
+    'на пользователя (сколько раз)',
+    tally(m9, r => r.telegram_id),
+    10
+  )
 
   console.log('\n  пример строки:')
   console.log('   ', JSON.stringify(m9[0]))
@@ -111,8 +176,15 @@ async function main() {
     const same = all.filter(r => String(r.service_type) === svc)
     console.log(`\n=== Контроль: все строки service_type='${svc}' ===`)
     console.log(`  строк: ${same.length}`)
-    show('  stars', tally(same, r => n(r.stars)), 15)
+    show(
+      '  stars',
+      tally(same, r => n(r.stars)),
+      15
+    )
   }
 }
 
-main().catch(e => { console.error('ERR', e.message); process.exit(1) })
+main().catch(e => {
+  console.error('ERR', e.message)
+  process.exit(1)
+})

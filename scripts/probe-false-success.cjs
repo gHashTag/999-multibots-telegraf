@@ -22,8 +22,7 @@ const path = require('path')
 
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '')
 
-const SUCCESS_RETURN =
-  /return\s*(true\b|\{[^}]*success\s*:\s*true)/
+const SUCCESS_RETURN = /return\s*(true\b|\{[^}]*success\s*:\s*true)/
 
 /**
  * Находит блоки catch и смотрит, не возвращают ли они успех.
@@ -52,7 +51,17 @@ function findCatchSuccess(text, file) {
     const body = lines.slice(i + 1, end).join('\n')
     if (!SUCCESS_RETURN.test(body)) continue
 
-    hits.push({ file, line: i + 1, kind: 'catch → успех', snippet: body.trim().split('\n').find(l => SUCCESS_RETURN.test(l))?.trim().slice(0, 70) })
+    hits.push({
+      file,
+      line: i + 1,
+      kind: 'catch → успех',
+      snippet: body
+        .trim()
+        .split('\n')
+        .find(l => SUCCESS_RETURN.test(l))
+        ?.trim()
+        .slice(0, 70),
+    })
   }
   return hits
 }
@@ -65,7 +74,8 @@ function findLogThenSuccess(text, file) {
   const lines = text.split('\n')
   const hits = []
   for (let i = 0; i < lines.length; i++) {
-    if (!/(logger\.(error|warn)|console\.(error|warn))\s*\(/.test(lines[i])) continue
+    if (!/(logger\.(error|warn)|console\.(error|warn))\s*\(/.test(lines[i]))
+      continue
     const window = lines.slice(i, Math.min(i + 8, lines.length))
     const idx = window.findIndex((l, k) => k > 0 && SUCCESS_RETURN.test(l))
     if (idx < 0) continue
@@ -107,7 +117,9 @@ function main() {
     })
     process.exit(2)
   }
-  console.log(`самопроверка пройдена: ${s1.length + s2.length} образцов найдено\n`)
+  console.log(
+    `самопроверка пройдена: ${s1.length + s2.length} образцов найдено\n`
+  )
 
   const files = []
   ;(function walk(dir) {
@@ -126,7 +138,8 @@ function main() {
     all.push(...findCatchSuccess(text, f), ...findLogThenSuccess(text, f))
   }
 
-  const MONEY = /(payment|balance|charge|refund|price|stars|generat|render|train|webhook|callback|subscription)/i
+  const MONEY =
+    /(payment|balance|charge|refund|price|stars|generat|render|train|webhook|callback|subscription)/i
   const hot = all.filter(h => MONEY.test(h.file))
 
   console.log(`всего мест «ошибка, но успех»: ${all.length}`)

@@ -12,18 +12,32 @@
 const { Client } = require('pg')
 
 const SUPABASE_URL = process.env.SUPABASE_URL
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
+const KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 const PG = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL
 
 const TABLES = [
-  'users', 'payments_v2', 'assets', 'model_trainings', 'prompts_history',
-  'avatars', 'translations', 'superhero_generations', 'jobs', 'attachments',
+  'users',
+  'payments_v2',
+  'assets',
+  'model_trainings',
+  'prompts_history',
+  'avatars',
+  'translations',
+  'superhero_generations',
+  'jobs',
+  'attachments',
   'templates',
 ]
 
 async function srcCount(table) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
-    headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact', Range: '0-0' },
+    headers: {
+      apikey: KEY,
+      Authorization: `Bearer ${KEY}`,
+      Prefer: 'count=exact',
+      Range: '0-0',
+    },
   })
   return parseInt((res.headers.get('content-range') || '/0').split('/')[1], 10)
 }
@@ -35,7 +49,13 @@ async function srcMoney(col) {
   for (;;) {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/payments_v2?select=${col}::text,bot_name,currency`,
-      { headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Range: `${from}-${from + 999}` } }
+      {
+        headers: {
+          apikey: KEY,
+          Authorization: `Bearer ${KEY}`,
+          Range: `${from}-${from + 999}`,
+        },
+      }
     )
     const rows = await res.json()
     if (!rows.length) break
@@ -61,14 +81,19 @@ function exactSum(values) {
     const neg = v.startsWith('-')
     const s = neg ? v.slice(1) : v
     const [i, f = ''] = s.split('.')
-    const scaled = BigInt(i + f.padEnd(Number(SCALE), '0').slice(0, Number(SCALE)))
+    const scaled = BigInt(
+      i + f.padEnd(Number(SCALE), '0').slice(0, Number(SCALE))
+    )
     total += neg ? -scaled : scaled
   }
   return total
 }
 
 async function main() {
-  const c = new Client({ connectionString: PG, ssl: { rejectUnauthorized: false } })
+  const c = new Client({
+    connectionString: PG,
+    ssl: { rejectUnauthorized: false },
+  })
   await c.connect()
   let bad = 0
 
@@ -80,7 +105,9 @@ async function main() {
     ]
     const ok = src === dst
     if (!ok) bad++
-    console.log(`  ${ok ? 'ok ' : 'BAD'}  ${t.padEnd(24)} src ${String(src).padStart(6)}  dst ${String(dst).padStart(6)}`)
+    console.log(
+      `  ${ok ? 'ok ' : 'BAD'}  ${t.padEnd(24)} src ${String(src).padStart(6)}  dst ${String(dst).padStart(6)}`
+    )
   }
 
   console.log('\n=== MONEY, exact decimal sums per bot_name|currency ===')
@@ -96,10 +123,15 @@ async function main() {
     for (const [k, vals] of Object.entries(src)) {
       const a = exactSum(vals)
       const b = exactSum([dst[k] ?? '0'])
-      if (a !== b) { mism++; console.log(`    MISMATCH ${col} ${k}: src ${a} dst ${b}`) }
+      if (a !== b) {
+        mism++
+        console.log(`    MISMATCH ${col} ${k}: src ${a} dst ${b}`)
+      }
     }
     if (mism) bad++
-    console.log(`  ${mism ? 'BAD' : 'ok '}  ${col.padEnd(8)} ${Object.keys(src).length} groups, ${mism} mismatches`)
+    console.log(
+      `  ${mism ? 'BAD' : 'ok '}  ${col.padEnd(8)} ${Object.keys(src).length} groups, ${mism} mismatches`
+    )
   }
 
   console.log('\n=== NULL vs EMPTY STRING on the idempotency key ===')
@@ -109,10 +141,18 @@ async function main() {
   )
   const okInv = inv.rows[0].empties === 0
   if (!okInv) bad++
-  console.log(`  ${okInv ? 'ok ' : 'BAD'}  inv_id NULLs ${inv.rows[0].nulls}, empty strings ${inv.rows[0].empties} (must be 0)`)
+  console.log(
+    `  ${okInv ? 'ok ' : 'BAD'}  inv_id NULLs ${inv.rows[0].nulls}, empty strings ${inv.rows[0].empties} (must be 0)`
+  )
 
   console.log('\n=== SEQUENCES past max(pk) ===')
-  for (const [t, pk] of Object.entries({ payments_v2: 'id', assets: 'id', prompts_history: 'prompt_id', translations: 'id', superhero_generations: 'id' })) {
+  for (const [t, pk] of Object.entries({
+    payments_v2: 'id',
+    assets: 'id',
+    prompts_history: 'prompt_id',
+    translations: 'id',
+    superhero_generations: 'id',
+  })) {
     const { rows } = await c.query(
       `select (select max("${pk}") from "${t}") mx,
               (select last_value from pg_sequences
@@ -120,7 +160,9 @@ async function main() {
     )
     const ok = rows[0].sq !== null && Number(rows[0].sq) >= Number(rows[0].mx)
     if (!ok) bad++
-    console.log(`  ${ok ? 'ok ' : 'BAD'}  ${t.padEnd(24)} max ${rows[0].mx}  seq ${rows[0].sq}`)
+    console.log(
+      `  ${ok ? 'ok ' : 'BAD'}  ${t.padEnd(24)} max ${rows[0].mx}  seq ${rows[0].sq}`
+    )
   }
 
   console.log('\n=== SCALE PRESERVED on stars (numeric(12,2)) ===')
@@ -129,11 +171,16 @@ async function main() {
   )
   const okSc = sc.rows[0].off === 0
   if (!okSc) bad++
-  console.log(`  ${okSc ? 'ok ' : 'BAD'}  rows whose stars scale <> 2: ${sc.rows[0].off}`)
+  console.log(
+    `  ${okSc ? 'ok ' : 'BAD'}  rows whose stars scale <> 2: ${sc.rows[0].off}`
+  )
 
   await c.end()
   console.log(bad ? `\n${bad} CHECK(S) FAILED` : '\nall checks passed')
   process.exit(bad ? 1 : 0)
 }
 
-main().catch(e => { console.error('FAILED:', e.message); process.exit(1) })
+main().catch(e => {
+  console.error('FAILED:', e.message)
+  process.exit(1)
+})

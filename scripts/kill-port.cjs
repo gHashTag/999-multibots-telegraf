@@ -4,25 +4,28 @@
  * Usage: node kill-port.cjs 3000 3001 8288
  */
 
-const { execSync } = require('child_process');
+const { execSync } = require('child_process')
 
-const ports = process.argv.slice(2);
+const ports = process.argv.slice(2)
 
 if (ports.length === 0) {
-  console.log('Usage: node kill-port.cjs <port1> [port2] [port3] ...');
-  process.exit(0);
+  console.log('Usage: node kill-port.cjs <port1> [port2] [port3] ...')
+  process.exit(0)
 }
 
 for (const port of ports) {
   try {
     // Find process using the port
-    const result = execSync(`lsof -ti:${port}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
-    const pids = result.trim().split('\n').filter(Boolean);
+    const result = execSync(`lsof -ti:${port}`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    const pids = result.trim().split('\n').filter(Boolean)
 
     for (const pid of pids) {
       try {
-        process.kill(parseInt(pid, 10), 'SIGTERM');
-        console.log(`Killed process ${pid} on port ${port}`);
+        process.kill(parseInt(pid, 10), 'SIGTERM')
+        console.log(`Killed process ${pid} on port ${port}`)
       } catch (e) {
         // Process might have already exited
       }
@@ -32,4 +35,4 @@ for (const port of ports) {
   }
 }
 
-process.exit(0);
+process.exit(0)

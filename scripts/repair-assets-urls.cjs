@@ -29,7 +29,9 @@ const db = createClient(url, key)
 const isUrl = v => typeof v === 'string' && /^https?:\/\//.test(v)
 
 async function main() {
-  console.log(APPLY ? '=== APPLY (записываю) ===' : '=== DRY RUN (ничего не пишу) ===')
+  console.log(
+    APPLY ? '=== APPLY (записываю) ===' : '=== DRY RUN (ничего не пишу) ==='
+  )
 
   const PAGE = 1000
   let from = 0

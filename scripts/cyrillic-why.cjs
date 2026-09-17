@@ -29,11 +29,25 @@ const guard = require('./no-cyrillic-guard.cjs')
 const MARKER = 'cyrillic-ok'
 const NEXT_LINE = guard.NEXT_LINE
 const RUNS = /[\u0400-\u04FF]+/g
-const ESC = String.fromCharCode(27)
+/*
+ * COLOUR ONLY FOR A TERMINAL.
+ *
+ * These tools are meant to be composed -- `tri readers | awk '{print $1}'` is
+ * the obvious next thing somebody does with an inventory. With escape codes
+ * always on, the first field is not a path but a path wearing a dim marker, and
+ * the loop fails with "no such file or directory" on a name that plainly
+ * exists. Measured on my own output, 2026-09-17.
+ *
+ * `isTTY` is false for a pipe, a file and a subshell, which is exactly the set
+ * of places where colour is noise rather than help.
+ */
+const PAINT = Boolean(process.stdout.isTTY)
+const ESC = PAINT ? String.fromCharCode(27) : ''
+const wrap = (code, s) => (PAINT ? `${ESC}[${code}m${s}${ESC}[0m` : s)
 
-const dim = s => `${ESC}[2m${s}${ESC}[0m`
-const red = s => `${ESC}[31m${s}${ESC}[0m`
-const green = s => `${ESC}[32m${s}${ESC}[0m`
+const dim = s => wrap(2, s)
+const red = s => wrap(31, s)
+const green = s => wrap(32, s)
 
 function diffFor(mode) {
   const sh = c =>

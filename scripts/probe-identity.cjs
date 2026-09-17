@@ -46,7 +46,9 @@ async function main() {
     })
     const body = await res.text()
     let j = {}
-    try { j = JSON.parse(body) } catch {}
+    try {
+      j = JSON.parse(body)
+    } catch {}
     const col = (j.message || '').match(/column "([^"]+)"/)
     console.log(
       `${t}.${pk}: HTTP ${res.status} code=${j.code} violating_col=${col ? col[1] : '?'}` +
@@ -56,4 +58,7 @@ async function main() {
     console.log(`   max(${pk}) = ${await maxPk(t, pk)}`)
   }
 }
-main().catch(e => { console.error('ERR', e.message); process.exit(1) })
+main().catch(e => {
+  console.error('ERR', e.message)
+  process.exit(1)
+})

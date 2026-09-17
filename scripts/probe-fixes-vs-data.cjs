@@ -26,9 +26,16 @@ async function fetchAll(table, select, extra = '') {
   const out = []
   let from = 0
   for (;;) {
-    const res = await fetch(`${url}/rest/v1/${table}?select=${select}${extra}`, {
-      headers: { ...H, Range: `${from}-${from + 999}`, 'Range-Unit': 'items' },
-    })
+    const res = await fetch(
+      `${url}/rest/v1/${table}?select=${select}${extra}`,
+      {
+        headers: {
+          ...H,
+          Range: `${from}-${from + 999}`,
+          'Range-Unit': 'items',
+        },
+      }
+    )
     if (!res.ok) {
       console.log(`  (таблица ${table} недоступна: ${res.status})`)
       return out
@@ -78,7 +85,9 @@ async function main() {
   const TOKEN = /api\.telegram\.org\/file\/bot\d+:/i
   const withToken = users.filter(u => TOKEN.test(String(u.photo_url || '')))
   const freshToken = withToken.filter(u => after(u, 'updated_at'))
-  console.log(`  профилей: ${users.length}, с токеном в ссылке: ${withToken.length}`)
+  console.log(
+    `  профилей: ${users.length}, с токеном в ссылке: ${withToken.length}`
+  )
   console.log(`  из них обновлены ПОСЛЕ выката: ${freshToken.length}`)
   console.log(
     freshToken.length
@@ -91,7 +100,8 @@ async function main() {
   const pay = await fetchAll('payments_v2', 'bot_name,payment_date')
   const freshPay = pay.filter(p => after(p, 'payment_date'))
   const byBot = {}
-  for (const p of freshPay) byBot[String(p.bot_name)] = (byBot[String(p.bot_name)] || 0) + 1
+  for (const p of freshPay)
+    byBot[String(p.bot_name)] = (byBot[String(p.bot_name)] || 0) + 1
   console.log(`  списаний после выката: ${freshPay.length}`)
   console.log(`  по ботам: ${JSON.stringify(byBot)}`)
   console.log(
@@ -102,27 +112,49 @@ async function main() {
 
   // --- 4. Формат ссылки на модель --------------------------------------
   console.log('\n=== 4. Формат ссылки на модель (#522) ===')
-  const models = await fetchAll('model_trainings', 'model_url,model_name,created_at,status')
+  const models = await fetchAll(
+    'model_trainings',
+    'model_url,model_name,created_at,status'
+  )
   const broken = models.filter(
-    m => m.model_url && !/^[\w.-]+\/[\w.-]+:[0-9a-f]{6,}$/i.test(String(m.model_url))
+    m =>
+      m.model_url &&
+      !/^[\w.-]+\/[\w.-]+:[0-9a-f]{6,}$/i.test(String(m.model_url))
   )
   const freshBroken = broken.filter(m => after(m, 'created_at'))
-  console.log(`  обучений со ссылкой: ${models.filter(m => m.model_url).length}`)
-  console.log(`  ссылка не того вида: ${broken.length}, из них после выката: ${freshBroken.length}`)
+  console.log(
+    `  обучений со ссылкой: ${models.filter(m => m.model_url).length}`
+  )
+  console.log(
+    `  ссылка не того вида: ${broken.length}, из них после выката: ${freshBroken.length}`
+  )
   for (const m of broken.slice(0, 5)) {
-    console.log(`      ${String(m.model_name || '').slice(0, 24).padEnd(24)} ${String(m.model_url).slice(0, 60)}`)
+    console.log(
+      `      ${String(m.model_name || '')
+        .slice(0, 24)
+        .padEnd(24)} ${String(m.model_url).slice(0, 60)}`
+    )
   }
 
   // --- 5. Незавершённые платежи ----------------------------------------
   console.log('\n=== 5. Незавершённые платежи ===')
-  const pend = pay.length ? await fetchAll('payments_v2', 'status,stars,payment_method,payment_date') : []
+  const pend = pay.length
+    ? await fetchAll('payments_v2', 'status,stars,payment_method,payment_date')
+    : []
   const pending = pend.filter(p => p.status !== 'COMPLETED')
   const freshPending = pending.filter(p => after(p, 'payment_date'))
   const pm = {}
-  for (const p of pending) pm[String(p.payment_method)] = (pm[String(p.payment_method)] || 0) + 1
-  console.log(`  незавершённых: ${pending.length}, из них после выката: ${freshPending.length}`)
+  for (const p of pending)
+    pm[String(p.payment_method)] = (pm[String(p.payment_method)] || 0) + 1
+  console.log(
+    `  незавершённых: ${pending.length}, из них после выката: ${freshPending.length}`
+  )
   console.log(`  по способу: ${JSON.stringify(pm)}`)
-  const last = pending.map(p => p.payment_date).filter(Boolean).sort().slice(-3)
+  const last = pending
+    .map(p => p.payment_date)
+    .filter(Boolean)
+    .sort()
+    .slice(-3)
   console.log(`  последние по времени: ${last.join(', ') || '—'}`)
 }
 

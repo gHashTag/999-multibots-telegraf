@@ -34,7 +34,9 @@ const path = require('path')
  * «находку» и увидел на этой строке совсем другое.
  */
 const strip = s =>
-  s.replace(/\/\*[\s\S]*?\*\//g, m => '\n'.repeat((m.match(/\n/g) || []).length))
+  s.replace(/\/\*[\s\S]*?\*\//g, m =>
+    '\n'.repeat((m.match(/\n/g) || []).length)
+  )
 
 /**
  * Функции, чей возврат означает «получилось / не получилось».
@@ -62,10 +64,14 @@ function isDiscarded(line, fn) {
   const re = new RegExp(`(^|[^\\w.])(await\\s+)?${fn}\\s*\\(`)
   if (!re.test(line)) return false
   // объявление самой функции — не вызов
-  if (new RegExp(`(function|const|export)\\s+.*\\b${fn}\\b`).test(line)) return false
+  if (new RegExp(`(function|const|export)\\s+.*\\b${fn}\\b`).test(line))
+    return false
   // присваивание, возврат, условие, ожидание результата — значит проверяют
   if (/[=]\s*(await\s+)?$/.test(line.split(fn)[0])) return false
-  if (/\b(const|let|var|return|if|while|\?\?|&&|\|\|)\b/.test(line.split(fn)[0])) return false
+  if (
+    /\b(const|let|var|return|if|while|\?\?|&&|\|\|)\b/.test(line.split(fn)[0])
+  )
+    return false
   return true
 }
 
@@ -92,7 +98,9 @@ function main() {
     })
     process.exit(2)
   }
-  console.log('самопроверка пройдена: плохой образец найден, хороший не задет\n')
+  console.log(
+    'самопроверка пройдена: плохой образец найден, хороший не задет\n'
+  )
 
   const files = []
   ;(function walk(dir) {
@@ -110,7 +118,9 @@ function main() {
     all.push(...scan(strip(fs.readFileSync(f, 'utf8')), f))
   }
 
-  console.log(`всего мест «результат отброшен, а следом действие»: ${all.length}\n`)
+  console.log(
+    `всего мест «результат отброшен, а следом действие»: ${all.length}\n`
+  )
 
   const byFn = {}
   for (const h of all) byFn[h.fn] = (byFn[h.fn] || 0) + 1
@@ -119,7 +129,8 @@ function main() {
     console.log(`  ${String(v).padStart(4)}  ${k}`)
   }
 
-  const MONEY = /(payment|balance|charge|refund|price|stars|generat|render|train|webhook|callback|subscription|wizard|scene)/i
+  const MONEY =
+    /(payment|balance|charge|refund|price|stars|generat|render|train|webhook|callback|subscription|wizard|scene)/i
   const hot = all.filter(h => MONEY.test(h.file))
   console.log(`\nиз них в денежных и рабочих путях: ${hot.length}`)
   console.log('\n=== ЧИТАТЬ В ПЕРВУЮ ОЧЕРЕДЬ ===')
@@ -149,7 +160,13 @@ function scan(text, file) {
         }
       }
       if (!effect) continue
-      hits.push({ file, line: i + 1, fn, call: line.trim().slice(0, 68), effect })
+      hits.push({
+        file,
+        line: i + 1,
+        fn,
+        call: line.trim().slice(0, 68),
+        effect,
+      })
       break
     }
   }

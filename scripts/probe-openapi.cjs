@@ -30,7 +30,7 @@ async function main() {
   const text = await res.text()
   fs.writeFileSync('/tmp/supabase-openapi.json', text)
   console.log('bytes', text.length)
-  if (res.status !== 200) console.log('BODY:', text.slice(0,300))
+  if (res.status !== 200) console.log('BODY:', text.slice(0, 300))
   let doc
   try {
     doc = JSON.parse(text)
@@ -38,7 +38,8 @@ async function main() {
     console.log('NOT JSON. First 500 chars:\n', text.slice(0, 500))
     return
   }
-  const defs = doc.definitions || (doc.components && doc.components.schemas) || {}
+  const defs =
+    doc.definitions || (doc.components && doc.components.schemas) || {}
   const names = Object.keys(defs)
   console.log('definitions:', names.length)
   console.log(names.join(', '))

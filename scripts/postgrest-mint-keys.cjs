@@ -19,17 +19,25 @@ const { execFileSync } = require('child_process')
 const SERVICE = process.argv[2]
 const ENVIRONMENT = process.argv[3] || 'e4d200ad-b8a9-4edf-9b25-190a32613b32'
 if (!SERVICE) {
-  console.error('usage: postgrest-mint-keys.cjs <postgrest-service-id> [environment-id]')
+  console.error(
+    'usage: postgrest-mint-keys.cjs <postgrest-service-id> [environment-id]'
+  )
   process.exit(1)
 }
 
 const b64 = buf =>
-  Buffer.from(buf).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  Buffer.from(buf)
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
 
 function jwt(payload, secret) {
   const head = b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const body = b64(JSON.stringify(payload))
-  const sig = b64(crypto.createHmac('sha256', secret).update(`${head}.${body}`).digest())
+  const sig = b64(
+    crypto.createHmac('sha256', secret).update(`${head}.${body}`).digest()
+  )
   return `${head}.${body}.${sig}`
 }
 
@@ -48,7 +56,15 @@ const fp = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 12)
 function set(kv) {
   execFileSync(
     'railway',
-    ['variables', '--service', SERVICE, '--environment', ENVIRONMENT, '--set', kv],
+    [
+      'variables',
+      '--service',
+      SERVICE,
+      '--environment',
+      ENVIRONMENT,
+      '--set',
+      kv,
+    ],
     { stdio: ['ignore', 'ignore', 'inherit'] }
   )
 }
