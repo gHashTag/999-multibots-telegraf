@@ -105,9 +105,7 @@ describe('morph-images-generate: deliver-result', () => {
 
   it('does not hand the user a server path as a link, nor call it delivered', () => {
     expect(src).not.toMatch(/link_fallback/)
-    expect(src).not.toMatch(
-      /Скачать видео:\*\* \$\{finalVideoResult\.video_url\}/
-    ) // cyrillic-ok
+    expect(src).not.toMatch(/\*\* \$\{finalVideoResult\.video_url\}/)
     expect(src).toMatch(/throw deliveryError/)
   })
 
