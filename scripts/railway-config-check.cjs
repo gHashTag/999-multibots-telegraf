@@ -211,6 +211,19 @@ function changedFiles(commit) {
   }
 }
 
+/** Is `hash` contained in `tip` -- i.e. would building `tip` ship it. */
+function isAncestor(hash, tip) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', hash, tip], {
+      cwd: ROOT,
+      stdio: 'ignore',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 function mergesSince(commit) {
   try {
     return execFileSync(
@@ -327,16 +340,46 @@ function checkService(service, own) {
     }
   }
 
-  // Check 5: merged since the running build and touching watched files.
+  /*
+   * Check 5: merged since the running build and touching watched files.
+   *
+   * A BUILD IN FLIGHT IS NOT A STUCK COMMIT. Railway takes minutes; a check run
+   * during those minutes listed the commit being built as waiting, which is a
+   * cry of wolf and trains the reader to ignore the line. Anything Railway is
+   * already working on is named as such instead.
+   */
+  const inFlight = new Set(
+    deployments
+      .filter(d =>
+        ['BUILDING', 'DEPLOYING', 'INITIALIZING', 'QUEUED'].includes(d.status)
+      )
+      .map(d => d.meta?.commitHash)
+      .filter(Boolean)
+  )
   const running = (deployments.find(d => d.status === 'SUCCESS') || built).meta
   const since = mergesSince(running.commitHash)
   if (since === null) {
     notes.push('could not read git history since the running build')
   } else {
-    const stuck = since.filter(c => {
+    let stuck = since.filter(c => {
       const files = changedFiles(c.hash)
       return files && files.some(f => watched(f, own.patterns))
     })
+    /*
+     * ANCESTRY, NOT EQUALITY. A merge carries every commit of its branch, so a
+     * build of the merge is a build of all of them. Comparing hashes named the
+     * merge as building and its own commits as stuck, in the same breath.
+     */
+    const carriedByAnInFlightBuild = hash =>
+      [...inFlight].some(tip => isAncestor(hash, tip))
+    const building = stuck.filter(c => carriedByAnInFlightBuild(c.hash))
+    if (building.length) {
+      notes.push(
+        `Railway is building ${building.length} of them right now ` +
+          `(${building.map(c => c.hash.slice(0, 9)).join(', ')})`
+      )
+    }
+    stuck = stuck.filter(c => !carriedByAnInFlightBuild(c.hash))
     if (stuck.length) {
       problems.push(
         `${stuck.length} commit(s) on main since the running build touch watched files ` +
