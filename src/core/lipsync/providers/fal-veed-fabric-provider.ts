@@ -12,6 +12,7 @@ import {
   LIPSYNC_MODELS,
   getLipSyncModelById,
 } from '@/config/lipsync-models.config'
+import { MARKUP_MULTIPLIER, STAR_COST_USD } from '@/price/constants'
 
 /**
  * Провайдер для Fal.ai моделей lip-sync
@@ -359,8 +360,6 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
     durationSeconds: number,
     resolution?: string
   ): number {
-    const { MARKUP_MULTIPLIER, STAR_COST_USD } = require('@/price/constants')
-
     switch (modelId) {
       case 'fal-veed-fabric-1.0-fast': {
         const baseCost = resolution === '720p' ? 0.2 : 0.1
