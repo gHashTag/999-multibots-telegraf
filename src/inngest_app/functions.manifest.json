@@ -451,6 +451,7 @@
         "check-payment-option",
         "get-user-info",
         "get-bot-config",
+        "claim-invoice",
         "update-user-balance",
         "send-notification"
       ],
@@ -468,7 +469,8 @@
         "file corrected: '(empty)' -> 'src/inngest_app/functions/payments/paymentProcessing.ts'",
         "steps re-extracted from code: [] -> ['check-subscription-plan', 'check-payment-option', 'get-user-info', 'get-bot-config', 'update-user-balance', 'send-notification']",
         "retries: None -> 3 (null = SDK default)",
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "2026-09-17: claim-invoice step before update-user-balance (core/supabase/claimPendingInvoice.ts): the payments_v2 row must exist and its amount must equal the rounded IncSum, else NonRetriableError (admin chat via onFailure, no credit); the PENDING -> COMPLETED flip is a compare-and-set, a lost race or an already COMPLETED row returns {success:true, already_claimed:true} without crediting or notifying. Until then updateUserBalance set COMPLETED by inv_id unconditionally and returned true for zero rows. Spec: t27 specs/functions/payment-ai-server-process.t27"
       ]
     },
     {
