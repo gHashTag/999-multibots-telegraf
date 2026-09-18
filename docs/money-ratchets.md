@@ -44,7 +44,7 @@
 | `creditNotInLoop.test.ts`                              | user credits are not called inside a loop (scalar-credit mint #1468/#1470)                    |
 | `creditSiteCensus.test.ts`                             | credit-site census: no unreviewed mint surface                                                |
 | `creditedIsNotOk.test.ts`                              | ok is not credited                                                                            |
-| `directPaymentPostCommit.test.ts`                      | directPayment isolates post-commit side-effects from the committed return (#1397)             |
+| `directPaymentPostCommit.test.ts`                      | a payment that committed is reported as committed                                             |
 | `directPaymentRefusalDoesNotPage.test.ts`              | directPaymentProcessor: which refusals page the owner                                         |
 | `emailWizardPriceAllowlist.test.ts`                    | emailWizard setPayments is allowlist-guarded                                                  |
 | `fluxKontextSendRefund.test.ts`                        | generateFluxKontext refunds a send failure (no charged-no-refund)                             |
