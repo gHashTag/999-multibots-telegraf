@@ -474,6 +474,25 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri watches [--limit N] | tri сторожа
+        Are the money watches alive, and when did each last look.
+
+        Two watches ask whether somebody paid and was never credited: TON
+        hourly against the chain, Robokassa daily against the provider. Both
+        were built to speak ONLY when money is owed -- so a healthy channel and
+        a dead watch produced exactly the same silence. The journal had already
+        learned that with the seller's sweep, and the watches shipped with the
+        flaw one day after it was written down.
+
+        They now write a heartbeat: one line per channel per 20 hours, with how
+        many invoices were examined. Two missed beats is a stopped watch; ONE
+        is a deploy. "Never reported" is its own answer, not a failure -- a
+        watch an hour old has missed nothing.
+
+        Not asked of Inngest on purpose: the run history would answer it better
+        and needs a key only the owner holds. A tool that only somebody else
+        can run is a tool that does not run.
+
   tri ton-pending | tri тон-зависшие
         Did TON arrive that nobody ever credited.
 
@@ -1775,6 +1794,15 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_watches() {
+  # Are the money watches alive, and when did each last look. Both watches were
+  # built to speak ONLY when money is owed, which made a healthy channel and a
+  # dead watch the same silence. They now write a heartbeat per channel per 20
+  # hours; this reads it. Two missed beats is a stopped watch.
+  #   tri watches [--limit N]
+  ( cd "$ROOT" && node "$ROOT/scripts/watches.cjs" "$@" )
 }
 
 cmd_replicas() {
@@ -4297,6 +4325,7 @@ case "$action" in
   money|деньги)      cmd_money "$@" ;;
   map|карта)         cmd_map "$@" ;;
   replicas|реплики)  cmd_replicas "$@" ;;
+  watches|сторожа)   cmd_watches "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
