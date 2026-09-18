@@ -115,6 +115,29 @@ export function startGreetingKeyboard(
         buildMiniAppUrl('profile')
       ),
     ])
+    /*
+     * SIGNING IN ON ANOTHER DEVICE HAD NO HANDLE ON THE ONE SCREEN EVERYONE SEES.
+     *
+     * The door exists: /app is a registered command with its own line in the
+     * Telegram menu, and it opens the mini app at the screen that shows a
+     * pairing code. But this greeting is what a person actually looks at, and
+     * it offered the hive, the agent, the club, the profile and three ways to
+     * pay -- never the way in from a laptop or the native app.
+     *
+     * Measured 2026-09-18, journal: 44 sign-ins inside Telegram and NOT ONE
+     * code minted in 4.2 days. Nobody was refused either, so nobody reached the
+     * screen -- which is what a door with no handle looks like from the inside.
+     *
+     * It goes straight to `pair` rather than to /app: the command's own message
+     * exists to explain the button to somebody who typed the command, and a
+     * person pressing here has already been told where they are going.
+     */
+    rows.push([
+      Markup.button.webApp(
+        isRu ? '🔑 Вход на другом устройстве' : '🔑 Sign in on another device',
+        buildMiniAppUrl('pair')
+      ),
+    ])
   } else {
     // Outside a private chat there is no signed launch, so only the person
     // remains reachable from this row.
