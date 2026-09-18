@@ -474,6 +474,24 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri ton-pending | tri тон-зависшие
+        Did TON arrive that nobody ever credited.
+
+        The TON channel credits on a BUTTON: the person sends the coins with
+        the invoice id in the comment and presses "check payment", and only
+        then does anything look at the chain. Close the app or lose the
+        message and the coins sit there against a PENDING row for ever.
+
+        Same shape as `tri reconcile` for Robokassa: ask an INDEPENDENT source.
+        Our table is where the defect lives -- ask it about a stuck payment and
+        it says PENDING, which is what we already knew. The matching rule is
+        the scene's own: the comment must EQUAL the invoice id, the amount must
+        be within the 1% fee margin, and a transfer older than the invoice does
+        not count.
+
+        An invoice older than the chain window read is reported as "not an
+        answer", never as unpaid. Credits nobody: that is the owner's call.
+
   tri replicas [service ...] | tri реплики
         How many processes are actually running.
 
@@ -4312,6 +4330,11 @@ case "$action" in
   # Without the wrapper it printed "cannot reconcile without ..." and read as
   # "this cannot be done here" -- it can, and on 2026-09-19 it found five
   # people who paid and were never credited.
+  # The same question as `reconcile`, on the channel that credits by BUTTON:
+  # a person sends TON with the invoice id in the comment and presses "check
+  # payment". Nothing else ever looks, so coins can sit on the chain against a
+  # PENDING row for ever. Read-only; credits nobody.
+  ton-pending|тон-зависшие) railway run -s 999-multibots-telegraf node "$ROOT/scripts/ton-pending-reconcile.cjs" "$@" ;;
   reconcile|сверка)   railway run -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
   lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
   ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
