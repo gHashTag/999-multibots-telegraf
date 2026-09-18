@@ -1313,6 +1313,35 @@
         "writes at most one journal line per run, kind payment-unclaimed (allow-listed in the render's note route)",
         "onFailure: a watcher that dies quietly would leave the channel looking watched while nothing looks"
       ]
+    },
+    {
+      "id": "robokassa-unclaimed-watch",
+      "legacy_id": "",
+      "domain": "money",
+      "trigger": "cron",
+      "event": "",
+      "legacy_events": [],
+      "cron": "20 7 * * *",
+      "tz": "UTC",
+      "file": "src/inngest_app/functions/money/robokassaUnclaimedWatch.ts",
+      "steps": ["ask the provider"],
+      "retries": 0,
+      "on_failure": "admin-telegram",
+      "side_effects": ["db-read", "paid-api"],
+      "guard": "none",
+      "safe_probe": "{}",
+      "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
+      "deployed_2026_09_09": false,
+      "control": "spec+code",
+      "export": "robokassaUnclaimedWatch",
+      "notes": [
+        "2026-09-19: Robokassa confirms by calling our ResultURL; when that call does not arrive the row stays PENDING and nothing ever asks again. A hand-run reconcile that day found five people, 822 stars, never credited.",
+        "READS ONLY. It never writes payments_v2: who is made whole is the owner's decision.",
+        "asks only about invoices from the last 30 days, capped at 50: the older backlog is known debt in docs/audit/paid-and-never-credited.md, and re-alarming about it every morning is how an alarm becomes wallpaper",
+        "without merchant credentials it returns did='cannot ask' and says nothing about money -- reporting 'none unclaimed' would be inventing reassurance",
+        "classification is shared with scripts/robokassa-reconcile.cjs (core/robokassa/opState.ts): UNKNOWN is never read as 'did not pay'"
+      ]
     }
   ]
 }
