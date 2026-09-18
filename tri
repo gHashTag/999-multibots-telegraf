@@ -474,6 +474,20 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri signin [--limit N] | tri вход
+        Did the sign-in code reach anybody, and where did it stop.
+
+        Owner, 2026-09-17: "why does the code not reach the user?" The journal
+        held 23 sign-ins and not one `code-issued`, and an absence is invisible
+        until somebody thinks to look for a thing that is not there.
+
+        Four steps in the order a person walks them: signed in inside Telegram,
+        a code minted and SHOWN, that code typed and accepted, a request or a
+        claim refused with its reason. The code is never sent anywhere, so a
+        zero at step two and a zero at step three are different repairs.
+
+        Read-only; the key is read into a variable and never printed.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -1632,6 +1646,15 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_signin() {
+  # Did the code reach anybody, and where did it stop. The pairing code is never
+  # SENT -- it is drawn in the mini app window for two minutes -- so "the code
+  # did not arrive" is always one of two facts with different repairs: never
+  # minted, or minted and the claim failed.
+  #   tri signin [--limit N]
+  ( cd "$ROOT" && node "$ROOT/scripts/signin-funnel.cjs" "$@" )
 }
 
 cmd_failures() {
@@ -4077,6 +4100,7 @@ case "$action" in
   cyrillic|кириллица) cmd_cyrillic "$@" ;;
   truncates|обрезка) cmd_truncates "$@" ;;
   failures|потери)    cmd_failures "$@" ;;
+  signin|вход)       cmd_signin "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;

@@ -248,10 +248,20 @@ function main() {
         (running.bot ? `, bot deployed ${running.bot}` : ', bot deploy unknown')
     )
   )
+  /*
+   * THE THRESHOLD IS THE HEARTBEAT, NOT THE CRON.
+   *
+   * The sweep runs every 30 minutes, but a sweep that is HOLDING a card writes
+   * at most one line every six hours -- that rate limit is the whole point of
+   * the heartbeat, and judging silence by the cron called a healthy hold an
+   * outage. Seen 2026-09-18: "silent for 3.4 h" in red while the journal had a
+   * heartbeat at the top of the hour.
+   */
+  const HEARTBEAT_H = 6
   console.log(
-    silentHours > 3
+    silentHours > HEARTBEAT_H
       ? red(
-          `  silent for ${silentHours.toFixed(1)} h -- the sweep runs every 30 min`
+          `  silent for ${silentHours.toFixed(1)} h -- a holding sweep still speaks every ${HEARTBEAT_H} h`
         )
       : dim(`  last entry ${silentHours.toFixed(1)} h ago`)
   )

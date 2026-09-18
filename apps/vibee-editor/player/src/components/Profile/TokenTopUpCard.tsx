@@ -19,6 +19,9 @@ import { useEffect, useState } from 'react'
 import { API_BASE } from '@/config'
 import { useLanguage } from '@/hooks/useLanguage'
 
+/** The bot that holds the rouble and crypto cashiers. */
+const BOT = 't27ai_bot'
+
 interface Pack {
   id: string
   tokens: number
@@ -37,6 +40,22 @@ export interface TokenTopUpCardProps {
   tokens: number | null
   note: string | null
   buy: (pack: string) => void
+}
+
+/**
+ * Open the bot at a cashier. Telegram's own opener when the mini app is running
+ * inside Telegram, a plain link otherwise -- the same page opened in a browser
+ * has no Telegram to ask.
+ */
+function openInBot(startParam: string) {
+  const url = `https://t.me/${BOT}?start=${startParam}`
+  const wa = (
+    window as unknown as {
+      Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } }
+    }
+  ).Telegram?.WebApp
+  if (wa?.openTelegramLink) wa.openTelegramLink(url)
+  else window.open(url, '_blank')
 }
 
 export function TokenTopUpCard({ tokens, note, buy }: TokenTopUpCardProps) {
@@ -101,6 +120,33 @@ export function TokenTopUpCard({ tokens, note, buy }: TokenTopUpCardProps) {
         ))}
       </div>
       {note && <p className="profile-topup__note">{note}</p>}
+
+      {/*
+        ALL THREE WAYS TO PAY, AND TWO OF THEM FINISH IN THE BOT.
+        Owner, 2026-09-17: "add all three payment types to the mini app". Stars
+        are paid right here; the Robokassa and CryptoBot keys live on the BOT
+        service, and copying payment secrets into a second service to move the
+        window is a bigger decision than a button. So these open the cashier the
+        bot already has -- `?start=topup_rub` lands on it, which /start was
+        taught to read, rather than on a greeting to navigate out of.
+      */}
+      <div className="profile-topup__others">
+        <button
+          type="button"
+          className="profile-topup__other"
+          onClick={() => openInBot('topup_rub')}
+        >
+          💳 {t('topup.rubles')}
+        </button>
+        <button
+          type="button"
+          className="profile-topup__other"
+          onClick={() => openInBot('topup_crypto')}
+        >
+          💎 {t('topup.crypto')}
+        </button>
+      </div>
+      <p className="profile-topup__note">{t('topup.inTheBot')}</p>
     </section>
   )
 }
