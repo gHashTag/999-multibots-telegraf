@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 136. Без заголовка: 0.
+Ратчетов: 138. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -119,7 +119,9 @@
 | `robokassa-order.test.ts`                              | порядок обработки оплаты                                                                      |
 | `robokassa-result-url-is-mounted.test.ts`              | the ResultURL handed to Robokassa is a path this app answers                                  |
 | `robokassa-webhook-behaviour.test.ts`                  | вебхук Робокассы: поведение, а не форма                                                       |
+| `robokassaOpState.test.ts`                             | what Robokassa says about an invoice                                                          |
 | `robokassaReconcileNeverSaysUnpaid.test.ts`            | did not pay                                                                                   |
+| `robokassaUnclaimedWatch.test.ts`                      | the Robokassa watch                                                                           |
 | `sessionPaymentAmountNeverUnbacked.test.ts`            | the session field the cancel button refunds                                                   |
 | `sibling-batch-double-refund.test.ts`                  | sibling image services refund a batch failure at most once                                    |
 | `stuck-trainings-visible.test.ts`                      | застрявшее обучение видно человеку                                                            |
