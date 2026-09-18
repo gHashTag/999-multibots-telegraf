@@ -690,8 +690,16 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
       // исправлены здесь же, чтобы заготовка не воскресила прежнюю ошибку:
       // SERVICE_PAYMENT не проходит валидацию записи, а минус у суммы при
       // MONEY_OUTCOME начисляет деньги вместо списания.
+      //
+      // The two money calls below BIND their answers, although nothing runs
+      // them today. updateUserBalance returns false without throwing, and a
+      // sketch that ignores that is a sketch somebody revives one day into a
+      // free generation or a silently swallowed refund -- the two shapes every
+      // other guard in this repository exists to stop. `tri money` lists
+      // unreachable calls apart for exactly this reason: they are what a future
+      // edit wakes up.
       // eslint-disable-next-line no-unreachable
-      await updateUserBalance(
+      const charged = await updateUserBalance(
         telegramId,
         estimatedCost,
         PaymentType.MONEY_OUTCOME,
@@ -701,6 +709,21 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
           service_type: 'fal_render',
         }
       )
+      if (!charged) {
+        logger.error(
+          '[fal-render] charge refused -- no generation was started',
+          {
+            telegramId,
+            estimatedCost,
+          }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось списать средства. Попробуйте позже.'
+            : '❌ Could not charge your balance. Please try again later.'
+        )
+        return ctx.scene.leave()
+      }
 
       // Получаем voice_id пользователя
       const { getVoiceId } = await import('@/core/supabase/getVoiceId')
@@ -712,17 +735,19 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
             ? '❌ У вас не настроен голос аватара. Создайте голос сначала.'
             : '❌ You dont have avatar voice configured.'
         )
-        // Возвращаем средства
-        await updateUserBalance(
+        // The money goes back, and the person is told the truth about whether
+        // it did: refundAndTell checks the credit instead of announcing one.
+        await refundAndTell({
+          ctx,
           telegramId,
-          estimatedCost,
-          PaymentType.MONEY_INCOME,
-          'Refund: No voice ID',
-          {
-            bot_name: ctx.botInfo?.username || 'unknown_bot',
-            service_type: 'refund',
-          }
-        )
+          amount: estimatedCost,
+          description: 'Refund: No voice ID',
+          reason: {
+            ru: 'Голос аватара не настроен.',
+            en: 'The avatar voice is not configured.',
+          },
+          isRu,
+        })
         return ctx.scene.leave()
       }
 
