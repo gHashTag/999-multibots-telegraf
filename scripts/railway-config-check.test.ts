@@ -78,12 +78,33 @@ describe('reading the repository railway.toml files', () => {
     expect(app.patterns).toContain('!apps/vibee-editor/player/**/*.test.ts')
   })
 
+  /*
+   * Null and [] mean opposite things -- "Railway decides" versus "nothing
+   * rebuilds this" -- so the difference is pinned on an INVENTED file. It used
+   * to be pinned on the render's own config, which was the repository's only
+   * patternless service; the moment that service got patterns (2026-09-18,
+   * precisely so `tri deploy-config` could check it) this test failed for a
+   * reason that had nothing to do with parsing. A test that names a production
+   * file as its example of an absence breaks when the absence is fixed.
+   */
   it('says null, not an empty list, when a file sets no watchPatterns', () => {
+    const none = check.parseRailwayToml(
+      ['[build]', 'builder = "DOCKERFILE"', '', '[service]', 'name = "x"'].join(
+        '\n'
+      )
+    )
+    expect(none.name).toBe('x')
+    expect(none.patterns).toBeNull()
+  })
+
+  it('reads the render service, which now declares its own patterns', () => {
     const render = check.parseRailwayToml(
       read('apps/vibee-editor/render/railway.toml')
     )
     expect(render.name).toBe('vibee-render')
-    expect(render.patterns).toBeNull()
+    // Both trees the Dockerfile copies, in both spellings.
+    expect(render.patterns).toContain('apps/vibee-editor/render/**')
+    expect(render.patterns).toContain('apps/vibee-editor/packages/**')
   })
 })
 
