@@ -110,12 +110,25 @@ describe('the greeting keyboard', () => {
       `${ACTION_PREFIX}balance`,
       `${ACTION_PREFIX}can`,
     ])
-    // WHAT and WHOM through the signed launch: hive, agent, club, profile.
+    /*
+     * WHAT and WHOM through the signed launch: hive, agent, club, profile --
+     * and `pair`, the way in from another device, added 2026-09-18.
+     *
+     * It was missing for as long as the greeting existed: /app carried it, and
+     * a command in the Telegram menu is a hint for somebody already looking,
+     * not a door. The journal showed 44 sign-ins inside Telegram and not one
+     * pairing code minted in 4.2 days, with no refusals -- nobody reached the
+     * screen.
+     *
+     * The list stays exact on purpose: every value here must be one the mini
+     * app maps to a route, because an unknown start parameter is NOT an error
+     * there -- it falls through to the feed.
+     */
     const params = buttons
       .map(b => b.web_app?.url)
       .filter((u): u is string => !!u)
       .map(u => new URL(u).searchParams.get('tgWebAppStartParam'))
-    expect(params).toEqual(['hive', 'chat', 'club', 'profile'])
+    expect(params).toEqual(['hive', 'chat', 'club', 'profile', 'pair'])
   })
 
   it('drops rubles where the bot hides them, and web_app buttons outside a private chat', () => {
