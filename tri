@@ -474,6 +474,27 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri money [--all] | tri деньги
+
+        Which money calls throw their answer away.
+
+        updateUserBalance returns false WITHOUT throwing when the payer row is
+        missing or the insert is refused; directPaymentProcessor answers
+        {success:false}. A statement that starts with await and binds nothing
+        cannot tell a moved star from a lost one, and everything after it
+        proceeds as though the money arrived. Every money guard converted this
+        week found that same shape underneath.
+
+        Calls inside unreachable stubs are listed APART, not hidden: they move
+        nothing today, and they are exactly what a future edit revives.
+
+        refundUser is deliberately NOT counted -- it returns nothing, so there
+        is no answer to discard. The first version counted it and produced 27
+        invented defects in one run.
+
+        Exit: 0 nothing live discards its answer, 1 something does, 2 the
+        source tree could not be read.
+
   tri clock [--hours N] [--limit N] | tri часы
         Is the seller's clock beating, and what can this even tell us.
 
@@ -1700,6 +1721,15 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_money() {
+  # Which money calls throw their answer away. updateUserBalance returns false
+  # without throwing; a statement that binds nothing cannot tell a moved star
+  # from a lost one. Calls in unreachable stubs are listed apart -- they move
+  # nothing today and are what a future edit revives.
+  #   tri money [--all]
+  ( cd "$ROOT" && node "$ROOT/scripts/money-results.cjs" "$@" )
 }
 
 cmd_clock() {
@@ -4191,6 +4221,7 @@ case "$action" in
   upstream|откуда)   cmd_upstream "$@" ;;
   ship|отправить)    cmd_ship "$@" ;;
   clock|часы)        cmd_clock "$@" ;;
+  money|деньги)      cmd_money "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
