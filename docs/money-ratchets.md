@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 139. Без заголовка: 0.
+Ратчетов: 140. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -94,6 +94,7 @@
 | `ownerDebtPaymentsUnknown.test.ts`                     | owner debt: unknown payments are not zero payments                                            |
 | `paidServicesTableUnread.test.ts`                      | the two dollar-cost tables                                                                    |
 | `payment-record-not-silent.test.ts`                    | запись платежа                                                                                |
+| `paymentClaimInvoice.test.ts`                          | claimPendingInvoice                                                                           |
 | `paymentHandlerInvIdDeterministic.test.ts`             | a re-delivered payment writes the same InvId                                                  |
 | `paymentMethodCensus.test.ts`                          | no payment method takes money it cannot deliver                                               |
 | `paymentPairAtomicInsert.test.ts`                      | paired income+outcome payments are one atomic insert                                          |
