@@ -99,7 +99,7 @@
 | `pendingRowsAreTriagedNotAccused.test.ts`              | a pending row is triaged, not accused                                                         |
 | `processBalanceOperationNonPositive.test.ts`           | processBalanceOperation refuses a non-positive price before charging                          |
 | `processBalanceVideoHelperNonPositive.test.ts`         | processBalanceVideoOperationHelper refuses a non-positive price before charging               |
-| `promoBonusIdempotent.test.ts`                         | promo bonus grant is idempotent (no star mint on concurrent /start)                           |
+| `promoBonusIdempotent.test.ts`                         | a promo granted twice credits once                                                            |
 | `prompt-outcome.test.ts`                               | исход генерации записывается                                                                  |
 | `qwenRefundQualityMultiplier.test.ts`                  | generateQwenImageEdit refunds the size-adjusted charge (no wrong-refund-amount)               |
 | `referral-on-topup.test.ts`                            | награда за первое пополнение приглашённого                                                    |
