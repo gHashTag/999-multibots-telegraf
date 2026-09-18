@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 135. Без заголовка: 0.
+Ратчетов: 136. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -132,6 +132,7 @@
 | `ton-payment-claim-once.test.ts`                       | %s credits a TON payment once                                                                 |
 | `tonAmountVerificationParity.test.ts`                  | the two on-chain payment finders                                                              |
 | `tonCheckAtomicCreditGuard.test.ts`                    | TON check credits only after an atomic status CAS (no double-credit mint)                     |
+| `tonPendingWatch.test.ts`                              | the TON watch                                                                                 |
 | `training-refunds-checked.test.ts`                     | generateModelTraining: списание и возврат                                                     |
 | `unchecked-money-result.test.ts`                       | результат денежной операции не выбрасывается                                                  |
 | `unifiedModelPriceFailClosed.test.ts`                  | getUnifiedModelPrice fails closed on an unpriced input (no free paid generation)              |

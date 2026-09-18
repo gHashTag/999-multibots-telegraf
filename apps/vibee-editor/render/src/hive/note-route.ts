@@ -28,6 +28,10 @@ export const NOTABLE_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   'sweep-held',
   // The owner's press, written by the bot: the one act nothing recorded.
   'card-pressed',
+  // Money on the chain that nothing ever credited. The bot's TON watch writes
+  // it; the render cannot see the chain and the bot cannot see this journal
+  // without the door, so this is the only way it can be recorded at all.
+  'payment-unclaimed',
 ])
 
 const SEVERITIES: ReadonlySet<Severity> = new Set<Severity>([

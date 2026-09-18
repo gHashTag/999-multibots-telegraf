@@ -48,6 +48,16 @@ describe('a note from the bot lands in the journal', () => {
      * whose cron had died were the same silence. Production went four hours
      * and thirteen minutes without a line that day and nothing in the journal
      * could say which it was. The bot rate-limits it to one per six hours.
+     *
+     * `payment-unclaimed` was added on 2026-09-19, and the reason is the same
+     * shape one layer out: the TON channel completes a payment when the PAYER
+     * presses "check payment", and nothing else ever looks at the chain. Coins
+     * can sit against a PENDING row with no watcher -- which is exactly how
+     * five people came to be owed 822 stars on the other channel, found only
+     * because somebody ran a reconcile by hand. The bot's hourly watch writes
+     * this kind and NEVER credits: the render cannot see the chain, the bot
+     * cannot see this journal without the door, and who is made whole is the
+     * owner's decision.
      */
     expect([...NOTABLE_KINDS]).toEqual([
       'sweep-idle',
@@ -55,6 +65,7 @@ describe('a note from the bot lands in the journal', () => {
       'sweep-failed',
       'sweep-held',
       'card-pressed',
+      'payment-unclaimed',
     ])
   })
 
