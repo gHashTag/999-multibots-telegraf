@@ -29,16 +29,25 @@ const { judge, OVERDUE_MS, CHANNELS } = createRequire(__filename)(
 const NOW = Date.parse('2026-09-20T09:00:00.000Z')
 const hoursAgo = (h: number) => new Date(NOW - h * 3_600_000).toISOString()
 
+/*
+ * THE FIELD IS `note`, WHICH IS NOT WHAT THE WRITER CALLS IT.
+ *
+ * The bot posts {kind, who, what, severity}; the journal's own reader returns
+ * the text under `note`. The first version of this tool read `what`, got an
+ * empty string for every row, and reported both channels as "never reported"
+ * while the heartbeats sat in the journal -- a reader wrong about a system
+ * that worked. So the fixtures below are shaped like the READER's answer.
+ */
 const beat = (channel: string, h: number, examined = 2) => ({
   kind: 'watch-quiet',
   at: hoursAgo(h),
-  what: `${channel}: проверено счетов ${examined}, не зачисленных нет`,
+  note: `${channel}: проверено счетов ${examined}, не зачисленных нет`,
 })
 
 const alarm = (channel: string, h: number) => ({
   kind: 'payment-unclaimed',
   at: hoursAgo(h),
-  what: `${channel}: 1 оплачено у провайдера, 43⭐ не начислено`,
+  note: `${channel}: 1 оплачено у провайдера, 43⭐ не начислено`,
 })
 
 describe('are the money watches alive', () => {
@@ -91,6 +100,18 @@ describe('are the money watches alive', () => {
     const rows = [beat('Robokassa', 1)]
     expect(judge(rows, 'Robokassa', NOW).state).toBe('alive')
     expect(judge(rows, 'TON', NOW).state).toBe('never')
+  })
+
+  /*
+   * AND IT STILL READS A ROW THAT USES THE WRITER'S NAME. The two spellings
+   * are one line apart in the code and a week apart in time; a reader that
+   * understands only the newest one goes blind on the first old row.
+   */
+  it('reads the text under either name', () => {
+    const asWritten = [
+      { kind: 'watch-quiet', at: hoursAgo(2), what: 'TON: проверено счетов 2' },
+    ]
+    expect(judge(asWritten as never, 'TON', NOW).state).toBe('alive')
   })
 
   it('knows both channels it is meant to watch', () => {
