@@ -64,8 +64,9 @@ describe('the plan', () => {
     // 28 on 2026-09-09; +crm-proactive-sweep on 2026-09-12 (the seller's clock);
     // +ton-pending-watch on 2026-09-19 (coins on the chain that nothing ever
     // credited -- the TON channel completes on the payer's press, so without
-    // it nobody looks).
-    expect(plans).toHaveLength(30)
+    // it nobody looks); +robokassa-unclaimed-watch the same day, for the
+    // channel where that loss had already happened to five people.
+    expect(plans).toHaveLength(31)
     for (const p of plans) expect(p.slug).toBe(`${APP}-${p.id}`)
   })
 
