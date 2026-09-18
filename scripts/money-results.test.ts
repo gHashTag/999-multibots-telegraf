@@ -91,4 +91,27 @@ describe('which money calls throw their answer away', () => {
     expect(MOVERS).toContain('updateUserBalance')
     expect(MOVERS).toContain('directPaymentProcessor')
   })
+
+  /*
+   * THE TWO THAT MOVE MONEY WITHOUT LOOKING LIKE IT, added 2026-09-19 after
+   * walking `tri money-invariants`. The map says the balance is a filtered sum
+   * over COMPLETED rows, and both of these decide membership of that sum:
+   * `updatePaymentStatus` flips a row into it without naming an amount, and
+   * `createSuccessfulPayment` inserts one directly with whatever stars it is
+   * handed. A list of the obvious primitives misses both.
+   */
+  it('counts the credits that never name an amount', () => {
+    expect(MOVERS).toContain('updatePaymentStatus')
+    expect(MOVERS).toContain('createSuccessfulPayment')
+
+    const flip = [
+      'async function complete() {',
+      '  await updatePaymentStatus(invId, COMPLETED)',
+      '}',
+    ].join('\n')
+    expect(scan(flip, 'updatePaymentStatus').length).toBe(1)
+
+    const bound = '  const marked = await updatePaymentStatus(invId, COMPLETED)'
+    expect(scan(bound, 'updatePaymentStatus')).toEqual([])
+  })
 })
