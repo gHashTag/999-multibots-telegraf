@@ -153,9 +153,23 @@ describe('/inngest_probe', () => {
      *
      * All three numbers are asserted together so the shape cannot drift while
      * the first number is kept current.
+     *
+     * 29 -> 31 on 2026-09-19, and the minute this test is designed to cost was
+     * duly spent on both newcomers. `ton-pending-watch` and
+     * `robokassa-unclaimed-watch` ask whether somebody paid and was never
+     * credited. In a probe they are safe for the plainest possible reason:
+     * both return through `skippedInSafeMode` before they read anything, so a
+     * probe run touches no database, no chain, no provider -- and neither
+     * function can charge, credit or message a person even when it DOES run.
+     * They write one journal line and nothing else.
+     *
+     * The number was found stale by a push gate on a different branch, not by
+     * me: `related-tests` did not consider this file related to two new files
+     * under inngest_app/functions/money, so it had been red on main since
+     * those landed.
      */
     expect(texts[0]).toContain(
-      'К запуску: 29, пропуск: 0, всего в манифесте: 29'
+      'К запуску: 31, пропуск: 0, всего в манифесте: 31'
     )
     const last = sent().at(-1)!
     const buttons = (last.payload.reply_markup.inline_keyboard as any[])
