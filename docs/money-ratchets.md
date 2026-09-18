@@ -73,7 +73,7 @@
 | `lipsyncRefundIdempotent.test.ts`                      | async-lipsync refund is idempotent per job (no double refund)                                 |
 | `lipsyncWebhookCannotContradictASettledJob.test.ts`    | a webhook cannot contradict a job the poller already settled                                  |
 | `marketplace-deduct-guarded.test.ts`                   | marketplace purchaseItem checks item existence before deducting                               |
-| `marketplaceAuthorPayout.test.ts`                      | marketplace author payout is checked (no silent unpaid author)                                |
+| `marketplaceAuthorPayout.test.ts`                      | a marketplace sale pays the author or says it did not                                         |
 | `marketplaceInFlightReleased.test.ts`                  | marketplace purchase releases its in-flight key                                               |
 | `marketplacePurchaseIdempotent.test.ts`                | marketplace purchase is idempotent under a concurrent double-tap                              |
 | `modelTrainingV2ProviderTimeouts.test.ts`              | modelTrainingV2 bounds its post-charge provider calls (no charged-not-delivered hang)         |
