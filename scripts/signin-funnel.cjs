@@ -134,14 +134,25 @@ function main() {
    */
   console.log()
   if (counts.get('code-issued') === 0) {
+    /*
+     * WHAT A ZERO MEANS CHANGED ON 2026-09-18, AND THE TOOL HAD TO BE TOLD.
+     *
+     * Until then the code was minted only when somebody PRESSED a button on
+     * the pairing screen, so the server heard nothing until that press: "never
+     * reached the screen" and "reached it and left without pressing" produced
+     * the identical zero. The screen now asks on arrival (PairWithApp), so a
+     * zero here means the screen was not OPENED -- and the repair is the road
+     * to it, not the screen.
+     */
     console.log(
       red('no code was minted at all in this window.') +
-        ' The mini app either never reached the pairing screen, or the'
+        ' Since 2026-09-18 the screen asks on arrival, so this'
     )
     console.log(
-      'request was refused before minting. A refusal now carries its reason;' +
-        ' look at code-refused.'
+      'means the pairing screen was not opened at all -- look at the way to' +
+        ' it, not at it. Unless a refusal is recorded below: then it WAS'
     )
+    console.log('opened and the request was turned down.')
   } else if (counts.get('code-claimed') === 0) {
     console.log(
       red('codes were shown and none was accepted.') +
