@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 138. Без заголовка: 0.
+Ратчетов: 139. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -151,5 +151,6 @@
 | `videoWizardsInflightGuard.test.ts`                    | a second tap does not buy a second video                                                      |
 | `voiceAvatarFallbackNotCharged.test.ts`                | voice-avatar Cloudflare fallback is not charged as a clone                                    |
 | `voiceAvatarFallbackNotPersisted.test.ts`              | createVoiceAvatar does not persist the stock fallback voice (no clone overwrite)              |
+| `watchHeartbeat.test.ts`                               | a quiet watch saying it is alive                                                              |
 | `whatTheFirstGenerationWasOn.test.ts`                  | what the first generation was on                                                              |
 | `x402-is-not-offered-while-it-cannot-credit.test.ts`   | x402 is not offered while nothing can credit it                                               |

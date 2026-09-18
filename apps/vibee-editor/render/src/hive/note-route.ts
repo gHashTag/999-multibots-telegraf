@@ -32,6 +32,10 @@ export const NOTABLE_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   // it; the render cannot see the chain and the bot cannot see this journal
   // without the door, so this is the only way it can be recorded at all.
   'payment-unclaimed',
+  // The same watches saying they looked and found nothing: without it, a
+  // watch that died and a channel where nobody is owed anything are the same
+  // silence.
+  'watch-quiet',
 ])
 
 const SEVERITIES: ReadonlySet<Severity> = new Set<Severity>([
