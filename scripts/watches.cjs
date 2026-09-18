@@ -56,13 +56,26 @@ const bold = s => wrap(1, s)
  * hour ago has not missed anything, and calling that a failure on the first
  * morning is how an alarm gets ignored by the second.
  */
+/**
+ * The text of an event, whatever this journal calls it today.
+ *
+ * THE NAME GOING IN IS NOT THE NAME COMING OUT. The bot posts
+ * `{kind, who, what, severity}` to /api/hive/note; the MCP tool `hive_events`
+ * returns the same line with the text under `note`. The first version of this
+ * reader took `what`, got an empty string for every row, and reported both
+ * channels as "never reported" while the heartbeats were sitting in the
+ * journal -- a reader that was wrong about a system that worked. `note` is
+ * what the sibling tools (hive-failures, signin-funnel) have always read.
+ */
+const textOf = e => String(e.note ?? e.what ?? '')
+
 function judge(events, channel, now) {
   const mine = events
-    .filter(e => String(e.what || '').startsWith(`${channel}:`))
+    .filter(e => textOf(e).startsWith(`${channel}:`))
     .map(e => ({
       kind: e.kind,
       at: Date.parse(e.at),
-      what: String(e.what || ''),
+      what: textOf(e),
     }))
     .filter(e => Number.isFinite(e.at))
     .sort((a, b) => b.at - a.at)
