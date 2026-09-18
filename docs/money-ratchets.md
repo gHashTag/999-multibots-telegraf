@@ -92,7 +92,7 @@
 | `ownerDebtPaymentsUnknown.test.ts`                     | owner debt: unknown payments are not zero payments                                            |
 | `paidServicesTableUnread.test.ts`                      | the two dollar-cost tables                                                                    |
 | `payment-record-not-silent.test.ts`                    | запись платежа                                                                                |
-| `paymentHandlerInvIdDeterministic.test.ts`             | handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry)               |
+| `paymentHandlerInvIdDeterministic.test.ts`             | a re-delivered payment writes the same InvId                                                  |
 | `paymentMethodCensus.test.ts`                          | no payment method takes money it cannot deliver                                               |
 | `paymentPairAtomicInsert.test.ts`                      | paired income+outcome payments are one atomic insert                                          |
 | `paymentTypeVocabularyComplete.test.ts`                | the money vocabulary of the refund census                                                     |
