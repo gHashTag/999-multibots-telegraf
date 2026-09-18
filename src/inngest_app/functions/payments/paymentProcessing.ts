@@ -3,6 +3,7 @@ import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { updateUserBalance } from '@/core/supabase'
 import { createBotByName } from '@/core/bot'
 import { getTelegramIdFromInvId } from '@/core/supabase'
+import { claimPendingInvoice } from '@/core/supabase/claimPendingInvoice'
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import { errorMessage } from '@/helpers'
 import { defaultBot } from '@/core/bot'
@@ -185,6 +186,36 @@ export const processPayment = inngest.createFunction(
             ...skipped,
           })
           return { success: false, ...skipped }
+        }
+
+        // 4b. Claim the invoice first (spec NOTE 2026-09-17): the row must
+        // exist, carry the amount this event reports, and still be PENDING.
+        // The flip is a compare-and-set in Postgres, so a second delivery of
+        // the same invoice -- or the Robokassa ResultURL route, which settles
+        // the same rows -- credits at most once between them.
+        const claim = await step.run('claim-invoice', async () => {
+          return await claimPendingInvoice(inv_id, roundedIncSum)
+        })
+        if (!claim.ok) {
+          if (claim.outcome === 'already-claimed') {
+            logger.info('💳 [PAYMENT] invoice already settled; not crediting', {
+              inv_id,
+              status: claim.status,
+            })
+            return { success: true, already_claimed: true, inv_id }
+          }
+          if (claim.outcome === 'db-error') {
+            // Transient: let the retries have it.
+            throw new Error(`claim-invoice db error: ${claim.error}`)
+          }
+          // unknown-invoice / amount-mismatch: no retry can fix the payload;
+          // the onFailure handler tells the admin chat.
+          throw new NonRetriableError(
+            `claim-invoice refused: ${claim.outcome} inv_id=${String(inv_id)} ` +
+              (claim.outcome === 'amount-mismatch'
+                ? `invoiced=${claim.invoiced} paid=${claim.paid}`
+                : `paid=${roundedIncSum}`)
+          )
         }
 
         // 5. Обновляем запись платежа и баланс пользователя через функцию updateUserBalance
