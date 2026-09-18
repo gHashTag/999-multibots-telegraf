@@ -474,6 +474,25 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri upstream [--all] | tri откуда
+        Which remote branch does each local branch pull from, and does it still
+        exist.
+
+        2026-09-18: local `main` was configured to merge `refs/heads/docs/form-111`,
+        a branch deleted weeks earlier. `git pull` on main failed outright and
+        `git status` reported "ahead 47" against a ref nobody has -- neither of
+        which reads as "your main is misconfigured".
+
+        Two shapes are wrong. GONE: the upstream no longer exists, so a pull
+        fails and status lies. CROSSED: the upstream exists and is a DIFFERENT
+        branch, so the pull SUCCEEDS and merges somebody else's work -- silent,
+        and the reason this exists. A feature branch tracking origin/main is
+        neither: that is what `git checkout -b` sets up on purpose.
+
+        By default it judges the current branch and main, and merely counts the
+        leftovers; --all lists every one. Exit: 0 fine, 1 a branch that matters
+        is misconfigured, 2 not a repository.
+
   tri signin [--limit N] | tri вход
         Did the sign-in code reach anybody, and where did it stop.
 
@@ -1646,6 +1665,17 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_upstream() {
+  # Which remote branch does this branch pull from, and does it still exist.
+  # Found 2026-09-18: local main was set to merge refs/heads/docs/form-111,
+  # deleted weeks earlier -- `git pull` refused and `git status` counted "ahead
+  # 47" against a ref nobody has. The quieter shape is worse: an upstream that
+  # RESOLVES and is a different branch, so the pull succeeds and merges
+  # somebody else's work. Read-only; prints the command that would fix it.
+  #   tri upstream [--all]
+  ( cd "$ROOT" && node "$ROOT/scripts/upstream-check.cjs" "$@" )
 }
 
 cmd_signin() {
@@ -4101,6 +4131,7 @@ case "$action" in
   truncates|обрезка) cmd_truncates "$@" ;;
   failures|потери)    cmd_failures "$@" ;;
   signin|вход)       cmd_signin "$@" ;;
+  upstream|откуда)   cmd_upstream "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
