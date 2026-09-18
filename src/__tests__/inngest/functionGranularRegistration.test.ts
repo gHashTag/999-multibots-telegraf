@@ -72,6 +72,18 @@ const UNREGISTERED: Record<string, string> = {
   testAdvancedLoopFunction: 'e2e/test-only function, not a product path',
   testSimpleFunction: 'e2e/test-only function, not a product path',
   testSimpleMessageFunction: 'e2e/test-only function, not a product path',
+  // Withdrawn 2026-09-17 (spec of record: specs/functions/<id>.t27 in t27,
+  // CONTROL code-only/unregistered; manifest control says the same).
+  modelTrainingV2:
+    'withdrawn 2026-09-17: get-bot serializes the Telegraf instance into a step output, DB write after the paid call, no BFL completion handler; no sender in the repo (scripts/orphan-events.cjs), so no paid path reaches it',
+  neuroImageGeneration:
+    'withdrawn 2026-09-17: nothing sends neuro/image.generate (scripts/orphan-events.cjs); charges before generating with no refund and no inv_id',
+  renderAvatarVideoFunction:
+    'withdrawn 2026-09-17: hedra/heygen/kieAI/elevenLabs are stub services; no sender in the repo; no charge in the function',
+  analyzeCompetitorReels:
+    'withdrawn 2026-09-17: saveReelsAnalysis is a stub while RapidAPI is paid; no balance charge in the function',
+  findCompetitors:
+    'withdrawn 2026-09-17: saveCompetitors is a stub while RapidAPI is paid; no balance charge in the function',
 }
 
 describe('Inngest function-granular registration (charged-not-delivered class)', () => {

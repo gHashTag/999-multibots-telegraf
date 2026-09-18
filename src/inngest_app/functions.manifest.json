@@ -42,11 +42,12 @@
       "probe_result": "FAILED-at-guard",
       "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
-      "control": "spec+code",
+      "control": "code-only/unregistered",
       "export": "neuroImageGeneration",
       "notes": [
         "file corrected: 'src/inngest_app/functions/neuroImageGeneration.ts' -> 'src/inngest_app/functions/generation/neuroImageGeneration.ts'",
-        "steps re-extracted from code: ['get-bot', 'check-user', 'get-user-gender', 'update-level', 'calculate-total-cost', 'process-payment', 'get-aspect-ratio', 'generate-image-${i}', 'notify-image-${i}', 'deduct-balance-final', 'final-notification'] -> ['get-bot', 'check-user', 'get-user-gender', 'update-level', 'calculate-total-cost', 'process-payment', 'get-aspect-ratio', 'generate-image-${i}', 'notify-image-${i}', 'final-notification']"
+        "steps re-extracted from code: ['get-bot', 'check-user', 'get-user-gender', 'update-level', 'calculate-total-cost', 'process-payment', 'get-aspect-ratio', 'generate-image-${i}', 'notify-image-${i}', 'deduct-balance-final', 'final-notification'] -> ['get-bot', 'check-user', 'get-user-gender', 'update-level', 'calculate-total-cost', 'process-payment', 'get-aspect-ratio', 'generate-image-${i}', 'notify-image-${i}', 'final-notification']",
+        "withdrawn from registerFunctions 2026-09-17: no producer sends neuro/image.generate or neuro/photo.generate (scripts/orphan-events.cjs); charge before generation, no refund in onFailure, no inv_id. Re-register as reserve -> generate -> commit with inv_id = event.id and a real producer."
       ]
     },
     {
@@ -218,12 +219,13 @@
       "probe_result": "FAILED-at-guard",
       "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
-      "control": "spec+code",
+      "control": "code-only/unregistered",
       "export": "modelTrainingV2",
       "notes": [
         "file corrected: '(empty)' -> 'src/inngest_app/functions/training/modelTrainingV2.ts'",
         "steps re-extracted from code: [] -> ['check-user-exists', 'update-user-level', 'get-bot', 'check-balance', 'encode-zip', 'create-training', 'save-training-to-db', 'notify-user', 'deduct-balance', 'refund-balance', 'handle-error']",
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "withdrawn from registerFunctions 2026-09-17: get-bot serializes the Telegraf instance (token) into a step output; DB write after the paid call; no BFL completion handler. Re-register after all three are fixed and a safe probe passes."
       ]
     },
     {
@@ -392,9 +394,11 @@
       "probe_result": "FAILED-at-guard",
       "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
-      "control": "spec+code",
+      "control": "code-only/unregistered",
       "export": "renderAvatarVideoFunction",
-      "notes": []
+      "notes": [
+        "withdrawn from registerFunctions 2026-09-17: hedra/heygen/kieAI/elevenLabs services are stubs, a run would report a video never rendered. Re-register when the providers are real."
+      ]
     },
     {
       "id": "render-riddle-run",
@@ -532,10 +536,11 @@
       "probe_result": "FAILED-at-guard",
       "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
-      "control": "spec+code",
+      "control": "code-only/unregistered",
       "export": "analyzeCompetitorReels",
       "notes": [
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "withdrawn from registerFunctions 2026-09-17: saveReelsAnalysis (src/core/instagram/index.ts) is a stub reporting saved: N, while RapidAPI is paid up to 12 times per event. Re-register once the write is real and RapidAPI errors are classified."
       ]
     },
     {
@@ -564,10 +569,11 @@
       "probe_result": "FAILED-at-guard",
       "probe_expect": "FAILED-at-guard",
       "deployed_2026_09_09": true,
-      "control": "spec+code",
+      "control": "code-only/unregistered",
       "export": "findCompetitors",
       "notes": [
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "withdrawn from registerFunctions 2026-09-17: saveCompetitors (src/core/instagram/index.ts) is a stub reporting saved: N, while RapidAPI is paid. Re-register once the write is real and RapidAPI errors are classified."
       ]
     },
     {

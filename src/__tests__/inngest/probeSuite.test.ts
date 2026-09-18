@@ -61,8 +61,11 @@ describe('the plan', () => {
     const plans = planProbes()
     const served = getManifestFunctions().filter(f => f.control === 'spec+code')
     expect(plans.map(p => p.id).sort()).toEqual(served.map(f => f.id).sort())
-    // 28 on 2026-09-09; +crm-proactive-sweep on 2026-09-12 (the seller's clock).
-    expect(plans).toHaveLength(29)
+    // 28 on 2026-09-09; +crm-proactive-sweep on 2026-09-12 (the seller's clock);
+    // -5 on 2026-09-17 (training-model-v2-start, instagram-reels-analyze,
+    // instagram-competitors-find, render-avatar-video-run, neuro-image-generate
+    // withdrawn: control code-only/unregistered, see manifest notes[]).
+    expect(plans).toHaveLength(24)
     for (const p of plans) expect(p.slug).toBe(`${APP}-${p.id}`)
   })
 
@@ -121,9 +124,13 @@ describe('the plan', () => {
     // the real manifest at cddac64: of 17 FAILED-at-guard functions, 7 stop in
     // a named step and 10 in the function body (zod parse / early throw) —
     // matches the production run of 2026-09-09 19:11Z, 28/28
+    // 2026-09-17: the five withdrawn functions took 4 step guards (neuro
+    // check-user, v2 check-user-exists, instagram validate-input x2) and 1 body
+    // guard (avatar zod-schema) with them: step 7 became 3, body 10 became 9, measured by running
+    // this test, not derived.
     const failing = planProbes().filter(p => p.expect === 'FAILED-at-guard')
-    expect(failing.filter(p => p.guardKind === 'step')).toHaveLength(7)
-    expect(failing.filter(p => p.guardKind === 'body')).toHaveLength(10)
+    expect(failing.filter(p => p.guardKind === 'step')).toHaveLength(3)
+    expect(failing.filter(p => p.guardKind === 'body')).toHaveLength(9)
   })
 })
 
