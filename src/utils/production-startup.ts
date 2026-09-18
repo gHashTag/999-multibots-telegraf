@@ -3,6 +3,7 @@ import {
   validateWebhookSetup,
 } from '../utils/webhook-manager'
 import { botLogger } from '../utils/logger'
+import { reportAtStartup } from '@/services/capabilityPreflight'
 
 /**
  * Production startup configuration
@@ -169,8 +170,6 @@ export class ProductionStartupManager {
      * service goes to error -- that is a sale that cannot happen, not a note.
      */
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { reportAtStartup } = require('@/services/capabilityPreflight')
       reportAtStartup()
     } catch (e: any) {
       botLogger.warn(
