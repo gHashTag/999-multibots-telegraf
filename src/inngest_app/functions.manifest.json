@@ -318,7 +318,7 @@
       ],
       "retries": 3,
       "on_failure": "admin-telegram",
-      "side_effects": ["charges-balance", "paid-api", "messages-user"],
+      "side_effects": ["paid-api", "messages-user"],
       "guard": "check-user-exists",
       "safe_probe": "{\"telegram_id\": \"0\", \"bot_name\": \"e2e_nonexistent_bot\", \"is_ru\": true, \"job_id\": \"e2e-probe\", \"image_files\": [], \"extraction_path\": \"/nonexistent/e2e\", \"morphing_type\": \"seamless\", \"model\": \"kling-v1.6-pro\"}",
       "probe_result": "FAILED-at-guard",
@@ -327,7 +327,8 @@
       "control": "spec+code",
       "export": "morphImages",
       "notes": [
-        "on_failure: log -> admin-telegram (onFailure handler added in this PR)"
+        "on_failure: log -> admin-telegram (onFailure handler added in this PR)",
+        "2026-09-17: side_effects no longer says charges-balance -- the file only reads the balance (getUserBalance in check-balance); nothing deducts it. deliver-result now streams the local file as { source } and rethrows on failure instead of sending the user a server path as a link and returning delivered."
       ]
     },
     {
@@ -357,7 +358,9 @@
       "deployed_2026_09_09": true,
       "control": "spec+code",
       "export": "renderFunction",
-      "notes": []
+      "notes": [
+        "2026-09-17: sendCallback rethrows; the callback step is retried and, after retries, the run fails and onFailure tells the admin. Before, the error was swallowed, the step COMPLETED on a dead callback URL and the try/catch around it in render.ts never fired."
+      ]
     },
     {
       "id": "render-avatar-video-run",
