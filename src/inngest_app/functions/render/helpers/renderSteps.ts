@@ -345,6 +345,11 @@ export async function sendCallback(
       error: error.message,
       callbackUrl,
     })
-    // Don't throw - callback failure should not fail the job
+    // Rethrow so the `callback` step in render.ts fails and Inngest retries
+    // it. Swallowing here made the step COMPLETE on a dead callback URL, and
+    // the try/catch around the step in render.ts never saw an error: the
+    // render was paid for and never delivered. After the declared retries the
+    // caller decides whether the job as a whole still counts as done.
+    throw error
   }
 }
