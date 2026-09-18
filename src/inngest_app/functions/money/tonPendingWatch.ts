@@ -75,7 +75,7 @@ export const tonPendingWatch = inngest.createFunction(
 
       const { data, error } = await supabase
         .from('payments_v2')
-        .select('inv_id,amount,stars,payment_date')
+        .select('inv_id,amount,stars,payment_date,payment_method')
         .eq('status', 'PENDING')
         .in('payment_method', ['TON_NATIVE', 'TON_USDT'])
       if (error) {
@@ -107,7 +107,33 @@ export const tonPendingWatch = inngest.createFunction(
       const config = getTonConfig()
       const found: Array<{ inv_id: string; stars: number }> = []
 
-      for (const row of invoices) {
+      /*
+       * USDT IS NOT CHECKED HERE, AND SAYING SO IS THE WHOLE POINT.
+       *
+       * `findNativePaymentByComment` looks at native TON transfers. A USDT
+       * top-up is a JETTON transfer to a different wallet, and this matcher
+       * cannot see one -- so running it over a TON_USDT row would answer
+       * "never arrived" about money it never looked for. That is the failure
+       * this watch exists to prevent, pointed at itself: the first version
+       * selected both methods and matched both the same way.
+       *
+       * The rows are still selected, on purpose: the day a USDT invoice
+       * appears, the run says how many it could not judge rather than
+       * silently reporting a clean channel. (The jetton amount parser is
+       * separately known to be wrong -- PR #2147, open for owner review --
+       * and there has never been a single TON_USDT row, measured
+       * 2026-09-19.)
+       */
+      const native = invoices.filter(r => r.payment_method !== 'TON_USDT')
+      const notChecked = invoices.length - native.length
+      if (notChecked > 0) {
+        logger.warn('[ton-watch] USDT invoices are not checked by this watch', {
+          notChecked,
+          why: 'jetton transfers need a jetton matcher, not findNativePaymentByComment',
+        })
+      }
+
+      for (const row of native) {
         const hit = await ton.findNativePaymentByComment(
           config.walletAddress,
           String(row.inv_id),
@@ -124,11 +150,12 @@ export const tonPendingWatch = inngest.createFunction(
       if (!found.length) {
         const beat = await noteWatchQuietToHive(OWNER, {
           channel: 'TON',
-          examined: invoices.length,
+          examined: native.length,
         })
         return {
           did: 'none unclaimed' as const,
-          checked: invoices.length,
+          checked: native.length,
+          notChecked,
           beat,
         }
       }
@@ -148,6 +175,7 @@ export const tonPendingWatch = inngest.createFunction(
         did: 'unclaimed' as const,
         invoices: found.length,
         stars,
+        notChecked,
         noted,
       }
     })
