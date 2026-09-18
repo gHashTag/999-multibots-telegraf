@@ -113,6 +113,7 @@ const NAMES: Record<string, string> = {
   'payment-cancelled': 'закрыли кассу, не заплатив',
   'payment-lost': 'платёж пришёл, а получателя не нашли',
   'payment-unclaimed': 'деньги пришли, а звёзды не начислены', // cyrillic-ok: report text
+  'watch-quiet': 'проверка платежей: всё зачислено', // cyrillic-ok: report text
   'payment-forged': 'подделали подпись платежа',
   'tokens-spent': 'потратили токены',
   'tokens-refunded': 'вернули токены',

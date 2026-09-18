@@ -61,13 +61,17 @@ export const tonPendingWatch = inngest.createFunction(
       return skippedInSafeMode('ton-pending-watch')
 
     return step.run('look', async () => {
-      const [{ supabase }, { getTonConfig }, ton, { noteUnclaimedToHive }] =
-        await Promise.all([
-          import('@/core/supabase'),
-          import('@/core/ton/config'),
-          import('@/core/ton'),
-          import('@/services/hiveNote'),
-        ])
+      const [
+        { supabase },
+        { getTonConfig },
+        ton,
+        { noteUnclaimedToHive, noteWatchQuietToHive },
+      ] = await Promise.all([
+        import('@/core/supabase'),
+        import('@/core/ton/config'),
+        import('@/core/ton'),
+        import('@/services/hiveNote'),
+      ])
 
       const { data, error } = await supabase
         .from('payments_v2')
@@ -87,7 +91,18 @@ export const tonPendingWatch = inngest.createFunction(
       }
 
       const invoices = data ?? []
-      if (!invoices.length) return { did: 'nothing pending' as const }
+      if (!invoices.length) {
+        /*
+         * EVEN WITH NOTHING TO CHECK, SAY SO -- once per heartbeat. A watch
+         * that speaks only when money is owed is indistinguishable from one
+         * that has stopped, which is the flaw this function shipped with.
+         */
+        const beat = await noteWatchQuietToHive(OWNER, {
+          channel: 'TON',
+          examined: 0,
+        })
+        return { did: 'nothing pending' as const, beat }
+      }
 
       const config = getTonConfig()
       const found: Array<{ inv_id: string; stars: number }> = []
@@ -107,7 +122,15 @@ export const tonPendingWatch = inngest.createFunction(
       }
 
       if (!found.length) {
-        return { did: 'none unclaimed' as const, checked: invoices.length }
+        const beat = await noteWatchQuietToHive(OWNER, {
+          channel: 'TON',
+          examined: invoices.length,
+        })
+        return {
+          did: 'none unclaimed' as const,
+          checked: invoices.length,
+          beat,
+        }
       }
 
       const stars = found.reduce((sum, f) => sum + f.stars, 0)

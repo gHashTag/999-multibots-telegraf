@@ -41,6 +41,14 @@ export type HiveNote = {
      * watcher that credited would be taking it.
      */
     | 'payment-unclaimed'
+    /**
+     * A WATCH SAYING IT LOOKED AND FOUND NOTHING.
+     *
+     * Written by the money watches so that their silence stops being
+     * ambiguous. Rate-limited here, not in the render: the caller knows how
+     * often it runs.
+     */
+    | 'watch-quiet'
   who: string | null
   what: string
   severity: 'normal' | 'attention' | 'alarm'
@@ -197,6 +205,62 @@ export async function noteUnclaimedToHive(
       // cyrillic-ok-next-line: journal text
       what: `${channel}: ${found.invoices} оплачено у провайдера, ${found.stars}⭐ не начислено`,
       severity: 'alarm',
+    },
+    opts.fetchImpl
+  )
+}
+
+/**
+ * HOW OFTEN A QUIET WATCH SAYS IT IS ALIVE.
+ *
+ * Twenty hours, not twenty-four: a daily watch that reported every 24h exactly
+ * would drift past the boundary and skip days. The reader's threshold is two
+ * of these.
+ */
+const WATCH_HEARTBEAT_MS = 20 * 60 * 60_000
+
+const lastQuiet = new Map<string, number>()
+
+/** For tests: the rate limit is process state and must not leak between them. */
+export function resetWatchHeartbeatForTests(): void {
+  lastQuiet.clear()
+}
+
+/**
+ * "I looked at this channel and nobody is owed anything."
+ *
+ * THE POINT IS THE SILENCE IT REMOVES. A watch that speaks only when money is
+ * owed is indistinguishable from a watch that has stopped -- the exact mistake
+ * this journal learned once with `sweep-held`, and which the two money watches
+ * shipped with the day after it was written down.
+ *
+ * Returns 'skipped' when the heartbeat has not elapsed, so a caller can log
+ * what it did without guessing.
+ */
+export async function noteWatchQuietToHive(
+  owner: string,
+  looked: { channel: string; examined: number },
+  opts: { fetchImpl?: typeof fetch; now?: number } = {}
+): Promise<'noted' | 'skipped' | 'not noted'> {
+  const now = opts.now ?? Date.now()
+  /*
+   * "Never written" is absence, not zero. Defaulting to 0 made the very first
+   * heartbeat at time 0 look like one written a moment ago -- the same
+   * confusion between "no data" and "a value" that this repository keeps
+   * paying for elsewhere.
+   */
+  const previous = lastQuiet.get(looked.channel)
+  if (previous !== undefined && now - previous < WATCH_HEARTBEAT_MS) {
+    return 'skipped'
+  }
+  lastQuiet.set(looked.channel, now)
+  return postNote(
+    {
+      kind: 'watch-quiet',
+      who: owner,
+      // cyrillic-ok-next-line: journal text
+      what: `${looked.channel}: проверено счетов ${looked.examined}, не зачисленных нет`,
+      severity: 'normal',
     },
     opts.fetchImpl
   )

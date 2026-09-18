@@ -102,6 +102,19 @@ export type EventKind =
    * decision, and a watcher that also acted would be deciding it.
    */
   | 'payment-unclaimed'
+  /**
+   * A MONEY WATCH SAYING IT LOOKED AND FOUND NOTHING.
+   *
+   * The two unclaimed-money watches (TON hourly, Robokassa daily) write only
+   * when they find something, which makes a working watch and a dead one
+   * exactly the same silence -- the mistake this journal already learned once
+   * with `sweep-held`, and which I repeated the day after writing it down.
+   *
+   * Rate-limited by the bot to one per channel per twenty hours: frequent
+   * enough that a gap is evidence, rare enough not to bury the days when money
+   * was actually owed.
+   */
+  | 'watch-quiet'
   | 'payment-forged'
   | 'tokens-spent'
   | 'tokens-refunded'
