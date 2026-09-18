@@ -115,18 +115,23 @@ describe('the file is found by walking up, not by counting', () => {
    * repository root is five levels up; the code asked for six and looked one
    * level above the repository, where there is no SOUL.md and never was.
    */
-  it("finds the repository's own SOUL.md with no environment variable set", async () => {
-    const root = path.join(__dirname, '..', '..', '..')
-    expect(fs.existsSync(path.join(root, 'SOUL.md'))).toBe(true)
+  /*
+   * THE FILE MOVED INTO THE SERVICE, and that is the point of the move.
+   *
+   * It used to sit at the repository root, one level ABOVE this service's
+   * Docker build context, so the image never had it and every answer in
+   * production was written without the owner's voice. It now lives beside the
+   * code that reads it, where `COPY render/ ./` carries it in.
+   */
+  it("finds the service's own SOUL.md with no environment variable set", async () => {
+    const soul = path.join(__dirname, 'SOUL.md')
+    expect(fs.existsSync(soul)).toBe(true)
 
     const { systemPrompt } = await load()
     const prompt = systemPrompt()
     expect(prompt).toContain('ГОЛОС ВЛАДЕЛЬЦА')
 
-    const head = fs
-      .readFileSync(path.join(root, 'SOUL.md'), 'utf8')
-      .trim()
-      .slice(0, 40)
+    const head = fs.readFileSync(soul, 'utf8').trim().slice(0, 40)
     expect(prompt).toContain(head)
   })
 })
