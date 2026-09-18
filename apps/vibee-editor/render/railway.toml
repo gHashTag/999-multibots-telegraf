@@ -11,6 +11,36 @@ builder = "DOCKERFILE"
 # the service: dockerfilePath = "render/Dockerfile", Root Directory =
 # apps/vibee-editor.
 
+# Deploy when something the image actually contains has changed.
+#
+# ── WHY THIS WAS MISSING, AND WHY IT IS NOT A DETAIL ───────────────────────
+#
+# With no patterns here, the rules for deploying this service live in the
+# Railway UI, where nothing in the repository can read them. `tri deploy-config`
+# said so plainly and skipped its last two checks for vibee-render -- the two
+# that catch the failure the mini app spent nine days in: a merge SKIPPED while
+# it changed files the service actually serves (#2525 never reached a user).
+# The service that carries the seller's brain was the one service whose deploy
+# rules nobody could check.
+#
+# ── WHY THE LIST IS DELIBERATELY GENEROUS ──────────────────────────────────
+#
+# The Dockerfile (render/Dockerfile) copies exactly two trees: `packages/` and
+# `render/`. Those are listed whole, with NO test negations. A negation buys a
+# few skipped builds and risks the expensive direction -- a change that should
+# have shipped and did not, which is silent and can sit for days. A rebuilt
+# image nobody needed costs minutes and says so out loud.
+#
+# Patterns are given from the repo root (Railway resolves them there); the
+# root-relative forms are kept as well in case the service evaluates against
+# its Root Directory (apps/vibee-editor), exactly as the mini app does.
+watchPatterns = [
+  "apps/vibee-editor/render/**",
+  "apps/vibee-editor/packages/**",
+  "render/**",
+  "packages/**",
+]
+
 [deploy]
 # Served by render-server.ts itself (render-server.ts:1037).
 healthcheckPath = "/health"
