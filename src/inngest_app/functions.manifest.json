@@ -1283,6 +1283,36 @@
         "safe mode (e2e_test=true probe): skipped entirely, nothing is sent; the run COMPLETES with {skipped:true}",
         "no carrier registered (bots not up yet in this process): run returns did=paused, not an error"
       ]
+    },
+    {
+      "id": "ton-pending-watch",
+      "legacy_id": "",
+      "domain": "money",
+      "trigger": "cron",
+      "event": "",
+      "legacy_events": [],
+      "cron": "0 * * * *",
+      "tz": "UTC",
+      "file": "src/inngest_app/functions/money/tonPendingWatch.ts",
+      "steps": ["look"],
+      "retries": 0,
+      "on_failure": "admin-telegram",
+      "side_effects": ["db-read", "paid-api"],
+      "guard": "none",
+      "safe_probe": "{}",
+      "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
+      "deployed_2026_09_09": false,
+      "control": "spec+code",
+      "export": "tonPendingWatch",
+      "notes": [
+        "2026-09-19: the TON channel credits when the PAYER presses 'check payment'; nothing else ever looks at the chain, so coins can sit against a PENDING row with no watcher. This is that watcher.",
+        "READS ONLY. It never writes payments_v2: completing a payment moves money, and who is made whole is the owner's decision.",
+        "matching is findNativePaymentByComment, the scene's own rule -- looser would invent debts, stricter would hide them",
+        "a failed read of the table returns did='unreadable', never an empty result: a broken database must not look like a healthy channel",
+        "writes at most one journal line per run, kind payment-unclaimed (allow-listed in the render's note route)",
+        "onFailure: a watcher that dies quietly would leave the channel looking watched while nothing looks"
+      ]
     }
   ]
 }

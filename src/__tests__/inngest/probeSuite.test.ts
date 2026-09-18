@@ -61,8 +61,11 @@ describe('the plan', () => {
     const plans = planProbes()
     const served = getManifestFunctions().filter(f => f.control === 'spec+code')
     expect(plans.map(p => p.id).sort()).toEqual(served.map(f => f.id).sort())
-    // 28 on 2026-09-09; +crm-proactive-sweep on 2026-09-12 (the seller's clock).
-    expect(plans).toHaveLength(29)
+    // 28 on 2026-09-09; +crm-proactive-sweep on 2026-09-12 (the seller's clock);
+    // +ton-pending-watch on 2026-09-19 (coins on the chain that nothing ever
+    // credited -- the TON channel completes on the payer's press, so without
+    // it nobody looks).
+    expect(plans).toHaveLength(30)
     for (const p of plans) expect(p.slug).toBe(`${APP}-${p.id}`)
   })
 
