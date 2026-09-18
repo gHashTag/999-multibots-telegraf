@@ -103,10 +103,11 @@ const PROMISED: Record<string, { keep: string[]; why: string }> = {
     keep: ['charge-first'],
     why: 'the refund is an early return, not a catch -- read and confirmed: the charge is above it in the same function, same amount',
   },
-  'scenes/lipSyncWizard/fal-render-wizard.ts': {
-    keep: ['charge-first'],
-    why: 'dead code; kept correct because dead copies get revived',
-  },
+  // fal-render-wizard: removed 2026-09-18. 'dead code; kept correct because
+  // dead copies get revived' was right about the risk and the fix went one
+  // step further -- the refund now goes through refundAndTell, so this file no
+  // longer credits directly and a promise about it would be a promise about
+  // nothing.
   'api_server/routes/x402.routes.ts': {
     keep: [],
     why: 'the router is imported but never app.use()d -- verified twice; nothing in-file guards it because nothing reaches it',

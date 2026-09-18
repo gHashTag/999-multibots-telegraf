@@ -73,7 +73,8 @@ const ALLOWLIST: Record<string, number> = {
   'price/helpers/refundUser.ts': 1, // ledger-clamped
   'scenes/aiCoverWizard/index.ts': 1, // LIVE (registerCommands.ts); refund gated on `if (charged)`
   'scenes/instagramParserWizard/index.ts': 1,
-  'scenes/lipSyncWizard/fal-render-wizard.ts': 1, // dead code
+  // fal-render-wizard left this census on 2026-09-18: its raw credit became
+  // a refundAndTell call, so the direct credit this reader counts is gone.
   'scenes/lipSyncWizard/hedra-render-wizard.ts': 1,
   'scenes/lipSyncWizard/heygen-render-wizard.ts': 1,
   'scenes/musicGenerationWizard/index.ts': 1, // announces a failed refund with the amount
