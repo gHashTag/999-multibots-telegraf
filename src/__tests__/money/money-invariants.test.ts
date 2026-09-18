@@ -83,6 +83,9 @@ const CREDITING_SITES: Record<string, string> = {
     'выдача подписки владельцем вручную',
   'src/core/supabase/createSuccessfulPayment.ts':
     'общая запись состоявшейся оплаты',
+  // cyrillic-ok-next-line: registry text
+  'src/core/supabase/claimPendingInvoice.ts':
+    'CAS: переводит PENDING в COMPLETED, сверив сумму — выдача без указания суммы', // cyrillic-ok: registry text
   'src/core/supabase/directPayment.ts':
     'прямая запись платежа без внешней системы',
   'src/core/supabase/updateUserBalance.ts': 'списания и начисления из кода',

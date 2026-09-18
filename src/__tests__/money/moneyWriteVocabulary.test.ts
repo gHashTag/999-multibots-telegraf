@@ -54,6 +54,8 @@ const REGISTRY: Record<string, string> = {
     'admin override, direct update; both entry points refuse unless ADMIN_IDS_ARRAY includes the caller',
   'src/core/supabase/createSuccessfulPayment.ts':
     'named writer, NOT in the four-name vocabulary; validates against CreatePaymentV2Schema before inserting',
+  'src/core/supabase/claimPendingInvoice.ts':
+    'compare-and-set on PENDING with an amount check, added 2026-09-17 (#2508) so the Inngest credit path claims a row the way the Robokassa route already did; moves money without naming an amount, like payments.ts',
   'src/core/supabase/directPayment.ts':
     'defines directPaymentProcessor; read-check-insert, non-atomic (#999)',
   'src/core/supabase/payments.ts':
