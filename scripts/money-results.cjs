@@ -49,6 +49,23 @@ const MOVERS = [
   'updateUserBalance',
   'directPaymentProcessor',
   'processBalanceOperation',
+  /*
+   * ADDED 2026-09-19, FOUND BY WALKING THE MONEY MAP.
+   *
+   * These two move money without looking like it, which is why the first
+   * version of this list missed them:
+   *
+   *   updatePaymentStatus    flips a row PENDING -> COMPLETED. The balance is a
+   *     filtered sum over COMPLETED rows, so that flip IS the credit -- no
+   *     amount is touched anywhere in the call. It answers {data, error} and
+   *     reports "not found" rather than throwing, so a discarded result cannot
+   *     tell a credited person from an untouched one.
+   *   createSuccessfulPayment  inserts a COMPLETED row directly, with whatever
+   *     `stars` it is given. Today its only caller is the admin override with
+   *     stars: 0, which is why nothing has noticed; the surface itself can mint.
+   */
+  'updatePaymentStatus',
+  'createSuccessfulPayment',
 ]
 
 /*
