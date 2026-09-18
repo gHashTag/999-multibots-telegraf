@@ -2463,6 +2463,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let wantsFoundryClub = false
       let wantsSubscription: { plan: string; method: string | null } | null =
         null
+      let wantsTopUp: { method: 'rub' | 'crypto' | null } | null = null
       let inlineService: ServiceCard | undefined
       if (ctx.message && 'text' in ctx.message) {
         const parts = ctx.message.text.split(' ')
@@ -2508,6 +2509,14 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             wantsFoundryClub = true
             ctx.session.foundryDeepLink = true
             logger.info('Foundry deep-link', { telegramId, startParam })
+          } else if (topupIntent(startParam)) {
+            // The mini app's rouble and crypto buttons: the cashier is here.
+            wantsTopUp = topupIntent(startParam)
+            logger.info('Top-up deep-link', {
+              telegramId,
+              startParam,
+              method: wantsTopUp?.method,
+            })
           } else if (subscribeIntent(startParam)) {
             // The mini app's paywall sends the person here with the plan and
             // the payment method they chose. Land them in front of a cashier.
@@ -2556,6 +2565,21 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       } else if (wantsFoundryClub) {
         console.log('🔴 [DEBUG /start] Foundry deep-link, showing club...')
         await handleClubCommand(ctx)
+      } else if (wantsTopUp) {
+        /*
+         * Straight to the cashier the person chose. A bot that hides roubles
+         * gets the chooser instead of a door it does not have -- the same rule
+         * the in-bot button follows, because a press must never dead-end.
+         */
+        const rublesHere = wantsTopUp.method === 'rub' && shouldShowRubles(ctx)
+        ctx.session.selectedPayment = undefined
+        if (rublesHere) {
+          await ctx.scene.enter(ModeEnum.RublePaymentScene)
+        } else {
+          await ctx.scene.enter(ModeEnum.PaymentScene, {
+            ...(wantsTopUp.method === 'crypto' ? { crypto: true } : {}),
+          })
+        }
       } else if (wantsSubscription) {
         /*
          * A person who pressed "pay" in the mini app is not browsing. The
@@ -3061,6 +3085,38 @@ export const CRM_PREP_PAYLOAD = /^crm-prep-(\d{5,15})$/
  * Returns the plan when the payload is one of these links, so `/start` can put
  * the person in front of a cashier instead of a menu.
  */
+/**
+ * THE MINI APP CAN ONLY PAY IN STARS, AND THE OTHER TWO LIVE HERE.
+ *
+ * Owner, 2026-09-17: "add all three payment types to the mini app". The mini
+ * app talks to the render; the Robokassa and CryptoBot keys are on the BOT.
+ * That is not a missing key, it is a missing route -- and duplicating payment
+ * secrets into a second service to close it is a bigger decision than a button.
+ *
+ * So the button is real and the cashier is here: the mini app opens
+ * `t.me/<bot>?start=topup_rub`, and this lands the person in front of the
+ * rouble cashier the bot already has, rather than on a greeting they have to
+ * navigate out of. The same trap as the paywall's three buttons, which for a
+ * year opened the bot with a payload nothing read.
+ *
+ * Returns the method when the payload is one of these links.
+ */
+const TOPUP_PAYLOAD = /^topup(?:_([a-z]+))?$/i
+
+export function topupIntent(
+  payload: string | undefined
+): { method: 'rub' | 'crypto' | null } | null {
+  if (!payload) return null
+  const m = TOPUP_PAYLOAD.exec(payload)
+  if (!m) return null
+  const raw = m[1]?.toLowerCase()
+  if (!raw) return { method: null }
+  if (raw === 'rub' || raw === 'crypto') return { method: raw }
+  // An unknown method is still a top-up: the chooser offers everything, and
+  // sending somebody to the greeting because of a typo helps nobody.
+  return { method: null }
+}
+
 const SUBSCRIBE_PAYLOAD = /^subscribe_([a-z0-9-]+)(?:_([a-z]+))?$/i
 
 export function subscribeIntent(

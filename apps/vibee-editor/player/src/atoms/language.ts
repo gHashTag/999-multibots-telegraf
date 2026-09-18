@@ -1172,6 +1172,10 @@ const en: Translations = {
   'topup.loading': 'Loading prices…',
   'topup.unavailable': 'The cashier is unavailable right now',
   'topup.best': 'best value',
+  'topup.rubles': 'Rubles',
+  'topup.crypto': 'Crypto',
+  'topup.inTheBot':
+    'Rubles and crypto are paid in the bot — the button opens it.',
   'welcome.voice.title': 'Now give it your voice',
   'welcome.voice.lead':
     'Your clone speaks in your own voice. Record one voice message in the bot and it is done -- everything made afterwards can use it.',
@@ -3102,6 +3106,9 @@ const ru: Translations = {
   'topup.loading': 'Загружаю цены…',
   'topup.unavailable': 'Касса сейчас недоступна',
   'topup.best': 'выгоднее всех',
+  'topup.rubles': 'Рублями',
+  'topup.crypto': 'Криптой',
+  'topup.inTheBot': 'Рубли и крипта оплачиваются в боте — кнопка его откроет.',
   'welcome.voice.title': 'Теперь голос',
   'welcome.voice.lead':
     'Клон говорит вашим голосом. Запишите одно голосовое в боте — этого достаточно, дальше он будет звучать как вы.',

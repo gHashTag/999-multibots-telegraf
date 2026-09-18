@@ -302,15 +302,26 @@ function checkService(service, own) {
     return { problems, notes }
   }
 
-  // Check 4: skipped although the commit touched files this service watches.
+  /*
+   * Check 4: skipped although the commit touched files this service watches.
+   *
+   * ONLY SINCE THE CONFIG RECORD ABOVE. A skip from before a setting was fixed
+   * is history, not a problem, and reporting it for ever teaches the reader to
+   * scroll past the whole check -- measured on this very tool the morning after
+   * the mini app's config was corrected: three real old skips kept it red while
+   * every skip after the fix was correct.
+   */
+  const cutoff = Date.parse(built.createdAt)
   for (const d of deployments.slice(0, 20)) {
     if (d.status !== 'SKIPPED' || !d.meta?.commitHash) continue
+    if (Number.isFinite(cutoff) && Date.parse(d.createdAt) < cutoff) continue
     const files = changedFiles(d.meta.commitHash)
     if (!files) continue
     const hits = files.filter(f => watched(f, own.patterns))
     if (hits.length) {
       problems.push(
-        `SKIPPED ${String(d.meta.commitHash).slice(0, 9)} although it changed ${hits.length} ` +
+        `SKIPPED ${String(d.meta.commitHash).slice(0, 9)} (${String(d.createdAt).slice(0, 19)}) ` +
+          `although it changed ${hits.length} ` +
           `file(s) ${own.file} watches (e.g. ${hits[0]})`
       )
     }

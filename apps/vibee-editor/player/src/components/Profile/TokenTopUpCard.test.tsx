@@ -132,7 +132,9 @@ describe('the cashier on the profile', () => {
       }) as never
     )
     await draw({ tokens: 7, note: null, buy: () => {} })
-    expect(host.querySelectorAll('button')).toHaveLength(0)
+    // The PACK buttons, not every button on the card: roubles and crypto are
+    // always offered, because they do not depend on this request.
+    expect(host.querySelectorAll('.profile-topup__pack')).toHaveLength(0)
     expect(host.textContent).not.toContain('⭐')
   })
 
@@ -164,7 +166,77 @@ describe('the cashier on the profile', () => {
       })) as never
     )
     await draw({ tokens: 0, note: null, buy: () => {} })
-    expect(host.querySelectorAll('button')).toHaveLength(1)
+    expect(host.querySelectorAll('.profile-topup__pack')).toHaveLength(1)
     expect(host.textContent).not.toContain('50 tokens')
+  })
+})
+
+describe('the two cashiers that live in the bot', () => {
+  /*
+   * Owner, 2026-09-17: "add all three payment types to the mini app". Stars are
+   * paid in this window; roubles and crypto finish in the bot, because their
+   * keys are on the bot service and copying payment secrets into a second
+   * service to move the window is a bigger decision than a button.
+   */
+  const opened: string[] = []
+
+  beforeEach(() => {
+    opened.length = 0
+    vi.stubGlobal('Telegram', {
+      WebApp: { openTelegramLink: (u: string) => opened.push(u) },
+    })
+  })
+
+  it('offers all three ways to pay', async () => {
+    await draw({ tokens: 5, note: null, buy: () => {} })
+    const text = host.textContent ?? ''
+    expect(text).toContain('⭐')
+    expect(text).toContain('Rubles')
+    expect(text).toContain('Crypto')
+  })
+
+  /*
+   * THE PAYLOAD IS THE WHOLE POINT. The paywall's three buttons opened the bot
+   * for a year with a payload nothing read, and it looked exactly like somebody
+   * changing their mind. These must carry the words /start was taught.
+   */
+  it('opens the bot at the rouble cashier, by the payload /start reads', async () => {
+    await draw({ tokens: 5, note: null, buy: () => {} })
+    const b = [...host.querySelectorAll('button')].find(x =>
+      x.textContent?.includes('Rubles')
+    )
+    await act(async () => {
+      b?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(opened).toHaveLength(1)
+    expect(opened[0]).toContain('?start=topup_rub')
+  })
+
+  it('opens the bot at the crypto cashier', async () => {
+    await draw({ tokens: 5, note: null, buy: () => {} })
+    const b = [...host.querySelectorAll('button')].find(x =>
+      x.textContent?.includes('Crypto')
+    )
+    await act(async () => {
+      b?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(opened[0]).toContain('?start=topup_crypto')
+  })
+
+  /*
+   * A Stars pack must still pay in place: if these buttons had stolen that, the
+   * one rail that works end to end would start bouncing people out.
+   */
+  it('leaves the Stars packs paying in this window', async () => {
+    const bought: string[] = []
+    await draw({ tokens: 5, note: null, buy: p => bought.push(p) })
+    const pack = [...host.querySelectorAll('button')].find(x =>
+      x.textContent?.includes('150 tokens')
+    )
+    await act(async () => {
+      pack?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(bought).toEqual(['150'])
+    expect(opened).toHaveLength(0)
   })
 })

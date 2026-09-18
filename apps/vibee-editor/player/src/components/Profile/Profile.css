@@ -2416,3 +2416,26 @@
   font-size: 13px;
   opacity: 0.75;
 }
+
+/* The two cashiers that finish in the bot: quieter than the Stars packs, since
+   they leave the window. Same row, so nobody has to hunt for them. */
+.profile-topup__others {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.profile-topup__other {
+  padding: 8px 12px;
+  border: 1px dashed var(--border, rgba(255, 255, 255, 0.18));
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.profile-topup__other:hover {
+  border-style: solid;
+  border-color: var(--accent, #7c5cff);
+}
