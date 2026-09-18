@@ -97,13 +97,19 @@ describe('the Inngest sweep runs the tick for every seller', () => {
     process.env = { ...env }
   })
 
-  it('the cron function calls runProactiveTickAll and the entry passes CRM_PROACTIVE_OWNERS', async () => {
+  it('the cron function sweeps every resolved seller and the entry passes CRM_PROACTIVE_OWNERS', async () => {
     const { readFileSync } = await import('fs')
     const { join } = await import('path')
     const read = (rel: string) =>
       readFileSync(join(__dirname, '..', '..', rel), 'utf8')
-    expect(read('inngest_app/functions/crm/crmProactiveSweep.ts')).toContain(
-      'runProactiveTickAll(c.bot, c.opts)'
+    // Since 2026-09-17 the cron resolves the list in its own step and runs
+    // one step per seller (see crmProactive.sweepSteps.test.ts); the timer
+    // driver below still sweeps the same people through runProactiveTickAll.
+    const fn = read('inngest_app/functions/crm/crmProactiveSweep.ts')
+    expect(fn).toContain('resolveSellers(c.opts)')
+    expect(fn).toContain('step.run(`sweep-${owner}`')
+    expect(fn).toContain(
+      'runProactiveTick(c.bot, { ...c.opts, ownerId: owner })'
     )
     expect(read('index.ts')).toContain(
       'parseOwnerIds(process.env.CRM_PROACTIVE_OWNERS)'
