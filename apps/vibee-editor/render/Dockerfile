@@ -40,6 +40,17 @@ RUN npm ci --install-links --no-audit --no-fund
 # failed build rather than a failed render.
 RUN npx remotion browser ensure
 
+# THE OWNER'S VOICE TRAVELS WITH THE SERVICE, because it now lives in it.
+#
+# SOUL.md sets the tone of every agent answer and every published post. It used
+# to live at the repository root -- ABOVE this build context (apps/vibee-editor)
+# -- so Docker could not reach it and the image never had it. /health said so
+# with `ownerVoiceLoaded: false` from the day that flag was added, and the
+# prompt was quietly taught to stop pointing at a section that was not there.
+#
+# It sits in `render/` rather than one level up on purpose: this line already
+# carries that folder, and Railway rebuilds this service when it changes, so a
+# rewritten voice reaches production the way every other change does.
 COPY render/ ./
 
 ENV NODE_ENV=production \
