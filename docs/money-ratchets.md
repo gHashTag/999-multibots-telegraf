@@ -139,7 +139,7 @@
 | `upscaleNeuroPhotoConsumeBeforeCharge.test.ts`         | upscale_neurophoto_image consumes the image before charging (no stale-tap replay)             |
 | `veedFabricOuterRefund.test.ts`                        | veed-fabric outer catch refunds a post-charge failure (no charged-no-refund)                  |
 | `veo3FastCostSplit.test.ts`                            | the two Veo 3 Fast costs are a known, recorded divergence                                     |
-| `videoChargeChecked.test.ts`                           | handleVideoReady checks its charge result (no silent free video)                              |
+| `videoChargeChecked.test.ts`                           | a video that could not be charged is reported, not swallowed                                  |
 | `videoDoubleChargeIdempotency.test.ts`                 | video delivery is idempotent per job (no double charge)                                       |
 | `videoPollChargeIdempotent.test.ts`                    | image-to-video poll-loop charge is idempotency-guarded                                        |
 | `videoRefundWithoutCharge.test.ts`                     | the video generator that refunded without charging                                            |
