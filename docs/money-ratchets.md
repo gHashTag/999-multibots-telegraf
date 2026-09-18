@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 134. Без заголовка: 0.
+Ратчетов: 135. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -88,6 +88,7 @@
 | `neurophoto-multi-batch-gate.test.ts`                  | generateNeuroPhotoMulti gates the full batch before charging                                  |
 | `no-fabricated-returns.test.ts`                        | нет выдуманных возвратов                                                                      |
 | `no-invented-price.test.ts`                            | цена не выдумывается                                                                          |
+| `noMoneyCallDiscardsItsAnswer.test.ts`                 | no money call that runs discards its answer                                                   |
 | `oneEmptyWalletIsOneRefusal.test.ts`                   | the fallback chain stops at the first money refusal                                           |
 | `oneEventOneCharger.test.ts`                           | one event, at most one registered charger                                                     |
 | `ownerDebtPaymentsUnknown.test.ts`                     | owner debt: unknown payments are not zero payments                                            |

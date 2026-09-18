@@ -72,23 +72,22 @@ const CHECKABLE = [
  * при завышенной записи пропустила бы возврат одного места. Значения сверены
  * со счётчиком 21.08; сверяйте после каждой чистки.
  */
-const DEBT: Record<string, number> = {
-  // All remaining entries are DEAD/unreachable code (verified #1347), not live
-  // money bugs -- there is no live unchecked-money site left. Do not 're-inspect'
-  // these each loop; fix means DELETING the dead code, tracked separately.
-  //   x402.routes.ts: router imported + setX402BotInstance called but NEVER
-  //     app.use'd (unmounted); settle endpoint returns 'not implemented'.
-  //   ai-reels-inngest-wizard.ts: aiReelsInngestWizard exported but not in
-  //     scenesToRegister -> never entered.
-  //   fal-render-wizard.ts: dead branch (long-standing).
-  // (updateUserBalance.ts removed: it was a // comment, false positive #1347.)
-  // x402.routes.ts and ai-reels-inngest-wizard.ts are GONE from this list:
-  // both now bind the result. Still dead code (the router is never app.use'd,
-  // the scene is never registered) -- binding a result does not make them
-  // live, it only stops the debt count from covering sites that no longer
-  // discard.
-  'src/scenes/lipSyncWizard/fal-render-wizard.ts': 2,
-}
+/*
+ * EMPTY SINCE 2026-09-18, AND THAT IS THE POINT.
+ *
+ * The last two entries were fal-render-wizard's dead sketch: a charge behind an
+ * eslint no-unreachable marker and a refund in the same dead branch. They moved
+ * no money, which is why they were left -- and exactly why they were finally
+ * fixed: a sketch is what a future edit wakes up, and it would have woken up as
+ * a free generation and a silently swallowed refund.
+ *
+ * An empty debt list makes the old self-check ("the parser found something, so
+ * it is not blind") unsatisfiable, which the comment below anticipated. It is
+ * replaced by a POSITIVE SAMPLE over invented source: the parser is shown a
+ * discarded call it must find, so blindness still fails the suite without
+ * requiring a real defect to exist somewhere.
+ */
+const DEBT: Record<string, number> = {}
 
 function collect(): string[] {
   const out: string[] = []
@@ -132,21 +131,26 @@ function countByFile(): Record<string, number> {
 }
 
 describe('результат денежной операции не выбрасывается', () => {
-  it('разбор находит места — иначе тест пустой', () => {
-    // Страховка от самого себя: если шаблон сломается, всё станет зелёным.
-    // Safety against the detection pattern silently breaking (which would
-    // make every commit pass). The floor tracks cleanup progress: as
-    // discarded-result sites are fixed the count legitimately drops, so the
-    // floor is loosened as the discarded-result campaign cleans siblings
-    // (10 -> 8 -> 2 -> 1). Only fal-render-wizard is left: one call behind an
-    // eslint no-unreachable marker and one refund in a dead branch. x402 and
-    // ai-reels-inngest-wizard left the list when their results were bound.
-    //
-    // The floor is now 0, which still catches the failure it exists for: a
-    // broken pattern returns 0 and fails here. When the last file is cleaned
-    // this guard becomes unsatisfiable and must be replaced by a positive
-    // sample -- a floor of zero cannot distinguish "clean" from "blind".
-    expect(Object.keys(countByFile()).length).toBeGreaterThan(0)
+  it('разбор видит выброшенный результат на заведомом образце', () => {
+    /*
+     * A guard against this file going blind, on INVENTED source.
+     *
+     * It used to say "the repository holds more than zero such places": while
+     * the debt existed, that told a broken matcher from clean code. The debt
+     * is now empty and a floor of zero cannot tell "clean" from "blind" --
+     * exactly as the old comment warned. A sample does not depend on a defect
+     * existing somewhere in the tree.
+     */
+    expect(
+      isDiscarded('  await updateUserBalance(a, b)', 'updateUserBalance')
+    ).toBe(true)
+    expect(
+      isDiscarded(
+        '    await processBalanceOperation({',
+        'processBalanceOperation'
+      )
+    ).toBe(true)
+    expect(CHECKABLE.length, 'список примитивов опустел').toBeGreaterThan(1)
   })
 
   it('разбор не считает присвоение выброшенным результатом', () => {
