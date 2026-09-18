@@ -4306,7 +4306,13 @@ case "$action" in
   reachable-check|достижимо-проверка) node "$ROOT/scripts/reachability-live.mjs" --self-check ;;
   player-deploy|выкатка-плеера) cmd_player_deploy "$@" ;;
   methods|способы)     node "$ROOT/scripts/payment-method-census.cjs" "$@" ;;
-  reconcile|сверка)    node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
+  # Runs under the service environment, like its neighbours `stuck` and
+  # `funnel`: it needs MERCHANT_LOGIN, ROBOKASSA_PASSWORD_2 and the Supabase
+  # pair, all of which live on the service and none of which are on a laptop.
+  # Without the wrapper it printed "cannot reconcile without ..." and read as
+  # "this cannot be done here" -- it can, and on 2026-09-19 it found five
+  # people who paid and were never credited.
+  reconcile|сверка)   railway run -s 999-multibots-telegraf node "$ROOT/scripts/robokassa-reconcile.cjs" "$@" ;;
   lapsed|ушедшие)      node "$ROOT/scripts/lapsed-payers.cjs" "$@" ;;
   ledger|учёт)         node "$ROOT/scripts/ledger-integrity.cjs" "$@" ;;
   first-visit|первый-визит) node "$ROOT/scripts/first-visit.cjs" "$@" ;;
