@@ -160,8 +160,32 @@ router.get(
           return
         }
 
-        // Update payment status to COMPLETED
-        await updatePaymentStatus(inv_id as string, PaymentStatus.COMPLETED)
+        /*
+         * Update payment status to COMPLETED -- WHICH IS ITSELF THE CREDIT.
+         *
+         * The balance is a filtered sum over COMPLETED rows, so this flip moves
+         * money without naming an amount. It answers {data, error} and reports
+         * "not found" instead of throwing, so a discarded result cannot tell a
+         * credited person from an untouched row. Dead code today (the early
+         * return above), bound anyway: this route is waiting to be switched on
+         * the day the X-PAYMENT header is verified, and a sketch is what a
+         * future edit revives.
+         */
+        const marked = await updatePaymentStatus(
+          inv_id as string,
+          PaymentStatus.COMPLETED
+        )
+        if (marked.error) {
+          logger.error(
+            '❌ [x402] payment not marked completed -- not crediting',
+            {
+              inv_id,
+              error: marked.error.message,
+            }
+          )
+          res.status(500).json({ error: 'payment could not be completed' })
+          return
+        }
 
         // Credit user balance.
         //
@@ -892,8 +916,20 @@ router.post(
       const starsAmount = parseInt(stars, 10) || (payment as any).stars
       const amountUsd = parseFloat(amount) || (payment as any).amount
 
-      // Update payment status
-      await updatePaymentStatus(inv_id, PaymentStatus.COMPLETED)
+      // Update payment status -- the same credit-in-disguise as the route
+      // above, and bound for the same reason.
+      const marked = await updatePaymentStatus(inv_id, PaymentStatus.COMPLETED)
+      if (marked.error) {
+        logger.error(
+          '❌ [x402] payment not marked completed -- not crediting',
+          {
+            inv_id,
+            error: marked.error.message,
+          }
+        )
+        res.status(500).json({ error: 'payment could not be completed' })
+        return
+      }
 
       // Credit user balance. Same as the route above: a discarded result meant
       // the callback reported success whether or not the stars arrived.
