@@ -474,6 +474,23 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri ship -m "..." [--branch <name>] [--all] | tri отправить
+        Commit and push, and name the step that did NOT happen.
+
+        2026-09-18: a commit was refused by the no-cyrillic gate; the refusal
+        sat in a hundred lines of hook output filtered down to its passing
+        lines, so every gate looked green. The push that followed sent nothing
+        and said so quietly, and only `gh pr create` complained -- "No commits
+        between main and ...". Three commands, two no-ops, no error.
+
+        Each step has one fact that settles it: the commit moved HEAD, and the
+        push left origin/<branch> at that same commit. Both are checked, hook
+        output is shown in full rather than filtered, and a failure names the
+        step instead of the tool that noticed it four steps later.
+
+        It refuses to commit on main and never merges: landing is a separate
+        decision. Exit: 0 shipped, 1 a step did not happen, 2 nothing to ship.
+
   tri upstream [--all] | tri откуда
         Which remote branch does each local branch pull from, and does it still
         exist.
@@ -1665,6 +1682,17 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_ship() {
+  # Commit and push, and name the step that did NOT happen.
+  # 2026-09-18: a commit was refused by a gate, the refusal was buried in hook
+  # output filtered down to its passing lines, the push then quietly sent
+  # nothing, and only `gh pr create` complained. Each step has one fact that
+  # settles it -- HEAD moved; origin/<branch> is at that commit -- and this
+  # checks both. It never merges and refuses to commit on main.
+  #   tri ship -m "subject\n\nbody" [--branch <name>] [--all]
+  ( cd "$ROOT" && node "$ROOT/scripts/ship.cjs" "$@" )
 }
 
 cmd_upstream() {
@@ -4132,6 +4160,7 @@ case "$action" in
   failures|потери)    cmd_failures "$@" ;;
   signin|вход)       cmd_signin "$@" ;;
   upstream|откуда)   cmd_upstream "$@" ;;
+  ship|отправить)    cmd_ship "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
