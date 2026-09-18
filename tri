@@ -474,6 +474,23 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri replicas [service ...] | tri реплики
+        How many processes are actually running.
+
+        Every mechanism that stops a double charge is per-process: the scenes'
+        in-flight flags (18 places), Inngest step.run, and the consume-once
+        marks. They hold because the bot runs as ONE replica. Two processes
+        have two sets of module-level flags, and a double tap lands one in
+        each.
+
+        guardsAssumeOneProcess.test.ts checks what railway.toml DECLARES. This
+        reads what Railway ran: meta.serviceManifest.deploy. It adds
+        multiRegionConfig up, because one replica in each of two regions is two
+        processes and the top-level number still says 1.
+
+        Exit: 0 one process, 1 more than one, 2 Railway unreadable -- never a
+        green answer from no data.
+
   tri map [--undocumented] [<substring>] | tri карта
         Every command tri dispatches, read out of tri itself.
 
@@ -1740,6 +1757,16 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_replicas() {
+  # How many processes are actually running, which is what the money guards rest
+  # on. Three mechanisms stop a double charge -- in-flight flags, step.run,
+  # consume-once -- and all three are per-process. railway.toml declaring one
+  # replica is not the same as Railway running one; this reads the deployment
+  # manifest, and adds the regions up.
+  #   tri replicas [service ...]
+  ( cd "$ROOT" && node "$ROOT/scripts/replica-count.cjs" "$@" )
 }
 
 cmd_map() {
@@ -4251,6 +4278,7 @@ case "$action" in
   clock|часы)        cmd_clock "$@" ;;
   money|деньги)      cmd_money "$@" ;;
   map|карта)         cmd_map "$@" ;;
+  replicas|реплики)  cmd_replicas "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
