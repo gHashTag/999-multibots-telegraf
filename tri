@@ -474,6 +474,24 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri clock [--hours N] [--limit N] | tri часы
+        Is the seller's clock beating, and what can this even tell us.
+
+        crm-proactive-sweep ticks every 30 minutes, but the journal records
+        what a tick DID, never that one happened: an idle tick writes a line,
+        a HOLDING seller writes one per six hours on purpose, and a tick that
+        finds no carrier writes nothing at all. On 2026-09-18 a 39-minute
+        silence read as a missed tick and cost a detour to disprove.
+
+        So the verdict is against what the system promises -- a heartbeat
+        every six hours, the render watchdog's alarm at twelve -- drawn as an
+        hourly strip, with the gap measured inside the window shown. An empty
+        window is "nothing to judge", never "fine".
+
+        It says every time what it cannot see: whether a tick ran and wrote
+        nothing. That is the Inngest run list, and its key is the owner's.
+        Exit: 0 beating, 1 silent past the alarm, 2 could not look.
+
   tri ship -m "..." [--branch <name>] [--all] | tri отправить
         Commit and push, and name the step that did NOT happen.
 
@@ -1682,6 +1700,17 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_clock() {
+  # Is the seller's clock beating, and what can the journal even tell us.
+  # 2026-09-18: 39 minutes of silence looked like a missed tick and was not --
+  # a HOLDING seller writes one line per six hours by design, and a tick with
+  # no carrier writes nothing at all. So this judges what the system promises
+  # (heartbeat 6 h, alarm 12 h) and says plainly that the tick history itself
+  # lives in the Inngest run list, behind the owner's key.
+  #   tri clock [--hours N] [--limit N]
+  ( cd "$ROOT" && node "$ROOT/scripts/sweep-clock.cjs" "$@" )
 }
 
 cmd_ship() {
@@ -4161,6 +4190,7 @@ case "$action" in
   signin|вход)       cmd_signin "$@" ;;
   upstream|откуда)   cmd_upstream "$@" ;;
   ship|отправить)    cmd_ship "$@" ;;
+  clock|часы)        cmd_clock "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
