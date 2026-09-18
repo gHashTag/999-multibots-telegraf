@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 133. Без заголовка: 0.
+Ратчетов: 134. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -82,6 +82,7 @@
 | `moneyRatchetsIndexIsCurrent.test.ts`                  | the money ratchet index is current                                                            |
 | `moneyWriteVocabulary.test.ts`                         | the vocabulary of money movement                                                              |
 | `nanoAllModelsBilled.test.ts`                          | aiPhotoshop all_models charges nano_banana (no unbilled-paid)                                 |
+| `nanoBananaChargesItself.test.ts`                      | nano banana takes its own money                                                               |
 | `neuroImageDoubleCharge.test.ts`                       | neuroImageGeneration charges exactly once (no double charge)                                  |
 | `neuroPhotoDirectFalTimeout.test.ts`                   | generateNeuroPhotoDirect bounds its fal.subscribe with a timeout                              |
 | `neurophoto-multi-batch-gate.test.ts`                  | generateNeuroPhotoMulti gates the full batch before charging                                  |

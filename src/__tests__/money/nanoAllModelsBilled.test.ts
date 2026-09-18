@@ -12,6 +12,21 @@
  *
  * Bounded to the all_models nano branch via its unique debug marker, so the
  * separate single-mode nano calls (which correctly charge, no skip) are excluded.
+ *
+ * ── WHY THIS ONE STAYS A TEXT GUARD (form 118), 2026-09-18 ─────────────────
+ *
+ * Every other money guard in this folder has been converted to behaviour. This
+ * one is left deliberately. Reaching this branch means driving a 6,600-line
+ * scene through photo upload, model selection, the all_models loop and a
+ * two-second sleep per model, and the branch lives inside a `const` the module
+ * never exports. The state is real; the road to it is longer than the property
+ * is worth, and a fixture that long proves mostly itself.
+ *
+ * The other half of #1274 IS run, in nanoBananaChargesItself.test.ts: given no
+ * claim that the money was already taken, the service charges its own price and
+ * refuses to generate when the charge fails. Between them, the only thing left
+ * unrun is whether this particular call site passes the flag -- which is what
+ * the text below reads, and the one thing text reads reliably.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
