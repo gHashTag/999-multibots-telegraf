@@ -167,6 +167,40 @@ describe('the TON watch', () => {
     expect(since).toBe(Date.parse(INVOICE.payment_date))
   })
 
+  /*
+   * THE WATCH'S OWN BLIND SPOT, NAMED RATHER THAN HIDDEN.
+   *
+   * `findNativePaymentByComment` looks at native TON transfers; a USDT top-up
+   * is a JETTON transfer to a different wallet. Running the native matcher
+   * over a TON_USDT row answers "never arrived" about money it never looked
+   * for -- exactly the failure this watch exists to prevent, pointed at
+   * itself. The first version did precisely that for every USDT row.
+   */
+  it('does not judge a USDT invoice with the native matcher', async () => {
+    pendingRows.mockResolvedValue({
+      data: [
+        { ...INVOICE, payment_method: 'TON_NATIVE' },
+        {
+          inv_id: 'TONU-1',
+          amount: 5,
+          stars: 300,
+          payment_date: INVOICE.payment_date,
+          payment_method: 'TON_USDT',
+        },
+      ],
+      error: null,
+    })
+
+    const r = await watch()
+
+    expect(
+      findNativePaymentByComment,
+      'the native matcher was pointed at a jetton transfer'
+    ).toHaveBeenCalledTimes(1)
+    expect(findNativePaymentByComment.mock.calls[0][1]).toBe(INVOICE.inv_id)
+    expect(r.notChecked, 'the run hid what it could not judge').toBe(1)
+  })
+
   it('does nothing at all when there is nothing pending', async () => {
     pendingRows.mockResolvedValue({ data: [], error: null })
 
