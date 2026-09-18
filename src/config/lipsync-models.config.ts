@@ -3,6 +3,19 @@
  * Поддерживает множественные модели для выбора пользователем
  */
 
+/*
+ * THE MARKUP AND THE STAR PRICE COME IN AT THE TOP, NOT MID-FUNCTION.
+ *
+ * These three prices used to read them with `require('@/price/constants')`
+ * inside the branch that needed them. esbuild resolves that alias when it
+ * bundles, so production was never affected -- but a plain Node runtime (and
+ * vitest, which is one) cannot resolve `@/` in a runtime require, and the call
+ * threw. In the lip-sync wizard that throw lands in the outer catch and comes
+ * out as "Audio processing error", which says nothing about prices: the whole
+ * scene was untestable and any non-bundled runtime would have been broken.
+ */
+import { MARKUP_MULTIPLIER, STAR_COST_USD } from '@/price/constants'
+
 export enum LipSyncModelType {
   KLING = 'kling',
   SYNC_V2 = 'sync_v2',
@@ -225,7 +238,6 @@ export function calculateLipSyncCostStars(
 
   // ✅ ИСПРАВЛЕНО: Для Fal.ai Veed Fabric 1.0 Fast с централизованной наценкой
   if (modelId === 'fal_veed_fabric') {
-    const { MARKUP_MULTIPLIER, STAR_COST_USD } = require('@/price/constants')
     const costPerSecond = resolution === '720p' ? 0.2 : 0.1 // $0.20 для 720p, $0.10 для 480p
     const totalCostUSD = costPerSecond * durationSeconds
     const starsBeforeMarkup = totalCostUSD / STAR_COST_USD
@@ -235,7 +247,6 @@ export function calculateLipSyncCostStars(
 
   // ✅ LatentSync: $0.20 за первые 40 сек, потом $0.005/сек
   if (modelId === 'latentsync') {
-    const { MARKUP_MULTIPLIER, STAR_COST_USD } = require('@/price/constants')
     // Специальная pricing модель: $0.20 flat до 40 сек, потом $0.005/сек
     const baseCost = 0.2 // минимум $0.20
     const extraSeconds = Math.max(0, durationSeconds - 40)
@@ -247,7 +258,6 @@ export function calculateLipSyncCostStars(
 
   // ✅ Hummingbird: $2.10/мин = $0.035/сек
   if (modelId === 'hummingbird') {
-    const { MARKUP_MULTIPLIER, STAR_COST_USD } = require('@/price/constants')
     const totalCostUSD = 0.035 * durationSeconds
     const starsBeforeMarkup = totalCostUSD / STAR_COST_USD
     const starsWithMarkup = starsBeforeMarkup * MARKUP_MULTIPLIER

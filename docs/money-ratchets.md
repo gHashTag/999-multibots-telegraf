@@ -69,7 +69,7 @@
 | `lapsedPayersCannotCountSeedingAsMoney.test.ts`        | the lapsed-payer segment cannot count seeded credit as money                                  |
 | `ledgerGateActuallyGoesRed.test.ts`                    | the ledger gate goes red on a violation, and only then                                        |
 | `ledgerInvariantsCanFail.test.ts`                      | every ledger invariant can actually fail                                                      |
-| `lipSyncRefundChecked.test.ts`                         | lipSyncWizard missing-URLs refund checks its result (refundAndTell)                           |
+| `lipSyncRefundChecked.test.ts`                         | a lip-sync charge with nothing to generate from comes back                                    |
 | `lipsyncRefundIdempotent.test.ts`                      | async-lipsync refund is idempotent per job (no double refund)                                 |
 | `lipsyncWebhookCannotContradictASettledJob.test.ts`    | a webhook cannot contradict a job the poller already settled                                  |
 | `marketplace-deduct-guarded.test.ts`                   | marketplace purchaseItem checks item existence before deducting                               |
