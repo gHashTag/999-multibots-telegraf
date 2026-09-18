@@ -85,6 +85,23 @@ export type EventKind =
   /** The person closed the cashier without paying. */
   | 'payment-cancelled'
   | 'payment-lost'
+  /**
+   * THE MONEY ARRIVED AND NOBODY EVER CREDITED IT.
+   *
+   * Written by the bot's hourly TON watch. That channel credits when the PAYER
+   * presses "check payment": the coins carry the invoice id in their comment,
+   * the scene looks at the chain, finds them and completes the row. Nothing
+   * else ever looks -- so a person who pays and closes the app leaves coins on
+   * a public chain against a row that says PENDING, with no watcher at all.
+   *
+   * Measured on the other channel first: five people, 822 stars, found only
+   * because somebody ran a reconcile by hand (docs/audit/paid-and-never-
+   * credited.md). This kind is the standing version of that question.
+   *
+   * It is never written by whatever credits: crediting is the owner's
+   * decision, and a watcher that also acted would be deciding it.
+   */
+  | 'payment-unclaimed'
   | 'payment-forged'
   | 'tokens-spent'
   | 'tokens-refunded'

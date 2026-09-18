@@ -31,6 +31,16 @@ export type HiveNote = {
     | 'sweep-failed'
     | 'sweep-held'
     | 'card-pressed'
+    /**
+     * MONEY ON THE CHAIN THAT NOTHING EVER CREDITED.
+     *
+     * The TON channel completes a payment when the PAYER presses "check
+     * payment". Nothing else looks, ever -- so coins can sit on a public
+     * chain against a PENDING row with no watcher. The hourly watch writes
+     * this, and writes nothing else: crediting is the owner's decision, and a
+     * watcher that credited would be taking it.
+     */
+    | 'payment-unclaimed'
   who: string | null
   what: string
   severity: 'normal' | 'attention' | 'alarm'
@@ -159,6 +169,30 @@ export async function noteSweepToHive(
   const note = noteForSweep(owner, r, opts.label)
   if (!note) return 'skipped'
   return postNote(note, opts.fetchImpl)
+}
+
+/**
+ * Money that arrived and was never credited -- one line, with the count and
+ * the total, never a person's id.
+ *
+ * `alarm`, not `attention`: somebody has paid and holds nothing for it, and
+ * every hour it stays true is an hour of a customer waiting.
+ */
+export async function noteUnclaimedToHive(
+  owner: string,
+  found: { invoices: number; stars: number },
+  opts: { fetchImpl?: typeof fetch } = {}
+): Promise<'noted' | 'not noted'> {
+  return postNote(
+    {
+      kind: 'payment-unclaimed',
+      who: owner,
+      // cyrillic-ok-next-line: journal text
+      what: `TON: ${found.invoices} оплачено на цепочке, ${found.stars}⭐ не начислено`,
+      severity: 'alarm',
+    },
+    opts.fetchImpl
+  )
 }
 
 /** One door to the journal, shared by the sweep and the press. */

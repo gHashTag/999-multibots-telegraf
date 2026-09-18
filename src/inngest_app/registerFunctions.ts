@@ -73,6 +73,7 @@ import { renderRiddleFunction } from './functions/render/renderRiddle'
 
 // CRM Functions
 import { crmProactiveSweep } from './functions/crm/crmProactiveSweep'
+import { tonPendingWatch } from './functions/money/tonPendingWatch'
 
 // Analytics Functions
 import { dailySalesAdvisor } from './functions/analytics/dailySalesAdvisor'
@@ -152,6 +153,9 @@ const allFunctionsRaw = [
   // CRM (1): the seller's 30-min tick, moved from setInterval to a cron run
   // so every sweep has a trace (CRM_SWEEP_DRIVER=timer restores the interval).
   crmProactiveSweep,
+  // Hourly: coins on the chain that nothing ever credited. Reads only; the
+  // TON channel completes on the payer's press, so without this nobody looks.
+  tonPendingWatch,
 
   // Existing (3)
   generateAIReelsFunction,
