@@ -474,6 +474,20 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
+  tri map [--undocumented] [<substring>] | tri карта
+        Every command tri dispatches, read out of tri itself.
+
+        101 commands are dispatched; this help text describes 53. The other 48
+        exist and are invisible -- which is how `tri mutate` (break the code,
+        run the test, expect red, revert, expect green) got rebuilt by hand
+        over several cycles while it sat in the file.
+
+        The name comes from the dispatch table and the one-line summary from
+        each command's own leading comment, so the map cannot drift from the
+        code the way a hand-written list does. A command absent from this help
+        is marked with *; `--undocumented` shows only those, and a substring
+        searches names and summaries.
+
   tri money [--all] | tri деньги
 
         Which money calls throw their answer away.
@@ -843,6 +857,11 @@ restore_mutation() {
 }
 
 cmd_mutate() {
+  # Break the code, run the test, expect red, revert, expect green. A test that
+  # does not go red when you break the code checks nothing -- and this is the
+  # ritual I kept performing by hand (copy, patch, run, restore) for several
+  # cycles before `tri map` showed me the command was already here.
+  #   tri mutate <file> <from> <to> <test>
   local target="${1:?нужен файл}"
   local from="${2:?что заменить}"
   local to="${3:?на что}"
@@ -1721,6 +1740,15 @@ cmd_charge() {
   # Authority is the vitest ratchet; this reads the same classification sets
   # from the test file so it cannot drift. Use it before/while fixing #1372.
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_map() {
+  # Every command tri dispatches, read out of tri itself. Written because 101
+  # commands are dispatched and `tri help` describes 53: I rebuilt `tri mutate`
+  # by hand for several cycles while it sat in the file. The summary comes from
+  # each command's own leading comment, so the map cannot drift from the code.
+  #   tri map [--undocumented] [<substring>]
+  ( cd "$ROOT" && node "$ROOT/scripts/tri-map.cjs" "$@" )
 }
 
 cmd_money() {
@@ -4222,6 +4250,7 @@ case "$action" in
   ship|отправить)    cmd_ship "$@" ;;
   clock|часы)        cmd_clock "$@" ;;
   money|деньги)      cmd_money "$@" ;;
+  map|карта)         cmd_map "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
