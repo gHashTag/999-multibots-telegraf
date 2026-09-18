@@ -88,17 +88,18 @@ export const renderFunction = inngest.createFunction(
       return uploadToS3(eventData as RenderEventData, logger)
     })
 
-    // Step 5: Send callback if provided (optional, don't fail workflow if it fails)
+    // Step 5: Send callback if provided. sendCallback throws on failure, so
+    // the step is retried by Inngest (retries: 3) and, once those are spent,
+    // the run FAILS and onFailure tells the admin chat: the file is in S3 but
+    // the client was never told. Until 2026-09-17 the error was swallowed
+    // inside sendCallback, the step COMPLETED on a dead callback URL and the
+    // try/catch that used to sit here never saw anything.
     if (callback_url) {
-      try {
-        await step.run('callback', async () => {
-          logger.info(`Sending callback for job ${job_id}`)
-          return sendCallback(callback_url, uploadResult.downloadUrl, logger)
-        })
-      } catch (callbackError) {
-        logger.error(`Callback failed for job ${job_id}:`, callbackError)
-        // Continue - callback failure should not fail the workflow
-      }
+      await step.run('callback', async () => {
+        logger.info(`Sending callback for job ${job_id}`)
+        await sendCallback(callback_url, uploadResult.downloadUrl, logger)
+        return { delivered: true }
+      })
     }
 
     logger.info(`✅ Render workflow completed successfully for job ${job_id}`)

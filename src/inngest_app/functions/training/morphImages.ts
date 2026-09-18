@@ -503,7 +503,11 @@ export const morphImages = inngest.createFunction(
 
       try {
         // 📱 Отправляем как видео для просмотра (с превью)
-        await bot.telegram.sendVideo(telegram_id, finalVideoResult.video_url, {
+        // video_url is a local path written by concatenate-all-videos, not a
+        // URL or file_id: Telegram needs it streamed as { source }. Passing the
+        // bare string made every delivery fall into the catch below.
+        const localVideo = { source: finalVideoResult.video_url }
+        await bot.telegram.sendVideo(telegram_id, localVideo, {
           caption: advertisementText,
           parse_mode: 'Markdown',
           width: 1920, // Full HD ширина
@@ -514,14 +518,10 @@ export const morphImages = inngest.createFunction(
 
         // 📎 Отправляем как документ для скачивания
         const fileDownloadText = `📁 **Файл для скачивания**\n\n🎬 Морфинг видео в высоком качестве\n💾 Можно сохранить на устройство\n\n${botMention} - создаем будущее вместе!`
-        await bot.telegram.sendDocument(
-          telegram_id,
-          finalVideoResult.video_url,
-          {
-            caption: fileDownloadText,
-            parse_mode: 'Markdown',
-          }
-        )
+        await bot.telegram.sendDocument(telegram_id, localVideo, {
+          caption: fileDownloadText,
+          parse_mode: 'Markdown',
+        })
 
         logger.info('✅ Видео успешно доставлено пользователю:', {
           telegram_id,
@@ -539,14 +539,10 @@ export const morphImages = inngest.createFunction(
               : String(deliveryError),
         })
 
-        // Фоллбэк: отправляем хотя бы ссылку
-        await bot.telegram.sendMessage(
-          telegram_id,
-          `🎬 **Морфинг готов!**\n\n📎 **Скачать видео:** ${finalVideoResult.video_url}\n\n✨ Создано с помощью ${botMention}`,
-          { parse_mode: 'Markdown' }
-        )
-
-        return { delivered: true, method: 'link_fallback' }
+        // No link fallback: video_url is a path on this server, the user
+        // cannot open it. Rethrow so the step is retried and, after retries,
+        // onFailure tells the admin instead of the run reporting delivered.
+        throw deliveryError
       }
     })
 
