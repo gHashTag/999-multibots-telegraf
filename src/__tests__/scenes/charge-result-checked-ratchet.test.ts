@@ -34,7 +34,9 @@ const CAPTURED =
 // result is harmless because the charge never runs. Each is separately proven
 // dead + SAFE (with a self-verifying assertion) in paid-wizard-guard-ratchet.
 const DEAD_DISCARD_ALLOWLIST = new Set<string>([
-  'src/scenes/lipSyncWizard/fal-render-wizard.ts',
+  // fal-render-wizard removed 2026-09-18: its dead charge now binds the
+  // result and bails, so it no longer discards. Still dead code -- this list
+  // tracks discarding, not liveness.
   // ai-reels-inngest-wizard removed: its charge now binds the result and bails
   // when the charge fails, so it no longer discards and the entry would be
   // stale. The scene is still unregistered -- the allowlist tracks discarding,
