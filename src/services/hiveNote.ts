@@ -181,14 +181,21 @@ export async function noteSweepToHive(
 export async function noteUnclaimedToHive(
   owner: string,
   found: { invoices: number; stars: number },
-  opts: { fetchImpl?: typeof fetch } = {}
+  opts: { fetchImpl?: typeof fetch; channel?: string } = {}
 ): Promise<'noted' | 'not noted'> {
+  /*
+   * The channel is named, because the two watches have different repairs: TON
+   * waits for a press that never came, Robokassa for a callback that never
+   * arrived. A line that said only "unclaimed" would send the reader to the
+   * wrong half.
+   */
+  const channel = opts.channel ?? 'TON'
   return postNote(
     {
       kind: 'payment-unclaimed',
       who: owner,
       // cyrillic-ok-next-line: journal text
-      what: `TON: ${found.invoices} оплачено на цепочке, ${found.stars}⭐ не начислено`,
+      what: `${channel}: ${found.invoices} оплачено у провайдера, ${found.stars}⭐ не начислено`,
       severity: 'alarm',
     },
     opts.fetchImpl

@@ -74,6 +74,7 @@ import { renderRiddleFunction } from './functions/render/renderRiddle'
 // CRM Functions
 import { crmProactiveSweep } from './functions/crm/crmProactiveSweep'
 import { tonPendingWatch } from './functions/money/tonPendingWatch'
+import { robokassaUnclaimedWatch } from './functions/money/robokassaUnclaimedWatch'
 
 // Analytics Functions
 import { dailySalesAdvisor } from './functions/analytics/dailySalesAdvisor'
@@ -156,6 +157,9 @@ const allFunctionsRaw = [
   // Hourly: coins on the chain that nothing ever credited. Reads only; the
   // TON channel completes on the payer's press, so without this nobody looks.
   tonPendingWatch,
+  // Daily: roubles the provider says were paid while our row still says
+  // PENDING. Reads only; the same five-people loss, asked on a schedule.
+  robokassaUnclaimedWatch,
 
   // Existing (3)
   generateAIReelsFunction,
