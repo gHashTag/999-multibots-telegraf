@@ -43,6 +43,21 @@ const ROOT = path.resolve(__dirname, '../../..')
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8')
 
 describe('the money guards assume exactly one process', () => {
+  /*
+   * WHAT THIS TEST CAN AND CANNOT SEE, 2026-09-19.
+   *
+   * It reads the DECLARED number. The effective one lives in the deployment
+   * Railway ran and can be set from Railway's own UI -- the same class of gap
+   * that let the mini app read the bot's config for nine days while the
+   * repository looked correct. `tri replicas` reads that side (and adds
+   * multiRegionConfig up: one replica in each of two regions is two processes
+   * while the top-level number still says 1). Measured that day: one process,
+   * one region.
+   *
+   * It is a command and not an assertion here on purpose -- a test that needs
+   * Railway fails on an aeroplane, and a money guard that cannot run offline is
+   * a money guard that gets skipped.
+   */
   it('railway.toml still pins a single replica', () => {
     const cfg = read('railway.toml')
     const m = cfg.match(/numReplicas\s*=\s*(\d+)/)
