@@ -21,6 +21,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const findNativePaymentByComment = vi.fn()
 const noteUnclaimedToHive = vi.fn()
+const noteWatchQuietToHive = vi.fn()
 const pendingRows = vi.fn()
 const insert = vi.fn()
 const update = vi.fn()
@@ -39,6 +40,7 @@ vi.mock('@/core/ton/config', () => ({
 
 vi.mock('@/services/hiveNote', () => ({
   noteUnclaimedToHive: (...a: unknown[]) => noteUnclaimedToHive(...a),
+  noteWatchQuietToHive: (...a: unknown[]) => noteWatchQuietToHive(...a),
 }))
 
 /*
@@ -97,6 +99,7 @@ beforeEach(() => {
   pendingRows.mockResolvedValue({ data: [INVOICE], error: null })
   findNativePaymentByComment.mockResolvedValue(null)
   noteUnclaimedToHive.mockResolvedValue('noted')
+  noteWatchQuietToHive.mockResolvedValue('noted')
 })
 
 describe('the TON watch', () => {
@@ -171,5 +174,21 @@ describe('the TON watch', () => {
 
     expect(r.did).toBe('nothing pending')
     expect(findNativePaymentByComment).not.toHaveBeenCalled()
+  })
+  /*
+   * THE HEARTBEAT. A watch that speaks only when money is owed is
+   * indistinguishable from a watch that has stopped -- the flaw this function
+   * shipped with, one day after the journal learned the same lesson about the
+   * seller's sweep. The rate limit lives in the note writer, not here.
+   */
+  it('says it looked, even when there was nothing to report', async () => {
+    await watch()
+
+    expect(
+      noteWatchQuietToHive,
+      'a quiet run left no trace, so a dead watch looks the same'
+    ).toHaveBeenCalledTimes(1)
+    const [, looked] = noteWatchQuietToHive.mock.calls[0]
+    expect((looked as { channel: string }).channel).toBe('TON')
   })
 })

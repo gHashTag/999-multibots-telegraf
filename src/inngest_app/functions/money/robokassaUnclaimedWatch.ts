@@ -56,12 +56,15 @@ export const robokassaUnclaimedWatch = inngest.createFunction(
       return skippedInSafeMode('robokassa-unclaimed-watch')
 
     return step.run('ask the provider', async () => {
-      const [{ supabase }, { askOpState }, { noteUnclaimedToHive }] =
-        await Promise.all([
-          import('@/core/supabase'),
-          import('@/core/robokassa/opState'),
-          import('@/services/hiveNote'),
-        ])
+      const [
+        { supabase },
+        { askOpState },
+        { noteUnclaimedToHive, noteWatchQuietToHive },
+      ] = await Promise.all([
+        import('@/core/supabase'),
+        import('@/core/robokassa/opState'),
+        import('@/services/hiveNote'),
+      ])
 
       const since = new Date(
         Date.now() - FRESH_DAYS * 24 * 60 * 60 * 1000
@@ -86,7 +89,15 @@ export const robokassaUnclaimedWatch = inngest.createFunction(
       }
 
       const invoices = data ?? []
-      if (!invoices.length) return { did: 'nothing pending' as const }
+      if (!invoices.length) {
+        // The heartbeat, for the same reason as its TON sibling: silence must
+        // mean something.
+        const beat = await noteWatchQuietToHive(OWNER, {
+          channel: 'Robokassa',
+          examined: 0,
+        })
+        return { did: 'nothing pending' as const, beat }
+      }
 
       const creds = {
         login:
@@ -121,10 +132,15 @@ export const robokassaUnclaimedWatch = inngest.createFunction(
       }
 
       if (!paid.length) {
+        const beat = await noteWatchQuietToHive(OWNER, {
+          channel: 'Robokassa',
+          examined: invoices.length,
+        })
         return {
           did: 'none unclaimed' as const,
           asked: invoices.length,
           unknown,
+          beat,
         }
       }
 

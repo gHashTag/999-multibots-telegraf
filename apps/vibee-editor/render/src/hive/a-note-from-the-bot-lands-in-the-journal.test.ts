@@ -66,6 +66,11 @@ describe('a note from the bot lands in the journal', () => {
       'sweep-held',
       'card-pressed',
       'payment-unclaimed',
+      // Added the next day, for the flaw the pair above shipped with: a watch
+      // that only speaks when money is owed is indistinguishable from one that
+      // has stopped. One line per channel per twenty hours makes a gap mean
+      // something.
+      'watch-quiet',
     ])
   })
 
