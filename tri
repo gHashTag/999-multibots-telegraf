@@ -474,7 +474,7 @@ CHECKS THAT EACH COST A CYCLE
         deployment Railway evaluates (even a skipped one records its config).
         Exit: 0 fine, 1 a problem, 2 Railway or git unreadable.
 
-  tri sweep [--hours N] [--limit N] | tri часы
+  tri clock [--hours N] [--limit N] | tri часы
         Is the seller's clock beating, and what can this even tell us.
 
         crm-proactive-sweep ticks every 30 minutes, but the journal records
@@ -1702,14 +1702,14 @@ cmd_charge() {
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
 }
 
-cmd_sweep() {
+cmd_clock() {
   # Is the seller's clock beating, and what can the journal even tell us.
   # 2026-09-18: 39 minutes of silence looked like a missed tick and was not --
   # a HOLDING seller writes one line per six hours by design, and a tick with
   # no carrier writes nothing at all. So this judges what the system promises
   # (heartbeat 6 h, alarm 12 h) and says plainly that the tick history itself
   # lives in the Inngest run list, behind the owner's key.
-  #   tri sweep [--hours N] [--limit N]
+  #   tri clock [--hours N] [--limit N]
   ( cd "$ROOT" && node "$ROOT/scripts/sweep-clock.cjs" "$@" )
 }
 
@@ -4190,7 +4190,7 @@ case "$action" in
   signin|вход)       cmd_signin "$@" ;;
   upstream|откуда)   cmd_upstream "$@" ;;
   ship|отправить)    cmd_ship "$@" ;;
-  sweep|часы)        cmd_sweep "$@" ;;
+  clock|часы)        cmd_clock "$@" ;;
   pay|оплата)        cmd_pay "$@" ;;
   readers|читатели)  cmd_readers "$@" ;;
   flaky|шумит)       cmd_flaky "$@" ;;
