@@ -101,6 +101,37 @@ export function PairWithApp() {
    * и ровно из одного места — canAuthorizeRequestsAtom над
    * hasVerifiableInitData().
    */
+  /**
+   * THE CODE IS THE WHOLE SCREEN, SO IT IS FETCHED ON ARRIVAL.
+   *
+   * The bot's button says "sign in on another device" and the /app command
+   * promises "a window opens with your code". What actually opened was a
+   * window with a BUTTON that asks for the code -- one more press than
+   * promised, on a screen that has no other purpose.
+   *
+   * It also blinded the measurement. `POST /api/auth/pair/start` is where both
+   * journal rows come from: `code-issued` on success, `code-refused` on a
+   * rejected signature. Until somebody presses, the server hears nothing, so
+   * "nobody reached this screen" and "everybody reached it and left without
+   * pressing" are the SAME picture: 45 sign-ins, zero of both, measured
+   * 2026-09-18. Fetching on arrival makes `code-issued` mean "the screen was
+   * reached", which is the fact the funnel was missing.
+   *
+   * Only once per mount: `autoRequested` is a ref, so React's double-invoked
+   * effects in development do not mint two codes, and the "new code" button
+   * stays the only way to ask again. A code lives two minutes and costs
+   * nothing to mint; an unused one simply expires.
+   */
+  const autoRequested = useRef(false)
+  useEffect(() => {
+    if (!canAuthorize) return
+    if (autoRequested.current) return
+    autoRequested.current = true
+    // `requestCode` is a hoisted declaration below; the effect runs after render.
+    void requestCode()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount, by the ref above
+  }, [canAuthorize])
+
   if (!canAuthorize) return <PairUnavailable inTelegram={isTelegram()} />
 
   async function requestCode() {

@@ -56,7 +56,42 @@ describe('PairWithApp mobile pairing flow', () => {
     vi.useRealTimers()
   })
 
+  /*
+   * THE CODE ARRIVES WITH THE SCREEN. The bot's button promises a window with
+   * a code, and this screen has no other purpose -- asking for one more press
+   * cost a press AND the measurement: `POST /api/auth/pair/start` is where
+   * both journal rows come from, so until somebody pressed, the server heard
+   * nothing and "nobody came" looked exactly like "came and left".
+   */
+  it('asks for the code on arrival, without anybody pressing anything', async () => {
+    apiFetch.mockResolvedValue({ code: '13571357', expires_in: 120 })
+
+    await act(async () => root?.render(mount()))
+
+    expect(apiFetch).toHaveBeenCalledTimes(1)
+    expect(apiFetch.mock.calls[0][0]).toContain('/api/auth/pair/start')
+    expect(host.querySelector('.pair-with-app__code')?.textContent).toContain(
+      '1357 1357'
+    )
+  })
+
+  /*
+   * ...and exactly once. React double-invokes effects in development, and a
+   * second automatic request would mint a second code and invalidate the one
+   * already on the screen.
+   */
+  it('asks only once, however many times the effect runs', async () => {
+    apiFetch.mockResolvedValue({ code: '13571357', expires_in: 120 })
+
+    await act(async () => root?.render(mount()))
+    await act(async () => root?.render(mount()))
+
+    expect(apiFetch).toHaveBeenCalledTimes(1)
+  })
+
   it('puts the phone-login action before the explanatory steps', async () => {
+    // The automatic attempt failed, so the screen is back to its offer.
+    apiFetch.mockRejectedValue(new Error('no signature'))
     await act(async () => root?.render(mount()))
 
     expect(host.querySelector('h3')?.textContent).toBe(
@@ -140,6 +175,7 @@ describe('PairWithApp mobile pairing flow', () => {
     expect(document.activeElement).toBe(action)
     expect(action?.getAttribute('aria-disabled')).toBe('true')
     expect(action?.getAttribute('aria-busy')).toBe('true')
+    // The arrival request is still in flight, so the press is ignored.
     await act(async () => action?.click())
     expect(apiFetch).toHaveBeenCalledTimes(1)
 
@@ -197,13 +233,12 @@ describe('PairWithApp mobile pairing flow', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-01T09:00:00.000Z'))
     apiFetch
+      // the arrival request, then the one the button asks for
       .mockResolvedValueOnce({ code: '11111111', expires_in: 120 })
       .mockResolvedValueOnce({ code: '22222222', expires_in: 120 })
     await act(async () => root?.render(mount()))
 
-    await act(async () => {
-      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
-    })
+    expect(host.textContent).toContain('1111 1111')
     vi.setSystemTime(new Date('2026-09-01T09:01:30.000Z'))
     await act(async () => {
       host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
