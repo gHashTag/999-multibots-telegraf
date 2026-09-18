@@ -200,6 +200,7 @@ import {
 
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
+import { checkAll, unavailableWarning } from '@/services/capabilityPreflight'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -1512,10 +1513,6 @@ If not, continue on your own and click the "I myself" button`
        */
       const cannotDoNow = (): string => {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const {
-            unavailableWarning,
-          } = require('@/services/capabilityPreflight')
           return unavailableWarning()
         } catch {
           // The check must never stop the reply: an empty string is the plain prompt.
@@ -2371,8 +2368,6 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
      * typed by hand drifts, and this one would drift towards promising more
      * than the keys allow -- the failure the preflight exists to stop.
      */
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { checkAll } = require('@/services/capabilityPreflight')
     const all = checkAll()
     const ready = all.filter((v: any) => v.available && v.capability.paid)
     const head = isRu
