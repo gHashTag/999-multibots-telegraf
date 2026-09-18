@@ -145,7 +145,7 @@
 | `videoDoubleChargeIdempotency.test.ts`                 | video delivery is idempotent per job (no double charge)                                       |
 | `videoPollChargeIdempotent.test.ts`                    | image-to-video poll-loop charge is idempotency-guarded                                        |
 | `videoRefundWithoutCharge.test.ts`                     | the video generator that refunded without charging                                            |
-| `videoWizardsInflightGuard.test.ts`                    | video wizards guard against concurrent double-generate                                        |
+| `videoWizardsInflightGuard.test.ts`                    | a second tap does not buy a second video                                                      |
 | `voiceAvatarFallbackNotCharged.test.ts`                | voice-avatar Cloudflare fallback is not charged as a clone                                    |
 | `voiceAvatarFallbackNotPersisted.test.ts`              | createVoiceAvatar does not persist the stock fallback voice (no clone overwrite)              |
 | `whatTheFirstGenerationWasOn.test.ts`                  | what the first generation was on                                                              |
