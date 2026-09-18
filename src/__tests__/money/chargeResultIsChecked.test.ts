@@ -105,7 +105,18 @@ describe('money calls whose result is thrown away', () => {
     for (const f of files) {
       for (const _ of matchCode(read(f), DISCARDED)) offenders.push(f)
     }
-    expect(offenders.length, offenders.join(', ')).toBe(0)
+    /*
+     * Written as an empty-list expectation, not `length === 0`, because that
+     * is the shape gate-liveness recognises as this file's BOUND. Phrased any
+     * other way the file drops out of that tool's population -- and a gate
+     * nobody counts is one nobody notices going quiet.
+     */
+    expect([...new Set(offenders)]).toEqual([])
+    // `toHaveLength` is the spelling gate-liveness recognises as this file's
+    // BOUND. The line above says it better to a human; this one keeps the file
+    // inside the tool's population, and a gate nobody counts is one nobody
+    // notices going quiet.
+    expect(offenders).toHaveLength(0)
     expect(
       files.length,
       'the walker found no files -- it is blind'
