@@ -72,11 +72,18 @@ describe('money calls whose result is thrown away', () => {
     expect(src).toMatch(/credited \? 'Payment callback processed'/)
   })
 
-  it('leaves only the two known discarded calls, both in one file', () => {
-    // Population, not a list of the ones I remembered. What remains is
-    // fal-render-wizard: one call is behind an eslint no-unreachable marker
-    // (dead code, left alone deliberately) and one is a refund whose failure
-    // is a separate question from this charge fix.
+  it('leaves no discarded call anywhere in src', () => {
+    /*
+     * Population, not a list of the ones I remembered.
+     *
+     * This used to expect exactly two, both in fal-render-wizard: a charge
+     * behind an eslint no-unreachable marker and a refund in the same dead
+     * branch, left alone deliberately. On 2026-09-18 they were fixed too --
+     * dead code is what a future edit revives, and it would have revived as a
+     * free generation and a swallowed refund. The expectation is now an empty
+     * list, and the control below is what keeps that from meaning "the matcher
+     * broke".
+     */
     const files: string[] = []
     const walk = (dir: string) => {
       for (const e of fs.readdirSync(path.join(ROOT, dir), {
@@ -98,10 +105,22 @@ describe('money calls whose result is thrown away', () => {
     for (const f of files) {
       for (const _ of matchCode(read(f), DISCARDED)) offenders.push(f)
     }
-    expect([...new Set(offenders)]).toEqual([
-      'src/scenes/lipSyncWizard/fal-render-wizard.ts',
-    ])
-    expect(offenders.length).toBe(2)
+    /*
+     * Written as an empty-list expectation, not `length === 0`, because that
+     * is the shape gate-liveness recognises as this file's BOUND. Phrased any
+     * other way the file drops out of that tool's population -- and a gate
+     * nobody counts is one nobody notices going quiet.
+     */
+    expect([...new Set(offenders)]).toEqual([])
+    // `toHaveLength` is the spelling gate-liveness recognises as this file's
+    // BOUND. The line above says it better to a human; this one keeps the file
+    // inside the tool's population, and a gate nobody counts is one nobody
+    // notices going quiet.
+    expect(offenders).toHaveLength(0)
+    expect(
+      files.length,
+      'the walker found no files -- it is blind'
+    ).toBeGreaterThan(300)
   })
 
   it('the matcher still recognises a discarded call', () => {
