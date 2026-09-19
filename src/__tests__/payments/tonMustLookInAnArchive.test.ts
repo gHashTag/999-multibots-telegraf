@@ -61,6 +61,8 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: string) => {
       requested.push(String(url))
+      // `ok`/`status` are read before the body now -- a refusal must not be
+      // parsed as an answer -- so a stub without them is a failed read.
       return {
         ok: true,
         status: 200,
