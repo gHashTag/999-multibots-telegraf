@@ -285,9 +285,34 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  /* Страховка на случай, если высоту зажмёт ещё какой-нибудь предок:
-     карточка не станет ниже собственного содержимого. */
-  min-height: fit-content;
+  /*
+   * THE CARD IS AS TALL AS ITS TWO LINES -- IN EVERY ENGINE.
+   *
+   * The owner's iPhone, 2026-09-17: every model card on the Photo, Video and
+   * Voice tabs was a 28px slab with the name sticking out above it and the
+   * description below. The cards are <button>s, and design-system.css gives
+   * EVERY button `height: var(--button-height-md)` (28px) and
+   * `white-space: nowrap`.
+   *
+   * This rule used to fight that with `min-height: fit-content`. Chromium
+   * honours it (61px, which is what was measured on the live deploy); WebKit
+   * does not apply `fit-content` to the block axis of a flex item, so on an
+   * iPhone the 28px won. The voice cards looked fine on the same screen only
+   * because they sit in a grid, where WebKit does grow them.
+   *
+   * So the fixed height is undone by name rather than out-voted: `height:
+   * auto`, a minimum in plain pixels for the finger, and wrapping restored --
+   * with `nowrap` a long description was cut at the card's edge even in
+   * Chromium, which is what the `overflow-wrap` further down was written to
+   * prevent and could not.
+   *
+   * Measured in both engines at 390px, same markup, real stylesheets:
+   * WebKit 28px with 5px of text outside the card -> 61px, nothing outside;
+   * a four-line description -> 89px instead of one clipped line.
+   */
+  height: auto;
+  min-height: var(--touch-target, 44px);
+  white-space: normal;
   padding: 10px 12px;
   background: var(--bg-elevated);
   border: 2px solid var(--bg-input);
