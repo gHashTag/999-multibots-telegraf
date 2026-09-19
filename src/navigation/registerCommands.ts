@@ -11,6 +11,7 @@ import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { isUserCausedTelegramError } from '@/helpers/telegramErrors'
+import { keepingTheMessage } from '@/helpers/telegramUserLink'
 import { BalanceRefusedError } from '@/price/helpers/refuseUnpaidGeneration'
 import {
   replyWitness,
@@ -2086,22 +2087,31 @@ export function registerProposalButtons(bot: Telegraf<MyContext>): void {
      * Told "not sent", a person writes it again and it arrives twice. Told the
      * truth, they look at the chat. The truth is cheaper.
      */
-    await ctx.reply(
-      r.ok
-        ? isRu
-          ? '✅ Отправлено'
-          : '✅ Sent'
-        : r.unknown
-          ? isRu
-            ? '⚠️ Связь прервалась — не знаю, ушло сообщение или нет. ' +
-              'Посмотрите чат, прежде чем отправлять снова.'
-            : '⚠️ The connection dropped — I cannot tell whether it went. ' +
-              'Check the chat before sending again.'
-          : // A server ANSWER: this one really did not send. The reason is
-            // shown as it came, because "something went wrong" would hide the
-            // only thing that says whether to retry or to rewrite.
-            (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') + (r.error ?? ''),
-      afterSentKeyboard(lead)
+    // Whether the reply reached the client is the one thing the owner is
+    // waiting to read here, so the `tg://user?id=` shortcut in the keyboard
+    // must not be able to swallow the answer. See telegramUserLink.ts.
+    await keepingTheMessage(
+      extra =>
+        ctx.reply(
+          r.ok
+            ? isRu
+              ? '✅ Отправлено'
+              : '✅ Sent'
+            : r.unknown
+              ? isRu
+                ? '⚠️ Связь прервалась — не знаю, ушло сообщение или нет. ' +
+                  'Посмотрите чат, прежде чем отправлять снова.'
+                : '⚠️ The connection dropped — I cannot tell whether it went. ' +
+                  'Check the chat before sending again.'
+              : // A server ANSWER: this one really did not send. The reason is
+                // shown as it came, because "something went wrong" would hide
+                // the only thing that says whether to retry or to rewrite.
+                (isRu ? '❌ Не отправлено: ' : '❌ Not sent: ') +
+                (r.error ?? ''),
+          extra as any
+        ),
+      afterSentKeyboard(lead),
+      { lead }
     )
   })
 
@@ -3178,7 +3188,13 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     const parts = разбитьДлинное(text) // cyrillic-ok: pre-existing helper name
     for (let i = 0; i < parts.length; i++) {
       const last = i === parts.length - 1
-      await ctx.reply(parts[i], last && keyboard ? keyboard : undefined)
+      const extra = last && keyboard ? keyboard : undefined
+      // leadMenu and afterSentKeyboard carry a `tg://user?id=` shortcut, and
+      // Telegram refuses the whole send when it cannot resolve that person
+      // (BUTTON_USER_INVALID). The brief matters; the shortcut does not.
+      await keepingTheMessage(e => ctx.reply(parts[i], e as any), extra, {
+        chat: ctx.chat?.id,
+      })
     }
   }
   const NO_TOOLS_SIGN = 'не вызвав ни одного инструмента'
@@ -3510,9 +3526,15 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       return
     }
     if (verb === 'back') {
-      await ctx
-        .editMessageReplyMarkup(leadMenu(id).reply_markup)
-        .catch(() => undefined)
+      // Backing out of a refusal restores the keyboard that HAS the chat
+      // shortcut, so this edit is the one that can be refused over a user
+      // link — and a silent failure here leaves the owner staring at the
+      // decline confirmation with no way back.
+      await keepingTheMessage(
+        extra => ctx.editMessageReplyMarkup((extra as any).reply_markup),
+        leadMenu(id),
+        { lead: id }
+      ).catch(() => undefined)
       return
     }
     if (verb === 'mute') {

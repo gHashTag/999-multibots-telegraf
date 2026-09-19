@@ -14,6 +14,7 @@ import { разбитьДлинное } from '@/helpers/telegramLongAnswer' // c
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import { delay } from '@/helpers/delay'
+import { renderIsStillWorking } from '@/services/renderTimeout'
 /*
  * The transient/standing vocabulary is not invented here: provider-health-
  * monitor.ts:19-38 already defines what the two words mean and why an
@@ -671,6 +672,13 @@ async function lookupConnection(
 const ingestStartedAt = new Map<string, number>()
 export const INGEST_REPEAT_AFTER_MS = 6 * 60 * 60 * 1000
 
+/**
+ * How long a walk that outlived our wait is left alone. Long enough for a real
+ * 2000-dialog import to finish, short enough that a render which died mid-walk
+ * gets tried again the same hour rather than the next day.
+ */
+export const INGEST_RETRY_AFTER_TIMEOUT_MS = 30 * 60 * 1000
+
 async function mirrorExchange(
   owner: number,
   lead: number,
@@ -697,7 +705,7 @@ async function mirrorExchange(
  * when the last successful walk is older than INGEST_REPEAT_AFTER_MS. Prunes
  * expired entries on the way so the map cannot grow without bound.
  */
-function shouldIngest(connId: string, now = Date.now()): boolean {
+export function shouldIngest(connId: string, now = Date.now()): boolean {
   for (const [id, at] of ingestStartedAt)
     if (now - at > INGEST_REPEAT_AFTER_MS) ingestStartedAt.delete(id)
   return !ingestStartedAt.has(connId)
@@ -715,6 +723,37 @@ async function ingestOnConnect(owner: string, connId: string): Promise<void> {
       zep: r.zep_mirrored,
     })
   } catch (error) {
+    /*
+     * A TIMEOUT IS NOT A FAILURE, AND THIS IS THE ONE THAT ALWAYS TIMES OUT.
+     *
+     * The walk asked for here is `limit: 2000, depth: 500` -- every dialog the
+     * account has, five hundred messages deep, each dialog its own MTProto
+     * round trip plus a Postgres write plus a Zep mirror. The render's own
+     * module says it "takes minutes". The client budget is 170 seconds. So the
+     * abort is the expected end of a healthy import, arriving while the render
+     * is still walking -- nothing over there was cancelled (no signal reaches a
+     * tool handler), and the history does land.
+     *
+     * Releasing the claim here made that worse than cosmetic: the next business
+     * event started a SECOND full 2000-dialog walk on top of the first. Three
+     * pages a day for one owner (17:54, 21:35, 01:22) were three of these.
+     *
+     * So the claim is kept -- but re-dated to expire in
+     * INGEST_RETRY_AFTER_TIMEOUT_MS instead of six hours, because a render that
+     * died mid-walk must not lock the import out for the rest of the day.
+     */
+    if (renderIsStillWorking(error)) {
+      ingestStartedAt.set(
+        connId,
+        Date.now() - INGEST_REPEAT_AFTER_MS + INGEST_RETRY_AFTER_TIMEOUT_MS
+      )
+      logger.info('[Business] correspondence import still walking', {
+        connId,
+        owner,
+        waited: error instanceof Error ? error.message : String(error),
+      })
+      return
+    }
     /*
      * THE GUARD IS RELEASED FIRST, so the next connection event for this id
      * gets a real second chance. Marking the ATTEMPT instead of the SUCCESS is

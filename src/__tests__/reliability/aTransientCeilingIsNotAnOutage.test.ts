@@ -75,11 +75,12 @@ vi.mock('@/services/aiChatService', () => ({
   AI_CHAT_MODELS: {},
 }))
 
-const ingestChats = vi.fn(async () => ({
+const importedFine = async () => ({
   people: 3,
   messages_new: 12,
   zep_mirrored: 12,
-}))
+})
+const ingestChats = vi.fn(importedFine)
 const mirrorDm = vi.fn(async () => ({ ok: true, fresh: 0, zep: 0 }))
 vi.mock('@/services/modelSwitch', () => ({
   ingestChats: (...a: unknown[]) => ingestChats(...(a as [])),
@@ -112,7 +113,9 @@ async function freshWorld() {
   vi.resetModules()
   logError.mockClear()
   chatWithAI.mockClear()
-  ingestChats.mockClear()
+  // Clear is not enough: a test that installed a standing rejection would
+  // leave the NEXT test's "successful import" quietly failing and still green.
+  ingestChats.mockReset().mockImplementation(importedFine)
   recorded.length = 0
   agentCalls = 0
   const { logger } = await import('@/utils/logger')
@@ -312,8 +315,10 @@ describe('the correspondence import marks success, not the attempt', () => {
 
   it('a failed import is retried on the next connection event, and the owner is told', async () => {
     const { svc } = await freshWorld()
+    // A REFUSAL, not a timeout: the render answered, and the answer was no.
+    // The timeout has the opposite contract and is tested below.
     ingestChats.mockRejectedValueOnce(
-      new Error('render did not answer in 170 s') as never
+      new Error('RENDER_API_KEY не задан в сервисе бота') as never // cyrillic-ok: the production message
     )
 
     svc.handleBusinessConnection(connection('conn-ingest-1'))
@@ -331,6 +336,59 @@ describe('the correspondence import marks success, not the attempt', () => {
       ingestChats,
       'the guard marked the ATTEMPT, so there was never a second chance'
     ).toHaveBeenCalledTimes(2)
+  })
+
+  it('a walk that outlives our wait is left alone: no page, no second walk', async () => {
+    const { svc } = await freshWorld()
+    const { RenderDidNotAnswer } = await import('@/services/renderTimeout')
+    // The real shape of the real end of a real import: `limit: 2000, depth:
+    // 500` takes minutes on the render, the client waits 170 seconds, and
+    // nothing over there is cancelled when we stop listening.
+    ingestChats.mockRejectedValue(
+      new RenderDidNotAnswer(
+        'рендер не ответил за 170 с — попробуй ещё раз'
+      ) as never // cyrillic-ok: the production message
+    )
+
+    svc.handleBusinessConnection(connection('conn-ingest-3'))
+    await settle()
+    expect(
+      pages(),
+      'an import that is still running is not an outage to wake the owner for'
+    ).toEqual([])
+
+    svc.handleBusinessConnection(connection('conn-ingest-3'))
+    await settle()
+    expect(
+      ingestChats,
+      'the claim was released, so a second 2000-dialog walk started on top of the first'
+    ).toHaveBeenCalledTimes(1)
+  })
+
+  it('a walk left alone is retried within the hour, not the next day', async () => {
+    const { svc } = await freshWorld()
+    const { RenderDidNotAnswer } = await import('@/services/renderTimeout')
+    ingestChats.mockRejectedValue(
+      new RenderDidNotAnswer(
+        'рендер не ответил за 170 с — попробуй ещё раз'
+      ) as never // cyrillic-ok: the production message
+    )
+    svc.handleBusinessConnection(connection('conn-ingest-4'))
+    await settle()
+
+    // Asked in this order on purpose: `shouldIngest` prunes what it finds
+    // expired, so the near question has to be put before the far one.
+    expect(
+      svc.shouldIngest('conn-ingest-4', Date.now() + 60_000),
+      'a minute later the walk is still walking'
+    ).toBe(false)
+    // A render that died mid-walk must not lock the import out for six hours.
+    expect(
+      svc.shouldIngest(
+        'conn-ingest-4',
+        Date.now() + svc.INGEST_RETRY_AFTER_TIMEOUT_MS + 1000
+      )
+    ).toBe(true)
   })
 
   it('a successful import is still done exactly once', async () => {

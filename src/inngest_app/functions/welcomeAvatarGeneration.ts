@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 import { generateSeeDream45 } from '@/services/generateSeeDream45'
 import { reserveWelcomeGiftSlot } from '@/inngest_app/functions/welcomeGiftBudget'
+import { isContentRefusal } from '@/helpers/isContentRefusal'
 
 // Top heroes for each gender (safe, recognizable prompts)
 const MALE_HEROES = [
@@ -295,14 +296,34 @@ export const welcomeAvatarGeneration = inngest.createFunction(
 
             return { success: true, result }
           } catch (error) {
-            logger.error('🎁 [Welcome Avatar] Generation failed', {
-              telegram_id,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            })
-            return {
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
+            /*
+             * A PROVIDER SAYING NO TO A PHOTO IS NOT AN OUTAGE.
+             *
+             * The gift portrait is made from the newcomer's own photo, and
+             * SeeDream refuses some of them on its content rule (E005, "the
+             * input or output was flagged as sensitive"). Nothing is broken:
+             * the customer needs different words, and the owner's phone needs
+             * nothing at all. The same classifier already governs
+             * aiPhotoshopScene and avatarTransformScene.
+             */
+            const refused = isContentRefusal(error)
+            const message =
+              error instanceof Error ? error.message : 'Unknown error'
+            if (refused) {
+              logger.warn(
+                '🎁 [Welcome Avatar] Photo refused on a content rule',
+                {
+                  telegram_id,
+                  error: message,
+                }
+              )
+            } else {
+              logger.error('🎁 [Welcome Avatar] Generation failed', {
+                telegram_id,
+                error: message,
+              })
             }
+            return { success: false, error: message, refused }
           }
         })
 
@@ -328,10 +349,19 @@ export const welcomeAvatarGeneration = inngest.createFunction(
           parse_mode: 'Markdown',
         })
       } else {
-        // Fallback message if generation failed
-        const fallbackMessage = is_ru
-          ? '👋 Добро пожаловать! Не удалось создать нейро-портрет автоматически, но вы можете сделать это сами в главном меню!'
-          : '👋 Welcome! Could not create AI portrait automatically, but you can do it yourself in the main menu!'
+        // A refused photo needs different advice than a broken generator: told
+        // to "do it yourself in the main menu", the newcomer uploads the very
+        // same photo and is refused again. Say which photo the filter wants.
+        const photoWasRefused =
+          'refused' in generationResult && generationResult.refused === true
+
+        const fallbackMessage = photoWasRefused
+          ? is_ru
+            ? '👋 Добро пожаловать! Ваше фото не прошло фильтр нейросети — так бывает с фото в купальнике, крупным планом или в слабом свете. Попробуйте в главном меню другое фото: лицо целиком, при хорошем освещении.'
+            : '👋 Welcome! Your photo did not pass the AI filter — that happens with swimwear, extreme close-ups or poor light. Try another one in the main menu: your whole face, well lit.'
+          : is_ru
+            ? '👋 Добро пожаловать! Не удалось создать нейро-портрет автоматически, но вы можете сделать это сами в главном меню!'
+            : '👋 Welcome! Could not create AI portrait automatically, but you can do it yourself in the main menu!'
 
         await bot.telegram.sendMessage(telegram_id, fallbackMessage)
       }
