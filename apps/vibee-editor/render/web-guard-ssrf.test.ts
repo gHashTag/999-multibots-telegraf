@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   ADDRESS_REFUSED,
   MAX_REDIRECT_HOPS,
@@ -19,6 +19,53 @@ import {
  * rule, because a rule can be edited into meaninglessness while still passing
  * a test that only restates it.
  */
+
+/**
+ * The live branch of `resolveFinalUrl` -- the one taken when no `fetchImpl` is
+ * injected -- is the only code that builds a dispatcher, and every other test
+ * here injects `fetchImpl` and so never reaches it. These two recorders exist
+ * to make that one branch observable. Both mocked names are used in exactly one
+ * place each, inside that branch, so nothing else in the file is affected.
+ */
+type PinnedAgentSpy = { destroyed: boolean; closed: boolean }
+let pinnedAgents: PinnedAgentSpy[] = []
+let liveFetch: ((url: unknown, init: unknown) => Promise<unknown>) | null = null
+
+vi.mock('undici', async importOriginal => {
+  const actual = await importOriginal<typeof import('undici')>()
+  return {
+    ...actual,
+    fetch: (url: never, init: never) =>
+      liveFetch ? liveFetch(url, init) : actual.fetch(url, init),
+  }
+})
+
+vi.mock('./src/lib/remoteMediaDuration', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('./src/lib/remoteMediaDuration')>()
+  return {
+    ...actual,
+    createPinnedAgent: () => {
+      const agent = {
+        destroyed: false,
+        closed: false,
+        destroy: async () => {
+          agent.destroyed = true
+        },
+        close: async () => {
+          agent.closed = true
+        },
+      }
+      pinnedAgents.push(agent)
+      return agent
+    },
+  }
+})
+
+afterEach(() => {
+  liveFetch = null
+  pinnedAgents = []
+})
 
 const PUBLIC_LOOKUP = async () => [{ address: '93.184.216.34', family: 4 }]
 const PRIVATE_LOOKUP = async () => [{ address: '10.0.0.7', family: 4 }]
@@ -282,10 +329,16 @@ describe('web guard: redirects', () => {
 
 describe('web guard: letting a probe go', () => {
   /**
-   * These four assert an ORDER, which is unusual for a test and is the point.
-   * Both orders pass every other test in this file -- the wrong one only costs
-   * the full 15s deadline per URL, measured at 20014ms against a 20s signal on
-   * the live service. Nothing else here would ever catch that.
+   * These assert an ORDER, which is unusual for a test and is the point: both
+   * orders SUCCEED. The wrong one merely costs the whole deadline per URL --
+   * 20014ms against a 20s signal on the live service, against 54ms for the
+   * right one -- and no log line anywhere says "stalled", so a stopwatch in a
+   * test is the only instrument that sees it.
+   *
+   * The split below matters as much as the order. The first three pin
+   * `releaseProbe` itself; the last two pin that `resolveFinalUrl` actually
+   * calls it, on the injected path and on the live one. A correct
+   * `releaseProbe` that nobody calls reads exactly like a fixed bug.
    */
   function fakes(cancel: () => Promise<void> = async () => undefined) {
     const order: string[] = []
@@ -361,6 +414,38 @@ describe('web guard: letting a probe go', () => {
       'https://example.com/one',
       'https://example.com/two',
     ])
+  })
+
+  it('drops the dispatcher it pinned, on the path that actually makes one', async () => {
+    /*
+     * Every test above drives `resolveFinalUrl` through an injected `fetchImpl`,
+     * which builds no dispatcher at all. So handing `undefined` where the agent
+     * belongs -- leaking a connection pool per hop, which is the shape the
+     * original bug had -- leaves all of them green. This is the only assertion
+     * that watches the branch the service actually runs.
+     */
+    liveFetch = async () => {
+      const response = new Response(null, { status: 200 })
+      Object.defineProperty(response, 'body', {
+        value: { cancel: async () => undefined },
+      })
+      return response
+    }
+
+    const result = await resolveFinalUrl('https://example.com/one', {
+      lookupImpl: PUBLIC_LOOKUP,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(pinnedAgents, 'the live branch was never taken').toHaveLength(1)
+    expect(
+      pinnedAgents[0].destroyed,
+      'the pinned dispatcher outlived the probe'
+    ).toBe(true)
+    expect(
+      pinnedAgents[0].closed,
+      'close() is the graceful one that waits for the unread body'
+    ).toBe(false)
   })
 })
 
