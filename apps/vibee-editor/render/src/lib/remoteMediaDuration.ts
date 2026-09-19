@@ -136,8 +136,13 @@ export async function downloadBoundedMediaToFile(
         redirect: 'error',
       })) as unknown as Response
     }
-    if (!response.ok)
+    if (!response.ok) {
+      // The same trap web-guard's `releaseProbe` documents: throwing here
+      // leaves the error body outstanding, and the `close()` below waits for
+      // it, so a plain 404 costs the whole deadline instead of failing at once.
+      await response.body?.cancel().catch(() => undefined)
       throw new Error(`media download failed: HTTP ${response.status}`)
+    }
 
     const declared = Number(response.headers.get('content-length'))
     if (Number.isFinite(declared) && declared > maxBytes) {
