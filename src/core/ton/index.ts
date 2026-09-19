@@ -6,6 +6,7 @@
  */
 
 import { Address, TonClient, JettonMaster, JettonWallet } from '@ton/ton'
+import { parseJettonInternalTransfer } from './jettonBody'
 import { getTonConfig, nanoToUsdt, nanoToTon, DECIMALS } from './config'
 import { logger } from '@/utils/logger'
 
@@ -169,6 +170,13 @@ function parseComment(msgData: any): string {
       return Buffer.from(msgData.text, 'base64').toString('utf-8')
     }
 
+    // A jetton internal_transfer body is a BoC; its memo lives in
+    // forward_payload, not at a fixed byte offset. Try that first.
+    if (msgData['@type'] === 'msg.dataRaw' && msgData.body) {
+      const jetton = parseJettonInternalTransfer(msgData.body)
+      if (jetton && jetton.comment) return jetton.comment
+    }
+
     // raw данные - пробуем декодировать
     if (msgData['@type'] === 'msg.dataRaw' && msgData.body) {
       const body = Buffer.from(msgData.body, 'base64')
@@ -189,45 +197,16 @@ function parseComment(msgData: any): string {
 }
 
 /**
- * Парсинг суммы jetton из транзакции
- * Jetton transfer имеет специальную структуру
+ * Jetton amount of an incoming transfer in RAW jetton units (USDT: 6 decimals),
+ * as getJettonTransactions expects (it wraps the value in BigInt and
+ * findPaymentByComment converts with nanoToUsdt). 0 when the body is not a
+ * parseable internal_transfer. Exact up to 2^53 raw units (~9e9 USDT).
  */
 function parseJettonAmount(tx: any): number {
-  try {
-    // Для jetton wallet транзакций сумма обычно в out_msgs или специальном поле
-    // TON Center API возвращает decoded данные
-
-    // Пробуем найти в in_msg value
-    if (tx.in_msg?.value) {
-      // Это TON, не jetton
-    }
-
-    // Для jetton нужно парсить body сообщения
-    // internal_transfer op = 0x178d4519
-    // Структура: op:uint32 query_id:uint64 amount:Coins from:MsgAddress ...
-
-    if (tx.in_msg?.msg_data?.body) {
-      const body = Buffer.from(tx.in_msg.msg_data.body, 'base64')
-      // Проверяем op code для internal_transfer
-      if (body.length >= 12) {
-        const op = body.readUInt32BE(0)
-        if (op === 0x178d4519) {
-          // internal_transfer
-          // После op (4) и query_id (8) идёт amount как VarUInteger 16
-          // Упрощённый парсинг - читаем следующие 8 байт как bigint
-          const amountBytes = body.slice(12, 20)
-          if (amountBytes.length === 8) {
-            const amount = amountBytes.readBigUInt64BE(0)
-            return Number(amount)
-          }
-        }
-      }
-    }
-
-    return 0
-  } catch {
-    return 0
-  }
+  const body = tx?.in_msg?.msg_data?.body
+  if (!body) return 0
+  const parsed = parseJettonInternalTransfer(body)
+  return parsed ? Number(parsed.amount) : 0
 }
 
 /**
