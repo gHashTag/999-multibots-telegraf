@@ -43,6 +43,24 @@ describe('downloadBoundedMedia', () => {
     )
   })
 
+  it('lets go of the error body, so a 404 fails now and not at the deadline', async () => {
+    // The `finally` below closes the pinned dispatcher gracefully, which means
+    // it waits for any outstanding response. Throwing with the error page
+    // unread turns an immediate 404 into a full-timeout stall on the real
+    // dispatcher -- invisible here, which is why the cancel is asserted.
+    const body = new Response('not found', { status: 404 })
+    const cancel = vi.spyOn(body.body!, 'cancel')
+    const fetchImpl = vi.fn().mockResolvedValue(body)
+    await expect(
+      downloadBoundedMediaToFile(
+        new URL('https://media.example/a.mp3'),
+        destination(),
+        { fetchImpl }
+      )
+    ).rejects.toThrow(/HTTP 404/)
+    expect(cancel).toHaveBeenCalled()
+  })
+
   it('rejects an oversized declared body before reading it', async () => {
     const body = response(new Uint8Array([1]), 99)
     const cancel = vi.spyOn(body.body!, 'cancel')

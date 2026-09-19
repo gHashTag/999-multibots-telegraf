@@ -273,6 +273,27 @@ export async function guardTargetUrl(
 }
 
 /**
+ * Let go of a probe response in the order undici actually requires.
+ *
+ * Measured on the live service against a real page: cancelling the body first
+ * and then dropping the dispatcher takes 54ms; dropping the dispatcher first
+ * takes the ENTIRE deadline -- 20014ms against a 20s signal -- because
+ * `Agent.close()` is graceful and an unread body is an outstanding response.
+ * It still ends in success, so nothing in a log says "stalled": the tool just
+ * costs fifteen seconds it never spent on the network.
+ *
+ * Hence both halves of this function. `cancel()` before `destroy()`, and
+ * `destroy()` rather than `close()`, which is the one that waits.
+ */
+export async function releaseProbe(
+  response: Pick<Response, 'body'>,
+  agent?: Pick<Agent, 'destroy'>
+): Promise<void> {
+  await response.body?.cancel().catch(() => undefined)
+  await agent?.destroy().catch(() => undefined)
+}
+
+/**
  * Walk the redirect chain ourselves and return the FINAL validated URL.
  *
  * This is the fix for the hole that mattered most. `redirect: 'follow'` hands
@@ -319,26 +340,25 @@ export async function resolveFinalUrl(
         })) as unknown as Response
       }
     } catch (error) {
+      await agent?.destroy().catch(() => undefined)
       console.warn(
         '[web] could not reach',
         current.url.hostname,
         String((error as Error)?.message || error)
       )
       return { ok: false, reason: 'страница не ответила' }
-    } finally {
-      // The body is never read here: this pass exists only to learn where the
-      // chain ends. Closing the agent cancels it.
-      await agent?.close().catch(() => undefined)
     }
 
+    // The body is never read here: this pass exists only to learn where the
+    // chain ends. Read the headers we need, then let both of them go.
     const status = response.status
+    const location = response.headers.get('location')
+    await releaseProbe(response, agent)
+
     if (status < 300 || status > 399) {
-      await response.body?.cancel().catch(() => undefined)
       return current
     }
 
-    const location = response.headers.get('location')
-    await response.body?.cancel().catch(() => undefined)
     if (!location)
       return { ok: false, reason: 'страница ответила пустым переездом' }
     if (hop >= MAX_REDIRECT_HOPS) {
