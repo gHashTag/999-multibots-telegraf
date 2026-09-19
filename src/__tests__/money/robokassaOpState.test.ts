@@ -21,6 +21,30 @@ const reply = (inner: string) =>
   `<?xml version="1.0" encoding="utf-8"?><OperationStateResponse>${inner}</OperationStateResponse>`
 
 describe('what Robokassa says about an invoice', () => {
+  /*
+   * WHAT THE BUYER ACTUALLY PAID. A settlement that compares the invoiced
+   * amount with itself checks nothing; IncSum is the only independent figure
+   * the provider gives, and its ABSENCE must never read as zero.
+   */
+  it('reads the sum that left the buyer, when the provider states it', () => {
+    const r = classifyOpState(
+      reply(
+        '<Result><Code>0</Code></Result><State><Code>100</Code></State>' +
+          '<Info><IncSum>10.000000</IncSum><OutSum>10.000000</OutSum></Info>'
+      )
+    )
+    expect(r.verdict).toBe('PAID')
+    expect(r.incSum).toBe(10)
+  })
+
+  it('leaves the paid sum undefined rather than zero when it is absent', () => {
+    const r = classifyOpState(
+      reply('<Result><Code>0</Code></Result><State><Code>100</Code></State>')
+    )
+    expect(r.verdict).toBe('PAID')
+    expect(r.incSum).toBeUndefined()
+  })
+
   it('reads a settled payment as paid', () => {
     const r = classifyOpState(
       reply('<Result><Code>0</Code></Result><State><Code>100</Code></State>')
