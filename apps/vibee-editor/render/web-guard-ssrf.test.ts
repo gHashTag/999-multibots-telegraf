@@ -7,6 +7,7 @@ import {
   normalizeHost,
   ownHostnames,
   readBoundedText,
+  releaseProbe,
   resolveFinalUrl,
 } from './src/agent/web-guard'
 
@@ -276,6 +277,90 @@ describe('web guard: redirects', () => {
     })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('страница не ответила')
+  })
+})
+
+describe('web guard: letting a probe go', () => {
+  /**
+   * These four assert an ORDER, which is unusual for a test and is the point.
+   * Both orders pass every other test in this file -- the wrong one only costs
+   * the full 15s deadline per URL, measured at 20014ms against a 20s signal on
+   * the live service. Nothing else here would ever catch that.
+   */
+  function fakes(cancel: () => Promise<void> = async () => undefined) {
+    const order: string[] = []
+    const response = {
+      body: {
+        cancel: async () => {
+          order.push('cancel')
+          await cancel()
+        },
+      },
+    } as unknown as Response
+    const agent = {
+      destroy: async () => {
+        order.push('destroy')
+      },
+      close: async () => {
+        order.push('close')
+      },
+    }
+    return { order, response, agent }
+  }
+
+  it('cancels the body before it drops the dispatcher', async () => {
+    const { order, response, agent } = fakes()
+    await releaseProbe(response, agent as never)
+    expect(order).toEqual(['cancel', 'destroy'])
+  })
+
+  it('destroys rather than closes, because close waits for the body', async () => {
+    const { order, response, agent } = fakes()
+    await releaseProbe(response, agent as never)
+    expect(order).not.toContain('close')
+  })
+
+  it('still drops the dispatcher when the body refuses to cancel', async () => {
+    const { order, response, agent } = fakes(async () => {
+      throw new Error('already gone')
+    })
+    await releaseProbe(response, agent as never)
+    expect(order).toEqual(['cancel', 'destroy'])
+  })
+
+  it('releases every hop of a redirect chain, not just the last', async () => {
+    const cancelled: string[] = []
+    let index = 0
+    const steps = [
+      { status: 302 as const, location: 'https://example.com/two' },
+      { status: 200 as const, location: undefined },
+    ]
+    const fetchImpl = (async (input: any) => {
+      const step = steps[Math.min(index, steps.length - 1)]
+      const seen = String(input)
+      index += 1
+      const headers = new Headers()
+      if (step.location) headers.set('location', step.location)
+      const response = new Response(null, { status: step.status, headers })
+      Object.defineProperty(response, 'body', {
+        value: {
+          cancel: async () => {
+            cancelled.push(seen)
+          },
+        },
+      })
+      return response
+    }) as unknown as typeof fetch
+
+    const result = await resolveFinalUrl('https://example.com/one', {
+      fetchImpl,
+      lookupImpl: PUBLIC_LOOKUP,
+    })
+    expect(result.ok).toBe(true)
+    expect(cancelled).toEqual([
+      'https://example.com/one',
+      'https://example.com/two',
+    ])
   })
 })
 
