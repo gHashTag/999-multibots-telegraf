@@ -26,6 +26,7 @@ import {
   findNativePaymentByComment,
   nanoToTon,
 } from '@/core/ton'
+import { chainWasUnreadable } from '@/core/ton/chainRead'
 import { supabase } from '@/core/supabase'
 import {
   PaymentMethod,
@@ -476,6 +477,50 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async ctx => {
 
     return ctx.scene.leave()
   } catch (error) {
+    /*
+     * "WE COULD NOT LOOK" IS NOT "YOU DID NOT PAY".
+     *
+     * The chain readers used to swallow a rate limit or a timeout and answer
+     * `null`, so a payer whose coins were already on the chain was told their
+     * payment "пока не найден" -- a statement about their money, made without
+     * looking at it. Now that refusal travels here, and what it earns is the
+     * truth plus the same retry button: nothing is lost, the invoice is still
+     * PENDING, and the next tap reads the chain again.
+     */
+    if (chainWasUnreadable(error)) {
+      // warn, not error: `utils/logger.ts` routes error to the owner's phone,
+      // and a payer tapping "check again" during a TON Center outage would
+      // ring it once per tap. The hourly watch pages for this, throttled.
+      logger.warn('[TON NATIVE PAYMENT] Chain unreadable, told the payer so', {
+        telegramId,
+        invId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await ctx.reply(
+        isRu
+          ? `⚠️ Не удалось связаться с блокчейном TON.\n\n` +
+              `Это на нашей стороне, а не с вашим платежом — деньги никуда не делись. ` +
+              `Счёт всё ещё ждёт оплаты, попробуйте проверить через минуту.`
+          : `⚠️ Could not reach the TON blockchain.\n\n` +
+              `This is on our side, not your payment — your coins are safe. ` +
+              `The invoice is still open; try checking again in a minute.`,
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '🔄 Проверить снова' : '🔄 Check again',
+              `tonn_check_${invId}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '❌ Отменить' : '❌ Cancel',
+              'tonn_cancel'
+            ),
+          ],
+        ])
+      )
+      return
+    }
     logger.error('[TON NATIVE PAYMENT] Error checking payment', {
       telegramId,
       invId,

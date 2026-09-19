@@ -64,12 +64,16 @@ vi.mock('@/core/supabase', () => {
   return { supabase: { from: () => chain } }
 })
 
+const paged = vi.fn()
+
 vi.mock('@/utils/logger', () => ({
   logger: {
     info: () => undefined,
     warn: () => undefined,
     debug: () => undefined,
-    error: () => undefined,
+    // `utils/logger.ts` routes this level, and only this level, to the owner's
+    // phone -- so "did it page?" is answered by which method was called.
+    error: (...a: unknown[]) => paged(...a),
   },
 }))
 
@@ -96,6 +100,9 @@ async function watch() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // The chain alarm is rate-limited by a module variable; a fresh registry per
+  // test keeps one test's outage out of the next one's window.
+  vi.resetModules()
   pendingRows.mockResolvedValue({ data: [INVOICE], error: null })
   findNativePaymentByComment.mockResolvedValue(null)
   noteUnclaimedToHive.mockResolvedValue('noted')
@@ -164,7 +171,31 @@ describe('the TON watch', () => {
     expect(address).toBeTruthy()
     expect(comment).toBe(INVOICE.inv_id)
     expect(amount).toBe(INVOICE.amount)
-    expect(since).toBe(Date.parse(INVOICE.payment_date))
+    expect(since).toBe(Math.floor(Date.parse(INVOICE.payment_date) / 1000))
+  })
+
+  /*
+   * THE UNIT THAT MADE THIS WATCH A DECORATION.
+   *
+   * The floor is compared against `tx.utime` -- a UNIX timestamp in SECONDS.
+   * Handing it `Date.parse()` in MILLISECONDS puts the cutoff about fifty
+   * thousand years into the future, so `tx.timestamp < sinceTimestamp` is true
+   * for every transfer TON will ever carry and the matcher skips all of them.
+   * The watch would have reported "none unclaimed" for the rest of its life,
+   * hourly, and the earlier version of this test asserted the broken value --
+   * which is how a dead safety net passes its own suite.
+   */
+  it('hands the matcher a floor the chain could actually meet', async () => {
+    await watch()
+
+    const since = findNativePaymentByComment.mock.calls[0][3] as number
+    const plausibleTonTimestamp = 1_900_000_000 // seconds, some years out
+
+    expect(
+      since,
+      'the floor is in milliseconds; no on-chain transfer can ever clear it'
+    ).toBeLessThan(plausibleTonTimestamp)
+    expect(since).toBeGreaterThan(1_600_000_000)
   })
 
   /*
@@ -199,6 +230,101 @@ describe('the TON watch', () => {
     ).toHaveBeenCalledTimes(1)
     expect(findNativePaymentByComment.mock.calls[0][1]).toBe(INVOICE.inv_id)
     expect(r.notChecked, 'the run hid what it could not judge').toBe(1)
+  })
+
+  /*
+   * A CHAIN THAT REFUSED TO ANSWER IS NOT A CHANNEL WITH NOTHING ON IT.
+   *
+   * This is the same rule as the unreadable-table test above, applied to the
+   * read the function actually depends on. `getNativeTransactions` used to
+   * turn a rate limit, a timeout and `lt not in db` into `return []`, which
+   * arrived here as the fact "no transfer matched" -- so the run wrote a quiet
+   * heartbeat saying it had examined N invoices and found the channel clean,
+   * having looked at nothing at all. A watch that reports health on a failed
+   * read is worse than no watch: it is a green light nobody earned.
+   */
+  it('reports an unreadable chain as unreadable, and stays quiet in the journal', async () => {
+    const { TonChainUnreadable } = await import('@/core/ton/chainRead')
+    findNativePaymentByComment.mockRejectedValue(
+      new TonChainUnreadable('HTTP 429 from the TON API')
+    )
+
+    const r = await watch()
+
+    expect(r.did).toBe('chain unreadable')
+    expect(
+      noteWatchQuietToHive,
+      'a failed read was written into the journal as a clean channel'
+    ).not.toHaveBeenCalled()
+    expect(noteUnclaimedToHive).not.toHaveBeenCalled()
+    expect(paged.mock.calls.join('\n')).toContain('cannot read the chain')
+  })
+
+  /*
+   * The class is exported from `@/core/ton/chainRead`, not `@/core/ton`, and
+   * that is load-bearing: this file mocks `@/core/ton` wholesale, so an error
+   * type living there would be `undefined` at the check -- and the branch
+   * above would be skipped in exactly the situation it exists for.
+   */
+  it('recognises the refusal even though @/core/ton is mocked away', async () => {
+    const { TonChainUnreadable, chainWasUnreadable } = await import(
+      '@/core/ton/chainRead'
+    )
+
+    expect(chainWasUnreadable(new TonChainUnreadable('no answer in 15s'))).toBe(
+      true
+    )
+    expect(chainWasUnreadable(new Error('no answer in 15s'))).toBe(false)
+  })
+
+  it('does not page once an hour for the same outage', async () => {
+    const { TonChainUnreadable } = await import('@/core/ton/chainRead')
+    findNativePaymentByComment.mockRejectedValue(
+      new TonChainUnreadable('HTTP 429 from the TON API')
+    )
+
+    const first = await watch()
+    paged.mockClear()
+    const second = await watch()
+
+    expect(first.paged).toBe(true)
+    expect(second.paged, 'the next hourly run rang the phone again').toBe(false)
+    expect(second.did).toBe('chain unreadable')
+    expect(
+      paged,
+      'the throttle let a second alert through'
+    ).not.toHaveBeenCalled()
+  })
+
+  /*
+   * The demotion must not swallow a defect of OURS on the same path. Anything
+   * that is not "the chain refused" still fails the run, and Inngest's
+   * onFailure handler pages for it.
+   */
+  it('STILL fails loudly when the matcher breaks for any other reason', async () => {
+    findNativePaymentByComment.mockRejectedValue(
+      new TypeError('tx.in_msg is undefined')
+    )
+
+    await expect(watch()).rejects.toThrow('tx.in_msg is undefined')
+  })
+
+  it('stops asking after the first refusal', async () => {
+    const { TonChainUnreadable } = await import('@/core/ton/chainRead')
+    pendingRows.mockResolvedValue({
+      data: [INVOICE, { ...INVOICE, inv_id: 'TONN-2' }],
+      error: null,
+    })
+    findNativePaymentByComment.mockRejectedValue(
+      new TonChainUnreadable('HTTP 429 from the TON API')
+    )
+
+    await watch()
+
+    expect(
+      findNativePaymentByComment,
+      'it kept hammering an API that had just rate-limited it'
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('does nothing at all when there is nothing pending', async () => {
