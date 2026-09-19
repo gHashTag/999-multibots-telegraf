@@ -179,6 +179,8 @@ export type EventKind =
    * eight-a-day expected events.
    */
   | 'draft-unsent'
+  /** The lead magnet refused to be made, and why. */
+  | 'gift-refused'
   // other
   | 'failure'
 
