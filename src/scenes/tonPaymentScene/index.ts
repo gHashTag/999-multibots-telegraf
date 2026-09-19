@@ -24,6 +24,7 @@ import {
   generateTonkeeperLink,
   findPaymentByComment,
 } from '@/core/ton'
+import { chainWasUnreadable } from '@/core/ton/chainRead'
 import { supabase } from '@/core/supabase'
 import {
   PaymentMethod,
@@ -474,6 +475,40 @@ tonPaymentScene.action(/^ton_check_(.+)$/, async ctx => {
 
     return ctx.scene.leave()
   } catch (error) {
+    // The native twin carries the full reasoning
+    // (scenes/tonNativePaymentScene/index.ts): a refused read must never be
+    // reported to the payer as a statement about their money.
+    if (chainWasUnreadable(error)) {
+      logger.warn('[TON PAYMENT] Chain unreadable, told the payer so', {
+        telegramId,
+        invId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      await ctx.reply(
+        isRu
+          ? `⚠️ Не удалось связаться с блокчейном TON.\n\n` +
+              `Это на нашей стороне, а не с вашим платежом — деньги никуда не делись. ` +
+              `Счёт всё ещё ждёт оплаты, попробуйте проверить через минуту.`
+          : `⚠️ Could not reach the TON blockchain.\n\n` +
+              `This is on our side, not your payment — your coins are safe. ` +
+              `The invoice is still open; try checking again in a minute.`,
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '🔄 Проверить снова' : '🔄 Check again',
+              `ton_check_${invId}`
+            ),
+          ],
+          [
+            Markup.button.callback(
+              isRu ? '❌ Отменить' : '❌ Cancel',
+              'ton_cancel'
+            ),
+          ],
+        ])
+      )
+      return
+    }
     logger.error('[TON PAYMENT] Error checking payment', {
       telegramId,
       invId,

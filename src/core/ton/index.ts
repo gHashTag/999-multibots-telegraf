@@ -7,6 +7,11 @@
 
 import { Address, TonClient, JettonMaster, JettonWallet } from '@ton/ton'
 import { parseJettonInternalTransfer } from './jettonBody'
+import {
+  readFromChain,
+  chainWasUnreadable,
+  TonChainUnreadable,
+} from './chainRead'
 import { getTonConfig, nanoToUsdt, nanoToTon, DECIMALS } from './config'
 import { logger } from '@/utils/logger'
 
@@ -130,17 +135,11 @@ export async function getJettonTransactions(
       headers['X-API-Key'] = config.apiKey
     }
 
-    const response = await fetch(url, { headers })
-    const data = await response.json()
-
-    if (!data.ok) {
-      logger.error('[TON] API error', { error: data.error })
-      return []
-    }
+    const data = await readFromChain(url, headers)
 
     const transactions: TonTransaction[] = []
 
-    for (const tx of data.result || []) {
+    for (const tx of (data.result || []) as any[]) {
       // Парсим входящие сообщения (in_msg)
       if (tx.in_msg && tx.in_msg.source) {
         const comment = parseComment(tx.in_msg.msg_data)
@@ -168,11 +167,24 @@ export async function getJettonTransactions(
 
     return transactions
   } catch (error) {
-    logger.error('[TON] Error fetching transactions', {
+    /*
+     * A REFUSAL TRAVELS; ONLY A SUCCESSFUL READ MAY RETURN A LIST.
+     *
+     * This used to log and `return []` for everything, so a rate limit, a
+     * timeout and `lt not in db` all arrived at the caller as the fact "no
+     * jetton transfer ever came in" -- and the caller told the payer their
+     * money was not on the chain. `getJettonWalletAddress` throwing lands
+     * here too, and it is the same kind of failure: we could not look.
+     */
+    logger.warn('[TON] Could not read jetton transactions', {
       walletAddress,
       error: error instanceof Error ? error.message : String(error),
     })
-    return []
+    throw chainWasUnreadable(error)
+      ? error
+      : new TonChainUnreadable(
+          error instanceof Error ? error.message : String(error)
+        )
   }
 }
 
@@ -293,6 +305,12 @@ export async function findPaymentByComment(
 
     return null
   } catch (error) {
+    /*
+     * `null` here means "searched, and this invoice was not paid". A read
+     * that never happened has not earned that answer, so it travels on and
+     * the caller decides what to tell the payer.
+     */
+    if (chainWasUnreadable(error)) throw error
     logger.error('[TON] Error finding payment', {
       expectedComment,
       error: error instanceof Error ? error.message : String(error),
@@ -381,17 +399,11 @@ export async function getNativeTransactions(
       headers['X-API-Key'] = config.apiKey
     }
 
-    const response = await fetch(url, { headers })
-    const data = await response.json()
-
-    if (!data.ok) {
-      logger.error('[TON] API error', { error: data.error })
-      return []
-    }
+    const data = await readFromChain(url, headers)
 
     const transactions: TonTransaction[] = []
 
-    for (const tx of data.result || []) {
+    for (const tx of (data.result || []) as any[]) {
       // Парсим входящие сообщения (in_msg) для нативного TON
       if (tx.in_msg && tx.in_msg.source && tx.in_msg.value) {
         const comment = parseComment(tx.in_msg.msg_data)
@@ -419,11 +431,17 @@ export async function getNativeTransactions(
 
     return transactions
   } catch (error) {
-    logger.error('[TON] Error fetching native transactions', {
+    // Same rule as the jetton twin: an empty list is a statement about the
+    // chain, and only a read that succeeded is entitled to make it.
+    logger.warn('[TON] Could not read native transactions', {
       walletAddress,
       error: error instanceof Error ? error.message : String(error),
     })
-    return []
+    throw chainWasUnreadable(error)
+      ? error
+      : new TonChainUnreadable(
+          error instanceof Error ? error.message : String(error)
+        )
   }
 }
 
@@ -488,6 +506,8 @@ export async function findNativePaymentByComment(
 
     return null
   } catch (error) {
+    // As above: "not paid" is a finding, and an unreadable chain has none.
+    if (chainWasUnreadable(error)) throw error
     logger.error('[TON] Error finding native TON payment', {
       expectedComment,
       error: error instanceof Error ? error.message : String(error),
