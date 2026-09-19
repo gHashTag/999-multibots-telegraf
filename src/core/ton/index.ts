@@ -103,8 +103,26 @@ export async function getJettonTransactions(
       limit,
     })
 
-    // Используем TON Center API для получения транзакций jetton wallet
-    const url = `${config.apiEndpoint}/getTransactions?address=${jettonWalletAddress}&limit=${limit}&archival=false`
+    /*
+     * ARCHIVAL. A non-archival liteserver keeps only recent blocks, and
+     * `getTransactions` has to walk back from the account's last transaction
+     * to answer at all. Our wallet is quiet for months at a time, so that
+     * last transaction ages out of the light node and EVERY call fails with
+     *
+     *   LITE_SERVER_UNKNOWN: cannot compute block with specified transaction:
+     *   cannot find block (0,cf31229e66836b55) lt=94364624000001: lt not in db
+     *
+     * Reproduced against the live wallet on 2026-09-19, both ways, one after
+     * the other: archival=false -> that exact error, 0 transactions;
+     * archival=true -> ok, transactions returned. The same held for the native
+     * twin below (block (0,5a558223fe27f617), lt=94364619000001).
+     *
+     * The cost was not the hourly page. `!data.ok` returns `[]`, so
+     * `findPaymentByComment` searched an empty list and logged
+     * transactionsCount=0 -- a paid invoice could not have been confirmed at
+     * all, for as long as the wallet had been idle.
+     */
+    const url = `${config.apiEndpoint}/getTransactions?address=${jettonWalletAddress}&limit=${limit}&archival=true`
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
@@ -352,8 +370,10 @@ export async function getNativeTransactions(
       limit,
     })
 
-    // Используем TON Center API напрямую
-    const url = `${config.apiEndpoint}/getTransactions?address=${walletAddress}&limit=${limit}&archival=false`
+    // Archival for the same reason as the jetton twin above: an idle wallet's
+    // last transaction is not in a light node's database, and without it this
+    // endpoint cannot answer at all.
+    const url = `${config.apiEndpoint}/getTransactions?address=${walletAddress}&limit=${limit}&archival=true`
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }

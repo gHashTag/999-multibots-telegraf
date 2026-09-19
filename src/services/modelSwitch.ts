@@ -2,6 +2,8 @@
  * The model and the seller, from the bot. Three thin calls to the render
  * service over the server key, on behalf of the owner who pressed.
  */
+import { RenderDidNotAnswer } from './renderTimeout'
+
 const BASE = 'https://vibee-render-production.up.railway.app'
 const apiKey = () => process.env.RENDER_API_KEY || ''
 
@@ -97,7 +99,9 @@ export async function callTool(
     )
   } catch (e) {
     if (ac.signal.aborted)
-      throw new Error(
+      // Typed, not just worded: a caller must be able to tell "we stopped
+      // waiting" from "the render refused". See renderTimeout.ts.
+      throw new RenderDidNotAnswer(
         `рендер не ответил за ${Math.round((o.timeoutMs ?? TOOL_TIMEOUT_MS) / 1000)} с — попробуй ещё раз`
       )
     throw e
