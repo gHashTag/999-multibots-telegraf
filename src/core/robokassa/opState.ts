@@ -36,6 +36,18 @@ export interface OpStateAnswer {
   state?: number
   /** Why it is UNKNOWN, in the provider's own terms. */
   why?: string
+  /**
+   * WHAT THE BUYER ACTUALLY PAID, from the provider's own record.
+   *
+   * `<Info><IncSum>` is the sum that left the buyer. It is read here so that a
+   * settlement can compare it with what we invoiced instead of assuming they
+   * agree: an amount check fed the invoiced amount checks nothing, and this
+   * value is the only independent one we can get.
+   *
+   * Absent on many answers (the provider omits Info for states it has no
+   * record for), and absence must never be read as zero.
+   */
+  incSum?: number
 }
 
 const PAID = new Set([50, 100]) // money left the buyer
@@ -84,7 +96,13 @@ export function classifyOpState(xml: unknown): OpStateAnswer {
   const state = readCode(xml, 'State')
   if (state === null)
     return { verdict: 'UNKNOWN', why: 'Result ok but no State.Code' }
-  if (PAID.has(state)) return { verdict: 'PAID', state }
+  if (PAID.has(state)) {
+    const inc = /<IncSum\b[^>]*>\s*([0-9.]+)\s*<\/IncSum>/i.exec(xml)
+    const incSum = inc ? Number(inc[1]) : undefined
+    return Number.isFinite(incSum)
+      ? { verdict: 'PAID', state, incSum }
+      : { verdict: 'PAID', state }
+  }
   if (UNPAID.has(state)) return { verdict: 'NOT_PAID', state }
   if (HUMAN.has(state)) return { verdict: 'NEEDS_A_HUMAN', state }
   return { verdict: 'UNKNOWN', why: `undocumented State.Code=${state}`, state }
