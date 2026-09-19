@@ -30,12 +30,23 @@
  */
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
+import { chainWasUnreadable } from '@/core/ton/chainRead'
 import { logger } from '@/utils/logger'
 
 export const TON_WATCH_CRON = '0 * * * *'
 
 /** The owner, for the journal line. Never a payer's id: the journal is a feed. */
 const OWNER = process.env.CRM_OWNER_ID || '144022504'
+
+/**
+ * A chain this watch cannot read is worth knowing about, and worth knowing
+ * about ONCE. The cron fires hourly; a public API having a bad week would
+ * otherwise be 24 identical pages a day, which is how an owner learns to swipe
+ * the alerts away. The gate is a module variable rather than the shared
+ * throttle because this is the only caller and the window is its own.
+ */
+const CHAIN_ALARM_EVERY_MS = 6 * 60 * 60 * 1000
+let lastChainAlarmAt = 0
 
 export const tonPendingWatch = inngest.createFunction(
   {
@@ -133,28 +144,90 @@ export const tonPendingWatch = inngest.createFunction(
         })
       }
 
+      let asked = 0
+      let unreadable: string | null = null
+
       for (const row of native) {
-        const hit = await ton.findNativePaymentByComment(
-          config.walletAddress,
-          String(row.inv_id),
-          Number(row.amount),
-          row.payment_date ? Date.parse(String(row.payment_date)) : undefined
-        )
-        if (hit)
-          found.push({
-            inv_id: String(row.inv_id),
-            stars: Number(row.stars) || 0,
+        try {
+          const hit = await ton.findNativePaymentByComment(
+            config.walletAddress,
+            String(row.inv_id),
+            Number(row.amount),
+            /*
+             * SECONDS, BECAUSE THE CHAIN COUNTS IN SECONDS.
+             *
+             * `tx.timestamp` is `tx.utime`, a UNIX timestamp in SECONDS; the
+             * matcher drops anything older than this floor. Passing
+             * `Date.parse()` handed it MILLISECONDS -- a floor roughly a
+             * thousand times further in the future than any transfer TON will
+             * ever carry, so every transaction was skipped and this watch
+             * could never once have reported money that arrived. It ran
+             * hourly, reported "none unclaimed", and was structurally
+             * incapable of reporting anything else. The scene gets this
+             * right: it stores `Math.floor(Date.now() / 1000)`
+             * (tonNativePaymentScene/index.ts:146).
+             */
+            row.payment_date
+              ? Math.floor(Date.parse(String(row.payment_date)) / 1000)
+              : undefined
+          )
+          asked++
+          if (hit)
+            found.push({
+              inv_id: String(row.inv_id),
+              stars: Number(row.stars) || 0,
+            })
+        } catch (error) {
+          if (!chainWasUnreadable(error)) throw error
+          /*
+           * The chain refused us. Asking again for the remaining rows would
+           * hit the same wall (and, if it was a rate limit, deepen it), so
+           * the sweep stops here and says what happened.
+           */
+          unreadable = error instanceof Error ? error.message : String(error)
+          break
+        }
+      }
+
+      if (unreadable && !found.length) {
+        /*
+         * NO HEARTBEAT HERE, DELIBERATELY. The quiet note means "I looked and
+         * the channel is clean"; writing one now would record a clean channel
+         * on the strength of a read that never happened -- the precise
+         * failure this whole function exists to catch, committed by the
+         * catcher. Silence plus a throttled page is the honest pair.
+         */
+        const due = Date.now() - lastChainAlarmAt >= CHAIN_ALARM_EVERY_MS
+        if (due) {
+          lastChainAlarmAt = Date.now()
+          logger.error('💸 [ton-watch] cannot read the chain — TON unwatched', {
+            why: unreadable,
+            pending: native.length,
+            since: 'this alarm repeats at most every 6h',
           })
+        } else {
+          logger.warn('[ton-watch] chain still unreadable', {
+            why: unreadable,
+            pending: native.length,
+          })
+        }
+        return {
+          did: 'chain unreadable' as const,
+          why: unreadable,
+          pending: native.length,
+          notChecked,
+          paged: due,
+        }
       }
 
       if (!found.length) {
         const beat = await noteWatchQuietToHive(OWNER, {
           channel: 'TON',
-          examined: native.length,
+          examined: asked,
         })
         return {
           did: 'none unclaimed' as const,
-          checked: native.length,
+          checked: asked,
           notChecked,
           beat,
         }
@@ -176,6 +249,10 @@ export const tonPendingWatch = inngest.createFunction(
         invoices: found.length,
         stars,
         notChecked,
+        // Money was found AND the sweep was cut short: what is reported is a
+        // floor, not a total, and the run says so rather than implying it read
+        // every pending row.
+        cutShort: unreadable ?? undefined,
         noted,
       }
     })

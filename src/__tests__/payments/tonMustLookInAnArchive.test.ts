@@ -61,7 +61,13 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url: string) => {
       requested.push(String(url))
-      return { json: async () => ({ ok: true, result: [] }) } as never
+      // `ok`/`status` are read before the body now -- a refusal must not be
+      // parsed as an answer -- so a stub without them is a failed read.
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, result: [] }),
+      } as never
     })
   )
 })
