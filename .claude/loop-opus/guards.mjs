@@ -108,6 +108,7 @@ const GUARDS = [
   'src/__tests__/reliability/botLaunchRetriesOn409.test.ts', // hotfix 2026-09-08: bots launch via launchWithConflictRetry -- a redeploy overlap gives the newcomer 409 Conflict; it used to be logged once and the bot stayed DEAD until the next deploy (neuro_blogger_bot, MetaMuse_Manifest_bot); bounded retry, 409 only
   'src/__tests__/reliability/kieRenderStatusUsesConfiguredKey.test.ts', // hotfix 2026-09-08: render/steps.ts built KieAIService with process.env.KIE_API_KEY (set nowhere) -> empty key -> every Kie render status poll 401; reads KIE_AI_API_KEY like the other 44 sites
   'src/__tests__/reliability/sessionStoreRedis.test.ts', // 2026-09-08 Telegraf sessions in Redis (15 redeploys/3h wiped every wizard): JSON round-trip, Buffer images never persisted, bot-scoped keys (11 bots, private chat.id==from.id), memory fallback on Redis failure, every bot installs sessionMiddleware() (mutation: bare session() -> RED)
+  'src/__tests__/money/tonJettonAmountParsedFromBoc.test.ts', // OWNER-GATED draft: USDT jetton amount parsed from the BoC body (VarUInteger16) via jettonBody.ts -- the fixed-offset readUInt32BE(0) read hit the BoC magic, returned 0 for EVERY transfer, and getJettonTransactions dropped every incoming USDT payment (paid on-chain, never credited); lib-built fixtures + structural + mutation; wave23
 ]
 
 const ROOT = process.cwd()
