@@ -4,6 +4,8 @@ import { API_BASE } from '../../config'
 import { authHeaders } from '@/lib/apiFetch'
 import { useLanguage } from '@/hooks/useLanguage'
 import { ConnectCode } from './ConnectCode'
+import { ConnectQr } from './ConnectQr'
+import { accountLabel, runQrPoll, type QrAccountSeen } from './qrPoll'
 import { NOTHING_SENT, readSentCode, type SentCode } from './connectDelivery'
 import {
   browserStore,
@@ -47,7 +49,7 @@ import { agentTelegramConnectedAtom } from '@/atoms/agentTelegram'
  * two-factor password on its own. Each screen asks for one thing.
  */
 
-type Step = 'checking' | 'connected' | 'phone' | 'code' | 'password'
+type Step = 'checking' | 'connected' | 'phone' | 'code' | 'qr' | 'password'
 
 /**
  * The chat named "Telegram": the service account behind +42777, which is where
@@ -65,6 +67,11 @@ export function ConnectTelegram() {
   const [handle, setHandle] = useState('')
   /** What Telegram said about the code it sent: channel, next one, wait. */
   const [sent, setSent] = useState<SentCode>(NOTHING_SENT)
+  /** The `tg://login` link on the QR screen; the server renews it. */
+  const [qrUrl, setQrUrl] = useState('')
+  /** Which account connected. After a QR scan nobody typed a number, so */
+  /** "connected" alone would not say which of two accounts held the camera. */
+  const [account, setAccount] = useState<QrAccountSeen | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   /** Number filled in, not typed. Affects only the caption under the field. */
@@ -246,6 +253,57 @@ export function ConnectTelegram() {
       setCode('')
     })
 
+  /**
+   * THE WAY IN THAT WAITS FOR NO CODE.
+   *
+   * Telegram delivers a login code for our server only into the Telegram app,
+   * and the owner spent two days learning what that means when it does not
+   * come. A QR login has nothing to deliver: the person scans from the
+   * Telegram they are already signed in to and confirms there.
+   */
+  const startQr = () =>
+    run(async () => {
+      const d = await ask('/api/tg/connect/qr/start', 'POST')
+      // A code login left half-way is a different attempt: it is let go, so
+      // coming back later does not resume a screen the person walked away from.
+      clearAttempt(browserStore())
+      setHandle(d.handle)
+      setQrUrl(String(d.url ?? ''))
+      setStep('qr')
+    })
+
+  useEffect(() => {
+    if (step !== 'qr' || !handle) return
+    let alive = true
+    void runQrPoll({
+      poll: () => ask('/api/tg/connect/qr/poll', 'POST', { handle }),
+      wait: ms => new Promise(r => window.setTimeout(r, ms)),
+      alive: () => alive,
+      onUrl: setQrUrl,
+      onTransientError: m => setError(inPlainWords(m)),
+      isGone: attemptIsGone,
+    }).then(end => {
+      if (!alive) return
+      if (end.kind === 'connected') {
+        setError(null)
+        setAccount(end.account ?? null)
+        setConnected(true)
+        setStep('connected')
+      } else if (end.kind === 'password') {
+        setError(null)
+        setStep('password')
+      } else if (end.kind === 'gone') {
+        setError(inPlainWords(end.message))
+        setStep('phone')
+      }
+    })
+    return () => {
+      alive = false
+    }
+    // `inPlainWords` and `attemptIsGone` are pure and defined in this render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, handle, ask, setConnected])
+
   /** Absent outside Telegram, so the code screen does not draw the button. */
   const webApp = isTelegram() ? getWebApp() : null
   const openServiceChat =
@@ -259,6 +317,11 @@ export function ConnectTelegram() {
     return (
       <section className="connect-tg">
         <h3>{t('connect.done.title')}</h3>
+        {accountLabel(account) && (
+          <p className="connect-tg__account">
+            {t('connect.done.account', { name: accountLabel(account) })}
+          </p>
+        )}
         <p>{t('connect.done.body')}</p>
         <button
           type="button"
@@ -268,6 +331,7 @@ export function ConnectTelegram() {
             void run(async () => {
               await ask('/api/tg/connect', 'DELETE')
               clearAttempt(browserStore())
+              setAccount(null)
               setConnected(false)
               setStep('phone')
             })
@@ -301,6 +365,7 @@ export function ConnectTelegram() {
         }}
         onResend={() => void resendCode()}
         onOpenChat={openServiceChat}
+        onUseQr={() => void startQr()}
         onSubmit={() =>
           void run(async () => {
             const d = await ask('/api/tg/connect/code', 'POST', {
@@ -315,6 +380,20 @@ export function ConnectTelegram() {
             setStep(d['нужен_пароль'] ? 'password' : 'connected')
           })
         }
+      />
+    )
+  }
+
+  if (step === 'qr') {
+    return (
+      <ConnectQr
+        url={qrUrl}
+        error={error}
+        canOpenHere={webApp?.platform === 'android'}
+        onBack={() => {
+          setError(null)
+          setStep('phone')
+        }}
       />
     )
   }
@@ -336,10 +415,11 @@ export function ConnectTelegram() {
           disabled={busy || !password}
           onClick={() =>
             void run(async () => {
-              await ask('/api/tg/connect/password', 'POST', {
+              const d = await ask('/api/tg/connect/password', 'POST', {
                 handle,
                 password,
               })
+              setAccount(d.account ?? null)
               setPassword('')
               setConnected(true)
               setStep('connected')
@@ -417,6 +497,24 @@ export function ConnectTelegram() {
       >
         {busy ? t('connect.phone.going') : t('connect.phone.go')}
       </button>
+
+      {/*
+        THE SECOND DOOR, ON THE FIRST SCREEN.
+
+        Offered here and not only after a code has failed to come: a person who
+        already knows codes do not reach them should not have to request one
+        more to find the way round. Secondary on purpose -- for most people the
+        code is one tap and the QR needs a second screen.
+      */}
+      <button
+        type="button"
+        className="connect-tg__qr"
+        disabled={busy}
+        onClick={() => void startQr()}
+      >
+        {t('connect.qr.offer')}
+      </button>
+      <p className="connect-tg__hint">{t('connect.qr.offerHint')}</p>
     </section>
   )
 }

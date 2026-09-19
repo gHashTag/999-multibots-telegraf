@@ -1,0 +1,86 @@
+.tg-qr {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tg-qr__top {
+  display: flex;
+  align-items: center;
+}
+
+.tg-qr__back {
+  min-height: var(--touch-target, 44px);
+  padding: 8px 0;
+  font-size: 16px;
+  color: var(--vibee-green, #00ff88);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tg-qr__title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--text-primary, #fff);
+}
+
+/* White card, dark modules, always: a scanner looks for that contrast, and
+   the card's own padding is on top of the quiet zone inside the SVG. */
+.tg-qr__code {
+  align-self: center;
+  width: min(100%, 280px);
+  padding: 8px;
+  background: #fff;
+  border-radius: 16px;
+  line-height: 0;
+}
+
+.tg-qr__code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.tg-qr__steps {
+  margin: 0;
+  padding-left: 22px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text-primary, #fff);
+}
+
+.tg-qr__steps li + li {
+  margin-top: 6px;
+}
+
+.tg-qr__note,
+.tg-qr__waiting {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted, #888);
+}
+
+.tg-qr__here {
+  align-self: flex-start;
+  min-height: var(--touch-target, 44px);
+  padding: 10px 16px;
+  font-size: 16px;
+  color: var(--vibee-green, #00ff88);
+  text-decoration: none;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+}
+
+.tg-qr__error {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #ffb4b4;
+  background: rgba(255, 80, 80, 0.12);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}

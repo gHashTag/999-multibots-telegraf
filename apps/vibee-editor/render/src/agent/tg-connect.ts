@@ -45,6 +45,14 @@ import {
   requestResend,
   type CodeDelivery,
 } from './tg-code-delivery'
+import {
+  accountOf,
+  advanceQr,
+  beginQr,
+  loginUrl,
+  type QrAccount,
+  type QrState,
+} from './tg-qr-login'
 
 /** Сколько живёт незаконченный вход. Дольше и не нужно: код Telegram тоже. */
 const ЖИЗНЬ_ПОПЫТКИ_МС = 10 * 60 * 1000
@@ -62,6 +70,8 @@ interface Попытка {
   phoneCodeHash: string
   client: any
   создана: number
+  /** Present for a QR login: no number, no hash, a token on screen instead. */
+  qr?: QrState
 }
 
 const попытки = new Map<string, Попытка>()
@@ -285,6 +295,88 @@ export async function resendCode(
 }
 
 /**
+ * QR LOGIN, STEP 1: a token to show as a QR code.
+ *
+ * The second way in, for when the code never comes (tg-qr-login.ts says why).
+ * It is an attempt like any other: it belongs to the person who started it,
+ * it counts against the same cap, and it is swept after the same ten minutes
+ * -- a QR left open on a screen must not keep a half-open MTProto client
+ * alive for ever.
+ */
+export async function startQrLogin(
+  telegramId: string,
+  createClient: () => Promise<any>,
+  randomKey: () => string
+): Promise<{ handle: string; url: string; expires: number }> {
+  убратьПротухшие() // cyrillic-ok: pre-existing local name
+  // cyrillic-ok-next-line: pre-existing local names
+  if (попытки.size >= МАКС_ПОПЫТОК) {
+    throw new Error(
+      'слишком много незаконченных входов — попробуйте через минуту'
+    )
+  }
+  const client = await createClient()
+  let qr: QrState
+  try {
+    qr = await beginQr(client)
+  } catch (e) {
+    // No token, no attempt: the client must not outlive a start that failed.
+    await hangUp(client)
+    throw e
+  }
+  const handle = randomKey()
+  // cyrillic-ok-next-line: pre-existing local name
+  попытки.set(handle, {
+    telegramId: String(telegramId),
+    phone: '',
+    phoneCodeHash: '',
+    client,
+    создана: Date.now(), // cyrillic-ok: pre-existing field name
+    qr,
+  })
+  return { handle, url: loginUrl(qr.token), expires: qr.expires }
+}
+
+/**
+ * QR LOGIN, STEP 2: what the screen's poll is told.
+ *
+ * `waiting` carries the token to draw (it changes about every thirty seconds),
+ * `password` hands over to the existing two-factor step with the same handle,
+ * and `done` returns the session for the route to store -- never to the
+ * client -- together with WHICH account scanned. The screen shows that name:
+ * with a QR code nobody typed a number, so "connected" alone would not say
+ * whether the right account of two was the one holding the camera.
+ *
+ * The client is hung up once the session is saved out of it. The session
+ * string is all that is needed from here on, and a connected GramJS client
+ * left behind pings Telegram for the life of the process (hang-up.ts).
+ */
+export async function pollQrLogin(
+  telegramId: string,
+  handle: string,
+  now: number = Date.now()
+): Promise<
+  | { state: 'waiting'; url: string; expires: number }
+  | { state: 'password' }
+  | { state: 'done'; session: string; account: QrAccount }
+> {
+  убратьПротухшие() // cyrillic-ok: pre-existing local name
+  const attempt = попытки.get(handle) // cyrillic-ok: pre-existing local name
+  if (!attempt || !attempt.qr) {
+    throw new Error('вход не начат или истёк — начните заново')
+  }
+  if (attempt.telegramId !== String(telegramId)) {
+    throw new Error('этот вход начат другим человеком')
+  }
+  const step = await advanceQr(attempt.client, attempt.qr, now)
+  if (step.state !== 'done') return step
+  const session = String(attempt.client.session.save())
+  попытки.delete(handle) // cyrillic-ok: pre-existing local name
+  await hangUp(attempt.client)
+  return { state: 'done', session, account: step.account }
+}
+
+/**
  * Шаг 2: код. Возвращает либо готовую сессию, либо «нужен пароль».
  *
  * Попытка ПРИНАДЛЕЖИТ человеку: handle сам по себе не пропуск. Иначе
@@ -301,6 +393,10 @@ export async function подтвердитьКод(
   if (п.telegramId !== String(telegramId)) {
     throw new Error('этот вход начат другим человеком')
   }
+  // A QR attempt has no hash: signing in with an empty one would only earn a
+  // protocol error for somebody who did nothing wrong.
+  // cyrillic-ok-next-line: pre-existing local name
+  if (п.qr) throw new Error('этот вход идёт по QR-коду — код вводить не нужно')
   const код = нормализоватьКод(сыройКод)
   try {
     /*
@@ -344,7 +440,7 @@ export async function подтвердитьПароль(
   telegramId: string,
   handle: string,
   пароль: string
-): Promise<{ сессия: string; phone: string }> {
+): Promise<{ сессия: string; phone: string; account?: QrAccount }> {
   убратьПротухшие()
   const п = попытки.get(handle)
   if (!п) throw new Error('вход не начат или истёк — начните заново')
@@ -352,7 +448,8 @@ export async function подтвердитьПароль(
     throw new Error('этот вход начат другим человеком')
   }
   if (!пароль) throw new Error('пароль пустой')
-  await п.client.signInWithPassword(
+  // cyrillic-ok-next-line: pre-existing local names
+  const user = await п.client.signInWithPassword(
     { apiId: п.client.apiId, apiHash: п.client.apiHash },
     {
       password: async () => пароль,
@@ -363,6 +460,17 @@ export async function подтвердитьПароль(
   )
   const сессия = String(п.client.session.save())
   попытки.delete(handle)
+  /*
+   * After a QR scan nobody typed a number, so the attempt has none. The
+   * account that just signed in knows its own, and the row in tg_sessions
+   * keeps saying whose session it is.
+   */
+  // cyrillic-ok-next-line: pre-existing local names
+  if (п.qr) {
+    const account = accountOf(user)
+    await hangUp(п.client) // cyrillic-ok: pre-existing local name
+    return { сессия, phone: account.phone ?? '', account } // cyrillic-ok
+  }
   return { сессия, phone: п.phone }
 }
 
@@ -391,6 +499,8 @@ export interface ЗависимостиМаршрута {
 export const ПУТИ_ПОДКЛЮЧЕНИЯ = [
   '/api/tg/connect/start',
   '/api/tg/connect/resend',
+  '/api/tg/connect/qr/start',
+  '/api/tg/connect/qr/poll',
   '/api/tg/connect/code',
   '/api/tg/connect/password',
   '/api/tg/connect/status',
@@ -399,6 +509,23 @@ export const ПУТИ_ПОДКЛЮЧЕНИЯ = [
 
 export function этоПутьПодключения(путь: string): boolean {
   return (ПУТИ_ПОДКЛЮЧЕНИЯ as readonly string[]).includes(путь)
+}
+
+/**
+ * What the screen may say about the account that scanned: its name and how
+ * the number ends. The full number stays on the server -- the person knows
+ * their own, and a screen (or a screenshot of it) has no use for the rest.
+ */
+function publicAccount(a: QrAccount): {
+  username?: string
+  firstName?: string
+  phoneEnding?: string
+} {
+  return {
+    ...(a.username ? { username: a.username } : {}),
+    ...(a.firstName ? { firstName: a.firstName } : {}),
+    ...(a.phone ? { phoneEnding: a.phone.slice(-4) } : {}),
+  }
 }
 
 interface Ответ {
@@ -511,6 +638,48 @@ export async function обработатьПодключение(
       }
     }
 
+    // cyrillic-ok-next-line: pre-existing local name
+    if (путь === '/api/tg/connect/qr/start') {
+      const r = await startQrLogin(
+        кто, // cyrillic-ok: pre-existing local name
+        зав.создатьКлиент, // cyrillic-ok: pre-existing dependency name
+        зав.случайныйКлюч // cyrillic-ok: pre-existing dependency name
+      )
+      return {
+        код: 200, // cyrillic-ok: pre-existing response shape
+        тело: { ok: true, ...r }, // cyrillic-ok: pre-existing response shape
+      }
+    }
+
+    // cyrillic-ok-next-line: pre-existing local name
+    if (путь === '/api/tg/connect/qr/poll') {
+      // cyrillic-ok-next-line: pre-existing local names
+      const r = await pollQrLogin(кто, String(тело.handle ?? ''))
+      if (r.state === 'waiting') {
+        return {
+          код: 200, // cyrillic-ok: pre-existing response shape
+          // cyrillic-ok-next-line: pre-existing response shape
+          тело: { ok: true, state: r.state, url: r.url, expires: r.expires },
+        }
+      }
+      if (r.state === 'password') {
+        // The same words the code step uses, so the screen needs one rule for
+        // "now ask for the password", whichever way the person came in.
+        // cyrillic-ok-next-line: pre-existing response shape
+        return { код: 200, тело: { ok: true, нужен_пароль: true } }
+      }
+      // cyrillic-ok-next-line: pre-existing local names
+      await сохранитьСессию(pool, кто, r.session, r.account.phone)
+      void ingestAfterConnect(pool, кто) // cyrillic-ok: pre-existing local name
+      // The session string stays here, as in the code step; the screen gets
+      // only the name of the account that scanned.
+      return {
+        код: 200, // cyrillic-ok: pre-existing response shape
+        // cyrillic-ok-next-line: pre-existing response shape
+        тело: { ok: true, подключено: true, account: publicAccount(r.account) },
+      }
+    }
+
     if (путь === '/api/tg/connect/code') {
       const r = await подтвердитьКод(
         кто,
@@ -535,9 +704,16 @@ export async function обработатьПодключение(
         String(тело.handle ?? ''),
         String(тело.password ?? '')
       )
-      await сохранитьСессию(pool, кто, r.сессия, r.phone)
+      await сохранитьСессию(pool, кто, r.сессия, r.phone || undefined)
       void ingestAfterConnect(pool, кто) // cyrillic-ok: pre-existing local name
-      return { код: 200, тело: { ok: true, подключено: true } }
+      return {
+        код: 200, // cyrillic-ok: pre-existing response shape
+        тело: {
+          ok: true,
+          подключено: true, // cyrillic-ok: pre-existing response shape
+          ...(r.account ? { account: publicAccount(r.account) } : {}),
+        }, // cyrillic-ok: pre-existing response shape
+      }
     }
   } catch (e) {
     /*

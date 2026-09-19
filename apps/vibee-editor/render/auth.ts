@@ -236,6 +236,8 @@ const PUBLIC_EXACT = new Set([
    */
   '/api/tg/connect/start',
   '/api/tg/connect/resend',
+  '/api/tg/connect/qr/start',
+  '/api/tg/connect/qr/poll',
   '/api/tg/connect/code',
   '/api/tg/connect/password',
   '/api/tg/connect/status',

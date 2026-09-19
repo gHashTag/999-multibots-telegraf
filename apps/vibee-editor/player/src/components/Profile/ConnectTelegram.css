@@ -175,3 +175,26 @@
      (PHONE_CODE_INVALID...). Without this they push the panel sideways. */
   overflow-wrap: anywhere;
 }
+
+/* The second door on the first screen: secondary to "Get the code". */
+.connect-tg button.connect-tg__qr {
+  min-height: var(--touch-target, 44px);
+  padding: 10px 16px;
+  font-size: 16px;
+  color: var(--vibee-green, #00ff88);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.connect-tg button.connect-tg__qr:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Which account connected: the fact the person checks first after a QR scan. */
+.connect-tg__account {
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}

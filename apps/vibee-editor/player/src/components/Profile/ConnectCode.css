@@ -264,3 +264,23 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* The door to the QR login. A text button: it must be findable by somebody
+   who has run out of things to try, without competing with Confirm above. */
+.tg-code__use-qr {
+  align-self: flex-start;
+  min-height: var(--touch-target, 44px);
+  margin: 0;
+  padding: 8px 0;
+  font-size: 16px;
+  color: var(--vibee-green, #00ff88);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tg-code__use-qr:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
