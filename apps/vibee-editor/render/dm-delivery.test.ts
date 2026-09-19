@@ -60,11 +60,16 @@ afterEach(() => {
 /** A pool that answers balance reads and records every statement. */
 function poolWith(balanceRows: unknown[]) {
   const sqls: string[] = []
+  // The PARAMS too: a journal line is judged by what it carries, not by the
+  // fact that an INSERT happened.
+  const args: unknown[][] = []
   return {
     sqls,
-    query: async (sql: string) => {
+    args,
+    query: async (sql: string, params: unknown[] = []) => {
       const flat = sql.replace(/\s+/g, ' ').trim()
       sqls.push(flat)
+      args.push(params)
       return { rows: /SELECT balance/.test(flat) ? balanceRows : [] }
     },
   }
@@ -134,6 +139,79 @@ async function deliverer(
 
 /** The paid, text-to-image mode the older tests below were written for. */
 const PAID = { gift: false, from_photo: false } as const
+
+describe('a refused gift leaves a line, because nothing else does', () => {
+  /*
+   * MEASURED 2026-09-16: gpt_image_edit -- the lead magnet's op -- appears
+   * ZERO times in the journal over 62 prepared cards, while four of the top
+   * five candidates every tick ask for exactly that step. Three cycles of
+   * reading the code produced three wrong causes, because a refusal here
+   * goes back to the model as a field it is free to ignore. It ignores it.
+   *
+   * These pin the line that ends the guessing, and pin that the line carries
+   * no client.
+   */
+  const journalled = (pool: { sqls: string[]; args: unknown[][] }) =>
+    pool.args.filter((_a, i) => /INSERT INTO hive_events/i.test(pool.sqls[i]))
+
+  it('a surface with no button is written down, not only returned', async () => {
+    stubSupabase([leadRow])
+    const { tool } = await deliverer()
+    const pool = poolWith([{ balance: 50 }])
+    await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(pool, 'mcp')
+    )
+    const rows = journalled(pool)
+    expect(rows.length, 'the refusal left no trace').toBe(1)
+    expect(String(rows[0][0])).toBe('gift-refused')
+    expect(String(rows[0][4])).toContain('surface')
+  })
+
+  it('a provider that refuses is written down with its own reason', async () => {
+    stubSupabase([leadRow])
+    const { tool } = await deliverer({
+      gen: async () => ({ сделано: false, причина: 'провайдер лёг' }), // cyrillic-ok
+    })
+    const pool = poolWith([{ balance: 50 }])
+    await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(pool)
+    )
+    const rows = journalled(pool)
+    expect(rows.length).toBe(1)
+    expect(String(rows[0][4])).toContain('generate')
+  })
+
+  it('a picture that WAS made leaves no refusal line', async () => {
+    stubSupabase([leadRow])
+    const { tool } = await deliverer()
+    const pool = poolWith([{ balance: 50 }])
+    await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(pool)
+    )
+    expect(journalled(pool).length, 'a success was filed as a refusal').toBe(0)
+  })
+
+  it('a journal that is down does not stop the seller', async () => {
+    stubSupabase([leadRow])
+    const { tool } = await deliverer()
+    const angry = {
+      sqls: [] as string[],
+      args: [] as unknown[][],
+      query: async (sql: string) => {
+        if (/hive_events/i.test(sql)) throw new Error('disk full')
+        return { rows: /SELECT balance/.test(sql) ? [{ balance: 50 }] : [] }
+      },
+    }
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'кот', ...PAID }, // cyrillic-ok
+      ctxWith(angry, 'mcp')
+    )
+    expect(r.proposal, 'the refusal itself still reached the model').toBe(true)
+  })
+})
 
 describe('crm_deliver_photo asks the provider last and charges nobody', () => {
   it('a surface without a button is refused BEFORE anything is generated', async () => {
