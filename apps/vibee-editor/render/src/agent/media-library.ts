@@ -769,8 +769,20 @@ export async function transcribeShelfAudioNow(
   name: string | null,
   timeoutMs: number
 ): Promise<string | null> {
-  const safe = usableMediaUrl(url, 'audio')
-  if (!safe) return null
+  /*
+   * THE TRANSCRIBER'S OWN GATE, NOT THE CHAT PROVIDER'S.
+   *
+   * The sweep was widened to what ffmpeg opens and this, the LIVE path, was
+   * left on the narrow one -- so a person sending a container outside the
+   * four-extension list still got "nothing here could listen to this", while
+   * the background sweep would happily have read the same file. Two gates for
+   * one question is how that happens; there is now one.
+   */
+  const safe = transcribableUrl(url)
+  if (!safe) {
+    console.warn(`[media] not hearable live: ${String(name ?? url).slice(-60)}`)
+    return null
+  }
   const w = whisperConfig()
   if (!w) return null
   try {

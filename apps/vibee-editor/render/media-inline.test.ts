@@ -403,3 +403,56 @@ describe('the ordinary turn pays nothing', () => {
     expect(added).toBeLessThan(12_000)
   })
 })
+
+/**
+ * ONE QUESTION, ONE GATE.
+ *
+ * "Can this file be transcribed" was asked in two places with two different
+ * answers: the background sweep used the transcriber's rule (every container
+ * ffmpeg opens) and the LIVE turn used the chat provider's (four extensions).
+ * So a person sending a `.mp4` or a `.oga` heard "nothing here could listen to
+ * this recording" while the sweep would have read the very same file an hour
+ * later. Measured 2026-09-20 against production.
+ */
+describe('the live turn hears what the sweep hears', () => {
+  it('actually transcribes a container the chat providers do not take', async () => {
+    process.env.WHISPER_API_KEY = 'k-for-tests' // secret-guard-ok: invented here
+    delete process.env.WHISPER_BASE_URL
+    const posted: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const u = String(url)
+        if (u.includes('/s3/')) {
+          return new Response(Buffer.from('bytes'), {
+            status: 200,
+            headers: { 'content-type': 'audio/mp4' },
+          })
+        }
+        posted.push(u)
+        return new Response(
+          'data: {"text":"услышанные слова"}\ndata: [DONE]\n',
+          { status: 200 }
+        )
+      })
+    )
+    const { transcribeShelfAudioNow, resetWhisperForTests } = await import(
+      './src/agent/media-library'
+    )
+    resetWhisperForTests()
+    /*
+     * A `.mp4` on our own shelf: the sweep reads it and the live turn used to
+     * refuse it, which is the whole defect. Driving the real function rather
+     * than the gate alone -- a test that only calls `transcribableUrl` passes
+     * happily while this function still asks the other gate, and one did.
+     */
+    const heard = await transcribeShelfAudioNow(
+      'https://vibee-render-production.up.railway.app/s3/assets/r.mp4',
+      'r.mp4',
+      20_000
+    )
+    expect(heard).toBe('услышанные слова')
+    expect(posted.some(u => u.includes('/audio/transcriptions'))).toBe(true)
+    vi.unstubAllGlobals()
+  })
+})
