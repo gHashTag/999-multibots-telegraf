@@ -10815,3 +10815,48 @@ safe-area-инсеты, а Apple HIG прямо включает в safe area в
 кнопке). `tri player-deploy` — редеплой vibee-editor с ожиданием СМЕНЫ хеша
 бандла: мерж в main плеер не выкатывает, а панель Railway показывает SUCCESS от
 прошлой сборки.
+
+## A FRESH CLONE RUNS NO HOOKS, AND THAT IS INVISIBLE
+
+2026-09-20, agent-chat-sync-audit branch: several commits landed with new
+Cyrillic identifiers and full-comment blocks (`ходId`, `был_текст`,
+`кнопкаВзять`, an entire new Swift file written Cyrillic-first) — a direct
+violation of this project's own rule (CLAUDE.md: identifiers and comments in
+English; `.swift` is explicitly in `lefthook.yml`'s `no-cyrillic` glob, with
+its own comment documenting a prior incident about exactly this extension
+once being left out). Nothing blocked any of it. The clone this work happened
+in never ran `npm install` / `lefthook install`, so `.git/hooks/pre-commit`
+was empty — every `git commit` sailed through with zero enforcement, and nine
+files' worth of violations accumulated before a human read the diff and
+objected.
+
+**The check is not "did the commit succeed" — a hookless clone always
+succeeds.** Before calling chat-sync (or any) work on this repo done, run:
+
+    tri cyrillic range main..<your-branch>
+    # or, for the exact set of files about to be committed:
+    tri cyrillic staged
+
+`git status --short` after any script implies nothing about hooks having
+run; check for `.git/hooks/pre-commit` containing more than the sample
+comment, or just run the gate by hand every time this session's clone might
+not have installed it.
+
+## REUSE THE ID THAT ALREADY EXISTS BEFORE MINTING A NEW ONE
+
+Same branch, same day. Adding a correlation id to `chat.ts`'s `runAgent` (so
+a client-side failure could be found in the server log by one `grep`), the
+first draft minted its own `randomUUID()` right there — without noticing
+`routes.ts:568` already mints a `turn` id on every `/api/agent/chat` call,
+passed through `ToolContext.turn` and already load-bearing (it guards the
+proposal-secret race in `web-tools.ts`). Two different ids naming the same
+request is exactly the kind of drift a correlation id is supposed to remove,
+not add.
+
+Caught before merging, only by re-reading `ToolContext`'s own field list.
+**Before minting an id/token/counter on a hot path, grep the surrounding
+context object's own type for one first** — `ToolContext`, `ctx`, request
+handlers in this codebase already carry more of these than a skim suggests.
+
+**Commands.** `tri turn-log <id>` — grep live Railway logs for both ends of a
+turn logged under `[agent:turn]` (added this same session).
