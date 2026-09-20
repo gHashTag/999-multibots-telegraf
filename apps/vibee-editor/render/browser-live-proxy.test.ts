@@ -261,6 +261,32 @@ describe('the gate', () => {
     })
   })
 
+  it('REFUSES WHEN THE DATABASE THROWS, instead of never answering', async () => {
+    /*
+     * The defect this pins, measured in production on the first day: this
+     * path runs BEFORE the service authenticates anyone, the read threw
+     * because nothing had created `browser_sessions` there, the rejection
+     * reached an async request handler that never wrote a response, and the
+     * request hung until the platform returned 502 -- three times out of
+     * three, while /health stayed green.
+     *
+     * A route that can hang is worse than one that can fail: a failure is
+     * visible in a health check, a hang looks like the platform's fault.
+     */
+    const broken = {
+      query: async () => {
+        throw new Error('relation "browser_sessions" does not exist')
+      },
+    } as never
+    const d = await authorizeLive(
+      broken,
+      parseLive('/live/sess-abcdefgh?t=whatever')!,
+      plain
+    )
+    expect(d.kind).toBe('refuse')
+    expect(d.kind === 'refuse' && d.status).toBe(503)
+  })
+
   it('CARRIES THE ADMIN TOKEN NOWHERE A CLIENT CAN SEE IT', () => {
     /*
      * The decision is an internal value, never a response body. This is the
