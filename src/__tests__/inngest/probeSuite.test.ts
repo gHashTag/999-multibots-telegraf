@@ -66,7 +66,12 @@ describe('the plan', () => {
     // credited -- the TON channel completes on the payer's press, so without
     // it nobody looks); +robokassa-unclaimed-watch the same day, for the
     // channel where that loss had already happened to five people.
-    expect(plans).toHaveLength(31)
+    // +client-telemetry-daily on 2026-09-20: product usage, not money. Under a
+    // probe it reads its own client_events table, sends to ADMIN_CHAT_ID via
+    // safeRecipient (or skips the send entirely when that is unconfigured),
+    // and its one destructive step -- the 45-day prune -- is guarded off in
+    // safe mode, so a probe deletes nothing.
+    expect(plans).toHaveLength(32)
     for (const p of plans) expect(p.slug).toBe(`${APP}-${p.id}`)
   })
 
