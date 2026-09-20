@@ -1,12 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const rpc = vi.fn()
-// Мокается бочка '@/core/supabase', а не './client': getUserBalance
-// импортирует supabase именно из неё, а бочка тянет за собой сцены, которые
-// на импорте регистрируют хендлеры и роняют сборку теста («Handler is
-// undefined»).
-vi.mock('@/core/supabase', () => ({
-  supabase: { rpc: (...a: unknown[]) => rpc(...a) },
+// The balance now comes from `user_tokens` in the render Postgres, not from the
+// `get_user_balance` RPC over the `payments_v2` archive (owner decision
+// 2026-09-20, step 3). What this file guards did not change: not being able to
+// read the wallet must never be reported as a balance of zero.
+// The wallet is exercised through a mocked `pg` pool rather than a mocked
+// module, so the error types the code branches on are the real ones.
+const query = vi.fn()
+
+vi.mock('pg', () => ({
+  Pool: class {
+    query = query
+    on() {
+      return this
+    }
+  },
 }))
 vi.mock('@/utils/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -16,42 +24,46 @@ import {
   getUserBalance,
   BalanceUnavailableError,
 } from '@/core/supabase/getUserBalance'
+import { resetTokenWalletPool } from '@/core/wallet/tokenWallet'
 
-describe('getUserBalance: «не смог узнать» не равно «ноль»', () => {
-  beforeEach(() => rpc.mockReset())
+describe('getUserBalance: "could not read it" is not "it is zero"', () => {
+  beforeEach(() => {
+    query.mockReset()
+    resetTokenWalletPool()
+    process.env.TOKENS_DATABASE_URL = 'postgres://wallet/test'
+  })
 
-  it('настоящий нулевой баланс возвращается как 0', async () => {
-    rpc.mockResolvedValue({ data: 0, error: null })
+  it('returns a genuine zero balance as 0', async () => {
+    query.mockResolvedValue({ rows: [{ balance: 0 }] })
     await expect(getUserBalance('123')).resolves.toBe(0)
   })
 
-  it('обычный баланс возвращается как есть', async () => {
-    rpc.mockResolvedValue({ data: 1500.5, error: null })
+  it('returns an ordinary balance unchanged', async () => {
+    query.mockResolvedValue({ rows: [{ balance: 1500.5 }] })
     await expect(getUserBalance('123')).resolves.toBe(1500.5)
   })
 
-  // Ради этого всё и делалось: до правки здесь возвращался 0, и человек с
-  // деньгами на счету видел «Недостаточно средств».
-  it.each(['PGRST202', '42883', '42P01'])(
-    'отсутствие функции (%s) выбрасывает ошибку, а не отдаёт 0',
-    async code => {
-      rpc.mockResolvedValue({
-        data: null,
-        error: { code, message: 'not found' },
-      })
-      await expect(getUserBalance('123')).rejects.toBeInstanceOf(
-        BalanceUnavailableError
-      )
-    }
-  )
+  // This is the whole point: before the original fix this returned 0, and a
+  // user with money on their account was told "insufficient funds".
+  it('throws instead of returning 0 when the wallet is unreachable', async () => {
+    query.mockRejectedValue(new Error('ECONNREFUSED'))
+    await expect(getUserBalance('123')).rejects.toBeInstanceOf(
+      BalanceUnavailableError
+    )
+  })
 
-  // Радиус правки намеренно узкий: 57 мест вызова полагаются на прежнее
-  // поведение, и менять его целиком вслепую — отдельная работа.
-  it('прочие ошибки по-прежнему дают 0, контракт не сломан', async () => {
-    rpc.mockResolvedValue({
-      data: null,
-      error: { code: '57014', message: 'timeout' },
-    })
-    await expect(getUserBalance('123')).resolves.toBe(0)
+  // Stricter than the RPC version this replaced, on purpose. There, a timeout
+  // fell through to `return 0`; here every failure to reach the wallet is an
+  // outage, because the wallet is now the only place the money is.
+  it('treats a timeout as an outage rather than an empty wallet', async () => {
+    query.mockRejectedValue(new Error('statement timeout'))
+    await expect(getUserBalance('123')).rejects.toBeInstanceOf(
+      BalanceUnavailableError
+    )
+  })
+
+  it('still answers 0 without touching the wallet when there is no telegram_id', async () => {
+    await expect(getUserBalance('')).resolves.toBe(0)
+    expect(query).not.toHaveBeenCalled()
   })
 })
