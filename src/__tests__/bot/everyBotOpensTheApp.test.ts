@@ -18,7 +18,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {
   pointMenuButtonAtTheApp,
+  pointThisChatsButtonAtTheApp,
   MENU_BUTTON_TEXT,
+  MENU_BUTTON_TEXT_RU,
 } from '@/core/bot/menuButton'
 import { MINI_APP_URL } from '@/navigation/config/miniApp.config'
 
@@ -80,5 +82,77 @@ describe('the menu button of a bot', () => {
     expect(at, 'the button is set after the bot is launched').toBeLessThan(
       launchAt
     )
+  })
+})
+
+/**
+ * AND THE WORD ON IT, IN A LANGUAGE THE READER HAS.
+ *
+ * Owner, 2026-09-20: "the main button is written in Russian -- what about the
+ * other languages? our audience will mostly be English-speaking." Telegram
+ * keeps ONE text per bot, so the default cannot be both; it is English, which
+ * is also what the app falls back to. The per-chat form is the only way a
+ * Russian speaker gets the Russian word, and it is spent on nobody else.
+ */
+describe('the word on the button', () => {
+  it('is English by default, because one bot has one default', async () => {
+    const calls: unknown[] = []
+    await pointMenuButtonAtTheApp(
+      botDouble(async (arg: unknown) => {
+        calls.push(arg)
+        return true
+      }),
+      'any_bot'
+    )
+    const button = (calls[0] as { menuButton: { text: string } }).menuButton
+    expect(button.text).toBe(MENU_BUTTON_TEXT)
+    expect(/[\u0400-\u04FF]/.test(button.text)).toBe(false)
+  })
+
+  it('gives a Russian speaker the Russian word, in their chat alone', async () => {
+    const calls: any[] = []
+    const telegram = {
+      setChatMenuButton: async (arg: unknown) => {
+        calls.push(arg)
+        return true
+      },
+    }
+    const out = await pointThisChatsButtonAtTheApp(
+      telegram as never,
+      4242,
+      true
+    )
+    expect(out).toBe('set')
+    expect(calls[0].chatId).toBe(4242)
+    expect(calls[0].menuButton.text).toBe(MENU_BUTTON_TEXT_RU)
+  })
+
+  /*
+   * An English speaker already has the default. Writing it again would spend
+   * a request per /start to set the word that is already there.
+   */
+  it('spends nothing on somebody who already has the default', async () => {
+    const calls: unknown[] = []
+    const telegram = {
+      setChatMenuButton: async (arg: unknown) => {
+        calls.push(arg)
+        return true
+      },
+    }
+    expect(
+      await pointThisChatsButtonAtTheApp(telegram as never, 4242, false)
+    ).toBe('default')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('keeps the default rather than failing a start', async () => {
+    const telegram = {
+      setChatMenuButton: async () => {
+        throw new Error('Bad Request: chat not found')
+      },
+    }
+    expect(
+      await pointThisChatsButtonAtTheApp(telegram as never, 4242, true)
+    ).toBe('failed')
   })
 })

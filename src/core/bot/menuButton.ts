@@ -40,7 +40,26 @@ import { MINI_APP_URL } from '@/navigation/config/miniApp.config'
 import { logger } from '@/utils/logger'
 
 /** What the button says. Short: Telegram truncates it next to the field. */
-export const MENU_BUTTON_TEXT = 'Приложение' // cyrillic-ok: UI text
+/**
+ * WHAT THE BLUE BUTTON SAYS, AND IN WHICH LANGUAGE.
+ *
+ * Owner, 2026-09-20: "the main button is written in Russian -- what about the
+ * other languages? our audience will mostly be English-speaking."
+ *
+ * Telegram's menu button has ONE text per bot, not one per language: the bot
+ * sets it, every person sees the same word. So the DEFAULT is English, which
+ * is the language of most people who will meet these bots and also what the
+ * app itself falls back to (`getInitialLanguage` returns 'en' unless the
+ * browser asks for Russian).
+ *
+ * A Russian speaker is not left with the English word, because the API also
+ * takes a `chat_id`: the button can be set for ONE person's chat, overriding
+ * the default for them alone. That is `pointThisChatsButtonAtTheApp`, called
+ * when we know who they are -- which is the only moment their language is
+ * known at all.
+ */
+export const MENU_BUTTON_TEXT = 'Open app'
+export const MENU_BUTTON_TEXT_RU = 'Приложение' // cyrillic-ok: UI text
 
 /**
  * Point this bot's menu button at the mini app.
@@ -64,6 +83,44 @@ export async function pointMenuButtonAtTheApp(
   } catch (error) {
     logger.warn('[menu-button] could not be set', {
       bot: botName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return 'failed'
+  }
+}
+
+/**
+ * The button for ONE person's chat, in their language.
+ *
+ * WHY THIS EXISTS AT ALL. The default above is one word for everybody, and a
+ * Russian speaker meeting an English button is the mirror of the fault the
+ * owner reported. Telegram's `chat_id` form is the only per-person handle
+ * there is, so the choice is made where the person is known and nowhere else.
+ *
+ * ONLY WHEN IT DIFFERS. An English speaker already has the default; calling
+ * this for them would spend a request to write the word that is there. So the
+ * caller passes `isRu` and a `false` returns 'default' without a request.
+ *
+ * NEVER THROWS. A button is worth a warning; it is not worth a lost /start.
+ */
+export async function pointThisChatsButtonAtTheApp(
+  telegram: Pick<Telegraf<MyContext>['telegram'], 'setChatMenuButton'>,
+  chatId: number | undefined,
+  isRu: boolean
+): Promise<'set' | 'default' | 'failed'> {
+  if (!isRu || !chatId) return 'default'
+  try {
+    await telegram.setChatMenuButton({
+      chatId,
+      menuButton: {
+        type: 'web_app',
+        text: MENU_BUTTON_TEXT_RU,
+        web_app: { url: MINI_APP_URL },
+      },
+    })
+    return 'set'
+  } catch (error) {
+    logger.warn('[menu-button] this chat kept the default', {
       error: error instanceof Error ? error.message : String(error),
     })
     return 'failed'
