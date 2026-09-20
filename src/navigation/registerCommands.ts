@@ -1353,7 +1353,30 @@ If not, continue on your own and click the "I myself" button`
         let ответ
         try {
           const { спроситьАгента } = await import('@/services/trinityAgent')
-          ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text)
+          /*
+           * WHO IS WRITING, IN ONE LINE. Two cheap Telegram calls on top of
+           * what the update already carries; a refusal costs nothing, because
+           * the card degrades to the fields that arrived with the message and
+           * an unknown person yields an empty string, which is not sent.
+           */
+          let personNote = ''
+          try {
+            const { personCard, describeForPrompt } = await import(
+              '@/services/telegramPersonCard'
+            )
+            if (ctx.from) {
+              personNote = describeForPrompt(
+                await personCard(ctx.telegram, ctx.from)
+              )
+            }
+          } catch (e) {
+            logger.debug('[agent] person card not read', {
+              error: e instanceof Error ? e.message : String(e),
+            })
+          }
+          ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text, {
+            ...(personNote ? { personNote } : {}),
+          })
           /*
            * The request reached the server, so the server already stored the
            * question on its way into the agent. Only an ANSWER can be missing

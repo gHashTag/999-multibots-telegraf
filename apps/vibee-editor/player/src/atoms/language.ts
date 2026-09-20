@@ -206,10 +206,10 @@ const en: Translations = {
   'nav.getStarted': 'Get Started',
 
   // Hero
-  'hero.badge': 'Agentic vibe-reels',
-  'hero.title': 'Your agent makes the reels',
+  'hero.badge': 'AGI game',
+  'hero.title': 'An AGI game built by digital twins of real people',
   'hero.subtitle':
-    'Connect any agent over MCP — it reads your feed, your files and templates, and publishes reels for you. Or just chat with the built-in one. You describe the vibe; the agent does the work.',
+    'The twin is you: your face, your voice, the way you put things. It makes pictures, video and speech, answers for you, and stays you when you are not around. The game is played in the open — you can see what is being done, what is verified and how it was measured.',
   'cta.try': 'Try Free',
   'cta.demo': 'Watch Demo',
   'cta.createReel': 'Create your first reel',
@@ -2153,10 +2153,10 @@ const ru: Translations = {
   'nav.getStarted': 'Начать',
 
   // Hero
-  'hero.badge': 'Агентный вайбрилс',
-  'hero.title': 'Рилсы делает твой агент',
+  'hero.badge': 'AGI-игра',
+  'hero.title': 'AGI-игра, которую строят цифровые двойники реальных людей',
   'hero.subtitle':
-    'Подключи любого агента по MCP — он читает твою ленту, файлы и шаблоны и публикует рилсы за тебя. Или просто поговори со встроенным. Ты задаёшь вайб — агент делает работу.',
+    'Двойник — это вы: ваше лицо, ваш голос, ваша манера говорить. Он делает картинки, видео и речь, отвечает за вас и остаётся вами, когда вас нет рядом. Игра идёт открыто — видно, что делается, что проверено и чем измерено.',
   'cta.try': 'Попробовать',
   'cta.demo': 'Смотреть демо',
   'cta.createReel': 'Создать первый рилс',
