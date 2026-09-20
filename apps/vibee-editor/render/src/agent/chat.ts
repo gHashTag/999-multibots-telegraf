@@ -460,8 +460,6 @@ ${WEB_RULES}
   чем у 90% людей, которые только собираются».
 ${MONEY_AND_PLAN}
 
-${ANSWER_IN_THEIR_LANGUAGE}
-
 Отвечай коротко, числами из инструментов, а не примерными.`
 
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
@@ -593,8 +591,23 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
    * person on the other side who deserves to know what they can send.
    */
   const canTake = toolsOnly ? '' : canTakeSection()
+  /*
+   * THE LANGUAGE RULE GOES LAST, AND THAT IS NOT A STYLE CHOICE.
+   *
+   * Measured against production after the rule was added in the middle of the
+   * template: the business DM answered an English question in English, and
+   * the bot surface answered the SAME question in Russian. The difference
+   * between them is what comes AFTER the rule -- the bot surface appends the
+   * button markers and the club material, half a screen of Russian, and the
+   * model follows what it read last.
+   *
+   * So it is appended after everything: after the template, the buttons, the
+   * capabilities, and the owner's SOUL. Whatever gets added to this prompt
+   * next, this stays the last thing read.
+   */
+  const lang = '\n\n' + ANSWER_IN_THEIR_LANGUAGE
   const s = soul()
-  if (!s) return systemFor(surface) + buttons + canTake
+  if (!s) return systemFor(surface) + buttons + canTake + lang
   return (
     systemFor(surface) +
     buttons +
@@ -605,7 +618,8 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
     'описание для публикации — делай это голосом ниже: измерение вместо ' +
     'прилагательного, границы честно, ретракции без страха. В обычных ' +
     'ответах оставайся собой — кратким исполнителем.\n\n' +
-    s
+    s +
+    lang
   )
 }
 

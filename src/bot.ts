@@ -1,5 +1,6 @@
 import { isDev } from './config'
 import { ADMIN_IDS_ARRAY } from '@/config'
+import { createClientTelemetryMiddleware } from '@/core/telemetry/telemetryMiddleware'
 import { scrubbedLog } from '@/utils/scrubCallbackSecrets'
 import { webhookSecretFor } from '@/utils/webhookSecret'
 import { logger } from '@/utils/enhancedLogger'
@@ -147,6 +148,7 @@ async function initializeBots() {
     // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
     bot.use(sessionMiddleware()) // 1. Session: Redis-backed when REDIS_URL is set (survives redeploys)
     bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+    bot.use(createClientTelemetryMiddleware()) // 2a. Records scene-to-scene moves
     bot.use(Telegraf.log(scrubbedLog)) // 3. Log all Telegraf updates and middleware flow
 
     // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
@@ -238,6 +240,7 @@ async function initializeBots() {
         // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
         bot.use(sessionMiddleware()) // 1. Session: Redis-backed when REDIS_URL is set (survives redeploys)
         bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+        bot.use(createClientTelemetryMiddleware()) // 2a. Records scene-to-scene moves
 
         // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
         setupErrorHandler(bot)

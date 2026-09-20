@@ -141,7 +141,7 @@ describe('the autopilot script can start', () => {
     // 60-second respawn loop), or a pool left open holding a socket and an idle
     // timer so the process never exits at all. Both are checked by the status
     // code below, which spawnSync only produces if the process ends by itself.
-    const r = run({ DATABASE_URL: 'postgresql://u:p@127.0.0.1:1/nowhere' })
+    const r = run({ DATABASE_URL: 'postgresql://u:p@127.0.0.1:1/nowhere' }) // secret-guard-ok: a localhost fixture, invented value
     expect(r.out).toContain('[autopilot]')
     expect(r.out).toContain('база недоступна')
     expect(r.status).toBe(0)

@@ -98,7 +98,12 @@ describe('carryAmount', () => {
   it('carries nothing for an admin grant', () => {
     // @tatizaharova: 240030 on the balance, 869 of it her own money.
     expect(
-      carryAmount({ ...emptyTotals(), paid: 869, admin: 239991, balance: 240030 })
+      carryAmount({
+        ...emptyTotals(),
+        paid: 869,
+        admin: 239991,
+        balance: 240030,
+      })
     ).toBe(869)
   })
 
@@ -110,9 +115,9 @@ describe('carryAmount', () => {
   })
 
   it('never carries a fraction of a token', () => {
-    expect(
-      carryAmount({ ...emptyTotals(), paid: 100.9, balance: 100.9 })
-    ).toBe(100)
+    expect(carryAmount({ ...emptyTotals(), paid: 100.9, balance: 100.9 })).toBe(
+      100
+    )
   })
 
   it('carries nothing from a negative balance', () => {
@@ -141,7 +146,9 @@ describe('clawbackAmount', () => {
   })
 
   it('takes nothing from an already-empty balance', () => {
-    expect(clawbackAmount({ ...emptyTotals(), admin: 5000, balance: 0 })).toBe(0)
+    expect(clawbackAmount({ ...emptyTotals(), admin: 5000, balance: 0 })).toBe(
+      0
+    )
   })
 })
 

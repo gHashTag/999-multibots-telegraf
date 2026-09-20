@@ -36,10 +36,14 @@ beforeEach(() => resetProactiveForTests())
 describe('recognising the marker-instead-of-call answer', () => {
   it('reads the tool name out of the marker, and nothing else', () => {
     expect(namedToolInsteadOfCalling('[[Подпись|tg_send]]')).toBe('tg_send')
-    expect(namedToolInsteadOfCalling(' [[Подпись|crm_leads]] ')).toBe('crm_leads')
+    expect(namedToolInsteadOfCalling(' [[Подпись|crm_leads]] ')).toBe(
+      'crm_leads'
+    )
     expect(namedToolInsteadOfCalling('[[Ответить|act:can]]')).toBe('act:can')
     expect(namedToolInsteadOfCalling('тихо')).toBeNull()
-    expect(namedToolInsteadOfCalling('Подготовил ответ Тиму [[Ответить|act:can]]')).toBeNull()
+    expect(
+      namedToolInsteadOfCalling('Подготовил ответ Тиму [[Ответить|act:can]]')
+    ).toBeNull()
     expect(namedToolInsteadOfCalling('')).toBeNull()
   })
 })
@@ -49,7 +53,11 @@ describe('the failure text', () => {
     const r = await sweepOnce(
       OWNER,
       deps(
-        { текст: '[[Подпись|tg_send]]', инструменты: [], provider: 'ollama/qwen3:1.7b' }, // cyrillic-ok: pre-existing identifiers
+        {
+          текст: '[[Подпись|tg_send]]',
+          инструменты: [],
+          provider: 'ollama/qwen3:1.7b',
+        }, // cyrillic-ok: pre-existing identifiers
         [{ lead: '555', display: 'Tim (@Best_WoodyWeed)', next: 'reply' }]
       )
     )

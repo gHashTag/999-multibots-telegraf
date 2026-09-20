@@ -49,7 +49,10 @@ export async function generateUserExcelReport(userId: string): Promise<Buffer> {
   XLSX.utils.book_append_sheet(workbook, historySheet, '📋 История операций')
 
   // Конвертируем в Buffer
-  const buffer = await XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  const buffer = await XLSX.write(workbook, {
+    type: 'buffer',
+    bookType: 'xlsx',
+  })
   return buffer
 }
 
