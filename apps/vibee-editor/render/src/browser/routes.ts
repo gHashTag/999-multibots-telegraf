@@ -46,12 +46,14 @@ import {
   readProfileId,
   forgetProfile,
 } from './profiles'
+import { applyScreen, wantedScreen } from './screen'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
 
 export const BROWSER_PATHS = [
   '/api/browser/session',
   '/api/browser/profile',
+  '/api/browser/screen',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -151,6 +153,19 @@ export async function handleBrowser(
       return { status: 405, body: { ok: false, error: 'DELETE only' } }
     }
     return await wipe(pool, driver, who)
+  }
+
+  /*
+   * THE DESKTOP IS RESHAPED TO THE DEVICE, and the size arrives in the query
+   * rather than a body because this handler is given a url and a method and
+   * nothing else. Two integers describing a rectangle are not worth growing
+   * that seam for.
+   */
+  if (path === '/api/browser/screen') {
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    return await fit(pool, who, req.url || '')
   }
 
   if (method === 'GET') return await describe(pool, deps, driver, who)
@@ -282,6 +297,46 @@ async function close(
  * The database row goes LAST, so a failure leaves a profile that can still be
  * named and retried rather than a nameless pile of somebody's cookies.
  */
+/**
+ * Make the pod's screen the shape of the box the person is watching in.
+ *
+ * Returns what the screen ACTUALLY became, which is not always what was
+ * asked for: X snaps the width to a multiple of 8, and some sizes it simply
+ * declines while answering 200 (screen.ts records the measurements). The
+ * client draws its frame from this answer, so a refusal shows up as a frame
+ * that keeps its old shape rather than one that lies about the picture.
+ */
+async function fit(
+  pool: Queryable,
+  who: string,
+  url: string
+): Promise<RouteResult> {
+  const q = new URLSearchParams(url.split('?')[1] || '')
+  const want = wantedScreen({
+    width: Number(q.get('w')),
+    height: Number(q.get('h')),
+  })
+
+  const session = await readSession(pool, who)
+  if (!session || session.state !== 'live' || !session.endpoint) {
+    return { status: 409, body: { ok: false, error: 'no browser is running' } }
+  }
+
+  try {
+    const got = await applyScreen(session.endpoint, session.adminToken, want)
+    return { status: 200, body: { ok: true, screen: got } }
+  } catch (e) {
+    /*
+     * A browser that will not resize is still a browser. The person keeps
+     * watching at whatever shape it has, and the frame keeps its own.
+     */
+    return {
+      status: 502,
+      body: { ok: false, error: e instanceof Error ? e.message : String(e) },
+    }
+  }
+}
+
 async function wipe(
   pool: Queryable,
   driver: PodDriver,

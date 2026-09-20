@@ -143,3 +143,30 @@ export async function forgetBrowserProfile(): Promise<BrowserSessionView> {
     return stateOrThrow(e)
   }
 }
+
+/**
+ * Ask the pod to become the shape of the box the person is watching in.
+ *
+ * Returns what it ACTUALLY became. A pod that will not resize is still a pod,
+ * so a refusal is null and the frame keeps its current shape -- the person
+ * goes on watching, which matters more than the letterbox.
+ */
+export async function fitBrowserScreen(box: {
+  width: number
+  height: number
+}): Promise<{ width: number; height: number; rate: number } | null> {
+  try {
+    const a = await apiFetch<{
+      ok?: boolean
+      screen?: { width: number; height: number; rate: number }
+    }>(
+      `${API_BASE}/api/browser/screen?w=${Math.round(
+        box.width
+      )}&h=${Math.round(box.height)}`,
+      { method: 'POST' }
+    )
+    return a.screen ?? null
+  } catch {
+    return null
+  }
+}
