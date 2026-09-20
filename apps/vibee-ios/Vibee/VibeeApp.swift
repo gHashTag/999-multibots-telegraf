@@ -175,12 +175,12 @@ struct RootView: View {
     .tint(Тема.ТабБар.активная)
     .preferredColorScheme(.dark)
     /**
-     * ХВОСТ ОТЧЁТОВ ОБ ОШИБКАХ — ОДИН РАЗ ЗА ЗАПУСК.
+     * FLUSH QUEUED ERROR REPORTS -- ONCE PER LAUNCH.
      *
-     * Тот же вызов, что `installGlobalClientErrorReporting()` делает на вебе
-     * при старте вкладки: отчёты, не доехавшие в прошлый раз (сеть была
-     * недоступна ровно тогда, когда о её недоступности и стоило сообщить),
-     * лежат в UserDefaults и досылаются здесь.
+     * The same job `installGlobalClientErrorReporting()` does on the web at
+     * tab start: reports that failed to send last time (usually because the
+     * network was down exactly when its being down was worth reporting) sit
+     * in UserDefaults and get resent here.
      */
     .task { ClientErrorBeacon.flushQueue() }
   }
