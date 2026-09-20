@@ -46,6 +46,14 @@ export const LOGO_URL = '/t27-mark.svg'
  *  imports this file. One constant, one home -- live-pipe re-exports it. */
 export const FIT_PATH = '/__fit'
 
+/**
+ * Where the window asks for the watcher's own face.
+ *
+ * neko draws initials on a disc -- "YO" for everybody whose name starts that
+ * way, which on a screen showing YOUR browser is a stranger's placeholder.
+ */
+export const AVATAR_PATH = '/__avatar'
+
 /** What the app's own header says. One brand, spelled one way. */
 export const BRAND_NAME = 'Trinity S\u00B3AI'
 
@@ -235,11 +243,26 @@ body {
   border-radius: 8px;
 }
 .header .menu li:hover { background: ${LINE} !important; }
+/*
+ * THE GLYPH, NOT ONLY ITS BOX.
+ *
+ * Every box in this bar centred on 23.5 and the icons on the right still
+ * looked higher than the rest, because these three were left as inline text:
+ * a Font Awesome glyph sits on the font's baseline, not in the middle of its
+ * line box. The controls further along were already flex-centred, so the two
+ * halves of one bar disagreed by a few pixels -- measured identical, seen as
+ * crooked, which is the only measurement that matters.
+ */
 .header .menu i, .header .menu li i {
   color: ${DIM} !important;
   font-size: 14px !important;
   line-height: 1 !important;
   margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 28px !important;
+  width: 28px !important;
 }
 .header .menu i:hover { color: #fff !important; }
 .header .menu i:not(.disabled) { color: ${GREEN} !important; }
@@ -803,6 +826,45 @@ export const BOOT_SCRIPT = `
 })();
 `.replace('__GIVEUP__', String(BOOT_GIVE_UP_MS))
 
+/**
+ * PUT THE PERSON'S OWN FACE ON THE DISC.
+ *
+ * Only on their OWN member -- `.self` -- because the other discs in the bar
+ * belong to other viewers, and painting somebody else's face on them would
+ * be worse than initials: it would be a lie about who is watching.
+ *
+ * A 404 means there is no photo, and the initials stay. The image is set as
+ * a background so neko's own text stays underneath it and reappears if the
+ * picture ever fails to decode.
+ */
+export const FACE_SCRIPT = `
+(function () {
+  var m = location.pathname.match(/^\\/live\\/([^/]+)/);
+  if (!m) return;
+  var url = '/live/' + m[1] + '__AVATAR__';
+  var done = false;
+  function paint() {
+    if (done) return;
+    var el = document.querySelector('.members .self .avatar, .members .self.member .avatar');
+    if (!el) return;
+    done = true;
+    var img = new Image();
+    img.onload = function () {
+      el.style.backgroundImage = 'url(' + url + ')';
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.color = 'transparent';
+    };
+    img.src = url;
+  }
+  paint();
+  new MutationObserver(paint).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+})();
+`.replace('__AVATAR__', AVATAR_PATH)
+
 /** What the tab says it is, in the person's own app rather than a stranger's. */
 export const PAGE_TITLE = `Браузер · ${BRAND_NAME}` // cyrillic-ok: read by a person
 
@@ -825,7 +887,8 @@ export function injectSkin(html: string): string {
     `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` +
     `<link rel="stylesheet" href="${FONT_HREF}">` +
     `<style data-t27-skin>${BRAND_CSS}</style>` +
-    `<script data-t27-fit>${FIT_SCRIPT}</script>`
+    `<script data-t27-fit>${FIT_SCRIPT}</script>` +
+    `<script data-t27-face>${FACE_SCRIPT}</script>`
   const styled = html
     .replace('</head>', `${head}\n</head>`)
     /*

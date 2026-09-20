@@ -256,6 +256,8 @@ describe('the gate', () => {
       viewToken: SESSION.view_token,
       /* Also server-side: it reshapes the desktop and must never be sent. */
       adminToken: SESSION.admin_token,
+      /* And whose window it is, so the bar can show their own face. */
+      telegramId: SESSION.telegram_id,
     })
   })
 

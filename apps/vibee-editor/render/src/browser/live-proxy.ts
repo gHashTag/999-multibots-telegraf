@@ -162,6 +162,8 @@ export type LiveDecision =
        * is watching in. A client that held it could change the room itself.
        */
       adminToken: string
+      /** Whose window this is. Server-side; used to fetch their own face. */
+      telegramId: string
     }
   | { kind: 'refuse'; status: number; message: string }
 
@@ -237,6 +239,7 @@ export async function authorizeLive(
   return {
     kind: 'proxy',
     adminToken: session.adminToken,
+    telegramId: session.telegramId,
     endpoint: session.endpoint,
     upstreamPath: req.upstreamPath,
     viewToken: session.viewToken,
