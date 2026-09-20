@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 142. Без заголовка: 0.
+Ратчетов: 143. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -67,6 +67,7 @@
 | `kie-webhook-charge.test.ts`                           | kie webhook billing                                                                           |
 | `kieWebhookDeliveryIdempotency.test.ts`                | kie/sora webhook video delivery is idempotent per job                                         |
 | `lapsedPayersCannotCountSeedingAsMoney.test.ts`        | the lapsed-payer segment cannot count seeded credit as money                                  |
+| `ledgerClassify.test.ts`                               | classify                                                                                      |
 | `ledgerGateActuallyGoesRed.test.ts`                    | the ledger gate goes red on a violation, and only then                                        |
 | `ledgerInvariantsCanFail.test.ts`                      | every ledger invariant can actually fail                                                      |
 | `lipSyncRefundChecked.test.ts`                         | a lip-sync charge with nothing to generate from comes back                                    |
