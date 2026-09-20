@@ -55,25 +55,26 @@ struct SignInView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: Тема.Отступ.пузырьЧата) {
       /**
-       * НАЗВАН БОТ, А НЕ «БОТ В TELEGRAM» ВООБЩЕ.
+       * THE BOT IS NAMED, NOT LEFT AS "A BOT ON TELEGRAM" IN GENERAL.
        *
-       * Прежний текст говорил «откройте бота», не называя, какого — а у
-       * человека в Telegram может быть открыт любой из ботов платформы.
-       * Жалоба «не понятно, где брать код» была ровно об этом: не про сам
-       * шаг, а про то, что первое слово инструкции уже требовало догадки.
+       * The previous text said "open the bot" without naming which one --
+       * and a person could have any of the platform's bots open in Telegram.
+       * The complaint "not clear where to get the code" was exactly about
+       * this: not the step itself, but that the first word of the
+       * instruction already required a guess.
        *
-       * Ссылка ведёт прямо в чат, а не только называет имя: нажатие дешевле
-       * поиска по имени в Telegram, и опечатка в наборе руками здесь
-       * невозможна в принципе.
+       * The link opens the chat directly rather than only naming it: a tap
+       * is cheaper than searching by name in Telegram, and a typo when
+       * typing it by hand is impossible here in principle.
        */
       Link(destination: URL(string: "https://t.me/t27ai_bot")!) {
-        HStack(spacing: Тема.Отступ.xs) {
+        HStack(spacing: Тема.Отступ.xs) { // cyrillic-ok: pre-existing theme API
           Text("Открыть @t27ai_bot")
           Image(systemName: "arrow.up.forward.square")
         }
-        .font(Тема.Шрифт.стиль(.callout, .semibold))
+        .font(Тема.Шрифт.стиль(.callout, .semibold)) // cyrillic-ok: pre-existing theme API
       }
-      .foregroundStyle(Тема.Профиль.акцент)
+      .foregroundStyle(Тема.Профиль.акцент) // cyrillic-ok: pre-existing theme API
       .frame(minHeight: 44, alignment: .leading)
 
       // Число цифр НЕ называется: оно задано на сервере и уже менялось.
