@@ -10,7 +10,12 @@ import {
 } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
-import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
+import {
+  ProfileHeader,
+  ProfileTabs,
+  ProfileEdit,
+  CrmCard,
+} from '@/components/Profile'
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import { WelcomeOnboarding } from '@/components/Profile/WelcomeOnboarding'
@@ -293,6 +298,12 @@ export function ProfilePage() {
               buy={p => void topUp.buy(p)}
             />
           )}
+          {/*
+            THE CRM CONSOLE HAD NO DOOR. Measured 2026-09-20: the only link
+            into /crm anywhere in the player was a breadcrumb INSIDE the CRM.
+            See CrmCard for why a card here rather than a seventh tab.
+          */}
+          <CrmCard isOwn={isOwn} />
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
