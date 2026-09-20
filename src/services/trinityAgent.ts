@@ -129,6 +129,7 @@ const SURFACE_NAMES: Record<string, string> = {
   miniapp: 'из мини-аппа',
   ios: 'с телефона',
   agent: 'по ключу агента',
+  queen: 'от Королевы (t27.ai)',
 }
 
 export function markSurface(
@@ -392,6 +393,15 @@ export async function спроситьАгента(
     let ошибка = ''
     let provider: string | undefined
     let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
+    /**
+     * TURN ID -- THE STREAM'S FIRST EVENT (`chat.ts`, `runAgent`).
+     *
+     * The server writes one `[agent:turn]` line for the start and end of
+     * this same turn. We fold the id into the bot's own log lines so a
+     * failure seen in Telegram can be found in the server log with one
+     * `grep`, instead of matching timestamp and telegram_id by hand.
+     */
+    let turnId: string | undefined
 
     const строку = (s: string) => {
       const t = s.trim()
@@ -405,7 +415,9 @@ export async function спроситьАгента(
           model?: string
           proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
-        if (ev.тип === 'текст' && typeof ev.текст === 'string')
+        if (ev.тип === 'ход' && ev.id)
+          turnId = ev.id // cyrillic-ok: pre-existing event envelope
+        else if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
         else if (ev.тип === 'провайдер' && ev.id)
           // cyrillic-ok: pre-existing event envelope
@@ -468,6 +480,7 @@ export async function спроситьАгента(
         // below, which still pages when the turn is genuinely lost.
         logger.warn('[trinityAgent] stream died mid-body, kept what arrived', {
           telegram_id: telegramId,
+          turn: turnId,
           upstream: `${БАЗА}/api/agent/chat`,
           events: eventsSeen,
           tools: инструменты.length, // cyrillic-ok: pre-existing identifiers of this parser
@@ -495,6 +508,7 @@ export async function спроситьАгента(
 
     logger.info('[trinityAgent] ответ получен', {
       telegram_id: telegramId,
+      turn: turnId,
       provider,
       инструментов: инструменты.length,
       инструменты: инструменты.slice(0, 8),

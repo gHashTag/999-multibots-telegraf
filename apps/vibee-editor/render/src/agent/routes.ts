@@ -586,12 +586,21 @@ export async function handleAgentChat(
    */
   const turn = randomUUID()
 
+  /**
+   * 'queen' added 2026-09-20: t27.ai's Queen chat (gHashTag/trinity,
+   * apps/website/src/components/QueenChat.tsx) gained a delegate-to-Trinity
+   * path -- a signed-in visitor's content/bot question is forwarded here
+   * instead of answered by the Queen's own spec-only model. Without this
+   * name the turn would be stored as 'unknown' and every other surface's
+   * transcript would show an unlabelled reply from nowhere.
+   */
   const ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ = new Set([
     'miniapp',
     'bot',
     'agent',
     'ios',
     'business',
+    'queen',
   ]) // cyrillic-ok: pre-existing name
   const поверхность = ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ.has(String(body.surface))
     ? String(body.surface)
@@ -892,7 +901,7 @@ export async function handleAgentHistoryAppend(
   }
 
   // Same check as the chat route: a word from the client, but only a known one.
-  const KNOWN_SURFACES = new Set(['miniapp', 'bot', 'agent', 'ios', 'business'])
+  const KNOWN_SURFACES = new Set(['miniapp', 'bot', 'agent', 'ios', 'business', 'queen'])
   const surface = KNOWN_SURFACES.has(String(body.surface))
     ? String(body.surface)
     : 'unknown'

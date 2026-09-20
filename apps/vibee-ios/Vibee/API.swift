@@ -60,7 +60,7 @@ enum API {
     var errorDescription: String? {
       switch self {
       case .нуженВход:
-        return "Нужен вход: Профиль → войти по коду из мини-аппа"
+        return "Нужен вход: Профиль → код из бота @t27ai_bot (команда /app)"
       case .отказ(let код):
         return "Сервер отказал: HTTP \(код)"
       case .странныйОтвет:

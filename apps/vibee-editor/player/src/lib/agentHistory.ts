@@ -46,6 +46,7 @@ const SURFACE_NAMES: Record<string, string> = {
   miniapp: 'из мини-аппа',
   ios: 'с телефона',
   agent: 'по ключу агента',
+  queen: 'от Королевы (t27.ai)',
 }
 
 /**

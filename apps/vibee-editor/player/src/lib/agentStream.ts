@@ -119,6 +119,16 @@ export async function sendToAgent(
   const MAX_ATTEMPTS = 2
   const startedAt = Date.now()
   let receivedText = false
+  /**
+   * TURN ID, SENT AS THE STREAM'S FIRST EVENT (`chat.ts`, `runAgent`).
+   *
+   * The server logs the start and end of this same turn under one
+   * structured line (`[agent:turn]`), and until now nothing linked a
+   * browser-side error report to that specific server log line -- matching
+   * them up meant cross-referencing timestamp and telegram_id by hand. The
+   * id we're sent here goes into `reportClientError` below.
+   */
+  let turnId: string | undefined
   const attempt = async (): Promise<void> => {
     // Личность: обычно подпись Telegram (authHeaders ставит
     // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
@@ -188,7 +198,9 @@ export async function sendToAgent(
           continue
         }
         const kind = ev['тип']
-        if (kind === 'размышление') {
+        if (kind === 'ход') {
+          turnId = String(ev['id'] || '') || undefined
+        } else if (kind === 'размышление') {
           patch(agentId, m => ({
             ...m,
             thinking: (m.thinking || '') + String(ev['текст'] || ''),
@@ -294,7 +306,7 @@ export async function sendToAgent(
     reportClientError({
       kind: 'agent_stream_failed',
       message: detail,
-      context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText}`,
+      context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText} turn=${turnId ?? 'none'}`,
     })
   } finally {
     inFlight = false
