@@ -47,6 +47,8 @@ import {
   isGptImage25Edit,
 } from '../kie-image'
 
+import { BROWSER_TOOLS } from '../browser/agent-tools'
+
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
   telegramId: string
@@ -2843,6 +2845,16 @@ for (let i = 0; i < TOOLS.length; i += 1) {
   }
 }
 
+/*
+ * THE REMOTE BROWSER JOINS THE SAME REGISTRY EVERY AGENT ALREADY READS.
+ *
+ * Not a second MCP server: an agent connected yesterday sees these today
+ * without being told, which is the entire point -- the owner asked why the
+ * agent did not know there was a browser, and the answer was that nothing
+ * ever offered it one. See src/browser/agent-tools.ts.
+ */
+TOOLS.push(...BROWSER_TOOLS)
+
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 
 /**
@@ -2863,8 +2875,24 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
 }
 
 /** Формат OpenAI tool-calling. Схема ОДНА и та же, что уходит наружу по MCP. */
-/** The seller's kit for a model with a small context: CRM, Telegram, SOUL, one generator. */
-export const COMPACT_TOOLS = /^(crm_|tg_|soul_)/
+/**
+ * The seller's kit for a model with a small context: CRM, Telegram, SOUL,
+ * one generator -- AND THE BROWSER.
+ *
+ * The browser is in the kit by the owner's decision of 2026-09-21, and it is
+ * the expensive entry: 9 tools, ~1000 tokens of schema, against a budget
+ * that was already at 5998 of 6000. The budget moved to 7000 rather than the
+ * browser being left out, and the cost is stated rather than hidden -- in a
+ * 16k window with a ~5k prompt that leaves roughly 4k for the conversation.
+ *
+ * Why it is worth that: an agent that cannot open a browser cannot do the
+ * thing this product is for. A seller who can look at a page, read it and
+ * click in it is a different seller from one who can only talk about it.
+ *
+ * The next lever, if 4k turns out to be too tight, is the DESCRIPTIONS --
+ * browser_ask_permission alone is 254 tokens of prose -- not dropping tools.
+ */
+export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
 export const COMPACT_TOOLS_EXCLUDED = /^crm_schema_check$/
 

@@ -246,7 +246,7 @@ const BASE_CAPTION_STYLE = {
 const DEFAULT_TEMPLATES: Template[] = [
   {
     id: 'vibee-reel-1',
-    name: 'Vibee Reel 1',
+    name: 'Trinity S³AI Reel 1',
     description: 'Split-screen talking head with B-roll',
     compositionId: 'SplitTalkingHead',
     defaultProps: {
@@ -268,8 +268,8 @@ const DEFAULT_TEMPLATES: Template[] = [
     isUserCreated: false,
   },
   {
-    name: 'Vibee Reel 1',
-    description: 'Created from Vibee Reel',
+    name: 'Trinity S³AI Reel 1',
+    description: 'Created from Trinity S³AI Reel',
     compositionId: 'SplitTalkingHead',
     defaultProps: {
       lipSyncVideo: '/lipsync/lipsync.mp4',

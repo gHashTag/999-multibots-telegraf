@@ -183,15 +183,71 @@ function matches(media: string | null, vp: Viewport): boolean {
   })
 }
 
-/** px value, resolving the one custom property this file defines. */
+/**
+ * Resolve `var(--name)` and `var(--name, fallback)`.
+ *
+ * The fallback form arrived with `--feed-chrome`, whose fallback is the only
+ * value this test can ever see: `--app-tabbar-total` is published at runtime
+ * by a ResizeObserver in TelegramTabBar and is not in any stylesheet. Reading
+ * the fallback is therefore reading the truth, not guessing at it.
+ *
+ * Nested, because `--feed-chrome` is itself a calc containing another var.
+ */
+function resolveVars(value: string, vars: Record<string, string>): string {
+  let v = value
+  for (let pass = 0; pass < 8; pass++) {
+    const next = v.replace(
+      /var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*?)\s*)?\)/g,
+      (_, name: string, fallback?: string) =>
+        vars[name] ?? fallback ?? 'UNRESOLVED'
+    )
+    if (next === v) return v
+    v = next
+  }
+  return v
+}
+
+/**
+ * A length in px: a plain value, a var, or a calc of sums and differences.
+ *
+ * Deliberately narrow, and it THROWS on anything it does not understand.
+ * Returning null for an unreadable length would make the geometry read as 0
+ * and the assertions would pass on nothing -- the failure mode this whole
+ * file exists to avoid.
+ */
+function lengthPx(value: string, vars: Record<string, string>): number | null {
+  const v = resolveVars(value, vars).trim()
+  const plain = v.match(/^(-?\d+(?:\.\d+)?)px$/) || v.match(/^(0)$/)
+  if (plain) return +plain[1]
+  const calc = v.match(/^calc\(\s*(.+?)\s*\)$/s)
+  if (!calc) return null
+  /*
+   * Only flat sums. A nested calc reaches the term loop below and throws
+   * there; a separate guard clause for it was unreachable -- no test could
+   * make it fire, which is how mutation testing found it.
+   */
+  const inner = calc[1]
+  const terms = inner.split(/\s+(?=[+-]\s)/)
+  let total = 0
+  for (const term of terms) {
+    const m = term.match(/^([+-]?)\s*(-?\d+(?:\.\d+)?)px$/)
+    /*
+     * A term inside a calc that this cannot read THROWS, and does not count
+     * as zero. Found by mutation: `return 0` here passed every test in the
+     * file, because no stylesheet currently reaches this branch -- so the
+     * day one does, a `2em` or a `10%` would silently shrink the card by its
+     * whole value and the pinned geometry would agree with the mistake.
+     */
+    if (!m) throw new Error(`calc term this test cannot read: ${term}`)
+    total += (m[1] === '-' ? -1 : 1) * +m[2]
+  }
+  return total
+}
+
+/** px value, resolving the custom properties this stylesheet defines. */
 function px(value: string | null, vars: Record<string, string>): number | null {
   if (!value) return null
-  const v = value.replace(
-    /var\(\s*(--[\w-]+)\s*\)/g,
-    (_, name) => vars[name] ?? 'NaN'
-  )
-  const m = v.match(/^(-?\d+(?:\.\d+)?)px$/) || v.match(/^(0)$/)
-  return m ? +m[1] : null
+  return lengthPx(value, vars)
 }
 
 /**
@@ -266,13 +322,22 @@ function innerWidth(
     if (maxWidth) value = maxWidth
   }
   if (!value || value === '100%') return vp.width
-  const m = value.match(/^calc\(\(100dvh - (\d+)px\) \* ([\d.]+)\)$/)
-  if (!m) {
+  /*
+   * `calc((100dvh - <length>) * <ratio>)`, where the length may be a var with
+   * a fallback and prettier may have wrapped the whole thing across lines --
+   * `decl()` collapses the newlines to single spaces, so the spaces are
+   * optional here rather than absent.
+   */
+  const m = value.match(
+    /^calc\(\s*\(\s*100dvh\s*-\s*(.+?)\s*\)\s*\*\s*([\d.]+)\s*\)$/s
+  )
+  const chrome = m ? lengthPx(m[1], vars) : null
+  if (!m || chrome === null) {
     throw new Error(
       `.feed-card-inner max-width this test cannot read: ${value}`
     )
   }
-  return Math.min(vp.width, (vp.height - +m[1]) * +m[2])
+  return Math.min(vp.width, (vp.height - chrome) * +m[2])
 }
 
 const round = (n: number) => +n.toFixed(3)
@@ -280,10 +345,20 @@ const round = (n: number) => +n.toFixed(3)
 /** What each side claims, and what is left over for the text. */
 function geometry(css: string) {
   const rules = parse(css)
-  const panel = rules.find(r => r.selector === PANEL && !r.media)
+  /*
+   * Every custom property the panel declares, from EVERY panel rule -- not
+   * the first one found. `--feed-chrome` lives in its own `.feed-panel.
+   * fullscreen` block further down the file, so a `find` would miss it and
+   * the length it feeds would read as unresolved.
+   */
   const vars: Record<string, string> = {}
-  const reserve = panel && decl(panel.decls, '--feed-rail-reserve')
-  if (reserve) vars['--feed-rail-reserve'] = reserve
+  for (const rule of rules) {
+    if (rule.selector !== PANEL || rule.media) continue
+    for (const part of rule.decls.split(';')) {
+      const m = part.match(/^\s*(--[\w-]+)\s*:\s*(.+?)\s*$/s)
+      if (m) vars[m[1]] = m[2].replace(/\s+/g, ' ')
+    }
+  }
   return VIEWPORTS.map(vp => {
     const info = resolve(rules, INFO, vp, vars)
     const rail = resolve(rules, RAIL, vp, vars)
@@ -407,12 +482,24 @@ describe('feed card text stays out of the action rail', () => {
           `${r.at}: card=${r.card} column=${r.column} ` +
           `text<=${r.textStops} rail<=${r.railEnds}`
       )
+      /*
+       * THESE MOVED ON 2026-09-20, and the reason is in the stylesheet, not
+       * here. The card height stopped being `100dvh - 56px` (the top header
+       * alone) and became `100dvh - var(--feed-chrome)`, which is the header
+       * PLUS the tab bar: the bottom 49px of every reel used to sit behind
+       * the bar, where these compositions put their caption card.
+       *
+       * The card is 9:16 of that height, so 57px less height is 32px less
+       * width at every viewport above the phone breakpoint. The column
+       * shrank by the same 32px and is still positive everywhere, which is
+       * the property this file actually guards.
+       */
     ).toEqual([
-      '1723x720: card=373.5 column=289.5 text<=60 rail<=48',
-      '1440x900: card=474.75 column=390.75 text<=60 rail<=48',
-      '1280x500: card=249.75 column=165.75 text<=60 rail<=48',
-      '844x390: card=187.875 column=103.875 text<=60 rail<=48',
-      '820x720: card=373.5 column=289.5 text<=60 rail<=48',
+      '1723x720: card=341.438 column=257.438 text<=60 rail<=48',
+      '1440x900: card=442.688 column=358.688 text<=60 rail<=48',
+      '1280x500: card=217.688 column=133.688 text<=60 rail<=48',
+      '844x390: card=155.813 column=71.813 text<=60 rail<=48',
+      '820x720: card=341.438 column=257.438 text<=60 rail<=48',
       '390x844: card=390 column=306 text<=72 rail<=50',
     ])
   })
@@ -443,7 +530,7 @@ describe('feed card text stays out of the action rail', () => {
     expect(found[0]).toContain('48px of gap')
     // What that cost the shortest viewport measured: two thirds of the title.
     const short = geometry(broken).find(r => r.at === '844x390')
-    expect(short?.column).toBe(67.875)
+    expect(short?.column).toBe(35.813)
   })
 
   it('catches a flex link that may not shrink (negative control)', () => {
@@ -455,6 +542,21 @@ describe('feed card text stays out of the action rail', () => {
     expect(problems(broken)).toContain(
       '.feed-card-creator-link does not declare min-width: 0'
     )
+  })
+
+  it('REFUSES A CALC TERM IT CANNOT READ (negative control)', () => {
+    /*
+     * The whole file's discipline: an expression the resolver cannot read is
+     * a hole in the contract, not a pass. Without this, a stylesheet that
+     * started measuring in `em` would be measured as zero and every pinned
+     * number above would quietly agree with the wrong layout.
+     */
+    const broken = css.replace(
+      '--feed-chrome: calc(56px + var(--app-tabbar-total, 57px))',
+      '--feed-chrome: calc(56px + 3em)'
+    )
+    expect(broken).not.toBe(css)
+    expect(() => geometry(broken)).toThrow(/calc term this test cannot read/)
   })
 
   it('every rule on these boxes has the same specificity', () => {

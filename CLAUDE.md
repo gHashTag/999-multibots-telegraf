@@ -83,6 +83,67 @@ Postgres рендера (`getPool()`). Курс: 1 звезда = 1 токен.*
 
 ---
 
+## 🌍 СУПЕР-ФИЧА: браузер у каждого клиента, и агент им владеет
+
+**Решение владельца 2026-09-21.** У каждого человека — **свой настоящий
+браузер** на сервере: его профиль, его входы в аккаунты, его cookies. Человек
+смотрит на него в приложении (вкладка «Браузер», иконка глобуса) и в любой
+момент берёт руль. Агент ведёт **тот же самый** браузер — не копию, не
+headless-двойника.
+
+**Один браузер, два пилота.** Это не метафора, а свойство, на котором держится
+безопасность: каждое нажатие агента видно человеку, и человек может вмешаться
+посреди работы. Невидимого режима здесь нет и не будет.
+
+### Агент владеет ВСЕМИ инструментами браузера
+
+Девять инструментов в общем реестре `TOOLS` — тот же реестр, что уходит
+наружу по `/mcp`, поэтому агент, подключённый вчера, видит их сегодня:
+
+```
+browser_status  browser_open  browser_read  browser_screenshot
+browser_click   browser_type  browser_evaluate  browser_close_tab
+browser_ask_permission
+```
+
+**Они входят и в компактный комплект** (`COMPACT_TOOLS` в
+`src/agent/tools.ts`) — то есть их видит даже модель с окном 16k. Это стоило
+подъёма бюджета схем с 6000 до 7000 токенов, и цена названа прямо: в окне 16k
+при промпте ~5k на разговор остаётся около 4k. Агент, который не умеет открыть
+браузер, не умеет главного, ради чего всё это есть.
+
+### Правила, которые нельзя нарушать
+
+1. **Пароли человек вводит САМ, внутри потока.** Они идут прямо в под, мимо
+   нас и мимо агента. Никогда не просить пароль в чате и не набирать его
+   `browser_type`.
+2. **Страж по МЕСТУ, а не по действию.** На банке, на почте, на странице
+   оплаты нажатие, набор и выполнение кода требуют разрешения, выданного
+   человеком за последние 5 минут (`src/browser/guard.ts`). Клик — это точка
+   на экране; снаружи страницы не узнать, написано на ней «Далее» или
+   «Отправить 120 000».
+3. **Нечитаемый адрес считается чувствительным.** «Мы не знаем, где мы» не
+   должно быть ответом, который разрешает действовать.
+4. **Один под на человека** — `telegram_id` первичный ключ в
+   `browser_sessions`. На этом держится безопасность снятия замка профиля.
+5. **CDP наружу не публиковать.** Кто дотянулся до CDP — читает все cookies и
+   действует как человек. Порт 9222 слушает только loopback внутри пода.
+6. **Закрыть ≠ забыть.** `DELETE /api/browser/session` гасит под и ОСТАВЛЯЕТ
+   входы; `DELETE /api/browser/profile` стирает профиль. Схлопывать эти две
+   двери нельзя.
+
+### Где что лежит
+
+```
+apps/vibee-editor/render/src/browser/   брокер, прокси /live/, страж, оболочка окна
+apps/vibee-editor/player/src/pages/Browser.tsx   вкладка в приложении
+deployment/remote-browser/              образ пода (neko + Chromium + CDP-мост)
+docs/architecture/remote-browser-per-user.md   полный разбор, 33 раздела
+.claude/skills/remote-browser/SKILL.md  рецепт: поднять, проверить, починить
+```
+
+---
+
 **Project**: 999-agents-telegraf - Multi-bot Telegram Platform with AI Generation
 **Language**: TypeScript + Node.js 20
 **Framework**: Telegraf 4.16.3
@@ -863,6 +924,8 @@ description: 'When and how to use this skill'
 - `owner-two-tap-onboarding/` - Подключение нового владельца к личному продавцу
 - `client-first-tap/` - Новый клиент до результата за одно-два нажатия
 - `two-tap-topup/` - Оплата за два нажатия, две кассы честно
+- `remote-browser/` - Свой браузер на клиента: под, брокер, прокси `/live/`, профиль, гашение, вкладка и уведомление в боте
+- `three-options-at-the-end/` - Как заканчивать отчёт: три варианта продолжения с рекомендацией, а не вопрос «что дальше?»
 - ... (и другие по мере создания)
 
 ### 🚨 Проверка перед коммитом
@@ -996,7 +1059,7 @@ comment, so it stays readable to anything that cannot compile it.
   with no A2A server behind it is a false claim, and a missing file is more
   honest than a lying one.
 
-The test: *is this file the project speaking about itself?* If yes, it speaks
+The test: _is this file the project speaking about itself?_ If yes, it speaks
 our language. If it is plumbing, it speaks the plumbing's.
 
 **Worked example, compiler-checked rather than asserted:** in `gHashTag/trinity`,

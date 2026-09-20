@@ -18,6 +18,36 @@ interface Translations {
 // ===============================
 
 const en: Translations = {
+  // ── Remote browser ────────────────────────────────────────────────────────
+  'nav.browser': 'Browser',
+  'browser.title': 'My browser',
+  'browser.agentWorking':
+    'An agent is working here. Touch the screen to take over.',
+  'browser.youDrive': 'You are driving. The agent is waiting.',
+  'browser.handBack': 'Let the agent continue',
+  'browser.fullscreen': 'Full screen',
+  'browser.wentOut':
+    'The browser went out while nobody was watching — that is how it stops costing anything. Your logins are still there; open it again.',
+  'browser.lead':
+    'A browser of your own, running on our side. You watch it, you can take the wheel at any moment, and an agent can work in the very same browser.',
+  'browser.loading': 'Looking for your browser…',
+  'browser.youSignIn':
+    'You sign into your accounts yourself, inside the picture. Only video travels back, so the password never reaches us and never reaches the agent. Never send a password in a chat.',
+  'browser.open': 'Open my browser',
+  'browser.opening': 'Starting…',
+  'browser.startsIn': 'It takes about ten seconds to start.',
+  'browser.openTab': 'Open my browser',
+  'browser.whyTab':
+    'It opens in a separate tab: inside this page the browser would not be allowed to remember that it is you.',
+  'browser.close': 'Close the browser',
+  'browser.closeKeeps':
+    'Closing keeps you signed in. “Forget everything” wipes the logins for good.',
+  'browser.forget': 'Forget everything',
+  'browser.forget.sure': 'Yes, wipe it',
+  'browser.unavailable':
+    'A remote browser is not set up on this deployment yet.',
+  'browser.signInFirst':
+    'Open this page from the bot to see your browser: it has to know who you are first.',
   // ── CRM ───────────────────────────────────────────────────────────────────
   'crm.title': 'CRM',
   'crm.refresh': 'Refresh',
@@ -224,7 +254,7 @@ const en: Translations = {
   'hero.stat.minUnit': 'min',
   'hero.stat.avgTime': 'Avg. creation time',
   'hero.stat.views': 'Total views',
-  'hero.video.createdWith': 'Created with VIBEE',
+  'hero.video.createdWith': 'Created with Trinity S³AI',
   'hero.trust.label': 'Share on your favorite platforms',
 
   // Feed Preview
@@ -254,11 +284,11 @@ const en: Translations = {
   'creatorShowcase.badge': 'Creators',
   'creatorShowcase.title': 'Join top creators',
   'creatorShowcase.subtitle':
-    'Thousands of creators are already making money with VIBEE',
+    'Thousands of creators are already making money with Trinity S³AI',
   'creatorShowcase.followers': 'Followers',
   'creatorShowcase.reels': 'Reels',
   'creatorShowcase.quote1':
-    'VIBEE changed my content game. I create 5 reels a day now!',
+    'Trinity S³AI changed my content game. I create 5 reels a day now!',
   'creatorShowcase.quote2':
     'The AI avatars are mind-blowing. My audience loves them.',
   'creatorShowcase.quote3':
@@ -275,7 +305,7 @@ const en: Translations = {
   'testimonials.quote1':
     'I used to spend hours editing. Now I create a reel in 2 minutes. This is a game changer!',
   'testimonials.quote2':
-    "Our team's productivity tripled. VIBEE saves us tons of time and budget.",
+    "Our team's productivity tripled. Trinity S³AI saves us tons of time and budget.",
   'testimonials.quote3':
     "The AI avatars look so realistic! My subscribers can't tell the difference.",
   'testimonials.quote4':
@@ -298,7 +328,7 @@ const en: Translations = {
     'Select avatar, voice, music, and visual style for your reel.',
   'howItWorks.step3.title': 'Publish',
   'howItWorks.step3.desc':
-    'Share to Instagram, TikTok, YouTube, or the VIBEE feed.',
+    'Share to Instagram, TikTok, YouTube, or the Trinity S³AI feed.',
 
   // Pricing
   'pricing.badge': 'Pricing',
@@ -595,7 +625,7 @@ const en: Translations = {
   'chat.applied': 'Applied:',
   'chat.failedToApply': 'Failed to apply action:',
   'chat.unknownError': 'Unknown error',
-  'chat.agent': 'VIBEE Agent',
+  'chat.agent': 'Trinity S³AI Agent',
   'chat.connected': 'Connected',
   'chat.offline': 'Offline',
   'chat.clearChat': 'Clear chat',
@@ -608,7 +638,7 @@ const en: Translations = {
   'chat.messagePlaceholder': 'Message the agent…',
   'chat.send': 'Send',
   'chat.welcome':
-    "Hi! I'm your VIBEE AI assistant. I can help you create and edit video templates. What would you like to build today?",
+    "Hi! I'm your Trinity S³AI AI assistant. I can help you create and edit video templates. What would you like to build today?",
   'chat.cleared': 'Chat cleared. How can I help?',
 
   // Templates Panel
@@ -1358,7 +1388,7 @@ const en: Translations = {
   'empty.history.description': 'Videos you watch will appear here',
 
   // Onboarding
-  'onboarding.welcome.title': 'Welcome to VIBEE',
+  'onboarding.welcome.title': 'Welcome to Trinity S³AI',
   'onboarding.welcome.description':
     'Create amazing AI-powered videos in minutes',
   'onboarding.create.title': 'Create with AI',
@@ -1385,11 +1415,12 @@ const en: Translations = {
 
   // Hero
   'token.hero.badge': 'Language for Safe Vibe Coding',
-  'token.hero.title': 'VIBEE — Compile AI Code to Production-Ready Agents',
+  'token.hero.title':
+    'Trinity S³AI — Compile AI Code to Production-Ready Agents',
   'token.hero.tagline':
     'Compiler enforces @spec. Built-in payments. BEAM fault tolerance. Accept All without fear.',
   'token.hero.description':
-    '45% of AI code has security vulnerabilities. VIBEE compiles AI-generated code into reliable BEAM agents with mandatory @spec checks and built-in payment layer. 10 lines of VIBEE vs 120 lines of Java.',
+    '45% of AI code has security vulnerabilities. Trinity S³AI compiles AI-generated code into reliable BEAM agents with mandatory @spec checks and built-in payment layer. 10 lines of Trinity S³AI vs 120 lines of Java.',
   'token.hero.stats.bugs': 'of AI code has vulnerabilities*',
   'token.hero.stats.vibee': 'with @spec enforcement',
   'token.hero.stats.safetyNet': '= compile-time safety',
@@ -1408,7 +1439,7 @@ const en: Translations = {
   'token.killer.subtitle':
     'One YAML file → Production-ready code automatically',
   'token.killer.description':
-    'Write behaviors in plain English. Get complete plugins with tests, docs, and type safety. This is what makes VIBEE worth billions.',
+    'Write behaviors in plain English. Get complete plugins with tests, docs, and type safety. This is what makes Trinity S³AI worth billions.',
   'token.killer.stats.time': '5 minutes',
   'token.killer.stats.time_before': 'vs 40 hours',
   'token.killer.stats.cost': '$0',
@@ -1456,7 +1487,7 @@ const en: Translations = {
   'token.comparison.devin.what': 'Full projects',
   'token.comparison.devin.tests': 'Sometimes',
   'token.comparison.devin.docs': 'Sometimes',
-  'token.comparison.vibee.name': 'VIBEE',
+  'token.comparison.vibee.name': 'Trinity S³AI',
   'token.comparison.vibee.price': '$50/month',
   'token.comparison.vibee.what': 'Complete plugins',
   'token.comparison.vibee.tests': '100% guaranteed',
@@ -1464,7 +1495,7 @@ const en: Translations = {
 
   // Savings Calculator
   'token.savings.title': 'Calculate Your Savings',
-  'token.savings.subtitle': 'See how much time and money VIBEE saves',
+  'token.savings.subtitle': 'See how much time and money Trinity S³AI saves',
   'token.savings.plugins_per_month': 'Plugins per month',
   'token.savings.time_saved': 'Time saved',
   'token.savings.cost_saved': 'Cost saved',
@@ -1524,14 +1555,14 @@ types:
   'token.vibe.stats.source.veracode': 'Veracode 2025',
   'token.vibe.stats.source.yc': 'Y Combinator 2025',
   'token.vibe.stats.source.academic': 'Academic Research',
-  'token.vibe.flow.without': 'Vibe Coding without VIBEE',
-  'token.vibe.flow.with': 'Vibe Coding with VIBEE',
+  'token.vibe.flow.without': 'Vibe Coding without Trinity S³AI',
+  'token.vibe.flow.with': 'Vibe Coding with Trinity S³AI',
   'token.vibe.flow.acceptAll': '✓ Accept All',
   'token.vibe.flow.securityBugs': '⚠️ Security bugs',
   'token.vibe.flow.productionIncident': '💥 Production incident',
   'token.vibe.flow.specCheck': '🔒 @spec check',
   'token.vibe.flow.safeDeployment': '✅ Safe deployment',
-  'token.vibe.conclusion.bold': 'VIBEE is built for this reality.',
+  'token.vibe.conclusion.bold': 'Trinity S³AI is built for this reality.',
   'token.vibe.conclusion.text':
     'Rules are embedded in the language grammar, not in prompts.',
 
@@ -1545,14 +1576,14 @@ types:
     "Prompts don't work. Context is lost. Rules are bypassed. This is the main problem with vibe coding — no enforcement.",
   'token.origin.ch2.title': '@spec = safety net for vibe coding',
   'token.origin.ch2.quote':
-    '"When you click Accept All in Cursor or Claude Code, AI code goes to the VIBEE compiler. No @spec — code won\'t compile. It\'s physically impossible to deploy an untested agent."',
-  'token.origin.ch2.before': 'Vibe coding without VIBEE',
-  'token.origin.ch2.after': 'Vibe coding with VIBEE',
+    '"When you click Accept All in Cursor or Claude Code, AI code goes to the Trinity S³AI compiler. No @spec — code won\'t compile. It\'s physically impossible to deploy an untested agent."',
+  'token.origin.ch2.before': 'Vibe coding without Trinity S³AI',
+  'token.origin.ch2.after': 'Vibe coding with Trinity S³AI',
   'token.origin.ch3.title': 'Accept All safely with decorators',
   'token.origin.ch3.quote':
-    '"AI rarely adds retry, timeout, circuit breaker. In VIBEE it\'s one line — a decorator. Accept All and get production-ready code."',
+    '"AI rarely adds retry, timeout, circuit breaker. In Trinity S³AI it\'s one line — a decorator. Accept All and get production-ready code."',
   'token.origin.conclusion':
-    'VIBEE is the only DSL where vibe coding becomes safe. Rules in grammar, not in prompts.',
+    'Trinity S³AI is the only DSL where vibe coding becomes safe. Rules in grammar, not in prompts.',
 
   // Problem Section
   'token.problem.title': 'The vibe coding problem — AI code in production',
@@ -1580,7 +1611,7 @@ types:
 
   // Solution Section
   'token.solution.title': 'Vibe code boldly — @spec catches errors',
-  'token.solution.p1.bold': 'VIBEE is a DSL for safe vibe coding.',
+  'token.solution.p1.bold': 'Trinity S³AI is a DSL for safe vibe coding.',
   'token.solution.p1.text':
     'When AI generates code, it goes to a compiler that requires @spec for every tool/agent.',
   'token.solution.p2.text':
@@ -1590,16 +1621,16 @@ types:
     'The output is a production-ready agent on BEAM VM with 99.9999999% uptime. Even vibe-coded.',
 
   // Code Comparison
-  'token.code.title': 'Vibe code faster with VIBEE',
+  'token.code.title': 'Vibe code faster with Trinity S³AI',
   'token.code.subtitle':
-    'Less code = fewer places for AI errors. 10 lines VIBEE vs 120 lines Java.',
+    'Less code = fewer places for AI errors. 10 lines Trinity S³AI vs 120 lines Java.',
   'token.code.note':
-    'VIBEE automatically generates boilerplate, error handling, retry logic and types. Developer writes only business logic.',
+    'Trinity S³AI automatically generates boilerplate, error handling, retry logic and types. Developer writes only business logic.',
 
   // Compilation
-  'token.compilation.title': 'What VIBEE compiles to',
+  'token.compilation.title': 'What Trinity S³AI compiles to',
   'token.compilation.subtitle':
-    'VIBEE DSL → Gleam → BEAM bytecode. See the transformation.',
+    'Trinity S³AI DSL → Gleam → BEAM bytecode. See the transformation.',
   'token.compilation.step1': 'Declarative code',
   'token.compilation.step2': 'Type-safe code for BEAM',
   'token.compilation.step3': 'Erlang bytecode',
@@ -1610,10 +1641,10 @@ types:
   'token.compilation.persistent': 'Persistent state',
   'token.compilation.faultIsolation': 'Fault isolation',
   'token.compilation.note':
-    '10 lines of VIBEE become ~30 lines of typed Gleam code with retry, cache, timeout and error handling. Output: fault-tolerant BEAM process.',
+    '10 lines of Trinity S³AI become ~30 lines of typed Gleam code with retry, cache, timeout and error handling. Output: fault-tolerant BEAM process.',
 
   // Syntax Comparison
-  'token.syntax.title': '🔬 VIBEE Language Syntax Comparison',
+  'token.syntax.title': '🔬 Trinity S³AI Language Syntax Comparison',
   'token.syntax.subtitle':
     'All 25 syntax features with real code examples - Click tabs to explore',
   'token.syntax.tabs.all': '🌟 All (25)',
@@ -1625,14 +1656,15 @@ types:
 
   // Syntax Features Showcase
   'token.syntaxShowcase.badge': '7 Unique Features',
-  'token.syntaxShowcase.title.unique': 'Unique VIBEE',
+  'token.syntaxShowcase.title.unique': 'Unique Trinity S³AI',
   'token.syntaxShowcase.title.syntax': 'Syntax Features',
   'token.syntaxShowcase.subtitle':
-    "Powerful features that exist only in VIBEE - giving you superpowers other languages don't have",
+    "Powerful features that exist only in Trinity S³AI - giving you superpowers other languages don't have",
 
   // All Features List
-  'token.allFeatures.title': 'Complete List: All 25 VIBEE Syntax Features',
-  'token.allFeatures.subtitle': 'Every feature that makes VIBEE unique',
+  'token.allFeatures.title':
+    'Complete List: All 25 Trinity S³AI Syntax Features',
+  'token.allFeatures.subtitle': 'Every feature that makes Trinity S³AI unique',
   'token.allFeatures.core': '🎯 Core Features (5)',
   'token.allFeatures.operators': '⚡ Operators (5)',
   'token.allFeatures.patterns': '🎨 Patterns (5)',
@@ -1667,17 +1699,17 @@ types:
   'token.feature.25.title': '25. Conditional Pipe (Result)',
 
   // Unique Features
-  'token.uniqueFeature.badge': 'Only in VIBEE',
+  'token.uniqueFeature.badge': 'Only in Trinity S³AI',
   'token.uniqueFeature.4pipes.title': '4 Pipe Operators',
   'token.uniqueFeature.4pipes.desc':
-    'Most languages have 0-1 pipe operators. VIBEE has 4 specialized variants for different use cases.',
+    'Most languages have 0-1 pipe operators. Trinity S³AI has 4 specialized variants for different use cases.',
   'token.uniqueFeature.4pipes.standard': 'Standard',
   'token.uniqueFeature.4pipes.tap': 'Tap (Debug)',
   'token.uniqueFeature.4pipes.conditional': 'Conditional',
   'token.uniqueFeature.4pipes.indexed': 'Indexed',
   'token.uniqueFeature.52decorators.title': '52 Built-in Decorators',
   'token.uniqueFeature.52decorators.desc':
-    'Most languages have 0-10 decorators. VIBEE has 52 production-ready decorators for AI agents.',
+    'Most languages have 0-10 decorators. Trinity S³AI has 52 production-ready decorators for AI agents.',
   'token.uniqueFeature.operatorSections.title': 'Operator Sections',
   'token.uniqueFeature.operatorSections.desc':
     'Partial application of operators - write (> 5) instead of fn(x) { x > 5 }',
@@ -1734,7 +1766,7 @@ types:
   // Decorators
   'token.decorators.title': 'Accept All safely with decorators',
   'token.decorators.subtitle':
-    "AI rarely adds retry, timeout, circuit breaker. In VIBEE — it's one line. 12 decorators, 6,500+ usages.",
+    "AI rarely adds retry, timeout, circuit breaker. In Trinity S³AI — it's one line. 12 decorators, 6,500+ usages.",
   'token.decorators.tabs.all': 'All',
   'token.decorators.tabs.core': 'Core',
   'token.decorators.tabs.resilience': 'Resilience',
@@ -1799,8 +1831,8 @@ types:
     'Developer gets not a "chatbot" but an industrial component ready for production.',
 
   // Features
-  'token.features.title': 'Product — what VIBEE consists of',
-  'token.features.dsl.title': 'VIBEE DSL',
+  'token.features.title': 'Product — what Trinity S³AI consists of',
+  'token.features.dsl.title': 'Trinity S³AI DSL',
   'token.features.dsl':
     'Language for describing agent logic and constraints with mandatory specifications.',
   'token.features.beam.title': 'BEAM Runtime',
@@ -1820,7 +1852,7 @@ types:
     'E2E tests on real Telegram accounts. Not mocks — live checks.',
 
   // ICP
-  'token.icp.title': "Who we're building VIBEE for",
+  'token.icp.title': "Who we're building Trinity S³AI for",
   'token.icp.saas.badge': 'B2B SaaS',
   'token.icp.saas':
     'Companies that want to embed agents in their product (support, sales, ops) with controlled behavior.',
@@ -1844,10 +1876,10 @@ types:
     'Not just "connect Stripe" but a unified money model in DSL.',
   'token.moat.templates.title': 'Accumulation of domain templates',
   'token.moat.templates.text':
-    'Over time VIBEE accumulates ready "agents by industry", strengthening moat.',
+    'Over time Trinity S³AI accumulates ready "agents by industry", strengthening moat.',
 
   // Business
-  'token.business.title': 'How VIBEE makes money',
+  'token.business.title': 'How Trinity S³AI makes money',
   'token.business.saas.title': 'Subscription (SaaS)',
   'token.business.saas.text':
     'Plans by number of agents, integrations, transactions and environment (dev/prod).',
@@ -1930,7 +1962,7 @@ types:
   'token.competitors.difyDesc':
     'Visual builder for AI apps. No-code approach, but no type safety.',
   'token.competitors.conclusion':
-    'VIBEE is the only framework with compile-time safety for vibe coding. @spec enforcement + BEAM runtime = production-ready agents without fear.',
+    'Trinity S³AI is the only framework with compile-time safety for vibe coding. @spec enforcement + BEAM runtime = production-ready agents without fear.',
 
   // Roadmap
   'token.roadmap.title': 'Roadmap',
@@ -1957,7 +1989,8 @@ types:
   // Ask
   'token.ask.title': 'Ask',
   'token.ask.use.title': 'Use of funds:',
-  'token.ask.use.item1': 'VIBEE DSL core and BEAM infrastructure development',
+  'token.ask.use.item1':
+    'Trinity S³AI DSL core and BEAM infrastructure development',
   'token.ask.use.item2': 'Product packaging (CLI, SDK, documentation)',
   'token.ask.use.item3': 'B2B pilot program',
   'token.ask.use.item4':
@@ -1977,6 +2010,35 @@ types:
 }
 
 const ru: Translations = {
+  // ── Remote browser ────────────────────────────────────────────────────────
+  'nav.browser': 'Браузер',
+  'browser.title': 'Мой браузер',
+  'browser.agentWorking':
+    'Здесь работает агент. Коснитесь экрана, чтобы взять управление.',
+  'browser.youDrive': 'Управляете вы. Агент ждёт.',
+  'browser.handBack': 'Вернуть агенту',
+  'browser.fullscreen': 'Во весь экран',
+  'browser.wentOut':
+    'Браузер погас, пока за ним никто не смотрел — так он перестаёт стоить денег. Ваши входы на месте, откройте его снова.',
+  'browser.lead':
+    'Свой браузер, работающий на нашей стороне. Вы его видите, в любой момент можете взять управление, и агент работает в этом же браузере.',
+  'browser.loading': 'Ищу ваш браузер…',
+  'browser.youSignIn':
+    'В свои аккаунты вы заходите сами, прямо в картинке. Обратно идёт только видео, поэтому пароль не попадает ни к нам, ни к агенту. Никогда не присылайте пароль в переписке.',
+  'browser.open': 'Открыть мой браузер',
+  'browser.opening': 'Запускаю…',
+  'browser.startsIn': 'Запуск занимает около десяти секунд.',
+  'browser.openTab': 'Открыть мой браузер',
+  'browser.whyTab':
+    'Откроется отдельной вкладкой: внутри этой страницы браузеру не дадут запомнить, что это вы.',
+  'browser.close': 'Закрыть браузер',
+  'browser.closeKeeps':
+    'Закрытие сохраняет ваши входы. «Стереть всё» удаляет их насовсем.',
+  'browser.forget': 'Стереть всё',
+  'browser.forget.sure': 'Да, стереть',
+  'browser.unavailable': 'На этой площадке удалённый браузер пока не настроен.',
+  'browser.signInFirst':
+    'Откройте эту страницу из бота, чтобы увидеть свой браузер: сначала нужно понять, кто вы.',
   // cyrillic-ok: UI dictionary, Russian half
   'crm.title': 'CRM',
   'crm.refresh': 'Обновить',
@@ -2177,7 +2239,7 @@ const ru: Translations = {
   'hero.stat.minUnit': 'мин',
   'hero.stat.avgTime': 'Среднее время создания',
   'hero.stat.views': 'Просмотров',
-  'hero.video.createdWith': 'Создано в VIBEE',
+  'hero.video.createdWith': 'Создано в Trinity S³AI',
   'hero.trust.label': 'Делись на любимых платформах',
 
   // Feed Preview
@@ -2207,11 +2269,12 @@ const ru: Translations = {
   // Creator Showcase
   'creatorShowcase.badge': 'Креаторы',
   'creatorShowcase.title': 'Присоединяйся к топ-креаторам',
-  'creatorShowcase.subtitle': 'Тысячи креаторов уже зарабатывают с VIBEE',
+  'creatorShowcase.subtitle':
+    'Тысячи креаторов уже зарабатывают с Trinity S³AI',
   'creatorShowcase.followers': 'Подписчики',
   'creatorShowcase.reels': 'Рилсы',
   'creatorShowcase.quote1':
-    'VIBEE изменил мой контент. Теперь я делаю 5 рилсов в день!',
+    'Trinity S³AI изменил мой контент. Теперь я делаю 5 рилсов в день!',
   'creatorShowcase.quote2':
     'AI-аватары просто невероятные. Моя аудитория в восторге.',
   'creatorShowcase.quote3':
@@ -2228,7 +2291,7 @@ const ru: Translations = {
   'testimonials.quote1':
     'Раньше я тратила часы на монтаж. Теперь создаю рилс за 2 минуты. Это меняет всё!',
   'testimonials.quote2':
-    'Продуктивность нашей команды выросла втрое. VIBEE экономит время и бюджет.',
+    'Продуктивность нашей команды выросла втрое. Trinity S³AI экономит время и бюджет.',
   'testimonials.quote3':
     'AI-аватары выглядят так реалистично! Мои подписчики не могут отличить.',
   'testimonials.quote4':
@@ -2250,7 +2313,7 @@ const ru: Translations = {
     'Подбери аватар, голос, музыку и визуальный стиль рилса.',
   'howItWorks.step3.title': 'Публикуй',
   'howItWorks.step3.desc':
-    'Делись в Instagram, TikTok, YouTube или ленте VIBEE.',
+    'Делись в Instagram, TikTok, YouTube или ленте Trinity S³AI.',
 
   // Pricing
   'pricing.badge': 'Цены',
@@ -2546,7 +2609,7 @@ const ru: Translations = {
   'chat.applied': 'Применено:',
   'chat.failedToApply': 'Ошибка применения:',
   'chat.unknownError': 'Неизвестная ошибка',
-  'chat.agent': 'VIBEE Агент',
+  'chat.agent': 'Trinity S³AI Агент',
   'chat.connected': 'Подключен',
   'chat.offline': 'Офлайн',
   'chat.clearChat': 'Очистить чат',
@@ -2561,7 +2624,7 @@ const ru: Translations = {
   'chat.messagePlaceholder': 'Сообщение агенту…',
   'chat.send': 'Отправить',
   'chat.welcome':
-    'Привет! Я VIBEE AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',
+    'Привет! Я Trinity S³AI AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',
   'chat.cleared': 'Чат очищен. Чем могу помочь?',
 
   // Templates Panel
@@ -3313,7 +3376,7 @@ const ru: Translations = {
   'empty.history.description': 'Просмотренные видео появятся здесь',
 
   // Onboarding
-  'onboarding.welcome.title': 'Добро пожаловать в VIBEE',
+  'onboarding.welcome.title': 'Добро пожаловать в Trinity S³AI',
   'onboarding.welcome.description': 'Создавайте потрясающие AI-видео за минуты',
   'onboarding.create.title': 'Создавайте с AI',
   'onboarding.create.description':
@@ -3339,11 +3402,11 @@ const ru: Translations = {
 
   // Hero
   'token.hero.badge': 'Язык для безопасного Vibe Coding',
-  'token.hero.title': 'VIBEE — Компилируй AI-код в продакшн-агентов',
+  'token.hero.title': 'Trinity S³AI — Компилируй AI-код в продакшн-агентов',
   'token.hero.tagline':
     'Компилятор проверяет @spec. Встроенные платежи. BEAM fault tolerance. Accept All без страха.',
   'token.hero.description':
-    '45% AI-кода содержит уязвимости. VIBEE компилирует AI-генерированный код в надёжных BEAM-агентов с обязательными @spec проверками и встроенным платёжным слоем. 10 строк VIBEE вместо 120 строк Java.',
+    '45% AI-кода содержит уязвимости. Trinity S³AI компилирует AI-генерированный код в надёжных BEAM-агентов с обязательными @spec проверками и встроенным платёжным слоем. 10 строк Trinity S³AI вместо 120 строк Java.',
   'token.hero.stats.bugs': 'AI-кода с уязвимостями*',
   'token.hero.stats.vibee': 'с проверкой @spec',
   'token.hero.stats.safetyNet': '= безопасность на этапе компиляции',
@@ -3361,7 +3424,7 @@ const ru: Translations = {
   'token.killer.title': 'spec.yml → Готовый плагин со 100% покрытием тестами',
   'token.killer.subtitle': 'Один YAML файл → Продакшн-код автоматически',
   'token.killer.description':
-    'Опишите поведение на простом языке. Получите готовый плагин с тестами, документацией и типобезопасностью. Это то, что делает VIBEE стоящим миллиарды.',
+    'Опишите поведение на простом языке. Получите готовый плагин с тестами, документацией и типобезопасностью. Это то, что делает Trinity S³AI стоящим миллиарды.',
   'token.killer.stats.time': '5 минут',
   'token.killer.stats.time_before': 'vs 40 часов',
   'token.killer.stats.cost': '$0',
@@ -3409,7 +3472,7 @@ const ru: Translations = {
   'token.comparison.devin.what': 'Полные проекты',
   'token.comparison.devin.tests': 'Иногда',
   'token.comparison.devin.docs': 'Иногда',
-  'token.comparison.vibee.name': 'VIBEE',
+  'token.comparison.vibee.name': 'Trinity S³AI',
   'token.comparison.vibee.price': '$50/месяц',
   'token.comparison.vibee.what': 'Готовые плагины',
   'token.comparison.vibee.tests': '100% гарантия',
@@ -3417,7 +3480,8 @@ const ru: Translations = {
 
   // Savings Calculator
   'token.savings.title': 'Рассчитайте вашу экономию',
-  'token.savings.subtitle': 'Посмотрите сколько времени и денег экономит VIBEE',
+  'token.savings.subtitle':
+    'Посмотрите сколько времени и денег экономит Trinity S³AI',
   'token.savings.plugins_per_month': 'Плагинов в месяц',
   'token.savings.time_saved': 'Сэкономлено времени',
   'token.savings.cost_saved': 'Сэкономлено денег',
@@ -3477,14 +3541,14 @@ types:
   'token.vibe.stats.source.veracode': 'Veracode 2025',
   'token.vibe.stats.source.yc': 'Y Combinator 2025',
   'token.vibe.stats.source.academic': 'Исследования',
-  'token.vibe.flow.without': 'Vibe Coding без VIBEE',
-  'token.vibe.flow.with': 'Vibe Coding с VIBEE',
+  'token.vibe.flow.without': 'Vibe Coding без Trinity S³AI',
+  'token.vibe.flow.with': 'Vibe Coding с Trinity S³AI',
   'token.vibe.flow.acceptAll': '✓ Accept All',
   'token.vibe.flow.securityBugs': '⚠️ Уязвимости',
   'token.vibe.flow.productionIncident': '💥 Авария в проде',
   'token.vibe.flow.specCheck': '🔒 @spec проверка',
   'token.vibe.flow.safeDeployment': '✅ Безопасный деплой',
-  'token.vibe.conclusion.bold': 'VIBEE создан для этой реальности.',
+  'token.vibe.conclusion.bold': 'Trinity S³AI создан для этой реальности.',
   'token.vibe.conclusion.text':
     'Правила встроены в грамматику языка, не в промпты.',
 
@@ -3498,14 +3562,14 @@ types:
     'Промпты не работают. Контекст теряется. Правила обходятся. Это и есть главная проблема vibe coding — нет enforcement.',
   'token.origin.ch2.title': '@spec = страховка для vibe coding',
   'token.origin.ch2.quote':
-    '"Когда ты нажимаешь Accept All в Cursor или Claude Code, AI-код попадает в компилятор VIBEE. Если нет @spec — код не скомпилируется. Физически невозможно задеплоить непротестированный агент."',
-  'token.origin.ch2.before': 'Vibe coding без VIBEE',
-  'token.origin.ch2.after': 'Vibe coding с VIBEE',
+    '"Когда ты нажимаешь Accept All в Cursor или Claude Code, AI-код попадает в компилятор Trinity S³AI. Если нет @spec — код не скомпилируется. Физически невозможно задеплоить непротестированный агент."',
+  'token.origin.ch2.before': 'Vibe coding без Trinity S³AI',
+  'token.origin.ch2.after': 'Vibe coding с Trinity S³AI',
   'token.origin.ch3.title': 'Accept All безопасно с декораторами',
   'token.origin.ch3.quote':
-    '"AI редко добавляет retry, timeout, circuit breaker. В VIBEE это одна строка — декоратор. Accept All и получи production-ready код."',
+    '"AI редко добавляет retry, timeout, circuit breaker. В Trinity S³AI это одна строка — декоратор. Accept All и получи production-ready код."',
   'token.origin.conclusion':
-    'VIBEE — единственный DSL, где vibe coding становится безопасным. Правила в грамматике, не в промптах.',
+    'Trinity S³AI — единственный DSL, где vibe coding становится безопасным. Правила в грамматике, не в промптах.',
 
   // Problem Section
   'token.problem.title': 'Проблема vibe coding — AI-код в продакшене',
@@ -3533,7 +3597,8 @@ types:
 
   // Solution Section
   'token.solution.title': 'Vibe-кодь смело — @spec поймает ошибки',
-  'token.solution.p1.bold': 'VIBEE — это DSL для безопасного vibe coding.',
+  'token.solution.p1.bold':
+    'Trinity S³AI — это DSL для безопасного vibe coding.',
   'token.solution.p1.text':
     'Когда AI генерирует код, он попадает в компилятор, который требует @spec для каждого tool/agent.',
   'token.solution.p2.text':
@@ -3543,16 +3608,16 @@ types:
     'На выходе — production-ready агент на BEAM VM с 99.9999999% uptime. Даже vibe-coded.',
 
   // Code Comparison
-  'token.code.title': 'Vibe-кодь быстрее на VIBEE',
+  'token.code.title': 'Vibe-кодь быстрее на Trinity S³AI',
   'token.code.subtitle':
-    'Меньше кода = меньше мест для AI-ошибок. 10 строк VIBEE vs 120 строк Java.',
+    'Меньше кода = меньше мест для AI-ошибок. 10 строк Trinity S³AI vs 120 строк Java.',
   'token.code.note':
-    'VIBEE автоматически генерирует boilerplate, обработку ошибок, retry-логику и типы. Разработчик пишет только бизнес-логику.',
+    'Trinity S³AI автоматически генерирует boilerplate, обработку ошибок, retry-логику и типы. Разработчик пишет только бизнес-логику.',
 
   // Compilation
-  'token.compilation.title': 'Во что компилируется VIBEE',
+  'token.compilation.title': 'Во что компилируется Trinity S³AI',
   'token.compilation.subtitle':
-    'VIBEE DSL → Gleam → BEAM bytecode. Посмотрите трансформацию.',
+    'Trinity S³AI DSL → Gleam → BEAM bytecode. Посмотрите трансформацию.',
   'token.compilation.step1': 'Декларативный код',
   'token.compilation.step2': 'Type-safe код для BEAM',
   'token.compilation.step3': 'Erlang bytecode',
@@ -3563,10 +3628,10 @@ types:
   'token.compilation.persistent': 'Persistent state',
   'token.compilation.faultIsolation': 'Fault isolation',
   'token.compilation.note':
-    '10 строк VIBEE превращаются в ~30 строк типизированного Gleam кода с retry, cache, timeout и error handling. На выходе — отказоустойчивый BEAM процесс.',
+    '10 строк Trinity S³AI превращаются в ~30 строк типизированного Gleam кода с retry, cache, timeout и error handling. На выходе — отказоустойчивый BEAM процесс.',
 
   // Syntax Comparison
-  'token.syntax.title': '🔬 Сравнение синтаксиса языка VIBEE',
+  'token.syntax.title': '🔬 Сравнение синтаксиса языка Trinity S³AI',
   'token.syntax.subtitle':
     'Все 25 синтаксических возможностей с реальными примерами кода - Нажмите на вкладки для изучения',
   'token.syntax.tabs.all': '🌟 Все (25)',
@@ -3578,16 +3643,16 @@ types:
 
   // Syntax Features Showcase
   'token.syntaxShowcase.badge': '7 Уникальных Возможностей',
-  'token.syntaxShowcase.title.unique': 'Уникальные VIBEE',
+  'token.syntaxShowcase.title.unique': 'Уникальные Trinity S³AI',
   'token.syntaxShowcase.title.syntax': 'Синтаксические Возможности',
   'token.syntaxShowcase.subtitle':
-    'Мощные возможности, которые существуют только в VIBEE - дающие вам суперсилы, которых нет в других языках',
+    'Мощные возможности, которые существуют только в Trinity S³AI - дающие вам суперсилы, которых нет в других языках',
 
   // All Features List
   'token.allFeatures.title':
-    'Полный список: Все 25 синтаксических возможностей VIBEE',
+    'Полный список: Все 25 синтаксических возможностей Trinity S³AI',
   'token.allFeatures.subtitle':
-    'Каждая возможность, которая делает VIBEE уникальным',
+    'Каждая возможность, которая делает Trinity S³AI уникальным',
   'token.allFeatures.core': '🎯 Основные возможности (5)',
   'token.allFeatures.operators': '⚡ Операторы (5)',
   'token.allFeatures.patterns': '🎨 Паттерны (5)',
@@ -3622,17 +3687,17 @@ types:
   'token.feature.25.title': '25. Условный Pipe (Result)',
 
   // Unique Features
-  'token.uniqueFeature.badge': 'Только в VIBEE',
+  'token.uniqueFeature.badge': 'Только в Trinity S³AI',
   'token.uniqueFeature.4pipes.title': '4 Pipe оператора',
   'token.uniqueFeature.4pipes.desc':
-    'В большинстве языков 0-1 pipe оператор. В VIBEE их 4 специализированных варианта для разных случаев.',
+    'В большинстве языков 0-1 pipe оператор. В Trinity S³AI их 4 специализированных варианта для разных случаев.',
   'token.uniqueFeature.4pipes.standard': 'Стандартный',
   'token.uniqueFeature.4pipes.tap': 'Tap (Отладка)',
   'token.uniqueFeature.4pipes.conditional': 'Условный',
   'token.uniqueFeature.4pipes.indexed': 'Индексированный',
   'token.uniqueFeature.52decorators.title': '52 встроенных декоратора',
   'token.uniqueFeature.52decorators.desc':
-    'В большинстве языков 0-10 декораторов. В VIBEE 52 production-ready декоратора для AI агентов.',
+    'В большинстве языков 0-10 декораторов. В Trinity S³AI 52 production-ready декоратора для AI агентов.',
   'token.uniqueFeature.operatorSections.title': 'Секции операторов',
   'token.uniqueFeature.operatorSections.desc':
     'Частичное применение операторов - пишите (> 5) вместо fn(x) { x > 5 }',
@@ -3689,7 +3754,7 @@ types:
   // Decorators
   'token.decorators.title': 'Accept All безопасно с декораторами',
   'token.decorators.subtitle':
-    'AI редко добавляет retry, timeout, circuit breaker. В VIBEE — это одна строка. 12 декораторов, 6,500+ использований.',
+    'AI редко добавляет retry, timeout, circuit breaker. В Trinity S³AI — это одна строка. 12 декораторов, 6,500+ использований.',
   'token.decorators.tabs.all': 'Все',
   'token.decorators.tabs.core': 'Основное',
   'token.decorators.tabs.resilience': 'Устойчивость',
@@ -3755,8 +3820,8 @@ types:
     'Разработчик получает не «чатботик», а промышленный компонент, который можно пустить в оборот.',
 
   // Features
-  'token.features.title': 'Продукт — из чего состоит VIBEE',
-  'token.features.dsl.title': 'VIBEE DSL',
+  'token.features.title': 'Продукт — из чего состоит Trinity S³AI',
+  'token.features.dsl.title': 'Trinity S³AI DSL',
   'token.features.dsl':
     'Язык для описания логики и ограничений агента с обязательными спецификациями.',
   'token.features.beam.title': 'BEAM Runtime',
@@ -3776,7 +3841,7 @@ types:
     'E2E тесты на реальных Telegram аккаунтах. Не моки — живые проверки.',
 
   // ICP
-  'token.icp.title': 'Для кого мы строим VIBEE',
+  'token.icp.title': 'Для кого мы строим Trinity S³AI',
   'token.icp.saas.badge': 'B2B SaaS',
   'token.icp.saas':
     'Компании, которые хотят встроить агентов в свой продукт (support, sales, ops) с контролируемым поведением.',
@@ -3799,10 +3864,10 @@ types:
     'Не просто «подключи Stripe», а единая модель денег в DSL.',
   'token.moat.templates.title': 'Аккумуляция доменных шаблонов',
   'token.moat.templates.text':
-    'Со временем VIBEE копит готовые «агенты по отраслям», усиливая moat.',
+    'Со временем Trinity S³AI копит готовые «агенты по отраслям», усиливая moat.',
 
   // Business
-  'token.business.title': 'Как VIBEE зарабатывает',
+  'token.business.title': 'Как Trinity S³AI зарабатывает',
   'token.business.saas.title': 'Подписка (SaaS)',
   'token.business.saas.text':
     'Тарифы по количеству агентов, интеграций, транзакций и среде (dev/prod).',
@@ -3885,7 +3950,7 @@ types:
   'token.competitors.difyDesc':
     'Visual builder для AI apps. No-code подход, но нет type safety.',
   'token.competitors.conclusion':
-    'VIBEE — единственный фреймворк с compile-time safety для vibe coding. @spec enforcement + BEAM runtime = production-ready агенты без страха.',
+    'Trinity S³AI — единственный фреймворк с compile-time safety для vibe coding. @spec enforcement + BEAM runtime = production-ready агенты без страха.',
 
   // Roadmap
   'token.roadmap.title': 'Дорожная карта',
@@ -3913,7 +3978,7 @@ types:
   // Ask
   'token.ask.title': 'Запрос',
   'token.ask.use.title': 'Использование средств:',
-  'token.ask.use.item1': 'Развитие ядра VIBEE DSL и BEAM-инфраструктуры',
+  'token.ask.use.item1': 'Развитие ядра Trinity S³AI DSL и BEAM-инфраструктуры',
   'token.ask.use.item2': 'Упаковка продукта (CLI, SDK, документация)',
   'token.ask.use.item3': 'Программа пилотов с B2B-компаниями',
   'token.ask.use.item4': 'Усиление команды (финтех, devrel, enterprise-sales)',
