@@ -321,8 +321,38 @@ const TEXT_LIKE_MIME = /^(text\/|application\/json$|application\/xml$)/i
  * about. `.pdf`, `.docx`, `.xlsx` are NOT here and are not readable by this
  * repository at all: no extractor is installed (see media-inline.ts).
  */
-const TEXT_LIKE_EXT =
-  /\.(txt|md|markdown|csv|tsv|json|xml|log|yaml|yml|ini|conf|toml|sql|srt|vtt|html?)$/i
+export const TEXT_LIKE_EXTENSIONS: readonly string[] = [
+  'txt',
+  'md',
+  'markdown',
+  'csv',
+  'tsv',
+  'json',
+  'xml',
+  'log',
+  'yaml',
+  'yml',
+  'ini',
+  'conf',
+  'toml',
+  'sql',
+  'srt',
+  'vtt',
+  'html',
+  'htm',
+]
+
+/*
+ * BUILT FROM THE LIST, AND THE LIST IS WHAT THE AGENT PROMISES.
+ *
+ * Owner, 2026-09-20: the agent must say what it can take, so that it can be
+ * promised. A sentence in a prompt and a regex in a reader are two statements
+ * of one fact, and they drift the first time somebody widens one of them --
+ * which is exactly how a product comes to promise a format it refuses. So
+ * there is one array: the reader tests against it, the prompt reads it out,
+ * and a test walks it to prove the promise is true.
+ */
+const TEXT_LIKE_EXT = new RegExp(`\\.(${TEXT_LIKE_EXTENSIONS.join('|')})$`, 'i')
 
 /** A document a model can read as plain text. */
 export function isTextLikeDocument(
