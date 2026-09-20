@@ -554,6 +554,25 @@ async function initializeBots() {
         )
       }
 
+      /*
+       * The blue button next to the input field, for THIS bot.
+       *
+       * Measured 2026-09-20: of eleven bots exactly one had it pointing at the
+       * mini app; the other ten opened a list of slash commands, which is what
+       * "the main button does not work in partner bots" looks like from the
+       * inside. It is per-bot state held by Telegram and had simply never been
+       * set for ten of them. Setting it here makes it a property of the code:
+       * a new bot arrives with it, and a hand-edit that breaks it is undone by
+       * the next deploy. It never fails a launch.
+       */
+      if (botInfo.username) {
+        const { pointMenuButtonAtTheApp } = await import(
+          '@/core/bot/menuButton'
+        )
+        const outcome = await pointMenuButtonAtTheApp(bot, botInfo.username)
+        console.log(`🔵 [MENU] ${botInfo.username}: menu button ${outcome}`)
+      }
+
       // ✅ MULTI-BOT FIX: Регистрируем bot instance ДО launch (botInfo уже получен выше)
       if (typeof setBotInstance === 'function' && botInfo.username) {
         setBotInstance(bot, botInfo.username)
