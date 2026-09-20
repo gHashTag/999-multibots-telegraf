@@ -47,6 +47,8 @@ import {
   isGptImage25Edit,
 } from '../kie-image'
 
+import { BROWSER_TOOLS } from '../browser/agent-tools'
+
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
   telegramId: string
@@ -2842,6 +2844,16 @@ for (let i = 0; i < TOOLS.length; i += 1) {
       webTaintRefusal(ctx, tool.name) ?? inner(args, ctx),
   }
 }
+
+/*
+ * THE REMOTE BROWSER JOINS THE SAME REGISTRY EVERY AGENT ALREADY READS.
+ *
+ * Not a second MCP server: an agent connected yesterday sees these today
+ * without being told, which is the entire point -- the owner asked why the
+ * agent did not know there was a browser, and the answer was that nothing
+ * ever offered it one. See src/browser/agent-tools.ts.
+ */
+TOOLS.push(...BROWSER_TOOLS)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 

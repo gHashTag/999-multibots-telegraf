@@ -1,0 +1,191 @@
+/* The person's own browser. Layout only -- colours come from the app tokens. */
+.remote-browser {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.remote-browser__head h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.remote-browser__lead,
+.remote-browser__muted {
+  margin: 0;
+  opacity: 0.7;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.remote-browser__promise {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.remote-browser__notice,
+.remote-browser__error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.remote-browser__error {
+  background: rgba(220, 60, 60, 0.14);
+}
+
+.remote-browser__start,
+.remote-browser__live,
+.remote-browser__elsewhere {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.remote-browser__cta {
+  display: inline-block;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #19bd9c;
+  color: #fff;
+  text-decoration: none;
+}
+
+.remote-browser__cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.remote-browser__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.remote-browser__secondary,
+.remote-browser__danger {
+  padding: 9px 16px;
+  border-radius: 9px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: inherit;
+}
+
+.remote-browser__danger {
+  border-color: rgba(220, 60, 60, 0.55);
+  color: #d24b4b;
+}
+
+/*
+ * The viewer needs real height or the stream is a letterbox. 16:10 matches
+ * the pod's own screen (NEKO_DESKTOP_SCREEN=1280x800), so the picture is not
+ * scaled twice.
+ */
+.remote-browser__frame {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 320px;
+  border: 0;
+  border-radius: 12px;
+  background: #111;
+}
+
+@media (max-width: 600px) {
+  .remote-browser {
+    padding: 12px;
+  }
+  .remote-browser__frame {
+    min-height: 240px;
+  }
+}
+
+/*
+ * THE GLOW MEANS AN AGENT IS WORKING IN HERE.
+ *
+ * It is a frame around the picture, not an overlay on it: the person has to
+ * keep seeing every pixel of what the agent is doing, which is the entire
+ * point of the screen. A dimming layer would hide exactly what it announces.
+ */
+.remote-browser__stage {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  padding: 3px;
+}
+
+.remote-browser__stage--working {
+  background: linear-gradient(
+    120deg,
+    rgba(25, 189, 156, 0.9),
+    rgba(120, 200, 255, 0.85),
+    rgba(255, 226, 150, 0.9),
+    rgba(25, 189, 156, 0.9)
+  );
+  background-size: 300% 300%;
+  animation: remote-browser-aura 5.5s ease-in-out infinite;
+  box-shadow:
+    0 0 18px rgba(25, 189, 156, 0.45),
+    0 0 44px rgba(120, 200, 255, 0.28);
+}
+
+@keyframes remote-browser-aura {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.remote-browser__stage--working .remote-browser__frame {
+  border-radius: 11px;
+}
+
+/*
+ * The label sits ON the top edge of the glow. `nowrap` was wrong: the Russian
+ * sentence is long, and on a 375px phone the pill stretched edge to edge and
+ * stopped reading as a badge. Measured at 375x812.
+ */
+.remote-browser__working {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  max-width: min(88%, 420px);
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  background: rgba(10, 10, 10, 0.92);
+  color: #eafff8;
+}
+
+/*
+ * A moving border next to a person who asked the system not to move things is
+ * not a nice touch, it is a symptom trigger. The colour stays, the motion goes.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .remote-browser__stage--working {
+    animation: none;
+  }
+}

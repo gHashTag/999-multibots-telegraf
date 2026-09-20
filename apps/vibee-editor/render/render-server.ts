@@ -77,6 +77,13 @@ import {
   sweepClubGrants,
 } from './src/agent/club-membership'
 import { isClonePath, handleClone } from './src/agent/clone-readiness'
+import { isBrowserPath, handleBrowser } from './src/browser/routes'
+import { identityWithSource } from './src/agent/routes'
+import { podDriver, newSessionToken } from './src/browser/wire'
+import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
+import { pipeHttp, pipeUpgrade, refuseUpgrade } from './src/browser/live-pipe'
+import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
+import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
@@ -3007,6 +3014,52 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(200)
     res.end()
+    return
+  }
+
+  /*
+   * The person's own browser, streamed. This sits BEFORE authenticate()
+   * deliberately: a viewer arrives from a plain browser tab carrying nothing
+   * but this session's cookie, and it is that cookie -- checked in
+   * authorizeLive against the session row -- that decides. See
+   * docs/architecture/remote-browser-per-user.md.
+   */
+  if (isLivePath((req.url || '').split('?')[0])) {
+    const parsed = parseLive(req.url || '', req.headers.cookie)
+    if (!parsed) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' })
+      res.end('no such session')
+      return
+    }
+    const secure =
+      req.headers['x-forwarded-proto'] === 'https' ||
+      Boolean((req.socket as unknown as { encrypted?: boolean }).encrypted)
+    const decision = await authorizeLive((await getPool()) as any, parsed, {
+      secure,
+    })
+    if (decision.kind === 'refuse') {
+      res.writeHead(decision.status, { 'Content-Type': 'text/plain' })
+      res.end(decision.message)
+      return
+    }
+    if (decision.kind === 'redirect') {
+      res.writeHead(302, {
+        Location: decision.location,
+        'Set-Cookie': decision.setCookie,
+      })
+      res.end()
+      return
+    }
+    pipeHttp(
+      {
+        endpoint: decision.endpoint,
+        upstreamPath: decision.upstreamPath,
+        sessionId: parsed.sessionId,
+        viewToken: decision.viewToken,
+      },
+      req,
+      res
+    )
     return
   }
 
@@ -8066,6 +8119,32 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /*
+   * The person's own remote browser: one pod, one profile, started on demand.
+   * The pod address never leaves this process -- the answer carries a path
+   * through us and a token, nothing addressable. See
+   * docs/architecture/remote-browser-per-user.md.
+   */
+  if (isBrowserPath(req.url?.split('?')[0] || '')) {
+    const out = await handleBrowser(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      driver: podDriver(),
+      newToken: newSessionToken,
+      actor: r => {
+        const src = identityWithSource(r as any, verifiedTelegramId(r as any))
+        /* An agent key is an agent; a signature or a session is the person. */
+        return src?.source === 'agent-key' ? 'agent' : 'person'
+      },
+      announcer: {
+        send: (id, text, markup) => sendToTelegram(id, text, markup),
+      },
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   if (этоПутьПодключения(req.url?.split('?')[0] || '')) {
     const { TelegramClient } = await import('telegram')
     const { StringSession } = await import('telegram/sessions')
@@ -11482,6 +11561,81 @@ async function main() {
   installGracefulShutdown(server, {
     drainMs: Number(process.env.SHUTDOWN_DRAIN_MS) || 25_000,
   })
+  /*
+   * neko's signalling, and the channel carrying the person's keyboard and
+   * mouse into their pod. Nothing else in this service speaks WebSocket, so
+   * every other upgrade is refused rather than left hanging.
+   */
+  server.on('upgrade', async (req, socket, head) => {
+    const path = (req.url || '').split('?')[0]
+    if (!isLivePath(path)) return refuseUpgrade(socket, 404)
+    const parsed = parseLive(req.url || '', req.headers.cookie)
+    if (!parsed) return refuseUpgrade(socket, 404)
+    try {
+      const decision = await authorizeLive((await getPool()) as any, parsed, {
+        secure: false,
+      })
+      /* A redirect cannot be spoken to a WebSocket: the cookie must exist. */
+      if (decision.kind !== 'proxy') {
+        return refuseUpgrade(
+          socket,
+          decision.kind === 'refuse' ? decision.status : 400
+        )
+      }
+      pipeUpgrade(
+        {
+          endpoint: decision.endpoint,
+          upstreamPath: decision.upstreamPath,
+          sessionId: parsed.sessionId,
+          viewToken: decision.viewToken,
+        },
+        req,
+        socket,
+        head,
+        /* An open viewer socket is what "somebody is watching" means here. */
+        () => {
+          void (async () => {
+            try {
+              await touchSessionById((await getPool()) as any, parsed.sessionId)
+            } catch {
+              /* A missed heartbeat only risks an early reap, not a crash. */
+            }
+          })()
+        }
+      )
+    } catch {
+      refuseUpgrade(socket, 500)
+    }
+  })
+
+  /*
+   * Pods that nobody is watching go out. This is the whole economics of the
+   * remote browser: ~743 MiB held per idle pod, ten seconds to bring one
+   * back. The rule and the reasons are in src/browser/reaper.ts.
+   */
+  setInterval(
+    () => {
+      void (async () => {
+        const driver = podDriver()
+        if (!driver) return
+        try {
+          const out = await sweepIdleSessions((await getPool()) as any, driver)
+          if (out.reaped.length || out.failed.length) {
+            console.log(
+              `🧹 [browser] looked at ${out.looked}, stopped ${out.reaped.length}` +
+                (out.failed.length
+                  ? `, could not stop ${out.failed.length}`
+                  : '')
+            )
+          }
+        } catch (e) {
+          console.warn('[browser] idle sweep failed:', String(e).slice(0, 160))
+        }
+      })()
+    },
+    Math.max(60_000, Math.floor(IDLE_LIMIT_MS / 5))
+  ).unref?.()
+
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)
     console.log(
