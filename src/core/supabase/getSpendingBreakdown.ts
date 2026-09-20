@@ -1,6 +1,7 @@
 import { supabase } from './client'
 import { logger } from '@/utils/logger'
 import { resolveUserService, UserService } from '@/utils/serviceMapping'
+import { isWalletBookkeepingRow } from '@/core/money/walletBookkeeping'
 
 export type SpendingBreakdown = Array<
   [UserService, { count: number; stars: number }]
@@ -37,7 +38,7 @@ export async function getSpendingBreakdown(
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase
         .from('payments_v2')
-        .select('service_type, description, stars')
+        .select('service_type, description, stars, is_system_payment')
         .eq('telegram_id', telegramId)
         .eq('type', 'MONEY_OUTCOME')
         .eq('status', 'COMPLETED')
@@ -46,6 +47,11 @@ export async function getSpendingBreakdown(
       if (error) throw new Error(error.message)
       const rows = data ?? []
       for (const row of rows) {
+        // A clawback or a carry debit is the wallet moving money, not the user
+        // spending it. resolveUserService reads `description`, so without this
+        // the carry debit lands in a service bucket and shows up as the
+        // person's biggest purchase.
+        if (isWalletBookkeepingRow(row)) continue
         const service = resolveUserService(row.service_type, row.description)
         const current = totals.get(service) ?? { count: 0, stars: 0 }
         current.count += 1

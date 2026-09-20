@@ -1,29 +1,24 @@
 /**
  * Close the double-spend hole the carry left open.
  *
- * NOT YET RUN. Read the consequence below before invoking it with --commit.
+ * RUN 2026-09-20: 89 users, 203607⭐. Kept for the audit trail and because it
+ * is idempotent -- a re-run writes nothing.
  *
  * A transfer is a credit AND a debit. The carry on 2026-09-20 only did the
  * credit: it put tokens into `user_tokens` and left the same stars sitting in
- * `payments_v2`, which is still the wallet the 13 Telegraf bots spend from.
- * Until the bots read `user_tokens` (step 3 of the wallet plan), the same
- * payment is spendable in both places. `reconcile-wallets.ts` prints the live
- * exposure every run.
+ * `payments_v2`, which was still the wallet the 13 Telegraf bots spent from,
+ * so the same payment was spendable in both places.
  *
  * This writes the missing half: one `MONEY_OUTCOME` row per carried user for
  * exactly what was carried, so the archive stops double-counting money that
  * now lives in the live wallet.
  *
- * WHAT IT COSTS. Those 88 people are the ones who actually paid. The moment
- * this runs, their balance in the bots drops to what they did not carry --
- * usually zero -- and the tokens they now hold are only reachable through the
- * mini app. Run it when the mini app is the way in, or immediately before
- * step 3 lands. Running it while the bots are still the front door takes the
- * balance away from a paying customer who has nowhere else to spend it yet.
- *
- * The alternative is to do step 3 first (point `getUserBalance` /
- * `updateUserBalance` at `user_tokens`) and never need this script. That is
- * the better order; this exists because it is one command and step 3 is not.
+ * ORDER MATTERED, and this header used to warn against the order it was
+ * eventually run in. Debiting the archive while the bots still read it would
+ * have dropped a paying customer's balance to zero with nowhere else to spend.
+ * So step 3 went first (PR #2610: `getUserBalance` reads `user_tokens`), and
+ * this ran after, against a ledger nobody spends from. Nothing spendable was
+ * taken from anyone.
  *
  * Idempotent by the same read-then-check guard as the clawback: `inv_id` =
  * `carry-debit-<id>`, checked against existing rows before writing, because
@@ -98,13 +93,17 @@ for (const [id, amount] of carried) {
 plan.sort((a, b) => b.debit - a.debit)
 
 banner(commit)
-console.log(`${plan.length} users, ${Math.round(plan.reduce((s, p) => s + p.debit, 0))}⭐\n`)
+console.log(
+  `${plan.length} users, ${Math.round(plan.reduce((s, p) => s + p.debit, 0))}⭐\n`
+)
 console.log('ID             carried   balance    DEBIT    after')
 for (const p of plan.slice(0, 20)) {
   console.log(
     `${p.id.padStart(12)} ${String(carried.get(p.id)).padStart(9)} ${p.balance
       .toFixed(0)
-      .padStart(9)} ${p.debit.toFixed(0).padStart(8)} ${(p.balance - p.debit).toFixed(0).padStart(8)}`
+      .padStart(
+        9
+      )} ${p.debit.toFixed(0).padStart(8)} ${(p.balance - p.debit).toFixed(0).padStart(8)}`
   )
 }
 if (plan.length > 20) console.log(`  ... and ${plan.length - 20} more`)
@@ -134,7 +133,8 @@ const rowFor = (p: (typeof plan)[number]) => ({
     stars_debited: p.debit,
     carried_tokens: carried.get(p.id),
     balance_before: p.balance,
-    reason: 'second half of the carry: the archive must not keep money that now lives in user_tokens',
+    reason:
+      'second half of the carry: the archive must not keep money that now lives in user_tokens',
     rule: 'debit = min(carried, max(0, balance))',
     carry_tag: CARRY_TAG,
     written_at: stamp,
@@ -149,7 +149,11 @@ if (!commit || !plan.length) {
 
 const res = await fetch(`${base}/rest/v1/payments_v2`, {
   method: 'POST',
-  headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+  headers: {
+    ...headers,
+    'Content-Type': 'application/json',
+    Prefer: 'return=representation',
+  },
   body: JSON.stringify(plan.map(rowFor)),
 })
 const body = await res.text()
