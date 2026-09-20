@@ -52,6 +52,56 @@ ENV VITE_API_URL=$VITE_API_URL \
 # `tsc -b` currently emits 519 pre-existing errors in this tree.
 RUN npm run build
 
+# ---------- queen ----------
+# The Queen board moves here from t27.ai, so that the product is ONE server at
+# ONE origin (owner, 2026-09-21: "чтобы не два сервера а на одном все было …
+# переезд с queen на app", address kept as app.t27.ai).
+#
+# Same origin is not cosmetic. On t27.ai the board cannot read this app's
+# session at all, because sessionStorage belongs to an origin: so it had to ask
+# app.t27.ai over postMessage, through the /bridge page and a consent click, for
+# a 300-second game token that /mcp accepts for two identity tools and nothing
+# else. Served from /queen/ it reads the session the app has already written,
+# and the whole bridge hop stops being on the path.
+#
+# WHY FETCHED AND NOT VENDORED
+#
+# The board is developed in gHashTag/trinity. A second copy of it in this
+# repository would be a copy that drifts from the one people actually edit, and
+# the drift would surface as "I fixed it and app.t27.ai still shows the old
+# screen". The repository is public, so this clone needs no credential.
+#
+# PINNED TO A COMMIT, NEVER A BRANCH
+#
+# An unpinned clone makes this image unreproducible and lets a merge in ANOTHER
+# repository silently change what app.t27.ai serves. Railway's watchPatterns
+# cannot see that repository either, so a new board does not ship by itself:
+# bumping QUEEN_REF below is exactly the commit that ships it, and that is the
+# intended way to release the board.
+FROM node:20-alpine AS queen
+WORKDIR /queen
+ARG QUEEN_REPO=https://github.com/gHashTag/trinity.git
+ARG QUEEN_REF=7ca0411ceea528c0d85aa0237d72d03fd543dc55
+RUN apk add --no-cache git
+
+# fetch-by-SHA rather than `clone --branch`: a tag or branch name can be moved
+# after the fact, a commit id cannot. GitHub serves an arbitrary reachable SHA.
+RUN git init -q . \
+ && git remote add origin "$QUEEN_REPO" \
+ && git fetch -q --depth 1 origin "$QUEEN_REF" \
+ && git checkout -q FETCH_HEAD
+
+# apps/website carries its own package-lock.json and builds standalone; it is
+# not part of a workspace that would have to be installed from the repo root.
+WORKDIR /queen/apps/website
+RUN npm ci --no-audit --no-fund
+
+# vite.config.ts sets `base: './'`, so the bundle already addresses its assets
+# relatively and works unchanged under a subpath. That property is held by the
+# website's own `check:subpath-urls` gate, which exists precisely because a
+# root-absolute URL would resolve to VIBEE's root from under /queen/.
+RUN npm run build
+
 # ---------- serve ----------
 FROM nginx:alpine AS serve
 
@@ -59,6 +109,7 @@ FROM nginx:alpine AS serve
 RUN apk add --no-cache gettext
 
 COPY --from=build /workspace/player/dist/ /usr/share/nginx/html/
+COPY --from=queen /queen/apps/website/dist/ /usr/share/nginx/html/queen/
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /docker-entrypoint-vibee.sh
 RUN chmod +x /docker-entrypoint-vibee.sh && chmod -R 755 /usr/share/nginx/html
