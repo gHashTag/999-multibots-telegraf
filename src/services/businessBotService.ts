@@ -29,6 +29,7 @@ import {
   fetchHistory,
   markSurface,
 } from '@/services/trinityAgent'
+import { guardAssetLinks } from '@/services/assetLinkGuard'
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
 import {
   buildAgentTurn,
@@ -550,12 +551,18 @@ export async function answerClient(
     try {
       const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
       // Markers are the bot chat's syntax; a client must never see bracket soup.
-      const said = stripAgentMarkers((answer.текст ?? '').trim()) // cyrillic-ok: pre-existing field
+      const said = await guardAssetLinks(
+        stripAgentMarkers((answer.текст ?? '').trim()), // cyrillic-ok: pre-existing field
+        chatId
+      )
       if (said) {
         void recordTurns(
           chatId,
           [
             { role: 'user', content: text },
+            // What the transcript keeps is what the person was actually sent.
+            // Recording the unguarded text would put the dead address back
+            // into the context of every later turn.
             { role: 'assistant', content: said },
           ],
           'business'
@@ -583,7 +590,10 @@ export async function answerClient(
   }
 
   noteAgentFailed(chatId, lastFault, lastError, attempts)
-  return fallback()
+  // The fallback is forbidden to hand out links at all, but the guard is on
+  // both paths on purpose: a rule in a prompt is a request, and this is the
+  // one place every answer to a client passes through.
+  return guardAssetLinks(await fallback(), chatId)
 }
 
 /** The agent answered: the streak is over, and a rescue is worth one line. */
