@@ -450,3 +450,43 @@ describe('the alarm line says with whom', () => {
     expect(text).not.toContain('900000077')
   })
 })
+
+/**
+ * A WATCHDOG THAT ONLY RUNS WHEN SOMEBODY IS LISTENING IS NOT A WATCHDOG.
+ *
+ * Measured in production 2026-09-20: HIVE_KEEPERS is not set on vibee-render,
+ * so `report` returned at its first line on every tick -- and the two watchdogs
+ * below it had never run at all. `checkSellerSilence` had shipped days earlier
+ * for exactly the failure that writes nothing, and was itself writing nothing.
+ *
+ * A missing subscriber is a reason not to SEND. The journal is the record, and
+ * the record is what answers "what happened" long after the tick.
+ */
+describe('the watchdogs do not depend on there being a reader', () => {
+  it('still looks and still writes when HIVE_KEEPERS is empty', async () => {
+    const keepers = process.env.HIVE_KEEPERS
+    delete process.env.HIVE_KEEPERS
+    const seen: string[] = []
+    const pool = {
+      query: async (sql: string) => {
+        // Whole statement, untruncated: the table this asserts on sits
+        // past the first line of the aggregate, and a clipped fixture said
+        // "it never looked" when it had.
+        seen.push(sql.replace(/\s+/g, ' '))
+        if (/INSERT INTO hive_events/.test(sql)) return { rows: [] }
+        return { rows: [] }
+      },
+    }
+    try {
+      const out = await report(pool as never, async () => true)
+      expect(out.what).toBe('no keepers')
+      // It LOOKED: the seller watchdog reads the journal, and the waiting
+      // watcher reads the messages. Neither can have run without a query.
+      expect(seen.some(s => /hive_events/.test(s))).toBe(true)
+      expect(seen.some(s => /crm_messages/.test(s))).toBe(true)
+    } finally {
+      if (keepers === undefined) delete process.env.HIVE_KEEPERS
+      else process.env.HIVE_KEEPERS = keepers
+    }
+  })
+})
