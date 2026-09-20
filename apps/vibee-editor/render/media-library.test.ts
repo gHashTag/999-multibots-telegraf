@@ -504,8 +504,16 @@ describe('describeMedia', () => {
             headers: { 'content-type': 'audio/ogg' },
           })
         posts.push({ url: String(url), init: init ?? {} })
+        /*
+         * The streamed attempt answers, as the production server does once it
+         * is given the stream it insists on. The plain attempt must therefore
+         * never be made: a second call per recording is a second minute of a
+         * CPU transcriber's time.
+         */
         return new Response(
-          JSON.stringify({ text: '  слова из длинной записи  ' }),
+          'data: {"delta":"слова из "}\n' +
+            'data: {"delta":"длинной записи"}\n' +
+            'data: [DONE]\n',
           { status: 200 }
         )
       })
@@ -517,7 +525,10 @@ describe('describeMedia', () => {
     expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')).toBe(
       'слова из длинной записи'
     )
-    expect(posts).toHaveLength(1)
+    expect(
+      posts,
+      'the plain attempt was made although the stream answered'
+    ).toHaveLength(1)
     expect(posts[0].url).toBe('https://api.openai.com/v1/audio/transcriptions')
     const form = posts[0].init.body as FormData
     expect(form.get('model')).toBe('whisper-1')
@@ -528,7 +539,7 @@ describe('describeMedia', () => {
      * one and then could not serialise a plain result, answering 200 with an
      * empty body 25 times across two different formats.
      */
-    expect(form.get('stream')).toBe('false')
+    expect(form.get('stream')).toBe('true')
     expect((form.get('file') as File).name).toBe('voice.ogg')
     expect(
       (posts[0].init.headers as Record<string, string>).Authorization
@@ -718,7 +729,10 @@ describe('describeMedia with a vision endpoint', () => {
     expect(
       await describeMedia(shelfPhoto, 'image', 'image/jpeg', 'photo.jpg')
     ).toBe('На фото кот.')
-    expect(posts).toHaveLength(1)
+    expect(
+      posts,
+      'the plain attempt was made although the stream answered'
+    ).toHaveLength(1)
     expect(posts[0].url).toBe(
       'http://vision.railway.internal:8000/v1/chat/completions'
     )
@@ -782,7 +796,10 @@ describe('describeMedia with a vision endpoint', () => {
       '37.500',
       '52.500',
     ])
-    expect(posts).toHaveLength(1)
+    expect(
+      posts,
+      'the plain attempt was made although the stream answered'
+    ).toHaveLength(1)
     const parts = posts[0].body.messages[0].content
     expect(parts.filter((p: any) => p.type === 'image_url')).toHaveLength(
       VIDEO_FRAMES
@@ -1115,5 +1132,73 @@ describe('a transcript that arrives late still reaches Zep', () => {
       'appended'
     )
     expect(zepCalls).toHaveLength(1)
+  })
+})
+
+/**
+ * GIVING THE SERVER THE STREAM IT INSISTS ON.
+ *
+ * Three fixes and 25+ failures established that this transcriber ALWAYS enters
+ * its streaming responder -- with response_format=text, with json, and with
+ * `stream=false` said out loud -- and then refuses to serialise the plain
+ * result it holds, answering 200 with an empty body:
+ *
+ *   Unexpected streaming transcription response type: <class 'tuple'>
+ *   ...                                               <class '...Transcription'>
+ *
+ * The request shape was never the variable. So it is handed what it keeps
+ * reaching for, and the plain request stays as a fallback because OpenAI's own
+ * whisper-1 REFUSES `stream` and would otherwise break the day somebody points
+ * this at OpenAI.
+ */
+describe('reading a streamed transcription', () => {
+  it('joins the deltas a stream arrives in', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    expect(
+      readStreamedTranscript(
+        'data: {"delta":"привет, "}\ndata: {"delta":"это запись"}\ndata: [DONE]\n'
+      )
+    ).toBe('привет, это запись')
+  })
+
+  /*
+   * A FINAL `text` WINS. Servers that send both mean the deltas as a preview
+   * of it; concatenating both would say everything twice.
+   */
+  it('prefers the whole text when the stream also carries one', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    expect(
+      readStreamedTranscript(
+        'data: {"delta":"при"}\ndata: {"delta":"вет"}\n' +
+          'data: {"text":"привет, это запись"}\ndata: [DONE]\n'
+      )
+    ).toBe('привет, это запись')
+  })
+
+  /*
+   * THE SENTINEL IS NOT A WORD. `[DONE]`, keep-alive blanks and comments are
+   * skipped: a sentinel pasted into somebody's transcript is worse than a
+   * missing word, because it reads as something they said.
+   */
+  it('never puts the protocol into the transcript', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    const out = readStreamedTranscript(
+      ': keep-alive\n\ndata: [DONE]\ndata: {"delta":"слово"}\n'
+    )
+    expect(out).toBe('слово')
+    expect(out).not.toContain('DONE')
+    expect(readStreamedTranscript('data: [DONE]\n')).toBe('')
+    expect(readStreamedTranscript('')).toBe('')
+  })
+
+  /*
+   * A HALF-WRITTEN EVENT IS NOT WORDS. A stream cut mid-line must lose that
+   * line, not the whole recording.
+   */
+  it('keeps what arrived when the stream was cut', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    expect(
+      readStreamedTranscript('data: {"delta":"начало"}\ndata: {"delta":"обо')
+    ).toBe('начало')
   })
 })
