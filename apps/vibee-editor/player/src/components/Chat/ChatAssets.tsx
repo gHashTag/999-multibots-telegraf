@@ -13,7 +13,7 @@
  * жадности: сначала markdown-картинки, потом инлайн-код (внутри него URL
  * не трогаем), потом медиа-ссылки, остальное — текст.
  */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import './ChatAssets.css'
 
 type Segment =
@@ -24,9 +24,27 @@ type Segment =
   | { kind: 'audio'; url: string }
   | { kind: 'link'; url: string }
 
-const IMAGE_RE = /\.(jpe?g|png|webp|gif)(\?|$)/i
-const VIDEO_RE = /\.(mp4|webm|mov)(\?|$)/i
-const AUDIO_RE = /\.(mp3|wav|m4a|ogg)(\?|$)/i
+/**
+ * HEIC/HEIF/AVIF — НЕ РЕДКИЙ КРАЙ СЛУЧАЯ, А ОБЫЧНЫЙ ПУТЬ С АЙФОНА.
+ *
+ * iPhone хранит фото в HEIC по умолчанию, и не каждый способ вложить файл
+ * в мини-апп (AirDrop, «Файлы», сама Telegram WebView) конвертирует его в
+ * JPEG по дороге. Без этих расширений превью молчало ровно там, где
+ * человек чаще всего его и ждёт: только что снятое на телефон фото.
+ * Список согласован с серверным прокси `/s3/` (render-server.ts) — там та
+ * же путаница однажды отправляла HEIC-фото в ветку «это видео, конвертнуть
+ * ffmpeg'ом», и получалось ничего.
+ */
+const IMAGE_RE = /\.(jpe?g|png|webp|gif|heic|heif|avif|svg|bmp)(\?|$)/i
+/**
+ * `.webm` — ТОЛЬКО АУДИО. Диктофон мини-аппа (`useAudioRecorder.ts`) пишет
+ * `audio/webm`, и это единственный источник .webm в чате: видео в этом
+ * формате приложение не генерирует и не принимает. Раньше .webm стоял
+ * ЗДЕСЬ же, во VIDEO_RE — голосовая запись рисовалась немым чёрным
+ * видеоплеером без единого кадра, потому что в контейнере не было видео.
+ */
+const VIDEO_RE = /\.(mp4|mov|m4v)(\?|$)/i
+const AUDIO_RE = /\.(mp3|wav|m4a|ogg|webm|opus|flac)(\?|$)/i
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/g
 /** markdown-картинка ![alt](url) — до всего остального, иначе alt останется в тексте */
 const MD_IMAGE_RE = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
@@ -215,6 +233,50 @@ function TextBlock({ content }: { content: string }) {
   return <>{out}</>
 }
 
+/**
+ * Картинка, которая умеет ПРИЗНАТЬСЯ, что не открылась.
+ *
+ * Раньше здесь стоял голый `<img>`: расширение совпало, значит картинка —
+ * а если ссылка за это время протухла (подписанный S3-URL) или сервер
+ * ответил не тем, чем должен, браузер молча рисует сломанную иконку
+ * навсегда. Человек видит ту же поломку, что и при отсутствии превью
+ * вовсе, и не может понять разницу — а разница есть: там нечего было
+ * показывать, здесь показать не получилось. Второе можно хотя бы обратно
+ * превратить в рабочую ссылку на оригинал.
+ */
+function ImageAsset({ url }: { url: string }) {
+  const [сломано, поставитьСломано] = useState(false)
+  if (сломано) {
+    return (
+      <a
+        className="chat-assets__link"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {shortUrl(url)}
+      </a>
+    )
+  }
+  return (
+    <a
+      className="chat-assets__image-link"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Открыть оригинал"
+    >
+      <img
+        className="chat-assets__image"
+        src={url}
+        alt="Сгенерированный файл"
+        loading="lazy"
+        onError={() => поставитьСломано(true)}
+      />
+    </a>
+  )
+}
+
 export function ChatAssets({ text }: { text: string }) {
   const segments = splitSegments(text)
   if (!segments.length) return null
@@ -247,23 +309,7 @@ export function ChatAssets({ text }: { text: string }) {
           )
         }
         if (s.kind === 'image') {
-          return (
-            <a
-              key={i}
-              className="chat-assets__image-link"
-              href={s.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Открыть оригинал"
-            >
-              <img
-                className="chat-assets__image"
-                src={s.url}
-                alt="Сгенерированный файл"
-                loading="lazy"
-              />
-            </a>
-          )
+          return <ImageAsset key={i} url={s.url} />
         }
         if (s.kind === 'video') {
           return (

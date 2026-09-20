@@ -5544,6 +5544,17 @@ const server = createServer(async (req, res) => {
   if (req.url?.startsWith('/s3/') && req.method === 'GET') {
     const s3Key = decodeURIComponent(req.url.slice(4).split('?')[0]) // Remove /s3/ and query string, decode URL
     const ext = path.extname(s3Key).toLowerCase()
+    /**
+     * HEIC/HEIF ДОБАВЛЕНЫ НЕ ДЛЯ ПОЛНОТЫ, А ПОТОМУ ЧТО ОНИ УЖЕ ПРИХОДЯТ.
+     *
+     * iPhone хранит фото в HEIC по умолчанию, и «Файлы»/AirDrop отдают его
+     * веб-загрузке как есть — Safari конвертирует в JPEG только при выборе
+     * из системного пикера, не всегда. Без этих двух расширений HEIC-фото
+     * не попадало ни в `isImage`, ни в `isAudio` и падало в ветку ниже
+     * («для видео — конвертировать»): сервер гонял фотографию через ffmpeg
+     * как видео и, разумеется, ничего не получал. Отсюда «превью не
+     * отображается» — не редкий край случая, а обычный путь для айфона.
+     */
     const isImage = [
       '.jpg',
       '.jpeg',
@@ -5552,10 +5563,30 @@ const server = createServer(async (req, res) => {
       '.webp',
       '.svg',
       '.bmp',
+      '.heic',
+      '.heif',
+      '.avif',
     ].includes(ext)
-    const isAudio = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.webm'].includes(
-      ext
-    )
+    /**
+     * `.webm` — ЗДЕСЬ, А НЕ ПРОСТО «ЕЩЁ ОДИН ФОРМАТ».
+     *
+     * Диктофон мини-аппа (`useAudioRecorder.ts`) пишет `audio/webm` — это
+     * единственный источник .webm в чате, видео в этом формате приложение не
+     * генерирует и не принимает нигде. Список СОГЛАСОВАН с `ChatAssets.tsx`
+     * на клиенте: там `.webm` тоже помечен аудио, а не видео — до этой
+     * правки было наоборот, и голосовая запись превращалась в чате в немой
+     * чёрный видеоплеер без кадра.
+     */
+    const isAudio = [
+      '.mp3',
+      '.wav',
+      '.ogg',
+      '.m4a',
+      '.aac',
+      '.webm',
+      '.opus',
+      '.flac',
+    ].includes(ext)
     const isJson = ext === '.json'
 
     console.log(
