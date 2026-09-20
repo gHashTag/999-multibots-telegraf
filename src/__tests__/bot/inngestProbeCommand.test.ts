@@ -167,9 +167,20 @@ describe('/inngest_probe', () => {
      * me: `related-tests` did not consider this file related to two new files
      * under inngest_app/functions/money, so it had been red on main since
      * those landed.
+     *
+     * 31 -> 32 on 2026-09-20, and the minute was spent on the newcomer too.
+     * `client-telemetry-daily` is the first of these that is about product
+     * usage rather than money, so the three questions get three answers: it
+     * charges nobody and calls no paid provider (it reads one Postgres table
+     * it owns); it cannot reach a client, because the only recipient is the
+     * owner and in safe mode `safeRecipient` redirects that to ADMIN_CHAT_ID
+     * or -- when ADMIN_CHAT_ID is unset -- skips the send entirely; and its
+     * one destructive step, the 45-day prune, is explicitly guarded off under
+     * `isSafeMode`, because a probe that quietly ran a DELETE would be the
+     * opposite of a proof that a function is harmless.
      */
     expect(texts[0]).toContain(
-      'К запуску: 31, пропуск: 0, всего в манифесте: 31'
+      'К запуску: 32, пропуск: 0, всего в манифесте: 32'
     )
     const last = sent().at(-1)!
     const buttons = (last.payload.reply_markup.inline_keyboard as any[])
