@@ -4,7 +4,7 @@
  * Critical payment function - gets user balance from Supabase
  */
 
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock dependencies BEFORE imports
 vi.mock('@/utils/logger', () => ({
@@ -16,9 +16,17 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-vi.mock('@/core/supabase', () => ({
-  supabase: {
-    rpc: vi.fn(),
+// The balance moved from the `get_user_balance` RPC over `payments_v2` to the
+// `user_tokens` table in the render Postgres (owner decision 2026-09-20,
+// step 3), so the wallet's connection pool is what gets mocked here.
+const query = vi.fn()
+
+vi.mock('pg', () => ({
+  Pool: class {
+    query = query
+    on() {
+      return this
+    }
   },
 }))
 
@@ -26,34 +34,31 @@ import {
   getUserBalance,
   invalidateBalanceCache,
 } from '@/core/supabase/getUserBalance'
-import { supabase } from '@/core/supabase'
+import { resetTokenWalletPool } from '@/core/wallet/tokenWallet'
 import { logger } from '@/utils/logger'
+
+/** A wallet row holding `balance` stars. */
+const wallet = (balance: number) => ({ rows: [{ balance }] })
 
 describe('getUserBalance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetTokenWalletPool()
+    process.env.TOKENS_DATABASE_URL = 'postgres://wallet/test'
   })
 
   describe('successful balance retrieval', () => {
-    it('should return balance when supabase returns data', async () => {
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: 100,
-        error: null,
-      })
+    it('should return the balance held in the wallet', async () => {
+      query.mockResolvedValue(wallet(100))
 
       const result = await getUserBalance('123456789')
 
       expect(result).toBe(100)
-      expect(supabase.rpc).toHaveBeenCalledWith('get_user_balance', {
-        user_telegram_id: '123456789',
-      })
+      expect(query).toHaveBeenCalledWith(expect.any(String), ['123456789'])
     })
 
-    it('should return 0 when supabase returns null/undefined', async () => {
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: null,
-        error: null,
-      })
+    it('should return 0 when the user has no wallet row yet', async () => {
+      query.mockResolvedValue({ rows: [] })
 
       const result = await getUserBalance('123456789')
 
@@ -61,24 +66,16 @@ describe('getUserBalance', () => {
     })
 
     it('should handle numeric telegram_id', async () => {
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: 50,
-        error: null,
-      })
+      query.mockResolvedValue(wallet(50))
 
       const result = await getUserBalance(123456789 as unknown as string)
 
       expect(result).toBe(50)
-      expect(supabase.rpc).toHaveBeenCalledWith('get_user_balance', {
-        user_telegram_id: '123456789',
-      })
+      expect(query).toHaveBeenCalledWith(expect.any(String), ['123456789'])
     })
 
     it('should handle bot_name parameter', async () => {
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: 75,
-        error: null,
-      })
+      query.mockResolvedValue(wallet(75))
 
       const result = await getUserBalance('123456789', 'TestBot')
 
@@ -96,7 +93,7 @@ describe('getUserBalance', () => {
 
       expect(result).toBe(0)
       expect(logger.warn).toHaveBeenCalled()
-      expect(supabase.rpc).not.toHaveBeenCalled()
+      expect(query).not.toHaveBeenCalled()
     })
 
     it('should return 0 when telegram_id is undefined', async () => {
@@ -113,27 +110,12 @@ describe('getUserBalance', () => {
       expect(logger.warn).toHaveBeenCalled()
     })
 
-    it('should return 0 when supabase returns error', async () => {
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: null,
-        error: { message: 'Database error' },
-      })
+    // Deliberately NOT "returns 0": a wallet we cannot reach means the balance
+    // is unknown, and answering 0 tells a paying customer they have no money.
+    it('should throw rather than answer 0 when the wallet is unreachable', async () => {
+      query.mockRejectedValue(new Error('Network error'))
 
-      const result = await getUserBalance('123456789')
-
-      expect(result).toBe(0)
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Ошибка получения баланса'),
-        expect.any(Object)
-      )
-    })
-
-    it('should return 0 when supabase throws exception', async () => {
-      ;(supabase.rpc as Mock).mockRejectedValue(new Error('Network error'))
-
-      const result = await getUserBalance('123456789')
-
-      expect(result).toBe(0)
+      await expect(getUserBalance('123456789')).rejects.toThrow()
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Ошибка в getUserBalance'),
         expect.any(Object)
@@ -143,10 +125,7 @@ describe('getUserBalance', () => {
 
   describe('logging', () => {
     it('should log balance request', async () => {
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: 100,
-        error: null,
-      })
+      query.mockResolvedValue(wallet(100))
 
       await getUserBalance('123456789')
 
@@ -157,10 +136,7 @@ describe('getUserBalance', () => {
     })
 
     it('should log successful balance retrieval', async () => {
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: 100,
-        error: null,
-      })
+      query.mockResolvedValue(wallet(100))
 
       await getUserBalance('123456789')
 

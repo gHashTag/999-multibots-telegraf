@@ -6,11 +6,13 @@ import path from 'node:path'
  * THE QUEEN'S TRI TAB FRAMES THIS APP FROM https://t27.ai.
  *
  * nginx drops inherited add_header lines in any location that sets its own,
- * so the policy is written twice: at server level and inside
- * `location = /index.html`. Deep routes (/chat, /feed?post=...) reach
- * /index.html through try_files and get the second copy. Editing one line and
- * forgetting the other leaves half the routes refusing the frame, and the
- * game then shows its "did not answer" strip on exactly those screens.
+ * so the policy is written three times: at server level, inside
+ * `location = /index.html`, and inside `location /live/`. Deep routes
+ * (/chat, /feed?post=...) reach /index.html through try_files and get the
+ * second copy; the remote browser is framed by the app itself and gets the
+ * third. Editing one line and forgetting the others leaves half the routes
+ * refusing the frame, and the game then shows its "did not answer" strip on
+ * exactly those screens.
  */
 
 const TEMPLATE = path.resolve(__dirname, '../../../nginx/default.conf.template')
@@ -32,8 +34,19 @@ function problems(conf: string): string[] {
     .map(l => l.trim())
     .filter(l => /^add_header\s+Content-Security-Policy\b/.test(l))
   const out: string[] = []
-  if (lines.length !== 2) {
-    out.push(`expected 2 Content-Security-Policy lines, found ${lines.length}`)
+  /*
+   * THREE since 2026-09-20: the server level, `location = /index.html`, and
+   * `location /live/` -- the person's own remote browser, which the app
+   * frames itself and so must admit 'self' and the same origins.
+   *
+   * The count is kept rather than replaced by "check whatever lines exist":
+   * it is what catches a line being DELETED, which is how half the routes
+   * would quietly stop allowing the frame. /live/ is declared after
+   * /index.html on purpose, so the negative control below still means the
+   * /index.html copy when it says "line 2".
+   */
+  if (lines.length !== 3) {
+    out.push(`expected 3 Content-Security-Policy lines, found ${lines.length}`)
   }
   lines.forEach((line, i) => {
     const directive = line.match(/frame-ancestors([^;"]*)/)
@@ -51,7 +64,7 @@ function problems(conf: string): string[] {
 describe('app.t27.ai may be framed by the game on t27.ai', () => {
   const conf = fs.readFileSync(TEMPLATE, 'utf8')
 
-  it('both policy lines allow https://t27.ai and still allow Telegram Web', () => {
+  it('every policy line allows https://t27.ai and still allows Telegram Web', () => {
     expect(problems(conf)).toEqual([])
   })
 

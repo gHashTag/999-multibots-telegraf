@@ -198,7 +198,10 @@ export async function generateAdminExcelReport_RESTORED(
     XLSX.utils.book_append_sheet(workbook, transactionsSheet, '📋 Транзакции')
 
     // Конвертируем в Buffer
-    const buffer = await XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+    const buffer = await XLSX.write(workbook, {
+      type: 'buffer',
+      bookType: 'xlsx',
+    })
     return buffer
   } catch (error) {
     console.error('❌ Ошибка генерации Excel отчета:', error)

@@ -23,7 +23,13 @@ import { renderIsStillWorking } from '@/services/renderTimeout'
  */
 import type { ProviderFault } from '@/services/provider-health-monitor'
 import { chatWithAI, ChatMessage } from '@/services/aiChatService'
-import { спроситьАгента, recordTurns } from '@/services/trinityAgent' // cyrillic-ok: pre-existing identifiers
+import {
+  спроситьАгента, // cyrillic-ok: pre-existing identifier
+  recordTurns,
+  fetchHistory,
+  markSurface,
+} from '@/services/trinityAgent'
+import { guardAssetLinks } from '@/services/assetLinkGuard'
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
 import {
   buildAgentTurn,
@@ -330,6 +336,36 @@ const SALES_PROMPT = [
 ].join('\n')
 
 /**
+ * THE RULE THAT WAS MISSING WHEN A CLIENT WAS GREETED FOR THE SECOND TIME.
+ *
+ * Appended to the system prompt only when there is a transcript to continue.
+ * With no prior turns the fallback genuinely IS a first contact and greeting
+ * is correct; with prior turns, greeting is the defect.
+ *
+ * The last line matters as much as the first. The fallback has no tools --
+ * that is the whole reason it is running -- so it must not tell a person who
+ * just agreed to have something made that it is done and here is the link.
+ * It says it is taking it on, and the real agent (which does have the tools,
+ * and reads the same transcript) finishes on the next turn.
+ */
+const CONTINUATION_RULE = [
+  '',
+  'ЭТО ПРОДОЛЖЕНИЕ РАЗГОВОРА, А НЕ ПЕРВОЕ ЗНАКОМСТВО.',
+  '- Ниже — переписка с этим человеком. Не здоровайся заново и не представляйся.',
+  '- Продолжай с того места, где остановились. Если последняя реплика — согласие',
+  '  («давай», «да», «ок»), делай то, на что человек согласился, и не начинай сначала.',
+  '- Обращайся по имени только так, как уже принято в этой переписке.',
+  '- Прямо сейчас у тебя нет инструментов: ничего не генерируй, не присылай ссылок',
+  '  на файлы и не утверждай, что уже сделал. Скажи, что берёшься, и вернись с',
+  '  результатом следующим сообщением.',
+].join('\n')
+
+/** How many past turns the tool-less fallback is given. The shared transcript
+ *  returns up to 40; the fallback is a short prompt-only call and does not need
+ *  the whole thing to know where the conversation stopped. */
+export const FALLBACK_HISTORY_TURNS = 20
+
+/**
  * The customer's Telegram display name is untrusted input (they choose it, up to
  * 64 chars). It must never sit in a `role: 'system'` message: chatWithAI hoists
  * all system messages to the front, so a name like "Ignore previous instructions:
@@ -515,12 +551,18 @@ export async function answerClient(
     try {
       const answer = await спроситьАгента(chatId, text, { surface: 'business' }) // cyrillic-ok: pre-existing identifier
       // Markers are the bot chat's syntax; a client must never see bracket soup.
-      const said = stripAgentMarkers((answer.текст ?? '').trim()) // cyrillic-ok: pre-existing field
+      const said = await guardAssetLinks(
+        stripAgentMarkers((answer.текст ?? '').trim()), // cyrillic-ok: pre-existing field
+        chatId
+      )
       if (said) {
         void recordTurns(
           chatId,
           [
             { role: 'user', content: text },
+            // What the transcript keeps is what the person was actually sent.
+            // Recording the unguarded text would put the dead address back
+            // into the context of every later turn.
             { role: 'assistant', content: said },
           ],
           'business'
@@ -548,7 +590,10 @@ export async function answerClient(
   }
 
   noteAgentFailed(chatId, lastFault, lastError, attempts)
-  return fallback()
+  // The fallback is forbidden to hand out links at all, but the guard is on
+  // both paths on purpose: a rule in a prompt is a request, and this is the
+  // one place every answer to a client passes through.
+  return guardAssetLinks(await fallback(), chatId)
 }
 
 /** The agent answered: the streak is over, and a rescue is worth one line. */
@@ -599,14 +644,58 @@ function noteAgentFailed(
   })
 }
 
+/**
+ * THE FALLBACK GETS THE SAME CONVERSATION THE AGENT HAS.
+ *
+ * WHAT HAPPENED, 20.09.2026, TO A REAL CLIENT. The agent had spent the
+ * afternoon building her a month of content plan and asked whether to go
+ * ahead for two tokens. She answered with one word: yes. The render did not
+ * answer within its 180 s ceiling, twice (17:10:45 and 17:14:08 in the
+ * production log), so this fallback took the turn -- and it was handed
+ * exactly two messages: the sales prompt and that one word. Knowing nothing
+ * else, it did the only thing that made sense from where it stood. It
+ * introduced itself:
+ *
+ *   Привет, Елена! Я — ваш личный ассистент AI-бота @t27ai_bot. // cyrillic-ok: what the client actually received
+ *
+ * The transcript was never missing. `answerClient` writes every exchange into
+ * `agent_messages` through `recordTurns`, the mini app and the bot read it,
+ * and `fetchHistory` serves it under the same telegram id this path already
+ * uses as `chatId`. The fallback simply never asked for it.
+ *
+ * TRUST. Everything in `history` is third-party text -- the client wrote half
+ * of it. It therefore enters as `user`/`assistant` turns and NEVER as system:
+ * `chatWithAI` hoists system messages to the front, so a client who typed
+ * "ignore previous instructions" into a DM last week would otherwise be
+ * giving orders today. Roles other than those two are dropped rather than
+ * coerced, because a role this function does not recognise is a role whose
+ * meaning it cannot vouch for.
+ */
 export function buildBusinessMessages(
   text: string,
   senderName: string | undefined,
-  botUsername: string
+  botUsername: string,
+  history: ReadonlyArray<{
+    role: string
+    content: string
+    surface?: string
+  }> = []
 ): ChatMessage[] {
   const safeName = sanitizeSenderName(senderName)
+  const past: ChatMessage[] = history
+    .filter(t => t.role === 'user' || t.role === 'assistant')
+    .filter(t => typeof t.content === 'string' && t.content.trim())
+    .slice(-FALLBACK_HISTORY_TURNS)
+    .map(t => ({
+      role: t.role as 'user' | 'assistant',
+      content: markSurface(t.content, t.role, t.surface),
+    }))
+  const rules = past.length
+    ? `${SALES_PROMPT}\n${CONTINUATION_RULE}`
+    : SALES_PROMPT
   return [
-    { role: 'system', content: `${SALES_PROMPT}\n\nБот: @${botUsername}.` },
+    { role: 'system', content: `${rules}\n\nБот: @${botUsername}.` },
+    ...past,
     { role: 'user', content: `Клиент (${safeName}) пишет:\n${text}` },
   ]
 }
@@ -975,19 +1064,34 @@ export async function handleBusinessMessage(
   businessReplyInFlight.add(flightKey)
 
   try {
-    const messages = buildBusinessMessages(text, senderName, botUsername)
-
     void bot.telegram
       .sendChatAction(chatId, 'typing', {
         business_connection_id: connId,
       } as any)
       .catch(() => undefined)
 
-    const reply = await answerClient(String(chatId), text, () =>
-      chatWithAI(messages, undefined, {
-        telegramId: String(chatId),
-        botName: `business_${botUsername}`,
-      })
+    /*
+     * The transcript is read INSIDE the fallback, not before the turn. On the
+     * ordinary path the agent reads the same conversation server-side, so a
+     * read here would be a second round trip on every single message to feed
+     * a responder that is almost never used. `fetchHistory` already swallows
+     * its own failures and returns [] -- an unreachable history is a reason to
+     * answer with less context, never a reason to leave the client unanswered.
+     */
+    const reply = await answerClient(String(chatId), text, async () =>
+      chatWithAI(
+        buildBusinessMessages(
+          text,
+          senderName,
+          botUsername,
+          await fetchHistory(String(chatId))
+        ),
+        undefined,
+        {
+          telegramId: String(chatId),
+          botName: `business_${botUsername}`,
+        }
+      )
     )
 
     const pay = payButton(reply)

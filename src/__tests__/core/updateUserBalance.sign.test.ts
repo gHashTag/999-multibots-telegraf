@@ -44,6 +44,24 @@ vi.mock('@/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
+process.env.TOKENS_DATABASE_URL = 'postgres://wallet/test'
+
+// The charge and the credit now happen in `user_tokens` (owner decision
+// 2026-09-20, step 3), so the wallet pool has to answer. Funded well above any
+// amount used here: this file is about what gets written, not affordability.
+vi.mock('pg', () => ({
+  Pool: class {
+    query(sql: string) {
+      if (/^SELECT/i.test(sql.trim()))
+        return Promise.resolve({ rows: [{ balance: 100000 }] })
+      return Promise.resolve({ rows: [{ balance: 100000 }] })
+    }
+    on() {
+      return this
+    }
+  },
+}))
+
 const { updateUserBalance } = await import('@/core/supabase/updateUserBalance')
 
 describe('updateUserBalance: знак задаёт type, а не число', () => {

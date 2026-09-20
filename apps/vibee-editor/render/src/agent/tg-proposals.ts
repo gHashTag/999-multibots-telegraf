@@ -1711,6 +1711,8 @@ export async function execute(
      * and a cancelled or expired card costs the recipient nothing.
      */
     let paid: number | null = null
+    // The ledger row the charge wrote, so the refund below gives it back once.
+    let paidRow: number | undefined
     if (p.charge) {
       if (!ctx.pool)
         return {
@@ -1731,6 +1733,7 @@ export async function execute(
             'предложи пополнить счёт (crm_offer) и повтори',
         }
       paid = r.списано ?? 0 // cyrillic-ok: public API field
+      paidRow = r.ledgerId
       await noteInJournal(ctx.pool, {
         kind: 'tokens-spent',
         who: p.charge.telegramId,
@@ -1777,7 +1780,8 @@ export async function execute(
           p.charge.op,
           1,
           undefined,
-          paid
+          paid,
+          paidRow
         )
         await noteInJournal(ctx.pool, {
           kind: back.ok ? 'tokens-refunded' : 'failure',

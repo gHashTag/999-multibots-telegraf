@@ -484,33 +484,52 @@ export async function handleMcp(
  * подделать нельзя (в этом смысл), а форжить её ради теста — значит ослабить
  * проверку навсегда. Ключ же привязан к человеку и отзывается одной строкой.
  */
+/**
+ * WHO IS ASKING, AND BY WHICH DOOR.
+ *
+ * Split out from `chatIdentity` (which is now a wrapper over it) because a
+ * second place needed to tell a PERSON from an AGENT -- the remote browser
+ * only announces itself when something other than the person started it.
+ * Writing that ordering out twice is how two doors in `public_templates`
+ * drifted apart; there is one implementation and one order.
+ */
+export type IdentitySource = 'signature' | 'session' | 'agent-key'
+
+export function identityWithSource(
+  req: IncomingMessage,
+  verified: string | null
+): { id: string; source: IdentitySource } | null {
+  if (verified) return { id: verified, source: 'signature' }
+
+  const bearer = (req.headers['authorization'] as string | undefined) || ''
+  if (bearer.startsWith('Bearer ')) {
+    try {
+      return {
+        id: verifyAppSession(bearer.slice(7).trim()).sub,
+        source: 'session',
+      }
+    } catch {
+      /* Down to the next door; explaining the failure is authenticate's job. */
+    }
+  }
+  const key = (req.headers['x-agent-key'] as string | undefined) || ''
+  const owner = key ? agentKeyOwner(key) : null
+  return owner ? { id: owner, source: 'agent-key' } : null
+}
+
 export function chatIdentity(
   req: IncomingMessage,
   verified: string | null
 ): string | null {
-  if (verified) return verified
-  /**
-   * Сессия приложения — второй источник личности после подписи.
+  /*
+   * A WRAPPER, NOT A SECOND COPY.
    *
-   * Порядок важен: подпись мини-аппа доказывает, что человек прямо сейчас в
-   * Telegram, и это сильнее долгоживущего токена. Сессия идёт следом, ключ
-   * агента — последним, потому что он для отладки curl-ом.
-   *
-   * Проверка та же самая, что в `authenticate`: одна функция, один результат.
-   * Две реализации проверки токена разошлись бы ровно так же, как когда-то
-   * разошлись две двери в public_templates.
+   * The order -- Mini App signature, then app session, then agent key -- is
+   * written once, in `identityWithSource`. The signature wins because it
+   * proves the person is in Telegram right now; the agent key comes last
+   * because it is for debugging with curl.
    */
-  const bearer = (req.headers['authorization'] as string | undefined) || ''
-  if (bearer.startsWith('Bearer ')) {
-    try {
-      return verifyAppSession(bearer.slice(7).trim()).sub
-    } catch {
-      // Молча вниз: разбираться с причиной — дело authenticate, который
-      // отвечает клиенту. Здесь важно лишь, знаем мы личность или нет.
-    }
-  }
-  const key = (req.headers['x-agent-key'] as string | undefined) || ''
-  return key ? agentKeyOwner(key) : null
+  return identityWithSource(req, verified)?.id ?? null
 }
 
 export async function handleAgentChat(

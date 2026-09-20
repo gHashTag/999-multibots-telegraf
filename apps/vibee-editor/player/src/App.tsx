@@ -31,6 +31,8 @@ const BlogPage = lazy(() => import('@/pages/Blog'))
 const SearchPage = lazy(() => import('@/pages/Search'))
 const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
+const BrowserPage = lazy(() => import('@/pages/Browser'))
+import { useBrowserWatch } from '@/hooks/useBrowserWatch'
 const CrmPage = lazy(() => import('@/pages/Crm'))
 const CrmClientPage = lazy(() => import('@/pages/CrmClient'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
@@ -249,6 +251,13 @@ function ProfileNeedsSignIn() {
  * bridge around it. `App` below renders exactly this.
  */
 export function AppRoutes() {
+  /*
+   * An agent can start the person's browser at any moment. This watches for
+   * that and switches the screen to it ONCE, so the work can be followed as
+   * it happens. All of its rules are in lib/browserWatch.ts, with tests.
+   */
+  useBrowserWatch()
+
   // Inside the game's TRI frame, screens that need a person show a guest the
   // sign-in panel instead (components/Navigation/EmbedGuestGate.tsx).
   return (
@@ -286,6 +295,9 @@ function RouteTable() {
       <Route path="/hive" element={<HivePage />} />
       {/* The former sub-tab addresses still land on the hive. */}
       <Route path="/hive/*" element={<Navigate to="/hive" replace />} />
+      {/* The person's own remote browser: one pod, one profile, started on
+          demand. See docs/architecture/remote-browser-per-user.md. */}
+      <Route path="/browser" element={<BrowserPage />} />
       <Route path="/crm" element={<CrmPage />} />
       {/* One client's workspace and the thread about them. Declared before
           `/:username`, and tested to resolve here rather than to a profile

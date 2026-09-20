@@ -1,0 +1,18 @@
+# The per-client browser pod as a Railway service.
+#
+# Railway is this project's hosting and it runs containers happily. What it
+# has no API for is starting a machine per visit and stopping it after, so
+# here a pod is a service somebody provisioned once and the broker hands that
+# one out (`fixed` driver, src/browser/pod-driver.ts). The cost of that is
+# written there: one browser, not one per client.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# neko answers on 8080; there is no /health, and the root is the viewer.
+restartPolicyType = "ALWAYS"
+numReplicas = 1
+
+[service]
+name = "browser-pod"

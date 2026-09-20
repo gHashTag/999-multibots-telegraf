@@ -164,8 +164,18 @@ describe('what a small model is shown', () => {
         parameters: t.parameters,
       }))
     ).length
-    // ~3.2 chars per token for this mix of Russian and JSON; the prompt is ~5k.
-    expect(chars / 3.2).toBeLessThan(6000)
+    /*
+     * ~3.2 chars per token for this mix of Russian and JSON; the prompt is
+     * ~5k. The ceiling moved from 6000 to 7000 on 2026-09-21 to let the
+     * BROWSER into the kit: nine tools, ~1000 tokens. An agent that cannot
+     * open a browser cannot do the thing this product is for.
+     *
+     * What that costs, said plainly: a 16k window minus a 5k prompt minus
+     * 7k of schemas leaves about 4k for the conversation. If that proves
+     * too tight, the lever is the descriptions -- browser_ask_permission is
+     * 254 tokens of prose on its own -- not dropping tools.
+     */
+    expect(chars / 3.2).toBeLessThan(7000)
     expect(kit.some(t => t.name === 'crm_offer')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send')).toBe(true)
     // The conversational core stays; the deep reads do not.
@@ -191,6 +201,28 @@ describe('what a small model is shown', () => {
     // product in a DM.
     expect(kit.some(t => t.name === 'tg_send_voice')).toBe(true)
     expect(kit.some(t => t.name === 'tg_send_video')).toBe(true)
+    /*
+     * THE BROWSER IS IN THE KIT, ALL OF IT. The owner's words: the agent
+     * should own every browser tool. A subset would be the same defect as
+     * none -- an agent that can click but not ask permission is an agent
+     * the guard stops, with no way through.
+     */
+    for (const browser of [
+      'browser_status',
+      'browser_open',
+      'browser_read',
+      'browser_screenshot',
+      'browser_click',
+      'browser_type',
+      'browser_evaluate',
+      'browser_close_tab',
+      'browser_ask_permission',
+    ]) {
+      expect(
+        kit.some(t => t.name === browser),
+        browser
+      ).toBe(true)
+    }
   })
 })
 

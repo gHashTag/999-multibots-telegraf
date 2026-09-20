@@ -49,6 +49,25 @@ async function cashierSection(): Promise<string[]> {
         WHERE created_at > now() - interval '24 hours'`
     )
     const r = inv.rows[0]
+    /*
+     * DOES THE BOOK BALANCE -- the line the ledger was written for.
+     *
+     * `ledgerDrift` could answer from day one, but nobody asked it, and
+     * asking was pointless: 96 wallets carried 100286 tokens written around
+     * the ledger (the archive carry, and balances older than the table
+     * itself). After the reconciliation an empty answer means "it balances"
+     * again, and any row here is a writer who went around `moveTokens`.
+     */
+    const { ledgerDrift } = await import('../src/token-ledger')
+    const drift = await ledgerDrift(pool)
+    const who = drift
+      .slice(0, 5)
+      .map(d => `${d.telegram_id} (${d.balance - d.ledger_sum})`)
+      .join(', ')
+    const driftLine =
+      drift.length === 0
+        ? `- книга сходится: баланс каждого равен сумме его леджера`
+        : `- ⚠️ книга не сходится у ${drift.length}: ${who} — кто-то пишет баланс мимо moveTokens`
     return [
       `## Касса звёзд (24 ч)`,
       `- инвойсов: ${r.total}, оплачено: ${r.paid}, ждут: ${r.waiting}, отменено: ${r.cancelled}, звёзд получено: ${r.stars}`,
@@ -57,6 +76,7 @@ async function cashierSection(): Promise<string[]> {
         : r.waiting > 0
           ? `- покупок пока нет — ${r.waiting} счёт(а) ждут, напомни человеку`
           : `- покупок и ожидающих счетов нет: отменённые в счёт не идут`,
+      driftLine,
     ]
   } finally {
     await pool.end()
