@@ -37,7 +37,8 @@ import {
   newApprovalToken,
   APPROVAL_TTL_MS,
 } from './approvals'
-import { readSession, type Queryable } from './sessions'
+import { readSession, markAllowed, type Queryable } from './sessions'
+import { mayAct } from './guard'
 import {
   frontPage,
   newPage,
@@ -48,6 +49,43 @@ import {
   typeText,
   screenshot,
 } from './cdp'
+
+/**
+ * THE GUARD AN AGENT CANNOT DRIVE PAST.
+ *
+ * Reading is always allowed. ACTING -- clicking, typing, running code -- is
+ * refused on a page where a wrong move costs money or reaches other people,
+ * unless the person said yes in the last few minutes (guard.ts explains why
+ * the rule is about place and not about the action).
+ *
+ * The refusal names the tool to call next, because an agent told only "no"
+ * tries again, tries differently, and eventually tries something worse.
+ */
+async function mustBeAllowedToAct(
+  ctx: ToolContext,
+  cdp: string,
+  targetId: string
+): Promise<void> {
+  const targets = await listTargets(cdp).catch(() => [])
+  const page = targets.find(t => t.id === targetId)
+  const session = await readSession(
+    ctx.pool as unknown as Queryable,
+    ctx.telegramId
+  )
+  const verdict = mayAct({
+    /* No page found means we cannot see where we are, and guard.ts refuses. */
+    url: page?.url ?? '',
+    allowedAtMs: session?.allowedAtMs ?? null,
+    nowMs: Date.now(),
+  })
+  if (verdict.allowed) return
+  throw new Error(
+    `acting on ${verdict.where} needs the person's permission first. ` +
+      'Call browser_ask_permission with one sentence saying exactly what ' +
+      'you are about to do, wait for "allowed", then try again. Reading ' +
+      '(browser_read, browser_screenshot) works without it.'
+  )
+}
 
 /** What every tool here needs, and the one refusal they all share. */
 async function podOf(
@@ -159,6 +197,9 @@ export const BROWSER_TOOLS: AgentTool[] = [
         await new Promise(r => setTimeout(r, POLL_MS))
         const answer = await readApproval(pool, id)
         if (answer && answer.state !== 'pending') {
+          /* A yes opens the guarded door for a few minutes; see guard.ts. */
+          if (answer.state === 'allowed')
+            await markAllowed(pool, ctx.telegramId)
           return { decision: answer.state, what }
         }
       }
@@ -280,6 +321,7 @@ export const BROWSER_TOOLS: AgentTool[] = [
     },
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
+      await mustBeAllowedToAct(ctx, cdp, targetId)
       await clickAt(cdp, targetId, Number(args.x), Number(args.y))
       return { clicked: { x: Number(args.x), y: Number(args.y) } }
     },
@@ -298,6 +340,7 @@ export const BROWSER_TOOLS: AgentTool[] = [
     },
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
+      await mustBeAllowedToAct(ctx, cdp, targetId)
       await typeText(cdp, targetId, String(args.text))
       return { typed: String(args.text).length }
     },
@@ -315,6 +358,8 @@ export const BROWSER_TOOLS: AgentTool[] = [
     },
     async handler(args, ctx) {
       const { cdp, targetId } = await podOf(ctx)
+      /* Code on a page can do anything a click can, so it is gated too. */
+      await mustBeAllowedToAct(ctx, cdp, targetId)
       return { value: await evaluateOn(cdp, targetId, String(args.code)) }
     },
   },

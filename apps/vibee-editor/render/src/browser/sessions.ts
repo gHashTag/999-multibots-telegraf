@@ -41,6 +41,12 @@ export interface BrowserSession {
   endpoint: string | null
   /** Where an agent drives this pod. Server-side only, like `endpoint`. */
   cdpEndpoint: string | null
+  /**
+   * When the person last granted permission for this session, in ms. The
+   * place-based guard (guard.ts) reads it; a yes goes stale on purpose, so
+   * one permission never opens the door for a whole session.
+   */
+  allowedAtMs: number | null
   state: SessionState
   viewToken: string
   adminToken: string
@@ -57,6 +63,7 @@ export async function ensureBrowserSessions(q: Queryable): Promise<void> {
        pod_id       text,
        endpoint     text,
        cdp_endpoint text,
+       allowed_at   timestamptz,
        state        text NOT NULL CHECK (state IN ('starting','live','stopped')),
        view_token   text NOT NULL,
        admin_token  text NOT NULL,
@@ -85,6 +92,10 @@ export async function ensureBrowserSessions(q: Queryable): Promise<void> {
     `ALTER TABLE browser_sessions ADD COLUMN IF NOT EXISTS cdp_endpoint text`,
     []
   )
+  await q.query(
+    `ALTER TABLE browser_sessions ADD COLUMN IF NOT EXISTS allowed_at timestamptz`,
+    []
+  )
   tableReady = true
 }
 
@@ -98,7 +109,9 @@ export async function readSession(
   telegramId: string
 ): Promise<BrowserSession | null> {
   const { rows } = await q.query(
-    `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint, state, view_token, admin_token
+    `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint,
+            extract(epoch from allowed_at) * 1000 AS allowed_ms,
+            state, view_token, admin_token
        FROM browser_sessions WHERE telegram_id = $1`,
     [telegramId]
   )
@@ -117,6 +130,7 @@ function rowToSession(row: Record<string, unknown>): BrowserSession {
     podId: nullable(row.pod_id),
     endpoint: nullable(row.endpoint),
     cdpEndpoint: nullable(row.cdp_endpoint),
+    allowedAtMs: row.allowed_ms ? Number(row.allowed_ms) : null,
     state: String(row.state) as SessionState,
     viewToken: String(row.view_token),
     adminToken: String(row.admin_token),
@@ -133,7 +147,9 @@ export async function readSessionById(
   sessionId: string
 ): Promise<BrowserSession | null> {
   const { rows } = await q.query(
-    `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint, state, view_token, admin_token
+    `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint,
+            extract(epoch from allowed_at) * 1000 AS allowed_ms,
+            state, view_token, admin_token
        FROM browser_sessions WHERE session_id = $1`,
     [sessionId]
   )
@@ -185,6 +201,21 @@ export async function touchSessionById(
   await q.query(
     `UPDATE browser_sessions SET last_seen_at = now() WHERE session_id = $1`,
     [sessionId]
+  )
+}
+
+/**
+ * The person just said yes. The moment is recorded on the SESSION, not on the
+ * approval, because that is what the guard asks about: "may this browser act
+ * here, now" -- one question, one place to read it.
+ */
+export async function markAllowed(
+  q: Queryable,
+  telegramId: string
+): Promise<void> {
+  await q.query(
+    `UPDATE browser_sessions SET allowed_at = now() WHERE telegram_id = $1`,
+    [telegramId]
   )
 }
 
