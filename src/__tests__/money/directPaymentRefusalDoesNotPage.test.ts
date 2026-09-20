@@ -24,6 +24,18 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { PaymentType } from '@/interfaces/payments.interface'
 
+/*
+ * THE LIVE WALLET, added 2026-09-20. `directPaymentProcessor` now moves
+ * `user_tokens` before it writes the archive row -- before that, a charge
+ * only ever wrote to `payments_v2` and the balance never moved, so the same
+ * tokens bought an unbounded number of paid generations. Without this double
+ * the function reaches for a real Postgres pool and this file tests nothing.
+ */
+vi.mock('@/core/wallet/tokenWallet', () => ({
+  debitTokens: async (_id: string, amount: number) => 1000 - amount,
+  creditTokens: async (_id: string, amount: number) => 1000 + amount,
+}))
+
 vi.mock('@/utils/logger', () => ({
   logger: {
     info: vi.fn(),
