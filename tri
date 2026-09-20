@@ -1904,6 +1904,32 @@ cmd_cyrillic() {
   ( cd "$ROOT" && node "$ROOT/scripts/cyrillic-why.cjs" "$@" )
 }
 
+cmd_turn_log() {
+  # A failure a person SAW on any surface (bot/mini app/iOS) now carries a
+  # turn id, minted once in routes.ts and logged by chat.ts's runAgent under
+  # one line: `[agent:turn] {"turn":"...","event":"start"|"end",...}`. Before
+  # this existed (2026-09-20), correlating a complaint to a server log meant
+  # matching an approximate timestamp and telegram_id by hand across three
+  # separate process logs -- slow and often wrong when two people wrote at
+  # once. This is the other half: given the id (from a client-error alert,
+  # or asked of the person directly), pull both its lines out of the live log.
+  #   tri turn-log <id>              last 500 lines of `railway logs`, grepped
+  #   tri turn-log <id> --lines 2000 widen the window for an older turn
+  local id="${1:-}"
+  if [ -z "$id" ]; then
+    bad "usage: tri turn-log <turn-id> [--lines N]"
+    return 1
+  fi
+  shift
+  local lines=500
+  if [ "${1:-}" = "--lines" ] && [ -n "${2:-}" ]; then lines="$2"; fi
+  if ! command -v railway >/dev/null 2>&1; then
+    bad "railway CLI not found -- install it or grep your own log sink for: \"turn\":\"$id\""
+    return 1
+  fi
+  ( cd "$ROOT" && railway logs -n "$lines" 2>&1 | grep -F "\"turn\":\"$id\"" )
+}
+
 cmd_clone() {
   # Which pieces of a person's digital clone exist: voice, photo.
   # Two of the three were BUILT and unreachable -- the voice had no route, the
@@ -4316,6 +4342,7 @@ case "$action" in
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
   cyrillic|кириллица) cmd_cyrillic "$@" ;;
+  turn-log|лог-хода)  cmd_turn_log "$@" ;;
   truncates|обрезка) cmd_truncates "$@" ;;
   failures|потери)    cmd_failures "$@" ;;
   signin|вход)       cmd_signin "$@" ;;
