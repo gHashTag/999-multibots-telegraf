@@ -3,7 +3,8 @@
  * Проверяем каждый шаг процесса генерации
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test'
+import axios from 'axios'
 import { KieVeedFabricProvider } from '@/core/lipsync/providers/kie-veed-fabric-provider'
 import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
 import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
@@ -84,25 +85,112 @@ describe('AI Reels Шаблон 1 - Полный тест', () => {
     })
   })
 
+  /**
+   * Step 3: the fallback poll, against a stubbed Kie.ai.
+   *
+   * These two tests used to call the real endpoint with the fake key set in
+   * `beforeEach` and then assert the SHAPE OF THE REFUSAL ("has an `error`
+   * property"). That asserted nothing about our code: it passed while Kie
+   * answered 401 quickly, and went red the moment the refusal changed shape --
+   * which is exactly how it was found, failing on a clean tree.
+   *
+   * What matters here is the translation of `data.state` into our own result,
+   * because getting that wrong is what let a finished job run to the 10-minute
+   * timeout and be refunded. So the transport is stubbed and every state the
+   * unified job-status query can return is asserted, including the network
+   * failure the old tests were accidentally exercising.
+   */
   describe('Step 3: Polling статуса', () => {
-    it('должен корректно обрабатывать async провайдер', async () => {
-      const provider = new KieVeedFabricProvider()
+    /*
+     * The constructor is deliberately stepped around, and that is the point.
+     *
+     * It throws without KIE_AI_API_KEY, and that key is read from process.env
+     * ONCE, at import time in @/config -- long before `beforeEach` can set it.
+     * So these tests only ever passed on a machine that had a real Kie key in
+     * its environment, and on that machine they reached the live API. That is
+     * what made them red here on a clean checkout.
+     *
+     * `getStatus` reads no instance state: the endpoint comes from KIE_JOBS and
+     * the key from the module constant. The prototype IS the unit under test.
+     */
+    const provider = (): KieVeedFabricProvider =>
+      Object.create(KieVeedFabricProvider.prototype)
+    let getSpy: ReturnType<typeof spyOn>
 
-      // Тестируем метод getStatus
-      const result = await provider.getStatus('test-task-id')
+    const replyWith = (data: unknown) => {
+      getSpy = spyOn(axios, 'get').mockResolvedValue({
+        status: 200,
+        statusText: 'OK',
+        data,
+      } as never)
+    }
 
-      // В тестовой среде getStatus возвращает ошибку, что нормально
-      expect(result).toHaveProperty('message')
-      expect(result).toHaveProperty('error')
+    afterEach(() => getSpy?.mockRestore())
+
+    it('returns the finished video when the job succeeded', async () => {
+      // The URL arrives inside resultJson as a STRING, not as a field.
+      replyWith({
+        data: {
+          state: 'success',
+          resultJson: JSON.stringify({
+            resultUrls: ['https://kie.test/out.mp4'],
+          }),
+        },
+      })
+
+      const result = await provider().getStatus('task-1')
+
+      expect(result).toMatchObject({
+        status: 'completed',
+        output: 'https://kie.test/out.mp4',
+        taskId: 'task-1',
+      })
+      expect(result).not.toHaveProperty('error')
     })
 
-    it('должен обрабатывать ошибки polling', async () => {
-      const provider = new KieVeedFabricProvider()
+    it('reports the failure Kie gave, not a generic one', async () => {
+      replyWith({ data: { state: 'fail', failMsg: 'face not detected' } })
 
-      // Тестируем с невалидным taskId
-      const result = await provider.getStatus('invalid-task-id')
+      const result = await provider().getStatus('task-2')
+
+      expect(result).toMatchObject({
+        code: 'TASK_FAILED',
+        error: 'face not detected',
+      })
+    })
+
+    it('keeps polling while the job is still in flight', async () => {
+      // waiting / queuing / generating must NOT read as a failure: treating an
+      // unfinished job as failed is what refunds work that is still running.
+      for (const state of ['waiting', 'queuing', 'generating']) {
+        replyWith({ data: { state } })
+
+        const result = await provider().getStatus('task-3')
+
+        expect(result).toMatchObject({ status: 'processing', output: '' })
+        expect(result).not.toHaveProperty('error')
+        getSpy.mockRestore()
+      }
+    })
+
+    it('does not call a succeeded job failed when the URL is unreadable', async () => {
+      // A broken resultJson is our parsing problem, not Kie's verdict.
+      replyWith({ data: { state: 'success', resultJson: '{not json' } })
+
+      const result = await provider().getStatus('task-4')
+
+      expect(result).toMatchObject({ status: 'processing' })
+    })
+
+    it('answers with an error when the poll itself cannot be made', async () => {
+      getSpy = spyOn(axios, 'get').mockRejectedValue(
+        new Error('socket hang up')
+      )
+
+      const result = await provider().getStatus('task-5')
 
       expect(result).toHaveProperty('error')
+      expect(result).toHaveProperty('message')
     })
   })
 
