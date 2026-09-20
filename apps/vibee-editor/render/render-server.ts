@@ -2388,6 +2388,41 @@ setInterval(
 )
 
 /*
+ * THE RECORDINGS NOBODY COULD READ, ASKED AGAIN.
+ *
+ * Every voice message was filed as "asked, there were no words" while the
+ * transcriber was answering 200 with an empty body, and a row filed that way
+ * is never asked again. This drains that backlog, five at a time, newest
+ * first -- see transcribe-backlog.ts for why each of those numbers.
+ *
+ * Every two minutes rather than continuously: the transcriber is the same one
+ * the live chat uses, and a backlog that emptied itself in one burst would
+ * put everybody talking to the agent behind years of history.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const { transcribeBacklogOnce } = await import(
+          './src/agent/transcribe-backlog'
+        )
+        const r = await transcribeBacklogOnce(getPool())
+        if (r.reopened) {
+          console.log(
+            `[backlog] re-read ${r.reopened}, words in ${r.described}` +
+              `, mirrored ${r.mirrored}, left ${r.left}`
+          )
+        }
+      } catch (e) {
+        // Reading old recordings must never take the server down with it.
+        console.error('[backlog] failed:', e)
+      }
+    })()
+  },
+  2 * 60 * 1000
+)
+
+/*
  * THE QUEEN'S REPORT -- THE ONLY READER OF THE JOURNAL THAT ARRIVES BY ITSELF.
  *
  * The pulse tool in the agent chat answers when asked. That is not enough: the
