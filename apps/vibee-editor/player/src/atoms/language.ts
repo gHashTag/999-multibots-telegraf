@@ -18,6 +18,31 @@ interface Translations {
 // ===============================
 
 const en: Translations = {
+  // ── Remote browser ────────────────────────────────────────────────────────
+  'nav.browser': 'Browser',
+  'browser.title': 'My browser',
+  'browser.agentWorking':
+    'An agent is working here. Touch the screen to take over.',
+  'browser.lead':
+    'A browser of your own, running on our side. You watch it, you can take the wheel at any moment, and an agent can work in the very same browser.',
+  'browser.loading': 'Looking for your browser…',
+  'browser.youSignIn':
+    'You sign into your accounts yourself, inside the picture. Only video travels back, so the password never reaches us and never reaches the agent. Never send a password in a chat.',
+  'browser.open': 'Open my browser',
+  'browser.opening': 'Starting…',
+  'browser.startsIn': 'It takes about ten seconds to start.',
+  'browser.openTab': 'Open my browser',
+  'browser.whyTab':
+    'It opens in a separate tab: inside this page the browser would not be allowed to remember that it is you.',
+  'browser.close': 'Close the browser',
+  'browser.closeKeeps':
+    'Closing keeps you signed in. “Forget everything” wipes the logins for good.',
+  'browser.forget': 'Forget everything',
+  'browser.forget.sure': 'Yes, wipe it',
+  'browser.unavailable':
+    'A remote browser is not set up on this deployment yet.',
+  'browser.signInFirst':
+    'Open this page from the bot to see your browser: it has to know who you are first.',
   // ── CRM ───────────────────────────────────────────────────────────────────
   'crm.title': 'CRM',
   'crm.refresh': 'Refresh',
@@ -1971,6 +1996,30 @@ types:
 }
 
 const ru: Translations = {
+  // ── Remote browser ────────────────────────────────────────────────────────
+  'nav.browser': 'Браузер',
+  'browser.title': 'Мой браузер',
+  'browser.agentWorking':
+    'Здесь работает агент. Коснитесь экрана, чтобы взять управление.',
+  'browser.lead':
+    'Свой браузер, работающий на нашей стороне. Вы его видите, в любой момент можете взять управление, и агент работает в этом же браузере.',
+  'browser.loading': 'Ищу ваш браузер…',
+  'browser.youSignIn':
+    'В свои аккаунты вы заходите сами, прямо в картинке. Обратно идёт только видео, поэтому пароль не попадает ни к нам, ни к агенту. Никогда не присылайте пароль в переписке.',
+  'browser.open': 'Открыть мой браузер',
+  'browser.opening': 'Запускаю…',
+  'browser.startsIn': 'Запуск занимает около десяти секунд.',
+  'browser.openTab': 'Открыть мой браузер',
+  'browser.whyTab':
+    'Откроется отдельной вкладкой: внутри этой страницы браузеру не дадут запомнить, что это вы.',
+  'browser.close': 'Закрыть браузер',
+  'browser.closeKeeps':
+    'Закрытие сохраняет ваши входы. «Стереть всё» удаляет их насовсем.',
+  'browser.forget': 'Стереть всё',
+  'browser.forget.sure': 'Да, стереть',
+  'browser.unavailable': 'На этой площадке удалённый браузер пока не настроен.',
+  'browser.signInFirst':
+    'Откройте эту страницу из бота, чтобы увидеть свой браузер: сначала нужно понять, кто вы.',
   // cyrillic-ok: UI dictionary, Russian half
   'crm.title': 'CRM',
   'crm.refresh': 'Обновить',

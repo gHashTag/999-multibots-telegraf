@@ -8,6 +8,7 @@ describe('AI pipeline primary navigation', () => {
     expect(PRIMARY_NAV_ITEMS.map(tab => tab.id)).toEqual([
       'feed',
       'chat',
+      'browser',
       'ai',
       'hive',
       'profile',

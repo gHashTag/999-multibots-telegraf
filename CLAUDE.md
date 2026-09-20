@@ -863,6 +863,7 @@ description: 'When and how to use this skill'
 - `owner-two-tap-onboarding/` - Подключение нового владельца к личному продавцу
 - `client-first-tap/` - Новый клиент до результата за одно-два нажатия
 - `two-tap-topup/` - Оплата за два нажатия, две кассы честно
+- `remote-browser/` - Свой браузер на клиента: под, брокер, прокси `/live/`, профиль, гашение, вкладка и уведомление в боте
 - ... (и другие по мере создания)
 
 ### 🚨 Проверка перед коммитом
@@ -996,7 +997,7 @@ comment, so it stays readable to anything that cannot compile it.
   with no A2A server behind it is a false claim, and a missing file is more
   honest than a lying one.
 
-The test: *is this file the project speaking about itself?* If yes, it speaks
+The test: _is this file the project speaking about itself?_ If yes, it speaks
 our language. If it is plumbing, it speaks the plumbing's.
 
 **Worked example, compiler-checked rather than asserted:** in `gHashTag/trinity`,

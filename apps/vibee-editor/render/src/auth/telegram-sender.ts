@@ -25,7 +25,13 @@ function токен(): string {
 
 export async function sendToTelegram(
   telegramId: string,
-  текст: string
+  message: string,
+  /**
+   * Buttons under the message. Optional: most sends have none, and a second
+   * sender "but with a keyboard" would drift from this one exactly as the
+   * two copies of the send itself once drifted.
+   */
+  replyMarkup?: unknown
 ): Promise<void> {
   const t = токен()
   if (!t) {
@@ -37,7 +43,11 @@ export async function sendToTelegram(
   const о = await fetch(`https://api.telegram.org/bot${t}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: telegramId, text: текст }),
+    body: JSON.stringify({
+      chat_id: telegramId,
+      text: message,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    }),
   })
   if (!о.ok) {
     /*
