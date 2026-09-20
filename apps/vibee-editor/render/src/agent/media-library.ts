@@ -812,12 +812,27 @@ export async function mediaByUrls(
   if (!wanted.length) return out
   await ensureTable(pool)
   const { rows } = await pool.query(
-    `SELECT url, description FROM user_media
-      WHERE owner_id = $1 AND url = ANY($2) AND description IS NOT NULL`,
+    /*
+     * `transcript`, NOT `description` -- THE COLUMN NEVER EXISTED.
+     *
+     * USER_MEDIA_TABLE_SQL declares `transcript text`; there is no
+     * `description` column and never was. So this query threw on every call,
+     * the caller's catch swallowed it, and the media memory -- "seen earlier",
+     * "heard earlier" -- has been empty for its whole life. Every repeated
+     * file was described again, at provider cost, and the agent could not say
+     * it had met it before.
+     *
+     * Found by the function audit of 2026-09-21, which called it the cheapest
+     * fix on the whole list: two words. It stayed invisible because the only
+     * test covering it doubled the pool and answered `description` back --
+     * a double that agrees with the caller instead of with the schema.
+     */
+    `SELECT url, transcript FROM user_media
+      WHERE owner_id = $1 AND url = ANY($2) AND transcript IS NOT NULL`,
     [String(ownerId), wanted]
   )
-  for (const row of rows as Array<{ url: string; description: string }>) {
-    const text = String(row.description ?? '').trim()
+  for (const row of rows as Array<{ url: string; transcript: string }>) {
+    const text = String(row.transcript ?? '').trim()
     if (text) out.set(row.url, text)
   }
   return out
