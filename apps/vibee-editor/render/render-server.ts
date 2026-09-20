@@ -6146,6 +6146,12 @@ const server = createServer(async (req, res) => {
         '10': { tokens: 10, stars: 15, title: '10 токенов Trinity' },
         '50': { tokens: 50, stars: 65, title: '50 токенов Trinity' },
         '150': { tokens: 150, stars: 175, title: '150 токенов Trinity' },
+        // The flagship product is the digital clone at 26 tokens/sec: a short
+        // 8-second clip costs 208. Without this pack the largest one on offer
+        // (150) does not buy a single clip, so the only way to reach the thing
+        // we sell was to buy twice. Follows the existing discount curve
+        // (1.5 -> 1.3 -> 1.167 -> 1.1 stars per token); no existing price moves.
+        '300': { tokens: 300, stars: 330, title: '300 токенов Trinity' },
       }
       const PAY_BOT = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
 

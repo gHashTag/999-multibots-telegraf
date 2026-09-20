@@ -122,7 +122,7 @@ docker-compose logs -f --tail=100                # локальный стек
 
 - [ ] Run `bun test` locally
 - [ ] Run `npm run typecheck`
-- [ ] Run `npm run build:nocheck`
+- [ ] Run `npm run build` (never `build:nocheck` — see REGRESSION_PATTERNS.md #1)
 - [ ] Check `.env` has all required Infisical keys
 - [ ] Test locally with `bun run dev`
 - [ ] Review recent git commits
@@ -387,7 +387,7 @@ Local Development
        ↓
 npm run typecheck
        ↓
-npm run build:nocheck
+npm run build
        ↓
 bun test
        ↓

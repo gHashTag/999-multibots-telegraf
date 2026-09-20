@@ -44,7 +44,11 @@ RUN npm install
 
 COPY . .
 
-ARG SKIP_TYPE_CHECK=true
+# Default is false: the check runs unless a human opts out for this one build.
+# It used to default to true, and since no build anywhere passes the arg, the
+# branch below never ran — every production image shipped unchecked. That is
+# REGRESSION_PATTERNS.md #1 all over again.
+ARG SKIP_TYPE_CHECK=false
 RUN if [ "$SKIP_TYPE_CHECK" != "true" ]; then \
       npx tsc --noEmit || (echo "❌ TypeScript errors found! Build aborted." && exit 1); \
     else \

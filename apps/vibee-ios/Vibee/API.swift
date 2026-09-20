@@ -549,3 +549,297 @@ extension API {
     return ответ.пакеты
   }
 }
+
+// MARK: - Ремикс
+
+/**
+ * Ремикс: взять чужой рецепт, поправить слова, собрать свой ролик.
+ *
+ * ЧТО ТАКОЕ РЕЦЕПТ. Рилс в этом сервисе — это JSON `{compositionId, props}`, а
+ * не набор дорожек. Замер прода 2026-09-03, `GET /api/feed?limit=25&sort=recent`:
+ * у ВСЕХ 25 свежих записей `template_settings` — это обёртка
+ * `{ab_style, compositionId, poster, props, tg_posted_at}` с
+ * `compositionId: "TrinityBlogReel"`, а колонки `assets` и `tracks` — пустые
+ * массивы `"[]"` (ровно два символа). Слоёв в ленте нет вовсе; всё, из чего
+ * собран ролик, лежит в `props`. Поэтому ремикс здесь — это правка пропсов и
+ * повторный рендер той же композиции, а не открытие таймлайна.
+ *
+ * ПОЧЕМУ `/render`, А НЕ `/render/template`. Единственный из двух, кто
+ * проверяет `compositionId` на входе и отвечает 400 со списком известных
+ * (render-server.ts:4437-4448); у второго неизвестный id получает 202 и
+ * падает секунд через пятнадцать — то есть человек увидел бы прогресс и крах.
+ * Он же отдаёт `publicUrl` — подписанную ссылку, которую `AVPlayer` откроет
+ * без заголовков; у `/render/template` `publicUrl` не выставляется никогда.
+ */
+extension API {
+  /// Рецепт ролика: ровно то, из чего сервер его собирает.
+  struct Рецепт {
+    let compositionId: String
+    /**
+     * Пропсы как есть, `[String: Any]`, а не типизированная модель.
+     *
+     * Рецепт ЧУЖОЙ: его писал другой клиент и, возможно, другой версии. Поле,
+     * которого не знает наша модель, при декодировании исчезло бы МОЛЧА — и
+     * ремикс собрал бы не тот ролик, отчитавшись успехом. Тот же класс потери,
+     * что и Zod на сервере, который вырезает незнакомые ключи
+     * (TrinityBlogReel.tsx:110-123): один раз он уже стоил разбора.
+     */
+    let props: [String: Any]
+  }
+
+  /// Состояние задания рендера. Поля — те же, что в ответе `GET /render/:id`.
+  struct СостояниеРендера {
+    /// `pending` | `rendering` | `completed` | `failed`
+    let статус: String
+    let процент: Int
+    let ссылка: URL?
+    let отказ: String?
+  }
+
+  /**
+   * Отказы ремикса. Каждый случай — своё ДЕЙСТВИЕ человека, поэтому и слова
+   * разные: при `нуженВход` идти в Профиль, при `заданиеПотеряно` начинать
+   * заново, при `рендерУпал` читать, что именно не понравилось серверу.
+   */
+  enum RemixError: LocalizedError {
+    case нуженВход
+    case безКомпозиции
+    case рецептНеРазобран(String)
+    case отказ(String)
+    case заданиеПотеряно
+    case сеть(String)
+
+    var errorDescription: String? {
+      switch self {
+      case .нуженВход:
+        // Слово в слово как у лайка (ActionError.нуженВход): двух разных
+        // формулировок одного отказа в приложении быть не должно.
+        return "Нужен вход: Профиль → войти по коду из мини-аппа"
+      case .безКомпозиции:
+        return """
+          В записи нет compositionId — сервер не узнает, ЧТО собирать. \
+          Так публиковали старые клиенты; у свежих роликов это поле есть.
+          """
+      case .рецептНеРазобран(let что):
+        return "Рецепт не разобран: \(что)"
+      case .отказ(let текст):
+        return текст
+      case .заданиеПотеряно:
+        return """
+          Рендер потерян на сервере. Задания живут в памяти процесса и \
+          исчезают при перезапуске сервиса — это не обрыв связи и не ваша \
+          ошибка. Можно начать заново.
+          """
+      case .сеть(let текст):
+        return текст
+      }
+    }
+  }
+
+  /**
+   * Запрос с личностью и ОДНОЙ попыткой обновить сессию.
+   *
+   * Переиспользует `сЛичностью`, а не заводит третью копию той же логики:
+   * копий уже две (`отправить` — для ленты, `сЛичностью` — для проектов), и
+   * каждая следующая это ещё одно место, где повтор на 401 разойдётся с
+   * остальными. Повтор обязан остаться РОВНО одним: refresh одноразовый, и
+   * сервер считает второе предъявление кражей, отзывая всю семью сессий.
+   */
+  private static func ответ(_ запрос: URLRequest) async throws -> (Data, Int) {
+    do {
+      let (данные, http) = try await сЛичностью(запрос)
+      return (данные, http.statusCode)
+    } catch let e as ProjectError {
+      throw RemixError.сеть(e.localizedDescription)
+    } catch {
+      throw RemixError.сеть("Не дошло до сервера: \(error.localizedDescription)")
+    }
+  }
+
+  /// Слова сервера тем же разбором, что у проектов: на HTTP/2, который отдаёт
+  /// Railway, `statusText` пуст всегда, и объяснение живёт только в теле.
+  private static func словаСервера(_ данные: Data, _ код: Int) -> String {
+    причина(данные, код).localizedDescription
+  }
+
+  /**
+   * Взять рецепт чужого ролика: `POST /api/feed/:id/use`.
+   *
+   * Маршрут НЕ публичный: `/api/feed` открыт гвардом только на GET
+   * (auth.ts:210-212, 229-234), а на проде режим всегда `enforce`
+   * (auth.ts:41-68) — локальный `warn` эту поломку маскирует. Замер прода
+   * 2026-09-03: без личности приходит
+   * `401 {"error":"unauthorized","detail":"no X-Api-Key and no Telegram initData"}`.
+   */
+  static func рецептРемикса(templateId: String) async throws -> Рецепт {
+    // Спрашиваем ДО запроса, чтобы человек услышал «нужен вход», а не
+    // «сервер отказал: HTTP 401». Предикат — `сессияГодится`, а не `known`:
+    // с ключом агента общий гвард отвечает тем же 401 (см. Identity.swift).
+    guard Identity.сессияГодится else { throw RemixError.нуженВход }
+
+    var r = URLRequest(url: base.appendingPathComponent("api/feed/\(templateId)/use"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    // Тело сервер СЛИВАЕТ, не читая (render-server.ts:5974-5976): личность он
+    // берёт из заголовка. Пустой объект — чтобы POST не ушёл без тела вовсе.
+    r.httpBody = Data("{}".utf8)
+
+    let (данные, код) = try await ответ(r)
+    if код == 401 { throw RemixError.нуженВход }
+    guard (200...299).contains(код) else {
+      throw RemixError.отказ(словаСервера(данные, код))
+    }
+
+    guard let верх = (try? JSONSerialization.jsonObject(with: данные)) as? [String: Any],
+          let запись = верх["template"] as? [String: Any]
+    else { throw RemixError.рецептНеРазобран("в ответе нет поля template") }
+
+    /**
+     * `template_settings` приходит СТРОКОЙ, а не объектом.
+     *
+     * В SQL стоит `template_settings::text` (render-server.ts:6070): колонка
+     * `jsonb`, но `::text` делает её обычным текстом, и node-pg отдаёт её как
+     * есть. Разбор — на клиенте, второй раз. Объектную ветку держим потому,
+     * что GET-маршруты той же ленты отдают то же поле уже разобранным и в
+     * camelCase: одна и та же запись приходит из двух маршрутов в двух формах.
+     */
+    let сырое: Any = запись["template_settings"]
+      ?? запись["templateSettings"]
+      ?? [String: Any]()
+    let обёртка: [String: Any]
+    switch сырое {
+    case let текст as String:
+      обёртка = (try? JSONSerialization.jsonObject(with: Data(текст.utf8)))
+        as? [String: Any] ?? [:]
+    case let объект as [String: Any]:
+      обёртка = объект
+    default:
+      обёртка = [:]
+    }
+
+    // `props` ВЛОЖЕНЫ, а не равны обёртке. Тот же разбор, что в вебе
+    // (`settings.props ?? settings`, atoms/feed.ts:703): два клиента, читающие
+    // одну ленту по-разному, разойдутся ровно там, где человек их сравнит.
+    let props = обёртка["props"] as? [String: Any] ?? обёртка
+
+    /**
+     * Композиции НЕТ — отказываем, а не подставляем свою.
+     *
+     * Веб на этом месте падает в `'SplitTalkingHead'` (atoms/feed.ts:705-707).
+     * Здесь так нельзя: там подстановка открывает РЕДАКТОР, где человек видит
+     * результат и может передумать, а тут она молча отправила бы чужие пропсы
+     * в чужую композицию и вернула готовый ролик — ложное подтверждение,
+     * неотличимое от успеха. Замер 2026-09-03: у всех 25 свежих записей ленты
+     * `compositionId` есть, так что отказ достанется только старым записям.
+     */
+    guard let композиция = обёртка["compositionId"] as? String, !композиция.isEmpty
+    else { throw RemixError.безКомпозиции }
+
+    return Рецепт(compositionId: композиция, props: props)
+  }
+
+  /**
+   * Поставить рендер: `POST /render`. Возвращает renderId.
+   *
+   * Ответ — 202 и `{renderId, statusUrl, sseUrl}`; готового файла в нём нет и
+   * быть не может, дальше только опрос.
+   */
+  static func начатьРендер(_ рецепт: Рецепт) async throws -> String {
+    guard Identity.сессияГодится else { throw RemixError.нуженВход }
+
+    /**
+     * `userInfo` НЕ ШЛЁМ, и это не забывчивость.
+     *
+     * Его наличие включает автопубликацию: `publishToFeed` вызывается ровно
+     * при `userInfo.telegram_id` (render-server.ts:2130-2146), и ролик уезжает
+     * в ОБЩУЮ ленту сразу после рендера, плюс уходит сообщение в Telegram.
+     * Человек нажал «собрать», а не «опубликовать». Публикация — отдельное
+     * решение и отдельная кнопка, которой в приложении пока нет; сделать её
+     * побочным эффектом кнопки «собрать» значит опубликовать за человека.
+     */
+    let тело: [String: Any] = [
+      "type": "video",
+      "compositionId": рецепт.compositionId,
+      "inputProps": рецепт.props,
+    ]
+    // Проверяем ЗДЕСЬ, а не полагаемся на `try?`: молча отправленное пустое
+    // тело вернулось бы невнятным «Invalid JSON» от сервера.
+    guard JSONSerialization.isValidJSONObject(тело),
+          let данныеТела = try? JSONSerialization.data(withJSONObject: тело)
+    else { throw RemixError.рецептНеРазобран("пропсы не превратились обратно в JSON") }
+
+    var r = URLRequest(url: base.appendingPathComponent("render"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    r.httpBody = данныеТела
+
+    let (данные, код) = try await ответ(r)
+    if код == 401 { throw RemixError.нуженВход }
+    guard (200...299).contains(код) else {
+      // На неизвестную композицию сервер отвечает 400 и СПИСКОМ известных
+      // (render-server.ts:4437-4448) — показываем список: это готовый ответ на
+      // вопрос «а что тогда можно», и придумывать свой текст поверх незачем.
+      let тело = (try? JSONSerialization.jsonObject(with: данные)) as? [String: Any] ?? [:]
+      let текст = словаСервера(данные, код)
+      guard let список = (тело["available"] as? [String])?.joined(separator: ", ")
+      else { throw RemixError.отказ(текст) }
+      throw RemixError.отказ("\(текст). Сервер умеет: \(список)")
+    }
+
+    guard let о = (try? JSONSerialization.jsonObject(with: данные)) as? [String: Any],
+          let id = о["renderId"] as? String
+    else { throw RemixError.рецептНеРазобран("сервер принял задачу, но не назвал renderId") }
+    return id
+  }
+
+  /**
+   * Спросить состояние: `GET /render/:id`.
+   *
+   * Опрос, а не SSE, и это не лень. `/render/:id/status` принимает подпись
+   * мини-аппа через `?initData=` (auth.ts:399-404), но НЕ принимает Bearer в
+   * строке запроса, а `EventSource`-подобного клиента с заголовками здесь нет.
+   * Для сессии приложения SSE — тупик; обычный GET с заголовком работает.
+   */
+  static func состояниеРендера(задание: String) async throws -> СостояниеРендера {
+    let r = URLRequest(url: base.appendingPathComponent("render/\(задание)"))
+    let (данные, код) = try await ответ(r)
+    if код == 401 { throw RemixError.нуженВход }
+    // 404 здесь означает не «нет такого адреса», а «задания больше нет»:
+    // `renderJobs` — Map в памяти процесса, её чистит перезапуск и таймер
+    // через час после старта (render-server.ts:1800-1808).
+    if код == 404 { throw RemixError.заданиеПотеряно }
+    guard (200...299).contains(код) else {
+      throw RemixError.отказ(словаСервера(данные, код))
+    }
+    guard let о = (try? JSONSerialization.jsonObject(with: данные)) as? [String: Any],
+          let статус = о["status"] as? String
+    else { throw RemixError.рецептНеРазобран("в ответе о состоянии нет status") }
+
+    return СостояниеРендера(
+      статус: статус,
+      процент: о["progress"] as? Int ?? 0,
+      ссылка: готоваяСсылка(о),
+      отказ: о["error"] as? String
+    )
+  }
+
+  /**
+   * Ссылка на готовый файл. Сначала `publicUrl`, потом `outputUrl`.
+   *
+   * `publicUrl` — подписанная ссылка хранилища, живёт семь суток
+   * (`expiresIn: 604800`, render-server.ts:1305-1309) и появляется только если
+   * заливка удалась. `outputUrl` — путь на самом рендер-сервере
+   * (`/renders/<id>.mp4`); префикс `/renders/` публичен (auth.ts:185), поэтому
+   * `AVPlayer` возьмёт его без заголовков — их он всё равно не умеет слать.
+   *
+   * `URL(string:relativeTo:)`, а не склейка: `appendingPathComponent` на пути,
+   * который уже начинается со слэша, даёт двойной слэш.
+   */
+  private static func готоваяСсылка(_ о: [String: Any]) -> URL? {
+    if let s = о["publicUrl"] as? String, !s.isEmpty, let u = URL(string: s) {
+      return u
+    }
+    guard let s = о["outputUrl"] as? String, !s.isEmpty else { return nil }
+    return URL(string: s, relativeTo: base)?.absoluteURL
+  }
+}

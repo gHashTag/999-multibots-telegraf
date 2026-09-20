@@ -1,41 +1,71 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
 
-echo "🛡️ [HUSKY PRE-PUSH] Запуск проверок безопасности..."
-
-# 1. Проверка на утечку токенов (даже в push!)
-echo "🔒 Проверка на утечку токенов перед push..."
-if ./scripts/security-token-guard.sh; then
-    echo "✅ Проверка безопасности пройдена"
-else
-    echo "❌ Проблемы безопасности обнаружены!"
-    echo "🚫 Push отменен из соображений безопасности"
-    exit 1
+if [ "$LEFTHOOK_VERBOSE" = "1" -o "$LEFTHOOK_VERBOSE" = "true" ]; then
+  set -x
 fi
 
-# 2. Защита веток
-protected_branches="main production"
+if [ "$LEFTHOOK" = "0" ]; then
+  exit 0
+fi
 
-echo "[Husky pre-push] Проверка защищенных веток..."
-
-# Читаем стандартный ввод от Git (локальная ветка, локальный sha, удаленная ветка, удаленный sha)
-while read local_ref local_sha remote_ref remote_sha; do
-  # Извлекаем имя удаленной ветки
-  remote_branch=$(echo "$remote_ref" | sed 's!refs/heads/!!')
-  echo "[Husky pre-push] Попытка push в удаленную ветку: $remote_branch"
-
-  # Проверяем, совпадает ли с защищенными ветками
-  for protected_branch in $protected_branches; do
-    if [ "$remote_branch" = "$protected_branch" ]; then
-      echo "
-⛔️⛔️⛔️ ОШИБКА: Прямой push в ветку '$protected_branch' ЗАПРЕЩЕН! ⛔️⛔️⛔️
-" >&2
-      echo "💡 Пожалуйста, создайте Pull Request для внесения изменений в '$protected_branch'." >&2
-      echo "🔒 Защищенные ветки: $protected_branches" >&2
-      exit 1 # Запрещаем push
+call_lefthook()
+{
+  if test -n "$LEFTHOOK_BIN"
+  then
+    "$LEFTHOOK_BIN" "$@"
+  elif lefthook -h >/dev/null 2>&1
+  then
+    lefthook "$@"
+  elif /Users/playra/999-multibots-telegraf/.claude/worktrees/tg-social/node_modules/lefthook-darwin-arm64/bin/lefthook -h >/dev/null 2>&1
+  then
+    /Users/playra/999-multibots-telegraf/.claude/worktrees/tg-social/node_modules/lefthook-darwin-arm64/bin/lefthook "$@"
+  else
+    dir="$(git rev-parse --show-toplevel)"
+    osArch=$(uname | tr '[:upper:]' '[:lower:]')
+    cpuArch=$(uname -m | sed 's/aarch64/arm64/;s/x86_64/x64/')
+    if test -f "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook"
+    then
+      "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/lefthook/bin/index.js"
+    then
+      "$dir/node_modules/lefthook/bin/index.js" "$@"
+    elif go tool lefthook -h >/dev/null 2>&1
+    then
+      go tool lefthook "$@"
+    elif bundle exec lefthook -h >/dev/null 2>&1
+    then
+      bundle exec lefthook "$@"
+    elif yarn lefthook -h >/dev/null 2>&1
+    then
+      yarn lefthook "$@"
+    elif pnpm lefthook -h >/dev/null 2>&1
+    then
+      pnpm lefthook "$@"
+    elif swift package lefthook >/dev/null 2>&1
+    then
+      swift package --build-path .build/lefthook --disable-sandbox lefthook "$@"
+    elif command -v mint >/dev/null 2>&1
+    then
+      mint run csjones/lefthook-plugin "$@"
+    elif uv run lefthook -h >/dev/null 2>&1
+    then
+      uv run lefthook "$@"
+    elif mise exec -- lefthook -h >/dev/null 2>&1
+    then
+      mise exec -- lefthook "$@"
+    elif devbox run lefthook -h >/dev/null 2>&1
+    then
+      devbox run lefthook "$@"
+    else
+      echo "Can't find lefthook in PATH"
     fi
-  done
-done
+  fi
+}
 
-echo "[Husky pre-push] ✅ Все проверки пройдены. Push разрешен."
-exit 0 # Разрешаем push
+call_lefthook run "pre-push" "$@"

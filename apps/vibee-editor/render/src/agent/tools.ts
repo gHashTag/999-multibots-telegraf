@@ -28,6 +28,19 @@
 import { planTools } from './plan-tools'
 import { pricingSummary, providerSetup, CLUB } from './pricing'
 import { editImage, EDIT_MODEL } from '../kie-image'
+import {
+  CREDITS_PER_SECOND,
+  DEFAULT_MAX_SECONDS,
+  FACE_MODEL,
+  HARD_MAX_SECONDS,
+  pollOnce,
+  pollToDeadline,
+  prepareFaceSpeak,
+  priceDrift,
+  priceOfSeconds,
+  startFace,
+  type KieDeps,
+} from '../kie-face'
 
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
@@ -378,6 +391,305 @@ async function withTokens<T extends object>(
   if (!price) return result
   const balance = await ensureTokenRow(ctx)
   return { ...result, токены: { потрачено: price, осталось: balance } }
+}
+
+/* ------------------------------------------------ the talking head, in money */
+
+/**
+ * A Kie credit in dollars: 58 credits bought the seven-image model comparison
+ * for about $0.29. The same base every other price in this file uses, so a
+ * talking head cannot be sold below what it costs the house.
+ */
+const KIE_CREDIT_USD = 0.005
+
+/**
+ * The token price of a clip, from its MEASURED length.
+ *
+ * Unlike everything in TOKEN_PRICES this is not a constant, and it cannot be:
+ * the provider bills per second of audio, so a flat price would either rob the
+ * short clip or sell the long one at a loss. 2 s costs 52 tokens, 8 s costs
+ * 208 — numbers a person can check against the seconds in the same answer.
+ */
+export function faceSpeakTokens(seconds: number): number {
+  return Math.ceil((priceOfSeconds(seconds) * KIE_CREDIT_USD) / COST_PER_TOKEN_USD)
+}
+
+/**
+ * A DURABLE ROW PER ATTEMPT, WRITTEN BEFORE THE PROVIDER IS TOLD ANYTHING.
+ *
+ * reel_render learned this the expensive way with renderIds: the chat is
+ * stateless, so an id that exists only inside one reply is an id that is lost,
+ * and the agent that started the work can never find out how it ended. Here the
+ * stake is higher — a lost omnihuman task is about two hundred credits already
+ * committed, and the natural reaction to a lost task is to buy another one.
+ *
+ * `id` is OURS and exists before createTask; `task_id` arrives afterwards. That
+ * order is the point: a crash between the insert and the submit leaves a row
+ * saying what was about to be spent, which is the difference between a ceiling
+ * that sums intents and a ceiling that sums successes.
+ */
+async function ensureFaceJobsTable(ctx: ToolContext): Promise<void> {
+  await ctx.pool.query(
+    `CREATE TABLE IF NOT EXISTS agent_face_jobs (
+       id              text PRIMARY KEY,
+       telegram_id     text NOT NULL,
+       task_id         text,
+       state           text NOT NULL DEFAULT 'intent',
+       seconds         numeric NOT NULL DEFAULT 0,
+       planned_credits numeric NOT NULL DEFAULT 0,
+       charged_tokens  int NOT NULL DEFAULT 0,
+       audio_url       text,
+       image_url       text,
+       text            text,
+       video_url       text,
+       asset_id        int,
+       reason          text,
+       created_at      timestamptz NOT NULL DEFAULT now(),
+       updated_at      timestamptz NOT NULL DEFAULT now()
+     )`
+  )
+  await ctx.pool.query(
+    `CREATE INDEX IF NOT EXISTS agent_face_jobs_owner
+       ON agent_face_jobs (telegram_id, created_at DESC)`
+  )
+}
+
+/**
+ * Provider credits this caller is answerable for today.
+ *
+ * Sums INTENTS, not deliveries. A task that timed out was still billed, and a
+ * ceiling that only counted finished clips would let a bad afternoon buy the
+ * same clip a dozen times over.
+ */
+const FACE_DAILY_CREDITS = 400
+async function faceCreditsSpentToday(ctx: ToolContext): Promise<number> {
+  const r = await ctx.pool.query(
+    `SELECT COALESCE(SUM(planned_credits), 0)::float8 AS credits
+       FROM agent_face_jobs
+      WHERE telegram_id = $1 AND created_at > now() - interval '24 hours'
+        AND state <> 'refused'`,
+    [ctx.telegramId]
+  )
+  return Number(r.rows[0]?.credits ?? 0)
+}
+
+/** Balance without spending: the free half of spendTokens, used as a pre-gate. */
+async function tokenBalance(ctx: ToolContext): Promise<number> {
+  return ensureTokenRow(ctx)
+}
+
+/**
+ * The Kie side of the talking head, assembled from live configuration.
+ *
+ * `fetchImpl` is the global fetch on purpose: this is the shipped path, and the
+ * tests replace the global rather than a parameter, so what they exercise is
+ * the code that runs in production and not a parallel wiring.
+ */
+function faceDeps(timeoutMs?: number): KieDeps {
+  return {
+    fetchImpl: (...a: Parameters<typeof fetch>) => fetch(...a),
+    key: process.env.KIE_AI_API_KEY || '',
+    ...(process.env.KIE_API_BASE ? { base: process.env.KIE_API_BASE } : {}),
+    ...(timeoutMs ? { timeoutMs } : {}),
+    /**
+     * The poll interval is deployment configuration, not a constant.
+     *
+     * 4 s against a 3-5 minute job is about 75 free requests, comfortably under
+     * the account-wide limit of 20 requests per 10 s that this same key shares
+     * with every other tool. It is settable because a test that waited four
+     * real seconds per poll would either be slow or would have to drive a
+     * parallel wiring instead of the shipped one — and a test of a different
+     * code path is not a test of this one.
+     */
+    ...(Number(process.env.KIE_POLL_MS) > 0
+      ? { pollMs: Number(process.env.KIE_POLL_MS) }
+      : {}),
+    log: (line: string) => console.log(`[лицо] ${line}`), // cyrillic-ok: log text
+  }
+}
+
+/** The voice-over goes into OUR bucket, and the `.wav` in the name is load-bearing. */
+async function storeAudio(
+  bytes: Uint8Array,
+  filename: string,
+  contentType: string
+): Promise<string> {
+  const up = await selfFetch(`${selfBase()}/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': contentType, 'X-Filename': filename },
+    body: bytes as unknown as BodyInit,
+  })
+  const data: any = await up.json().catch(() => null)
+  if (!data?.directUrl)
+    throw new Error(`S3 не принял ${filename}: HTTP ${up.status}`)
+  return String(data.directUrl)
+}
+
+/**
+ * The charge, and it happens ONLY after a provider has delivered.
+ *
+ * Not a call to spendTokens because that helper reads a flat price from a table
+ * and this price is measured per clip. The atomic `WHERE balance >= $2` is
+ * copied deliberately: two taps must not both pass a check they both read
+ * before either wrote.
+ */
+async function chargeTokens(
+  ctx: ToolContext,
+  amount: number,
+  why: string
+): Promise<{ ok: boolean; charged: number; left: number | null }> {
+  if (amount <= 0) return { ok: true, charged: 0, left: null }
+  if (HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)) {
+    console.log(`[токены] дом не платит себе: ${why}`) // cyrillic-ok: log text
+    return { ok: true, charged: 0, left: null }
+  }
+  await ensureTokenRow(ctx)
+  const r = await ctx.pool.query(
+    `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
+     WHERE telegram_id = $1 AND balance >= $2 RETURNING balance`,
+    [ctx.telegramId, amount]
+  )
+  if (r.rows.length === 0) return { ok: false, charged: 0, left: null }
+  return { ok: true, charged: amount, left: r.rows[0].balance }
+}
+
+/**
+ * Bytes into our S3 AND a row in `assets`, in that order, as one step.
+ *
+ * WHY THIS IS A FUNCTION AND NOT COPIED INTO BOTH TOOLS. The blocking path and
+ * the recovery path deliver the SAME artefact; two copies of a delivery would
+ * be two places for the gallery insert to be forgotten, and forgetting it is
+ * the exact defect this codebase already shipped once — image_edit put a
+ * picture in the bucket that the person who paid for it could not find, and
+ * my_assets stayed a week stale while every check was green.
+ *
+ * A failed insert does NOT fail the delivery: the file exists and was paid for.
+ * It is REPORTED, because silence is what made the original defect invisible.
+ */
+async function deliverToGallery(
+  ctx: ToolContext,
+  o: { providerUrl: string; filename: string; type: string; text: string }
+): Promise<{
+  ok: boolean
+  url?: string
+  assetId?: number | null
+  assetError?: string | null
+  reason?: string
+}> {
+  const got = await fetch(o.providerUrl)
+  if (!got.ok)
+    return { ok: false, reason: `файл готов, но не скачался: HTTP ${got.status}` }
+  const bytes = Buffer.from(await got.arrayBuffer())
+  const up = await selfFetch(`${selfBase()}/upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': got.headers.get('content-type') || 'video/mp4',
+      'X-Filename': o.filename,
+    },
+    body: new Uint8Array(bytes),
+  })
+  const upData: any = await up.json().catch(() => null)
+  if (!up.ok || !upData?.directUrl)
+    return { ok: false, reason: `файл готов, но не сохранился: HTTP ${up.status}` }
+
+  let assetId: number | null = null
+  let assetError: string | null = null
+  try {
+    const row = await ctx.pool.query(
+      `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
+       VALUES ($1, '', $2, '', $3, $4, 'agent')
+       RETURNING id`,
+      [o.type, ctx.telegramId, upData.directUrl, o.text.slice(0, 500)]
+    )
+    assetId = row.rows[0]?.id ?? null
+  } catch (e) {
+    assetError = String((e as Error)?.message || e).slice(0, 160)
+  }
+  return { ok: true, url: upData.directUrl, assetId, assetError }
+}
+
+/**
+ * The end of a face job that a provider has already finished, shared by the
+ * blocking tool and the recovery tool: deliver, register, THEN charge.
+ *
+ * The charge is last and it is the last thing on purpose. Everywhere else in
+ * this file the money moves first and a refund is expected to put it back; that
+ * is how tokens vanished into a locked FAL account. A refund is a promise. Not
+ * charging is a fact.
+ */
+async function settleFaceJob(
+  ctx: ToolContext,
+  job: {
+    id: string
+    taskId: string
+    seconds: number
+    text: string
+    providerUrl: string
+    faceCredits: number | null
+  }
+): Promise<Record<string, unknown>> {
+  const delivered = await deliverToGallery(ctx, {
+    providerUrl: job.providerUrl,
+    filename: `face-speak-${Date.now()}.mp4`,
+    type: 'generated_video',
+    text: job.text,
+  })
+  if (!delivered.ok) {
+    await ctx.pool.query(
+      `UPDATE agent_face_jobs SET state = 'orphan', reason = $2, updated_at = now()
+       WHERE id = $1`,
+      [job.id, String(delivered.reason).slice(0, 300)]
+    )
+    // Nothing is charged: the person has no file. The clip DOES exist at the
+    // provider and its credits are gone, which is why the link is handed back
+    // rather than swallowed.
+    return {
+      done: false,
+      reason: delivered.reason,
+      taskId: job.taskId,
+      providerUrl: job.providerUrl,
+      charged: 0,
+    }
+  }
+
+  const price = faceSpeakTokens(job.seconds)
+  const charge = await chargeTokens(
+    ctx,
+    price,
+    `face_speak ${job.seconds.toFixed(2)} с`
+  )
+  await ctx.pool.query(
+    `UPDATE agent_face_jobs
+        SET state = 'delivered', video_url = $2, asset_id = $3,
+            charged_tokens = $4, reason = $5, updated_at = now()
+      WHERE id = $1`,
+    [
+      job.id,
+      delivered.url,
+      delivered.assetId,
+      charge.charged,
+      charge.ok ? null : 'выдано без списания: не хватило токенов',
+    ]
+  )
+  return {
+    done: true,
+    url: delivered.url,
+    id: delivered.assetId,
+    inGallery: delivered.assetId != null,
+    ...(delivered.assetError ? { galleryError: delivered.assetError } : {}),
+    taskId: job.taskId,
+    seconds: Number(job.seconds.toFixed(2)),
+    charged: charge.charged,
+    ...(charge.left != null ? { tokensLeft: charge.left } : {}),
+    // A charge that could not be taken is stated, not hidden. It can only
+    // happen when the balance moved between the free pre-check and here, and a
+    // silent free clip is a hole nobody would ever find in a log.
+    ...(charge.ok ? {} : { unpaid: price }),
+    providerCredits: job.faceCredits,
+    ...(priceDrift(job.seconds, job.faceCredits)
+      ? { priceWarning: priceDrift(job.seconds, job.faceCredits) }
+      : {}),
+  }
 }
 
 import { TELEGRAM_TOOLS } from './telegram-tools'
@@ -1412,6 +1724,363 @@ export const TOOLS: AgentTool[] = [
       return {
         ...stData,
         url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url,
+      }
+    },
+  },
+
+  {
+    name: 'face_speak',
+    description:
+      'ГОВОРЯЩЕЕ ЛИЦО: портрет человека произносит заданный текст. Без image_url ' +
+      'берётся АВАТАРКА самого вызывающего из Telegram — «пусть я скажу это» ' +
+      'работает без единого файла от него. Озвучка делается сама (Kie TTS), ' +
+      'ДЛИНА РЕЧИ ИЗМЕРЯЕТСЯ, и по ней считается цена ДО дорогого вызова: если ' +
+      `речь длиннее потолка (${DEFAULT_MAX_SECONDS} с по умолчанию, максимум ` +
+      `${HARD_MAX_SECONDS} с), инструмент откажет и назовёт, сколько символов убрать. ` +
+      `Цена у провайдера ≈ ${CREDITS_PER_SECOND} кредитов за секунду речи. ` +
+      'Готовый mp4 ложится в S3 и в «мои файлы»; его ссылку можно сразу отдать ' +
+      'в reel_render как lipSyncVideo для композиции SplitTalkingHead. ' +
+      'По умолчанию ждёт до 6 минут; wait:false вернёт taskId для face_speak_status.',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'что произнести. Одна-две фразы: цена растёт с секундой',
+        },
+        image_url: {
+          type: 'string',
+          description: 'чьё лицо. Не задан — аватарка вызывающего из Telegram',
+        },
+        voice: {
+          type: 'string',
+          description: 'имя голоса Kie, по умолчанию Zephyr (регистр важен)',
+        },
+        max_seconds: {
+          type: 'integer',
+          description: `потолок длины речи, по умолчанию ${DEFAULT_MAX_SECONDS}, жёсткий максимум ${HARD_MAX_SECONDS}`,
+        },
+        wait: {
+          type: 'boolean',
+          description: 'ждать готовности (по умолчанию true)',
+        },
+      },
+      required: ['text'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      /**
+       * THE ORDER OF THIS HANDLER IS ITS SPECIFICATION, and every step above
+       * the provider call is free:
+       *
+       *   1. the daily generation cap          free
+       *   2. the provider key                  free
+       *   3. the portrait                      free (Telegram + our own S3)
+       *   4. can this person afford ANY clip   free (a read, not a write)
+       *   5. the daily credit ceiling          free
+       *   6. TTS + MEASURE + price + gate      about one credit
+       *   7. an intent row                     free, and written BEFORE (8)
+       *   8. omnihuman                         about 26 credits per second
+       *   9. deliver, register, THEN charge
+       *
+       * Steps 1-6 are what makes step 8 refusable with the number stated.
+       */
+      if ((await generationsLeftToday(ctx)) <= 0)
+        return {
+          done: false,
+          reason: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца.`,
+        }
+      if (!process.env.KIE_AI_API_KEY)
+        return {
+          done: false,
+          reason:
+            'провайдер говорящего лица не настроен в сервисе (нет KIE_AI_API_KEY) — ' +
+            'ничего не списано',
+        }
+
+      const portrait = args.image_url
+        ? String(args.image_url)
+        : await ownerAvatarUrl(ctx)
+      if (!portrait)
+        return {
+          done: false,
+          reason:
+            'нечему говорить: аватарка не читается, а image_url не задан. ' +
+            'Пришли фото или поставь аватарку в Telegram',
+        }
+
+      /**
+       * CAN THIS PERSON AFFORD THE CHEAPEST POSSIBLE CLIP? A read, so it takes
+       * nothing and commits nothing. Its job is to avoid burning a TTS credit
+       * on a wallet that could not pay for one second of face; the real charge
+       * happens after the provider has answered, against the MEASURED length.
+       */
+      const isHouse = HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)
+      const floorPrice = faceSpeakTokens(1)
+      if (!isHouse) {
+        const have = await tokenBalance(ctx)
+        if (have < floorPrice)
+          return {
+            done: false,
+            reason:
+              `говорящее лицо стоит от ${floorPrice} токенов за секунду речи, ` +
+              `а на балансе ${have}. Ничего не списано и не запущено`,
+          }
+      }
+
+      await ensureFaceJobsTable(ctx)
+      const already = await faceCreditsSpentToday(ctx)
+      if (already >= FACE_DAILY_CREDITS)
+        return {
+          done: false,
+          reason:
+            `суточный потолок на говорящее лицо (${FACE_DAILY_CREDITS} кредитов ` +
+            `провайдера) уже выбран: ${already}. Ничего не запущено`,
+        }
+
+      const ceiling = Math.min(
+        Number(args.max_seconds) > 0
+          ? Number(args.max_seconds)
+          : DEFAULT_MAX_SECONDS,
+        HARD_MAX_SECONDS
+      )
+      const deps = faceDeps()
+      const prep = await prepareFaceSpeak(deps, {
+        text: String(args.text),
+        store: storeAudio,
+        maxSeconds: ceiling,
+        voiceName: args.voice ? String(args.voice) : undefined,
+      })
+      if (!prep.ok)
+        return {
+          done: false,
+          reason: prep.reason,
+          stage: prep.stage,
+          ...(prep.seconds != null
+            ? { seconds: Number(prep.seconds.toFixed(2)) }
+            : {}),
+          ...(prep.wouldCost != null ? { wouldCostCredits: prep.wouldCost } : {}),
+          ...(prep.wouldCost != null
+            ? { wouldCostTokens: faceSpeakTokens(prep.seconds || 0) }
+            : {}),
+          // The TTS credit is named even when it is the only thing spent: a
+          // refusal that claims "nothing was charged" while a credit moved is
+          // the kind of small lie that makes every other number unbelievable.
+          providerCreditsSpent: prep.spentCredits,
+          charged: 0,
+        }
+
+      if (already + prep.plannedCredits > FACE_DAILY_CREDITS)
+        return {
+          done: false,
+          reason:
+            `ролик стоил бы ${prep.plannedCredits} кредитов, а на сегодня осталось ` +
+            `${Math.round(FACE_DAILY_CREDITS - already)} из ${FACE_DAILY_CREDITS}. ` +
+            'Сократи текст или приходи завтра',
+          stage: 'daily-ceiling',
+          seconds: Number(prep.seconds.toFixed(2)),
+          wouldCostCredits: prep.plannedCredits,
+          providerCreditsSpent: prep.spentCredits,
+          charged: 0,
+        }
+
+      /**
+       * THE INTENT ROW GOES IN BEFORE createTask. See ensureFaceJobsTable: at
+       * 26 credits a second the row is what stands between one lost answer and
+       * a second purchase of the same clip.
+       */
+      const jobId = `fs-${ctx.telegramId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      await ctx.pool.query(
+        `INSERT INTO agent_face_jobs
+           (id, telegram_id, state, seconds, planned_credits, audio_url, image_url, text)
+         VALUES ($1, $2, 'intent', $3, $4, $5, $6, $7)`,
+        [
+          jobId,
+          ctx.telegramId,
+          prep.seconds,
+          prep.plannedCredits,
+          prep.audioUrl,
+          portrait,
+          String(args.text).slice(0, 500),
+        ]
+      )
+
+      const started = await startFace(deps, {
+        imageUrl: portrait,
+        audioUrl: prep.audioUrl,
+      })
+      if (!started.taskId) {
+        await ctx.pool.query(
+          `UPDATE agent_face_jobs SET state = 'refused', reason = $2, updated_at = now()
+           WHERE id = $1`,
+          [jobId, String(started.refusal).slice(0, 300)]
+        )
+        return {
+          done: false,
+          reason: `провайдер не принял задачу: ${started.refusal}`,
+          stage: 'input-refused',
+          seconds: Number(prep.seconds.toFixed(2)),
+          providerCreditsSpent: prep.spentCredits,
+          charged: 0,
+        }
+      }
+      const taskId = started.taskId
+      await ctx.pool.query(
+        `UPDATE agent_face_jobs SET task_id = $2, state = 'running', updated_at = now()
+         WHERE id = $1`,
+        [jobId, taskId]
+      )
+
+      if (args.wait === false)
+        return {
+          started: true,
+          taskId,
+          jobId,
+          seconds: Number(prep.seconds.toFixed(2)),
+          model: FACE_MODEL,
+          willCostTokens: faceSpeakTokens(prep.seconds),
+          hint: 'проверь face_speak_status — списание произойдёт там, после выдачи файла',
+        }
+
+      // Same shape as reel_render: one tool call held open rather than eight
+      // turns of dialogue spent on polling. omnihuman measures 3-5 minutes.
+      const answer = await pollToDeadline(faceDeps(6 * 60 * 1000), taskId)
+      if (!answer.ok || !answer.url) {
+        await ctx.pool.query(
+          `UPDATE agent_face_jobs SET state = $2, reason = $3, updated_at = now()
+           WHERE id = $1`,
+          [
+            jobId,
+            answer.stage === 'timeout' ? 'running' : 'failed',
+            answer.message.slice(0, 300),
+          ]
+        )
+        return {
+          done: false,
+          taskId,
+          jobId,
+          stage: answer.stage,
+          reason:
+            answer.stage === 'timeout'
+              ? `${answer.message}. Кредиты провайдера уже отданы — не запускай заново, ` +
+                'спроси face_speak_status по этому taskId'
+              : answer.message,
+          providerCreditsSpent: prep.spentCredits,
+          // A provider-side failure is billed 0 by this provider, measured, and
+          // nothing is taken from the person either way.
+          charged: 0,
+        }
+      }
+      return settleFaceJob(ctx, {
+        id: jobId,
+        taskId,
+        seconds: prep.seconds,
+        text: String(args.text),
+        providerUrl: answer.url,
+        faceCredits: answer.credits,
+      })
+    },
+  },
+
+  {
+    name: 'face_speak_status',
+    description:
+      'Чем кончилась задача face_speak. Без аргументов берёт последнюю незакрытую ' +
+      'задачу вызывающего — чат без памяти, а taskId иначе теряется навсегда. ' +
+      'Если ролик готов, ИМЕННО ЗДЕСЬ он кладётся в «мои файлы» и списываются токены.',
+    parameters: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'из ответа face_speak' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await ensureFaceJobsTable(ctx)
+      /**
+       * THE ROW IS THE ONLY SOURCE, AND IT IS SCOPED BY OWNER.
+       *
+       * render_status cannot serve this tool: it asks our own server about
+       * Remotion renderIds, and this id belongs to Kie. And a taskId is a bare
+       * string an outsider could guess, so the lookup is `AND telegram_id = $`
+       * — otherwise one person's clip would settle against another's wallet.
+       */
+      const found = args.taskId
+        ? await ctx.pool.query(
+            `SELECT * FROM agent_face_jobs WHERE task_id = $1 AND telegram_id = $2`,
+            [String(args.taskId), ctx.telegramId]
+          )
+        : await ctx.pool.query(
+            `SELECT * FROM agent_face_jobs
+              WHERE telegram_id = $1 AND state IN ('intent','running')
+              ORDER BY created_at DESC LIMIT 1`,
+            [ctx.telegramId]
+          )
+      const row = found.rows[0]
+      if (!row)
+        return {
+          found: false,
+          reason: args.taskId
+            ? 'такой задачи у тебя нет'
+            : 'незакрытых задач нет — запусти face_speak',
+        }
+      if (row.state === 'delivered')
+        return {
+          found: true,
+          done: true,
+          url: row.video_url,
+          id: row.asset_id,
+          inGallery: row.asset_id != null,
+          seconds: Number(row.seconds),
+          charged: Number(row.charged_tokens),
+          hint: 'уже выдано и оплачено — повторно не списывается',
+        }
+      if (row.state === 'refused' || row.state === 'failed')
+        return { found: true, done: false, state: row.state, reason: row.reason }
+      if (!row.task_id)
+        return {
+          found: true,
+          done: false,
+          state: row.state,
+          reason:
+            'задача записана, но провайдеру не ушла — кредиты не тратились, ' +
+            'повтори face_speak',
+        }
+
+      const answer = await pollOnce(faceDeps(), String(row.task_id))
+      if (!answer)
+        return {
+          found: true,
+          done: false,
+          state: 'running',
+          taskId: row.task_id,
+          reason: 'ещё делается — omnihuman занимает 3-5 минут',
+        }
+      if (!answer.ok || !answer.url) {
+        await ctx.pool.query(
+          `UPDATE agent_face_jobs SET state = 'failed', reason = $2, updated_at = now()
+           WHERE id = $1`,
+          [row.id, answer.message.slice(0, 300)]
+        )
+        return {
+          found: true,
+          done: false,
+          state: 'failed',
+          stage: answer.stage,
+          reason: answer.message,
+          charged: 0,
+        }
+      }
+      return {
+        found: true,
+        ...(await settleFaceJob(ctx, {
+          id: String(row.id),
+          taskId: String(row.task_id),
+          seconds: Number(row.seconds),
+          text: String(row.text || ''),
+          providerUrl: answer.url,
+          faceCredits: answer.credits,
+        })),
       }
     },
   },

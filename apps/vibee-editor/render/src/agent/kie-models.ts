@@ -334,11 +334,42 @@ export const KIE_MODELS: KieModel[] = [
     probed: 'This field is required',
   },
   {
+    /**
+     * THE SECOND HOLE IN THE FREE-PROBE METHOD, AND IT WAS OPEN ON THE MOST
+     * EXPENSIVE MODEL IN THIS LIST.
+     *
+     * NEVER_PROBE below names the known hole: a model that BILLS on an empty
+     * payload. This is the other one — a validator that refuses without naming
+     * the field. `{}`, `{image_url}` and `{audio_url}` all answer the identical
+     * opaque `This field is required`, so the empty-payload method learns
+     * nothing and `needs` was recorded as []. The missing-field check in
+     * kie-run.ts filters an empty list, returns null, and waves ANY payload
+     * through to a call that costs about 26 credits per second: the guard was
+     * inert exactly where it was worth the most.
+     *
+     * The field names below are MEASURED, 2026-09-01, balance 5972.57 before
+     * and after, 0 credits. The method is to send a payload that is COMPLETE in
+     * its field set but INVALID in its content, and read how far the validator
+     * got:
+     *
+     *   {"prompt":"hello"}                          -> "This field is required"
+     *   {"image_url":"...","audio_url":"not-a-url"} -> "File type not supported"
+     *   plus "prompt"                               -> "File type not supported"
+     *
+     * The second answer is the finding: the validator walked past the
+     * required-field check and reached the audio, which it can only do once
+     * every required field is present. So image_url + audio_url is the complete
+     * set and `prompt` is not in it.
+     */
     id: 'omnihuman-1-5',
     title: 'omnihuman-1-5',
     kind: 'lipsync',
     state: 'live',
-    needs: [],
+    needs: ['image_url', 'audio_url'],
+    // Still the EMPTY-payload sentence, because that is what `probed` means
+    // here and what the state classifier reads. The second sentence lives in
+    // the comment above: it answers a different question (which fields) and
+    // putting it in this field would make the state underivable.
     probed: 'This field is required',
   },
   {

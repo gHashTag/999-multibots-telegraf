@@ -38,8 +38,52 @@ function toolBlocks(): { name: string; body: string }[] {
 
 const BLOCKS = toolBlocks()
 
+/**
+ * SHARED DELIVERY HELPERS, AND WHY THE SCAN HAD TO LEARN ABOUT THEM.
+ *
+ * The first version of this file looked for `/upload` inside a tool block, so a
+ * tool whose upload lives in a helper was invisible to it — and the moment two
+ * tools deliver the same artefact (a blocking path and a recovery path), a
+ * helper is the right shape and copying sixty lines is the wrong one. A gate
+ * that only sees the inlined version quietly stops covering the code that
+ * replaces it.
+ *
+ * So a helper counts as delivery only if IT does both halves, and that is
+ * asserted below rather than assumed.
+ */
+const DELIVERY_HELPERS = ['deliverToGallery', 'settleFaceJob']
+
+/** The source of everything outside the tool blocks: where the helpers live. */
+const PREAMBLE = SRC.slice(0, BLOCKS[0]?.body ? SRC.indexOf(BLOCKS[0].body) : 0)
+
+function helperBody(name: string): string {
+  const at = PREAMBLE.indexOf(`async function ${name}(`)
+  if (at < 0) return ''
+  const next = PREAMBLE.slice(at + 1).search(/^(?:async )?function /m)
+  return next < 0 ? PREAMBLE.slice(at) : PREAMBLE.slice(at, at + 1 + next)
+}
+
+/**
+ * Does this source register a file — itself, or through a helper that does?
+ *
+ * Depth-limited rather than unbounded: two hops is the shape that exists
+ * (tool -> settleFaceJob -> deliverToGallery), and a chain longer than that
+ * would be worth objecting to on its own.
+ */
+function registers(body: string, depth = 2): boolean {
+  if (/INSERT INTO assets/.test(body)) return true
+  if (depth <= 0) return false
+  return DELIVERY_HELPERS.some(
+    h => new RegExp(`${h}\\(`).test(body) && registers(helperBody(h), depth - 1)
+  )
+}
+
 /** Tools that push bytes into our S3 and therefore produce a file. */
-const PRODUCERS = BLOCKS.filter(b => /\/upload`/.test(b.body))
+const PRODUCERS = BLOCKS.filter(
+  b =>
+    /\/upload`/.test(b.body) ||
+    DELIVERY_HELPERS.some(h => new RegExp(`${h}\\(`).test(b.body))
+)
 
 describe('каждый инструмент, создающий файл, кладёт его в витрину', () => {
   it('разбор нашёл и инструменты, и производителей файлов', () => {
@@ -50,13 +94,40 @@ describe('каждый инструмент, создающий файл, кла
     expect(PRODUCERS.length).toBeGreaterThanOrEqual(2)
   })
 
+  it('общий помощник доставки сам делает обе половины', () => {
+    // Without this, delegating to a helper would be a way to PASS the rule
+    // instead of a way to follow it: the check below accepts the call, so the
+    // call had better be worth accepting.
+    for (const h of DELIVERY_HELPERS) {
+      const body = helperBody(h)
+      expect(body.length, `помощник ${h} не найден вне блоков`).toBeGreaterThan(0)
+      expect(registers(body), `${h} не доводит файл до assets`).toBe(true)
+    }
+    // The one at the bottom of the chain must do the S3 half itself; otherwise
+    // "registered" could be true for a row pointing at a provider link that
+    // dies within the hour.
+    expect(helperBody('deliverToGallery')).toMatch(/\/upload`/)
+    expect(helperBody('deliverToGallery')).toMatch(/INSERT INTO assets/)
+  })
+
   it('каждый производитель пишет строку в assets', () => {
-    const unregistered = PRODUCERS.filter(
-      b => !/INSERT INTO assets/.test(b.body)
-    ).map(b => b.name)
+    const unregistered = PRODUCERS.filter(b => !registers(b.body)).map(
+      b => b.name
+    )
     expect(unregistered, 'файл попадёт в S3 и не попадёт в мини-апп').toEqual(
       []
     )
+  })
+
+  it('говорящее лицо доставляет обоими путями: и ожиданием, и восстановлением', () => {
+    // Two tools, one artefact. The recovery path is the one that matters when a
+    // 200-credit job outlives the call that started it, and a delivery that
+    // only the happy path performs would leave that clip in the bucket alone.
+    for (const name of ['face_speak', 'face_speak_status']) {
+      const b = BLOCKS.find(x => x.name === name)
+      expect(b, `инструмент ${name} не найден`).toBeTruthy()
+      expect(registers(b!.body), `${name} не регистрирует файл`).toBe(true)
+    }
   })
 
   it('image_edit регистрирует именно свой загруженный файл', () => {

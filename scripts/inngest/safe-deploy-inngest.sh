@@ -32,11 +32,13 @@ if [ ! -f "scripts/rollback-deployment.sh" ]; then
     chmod +x scripts/rollback-deployment.sh 2>/dev/null || true
 fi
 
-# Test local build
+# Test local build. This used to run build:nocheck and swallow the failure as
+# "expected for TypeScript migration", which made it a check that could never
+# fail. The migration is done: `npm run build` is clean, so this is a real gate.
 echo "🔧 Testing local build..."
-npm run build:nocheck > /tmp/build-test.log 2>&1 || {
-    echo "⚠️  Build has warnings (expected for TypeScript migration)"
-    echo "   Continuing..."
+npm run build > /tmp/build-test.log 2>&1 || {
+    echo "❌ Build failed. Deployment aborted — see /tmp/build-test.log"
+    exit 1
 }
 
 echo "✅ Pre-deployment checks complete"
@@ -92,7 +94,9 @@ echo "📦 Installing dependencies..."
 npm install --production
 
 echo "🔨 Building TypeScript..."
-npm run build || npm run build:nocheck
+# No `|| npm run build:nocheck` fallback: that turned a failing type check into
+# a silent unchecked deploy to all 12 client bots. A failed build must stop here.
+npm run build
 
 echo "🐳 Rebuilding Docker container..."
 docker stop 999-multibots 2>/dev/null || true

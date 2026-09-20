@@ -19,15 +19,52 @@
      already inset the view — the bar then sits under the home indicator. */
   padding-bottom: var(--app-safe-bottom, 0px);
 
-  background: var(--vibee-bg-elevated, #16161a);
-  border-top: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.08));
-  backdrop-filter: blur(12px);
+  /* FLOATING PILL, NOT AN EDGE-TO-EDGE SHELF.
+     The owner compared the two surfaces side by side and called the iOS home
+     and tab bar the better ones: there the bar is a capsule that hovers above
+     the safe area instead of a slab welded to the bottom edge. The bar itself
+     is now transparent and the capsule lives on the scroll container, so the
+     rounding, the blur and the border travel together and the safe-area
+     padding above still keeps the bar off the home indicator. */
+  background: transparent;
+  border-top: none;
+  pointer-events: none;
 }
 
 .tma-tabbar__scroll {
   display: flex;
   align-items: stretch;
   height: var(--app-tabbar-height, 56px);
+
+  /* The capsule. Inset from the edges so it reads as a floating control, with
+     the same surface and hairline the old shelf carried -- only the shape
+     changed, not the palette. */
+  margin: 0 12px 10px;
+  border-radius: 999px;
+
+  /*
+   * ЧЁРНОЕ МАТОВОЕ СТЕКЛО. Те же три слоя, что и в шапке (Header/styles.css),
+   * и это не совпадение: капсула и шапка — два края одного экрана, и разное
+   * стекло между ними читалось бы как две разные поверхности.
+   *
+   * Здесь стоял НЕПРОЗРАЧНЫЙ `--vibee-bg-elevated` рядом с `blur(12px)` —
+   * то есть размытие вычислялось и не было видно ни на пиксель: непрозрачный
+   * фон полностью закрывает то, что размывалось. Стекло надо было включить,
+   * а не только объявить.
+   *
+   * Плотность 0.72 та же, что у шапки. Под капсулой проходит видео ленты, и
+   * прозрачнее делать нельзя: подписи вкладок должны читаться и на белом кадре.
+   */
+  background: rgba(10, 10, 12, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  /* Тень — чтобы капсула читалась как лежащая НАД кадром, а не вырезанная в
+     нём: у стекла без тени нет толщины. */
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  /* The bar above is click-through so the page keeps its corners; the capsule
+     itself must still take taps. */
+  pointer-events: auto;
 
   overflow-x: auto;
   overflow-y: hidden;
@@ -64,6 +101,22 @@
 
 .tma-tabbar__item.active {
   color: var(--vibee-accent, #00ff88);
+}
+
+/* The active tab gets its own softer capsule inside the bar, as on iOS: the
+   colour alone reads as a state, the pill reads as a place. */
+.tma-tabbar__item.active::before {
+  content: '';
+  position: absolute;
+  inset: 4px 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  z-index: -1;
+}
+
+.tma-tabbar__item {
+  position: relative;
+  isolation: isolate;
 }
 
 .tma-tabbar__icon {

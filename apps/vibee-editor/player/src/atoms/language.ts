@@ -564,6 +564,10 @@ const en: Translations = {
   'feed.using': 'Loading...',
   'feed.like': 'Like',
   'feed.star': 'Send a Star to the author',
+  'feed.share': 'Share',
+  'feed.starNeedsTelegram': 'Stars are paid inside Telegram — open the app there to send one.',
+  'feed.starFailed': 'Could not send the Star. Try again.',
+  'feed.shareCopied': 'Link copied',
   'feed.today': 'Today',
   'feed.yesterday': 'Yesterday',
   'feed.remixing': 'Remixing template...',
@@ -823,6 +827,13 @@ const en: Translations = {
   'generate.duration': 'Duration',
   'generate.resolution': 'Resolution',
   'generate.voice': 'Voice',
+  'generate.kiePrimary': 'Primary provider · Kie.ai',
+  'generate.directOptional':
+    'Optional connection · separate provider credentials',
+  'generate.directUnavailable':
+    'Direct voices are unavailable. Select Kie.ai or configure the optional connection.',
+  'generate.kieVoiceHint':
+    'Kie.ai stock voice, not your clone. No direct ElevenLabs key needed. Aligned captions are not included in this mode.',
   'generate.music': 'Music',
   'generate.text': 'Text',
   'generate.speed': 'Speed',
@@ -2225,6 +2236,10 @@ const ru: Translations = {
   'feed.using': 'Загрузка...',
   'feed.like': 'Нравится',
   'feed.star': 'Отправить звезду автору — на его баланс',
+  'feed.share': 'Поделиться',
+  'feed.starNeedsTelegram': 'Звёзды оплачиваются внутри Telegram — откройте приложение там.',
+  'feed.starFailed': 'Звезду отправить не удалось. Попробуйте ещё раз.',
+  'feed.shareCopied': 'Ссылка скопирована',
   'feed.today': 'Сегодня',
   'feed.yesterday': 'Вчера',
   'feed.remixing': 'Загрузка шаблона...',
@@ -2485,6 +2500,13 @@ const ru: Translations = {
   'generate.duration': 'Длительность',
   'generate.resolution': 'Разрешение',
   'generate.voice': 'Голос',
+  'generate.kiePrimary': 'Основной провайдер · Kie.ai',
+  'generate.directOptional':
+    'Дополнительное подключение · отдельные ключи провайдера',
+  'generate.directUnavailable':
+    'Прямое подключение голосов недоступно. Выберите Kie.ai или настройте дополнительное подключение.',
+  'generate.kieVoiceHint':
+    'Библиотечный голос Kie.ai, не ваш клон. Прямой ключ ElevenLabs не нужен. Титры с точным таймингом в этом режиме не включены.',
   'generate.music': 'Музыка',
   'generate.text': 'Текст',
   'generate.speed': 'Скорость',
