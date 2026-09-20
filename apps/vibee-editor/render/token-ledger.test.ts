@@ -61,7 +61,10 @@ function fakePool(
         }
         return { rows: [] }
       }
-      if (sql.includes('CREATE TABLE') || sql.includes('CREATE INDEX'))
+      // `CREATE UNIQUE INDEX` is matched by its own prefix: `includes('CREATE
+      // INDEX')` does not cover it, and the idempotency guard is exactly a
+      // unique index.
+      if (/^CREATE (TABLE|(UNIQUE )?INDEX)/i.test(sql.trim()))
         return { rows: [] }
       const tid = String(params[0])
       if (sql.includes('SELECT balance FROM user_tokens'))

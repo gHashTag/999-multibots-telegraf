@@ -88,7 +88,14 @@ describe('the numbers survive the charge helper', () => {
     expect(SERVER).toContain(
       'receipt: { charged: spent.списано, balance: spent.осталось }'
     ) // cyrillic-ok: shared API field
-    expect(SERVER).toMatch(/\{ ok: true; tid\?: string; receipt: Receipt \}/)
+    // The success variant still carries the receipt. Matched field by field
+    // rather than as one line: the variant gained `spendId` (the ledger row a
+    // refund refers back to) and was reflowed, and pinning the layout would
+    // make formatting look like a regression in the thing this test guards.
+    const success = SERVER.slice(
+      SERVER.indexOf('| {\n      ok: true\n      tid?: string')
+    ).slice(0, 600)
+    expect(success).toContain('receipt: Receipt')
   })
 
   it('names the remaining balance the way /api/balance already names it', () => {
