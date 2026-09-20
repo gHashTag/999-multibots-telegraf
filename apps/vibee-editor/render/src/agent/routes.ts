@@ -327,6 +327,28 @@ export async function resolveIdentity(
  * pulse their role may see (hive_pulse). A game token lives in the game origin,
  * whose code this service does not review, so anything that reads or changes a
  * person's data stays off this list.
+ *
+ * WHY `hive_board` IS NOT HERE, THOUGH IT WOULD PASS THE TEST ABOVE
+ *
+ * It was added here and taken back out, so the reasoning is left where the
+ * next person will be standing when they consider adding it again.
+ *
+ * It would qualify on scope: like hive_pulse it decides everything from the
+ * verified `ctx.telegramId`, cannot be made to name somebody else, and its one
+ * argument may only narrow the answer to a bot the caller already owns. That
+ * is the property this list is really about.
+ *
+ * It does not qualify on CONSENT. The prompt this token is minted under says
+ * "t27.ai wants your TRI name and picture" (player/public/bridge/bridge.js).
+ * hive_board also answers with client names, their stage, and whether they
+ * have paid. Widening what a credential returns without widening the sentence
+ * the person agreed to is how a consent prompt becomes decorative.
+ *
+ * And it is not needed. The board moved to https://app.t27.ai/queen/, which is
+ * THIS origin: there it holds the app's own session, `gameTokenOf` returns null
+ * for it, and it never reaches this list at all. A game token is now the
+ * legacy path for a surface that still frames t27.ai. Granting new powers to a
+ * credential minted for an origin the board is leaving is the wrong direction.
  */
 export const GAME_TOKEN_TOOLS: readonly string[] = ['whoami', 'hive_pulse']
 

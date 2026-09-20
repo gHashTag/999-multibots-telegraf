@@ -196,11 +196,45 @@ export interface QueenPulse {
   verdicts?: number
 }
 
+/** One card of her board: an issue, where it stands, how well it is specified. */
+export interface QueenCard {
+  number: number
+  title: string
+  column: string
+  /**
+   * How many acceptance criteria she read off the issue -- a NUMBER, which is
+   * what `/queen/public-board` publishes (measured 2026-09-20), not the
+   * criteria themselves. A list assembled from a count would be our invention
+   * standing in her name, and `0` here is her saying the issue declares none.
+   */
+  criteria: number
+}
+
+/**
+ * How many cards of one column travel out of here.
+ *
+ * Her board ran to 414 cards on 2026-09-07, almost all of them in `review`. A
+ * dump of them is not a report, it is a wall -- and a flat cap would be worse
+ * than a wall, because the three cards of `backlog` would be the ones it
+ * dropped. So the cap is PER COLUMN: every column that has anything in it
+ * contributes, and the counts above are unaffected because they are taken
+ * before this.
+ */
+const CARDS_PER_COLUMN = 8
+
 export interface QueenBoard {
   reachable: boolean
   repo?: string
   /** Her columns, in her order, each with its count. */
   columns?: QueenColumn[]
+  /**
+   * A sample of the cards themselves, `CARDS_PER_COLUMN` per column.
+   *
+   * Absent when she did not answer -- an empty list would claim she published
+   * a board with nothing on it, which is the one thing this module refuses to
+   * say on her behalf.
+   */
+  cards?: QueenCard[]
   /** Present only when she publishes it -- absence is not three zeros. */
   pulse?: QueenPulse
   /** A few cards awaiting judgement, because that is the column that blocks. */
@@ -273,10 +307,32 @@ export async function queenBoard(): Promise<QueenBoard> {
       if (!named.has(key)) columns.push({ key, title: key, blurb: '', count })
     }
 
+    /*
+     * Her cards, defanged and rationed the same way. The column of a card is
+     * cleaned with the same call as the column keys above, so a card lands in
+     * the column it was counted in rather than in a near-miss of its name.
+     */
+    const taken = new Map<string, number>()
+    const sample: QueenCard[] = []
+    for (const c of cards) {
+      const key = clean(c?.column, 30) || 'unknown'
+      const n = taken.get(key) ?? 0
+      if (n >= CARDS_PER_COLUMN) continue
+      taken.set(key, n + 1)
+      const criteria = Number(c?.criteria)
+      sample.push({
+        number: Number(c?.number ?? 0),
+        title: safeTitle(c?.title),
+        column: key,
+        criteria: Number.isFinite(criteria) ? criteria : 0,
+      })
+    }
+
     return {
       reachable: true,
       repo: clean(b?.repo, 60),
       columns,
+      cards: sample,
       pulse: pulseOf(b?.pulse),
       // Only the review column, and only a handful: the board runs to hundreds
       // of cards, and a dump of them is not a report, it is a wall.
