@@ -120,11 +120,39 @@ body {
 }
 
 /* ── the bar ──────────────────────────────────────────────────────────── */
-.header-container, .header {
-  background: ${CHROME} !important;
+/*
+ * THE BAR FLOATS ON THE PICTURE, AS FROSTED GLASS.
+ *
+ * Two things at once, and they are the same thing: the bar stops taking a
+ * 48px slice of the window, so the picture is the WHOLE window and the
+ * black edges go; and what the bar covers is still visible through it.
+ *
+ * POINTER EVENTS PASS THROUGH THE GLASS. The bar covers the top strip of
+ * the person's own browser -- their tabs, their address bar. Seeing them
+ * through frosted glass but being unable to click them would be worse than
+ * an opaque bar, so the glass itself takes no clicks and only the controls
+ * on it do.
+ */
+.header-container {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 10 !important;
+  background: transparent !important;
+  pointer-events: none !important;
+}
+.header {
+  background: rgba(17, 17, 17, 0.55) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
   /* A hairline, not a rule. The app never puts colour on an edge. */
-  border-bottom: 1px solid ${LINE} !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
   box-shadow: none !important;
+  pointer-events: none !important;
+}
+.header .menu, .header .menu li, .room-container {
+  pointer-events: auto !important;
 }
 .header {
   height: var(--t27-bar) !important;
@@ -458,7 +486,14 @@ body {
   margin: 0 !important;
   background: transparent !important;
   border: 0 !important;
-  z-index: 6 !important;
+  /*
+   * ABOVE THE GLASS, NOT BEHIND IT.
+   *
+   * At z-index 6 the controls sat UNDER the bar's backdrop-filter and came
+   * out blurred -- frosted glass over the very buttons it was meant to
+   * float beside. They belong on top of it.
+   */
+  z-index: 11 !important;
 }
 /*
  * EVERY LEVEL CENTRES ITS CHILD, all the way down to the initials.
@@ -509,11 +544,15 @@ body {
 .member, .self.member { width: 24px !important; height: 24px !important; }
 
 /*
- * The player takes what the footer stopped using. 48px is the bar, and the
- * bar is the only thing left above it.
+ * THE PICTURE IS THE WHOLE WINDOW.
+ *
+ * Not the window minus a bar: the bar floats over it now. This is what
+ * removes the black edges -- the fitter asks the desktop to be the shape of
+ * the window, and the window is exactly what the picture gets, so the two
+ * agree and there is nothing left over to letterbox.
  */
-.neko-main, .video-container {
-  height: calc(100vh - var(--t27-bar)) !important;
+.neko-main, .video-container, .video, .player {
+  height: 100vh !important;
   max-height: none !important;
 }
 
