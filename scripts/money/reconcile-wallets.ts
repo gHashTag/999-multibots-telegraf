@@ -28,6 +28,8 @@ const pg = require_('pg')
 
 const CARRY_TAG = 'carry-2026-09-20'
 const CLAWBACK_PREFIX = 'grant-clawback-'
+const CARRY_DEBIT_PREFIX = 'carry-debit-'
+const UNBACKED_REMOVAL_PREFIX = 'unbacked-removal-2026-09-20-'
 
 type Row = LedgerRow & { telegram_id: string; inv_id?: string | null }
 
@@ -52,9 +54,20 @@ const totals = foldLedger(rows)
  * carried 869 against a balance of 240030, and her balance is 39 now. That is
  * the two moves working as designed, not a drift. So the carry is checked
  * against the ledger with the reversals taken back out.
+ *
+ * `carry-debit-` rows are taken out for exactly the same reason, one move
+ * later. They are the second half of the carry: they removed from the archive
+ * precisely what the live wallet had been given. Leaving them in makes the rule
+ * say "carry 0" for 74 people who really did carry, and the check would report
+ * its own footprint as a drift.
  */
 const totalsAtCarry = foldLedger(
-  rows.filter(r => !String(r.inv_id ?? '').startsWith(CLAWBACK_PREFIX))
+  rows.filter(r => {
+    const inv = String(r.inv_id ?? '')
+    return (
+      !inv.startsWith(CLAWBACK_PREFIX) && !inv.startsWith(CARRY_DEBIT_PREFIX)
+    )
+  })
 )
 
 let failures = 0
@@ -72,16 +85,28 @@ const fail = (message: string) => {
  * money and carried. The classifier here checks the tag first, which is why the
  * numbers no longer agree.
  *
- * All three are admin accounts -- no customer was over-credited -- and the
- * tokens are real in `user_tokens` today. Listing them keeps the check honest:
- * it reports the gap every run instead of hiding it, while still failing on
- * drift nobody has explained. Removing them is the owner's call, not this
- * script's.
+ * All three are admin accounts -- no customer was over-credited. The owner
+ * decided on 2026-09-20 to take them back, and
+ * `remove-unbacked-admin-tokens.ts` did: 112685 tokens, netted off above. So
+ * this map should now match nothing.
+ *
+ * It stays as a net rather than being deleted. If one of these accounts ever
+ * shows a gap again, the KNOWN line names it instead of a bare FAIL, and the
+ * next person gets the history with the number.
  */
 const KNOWN_OVERCREDIT = new Map<string, string>([
-  ['435572800', '@playom, admin: 101734 of TEST_DATA rows marked payment_method=Telegram'],
-  ['6419070693', 'admin: 8708 of TEST_DATA rows marked payment_method=Telegram'],
-  ['144022504', '@neuro_sage, admin: TEST_DATA rows across System/Robokassa/balance'],
+  [
+    '435572800',
+    '@playom, admin: 101734 of TEST_DATA rows marked payment_method=Telegram',
+  ],
+  [
+    '6419070693',
+    'admin: 8708 of TEST_DATA rows marked payment_method=Telegram',
+  ],
+  [
+    '144022504',
+    '@neuro_sage, admin: TEST_DATA rows across System/Robokassa/balance',
+  ],
 ])
 
 /**
@@ -119,7 +144,8 @@ for (const id of clawedIds) {
     fail(`${id}: still holds ${stillRemovable} of admin-granted stars`)
   }
 }
-if (failures === 0) console.log('  every clawed-back user is clean, none negative')
+if (failures === 0)
+  console.log('  every clawed-back user is clean, none negative')
 
 // A clawback row must never appear twice for the same person: the guard is a
 // read-then-check in the script, not a constraint in the database.
@@ -131,7 +157,8 @@ for (const r of rows) {
 }
 const doubled = [...clawCounts].filter(([, n]) => n > 1)
 if (doubled.length) {
-  for (const [inv, n] of doubled) fail(`${inv} written ${n} times — double charge`)
+  for (const [inv, n] of doubled)
+    fail(`${inv} written ${n} times — double charge`)
 } else {
   console.log('  no clawback was written twice')
 }
@@ -139,7 +166,9 @@ if (doubled.length) {
 // -------------------------------------------------------------------- carry --
 console.log('\n=== carry into user_tokens ===')
 if (!renderDb) {
-  console.log('  SKIPPED: RENDER_DATABASE_URL not set (live wallet unreachable)')
+  console.log(
+    '  SKIPPED: RENDER_DATABASE_URL not set (live wallet unreachable)'
+  )
 } else {
   const pool = new pg.Pool({
     connectionString: renderDb,
@@ -156,6 +185,28 @@ if (!renderDb) {
       carriedByUser.set(String(r.telegram_id), Number(r.amount))
     }
     console.log(`carry rows recorded: ${carriedByUser.size}`)
+
+    // The unbacked test-data tokens were taken back off three admin accounts on
+    // 2026-09-20, recorded as negative rows in the same table. Netting them off
+    // here is what makes the rule and the wallet agree again; without it the
+    // check reports a gap that has already been closed.
+    let removedTotal = 0
+    for (const r of (
+      await pool.query(
+        'SELECT telegram_id, amount FROM star_payments WHERE charge_id LIKE $1',
+        [`${UNBACKED_REMOVAL_PREFIX}%`]
+      )
+    ).rows) {
+      const id = String(r.telegram_id)
+      const amount = Number(r.amount)
+      removedTotal += amount
+      carriedByUser.set(id, (carriedByUser.get(id) ?? 0) + amount)
+    }
+    if (removedTotal) {
+      console.log(
+        `unbacked tokens removed since the carry: ${Math.round(-removedTotal)}`
+      )
+    }
 
     // Re-derive every carry from the rule and compare against what was
     // actually credited. A mismatch means the live wallet holds a number the
@@ -174,13 +225,20 @@ if (!renderDb) {
             `  KNOWN ${id}: carried ${recorded}, rule says ${expected} (+${Math.round(recorded - expected)} unbacked) — ${known}`
           )
         } else {
-          fail(`${id}: rule says carry ${expected}, ledger recorded ${recorded}`)
+          fail(
+            `${id}: rule says carry ${expected}, ledger recorded ${recorded}`
+          )
         }
       }
     }
-    console.log(`  rule total ${expectedTotal}, recorded total ${recordedTotal}`)
     console.log(
-      `  ${Math.round(recordedTotal - expectedTotal)} tokens in the live wallet are not backed by a payment (all on admin accounts, see KNOWN above)`
+      `  rule total ${expectedTotal}, recorded total ${recordedTotal}`
+    )
+    const unbacked = Math.round(recordedTotal - expectedTotal)
+    console.log(
+      unbacked === 0
+        ? '  every token in the live wallet is backed by a payment'
+        : `  ${unbacked} tokens in the live wallet are not backed by a payment (see KNOWN above)`
     )
 
     const stored = await pool.query(
@@ -201,7 +259,8 @@ if (!renderDb) {
         [`${CARRY_TAG}-%`]
       )
     ).rows
-    for (const r of short) fail(`${r.telegram_id}: negative token balance ${r.balance}`)
+    for (const r of short)
+      fail(`${r.telegram_id}: negative token balance ${r.balance}`)
     if (!short.length) console.log('  no negative token balances')
   } finally {
     await pool.end()
@@ -209,26 +268,52 @@ if (!renderDb) {
 }
 
 // ------------------------------------------------------------ double-spend --
-// The carry credited the live wallet without debiting the archive, and the
-// bots still spend from the archive. Until the bots read `user_tokens`, the
-// same payment is spendable twice. Report the exposure rather than let it sit
-// silently in a document.
-console.log('\n=== double-spend exposure (carry credited, archive not debited) ===')
-let exposed = 0
-let exposedUsers = 0
-for (const [id, t] of totals) {
-  // What a person can spend twice is the smaller of the tokens they were
-  // given and the stars they still hold -- not the carry on its own.
-  const both = Math.min(carriedByUser.get(id) ?? 0, Math.max(0, t.balance))
+// This was the open wound: the carry credited the live wallet without debiting
+// the archive, while the bots still spent from the archive, so the same payment
+// was spendable twice. Both halves are closed now -- the bots read `user_tokens`
+// (step 3), and `debit-archive-after-carry.ts` wrote the missing debits -- so
+// this section checks the closure holds rather than measuring the damage.
+console.log('\n=== double-spend closure ===')
+const debitedIds = new Set(
+  rows
+    .filter(r => String(r.inv_id ?? '').startsWith(CARRY_DEBIT_PREFIX))
+    .map(r => String(r.telegram_id))
+)
+let undebited = 0
+let undebitedUsers = 0
+for (const [id, carried] of carriedByUser) {
+  if (debitedIds.has(id)) continue
+  // Someone who carried but has no debit row is only a problem if the archive
+  // still holds stars: with a zero balance there was nothing to take back.
+  const left = Math.max(0, totals.get(id)?.balance ?? 0)
+  const both = Math.min(carried, left)
   if (both > EPS) {
-    exposed += both
-    exposedUsers++
+    undebited += both
+    undebitedUsers++
+    fail(
+      `${id}: carried ${carried} but the archive still holds ${Math.round(left)}⭐ undebited`
+    )
   }
 }
+if (!undebitedUsers) {
+  console.log(
+    `  every carried user is debited in the archive (${debitedIds.size} debit rows)`
+  )
+} else {
+  console.log(
+    `  ${undebitedUsers} users still hold ${Math.round(undebited)}⭐ that was also carried`
+  )
+}
+// Stars left in the archive above what was carried are not exposure: the bots
+// no longer read this ledger at all. Printed because the number changing is
+// worth noticing.
+let archiveLeft = 0
+for (const [, t] of totals) archiveLeft += Math.max(0, t.balance)
 console.log(
-  `  ${exposedUsers} users can spend the same ${Math.round(exposed)}⭐ in both wallets`
+  `  archive holds ${Math.round(archiveLeft)}⭐ in total, spendable nowhere — the bots read user_tokens`
 )
-console.log('  closes when the bots read user_tokens (step 3 of the wallet plan)')
 
-console.log(`\n${failures === 0 ? 'OK — everything reconciles' : `${failures} FAILURES`}`)
+console.log(
+  `\n${failures === 0 ? 'OK — everything reconciles' : `${failures} FAILURES`}`
+)
 process.exit(failures === 0 ? 0 : 1)

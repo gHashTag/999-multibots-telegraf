@@ -16,6 +16,7 @@ import {
   OptimizedBalanceStats,
 } from '@/core/supabase/getUserBalanceStatsOptimized'
 import { getSpendingBreakdown } from '@/core/supabase/getSpendingBreakdown'
+import { realSpending } from '@/core/money/walletBookkeeping'
 
 /**
  * Функция для получения детализации трат пользователя
@@ -36,7 +37,12 @@ async function getUserSpendingDetailsFallback(userId: string) {
 
   // Анализируем транзакции
   const incomes = payments.filter(p => p.type === 'MONEY_INCOME')
-  const outcomes = payments.filter(p => p.type === 'MONEY_OUTCOME')
+  // Wallet bookkeeping is not spending: the clawback and the carry debit wrote
+  // MONEY_OUTCOME rows nobody spent, and shown here they read as the largest
+  // purchase the person ever made. See `walletBookkeeping.ts`.
+  const outcomes = realSpending(
+    payments.filter(p => p.type === 'MONEY_OUTCOME')
+  )
 
   // Разделяем доходы на реальные и бонусы
   const realIncomes = incomes.filter(p => p.category === 'REAL')
@@ -66,6 +72,12 @@ async function getUserSpendingDetailsFallback(userId: string) {
     0
   )
   const totalOutcomeStars = outcomes.reduce((sum, p) => sum + (p.stars || 0), 0)
+  // The balance arithmetic has to stay over the whole ledger, bookkeeping
+  // included — that is what the archive actually says. Only the *display* of
+  // spending drops those rows.
+  const ledgerOutcomeStars = payments
+    .filter(p => p.type === 'MONEY_OUTCOME')
+    .reduce((sum, p) => sum + (p.stars || 0), 0)
 
   // Подсчитываем суммы по способам оплаты
   const rublesStars = rublesIncomes.reduce((sum, p) => sum + (p.stars || 0), 0)
@@ -106,7 +118,7 @@ async function getUserSpendingDetailsFallback(userId: string) {
     totalRealIncomeStars,
     totalBonusStars,
     totalOutcomeStars,
-    currentBalance: totalRealIncomeStars + totalBonusStars - totalOutcomeStars,
+    currentBalance: totalRealIncomeStars + totalBonusStars - ledgerOutcomeStars,
     allServices,
     recentOutcomes,
     recentTopUps,
