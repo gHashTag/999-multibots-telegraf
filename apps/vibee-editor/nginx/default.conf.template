@@ -121,6 +121,72 @@ server {
         try_files /index.html =404;
     }
 
+    # The Queen board (Dockerfile stage `queen`, from gHashTag/trinity). It used
+    # to live at https://t27.ai/#/queen and now answers here, so that the app is
+    # one server at one origin and the /bridge hop is no longer on its path.
+    #
+    # ^~ , so this wins over every regex location BELOW and the board keeps its
+    # own rules. Two of those rules have to be restated inside, because a prefix
+    # match with ^~ skips the regex blocks entirely:
+    #
+    #   - the data rule. The comment below this block records what happens
+    #     without it: a missing .json is answered by the SPA fallback as
+    #     index.html with code 200, and the parser gets HTML while console and
+    #     logs stay clean. The board ships real data files — t27/manifest.json,
+    #     t27/universe-atlas.json, t27/shared-core.json — so it is exposed to
+    #     exactly that failure.
+    #   - the hashed-asset cache, which is what makes a 1-year immutable header
+    #     safe: the filename changes when the bytes do.
+    #
+    # The fallback is /queen/index.html and NOT /index.html: the board is a hash
+    # router, but a hard reload of a deep path must land in the board rather
+    # than in VIBEE.
+    location ^~ /queen/ {
+        try_files $uri $uri/ /queen/index.html;
+
+        location ~* ^/queen/.+\.(json|txt|xml|webmanifest)$ {
+            try_files $uri =404;
+        }
+
+        location ~* ^/queen/.+\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|wasm)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # The entry document names the hashed files and must never be cached,
+        # or a deploy leaves browsers asking for assets that no longer exist.
+        # add_header in a location REPLACES what it inherited, so the headers
+        # are repeated here, exactly as /index.html repeats them.
+        #
+        # NOT the server-level policy: that admits https://t27.ai, and moving
+        # the board here is precisely what makes that unsafe. On t27.ai the
+        # board held a 300-second game token good for two identity tools. Here
+        # it reads this app's session and can do everything the app can — it is
+        # a credential-wielding page now, the same class as /pair and the
+        # consent popup, and it gets their treatment rather than the site's.
+        #
+        # frame-ancestors is per origin and cannot be narrowed to a path, so
+        # https://t27.ai would admit every gHashTag site published there
+        # (t27.ai/leela/, /trinity/, /jscamp/, ...), any of which could hide the
+        # board under a decoy. The board does not need it: t27.ai/#/queen is a
+        # REDIRECT to this address, not a frame of it, and a redirect consults
+        # no frame-ancestors.
+        #
+        # Telegram stays: the board is reachable inside the Mini App, which
+        # genuinely runs in an iframe on web.telegram.org. 'self' stays because
+        # same-origin JS can already do anything CSP would withhold — and it
+        # costs nothing, since frame-ancestors is checked against EVERY ancestor
+        # in the chain, so app.t27.ai > t27.ai > app.t27.ai/queen/ is still
+        # refused on account of the middle frame.
+        location = /queen/index.html {
+            add_header Content-Security-Policy "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+            add_header Pragma "no-cache" always;
+        }
+    }
+
     # Данные — до SPA-fallback. Иначе отсутствующий manifest.json отдавался
     # как index.html с кодом 200: парсер получал HTML вместо JSON, и поломка
     # была не видна ни в консоли, ни в логах. Ровно так и случилось.

@@ -22,10 +22,15 @@ function problems(conf: string): string[] {
   // demand https://t27.ai on a line whose entire point is not to have it:
   //  - the bridge, frame-ancestors https://t27.ai only, and the consent popup
   //    'none' (bridge-nginx.test.ts);
-  //  - /pair, the sign-in code, Telegram only (pair-nginx.test.ts).
+  //  - /pair, the sign-in code, Telegram only (pair-nginx.test.ts);
+  //  - the Queen board, 'self' and Telegram but NOT t27.ai (queen-nginx.test.ts).
+  //    It moved here FROM t27.ai, and the move is what disqualifies it from
+  //    this list: on t27.ai it held a 300-second token good for two tools,
+  //    here it reads the app's session. A credential-wielding page, like the
+  //    two above. t27.ai does not need to frame it — the old address redirects.
   const lines = conf
     .replace(
-      /\n {4}location (= \/bridge|= \/bridge\/consent\.html|\^~ \/bridge\/|~ \^\/pair\/\?\$) \{\n[\s\S]*?\n {4}\}\n/g,
+      /\n {4}location (= \/bridge|= \/bridge\/consent\.html|\^~ \/bridge\/|~ \^\/pair\/\?\$|\^~ \/queen\/) \{\n[\s\S]*?\n {4}\}\n/g,
       '\n'
     )
     .split('\n')
