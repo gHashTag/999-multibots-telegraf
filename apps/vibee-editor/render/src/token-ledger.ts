@@ -401,3 +401,67 @@ export async function ledgerDrift(
     }))
     .filter(x => x.balance !== x.ledger_sum)
 }
+
+export const RECONCILE_REASON = 'balance written outside the ledger'
+
+/**
+ * WRITE THE MISSING HISTORY DOWN ONCE, SO DRIFT CAN BECOME AN ALARM.
+ *
+ * `ledgerDrift` was written to be checked and then never was, and it could not
+ * have been: 96 wallets carried 100 286 tokens of drift, so its answer was
+ * never empty and nothing could be raised on it. The drift had one cause, in
+ * two shapes -- balances written straight into `user_tokens` before the ledger
+ * existed, and the 2026-09-20 carry from the archive, which did the same
+ * thing. Both are honest money; neither left a row.
+ *
+ * The opening-row rule in `moveTokens` cannot clear this. It fires only when
+ * the ledger is EMPTY, so the ten wallets that already had a club grant would
+ * have stayed adrift for good.
+ *
+ * So each drifting wallet gets ONE `adjustment` row for exactly its drift,
+ * saying where the tokens came from. The balance is not touched -- it is the
+ * number the person already has, and the book is what was wrong. Keyed on
+ * `reconcile:<id>:<stamp>` with `once`, so running it twice writes nothing the
+ * second time; `stamp` is passed in rather than read from the clock so a rerun
+ * of the same reconciliation is recognisably the same one.
+ *
+ * After this, drift means what its name says: somebody wrote the balance
+ * behind the ledger's back, today.
+ */
+export async function reconcileLedgerDrift(
+  pool: MaybePool,
+  stamp: string,
+  opts: { dryRun?: boolean } = {}
+): Promise<Array<{ telegram_id: string; delta: number; balance: number }>> {
+  await ensureTokenLedger(pool)
+  const drifting = await ledgerDrift(pool)
+  const planned = drifting.map(d => ({
+    telegram_id: d.telegram_id,
+    delta: d.balance - d.ledger_sum,
+    balance: d.balance,
+  }))
+  if (opts.dryRun) return planned
+  const written: typeof planned = []
+  for (const row of planned) {
+    try {
+      const r = await pool.query(
+        `INSERT INTO token_ledger (telegram_id, delta, balance_after, kind, reason, ref, meta)
+         VALUES ($1, $2, $3, 'adjustment', $4, $5, $6::jsonb)`,
+        [
+          row.telegram_id,
+          row.delta,
+          row.balance,
+          RECONCILE_REASON,
+          `reconcile:${row.telegram_id}:${stamp}`,
+          JSON.stringify({ stamp, was_missing: row.delta }),
+        ]
+      )
+      if ((r.rowCount ?? 0) > 0) written.push(row)
+    } catch (e) {
+      // The unique index refusing a rerun is the expected outcome, not a
+      // failure. Anything else is somebody else's problem and must be seen.
+      if (!isDuplicateMove(e)) throw e
+    }
+  }
+  return written
+}
