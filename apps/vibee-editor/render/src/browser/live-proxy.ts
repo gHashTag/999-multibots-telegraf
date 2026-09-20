@@ -205,7 +205,34 @@ export async function authorizeLive(
   const token = req.queryToken || req.cookieToken
   if (!token) return { kind: 'refuse', status: 401, message: 'no token' }
 
-  const session = await readSessionById(pool, req.sessionId)
+  /*
+   * THE DATABASE IS NOT ALLOWED TO THROW OUT OF HERE.
+   *
+   * This runs BEFORE the service authenticates anyone, so it is reachable
+   * from the open internet. When the read threw -- which it did on the first
+   * day in production, because nothing there had ever created
+   * `browser_sessions` -- the rejection travelled up into an async request
+   * handler that never wrote a response. The request hung until the platform
+   * gave up with a 502, three times out of three, while /health stayed green
+   * because the process was perfectly well and only the answer was lost.
+   *
+   * A route that can HANG is worse than one that can fail: a failure shows
+   * up in a health check, a hang looks like the platform's fault.
+   *
+   * So the refusal is made here rather than relying on every caller to
+   * remember a try/catch. The callers keep theirs as well -- this is the one
+   * that makes the hang impossible by construction.
+   */
+  let session: Awaited<ReturnType<typeof readSessionById>>
+  try {
+    session = await readSessionById(pool, req.sessionId)
+  } catch {
+    return {
+      kind: 'refuse',
+      status: 503,
+      message: 'browser is not available right now',
+    }
+  }
   if (!session || !tokenMatches(token, session.viewToken)) {
     return { kind: 'refuse', status: 404, message: 'no such session' }
   }
