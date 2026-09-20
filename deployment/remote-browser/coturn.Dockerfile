@@ -6,8 +6,16 @@
 # address and cannot fix the port, so the candidate a pod offers is a port
 # nothing answers on.
 #
-# A TURN server sidesteps the whole question: the browser and the pod both
-# connect OUT to it, and neither has to be reachable at a predictable port.
-# That is the standard answer to exactly this shape of network, and it is why
-# it exists.
+# A TURN server was the obvious answer, and on Railway it is the WRONG one.
+# Checked 2026-09-21 against Railway's own CLI: it offers TCP proxies and
+# nothing else, one application port each, no UDP in the product at all.
+#
+# TURN does not merely accept a connection on 3478 -- it ALLOCATES a relay
+# address on an ephemeral port and gives that address to the peer to send to.
+# One pre-chosen published port cannot serve that, so the peer has nowhere to
+# send. The unreachable port moves one hop and stays unreachable.
+#
+# This file is therefore a record, not a deployment. It is correct for a host
+# with UDP and a port range, which is an ordinary VPS; see coturn.railway.toml
+# for the exact flags and the pod variables that go with it.
 FROM coturn/coturn:latest

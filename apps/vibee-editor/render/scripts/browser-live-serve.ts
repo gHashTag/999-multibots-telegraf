@@ -6,6 +6,9 @@
  *   npx tsx scripts/browser-live-serve.ts
  */
 import { createServer } from 'node:http'
+import { readFileSync } from 'node:fs'
+import { LOGO_URL } from '../src/browser/skin'
+import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import type { AddressInfo } from 'node:net'
 import { driverFromEnv, type Exec } from '../src/browser/pod-driver'
@@ -26,7 +29,7 @@ async function main() {
   const driver = driverFromEnv(
     {
       BROWSER_POD_DRIVER: 'docker',
-      BROWSER_POD_IMAGE: process.env.BROWSER_POD_IMAGE || 'f0-pod:v2',
+      BROWSER_POD_IMAGE: process.env.BROWSER_POD_IMAGE || 'f0-pod:v3',
     },
     run
   )
@@ -65,6 +68,21 @@ async function main() {
   }
 
   const server = createServer(async (req, res) => {
+    /*
+     * The logo, exactly where the real deployment serves it.
+     *
+     * In production nginx serves the app at `/` and proxies `/live/` beside
+     * it, so the skin's `/logo.svg` is same-origin and simply works. This
+     * script serves `/live/` alone, so without these four lines the bar
+     * would be blank HERE and painted THERE -- and a local check that does
+     * not show what the person sees is not a check.
+     */
+    if ((req.url || '').split('?')[0] === LOGO_URL) {
+      const svg = readFileSync(
+        join(__dirname, '..', '..', 'player', 'public', LOGO_URL.slice(1))
+      )
+      return res.writeHead(200, { 'content-type': 'image/svg+xml' }).end(svg)
+    }
     const parsed = parseLive(req.url || '', req.headers.cookie)
     if (!parsed) return res.writeHead(404).end('no')
     const d = await authorizeLive(pool, parsed, { secure: false })

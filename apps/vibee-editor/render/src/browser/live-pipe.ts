@@ -19,6 +19,7 @@
 import { request as httpRequest } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
+import { injectSkin, shouldDress } from './skin'
 import { cookieNameFor, LIVE_PREFIX, LOGIN_PLACEHOLDER } from './live-proxy'
 
 /** Ours to hold, never to forward. */
@@ -149,8 +150,32 @@ export function pipeHttp(
           target.sessionId
         )
       }
-      res.writeHead(podRes.statusCode || 502, out)
-      podRes.pipe(res)
+
+      /*
+       * THE DOCUMENT IS DRESSED; EVERYTHING ELSE STREAMS.
+       *
+       * The window is ours -- our origin, our app, our person -- and it
+       * arrived looking like somebody else's product. So the html, which is
+       * a few kilobytes of shell, is read and restyled (skin.ts). The video,
+       * the scripts, the fonts and every upload still go straight through:
+       * buffering a browser's traffic to paint it would be both slow and
+       * none of our business.
+       */
+      if (!shouldDress(podRes.headers)) {
+        res.writeHead(podRes.statusCode || 502, out)
+        podRes.pipe(res)
+        return
+      }
+      /* The length changes when the skin goes in; chunked is simplest. */
+      delete out['content-length']
+      let page = ''
+      podRes.setEncoding('utf8')
+      podRes.on('data', c => (page += c))
+      podRes.on('end', () => {
+        const dressed = injectSkin(page)
+        res.writeHead(podRes.statusCode || 502, out)
+        res.end(dressed)
+      })
     }
   )
 

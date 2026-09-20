@@ -43,5 +43,9 @@ RUN sed -i 's/"DeveloperToolsAvailability": 2/"DeveloperToolsAvailability": 1/' 
       /etc/chromium/policies/managed/policies.json \
  && grep -q '"DeveloperToolsAvailability": 1' /etc/chromium/policies/managed/policies.json
 
+# The stale-lock sweeper. See the script for what it saw and why it is safe.
+COPY unlock-profile.sh /usr/local/bin/unlock-profile.sh
+RUN chmod +x /usr/local/bin/unlock-profile.sh
+
 COPY chromium.conf /etc/neko/supervisord/chromium.conf
 COPY cdp-bridge.conf /etc/neko/supervisord/cdp-bridge.conf
