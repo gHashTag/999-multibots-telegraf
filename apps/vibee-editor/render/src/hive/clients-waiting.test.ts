@@ -5,6 +5,7 @@ import {
   lineFor,
   WAITING_MS,
   PER_TICK,
+  TOO_OLD_MS,
 } from './clients-waiting'
 
 /*
@@ -60,7 +61,7 @@ const poolOf = (leads: Lead[]) => {
       const rows = leads
         .filter(l => l.lastIn !== null)
         .filter(l => l.lastOut === null || (l.lastIn as number) > l.lastOut)
-        .sort((a, b) => (a.lastIn as number) - (b.lastIn as number))
+        .sort((a, b) => (b.lastIn as number) - (a.lastIn as number))
         .map(l => ({
           owner_id: l.owner,
           lead_id: l.lead,
@@ -207,8 +208,46 @@ describe('who is waiting for an answer', () => {
     expect(r.written).toBe(PER_TICK)
     expect(r.waiting).toBe(PER_TICK + 7)
     expect(r.deferred).toBe(7)
-    // Oldest first: the longest wait is not the one left behind.
-    expect(pool.written[0]?.who).toBe(String(900000400 + PER_TICK + 6))
+    /*
+     * NEWEST FIRST. The first production run took the oldest wait first and
+     * filled the board with an imported archive -- twenty lines, every one of
+     * them between 1591 and 2478 days. Whoever wrote this morning never
+     * appeared. A fresh wait is the one somebody can still act on.
+     */
+    expect(pool.written[0]?.who).toBe(String(900000400))
+  })
+
+  /*
+   * SEVEN YEARS IS NOT A QUEUE, IT IS AN ARCHIVE. `crm_messages` holds
+   * imported correspondence going back years; nobody in it is waiting. Writing
+   * it as attention is how a board becomes something nobody opens.
+   */
+  it('passes over history, and says how much of it there was', async () => {
+    const HOUR2 = 3600_000
+    const pool = poolOf([
+      {
+        owner: '900000201',
+        lead: '900000501',
+        lastIn: T - 5 * HOUR2,
+        lastOut: null,
+      },
+      {
+        owner: '900000201',
+        lead: '900000502',
+        lastIn: T - 40 * 24 * HOUR2,
+        lastOut: null,
+      },
+      {
+        owner: '900000201',
+        lead: '900000503',
+        lastIn: T - 2400 * 24 * HOUR2,
+        lastOut: null,
+      },
+    ])
+    const r = await checkWaitingClients(pool as never, T)
+    expect(r.written).toBe(1)
+    expect(r.history).toBe(2)
+    expect(pool.written[0]?.who).toBe('900000501')
   })
 
   /*
@@ -224,6 +263,32 @@ describe('who is waiting for an answer', () => {
     const r = await checkWaitingClients(broken as never, T)
     expect(r.waiting).toBe(-1)
     expect(r.written).toBe(0)
+  })
+
+  /*
+   * THE ORDER IS IN THE SQL, AND THE FIXTURE CANNOT SEE IT.
+   *
+   * The double above sorts in JavaScript, so it would have passed with the
+   * query ordering either way -- and it did: a mutation flipping DESC to ASC
+   * survived every other test in this file. Without a real database the only
+   * honest guard is the statement itself.
+   */
+  it('asks the database for the newest wait first', async () => {
+    const sqls: string[] = []
+    const pool = {
+      query: async (sql: string) => {
+        sqls.push(sql.replace(/\s+/g, ' '))
+        return { rows: [] }
+      },
+    }
+    await whoIsWaiting(pool as never, T)
+    const agg = sqls.find(q => /crm_messages/.test(q))
+    expect(agg, 'the aggregate was never asked for').toBeTruthy()
+    expect(agg).toMatch(/ORDER BY agg\.last_in DESC/)
+  })
+
+  it('draws the line between a queue and an archive at a month', () => {
+    expect(TOO_OLD_MS).toBe(30 * 24 * 3600_000)
   })
 
   it('says the wait in days once hours stop being readable', () => {
