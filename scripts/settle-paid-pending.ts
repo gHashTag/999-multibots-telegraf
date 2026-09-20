@@ -120,7 +120,17 @@ async function main(): Promise<void> {
       continue
     }
 
-    const claim = await claimPendingInvoice(row.inv_id, answer.incSum)
+    /*
+     * The moment the provider says it happened, not now. A settlement that
+     * stamps today puts old payments in the wrong month for every report --
+     * which is exactly what the first run of this script did, and what the
+     * dates had to be restored from StateDate to undo.
+     */
+    const claim = await claimPendingInvoice(
+      row.inv_id,
+      answer.incSum,
+      answer.stateDate
+    )
     if (claim.ok) {
       credited++
       starsCredited += Number(row.stars) || 0

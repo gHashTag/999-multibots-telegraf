@@ -45,6 +45,30 @@ describe('what Robokassa says about an invoice', () => {
     expect(r.incSum).toBeUndefined()
   })
 
+  /*
+   * WHEN IT HAPPENED, FROM THE PROVIDER. A settlement of old invoices that
+   * stamps `now` moves the payment into the month it was repaired in -- which
+   * happened, twelve times, on 2026-09-19, and had to be undone from exactly
+   * this field.
+   */
+  it('reads the moment the provider says it happened', () => {
+    const r = classifyOpState(
+      reply(
+        '<Result><Code>0</Code></Result>' +
+          '<State><Code>100</Code><StateDate>2025-04-24T15:01:01.52+03:00</StateDate></State>'
+      )
+    )
+    expect(r.verdict).toBe('PAID')
+    expect(r.stateDate).toBe('2025-04-24T12:01:01.520Z')
+  })
+
+  it('leaves the moment undefined rather than inventing one', () => {
+    const r = classifyOpState(
+      reply('<Result><Code>0</Code></Result><State><Code>100</Code></State>')
+    )
+    expect(r.stateDate).toBeUndefined()
+  })
+
   it('reads a settled payment as paid', () => {
     const r = classifyOpState(
       reply('<Result><Code>0</Code></Result><State><Code>100</Code></State>')

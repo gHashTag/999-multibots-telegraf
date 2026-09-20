@@ -37,9 +37,23 @@ export function amountsMatch(invoiced: unknown, paid: number): boolean {
   return Number.isFinite(a) && Math.round(a) === Math.round(paid)
 }
 
+/**
+ * `paidAt` is the moment the payment actually happened, when the caller knows
+ * it.
+ *
+ * Without it the flip stamps `payment_date` with NOW, which is right for the
+ * callback this was written for -- it arrives seconds after the payment -- and
+ * wrong for a settlement of old invoices. On 2026-09-19 twelve payments made
+ * between April 2025 and May 2026 were credited at last, and every one of them
+ * then claimed to have happened that evening: 1854 roubles moved into the
+ * wrong month in every report by date. The dates were restored from the
+ * provider's own StateDate, and this parameter is so the next settlement does
+ * not have to.
+ */
 export async function claimPendingInvoice(
   invId: string | number,
-  paidRub: number
+  paidRub: number,
+  paidAt?: string
 ): Promise<ClaimInvoiceResult> {
   const inv_id = String(invId)
   const { data: row, error: readError } = await supabaseAdmin
@@ -76,7 +90,7 @@ export async function claimPendingInvoice(
     .from('payments_v2')
     .update({
       status: PaymentStatus.COMPLETED,
-      payment_date: new Date().toISOString(),
+      payment_date: paidAt ?? new Date().toISOString(),
     })
     .eq('inv_id', inv_id)
     .eq('status', PaymentStatus.PENDING)
