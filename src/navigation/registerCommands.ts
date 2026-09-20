@@ -1133,6 +1133,21 @@ If not, continue on your own and click the "I myself" button`
 
     // 9. Обработчик фото для FLUX Kontext
     bot.on(message('photo'), async (ctx, next) => {
+      /*
+       * A PHOTO DROPPED IN A ROOM IS NOT A REQUEST, AND IT COSTS MONEY.
+       *
+       * This handler had no chat-type gate anywhere in its body. In a group
+       * -- and privacy mode is now off for the VIP room, so every photo
+       * arrives -- a picture two clients are showing each other went down the
+       * agent path and was CHARGED to whoever posted it. Five people sharing
+       * screenshots is a billing incident, not noise.
+       *
+       * Same rule as the text fallback below: in a room, only when spoken to.
+       * A caption naming the bot, or a photo sent as a reply to its message,
+       * still works -- that is somebody asking for something.
+       */
+      if (!isAddressedToUs(ctx)) return next()
+
       logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
         telegramId: ctx.from?.id,
         currentScene: ctx.scene?.current?.id,
