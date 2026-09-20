@@ -57,3 +57,42 @@ export async function mirrorNow(
   }
   return { fresh: fresh.length, zep }
 }
+
+/**
+ * ONE MESSAGE INTO ZEP WHEN POSTGRES ALREADY HAD IT.
+ *
+ * `mirrorNow` posts to Zep only what was FRESH in Postgres, which is right for
+ * every ordinary path and silently wrong for exactly one: a transcript that
+ * arrives after the message. The ingest writes `[голосовое]` the moment it
+ * sees a voice note; the words come minutes later and are APPENDED to that
+ * row. Postgres then has them and Zep never hears -- so the agent's memory of
+ * every voice message anybody ever sent is the word "[голосовое]", for ever.
+ *
+ * Owner, 2026-09-20: "study all my voice messages in the DMs and update the
+ * Zep context, so the information is current." This is what stood in the way.
+ *
+ * ONLY WHEN THE WORDS ARE NEW. The caller passes what it actually appended,
+ * and appends only once (the `position` guard in mirrorTranscript). Posting on
+ * every attempt would teach Zep the same sentence a dozen times, which is
+ * worse than silence: a summary built from repetitions reads as emphasis.
+ *
+ * Never raises. Zep is a mirror; Postgres is the record.
+ */
+export async function mirrorOneToZep(
+  owner: string,
+  lead: string,
+  msg: StoredMessage,
+  name?: string | null
+): Promise<number> {
+  if (!zepConfigured()) return 0
+  try {
+    await zepEnsureUser(lead, name ?? null)
+    await zepEnsureThread(owner, lead)
+    return await zepAddMessages(owner, lead, [msg])
+  } catch (e) {
+    console.warn(
+      `[crm-mirror] zep did not take a transcript for ${lead}: ${String(e).slice(0, 120)}`
+    )
+    return 0
+  }
+}

@@ -144,13 +144,35 @@ function fakePool() {
       if (q.startsWith('UPDATE crm_messages SET text = left(text ||')) {
         const [, , msg_id, words] = params as [string, string, number, string]
         const m = crm.find(x => x.msg_id === Number(msg_id))
-        if (m && !m.text.includes(words)) m.text = `${m.text}\n${words}`
-        return { rows: [] }
+        /*
+         * `rowCount` on purpose, and it used to be missing here. The real
+         * UPDATE carries `position($4 in text) = 0`, so it touches a row only
+         * the first time the words arrive -- and that count is what decides
+         * whether Zep is told. A double that always answers "no rows" would
+         * have agreed with a caller that never told Zep anything.
+         */
+        if (m && !m.text.includes(words)) {
+          m.text = `${m.text}\n${words}`
+          return { rows: [], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 0 }
       }
       throw new Error(`fake pool: unexpected statement: ${q.slice(0, 80)}`)
     },
   }
 }
+
+/*
+ * THE TIMEOUT HERE IS THE IMPORT, NOT AN ASSERTION.
+ *
+ * Every test in this file resets the module registry and imports the media
+ * module graph again, and that cold import crosses vitest's five-second
+ * default on a busy machine -- so the run failed on tests that assert on a
+ * string constant, and failed differently on each run. Twenty seconds is
+ * still short enough that a genuine hang fails the build rather than waiting
+ * out a CI job.
+ */
+vi.setConfig({ testTimeout: 20_000 })
 
 beforeEach(() => {
   vi.resetModules()
@@ -1003,5 +1025,88 @@ describe('reading what a transcriber answered', () => {
   it('keeps a body that only looks like json', async () => {
     const { readTranscript } = await import('./src/agent/media-library')
     expect(readTranscript('{не json, но слова')).toBe('{не json, но слова')
+  })
+})
+
+/**
+ * THE WORDS HAVE TO REACH THE MEMORY THE AGENT ACTUALLY READS.
+ *
+ * Owner, 2026-09-20: "study all my voice messages in the DMs and update the
+ * Zep context, so the information is current." What stood in the way was one
+ * asymmetry: `mirrorNow` posts to Zep only what was FRESH in Postgres.
+ *
+ * A voice note is written to crm_messages as `[голосовое]` the moment the
+ * ingest sees it. The transcript arrives minutes later and is APPENDED to that
+ * row -- fresh = 0 -- so Postgres held what was said and Zep, which is what
+ * the agent reads before answering, held the word "[голосовое]". For every
+ * voice message anybody ever sent.
+ */
+describe('a transcript that arrives late still reaches Zep', () => {
+  const zepCalls: Array<{ lead: string; texts: string[] }> = []
+
+  beforeEach(() => {
+    zepCalls.length = 0
+    vi.resetModules()
+    vi.doMock('./src/agent/zep-memory', () => ({
+      zepConfigured: () => true,
+      zepEnsureUser: async () => undefined,
+      zepEnsureThread: async () => undefined,
+      zepAddMessages: async (
+        _owner: string,
+        lead: string,
+        msgs: Array<{ text: string }>
+      ) => {
+        zepCalls.push({ lead, texts: msgs.map(m => m.text) })
+        return msgs.length
+      },
+      zepContext: async () => null,
+    }))
+  })
+
+  const rowOf = () => ({
+    lead: LEAD,
+    msgId: 77,
+    at: new Date(),
+    out: false,
+    kind: 'audio' as const,
+    name: 'voice.ogg',
+    mime: 'audio/ogg',
+    caption: null,
+  })
+
+  it('tells Zep the words when the row was already there', async () => {
+    const { mirrorTranscript } = await import('./src/agent/media-library')
+    const { forgetMemoryTableForTests } = await import(
+      './src/agent/chat-memory'
+    )
+    forgetMemoryTableForTests()
+    const pool = fakePool()
+    const row = rowOf()
+
+    // The ingest got there first: the row exists, saying only what it was.
+    pool.crm.push({ msg_id: 77, text: '[голосовое]' }) // cyrillic-ok: fixture text
+
+    expect(await mirrorTranscript(pool, OWNER, row, 'привет, это запись')).toBe(
+      'appended'
+    )
+    expect(zepCalls).toHaveLength(1)
+    expect(zepCalls[0].lead).toBe(LEAD)
+    expect(zepCalls[0].texts[0]).toContain('привет, это запись') // cyrillic-ok: fixture text
+
+    /*
+     * AND ONLY ONCE. A re-read that changes nothing must say nothing: the
+     * same sentence posted a dozen times is worse than silence, because a
+     * summary built from repetitions reads them as emphasis.
+     *
+     * Asserted in THIS test rather than its own. A second test needed the
+     * same three-line setup and did not get it: with `vi.resetModules` in
+     * between, the freshly imported module no longer saw this mock, so it
+     * reported "nothing was posted" about a call that had been made. One
+     * test that makes both calls cannot lie that way.
+     */
+    expect(await mirrorTranscript(pool, OWNER, row, 'привет, это запись')).toBe(
+      'appended'
+    )
+    expect(zepCalls).toHaveLength(1)
   })
 })
