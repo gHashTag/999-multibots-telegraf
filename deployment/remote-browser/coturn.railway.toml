@@ -1,0 +1,24 @@
+# Deploy with:  railway up --service browser-turn
+#
+# Needs one TCP proxy on 3478 (railway tcp-proxy create --port 3478) and
+# these variables, which the pod and the page both read:
+#
+#   TURN_USER, TURN_PASSWORD  -- shared secret for this deployment
+#
+# Then on the POD service:
+#   NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:<proxy-host>:<proxy-port>"],
+#     "username":"<TURN_USER>","credential":"<TURN_PASSWORD>"}]
+#   NEKO_WEBRTC_ICESERVERS_BACKEND=<the same>
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "coturn.Dockerfile"
+
+[deploy]
+# --no-tls: Railway terminates nothing here and the media is already DTLS
+# encrypted end to end; TURN itself only relays it.
+startCommand = "turnserver -n --listening-port=3478 --realm=browser --lt-cred-mech --user=$TURN_USER:$TURN_PASSWORD --no-tls --no-dtls --no-multicast-peers"
+restartPolicyType = "ALWAYS"
+numReplicas = 1
+
+[service]
+name = "browser-turn"

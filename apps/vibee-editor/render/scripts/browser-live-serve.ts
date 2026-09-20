@@ -26,7 +26,7 @@ async function main() {
   const driver = driverFromEnv(
     {
       BROWSER_POD_DRIVER: 'docker',
-      BROWSER_POD_IMAGE: process.env.BROWSER_POD_IMAGE || 'f0-pod:v1',
+      BROWSER_POD_IMAGE: process.env.BROWSER_POD_IMAGE || 'f0-pod:v2',
     },
     run
   )
