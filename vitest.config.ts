@@ -141,7 +141,6 @@ export default defineConfig({
       'src/__tests__/ai-reels-fal-integration.test.ts',
       'src/__tests__/fal-pricing-update.test.ts',
       'src/__tests__/ai-reels-fal-provider.test.ts',
-      'src/__tests__/ai-reels-debug.test.ts',
       'src/__tests__/ai-reels-template1.test.ts',
       'src/__tests__/services/ai-models.test.ts',
       // ВЕСЬ apps/, а не только e2e.
