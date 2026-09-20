@@ -419,7 +419,28 @@ async function transcribeWithWhisper(
     throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
   const form = new FormData()
   form.append('model', w.model)
-  form.append('response_format', 'text')
+  /*
+   * JSON, NOT `text`, AND THE REASON IS IN THE SERVER'S OWN LOG.
+   *
+   * Owner, 2026-09-20: "why can't the agent read voice messages". The answer
+   * was not that it never asked. Measured in the whisper service's log on the
+   * same day, for a real nineteen-second recording:
+   *
+   *   Detected language 'ru' with probability 1.00
+   *   Transcribed 19.03 seconds of audio in 7.57 seconds
+   *   ERROR speaches.routers.stt:transcription_response_to_http_response
+   *         Unexpected streaming transcription response type: <class 'tuple'>
+   *   "POST /v1/audio/transcriptions HTTP/1.1" 200 OK
+   *
+   * It heard every word and then failed to put them in the reply. `200 OK`
+   * with a body the server could not build -- which is the worst failure shape
+   * there is, because every check upstream passes and the text is simply gone.
+   *
+   * `json` is the OpenAI default and the path that works on all three servers
+   * we speak to (OpenAI, Groq, self-hosted speaches). The reader below takes
+   * either shape, so a server that answers plain text is still understood.
+   */
+  form.append('response_format', 'json')
   form.append(
     'file',
     new Blob([bytes], { type: got.headers.get('content-type') || 'audio/ogg' }),
@@ -444,8 +465,39 @@ async function transcribeWithWhisper(
     if (r.status === 401 || r.status === 403) whisperKeyRefused = true
     throw new Error(`whisper answered ${r.status}: ${body.slice(0, 160)}`)
   }
-  const text = (await r.text()).trim()
-  return text ? text.slice(0, TRANSCRIPT_CAP) : null
+  return readTranscript(await r.text())
+}
+
+/**
+ * The words out of a transcription reply, whatever shape it came in.
+ *
+ * `{"text": "..."}` is what `response_format=json` returns. A plain body is
+ * what `text` returns, and what a server answers when it ignores the field.
+ * Both are accepted because the alternative is a silent empty answer the
+ * moment one server behaves like the other -- and an empty answer here is
+ * indistinguishable from "there were no words in the recording".
+ */
+export function readTranscript(body: string): string | null {
+  const raw = String(body ?? '').trim()
+  if (!raw) return null
+  if (raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw) as { text?: unknown; error?: unknown }
+      /*
+       * An `error` object is not a transcript. Some servers answer 200 with
+       * one, and returning its message as the person's words would put a
+       * server's complaint into the conversation as if somebody had said it.
+       */
+      if (parsed && typeof parsed.text === 'string') {
+        const text = parsed.text.trim()
+        return text ? text.slice(0, TRANSCRIPT_CAP) : null
+      }
+      return null
+    } catch {
+      // Not JSON after all: fall through and treat it as the words.
+    }
+  }
+  return raw.slice(0, TRANSCRIPT_CAP)
 }
 
 /** The one provider that perceives this kind, in the configured order. */
