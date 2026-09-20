@@ -46,11 +46,27 @@ export const WAITING_MS = 3 * 60 * 60_000
  * How many are written per tick.
  *
  * The first run meets the whole history at once: every lead who was ever left
- * unanswered, which in a base of a year is hundreds. Writing them all would
- * bury every other kind in the journal on day one. The oldest wait first, and
- * the rest come on the following ticks -- the cap is reported, never silent.
+ * unanswered. Writing them all would bury every other kind in the journal on
+ * day one. The rest come on the following ticks -- the cap is reported, never
+ * silent.
  */
 export const PER_TICK = 20
+
+/**
+ * PAST THIS, IT IS HISTORY AND NOT A QUEUE.
+ *
+ * The first production run wrote twenty lines, and every one of them said
+ * between 1591 and 2478 days: an imported archive, six and seven years old.
+ * Nobody in it is waiting for anything. Worse, the watcher took the OLDEST
+ * wait first -- so the board filled with correspondence from 2019 and the
+ * person who wrote this morning never appeared at all.
+ *
+ * Both halves are fixed: nothing older than this is reported, and what is
+ * reported comes NEWEST FIRST. A fresh wait is the one somebody can still do
+ * something about; an old one is a fact about the past, and a board made of
+ * facts about the past is a board nobody opens.
+ */
+export const TOO_OLD_MS = 30 * 24 * 60 * 60_000
 
 /**
  * Words that mean "something is broken", as a person writes them.
@@ -132,15 +148,22 @@ export async function whoIsWaiting(
        FROM agg
       WHERE agg.last_in IS NOT NULL
         AND (agg.last_out IS NULL OR agg.last_in > agg.last_out)
-      ORDER BY agg.last_in ASC`,
+      ORDER BY agg.last_in DESC`,
     []
   )
   const out: WaitingPerson[] = []
+  let tooOld = 0
   for (const raw of (r.rows ?? []) as Row[]) {
     const lastIn = raw.last_in ? new Date(raw.last_in).getTime() : NaN
     if (!Number.isFinite(lastIn)) continue
     const waitedMs = now - lastIn
     if (waitedMs < WAITING_MS) continue
+    // History, not a queue -- see TOO_OLD_MS. Counted by the caller so the
+    // silence about them is a number rather than an absence.
+    if (waitedMs > TOO_OLD_MS) {
+      tooOld++
+      continue
+    }
     out.push({
       owner: String(raw.owner_id),
       lead: String(raw.lead_id),
@@ -149,7 +172,21 @@ export async function whoIsWaiting(
       trouble: TROUBLE.test(String(raw.last_words ?? '')),
     })
   }
+  if (tooOld) lastTooOld = tooOld
   return out
+}
+
+/**
+ * How many were passed over as history on the last look.
+ *
+ * Module state rather than a return value: `whoIsWaiting` answers "who is
+ * waiting", and a second number in that answer would have to be threaded
+ * through every caller to be printed once. It exists to be LOGGED -- a cap
+ * that drops people silently is the thing this file argues against.
+ */
+let lastTooOld = 0
+export function historySkippedOnLastLook(): number {
+  return lastTooOld
 }
 
 /** The line for one waiting person: the wait, the reason, never the words. */
@@ -172,7 +209,12 @@ export function lineFor(p: WaitingPerson): string {
 export async function checkWaitingClients(
   pool: JournalPool,
   now = Date.now()
-): Promise<{ waiting: number; written: number; deferred: number }> {
+): Promise<{
+  waiting: number
+  written: number
+  deferred: number
+  history: number
+}> {
   let waiting: WaitingPerson[]
   try {
     waiting = await whoIsWaiting(pool, now)
@@ -180,7 +222,7 @@ export async function checkWaitingClients(
     // An unreadable table is not "nobody is waiting". It is nothing known,
     // and a watcher that turns an unknown into a comfortable zero is worse
     // than no watcher.
-    return { waiting: -1, written: 0, deferred: 0 }
+    return { waiting: -1, written: 0, deferred: 0, history: 0 }
   }
 
   let written = 0
@@ -217,5 +259,6 @@ export async function checkWaitingClients(
     waiting: waiting.length,
     written,
     deferred: Math.max(0, waiting.length - considered),
+    history: historySkippedOnLastLook(),
   }
 }
