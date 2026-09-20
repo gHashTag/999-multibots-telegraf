@@ -19,7 +19,8 @@
 import { request as httpRequest } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
-import { injectSkin, shouldDress, FIT_PATH } from './skin'
+import { injectSkin, shouldDress, FIT_PATH, AVATAR_PATH } from './skin'
+import { telegramAvatar } from './avatar'
 import { applyScreen, wantedScreen } from './screen'
 import { cookieNameFor, LIVE_PREFIX, LOGIN_PLACEHOLDER } from './live-proxy'
 
@@ -67,6 +68,8 @@ export interface PipeTarget {
   viewToken: string
   /** Server-side only. The pod's admin password; see FIT_PATH below. */
   adminToken?: string
+  /** Server-side only. Whose window this is; see AVATAR_PATH. */
+  telegramId?: string
 }
 
 /**
@@ -82,7 +85,7 @@ export interface PipeTarget {
  * on the request, and the admin password stays on this side. A reserved name
  * under the session's own prefix, so it can never collide with a pod route.
  */
-export { FIT_PATH } from './skin'
+export { FIT_PATH, AVATAR_PATH } from './skin'
 
 /** The one request whose body we touch: the page logging in to its own pod. */
 export function isPodLogin(method: string | undefined, path: string): boolean {
@@ -138,6 +141,10 @@ export function pipeHttp(
 ): void {
   if (target.upstreamPath.split('?')[0] === FIT_PATH) {
     void fitFromQuery(target, req, res)
+    return
+  }
+  if (target.upstreamPath.split('?')[0] === AVATAR_PATH) {
+    void faceOfTheWatcher(target, res)
     return
   }
 
@@ -223,6 +230,32 @@ export function pipeHttp(
     upstream.setHeader('content-length', Buffer.byteLength(body))
     upstream.end(body)
   })
+}
+
+/**
+ * The person's own face, for the disc in the bar.
+ *
+ * 404 when there is none -- no token, no photo, Telegram unreachable. The
+ * initials stay and the window works; a face is a nicety, not a function.
+ */
+async function faceOfTheWatcher(
+  target: PipeTarget,
+  res: ServerResponse
+): Promise<void> {
+  const face = target.telegramId
+    ? await telegramAvatar(target.telegramId)
+    : null
+  if (!face) {
+    res.writeHead(404, { 'Content-Type': 'text/plain' })
+    res.end('no photo')
+    return
+  }
+  res.writeHead(200, {
+    'Content-Type': face.contentType,
+    /* Their own face, in their own window: never a shared cache. */
+    'Cache-Control': 'private, max-age=3600',
+  })
+  res.end(face.bytes)
 }
 
 async function fitFromQuery(

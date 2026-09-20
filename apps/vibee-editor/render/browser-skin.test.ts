@@ -9,6 +9,8 @@ import {
   BOOT_HTML,
   BOOT_SCRIPT,
   BOOT_GIVE_UP_MS,
+  FACE_SCRIPT,
+  AVATAR_PATH,
 } from './src/browser/skin'
 
 /**
@@ -284,6 +286,18 @@ describe('the row along the bottom is ours too', () => {
     expect(css).toMatch(
       /\.room-container \{[\s\S]*?pointer-events: auto|\.header \.menu[^{]*\{[^}]*pointer-events: auto/
     )
+  })
+
+  it('PAINTS ONLY THE WATCHER OWN FACE, never anybody else', () => {
+    /*
+     * The other discs in the bar belong to other viewers. Painting this
+     * person's photo on them would be worse than initials -- it would be a
+     * lie about who is watching.
+     */
+    expect(FACE_SCRIPT).toContain('.self')
+    expect(FACE_SCRIPT).toContain(AVATAR_PATH)
+    /* Loaded first, applied second: a 404 leaves the initials alone. */
+    expect(FACE_SCRIPT).toMatch(/img\.onload[\s\S]{0,200}backgroundImage/)
   })
 
   it('KEEPS THE SIGN THAT SOMEBODY ELSE IS WATCHING', () => {

@@ -114,3 +114,56 @@ WKWebView, он режет сторонние куки.
 - `docs/architecture/remote-browser-f0-measurements.md` — сырые числа
 - `deployment/remote-browser/` — образ пода
 - Навык `blind-guards` — перед правкой любого теста отсюда
+
+---
+
+## The agent owns every browser tool (2026-09-21)
+
+Nine tools, in the SAME registry every agent already reaches through `/mcp`,
+so an agent connected yesterday sees them today:
+
+```
+browser_status   browser_open    browser_read     browser_screenshot
+browser_click    browser_type    browser_evaluate browser_close_tab
+browser_ask_permission
+```
+
+**They are in the compact kit too** (`COMPACT_TOOLS` in `src/agent/tools.ts`),
+which is how a 16k-window model sees them at all. That cost raising the pinned
+schema budget from 6000 to 7000 tokens, and the cost is stated rather than
+hidden: 16k minus a ~5k prompt minus 7k of schemas leaves about 4k for the
+conversation. If that proves too tight, the lever is the DESCRIPTIONS --
+`browser_ask_permission` is 254 tokens of prose on its own -- not dropping
+tools. An agent that can click but cannot ask permission is an agent the
+guard stops with no way through.
+
+### Checking that an agent really has them
+
+```bash
+# the registry, as the agent sees it
+cd apps/vibee-editor/render && npx vitest run provider.test.ts
+
+# a real pod, driven end to end through the tools
+npx tsx scripts/browser-agent-check.ts
+```
+
+### The window is ours
+
+`src/browser/skin.ts` rewrites only the document's HEAD as it passes through
+the proxy: our mark, our type (Outfit), the app's own palette, the footer
+pinned into the top bar, frosted glass over a full-window picture, and our
+loader. The stream, the input channel, the scripts and every asset stream
+through untouched -- paint, not a fork.
+
+**Four traps, all paid for:**
+
+- A BACKTICK in a comment inside `BRAND_CSS` ends the template. It happened
+  four times. `browser-skin-source.test.ts` reads the file as TEXT so it
+  still fails when the module will not compile.
+- The `font` SHORTHAND on `.avatar` beat neko's inline `line-height: 50px`
+  and put the initials outside the circle. Family and weight only; if the
+  size is set, line-height must equal height.
+- Forcing the font family on every node killed the Font Awesome glyphs.
+- Boxes can measure identical and still LOOK crooked: an inline icon sits on
+  the font's baseline, not in the middle of its box. Flex-centre the glyph,
+  not only its cell.
