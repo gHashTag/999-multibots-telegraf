@@ -1,0 +1,314 @@
+/* The person's own browser. Layout only -- colours come from the app tokens. */
+.remote-browser {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.remote-browser__head h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.remote-browser__lead,
+.remote-browser__muted {
+  margin: 0;
+  opacity: 0.7;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.remote-browser__promise {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.remote-browser__notice,
+.remote-browser__error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.remote-browser__error {
+  background: rgba(220, 60, 60, 0.14);
+}
+
+.remote-browser__start,
+.remote-browser__live,
+.remote-browser__elsewhere {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.remote-browser__cta {
+  display: inline-block;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #19bd9c;
+  color: #fff;
+  text-decoration: none;
+}
+
+.remote-browser__cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.remote-browser__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.remote-browser__secondary,
+.remote-browser__danger {
+  padding: 9px 16px;
+  border-radius: 9px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: inherit;
+}
+
+.remote-browser__danger {
+  border-color: rgba(220, 60, 60, 0.55);
+  color: #d24b4b;
+}
+
+/*
+ * THE FRAME HAS A DEFINITE BOX, AND THE POD IS MADE TO MATCH IT.
+ *
+ * It used to be `aspect-ratio: 16 / 10`, hard-coded to a pod that always ran
+ * 1280x800. On a phone held upright that is a landscape desktop drawn as a
+ * stamp in a field of black, with every letter a third of its proper size --
+ * photographed by the owner, which is how this was found.
+ *
+ * Which way round it goes is the whole fix. The stylesheet decides the box
+ * for the device; `browserFit.ts` measures that decision and asks the pod to
+ * BE that shape. If the box followed the pod instead, the box would change,
+ * the new box would want a new pod shape, and the two would chase each other.
+ */
+.remote-browser__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: #111;
+}
+
+/* Wide screens: the picture is one panel among several, so it takes a share. */
+.remote-browser__stage {
+  height: min(62vw, 560px);
+  min-height: 320px;
+}
+
+/*
+ * THE GLOW MEANS AN AGENT IS WORKING IN HERE.
+ *
+ * It is a frame around the picture, not an overlay on it: the person has to
+ * keep seeing every pixel of what the agent is doing, which is the entire
+ * point of the screen. A dimming layer would hide exactly what it announces.
+ */
+.remote-browser__stage {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  padding: 3px;
+  box-sizing: border-box;
+}
+
+.remote-browser__stage--working {
+  background: linear-gradient(
+    120deg,
+    rgba(25, 189, 156, 0.9),
+    rgba(120, 200, 255, 0.85),
+    rgba(255, 226, 150, 0.9),
+    rgba(25, 189, 156, 0.9)
+  );
+  background-size: 300% 300%;
+  animation: remote-browser-aura 5.5s ease-in-out infinite;
+  box-shadow:
+    0 0 18px rgba(25, 189, 156, 0.45),
+    0 0 44px rgba(120, 200, 255, 0.28);
+}
+
+@keyframes remote-browser-aura {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.remote-browser__stage--working .remote-browser__frame {
+  border-radius: 11px;
+}
+
+/*
+ * The label sits ON the top edge of the glow. `nowrap` was wrong: the Russian
+ * sentence is long, and on a 375px phone the pill stretched edge to edge and
+ * stopped reading as a badge. Measured at 375x812.
+ */
+.remote-browser__working {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  max-width: min(88%, 420px);
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  background: rgba(10, 10, 10, 0.92);
+  color: #eafff8;
+}
+
+/*
+ * A moving border next to a person who asked the system not to move things is
+ * not a nice touch, it is a symptom trigger. The colour stays, the motion goes.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .remote-browser__stage--working {
+    animation: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * PHONES: THE PICTURE IS THE PAGE.
+ *
+ * A header, a lead paragraph and three explanations above a 16:10 frame left
+ * the stream a strip across the middle of a 390x844 screen. Here the tab bar
+ * already says which tab this is, so the page's own title goes, and the
+ * picture takes everything that is left after the buttons.
+ *
+ * Only in the live+embedded state: before the browser is running, this page
+ * is ordinary text and a button, and it should scroll like any other page.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .remote-browser--live {
+    height: var(--app-vh-stable, 100dvh);
+    padding: 8px 8px calc(8px + var(--app-safe-bottom, 0px));
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  /* Same reasoning as `.editor`: a fixed-height page has to SHRINK for the
+     bar, because padding below it would put the buttons underneath. */
+  body[data-tabbar='visible'] .remote-browser--live {
+    height: calc(var(--app-vh-stable, 100dvh) - var(--app-tabbar-total, 56px));
+  }
+
+  /* The tab bar names this tab; a second title costs 60px of picture. */
+  .remote-browser--live .remote-browser__head {
+    display: none;
+  }
+
+  .remote-browser--live .remote-browser__live {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+  }
+
+  .remote-browser--live .remote-browser__stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+  }
+
+  /* Four buttons do not fit across 390px, and wrapping them eats the picture
+     they control. One row that scrolls sideways keeps all four reachable. */
+  .remote-browser--live .remote-browser__actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .remote-browser--live .remote-browser__actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .remote-browser--live .remote-browser__secondary,
+  .remote-browser--live .remote-browser__danger {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Kept, not deleted: it is the sentence that stops somebody pressing the
+     red button to close a browser. It just stops taking three lines. */
+  .remote-browser--live .remote-browser__muted {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * A PHONE ON ITS SIDE, which is how somebody holds it to watch anything.
+ * There is no room for text at all; the buttons stay because they are how
+ * the wheel is taken back.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .remote-browser--live {
+    padding: 4px;
+    gap: 4px;
+  }
+  .remote-browser--live .remote-browser__muted,
+  .remote-browser--live .remote-browser__notice {
+    display: none;
+  }
+  .remote-browser--live .remote-browser__working {
+    top: -9px;
+    font-size: 11px;
+    padding: 2px 10px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * TABLETS AND SPLIT WINDOWS. Between the two layouts the picture would
+ * otherwise be 62vw tall, which on a 900px-wide tablet is 558px of picture
+ * under 200px of text -- taller than the window. It takes what is there.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (min-width: 701px) {
+  .remote-browser__stage {
+    height: min(62vw, 560px, calc(var(--app-vh-stable, 100dvh) - 300px));
+  }
+}
+
+/* Fullscreen is a phone's real answer to a small screen: the element fills
+   the device and nothing else is on it, so the frame must fill the element. */
+.remote-browser__stage:fullscreen {
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  border-radius: 0;
+  background: #111;
+}
+
+.remote-browser__stage:fullscreen .remote-browser__frame {
+  border-radius: 0;
+}
