@@ -182,7 +182,7 @@ struct RootView: View {
      * недоступна ровно тогда, когда о её недоступности и стоило сообщить),
      * лежат в UserDefaults и досылаются здесь.
      */
-    .task { ClientErrorBeacon.отправитьОтложенные() }
+    .task { ClientErrorBeacon.flushQueue() }
   }
 }
 

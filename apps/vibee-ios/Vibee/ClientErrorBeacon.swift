@@ -4,115 +4,117 @@ import UIKit
 #endif
 
 /**
- * ОШИБКА, УВИДЕННАЯ ЧЕЛОВЕКОМ, ОБЯЗАНА ДОЙТИ ДО ВЛАДЕЛЬЦА.
+ * A failure the person saw must reach the owner.
  *
- * У веба (`player/src/lib/clientErrorBeacon.ts`) этот маяк есть с 08.09.2026:
- * браузер шлёт `/api/client-error`, сервер гасит шторм повторов и присылает
- * владельцу ОДНО сообщение в Telegram на вид ошибки за десять минут. У iOS
- * такого маяка не было НИ ОДНОГО — весь этот файл на 07.09.2026 не существовал,
- * и `grep -rn 'client-error' apps/vibee-ios` возвращал пусто.
+ * The web player has had this beacon since 08.09.2026
+ * (`player/src/lib/clientErrorBeacon.ts`): the browser POSTs to
+ * `/api/client-error`, the server dedups a storm into one Telegram alert per
+ * error kind every ten minutes. iOS had none of this at all -- `grep -rn
+ * 'client-error' apps/vibee-ios` returned nothing before this file existed.
  *
- * ЦЕНА ОТСУТСТВИЯ ИЗМЕРЕНА ЭТОЙ ЖЕ СЕССИЕЙ, А НЕ ПРЕДПОЛОЖЕНА. Три реальных
- * дефекта синхронизации чата агента — устаревший текст входа в
- * AgentChatView, обрыв потока без сохранения частичного ответа, отсутствие
- * разбора событий «ошибка»/«готово» — были найдены только потому, что
- * человек лично пожаловался в разговоре. Одинаковый класс дефектов на вебе
- * УЖЕ виден владельцу в Telegram без единой жалобы: `formatClientErrorAlert`
- * шлёт «🟥 Мини-апп: ошибка у пользователя» с текстом, экраном и кем именно.
- * На телефоне тот же обрыв потока был бы виден только тому, кто на него
- * смотрит в момент обрыва, — то есть почти никогда.
+ * The cost of that gap was measured in this same session, not assumed. Three
+ * real agent-chat sync defects on iOS -- the stale sign-in copy in
+ * AgentChatView, a stream failure that discarded the partial answer instead
+ * of keeping it, missing handling for the "ошибка"/"готово" stream events --
+ * were found only because a person happened to complain in conversation. The
+ * same class of defect on the web is already visible to the owner in
+ * Telegram with zero complaints required: `formatClientErrorAlert` sends
+ * "Mini app: user hit an error" naming the text, the screen and who. On the
+ * phone the same stream failure would have been visible only to whoever was
+ * looking at the exact moment it happened -- which is to say, almost never.
  *
- * ФОРМА ОТЧЁТА ПОВТОРЯЕТ ВЕБ БУКВАЛЬНО: `kind/message/context/path/ua/build/ts`
- * — сервер (`render/src/client-errors.ts`) уже умеет её разбирать и не менялся
- * ради iOS ни строкой. Заводить второй формат значило бы завести второе место,
- * где сервер и клиент могут разойтись.
+ * The report shape matches the web byte for byte:
+ * `kind/message/context/path/ua/build/ts`. The server
+ * (`render/src/client-errors.ts`) already knows how to parse it and needed
+ * no change for iOS. A second shape would have been a second place for the
+ * client and server to drift apart.
  */
 enum ClientErrorBeacon {
-  private static let очередьКлюч = "trinity.client-errors.queue"
-  private static let лимитОчереди = 20
-  /// Раз за запуск процесса на (kind, message) — переживает не дольше, чем
-  /// сам процесс: то же поведение, что `SESSION_DEDUP` у веба (Set в памяти
-  /// вкладки). Настоящую защиту от шторма даёт сервер (`ClientErrorGate`);
-  /// это — только чтобы один и тот же цикл повторов не долбил сеть тысячу раз.
-  private static var замеченоЗаЗапуск = Set<String>()
+  private static let queueKey = "trinity.client-errors.queue"
+  private static let queueLimit = 20
+  /// Once per (kind, message) per process launch -- lives no longer than the
+  /// process itself, matching the web's `SESSION_DEDUP` (a Set in the tab).
+  /// The real storm protection is server-side (`ClientErrorGate`); this only
+  /// stops one bad loop from hammering the network a thousand times.
+  private static var seenThisLaunch = Set<String>()
 
-  /// Отправить отчёт. Никогда не бросает и не блокирует вызывающего — это
-  /// сторонний эффект, а не часть основного пути. `context` — до 600 симв.,
-  /// как у веба; больше сервер всё равно обрежет (`LIMITS.context`).
-  static func отправить(kind: String, message: String, context: String = "") {
-    let ключ = "\(kind)|\(String(message.prefix(120)))"
-    guard !замеченоЗаЗапуск.contains(ключ) else { return }
-    замеченоЗаЗапуск.insert(ключ)
-    let тело = собратьТело(kind: kind, message: message, context: context)
+  /// Send a report. Never throws, never blocks the caller: this is a side
+  /// effect, not part of the main path. `context` is capped at 600 chars,
+  /// same as the web -- the server clips further anyway (`LIMITS.context`).
+  static func report(kind: String, message: String, context: String = "") {
+    let key = "\(kind)|\(String(message.prefix(120)))"
+    guard !seenThisLaunch.contains(key) else { return }
+    seenThisLaunch.insert(key)
+    let body = buildBody(kind: kind, message: message, context: context)
     Task.detached(priority: .background) {
-      let доставлено = await послать(тело)
-      if !доставлено { добавитьВОчередь(тело) }
+      let delivered = await send(body)
+      if !delivered { enqueue(body) }
     }
   }
 
   /**
-   * Хвост из прошлого запуска. Зовётся один раз при старте приложения —
-   * ровно как `flushClientErrorQueue()` у веба, и по той же причине: отчёт
-   * об обрыве сети написан именно тогда, когда сеть недоступна, и первая
-   * попытка почти всегда проваливается. Очередь переживает выход из
-   * приложения, потому что лежит в UserDefaults, а не в памяти.
+   * Whatever failed to send last launch. Called once at app start -- the
+   * same job `installGlobalClientErrorReporting()` does on the web, for the
+   * same reason: a report about a network outage is written exactly when
+   * the network is unavailable, so the first attempt almost always fails.
+   * The queue lives in UserDefaults and survives the app being killed.
    */
-  static func отправитьОтложенные() {
-    let ожидающие = прочитатьОчередь()
-    guard !ожидающие.isEmpty else { return }
-    записатьОчередь([])
+  static func flushQueue() {
+    let pending = readQueue()
+    guard !pending.isEmpty else { return }
+    writeQueue([])
     Task.detached(priority: .background) {
-      var осталось: [[String: Any]] = []
-      for тело in ожидающие {
-        if await послать(тело) == false { осталось.append(тело) }
+      var remaining: [[String: Any]] = []
+      for body in pending {
+        if await send(body) == false { remaining.append(body) }
       }
-      if !осталось.isEmpty { добавитьВОчередь(contentsOf: осталось) }
+      if !remaining.isEmpty { enqueue(contentsOf: remaining) }
     }
   }
 
-  // MARK: - Внутреннее
+  // MARK: - Internals
 
-  private static func собратьТело(
+  private static func buildBody(
     kind: String, message: String, context: String
   ) -> [String: Any] {
     [
       "kind": kind,
       "message": String(message.prefix(400)),
       "context": String(context.prefix(600)),
-      // У веба здесь `location.pathname` — экран браузера. У приложения нет
-      // адресной строки, поэтому путь — имя SwiftUI-экрана, откуда позвали.
+      // The web uses `location.pathname` here -- the browser's address bar.
+      // The app has none, so this is a fixed marker instead of a screen name.
       "path": "ios",
-      "ua": юзерАгент,
-      "build": сборка,
+      "ua": userAgent,
+      "build": buildNumber,
       "ts": Int(Date().timeIntervalSince1970 * 1000),
     ]
   }
 
-  private static var юзерАгент: String {
+  private static var userAgent: String {
     #if canImport(UIKit)
-    let устройство = UIDevice.current
-    return "Vibee-iOS/\(сборка) (\(устройство.model); iOS \(устройство.systemVersion))"
+    let device = UIDevice.current
+    return "Vibee-iOS/\(buildNumber) (\(device.model); iOS \(device.systemVersion))"
     #else
-    return "Vibee-iOS/\(сборка)"
+    return "Vibee-iOS/\(buildNumber)"
     #endif
   }
 
-  /// `CFBundleVersion` — тот же счётчик коммитов, что `run.sh`/fastlane
-  /// подставляют при сборке (см. README «Номер сборки — счёт коммитов»).
-  /// Совпадает с тем, что видно в TestFlight, поэтому по этому числу можно
-  /// сразу понять, какая именно сборка упала.
-  private static var сборка: String {
+  /// `CFBundleVersion` -- the same commit-count build number `run.sh` and
+  /// fastlane already stamp on every build (see the README, "Build number is
+  /// a commit count"). Matches what shows in TestFlight, so this number
+  /// alone identifies exactly which build failed.
+  private static var buildNumber: String {
     (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "?"
   }
 
-  private static func послать(_ тело: [String: Any]) async -> Bool {
+  private static func send(_ body: [String: Any]) async -> Bool {
     var r = URLRequest(url: API.base.appendingPathComponent("api/client-error"))
     r.httpMethod = "POST"
     r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    // Личность — ТЕМ ЖЕ способом, что и everywhere: сервер называет «кем»
-    // в алерте владельцу по этому же заголовку (`verifiedTelegramId`).
+    // Identity, the same way as everywhere else: the server names "who" in
+    // the owner's alert from this same header (`verifiedTelegramId`).
     for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
-    r.httpBody = try? JSONSerialization.data(withJSONObject: тело)
+    r.httpBody = try? JSONSerialization.data(withJSONObject: body)
     r.timeoutInterval = 10
     do {
       let (_, resp) = try await URLSession.shared.data(for: r)
@@ -122,24 +124,24 @@ enum ClientErrorBeacon {
     }
   }
 
-  private static func прочитатьОчередь() -> [[String: Any]] {
-    guard let data = UserDefaults.standard.data(forKey: очередьКлюч),
-          let список = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+  private static func readQueue() -> [[String: Any]] {
+    guard let data = UserDefaults.standard.data(forKey: queueKey),
+          let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
     else { return [] }
-    return список
+    return list
   }
 
-  private static func записатьОчередь(_ список: [[String: Any]]) {
-    guard let data = try? JSONSerialization.data(withJSONObject: список) else { return }
-    UserDefaults.standard.set(data, forKey: очередьКлюч)
+  private static func writeQueue(_ list: [[String: Any]]) {
+    guard let data = try? JSONSerialization.data(withJSONObject: list) else { return }
+    UserDefaults.standard.set(data, forKey: queueKey)
   }
 
-  private static func добавитьВОчередь(_ тело: [String: Any]) {
-    добавитьВОчередь(contentsOf: [тело])
+  private static func enqueue(_ body: [String: Any]) {
+    enqueue(contentsOf: [body])
   }
 
-  private static func добавитьВОчередь(contentsOf новые: [[String: Any]]) {
-    let итог = (прочитатьОчередь() + новые).suffix(лимитОчереди)
-    записатьОчередь(Array(итог))
+  private static func enqueue(contentsOf added: [[String: Any]]) {
+    let merged = (readQueue() + added).suffix(queueLimit)
+    writeQueue(Array(merged))
   }
 }

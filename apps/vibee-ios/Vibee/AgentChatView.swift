@@ -562,19 +562,19 @@ struct AgentChatView: View {
 
     guard Identity.known else {
       /**
-       * Нечем представиться — говорим об этом ВМЕСТО молчания.
+       * Nothing to identify ourselves with -- say so INSTEAD OF staying silent.
        *
-       * Раньше запрос уходил без личности, сервер отвечал 401, поток
-       * заканчивался пустым, и в чате оставался пустой пузырь. Человек видел
-       * неработающего агента без единого слова о причине.
+       * The request used to go out with no identity, the server answered 401,
+       * the stream ended empty, and the chat kept an empty bubble. The person
+       * saw a non-working agent with not one word about why.
        *
-       * ТЕКСТ ОБНОВЛЁН: раньше здесь стояло «вставьте ключ агента, вход через
-       * Telegram появится следом» — с тех пор вход через Telegram уже
-       * появился (`SignInView`), а «ключ агента» остался только отладочным
-       * путём. Старый текст отправлял человека за несуществующим способом
-       * входа и был неотличим от «синхронизация сломана»: агент отвечал
-       * одно и то же в чате, в боте и в мини-аппе видно другое, а объяснения
-       * — нет.
+       * TEXT UPDATED: this used to say "paste the agent key, Telegram sign-in
+       * is coming next" -- Telegram sign-in has since shipped (`SignInView`),
+       * and the "agent key" is now only a debug path. The old text sent
+       * people chasing a sign-in method that no longer existed, and was
+       * indistinguishable from "sync is broken": the agent gave the same
+       * answer in the app while the bot and mini app showed something else,
+       * with no explanation anywhere.
        */
       сообщения[i].текст =
         "Не могу представиться серверу — он не знает, кто спрашивает, и "
@@ -585,14 +585,14 @@ struct AgentChatView: View {
     }
 
     /**
-     * ОБЪЯВЛЕНО ДО `do`, А НЕ ВНУТРИ.
+     * DECLARED BEFORE `do`, NOT INSIDE IT.
      *
-     * `catch` — сосед `do`, а не его внутренность: переменная, заведённая
-     * внутри блока `do`, гаснет на его закрывающей скобке и в `catch` уже не
-     * видна. Нужна она именно там — приложить ID хода к отчёту об обрыве, —
-     * поэтому и живёт снаружи.
+     * `catch` is a sibling of `do`, not its interior: a variable declared
+     * inside `do` goes out of scope at its closing brace and `catch` can no
+     * longer see it. It is needed right there -- to attach the turn id to
+     * the failure report -- so it lives outside instead.
      */
-    var ходId: String?
+    var turnId: String?
     do {
       var r = URLRequest(url: API.base.appendingPathComponent("api/agent/chat"))
       r.httpMethod = "POST"
@@ -622,29 +622,28 @@ struct AgentChatView: View {
       let (поток, _) = try await URLSession.shared.bytes(for: r)
       var послеИнструмента = false
       /**
-       * ЧЕТЫРЕ СОБЫТИЯ ИЗ ПЯТИ ЗАДОКУМЕНТИРОВАНЫ ЗДЕСЬ ЖЕ, НАД КЛАССОМ
-       * («размышление», «текст», «инструмент», «результат», «готово»), А
-       * ОБРАБАТЫВАЛИСЬ ТОЛЬКО ДВА.
+       * FOUR OF THE FIVE DOCUMENTED EVENT TYPES ABOVE THE CLASS
+       * ("размышление", "текст", "инструмент", "результат", "готово") --
+       * ONLY TWO WERE ACTUALLY HANDLED.
        *
-       * Бот (`trinityAgent.ts`) и веб (`agentStream.ts`) читают тот же поток
-       * и оба разбирают «ошибка» и «готово»/«обрыв» — каждый после того, как
-       * это стоило живого инцидента в проде (записано в их собственных
-       * комментариях, 2026-09-16 и 08.09.2026 соответственно). iOS эти два
-       * случая ловил веткой `default: break` — то есть ошибка на середине
-       * ответа и обрыв на пределе витков выглядели ОДИНАКОВО: ответ просто
-       * замолкал без единого слова, и человек не мог отличить это от того,
-       * что агенту нечего сказать.
+       * The bot (`trinityAgent.ts`) and the web client (`agentStream.ts`)
+       * read the same stream, and both parse "ошибка" and "готово"/"обрыв" --
+       * each only after it cost a real production incident (see their own
+       * comments, dated 2026-09-16 and 08.09.2026). iOS caught both in a
+       * `default: break` -- a mid-answer error and a step-limit truncation
+       * looked IDENTICAL: the reply just went silent with no explanation,
+       * indistinguishable from the agent having nothing to say.
        */
-      var был_текст = false
-      var был_ошибка = false
-      var текстОбрыва = ""
+      var hasText = false
+      var hasError = false
+      var truncationReason = ""
       for try await строка in поток.lines {
         guard let d = строка.data(using: .utf8),
               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any]
         else { continue }
         switch o["тип"] as? String {
         case "ход":
-          ходId = o["id"] as? String
+          turnId = o["id"] as? String
         case "текст":
           // Тот же разрыв абзаца, что и в вебе: агент говорит несколько раз
           // за ответ, и куски из разных ходов иначе слипаются в одну строку.
@@ -652,7 +651,7 @@ struct AgentChatView: View {
             сообщения[i].текст += "\n\n"
           }
           послеИнструмента = false
-          был_текст = true
+          hasText = true
           сообщения[i].текст += (o["текст"] as? String) ?? ""
         case "инструмент":
           послеИнструмента = true
@@ -670,56 +669,57 @@ struct AgentChatView: View {
             )
           }
         case "ошибка":
-          // Ровно то же оформление, что у веба: «⚠️ …» отдельным абзацем,
-          // не вместо уже пришедшего текста, а следом за ним.
-          был_ошибка = true
-          if let текстОшибки = o["текст"] as? String, !текстОшибки.isEmpty {
-            сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(текстОшибки)"
+          // Same styling as the web: a "⚠️ ..." paragraph of its own,
+          // appended after any text that already arrived, not in place of it.
+          hasError = true
+          if let errorText = o["текст"] as? String, !errorText.isEmpty {
+            сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(errorText)"
           }
         case "готово":
-          // «обрыв» приходит только при упоре в предел витков — сервер
-          // объясняет причину этими же словами боту и вебу.
+          // "обрыв" only arrives when the step limit is hit -- the server
+          // explains the reason in the same words it gives the bot and web.
           if let обрыв = o["обрыв"] as? String, !обрыв.isEmpty {
-            текстОбрыва = обрыв
+            truncationReason = обрыв
           }
         default: break
         }
       }
       /*
-       * МОЛЧАНИЕ — НЕ УСПЕХ С ПУСТЫМ ПУЗЫРЁМ.
+       * SILENCE IS NOT A SUCCESS WITH AN EMPTY BUBBLE.
        *
-       * Если за весь поток не пришло ни слова текста, ни ошибки — это не
-       * «агенту нечего сказать», а тот же разрыв, что веб отличает своим
-       * `!былТекст && !былаОшибка`. Пустой пузырь без единой подсказки читался
-       * как «агент завис» — неотличимо от настоящего зависания.
+       * If the whole stream produced no text and no error, that is not "the
+       * agent had nothing to say" -- it's the same gap the web tells apart
+       * with its own `!hasText && !hasError`. An empty bubble with no hint
+       * read as "the agent hung", indistinguishable from an actual hang.
        */
-      if !был_текст, !был_ошибка {
-        сообщения[i].текст = текстОбрыва.isEmpty
+      if !hasText, !hasError {
+        сообщения[i].текст = truncationReason.isEmpty
           ? "Агент не сформулировал ответ. Повтори вопрос или уточни его."
-          : "Не уложился в шаги: \(текстОбрыва). Попробуй задачу поменьше."
-      } else if !текстОбрыва.isEmpty {
-        сообщения[i].текст += "\n\n⚠️ \(текстОбрыва)"
+          : "Не уложился в шаги: \(truncationReason). Попробуй задачу поменьше."
+      } else if !truncationReason.isEmpty {
+        сообщения[i].текст += "\n\n⚠️ \(truncationReason)"
       }
     } catch {
       /**
-       * ЧАСТИЧНЫЙ ОТВЕТ СОХРАНЯЕТСЯ, А НЕ ЗАТИРАЕТСЯ.
+       * PARTIAL ANSWER IS KEPT, NOT OVERWRITTEN.
        *
-       * Здесь стояло `сообщения[i].текст = "Не дошло до сервера: …"` —
-       * присваивание, а не дополнение. Если сеть рвалась ПОСЛЕ того, как
-       * агент уже надиктовал половину ответа, человек терял ровно то, что
-       * успел прочитать: текст на экране заменялся ошибкой целиком. У бота
-       * это тот самый инцидент 2026-09-16 («KEEP WHAT ALREADY ARRIVED»), у
-       * веба — 08.09.2026 («receivedText && m.text ? … : ''»); оба чинили
-       * это уже дважды порознь, а на телефон правка ни разу не доехала.
+       * This used to be `сообщения[i].текст = "Не дошло до сервера: ..."` --
+       * an assignment, not an append. If the network dropped AFTER the agent
+       * had already dictated half an answer, the person lost exactly what
+       * they had already read: the on-screen text was replaced by the error
+       * wholesale. The bot fixed the same class of bug in its own incident
+       * (2026-09-16, "KEEP WHAT ALREADY ARRIVED"), the web fixed it in
+       * another (08.09.2026, `receivedText && m.text ? ... : ''`); both had
+       * already learned this lesson separately, and it never reached the phone.
        */
-      let частичный = сообщения[i].текст
+      let partial = сообщения[i].текст
       сообщения[i].текст =
-        (частичный.isEmpty ? "" : частичный + "\n\n")
+        (partial.isEmpty ? "" : partial + "\n\n")
         + "Не дошло до сервера: \(error.localizedDescription)"
-      ClientErrorBeacon.отправить(
+      ClientErrorBeacon.report(
         kind: "agent_stream_failed",
         message: error.localizedDescription,
-        context: "receivedText=\(!частичный.isEmpty) ход=\(ходId ?? "нет")"
+        context: "receivedText=\(!partial.isEmpty) turn=\(turnId ?? "none")"
       )
     }
   }

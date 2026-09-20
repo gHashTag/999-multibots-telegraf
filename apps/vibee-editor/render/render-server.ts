@@ -5545,15 +5545,16 @@ const server = createServer(async (req, res) => {
     const s3Key = decodeURIComponent(req.url.slice(4).split('?')[0]) // Remove /s3/ and query string, decode URL
     const ext = path.extname(s3Key).toLowerCase()
     /**
-     * HEIC/HEIF ДОБАВЛЕНЫ НЕ ДЛЯ ПОЛНОТЫ, А ПОТОМУ ЧТО ОНИ УЖЕ ПРИХОДЯТ.
+     * HEIC/HEIF ARE HERE FOR COMPLETENESS -- BECAUSE THEY ALREADY ARRIVE.
      *
-     * iPhone хранит фото в HEIC по умолчанию, и «Файлы»/AirDrop отдают его
-     * веб-загрузке как есть — Safari конвертирует в JPEG только при выборе
-     * из системного пикера, не всегда. Без этих двух расширений HEIC-фото
-     * не попадало ни в `isImage`, ни в `isAudio` и падало в ветку ниже
-     * («для видео — конвертировать»): сервер гонял фотографию через ffmpeg
-     * как видео и, разумеется, ничего не получал. Отсюда «превью не
-     * отображается» — не редкий край случая, а обычный путь для айфона.
+     * iPhone stores photos as HEIC by default, and Files/AirDrop hand it to
+     * a web upload as-is -- Safari only converts to JPEG on some picker
+     * paths, not all of them. Without these two extensions a HEIC photo
+     * matched neither `isImage` nor `isAudio` and fell through to the branch
+     * below ("must be video, convert it"): the server ran the photo through
+     * ffmpeg as if it were video and, unsurprisingly, got nothing back.
+     * That's the actual cause of "preview doesn't show" -- not a rare edge
+     * case, but the ordinary path for an iPhone photo.
      */
     const isImage = [
       '.jpg',
@@ -5568,14 +5569,15 @@ const server = createServer(async (req, res) => {
       '.avif',
     ].includes(ext)
     /**
-     * `.webm` — ЗДЕСЬ, А НЕ ПРОСТО «ЕЩЁ ОДИН ФОРМАТ».
+     * `.webm` IS HERE, NOT JUST "ANOTHER FORMAT".
      *
-     * Диктофон мини-аппа (`useAudioRecorder.ts`) пишет `audio/webm` — это
-     * единственный источник .webm в чате, видео в этом формате приложение не
-     * генерирует и не принимает нигде. Список СОГЛАСОВАН с `ChatAssets.tsx`
-     * на клиенте: там `.webm` тоже помечен аудио, а не видео — до этой
-     * правки было наоборот, и голосовая запись превращалась в чате в немой
-     * чёрный видеоплеер без кадра.
+     * The mini app's voice recorder (`useAudioRecorder.ts`) writes
+     * `audio/webm` -- the only source of .webm in this chat; the app never
+     * generates or accepts video in that format. This list is KEPT IN SYNC
+     * with `ChatAssets.tsx` on the client, where `.webm` is also marked
+     * audio, not video -- before this fix it was the other way around, and a
+     * voice message rendered in chat as a silent black video player with no
+     * frame at all.
      */
     const isAudio = [
       '.mp3',

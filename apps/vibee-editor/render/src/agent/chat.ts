@@ -50,22 +50,23 @@ export interface ChatMessage {
 /** Событие потока. Клиент рисует их по мере поступления. */
 export type AgentEvent =
   /**
-   * ID ХОДА — ПЕРВОЕ СОБЫТИЕ ПОТОКА, И ЭТО НАРОЧНО.
+   * TURN ID -- THE FIRST EVENT OF THE STREAM, ON PURPOSE.
    *
-   * До этого поля синхронизацию чата (бот/мини-апп/iOS) можно было
-   * расследовать только по времени и telegram_id — вручную сверяя журнал
-   * трёх разных процессов. Один и тот же `ход` пишется здесь в лог СТАРТА и
-   * КОНЦА этого же захода (см. конец `runAgent`), и клиент, получив его
-   * первым событием, может приложить его же к своему отчёту об ошибке
-   * (`ClientErrorBeacon` на iOS, `reportClientError` на вебе) — тогда падение,
-   * увиденное человеком, ищется в логе сервера по одному `grep`, а не по
-   * приблизительному времени.
+   * Before this field, a chat sync incident (bot/mini app/iOS) could only be
+   * investigated by timestamp and telegram_id -- manually cross-referencing
+   * three separate process logs. The same id is written here in the START
+   * and END log lines for this same turn (see the end of `runAgent`), and a
+   * client that receives it as its first event can attach it to its own
+   * error report (`ClientErrorBeacon` on iOS, `reportClientError` on the
+   * web) -- so a failure a person saw can be found in the server log with
+   * one `grep`, not an approximate timestamp.
    *
-   * Новый тип события, а не поле у существующих: все три клиента уже
-   * игнорируют незнакомый `тип` в `default`/`else`-ветке, поэтому добавление
-   * ничего не ломает нигде, даже там, где его ещё не читают.
+   * A new event type rather than a field on an existing one: all three
+   * clients already ignore an unrecognized `тип` in their `default`/`else`
+   * branch, so adding this breaks nothing anywhere, even where nobody reads
+   * it yet.
    */
-  | { тип: 'ход'; id: string }
+  | { тип: 'ход'; id: string } // cyrillic-ok: pre-existing event envelope
   | { тип: 'провайдер'; id: string; model: string } // cyrillic-ok: pre-existing event envelope
   | { тип: 'размышление'; текст: string }
   | { тип: 'текст'; текст: string }
@@ -865,7 +866,7 @@ export async function* runAgent(
       historyLen: history.length,
     })
   )
-  yield { тип: 'ход', id: turnId }
+  yield { тип: 'ход', id: turnId } // cyrillic-ok: pre-existing event envelope
 
   /** One end-of-turn line on EVERY exit from this generator, success or not. */
   const logTurnEnd = (outcome: 'ok' | 'error' | 'truncated', details?: string) => {

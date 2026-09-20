@@ -120,13 +120,13 @@ export async function sendToAgent(
   const startedAt = Date.now()
   let receivedText = false
   /**
-   * ID ХОДА, ПРИСЛАННЫЙ ПЕРВЫМ СОБЫТИЕМ ПОТОКА (`chat.ts`, `runAgent`).
+   * TURN ID, SENT AS THE STREAM'S FIRST EVENT (`chat.ts`, `runAgent`).
    *
-   * Сервер логирует старт и конец ЭТОГО ЖЕ хода одной структурированной
-   * строкой (`[agent:turn]`), а до сих пор ничего не связывало отчёт об
-   * ошибке из браузера с конкретной строкой в серверном логе — приходилось
-   * сопоставлять по времени и telegram_id вручную. Присланный id уходит в
-   * `reportClientError` ниже.
+   * The server logs the start and end of this same turn under one
+   * structured line (`[agent:turn]`), and until now nothing linked a
+   * browser-side error report to that specific server log line -- matching
+   * them up meant cross-referencing timestamp and telegram_id by hand. The
+   * id we're sent here goes into `reportClientError` below.
    */
   let turnId: string | undefined
   const attempt = async (): Promise<void> => {
