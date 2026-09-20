@@ -32,6 +32,7 @@ import { imagesLookDown } from './image-health'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
+import { TEXT_LIKE_EXTENSIONS } from './media-library'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -509,16 +510,65 @@ export function soul(): string | null {
  * refers the model to a section that is not in it, and that is a property of
  * the STRING, which is unreachable through `runAgent` without a live model.
  */
+/**
+ * WHAT THE AGENT CAN ACTUALLY TAKE, IN ITS OWN WORDS.
+ *
+ * Owner, 2026-09-20: "make the agent support voice and every kind of file --
+ * .md and all text files -- so it can be promised; and tell the user straight
+ * away, explaining the steps ahead."
+ *
+ * Both halves of that are failures of SPEECH, not of capability. The agent
+ * could hear a voice note and read a .md file and said neither, so a person
+ * had to guess by trying -- and most people do not try twice. It also began
+ * long jobs silently, which from the other side is indistinguishable from a
+ * bot that has hung.
+ *
+ * THE LIST IS GENERATED, NEVER TYPED. It comes from the same array the reader
+ * tests against (media-library.ts TEXT_LIKE_EXTENSIONS). A hand-written list
+ * here would be a second statement of one fact and would drift the first time
+ * somebody widened the reader -- and the drift that matters is the one where
+ * the product promises a format it refuses.
+ *
+ * WHAT IT REFUSES IS NAMED TOO. `.pdf`, `.docx`, `.xlsx` cannot be opened
+ * here: no extractor is installed. Naming them is worth more than silence,
+ * because a person who sends a PDF and gets a vague answer concludes the
+ * agent is stupid rather than that the format is unsupported.
+ */
+function canTakeSection(): string {
+  const readable = TEXT_LIKE_EXTENSIONS.map(e => '.' + e).join(', ')
+  return (
+    /* cyrillic-ok: prompt copy, read by the model and paraphrased to people */
+    '\n\nЧТО ТЫ УМЕЕШЬ ПРИНИМАТЬ. Ты слышишь голосовые и аудио (их ' +
+    'расшифровывают), смотришь фото и видео, читаешь текстовые файлы: ' +
+    readable +
+    '. Открыть НЕ можешь: .pdf, .docx, .xlsx, .pptx, архивы — в них нет ' +
+    'извлекателя, и это надо сказать прямо, а не отвечать расплывчато. ' +
+    'Когда человек впервые присылает файл или спрашивает, что ты умеешь, — ' +
+    'назови это одной строкой, без списка на пол-экрана.' +
+    '\n\nГОВОРИ ШАГИ ВПЕРЁД. Прежде чем начать работу дольше пары секунд ' +
+    '(расшифровка, генерация, отправка, оплата) — одной фразой скажи, что ' +
+    'сейчас сделаешь и что будет дальше. Молчание во время работы человек ' +
+    'читает как зависший бот, и это дороже любой лишней строки.'
+  )
+}
+
 export function systemPrompt(surface?: string, toolsOnly = false): string {
   // The unattended sweep (tools_only) must call tools, not draw buttons:
   // the markers section was the root of marker-only `[[...|no_one_available]]`
   // answers (CRM audit 2026-09-12, P2 #14).
   const buttons = surface === 'bot' && !toolsOnly ? BUTTON_MARKERS : ''
+  /*
+   * Not for the unattended sweep: it must call tools, not explain itself to
+   * nobody. Everything else -- the bot, the business DM, the mini app -- is a
+   * person on the other side who deserves to know what they can send.
+   */
+  const canTake = toolsOnly ? '' : canTakeSection()
   const s = soul()
-  if (!s) return systemFor(surface) + buttons
+  if (!s) return systemFor(surface) + buttons + canTake
   return (
     systemFor(surface) +
     buttons +
+    canTake +
     '\n\nКОНТЕНТ-ПЛАН НА 30 ДНЕЙ есть в голосе владельца ниже — бери его ' + // cyrillic-ok: prompt copy
     'оттуда, а не выдумывай.' + // cyrillic-ok: prompt copy
     '\n\nГОЛОС ВЛАДЕЛЬЦА (SOUL.md). Когда пишешь текст поста, заголовок или ' +
