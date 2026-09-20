@@ -224,6 +224,107 @@ body {
 }
 .room-container { border-top: 1px solid ${LINE} !important; }
 
+/*
+ * THE HAMBURGER'S GREY BOX.
+ *
+ * neko gives the open toggle a filled slab in its own palette (#36393f),
+ * which on our bar reads as a stray grey square. The control stays; the box
+ * becomes the same 8px hover square every other icon here uses.
+ */
+.header .menu .toggle,
+.header .menu i.toggle {
+  background: transparent !important;
+  border-radius: 8px !important;
+  padding: 0 !important;
+}
+
+/*
+ * ICONS ON THE LOGO'S LINE.
+ *
+ * The bar's height is neko's, and it changes with the window; centring by
+ * eye holds at one size and slips at the next. Both sides are centred
+ * against the bar itself, so they line up at every height.
+ */
+.header { display: flex !important; align-items: center !important; }
+.header a.neko, .header .menu, .header .menu li { align-self: center !important; }
+
+/* ── the row along the bottom ─────────────────────────────────────────── */
+/*
+ * Everything down there was still neko's: Discord greys, a teal slider, a
+ * pale-green avatar. Same language as the top now -- #888 at rest, white on
+ * hover, and the accent only where something is actually on.
+ */
+.room-menu, .settings, .controls, .emotes {
+  background: ${CHROME} !important;
+  border: 0 !important;
+}
+.room-menu i, .settings i, .controls i, .emotes i {
+  color: ${DIM} !important;
+  font-size: 15px !important;
+}
+.room-menu i:hover, .settings i:hover, .controls i:hover, .emotes i:hover {
+  color: #fff !important;
+}
+/* Faded means unavailable, and it should look unavailable, not merely dim. */
+.controls i.faded { color: #4a4a4a !important; }
+
+/* The language chip, as a pill like everything else the app offers. */
+.settings select {
+  background: ${LINE} !important;
+  color: ${DIM} !important;
+  border: 1px solid ${IDLE_BORDER} !important;
+  border-radius: 8px !important;
+  padding: 2px 6px !important;
+  font: 500 11px/1.2 ${FONT_STACK} !important;
+}
+
+/* The toggle: off is a neutral track, on is the accent. */
+.controls label.switch span {
+  background: ${IDLE_BORDER} !important;
+  border-radius: 999px !important;
+}
+.controls label.switch input:checked + span {
+  background: ${GREEN} !important;
+}
+
+/*
+ * The volume. accent-color paints the fill and the thumb in one line and is
+ * what the platform does natively; the explicit track and thumb below are
+ * for the engines that ignore it.
+ */
+.controls .volume input[type='range'] {
+  accent-color: ${GREEN} !important;
+  background: transparent !important;
+  height: 20px !important;
+}
+.controls .volume input[type='range']::-webkit-slider-runnable-track {
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: ${IDLE_BORDER} !important;
+}
+.controls .volume input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px !important;
+  height: 12px !important;
+  margin-top: -4.5px !important;
+  border-radius: 50% !important;
+  background: ${GREEN} !important;
+  border: 0 !important;
+}
+
+/*
+ * WHO IS IN THE ROOM. The avatars were a pale green of neko's own; they are
+ * the one place the accent belongs down here, because a person present is
+ * exactly the kind of "on" this palette colours.
+ */
+.members .avatar, .members-list .avatar, div.avatar {
+  background: ${GREEN} !important;
+  color: ${BLACK} !important;
+  font: 600 13px/1 ${FONT_STACK} !important;
+  border: 0 !important;
+}
+
 /* ── buttons are pills ────────────────────────────────────────────────── */
 #neko button, .room-menu button, .controls button {
   border-radius: 16px !important;
