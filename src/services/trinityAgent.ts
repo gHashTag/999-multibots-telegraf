@@ -392,6 +392,15 @@ export async function спроситьАгента(
     let ошибка = ''
     let provider: string | undefined
     let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
+    /**
+     * ID ХОДА — ПЕРВОЕ СОБЫТИЕ ПОТОКА (`chat.ts`, `runAgent`).
+     *
+     * Сервер пишет одну строку `[agent:turn]` на старт и конец ЭТОГО ЖЕ
+     * хода. Вставляем этот id в собственные строки лога бота, чтобы падение,
+     * увиденное в Telegram, находилось в серверном логе одним `grep`, а не
+     * сопоставлением по времени и telegram_id вручную.
+     */
+    let ходId: string | undefined
 
     const строку = (s: string) => {
       const t = s.trim()
@@ -405,7 +414,8 @@ export async function спроситьАгента(
           model?: string
           proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
-        if (ev.тип === 'текст' && typeof ev.текст === 'string')
+        if (ev.тип === 'ход' && ev.id) ходId = ev.id
+        else if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
         else if (ev.тип === 'провайдер' && ev.id)
           // cyrillic-ok: pre-existing event envelope
@@ -468,6 +478,7 @@ export async function спроситьАгента(
         // below, which still pages when the turn is genuinely lost.
         logger.warn('[trinityAgent] stream died mid-body, kept what arrived', {
           telegram_id: telegramId,
+          ход: ходId,
           upstream: `${БАЗА}/api/agent/chat`,
           events: eventsSeen,
           tools: инструменты.length, // cyrillic-ok: pre-existing identifiers of this parser
@@ -495,6 +506,7 @@ export async function спроситьАгента(
 
     logger.info('[trinityAgent] ответ получен', {
       telegram_id: telegramId,
+      ход: ходId,
       provider,
       инструментов: инструменты.length,
       инструменты: инструменты.slice(0, 8),

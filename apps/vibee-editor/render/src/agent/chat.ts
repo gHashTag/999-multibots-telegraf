@@ -35,6 +35,7 @@ import { inlineUnperceivedMedia } from './media-inline'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { randomUUID } from 'node:crypto'
 
 const MAX_STEPS = 8
 
@@ -48,6 +49,23 @@ export interface ChatMessage {
 
 /** Событие потока. Клиент рисует их по мере поступления. */
 export type AgentEvent =
+  /**
+   * ID ХОДА — ПЕРВОЕ СОБЫТИЕ ПОТОКА, И ЭТО НАРОЧНО.
+   *
+   * До этого поля синхронизацию чата (бот/мини-апп/iOS) можно было
+   * расследовать только по времени и telegram_id — вручную сверяя журнал
+   * трёх разных процессов. Один и тот же `ход` пишется здесь в лог СТАРТА и
+   * КОНЦА этого же захода (см. конец `runAgent`), и клиент, получив его
+   * первым событием, может приложить его же к своему отчёту об ошибке
+   * (`ClientErrorBeacon` на iOS, `reportClientError` на вебе) — тогда падение,
+   * увиденное человеком, ищется в логе сервера по одному `grep`, а не по
+   * приблизительному времени.
+   *
+   * Новый тип события, а не поле у существующих: все три клиента уже
+   * игнорируют незнакомый `тип` в `default`/`else`-ветке, поэтому добавление
+   * ничего не ломает нигде, даже там, где его ещё не читают.
+   */
+  | { тип: 'ход'; id: string }
   | { тип: 'провайдер'; id: string; model: string } // cyrillic-ok: pre-existing event envelope
   | { тип: 'размышление'; текст: string }
   | { тип: 'текст'; текст: string }
@@ -810,6 +828,56 @@ export async function* runAgent(
     personNote?: string
   }
 ): AsyncGenerator<AgentEvent> {
+  /**
+   * СКВОЗНОЕ ЛОГИРОВАНИЕ ХОДА — ОДНА СТРОКА СТАРТА, ОДНА СТРОКА КОНЦА.
+   *
+   * До этой правки `routes.ts`/`chat.ts` — единственное место, где сходятся
+   * все три поверхности (бот, мини-апп, iOS) — не писали НИ ОДНОЙ
+   * структурированной строки на весь ход разговора: `grep console\. chat.ts`
+   * находил восемь точечных `console.warn` про отдельные подсистемы (SOUL,
+   * история диалога с клиентом, вложения) и ни одной про сам факт «начался
+   * ход X от Y, закончился так-то за Z мс». У бота (`trinityAgent.ts`) есть
+   * своя точечная строка `[trinityAgent] ответ получен`, но она видит только
+   * ЕГО собственные вызовы — ход, начатый с телефона или из мини-аппа, в
+   * этот лог не попадает вовсе.
+   *
+   * `ходId` короткий (8 симв.) НАРОЧНО: он для `grep` человеком в живом
+   * логе, а не для хранения — коллизии внутри одного процесса Node не
+   * критичны при таком объёме одновременных ходов.
+   */
+  const ходId = randomUUID().slice(0, 8)
+  const стартХода = Date.now()
+  let вызововИнструментов = 0
+  console.log(
+    '[agent:turn]',
+    JSON.stringify({
+      ход: ходId,
+      событие: 'старт',
+      telegram_id: ctx.telegramId,
+      surface: opts?.surface ?? 'unknown',
+      client: opts?.client ?? null,
+      historyLen: history.length,
+    })
+  )
+  yield { тип: 'ход', id: ходId }
+
+  /** Одна строка конца хода — на КАЖДОМ выходе из генератора, успешном или нет. */
+  const логКонца = (исход: 'ok' | 'ошибка' | 'обрыв', детали?: string) => {
+    console.log(
+      '[agent:turn]',
+      JSON.stringify({
+        ход: ходId,
+        событие: 'конец',
+        telegram_id: ctx.telegramId,
+        surface: opts?.surface ?? 'unknown',
+        исход,
+        мс: Date.now() - стартХода,
+        инструментов: вызововИнструментов,
+        ...(детали ? { детали: детали.slice(0, 300) } : {}),
+      })
+    )
+  }
+
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
   // агент пишет посты от его имени — значит, должен знать его SOUL так же,
   // как голос владельца. Нет SOUL — работает на общем голосе бренда.
@@ -940,15 +1008,18 @@ export async function* runAgent(
         else assistant = ev.message
       }
     } catch (e) {
+      логКонца('ошибка', String(e))
       yield { тип: 'ошибка', текст: String(e).slice(0, 500) }
       return
     }
     if (!assistant) {
+      логКонца('ошибка', 'модель не вернула сообщение')
       yield { тип: 'ошибка', текст: 'модель не вернула сообщение' }
       return
     }
 
     if (!assistant.tool_calls?.length) {
+      логКонца('ok')
       yield { тип: 'готово', витков: step + 1 }
       return
     }
@@ -956,6 +1027,7 @@ export async function* runAgent(
     messages.push(assistant)
 
     for (const call of assistant.tool_calls) {
+      вызововИнструментов++
       const имя = call.function.name
       yield {
         тип: 'инструмент',
@@ -995,6 +1067,7 @@ export async function* runAgent(
     }
   }
 
+  логКонца('обрыв', `предел ${MAX_STEPS} витков`)
   yield {
     тип: 'готово',
     витков: MAX_STEPS,
