@@ -208,6 +208,7 @@ async function open(
     podId: null,
     endpoint: null,
     cdpEndpoint: null,
+    allowedAtMs: null,
     state: 'starting',
     viewToken: deps.newToken(),
     adminToken: deps.newToken(),

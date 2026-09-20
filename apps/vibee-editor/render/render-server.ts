@@ -86,7 +86,13 @@ import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
 import {
   ensureApprovals,
   decide as decideApproval,
+  readApproval,
 } from './src/browser/approvals'
+import { markAllowed } from './src/browser/sessions'
+
+/** Who asked, so the yes lands on their session and nobody else's. */
+const approvalOwner = async (pool: any, id: string) =>
+  (await readApproval(pool, id))?.telegramId ?? null
 import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
@@ -8144,6 +8150,15 @@ const server = createServer(async (req, res) => {
     const pool = (await getPool()) as any
     await ensureApprovals(pool)
     const state = id && token ? await decideApproval(pool, id, token) : null
+    /*
+     * The yes is recorded on the SESSION here too, not only where the tool
+     * polls: the agent may have stopped waiting long before the person
+     * looked at their phone, and the permission must still count.
+     */
+    if (state === 'allowed') {
+      const who = await approvalOwner(pool, id)
+      if (who) await markAllowed(pool, who)
+    }
     const said =
       state === 'allowed'
         ? 'Разрешено. Агент продолжит.' // cyrillic-ok: user-facing
