@@ -48,6 +48,14 @@ export interface OpStateAnswer {
    * record for), and absence must never be read as zero.
    */
   incSum?: number
+  /**
+   * WHEN THE PROVIDER SAYS IT HAPPENED.
+   *
+   * `<State><StateDate>`, to the second and with a timezone. A settlement of
+   * old invoices must stamp this rather than `now`, or the payment moves into
+   * the month it was repaired in -- measured, twelve times, on 2026-09-19.
+   */
+  stateDate?: string
 }
 
 const PAID = new Set([50, 100]) // money left the buyer
@@ -99,9 +107,16 @@ export function classifyOpState(xml: unknown): OpStateAnswer {
   if (PAID.has(state)) {
     const inc = /<IncSum\b[^>]*>\s*([0-9.]+)\s*<\/IncSum>/i.exec(xml)
     const incSum = inc ? Number(inc[1]) : undefined
-    return Number.isFinite(incSum)
-      ? { verdict: 'PAID', state, incSum }
-      : { verdict: 'PAID', state }
+    const when = /<StateDate\b[^>]*>\s*([^<]+?)\s*<\/StateDate>/i.exec(xml)
+    const parsed = when ? new Date(when[1]) : null
+    const stateDate =
+      parsed && Number.isFinite(parsed.getTime())
+        ? parsed.toISOString()
+        : undefined
+    const answer: OpStateAnswer = { verdict: 'PAID', state }
+    if (Number.isFinite(incSum)) answer.incSum = incSum
+    if (stateDate) answer.stateDate = stateDate
+    return answer
   }
   if (UNPAID.has(state)) return { verdict: 'NOT_PAID', state }
   if (HUMAN.has(state)) return { verdict: 'NEEDS_A_HUMAN', state }
