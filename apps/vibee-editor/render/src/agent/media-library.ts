@@ -925,13 +925,34 @@ export async function mirrorTranscript(
     { msgId: row.msgId, at: row.at, out: row.out, text },
   ])
   if (r.fresh > 0) return 'inserted'
-  await pool.query(
+  const appended = await pool.query(
     `UPDATE crm_messages
         SET text = left(text || E'\\n' || $4, 4000)
       WHERE owner_id = $1 AND lead_id = $2 AND msg_id = $3
         AND position($4 in text) = 0`,
     [owner, row.lead, row.msgId, words.slice(0, TRANSCRIPT_CAP)]
   )
+  /*
+   * AND ZEP, WHICH `mirrorNow` DID NOT TELL.
+   *
+   * It posts only what was fresh in Postgres, and on this path nothing was:
+   * the row already existed, written as `[голосовое]` the moment the ingest
+   * saw the file. Without this the agent's memory of every voice message ever
+   * sent is that one word -- the row in Postgres holds what was said and the
+   * memory the agent actually reads does not.
+   *
+   * Guarded by the UPDATE's own row count, so the words go over once. A
+   * re-read that changes nothing says nothing.
+   */
+  if ((appended as { rowCount?: number }).rowCount) {
+    const { mirrorOneToZep } = await import('./crm-mirror')
+    await mirrorOneToZep(owner, row.lead, {
+      msgId: row.msgId,
+      at: row.at,
+      out: row.out,
+      text,
+    })
+  }
   return 'appended'
 }
 
