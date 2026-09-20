@@ -415,7 +415,8 @@ export async function спроситьАгента(
           model?: string
           proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
-        if (ev.тип === 'ход' && ev.id) turnId = ev.id // cyrillic-ok: pre-existing event envelope
+        if (ev.тип === 'ход' && ev.id)
+          turnId = ev.id // cyrillic-ok: pre-existing event envelope
         else if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
         else if (ev.тип === 'провайдер' && ev.id)
