@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -91,15 +90,22 @@ const offendingLines = (src: string): string[] =>
  */
 const TEXTUAL = /\.(ts|tsx|js|jsx|mjs|cjs|json|sh|yml|yaml|env|conf|toml|md)$/i
 
-const sourceFiles = (): string[] =>
-  execFileSync('git', ['ls-files', '-z'], {
-    cwd: ROOT,
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .toString('utf8')
-    .split('\0')
-    .filter(Boolean)
-    .filter(f => TEXTUAL.test(f))
+const sourceFiles = (): string[] => {
+  /*
+   * TRACKED **AND** UNTRACKED, through the shared helper.
+   *
+   * The first version of this called `git ls-files` directly, and the
+   * repository's own meta-guard (no-silent-blindness) refused it: the index
+   * cannot see a file that exists on disk and was never added, and a
+   * credential sitting in one is every bit as present. `repoFiles` combines
+   * both, and `selfCheck` refuses to run when the population collapses --
+   * which is the difference between "no offenders" and "I could not look".
+   */
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const src = require('../../../scripts/lib/repo-sources.cjs')
+  src.selfCheck(ROOT)
+  return (src.repoFiles(ROOT) as string[]).filter(f => TEXTUAL.test(f))
+}
 
 describe('credentials embedded in connection strings', () => {
   it('the matcher recognises the shape and spares ordinary URLs', () => {
