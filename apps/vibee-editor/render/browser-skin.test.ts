@@ -6,6 +6,9 @@ import {
   PAGE_TITLE,
   LOGO_URL,
   BRAND_NAME,
+  BOOT_HTML,
+  BOOT_SCRIPT,
+  BOOT_GIVE_UP_MS,
 } from './src/browser/skin'
 
 /**
@@ -38,13 +41,17 @@ describe('dressing the window', () => {
     expect(out).not.toContain('favicon-16x16.png')
   })
 
-  it('KEEPS THE ENGINE CREDITED', () => {
+  it('SHOWS NO ENGINE NAME, and does not link to one', () => {
     /*
-     * neko is Apache-2.0. Its marks may not be used, so the cat goes; its
-     * name in words is a credit, and taking that off a window it renders
-     * would be both unnecessary and shabby.
+     * Owner's decision, 2026-09-21, and permitted: Apache-2.0 hangs its
+     * notice duties on distributing the work, not on hosting it. The link
+     * matters as much as the text -- the anchor points at the engine's
+     * repository and CSS cannot change an href, so the credit is only truly
+     * gone once the click is gone too.
      */
-    expect(BRAND_CSS).toContain('n.eko')
+    const css = BRAND_CSS.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css).not.toMatch(/content:\s*'[^']*n\.eko/)
+    expect(css).toMatch(/pointer-events:\s*none/)
   })
 
   it('leaves the page body and its scripts alone', () => {
@@ -71,6 +78,55 @@ describe('dressing the window', () => {
     expect(twice.split('data-t27-skin').length - 1).toBe(2)
     /* Idempotent in effect even if applied twice: same title, same logo. */
     expect(twice).toContain(`<title>${PAGE_TITLE}</title>`)
+  })
+})
+
+describe('the loader, while the browser comes up', () => {
+  it('is IN THE FIRST PAINT, not built by a script', () => {
+    /*
+     * A loader a bundle has to run before it appears is a black rectangle
+     * for exactly as long as it matters. It goes in as markup, after <body>.
+     */
+    const out = injectSkin(PAGE)
+    const body = out.indexOf('<body>')
+    expect(body).toBeGreaterThan(-1)
+    expect(out.indexOf('id="t27-boot"')).toBeGreaterThan(body)
+    expect(out.indexOf('id="t27-boot"')).toBeLessThan(
+      out.indexOf('<div id="neko">')
+    )
+  })
+
+  it('shows our mark and says what is happening', () => {
+    expect(BOOT_HTML).toContain(LOGO_URL)
+    expect(BOOT_HTML).toMatch(/class="said"/)
+  })
+
+  it('LEAVES WHEN A REAL FRAME PLAYS, not when a socket opens', () => {
+    /*
+     * A connected socket with no picture is precisely the state worth
+     * seeing, so the loader must not treat it as success.
+     */
+    expect(BOOT_SCRIPT).toContain("'playing'")
+    expect(BOOT_SCRIPT).not.toContain("'open'")
+  })
+
+  it('LEAVES EVEN WHEN NOTHING ARRIVES', () => {
+    /*
+     * The failure this prevents: a browser that never starts, hidden behind
+     * a ring that spins forever, with the real error underneath it.
+     */
+    expect(BOOT_SCRIPT).toContain(String(BOOT_GIVE_UP_MS))
+    expect(BOOT_SCRIPT).toMatch(/setTimeout\(done/)
+    expect(BOOT_GIVE_UP_MS).toBeGreaterThan(20_000)
+    expect(BOOT_GIVE_UP_MS).toBeLessThanOrEqual(60_000)
+  })
+
+  it('takes itself out of the way once and only once', () => {
+    expect(BOOT_SCRIPT).toContain('if (gone) return')
+  })
+
+  it('stops spinning for somebody who asked motion to stop', () => {
+    expect(BRAND_CSS).toContain('prefers-reduced-motion')
   })
 })
 
@@ -120,6 +176,30 @@ describe('the palette is the app palette', () => {
     expect(LOGO_URL).toBe('/t27-mark.svg')
     expect(BRAND_CSS).toContain(BRAND_NAME)
     expect(PAGE_TITLE).toContain(BRAND_NAME)
+  })
+
+  it('IS A WHOLE STYLESHEET, not one cut in half', () => {
+    /*
+     * The stylesheet is a template literal, so a backtick inside it ends it
+     * early. One slipped into a comment and truncated the sheet; that time
+     * the leftovers were a syntax error and the compiler caught it, but a
+     * PAIR of backticks would have compiled fine and shipped half a design.
+     * Braces are the cheap, honest check that the sheet is entire.
+     */
+    const open = (BRAND_CSS.match(/\{/g) || []).length
+    const close = (BRAND_CSS.match(/\}/g) || []).length
+    expect(open).toBe(close)
+    expect(open).toBeGreaterThan(10)
+    expect(BRAND_CSS).not.toContain('`')
+    expect(BRAND_CSS.trimEnd().endsWith('}')).toBe(true)
+  })
+
+  it('leaves the icon font alone', () => {
+    /*
+     * Forcing the family on every node overrode Font Awesome, and every
+     * icon in the bar became a row of little bars.
+     */
+    expect(BRAND_CSS).toContain(':not(i)')
   })
 
   it('answers a phone', () => {

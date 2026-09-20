@@ -156,6 +156,12 @@ export type LiveDecision =
       upstreamPath: string
       /** Server-side only: swapped into the pod login. Never serialised. */
       viewToken: string
+      /**
+       * Server-side only, and it never leaves this process: it is the pod's
+       * admin password, used to reshape the desktop to the window the person
+       * is watching in. A client that held it could change the room itself.
+       */
+      adminToken: string
     }
   | { kind: 'refuse'; status: number; message: string }
 
@@ -230,6 +236,7 @@ export async function authorizeLive(
 
   return {
     kind: 'proxy',
+    adminToken: session.adminToken,
     endpoint: session.endpoint,
     upstreamPath: req.upstreamPath,
     viewToken: session.viewToken,

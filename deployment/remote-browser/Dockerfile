@@ -1,3 +1,14 @@
+# ATTRIBUTION.
+#
+# Built FROM ghcr.io/m1k1o/neko/chromium (https://github.com/m1k1o/neko),
+# Apache License 2.0. Its LICENSE and notices are inside the image and are
+# not modified here; this file records the change we make to it.
+#
+# The engine's name is not shown in the window (owner's decision,
+# 2026-09-21). That is permitted: Apache-2.0 attaches its notice duties to
+# DISTRIBUTING the work, and running it as a hosted service is not that.
+# Its trademarks are not used -- that part was never optional.
+#
 # The per-client browser pod: one Chromium, three control surfaces.
 #   - the person watches and takes over via neko's WebRTC stream (8080)
 #   - the agent drives the same browser via CDP (9223, private network only)
@@ -45,7 +56,8 @@ RUN sed -i 's/"DeveloperToolsAvailability": 2/"DeveloperToolsAvailability": 1/' 
 
 # The stale-lock sweeper. See the script for what it saw and why it is safe.
 COPY unlock-profile.sh /usr/local/bin/unlock-profile.sh
-RUN chmod +x /usr/local/bin/unlock-profile.sh
+COPY start-chromium.sh /usr/local/bin/start-chromium.sh
+RUN chmod +x /usr/local/bin/unlock-profile.sh /usr/local/bin/start-chromium.sh
 
 COPY chromium.conf /etc/neko/supervisord/chromium.conf
 COPY cdp-bridge.conf /etc/neko/supervisord/cdp-bridge.conf
