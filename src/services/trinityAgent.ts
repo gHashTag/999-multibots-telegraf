@@ -393,12 +393,12 @@ export async function спроситьАгента(
     let provider: string | undefined
     let proposal: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type name
     /**
-     * ID ХОДА — ПЕРВОЕ СОБЫТИЕ ПОТОКА (`chat.ts`, `runAgent`).
+     * TURN ID -- THE STREAM'S FIRST EVENT (`chat.ts`, `runAgent`).
      *
-     * Сервер пишет одну строку `[agent:turn]` на старт и конец ЭТОГО ЖЕ
-     * хода. Вставляем этот id в собственные строки лога бота, чтобы падение,
-     * увиденное в Telegram, находилось в серверном логе одним `grep`, а не
-     * сопоставлением по времени и telegram_id вручную.
+     * The server writes one `[agent:turn]` line for the start and end of
+     * this same turn. We fold the id into the bot's own log lines so a
+     * failure seen in Telegram can be found in the server log with one
+     * `grep`, instead of matching timestamp and telegram_id by hand.
      */
     let turnId: string | undefined
 
@@ -414,7 +414,7 @@ export async function спроситьАгента(
           model?: string
           proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
-        if (ev.тип === 'ход' && ev.id) turnId = ev.id
+        if (ev.тип === 'ход' && ev.id) turnId = ev.id // cyrillic-ok: pre-existing event envelope
         else if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
         else if (ev.тип === 'провайдер' && ev.id)
