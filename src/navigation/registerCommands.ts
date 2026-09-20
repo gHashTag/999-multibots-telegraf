@@ -2625,6 +2625,31 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         // knowing nothing, so it is the one place that explains.
         await showStartGreeting(ctx)
         console.log('🔴 [DEBUG /start] Start greeting shown OK')
+        /*
+         * AND THE BLUE BUTTON IN THEIR LANGUAGE.
+         *
+         * The bot's default menu button is one word for everybody and it is
+         * English, because most people meeting these bots are. Telegram will
+         * set it for ONE chat, so a Russian speaker gets the Russian word --
+         * here, because /start is where their language first becomes known.
+         *
+         * After the greeting, never before: this is a nicety, and it must not
+         * delay the one message a person is waiting for.
+         */
+        void (async () => {
+          try {
+            const { pointThisChatsButtonAtTheApp } = await import(
+              '@/core/bot/menuButton'
+            )
+            await pointThisChatsButtonAtTheApp(
+              ctx.telegram,
+              ctx.chat?.id,
+              isRussianFromState(ctx)
+            )
+          } catch {
+            // A button is not worth an error on the /start path.
+          }
+        })()
       }
     } catch (error) {
       console.log(
