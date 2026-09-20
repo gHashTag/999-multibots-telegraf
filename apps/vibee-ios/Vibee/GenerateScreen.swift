@@ -1,6 +1,7 @@
 import AVKit
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /**
  * Вкладка «ИИ» целиком нативная. Это был ПОСЛЕДНИЙ `WebScreen` в приложении.
@@ -111,6 +112,42 @@ struct GenerateScreen: View {
   @State private var модель: Модель?
   @ObservedObject private var слои = Слои.общие
   @State private var открытьРедактор = false
+
+  /**
+   * ЧТО ИМЕННО ВЫГЛЯДЕЛО СЛОМАННЫМ В «ВЗЯТЬ».
+   *
+   * Кнопка молча добавляла ассет в `слои.слои` и ничего не меняла НА ЭТОЙ
+   * вкладке — результат виден только на вкладке «Редактор». Человек на
+   * «Голосе» или «Фото» нажимал «Взять», экран не менялся ни на пиксель, и
+   * это неотличимо от кнопки, которая не сработала. Баг был не в передаче
+   * тапа, а в полном отсутствии следа от него там, где на него смотрят.
+   */
+  @State private var взятоНедавно: Set<String> = []
+
+  /// Взять ассет и ПОКАЗАТЬ это на месте нажатия, а не только на другой
+  /// вкладке. Haptic — тем, кто отвернулся от экрана в момент тапа.
+  private func взять(_ id: String) {
+    слои.взятьВРолик(id)
+    взятоНедавно.insert(id)
+    UINotificationFeedbackGenerator().notificationOccurred(.success)
+    Task {
+      try? await Task.sleep(nanoseconds: 1_200_000_000)
+      взятоНедавно.remove(id)
+    }
+  }
+
+  @ViewBuilder private func кнопкаВзять(_ id: String) -> some View {
+    Button { взять(id) } label: {
+      if взятоНедавно.contains(id) {
+        Label("Добавлено", systemImage: "checkmark.circle.fill")
+      } else {
+        Text("Взять")
+      }
+    }
+    .font(Тема.Шрифт.стиль(.footnote, .medium))
+    .buttonStyle(.plain)
+    .foregroundStyle(взятоНедавно.contains(id) ? Тема.Цвет.успех : Тема.Цвет.акцент)
+  }
 
   /// Берём у самого вида: одно определение вместо двух расходящихся.
   private var видКаталога: Модель.Вид? { вид.видКаталога }
@@ -927,10 +964,7 @@ struct GenerateScreen: View {
                 .foregroundStyle(Тема.Цвет.текстПриглушённый)
             }
             Spacer(minLength: 8)
-            Button("Взять") { слои.взятьВРолик(а.id) }
-              .font(Тема.Шрифт.стиль(.footnote, .medium))
-              .buttonStyle(.plain)
-              .foregroundStyle(Тема.Цвет.акцент)
+            кнопкаВзять(а.id)
               .frame(minWidth: 60, minHeight: 44, alignment: .trailing)
               .contentShape(Rectangle())
           }
@@ -1367,10 +1401,7 @@ struct GenerateScreen: View {
                 .foregroundStyle(Тема.Цвет.текстПриглушённый)
             }
             Spacer(minLength: 8)
-            Button("Взять") { слои.взятьВРолик(а.id) }
-              .font(Тема.Шрифт.стиль(.footnote, .medium))
-              .buttonStyle(.plain)
-              .foregroundStyle(Тема.Цвет.акцент)
+            кнопкаВзять(а.id)
               .frame(minHeight: Тема.Касание.минимум)
             // Удаление здесь, не только в сборке: неудачный результат
             // отсеивают до того, как он попал в ролик, а не после.
