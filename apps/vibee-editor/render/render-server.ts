@@ -556,6 +556,8 @@ import {
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 import { installGracefulShutdown } from './src/graceful-shutdown'
+// One home for "this request path stays under this root"; see safe-path.ts.
+import { safeUnder } from './src/lib/safe-path'
 // The one place that decides whether a URL is an object on our own shelf.
 import { usableMediaUrl } from './src/agent/media-parts'
 import {
@@ -5572,20 +5574,31 @@ const server = createServer(async (req, res) => {
   }
 
   // List S3 assets
-  if (req.url === '/assets' && req.method === 'GET') {
-    const result = await listS3Assets()
-    const statusCode = result.success ? 200 : 500
-    res.writeHead(statusCode, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify(result))
-    return
-  }
+  /*
+   * GET /assets IS GONE.
+   *
+   * It called listS3Assets() with the flat prefix `assets/` and handed the
+   * whole farm's media shelf -- every owner's photos, voice notes and files --
+   * to ANY caller with a valid Telegram signature. The global guard accepts a
+   * signature from any bot of the platform without asking who the person is,
+   * so "protected" here meant "every user of the platform".
+   *
+   * Deleted rather than gated: nothing in the player calls it and no test
+   * covers it, so a guard would be a guard on a route nobody wants. The
+   * per-person listing that does exist is /api/assets/:telegram_id, which is
+   * scoped by identity.
+   */
 
   // Serve rendered files
   if (req.url?.startsWith('/renders/') && req.method === 'GET') {
     // Strip query string from URL
     const urlPath = req.url.split('?')[0]
-    const filename = urlPath.replace('/renders/', '')
-    const filePath = path.join(OUTPUT_DIR, filename)
+    const filePath = safeUnder(OUTPUT_DIR, urlPath.slice('/renders/'.length))
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
 
     serveStaticFile(res, filePath)
     return
@@ -5595,8 +5608,15 @@ const server = createServer(async (req, res) => {
   if (req.url?.startsWith('/public/') && req.method === 'GET') {
     // Strip query string from URL
     const urlPath = req.url.split('?')[0]
-    const filename = urlPath.replace('/public/', '')
-    const filePath = path.join(process.cwd(), 'public', filename)
+    const filePath = safeUnder(
+      path.join(process.cwd(), 'public'),
+      urlPath.slice('/public/'.length)
+    )
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
     console.log(`📂 Request for public file: ${req.url} -> ${filePath}`)
 
     serveStaticFile(res, filePath)
@@ -5617,7 +5637,12 @@ const server = createServer(async (req, res) => {
   if (matchedPath && req.method === 'GET') {
     // Strip query string from URL before building file path
     const urlPath = req.url!.split('?')[0]
-    const filePath = path.join(process.cwd(), 'public', urlPath)
+    const filePath = safeUnder(path.join(process.cwd(), 'public'), urlPath)
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
     console.log(
       `📂 Request for public file (no prefix): ${req.url} -> ${filePath}`
     )
@@ -6752,8 +6777,12 @@ const server = createServer(async (req, res) => {
   // GET /hls/{video_id}/{quality}/playlist.m3u8 - Serve quality playlist
   // GET /hls/{video_id}/{quality}/*.ts - Serve segments
   if (req.url?.startsWith('/hls/') && req.method === 'GET') {
-    const hlsPath = req.url.slice(5) // Remove /hls/
-    const filePath = path.join(HLS_DIR, hlsPath)
+    const filePath = safeUnder(HLS_DIR, req.url.slice(5).split('?')[0])
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
 
     if (fs.existsSync(filePath)) {
       const ext = path.extname(filePath)
