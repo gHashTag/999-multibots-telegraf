@@ -282,7 +282,19 @@ export async function report(
    * nobody would think to check.
    */
   await checkSellerSilence(pool, now)
-  await checkWaitingClients(pool, now)
+  const waited = await checkWaitingClients(pool, now)
+  /*
+   * OUT LOUD WHEN IT DROPPED SOMEBODY. The tick writes at most PER_TICK and
+   * passes over anything older than a month; both are deliberate and both are
+   * invisible from the journal, where a capped run and a quiet one look the
+   * same. Silent only when it wrote nothing and skipped nothing.
+   */
+  if (waited.written || waited.deferred || waited.history) {
+    console.log(
+      `[hive] waiting: ${waited.waiting}, wrote ${waited.written}` +
+        `, deferred ${waited.deferred}, history skipped ${waited.history}`
+    )
+  }
 
   const who = keepers()
   if (!who.length) {
