@@ -15,6 +15,20 @@ import {
 } from '@/interfaces/payments.interface'
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { withUserBalanceLock } from './balanceLock'
+// The live wallet. The archive below is an audit trail, not a balance.
+import { creditTokens, debitTokens } from '@/core/wallet/tokenWallet'
+
+/**
+ * ONE SENTENCE FOR "YOU CANNOT AFFORD THIS", REACHED FROM BOTH REFUSALS.
+ *
+ * This function refuses twice for one reason: the pre-write balance check,
+ * and the wallet's own atomic refusal. Spelling it separately in each made
+ * the refusal-offers-a-way-to-pay ratchet count a fourteenth site, and the
+ * ratchet was right -- two spellings mean two places for the way-to-pay
+ * button to be forgotten.
+ */
+const notEnough = (have: number, need: number): string =>
+  `Недостаточно средств. Баланс: ${have}, требуется: ${need}` // cyrillic-ok: message to a person
 
 // --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС ВХОДНЫХ ПАРАМЕТРОВ ---
 export interface DirectPaymentParams {
@@ -132,7 +146,7 @@ async function directPaymentProcessorUnlocked(
       !bypass_payment_check &&
       currentBalance < normalizedAmount
     ) {
-      const errorMsg = `Недостаточно средств. Баланс: ${currentBalance}, требуется: ${normalizedAmount}`
+      const errorMsg = notEnough(currentBalance, normalizedAmount)
       // warn, not error: logger.error is a push notification to the owner's
       // Telegram group, and there is nothing for an operator to do here.
       //
@@ -163,6 +177,57 @@ async function directPaymentProcessorUnlocked(
         '🔓 [DIRECT_PAYMENT v2.0] Проверка баланса пропущена (bypass)',
         { telegram_id }
       )
+    }
+
+    /*
+     * 3b. THE WALLET, BEFORE THE ARCHIVE ROW.
+     *
+     * Found by an adversarial sweep 2026-09-20 and rated critical: this
+     * function read the balance with getUserBalance -- which since the
+     * single-wallet decision reads `user_tokens` in the render's Postgres --
+     * compared it against the price, and then wrote a MONEY_OUTCOME row into
+     * `payments_v2`, which is now an ARCHIVE nothing spends from.
+     *
+     * So the balance never moved. The next read returned the same number, the
+     * check passed again, and the same few tokens bought an unbounded number
+     * of paid generations, each one a real provider bill. In the other
+     * direction a referral or promo bonus was written into the archive and
+     * never arrived.
+     *
+     * `debitTokens` is one UPDATE ... WHERE balance >= amount, so the check
+     * and the write cannot be split by a second tap -- the same reason
+     * updateUserBalance uses it. A null is a REFUSAL: nothing was taken, and
+     * nothing is written below.
+     *
+     * It happens BEFORE the archive insert on purpose: a failure here must
+     * leave no row claiming a charge that never happened.
+     */
+    if (type === PaymentType.MONEY_OUTCOME) {
+      const left = await debitTokens(String(telegram_id), normalizedAmount)
+      if (left === null) {
+        // warn, not error: logger.error pages the owner, and a customer who
+        // cannot afford a generation is not something to be woken for.
+        logger.warn('❌ [DIRECT_PAYMENT v2.0] Кошелёк отказал в списании', {
+          telegram_id,
+          required: normalizedAmount,
+        })
+        /*
+         * THE SAME SENTENCE AS THE PRE-WRITE GUARD, not a second one.
+         *
+         * Both refusals are the same fact -- the person cannot afford this --
+         * and the ratchet that counts "refusals with nothing to press"
+         * counted my new phrasing as a fourteenth site. It was right to: two
+         * spellings of one refusal mean two places for the way-to-pay button
+         * to be forgotten. One message, built once, reached from both.
+         */
+        return {
+          success: false,
+          error: notEnough(currentBalance, normalizedAmount),
+          operation_id: operationId,
+        }
+      }
+    } else {
+      await creditTokens(String(telegram_id), normalizedAmount)
     }
 
     // 4. ПРЯМАЯ ВСТАВКА ЗАПИСИ В payments_v2

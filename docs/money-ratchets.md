@@ -11,10 +11,11 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 144. Без заголовка: 0.
+Ратчетов: 146. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `aBotTopUpReachesTheLiveWallet.test.ts`                | a bot star purchase credits the live wallet                                                   |
 | `aRefusalIsNotAnnouncedAsSuccess.test.ts`              | a refusal is shown as a refusal                                                               |
 | `aRefusedChargeStopsTheGeneration.test.ts`             | refuseUnpaidGeneration tells an empty wallet from a broken one                                |
 | `aiCoverRefundChecked.test.ts`                         | aiCover refund result is checked and reported truthfully                                      |
@@ -44,6 +45,7 @@
 | `creditNotInLoop.test.ts`                              | user credits are not called inside a loop (scalar-credit mint #1468/#1470)                    |
 | `creditSiteCensus.test.ts`                             | credit-site census: no unreviewed mint surface                                                |
 | `creditedIsNotOk.test.ts`                              | ok is not credited                                                                            |
+| `directChargeMovesTheRealWallet.test.ts`               | a direct charge                                                                               |
 | `directPaymentPostCommit.test.ts`                      | a payment that committed is reported as committed                                             |
 | `directPaymentRefusalDoesNotPage.test.ts`              | directPaymentProcessor: which refusals page the owner                                         |
 | `emailWizardPriceAllowlist.test.ts`                    | emailWizard setPayments is allowlist-guarded                                                  |

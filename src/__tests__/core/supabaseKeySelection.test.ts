@@ -59,7 +59,9 @@ describe('selectSupabaseServiceKey', () => {
   })
 
   it('uses the only key present and reports its role', () => {
-    const picked = selectSupabaseServiceKey({ SUPABASE_SERVICE_KEY: jwt('anon') })
+    const picked = selectSupabaseServiceKey({
+      SUPABASE_SERVICE_KEY: jwt('anon'),
+    })
     expect(picked?.source).toBe('SUPABASE_SERVICE_KEY')
     expect(picked?.role).toBe('anon')
   })

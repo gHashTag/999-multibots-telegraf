@@ -6,6 +6,7 @@ import type {
   LipSyncError,
 } from './schemas/lipsync-schemas'
 import type { ILipSyncProvider } from './interfaces/lipsync-provider.interface'
+import { validateImageUrl } from './validateImageUrl'
 
 /**
  * Unified Lip Sync Orchestrator
@@ -35,6 +36,32 @@ export class LipSyncOrchestrator {
         modelId: input.modelId,
         telegramId: input.telegramId,
       })
+
+      /*
+       * Refuse an unfetchable image before anyone is charged.
+       *
+       * This is the one gate every provider passes through, and the charge
+       * happens inside provider.generate() -- so a URL that no render server
+       * could ever download has to be stopped here, not there. It used to
+       * travel all the way to the provider, create a paid job, and fail on
+       * their fetch; we then refunded the person out of our own pocket.
+       */
+      const imageUrlVerdict = validateImageUrl(input.imageUrl)
+      if (!imageUrlVerdict.ok) {
+        logger.error('❌ Некорректный URL изображения', {
+          provider: input.provider,
+          modelId: input.modelId,
+          telegramId: input.telegramId,
+          reason: imageUrlVerdict.reason,
+        })
+        return {
+          message: 'Invalid image URL',
+          error: imageUrlVerdict.reason ?? 'Image URL is not usable',
+          code: 'INVALID_IMAGE_URL',
+          provider: input.provider,
+          modelId: input.modelId,
+        }
+      }
 
       // Получаем провайдер из factory
       const provider: ILipSyncProvider = lipSyncProviderFactory.createProvider(

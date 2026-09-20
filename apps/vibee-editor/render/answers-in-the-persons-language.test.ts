@@ -55,4 +55,27 @@ describe('the language of the answer', () => {
       new RegExp('НЕ указание отвечать по-русски') // cyrillic-ok: prompt copy
     )
   })
+
+  /*
+   * AND IT IS THE LAST THING READ.
+   *
+   * Measured against production: with the rule in the MIDDLE of the template,
+   * the business DM answered English in English and the bot surface answered
+   * the same question in Russian. The difference is what comes after it --
+   * the bot appends button markers and club material, half a screen of
+   * Russian, and the model follows what it read last.
+   *
+   * Pinned as a position, not as presence: a rule that is merely present is
+   * what already failed.
+   */
+  it('is the last instruction on every surface', () => {
+    for (const surface of ['bot', 'business', undefined]) {
+      const p = systemPrompt(surface)
+      const tail = p.slice(-500)
+      expect(
+        tail,
+        `something is appended after the language rule on ${surface ?? 'default'}`
+      ).toMatch(NAMES_THE_RULE)
+    }
+  })
 })

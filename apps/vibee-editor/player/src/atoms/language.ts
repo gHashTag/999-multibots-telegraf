@@ -236,6 +236,12 @@ const en: Translations = {
   'nav.getStarted': 'Get Started',
 
   // Hero
+  // CRM console entry, own profile only (components/Profile/CrmCard.tsx)
+  'crm.card.title': '🗂️ Clients and plan',
+  'crm.card.note':
+    'Who wrote and is waiting, who is warm, the content plan and the launch tasks.',
+  'crm.card.open': 'Open CRM',
+
   'hero.badge': 'AGI game',
   'hero.title': 'An AGI game built by digital twins of real people',
   'hero.subtitle':
@@ -2215,6 +2221,12 @@ const ru: Translations = {
   'nav.getStarted': 'Начать',
 
   // Hero
+  // CRM console entry, own profile only (components/Profile/CrmCard.tsx)
+  'crm.card.title': '🗂️ Клиенты и план',
+  'crm.card.note':
+    'Кто написал и ждёт, кто горячий, контент-план и задачи запуска.',
+  'crm.card.open': 'Открыть CRM',
+
   'hero.badge': 'AGI-игра',
   'hero.title': 'AGI-игра, которую строят цифровые двойники реальных людей',
   'hero.subtitle':
