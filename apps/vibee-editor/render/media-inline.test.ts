@@ -247,7 +247,13 @@ describe('audio the chain cannot hear is transcribed', () => {
         })
       }
       if (url.includes('/audio/transcriptions'))
-        return new Response('нужен контент-план на месяц', { status: 200 })
+        // A STREAM, as the production transcriber answers: it always enters
+        // its streaming responder, so a plain body here would exercise the
+        // fallback and not the path that actually runs.
+        return new Response(
+          'data: {"text":"нужен контент-план на месяц"}\ndata: [DONE]\n',
+          { status: 200 }
+        )
       return new Response('', { status: 500 })
     })
     const { inlineUnperceivedMedia } = await load()
@@ -299,7 +305,12 @@ describe('audio the chain cannot hear is transcribed', () => {
         })
       if (url.includes('/audio/transcriptions')) {
         transcriptions += 1
-        return new Response('одно и то же', { status: 200 })
+        // A stream, for the same reason as above -- and here it also keeps
+        // the count honest: one transcription is one call only when the
+        // first attempt answers.
+        return new Response('data: {"text":"одно и то же"}\ndata: [DONE]\n', {
+          status: 200,
+        })
       }
       return new Response('', { status: 500 })
     })
