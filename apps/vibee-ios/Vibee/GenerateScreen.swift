@@ -114,31 +114,32 @@ struct GenerateScreen: View {
   @State private var открытьРедактор = false
 
   /**
-   * ЧТО ИМЕННО ВЫГЛЯДЕЛО СЛОМАННЫМ В «ВЗЯТЬ».
+   * WHAT WAS ACTUALLY BROKEN ABOUT "Взять" (Take).
    *
-   * Кнопка молча добавляла ассет в `слои.слои` и ничего не меняла НА ЭТОЙ
-   * вкладке — результат виден только на вкладке «Редактор». Человек на
-   * «Голосе» или «Фото» нажимал «Взять», экран не менялся ни на пиксель, и
-   * это неотличимо от кнопки, которая не сработала. Баг был не в передаче
-   * тапа, а в полном отсутствии следа от него там, где на него смотрят.
+   * The button silently appended the asset to `слои.слои` and changed
+   * nothing on THIS tab -- the result only showed up on the "Редактор" tab.
+   * A person on "Голос" or "Фото" pressed "Взять", the screen didn't move a
+   * pixel, and that's indistinguishable from a button that failed. The bug
+   * wasn't in delivering the tap, it was the total absence of any trace of
+   * it where people were actually looking.
    */
-  @State private var взятоНедавно: Set<String> = []
+  @State private var recentlyTaken: Set<String> = []
 
-  /// Взять ассет и ПОКАЗАТЬ это на месте нажатия, а не только на другой
-  /// вкладке. Haptic — тем, кто отвернулся от экрана в момент тапа.
-  private func взять(_ id: String) {
+  /// Take the asset and SHOW it at the point of the tap, not only on another
+  /// tab. Haptic feedback for anyone who looked away at the moment of the tap.
+  private func takeAsset(_ id: String) {
     слои.взятьВРолик(id)
-    взятоНедавно.insert(id)
+    recentlyTaken.insert(id)
     UINotificationFeedbackGenerator().notificationOccurred(.success)
     Task {
       try? await Task.sleep(nanoseconds: 1_200_000_000)
-      взятоНедавно.remove(id)
+      recentlyTaken.remove(id)
     }
   }
 
-  @ViewBuilder private func кнопкаВзять(_ id: String) -> some View {
-    Button { взять(id) } label: {
-      if взятоНедавно.contains(id) {
+  @ViewBuilder private func takeButton(_ id: String) -> some View {
+    Button { takeAsset(id) } label: {
+      if recentlyTaken.contains(id) {
         Label("Добавлено", systemImage: "checkmark.circle.fill")
       } else {
         Text("Взять")
@@ -146,7 +147,7 @@ struct GenerateScreen: View {
     }
     .font(Тема.Шрифт.стиль(.footnote, .medium))
     .buttonStyle(.plain)
-    .foregroundStyle(взятоНедавно.contains(id) ? Тема.Цвет.успех : Тема.Цвет.акцент)
+    .foregroundStyle(recentlyTaken.contains(id) ? Тема.Цвет.успех : Тема.Цвет.акцент)
   }
 
   /// Берём у самого вида: одно определение вместо двух расходящихся.
@@ -964,7 +965,7 @@ struct GenerateScreen: View {
                 .foregroundStyle(Тема.Цвет.текстПриглушённый)
             }
             Spacer(minLength: 8)
-            кнопкаВзять(а.id)
+            takeButton(а.id)
               .frame(minWidth: 60, minHeight: 44, alignment: .trailing)
               .contentShape(Rectangle())
           }
@@ -1401,7 +1402,7 @@ struct GenerateScreen: View {
                 .foregroundStyle(Тема.Цвет.текстПриглушённый)
             }
             Spacer(minLength: 8)
-            кнопкаВзять(а.id)
+            takeButton(а.id)
               .frame(minHeight: Тема.Касание.минимум)
             // Удаление здесь, не только в сборке: неудачный результат
             // отсеивают до того, как он попал в ролик, а не после.
