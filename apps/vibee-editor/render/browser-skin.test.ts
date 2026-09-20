@@ -246,9 +246,7 @@ describe('the row along the bottom is ours too', () => {
      * node; it can take one out of flow.
      */
     expect(css).toMatch(/\.room-container \{[^}]*position: fixed/)
-    expect(css).toMatch(
-      /\.neko-main[^{]*\{[^}]*calc\(100vh - var\(--t27-bar\)\)/
-    )
+    expect(css).toMatch(/\.neko-main[^{]*\{[^}]*height: 100vh/)
   })
 
   it('CENTRES THE AVATAR AT EVERY LEVEL, not just the top one', () => {
@@ -272,6 +270,19 @@ describe('the row along the bottom is ours too', () => {
      */
     expect(css).toMatch(
       /\.room-container \{[^}]*calc\(var\(--t27-bar\) - 1px\)/
+    )
+  })
+
+  it('LETS CLICKS THROUGH THE GLASS', () => {
+    /*
+     * The bar covers the top strip of the person's own browser -- their
+     * tabs, their address bar. Showing them through frosted glass and then
+     * swallowing the click would be worse than an opaque bar.
+     */
+    expect(css).toMatch(/\.header \{[^}]*backdrop-filter/)
+    expect(css).toMatch(/\.header \{[^}]*pointer-events: none/)
+    expect(css).toMatch(
+      /\.room-container \{[\s\S]*?pointer-events: auto|\.header \.menu[^{]*\{[^}]*pointer-events: auto/
     )
   })
 
