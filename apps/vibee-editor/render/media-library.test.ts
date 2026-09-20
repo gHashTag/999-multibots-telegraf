@@ -482,7 +482,10 @@ describe('describeMedia', () => {
             headers: { 'content-type': 'audio/ogg' },
           })
         posts.push({ url: String(url), init: init ?? {} })
-        return new Response('  слова из длинной записи  ', { status: 200 })
+        return new Response(
+          JSON.stringify({ text: '  слова из длинной записи  ' }),
+          { status: 200 }
+        )
       })
     )
     const { describeMedia, resetWhisperForTests } = await import(
@@ -496,7 +499,7 @@ describe('describeMedia', () => {
     expect(posts[0].url).toBe('https://api.openai.com/v1/audio/transcriptions')
     const form = posts[0].init.body as FormData
     expect(form.get('model')).toBe('whisper-1')
-    expect(form.get('response_format')).toBe('text')
+    expect(form.get('response_format')).toBe('json')
     expect((form.get('file') as File).name).toBe('voice.ogg')
     expect(
       (posts[0].init.headers as Record<string, string>).Authorization
@@ -936,3 +939,69 @@ function res() {
     },
   }
 }
+
+/**
+ * A 200 WITH NO WORDS IN IT.
+ *
+ * Owner, 2026-09-20: "why can't the agent read voice messages". It asked, and
+ * it was answered -- measured in the whisper service's own log the same day,
+ * for a real nineteen-second recording: language detected with probability
+ * 1.00, "Transcribed 19.03 seconds of audio in 7.57 seconds", and then
+ *
+ *   ERROR speaches.routers.stt:transcription_response_to_http_response
+ *         Unexpected streaming transcription response type: <class 'tuple'>
+ *   "POST /v1/audio/transcriptions HTTP/1.1" 200 OK
+ *
+ * It heard every word and failed to put them in the reply. That is the worst
+ * failure shape there is: every check upstream passes and the text is simply
+ * gone, so from the person's side the agent is deaf for no stated reason.
+ *
+ * What is pinned here is the reader, which is what makes the shape survivable:
+ * whatever a server answers, the words come out or nothing does -- never a
+ * server's complaint wearing a person's voice.
+ */
+describe('reading what a transcriber answered', () => {
+  it('takes the words out of the json every OpenAI-shaped server returns', async () => {
+    const { readTranscript } = await import('./src/agent/media-library')
+    expect(readTranscript('{"text":"  привет, это запись  "}')).toBe(
+      'привет, это запись'
+    )
+  })
+
+  it('takes a plain body too, because some servers answer that way', async () => {
+    const { readTranscript } = await import('./src/agent/media-library')
+    expect(readTranscript('  просто слова  ')).toBe('просто слова')
+  })
+
+  /*
+   * NOTHING IS NOT A WORD. An empty transcript must read as "no words", so
+   * the caller says "не расслышал" rather than putting emptiness in the chat.
+   */
+  it('calls an empty answer nothing, in either shape', async () => {
+    const { readTranscript } = await import('./src/agent/media-library')
+    expect(readTranscript('{"text":"   "}')).toBeNull()
+    expect(readTranscript('   ')).toBeNull()
+    expect(readTranscript('')).toBeNull()
+  })
+
+  /*
+   * A SERVER'S COMPLAINT IS NOT SOMEBODY'S VOICE. Some transcribers answer
+   * 200 with an error object; returning its message as the transcript would
+   * put the server's words into the conversation as if a person had said them.
+   */
+  it('refuses to pass off an error object as what somebody said', async () => {
+    const { readTranscript } = await import('./src/agent/media-library')
+    expect(
+      readTranscript('{"error":{"message":"model is loading"}}')
+    ).toBeNull()
+  })
+
+  /*
+   * A body that merely STARTS with a brace and is not json is still a body.
+   * Losing it would be the same silent emptiness this whole fix is about.
+   */
+  it('keeps a body that only looks like json', async () => {
+    const { readTranscript } = await import('./src/agent/media-library')
+    expect(readTranscript('{не json, но слова')).toBe('{не json, но слова')
+  })
+})
