@@ -522,6 +522,13 @@ describe('describeMedia', () => {
     const form = posts[0].init.body as FormData
     expect(form.get('model')).toBe('whisper-1')
     expect(form.get('response_format')).toBe('json')
+    /*
+     * SAID OUT LOUD, because the server guessed wrong when it was left to a
+     * default: it took its streaming path for a request that never asked for
+     * one and then could not serialise a plain result, answering 200 with an
+     * empty body 25 times across two different formats.
+     */
+    expect(form.get('stream')).toBe('false')
     expect((form.get('file') as File).name).toBe('voice.ogg')
     expect(
       (posts[0].init.headers as Record<string, string>).Authorization

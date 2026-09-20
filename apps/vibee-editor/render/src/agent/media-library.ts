@@ -471,6 +471,26 @@ async function transcribeWithWhisper(
    * either shape, so a server that answers plain text is still understood.
    */
   form.append('response_format', 'json')
+  /*
+   * `stream=false`, SAID OUT LOUD, BECAUSE THE SERVER GUESSED WRONG.
+   *
+   * Changing the format was not the fix. Measured in the transcriber's log the
+   * same day, across 25 failures:
+   *
+   *   7 x  Unexpected streaming transcription response type: <class 'tuple'>
+   *  18 x  ... <class 'openai.types.audio.transcription.Transcription'>
+   *
+   * Two different formats, the same function refusing to serialise the
+   * result -- and its name says what it expected: a STREAMING response. So
+   * the server took the streaming path for a request that never asked for
+   * one, and then could not turn a plain result into a streamed body. It
+   * answered 200 with nothing in it either way.
+   *
+   * The only field that steers that choice is this one, and we were leaving
+   * it to a default. OpenAI and Groq ignore an explicit `false`; speaches
+   * needs it.
+   */
+  form.append('stream', 'false')
   form.append(
     'file',
     new Blob([bytes], { type: got.headers.get('content-type') || 'audio/ogg' }),
@@ -495,7 +515,25 @@ async function transcribeWithWhisper(
     if (r.status === 401 || r.status === 403) whisperKeyRefused = true
     throw new Error(`whisper answered ${r.status}: ${body.slice(0, 160)}`)
   }
-  return readTranscript(await r.text())
+  const body = await r.text()
+  const words = readTranscript(body)
+  if (!words) {
+    /*
+     * A 200 WITH NOTHING IN IT HAS TO SAY SO.
+     *
+     * This exact shape -- the transcriber hears every word and fails to put
+     * them in the reply -- cost two days and two wrong fixes, because from
+     * here it was indistinguishable from a recording with no speech in it.
+     * The first 160 characters of the body name the difference immediately,
+     * and they are the server's own words about its own failure, never the
+     * person's speech: an empty transcript has no speech to leak.
+     */
+    console.warn(
+      `[media] ${r.status} from the transcriber and no words in the body: ` +
+        JSON.stringify(body.slice(0, 160))
+    )
+  }
+  return words
 }
 
 /**
