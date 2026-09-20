@@ -49,7 +49,13 @@ export const DEFAULT_SENSITIVE = [
   'wise.com',
   'revolut.com',
   'binance.com',
-  // reaching other people
+  /*
+   * Reaching other people. NOTE, found by mutation testing: 'mail.' is a
+   * plain substring match, so it already covers 'gmail.com' and
+   * 'mail.google.com' below -- removing either of those changes nothing.
+   * They stay because a list of sensitive places is read by people, and
+   * naming the obvious ones is worth more than being minimal.
+   */
   'mail.',
   'gmail.com',
   'mail.google.com',
