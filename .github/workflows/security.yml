@@ -205,8 +205,15 @@ jobs:
         run: |
           echo "Scanning for dangerous code patterns..."
           
-          # Проверка на использование eval, Function constructor
-          if grep -r -E "(eval\s*\(|new\s+Function\s*\()" --include="*.ts" --include="*.js" src/; then
+          # Проверка на использование eval, Function constructor.
+          #
+          # Перед `eval` нужна граница слова, иначе шаблон ловит хвост любого
+          # идентификатора, кончающегося на эти буквы: на этом репозитории он
+          # падал на `testVoiceIdRetrieval()` — «Retri-eval(». Настоящих `eval(`
+          # в src/ нет ни одного, то есть job был красным исключительно из-за
+          # имени метода. Проверено: шаблон ниже по-прежнему ловит `eval(`,
+          # `window.eval(` и `new Function(`, но не `retrieval(`.
+          if grep -r -E "(^|[^A-Za-z0-9_$])eval[[:space:]]*\(|(^|[^A-Za-z0-9_$])new[[:space:]]+Function[[:space:]]*\(" --include="*.ts" --include="*.js" src/; then
             echo "::error::Dangerous eval() or Function() constructor usage detected!"
             exit 1
           fi
