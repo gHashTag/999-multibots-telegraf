@@ -184,6 +184,22 @@ describe('the row along the bottom is ours too', () => {
     )
   })
 
+  it('HAS ONE NUMBER FOR THE BAR, so nothing can disagree with it', () => {
+    /*
+     * The bar, the footer pinned into it and the height left for the
+     * picture were three separate literals, and they drifted 3px apart --
+     * the moved controls centred on 24 while the bar's own icons centred on
+     * 22. One custom property, read by all three.
+     */
+    expect(css).toMatch(/--t27-bar:\s*\d+px/)
+    expect(css).toMatch(/\.header \{[^}]*height: var\(--t27-bar\)/)
+    expect(css).toMatch(
+      /\.room-container \{[^}]*height: calc\(var\(--t27-bar\) - 1px\)/
+    )
+    /* Border-box, or padding pushes the two apart again. */
+    expect(css).toMatch(/\.header \{[^}]*box-sizing: border-box/)
+  })
+
   it('CENTRES BOTH SIDES AGAINST THE BAR, not by eye', () => {
     /*
      * The bar's height is neko's and changes with the window; a hand-picked
@@ -194,6 +210,91 @@ describe('the row along the bottom is ours too', () => {
 
   it('colours the volume with the accent, not a stranger teal', () => {
     expect(css).toMatch(/accent-color: #00ff88/)
+  })
+
+  it('NEVER USES THE FONT SHORTHAND ON THE AVATAR', () => {
+    /*
+     * neko centres the initials with an INLINE style on the element:
+     * width 50, height 50, line-height 50, font-size 25. The shorthand
+     * resets everything it does not name, and with !important it beat that
+     * inline rule -- the initials came out at 13px on a 13px line and sat
+     * outside the top of the circle. Photographed by the owner.
+     */
+    const rule = css.match(/\.avatar[^{]*\{[^}]*\}/)
+    expect(rule, 'no avatar rule').toBeTruthy()
+    expect(rule![0]).not.toMatch(/(^|[^-])font:/)
+  })
+
+  it('KEEPS LINE-HEIGHT EQUAL TO HEIGHT ON THE AVATAR', () => {
+    /*
+     * That equality IS the centring. The avatar is resized for the bar now,
+     * so "do not touch line-height" is no longer the rule -- "never let it
+     * disagree with the height" is, and it is the same defect either way.
+     */
+    const rule = css.match(/\.avatar[^{]*\{[^}]*\}/)![0]
+    const h = rule.match(/[^-]height:\s*(\d+)px/)
+    const lh = rule.match(/line-height:\s*(\d+)px/)
+    expect(h, 'height not set').toBeTruthy()
+    expect(lh, 'line-height not set').toBeTruthy()
+    expect(lh![1]).toBe(h![1])
+  })
+
+  it('MOVES THE FOOTER INTO THE BAR, and gives the player the rest', () => {
+    /*
+     * neko's footer is 126px of chrome under the thing the person came to
+     * look at, and a second place to hunt for controls. CSS cannot move a
+     * node; it can take one out of flow.
+     */
+    expect(css).toMatch(/\.room-container \{[^}]*position: fixed/)
+    expect(css).toMatch(
+      /\.neko-main[^{]*\{[^}]*calc\(100vh - var\(--t27-bar\)\)/
+    )
+  })
+
+  it('CENTRES THE AVATAR AT EVERY LEVEL, not just the top one', () => {
+    /*
+     * Measured otherwise: .members centred with the rest of the bar, but
+     * .members-container was a block, so the list sat at its top, and the
+     * member inside carried a 10px top margin of neko's. The avatar came
+     * out 5px above everything else -- one round thing out of line, which
+     * is what the eye catches first.
+     */
+    expect(css).toMatch(/\.members-list \{[^}]*align-items: center/)
+    expect(css).toMatch(/\.member, \.self\.member \{[^}]*margin: 0/)
+    expect(css).toMatch(/\.members-list li[^{]*\{[^}]*align-items: center/)
+  })
+
+  it('MATCHES THE CONTENT BOXES so there is ONE axis', () => {
+    /*
+     * The bar is border-box with a 1px hairline, so its content box is one
+     * pixel shorter than its height. A pinned row of the full height
+     * centres half a pixel lower, and half a pixel is still crooked.
+     */
+    expect(css).toMatch(
+      /\.room-container \{[^}]*calc\(var\(--t27-bar\) - 1px\)/
+    )
+  })
+
+  it('KEEPS THE SIGN THAT SOMEBODY ELSE IS WATCHING', () => {
+    /*
+     * The avatars are the only thing on screen that says a second viewer is
+     * present. Tidying them away would be removing a safety signal to save
+     * space, so they move into the bar instead.
+     */
+    expect(css).not.toMatch(/\.members[^{]*\{[^}]*display: none/)
+    expect(css).toMatch(/\.members-list li[^{]*\{/)
+  })
+
+  it('PUTS THE WHOLE ROW ON ONE AXIS', () => {
+    /*
+     * The items are different heights by nature -- a 15px question mark, a
+     * 24px toggle, a 20px slider -- so a row that only lines them up
+     * sideways lets each sit on its own baseline. Measured before the fix:
+     * centres at 675, 678 and 683.
+     */
+    expect(css).toMatch(/\.room-menu \{[^}]*align-items: center/)
+    expect(css).toMatch(/\.settings > ul > li[^{]*\{[^}]*align-items: center/)
+    expect(css).toMatch(/\.controls \.volume \{[^}]*align-items: center/)
   })
 
   it('says who is in the room in the accent, and reads on it', () => {

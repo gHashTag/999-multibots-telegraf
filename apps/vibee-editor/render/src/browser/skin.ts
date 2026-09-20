@@ -79,7 +79,27 @@ const FONT_STACK =
   "Outfit, -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif"
 
 export const BRAND_CSS = `
-:root { --t27-accent: ${GREEN}; }
+:root {
+  --t27-accent: ${GREEN};
+  /*
+   * ONE NUMBER FOR THE BAR, and everything that has to agree with it reads
+   * it here: the bar itself, the footer pinned into the bar, and the height
+   * left for the picture. They were three separate literals and they
+   * disagreed by 3px -- the controls centred on 24 while the bar's own
+   * icons centred on 22, which is exactly the crookedness that was
+   * complained about.
+   */
+  --t27-bar: 48px;
+  /*
+   * The room left for neko's own three icons, so the controls pinned into
+   * the bar stop before them instead of landing on top -- which is what a
+   * guessed 96px did: the speaker sat on the mouse.
+   *
+   * It is arithmetic, not a guess: three items of 32px with 4px between
+   * them is 104, plus the bar's 12px padding.
+   */
+  --t27-menu: 116px;
+}
 
 html, body, #neko, .neko-main, .video-container, .video, .player {
   background: ${BLACK} !important;
@@ -106,7 +126,12 @@ body {
   border-bottom: 1px solid ${LINE} !important;
   box-shadow: none !important;
 }
-.header { height: 48px !important; padding: 0 12px !important; }
+.header {
+  height: var(--t27-bar) !important;
+  min-height: var(--t27-bar) !important;
+  box-sizing: border-box !important;
+  padding: 0 12px !important;
+}
 
 /* The app's own header geometry: a 30px mark, 8px, 16px/600 white. */
 .header a.neko img, .header a.neko span { display: none !important; }
@@ -114,6 +139,9 @@ body {
   display: inline-flex !important;
   align-items: center;
   gap: 8px;
+  /* Never grows. Measured stretched to 235px on a phone, where its visible
+     part is a 22px mark -- an invisible box lying across half the bar. */
+  flex: 0 0 auto !important;
   height: 30px;
   padding-left: 38px;
   background-image: url('${LOGO_URL}');
@@ -258,9 +286,51 @@ body {
   background: ${CHROME} !important;
   border: 0 !important;
 }
+/*
+ * ONE AXIS FOR THE WHOLE ROW.
+ *
+ * The items are different heights by nature -- a 15px question mark, a 24px
+ * toggle, a 20px slider -- and a row that only puts them side by side lets
+ * each sit on its own baseline. Measured before this: centres at 675, 678
+ * and 683, which reads exactly as crooked as it is.
+ *
+ * Every container centres its children, and every control gets the same box
+ * height, so they share one axis no matter what is inside them.
+ */
+.room-menu { display: flex !important; align-items: center !important; }
+.settings, .controls {
+  display: flex !important;
+  align-items: center !important;
+}
+.settings > ul, .controls > ul {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+.settings > ul > li, .controls > ul > li {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 28px !important;
+  margin: 0 !important;
+}
+.controls .volume {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  height: 28px !important;
+}
 .room-menu i, .settings i, .controls i, .emotes i {
   color: ${DIM} !important;
   font-size: 15px !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 28px !important;
 }
 .room-menu i:hover, .settings i:hover, .controls i:hover, .emotes i:hover {
   color: #fff !important;
@@ -321,8 +391,142 @@ body {
 .members .avatar, .members-list .avatar, div.avatar {
   background: ${GREEN} !important;
   color: ${BLACK} !important;
-  font: 600 13px/1 ${FONT_STACK} !important;
   border: 0 !important;
+  /*
+   * FAMILY AND WEIGHT ONLY -- NEVER THE SHORTHAND.
+   *
+   * neko centres the initials with an INLINE style on the element:
+   * width 50, height 50, line-height 50, font-size 25. The font shorthand
+   * resets everything it does not name, and with !important it
+   * beat that inline rule: the initials rendered at 13px on a 13px line and
+   * sat outside the top of the circle. Photographed by the owner.
+   */
+  font-family: ${FONT_STACK} !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  /*
+   * Resized for the bar, and LINE-HEIGHT MATCHES THE HEIGHT. That equality
+   * is the whole of neko's centring; breaking it is what put the initials
+   * outside the circle in the first place.
+   */
+  width: 24px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  font-size: 11px !important;
+}
+
+/*
+ * EVERYTHING IN ONE BAR, AND THE REST IS PICTURE.
+ *
+ * neko puts its controls in a footer 126px tall: a row of avatars above a
+ * row of buttons. On a person's own browser that is 126px of chrome under
+ * the thing they actually came to look at, and a second place to look for
+ * controls after the bar at the top.
+ *
+ * CSS cannot move a node, but it can take one out of flow: the footer is
+ * pinned into the top bar instead, so the player gets the whole window and
+ * every control is in one place. The nodes stay where neko put them, which
+ * is why this survives the engine rearranging its own markup.
+ *
+ * The avatars come along rather than being hidden. They are the only sign
+ * that SOMEBODY ELSE IS WATCHING, and that is not a decoration to drop for
+ * tidiness -- it is shrunk to 24px and set beside the buttons.
+ */
+.room-container {
+  position: fixed !important;
+  top: 0 !important;
+  right: var(--t27-menu) !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: auto !important;
+  /*
+   * ONE PIXEL SHORTER THAN THE BAR, ON PURPOSE.
+   *
+   * The bar is border-box with a 1px hairline, so its CONTENT box is
+   * 47 and its own items centre on 23.5. A pinned row of the full 48
+   * centres on 24, and half a pixel of disagreement is still visible as
+   * crookedness. Matching the content boxes is what makes one axis.
+   */
+  height: calc(var(--t27-bar) - 1px) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  z-index: 6 !important;
+}
+/*
+ * EVERY LEVEL CENTRES ITS CHILD, all the way down to the initials.
+ *
+ * Measured otherwise: .members centred at 23.5 like the rest of the bar,
+ * but .members-container was a block, so the list sat at the top of it
+ * (13.5), and the member inside carried a 10px top margin of neko's. The
+ * avatar came out 5px above everything else -- a single round thing out of
+ * line, which is exactly what the eye catches first.
+ */
+.members, .members-container, .room-menu, .settings, .controls {
+  width: auto !important;
+  height: calc(var(--t27-bar) - 1px) !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.member, .self.member {
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.members-list {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+/*
+ * The avatar was top-aligned in its cell -- centre 22 against the row's 24.
+ * The cell centres its child; the child is no longer asked to know where it
+ * is.
+ */
+.members-list li {
+  width: 28px !important;
+  height: 28px !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.member, .self.member { width: 24px !important; height: 24px !important; }
+
+/*
+ * The player takes what the footer stopped using. 48px is the bar, and the
+ * bar is the only thing left above it.
+ */
+.neko-main, .video-container {
+  height: calc(100vh - var(--t27-bar)) !important;
+  max-height: none !important;
+}
+
+/*
+ * THE SPEAKER SLAB IN THE MIDDLE OF SOMEBODY'S SCREEN.
+ *
+ * neko draws a full-size "click to unmute" over the picture. The same
+ * control is a 15px icon in the bar, so the slab is a duplicate that covers
+ * the one thing that must stay visible.
+ */
+.video-container > .video > div[class*='overlay'],
+.player .overlay, .video .overlay, .player-overlay {
+  display: none !important;
 }
 
 /* ── buttons are pills ────────────────────────────────────────────────── */
@@ -417,13 +621,52 @@ body {
 
 /* ── a phone ──────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .header { height: 44px !important; padding: 0 10px !important; }
   .header a.neko {
     height: 24px;
     padding-left: 30px;
     background-size: 24px 24px;
   }
   .header a.neko::before { font-size: 14px; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * A PHONE CANNOT HOLD TEN CONTROLS AND A WORDMARK IN ONE 375px BAR.
+ *
+ * Measured: they collided with the logo and with each other. So on a narrow
+ * screen the bar keeps what somebody actually uses on a phone and drops the
+ * rest -- said plainly rather than hidden:
+ *
+ *   KEPT    the mark, who is watching, the keyboard, mute, and the menu
+ *           (which is where neko's own settings live).
+ *   DROPPED the wordmark (the mark carries it), the help link, the language
+ *           chip, pause, the emoji picker, and the volume SLIDER -- muting
+ *           is the control a phone needs; setting a level with a fingertip
+ *           on a 150px track is not.
+ *
+ * Nothing here removes a control the person cannot reach another way, and
+ * nothing removes the sign that somebody else is watching.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /* The bar gets shorter; everything that reads the number follows. */
+  :root { --t27-bar: 44px; }
+  .header { padding: 0 8px !important; }
+
+  .header a.neko::before { display: none !important; }
+  .header a.neko { padding-left: 26px; background-size: 22px 22px; height: 22px; }
+
+  /* Same arithmetic, with the phone's 8px bar padding. */
+  :root { --t27-menu: 112px; }
+  .room-container { gap: 8px !important; }
+
+  .settings li:has(i.fa-question-circle),
+  .settings i.fa-question-circle,
+  .settings select,
+  .emotes,
+  .controls li:has(i.fa-pause-circle),
+  .controls i.fa-pause-circle,
+  .controls .volume input[type='range'] {
+    display: none !important;
+  }
 }
 `
 
