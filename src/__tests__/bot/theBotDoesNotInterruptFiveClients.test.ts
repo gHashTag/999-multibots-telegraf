@@ -70,6 +70,29 @@ describe('when the bot may answer in a group', () => {
     ) // cyrillic-ok: fixture
   })
 
+  /*
+   * A PHOTO IS THE EXPENSIVE CASE. The global photo handler had no chat-type
+   * gate either, so a picture two clients showed each other went down the
+   * agent path and was CHARGED to whoever posted it. A caption naming the bot
+   * is still a request; a bare photo in a room is not.
+   */
+  it('treats a bare photo in a room as not addressed, and a captioned one as addressed', () => {
+    expect(isAddressedToUs(inGroup({ photo: [{ file_id: 'x' }] }))).toBe(false)
+    expect(
+      isAddressedToUs(
+        inGroup({ photo: [{ file_id: 'x' }], caption: '@t27ai_bot перерисуй' }) // cyrillic-ok: fixture
+      )
+    ).toBe(true)
+    expect(
+      isAddressedToUs(
+        inGroup({
+          photo: [{ file_id: 'x' }],
+          reply_to_message: { from: { id: BOT.id, is_bot: true } },
+        })
+      )
+    ).toBe(true)
+  })
+
   it('answers a reply to its own message, and not to another bot', () => {
     expect(
       isAddressedToUs(
