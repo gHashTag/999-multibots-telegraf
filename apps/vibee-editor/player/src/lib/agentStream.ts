@@ -128,7 +128,7 @@ export async function sendToAgent(
    * сопоставлять по времени и telegram_id вручную. Присланный id уходит в
    * `reportClientError` ниже.
    */
-  let ходId: string | undefined
+  let turnId: string | undefined
   const attempt = async (): Promise<void> => {
     // Личность: обычно подпись Telegram (authHeaders ставит
     // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
@@ -199,7 +199,7 @@ export async function sendToAgent(
         }
         const kind = ev['тип']
         if (kind === 'ход') {
-          ходId = String(ev['id'] || '') || undefined
+          turnId = String(ev['id'] || '') || undefined
         } else if (kind === 'размышление') {
           patch(agentId, m => ({
             ...m,
@@ -306,7 +306,7 @@ export async function sendToAgent(
     reportClientError({
       kind: 'agent_stream_failed',
       message: detail,
-      context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText} ход=${ходId ?? 'нет'}`,
+      context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText} turn=${turnId ?? 'none'}`,
     })
   } finally {
     inFlight = false
