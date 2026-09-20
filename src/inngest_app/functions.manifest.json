@@ -868,6 +868,32 @@
       ]
     },
     {
+      "id": "client-telemetry-daily",
+      "legacy_id": "client-telemetry-daily",
+      "domain": "analytics",
+      "trigger": "cron",
+      "event": "",
+      "legacy_events": [],
+      "cron": "0 7 * * *",
+      "tz": "UTC",
+      "file": "src/inngest_app/functions/analytics/clientTelemetryDaily.ts",
+      "steps": ["build-report", "send", "prune"],
+      "retries": 0,
+      "on_failure": "admin-telegram",
+      "side_effects": ["messages-owners", "db-write"],
+      "guard": "safe-mode",
+      "safe_probe": "{\"e2e_test\":true}",
+      "probe_result": "NOT PROBED",
+      "probe_expect": "COMPLETED",
+      "control": "spec+code",
+      "export": "clientTelemetryDaily",
+      "notes": [
+        "Product usage, not money: dailySalesAdvisor reports cash, this reports where clients went and where they stopped.",
+        "retries 0 on purpose: a retry after a partial send would DM the owner the same report twice.",
+        "07:00 UTC = 10:00 Moscow (no DST there)."
+      ]
+    },
+    {
       "id": "webhook-generation-validate",
       "legacy_id": "validate-webhook-before-generation",
       "domain": "webhook",
