@@ -584,6 +584,15 @@ struct AgentChatView: View {
       return
     }
 
+    /**
+     * ОБЪЯВЛЕНО ДО `do`, А НЕ ВНУТРИ.
+     *
+     * `catch` — сосед `do`, а не его внутренность: переменная, заведённая
+     * внутри блока `do`, гаснет на его закрывающей скобке и в `catch` уже не
+     * видна. Нужна она именно там — приложить ID хода к отчёту об обрыве, —
+     * поэтому и живёт снаружи.
+     */
+    var ходId: String?
     do {
       var r = URLRequest(url: API.base.appendingPathComponent("api/agent/chat"))
       r.httpMethod = "POST"
@@ -634,6 +643,8 @@ struct AgentChatView: View {
               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any]
         else { continue }
         switch o["тип"] as? String {
+        case "ход":
+          ходId = o["id"] as? String
         case "текст":
           // Тот же разрыв абзаца, что и в вебе: агент говорит несколько раз
           // за ответ, и куски из разных ходов иначе слипаются в одну строку.
@@ -708,7 +719,7 @@ struct AgentChatView: View {
       ClientErrorBeacon.отправить(
         kind: "agent_stream_failed",
         message: error.localizedDescription,
-        context: "receivedText=\(!частичный.isEmpty)"
+        context: "receivedText=\(!частичный.isEmpty) ход=\(ходId ?? "нет")"
       )
     }
   }

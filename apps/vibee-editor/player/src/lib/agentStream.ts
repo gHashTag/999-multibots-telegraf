@@ -119,6 +119,16 @@ export async function sendToAgent(
   const MAX_ATTEMPTS = 2
   const startedAt = Date.now()
   let receivedText = false
+  /**
+   * ID ХОДА, ПРИСЛАННЫЙ ПЕРВЫМ СОБЫТИЕМ ПОТОКА (`chat.ts`, `runAgent`).
+   *
+   * Сервер логирует старт и конец ЭТОГО ЖЕ хода одной структурированной
+   * строкой (`[agent:turn]`), а до сих пор ничего не связывало отчёт об
+   * ошибке из браузера с конкретной строкой в серверном логе — приходилось
+   * сопоставлять по времени и telegram_id вручную. Присланный id уходит в
+   * `reportClientError` ниже.
+   */
+  let ходId: string | undefined
   const attempt = async (): Promise<void> => {
     // Личность: обычно подпись Telegram (authHeaders ставит
     // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
@@ -188,7 +198,9 @@ export async function sendToAgent(
           continue
         }
         const kind = ev['тип']
-        if (kind === 'размышление') {
+        if (kind === 'ход') {
+          ходId = String(ev['id'] || '') || undefined
+        } else if (kind === 'размышление') {
           patch(agentId, m => ({
             ...m,
             thinking: (m.thinking || '') + String(ev['текст'] || ''),
@@ -294,7 +306,7 @@ export async function sendToAgent(
     reportClientError({
       kind: 'agent_stream_failed',
       message: detail,
-      context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText}`,
+      context: `elapsedMs=${Date.now() - startedAt} receivedText=${receivedText} ход=${ходId ?? 'нет'}`,
     })
   } finally {
     inFlight = false
