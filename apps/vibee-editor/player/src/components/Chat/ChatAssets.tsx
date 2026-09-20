@@ -25,23 +25,24 @@ type Segment =
   | { kind: 'link'; url: string }
 
 /**
- * HEIC/HEIF/AVIF — НЕ РЕДКИЙ КРАЙ СЛУЧАЯ, А ОБЫЧНЫЙ ПУТЬ С АЙФОНА.
+ * HEIC/HEIF/AVIF -- NOT A RARE EDGE CASE, THE ORDINARY PATH FROM AN IPHONE.
  *
- * iPhone хранит фото в HEIC по умолчанию, и не каждый способ вложить файл
- * в мини-апп (AirDrop, «Файлы», сама Telegram WebView) конвертирует его в
- * JPEG по дороге. Без этих расширений превью молчало ровно там, где
- * человек чаще всего его и ждёт: только что снятое на телефон фото.
- * Список согласован с серверным прокси `/s3/` (render-server.ts) — там та
- * же путаница однажды отправляла HEIC-фото в ветку «это видео, конвертнуть
- * ffmpeg'ом», и получалось ничего.
+ * iPhone stores photos as HEIC by default, and not every way of attaching a
+ * file to the mini app (AirDrop, Files, the Telegram WebView itself)
+ * converts it to JPEG along the way. Without these extensions the preview
+ * stayed silent exactly where people expect it most: a photo just taken on
+ * the phone. This list is kept in sync with the server's `/s3/` proxy
+ * (render-server.ts) -- the same confusion there once sent a HEIC photo
+ * down the "this must be video, run it through ffmpeg" branch, and got
+ * nothing back.
  */
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|heic|heif|avif|svg|bmp)(\?|$)/i
 /**
- * `.webm` — ТОЛЬКО АУДИО. Диктофон мини-аппа (`useAudioRecorder.ts`) пишет
- * `audio/webm`, и это единственный источник .webm в чате: видео в этом
- * формате приложение не генерирует и не принимает. Раньше .webm стоял
- * ЗДЕСЬ же, во VIDEO_RE — голосовая запись рисовалась немым чёрным
- * видеоплеером без единого кадра, потому что в контейнере не было видео.
+ * `.webm` IS AUDIO ONLY. The mini app's voice recorder (`useAudioRecorder.ts`)
+ * writes `audio/webm`, the only source of .webm in this chat: the app never
+ * generates or accepts video in that format. `.webm` used to sit in
+ * VIDEO_RE instead -- a voice message rendered as a silent black video
+ * player with no frame at all, because the container held no video.
  */
 const VIDEO_RE = /\.(mp4|mov|m4v)(\?|$)/i
 const AUDIO_RE = /\.(mp3|wav|m4a|ogg|webm|opus|flac)(\?|$)/i
@@ -234,19 +235,19 @@ function TextBlock({ content }: { content: string }) {
 }
 
 /**
- * Картинка, которая умеет ПРИЗНАТЬСЯ, что не открылась.
+ * An image that can ADMIT it failed to load.
  *
- * Раньше здесь стоял голый `<img>`: расширение совпало, значит картинка —
- * а если ссылка за это время протухла (подписанный S3-URL) или сервер
- * ответил не тем, чем должен, браузер молча рисует сломанную иконку
- * навсегда. Человек видит ту же поломку, что и при отсутствии превью
- * вовсе, и не может понять разницу — а разница есть: там нечего было
- * показывать, здесь показать не получилось. Второе можно хотя бы обратно
- * превратить в рабочую ссылку на оригинал.
+ * A bare `<img>` used to sit here: the extension matched, so it must be an
+ * image -- and if the link had expired since (a signed S3 URL) or the
+ * server answered with something else, the browser silently draws a broken
+ * icon forever. The person sees the same breakage as when there was no
+ * preview to begin with, with no way to tell them apart -- and there is a
+ * difference: one had nothing to show, the other failed to show it. The
+ * second case can at least fall back to a working link to the original.
  */
 function ImageAsset({ url }: { url: string }) {
-  const [сломано, поставитьСломано] = useState(false)
-  if (сломано) {
+  const [broken, setBroken] = useState(false)
+  if (broken) {
     return (
       <a
         className="chat-assets__link"
@@ -271,7 +272,7 @@ function ImageAsset({ url }: { url: string }) {
         src={url}
         alt="Сгенерированный файл"
         loading="lazy"
-        onError={() => поставитьСломано(true)}
+        onError={() => setBroken(true)}
       />
     </a>
   )
