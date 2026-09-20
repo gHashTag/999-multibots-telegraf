@@ -447,6 +447,27 @@ async function transcribeWithWhisper(
   const bytes = Buffer.from(await got.arrayBuffer())
   if (!bytes.length || bytes.length > WHISPER_MAX_BYTES)
     throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
+  /*
+   * TWO ATTEMPTS, BECAUSE THE SERVER INSISTS ON STREAMING AND THEN CANNOT.
+   *
+   * Measured across three fixes and 25+ failures: this transcriber ALWAYS
+   * enters its streaming responder -- with `response_format=text`, with
+   * `json`, and with `stream=false` said out loud -- and then refuses to
+   * serialise the plain result it holds, answering 200 with an empty body.
+   * The log names the type it could not turn into a stream:
+   *
+   *   Unexpected streaming transcription response type: <class 'tuple'>
+   *   ...                                               <class '...Transcription'>
+   *
+   * So the request shape was never the variable, and the honest move is to
+   * give it what it keeps reaching for: a STREAMING response, which it can
+   * serialise. Attempt A asks for one and reads server-sent events.
+   *
+   * Attempt B is the plain request, kept because OpenAI's own whisper-1
+   * REFUSES `stream` and would otherwise stop working the day somebody points
+   * this at OpenAI. Two attempts, one fallback, and the second only runs when
+   * the first came back empty -- so a working server pays nothing for it.
+   */
   const form = new FormData()
   form.append('model', w.model)
   /*
@@ -490,32 +511,60 @@ async function transcribeWithWhisper(
    * it to a default. OpenAI and Groq ignore an explicit `false`; speaches
    * needs it.
    */
-  form.append('stream', 'false')
+  /* `stream` is NOT set here: each attempt below sets its own, and a field
+   * appended twice keeps the first value -- which is how the streamed attempt
+   * came to carry stream=false while claiming to be the streamed one. */
   form.append(
     'file',
     new Blob([bytes], { type: got.headers.get('content-type') || 'audio/ogg' }),
     name || 'audio.ogg'
   )
-  const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), timeoutMs)
-  let r: Response
-  try {
-    r = await fetch(`${w.base}/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${w.key}` },
-      body: form,
-      signal: ac.signal,
-    })
-  } finally {
-    clearTimeout(timer)
+  const attempt = async (streaming: boolean): Promise<string> => {
+    const f = new FormData()
+    for (const [k, v] of form.entries()) f.append(k, v as never)
+    f.append('stream', streaming ? 'true' : 'false')
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), timeoutMs)
+    let r: Response
+    try {
+      r = await fetch(`${w.base}/audio/transcriptions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${w.key}` },
+        body: f,
+        signal: ac.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+    if (!r.ok) {
+      const bad = await r.text().catch(() => '')
+      // A refused key will not start working mid-process: stop asking.
+      if (r.status === 401 || r.status === 403) {
+        /*
+         * A REFUSED KEY IS NOT A SERVER THAT CANNOT STREAM, and must not be
+         * asked a second time: the fallback below exists for a server that
+         * rejects `stream`, and running it on a 401 turns one refusal into
+         * two calls with the same dead credential.
+         */
+        whisperKeyRefused = true
+        throw new Error(`whisper answered ${r.status}`)
+      }
+      /*
+       * A server that refuses `stream` (OpenAI's whisper-1 does) must not end
+       * the whole call: that is exactly what attempt B is for. Only a refusal
+       * of the PLAIN request is a real failure.
+       */
+      if (streaming) return ''
+      throw new Error(`whisper answered ${r.status}: ${bad.slice(0, 160)}`)
+    }
+    return await r.text()
   }
-  if (!r.ok) {
-    const body = await r.text().catch(() => '')
-    // A refused key will not start working mid-process: stop asking.
-    if (r.status === 401 || r.status === 403) whisperKeyRefused = true
-    throw new Error(`whisper answered ${r.status}: ${body.slice(0, 160)}`)
-  }
-  const body = await r.text()
+
+  const streamed = await attempt(true)
+  const fromStream = readStreamedTranscript(streamed)
+  if (fromStream) return fromStream
+
+  const body = await attempt(false)
   const words = readTranscript(body)
   if (!words) {
     /*
@@ -529,8 +578,10 @@ async function transcribeWithWhisper(
      * person's speech: an empty transcript has no speech to leak.
      */
     console.warn(
-      `[media] ${r.status} from the transcriber and no words in the body: ` +
-        JSON.stringify(body.slice(0, 160))
+      '[media] the transcriber produced no words. streamed body: ' +
+        JSON.stringify(streamed.slice(0, 120)) +
+        ' | plain body: ' +
+        JSON.stringify(body.slice(0, 120))
     )
   }
   return words
@@ -545,6 +596,40 @@ async function transcribeWithWhisper(
  * moment one server behaves like the other -- and an empty answer here is
  * indistinguishable from "there were no words in the recording".
  */
+/**
+ * The words out of a server-sent-event stream, or '' when there were none.
+ *
+ * Accepts both shapes the OpenAI-compatible servers emit: an incremental
+ * `delta` per event, and a whole `text` on the final one. Anything that is not
+ * a `data:` line -- comments, blank keep-alives, the `[DONE]` sentinel -- is
+ * skipped rather than concatenated, because a sentinel pasted into somebody's
+ * transcript is worse than a missing word.
+ */
+export function readStreamedTranscript(body: string): string {
+  const parts: string[] = []
+  let whole = ''
+  for (const raw of String(body ?? '').split('\n')) {
+    const line = raw.trim()
+    if (!line.startsWith('data:')) continue
+    const payload = line.slice(5).trim()
+    if (!payload || payload === '[DONE]') continue
+    try {
+      const ev = JSON.parse(payload) as { delta?: unknown; text?: unknown }
+      if (typeof ev.delta === 'string') parts.push(ev.delta)
+      if (typeof ev.text === 'string') whole = ev.text
+    } catch {
+      /* a half-written event is not words */
+    }
+  }
+  /*
+   * The final `text` wins when there is one: servers that send both mean the
+   * deltas as a preview of it, and concatenating both would say everything
+   * twice.
+   */
+  const out = (whole || parts.join('')).trim()
+  return out ? out.slice(0, TRANSCRIPT_CAP) : ''
+}
+
 export function readTranscript(body: string): string | null {
   const raw = String(body ?? '').trim()
   if (!raw) return null
