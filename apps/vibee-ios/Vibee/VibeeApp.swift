@@ -174,6 +174,15 @@ struct RootView: View {
     // Системный `.green` (≈#34C759) не совпадал с вебом ни одним каналом.
     .tint(Тема.ТабБар.активная)
     .preferredColorScheme(.dark)
+    /**
+     * FLUSH QUEUED ERROR REPORTS -- ONCE PER LAUNCH.
+     *
+     * The same job `installGlobalClientErrorReporting()` does on the web at
+     * tab start: reports that failed to send last time (usually because the
+     * network was down exactly when its being down was worth reporting) sit
+     * in UserDefaults and get resent here.
+     */
+    .task { ClientErrorBeacon.flushQueue() }
   }
 }
 

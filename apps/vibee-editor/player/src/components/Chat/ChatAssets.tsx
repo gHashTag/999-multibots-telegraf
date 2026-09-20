@@ -13,7 +13,7 @@
  * жадности: сначала markdown-картинки, потом инлайн-код (внутри него URL
  * не трогаем), потом медиа-ссылки, остальное — текст.
  */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import './ChatAssets.css'
 
 type Segment =
@@ -24,9 +24,28 @@ type Segment =
   | { kind: 'audio'; url: string }
   | { kind: 'link'; url: string }
 
-const IMAGE_RE = /\.(jpe?g|png|webp|gif)(\?|$)/i
-const VIDEO_RE = /\.(mp4|webm|mov)(\?|$)/i
-const AUDIO_RE = /\.(mp3|wav|m4a|ogg)(\?|$)/i
+/**
+ * HEIC/HEIF/AVIF -- NOT A RARE EDGE CASE, THE ORDINARY PATH FROM AN IPHONE.
+ *
+ * iPhone stores photos as HEIC by default, and not every way of attaching a
+ * file to the mini app (AirDrop, Files, the Telegram WebView itself)
+ * converts it to JPEG along the way. Without these extensions the preview
+ * stayed silent exactly where people expect it most: a photo just taken on
+ * the phone. This list is kept in sync with the server's `/s3/` proxy
+ * (render-server.ts) -- the same confusion there once sent a HEIC photo
+ * down the "this must be video, run it through ffmpeg" branch, and got
+ * nothing back.
+ */
+const IMAGE_RE = /\.(jpe?g|png|webp|gif|heic|heif|avif|svg|bmp)(\?|$)/i
+/**
+ * `.webm` IS AUDIO ONLY. The mini app's voice recorder (`useAudioRecorder.ts`)
+ * writes `audio/webm`, the only source of .webm in this chat: the app never
+ * generates or accepts video in that format. `.webm` used to sit in
+ * VIDEO_RE instead -- a voice message rendered as a silent black video
+ * player with no frame at all, because the container held no video.
+ */
+const VIDEO_RE = /\.(mp4|mov|m4v)(\?|$)/i
+const AUDIO_RE = /\.(mp3|wav|m4a|ogg|webm|opus|flac)(\?|$)/i
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/g
 /** markdown-картинка ![alt](url) — до всего остального, иначе alt останется в тексте */
 const MD_IMAGE_RE = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
@@ -215,6 +234,50 @@ function TextBlock({ content }: { content: string }) {
   return <>{out}</>
 }
 
+/**
+ * An image that can ADMIT it failed to load.
+ *
+ * A bare `<img>` used to sit here: the extension matched, so it must be an
+ * image -- and if the link had expired since (a signed S3 URL) or the
+ * server answered with something else, the browser silently draws a broken
+ * icon forever. The person sees the same breakage as when there was no
+ * preview to begin with, with no way to tell them apart -- and there is a
+ * difference: one had nothing to show, the other failed to show it. The
+ * second case can at least fall back to a working link to the original.
+ */
+function ImageAsset({ url }: { url: string }) {
+  const [broken, setBroken] = useState(false)
+  if (broken) {
+    return (
+      <a
+        className="chat-assets__link"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {shortUrl(url)}
+      </a>
+    )
+  }
+  return (
+    <a
+      className="chat-assets__image-link"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Открыть оригинал"
+    >
+      <img
+        className="chat-assets__image"
+        src={url}
+        alt="Сгенерированный файл"
+        loading="lazy"
+        onError={() => setBroken(true)}
+      />
+    </a>
+  )
+}
+
 export function ChatAssets({ text }: { text: string }) {
   const segments = splitSegments(text)
   if (!segments.length) return null
@@ -247,23 +310,7 @@ export function ChatAssets({ text }: { text: string }) {
           )
         }
         if (s.kind === 'image') {
-          return (
-            <a
-              key={i}
-              className="chat-assets__image-link"
-              href={s.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Открыть оригинал"
-            >
-              <img
-                className="chat-assets__image"
-                src={s.url}
-                alt="Сгенерированный файл"
-                loading="lazy"
-              />
-            </a>
-          )
+          return <ImageAsset key={i} url={s.url} />
         }
         if (s.kind === 'video') {
           return (

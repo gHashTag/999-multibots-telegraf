@@ -5753,6 +5753,18 @@ const server = createServer(async (req, res) => {
   if (req.url?.startsWith('/s3/') && req.method === 'GET') {
     const s3Key = decodeURIComponent(req.url.slice(4).split('?')[0]) // Remove /s3/ and query string, decode URL
     const ext = path.extname(s3Key).toLowerCase()
+    /**
+     * HEIC/HEIF ARE HERE FOR COMPLETENESS -- BECAUSE THEY ALREADY ARRIVE.
+     *
+     * iPhone stores photos as HEIC by default, and Files/AirDrop hand it to
+     * a web upload as-is -- Safari only converts to JPEG on some picker
+     * paths, not all of them. Without these two extensions a HEIC photo
+     * matched neither `isImage` nor `isAudio` and fell through to the branch
+     * below ("must be video, convert it"): the server ran the photo through
+     * ffmpeg as if it were video and, unsurprisingly, got nothing back.
+     * That's the actual cause of "preview doesn't show" -- not a rare edge
+     * case, but the ordinary path for an iPhone photo.
+     */
     const isImage = [
       '.jpg',
       '.jpeg',
@@ -5761,10 +5773,31 @@ const server = createServer(async (req, res) => {
       '.webp',
       '.svg',
       '.bmp',
+      '.heic',
+      '.heif',
+      '.avif',
     ].includes(ext)
-    const isAudio = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.webm'].includes(
-      ext
-    )
+    /**
+     * `.webm` IS HERE, NOT JUST "ANOTHER FORMAT".
+     *
+     * The mini app's voice recorder (`useAudioRecorder.ts`) writes
+     * `audio/webm` -- the only source of .webm in this chat; the app never
+     * generates or accepts video in that format. This list is KEPT IN SYNC
+     * with `ChatAssets.tsx` on the client, where `.webm` is also marked
+     * audio, not video -- before this fix it was the other way around, and a
+     * voice message rendered in chat as a silent black video player with no
+     * frame at all.
+     */
+    const isAudio = [
+      '.mp3',
+      '.wav',
+      '.ogg',
+      '.m4a',
+      '.aac',
+      '.webm',
+      '.opus',
+      '.flac',
+    ].includes(ext)
     const isJson = ext === '.json'
 
     console.log(
