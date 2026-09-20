@@ -71,3 +71,40 @@ export interface PollConditions {
 export function shouldPoll(c: PollConditions): boolean {
   return !c.hidden && !c.embedded && !c.unavailable
 }
+
+/**
+ * WHY THE BROWSER IS SUDDENLY GONE.
+ *
+ * Idle pods are stopped after ten minutes, so a person who steps away and
+ * comes back finds nothing where their browser was. Without a word, that
+ * reads as "it logged me out" -- and they would be wrong, because the
+ * profile is exactly where they left it.
+ *
+ * So: if this screen SAW a live session and now sees none, it says so. Not
+ * shown to somebody who never had one; there is nothing to explain to them.
+ */
+export function wentOut(
+  previous: BrowserState | null,
+  next: BrowserState
+): boolean {
+  return previous === 'live' && next === 'none'
+}
+
+/**
+ * WHO IS DRIVING, IN WORDS THE SCREEN CAN SHOW.
+ *
+ * Three states, and the difference matters to the person: an agent is
+ * working, THEY are working, or the browser is simply open. Touching the
+ * picture takes the wheel; handing it back is a deliberate press, because a
+ * browser that silently returns to an agent mid-sentence is a browser nobody
+ * trusts.
+ */
+export type Wheel = 'agent' | 'person' | 'idle'
+
+export function wheelAfterTouch(): Wheel {
+  return 'person'
+}
+
+export function wheelAfterHandBack(): Wheel {
+  return 'agent'
+}

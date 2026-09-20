@@ -91,8 +91,13 @@ describe('the glow does not lie about who is driving', () => {
      * From the first touch THEY are driving. A glow that kept claiming an
      * agent was working would be the screen telling them something false.
      */
-    expect(page).toContain('onPointerDown={() => setAgentWorking(false)}')
-    expect(page).toContain('onKeyDownCapture={() => setAgentWorking(false)}')
+    /*
+     * The touch goes through the tested decision now, not a literal false --
+     * so the check follows it there rather than pinning the old spelling.
+     */
+    expect(page).toContain('onPointerDown')
+    expect(page).toContain('onKeyDownCapture')
+    expect(page).toContain('wheelAfterTouch()')
   })
 
   it('frames the picture instead of covering it', () => {
@@ -106,5 +111,35 @@ describe('the glow does not lie about who is driving', () => {
     const css = readFileSync(join(__dirname, 'Browser.css'), 'utf8')
     const reduced = css.slice(css.indexOf('prefers-reduced-motion'))
     expect(reduced).toContain('animation: none')
+  })
+})
+
+describe('the person can tell who is driving, and take the wheel back', () => {
+  it('says whose hands are on it either way', () => {
+    /* "An agent is working" with no opposite state leaves the person
+     * guessing whether their touch did anything. */
+    expect(page).toContain('browser.agentWorking')
+    expect(page).toContain('browser.youDrive')
+  })
+
+  it('hands the wheel back only on a press, never on a timer', () => {
+    expect(page).toContain('wheelAfterHandBack()')
+    expect(page).toContain('browser.handBack')
+    expect(page).not.toMatch(/setTimeout\([^)]*setAgentWorking/)
+  })
+
+  it('offers full screen, because a phone in portrait shows a stamp', () => {
+    expect(page).toContain('requestFullscreen')
+    expect(page).toContain('browser.fullscreen')
+  })
+})
+
+describe('a browser that went out while nobody watched', () => {
+  it('explains itself instead of looking like a logout', () => {
+    expect(page).toContain('wentOut(')
+    expect(page).toContain('browser.wentOut')
+    for (const promise of ['logins are still there', 'входы на месте']) {
+      expect(dict).toContain(promise)
+    }
   })
 })

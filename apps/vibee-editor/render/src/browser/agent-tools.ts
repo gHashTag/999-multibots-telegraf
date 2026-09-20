@@ -30,6 +30,13 @@
  */
 
 import type { AgentTool, ToolContext } from '../agent/tools'
+import {
+  ensureApprovals,
+  askFor,
+  readApproval,
+  newApprovalToken,
+  APPROVAL_TTL_MS,
+} from './approvals'
 import { readSession, type Queryable } from './sessions'
 import {
   frontPage,
@@ -63,7 +70,109 @@ async function podOf(
 
 const noArgs = { type: 'object', properties: {}, additionalProperties: false }
 
+/**
+ * Where the person's two buttons point. Its own server, so a decision never
+ * has to cross into the bot to be recorded.
+ */
+const approvalBase = () =>
+  process.env.SELF_PUBLIC_URL ||
+  process.env.SELF_URL ||
+  'https://vibee-render-production.up.railway.app'
+
+/**
+ * How long a single call waits for an answer.
+ *
+ * Not the ten minutes the approval itself lives: a tool call that hangs for
+ * ten minutes is an agent that looks broken. It waits a while, and if nobody
+ * has answered it says so and the agent can ask again or do something else --
+ * while the SAME question stays open on the person's phone.
+ */
+const WAIT_CAP_MS = 120_000
+const POLL_MS = 2_000
+
 export const BROWSER_TOOLS: AgentTool[] = [
+  {
+    name: 'browser_ask_permission',
+    description:
+      'СПРОСИ РАЗРЕШЕНИЯ, прежде чем сделать в браузере то, что нельзя отменить: ' + // cyrillic-ok
+      'отправить письмо или сообщение, заплатить, удалить, изменить настройки ' + // cyrillic-ok
+      'аккаунта, выдать кому-то доступ. Человек получит две кнопки в Telegram. ' + // cyrillic-ok
+      'Опиши ОДНИМ предложением, что именно произойдёт, и словами человека, а не ' + // cyrillic-ok
+      'своими: «отправить письмо Ивану со счётом на 12 000». Пока ответа нет — ' + // cyrillic-ok
+      'не делай этого действия.', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: {
+        what: {
+          type: 'string',
+          description: 'что именно произойдёт, одним предложением', // cyrillic-ok
+        },
+        waitSeconds: {
+          type: 'number',
+          description:
+            'подождать ответа прямо в этом вызове, до 120 с. ' + // cyrillic-ok
+            'По умолчанию НЕ ждёт: спрашивает и сразу возвращает pending, ' + // cyrillic-ok
+            'а ответ ты читаешь следующим вызовом.', // cyrillic-ok
+        },
+      },
+      required: ['what'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const pool = ctx.pool as unknown as Queryable
+      await ensureApprovals(pool)
+      const what = String(args.what || '').trim()
+      if (!what) throw new Error('say what exactly will happen')
+
+      const { id, allowToken, denyToken } = await askFor(pool, {
+        telegramId: ctx.telegramId,
+        what,
+        newId: newApprovalToken,
+        newToken: newApprovalToken, // secret-guard-ok: a generator, not a value
+      })
+
+      const link = (token: string) =>
+        `${approvalBase().replace(/\/+$/, '')}/api/browser/approve` +
+        `?id=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`
+
+      await askThePerson(
+        ctx.telegramId,
+        what,
+        link(allowToken),
+        link(denyToken)
+      )
+
+      /*
+       * ASKING IS INSTANT; WAITING IS A CHOICE.
+       *
+       * The first version waited a minute by default, and a tool that blocks
+       * for a minute is hostile -- it hung a test that merely enumerates the
+       * registry, and it would hang an agent that only meant to ask. Default
+       * to not waiting: the question is on the person's phone either way.
+       */
+      const waitMs = Math.min(
+        Math.max(Number(args.waitSeconds) || 0, 0) * 1000,
+        WAIT_CAP_MS
+      )
+      const until = Date.now() + waitMs
+      while (Date.now() < until) {
+        await new Promise(r => setTimeout(r, POLL_MS))
+        const answer = await readApproval(pool, id)
+        if (answer && answer.state !== 'pending') {
+          return { decision: answer.state, what }
+        }
+      }
+      return {
+        decision: 'pending',
+        what,
+        /* The question is still on their phone; do not act on silence. */
+        note:
+          'nobody has answered yet. Do NOT do it. Ask again later, or tell ' +
+          'the person you are waiting.',
+        expiresInSeconds: Math.round(APPROVAL_TTL_MS / 1000),
+      }
+    },
+  },
   {
     name: 'browser_status',
     description:
@@ -230,3 +339,33 @@ export const BROWSER_TOOLS: AgentTool[] = [
     },
   },
 ]
+
+/**
+ * The message with the two buttons.
+ *
+ * Imported lazily so this module stays testable without a bot token: the
+ * tests exercise the decision, not Telegram, and a top-level import would
+ * drag the sender into every one of them.
+ */
+async function askThePerson(
+  telegramId: string,
+  what: string,
+  allowUrl: string,
+  denyUrl: string
+): Promise<void> {
+  const { sendToTelegram } = await import('../auth/telegram-sender')
+  await sendToTelegram(
+    telegramId,
+    'Агент просит разрешения в вашем браузере:\n\n' + // cyrillic-ok: user-facing
+      `«${what}»\n\n` +
+      'Это действие нельзя отменить. Решать вам.', // cyrillic-ok: user-facing
+    {
+      inline_keyboard: [
+        [
+          { text: '✅ Разрешить', url: allowUrl }, // cyrillic-ok: button label
+          { text: '✋ Отклонить', url: denyUrl }, // cyrillic-ok: button label
+        ],
+      ],
+    }
+  )
+}

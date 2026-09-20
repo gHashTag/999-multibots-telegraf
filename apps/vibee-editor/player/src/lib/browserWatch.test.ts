@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   shouldFollow,
   shouldPoll,
+  wentOut,
+  wheelAfterTouch,
+  wheelAfterHandBack,
   BROWSER_ROUTE,
   WATCH_INTERVAL_MS,
 } from './browserWatch'
@@ -98,5 +101,35 @@ describe('when to ask at all', () => {
 
   it('asks slowly enough to be invisible', () => {
     expect(WATCH_INTERVAL_MS).toBeGreaterThanOrEqual(5000)
+  })
+})
+
+describe('when the browser is suddenly gone', () => {
+  it('explains it only to somebody who HAD one', () => {
+    /*
+     * Idle pods stop after ten minutes. Without a word, a person coming back
+     * reads the empty screen as "it logged me out" -- and they are wrong.
+     */
+    expect(wentOut('live', 'none')).toBe(true)
+    expect(wentOut(null, 'none')).toBe(false)
+    expect(wentOut('none', 'none')).toBe(false)
+  })
+
+  it('says nothing while it is still there', () => {
+    expect(wentOut('live', 'live')).toBe(false)
+    expect(wentOut('live', 'starting')).toBe(false)
+  })
+})
+
+describe('who is driving', () => {
+  it('a touch takes the wheel', () => {
+    expect(wheelAfterTouch()).toBe('person')
+  })
+
+  it('handing it back is a deliberate press, not a timeout', () => {
+    /* A browser that silently returns to an agent mid-sentence is one
+     * nobody trusts. */
+    expect(wheelAfterHandBack()).toBe('agent')
+    expect(wheelAfterTouch()).not.toBe(wheelAfterHandBack())
   })
 })
