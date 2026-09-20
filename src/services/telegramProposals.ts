@@ -242,6 +242,120 @@ function clockOf(at: number): string {
 }
 
 /*
+ * THE IRREVERSIBLE SIX.
+ *
+ * A deliberate mirror of the render side's IRREVERSIBLE set: the two
+ * projects share no imports, so each side spells the list out and a test on
+ * each side pins it. The card is the last place a person can still choose
+ * not to -- these six must say so before the press, not after.
+ */
+export const IRREVERSIBLE_SOCIAL: ReadonlySet<string> = new Set([
+  'block',
+  'delete',
+  'delete_chat',
+  'kick',
+  'leave',
+  'profile_photo_delete',
+])
+
+/*
+ * THE VOCABULARY OF THE SOCIAL CARDS.
+ *
+ * Twenty acts reached the queue in 2026-09-14, and until these tables the
+ * ask fell back to quoting the act's own identifier -- a string no person
+ * can read, on the one screen where they decide. Each act asks its own
+ * question, labels the thing it is about (a block is about a USER, a pin
+ * is about a CHAT), and carries its own verb on the green button, so the
+ * muscle memory built on the send verb never executes a deletion. An
+ * action outside the tables still names itself rather than borrowing a
+ * verb it did not earn.
+ */
+const ASKS: Record<string, [string, string]> = {
+  contact_add: [
+    'Добавить контакт в Telegram?',
+    'Add this contact on Telegram?',
+  ],
+  contact_delete: [
+    'Удалить контакт в Telegram?',
+    'Delete this contact on Telegram?',
+  ],
+  block: ['Заблокировать пользователя?', 'Block this user?'],
+  unblock: ['Разблокировать пользователя?', 'Unblock this user?'],
+  profile_update: ['Изменить профиль аккаунта?', 'Update the account profile?'],
+  profile_photo: ['Поставить новое фото профиля?', 'Set a new profile photo?'],
+  profile_photo_delete: ['Удалить фото профиля?', 'Delete the profile photo?'],
+  online: ['Показать статус «в сети»?', 'Show the online status?'],
+  pin: ['Закрепить сообщение в чате?', 'Pin this message in the chat?'],
+  unpin: ['Открепить сообщение в чате?', 'Unpin this message in the chat?'],
+  react: ['Поставить реакцию в Telegram?', 'Add this reaction on Telegram?'],
+  vote: ['Проголосовать в опросе?', 'Vote in this poll?'],
+  archive: ['Убрать диалог в архив?', 'Archive this chat?'],
+  unarchive: ['Вернуть диалог из архива?', 'Unarchive this chat?'],
+  mark_unread: ['Пометить диалог непрочитанным?', 'Mark this chat unread?'],
+  join: ['Вступить в канал или группу?', 'Join this channel or group?'],
+  leave: ['Покинуть чат?', 'Leave this chat?'],
+  kick: [
+    'Исключить участника из группы?',
+    'Remove this member from the group?',
+  ],
+  delete: [
+    'Удалить сообщения в Telegram?',
+    'Delete these messages on Telegram?',
+  ],
+  delete_chat: ['Удалить чат в Telegram?', 'Delete this chat on Telegram?'],
+}
+
+/** What the "about" row calls the thing the act is aimed at. */
+const LABELS: Record<string, [string, string]> = {
+  contact_add: ['Контакт', 'Contact'],
+  contact_delete: ['Контакт', 'Contact'],
+  block: ['Пользователь', 'User'],
+  unblock: ['Пользователь', 'User'],
+  profile_update: ['Аккаунт', 'Account'],
+  profile_photo: ['Аккаунт', 'Account'],
+  profile_photo_delete: ['Аккаунт', 'Account'],
+  online: ['Аккаунт', 'Account'],
+  pin: ['Чат', 'Chat'],
+  unpin: ['Чат', 'Chat'],
+  react: ['Чат', 'Chat'],
+  vote: ['Чат', 'Chat'],
+  archive: ['Чат', 'Chat'],
+  unarchive: ['Чат', 'Chat'],
+  mark_unread: ['Чат', 'Chat'],
+  leave: ['Чат', 'Chat'],
+  kick: ['Чат', 'Chat'],
+  delete: ['Чат', 'Chat'],
+  delete_chat: ['Чат', 'Chat'],
+  join: ['Канал', 'Channel'],
+}
+
+/** The green button's verb. The send verb stays the default -- and only that. */
+const CONFIRM: Record<string, [string, string]> = {
+  forward: ['✅ Переслать', '✅ Forward'],
+  read: ['✅ Отметить', '✅ Mark read'],
+  contact_add: ['✅ Добавить', '✅ Add'],
+  contact_delete: ['✅ Удалить', '✅ Delete'],
+  block: ['✅ Заблокировать', '✅ Block'],
+  unblock: ['✅ Разблокировать', '✅ Unblock'],
+  profile_update: ['✅ Изменить', '✅ Update'],
+  profile_photo: ['✅ Поставить фото', '✅ Set photo'],
+  profile_photo_delete: ['✅ Удалить', '✅ Delete'],
+  online: ['✅ В сеть', '✅ Go online'],
+  pin: ['✅ Закрепить', '✅ Pin'],
+  unpin: ['✅ Открепить', '✅ Unpin'],
+  react: ['✅ Реакция', '✅ React'],
+  vote: ['✅ Проголосовать', '✅ Vote'],
+  archive: ['✅ В архив', '✅ Archive'],
+  unarchive: ['✅ Из архива', '✅ Unarchive'],
+  mark_unread: ['✅ Непрочитанным', '✅ Mark unread'],
+  join: ['✅ Вступить', '✅ Join'],
+  leave: ['✅ Покинуть', '✅ Leave'],
+  kick: ['✅ Исключить', '✅ Remove'],
+  delete: ['✅ Удалить', '✅ Delete'],
+  delete_chat: ['✅ Удалить', '✅ Delete'],
+}
+
+/*
  * THE ASK NAMES THE ACT.
  *
  * "Отправить сообщение?" was for a while the only question the card knew,
@@ -257,10 +371,23 @@ function askOf(p: Proposal, isRu: boolean): string {
       : 'Forward these messages on Telegram?'
   if (p.action === 'read')
     return isRu ? 'Отметить чат прочитанным?' : 'Mark this chat as read?'
-  if (p.action !== 'send')
+  if (p.action !== 'send') {
+    // A removal is asked as a removal: an empty emoticon takes the
+    // reaction off, which is a different question than putting one on.
+    if (p.action === 'react' && !String(p.args?.emoticon ?? '').trim())
+      return isRu
+        ? 'Снять реакцию в Telegram?'
+        : 'Remove the reaction on Telegram?'
+    // Clearing the history keeps the chat (and the membership); deleting
+    // the chat does not. The person is asked which of the two it is.
+    if (p.action === 'delete_chat' && p.args?.mode === 'clear')
+      return isRu ? 'Очистить историю чата?' : "Clear this chat's history?"
+    const row = ASKS[p.action]
+    if (row) return isRu ? row[0] : row[1]
     return isRu
       ? `Подтвердить «${p.action}» в Telegram?`
       : `Confirm «${p.action}» on Telegram?`
+  }
   switch (media?.kind) {
     case 'photo':
       return isRu
@@ -299,6 +426,20 @@ function askOf(p: Proposal, isRu: boolean): string {
         ? 'Отправить сообщение в Telegram?'
         : 'Send this Telegram message?'
   }
+}
+
+/**
+ * The green button's verb. The send verb was born for a send and stayed the
+ * only verb for a year; a delete pressed through it would be a deletion
+ * wearing a stamp of approval. The wire under the verb -- id and secret --
+ * is the same for every act.
+ */
+function confirmOf(p: Proposal, isRu: boolean): string {
+  if (p.action === 'delete_chat' && p.args?.mode === 'clear')
+    return isRu ? '✅ Очистить' : '✅ Clear'
+  const row = CONFIRM[p.action]
+  if (row) return isRu ? row[0] : row[1]
+  return isRu ? '✅ Отправить' : '✅ Send'
 }
 
 /**
@@ -399,9 +540,40 @@ export function proposalCard(
       ? `\nУйдёт в ${clockOf(p.scheduleAt)} (можно отменить до)`
       : `\nWill be sent at ${clockOf(p.scheduleAt)} (cancellable until then)`
     : ''
-  const label =
-    p.action === 'read' ? (isRu ? 'Чат' : 'Chat') : isRu ? 'Кому' : 'To'
-  const head = `${ask}\n\n${label}: ${to}${fromLine}${warn}${price}${when}`
+  /*
+   * The irreversible warning is the one line that cannot wait for the
+   * follow-up: after the press there is nothing to warn about.
+   */
+  const warnIrrev = IRREVERSIBLE_SOCIAL.has(p.action)
+    ? isRu
+      ? '\n⚠️ НЕОБРАТИМО — после нажатия вернуть будет нельзя'
+      : '\n⚠️ IRREVERSIBLE — this cannot be undone after the press'
+    : ''
+  /*
+   * Profile acts aim at "me": a "To: me" row would be noise under an ask
+   * that already names the account. Everything else names its subject -- a
+   * contact, a user, a chat, a channel -- instead of a generic "to whom".
+   */
+  const isSelf = p.target === 'me'
+  const labelRow = LABELS[p.action]
+  const label = labelRow
+    ? isRu
+      ? labelRow[0]
+      : labelRow[1]
+    : p.action === 'read'
+      ? isRu
+        ? 'Чат'
+        : 'Chat'
+      : isRu
+        ? 'Кому'
+        : 'To'
+  const head = (
+    isSelf
+      ? [ask, fromLine, warn, warnIrrev, price, when]
+      : [`${ask}\n\n${label}: ${to}`, fromLine, warn, warnIrrev, price, when]
+  )
+    .filter(s => s !== '')
+    .join('')
   const tail = cut
     ? isRu
       ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`
@@ -422,7 +594,7 @@ export function proposalCard(
          * "tgp:ok:" (7) + a 12-char id + ":" + a 32-char secret = 52.
          */
         Markup.button.callback(
-          isRu ? '✅ Отправить' : '✅ Send',
+          confirmOf(p, isRu),
           `${PROPOSAL_OK}${p.id}:${p.secret}`
         ),
         Markup.button.callback(
