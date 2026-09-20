@@ -829,51 +829,57 @@ export async function* runAgent(
   }
 ): AsyncGenerator<AgentEvent> {
   /**
-   * СКВОЗНОЕ ЛОГИРОВАНИЕ ХОДА — ОДНА СТРОКА СТАРТА, ОДНА СТРОКА КОНЦА.
+   * END-TO-END TURN LOGGING -- ONE START LINE, ONE END LINE.
    *
-   * До этой правки `routes.ts`/`chat.ts` — единственное место, где сходятся
-   * все три поверхности (бот, мини-апп, iOS) — не писали НИ ОДНОЙ
-   * структурированной строки на весь ход разговора: `grep console\. chat.ts`
-   * находил восемь точечных `console.warn` про отдельные подсистемы (SOUL,
-   * история диалога с клиентом, вложения) и ни одной про сам факт «начался
-   * ход X от Y, закончился так-то за Z мс». У бота (`trinityAgent.ts`) есть
-   * своя точечная строка `[trinityAgent] ответ получен`, но она видит только
-   * ЕГО собственные вызовы — ход, начатый с телефона или из мини-аппа, в
-   * этот лог не попадает вовсе.
+   * Before this, routes.ts/chat.ts -- the one place all three surfaces
+   * (bot, mini app, iOS) converge -- logged nothing structured for a whole
+   * turn: `grep console\. chat.ts` found eight one-off console.warn calls
+   * about individual subsystems (SOUL, client DM history, attachments) and
+   * not one that says "turn X from Y started / ended like this". The bot
+   * has its own line (`[trinityAgent] ответ получен`), but it only sees ITS
+   * OWN calls -- a turn started from the phone or the mini app never
+   * reaches that log at all.
    *
-   * `ходId` короткий (8 симв.) НАРОЧНО: он для `grep` человеком в живом
-   * логе, а не для хранения — коллизии внутри одного процесса Node не
-   * критичны при таком объёме одновременных ходов.
+   * ID IS `ctx.turn`, NOT A NEW ONE. The first draft of this minted its own
+   * `randomUUID()` right here without noticing that routes.ts:568 already
+   * mints `turn` on every `/api/agent/chat` call (the same id that guards
+   * the proposal race in web-tools.ts). Two different ids for the same
+   * turn is exactly the kind of drift this change is meant to remove, not
+   * add: an investigation would have had to remember that "turn X" in this
+   * log and "turn Y" in the proposal race are the same thing under two
+   * names. The local `randomUUID()` stays as a FALLBACK for `runAgent`
+   * callers that don't set `ctx.turn` (`crm-duet-tool.ts`, `a2a.ts` aren't
+   * required to), not the primary path.
    */
-  const ходId = randomUUID().slice(0, 8)
-  const стартХода = Date.now()
-  let вызововИнструментов = 0
+  const turnId = ctx.turn ?? randomUUID().slice(0, 8)
+  const turnStartedAt = Date.now()
+  let toolCallCount = 0
   console.log(
     '[agent:turn]',
     JSON.stringify({
-      ход: ходId,
-      событие: 'старт',
+      turn: turnId,
+      event: 'start',
       telegram_id: ctx.telegramId,
       surface: opts?.surface ?? 'unknown',
       client: opts?.client ?? null,
       historyLen: history.length,
     })
   )
-  yield { тип: 'ход', id: ходId }
+  yield { тип: 'ход', id: turnId }
 
-  /** Одна строка конца хода — на КАЖДОМ выходе из генератора, успешном или нет. */
-  const логКонца = (исход: 'ok' | 'ошибка' | 'обрыв', детали?: string) => {
+  /** One end-of-turn line on EVERY exit from this generator, success or not. */
+  const logTurnEnd = (outcome: 'ok' | 'error' | 'truncated', details?: string) => {
     console.log(
       '[agent:turn]',
       JSON.stringify({
-        ход: ходId,
-        событие: 'конец',
+        turn: turnId,
+        event: 'end',
         telegram_id: ctx.telegramId,
         surface: opts?.surface ?? 'unknown',
-        исход,
-        мс: Date.now() - стартХода,
-        инструментов: вызововИнструментов,
-        ...(детали ? { детали: детали.slice(0, 300) } : {}),
+        outcome,
+        ms: Date.now() - turnStartedAt,
+        toolCalls: toolCallCount,
+        ...(details ? { details: details.slice(0, 300) } : {}),
       })
     )
   }
@@ -1008,18 +1014,18 @@ export async function* runAgent(
         else assistant = ev.message
       }
     } catch (e) {
-      логКонца('ошибка', String(e))
+      logTurnEnd('error', String(e))
       yield { тип: 'ошибка', текст: String(e).slice(0, 500) }
       return
     }
     if (!assistant) {
-      логКонца('ошибка', 'модель не вернула сообщение')
+      logTurnEnd('error', 'model did not return a message')
       yield { тип: 'ошибка', текст: 'модель не вернула сообщение' }
       return
     }
 
     if (!assistant.tool_calls?.length) {
-      логКонца('ok')
+      logTurnEnd('ok')
       yield { тип: 'готово', витков: step + 1 }
       return
     }
@@ -1027,7 +1033,7 @@ export async function* runAgent(
     messages.push(assistant)
 
     for (const call of assistant.tool_calls) {
-      вызововИнструментов++
+      toolCallCount++
       const имя = call.function.name
       yield {
         тип: 'инструмент',
@@ -1067,7 +1073,7 @@ export async function* runAgent(
     }
   }
 
-  логКонца('обрыв', `предел ${MAX_STEPS} витков`)
+  logTurnEnd('truncated', `step limit ${MAX_STEPS}`)
   yield {
     тип: 'готово',
     витков: MAX_STEPS,

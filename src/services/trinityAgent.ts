@@ -400,7 +400,7 @@ export async function спроситьАгента(
      * увиденное в Telegram, находилось в серверном логе одним `grep`, а не
      * сопоставлением по времени и telegram_id вручную.
      */
-    let ходId: string | undefined
+    let turnId: string | undefined
 
     const строку = (s: string) => {
       const t = s.trim()
@@ -414,7 +414,7 @@ export async function спроситьАгента(
           model?: string
           proposal?: ОтветАгента['proposal'] // cyrillic-ok: pre-existing type
         }
-        if (ev.тип === 'ход' && ev.id) ходId = ev.id
+        if (ev.тип === 'ход' && ev.id) turnId = ev.id
         else if (ev.тип === 'текст' && typeof ev.текст === 'string')
           части.push(ev.текст)
         else if (ev.тип === 'провайдер' && ev.id)
@@ -478,7 +478,7 @@ export async function спроситьАгента(
         // below, which still pages when the turn is genuinely lost.
         logger.warn('[trinityAgent] stream died mid-body, kept what arrived', {
           telegram_id: telegramId,
-          ход: ходId,
+          turn: turnId,
           upstream: `${БАЗА}/api/agent/chat`,
           events: eventsSeen,
           tools: инструменты.length, // cyrillic-ok: pre-existing identifiers of this parser
@@ -506,7 +506,7 @@ export async function спроситьАгента(
 
     logger.info('[trinityAgent] ответ получен', {
       telegram_id: telegramId,
-      ход: ходId,
+      turn: turnId,
       provider,
       инструментов: инструменты.length,
       инструменты: инструменты.slice(0, 8),
