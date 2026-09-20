@@ -256,6 +256,29 @@ export async function report(
     gapMinutes = QUIET_GAP_MINUTES,
   }: { now?: number; gapMinutes?: number } = {}
 ): Promise<ReportOutcome> {
+  /*
+   * THE WATCHDOGS RUN FIRST, AND THEY RUN WHETHER OR NOT ANYBODY IS LISTENING.
+   *
+   * SILENCE HAS NO EVENTS. Below, `if (!fresh.length) continue` -- an empty
+   * journal makes an empty report, which is right for a quiet night and wrong
+   * for a seller that has stopped. So the watchdogs write their findings INTO
+   * the journal and the ordinary machinery carries them: an `alarm` skips the
+   * three-hour gap and goes out at once.
+   *
+   * RECORDING IS NOT REPORTING, AND THIS FUNCTION USED TO CONFUSE THEM. Both
+   * calls sat BELOW the `no keepers` return. Measured in production on
+   * 2026-09-20: HIVE_KEEPERS is not set on vibee-render, so this function had
+   * returned at that line on every tick since it was written -- and
+   * `checkSellerSilence`, shipped days earlier to catch exactly the failure
+   * that writes nothing, had never run once.
+   *
+   * A missing subscriber is a reason not to SEND. It is not a reason to stop
+   * looking: the journal is the record, and the record is what answers "what
+   * happened" long after the tick. So the watchdogs are above the guard.
+   */
+  await checkSellerSilence(pool, now)
+  await checkWaitingClients(pool, now)
+
   const who = keepers()
   if (!who.length) {
     // Not silently: without HIVE_KEEPERS there is nobody to report to, and that
@@ -263,31 +286,6 @@ export async function report(
     // "the project is quiet".
     return { what: 'no keepers' }
   }
-
-  /*
-   * SILENCE IS CHECKED BEFORE THE EVENTS, BECAUSE SILENCE HAS NO EVENTS.
-   *
-   * Below, `if (!fresh.length) continue` -- an empty journal produces an empty
-   * report. That is right for a quiet night and wrong for a seller that has
-   * stopped: the one state worth waking somebody for is the one that writes
-   * nothing at all.
-   *
-   * So the watchdog runs first and writes its finding INTO the journal. From
-   * there the ordinary machinery does the rest: an `alarm` severity skips the
-   * three-hour gap and goes out at once.
-   */
-  await checkSellerSilence(pool, now)
-
-  /*
-   * AND THE PEOPLE WHO ARE WAITING, FOR THE SAME REASON.
-   *
-   * A person who wrote and was not answered produces no event either -- from
-   * the code's side nothing happened at all. Owner, 2026-09-20: "even in the
-   * DMs, find every message and every fault and hand it on." Like the
-   * watchdog above, it writes INTO the journal and the ordinary machinery
-   * carries it: a fault report goes out as an alarm, at once.
-   */
-  await checkWaitingClients(pool, now)
 
   let outcome: ReportOutcome = { what: 'nothing to say' }
 
