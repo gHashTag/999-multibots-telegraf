@@ -38,6 +38,38 @@ vi.mock('@/core/supabase/getUserBalance', () => ({
   invalidateBalanceCache: vi.fn(),
 }))
 
+// The charge itself now happens in `user_tokens` in the render Postgres, not in
+// `payments_v2` (owner decision 2026-09-20, step 3). This is a small working
+// wallet rather than a per-call stub, so the tests exercise the same guard the
+// database applies: an UPDATE that matches no row when the balance is short.
+const wallet = { balance: 100, down: false }
+
+const walletQuery = vi.fn(async (sql: string, params: unknown[]) => {
+  if (wallet.down) throw new Error('ECONNREFUSED')
+  const amount = Number(params[1])
+  if (/^SELECT/i.test(sql.trim()))
+    return { rows: [{ balance: wallet.balance }] }
+  if (/INSERT INTO user_tokens/i.test(sql)) {
+    wallet.balance += amount
+    return { rows: [{ balance: wallet.balance }] }
+  }
+  if (/UPDATE user_tokens/i.test(sql)) {
+    if (wallet.balance < amount) return { rows: [] }
+    wallet.balance -= amount
+    return { rows: [{ balance: wallet.balance }] }
+  }
+  throw new Error(`unexpected wallet query: ${sql}`)
+})
+
+vi.mock('pg', () => ({
+  Pool: class {
+    query = (...a: unknown[]) => walletQuery(...(a as [string, unknown[]]))
+    on() {
+      return this
+    }
+  },
+}))
+
 vi.mock('@/price/helpers/calculateServiceCost', () => ({
   calculateServiceCost: vi.fn().mockReturnValue(5),
 }))
@@ -52,6 +84,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
+import { resetTokenWalletPool } from '@/core/wallet/tokenWallet'
 
 // Helper to setup supabase mocks
 const setupSupabaseMocks = (
@@ -98,10 +131,8 @@ const setupSupabaseMocks = (
     single: mockSingle,
     limit: mockLimit,
   })
-  ;(supabase.rpc as Mock).mockResolvedValue({
-    data: rpcError ? null : balance,
-    error: rpcError,
-  })
+  wallet.balance = balance
+  wallet.down = Boolean(rpcError)
 
   return { mockSelect, mockEq, mockSingle, mockInsert, mockUpdate, mockLimit }
 }
@@ -109,6 +140,10 @@ const setupSupabaseMocks = (
 describe('updateUserBalance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetTokenWalletPool()
+    process.env.TOKENS_DATABASE_URL = 'postgres://wallet/test'
+    wallet.balance = 100
+    wallet.down = false
     // Reset console.log mock
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
@@ -234,9 +269,13 @@ describe('updateUserBalance', () => {
       )
 
       expect(result).toBe(true)
-      expect(supabase.rpc).toHaveBeenCalledWith('get_user_balance', {
-        user_telegram_id: 123456789,
-      })
+      // The charge is the wallet UPDATE, not a row in the archive: the money
+      // has to leave `user_tokens` or it is spendable twice.
+      expect(walletQuery).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE user_tokens/),
+        ['123456789', 10]
+      )
+      expect(wallet.balance).toBe(90)
     })
 
     it('should return false when insufficient balance', async () => {
@@ -353,41 +392,13 @@ describe('updateUserBalance', () => {
       expect(logger.error).toHaveBeenCalled()
     })
 
-    it('should handle RPC error and fallback to payments query', async () => {
-      const mockPaymentsData = [
-        { stars: 100, type: 'money_income' },
-        { stars: 10, type: 'money_outcome' },
-      ]
-
-      // Setup with RPC error
-      const mockSelect = vi.fn().mockReturnThis()
-      const mockEq = vi.fn().mockReturnThis()
-      const mockSingle = vi
-        .fn()
-        .mockResolvedValueOnce({ data: { id: 1 }, error: null }) // First call for user check
-        .mockResolvedValueOnce({ data: mockPaymentsData, error: null }) // Fallback payments query
-      const mockInsert = vi.fn().mockResolvedValue({ data: null, error: null })
-
-      ;(supabase.from as Mock).mockReturnValue({
-        select: mockSelect,
-        insert: mockInsert,
-        update: vi.fn().mockReturnThis(),
-        eq: mockEq,
-        single: mockSingle,
-      })
-      ;(supabase.rpc as Mock).mockResolvedValue({
-        data: null,
-        error: { message: 'RPC function not found' },
-      })
-
-      // Mock the payments query separately
-      mockSelect.mockImplementation(() => ({
-        eq: vi.fn().mockReturnValue({
-          eq: vi
-            .fn()
-            .mockResolvedValue({ data: mockPaymentsData, error: null }),
-        }),
-      }))
+    // The RPC fallback this replaced recomputed the balance from `payments_v2`
+    // when `get_user_balance` was unavailable. There is no fallback now: the
+    // wallet is the only place the money is, so an unreachable wallet refuses
+    // the charge instead of guessing at a number.
+    it('refuses the charge when the wallet cannot be reached', async () => {
+      setupSupabaseMocks({ userExists: true })
+      wallet.down = true
 
       const result = await updateUserBalance(
         '123456789',
@@ -396,9 +407,10 @@ describe('updateUserBalance', () => {
         'Test'
       )
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Ошибка при вызове RPC'),
-        expect.any(Object)
+      expect(result).toBe(false)
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Живой кошелёк недоступен'),
+        expect.objectContaining({ telegram_id: '123456789', amount: 5 })
       )
     })
 
@@ -518,43 +530,32 @@ describe('updateUserBalance', () => {
       )
     })
 
-    it.each([
-      ['null', null],
-      ['undefined', undefined],
-    ])(
-      'an RPC that answers %s reports no error, reads as a zero balance, and still only warns',
-      async (_label, rpcValue) => {
-        // `currentBalance = Number(balanceData) || 0` turns a missing RPC
-        // result into a zero balance WITHOUT setting balanceError -- undefined
-        // goes through NaN on the way. So this refusal can fire for somebody
-        // who has money, during an outage that reports no error. That is
-        // exactly why the level here is warn and not info: the line has to
-        // stay visible in the log. It is still not a page, because the charge
-        // was refused safely and no row was written.
-        setupSupabaseMocks({ userExists: true })
-        ;(supabase.rpc as Mock).mockResolvedValue({
-          data: rpcValue,
-          error: null,
-        })
+    // An unreachable wallet DOES page: unlike an empty wallet, it is our
+    // machinery failing, and every customer is refused until it comes back.
+    it('an unreachable wallet pages: that one is ours to fix', async () => {
+      setupSupabaseMocks({ userExists: true })
+      wallet.down = true
 
-        const result = await updateUserBalance(
-          '123456789',
-          4,
-          PaymentType.MONEY_OUTCOME,
-          'Test withdrawal'
-        )
+      const result = await updateUserBalance(
+        '123456789',
+        4,
+        PaymentType.MONEY_OUTCOME,
+        'Test withdrawal'
+      )
 
-        expect(result).toBe(false)
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining('Недостаточно средств'),
-          expect.objectContaining({ balance: 0, required_amount: 4 })
-        )
-        expect(logger.error).not.toHaveBeenCalledWith(
-          expect.stringContaining('Недостаточно средств'),
-          expect.any(Object)
-        )
-      }
-    )
+      expect(result).toBe(false)
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Живой кошелёк недоступен'),
+        expect.any(Object)
+      )
+      expect(
+        logger.warn,
+        'an outage must not be filed as the customer being broke'
+      ).not.toHaveBeenCalledWith(
+        expect.stringContaining('Недостаточно средств'),
+        expect.any(Object)
+      )
+    })
 
     it('an inverted posting still pages: a negative amount is our bug', async () => {
       // 114 rows of -9 stars credited 1026 instead of deducting. Somebody has
