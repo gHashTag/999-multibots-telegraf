@@ -43,7 +43,7 @@ const SAVED = process.env.DATABASE_URL
 
 beforeEach(() => {
   FakePool.last = null
-  process.env.DATABASE_URL = 'postgres://user:pw@127.0.0.1:5432/db'
+  process.env.DATABASE_URL = 'postgres://user:pw@127.0.0.1:5432/db' // secret-guard-ok: a localhost fixture, invented value
 })
 afterEach(() => {
   if (SAVED === undefined) delete process.env.DATABASE_URL
