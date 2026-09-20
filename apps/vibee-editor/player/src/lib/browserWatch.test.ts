@@ -67,10 +67,20 @@ describe('following an agent to the browser', () => {
 describe('when to ask at all', () => {
   it('stops while the app is in the background', () => {
     expect(
-      shouldPoll({ hidden: true, embedded: false, unavailable: false })
+      shouldPoll({
+        hidden: true,
+        embedded: false,
+        unavailable: false,
+        signedOut: false,
+      })
     ).toBe(false)
     expect(
-      shouldPoll({ hidden: false, embedded: false, unavailable: false })
+      shouldPoll({
+        hidden: false,
+        embedded: false,
+        unavailable: false,
+        signedOut: false,
+      })
     ).toBe(true)
   })
 
@@ -81,10 +91,20 @@ describe('when to ask at all', () => {
      * embed-guest-panel.test.tsx, not by me.
      */
     expect(
-      shouldPoll({ hidden: false, embedded: true, unavailable: false })
+      shouldPoll({
+        hidden: false,
+        embedded: true,
+        unavailable: false,
+        signedOut: false,
+      })
     ).toBe(false)
     expect(
-      shouldPoll({ hidden: true, embedded: true, unavailable: false })
+      shouldPoll({
+        hidden: true,
+        embedded: true,
+        unavailable: false,
+        signedOut: false,
+      })
     ).toBe(false)
   })
 
@@ -95,7 +115,24 @@ describe('when to ask at all', () => {
      * cannot work there.
      */
     expect(
-      shouldPoll({ hidden: false, embedded: false, unavailable: true })
+      shouldPoll({
+        hidden: false,
+        embedded: false,
+        unavailable: true,
+        signedOut: false,
+      })
+    ).toBe(false)
+  })
+
+  it('STOPS when nobody is signed in', () => {
+    /* A signed-out app would otherwise ask every ten seconds forever. */
+    expect(
+      shouldPoll({
+        hidden: false,
+        embedded: false,
+        unavailable: false,
+        signedOut: true,
+      })
     ).toBe(false)
   })
 

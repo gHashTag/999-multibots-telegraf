@@ -30,6 +30,7 @@ export function useBrowserWatch(): void {
   const followed = useRef<string | null>(null)
   /* Latched: a deployment does not grow pods while the tab is open. */
   const unavailable = useRef(false)
+  const signedOut = useRef(false)
   /* Read through a ref so the timer never restarts on every navigation. */
   const path = useRef(location.pathname)
   path.current = location.pathname
@@ -44,6 +45,7 @@ export function useBrowserWatch(): void {
           hidden: document.hidden,
           embedded: IS_EMBED,
           unavailable: unavailable.current,
+          signedOut: signedOut.current,
         })
       )
         return
@@ -51,6 +53,7 @@ export function useBrowserWatch(): void {
         const view = await readBrowserSession()
         if (stopped) return
         if (view.state === 'unavailable') unavailable.current = true
+        if (view.state === 'signin') signedOut.current = true
         if (
           shouldFollow({
             state: view.state,
