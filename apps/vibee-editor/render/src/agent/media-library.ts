@@ -354,6 +354,51 @@ export const TEXT_LIKE_EXTENSIONS: readonly string[] = [
  */
 const TEXT_LIKE_EXT = new RegExp(`\\.(${TEXT_LIKE_EXTENSIONS.join('|')})$`, 'i')
 
+/**
+ * WHAT A TRANSCRIBER TAKES, WHICH IS MORE THAN A CHAT PROVIDER TAKES.
+ *
+ * `usableMediaUrl(url, 'audio')` exists for the provider path, where the file
+ * is handed to a chat model as an `audio_url` part -- and there the short list
+ * is right, because a model that is sent a container it cannot open answers
+ * confidently about nothing.
+ *
+ * A transcriber is not a chat model. speaches, faster-whisper and OpenAI all
+ * feed the bytes through ffmpeg, which opens every container below and several
+ * this list does not name. Measured 2026-09-20: two recordings sat unread for
+ * a day because they are `.mp4`, and the log said only "not readable as
+ * audio" -- a gate built for one consumer, applied to another.
+ *
+ * `.oga` is here for a plain reason too: that is the extension Telegram gives
+ * a voice note on some paths, and dropping it drops exactly the thing this
+ * whole feature is for.
+ */
+const TRANSCRIBABLE_EXT = [
+  '.ogg',
+  '.oga',
+  '.opus',
+  '.mp3',
+  '.wav',
+  '.m4a',
+  '.mp4',
+  '.webm',
+  '.flac',
+  '.aac',
+  '.mov',
+]
+
+/** The URL a transcriber may be given, or null. Our shelf only, as always. */
+export function transcribableUrl(raw: string): string | null {
+  const found = shelfObject(raw)
+  if (!found) return null
+  let path = ''
+  try {
+    path = new URL(found.url).pathname.toLowerCase()
+  } catch {
+    return null
+  }
+  return TRANSCRIBABLE_EXT.some(e => path.endsWith(e)) ? found.url : null
+}
+
 /** A document a model can read as plain text. */
 export function isTextLikeDocument(
   mime: string | null | undefined,
@@ -878,6 +923,28 @@ export async function describeMedia(
       if (isTelegramFileUrl(url)) return null
       return await readShelfDocument(url)
     }
+    /*
+     * The transcriber is asked FIRST and by its own rule: it opens more
+     * containers than the chat providers do, and the narrow gate below was
+     * silently dropping recordings it could have read.
+     */
+    if (kind === 'audio') {
+      const w = whisperConfig()
+      const hearable = transcribableUrl(url)
+      if (w && hearable) {
+        try {
+          const heard = await transcribeWithWhisper(w, hearable, name)
+          if (heard) return heard
+        } catch (e) {
+          console.warn(
+            `[media-library] whisper did not take ${name ?? ''}: ${String(
+              e instanceof Error ? e.message : e
+            ).slice(0, 160)}`
+          )
+        }
+      }
+    }
+
     // Only our own shelf, only an extension the provider was shown to take.
     const safe = usableMediaUrl(url, kind)
     if (!safe) {
