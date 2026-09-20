@@ -36,6 +36,13 @@ export const NOTABLE_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
   // watch that died and a channel where nobody is owed anything are the same
   // silence.
   'watch-quiet',
+  // Every error of every bot, rolled up by the bot into one line per window.
+  // Only the bot sees its own failures; without this door they reach a log
+  // nobody reads and nothing else at all.
+  'bot-errors',
+  // A person who wrote that something is broken, or who asked and was left.
+  // The one fault report no log can contain, because nothing failed.
+  'client-unanswered',
 ])
 
 const SEVERITIES: ReadonlySet<Severity> = new Set<Severity>([

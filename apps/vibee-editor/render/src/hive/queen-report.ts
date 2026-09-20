@@ -36,6 +36,7 @@ import {
 } from './journal'
 import { keepers } from './roles'
 import { checkSellerSilence } from './seller-silence'
+import { checkWaitingClients } from './clients-waiting'
 
 /** The cursor lives in the database: a Railway container does not survive a deploy. */
 async function ensureCursorTable(pool: JournalPool): Promise<void> {
@@ -114,6 +115,8 @@ const NAMES: Record<string, string> = {
   'payment-lost': 'платёж пришёл, а получателя не нашли',
   'payment-unclaimed': 'деньги пришли, а звёзды не начислены', // cyrillic-ok: report text
   'watch-quiet': 'проверка платежей: всё зачислено', // cyrillic-ok: report text
+  'bot-errors': 'ошибки ботов', // cyrillic-ok: report text
+  'client-unanswered': 'человек написал и остался без ответа', // cyrillic-ok: report text
   'payment-forged': 'подделали подпись платежа',
   'tokens-spent': 'потратили токены',
   'tokens-refunded': 'вернули токены',
@@ -274,6 +277,17 @@ export async function report(
    * three-hour gap and goes out at once.
    */
   await checkSellerSilence(pool, now)
+
+  /*
+   * AND THE PEOPLE WHO ARE WAITING, FOR THE SAME REASON.
+   *
+   * A person who wrote and was not answered produces no event either -- from
+   * the code's side nothing happened at all. Owner, 2026-09-20: "even in the
+   * DMs, find every message and every fault and hand it on." Like the
+   * watchdog above, it writes INTO the journal and the ordinary machinery
+   * carries it: a fault report goes out as an alarm, at once.
+   */
+  await checkWaitingClients(pool, now)
 
   let outcome: ReportOutcome = { what: 'nothing to say' }
 
