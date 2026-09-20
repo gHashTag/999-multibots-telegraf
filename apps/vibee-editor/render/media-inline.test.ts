@@ -332,11 +332,32 @@ describe('audio the chain cannot hear is transcribed', () => {
 })
 
 describe('what a stored transcript is for', () => {
-  const rows: Array<{ url: string; description: string }> = []
+  /*
+   * `transcript`, BECAUSE THAT IS THE COLUMN THE TABLE HAS.
+   *
+   * This double used to hold `description` and answer it back, and the query
+   * under test asked for `description` too -- so the pair agreed with each
+   * other while disagreeing with USER_MEDIA_TABLE_SQL, which declares
+   * `transcript text` and no `description` at all. Every real call threw, the
+   * caller's catch swallowed it, and the media memory was empty for its whole
+   * life while this test stayed green.
+   *
+   * The double now answers the SCHEMA's column, and refuses a query that asks
+   * for one the table does not have -- a fake that agrees with its caller is
+   * how a column nobody has can look like a feature that works.
+   */
+  const rows: Array<{ url: string; transcript: string }> = []
+  const COLUMNS = new Set(['url', 'transcript', 'kind', 'name', 'mime'])
   const pool = {
     async query(sql: string, params?: unknown[]) {
       if (/^\s*(CREATE|INSERT|UPDATE)/i.test(sql)) return { rows: [] }
       if (/FROM user_media/i.test(sql)) {
+        const asked = /SELECT\s+([^]*?)\s+FROM user_media/i.exec(sql)?.[1] ?? ''
+        for (const col of asked.split(',').map(c => c.trim())) {
+          if (col && !COLUMNS.has(col)) {
+            throw new Error(`user_media has no column ${col}`)
+          }
+        }
         const wanted = new Set((params?.[1] as string[]) ?? [])
         return { rows: rows.filter(r => wanted.has(r.url)) }
       }
@@ -346,7 +367,7 @@ describe('what a stored transcript is for', () => {
 
   it('uses a transcript already on record and asks Whisper for nothing', async () => {
     rows.length = 0
-    rows.push({ url: VOICE, description: 'записанное ранее' })
+    rows.push({ url: VOICE, transcript: 'записанное ранее' })
     process.env.WHISPER_API_KEY = 'gsk_test'
     const { inlineUnperceivedMedia } = await load()
 
