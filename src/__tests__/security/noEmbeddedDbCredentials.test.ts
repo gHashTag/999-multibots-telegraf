@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -51,25 +52,54 @@ const SAMPLE = [
  */
 const MARKER = ['secret', 'guard', 'ok'].join('-')
 
+/**
+ * A PASSWORD READ FROM THE ENVIRONMENT IS NOT AN EMBEDDED PASSWORD.
+ *
+ * A line whose password segment is an interpolation from the environment
+ * builds the same shape and carries no secret -- the whole point of such a
+ * line is that the value is NOT in the file. Flagging it would train whoever reads this report to add
+ * waiver markers, and a guard that teaches people to silence it is worse than
+ * one that misses. Only an interpolation counts, not a comment beside it.
+ */
+const INTERPOLATED = /:(\$\{|\$[A-Za-z_]|%[A-Za-z_]+%)/
+
 /** Lines that carry an embedded credential and are not excused. */
 const offendingLines = (src: string): string[] =>
-  src.split('\n').filter(l => EMBEDDED_PASSWORD.test(l) && !l.includes(MARKER))
+  src
+    .split('\n')
+    .filter(
+      l =>
+        EMBEDDED_PASSWORD.test(l) &&
+        !INTERPOLATED.test(l) &&
+        !l.includes(MARKER)
+    )
 
-const sourceFiles = (): string[] => {
-  const out: string[] = []
-  const walk = (dir: string) => {
-    for (const e of fs.readdirSync(path.join(ROOT, dir), {
-      withFileTypes: true,
-    })) {
-      const rel = `${dir}/${e.name}`
-      if (e.isDirectory()) {
-        if (e.name !== 'node_modules') walk(rel)
-      } else if (e.name.endsWith('.ts')) out.push(rel)
-    }
-  }
-  walk('src')
-  return out
-}
+/**
+ * EVERY TRACKED FILE, NOT `src/**\/*.ts`.
+ *
+ * This walked `src` and kept only `.ts`, and on 2026-09-20 a security sweep
+ * found a live production Postgres password in
+ * `apps/vibee-editor/player/api-server.js` -- a tracked, Dockerfile-copied
+ * file that this guard was structurally incapable of seeing. The guard was
+ * green the whole time, which is worse than having no guard: it answered a
+ * question it had never asked.
+ *
+ * `git ls-files` is the honest list: exactly what is published when the
+ * repository is cloned, whatever its extension and wherever it sits. A
+ * credential in a `.js`, a `.json`, a `.sh` or a `.yml` is as published as one
+ * in a `.ts`.
+ */
+const TEXTUAL = /\.(ts|tsx|js|jsx|mjs|cjs|json|sh|yml|yaml|env|conf|toml|md)$/i
+
+const sourceFiles = (): string[] =>
+  execFileSync('git', ['ls-files', '-z'], {
+    cwd: ROOT,
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+    .filter(f => TEXTUAL.test(f))
 
 describe('credentials embedded in connection strings', () => {
   it('the matcher recognises the shape and spares ordinary URLs', () => {

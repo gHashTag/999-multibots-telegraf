@@ -1,48 +1,84 @@
 // VIBEE API Server - Feed endpoints
 // Connects to Railway PostgreSQL
 
-const express = require('express');
-const { Pool } = require('pg');
+const express = require('express')
+const { Pool } = require('pg')
 
-const app = express();
-const PORT = process.env.PORT || 8080;
+const app = express()
+const PORT = process.env.PORT || 8080
+
+/**
+ * THE CONNECTION STRING COMES FROM THE ENVIRONMENT, OR NOTHING STARTS.
+ *
+ * This line used to fall back to a REAL Railway credential when DATABASE_URL
+ * was unset. The file is tracked by git and shipped by Dockerfile.api, and the
+ * host in that fallback was Railway's PUBLIC TCP proxy -- so the way into the
+ * database holding payments_v2 was readable by anyone who could read the
+ * repository, and reachable from the open internet.
+ *
+ * FAIL CLOSED, like requireInternalKey: a missing DATABASE_URL must stop the
+ * process, not silently connect somewhere. A default that happens to work is
+ * exactly how a fallback survives review for a year.
+ *
+ * Deleting the value did NOT remediate it: it remains in the history of this
+ * repository and must be rotated. That is the owner's action in Railway.
+ */
+function requireDatabaseUrl() {
+  const url = process.env.DATABASE_URL
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL is not set. This service has no default connection on ' +
+        'purpose: the previous default was a live production credential in a ' +
+        'tracked file.'
+    )
+  }
+  return url
+}
 
 // Railway PostgreSQL connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:qBEYwMPQXqtDwabhOfNjHBOOmKKWEHKv@shinkansen.proxy.rlwy.net:39950/railway',
-  ssl: { rejectUnauthorized: false }
-});
+  connectionString: requireDatabaseUrl(),
+  ssl: { rejectUnauthorized: false },
+})
 
-app.use(express.json());
+app.use(express.json())
 
 // CORS headers
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
-  next();
-});
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+  )
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  if (req.method === 'OPTIONS') return res.sendStatus(200)
+  next()
+})
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'vibee-api', timestamp: new Date().toISOString() });
-});
+  res.json({
+    status: 'ok',
+    service: 'vibee-api',
+    timestamp: new Date().toISOString(),
+  })
+})
 
 // GET /api/feed - Get public templates feed
 app.get('/api/feed', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
-    const userId = req.query.user_id ? parseInt(req.query.user_id) : null;
-    const search = req.query.search || '';
+    const limit = parseInt(req.query.limit) || 20
+    const offset = parseInt(req.query.offset) || 0
+    const userId = req.query.user_id ? parseInt(req.query.user_id) : null
+    const search = req.query.search || ''
 
-    let searchFilter = '';
+    let searchFilter = ''
     if (search) {
-      searchFilter = `AND (pt.name ILIKE '%${search}%' OR pt.description ILIKE '%${search}%')`;
+      searchFilter = `AND (pt.name ILIKE '%${search}%' OR pt.description ILIKE '%${search}%')`
     }
 
-    const orderBy = req.query.sort === 'likes' ? 'pt.likes_count DESC' : 'pt.created_at DESC';
+    const orderBy =
+      req.query.sort === 'likes' ? 'pt.likes_count DESC' : 'pt.created_at DESC'
 
     const query = `
       SELECT
@@ -73,9 +109,9 @@ app.get('/api/feed', async (req, res) => {
       WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL ${searchFilter}
       ORDER BY ${orderBy}
       LIMIT $1 OFFSET $2
-    `;
+    `
 
-    const result = await pool.query(query, [limit, offset, userId]);
+    const result = await pool.query(query, [limit, offset, userId])
 
     // Transform rows to match frontend format
     const templates = result.rows.map(row => ({
@@ -99,21 +135,23 @@ app.get('/api/feed', async (req, res) => {
       createdAt: row.created_at,
       parentTemplateId: row.parent_template_id,
       originalCreatorName: row.original_creator_name,
-      originalCreatorAvatar: row.original_creator_avatar
-    }));
+      originalCreatorAvatar: row.original_creator_avatar,
+    }))
 
-    res.json({ templates });
+    res.json({ templates })
   } catch (error) {
-    console.error('Feed error:', error);
-    res.status(500).json({ error: 'Failed to fetch feed', details: error.message });
+    console.error('Feed error:', error)
+    res
+      .status(500)
+      .json({ error: 'Failed to fetch feed', details: error.message })
   }
-});
+})
 
 // GET /api/feed/:id - Get single template
 app.get('/api/feed/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const userId = req.query.user_id ? parseInt(req.query.user_id) : null;
+    const { id } = req.params
+    const userId = req.query.user_id ? parseInt(req.query.user_id) : null
 
     const query = `
       SELECT
@@ -142,15 +180,15 @@ app.get('/api/feed/:id', async (req, res) => {
       LEFT JOIN template_likes tl ON pt.id = tl.template_id AND tl.user_id = $2
       LEFT JOIN public_templates parent ON pt.parent_template_id = parent.id
       WHERE pt.id = $1 AND pt.is_public = TRUE AND pt.deleted_at IS NULL
-    `;
+    `
 
-    const result = await pool.query(query, [id, userId]);
+    const result = await pool.query(query, [id, userId])
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Template not found' });
+      return res.status(404).json({ error: 'Template not found' })
     }
 
-    const row = result.rows[0];
+    const row = result.rows[0]
     const template = {
       id: row.id,
       telegramId: row.telegram_id,
@@ -172,19 +210,21 @@ app.get('/api/feed/:id', async (req, res) => {
       createdAt: row.created_at,
       parentTemplateId: row.parent_template_id,
       originalCreatorName: row.original_creator_name,
-      originalCreatorAvatar: row.original_creator_avatar
-    };
+      originalCreatorAvatar: row.original_creator_avatar,
+    }
 
-    res.json(template);
+    res.json(template)
   } catch (error) {
-    console.error('Template error:', error);
-    res.status(500).json({ error: 'Failed to fetch template', details: error.message });
+    console.error('Template error:', error)
+    res
+      .status(500)
+      .json({ error: 'Failed to fetch template', details: error.message })
   }
-});
+})
 
 // POST /api/feed - Publish template to feed
 app.post('/api/feed', async (req, res) => {
-  const client = await pool.connect();
+  const client = await pool.connect()
   try {
     const {
       telegram_id,
@@ -198,10 +238,10 @@ app.post('/api/feed', async (req, res) => {
       assets,
       tracks,
       parent_template_id,
-      original_creator_id
-    } = req.body;
+      original_creator_id,
+    } = req.body
 
-    await client.query('BEGIN');
+    await client.query('BEGIN')
 
     const query = `
       INSERT INTO public_templates (
@@ -211,7 +251,7 @@ app.post('/api/feed', async (req, res) => {
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12)
       RETURNING id
-    `;
+    `
 
     const result = await client.query(query, [
       telegram_id,
@@ -225,68 +265,94 @@ app.post('/api/feed', async (req, res) => {
       JSON.stringify(assets || []),
       JSON.stringify(tracks || []),
       parent_template_id || null,
-      original_creator_id || null
-    ]);
+      original_creator_id || null,
+    ])
 
-    await client.query('COMMIT');
+    await client.query('COMMIT')
 
-    res.status(201).json({ id: result.rows[0].id, message: 'Template published successfully' });
+    res.status(201).json({
+      id: result.rows[0].id,
+      message: 'Template published successfully',
+    })
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Publish error:', error);
-    res.status(500).json({ error: 'Failed to publish template', details: error.message });
+    await client.query('ROLLBACK')
+    console.error('Publish error:', error)
+    res
+      .status(500)
+      .json({ error: 'Failed to publish template', details: error.message })
   } finally {
-    client.release();
+    client.release()
   }
-});
+})
 
 // POST /api/feed/:id/like - Like/unlike template
 app.post('/api/feed/:id/like', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { user_id } = req.body;
+    const { id } = req.params
+    const { user_id } = req.body
 
     if (!user_id) {
-      return res.status(400).json({ error: 'user_id required' });
+      return res.status(400).json({ error: 'user_id required' })
     }
 
     // Check if already liked
     const existing = await pool.query(
       'SELECT * FROM template_likes WHERE template_id = $1 AND user_id = $2',
       [id, user_id]
-    );
+    )
 
     if (existing.rows.length > 0) {
       // Unlike
-      await pool.query('DELETE FROM template_likes WHERE template_id = $1 AND user_id = $2', [id, user_id]);
-      await pool.query('UPDATE public_templates SET likes_count = likes_count - 1 WHERE id = $1', [id]);
-      return res.json({ liked: false, message: 'Template unliked' });
+      await pool.query(
+        'DELETE FROM template_likes WHERE template_id = $1 AND user_id = $2',
+        [id, user_id]
+      )
+      await pool.query(
+        'UPDATE public_templates SET likes_count = likes_count - 1 WHERE id = $1',
+        [id]
+      )
+      return res.json({ liked: false, message: 'Template unliked' })
     } else {
       // Like
-      await pool.query('INSERT INTO template_likes (template_id, user_id) VALUES ($1, $2)', [id, user_id]);
-      await pool.query('UPDATE public_templates SET likes_count = likes_count + 1 WHERE id = $1', [id]);
-      return res.json({ liked: true, message: 'Template liked' });
+      await pool.query(
+        'INSERT INTO template_likes (template_id, user_id) VALUES ($1, $2)',
+        [id, user_id]
+      )
+      await pool.query(
+        'UPDATE public_templates SET likes_count = likes_count + 1 WHERE id = $1',
+        [id]
+      )
+      return res.json({ liked: true, message: 'Template liked' })
     }
   } catch (error) {
-    console.error('Like error:', error);
-    res.status(500).json({ error: 'Failed to like template', details: error.message });
+    console.error('Like error:', error)
+    res
+      .status(500)
+      .json({ error: 'Failed to like template', details: error.message })
   }
-});
+})
 
 // POST /api/feed/:id/view - Track view
 app.post('/api/feed/:id/view', async (req, res) => {
   try {
-    const { id } = req.params;
-    await pool.query('UPDATE public_templates SET views_count = views_count + 1 WHERE id = $1', [id]);
-    res.json({ message: 'View tracked' });
+    const { id } = req.params
+    await pool.query(
+      'UPDATE public_templates SET views_count = views_count + 1 WHERE id = $1',
+      [id]
+    )
+    res.json({ message: 'View tracked' })
   } catch (error) {
-    console.error('View error:', error);
-    res.status(500).json({ error: 'Failed to track view', details: error.message });
+    console.error('View error:', error)
+    res
+      .status(500)
+      .json({ error: 'Failed to track view', details: error.message })
   }
-});
+})
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 VIBEE API Server listening on port ${PORT}`);
-  console.log(`📡 Database: ${process.env.DATABASE_URL ? 'Railway PostgreSQL' : 'Default Railway'}`);
-});
+  console.log(`🚀 VIBEE API Server listening on port ${PORT}`)
+  console.log(
+    `📡 Database: ${process.env.DATABASE_URL ? 'Railway PostgreSQL' : 'Default Railway'}`
+  )
+})

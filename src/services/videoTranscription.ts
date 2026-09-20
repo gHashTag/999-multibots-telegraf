@@ -1,3 +1,4 @@
+import { redactBotToken } from '@/utils/redactBotToken'
 import fs, { createReadStream } from 'fs'
 import path from 'path'
 import https from 'https'
@@ -105,7 +106,9 @@ class VideoTranscriptionService {
    * Main method for transcribing Instagram Reels videos
    */
   async transcribeInstagramReel(url: string): Promise<TranscriptionResult> {
-    console.log(`🎬 Starting Instagram Reel transcription for: ${url}`)
+    console.log(
+      `🎬 Starting Instagram Reel transcription for: ${redactBotToken(url)}`
+    )
 
     try {
       // Step 1: Download video using Apify
@@ -144,7 +147,10 @@ class VideoTranscriptionService {
 
       return transcriptionResult
     } catch (error) {
-      console.error('❌ Instagram Reel transcription failed:', error)
+      console.error(
+        '❌ Instagram Reel transcription failed:',
+        redactBotToken(error instanceof Error ? error.message : String(error))
+      )
       return {
         success: false,
         error:
@@ -161,7 +167,7 @@ class VideoTranscriptionService {
   private async downloadInstagramVideo(
     url: string
   ): Promise<VideoDownloadResult> {
-    console.log(`📥 Downloading Instagram video: ${url}`)
+    console.log(`📥 Downloading Instagram video: ${redactBotToken(url)}`)
 
     try {
       // Primary method: epctex/instagram-video-downloader
@@ -198,7 +204,10 @@ class VideoTranscriptionService {
         error: 'All Apify download methods failed',
       }
     } catch (error) {
-      console.error('❌ Error in downloadInstagramVideo:', error)
+      console.error(
+        '❌ Error in downloadInstagramVideo:',
+        redactBotToken(error instanceof Error ? error.message : String(error))
+      )
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Download failed',
@@ -235,7 +244,17 @@ class VideoTranscriptionService {
     const filePath = path.join(this.tempDir, fileName)
 
     console.log(`📁 Downloading video file to: ${filePath}`)
-    console.log(`🔗 Video URL: ${videoUrl.substring(0, 100)}...`)
+    /*
+     * REDACTED, BECAUSE THE FIRST 100 CHARACTERS ARE THE TOKEN.
+     *
+     * The URL is `https://api.telegram.org/file/bot<TOKEN>/<path>`: the prefix
+     * is 33 characters and a bot token is 44-46, so `substring(0, 100)`
+     * printed the whole credential and 21 characters to spare. And `console.*`
+     * never reaches winston's printf, where the redaction lives -- so this
+     * went to stdout, and to Railway's retention, on every transcription any
+     * customer of any bot in the farm started.
+     */
+    console.log(`🔗 Video URL: ${redactBotToken(videoUrl).slice(0, 100)}...`)
 
     try {
       const response = await axios({
@@ -279,7 +298,16 @@ class VideoTranscriptionService {
 
       return filePath
     } catch (error) {
-      console.error('❌ Error downloading video file:', error)
+      /*
+       * THE MESSAGE, NEVER THE ERROR OBJECT. An AxiosError carries
+       * `config.url` and `config.headers`, and node's inspect prints them
+       * verbatim -- so handing the whole object to console.error published
+       * the same token by a second route.
+       */
+      console.error(
+        '❌ Error downloading video file:',
+        redactBotToken(error instanceof Error ? error.message : String(error))
+      )
       throw new Error(
         `Failed to download video file: ${
           error instanceof Error ? error.message : 'Unknown error'
@@ -493,7 +521,10 @@ class VideoTranscriptionService {
         }
       }
     } catch (error) {
-      console.error('❌ Transcription failed:', error)
+      console.error(
+        '❌ Transcription failed:',
+        redactBotToken(error instanceof Error ? error.message : String(error))
+      )
       // The caller cleans up only files it receives via videoPath, and this
       // failed result carries none — remove the orphaned temp file here.
       try {
@@ -523,7 +554,7 @@ class VideoTranscriptionService {
    */
   async transcribeVideoFromUrl(videoUrl: string): Promise<TranscriptionResult> {
     console.log(
-      `🎙️ Transcribing video from URL: ${videoUrl.substring(0, 100)}...`
+      `🎙️ Transcribing video from URL: ${redactBotToken(videoUrl).slice(0, 100)}...`
     )
 
     // For now, we'll download the file first, but this method is ready for future direct URL support
