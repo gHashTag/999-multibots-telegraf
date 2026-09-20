@@ -73,10 +73,17 @@ jobs:
         run: bun install
 
       - name: Check PR title format
+        env:
+          # Через env, а не подстановкой в скрипт: заголовок PR пишет кто угодно,
+          # и `PR_TITLE="${{ ... }}"` выполнит то, что он положит в кавычки и $( ).
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
           # Проверяем формат: type: description или type(scope): description
-          if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build)(\([a-zA-Z0-9_-]+\))?: .+ ]]; then
+          # Регулярка живёт в переменной, потому что [[ =~ ]] берёт шаблон одним
+          # словом: пробел в `: .+` обрывал его, и шаг падал с «syntax error in
+          # conditional expression» на каждом PR, ещё не посмотрев на заголовок.
+          TITLE_PATTERN='^(feat|fix|docs|style|refactor|test|chore|perf|ci|build)(\([a-zA-Z0-9_-]+\))?: .+'
+          if [[ ! "$PR_TITLE" =~ $TITLE_PATTERN ]]; then
             echo "::error::PR title must follow conventional commits format: 'type: description' or 'type(scope): description'"
             echo "::error::Valid types: feat, fix, docs, style, refactor, test, chore, perf, ci, build"
             echo "::error::Current title: $PR_TITLE"

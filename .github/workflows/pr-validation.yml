@@ -3,8 +3,12 @@ name: 🔍 PR Validation & Rules Enforcement
 on:
   pull_request:
     types: [opened, edited, synchronize, ready_for_review]
-  pull_request_target:
-    types: [opened, edited]
+
+# Дефолтный токен репозитория — read, поэтому шаги с комментариями получали
+# 403 «Resource not accessible by integration». Права выданы здесь и явно.
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   validate-pr:
