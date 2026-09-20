@@ -60,7 +60,8 @@ function fakePool() {
          * прибавляет; замена — заменяет. Неузнанная форма — ошибка, а не
          * тихое «как раньше».
          */
-        const прибавляет = /DO UPDATE SET balance = user_tokens\.balance \+ \$2/.test(sql)
+        const прибавляет =
+          /DO UPDATE SET balance = user_tokens\.balance \+ \$2/.test(sql)
         const заменяет = /DO UPDATE SET balance = \$2(\D|$)/.test(sql)
         if (прибавляет) balances.set(tid, (balances.get(tid) ?? 0) + amount)
         else if (заменяет) balances.set(tid, amount)
@@ -146,12 +147,20 @@ describe('it refuses rather than guessing', () => {
     expect(pool.balances.size).toBe(0)
   })
 
-  it('a payment with no charge id is credited but SAYS it had no dedup key', async () => {
-    // Telegram should always send one; if it does not, the money is real and
-    // must still arrive -- but the log has to admit the retry is unprotected.
+  it('a payment with no charge id is refused, not credited unprotected', async () => {
+    /*
+     * This used to credit and merely SAY it had no dedup key, which is the one
+     * outcome this function exists to prevent: with no key, a redelivered
+     * webhook or a retried request credits the same money again, and every
+     * repeat reads as a fresh sale. Telegram always sends a charge id; a body
+     * without one is a bug or a forgery, and both are better refused. Nothing
+     * is lost by refusing -- the money stays with Telegram until a credit with
+     * a key lands.
+     */
     const pool = fakePool()
     const r = await creditStarsPayment(pool, { ...PAYMENT, chargeId: '' })
-    expect(r.credited).toBe(true)
+    expect(r.credited).toBe(false)
     expect(r.reason).toMatch(/no charge id/)
+    expect(pool.balances.size).toBe(0)
   })
 })

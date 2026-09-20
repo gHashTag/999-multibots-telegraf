@@ -71,6 +71,24 @@ export async function creditStarsPayment(
   const { chargeId, telegramId: tid, amount } = payment
   if (!(amount > 0) || !tid)
     return { credited: false, reason: 'no amount or recipient' }
+  /*
+   * NO CHARGE ID, NO CREDIT.
+   *
+   * The whole guard below -- insert the charge id, credit only if the insert
+   * was the first -- used to sit under `if (chargeId)`, so an empty one skipped
+   * it entirely and credited unconditionally. The function said so in its own
+   * answer ("credited without dedup") and raised an `attention` event, which
+   * is an odd way to describe the one behaviour this function exists to
+   * prevent: a redelivered webhook, a retried request or a restarted poller
+   * would mint the tokens again, and each mint looks exactly like a sale.
+   *
+   * Refusing is the safe direction and the one already taken upstream: the
+   * /api/stars/credit route answers 400 to a body without a chargeId, with
+   * the same reasoning. A refusal is visible, retryable, and costs nobody
+   * anything -- Telegram keeps the money until the credit lands. It is the
+   * `credited: false` a caller must already handle for a redelivery.
+   */
+  if (!chargeId) return { credited: false, reason: 'no charge id' }
 
   await pool.query(
     `CREATE TABLE IF NOT EXISTS user_tokens (
@@ -96,16 +114,12 @@ export async function creditStarsPayment(
   // two-statement version cost: a death in the gap made the payment
   // permanently "already credited" with the balance never moved.
   const firstTime = await inTransaction(pool, async q => {
-    let first = true
-    if (chargeId) {
-      const ins = await q.query(
-        `INSERT INTO star_payments (charge_id, telegram_id, amount)
-         VALUES ($1, $2, $3) ON CONFLICT (charge_id) DO NOTHING`,
-        [chargeId, tid, amount]
-      )
-      first = (ins?.rowCount ?? 0) > 0
-    }
-    if (!first) return false
+    const ins = await q.query(
+      `INSERT INTO star_payments (charge_id, telegram_id, amount)
+       VALUES ($1, $2, $3) ON CONFLICT (charge_id) DO NOTHING`,
+      [chargeId, tid, amount]
+    )
+    if ((ins?.rowCount ?? 0) === 0) return false
     // The credit and its ledger row are written by the one function that moves
     // tokens (src/token-ledger.ts), on THIS client, inside THIS transaction.
     const moved = await moveTokens(q, {
@@ -113,8 +127,8 @@ export async function creditStarsPayment(
       delta: amount,
       kind: 'purchase',
       reason: 'Telegram Stars',
-      ref: chargeId || null,
-      meta: { chargeId: chargeId || null },
+      ref: chargeId,
+      meta: { chargeId },
     })
     if (!moved.ok) throw new Error(`credit refused: ${moved.reason}`)
     return true
@@ -134,22 +148,16 @@ export async function creditStarsPayment(
    * other is forgotten, and half the money stops being visible. There is one
    * point of credit, so there is one point of event.
    *
-   * A missing `chargeId` is named out loud: such a credit runs WITHOUT
-   * deduplication, and a redelivery would double it. The keeper needs to see
-   * that in the feed, not in a code comment.
+   * There is no longer a "without a charge id" variant to name here: such a
+   * payment is refused above, before anything is written.
    */
   void record(pool, {
     kind: 'payment',
     who: tid,
     amount,
-    what: chargeId ? 'звёзды Telegram' : 'звёзды без идентификатора платежа',
-    severity: chargeId ? 'normal' : 'attention',
+    what: 'звёзды Telegram', // cyrillic-ok: journal text the keeper reads
+    severity: 'normal',
   })
 
-  return {
-    credited: true,
-    reason: chargeId
-      ? 'first delivery'
-      : 'no charge id — credited without dedup',
-  }
+  return { credited: true, reason: 'first delivery' }
 }

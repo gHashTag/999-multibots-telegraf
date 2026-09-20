@@ -16,8 +16,10 @@ import {
   grantWelcomeIfNew,
   tokenHistory,
   ledgerDrift,
+  reconcileLedgerDrift,
   forgetTokenLedgerTables,
   OPENING_REASON,
+  RECONCILE_REASON,
 } from './src/token-ledger'
 
 type Row = {
@@ -61,7 +63,10 @@ function fakePool(
         }
         return { rows: [] }
       }
-      if (sql.includes('CREATE TABLE') || sql.includes('CREATE INDEX'))
+      // `CREATE UNIQUE INDEX` is matched by its own prefix: `includes('CREATE
+      // INDEX')` does not cover it, and the idempotency guard is exactly a
+      // unique index.
+      if (/^CREATE (TABLE|(UNIQUE )?INDEX)/i.test(sql.trim()))
         return { rows: [] }
       const tid = String(params[0])
       if (sql.includes('SELECT balance FROM user_tokens'))
@@ -120,7 +125,9 @@ function fakePool(
                 Number(params[2]),
                 'adjustment',
                 String(params[3]),
-                null,
+                // The opening row has no reference and passes four params;
+                // the reconciliation passes its key as the fifth.
+                params[4] == null ? null : String(params[4]),
               ]
             : sql.includes("'grant'")
               ? [
@@ -139,6 +146,16 @@ function fakePool(
                   String(params[4]),
                   params[5] == null ? null : String(params[5]),
                 ]
+        // The partial unique index, enforced the way Postgres enforces it:
+        // by refusing the INSERT, not by being asked beforehand.
+        if (ref != null && ledger.some(r => r.kind === kind && r.ref === ref)) {
+          const e: Error & { code?: string; constraint?: string } = new Error(
+            'duplicate key value violates unique constraint "token_ledger_once"'
+          )
+          e.code = '23505'
+          e.constraint = 'token_ledger_once'
+          throw e
+        }
         ledger.push({ telegram_id, delta, balance_after, kind, reason, ref })
         return { rows: [], rowCount: 1 }
       }
@@ -344,6 +361,89 @@ describe('tokenHistory', () => {
     const h = await tokenHistory(pool, '1', 1)
     expect(h.length).toBe(1)
     expect(h[0]).toMatchObject({ kind: 'spend', delta: -2 })
+  })
+})
+
+describe('reconcileLedgerDrift', () => {
+  /*
+   * DRIFT COULD NOT BE ALARMED ON WHILE IT WAS NEVER EMPTY.
+   *
+   * 96 wallets carried 100 286 tokens the ledger had no row for: balances
+   * written before the ledger existed, and the 2026-09-20 carry from the
+   * archive, which wrote `user_tokens` directly. Honest money, no history.
+   * Until that is written down, `ledgerDrift` answers "everything" and means
+   * nothing.
+   */
+  it('writes one adjustment per drifting wallet and leaves the balance alone', async () => {
+    const pool = fakePool()
+    pool.balances.set('carried', 2571) // the carry wrote this, with no row
+    pool.balances.set('whole', 100)
+    pool.ledger.push({
+      telegram_id: 'whole',
+      delta: 100,
+      balance_after: 100,
+      kind: 'purchase',
+      reason: 'Telegram Stars',
+      ref: 'ch_1',
+    })
+
+    const written = await reconcileLedgerDrift(pool, '2026-09-20')
+    expect(written).toEqual([
+      { telegram_id: 'carried', delta: 2571, balance: 2571 },
+    ])
+    expect(pool.balances.get('carried')).toBe(2571)
+    expect(pool.ledger.at(-1)).toMatchObject({
+      telegram_id: 'carried',
+      delta: 2571,
+      kind: 'adjustment',
+      reason: RECONCILE_REASON,
+      ref: 'reconcile:carried:2026-09-20',
+    })
+    expect(await ledgerDrift(pool)).toEqual([])
+  })
+
+  it('clears a wallet that already HAS rows -- the opening rule never would', async () => {
+    // This is the half the opening row cannot reach: it fires only on an
+    // empty ledger, so a wallet with a club grant and a carried balance stays
+    // adrift for good. Ten live wallets were in exactly this state.
+    const pool = fakePool()
+    pool.balances.set('granted', 42450)
+    pool.ledger.push({
+      telegram_id: 'granted',
+      delta: 2571,
+      balance_after: 2571,
+      kind: 'grant',
+      reason: 'club month',
+      ref: 'club-grant:granted',
+    })
+    const written = await reconcileLedgerDrift(pool, '2026-09-20')
+    expect(written).toEqual([
+      { telegram_id: 'granted', delta: 39879, balance: 42450 },
+    ])
+    expect(await ledgerDrift(pool)).toEqual([])
+  })
+
+  it('a second run writes nothing, because the index refuses it', async () => {
+    const pool = fakePool()
+    pool.balances.set('carried', 500)
+    await reconcileLedgerDrift(pool, '2026-09-20')
+    const before = pool.ledger.length
+    // Drift is already zero, so nothing is even planned -- and if a balance
+    // moved in between, the key still refuses the same reconciliation twice.
+    expect(await reconcileLedgerDrift(pool, '2026-09-20')).toEqual([])
+    expect(pool.ledger.length).toBe(before)
+  })
+
+  it('a dry run says what it would write and writes nothing', async () => {
+    const pool = fakePool()
+    pool.balances.set('carried', 500)
+    const planned = await reconcileLedgerDrift(pool, '2026-09-20', {
+      dryRun: true,
+    })
+    expect(planned).toEqual([
+      { telegram_id: 'carried', delta: 500, balance: 500 },
+    ])
+    expect(pool.ledger).toEqual([])
   })
 })
 
