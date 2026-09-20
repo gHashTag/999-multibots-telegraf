@@ -71,6 +71,23 @@ describe('a note from the bot lands in the journal', () => {
       // has stopped. One line per channel per twenty hours makes a gap mean
       // something.
       'watch-quiet',
+      /*
+       * Added 2026-09-20, on the owner's word that every bot error must reach
+       * the board with the highest priority. Before it, an error went to a
+       * Railway log nobody reads and -- if it survived the alert throttle --
+       * to a push. Neither is a record, so "what has been breaking this week"
+       * had no answer anywhere. Rolled up by the bot into one line per ten
+       * minutes, because one note per error turns an outage into a wall that
+       * buries the unrelated failure that mattered.
+       */
+      'bot-errors',
+      /*
+       * And the fault report that no log can hold: a person writing that
+       * something is broken, or asking and being left. From the code's side
+       * nothing failed at all, so nothing was ever written -- the message sat
+       * in crm_messages waiting for somebody to scroll far enough.
+       */
+      'client-unanswered',
     ])
   })
 
