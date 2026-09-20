@@ -201,6 +201,21 @@ export default defineConfig({
       ],
     },
     proxy: {
+      /*
+       * The person's own browser, under the dev origin.
+       *
+       * Production serves this through nginx in the same image as this
+       * bundle (apps/vibee-editor/nginx/default.conf.template), for the
+       * cookie reason written there. Without the same route in dev, the
+       * developer would be testing a different shape than the user gets --
+       * an iframe here and a separate tab there.
+       */
+      '/live': {
+        target: 'https://vibee-render-production.up.railway.app',
+        changeOrigin: true,
+        secure: true,
+        ws: true,
+      },
       '/api': {
         target: 'http://localhost:3333',
         changeOrigin: true,

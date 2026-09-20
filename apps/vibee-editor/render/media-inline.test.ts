@@ -247,7 +247,13 @@ describe('audio the chain cannot hear is transcribed', () => {
         })
       }
       if (url.includes('/audio/transcriptions'))
-        return new Response('нужен контент-план на месяц', { status: 200 })
+        // A STREAM, as the production transcriber answers: it always enters
+        // its streaming responder, so a plain body here would exercise the
+        // fallback and not the path that actually runs.
+        return new Response(
+          'data: {"text":"нужен контент-план на месяц"}\ndata: [DONE]\n',
+          { status: 200 }
+        )
       return new Response('', { status: 500 })
     })
     const { inlineUnperceivedMedia } = await load()
@@ -299,7 +305,12 @@ describe('audio the chain cannot hear is transcribed', () => {
         })
       if (url.includes('/audio/transcriptions')) {
         transcriptions += 1
-        return new Response('одно и то же', { status: 200 })
+        // A stream, for the same reason as above -- and here it also keeps
+        // the count honest: one transcription is one call only when the
+        // first attempt answers.
+        return new Response('data: {"text":"одно и то же"}\ndata: [DONE]\n', {
+          status: 200,
+        })
       }
       return new Response('', { status: 500 })
     })
@@ -321,11 +332,32 @@ describe('audio the chain cannot hear is transcribed', () => {
 })
 
 describe('what a stored transcript is for', () => {
-  const rows: Array<{ url: string; description: string }> = []
+  /*
+   * `transcript`, BECAUSE THAT IS THE COLUMN THE TABLE HAS.
+   *
+   * This double used to hold `description` and answer it back, and the query
+   * under test asked for `description` too -- so the pair agreed with each
+   * other while disagreeing with USER_MEDIA_TABLE_SQL, which declares
+   * `transcript text` and no `description` at all. Every real call threw, the
+   * caller's catch swallowed it, and the media memory was empty for its whole
+   * life while this test stayed green.
+   *
+   * The double now answers the SCHEMA's column, and refuses a query that asks
+   * for one the table does not have -- a fake that agrees with its caller is
+   * how a column nobody has can look like a feature that works.
+   */
+  const rows: Array<{ url: string; transcript: string }> = []
+  const COLUMNS = new Set(['url', 'transcript', 'kind', 'name', 'mime'])
   const pool = {
     async query(sql: string, params?: unknown[]) {
       if (/^\s*(CREATE|INSERT|UPDATE)/i.test(sql)) return { rows: [] }
       if (/FROM user_media/i.test(sql)) {
+        const asked = /SELECT\s+([^]*?)\s+FROM user_media/i.exec(sql)?.[1] ?? ''
+        for (const col of asked.split(',').map(c => c.trim())) {
+          if (col && !COLUMNS.has(col)) {
+            throw new Error(`user_media has no column ${col}`)
+          }
+        }
         const wanted = new Set((params?.[1] as string[]) ?? [])
         return { rows: rows.filter(r => wanted.has(r.url)) }
       }
@@ -335,7 +367,7 @@ describe('what a stored transcript is for', () => {
 
   it('uses a transcript already on record and asks Whisper for nothing', async () => {
     rows.length = 0
-    rows.push({ url: VOICE, description: 'записанное ранее' })
+    rows.push({ url: VOICE, transcript: 'записанное ранее' })
     process.env.WHISPER_API_KEY = 'gsk_test'
     const { inlineUnperceivedMedia } = await load()
 
@@ -390,5 +422,58 @@ describe('the ordinary turn pays nothing', () => {
     const added = tail(out).length - tail(messages).length
     expect(added).toBeGreaterThan(0)
     expect(added).toBeLessThan(12_000)
+  })
+})
+
+/**
+ * ONE QUESTION, ONE GATE.
+ *
+ * "Can this file be transcribed" was asked in two places with two different
+ * answers: the background sweep used the transcriber's rule (every container
+ * ffmpeg opens) and the LIVE turn used the chat provider's (four extensions).
+ * So a person sending a `.mp4` or a `.oga` heard "nothing here could listen to
+ * this recording" while the sweep would have read the very same file an hour
+ * later. Measured 2026-09-20 against production.
+ */
+describe('the live turn hears what the sweep hears', () => {
+  it('actually transcribes a container the chat providers do not take', async () => {
+    process.env.WHISPER_API_KEY = 'k-for-tests' // secret-guard-ok: invented here
+    delete process.env.WHISPER_BASE_URL
+    const posted: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const u = String(url)
+        if (u.includes('/s3/')) {
+          return new Response(Buffer.from('bytes'), {
+            status: 200,
+            headers: { 'content-type': 'audio/mp4' },
+          })
+        }
+        posted.push(u)
+        return new Response(
+          'data: {"text":"услышанные слова"}\ndata: [DONE]\n',
+          { status: 200 }
+        )
+      })
+    )
+    const { transcribeShelfAudioNow, resetWhisperForTests } = await import(
+      './src/agent/media-library'
+    )
+    resetWhisperForTests()
+    /*
+     * A `.mp4` on our own shelf: the sweep reads it and the live turn used to
+     * refuse it, which is the whole defect. Driving the real function rather
+     * than the gate alone -- a test that only calls `transcribableUrl` passes
+     * happily while this function still asks the other gate, and one did.
+     */
+    const heard = await transcribeShelfAudioNow(
+      'https://vibee-render-production.up.railway.app/s3/assets/r.mp4',
+      'r.mp4',
+      20_000
+    )
+    expect(heard).toBe('услышанные слова')
+    expect(posted.some(u => u.includes('/audio/transcriptions'))).toBe(true)
+    vi.unstubAllGlobals()
   })
 })

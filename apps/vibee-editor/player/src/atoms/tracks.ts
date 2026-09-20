@@ -3,8 +3,8 @@
 // with web-specific overrides
 // ===============================
 
-import { atom } from 'jotai';
-import type { Track, TrackItem, TrackType, VideoLayout } from '@vibee/atoms';
+import { atom } from 'jotai'
+import type { Track, TrackItem, TrackType, VideoLayout } from '@vibee/atoms'
 import {
   STORAGE_KEYS,
   createDefaultTracks as sharedCreateDefaultTracks,
@@ -16,7 +16,7 @@ import {
   DEFAULT_FPS,
   DEFAULT_WIDTH,
   DEFAULT_HEIGHT,
-} from '@vibee/atoms';
+} from '@vibee/atoms'
 
 // Import template props for resetTracksAtom
 import {
@@ -36,9 +36,9 @@ import {
   faceScaleAtom,
   captionStyleAtom,
   showCaptionsAtom,
-} from './derived/templateProps';
-import { CAPTION_DEFAULTS } from '@vibee/atoms';
-import { projectAtom } from './project';
+} from './derived/templateProps'
+import { CAPTION_DEFAULTS } from '@vibee/atoms'
+import { projectAtom } from './project'
 
 // ===============================
 // Re-export everything from @vibee/atoms
@@ -79,10 +79,10 @@ export {
   // Defaults
   DEFAULT_TRACKS,
   createDefaultTracks,
-} from '@vibee/atoms';
+} from '@vibee/atoms'
 
 // Import tracksAtom for use in resetTracksAtom
-import { tracksAtom } from '@vibee/atoms';
+import { tracksAtom } from '@vibee/atoms'
 
 // ===============================
 // Web-specific: resetTracksAtom
@@ -90,40 +90,47 @@ import { tracksAtom } from '@vibee/atoms';
 // ===============================
 export const resetTracksAtom = atom(
   null,
-  (get, set, { fps = DEFAULT_FPS, durationInFrames = 825 }: { fps?: number; durationInFrames?: number }) => {
+  (
+    get,
+    set,
+    {
+      fps = DEFAULT_FPS,
+      durationInFrames = 825,
+    }: { fps?: number; durationInFrames?: number }
+  ) => {
     // Reset project (duration, fps, etc.)
     set(projectAtom, {
       id: '',
-      name: 'Vibee Reel',
+      name: 'Trinity S³AI Reel',
       fps,
       width: DEFAULT_WIDTH,
       height: DEFAULT_HEIGHT,
       durationInFrames,
-    });
+    })
 
     // Reset tracks using shared factory (cast for atomWithStorage)
-    set(tracksAtom, sharedCreateDefaultTracks(fps, durationInFrames) as any);
+    set(tracksAtom, sharedCreateDefaultTracks(fps, durationInFrames) as any)
 
     // Reset lipsync video to default
-    set(lipSyncVideoAtom, '/lipsync/lipsync.mp4');
+    set(lipSyncVideoAtom, '/lipsync/lipsync.mp4')
 
     // Clear captions (will be loaded fresh from default captions.json)
-    set(captionsAtom, []);
+    set(captionsAtom, [])
 
     // Reset all template props to defaults
-    set(coverImageAtom, '/covers/poster.jpeg');
-    set(backgroundMusicAtom, '/audio/music/bgmusic.mp3');
-    set(musicVolumeAtom, DEFAULT_MUSIC_VOLUME);
-    set(coverDurationAtom, DEFAULT_COVER_DURATION);
-    set(vignetteStrengthAtom, DEFAULT_VIGNETTE_STRENGTH);
-    set(colorCorrectionAtom, DEFAULT_COLOR_CORRECTION);
-    set(circleSizePercentAtom, DEFAULT_AVATAR_CONFIG.circleSizePercent);
-    set(circleBottomPercentAtom, 0);  // Center
-    set(circleLeftPercentAtom, 0);    // Center
-    set(faceOffsetXAtom, 0);
-    set(faceOffsetYAtom, 0);
-    set(faceScaleAtom, 1.0);
-    set(showCaptionsAtom, true);
+    set(coverImageAtom, '/covers/poster.jpeg')
+    set(backgroundMusicAtom, '/audio/music/bgmusic.mp3')
+    set(musicVolumeAtom, DEFAULT_MUSIC_VOLUME)
+    set(coverDurationAtom, DEFAULT_COVER_DURATION)
+    set(vignetteStrengthAtom, DEFAULT_VIGNETTE_STRENGTH)
+    set(colorCorrectionAtom, DEFAULT_COLOR_CORRECTION)
+    set(circleSizePercentAtom, DEFAULT_AVATAR_CONFIG.circleSizePercent)
+    set(circleBottomPercentAtom, 0) // Center
+    set(circleLeftPercentAtom, 0) // Center
+    set(faceOffsetXAtom, 0)
+    set(faceOffsetYAtom, 0)
+    set(faceScaleAtom, 1.0)
+    set(showCaptionsAtom, true)
     set(captionStyleAtom, {
       fontSize: CAPTION_DEFAULTS.fontSize,
       textColor: CAPTION_DEFAULTS.textColor,
@@ -134,9 +141,9 @@ export const resetTracksAtom = atom(
       fontWeight: CAPTION_DEFAULTS.fontWeight,
       showShadow: CAPTION_DEFAULTS.showShadow,
       fontId: CAPTION_DEFAULTS.fontId,
-    });
+    })
 
     // Clear localStorage transcription cache
-    localStorage.removeItem(STORAGE_KEYS.lastTranscribedVideo);
+    localStorage.removeItem(STORAGE_KEYS.lastTranscribedVideo)
   }
-);
+)

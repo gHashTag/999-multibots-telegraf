@@ -61,6 +61,89 @@ import { showMainMenu } from '@/services/NavigationService'
 
 ---
 
+## 💰 CRITICAL MONEY RULE — ОДИН КОШЕЛЁК
+
+**Решение владельца 2026-09-20. Единственный живой кошелёк: `user_tokens` в
+Postgres рендера (`getPool()`). Курс: 1 звезда = 1 токен.**
+
+```
+✅ НАЧИСЛЯТЬ И СПИСЫВАТЬ   user_tokens  (+ star_payments)  — Postgres рендера
+🧊 АРХИВ, ТОЛЬКО ЧТЕНИЕ     payments_v2                     — облачный Supabase
+```
+
+- **НЕ писать новые строки в `payments_v2`.** Удалять его тоже НЕЛЬЗЯ: это
+  единственная запись о реальных деньгах, возвраты и споры ещё возможны.
+- Перенос балансов: `min(реально оплачено, текущий баланс)`. Админские
+  начисления не переносятся.
+- Пока `src/core/supabase/*` не переведён на `user_tokens`, оба кошелька живы —
+  начисление «не в тот кошелёк» остаётся реальной ловушкой.
+
+Полный разбор, формула, узкое место и обязательный порядок шагов:
+**`docs/architecture/single-wallet-decision.md`**
+
+---
+
+## 🌍 СУПЕР-ФИЧА: браузер у каждого клиента, и агент им владеет
+
+**Решение владельца 2026-09-21.** У каждого человека — **свой настоящий
+браузер** на сервере: его профиль, его входы в аккаунты, его cookies. Человек
+смотрит на него в приложении (вкладка «Браузер», иконка глобуса) и в любой
+момент берёт руль. Агент ведёт **тот же самый** браузер — не копию, не
+headless-двойника.
+
+**Один браузер, два пилота.** Это не метафора, а свойство, на котором держится
+безопасность: каждое нажатие агента видно человеку, и человек может вмешаться
+посреди работы. Невидимого режима здесь нет и не будет.
+
+### Агент владеет ВСЕМИ инструментами браузера
+
+Девять инструментов в общем реестре `TOOLS` — тот же реестр, что уходит
+наружу по `/mcp`, поэтому агент, подключённый вчера, видит их сегодня:
+
+```
+browser_status  browser_open  browser_read  browser_screenshot
+browser_click   browser_type  browser_evaluate  browser_close_tab
+browser_ask_permission
+```
+
+**Они входят и в компактный комплект** (`COMPACT_TOOLS` в
+`src/agent/tools.ts`) — то есть их видит даже модель с окном 16k. Это стоило
+подъёма бюджета схем с 6000 до 7000 токенов, и цена названа прямо: в окне 16k
+при промпте ~5k на разговор остаётся около 4k. Агент, который не умеет открыть
+браузер, не умеет главного, ради чего всё это есть.
+
+### Правила, которые нельзя нарушать
+
+1. **Пароли человек вводит САМ, внутри потока.** Они идут прямо в под, мимо
+   нас и мимо агента. Никогда не просить пароль в чате и не набирать его
+   `browser_type`.
+2. **Страж по МЕСТУ, а не по действию.** На банке, на почте, на странице
+   оплаты нажатие, набор и выполнение кода требуют разрешения, выданного
+   человеком за последние 5 минут (`src/browser/guard.ts`). Клик — это точка
+   на экране; снаружи страницы не узнать, написано на ней «Далее» или
+   «Отправить 120 000».
+3. **Нечитаемый адрес считается чувствительным.** «Мы не знаем, где мы» не
+   должно быть ответом, который разрешает действовать.
+4. **Один под на человека** — `telegram_id` первичный ключ в
+   `browser_sessions`. На этом держится безопасность снятия замка профиля.
+5. **CDP наружу не публиковать.** Кто дотянулся до CDP — читает все cookies и
+   действует как человек. Порт 9222 слушает только loopback внутри пода.
+6. **Закрыть ≠ забыть.** `DELETE /api/browser/session` гасит под и ОСТАВЛЯЕТ
+   входы; `DELETE /api/browser/profile` стирает профиль. Схлопывать эти две
+   двери нельзя.
+
+### Где что лежит
+
+```
+apps/vibee-editor/render/src/browser/   брокер, прокси /live/, страж, оболочка окна
+apps/vibee-editor/player/src/pages/Browser.tsx   вкладка в приложении
+deployment/remote-browser/              образ пода (neko + Chromium + CDP-мост)
+docs/architecture/remote-browser-per-user.md   полный разбор, 33 раздела
+.claude/skills/remote-browser/SKILL.md  рецепт: поднять, проверить, починить
+```
+
+---
+
 **Project**: 999-agents-telegraf - Multi-bot Telegram Platform with AI Generation
 **Language**: TypeScript + Node.js 20
 **Framework**: Telegraf 4.16.3
@@ -841,6 +924,8 @@ description: 'When and how to use this skill'
 - `owner-two-tap-onboarding/` - Подключение нового владельца к личному продавцу
 - `client-first-tap/` - Новый клиент до результата за одно-два нажатия
 - `two-tap-topup/` - Оплата за два нажатия, две кассы честно
+- `remote-browser/` - Свой браузер на клиента: под, брокер, прокси `/live/`, профиль, гашение, вкладка и уведомление в боте
+- `three-options-at-the-end/` - Как заканчивать отчёт: три варианта продолжения с рекомендацией, а не вопрос «что дальше?»
 - ... (и другие по мере создания)
 
 ### 🚨 Проверка перед коммитом
@@ -941,3 +1026,53 @@ EOF
 **Last Updated**: 2025-01-12
 **Version**: 3.0 (esbuild + Unified Deployment)
 **Status**: Production-ready ✅
+
+## Own language first
+
+When this project publishes something about itself, it publishes in **this
+project's own language and format** -- not translated into somebody else's.
+
+Owner's rule, 2026-09-20: stop writing in other people's languages, we have our
+own.
+
+This bites on any file whose only reason to exist is that an outside tool
+expects that shape: `llms.txt`, `agents.json`, `ai.txt`, `.well-known/*.json`,
+A2A agent cards, `ai-plugin` manifests, OpenAPI stubs, JSON-LD blocks, a README
+that restates a spec. The reflex is to write four of them in four foreign
+formats, and the reflex is wrong: a project whose claim is "here is a language
+worth writing" and which then describes itself in three of other people's
+formats has published three documents that are not true of it.
+
+**The move:** find the address the outside world already fetches, then serve our
+own language at it. `/llms.txt` at t27.ai **is** a t27 module -- `llms.txt`
+requires nothing but text, and every prose line of a `.t27` file is a `;`
+comment, so it stays readable to anything that cannot compile it.
+
+**Three qualifications, so the rule stays honest:**
+
+- A format a resolver genuinely parses -- a sitemap, `package.json`, a lockfile
+  -- is machinery, not a description. **Generate** it from our own source; never
+  hand-write it into a second home for the truth.
+- Code against someone else's API uses their types. Prose for a human who has
+  never heard of the project uses that human's language.
+- If a format demands a claim we cannot back, **publish nothing**. An A2A card
+  with no A2A server behind it is a false claim, and a missing file is more
+  honest than a lying one.
+
+The test: _is this file the project speaking about itself?_ If yes, it speaks
+our language. If it is plumbing, it speaks the plumbing's.
+
+**Worked example, compiler-checked rather than asserted:** in `gHashTag/trinity`,
+`apps/website/public/t27/files/specs/catalog/onboarding.t27` generates
+`/llms.txt` and `/agents.t27` byte-identically, gated in CI as
+`check:onboarding`. The generator evaluates the spec's own `test` blocks --
+`typecheck.ok` stays true for `assert 1 > 2`, so a compiler saying "this parses"
+is not a compiler saying "this is true" -- and re-compiles the rendered document
+before writing it.
+
+**The full rule lives in exactly one place: the `own-language-first` skill**
+(`~/.claude/skills/own-language-first/SKILL.md`). It carries the consent gate for
+documents addressed to other people's agents, the six negative controls, and the
+`;`-alone-on-a-line trap that silently discards a `module` declaration. This
+section is a pointer, not a copy -- the recorded defect in this codebase family
+is the hand-copied rule that only two of its three homes knew about.

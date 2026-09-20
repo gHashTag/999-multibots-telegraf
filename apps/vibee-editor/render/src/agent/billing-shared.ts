@@ -440,6 +440,14 @@ export async function spendByTid(
   списано?: number
   осталось?: number
   причина?: string
+  /**
+   * The id of the ledger row this charge wrote, so a refund can name it.
+   *
+   * A refund keyed to nothing can happen twice; a refund keyed to THIS row
+   * cannot. The caller carries the number from the charge to the refund --
+   * see `refundByTid`'s `spendLedgerId`.
+   */
+  ledgerId?: number
 }> {
   if (владелец(tid)) {
     // Пишем в журнал: бесплатная генерация обязана быть видимой, иначе
@@ -490,7 +498,7 @@ export async function spendByTid(
       причина: `не хватает токенов: нужно ${price}, есть ${r.balance}`,
     }
   }
-  return { ok: true, списано: price, осталось: r.balance }
+  return { ok: true, списано: price, осталось: r.balance, ledgerId: r.id }
 }
 
 /**
@@ -521,7 +529,15 @@ export async function spendByTid(
  * nothing, so a refund that never happened looked exactly like one that did.
  */
 export type RefundOutcome =
-  | { ok: true; refunded: number }
+  | {
+      ok: true
+      refunded: number
+      /**
+       * The money was already back before this call. Not a failure and not a
+       * second refund: the ledger refused to record the same refund twice.
+       */
+      already?: boolean
+    }
   | { ok: false; why: string; wanted?: number }
 
 export async function refundByTid(
@@ -544,7 +560,22 @@ export async function refundByTid(
    * spendByTid MEASURES what it took and returns it. Handing that number back
    * is the only version that cannot drift: there is one number, not two.
    */
-  exact?: number
+  exact?: number,
+  /**
+   * THE CHARGE THIS REFUND GIVES BACK, so it can only give it back once.
+   *
+   * Without it this function was an unconditional credit: every path that
+   * reached it added the price again. A retried request, a redelivered
+   * webhook, or two error branches firing for one failure each minted tokens
+   * out of nothing -- and, since #2206 put refunds in the ledger, the book
+   * recorded every one of them as legitimate, so the balance and the ledger
+   * agreed on a number neither had a payment behind.
+   *
+   * `spendByTid` returns the id of the row it wrote. Carrying that number to
+   * here makes the refund's reference unique per charge, and the unique index
+   * `token_ledger_once` -- not this function -- is what refuses the second.
+   */
+  spendLedgerId?: number
 ): Promise<RefundOutcome> {
   /*
    * ОСВОБОЖДЕНИЕ ВЛАДЕЛЬЦА ДЕЙСТВУЕТ И ЗДЕСЬ. С него не списывают (см.
@@ -570,13 +601,28 @@ export async function refundByTid(
   if (!price)
     return { ok: false, why: `no price for op=${op} model=${modelId ?? '-'}` }
   try {
-    await moveTokens(pool, {
+    const r = await moveTokens(pool, {
       telegramId: tid,
       delta: price,
       kind: 'refund',
       reason: `refund: ${op}${modelId ? ` ${modelId}` : ''}`,
-      meta: { op, modelId: modelId ?? null, quantity, exact: exact ?? null },
+      ref: spendLedgerId ? `refund-of-${spendLedgerId}` : null,
+      once: Boolean(spendLedgerId),
+      meta: {
+        op,
+        modelId: modelId ?? null,
+        quantity,
+        exact: exact ?? null,
+        spendLedgerId: spendLedgerId ?? null,
+      },
     })
+    if (!r.ok && r.reason === 'duplicate') {
+      // The tokens are already back. Saying so is the whole point of keying
+      // the refund: a second attempt is now visible instead of invisible.
+      console.log(`[токены] возврат за «${op}» уже был сделан — пропущен`) // cyrillic-ok: existing log line
+      return { ok: true, refunded: 0, already: true }
+    }
+    if (!r.ok) return { ok: false, why: r.reason, wanted: price }
     console.log(`[токены] возврат ${price} за «${op}»`) // cyrillic-ok: existing log line
     return { ok: true, refunded: price }
   } catch (e) {

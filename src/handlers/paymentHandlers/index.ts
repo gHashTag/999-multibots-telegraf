@@ -140,6 +140,75 @@ export function starsCreditVerdict(outcome: {
   return 'failed'
 }
 
+/**
+ * CREDIT THE WALLET THE BOT ACTUALLY READS FROM.
+ *
+ * Every branch below this line used to finish with `setPayments`, and
+ * `setPayments` writes ONE place: the `payments_v2` archive in Supabase. Since
+ * PR #2610 the balance a person sees -- and the balance every paid action is
+ * checked against -- is `user_tokens` in the render's Postgres. Two databases,
+ * and the money was going to the one nobody reads.
+ *
+ * It was invisible for one reason: the carry on 2026-09-20 copied every
+ * earlier payment into the live wallet, so everyone who had already paid was
+ * made whole by hand. The NEXT buyer had no such luck -- stars gone, balance
+ * unmoved, and the archive row saying the sale went fine. Corroborated by the
+ * live ledger, which had not a single `purchase` row in its entire history.
+ *
+ * So the credit goes through the same idempotent endpoint the mini-app
+ * purchase already uses: keyed on the Telegram charge id, so a redelivery is
+ * refused rather than doubled, and landing as a `purchase` row in the ledger
+ * so the money can be traced afterwards.
+ *
+ * Returns the verdict rather than throwing: the archive row is already
+ * written, and losing that would be a second defect on top of the first. The
+ * caller decides what to tell the buyer.
+ */
+async function creditLiveWallet(
+  ctx: MyContext,
+  credit: { chargeId: string; telegramId: string; amount: number },
+  what: string
+): Promise<'credited' | 'already' | 'failed'> {
+  if (!credit.chargeId || !credit.telegramId || !(credit.amount > 0)) {
+    logger.error('❌ [handleSuccessfulPayment] live credit has no key', {
+      ...credit,
+      what,
+    })
+    return 'failed'
+  }
+  let verdict: 'credited' | 'already' | 'failed' = 'failed'
+  try {
+    verdict = starsCreditVerdict(await postStarsCredit(credit))
+  } catch (error) {
+    logger.error('❌ [handleSuccessfulPayment] live credit threw', {
+      error: error instanceof Error ? error.message : String(error),
+      ...credit,
+      what,
+    })
+  }
+  if (verdict === 'failed') {
+    // Somebody paid and the tokens are not there. Nobody finds that in a log
+    // they are not reading, so it goes to the owner with everything needed to
+    // credit it by hand.
+    logger.error('❌ [handleSuccessfulPayment] live wallet NOT credited', {
+      ...credit,
+      what,
+    })
+    await sendNotification(
+      ctx,
+      `‼️ ${what}: ${credit.amount}⭐ paid by ${credit.telegramId} did NOT reach the live wallet.\n` +
+        `charge: ${credit.chargeId}\nCredit it by hand.`
+    )
+  } else {
+    logger.info('[handleSuccessfulPayment] live wallet credited', {
+      ...credit,
+      what,
+      verdict,
+    })
+  }
+  return verdict
+}
+
 /** Разобрать payload покупки токенов мини-приложения: `tokens:<сумма>:<id>`. */
 export function parseTokensPayload(
   payload: string
@@ -477,6 +546,18 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
             note: 'star received from feed',
           },
         })
+        // The reply below tells the buyer the star is "on the author's
+        // balance". The archive row above is not that balance. Keyed on the
+        // payload so a retried handler credits the author once.
+        await creditLiveWallet(
+          ctx,
+          {
+            chargeId: `${payload}_author`,
+            telegramId: String(authorId),
+            amount: starAmount,
+          },
+          'feed star to author'
+        )
       }
 
       await ctx.reply(
@@ -657,6 +738,20 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       },
     })
 
+    // The archive row above is history; this is the balance. A subscription is
+    // credited too, because stars bought as a subscription were spendable back
+    // when the balance WAS the archive sum, and the move to `user_tokens` was
+    // not meant to take that away from anyone.
+    const liveCredit = await creditLiveWallet(
+      ctx,
+      {
+        chargeId: telegramPaymentChargeId,
+        telegramId: normalizedUserId,
+        amount: starsFromPayload,
+      },
+      isSubscriptionPurchase ? 'subscription' : 'stars top-up'
+    )
+
     logger.info('[handleSuccessfulPayment] Values before final reply:', {
       telegram_id: normalizedUserId,
       isSubscriptionPurchase,
@@ -728,6 +823,14 @@ If not, continue on your own and click the "I myself" button`
           },
         })
       }
+    } else if (liveCredit === 'failed') {
+      // Do not claim a top-up that did not happen. The owner already has the
+      // charge id from creditLiveWallet and can credit it by hand.
+      await ctx.reply(
+        isRu
+          ? `⚠️ Оплата ${starsFromPayload}⭐ прошла, но баланс пока не обновился. Мы уже знаем и начислим вручную — напишите admin@t27.ai, если через час звёзд не будет.`
+          : `⚠️ Your ${starsFromPayload}⭐ payment went through, but the balance has not updated yet. We already know and will credit it by hand — write to admin@t27.ai if the stars are not there within an hour.`
+      )
     } else {
       await ctx.reply(
         isRu

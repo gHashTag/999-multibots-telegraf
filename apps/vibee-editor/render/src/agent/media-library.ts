@@ -321,8 +321,83 @@ const TEXT_LIKE_MIME = /^(text\/|application\/json$|application\/xml$)/i
  * about. `.pdf`, `.docx`, `.xlsx` are NOT here and are not readable by this
  * repository at all: no extractor is installed (see media-inline.ts).
  */
-const TEXT_LIKE_EXT =
-  /\.(txt|md|markdown|csv|tsv|json|xml|log|yaml|yml|ini|conf|toml|sql|srt|vtt|html?)$/i
+export const TEXT_LIKE_EXTENSIONS: readonly string[] = [
+  'txt',
+  'md',
+  'markdown',
+  'csv',
+  'tsv',
+  'json',
+  'xml',
+  'log',
+  'yaml',
+  'yml',
+  'ini',
+  'conf',
+  'toml',
+  'sql',
+  'srt',
+  'vtt',
+  'html',
+  'htm',
+]
+
+/*
+ * BUILT FROM THE LIST, AND THE LIST IS WHAT THE AGENT PROMISES.
+ *
+ * Owner, 2026-09-20: the agent must say what it can take, so that it can be
+ * promised. A sentence in a prompt and a regex in a reader are two statements
+ * of one fact, and they drift the first time somebody widens one of them --
+ * which is exactly how a product comes to promise a format it refuses. So
+ * there is one array: the reader tests against it, the prompt reads it out,
+ * and a test walks it to prove the promise is true.
+ */
+const TEXT_LIKE_EXT = new RegExp(`\\.(${TEXT_LIKE_EXTENSIONS.join('|')})$`, 'i')
+
+/**
+ * WHAT A TRANSCRIBER TAKES, WHICH IS MORE THAN A CHAT PROVIDER TAKES.
+ *
+ * `usableMediaUrl(url, 'audio')` exists for the provider path, where the file
+ * is handed to a chat model as an `audio_url` part -- and there the short list
+ * is right, because a model that is sent a container it cannot open answers
+ * confidently about nothing.
+ *
+ * A transcriber is not a chat model. speaches, faster-whisper and OpenAI all
+ * feed the bytes through ffmpeg, which opens every container below and several
+ * this list does not name. Measured 2026-09-20: two recordings sat unread for
+ * a day because they are `.mp4`, and the log said only "not readable as
+ * audio" -- a gate built for one consumer, applied to another.
+ *
+ * `.oga` is here for a plain reason too: that is the extension Telegram gives
+ * a voice note on some paths, and dropping it drops exactly the thing this
+ * whole feature is for.
+ */
+const TRANSCRIBABLE_EXT = [
+  '.ogg',
+  '.oga',
+  '.opus',
+  '.mp3',
+  '.wav',
+  '.m4a',
+  '.mp4',
+  '.webm',
+  '.flac',
+  '.aac',
+  '.mov',
+]
+
+/** The URL a transcriber may be given, or null. Our shelf only, as always. */
+export function transcribableUrl(raw: string): string | null {
+  const found = shelfObject(raw)
+  if (!found) return null
+  let path = ''
+  try {
+    path = new URL(found.url).pathname.toLowerCase()
+  } catch {
+    return null
+  }
+  return TRANSCRIBABLE_EXT.some(e => path.endsWith(e)) ? found.url : null
+}
 
 /** A document a model can read as plain text. */
 export function isTextLikeDocument(
@@ -417,6 +492,27 @@ async function transcribeWithWhisper(
   const bytes = Buffer.from(await got.arrayBuffer())
   if (!bytes.length || bytes.length > WHISPER_MAX_BYTES)
     throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
+  /*
+   * TWO ATTEMPTS, BECAUSE THE SERVER INSISTS ON STREAMING AND THEN CANNOT.
+   *
+   * Measured across three fixes and 25+ failures: this transcriber ALWAYS
+   * enters its streaming responder -- with `response_format=text`, with
+   * `json`, and with `stream=false` said out loud -- and then refuses to
+   * serialise the plain result it holds, answering 200 with an empty body.
+   * The log names the type it could not turn into a stream:
+   *
+   *   Unexpected streaming transcription response type: <class 'tuple'>
+   *   ...                                               <class '...Transcription'>
+   *
+   * So the request shape was never the variable, and the honest move is to
+   * give it what it keeps reaching for: a STREAMING response, which it can
+   * serialise. Attempt A asks for one and reads server-sent events.
+   *
+   * Attempt B is the plain request, kept because OpenAI's own whisper-1
+   * REFUSES `stream` and would otherwise stop working the day somebody points
+   * this at OpenAI. Two attempts, one fallback, and the second only runs when
+   * the first came back empty -- so a working server pays nothing for it.
+   */
   const form = new FormData()
   form.append('model', w.model)
   /*
@@ -441,31 +537,99 @@ async function transcribeWithWhisper(
    * either shape, so a server that answers plain text is still understood.
    */
   form.append('response_format', 'json')
+  /*
+   * `stream=false`, SAID OUT LOUD, BECAUSE THE SERVER GUESSED WRONG.
+   *
+   * Changing the format was not the fix. Measured in the transcriber's log the
+   * same day, across 25 failures:
+   *
+   *   7 x  Unexpected streaming transcription response type: <class 'tuple'>
+   *  18 x  ... <class 'openai.types.audio.transcription.Transcription'>
+   *
+   * Two different formats, the same function refusing to serialise the
+   * result -- and its name says what it expected: a STREAMING response. So
+   * the server took the streaming path for a request that never asked for
+   * one, and then could not turn a plain result into a streamed body. It
+   * answered 200 with nothing in it either way.
+   *
+   * The only field that steers that choice is this one, and we were leaving
+   * it to a default. OpenAI and Groq ignore an explicit `false`; speaches
+   * needs it.
+   */
+  /* `stream` is NOT set here: each attempt below sets its own, and a field
+   * appended twice keeps the first value -- which is how the streamed attempt
+   * came to carry stream=false while claiming to be the streamed one. */
   form.append(
     'file',
     new Blob([bytes], { type: got.headers.get('content-type') || 'audio/ogg' }),
     name || 'audio.ogg'
   )
-  const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), timeoutMs)
-  let r: Response
-  try {
-    r = await fetch(`${w.base}/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${w.key}` },
-      body: form,
-      signal: ac.signal,
-    })
-  } finally {
-    clearTimeout(timer)
+  const attempt = async (streaming: boolean): Promise<string> => {
+    const f = new FormData()
+    for (const [k, v] of form.entries()) f.append(k, v as never)
+    f.append('stream', streaming ? 'true' : 'false')
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), timeoutMs)
+    let r: Response
+    try {
+      r = await fetch(`${w.base}/audio/transcriptions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${w.key}` },
+        body: f,
+        signal: ac.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+    if (!r.ok) {
+      const bad = await r.text().catch(() => '')
+      // A refused key will not start working mid-process: stop asking.
+      if (r.status === 401 || r.status === 403) {
+        /*
+         * A REFUSED KEY IS NOT A SERVER THAT CANNOT STREAM, and must not be
+         * asked a second time: the fallback below exists for a server that
+         * rejects `stream`, and running it on a 401 turns one refusal into
+         * two calls with the same dead credential.
+         */
+        whisperKeyRefused = true
+        throw new Error(`whisper answered ${r.status}`)
+      }
+      /*
+       * A server that refuses `stream` (OpenAI's whisper-1 does) must not end
+       * the whole call: that is exactly what attempt B is for. Only a refusal
+       * of the PLAIN request is a real failure.
+       */
+      if (streaming) return ''
+      throw new Error(`whisper answered ${r.status}: ${bad.slice(0, 160)}`)
+    }
+    return await r.text()
   }
-  if (!r.ok) {
-    const body = await r.text().catch(() => '')
-    // A refused key will not start working mid-process: stop asking.
-    if (r.status === 401 || r.status === 403) whisperKeyRefused = true
-    throw new Error(`whisper answered ${r.status}: ${body.slice(0, 160)}`)
+
+  const streamed = await attempt(true)
+  const fromStream = readStreamedTranscript(streamed)
+  if (fromStream) return fromStream
+
+  const body = await attempt(false)
+  const words = readTranscript(body)
+  if (!words) {
+    /*
+     * A 200 WITH NOTHING IN IT HAS TO SAY SO.
+     *
+     * This exact shape -- the transcriber hears every word and fails to put
+     * them in the reply -- cost two days and two wrong fixes, because from
+     * here it was indistinguishable from a recording with no speech in it.
+     * The first 160 characters of the body name the difference immediately,
+     * and they are the server's own words about its own failure, never the
+     * person's speech: an empty transcript has no speech to leak.
+     */
+    console.warn(
+      '[media] the transcriber produced no words. streamed body: ' +
+        JSON.stringify(streamed.slice(0, 120)) +
+        ' | plain body: ' +
+        JSON.stringify(body.slice(0, 120))
+    )
   }
-  return readTranscript(await r.text())
+  return words
 }
 
 /**
@@ -477,6 +641,40 @@ async function transcribeWithWhisper(
  * moment one server behaves like the other -- and an empty answer here is
  * indistinguishable from "there were no words in the recording".
  */
+/**
+ * The words out of a server-sent-event stream, or '' when there were none.
+ *
+ * Accepts both shapes the OpenAI-compatible servers emit: an incremental
+ * `delta` per event, and a whole `text` on the final one. Anything that is not
+ * a `data:` line -- comments, blank keep-alives, the `[DONE]` sentinel -- is
+ * skipped rather than concatenated, because a sentinel pasted into somebody's
+ * transcript is worse than a missing word.
+ */
+export function readStreamedTranscript(body: string): string {
+  const parts: string[] = []
+  let whole = ''
+  for (const raw of String(body ?? '').split('\n')) {
+    const line = raw.trim()
+    if (!line.startsWith('data:')) continue
+    const payload = line.slice(5).trim()
+    if (!payload || payload === '[DONE]') continue
+    try {
+      const ev = JSON.parse(payload) as { delta?: unknown; text?: unknown }
+      if (typeof ev.delta === 'string') parts.push(ev.delta)
+      if (typeof ev.text === 'string') whole = ev.text
+    } catch {
+      /* a half-written event is not words */
+    }
+  }
+  /*
+   * The final `text` wins when there is one: servers that send both mean the
+   * deltas as a preview of it, and concatenating both would say everything
+   * twice.
+   */
+  const out = (whole || parts.join('')).trim()
+  return out ? out.slice(0, TRANSCRIPT_CAP) : ''
+}
+
 export function readTranscript(body: string): string | null {
   const raw = String(body ?? '').trim()
   if (!raw) return null
@@ -571,8 +769,20 @@ export async function transcribeShelfAudioNow(
   name: string | null,
   timeoutMs: number
 ): Promise<string | null> {
-  const safe = usableMediaUrl(url, 'audio')
-  if (!safe) return null
+  /*
+   * THE TRANSCRIBER'S OWN GATE, NOT THE CHAT PROVIDER'S.
+   *
+   * The sweep was widened to what ffmpeg opens and this, the LIVE path, was
+   * left on the narrow one -- so a person sending a container outside the
+   * four-extension list still got "nothing here could listen to this", while
+   * the background sweep would happily have read the same file. Two gates for
+   * one question is how that happens; there is now one.
+   */
+  const safe = transcribableUrl(url)
+  if (!safe) {
+    console.warn(`[media] not hearable live: ${String(name ?? url).slice(-60)}`)
+    return null
+  }
   const w = whisperConfig()
   if (!w) return null
   try {
@@ -602,12 +812,27 @@ export async function mediaByUrls(
   if (!wanted.length) return out
   await ensureTable(pool)
   const { rows } = await pool.query(
-    `SELECT url, description FROM user_media
-      WHERE owner_id = $1 AND url = ANY($2) AND description IS NOT NULL`,
+    /*
+     * `transcript`, NOT `description` -- THE COLUMN NEVER EXISTED.
+     *
+     * USER_MEDIA_TABLE_SQL declares `transcript text`; there is no
+     * `description` column and never was. So this query threw on every call,
+     * the caller's catch swallowed it, and the media memory -- "seen earlier",
+     * "heard earlier" -- has been empty for its whole life. Every repeated
+     * file was described again, at provider cost, and the agent could not say
+     * it had met it before.
+     *
+     * Found by the function audit of 2026-09-21, which called it the cheapest
+     * fix on the whole list: two words. It stayed invisible because the only
+     * test covering it doubled the pool and answered `description` back --
+     * a double that agrees with the caller instead of with the schema.
+     */
+    `SELECT url, transcript FROM user_media
+      WHERE owner_id = $1 AND url = ANY($2) AND transcript IS NOT NULL`,
     [String(ownerId), wanted]
   )
-  for (const row of rows as Array<{ url: string; description: string }>) {
-    const text = String(row.description ?? '').trim()
+  for (const row of rows as Array<{ url: string; transcript: string }>) {
+    const text = String(row.transcript ?? '').trim()
     if (text) out.set(row.url, text)
   }
   return out
@@ -725,9 +950,57 @@ export async function describeMedia(
       if (isTelegramFileUrl(url)) return null
       return await readShelfDocument(url)
     }
+    /*
+     * The transcriber is asked FIRST and by its own rule: it opens more
+     * containers than the chat providers do, and the narrow gate below was
+     * silently dropping recordings it could have read.
+     */
+    if (kind === 'audio') {
+      const w = whisperConfig()
+      const hearable = transcribableUrl(url)
+      if (w && hearable) {
+        try {
+          const heard = await transcribeWithWhisper(w, hearable, name)
+          if (heard) return heard
+        } catch (e) {
+          console.warn(
+            `[media-library] whisper did not take ${name ?? ''}: ${String(
+              e instanceof Error ? e.message : e
+            ).slice(0, 160)}`
+          )
+        }
+      }
+    }
+
     // Only our own shelf, only an extension the provider was shown to take.
     const safe = usableMediaUrl(url, kind)
-    if (!safe) return null
+    if (!safe) {
+      /*
+       * WHY, NOT JUST NO.
+       *
+       * This gate is silent, and its silence cost a whole evening: the
+       * backlog reported "re-read 2, words in 0" while the transcriber's own
+       * log showed NO request had arrived at all -- so the recordings were
+       * being dropped here, before anything could fail out loud, and three
+       * fixes were aimed at a transcriber that was never asked.
+       *
+       * The path only: our own shelf, no query, no host, nothing that can
+       * carry a token. The extension is the thing being judged, so it is the
+       * thing that has to be visible.
+       */
+      let where = url
+      try {
+        where = new URL(url).pathname
+      } catch {
+        /* an unparseable URL is its own answer */
+      }
+      console.warn(
+        `[media-library] not readable as ${kind}: ${where.slice(-60)} ` +
+          '(must be on our shelf under /s3/ and end in an extension the ' +
+          'provider takes)'
+      )
+      return null
+    }
     if (kind === 'audio') {
       const w = whisperConfig()
       if (w) {
@@ -925,13 +1198,34 @@ export async function mirrorTranscript(
     { msgId: row.msgId, at: row.at, out: row.out, text },
   ])
   if (r.fresh > 0) return 'inserted'
-  await pool.query(
+  const appended = await pool.query(
     `UPDATE crm_messages
         SET text = left(text || E'\\n' || $4, 4000)
       WHERE owner_id = $1 AND lead_id = $2 AND msg_id = $3
         AND position($4 in text) = 0`,
     [owner, row.lead, row.msgId, words.slice(0, TRANSCRIPT_CAP)]
   )
+  /*
+   * AND ZEP, WHICH `mirrorNow` DID NOT TELL.
+   *
+   * It posts only what was fresh in Postgres, and on this path nothing was:
+   * the row already existed, written as `[голосовое]` the moment the ingest
+   * saw the file. Without this the agent's memory of every voice message ever
+   * sent is that one word -- the row in Postgres holds what was said and the
+   * memory the agent actually reads does not.
+   *
+   * Guarded by the UPDATE's own row count, so the words go over once. A
+   * re-read that changes nothing says nothing.
+   */
+  if ((appended as { rowCount?: number }).rowCount) {
+    const { mirrorOneToZep } = await import('./crm-mirror')
+    await mirrorOneToZep(owner, row.lead, {
+      msgId: row.msgId,
+      at: row.at,
+      out: row.out,
+      text,
+    })
+  }
   return 'appended'
 }
 

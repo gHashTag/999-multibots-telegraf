@@ -125,8 +125,74 @@ function scan(text, mover) {
   return found
 }
 
+/**
+ * THE MATCHER IS RUN OVER SAMPLES WHOSE ANSWER IS KNOWN, IN BOTH DIRECTIONS.
+ *
+ * A positive control alone only proves the matcher can find something. What
+ * hurt every other detector in this repository was the other half: a matcher
+ * that also finds things that are NOT there, so a clean file is reported as a
+ * defect and the whole list stops being read. `refundUser` is the recorded
+ * case here -- it was on MOVERS once and invented 27 faults in a single run.
+ *
+ * So each sample below is asserted in one direction and one only:
+ *
+ *   DISCARDED  the statement starts with `await` and binds nothing   MUST find
+ *   BOUND      the same calls, with their answer kept                MUST NOT
+ *
+ * `scan` is pure, so this costs a millisecond and runs on every invocation
+ * rather than behind a flag nobody passes.
+ */
+function selfCheckMatcher() {
+  const fail = why => {
+    console.error(`self-check failed: ${why}`)
+    process.exit(2)
+  }
+
+  const DISCARDED = [
+    'async function pay() {',
+    "  await updateUserBalance({ telegram_id: '1', amount: 10 })",
+    '  await sendVideo()',
+    '}',
+  ].join('\n')
+
+  // Every shape that KEEPS the answer, including the two that cost the first
+  // version of this file its credibility: a result read inside a condition,
+  // and a result returned to the caller.
+  const BOUND = [
+    'async function pay() {',
+    "  const ok = await updateUserBalance({ telegram_id: '1', amount: 10 })",
+    '  if (!ok) return false',
+    '  if (await processBalanceOperation({ stars: 1 })) return true',
+    '  return await directPaymentProcessor({ stars: 1 })',
+    '}',
+  ].join('\n')
+
+  if (scan(DISCARDED, 'updateUserBalance').length < 1) {
+    fail('a call that binds nothing was not seen -- the matcher is dead')
+  }
+  if (scan(BOUND, 'updateUserBalance').length !== 0) {
+    fail('a bound result was called discarded: `const ok = await ...`')
+  }
+  if (scan(BOUND, 'processBalanceOperation').length !== 0) {
+    fail('a result read inside `if (await ...)` was called discarded')
+  }
+  if (scan(BOUND, 'directPaymentProcessor').length !== 0) {
+    fail('a result handed back by `return await ...` was called discarded')
+  }
+  // The exclusion is part of the judgement, not a comment about it: a mover
+  // that returns nothing has no answer to throw away.
+  if (MOVERS.some(m => RETURNS_NOTHING.includes(m))) {
+    fail('a mover that answers nothing is on the list -- it will invent faults')
+  }
+}
+
 function main() {
   const all = process.argv.includes('--all')
+  selfCheckMatcher()
+  if (process.argv.includes('--self-check')) {
+    console.log('self-check: the matcher finds what it must and nothing else.')
+    return
+  }
   let files
   try {
     selfCheck(ROOT)

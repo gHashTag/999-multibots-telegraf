@@ -48,12 +48,32 @@ export interface Move {
   reason: string
   /** Idempotency / cross-reference: a Stars charge id, a job id. */
   ref?: string | null
+  /**
+   * WRITE THIS MOVEMENT AT MOST ONCE, keyed by `kind` + `ref`.
+   *
+   * A refund is the case that needs it. `refundByTid` was an unconditional
+   * credit: whatever path reached it gave the tokens back again, so a retried
+   * request, a redelivered webhook or a second pass over the same error branch
+   * minted tokens out of nothing — and the ledger recorded each one as a
+   * legitimate refund, which is worse than not recording it, because the book
+   * then agrees with the inflated balance.
+   *
+   * The guard is the unique index, not the lookup: two concurrent transactions
+   * both pass the SELECT, and the second INSERT is the one the database
+   * refuses. The lookup only exists so the ordinary duplicate gets a calm
+   * `duplicate` answer instead of a raised error.
+   */
+  once?: boolean
   meta?: Record<string, unknown>
 }
 
 export type MoveOutcome =
-  | { ok: true; balance: number }
-  | { ok: false; balance: number; reason: 'insufficient' | 'invalid delta' }
+  | { ok: true; balance: number; id?: number }
+  | {
+      ok: false
+      balance: number
+      reason: 'insufficient' | 'invalid delta' | 'duplicate'
+    }
 
 export const OPENING_REASON = 'opening balance before the ledger'
 
@@ -86,6 +106,14 @@ export async function ensureTokenLedger(q: Queryable): Promise<void> {
   await q.query(
     `CREATE INDEX IF NOT EXISTS token_ledger_person_time
        ON token_ledger (telegram_id, created_at DESC)`,
+    []
+  )
+  // The idempotency guard behind `Move.once`. Partial, so the movements that
+  // legitimately have no reference (every spend) are untouched. Checked
+  // against live data before it was added: no (kind, ref) pair repeats.
+  await q.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS token_ledger_once
+       ON token_ledger (kind, ref) WHERE ref IS NOT NULL`,
     []
   )
   tablesReady = true
@@ -180,64 +208,110 @@ export async function moveTokens(
     return { ok: false, balance: 0, reason: 'invalid delta' }
   }
   await ensureTokenLedger(pool)
-  return inTransaction(pool, async q => {
-    await writeOpeningRowIfNeeded(q, tid)
-    let after: number | null = null
-    if (m.delta < 0) {
-      // Check and debit in ONE statement: two parallel spends cannot both pass.
-      // Same statement shape the writers used before the ledger existed, so
-      // every fake pool in the test suite still recognises it.
-      const r = await q.query(
-        `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
-         WHERE telegram_id = $1 AND balance >= $2 RETURNING balance`,
-        [tid, -m.delta]
-      )
-      if (r.rows.length === 0) {
-        return {
-          ok: false,
-          balance: await currentBalance(q, tid),
-          reason: 'insufficient',
-        }
+  try {
+    return await inTransaction(pool, async q => {
+      return await applyMove(q, tid, m)
+    })
+  } catch (e) {
+    // The unique index refused a second movement with the same (kind, ref).
+    // That is the guard doing its job, not a failure: report it as such.
+    if (isDuplicateMove(e)) {
+      return {
+        ok: false,
+        balance: await currentBalance(pool, tid).catch(() => 0),
+        reason: 'duplicate',
       }
-      after = Number(r.rows[0].balance)
-    } else {
-      // The credit statement the refund writers always used; a person with no
-      // row yet (a first purchase) gets the upsert instead.
-      const upd = await q.query(
-        `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
+    }
+    throw e
+  }
+}
+
+function isDuplicateMove(e: unknown): boolean {
+  const code = (e as { code?: string })?.code
+  const constraint = (e as { constraint?: string })?.constraint
+  return code === '23505' && constraint === 'token_ledger_once'
+}
+
+async function applyMove(
+  q: Queryable,
+  tid: string,
+  m: Move
+): Promise<MoveOutcome> {
+  if (m.once && m.ref) {
+    const seen = await q.query(
+      `SELECT 1 FROM token_ledger WHERE kind = $1 AND ref = $2 LIMIT 1`,
+      [m.kind, String(m.ref)]
+    )
+    if (seen.rows.length > 0) {
+      return {
+        ok: false,
+        balance: await currentBalance(q, tid),
+        reason: 'duplicate',
+      }
+    }
+  }
+  await writeOpeningRowIfNeeded(q, tid)
+  let after: number | null = null
+  if (m.delta < 0) {
+    // Check and debit in ONE statement: two parallel spends cannot both pass.
+    // Same statement shape the writers used before the ledger existed, so
+    // every fake pool in the test suite still recognises it.
+    const r = await q.query(
+      `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
+         WHERE telegram_id = $1 AND balance >= $2 RETURNING balance`,
+      [tid, -m.delta]
+    )
+    if (r.rows.length === 0) {
+      return {
+        ok: false,
+        balance: await currentBalance(q, tid),
+        reason: 'insufficient',
+      }
+    }
+    after = Number(r.rows[0].balance)
+  } else {
+    // The credit statement the refund writers always used; a person with no
+    // row yet (a first purchase) gets the upsert instead.
+    const upd = await q.query(
+      `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
          WHERE telegram_id = $1 RETURNING balance`,
-        [tid, m.delta]
-      )
-      if (upd.rows.length > 0) {
-        after = Number(upd.rows[0].balance)
-      } else {
-        const ins = await q.query(
-          `INSERT INTO user_tokens (telegram_id, balance)
+      [tid, m.delta]
+    )
+    if (upd.rows.length > 0) {
+      after = Number(upd.rows[0].balance)
+    } else {
+      const ins = await q.query(
+        `INSERT INTO user_tokens (telegram_id, balance)
            VALUES ($1, $2)
            ON CONFLICT (telegram_id)
            DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()
            RETURNING balance`,
-          [tid, m.delta]
-        )
-        after =
-          ins.rows[0]?.balance != null ? Number(ins.rows[0].balance) : null
-      }
+        [tid, m.delta]
+      )
+      after = ins.rows[0]?.balance != null ? Number(ins.rows[0].balance) : null
     }
-    await q.query(
-      `INSERT INTO token_ledger (telegram_id, delta, balance_after, kind, reason, ref, meta)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-      [
-        tid,
-        m.delta,
-        after,
-        m.kind,
-        String(m.reason).slice(0, 200),
-        m.ref ? String(m.ref) : null,
-        JSON.stringify(m.meta ?? {}),
-      ]
-    )
-    return { ok: true, balance: after ?? 0 }
-  })
+  }
+  const wrote = await q.query(
+    `INSERT INTO token_ledger (telegram_id, delta, balance_after, kind, reason, ref, meta)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING id`,
+    [
+      tid,
+      m.delta,
+      after,
+      m.kind,
+      String(m.reason).slice(0, 200),
+      m.ref ? String(m.ref) : null,
+      JSON.stringify(m.meta ?? {}),
+    ]
+  )
+  // The row id is what a refund refers back to, so the money can only be
+  // given back once for one charge. See `Move.once`.
+  const id = wrote.rows[0]?.id
+  return {
+    ok: true,
+    balance: after ?? 0,
+    id: id == null ? undefined : Number(id),
+  }
 }
 
 /**
@@ -326,4 +400,68 @@ export async function ledgerDrift(
       ledger_sum: byId.get(String(x.telegram_id)) ?? 0,
     }))
     .filter(x => x.balance !== x.ledger_sum)
+}
+
+export const RECONCILE_REASON = 'balance written outside the ledger'
+
+/**
+ * WRITE THE MISSING HISTORY DOWN ONCE, SO DRIFT CAN BECOME AN ALARM.
+ *
+ * `ledgerDrift` was written to be checked and then never was, and it could not
+ * have been: 96 wallets carried 100 286 tokens of drift, so its answer was
+ * never empty and nothing could be raised on it. The drift had one cause, in
+ * two shapes -- balances written straight into `user_tokens` before the ledger
+ * existed, and the 2026-09-20 carry from the archive, which did the same
+ * thing. Both are honest money; neither left a row.
+ *
+ * The opening-row rule in `moveTokens` cannot clear this. It fires only when
+ * the ledger is EMPTY, so the ten wallets that already had a club grant would
+ * have stayed adrift for good.
+ *
+ * So each drifting wallet gets ONE `adjustment` row for exactly its drift,
+ * saying where the tokens came from. The balance is not touched -- it is the
+ * number the person already has, and the book is what was wrong. Keyed on
+ * `reconcile:<id>:<stamp>` with `once`, so running it twice writes nothing the
+ * second time; `stamp` is passed in rather than read from the clock so a rerun
+ * of the same reconciliation is recognisably the same one.
+ *
+ * After this, drift means what its name says: somebody wrote the balance
+ * behind the ledger's back, today.
+ */
+export async function reconcileLedgerDrift(
+  pool: MaybePool,
+  stamp: string,
+  opts: { dryRun?: boolean } = {}
+): Promise<Array<{ telegram_id: string; delta: number; balance: number }>> {
+  await ensureTokenLedger(pool)
+  const drifting = await ledgerDrift(pool)
+  const planned = drifting.map(d => ({
+    telegram_id: d.telegram_id,
+    delta: d.balance - d.ledger_sum,
+    balance: d.balance,
+  }))
+  if (opts.dryRun) return planned
+  const written: typeof planned = []
+  for (const row of planned) {
+    try {
+      const r = await pool.query(
+        `INSERT INTO token_ledger (telegram_id, delta, balance_after, kind, reason, ref, meta)
+         VALUES ($1, $2, $3, 'adjustment', $4, $5, $6::jsonb)`,
+        [
+          row.telegram_id,
+          row.delta,
+          row.balance,
+          RECONCILE_REASON,
+          `reconcile:${row.telegram_id}:${stamp}`,
+          JSON.stringify({ stamp, was_missing: row.delta }),
+        ]
+      )
+      if ((r.rowCount ?? 0) > 0) written.push(row)
+    } catch (e) {
+      // The unique index refusing a rerun is the expected outcome, not a
+      // failure. Anything else is somebody else's problem and must be seen.
+      if (!isDuplicateMove(e)) throw e
+    }
+  }
+  return written
 }

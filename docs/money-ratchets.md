@@ -11,10 +11,11 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 142. Без заголовка: 0.
+Ратчетов: 146. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `aBotTopUpReachesTheLiveWallet.test.ts`                | a bot star purchase credits the live wallet                                                   |
 | `aRefusalIsNotAnnouncedAsSuccess.test.ts`              | a refusal is shown as a refusal                                                               |
 | `aRefusedChargeStopsTheGeneration.test.ts`             | refuseUnpaidGeneration tells an empty wallet from a broken one                                |
 | `aiCoverRefundChecked.test.ts`                         | aiCover refund result is checked and reported truthfully                                      |
@@ -44,6 +45,7 @@
 | `creditNotInLoop.test.ts`                              | user credits are not called inside a loop (scalar-credit mint #1468/#1470)                    |
 | `creditSiteCensus.test.ts`                             | credit-site census: no unreviewed mint surface                                                |
 | `creditedIsNotOk.test.ts`                              | ok is not credited                                                                            |
+| `directChargeMovesTheRealWallet.test.ts`               | a direct charge                                                                               |
 | `directPaymentPostCommit.test.ts`                      | a payment that committed is reported as committed                                             |
 | `directPaymentRefusalDoesNotPage.test.ts`              | directPaymentProcessor: which refusals page the owner                                         |
 | `emailWizardPriceAllowlist.test.ts`                    | emailWizard setPayments is allowlist-guarded                                                  |
@@ -67,6 +69,7 @@
 | `kie-webhook-charge.test.ts`                           | kie webhook billing                                                                           |
 | `kieWebhookDeliveryIdempotency.test.ts`                | kie/sora webhook video delivery is idempotent per job                                         |
 | `lapsedPayersCannotCountSeedingAsMoney.test.ts`        | the lapsed-payer segment cannot count seeded credit as money                                  |
+| `ledgerClassify.test.ts`                               | classify                                                                                      |
 | `ledgerGateActuallyGoesRed.test.ts`                    | the ledger gate goes red on a violation, and only then                                        |
 | `ledgerInvariantsCanFail.test.ts`                      | every ledger invariant can actually fail                                                      |
 | `lipSyncRefundChecked.test.ts`                         | a lip-sync charge with nothing to generate from comes back                                    |
@@ -154,6 +157,7 @@
 | `videoWizardsInflightGuard.test.ts`                    | a second tap does not buy a second video                                                      |
 | `voiceAvatarFallbackNotCharged.test.ts`                | voice-avatar Cloudflare fallback is not charged as a clone                                    |
 | `voiceAvatarFallbackNotPersisted.test.ts`              | createVoiceAvatar does not persist the stock fallback voice (no clone overwrite)              |
+| `walletBookkeeping.test.ts`                            | wallet bookkeeping is not shown to the user as spending                                       |
 | `watchHeartbeat.test.ts`                               | a quiet watch saying it is alive                                                              |
 | `whatTheFirstGenerationWasOn.test.ts`                  | what the first generation was on                                                              |
 | `x402-is-not-offered-while-it-cannot-credit.test.ts`   | x402 is not offered while nothing can credit it                                               |

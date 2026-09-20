@@ -83,9 +83,20 @@ const PATTERNS: Rule[] = [
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{32}/gi,
     'генерация за чужой счёт',
   ],
+  /*
+   * A PASSWORD READ FROM THE ENVIRONMENT IS NOT AN EMBEDDED PASSWORD.
+   *
+   * The negative lookahead spares an interpolated password -- see the
+   * INTERPOLATED rule in noEmbeddedDbCredentials for the same shape --
+   * and `$PW` and `%PW%`: those lines build the shape and carry no secret --
+   * being absent from the file is their whole point. Waiving them by NAME
+   * instead, as this file used to, teaches the next reader that an entry in
+   * the debt list is how you quiet this guard. One such entry then outlived
+   * its reason and shielded a live Railway password for weeks.
+   */
   [
     'строка подключения с паролем',
-    /[a-z][a-z0-9+.-]*:\/\/[a-z0-9_.%-]+:[^@\s"'`/]{6,}@/gi,
+    /[a-z][a-z0-9+.-]*:\/\/[a-z0-9_.%-]+:(?!\$\{|\$[a-z_]|%[a-z_]+%)[^@\s"'`/]{6,}@/gi,
     'полный доступ к базе',
   ],
   /**
@@ -182,10 +193,25 @@ const KNOWN_DEBT: Record<string, string> = {
    * and this test did not know. Each was read: two carry real passwords and
    * await rotation (owner item 19), three match legitimately.
    */
-  'apps/vibee-editor/player/api-server.js':
-    'НАСТОЯЩИЙ пароль Railway запасным значением -- пункт 19 владельцу',
-  'scripts/financial/run_cleanup.js':
-    'НАСТОЯЩИЙ пароль литералом -- пункт 19 владельцу',
+  /*
+   * `apps/vibee-editor/player/api-server.js` used to be waived here, with the
+   * note "a REAL Railway password as the fallback -- owner item 19". It sat
+   * waived long enough for a security sweep to find it on 2026-09-20 and call
+   * it critical: the file is tracked, Dockerfile-copied, and the host in that
+   * fallback is Railway's PUBLIC TCP proxy.
+   *
+   * The entry is gone because the credential is gone: the line now throws when
+   * DATABASE_URL is unset. The VALUE still lives in this repository's history
+   * and is rotated by the owner -- deleting a published secret is not
+   * remediating it.
+   *
+   * `scripts/financial/run_cleanup.js` is gone for a smaller reason: it was
+   * read again and its password segment is an interpolation from the
+   * environment. It was never a literal.
+   *
+   * The lesson this file already states about itself, paid for: a waiver that
+   * outlives its reason silently shields the next one.
+   */
   '.env.local.example':
     'пример: и хост, и порт -- подстановки HOST/PORT, пароля нет',
   'docker-compose.test.yml':

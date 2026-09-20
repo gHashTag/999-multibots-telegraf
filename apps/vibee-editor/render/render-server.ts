@@ -77,6 +77,23 @@ import {
   sweepClubGrants,
 } from './src/agent/club-membership'
 import { isClonePath, handleClone } from './src/agent/clone-readiness'
+import { isBrowserPath, handleBrowser } from './src/browser/routes'
+import { identityWithSource } from './src/agent/routes'
+import { podDriver, newSessionToken } from './src/browser/wire'
+import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
+import { pipeHttp, pipeUpgrade, refuseUpgrade } from './src/browser/live-pipe'
+import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
+import {
+  ensureApprovals,
+  decide as decideApproval,
+  readApproval,
+} from './src/browser/approvals'
+import { markAllowed } from './src/browser/sessions'
+
+/** Who asked, so the yes lands on their session and nobody else's. */
+const approvalOwner = async (pool: any, id: string) =>
+  (await readApproval(pool, id))?.telegramId ?? null
+import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
 import {
@@ -556,6 +573,10 @@ import {
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 import { installGracefulShutdown } from './src/graceful-shutdown'
+// One home for "this request path stays under this root"; see safe-path.ts.
+import { safeUnder } from './src/lib/safe-path'
+// The one place that decides whether a URL is an object on our own shelf.
+import { usableMediaUrl } from './src/agent/media-parts'
 import {
   ClientErrorGate,
   formatClientErrorAlert,
@@ -2200,7 +2221,19 @@ async function chargeMiniAppUser(
   /** Выбранная модель (`kie/<id>`): цена берётся её, а не общая по виду. */
   modelId?: string
 ): Promise<
-  | { ok: true; tid?: string; receipt: Receipt }
+  | {
+      ok: true
+      tid?: string
+      receipt: Receipt
+      /**
+       * The ledger row the charge wrote. Deliberately OUTSIDE `receipt`,
+       * because the receipt is spread onto the wire and a row id is our
+       * bookkeeping: the client neither needs it nor should be able to send
+       * one back. It is carried in-process to the refund so the refund can
+       * happen at most once -- see `refundByTid`'s `spendLedgerId`.
+       */
+      spendId?: number
+    }
   | { ok: false; status: number; reason: string }
 > {
   // Server-to-server: already paid at the tool layer. Key off the VALIDATED
@@ -2241,6 +2274,7 @@ async function chargeMiniAppUser(
       ok: true,
       tid,
       receipt: { charged: spent.списано, balance: spent.осталось }, // cyrillic-ok: shared API field
+      spendId: spent.ledgerId,
     }
   } catch (e) {
     console.error('[токены] списание невозможно, генерация отклонена:', e)
@@ -2268,7 +2302,15 @@ async function refundMiniAppUser(
    * the amount is re-derived from the price table at a later moment, which is
    * how a 540 charge once produced a 60 refund.
    */
-  exact?: number
+  exact?: number,
+  /**
+   * The charge this gives back, so it can only be given back once.
+   *
+   * Two of these routes call this helper from more than one branch for the
+   * same failure (an early return AND the catch around it). Each call was an
+   * unconditional credit, so one failed generation could refund twice.
+   */
+  spendId?: number
 ): Promise<boolean> {
   if (!tid) return false
   try {
@@ -2278,7 +2320,8 @@ async function refundMiniAppUser(
       op,
       quantity,
       modelId,
-      exact
+      exact,
+      spendId
     )
     if (!outcome.ok) {
       /*
@@ -2385,6 +2428,54 @@ setInterval(
     })()
   },
   60 * 60 * 1000
+)
+
+/** Whether the backlog sweep has reported once since this process started. */
+let backlogSpoke = false
+
+/*
+ * THE RECORDINGS NOBODY COULD READ, ASKED AGAIN.
+ *
+ * Every voice message was filed as "asked, there were no words" while the
+ * transcriber was answering 200 with an empty body, and a row filed that way
+ * is never asked again. This drains that backlog, five at a time, newest
+ * first -- see transcribe-backlog.ts for why each of those numbers.
+ *
+ * Every two minutes rather than continuously: the transcriber is the same one
+ * the live chat uses, and a backlog that emptied itself in one burst would
+ * put everybody talking to the agent behind years of history.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const { transcribeBacklogOnce } = await import(
+          './src/agent/transcribe-backlog'
+        )
+        const r = await transcribeBacklogOnce(getPool())
+        /*
+         * THE FIRST TICK SPEAKS EVEN WHEN THERE IS NOTHING.
+         *
+         * It used to print only when it re-read something, so an empty
+         * backlog and a broken query looked identical from the log -- the
+         * exact ambiguity this repository keeps paying for elsewhere. Once
+         * per process it says what it found, and after that only when it
+         * actually did something.
+         */
+        if (r.reopened || !backlogSpoke) {
+          backlogSpoke = true
+          console.log(
+            `[backlog] re-read ${r.reopened}, words in ${r.described}` +
+              `, mirrored ${r.mirrored}, left ${r.left}`
+          )
+        }
+      } catch (e) {
+        // Reading old recordings must never take the server down with it.
+        console.error('[backlog] failed:', e)
+      }
+    })()
+  },
+  2 * 60 * 1000
 )
 
 /*
@@ -2959,6 +3050,52 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(200)
     res.end()
+    return
+  }
+
+  /*
+   * The person's own browser, streamed. This sits BEFORE authenticate()
+   * deliberately: a viewer arrives from a plain browser tab carrying nothing
+   * but this session's cookie, and it is that cookie -- checked in
+   * authorizeLive against the session row -- that decides. See
+   * docs/architecture/remote-browser-per-user.md.
+   */
+  if (isLivePath((req.url || '').split('?')[0])) {
+    const parsed = parseLive(req.url || '', req.headers.cookie)
+    if (!parsed) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' })
+      res.end('no such session')
+      return
+    }
+    const secure =
+      req.headers['x-forwarded-proto'] === 'https' ||
+      Boolean((req.socket as unknown as { encrypted?: boolean }).encrypted)
+    const decision = await authorizeLive((await getPool()) as any, parsed, {
+      secure,
+    })
+    if (decision.kind === 'refuse') {
+      res.writeHead(decision.status, { 'Content-Type': 'text/plain' })
+      res.end(decision.message)
+      return
+    }
+    if (decision.kind === 'redirect') {
+      res.writeHead(302, {
+        Location: decision.location,
+        'Set-Cookie': decision.setCookie,
+      })
+      res.end()
+      return
+    }
+    pipeHttp(
+      {
+        endpoint: decision.endpoint,
+        upstreamPath: decision.upstreamPath,
+        sessionId: parsed.sessionId,
+        viewToken: decision.viewToken,
+      },
+      req,
+      res
+    )
     return
   }
 
@@ -3547,6 +3684,7 @@ const server = createServer(async (req, res) => {
       // whichever provider ends up delivering, the person is told the price of
       // the thing they just received.
       let receipt: Receipt = {}
+      let billedSpendId: number | undefined
       // Declared BEFORE the try for the same reason billedTid is: the failure
       // body must carry every provider's refusal, and the catch cannot see a
       // const that lives inside the try.
@@ -3598,6 +3736,7 @@ const server = createServer(async (req, res) => {
           )
         }
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         // Convert width/height to aspect ratio. Every value it can emit is in
         // the list google/nano-banana validates against, so the Kie leg needs
@@ -3716,7 +3855,8 @@ const server = createServer(async (req, res) => {
           'image_generate',
           1,
           requestedModel,
-          receipt.charged
+          receipt.charged,
+          billedSpendId
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -3840,6 +3980,7 @@ const server = createServer(async (req, res) => {
       // other. A `const` next to the charge would leave that one success body
       // silent about the money.
       let receipt: Receipt = {}
+      let billedSpendId: number | undefined
       let requestedModel: string | undefined
       // Секунды объявлены СНАРУЖИ try: возврат живёт в catch и без этого
       // отдавал бы одну секунду там, где списал десять.
@@ -3945,6 +4086,7 @@ const server = createServer(async (req, res) => {
         }
         billedTid = billed.tid
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         /**
          * Record the job BEFORE the provider is called.
@@ -4004,7 +4146,8 @@ const server = createServer(async (req, res) => {
               'video_generate',
               секунды,
               requestedModel,
-              receipt.charged
+              receipt.charged,
+              billedSpendId
             )
             res.writeHead(400, { 'Content-Type': 'application/json' })
             res.end(
@@ -4133,7 +4276,8 @@ const server = createServer(async (req, res) => {
             'video_generate',
             секунды,
             requestedModel,
-            receipt.charged
+            receipt.charged,
+            billedSpendId
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -4182,7 +4326,8 @@ const server = createServer(async (req, res) => {
             'video_generate',
             секунды,
             requestedModel,
-            receipt.charged
+            receipt.charged,
+            billedSpendId
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -4427,6 +4572,7 @@ const server = createServer(async (req, res) => {
       // Same charge, two possible providers below (KieAI, then ElevenLabs or
       // Replicate). Whoever delivers, the price stated is the one taken.
       let receipt: Receipt = {}
+      let billedSpendId: number | undefined
       // Сколько тысяч знаков оплачено — снаружи try по той же причине,
       // что и модель: возврат живёт в catch.
       let оплаченныеТысячи = 1
@@ -4521,6 +4667,7 @@ const server = createServer(async (req, res) => {
           )
         }
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         if (typeof model === 'string' && model.startsWith('kie/')) {
           /**
@@ -4712,7 +4859,8 @@ const server = createServer(async (req, res) => {
           'audio_generate',
           оплаченныеТысячи,
           requestedModel,
-          receipt.charged
+          receipt.charged,
+          billedSpendId
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -4871,6 +5019,7 @@ const server = createServer(async (req, res) => {
     // pressing. The button can promise a per-second rate; only the answer can
     // state what was actually taken.
     let receipt: Receipt = {}
+    let billedSpendId: number | undefined
     // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание.
     let requestedModel: string | undefined
     req.on('data', chunk => {
@@ -4948,6 +5097,7 @@ const server = createServer(async (req, res) => {
         }
         billedTid = billed.tid
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         /**
          * KieAI ПЕРВЫМ, fal.ai запасным — и это не предпочтение, а замер.
@@ -5149,7 +5299,8 @@ const server = createServer(async (req, res) => {
           'lipsync_generate',
           billedSeconds || 1,
           requestedModel,
-          receipt.charged
+          receipt.charged,
+          billedSpendId
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -5486,20 +5637,31 @@ const server = createServer(async (req, res) => {
   }
 
   // List S3 assets
-  if (req.url === '/assets' && req.method === 'GET') {
-    const result = await listS3Assets()
-    const statusCode = result.success ? 200 : 500
-    res.writeHead(statusCode, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify(result))
-    return
-  }
+  /*
+   * GET /assets IS GONE.
+   *
+   * It called listS3Assets() with the flat prefix `assets/` and handed the
+   * whole farm's media shelf -- every owner's photos, voice notes and files --
+   * to ANY caller with a valid Telegram signature. The global guard accepts a
+   * signature from any bot of the platform without asking who the person is,
+   * so "protected" here meant "every user of the platform".
+   *
+   * Deleted rather than gated: nothing in the player calls it and no test
+   * covers it, so a guard would be a guard on a route nobody wants. The
+   * per-person listing that does exist is /api/assets/:telegram_id, which is
+   * scoped by identity.
+   */
 
   // Serve rendered files
   if (req.url?.startsWith('/renders/') && req.method === 'GET') {
     // Strip query string from URL
     const urlPath = req.url.split('?')[0]
-    const filename = urlPath.replace('/renders/', '')
-    const filePath = path.join(OUTPUT_DIR, filename)
+    const filePath = safeUnder(OUTPUT_DIR, urlPath.slice('/renders/'.length))
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
 
     serveStaticFile(res, filePath)
     return
@@ -5509,8 +5671,15 @@ const server = createServer(async (req, res) => {
   if (req.url?.startsWith('/public/') && req.method === 'GET') {
     // Strip query string from URL
     const urlPath = req.url.split('?')[0]
-    const filename = urlPath.replace('/public/', '')
-    const filePath = path.join(process.cwd(), 'public', filename)
+    const filePath = safeUnder(
+      path.join(process.cwd(), 'public'),
+      urlPath.slice('/public/'.length)
+    )
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
     console.log(`📂 Request for public file: ${req.url} -> ${filePath}`)
 
     serveStaticFile(res, filePath)
@@ -5531,7 +5700,12 @@ const server = createServer(async (req, res) => {
   if (matchedPath && req.method === 'GET') {
     // Strip query string from URL before building file path
     const urlPath = req.url!.split('?')[0]
-    const filePath = path.join(process.cwd(), 'public', urlPath)
+    const filePath = safeUnder(path.join(process.cwd(), 'public'), urlPath)
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
     console.log(
       `📂 Request for public file (no prefix): ${req.url} -> ${filePath}`
     )
@@ -6699,8 +6873,12 @@ const server = createServer(async (req, res) => {
   // GET /hls/{video_id}/{quality}/playlist.m3u8 - Serve quality playlist
   // GET /hls/{video_id}/{quality}/*.ts - Serve segments
   if (req.url?.startsWith('/hls/') && req.method === 'GET') {
-    const hlsPath = req.url.slice(5) // Remove /hls/
-    const filePath = path.join(HLS_DIR, hlsPath)
+    const filePath = safeUnder(HLS_DIR, req.url.slice(5).split('?')[0])
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'bad path' }))
+      return
+    }
 
     if (fs.existsSync(filePath)) {
       const ext = path.extname(filePath)
@@ -7072,13 +7250,57 @@ const server = createServer(async (req, res) => {
           return
         }
 
-        // Download video
+        /*
+         * WHAT MAY BE READ HERE, AND WHY IT IS THIS NARROW.
+         *
+         * This used to be `path.join(process.cwd(), 'public', video_url)`.
+         * `path.join` RESOLVES `..`, so a body of
+         * {"video_url":"../../../proc/self/environ"} landed on
+         * /proc/self/environ -- and the bytes were then PUT into the
+         * public-read bucket and the caller handed the link. That is every
+         * bot token, the database URL, the S3 credentials and RENDER_API_KEY,
+         * to any person who has ever opened a mini app, in one POST. Found by
+         * an adversarial sweep on 2026-09-20.
+         *
+         * Two doors now, both closed by construction:
+         *
+         *  - a URL must be an object on OUR OWN shelf, so "http" stops
+         *    meaning "anywhere on the internet" as well;
+         *  - a filename goes through safeJoin, which allows no separator, no
+         *    leading dot and no `..`, and then proves the result is still
+         *    inside the directory.
+         *
+         * safeJoin was written in this file for exactly this shape and was
+         * called from nowhere.
+         */
         let videoBuffer: Buffer
         if (video_url.startsWith('http')) {
-          const response = await fetch(video_url)
+          const safe = usableMediaUrl(video_url, 'video')
+          if (!safe) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                error: 'only a video on our own shelf can be published',
+              })
+            )
+            return
+          }
+          const response = await fetch(safe)
+          if (!response.ok) {
+            res.writeHead(404, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'Video not found' }))
+            return
+          }
           videoBuffer = Buffer.from(await response.arrayBuffer())
         } else {
-          const localPath = path.join(process.cwd(), 'public', video_url)
+          let localPath: string
+          try {
+            localPath = safeJoin(path.join(process.cwd(), 'public'), video_url)
+          } catch {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'bad file name' }))
+            return
+          }
           if (!fs.existsSync(localPath)) {
             res.writeHead(404, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ error: 'Video not found' }))
@@ -8051,6 +8273,72 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /*
+   * The person's own remote browser: one pod, one profile, started on demand.
+   * The pod address never leaves this process -- the answer carries a path
+   * through us and a token, nothing addressable. See
+   * docs/architecture/remote-browser-per-user.md.
+   */
+  /*
+   * The person pressing one of the two buttons an agent sent them.
+   *
+   * A plain GET with a one-time token, BEFORE authenticate(): it arrives from
+   * a tap in Telegram, which carries no signature and no session. The token
+   * is the whole credential, it was never given to the agent, and it is spent
+   * once (see src/browser/approvals.ts).
+   */
+  if ((req.url?.split('?')[0] || '') === '/api/browser/approve') {
+    const url = new URL(req.url || '', 'http://x')
+    const id = url.searchParams.get('id') || ''
+    const token = url.searchParams.get('t') || ''
+    const pool = (await getPool()) as any
+    await ensureApprovals(pool)
+    const state = id && token ? await decideApproval(pool, id, token) : null
+    /*
+     * The yes is recorded on the SESSION here too, not only where the tool
+     * polls: the agent may have stopped waiting long before the person
+     * looked at their phone, and the permission must still count.
+     */
+    if (state === 'allowed') {
+      const who = await approvalOwner(pool, id)
+      if (who) await markAllowed(pool, who)
+    }
+    const said =
+      state === 'allowed'
+        ? 'Разрешено. Агент продолжит.' // cyrillic-ok: user-facing
+        : state === 'denied'
+          ? 'Отклонено. Агент этого не сделает.' // cyrillic-ok: user-facing
+          : 'Этот вопрос уже закрыт.' // cyrillic-ok: user-facing
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(
+      `<!doctype html><meta charset="utf-8">` +
+        `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<body style="font:16px/1.5 system-ui;padding:32px;background:#111;color:#eee">` +
+        `<p>${said}</p></body>`
+    )
+    return
+  }
+
+  if (isBrowserPath(req.url?.split('?')[0] || '')) {
+    const out = await handleBrowser(req, {
+      getPool: async () => (await getPool()) as any,
+      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      driver: podDriver(),
+      newToken: newSessionToken,
+      actor: r => {
+        const src = identityWithSource(r as any, verifiedTelegramId(r as any))
+        /* An agent key is an agent; a signature or a session is the person. */
+        return src?.source === 'agent-key' ? 'agent' : 'person'
+      },
+      announcer: {
+        send: (id, text, markup) => sendToTelegram(id, text, markup),
+      },
+    })
+    res.writeHead(out.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(out.body))
+    return
+  }
+
   if (этоПутьПодключения(req.url?.split('?')[0] || '')) {
     const { TelegramClient } = await import('telegram')
     const { StringSession } = await import('telegram/sessions')
@@ -8316,6 +8604,12 @@ const server = createServer(async (req, res) => {
         '10': { tokens: 10, stars: 15, title: '10 токенов Trinity' },
         '50': { tokens: 50, stars: 65, title: '50 токенов Trinity' },
         '150': { tokens: 150, stars: 175, title: '150 токенов Trinity' },
+        // The flagship product is the digital clone at 26 tokens/sec: a short
+        // 8-second clip costs 208. Without this pack the largest one on offer
+        // (150) does not buy a single clip, so the only way to reach the thing
+        // we sell was to buy twice. Follows the existing discount curve
+        // (1.5 -> 1.3 -> 1.167 -> 1.1 stars per token); no existing price moves.
+        '300': { tokens: 300, stars: 330, title: '300 токенов Trinity' },
       }
       const PAY_BOT = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
 
@@ -11461,6 +11755,81 @@ async function main() {
   installGracefulShutdown(server, {
     drainMs: Number(process.env.SHUTDOWN_DRAIN_MS) || 25_000,
   })
+  /*
+   * neko's signalling, and the channel carrying the person's keyboard and
+   * mouse into their pod. Nothing else in this service speaks WebSocket, so
+   * every other upgrade is refused rather than left hanging.
+   */
+  server.on('upgrade', async (req, socket, head) => {
+    const path = (req.url || '').split('?')[0]
+    if (!isLivePath(path)) return refuseUpgrade(socket, 404)
+    const parsed = parseLive(req.url || '', req.headers.cookie)
+    if (!parsed) return refuseUpgrade(socket, 404)
+    try {
+      const decision = await authorizeLive((await getPool()) as any, parsed, {
+        secure: false,
+      })
+      /* A redirect cannot be spoken to a WebSocket: the cookie must exist. */
+      if (decision.kind !== 'proxy') {
+        return refuseUpgrade(
+          socket,
+          decision.kind === 'refuse' ? decision.status : 400
+        )
+      }
+      pipeUpgrade(
+        {
+          endpoint: decision.endpoint,
+          upstreamPath: decision.upstreamPath,
+          sessionId: parsed.sessionId,
+          viewToken: decision.viewToken,
+        },
+        req,
+        socket,
+        head,
+        /* An open viewer socket is what "somebody is watching" means here. */
+        () => {
+          void (async () => {
+            try {
+              await touchSessionById((await getPool()) as any, parsed.sessionId)
+            } catch {
+              /* A missed heartbeat only risks an early reap, not a crash. */
+            }
+          })()
+        }
+      )
+    } catch {
+      refuseUpgrade(socket, 500)
+    }
+  })
+
+  /*
+   * Pods that nobody is watching go out. This is the whole economics of the
+   * remote browser: ~743 MiB held per idle pod, ten seconds to bring one
+   * back. The rule and the reasons are in src/browser/reaper.ts.
+   */
+  setInterval(
+    () => {
+      void (async () => {
+        const driver = podDriver()
+        if (!driver) return
+        try {
+          const out = await sweepIdleSessions((await getPool()) as any, driver)
+          if (out.reaped.length || out.failed.length) {
+            console.log(
+              `🧹 [browser] looked at ${out.looked}, stopped ${out.reaped.length}` +
+                (out.failed.length
+                  ? `, could not stop ${out.failed.length}`
+                  : '')
+            )
+          }
+        } catch (e) {
+          console.warn('[browser] idle sweep failed:', String(e).slice(0, 160))
+        }
+      })()
+    },
+    Math.max(60_000, Math.floor(IDLE_LIMIT_MS / 5))
+  ).unref?.()
+
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)
     console.log(

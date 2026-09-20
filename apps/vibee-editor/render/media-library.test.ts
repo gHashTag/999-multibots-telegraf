@@ -144,13 +144,35 @@ function fakePool() {
       if (q.startsWith('UPDATE crm_messages SET text = left(text ||')) {
         const [, , msg_id, words] = params as [string, string, number, string]
         const m = crm.find(x => x.msg_id === Number(msg_id))
-        if (m && !m.text.includes(words)) m.text = `${m.text}\n${words}`
-        return { rows: [] }
+        /*
+         * `rowCount` on purpose, and it used to be missing here. The real
+         * UPDATE carries `position($4 in text) = 0`, so it touches a row only
+         * the first time the words arrive -- and that count is what decides
+         * whether Zep is told. A double that always answers "no rows" would
+         * have agreed with a caller that never told Zep anything.
+         */
+        if (m && !m.text.includes(words)) {
+          m.text = `${m.text}\n${words}`
+          return { rows: [], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 0 }
       }
       throw new Error(`fake pool: unexpected statement: ${q.slice(0, 80)}`)
     },
   }
 }
+
+/*
+ * THE TIMEOUT HERE IS THE IMPORT, NOT AN ASSERTION.
+ *
+ * Every test in this file resets the module registry and imports the media
+ * module graph again, and that cold import crosses vitest's five-second
+ * default on a busy machine -- so the run failed on tests that assert on a
+ * string constant, and failed differently on each run. Twenty seconds is
+ * still short enough that a genuine hang fails the build rather than waiting
+ * out a CI job.
+ */
+vi.setConfig({ testTimeout: 20_000 })
 
 beforeEach(() => {
   vi.resetModules()
@@ -482,8 +504,16 @@ describe('describeMedia', () => {
             headers: { 'content-type': 'audio/ogg' },
           })
         posts.push({ url: String(url), init: init ?? {} })
+        /*
+         * The streamed attempt answers, as the production server does once it
+         * is given the stream it insists on. The plain attempt must therefore
+         * never be made: a second call per recording is a second minute of a
+         * CPU transcriber's time.
+         */
         return new Response(
-          JSON.stringify({ text: '  слова из длинной записи  ' }),
+          'data: {"delta":"слова из "}\n' +
+            'data: {"delta":"длинной записи"}\n' +
+            'data: [DONE]\n',
           { status: 200 }
         )
       })
@@ -495,11 +525,21 @@ describe('describeMedia', () => {
     expect(await describeMedia(SHELF, 'audio', 'audio/ogg', 'voice.ogg')).toBe(
       'слова из длинной записи'
     )
-    expect(posts).toHaveLength(1)
+    expect(
+      posts,
+      'the plain attempt was made although the stream answered'
+    ).toHaveLength(1)
     expect(posts[0].url).toBe('https://api.openai.com/v1/audio/transcriptions')
     const form = posts[0].init.body as FormData
     expect(form.get('model')).toBe('whisper-1')
     expect(form.get('response_format')).toBe('json')
+    /*
+     * SAID OUT LOUD, because the server guessed wrong when it was left to a
+     * default: it took its streaming path for a request that never asked for
+     * one and then could not serialise a plain result, answering 200 with an
+     * empty body 25 times across two different formats.
+     */
+    expect(form.get('stream')).toBe('true')
     expect((form.get('file') as File).name).toBe('voice.ogg')
     expect(
       (posts[0].init.headers as Record<string, string>).Authorization
@@ -689,7 +729,10 @@ describe('describeMedia with a vision endpoint', () => {
     expect(
       await describeMedia(shelfPhoto, 'image', 'image/jpeg', 'photo.jpg')
     ).toBe('На фото кот.')
-    expect(posts).toHaveLength(1)
+    expect(
+      posts,
+      'the plain attempt was made although the stream answered'
+    ).toHaveLength(1)
     expect(posts[0].url).toBe(
       'http://vision.railway.internal:8000/v1/chat/completions'
     )
@@ -753,7 +796,10 @@ describe('describeMedia with a vision endpoint', () => {
       '37.500',
       '52.500',
     ])
-    expect(posts).toHaveLength(1)
+    expect(
+      posts,
+      'the plain attempt was made although the stream answered'
+    ).toHaveLength(1)
     const parts = posts[0].body.messages[0].content
     expect(parts.filter((p: any) => p.type === 'image_url')).toHaveLength(
       VIDEO_FRAMES
@@ -1003,5 +1049,220 @@ describe('reading what a transcriber answered', () => {
   it('keeps a body that only looks like json', async () => {
     const { readTranscript } = await import('./src/agent/media-library')
     expect(readTranscript('{не json, но слова')).toBe('{не json, но слова')
+  })
+})
+
+/**
+ * THE WORDS HAVE TO REACH THE MEMORY THE AGENT ACTUALLY READS.
+ *
+ * Owner, 2026-09-20: "study all my voice messages in the DMs and update the
+ * Zep context, so the information is current." What stood in the way was one
+ * asymmetry: `mirrorNow` posts to Zep only what was FRESH in Postgres.
+ *
+ * A voice note is written to crm_messages as `[голосовое]` the moment the
+ * ingest sees it. The transcript arrives minutes later and is APPENDED to that
+ * row -- fresh = 0 -- so Postgres held what was said and Zep, which is what
+ * the agent reads before answering, held the word "[голосовое]". For every
+ * voice message anybody ever sent.
+ */
+describe('a transcript that arrives late still reaches Zep', () => {
+  const zepCalls: Array<{ lead: string; texts: string[] }> = []
+
+  beforeEach(() => {
+    zepCalls.length = 0
+    vi.resetModules()
+    vi.doMock('./src/agent/zep-memory', () => ({
+      zepConfigured: () => true,
+      zepEnsureUser: async () => undefined,
+      zepEnsureThread: async () => undefined,
+      zepAddMessages: async (
+        _owner: string,
+        lead: string,
+        msgs: Array<{ text: string }>
+      ) => {
+        zepCalls.push({ lead, texts: msgs.map(m => m.text) })
+        return msgs.length
+      },
+      zepContext: async () => null,
+    }))
+  })
+
+  const rowOf = () => ({
+    lead: LEAD,
+    msgId: 77,
+    at: new Date(),
+    out: false,
+    kind: 'audio' as const,
+    name: 'voice.ogg',
+    mime: 'audio/ogg',
+    caption: null,
+  })
+
+  it('tells Zep the words when the row was already there', async () => {
+    const { mirrorTranscript } = await import('./src/agent/media-library')
+    const { forgetMemoryTableForTests } = await import(
+      './src/agent/chat-memory'
+    )
+    forgetMemoryTableForTests()
+    const pool = fakePool()
+    const row = rowOf()
+
+    // The ingest got there first: the row exists, saying only what it was.
+    pool.crm.push({ msg_id: 77, text: '[голосовое]' }) // cyrillic-ok: fixture text
+
+    expect(await mirrorTranscript(pool, OWNER, row, 'привет, это запись')).toBe(
+      'appended'
+    )
+    expect(zepCalls).toHaveLength(1)
+    expect(zepCalls[0].lead).toBe(LEAD)
+    expect(zepCalls[0].texts[0]).toContain('привет, это запись') // cyrillic-ok: fixture text
+
+    /*
+     * AND ONLY ONCE. A re-read that changes nothing must say nothing: the
+     * same sentence posted a dozen times is worse than silence, because a
+     * summary built from repetitions reads them as emphasis.
+     *
+     * Asserted in THIS test rather than its own. A second test needed the
+     * same three-line setup and did not get it: with `vi.resetModules` in
+     * between, the freshly imported module no longer saw this mock, so it
+     * reported "nothing was posted" about a call that had been made. One
+     * test that makes both calls cannot lie that way.
+     */
+    expect(await mirrorTranscript(pool, OWNER, row, 'привет, это запись')).toBe(
+      'appended'
+    )
+    expect(zepCalls).toHaveLength(1)
+  })
+})
+
+/**
+ * GIVING THE SERVER THE STREAM IT INSISTS ON.
+ *
+ * Three fixes and 25+ failures established that this transcriber ALWAYS enters
+ * its streaming responder -- with response_format=text, with json, and with
+ * `stream=false` said out loud -- and then refuses to serialise the plain
+ * result it holds, answering 200 with an empty body:
+ *
+ *   Unexpected streaming transcription response type: <class 'tuple'>
+ *   ...                                               <class '...Transcription'>
+ *
+ * The request shape was never the variable. So it is handed what it keeps
+ * reaching for, and the plain request stays as a fallback because OpenAI's own
+ * whisper-1 REFUSES `stream` and would otherwise break the day somebody points
+ * this at OpenAI.
+ */
+describe('reading a streamed transcription', () => {
+  it('joins the deltas a stream arrives in', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    expect(
+      readStreamedTranscript(
+        'data: {"delta":"привет, "}\ndata: {"delta":"это запись"}\ndata: [DONE]\n'
+      )
+    ).toBe('привет, это запись')
+  })
+
+  /*
+   * A FINAL `text` WINS. Servers that send both mean the deltas as a preview
+   * of it; concatenating both would say everything twice.
+   */
+  it('prefers the whole text when the stream also carries one', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    expect(
+      readStreamedTranscript(
+        'data: {"delta":"при"}\ndata: {"delta":"вет"}\n' +
+          'data: {"text":"привет, это запись"}\ndata: [DONE]\n'
+      )
+    ).toBe('привет, это запись')
+  })
+
+  /*
+   * THE SENTINEL IS NOT A WORD. `[DONE]`, keep-alive blanks and comments are
+   * skipped: a sentinel pasted into somebody's transcript is worse than a
+   * missing word, because it reads as something they said.
+   */
+  it('never puts the protocol into the transcript', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    const out = readStreamedTranscript(
+      ': keep-alive\n\ndata: [DONE]\ndata: {"delta":"слово"}\n'
+    )
+    expect(out).toBe('слово')
+    expect(out).not.toContain('DONE')
+    expect(readStreamedTranscript('data: [DONE]\n')).toBe('')
+    expect(readStreamedTranscript('')).toBe('')
+  })
+
+  /*
+   * A HALF-WRITTEN EVENT IS NOT WORDS. A stream cut mid-line must lose that
+   * line, not the whole recording.
+   */
+  it('keeps what arrived when the stream was cut', async () => {
+    const { readStreamedTranscript } = await import('./src/agent/media-library')
+    expect(
+      readStreamedTranscript('data: {"delta":"начало"}\ndata: {"delta":"обо')
+    ).toBe('начало')
+  })
+})
+
+/**
+ * A GATE BUILT FOR ONE CONSUMER, APPLIED TO ANOTHER.
+ *
+ * `usableMediaUrl(url, 'audio')` exists for the provider path, where a file is
+ * handed to a chat model as an `audio_url` part -- and there the short list is
+ * right, because a model sent a container it cannot open answers confidently
+ * about nothing.
+ *
+ * A transcriber is not a chat model: speaches, faster-whisper and OpenAI feed
+ * the bytes through ffmpeg. Measured 2026-09-20: two recordings sat unread for
+ * a day because they are `.mp4`, and the only log line said "not readable as
+ * audio". `.oga` matters for a plainer reason -- it is what Telegram calls a
+ * voice note on some paths, which is exactly the thing this feature is for.
+ */
+const SHELF_ORIGIN = 'https://vibee-render-production.up.railway.app'
+
+describe('what may be handed to a transcriber', () => {
+  it('takes every container ffmpeg opens, not just the four a chat model takes', async () => {
+    const { transcribableUrl } = await import('./src/agent/media-library')
+    for (const ext of [
+      'ogg',
+      'oga',
+      'opus',
+      'mp3',
+      'wav',
+      'm4a',
+      'mp4',
+      'webm',
+      'flac',
+    ]) {
+      expect(
+        transcribableUrl(`${SHELF_ORIGIN}/s3/assets/recording.${ext}`),
+        `a transcriber can open .${ext} and this refused it`
+      ).toBeTruthy()
+    }
+  })
+
+  /*
+   * TELEGRAM'S OWN NAME FOR A VOICE NOTE. Dropping `.oga` drops the thing the
+   * whole feature exists for, and it did.
+   */
+  it('takes .oga, which is what a Telegram voice note is called', async () => {
+    const { transcribableUrl } = await import('./src/agent/media-library')
+    expect(
+      transcribableUrl(`${SHELF_ORIGIN}/s3/assets/voice-1.oga`)
+    ).toBeTruthy()
+  })
+
+  /*
+   * AND IT IS STILL OUR SHELF ONLY. Widening what may be READ must never
+   * widen WHERE it may be read from: a URL the person supplies is how a
+   * server gets aimed at somebody else's network.
+   */
+  it('still refuses anything that is not on our own shelf', async () => {
+    const { transcribableUrl } = await import('./src/agent/media-library')
+    expect(transcribableUrl('https://evil.example/s3/assets/a.ogg')).toBeNull()
+    expect(
+      transcribableUrl('http://169.254.169.254/latest/meta-data.ogg')
+    ).toBeNull()
+    expect(transcribableUrl(`${SHELF_ORIGIN}/not-s3/a.ogg`)).toBeNull()
+    expect(transcribableUrl(`${SHELF_ORIGIN}/s3/assets/notes.txt`)).toBeNull()
   })
 })

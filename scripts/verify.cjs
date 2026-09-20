@@ -76,6 +76,48 @@ if (selfLoops.length) {
   process.exit(3)
 }
 
+/*
+ * Preflight: THE ROOT INSTALL DOES NOT COVER THE WHOLE REPOSITORY.
+ *
+ * The root package.json declares no `workspaces`, so `bun install` at the top
+ * leaves apps/vibee-editor/render and apps/vibee-editor/player without any
+ * node_modules of their own. Nothing says so. What happens instead:
+ *
+ *   test-gate     25 render test files fail to LOAD (`Cannot find package
+ *                 'undici'`) and the gate reports 88 REGRESSIONS -- 28% of the
+ *                 snapshot, blamed on code that was never run. Measured
+ *                 2026-09-20; after installing render the same tree reported 1.
+ *   test:player   `npx --no-install vitest` has no vitest to find.
+ *
+ * A number that large reads as a catastrophe and sends the next person hunting
+ * a break that does not exist. Name the cause here, before any step runs. This
+ * only reads -- a gate that checks must not silently install.
+ */
+const fs = require('fs')
+const path = require('path')
+const SUBPROJECTS = [
+  ['apps/vibee-editor/render', 'test-gate, test:vitest'],
+  ['apps/vibee-editor/player', 'test:player'],
+]
+const uninstalled = SUBPROJECTS.filter(
+  ([dir]) => !fs.existsSync(path.join(process.cwd(), dir, 'node_modules'))
+)
+if (uninstalled.length) {
+  console.error('\nA sub-project has no dependencies installed.')
+  console.error(
+    '(The root package.json has no "workspaces": a root install does NOT reach these.)\n'
+  )
+  for (const [dir, steps] of uninstalled) {
+    console.error(`  ${dir}/node_modules missing — needed by ${steps}`)
+  }
+  console.error('\nInstall, then re-run:')
+  for (const [dir] of uninstalled) console.error(`  (cd ${dir} && bun install)`)
+  console.error(
+    '\nWithout this the gate reports test files it never loaded as regressions.\n'
+  )
+  process.exit(3)
+}
+
 const results = []
 const runStep = (cmd, args) => {
   const r = spawnSync(cmd, args, { stdio: 'pipe', encoding: 'utf8' })

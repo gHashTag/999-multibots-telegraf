@@ -116,6 +116,8 @@ describe('the Inngest sweep runs the tick for every seller', () => {
     )
     // The timer driver sweeps the same people as the cron.
     const svc = read('services/crmProactive.ts')
-    expect(svc).toMatch(/const run = \(\) =>\s*runProactiveTickAll\(bot, opts\)/)
+    expect(svc).toMatch(
+      /const run = \(\) =>\s*runProactiveTickAll\(bot, opts\)/
+    )
   })
 })

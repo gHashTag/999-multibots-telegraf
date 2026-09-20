@@ -9,6 +9,7 @@ import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 import { CreatePaymentV2Schema } from '@/interfaces/zod/payment.zod'
 import { calculateServiceCost } from '@/price/helpers/calculateServiceCost'
 import { withUserBalanceLock } from './balanceLock'
+import { creditTokens, debitTokens } from '@/core/wallet/tokenWallet'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -54,6 +55,40 @@ type BalanceUpdateMetadata = {
  * Передавайте ПОЛОЖИТЕЛЬНУЮ сумму и правильный `type`. Отрицательная теперь
  * отклоняется явно — см. проверку после блока подмены.
  */
+/**
+ * Put back stars we took when the audit row afterwards failed to save.
+ *
+ * Best effort by necessity: if this also fails there is nowhere left to write,
+ * so it is logged at error level, which pages the owner. Silence here would
+ * mean a customer charged for a generation that never started.
+ */
+async function reverseDebit(
+  telegram_id: string,
+  amount: number,
+  reason: string
+): Promise<void> {
+  if (!(amount > 0)) return
+  try {
+    await creditTokens(telegram_id.toString(), amount)
+    logger.warn('↩️ Списание возвращено в user_tokens:', {
+      description: 'Debit reversed in the live wallet',
+      telegram_id,
+      stars: amount,
+      reason,
+    })
+  } catch (error) {
+    logger.error('❌ НЕ УДАЛОСЬ вернуть списанные звёзды:', {
+      description:
+        'FAILED to reverse a debit: the user was charged for nothing',
+      alert: 'СПИСАНО, НО НЕ ВЫПОЛНЕНО — вернуть вручную',
+      telegram_id,
+      stars: amount,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 // Serialized per user by withUserBalanceLock below. The implementation is
 // unchanged; the lock closes the read-check-write double-spend race (#999) for
 // the single-process case. Do NOT call this directly — use updateUserBalance.
@@ -104,6 +139,46 @@ export const updateUserBalanceUnlocked = async (
     // Безопасно преобразуем amount в число
     let safeAmount = Number(amount)
     const originalAmount = safeAmount // Сохраняем оригинальное значение для логов
+
+    // How much this call actually took out of the live wallet. Only set once
+    // the debit has committed, so the reversal below can tell "took nothing"
+    // apart from "took it and then the audit row failed".
+    let debited = 0
+
+    /**
+     * Put a top-up or a refund into the live wallet.
+     *
+     * Called AFTER the audit row is saved, not before: a credit the user can
+     * spend the same second is not something we want to undo. If it fails the
+     * money arrived and the stars did not, which is the one case in this file
+     * that deserves a page.
+     */
+    const creditIfIncoming = async (): Promise<boolean> => {
+      if (type === PaymentType.MONEY_OUTCOME) return true
+      try {
+        const balance = await creditTokens(telegram_id.toString(), safeAmount)
+        logger.info('💰 Начислено в user_tokens:', {
+          description: 'Credited to the live wallet',
+          telegram_id,
+          stars: safeAmount,
+          balance_after: balance,
+          type,
+        })
+        return true
+      } catch (error) {
+        logger.error('💸❌ Оплата прошла, звёзды НЕ начислены:', {
+          description:
+            'PAYMENT ACCEPTED BUT NOT CREDITED: the wallet write failed',
+          alert: 'ДЕНЬГИ ПОЛУЧЕНЫ, ЗВЁЗДЫ НЕ ЗАЧИСЛЕНЫ — начислить вручную',
+          telegram_id,
+          stars: safeAmount,
+          type,
+          inv_id: metadata?.inv_id ?? null,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return false
+      }
+    }
 
     // ЭКСТРЕННОЕ ИСПРАВЛЕНИЕ: Извлечение суммы платежа из описания, если это оплата генерации
     if (
@@ -298,144 +373,53 @@ export const updateUserBalanceUnlocked = async (
 
       // Убрана проверка if (!userData), так как head: true не возвращает data
 
-      // Получаем баланс пользователя из таблицы payments
-      // Оставляем попытку вызова RPC, но если она не сработает,
-      // fallback будет использовать payments_v2
-      const { data: balanceData, error: balanceError } = await supabase.rpc(
-        'get_user_balance',
-        { user_telegram_id: Number(telegram_id) }
-      )
-      console.log('balanceData 📊', balanceData)
-
-      // Если RPC функция не существует, используем обычный SQL запрос
-      let currentBalance = 0
-      if (balanceError) {
-        logger.warn('⚠️ Ошибка при вызове RPC get_user_balance:', {
-          description: 'Error calling RPC get_user_balance',
-          telegram_id,
-          error: balanceError.message,
-        })
-
-        // Вычисляем баланс суммируя все транзакции из payments_v2
-        const { data: paymentsData, error: paymentsError } = await supabase
-          // .from('payments') // Старая таблица
-          .from('payments_v2') // Новая таблица
-          .select('stars, type')
-          .eq('telegram_id', Number(telegram_id))
-          .eq('status', PaymentStatus.COMPLETED)
-
-        if (paymentsError) {
-          logger.error('❌ Ошибка при получении истории платежей:', {
-            description: 'Error getting payments history',
+      // THE CHARGE ITSELF. Step 3 of the single-wallet plan: the money leaves
+      // `user_tokens`, the only live wallet, and `payments_v2` below keeps an
+      // audit row. Before this, the bots read and spent the archive, so a star
+      // carried to the live wallet was spendable twice (see
+      // docs/architecture/single-wallet-decision.md).
+      //
+      // This replaces a read-check-write: get_user_balance, compare, then
+      // write. Two taps a few milliseconds apart both passed that check and
+      // both spent the same stars (#999). `debitTokens` does the check and the
+      // write in one UPDATE ... WHERE balance >= amount, so the database
+      // refuses the second one. withUserBalanceLock still serializes callers in
+      // this process; the guarantee no longer depends on it.
+      //
+      // A null is a refusal, not a failure: nothing was taken, nothing to undo.
+      // An unreachable wallet throws and the outer catch returns false -- a
+      // charge is refused rather than granted on an unknown balance.
+      try {
+        const left = await debitTokens(telegram_id.toString(), safeAmount)
+        if (left === null) {
+          // warn, not error: logger.error pages the owner's Telegram group,
+          // and a customer who cannot afford a generation is not something an
+          // operator acts on at 3am. The house level for a refused charge is
+          // warn -- pinned by balanceRefusalIsToldApartFromAnOutage.test.ts
+          // and oneEmptyWalletIsOneRefusal.test.ts.
+          logger.warn('❌ Недостаточно средств на балансе:', {
+            description: 'Insufficient funds',
             telegram_id,
-            error: paymentsError.message,
+            required_amount: safeAmount,
           })
           return false
         }
-
-        // Вычисляем баланс: сумма всех поступлений минус сумма всех списаний.
-        //
-        // Здесь сравнивалось с 'money_income' в нижнем регистре, а в базе тип
-        // хранится как 'MONEY_INCOME'. Условие не совпадало НИКОГДА, поэтому
-        // ветка вычитала всё подряд, включая пополнения, и выдавала глубокий
-        // минус. Срабатывает эта ветка только когда RPC недоступна — то есть
-        // ровно во время аварии, когда неверное число опаснее всего.
-        //
-        // Знак задаёт тип: вычитается только MONEY_OUTCOME, остальное
-        // прибавляется. Это та же формула, что и у настоящей get_user_balance —
-        // восстановлена опытным путём, scripts/probe-balance-formula.cjs.
-        currentBalance = (paymentsData || []).reduce((sum, payment) => {
-          const stars = Number(payment.stars) || 0
-          return payment.type === PaymentType.MONEY_OUTCOME
-            ? sum - stars
-            : sum + stars
-        }, 0)
-      } else {
-        // Используем результат RPC функции
-        currentBalance = Number(balanceData) || 0
-      }
-
-      logger.info('💰 Баланс пользователя (из payments):', {
-        description: 'User balance from payments table',
-        telegram_id,
-        balance: currentBalance,
-        required_amount: safeAmount,
-      })
-
-      // Проверка достаточности средств для списания
-      //
-      // THE LEVEL OF A REFUSED CHARGE, SOURCE VERSUS ECHO, WRITTEN DOWN ONCE.
-      //
-      // Read this before changing the level of any "the balance is short" line
-      // anywhere in the repository; it was reconstructed from seven files once
-      // already, and once is enough.
-      //
-      // The class is WARN. An empty wallet is written down, never paged.
-      //
-      // INFO is reserved for the SOURCE -- the line that decides the refusal
-      // in the same breath as the customer is handed the top-up prompt, where
-      // the message to the customer is the record and a second operator entry
-      // would count one refusal twice. Two sites, both deliberate:
-      //   * price/helpers/refuseUnpaidGeneration.ts -- processBalanceOperation
-      //     already sent the prompt, with buttons, one frame below;
-      //   * helpers/checkUserBalance.ts -- it sends that message itself.
-      //
-      // WARN is the ECHO -- a catch further up that re-states a refusal
-      // already decided below so its handler can stop quietly. The echo is the
-      // operator's record that a paid action was abandoned, and it is what a
-      // question like "how many refusals today" actually counts. Today:
-      // scenes/imageUpscalerWizard, scenes/aiPhotoshopScene (both upscale
-      // entry points), scenes/avatarTransformScene (chain guard and outer
-      // catch), and the withErrorHandling wrapper in navigation/
-      // registerCommands.ts -- which was the last holdout at info and moved to
-      // warn with this note, because one class logged at two levels cannot be
-      // counted with one query and the miss is silent.
-      //
-      // A refusal that tells the customer nothing where it is logged -- this
-      // guard, directPayment.ts, the two videoGenerator price helpers, the
-      // model-training balance check -- is an operator record as well: it
-      // returns false or throws and leaves the speaking to the caller, so it
-      // is warn too. The list is the census as it stood, not a closed set;
-      // what is closed is the rule above it.
-      //
-      // Said out loud rather than left for the next reader to trip over:
-      // checkUserBalance's path ends at info with no warn above it, so those
-      // refusals are invisible to a warn-level count. That is a real gap in
-      // the census, not a tidy exception.
-      //
-      // warn, not error: logger.error is a push notification to the owner's
-      // Telegram group, and a customer who cannot afford a generation is not
-      // something an operator acts on at 3am.
-      //
-      // This is a PRE-WRITE guard. It returns before the update and the insert
-      // further down, so no row was written and there is nothing to reconcile.
-      //
-      // warn rather than info, deliberately, for two reasons:
-      //
-      //  1. The house level for a refused charge is warn everywhere else --
-      //     pinned by balanceRefusalIsToldApartFromAnOutage.test.ts and
-      //     oneEmptyWalletIsOneRefusal.test.ts. Dropping this one to info
-      //     would split one class across two levels.
-      //
-      //  2. `currentBalance` is not guaranteed to be the customer's real
-      //     balance. Above, `Number(balanceData) || 0` turns a null/undefined
-      //     RPC result into 0 WITHOUT setting balanceError, and the other
-      //     branch recomputes the balance by hand from payments_v2 exactly
-      //     when the RPC is down. So this line can fire during an outage for
-      //     somebody who does have money. That case deserves a trace in the
-      //     log; it does not deserve a page, because the charge was refused
-      //     safely and no money moved.
-      //
-      // Every sibling in this file stays at error on purpose: bad telegram_id,
-      // bad amount, a negative amount, a failed payments-history fetch, a
-      // top-up rejected after the customer already paid, and the write
-      // failures. Those are our machinery; this one is not.
-      if (currentBalance < safeAmount) {
-        logger.warn('❌ Недостаточно средств на балансе:', {
-          description: 'Insufficient funds',
+        debited = safeAmount
+        logger.info('💸 Списано из user_tokens:', {
+          description: 'Debited from the live wallet',
           telegram_id,
-          balance: currentBalance,
-          required_amount: safeAmount,
+          stars: safeAmount,
+          balance_after: left,
+        })
+      } catch (walletError) {
+        logger.error('❌ Живой кошелёк недоступен, списание отклонено:', {
+          description: 'Live wallet unreachable, charge refused',
+          telegram_id,
+          amount: safeAmount,
+          error:
+            walletError instanceof Error
+              ? walletError.message
+              : String(walletError),
         })
         return false
       }
@@ -530,6 +514,7 @@ export const updateUserBalanceUnlocked = async (
           inv_id: metadata.inv_id,
           error: updateError.message,
         })
+        await reverseDebit(telegram_id, debited, 'ledger update failed')
         return false
       }
 
@@ -554,6 +539,7 @@ export const updateUserBalanceUnlocked = async (
       // заплатить второй раз. В robokassa.routes.ts этот же ложный false уже
       // ловили руками и гасили комментарием «звёзды начислены отметкой» —
       // лечили симптом, а не причину.
+      if (!(await creditIfIncoming())) return false
       return true
     }
 
@@ -651,6 +637,7 @@ export const updateUserBalanceUnlocked = async (
           details: paymentError.details,
           hint: paymentError.hint,
         })
+        await reverseDebit(telegram_id, debited, 'ledger insert failed')
         return false
       }
 
@@ -673,8 +660,11 @@ export const updateUserBalanceUnlocked = async (
           error: validationError.errors || validationError.message,
         }
       )
+      await reverseDebit(telegram_id, debited, 'ledger row failed validation')
       return false
     }
+
+    if (!(await creditIfIncoming())) return false
 
     // Balance cache invalidation is best-effort. The payments_v2 row is already
     // committed above (the money has moved), so a throw here must NOT reach the
