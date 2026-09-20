@@ -45,9 +45,12 @@ describe('AI Reels Шаблон 1 - Полный тест', () => {
    * literal -- that 'https://example.com/test-image.jpg' matches /^https?:/
    * and is under 1000 characters. No project code was called, so nothing could
    * make them fail. Worse, they read as proof that we validate an image URL
-   * and its size: we do not. LipSyncInputBuilder.forVeedFabric copies imageUrl
-   * through untouched, so 'invalid-url' reaches Kie and we pay for the refusal.
-   * That gap is real and now unclaimed, which is the honest state.
+   * and its size, and at the time we did neither: the builder copied imageUrl
+   * through untouched, so 'invalid-url' reached Kie and we paid for the
+   * refusal. The URL half of that gap is now really closed, by
+   * validateImageUrl() in the orchestrator -- see its own test file, and the
+   * INVALID_IMAGE_URL case below. Size is still the provider's answer to give;
+   * we would have to fetch the image to know it, so nothing here claims it.
    */
 
   describe('Step 2: Генерация lip-sync видео', () => {
@@ -278,6 +281,22 @@ describe('AI Reels Шаблон 1 - Полный тест', () => {
       const result = await lipSyncOrchestrator.generate(input())
 
       expect(result).toMatchObject({ code: 'UNSUPPORTED_MODEL' })
+      expect(generate).not.toHaveBeenCalled()
+    })
+
+    it('refuses an unfetchable image without calling the provider', async () => {
+      // Same reason as the unsupported model: provider.generate() is where the
+      // job is created and billed, so a URL nobody can download must never
+      // reach it. Before this check it did, and we refunded the failure.
+      const generate = mock(async () => ({ output: 'should never happen' }))
+      useProvider({ generate })
+
+      const result = await lipSyncOrchestrator.generate({
+        ...input(),
+        imageUrl: 'invalid-url',
+      })
+
+      expect(result).toMatchObject({ code: 'INVALID_IMAGE_URL' })
       expect(generate).not.toHaveBeenCalled()
     })
 

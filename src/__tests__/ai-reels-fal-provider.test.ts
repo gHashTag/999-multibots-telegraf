@@ -98,9 +98,13 @@ describe('AI Reels с fal провайдером - Тесты', () => {
     })
 
     it('должен обрабатывать ошибки fal провайдера', async () => {
+      // Real-looking URLs on purpose: this test is about what happens when the
+      // PROVIDER fails, so the input has to get past the orchestrator's image
+      // URL check. It used to pass 'invalid-url' and reached fal only because
+      // nothing validated it.
       const input = LipSyncInputBuilder.forFalVeedFabric(
-        'invalid-url',
-        'invalid-audio-url',
+        'https://example.com/image.jpg',
+        'https://example.com/audio.mp3',
         '123456789',
         {
           botName: 'test-bot',
