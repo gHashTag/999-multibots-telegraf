@@ -161,6 +161,52 @@ describe('what gets dressed and what streams', () => {
   })
 })
 
+describe('the row along the bottom is ours too', () => {
+  const css = BRAND_CSS.replace(/\/\*[\s\S]*?\*\//g, '')
+
+  it('LEAVES NO DISCORD GREY BEHIND', () => {
+    /*
+     * The colours neko ships: #36393f on the open toggle, #2f3136 on the
+     * switch, #202225 on the language select, and a teal slider. Painting
+     * the top bar and stopping there is how a window ends up half dressed.
+     */
+    for (const stray of ['#36393f', '#2f3136', '#202225', '#97d18b']) {
+      expect(css.toLowerCase()).not.toContain(stray)
+    }
+    expect(css).toContain('.controls')
+    expect(css).toContain('.members')
+    expect(css).toContain('.settings select')
+  })
+
+  it('takes the grey slab off the hamburger', () => {
+    expect(css).toMatch(
+      /\.header \.menu \.toggle[\s\S]{0,120}background: transparent/
+    )
+  })
+
+  it('CENTRES BOTH SIDES AGAINST THE BAR, not by eye', () => {
+    /*
+     * The bar's height is neko's and changes with the window; a hand-picked
+     * offset lines up at one size and slips at the next.
+     */
+    expect(css).toMatch(/\.header \{[^}]*align-items: center/)
+  })
+
+  it('colours the volume with the accent, not a stranger teal', () => {
+    expect(css).toMatch(/accent-color: #00ff88/)
+  })
+
+  it('says who is in the room in the accent, and reads on it', () => {
+    /* Black on the accent: the one pairing the app uses for a filled thing. */
+    expect(css).toMatch(/\.avatar[\s\S]{0,200}#00ff88/)
+    expect(css).toMatch(/\.avatar[\s\S]{0,200}color: #000/)
+  })
+
+  it('makes unavailable look unavailable, not merely dim', () => {
+    expect(css).toMatch(/\.controls i\.faded/)
+  })
+})
+
 describe('the palette is the app palette', () => {
   it('uses the brand green', () => {
     expect(BRAND_CSS).toContain('#00ff88')
