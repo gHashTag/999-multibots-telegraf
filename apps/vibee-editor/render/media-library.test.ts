@@ -1202,3 +1202,67 @@ describe('reading a streamed transcription', () => {
     ).toBe('начало')
   })
 })
+
+/**
+ * A GATE BUILT FOR ONE CONSUMER, APPLIED TO ANOTHER.
+ *
+ * `usableMediaUrl(url, 'audio')` exists for the provider path, where a file is
+ * handed to a chat model as an `audio_url` part -- and there the short list is
+ * right, because a model sent a container it cannot open answers confidently
+ * about nothing.
+ *
+ * A transcriber is not a chat model: speaches, faster-whisper and OpenAI feed
+ * the bytes through ffmpeg. Measured 2026-09-20: two recordings sat unread for
+ * a day because they are `.mp4`, and the only log line said "not readable as
+ * audio". `.oga` matters for a plainer reason -- it is what Telegram calls a
+ * voice note on some paths, which is exactly the thing this feature is for.
+ */
+const SHELF_ORIGIN = 'https://vibee-render-production.up.railway.app'
+
+describe('what may be handed to a transcriber', () => {
+  it('takes every container ffmpeg opens, not just the four a chat model takes', async () => {
+    const { transcribableUrl } = await import('./src/agent/media-library')
+    for (const ext of [
+      'ogg',
+      'oga',
+      'opus',
+      'mp3',
+      'wav',
+      'm4a',
+      'mp4',
+      'webm',
+      'flac',
+    ]) {
+      expect(
+        transcribableUrl(`${SHELF_ORIGIN}/s3/assets/recording.${ext}`),
+        `a transcriber can open .${ext} and this refused it`
+      ).toBeTruthy()
+    }
+  })
+
+  /*
+   * TELEGRAM'S OWN NAME FOR A VOICE NOTE. Dropping `.oga` drops the thing the
+   * whole feature exists for, and it did.
+   */
+  it('takes .oga, which is what a Telegram voice note is called', async () => {
+    const { transcribableUrl } = await import('./src/agent/media-library')
+    expect(
+      transcribableUrl(`${SHELF_ORIGIN}/s3/assets/voice-1.oga`)
+    ).toBeTruthy()
+  })
+
+  /*
+   * AND IT IS STILL OUR SHELF ONLY. Widening what may be READ must never
+   * widen WHERE it may be read from: a URL the person supplies is how a
+   * server gets aimed at somebody else's network.
+   */
+  it('still refuses anything that is not on our own shelf', async () => {
+    const { transcribableUrl } = await import('./src/agent/media-library')
+    expect(transcribableUrl('https://evil.example/s3/assets/a.ogg')).toBeNull()
+    expect(
+      transcribableUrl('http://169.254.169.254/latest/meta-data.ogg')
+    ).toBeNull()
+    expect(transcribableUrl(`${SHELF_ORIGIN}/not-s3/a.ogg`)).toBeNull()
+    expect(transcribableUrl(`${SHELF_ORIGIN}/s3/assets/notes.txt`)).toBeNull()
+  })
+})
