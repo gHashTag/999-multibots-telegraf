@@ -678,8 +678,8 @@ struct AgentChatView: View {
         case "готово":
           // "обрыв" only arrives when the step limit is hit -- the server
           // explains the reason in the same words it gives the bot and web.
-          if let обрыв = o["обрыв"] as? String, !обрыв.isEmpty {
-            truncationReason = обрыв
+          if let truncation = o["обрыв"] as? String, !truncation.isEmpty {
+            truncationReason = truncation
           }
         default: break
         }
