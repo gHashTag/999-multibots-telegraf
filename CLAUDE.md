@@ -61,6 +61,28 @@ import { showMainMenu } from '@/services/NavigationService'
 
 ---
 
+## 💰 CRITICAL MONEY RULE — ОДИН КОШЕЛЁК
+
+**Решение владельца 2026-09-20. Единственный живой кошелёк: `user_tokens` в
+Postgres рендера (`getPool()`). Курс: 1 звезда = 1 токен.**
+
+```
+✅ НАЧИСЛЯТЬ И СПИСЫВАТЬ   user_tokens  (+ star_payments)  — Postgres рендера
+🧊 АРХИВ, ТОЛЬКО ЧТЕНИЕ     payments_v2                     — облачный Supabase
+```
+
+- **НЕ писать новые строки в `payments_v2`.** Удалять его тоже НЕЛЬЗЯ: это
+  единственная запись о реальных деньгах, возвраты и споры ещё возможны.
+- Перенос балансов: `min(реально оплачено, текущий баланс)`. Админские
+  начисления не переносятся.
+- Пока `src/core/supabase/*` не переведён на `user_tokens`, оба кошелька живы —
+  начисление «не в тот кошелёк» остаётся реальной ловушкой.
+
+Полный разбор, формула, узкое место и обязательный порядок шагов:
+**`docs/architecture/single-wallet-decision.md`**
+
+---
+
 **Project**: 999-agents-telegraf - Multi-bot Telegram Platform with AI Generation
 **Language**: TypeScript + Node.js 20
 **Framework**: Telegraf 4.16.3
