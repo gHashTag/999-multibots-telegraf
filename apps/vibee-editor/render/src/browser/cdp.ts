@@ -21,7 +21,32 @@
  * design: no second window, no headless twin, nothing the person cannot see.
  */
 
-import WebSocket from 'ws'
+/*
+ * `ws` IS LOADED ONLY WHEN A BROWSER IS ACTUALLY DRIVEN.
+ *
+ * These tools live in the registry every agent reads, so this module is
+ * imported by anything that touches `TOOLS` -- including tests that only
+ * enumerate it. A top-level `import WebSocket from 'ws'` made that chain
+ * heavy enough to time out unrelated tests at five seconds, measured by
+ * removing one line and watching them pass.
+ */
+import type WebSocketType from 'ws'
+
+type WebSocketCtor = new (
+  url: string,
+  options?: { perMessageDeflate?: boolean }
+) => WebSocketType
+type RawData = Parameters<Parameters<WebSocketType['on']>[1]>[0]
+
+let wsModule: WebSocketCtor | undefined
+
+async function socketClass(): Promise<WebSocketCtor> {
+  if (!wsModule) {
+    const mod = (await import('ws')) as unknown as { default: WebSocketCtor }
+    wsModule = mod.default
+  }
+  return wsModule
+}
 
 export interface CdpTarget {
   id: string
@@ -129,7 +154,8 @@ export async function onPage<T>(
   targetId: string,
   work: (call: Call) => Promise<T>
 ): Promise<T> {
-  const socket = new WebSocket(await browserWsUrl(endpoint), {
+  const WS = await socketClass()
+  const socket = new WS(await browserWsUrl(endpoint), {
     perMessageDeflate: false,
   })
   let nextId = 1
@@ -145,13 +171,13 @@ export async function onPage<T>(
         clearTimeout(timer)
         resolve()
       })
-      socket.once('error', e => {
+      socket.once('error', (e: Error) => {
         clearTimeout(timer)
         reject(e)
       })
     })
 
-    socket.on('message', raw => {
+    socket.on('message', (raw: RawData) => {
       let msg: CdpMessage
       try {
         msg = JSON.parse(String(raw)) as CdpMessage
@@ -221,7 +247,8 @@ export async function callOnTarget(
   method: string,
   params: Record<string, unknown> = {}
 ): Promise<Record<string, unknown>> {
-  const socket = new WebSocket(wsUrl, { perMessageDeflate: false })
+  const WS = await socketClass()
+  const socket = new WS(wsUrl, { perMessageDeflate: false })
   try {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(
@@ -232,7 +259,7 @@ export async function callOnTarget(
         clearTimeout(timer)
         resolve()
       })
-      socket.once('error', e => {
+      socket.once('error', (e: Error) => {
         clearTimeout(timer)
         reject(e)
       })
@@ -243,7 +270,7 @@ export async function callOnTarget(
         () => reject(new Error(`CDP ${method} timed out`)),
         CALL_TIMEOUT_MS
       )
-      socket.on('message', raw => {
+      socket.on('message', (raw: RawData) => {
         let msg: { id?: number; result?: unknown; error?: { message?: string } }
         try {
           msg = JSON.parse(String(raw))

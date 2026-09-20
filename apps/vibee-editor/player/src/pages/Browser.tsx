@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAtom } from 'jotai'
 import './Browser.css'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -11,6 +11,12 @@ import {
 } from '@/lib/remoteBrowser'
 import { BROWSER_BUTTONS, tapWipe } from '@/lib/remoteBrowserUi'
 import { agentWorkingAtom } from '@/atoms/agentWorking'
+import {
+  wentOut,
+  wheelAfterTouch,
+  wheelAfterHandBack,
+  type Wheel,
+} from '@/lib/browserWatch'
 
 /**
  * THE PERSON'S OWN BROWSER, ON A SCREEN.
@@ -42,12 +48,20 @@ export default function BrowserPage() {
   const [error, setError] = useState<string | null>(null)
   const [confirmForget, setConfirmForget] = useState(false)
   const [agentWorking, setAgentWorking] = useAtom(agentWorkingAtom)
+  /* Remembers a browser that was here, so its absence can be explained. */
+  const lastState = useRef<BrowserSessionView['state'] | null>(null)
+  const [explainGone, setExplainGone] = useState(false)
+  const stage = useRef<HTMLDivElement | null>(null)
 
   const act = useCallback(async (fn: () => Promise<BrowserSessionView>) => {
     setBusy(true)
     setError(null)
     try {
-      setView(await fn())
+      const next = await fn()
+      /* It did not forget them; say so rather than show an empty screen. */
+      setExplainGone(wentOut(lastState.current, next.state))
+      lastState.current = next.state
+      setView(next)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -72,6 +86,11 @@ export default function BrowserPage() {
 
       {view === null && !error ? (
         <p className="remote-browser__muted">{t('browser.loading')}</p>
+      ) : null}
+
+      {/* It did not forget them: the profile is where they left it. */}
+      {explainGone ? (
+        <p className="remote-browser__notice">{t('browser.wentOut')}</p>
       ) : null}
 
       {state === 'unavailable' ? (
@@ -114,19 +133,24 @@ export default function BrowserPage() {
              * and a screen that kept claiming otherwise would be lying.
              */
             <div
+              ref={stage}
               className={
                 agentWorking
                   ? 'remote-browser__stage remote-browser__stage--working'
                   : 'remote-browser__stage'
               }
-              onPointerDown={() => setAgentWorking(false)}
-              onKeyDownCapture={() => setAgentWorking(false)}
+              onPointerDown={() =>
+                setAgentWorking(wheelAfterTouch() === 'agent')
+              }
+              onKeyDownCapture={() =>
+                setAgentWorking(wheelAfterTouch() === 'agent')
+              }
             >
-              {agentWorking ? (
-                <p className="remote-browser__working" aria-live="polite">
-                  {t('browser.agentWorking')}
-                </p>
-              ) : null}
+              <p className="remote-browser__working" aria-live="polite">
+                {agentWorking
+                  ? t('browser.agentWorking')
+                  : t('browser.youDrive')}
+              </p>
               <iframe
                 className="remote-browser__frame"
                 src={absoluteViewUrl(view!.viewUrl!)}
@@ -149,6 +173,28 @@ export default function BrowserPage() {
           )}
 
           <div className="remote-browser__actions">
+            {/* A phone in portrait shows the stream as a stamp otherwise. */}
+            <button
+              type="button"
+              className="remote-browser__secondary"
+              onClick={() => void stage.current?.requestFullscreen?.()}
+            >
+              {t('browser.fullscreen')}
+            </button>
+
+            {/* Handing the wheel back is a press, never a timeout. */}
+            {!agentWorking ? (
+              <button
+                type="button"
+                className="remote-browser__secondary"
+                onClick={() =>
+                  setAgentWorking(wheelAfterHandBack() === 'agent')
+                }
+              >
+                {t('browser.handBack')}
+              </button>
+            ) : null}
+
             <button
               type="button"
               className="remote-browser__secondary"

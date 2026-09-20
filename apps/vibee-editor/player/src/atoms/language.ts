@@ -23,6 +23,11 @@ const en: Translations = {
   'browser.title': 'My browser',
   'browser.agentWorking':
     'An agent is working here. Touch the screen to take over.',
+  'browser.youDrive': 'You are driving. The agent is waiting.',
+  'browser.handBack': 'Let the agent continue',
+  'browser.fullscreen': 'Full screen',
+  'browser.wentOut':
+    'The browser went out while nobody was watching — that is how it stops costing anything. Your logins are still there; open it again.',
   'browser.lead':
     'A browser of your own, running on our side. You watch it, you can take the wheel at any moment, and an agent can work in the very same browser.',
   'browser.loading': 'Looking for your browser…',
@@ -2001,6 +2006,11 @@ const ru: Translations = {
   'browser.title': 'Мой браузер',
   'browser.agentWorking':
     'Здесь работает агент. Коснитесь экрана, чтобы взять управление.',
+  'browser.youDrive': 'Управляете вы. Агент ждёт.',
+  'browser.handBack': 'Вернуть агенту',
+  'browser.fullscreen': 'Во весь экран',
+  'browser.wentOut':
+    'Браузер погас, пока за ним никто не смотрел — так он перестаёт стоить денег. Ваши входы на месте, откройте его снова.',
   'browser.lead':
     'Свой браузер, работающий на нашей стороне. Вы его видите, в любой момент можете взять управление, и агент работает в этом же браузере.',
   'browser.loading': 'Ищу ваш браузер…',

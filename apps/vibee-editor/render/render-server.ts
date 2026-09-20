@@ -83,6 +83,10 @@ import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
 import { pipeHttp, pipeUpgrade, refuseUpgrade } from './src/browser/live-pipe'
 import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
+import {
+  ensureApprovals,
+  decide as decideApproval,
+} from './src/browser/approvals'
 import { touchSessionById } from './src/browser/sessions'
 import { isHiveNotePath, handleHiveNote } from './src/hive/note-route'
 import { isZaiRelayPath, handleZaiRelay } from './src/zai-relay'
@@ -8125,6 +8129,37 @@ const server = createServer(async (req, res) => {
    * through us and a token, nothing addressable. See
    * docs/architecture/remote-browser-per-user.md.
    */
+  /*
+   * The person pressing one of the two buttons an agent sent them.
+   *
+   * A plain GET with a one-time token, BEFORE authenticate(): it arrives from
+   * a tap in Telegram, which carries no signature and no session. The token
+   * is the whole credential, it was never given to the agent, and it is spent
+   * once (see src/browser/approvals.ts).
+   */
+  if ((req.url?.split('?')[0] || '') === '/api/browser/approve') {
+    const url = new URL(req.url || '', 'http://x')
+    const id = url.searchParams.get('id') || ''
+    const token = url.searchParams.get('t') || ''
+    const pool = (await getPool()) as any
+    await ensureApprovals(pool)
+    const state = id && token ? await decideApproval(pool, id, token) : null
+    const said =
+      state === 'allowed'
+        ? 'Разрешено. Агент продолжит.' // cyrillic-ok: user-facing
+        : state === 'denied'
+          ? 'Отклонено. Агент этого не сделает.' // cyrillic-ok: user-facing
+          : 'Этот вопрос уже закрыт.' // cyrillic-ok: user-facing
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(
+      `<!doctype html><meta charset="utf-8">` +
+        `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<body style="font:16px/1.5 system-ui;padding:32px;background:#111;color:#eee">` +
+        `<p>${said}</p></body>`
+    )
+    return
+  }
+
   if (isBrowserPath(req.url?.split('?')[0] || '')) {
     const out = await handleBrowser(req, {
       getPool: async () => (await getPool()) as any,
