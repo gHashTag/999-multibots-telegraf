@@ -1,12 +1,16 @@
 import { TelegramId } from '@/interfaces/telegram.interface'
 import { normalizeTelegramId } from '@/interfaces/telegram.interface'
-import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import {
+  getTokenBalance,
+  WalletUnavailableError,
+} from '@/core/wallet/tokenWallet'
 
 /**
- * Получает баланс пользователя на основе транзакций в payments_v2
- * Вызывает SQL-функцию get_user_balance
- * ВСЕГДА получает свежие данные из БД (кэширование убрано)
+ * The balance comes from `user_tokens`, the only live wallet (owner decision
+ * 2026-09-20, step 3). The `get_user_balance` RPC over `payments_v2` is no
+ * longer called: the archive stays for auditing, but it no longer decides what
+ * anyone can afford.
  */
 /**
  * Баланс НЕ УДАЛОСЬ УЗНАТЬ — это не то же самое, что баланс равен нулю.
@@ -41,54 +45,34 @@ export const getUserBalance = async (
       bot_name,
     })
 
-    // Получаем баланс из функции get_user_balance
-    const { data: stars, error } = await supabase.rpc('get_user_balance', {
-      user_telegram_id: normalizedId.toString(), // Важно передать в виде строки
-    })
-
-    if (error) {
-      logger.error('❌ Ошибка получения баланса:', {
-        description: 'Error getting balance',
-        error: error.message,
-        error_details: error,
+    // Step 3 of the single-wallet plan: the balance lives in `user_tokens`, and
+    // that is what the bots must spend from. `payments_v2` keeps receiving its
+    // audit rows but no longer decides what anyone can afford — otherwise the
+    // same payment is spendable in the bots and in the mini app at once.
+    //
+    // Balances were carried on 2026-09-20 and checked before the switch: nobody
+    // holding money backed by a real payment sees a smaller number here. What
+    // does drop is test data and admin grants, which is the point.
+    //
+    // An unreachable wallet must NOT read as a zero balance, so the error is
+    // translated and rethrown rather than swallowed.
+    try {
+      const balance = await getTokenBalance(normalizedId.toString())
+      logger.info('✅ Баланс пользователя получен из user_tokens:', {
+        description: 'User balance retrieved from the live wallet',
         telegram_id: normalizedId,
+        stars: balance,
+        bot_name,
       })
-
-      // «Функции нет» — это НЕ нулевой баланс, и молча выдавать 0 здесь нельзя.
-      //
-      // Функция get_user_balance живёт только внутри проекта Supabase: её
-      // определения нет ни в sql/, ни в migrations/. В перенесённой базе на
-      // Railway её нет — там из RPC доступны только семь builtin'ов pgcrypto.
-      // То есть в день переключения этот вызов начал бы возвращать ошибку у
-      // ВСЕХ, `return 0` превратил бы её в «нулевой баланс», и каждый платящий
-      // пользователь увидел бы «Недостаточно средств» вместо своих денег —
-      // со стороны человека это неотличимо от кражи.
-      //
-      // Отличаем именно отсутствие объекта: PGRST202 (PostgREST не нашёл
-      // функцию), 42883 (undefined_function), 42P01 (undefined_table).
-      // Нулевым балансом это быть не может по определению, поэтому падаем
-      // громко. Остальные ошибки ведут себя как раньше: менять контракт у 57
-      // мест вызова вслепую — отдельная работа с другим радиусом.
-      const code = (error as { code?: string }).code
-      if (code === 'PGRST202' || code === '42883' || code === '42P01') {
+      return balance
+    } catch (walletError) {
+      if (walletError instanceof WalletUnavailableError) {
         throw new BalanceUnavailableError(
-          `get_user_balance недоступна (${code}): баланс не определён, а не равен нулю. ${error.message}`
+          `живой кошелёк недоступен: баланс не определён, а не равен нулю. ${walletError.message}`
         )
       }
-
-      return 0
+      throw walletError
     }
-
-    const balance = stars || 0
-
-    logger.info('✅ Баланс пользователя получен из БД:', {
-      description: 'User balance retrieved from database',
-      telegram_id: normalizedId,
-      stars: balance,
-      bot_name,
-    })
-
-    return balance
   } catch (error) {
     logger.error('❌ Ошибка в getUserBalance:', {
       description: 'Error in getUserBalance function',
