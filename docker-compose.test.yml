@@ -102,7 +102,7 @@ services:
       NODE_ENV: test
       CI: true
       # Database connection для integration tests
-      DATABASE_URL: postgresql://test_user:test_password@test-db:5432/test_db
+      DATABASE_URL: postgresql://test_user:test_password@test-db:5432/test_db # secret-guard-ok: the local test database, invented value
       REDIS_URL: redis://test-redis:6379
     volumes:
       # Source code
