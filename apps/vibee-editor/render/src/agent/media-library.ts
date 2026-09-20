@@ -880,7 +880,33 @@ export async function describeMedia(
     }
     // Only our own shelf, only an extension the provider was shown to take.
     const safe = usableMediaUrl(url, kind)
-    if (!safe) return null
+    if (!safe) {
+      /*
+       * WHY, NOT JUST NO.
+       *
+       * This gate is silent, and its silence cost a whole evening: the
+       * backlog reported "re-read 2, words in 0" while the transcriber's own
+       * log showed NO request had arrived at all -- so the recordings were
+       * being dropped here, before anything could fail out loud, and three
+       * fixes were aimed at a transcriber that was never asked.
+       *
+       * The path only: our own shelf, no query, no host, nothing that can
+       * carry a token. The extension is the thing being judged, so it is the
+       * thing that has to be visible.
+       */
+      let where = url
+      try {
+        where = new URL(url).pathname
+      } catch {
+        /* an unparseable URL is its own answer */
+      }
+      console.warn(
+        `[media-library] not readable as ${kind}: ${where.slice(-60)} ` +
+          '(must be on our shelf under /s3/ and end in an extension the ' +
+          'provider takes)'
+      )
+      return null
+    }
     if (kind === 'audio') {
       const w = whisperConfig()
       if (w) {
