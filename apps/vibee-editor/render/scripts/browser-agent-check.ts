@@ -12,13 +12,14 @@ import { execFile } from 'node:child_process'
 import { BROWSER_TOOLS } from '../src/browser/agent-tools'
 import {
   volumeNameFor,
+  DEFAULT_POD_IMAGE,
   PROFILE_PATH,
   CDP_BRIDGE_PORT,
   STOP_GRACE_SECONDS,
 } from '../src/browser/pod-driver'
 import { newSessionToken } from '../src/browser/wire'
 
-const IMAGE = process.env.BROWSER_POD_IMAGE || 'f0-pod:v2'
+const IMAGE = process.env.BROWSER_POD_IMAGE || DEFAULT_POD_IMAGE
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 let failures = 0
 const check = (name: string, ok: boolean, detail = '') => {

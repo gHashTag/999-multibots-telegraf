@@ -1,24 +1,37 @@
-# Deploy with:  railway up --service browser-turn
+# DO NOT DEPLOY THIS TO RAILWAY. It is kept as the record of why not.
 #
-# Needs one TCP proxy on 3478 (railway tcp-proxy create --port 3478) and
-# these variables, which the pod and the page both read:
+# The plan was: Railway's TCP proxy remaps ports, neko's candidates carry the
+# port, so put a TURN server in front and let both sides connect outward.
 #
-#   TURN_USER, TURN_PASSWORD  -- shared secret for this deployment
+# MEASURED 2026-09-21, from Railway's own CLI:
 #
-# Then on the POD service:
-#   NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:<proxy-host>:<proxy-port>"],
+#   railway --help          -> `domain` and `tcp-proxy`. Nothing else.
+#   railway tcp-proxy --help -> "Create a TCP proxy for an APPLICATION PORT".
+#
+# One TCP port per proxy, and no UDP anywhere in the product. That is fatal
+# here, and not for the reason the earlier note gave:
+#
+#   A TURN server does not only accept a connection on 3478. It ALLOCATES a
+#   relay address on an ephemeral port and hands that address to the peer,
+#   who must then reach it. Railway will publish exactly one port, chosen in
+#   advance. The peer has nowhere to send to.
+#
+# So TURN on Railway does not rescue the media path; it moves the same
+# unreachable-port problem one hop and costs a service to discover that.
+#
+# WHAT WOULD WORK: coturn on a host with UDP and a port range
+# (`--min-port/--max-port`), which is an ordinary VPS and not this platform.
+# That is a decision about infrastructure and money, so it is the owner's,
+# not something to be provisioned by surprise.
+#
+# The startCommand below is kept because it is correct FOR SUCH A HOST:
+#
+#   turnserver -n --listening-port=3478 --realm=browser --lt-cred-mech \
+#     --user=$TURN_USER:$TURN_PASSWORD --no-tls --no-dtls \
+#     --no-multicast-peers --min-port=49160 --max-port=49200
+#
+# and then on the pod:
+#
+#   NEKO_WEBRTC_ICESERVERS_FRONTEND=[{"urls":["turn:<host>:3478"],
 #     "username":"<TURN_USER>","credential":"<TURN_PASSWORD>"}]
 #   NEKO_WEBRTC_ICESERVERS_BACKEND=<the same>
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "coturn.Dockerfile"
-
-[deploy]
-# --no-tls: Railway terminates nothing here and the media is already DTLS
-# encrypted end to end; TURN itself only relays it.
-startCommand = "turnserver -n --listening-port=3478 --realm=browser --lt-cred-mech --user=$TURN_USER:$TURN_PASSWORD --no-tls --no-dtls --no-multicast-peers"
-restartPolicyType = "ALWAYS"
-numReplicas = 1
-
-[service]
-name = "browser-turn"

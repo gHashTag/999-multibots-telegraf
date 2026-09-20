@@ -58,7 +58,7 @@ export interface PodDriver {
 /** Injected so the driver can be tested without a container runtime. */
 export type Exec = (file: string, args: string[]) => Promise<{ stdout: string }>
 
-export const DEFAULT_POD_IMAGE = 'f0-pod:v2'
+export const DEFAULT_POD_IMAGE = 'f0-pod:v3'
 
 /**
  * WHY A POD NEEDS A PORT OF ITS OWN FOR THE PICTURE.
