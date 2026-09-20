@@ -11,10 +11,11 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 144. Без заголовка: 0.
+Ратчетов: 145. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `aBotTopUpReachesTheLiveWallet.test.ts`                | a bot star purchase credits the live wallet                                                   |
 | `aRefusalIsNotAnnouncedAsSuccess.test.ts`              | a refusal is shown as a refusal                                                               |
 | `aRefusedChargeStopsTheGeneration.test.ts`             | refuseUnpaidGeneration tells an empty wallet from a broken one                                |
 | `aiCoverRefundChecked.test.ts`                         | aiCover refund result is checked and reported truthfully                                      |

@@ -2200,7 +2200,19 @@ async function chargeMiniAppUser(
   /** Выбранная модель (`kie/<id>`): цена берётся её, а не общая по виду. */
   modelId?: string
 ): Promise<
-  | { ok: true; tid?: string; receipt: Receipt }
+  | {
+      ok: true
+      tid?: string
+      receipt: Receipt
+      /**
+       * The ledger row the charge wrote. Deliberately OUTSIDE `receipt`,
+       * because the receipt is spread onto the wire and a row id is our
+       * bookkeeping: the client neither needs it nor should be able to send
+       * one back. It is carried in-process to the refund so the refund can
+       * happen at most once -- see `refundByTid`'s `spendLedgerId`.
+       */
+      spendId?: number
+    }
   | { ok: false; status: number; reason: string }
 > {
   // Server-to-server: already paid at the tool layer. Key off the VALIDATED
@@ -2241,6 +2253,7 @@ async function chargeMiniAppUser(
       ok: true,
       tid,
       receipt: { charged: spent.списано, balance: spent.осталось }, // cyrillic-ok: shared API field
+      spendId: spent.ledgerId,
     }
   } catch (e) {
     console.error('[токены] списание невозможно, генерация отклонена:', e)
@@ -2268,7 +2281,15 @@ async function refundMiniAppUser(
    * the amount is re-derived from the price table at a later moment, which is
    * how a 540 charge once produced a 60 refund.
    */
-  exact?: number
+  exact?: number,
+  /**
+   * The charge this gives back, so it can only be given back once.
+   *
+   * Two of these routes call this helper from more than one branch for the
+   * same failure (an early return AND the catch around it). Each call was an
+   * unconditional credit, so one failed generation could refund twice.
+   */
+  spendId?: number
 ): Promise<boolean> {
   if (!tid) return false
   try {
@@ -2278,7 +2299,8 @@ async function refundMiniAppUser(
       op,
       quantity,
       modelId,
-      exact
+      exact,
+      spendId
     )
     if (!outcome.ok) {
       /*
@@ -3595,6 +3617,7 @@ const server = createServer(async (req, res) => {
       // whichever provider ends up delivering, the person is told the price of
       // the thing they just received.
       let receipt: Receipt = {}
+      let billedSpendId: number | undefined
       // Declared BEFORE the try for the same reason billedTid is: the failure
       // body must carry every provider's refusal, and the catch cannot see a
       // const that lives inside the try.
@@ -3646,6 +3669,7 @@ const server = createServer(async (req, res) => {
           )
         }
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         // Convert width/height to aspect ratio. Every value it can emit is in
         // the list google/nano-banana validates against, so the Kie leg needs
@@ -3764,7 +3788,8 @@ const server = createServer(async (req, res) => {
           'image_generate',
           1,
           requestedModel,
-          receipt.charged
+          receipt.charged,
+          billedSpendId
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -3888,6 +3913,7 @@ const server = createServer(async (req, res) => {
       // other. A `const` next to the charge would leave that one success body
       // silent about the money.
       let receipt: Receipt = {}
+      let billedSpendId: number | undefined
       let requestedModel: string | undefined
       // Секунды объявлены СНАРУЖИ try: возврат живёт в catch и без этого
       // отдавал бы одну секунду там, где списал десять.
@@ -3993,6 +4019,7 @@ const server = createServer(async (req, res) => {
         }
         billedTid = billed.tid
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         /**
          * Record the job BEFORE the provider is called.
@@ -4052,7 +4079,8 @@ const server = createServer(async (req, res) => {
               'video_generate',
               секунды,
               requestedModel,
-              receipt.charged
+              receipt.charged,
+              billedSpendId
             )
             res.writeHead(400, { 'Content-Type': 'application/json' })
             res.end(
@@ -4181,7 +4209,8 @@ const server = createServer(async (req, res) => {
             'video_generate',
             секунды,
             requestedModel,
-            receipt.charged
+            receipt.charged,
+            billedSpendId
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -4230,7 +4259,8 @@ const server = createServer(async (req, res) => {
             'video_generate',
             секунды,
             requestedModel,
-            receipt.charged
+            receipt.charged,
+            billedSpendId
           )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
@@ -4475,6 +4505,7 @@ const server = createServer(async (req, res) => {
       // Same charge, two possible providers below (KieAI, then ElevenLabs or
       // Replicate). Whoever delivers, the price stated is the one taken.
       let receipt: Receipt = {}
+      let billedSpendId: number | undefined
       // Сколько тысяч знаков оплачено — снаружи try по той же причине,
       // что и модель: возврат живёт в catch.
       let оплаченныеТысячи = 1
@@ -4569,6 +4600,7 @@ const server = createServer(async (req, res) => {
           )
         }
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         if (typeof model === 'string' && model.startsWith('kie/')) {
           /**
@@ -4760,7 +4792,8 @@ const server = createServer(async (req, res) => {
           'audio_generate',
           оплаченныеТысячи,
           requestedModel,
-          receipt.charged
+          receipt.charged,
+          billedSpendId
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
@@ -4919,6 +4952,7 @@ const server = createServer(async (req, res) => {
     // pressing. The button can promise a per-second rate; only the answer can
     // state what was actually taken.
     let receipt: Receipt = {}
+    let billedSpendId: number | undefined
     // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание.
     let requestedModel: string | undefined
     req.on('data', chunk => {
@@ -4996,6 +5030,7 @@ const server = createServer(async (req, res) => {
         }
         billedTid = billed.tid
         receipt = billed.receipt
+        billedSpendId = billed.spendId
 
         /**
          * KieAI ПЕРВЫМ, fal.ai запасным — и это не предпочтение, а замер.
@@ -5197,7 +5232,8 @@ const server = createServer(async (req, res) => {
           'lipsync_generate',
           billedSeconds || 1,
           requestedModel,
-          receipt.charged
+          receipt.charged,
+          billedSpendId
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
