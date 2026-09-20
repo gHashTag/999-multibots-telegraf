@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   isSensitive,
   mayAct,
@@ -135,38 +135,167 @@ describe('one yes, and how long it lasts', () => {
   })
 })
 
+/*
+ * WHY THIS DRIVES THE TOOLS INSTEAD OF READING THEIR SOURCE.
+ *
+ * The first version of this test opened `agent-tools.ts` and looked for the
+ * word `mustBeAllowedToAct` inside each tool's body. It passed for two bad
+ * reasons: it would have kept passing if the helper were called and its
+ * verdict thrown away, and it read the file by a RELATIVE path, so it failed
+ * the moment it ran from the repository root instead of the package -- which
+ * is exactly how the pre-push guard runs it.
+ *
+ * So: a fake browser, a real session, and the actual handlers. What is
+ * asserted is what matters -- on a sensitive page with no permission, the
+ * click never reaches the browser.
+ */
+
+const cdpCalls: string[] = []
+
+vi.mock('./src/browser/cdp', () => ({
+  frontPage: async () => ({ id: 'page-1', url: PAGE.url }),
+  listTargets: async () => [{ id: 'page-1', url: PAGE.url, type: 'page' }],
+  newPage: async () => ({ id: 'page-1', url: PAGE.url }),
+  closePage: async () => {
+    cdpCalls.push('closePage')
+  },
+  evaluateOn: async () => {
+    cdpCalls.push('evaluateOn')
+    return { title: 'x', url: PAGE.url, text: 'x' }
+  },
+  clickAt: async () => {
+    cdpCalls.push('clickAt')
+  },
+  typeText: async () => {
+    cdpCalls.push('typeText')
+  },
+  screenshot: async () => {
+    cdpCalls.push('screenshot')
+    return 'AAAA'
+  },
+}))
+
+/* The page the fake browser is sitting on; each test sets it. */
+const PAGE = { url: 'https://ru.wikipedia.org/wiki/x' }
+
+function ctxWith(allowedMsAgo: number | null) {
+  return {
+    telegramId: '900000001',
+    requestId: 'r1',
+    pool: {
+      query: async () => ({
+        rows: [
+          {
+            telegram_id: '900000001',
+            session_id: 's1',
+            pod_id: 'pod',
+            endpoint: '127.0.0.1:1',
+            cdp_endpoint: '127.0.0.1:2',
+            allowed_ms:
+              allowedMsAgo === null ? null : Date.now() - allowedMsAgo,
+            state: 'live',
+            view_token: 'v',
+            admin_token: 'a',
+          },
+        ],
+      }),
+    },
+  } as never
+}
+
+const ACTING = ['browser_click', 'browser_type', 'browser_evaluate']
+const READING = ['browser_read', 'browser_screenshot']
+
+const argsFor: Record<string, Record<string, unknown>> = {
+  browser_click: { x: 10, y: 10 },
+  browser_type: { text: 'hello' },
+  browser_evaluate: { expression: '1+1' },
+  browser_read: {},
+  browser_screenshot: {},
+}
+
 describe('the tools that act are the ones that are gated', () => {
-  it('reading is never gated, acting always is', async () => {
+  beforeEach(() => {
+    cdpCalls.length = 0
+  })
+
+  it('REFUSES TO ACT on a sensitive page with no permission', async () => {
+    PAGE.url = 'https://mail.google.com/mail/u/0'
     const { BROWSER_TOOLS } = await import('./src/browser/agent-tools')
-    const fs = await import('node:fs')
-    const src = fs.readFileSync('src/browser/agent-tools.ts', 'utf8')
 
-    /*
-     * Each tool's body runs to the NEXT tool, not for a fixed number of
-     * characters -- a window that spills into the neighbour reported
-     * browser_screenshot as gated because browser_click, right after it, is.
-     */
-    const bodyOf = (name: string) => {
-      const from = src.indexOf(`name: '${name}'`)
-      expect(from, name).toBeGreaterThan(-1)
-      const next = src.indexOf("name: 'browser_", from + 10)
-      return src.slice(from, next === -1 ? undefined : next)
+    for (const name of ACTING) {
+      const tool = BROWSER_TOOLS.find(t => t.name === name)
+      expect(tool, name).toBeTruthy()
+      await expect(
+        tool!.handler(argsFor[name], ctxWith(null)),
+        name
+      ).rejects.toThrow(/permission/i)
     }
 
     /*
-     * A person watching an agent read their inbox is fine; a person watching
-     * it click "Send" is not, and that is the whole distinction.
+     * The point of the whole guard: not that it threw, but that nothing
+     * happened in the browser. A refusal after the click is not a refusal.
      */
-    for (const name of ['browser_click', 'browser_type', 'browser_evaluate']) {
-      expect(bodyOf(name), name).toContain('mustBeAllowedToAct')
+    expect(cdpCalls).toEqual([])
+  })
+
+  it('lets it READ the very same page', async () => {
+    PAGE.url = 'https://mail.google.com/mail/u/0'
+    const { BROWSER_TOOLS } = await import('./src/browser/agent-tools')
+
+    for (const name of READING) {
+      const tool = BROWSER_TOOLS.find(t => t.name === name)
+      await expect(
+        tool!.handler(argsFor[name], ctxWith(null))
+      ).resolves.toBeTruthy()
     }
-    for (const name of [
-      'browser_read',
-      'browser_screenshot',
-      'browser_status',
-    ]) {
-      expect(bodyOf(name), name).not.toContain('mustBeAllowedToAct')
-    }
-    expect(BROWSER_TOOLS.length).toBeGreaterThan(6)
+    expect(cdpCalls).toEqual(['evaluateOn', 'screenshot'])
+  })
+
+  it('acts once the person has said yes, and the click LANDS', async () => {
+    PAGE.url = 'https://mail.google.com/mail/u/0'
+    const { BROWSER_TOOLS } = await import('./src/browser/agent-tools')
+    const click = BROWSER_TOOLS.find(t => t.name === 'browser_click')!
+
+    await expect(
+      click.handler({ x: 1, y: 2 }, ctxWith(60_000))
+    ).resolves.toBeTruthy()
+    expect(cdpCalls).toContain('clickAt')
+  })
+
+  it('a yes from an hour ago does not still open the door', async () => {
+    PAGE.url = 'https://mail.google.com/mail/u/0'
+    const { BROWSER_TOOLS } = await import('./src/browser/agent-tools')
+    const click = BROWSER_TOOLS.find(t => t.name === 'browser_click')!
+
+    await expect(
+      click.handler({ x: 1, y: 2 }, ctxWith(60 * 60_000))
+    ).rejects.toThrow(/permission/i)
+    expect(cdpCalls).toEqual([])
+  })
+
+  it('leaves the ordinary web alone without asking anyone', async () => {
+    PAGE.url = 'https://ru.wikipedia.org/wiki/x'
+    const { BROWSER_TOOLS } = await import('./src/browser/agent-tools')
+    const click = BROWSER_TOOLS.find(t => t.name === 'browser_click')!
+
+    await expect(
+      click.handler({ x: 1, y: 2 }, ctxWith(null))
+    ).resolves.toBeTruthy()
+    expect(cdpCalls).toContain('clickAt')
+  })
+
+  it('tells the agent WHAT TO DO NEXT, not merely no', async () => {
+    PAGE.url = 'https://online.sberbank.ru/'
+    const { BROWSER_TOOLS } = await import('./src/browser/agent-tools')
+    const type = BROWSER_TOOLS.find(t => t.name === 'browser_type')!
+
+    /*
+     * An agent told only "no" tries again, tries differently, and eventually
+     * tries something worse. The refusal has to name the way through.
+     */
+    await expect(type.handler({ text: 'x' }, ctxWith(null))).rejects.toThrow(
+      /browser_ask_permission/
+    )
   })
 })
