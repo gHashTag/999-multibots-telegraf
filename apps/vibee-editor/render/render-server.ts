@@ -556,6 +556,8 @@ import {
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 import { installGracefulShutdown } from './src/graceful-shutdown'
+// The one place that decides whether a URL is an object on our own shelf.
+import { usableMediaUrl } from './src/agent/media-parts'
 import {
   ClientErrorGate,
   formatClientErrorAlert,
@@ -7123,13 +7125,57 @@ const server = createServer(async (req, res) => {
           return
         }
 
-        // Download video
+        /*
+         * WHAT MAY BE READ HERE, AND WHY IT IS THIS NARROW.
+         *
+         * This used to be `path.join(process.cwd(), 'public', video_url)`.
+         * `path.join` RESOLVES `..`, so a body of
+         * {"video_url":"../../../proc/self/environ"} landed on
+         * /proc/self/environ -- and the bytes were then PUT into the
+         * public-read bucket and the caller handed the link. That is every
+         * bot token, the database URL, the S3 credentials and RENDER_API_KEY,
+         * to any person who has ever opened a mini app, in one POST. Found by
+         * an adversarial sweep on 2026-09-20.
+         *
+         * Two doors now, both closed by construction:
+         *
+         *  - a URL must be an object on OUR OWN shelf, so "http" stops
+         *    meaning "anywhere on the internet" as well;
+         *  - a filename goes through safeJoin, which allows no separator, no
+         *    leading dot and no `..`, and then proves the result is still
+         *    inside the directory.
+         *
+         * safeJoin was written in this file for exactly this shape and was
+         * called from nowhere.
+         */
         let videoBuffer: Buffer
         if (video_url.startsWith('http')) {
-          const response = await fetch(video_url)
+          const safe = usableMediaUrl(video_url, 'video')
+          if (!safe) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                error: 'only a video on our own shelf can be published',
+              })
+            )
+            return
+          }
+          const response = await fetch(safe)
+          if (!response.ok) {
+            res.writeHead(404, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'Video not found' }))
+            return
+          }
           videoBuffer = Buffer.from(await response.arrayBuffer())
         } else {
-          const localPath = path.join(process.cwd(), 'public', video_url)
+          let localPath: string
+          try {
+            localPath = safeJoin(path.join(process.cwd(), 'public'), video_url)
+          } catch {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'bad file name' }))
+            return
+          }
           if (!fs.existsSync(localPath)) {
             res.writeHead(404, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ error: 'Video not found' }))
