@@ -265,6 +265,13 @@ export const whoPaid = платившие // cyrillic-ok: pre-existing name
 export const audienceOf = люди // cyrillic-ok: pre-existing name
 export type Person = Человек // cyrillic-ok: pre-existing name
 export const askSupabase = запрос // cyrillic-ok: pre-existing name
+/*
+ * Exported rather than written again in the board: "days since" is four lines
+ * that every caller gets subtly differently -- rounding, a missing date, a
+ * date the parser refuses -- and three boards that disagree about how long
+ * somebody has been quiet are three boards.
+ */
+export const daysAgo = днейНазад // cyrillic-ok: pre-existing name
 
 export const CRM_TOOLS: AgentTool[] = [
   {

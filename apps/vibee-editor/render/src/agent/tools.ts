@@ -758,6 +758,7 @@ import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
+import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -2778,6 +2779,16 @@ TOOLS.push(...PROJECT_TOOLS)
  * owner sees their bots, everyone else sees only themselves.
  */
 TOOLS.push(...HIVE_TOOLS)
+/*
+ * The board with the two lanes (hive-board-tool.ts): the Queen's public tasks,
+ * which are the same for everybody signed in, beside the caller's own clients,
+ * which are different for every caller and empty for most of them.
+ *
+ * Registered beside the pulse because it asks the same authority the same way
+ * -- `visibilityOf` decides what the clients lane contains, and an argument
+ * may only narrow it.
+ */
+TOOLS.push(...HIVE_BOARD_TOOLS)
 /*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.
