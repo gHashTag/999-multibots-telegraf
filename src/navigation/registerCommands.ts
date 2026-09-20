@@ -76,6 +76,7 @@ import { message } from 'telegraf/filters'
 import { SUPPORT_HANDLE } from '@/config/support'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { showStartGreeting } from '@/navigation/helpers/startGreeting'
+import { isAddressedToUs } from '@/navigation/helpers/groupAddressing'
 
 // Импорт всех сцен
 import {
@@ -1258,6 +1259,20 @@ If not, continue on your own and click the "I myself" button`
           return next()
       }
       if (ctx.scene?.current) return next()
+
+      /*
+       * IN A GROUP, ONLY WHEN SPOKEN TO.
+       *
+       * This handler is the agent fallback and it had no chat-type gate: with
+       * privacy mode off -- which a concierge in a group needs -- it would
+       * answer EVERY message in a room where five paying clients read each
+       * other. An answer meant for one of them in front of all five, and an
+       * answer nobody asked for in front of all five too.
+       *
+       * A private chat is unaffected: one person writing to the bot alone is
+       * addressing it by definition. See groupAddressing.ts for what counts.
+       */
+      if (!isAddressedToUs(ctx)) return next()
 
       /*
        * The file reaches the shelf BEFORE the agent is asked, and a refusal is
