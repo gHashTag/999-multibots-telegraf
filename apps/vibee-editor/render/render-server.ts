@@ -2387,6 +2387,9 @@ setInterval(
   60 * 60 * 1000
 )
 
+/** Whether the backlog sweep has reported once since this process started. */
+let backlogSpoke = false
+
 /*
  * THE RECORDINGS NOBODY COULD READ, ASKED AGAIN.
  *
@@ -2407,7 +2410,17 @@ setInterval(
           './src/agent/transcribe-backlog'
         )
         const r = await transcribeBacklogOnce(getPool())
-        if (r.reopened) {
+        /*
+         * THE FIRST TICK SPEAKS EVEN WHEN THERE IS NOTHING.
+         *
+         * It used to print only when it re-read something, so an empty
+         * backlog and a broken query looked identical from the log -- the
+         * exact ambiguity this repository keeps paying for elsewhere. Once
+         * per process it says what it found, and after that only when it
+         * actually did something.
+         */
+        if (r.reopened || !backlogSpoke) {
+          backlogSpoke = true
           console.log(
             `[backlog] re-read ${r.reopened}, words in ${r.described}` +
               `, mirrored ${r.mirrored}, left ${r.left}`
