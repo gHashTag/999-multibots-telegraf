@@ -66,10 +66,17 @@ export interface PollConditions {
    * every guest who ever opens the game, forever.
    */
   embedded: boolean
+  /**
+   * Nobody is signed in, so there is no browser to watch and never will be
+   * until somebody signs in. The route answers 401, which this app shows as
+   * "open it from the bot" -- a perfectly good screen, and a perfectly
+   * pointless thing to ask for every ten seconds forever.
+   */
+  signedOut: boolean
 }
 
 export function shouldPoll(c: PollConditions): boolean {
-  return !c.hidden && !c.embedded && !c.unavailable
+  return !c.hidden && !c.embedded && !c.unavailable && !c.signedOut
 }
 
 /**

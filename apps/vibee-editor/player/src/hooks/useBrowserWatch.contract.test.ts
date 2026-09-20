@@ -30,6 +30,7 @@ describe('the wiring actually moves the screen', () => {
     expect(hook).toContain('hidden: document.hidden')
     expect(hook).toContain('embedded: IS_EMBED')
     expect(hook).toContain('unavailable: unavailable.current')
+    expect(hook).toContain('signedOut: signedOut.current')
     /* No second copy of the rules hiding in the effect. */
     expect(hook).not.toMatch(/state === 'live'/)
     expect(hook).not.toMatch(/startsWith\('\/browser'\)/)
