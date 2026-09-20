@@ -171,6 +171,7 @@ struct AgentChatView: View {
     "miniapp": ("from the app", "из мини-аппа"),
     "ios": ("from this phone", "с этого телефона"),
     "agent": ("via an agent key", "по ключу агента"),
+    "queen": ("from the Queen (t27.ai)", "от Королевы (t27.ai)"),
   ]
 
   /**
