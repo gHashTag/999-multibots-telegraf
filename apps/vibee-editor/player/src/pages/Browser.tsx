@@ -7,8 +7,15 @@ import {
   openBrowserSession,
   absoluteViewUrl,
   canEmbed,
+  fitBrowserScreen,
   type BrowserSessionView,
 } from '@/lib/remoteBrowser'
+import {
+  askFor,
+  worthRefitting,
+  REFIT_DEBOUNCE_MS,
+  type Box,
+} from '@/lib/browserFit'
 import { BROWSER_BUTTONS, tapWipe } from '@/lib/remoteBrowserUi'
 import { agentWorkingAtom } from '@/atoms/agentWorking'
 import {
@@ -52,6 +59,8 @@ export default function BrowserPage() {
   const lastState = useRef<BrowserSessionView['state'] | null>(null)
   const [explainGone, setExplainGone] = useState(false)
   const stage = useRef<HTMLDivElement | null>(null)
+  /* The last shape we asked the pod for, so a scroll does not ask again. */
+  const fitted = useRef<Box | null>(null)
 
   const act = useCallback(async (fn: () => Promise<BrowserSessionView>) => {
     setBusy(true)
@@ -73,12 +82,60 @@ export default function BrowserPage() {
     void act(readBrowserSession)
   }, [act])
 
+  /*
+   * THE DESKTOP IS MADE THE SHAPE OF THIS BOX.
+   *
+   * The stylesheet has already decided how big the picture is on this device;
+   * this measures that decision and asks the pod to match it, so a phone held
+   * upright gets a tall desktop instead of a landscape one shrunk into a
+   * stamp. It runs when the browser goes live, and again when the window
+   * changes shape -- a rotation, a split screen, a desktop window dragged.
+   */
+  useEffect(() => {
+    if (view?.state !== 'live') return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let stopped = false
+
+    const measureAndFit = () => {
+      const el = stage.current
+      if (!el || stopped) return
+      const rect = el.getBoundingClientRect()
+      if (rect.width < 1 || rect.height < 1) return
+      const want = askFor({ width: rect.width, height: rect.height })
+      if (!worthRefitting(fitted.current, want)) return
+      fitted.current = want
+      /* A pod that will not resize is still a pod; the person keeps watching. */
+      void fitBrowserScreen(want)
+    }
+
+    const later = () => {
+      clearTimeout(timer)
+      timer = setTimeout(measureAndFit, REFIT_DEBOUNCE_MS)
+    }
+
+    measureAndFit()
+    window.addEventListener('resize', later)
+    window.addEventListener('orientationchange', later)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+      window.removeEventListener('resize', later)
+      window.removeEventListener('orientationchange', later)
+    }
+  }, [view?.state])
+
   const state = view?.state ?? 'none'
   const live = state === 'live' && Boolean(view?.viewUrl)
   const embedded = live && canEmbed(view!.viewUrl!)
 
   return (
-    <div className="remote-browser">
+    <div
+      className={
+        live && embedded
+          ? 'remote-browser remote-browser--live'
+          : 'remote-browser'
+      }
+    >
       <header className="remote-browser__head">
         <h1>{t('browser.title')}</h1>
         <p className="remote-browser__lead">{t('browser.lead')}</p>
