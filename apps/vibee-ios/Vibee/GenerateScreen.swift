@@ -147,7 +147,7 @@ struct GenerateScreen: View {
     }
     .font(Тема.Шрифт.стиль(.footnote, .medium))
     .buttonStyle(.plain)
-    .foregroundStyle(recentlyTaken.contains(id) ? Тема.Цвет.успех : Тема.Цвет.акцент)
+    .foregroundStyle(recentlyTaken.contains(id) ? Тема.Цвет.успех : Тема.Цвет.акцент) // cyrillic-ok: pre-existing theme API
   }
 
   /// Берём у самого вида: одно определение вместо двух расходящихся.

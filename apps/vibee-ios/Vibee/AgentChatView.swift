@@ -676,8 +676,9 @@ struct AgentChatView: View {
             сообщения[i].текст += (сообщения[i].текст.isEmpty ? "" : "\n\n") + "⚠️ \(errorText)"
           }
         case "готово":
-          // "обрыв" only arrives when the step limit is hit -- the server
-          // explains the reason in the same words it gives the bot and web.
+          // The truncation-reason field only arrives when the step limit is
+          // hit -- the server explains the reason in the same words it gives
+          // the bot and web.
           if let truncation = o["обрыв"] as? String, !truncation.isEmpty {
             truncationReason = truncation
           }
