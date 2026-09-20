@@ -39,12 +39,16 @@ import {
 /**
  * Attempts before this instant are the broken ones.
  *
- * 2026-09-20T07:00Z: the render carrying the fix deployed at 07:03Z and the
- * last broken answer is in the transcriber's log at 06:41Z. An hour of margin
- * either way costs at most a few re-reads and protects against a clock that
- * disagrees by minutes.
+ * MOVED FORWARD ONCE, AND THE REASON MATTERS. The first cut-off assumed the
+ * 07:03Z deploy had fixed the transcriber. It had not: the server kept
+ * answering 200 with an empty body, in a different shape, until 10:05Z. So
+ * every recording judged in between was filed as "no words" on the same false
+ * verdict, and the backlog reported `left 0` about a backlog it had excluded.
+ *
+ * The lesson is the cut-off's own: it is only honest when the fix behind it is
+ * MEASURED, not deployed. This one sits after the last observed failure.
  */
-export const BROKEN_UNTIL = new Date('2026-09-20T08:00:00Z')
+export const BROKEN_UNTIL = new Date('2026-09-20T12:00:00Z')
 
 /** How many are re-read per tick. Small: see above. */
 export const BATCH = 5
