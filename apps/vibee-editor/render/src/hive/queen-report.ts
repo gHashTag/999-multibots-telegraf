@@ -266,15 +266,20 @@ export async function report(
    * three-hour gap and goes out at once.
    *
    * RECORDING IS NOT REPORTING, AND THIS FUNCTION USED TO CONFUSE THEM. Both
-   * calls sat BELOW the `no keepers` return. Measured in production on
-   * 2026-09-20: HIVE_KEEPERS is not set on vibee-render, so this function had
-   * returned at that line on every tick since it was written -- and
-   * `checkSellerSilence`, shipped days earlier to catch exactly the failure
-   * that writes nothing, had never run once.
+   * calls sat BELOW the `no keepers` return, so the moment nobody is
+   * subscribed the watchdogs stop looking -- and looking is the whole of what
+   * they do. A missing subscriber is a reason not to SEND. It is not a reason
+   * to stop looking: the journal is the record, and the record is what answers
+   * "what happened" long after the tick.
    *
-   * A missing subscriber is a reason not to SEND. It is not a reason to stop
-   * looking: the journal is the record, and the record is what answers "what
-   * happened" long after the tick. So the watchdogs are above the guard.
+   * THE REASON I FOUND IT WAS WRONG, AND I SHOULD SAY SO. `tri hive` reported
+   * "HIVE_KEEPERS is not set on vibee-render"; it was reading whatever service
+   * happened to be linked, which was the bot. The keeper HAS been set on the
+   * render all along, so `checkSellerSilence` was running, and the sentence
+   * that once stood here -- "had never run once" -- was false. The reordering
+   * stays because it is right on its own terms: a watchdog whose looking
+   * depends on somebody listening is a watchdog with a second failure mode
+   * nobody would think to check.
    */
   await checkSellerSilence(pool, now)
   await checkWaitingClients(pool, now)
