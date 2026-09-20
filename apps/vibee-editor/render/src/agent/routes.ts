@@ -630,10 +630,17 @@ export async function handleAgentChat(
       // tools, not one that talks about them. Anything but `true` is false.
       // client: the thread is about this person; the agent reads their
       // profile and the owner's history with them before the first word.
+      // person_note: what Telegram openly says about the person writing -- see
+      // the block in chat.ts. A string or nothing; never an object, because
+      // this service does not decide how the bot phrases it.
       {
         surface: поверхность, // cyrillic-ok: local defined earlier in this file
         toolsOnly: body.tools_only === true,
         client: gate.client ?? undefined,
+        personNote:
+          typeof body.person_note === 'string' && body.person_note.trim()
+            ? body.person_note.slice(0, 600)
+            : undefined,
       }
     )) {
       события.push(ev as { тип?: string; текст?: string })

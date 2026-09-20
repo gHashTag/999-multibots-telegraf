@@ -39,15 +39,25 @@ const flat = (kb: ReturnType<typeof startGreetingKeyboard>): Btn[] =>
   kb.reply_markup.inline_keyboard.flat() as Btn[]
 
 describe('the greeting text', () => {
-  it('is bilingual, names the project and every door, and greets by name', () => {
-    const ru = startGreetingText(true, 'Дмитрий')
-    const en = startGreetingText(false, 'Dmitrii')
+  /*
+   * WHAT THE FIRST SCREEN SAYS THIS IS (owner, 2026-09-20): an AGI game built
+   * by digital twins of real people. It used to name the product -- "Trinity"
+   * -- which told a stranger nothing about why to stay, and this test pinned
+   * that name, so the rename was a failing test rather than a silent drift.
+   * What is worth pinning is the PROMISE, not the branding: the twin, the
+   * game, and the open board it is played on.
+   */
+  it('says what this is, names every door, and greets by name', () => {
+    const ru = startGreetingText(true, 'Дмитрий', { rubles: true })
+    const en = startGreetingText(false, 'Dmitrii', { rubles: true })
     expect(ru).toContain('Дмитрий')
     expect(en).toContain('Dmitrii')
     for (const t of [ru, en]) {
       expect(t).toContain('t27')
-      expect(t).toContain('Trinity')
+      expect(t).toMatch(/AGI/)
     }
+    expect(ru).toMatch(/двойник/i) // cyrillic-ok: UI text assertion
+    expect(en).toMatch(/twin/i)
     for (const w of [
       'Улей',
       'Агент',
@@ -58,12 +68,30 @@ describe('the greeting text', () => {
     ]) {
       expect(ru).toContain(w)
     }
-    for (const w of ['Hive', 'Agent', 'Club', 'Profile', 'rubles', 'crypto']) {
+    for (const w of ['Hive', 'Agent', 'Club', 'Profile', 'roubles', 'crypto']) {
       expect(en).toContain(w)
     }
     // No name, no dangling comma.
     expect(startGreetingText(true).startsWith('👋 Привет!')).toBe(true)
     expect(startGreetingText(false).startsWith('👋 Hi!')).toBe(true)
+  })
+
+  /*
+   * THE SENTENCE FOLLOWS THE SAME RULE AS THE BUTTON. A person who is not
+   * offered the rouble cashier must not be told in words that roubles are an
+   * option -- the text is the promise they remember, and the keyboard is only
+   * where they act on it.
+   */
+  it('names roubles only to somebody who is offered them', () => {
+    expect(startGreetingText(true, undefined, { rubles: false })).not.toContain(
+      'рублями'
+    )
+    expect(startGreetingText(false, undefined, { rubles: false })).not.toMatch(
+      /roubles|rubles/i
+    )
+    expect(startGreetingText(true, undefined, { rubles: true })).toContain(
+      'рублями'
+    )
   })
 
   it('escapes a hostile first name, because the text is HTML', () => {

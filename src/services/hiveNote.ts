@@ -49,6 +49,25 @@ export type HiveNote = {
      * often it runs.
      */
     | 'watch-quiet'
+    /**
+     * EVERY ERROR OF EVERY BOT, ROLLED UP FOR ONE WINDOW.
+     *
+     * Owner, 2026-09-20: the bots' errors must reach the board. One line per
+     * ten minutes -- how many, of how many kinds, the worst few by name -- and
+     * never one line per error: a single broken dependency fails on every
+     * update, and at one note each a storm is a wall that buries everything
+     * else. See hiveErrors.ts for why the roll-up is the design.
+     */
+    | 'bot-errors'
+    /**
+     * SOMEBODY WROTE AND NOBODY ANSWERED, OR WROTE THAT SOMETHING IS BROKEN.
+     *
+     * Owner, 2026-09-20: "even in the DMs -- find every message and every
+     * fault and hand it on". A person reporting a fault is the one error
+     * report that never appears in any log, because from the code's side
+     * nothing failed.
+     */
+    | 'client-unanswered'
   who: string | null
   what: string
   severity: 'normal' | 'attention' | 'alarm'
@@ -300,4 +319,44 @@ async function postNote(
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * The window of bot errors, as one line.
+ *
+ * `alarm`, and deliberately: the owner asked for these to arrive with the
+ * highest priority. An error window that is only `attention` is a window
+ * nobody opens.
+ *
+ * `who` is null, always. These are failures of the code, not of a person, and
+ * a journal line that named the unlucky customer would be naming a bystander.
+ */
+export async function noteErrorsToHive(
+  rolled: { what: string },
+  opts: { fetchImpl?: typeof fetch } = {}
+): Promise<'noted' | 'not noted'> {
+  return postNote(
+    { kind: 'bot-errors', who: null, what: rolled.what, severity: 'alarm' },
+    opts.fetchImpl
+  )
+}
+
+/**
+ * A person wrote something that reads like a fault or a question nobody
+ * answered.
+ *
+ * `who` IS the person here, unlike the error window: this one is about them,
+ * and the whole point is to be able to go back to them. Their WORDS never
+ * travel -- `what` carries the reason and the wait, never the message.
+ */
+export async function noteClientUnansweredToHive(
+  who: string,
+  what: string,
+  severity: 'attention' | 'alarm' = 'attention',
+  opts: { fetchImpl?: typeof fetch } = {}
+): Promise<'noted' | 'not noted'> {
+  return postNote(
+    { kind: 'client-unanswered', who, what: what.slice(0, 300), severity },
+    opts.fetchImpl
+  )
 }

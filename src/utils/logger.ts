@@ -300,8 +300,112 @@ class TelegramLogTransport extends Transport {
   }
 }
 
+/**
+ * THE SECOND READER OF EVERY ERROR: THE HIVE JOURNAL.
+ *
+ * Owner, 2026-09-20: every bot error must reach the board, with the highest
+ * priority. It is wired HERE, at the same choke point as the Telegram push,
+ * and for the same reason the throttle and the redaction live in this file:
+ * about a thousand call sites write `logger.error`, and a rule that has to be
+ * remembered at each of them is a rule that will be forgotten at some of them.
+ *
+ * ── IT IS NOT THE PUSH, AND IT IS NOT THROTTLED LIKE ONE ───────────────────
+ *
+ * The Telegram transport above SUPPRESSES repeats: one incident is one push,
+ * and the repeats inside the window are counted, not sent. That is right for a
+ * phone and wrong for a record -- "this failed 4 000 times" is the single most
+ * useful fact about an outage, and the throttle is exactly what destroys it.
+ * So this transport counts EVERY error and writes the totals; the throttle is
+ * left to the channel it was built for.
+ *
+ * ── IT NEVER SPEAKS ON THE ERROR PATH ──────────────────────────────────────
+ *
+ * The write is a network call, and this runs INSIDE the failure it is
+ * reporting. So nothing is sent from `log()`: errors are counted in memory and
+ * a timer drains the window. A journal that is unreachable loses a line; it
+ * can never turn one failure into two, and it can never make the logger wait.
+ */
+class HiveErrorTransport extends Transport {
+  private collector: any = null
+  private post:
+    | ((r: { what: string }) => Promise<'noted' | 'not noted'>)
+    | null = null
+  private timer: NodeJS.Timeout | null = null
+
+  constructor(opts?: Transport.TransportStreamOptions) {
+    super(opts)
+    void this.arm()
+  }
+
+  private async arm() {
+    try {
+      // Dynamic, like the Telegram transport above: both of these modules
+      // import the logger, and a static import here is a cycle.
+      const { ErrorCollector, WINDOW_MS } = await import(
+        '@/services/hiveErrors'
+      )
+      const { noteErrorsToHive } = await import('@/services/hiveNote')
+      this.collector = new ErrorCollector()
+      this.post = noteErrorsToHive
+      /*
+       * `unref` on purpose: a ten-minute timer must not be the reason a
+       * process that has finished its work refuses to exit. A window lost at
+       * shutdown is a line; a process that will not die is an incident.
+       */
+      this.timer = setInterval(() => void this.drain(), WINDOW_MS)
+      this.timer.unref?.()
+    } catch {
+      // Nothing to do: without the collector this transport counts nothing,
+      // which is exactly what it did before it existed.
+    }
+  }
+
+  private async drain() {
+    if (!this.collector || !this.post) return
+    const rolled = this.collector.drain()
+    if (!rolled) return
+    try {
+      await this.post(rolled)
+    } catch {
+      // A journal that refused must not become an error of its own: that is
+      // the shape of a loop, and this runs on the error path.
+    }
+  }
+
+  log(info: any, callback: () => void) {
+    setImmediate(() => this.emit('logged', info))
+    const message = String(info?.message ?? '')
+    /*
+     * The journal's own failures are excluded, and so are the Telegram
+     * transport's. Both report over the network from inside this path, and
+     * counting their failures here is how a quiet outage becomes a loud one.
+     */
+    const isOwnLog =
+      message.includes('[TelegramLog]') ||
+      message.includes('hive note') ||
+      message.includes('Failed to send log to Telegram')
+    if (info?.level === 'error' && !isOwnLog && this.collector) {
+      this.collector.add(
+        redactSecrets(message),
+        info?.context || info?.function || contextFromMessage(message),
+        Date.now()
+      )
+    }
+    callback()
+  }
+}
+
 // Создаём глобальный экземпляр транспорта
 const telegramTransport = new TelegramLogTransport({ level: 'error' })
+
+/*
+ * Off in tests: a transport that arms a timer and reaches the network has no
+ * business in a unit test, and the collector itself is tested directly.
+ */
+const hiveErrorTransport =
+  process.env.NODE_ENV === 'test'
+    ? null
+    : new HiveErrorTransport({ level: 'error' })
 
 // Создаем директорию для логов, если её нет
 const logDir = path.join(process.cwd(), 'logs')
@@ -340,6 +444,8 @@ const baseTransports: any[] = [
   new transports.Console(),
   telegramTransport, // 📨 Отправка ошибок в группу НейроМентор
 ]
+// 🐝 The hive journal: every error, counted, one line per window.
+if (hiveErrorTransport) baseTransports.push(hiveErrorTransport)
 
 // Добавляем файловые транспорты только если не режим теста
 if (process.env.NODE_ENV !== 'test') {

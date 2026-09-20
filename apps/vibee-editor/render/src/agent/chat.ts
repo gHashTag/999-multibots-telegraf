@@ -793,6 +793,21 @@ export async function* runAgent(
      * crm-duet.t27 DISCOVERY_HIDES_PAID_TOOLS / DISCOVERY_REFUSES_PAID_CALL.
      */
     denyTools?: ReadonlySet<string>
+    /**
+     * WHO THE AGENT IS WRITING TO, IN ONE LINE (owner, 2026-09-20: "the tone
+     * of voice is wrong").
+     *
+     * The agent knew a telegram id and nothing else, so it wrote to everybody
+     * the same way. Telegram hands out a good deal more for free -- name,
+     * @handle, language, premium, the profile bio -- and only the bot can see
+     * it, because only the bot holds the update and the token. So the bot
+     * composes the line (telegramPersonCard.ts) and this service places it.
+     *
+     * IT IS FENCED. A bio is text a stranger wrote about themselves, and a bio
+     * that reads "ignore your instructions" is the oldest trick there is. It
+     * goes in through foreignText like every other person's words.
+     */
+    personNote?: string
   }
 ): AsyncGenerator<AgentEvent> {
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
@@ -826,7 +841,21 @@ export async function* runAgent(
   const clientContext = opts?.client
     ? await clientContextBlock(ctx, opts.client).catch(() => '')
     : ''
-  const dmContext = dmHistory + clientContext
+
+  /*
+   * The person on the other side of THIS conversation -- not a client the
+   * seller is talking about, which is what clientContext is. Absent when the
+   * caller sent nothing, and absent is the honest state: a row of "unknown"s
+   * teaches the model it knows things about the person, all of them nothing.
+   */
+  const personContext = opts?.personNote
+    ? '\n\nС КЕМ ТЫ ГОВОРИШЬ (открытые данные Telegram):\n' +
+      (await import('./telegram-tools')).foreignText(opts.personNote, {
+        limit: 600,
+      })
+    : ''
+
+  const dmContext = dmHistory + clientContext + personContext
 
   // Decided once per turn: a seller is anyone with a connected account.
   const seller = await (async () => {

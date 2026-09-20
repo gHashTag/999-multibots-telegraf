@@ -115,6 +115,28 @@ export type EventKind =
    * was actually owed.
    */
   | 'watch-quiet'
+  /**
+   * EVERY ERROR OF EVERY BOT, ONE LINE PER WINDOW.
+   *
+   * Owner, 2026-09-20: the bots' errors must reach the board with the highest
+   * priority. Before this they went to a Railway log nobody reads and, for the
+   * few that survive the alert throttle, to a push -- neither of which is a
+   * record, so "what has been breaking this week" had no answer anywhere.
+   *
+   * Rolled up by the BOT, not here (hiveErrors.ts): one broken dependency in a
+   * shared handler fails on every update, and one note per error would make a
+   * storm a wall that buries the unrelated failure that mattered.
+   */
+  | 'bot-errors'
+  /**
+   * SOMEBODY WROTE, AND NOBODY ANSWERED.
+   *
+   * The fault report that appears in no log: from the code's side nothing
+   * failed, a person simply said something is broken, or asked and was left.
+   * Written with the person, because the point is to go back to them -- and
+   * never with their words, which live in Postgres and Zep and stay there.
+   */
+  | 'client-unanswered'
   | 'payment-forged'
   | 'tokens-spent'
   | 'tokens-refunded'

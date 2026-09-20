@@ -34,36 +34,71 @@ import { logger } from '@/utils/logger'
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-/** The greeting text, HTML parse mode. `name` is the person's first name, if any. */
-export function startGreetingText(isRu: boolean, name?: string): string {
+/**
+ * The greeting text, HTML parse mode. `name` is the person's first name, if any.
+ *
+ * ── WHAT THIS SCREEN IS FOR (owner, 2026-09-20) ────────────────────────────
+ *
+ * It says what the product IS: an AGI game built by digital twins of real
+ * people and their avatars. The previous text described the repository -- an
+ * open development map -- which is true and is not a reason for a stranger to
+ * stay. A person arrives knowing nothing; the first screen has to answer "what
+ * is this and what is in it for me", and only then list the doors.
+ *
+ * The twin is the offer, and it is concrete: the person's own face and voice
+ * become a character that acts. That is worth saying in one line, because it
+ * is the one thing here nobody else is doing.
+ *
+ * ── THE PAYMENT LINE IS PER PERSON ─────────────────────────────────────────
+ *
+ * It used to promise "Stars, roubles or crypto" to everybody, including people
+ * who can use none of the last two: Robokassa is a Russian page wanting a
+ * Russian card. Promising a door that opens onto a wall costs more than saying
+ * nothing, so the line now follows the same rule as the buttons
+ * (`shouldShowRubles`) and names only what this person can actually use.
+ */
+export function startGreetingText(
+  isRu: boolean,
+  name?: string,
+  options: { rubles?: boolean } = {}
+): string {
   const who = name ? `, ${escapeHtml(name)}` : ''
+  const rubles = options.rubles ?? false
   if (isRu) {
     return [
       `👋 Привет${who}!`,
       '',
-      'Это бот проекта <b>t27 — Trinity</b>: открытая карта разработки, в которой видно, что делается, что проверено и чем это измерено. Я — агент проекта: отвечаю на вопросы и делаю картинки, видео и голос за токены с баланса.',
+      'Это <b>AGI-игра</b>, которую строят <b>цифровые двойники реальных людей</b> и их аватары. Двойник — это вы: ваше лицо, ваш голос, ваша манера говорить. Он делает картинки, видео и речь, отвечает за вас и остаётся вами, когда вас нет рядом.',
+      '',
+      'Игра идёт открыто: на t27.ai видно, что делается, что проверено и чем измерено. Ход — это сделанное дело, а не обещание.',
       '',
       'Что здесь есть:',
-      '🐝 <b>Улей</b> — живая карта проекта, та же, что на t27.ai',
-      '🤖 <b>Агент</b> — спросить о проекте или попросить сделать',
+      '🐝 <b>Улей</b> — живая карта игры, та же, что на t27.ai',
+      '🤖 <b>Агент</b> — ваш двойник: спросить или попросить сделать',
       '⭐ <b>Клуб</b> — вход по подписке в Stars, часть оплаты возвращается токенами на баланс',
       '👤 <b>Профиль</b> — баланс, история, настройки',
       '',
-      'Оплата — как удобно: звёздами Telegram, рублями или криптой.',
+      rubles
+        ? 'Оплата — как удобно: звёздами Telegram, рублями или криптой.'
+        : 'Оплата — звёздами Telegram или криптой.',
     ].join('\n')
   }
   return [
     `👋 Hi${who}!`,
     '',
-    'This is the bot of <b>t27 — Trinity</b>: an open development map where you can see what is being done, what is verified, and how it was measured. I am the project agent: I answer questions and make pictures, video and voice for tokens from your balance.',
+    'This is an <b>AGI game</b> built by <b>digital twins of real people</b> and their avatars. The twin is you: your face, your voice, the way you put things. It makes pictures, video and speech, answers for you, and stays you when you are not around.',
+    '',
+    'The game is played in the open: on t27.ai you can see what is being done, what is verified and how it was measured. A move is a thing done, not a thing promised.',
     '',
     'What is here:',
-    '🐝 <b>Hive</b> — the live project map, the same one as on t27.ai',
-    '🤖 <b>Agent</b> — ask about the project or ask for something to be made',
+    '🐝 <b>Hive</b> — the live map of the game, the same one as on t27.ai',
+    '🤖 <b>Agent</b> — your twin: ask it, or ask it to make something',
     '⭐ <b>Club</b> — entry by a Stars subscription, part of it comes back as tokens on the balance',
     '👤 <b>Profile</b> — balance, history, settings',
     '',
-    'Pay the way that suits you: Telegram Stars, rubles or crypto.',
+    rubles
+      ? 'Pay the way that suits you: Telegram Stars, roubles or crypto.'
+      : 'Pay with Telegram Stars or crypto.',
   ].join('\n')
 }
 
@@ -160,7 +195,14 @@ export async function showStartGreeting(ctx: MyContext): Promise<void> {
   // continuous, since this screen replaces it on exactly that path.
   void track(ctx as any, 'menu_shown')
 
-  await ctx.reply(startGreetingText(isRu, ctx.from?.first_name), {
+  /*
+   * One answer for the text and the buttons. Asking `shouldShowRubles` twice
+   * would let the sentence and the row disagree -- and the sentence is the
+   * promise a person remembers.
+   */
+  const rubles = shouldShowRubles(ctx)
+
+  await ctx.reply(startGreetingText(isRu, ctx.from?.first_name, { rubles }), {
     parse_mode: 'HTML',
     ...Markup.removeKeyboard(),
   })
@@ -170,7 +212,7 @@ export async function showStartGreeting(ctx: MyContext): Promise<void> {
       startGreetingPrompt(isRu),
       startGreetingKeyboard(isRu, {
         app: ctx.chat?.type === 'private',
-        rubles: shouldShowRubles(ctx),
+        rubles,
       })
     )
   } catch (error) {

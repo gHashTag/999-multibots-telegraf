@@ -313,6 +313,16 @@ export async function спроситьАгента(
     surface?: 'bot' | 'business'
     /** Only a model that calls tools may answer (the unattended sweep). */
     toolsOnly?: boolean
+    /**
+     * One line about the person, from what Telegram openly shows
+     * (telegramPersonCard.ts). Owner, 2026-09-20: the tone of voice is wrong
+     * because the agent knows nothing about whom it is writing to.
+     *
+     * IT TRAVELS FROM HERE and not from the server, because only the bot has
+     * the update and the token. The render fences it as another person's
+     * words: a profile bio is written by a stranger.
+     */
+    personNote?: string
   } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
@@ -357,6 +367,7 @@ export async function спроситьАгента(
           messages,
           surface: opts.surface ?? 'bot',
           ...(opts.toolsOnly ? { tools_only: true } : {}),
+          ...(opts.personNote ? { person_note: opts.personNote } : {}),
         }),
         signal: прерыватель.signal,
       }
