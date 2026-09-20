@@ -88,7 +88,7 @@ import {
   decide as decideApproval,
   readApproval,
 } from './src/browser/approvals'
-import { markAllowed } from './src/browser/sessions'
+import { markAllowed, ensureBrowserSessions } from './src/browser/sessions'
 
 /** Who asked, so the yes lands on their session and nobody else's. */
 const approvalOwner = async (pool: any, id: string) =>
@@ -3061,42 +3061,77 @@ const server = createServer(async (req, res) => {
    * docs/architecture/remote-browser-per-user.md.
    */
   if (isLivePath((req.url || '').split('?')[0])) {
-    const parsed = parseLive(req.url || '', req.headers.cookie)
-    if (!parsed) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' })
-      res.end('no such session')
+    /*
+     * EVERY PATH OUT OF HERE WRITES A RESPONSE.
+     *
+     * This block runs BEFORE `authenticate()`, so it is reachable by anyone
+     * on the internet, and it was not wrapped. When the query threw -- which
+     * it did in production the moment this shipped, because nothing had ever
+     * created `browser_sessions` there -- the rejection was unhandled, no
+     * response was ever written, and the request hung until Railway gave up
+     * with a 502. Measured: three requests, three 502s, while /health stayed
+     * green, because the process was fine and only the request was lost.
+     *
+     * A route that can hang is worse than one that can fail: the failure is
+     * invisible in health checks and looks like the platform's fault.
+     */
+    try {
+      const parsed = parseLive(req.url || '', req.headers.cookie)
+      if (!parsed) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' })
+        res.end('no such session')
+        return
+      }
+      const secure =
+        req.headers['x-forwarded-proto'] === 'https' ||
+        Boolean((req.socket as unknown as { encrypted?: boolean }).encrypted)
+      const livePool = (await getPool()) as any
+      /* The table has to exist before it is read; nothing else on this path
+         creates it, and a stranger triggering CREATE TABLE IF NOT EXISTS is
+         harmless and happens once per process. */
+      await ensureBrowserSessions(livePool)
+      const decision = await authorizeLive(livePool, parsed, { secure })
+      if (decision.kind === 'refuse') {
+        res.writeHead(decision.status, { 'Content-Type': 'text/plain' })
+        res.end(decision.message)
+        return
+      }
+      if (decision.kind === 'redirect') {
+        res.writeHead(302, {
+          Location: decision.location,
+          'Set-Cookie': decision.setCookie,
+        })
+        res.end()
+        return
+      }
+      pipeHttp(
+        {
+          endpoint: decision.endpoint,
+          upstreamPath: decision.upstreamPath,
+          sessionId: parsed.sessionId,
+          viewToken: decision.viewToken,
+          /*
+           * SERVER-SIDE ONLY, AND THEY WERE MISSING. Listing the fields by
+           * hand meant the two added later were silently dropped here while
+           * the local check script -- which spreads the decision -- kept
+           * working. The window's own fitter and the person's own avatar
+           * were dead in production and nowhere else.
+           */
+          adminToken: decision.adminToken,
+          telegramId: decision.telegramId,
+        },
+        req,
+        res
+      )
+      return
+    } catch (e) {
+      console.error('[live] отказ на пути зрителя:', e) // cyrillic-ok: log
+      if (!res.headersSent) {
+        res.writeHead(503, { 'Content-Type': 'text/plain' })
+      }
+      res.end('browser is not available right now')
       return
     }
-    const secure =
-      req.headers['x-forwarded-proto'] === 'https' ||
-      Boolean((req.socket as unknown as { encrypted?: boolean }).encrypted)
-    const decision = await authorizeLive((await getPool()) as any, parsed, {
-      secure,
-    })
-    if (decision.kind === 'refuse') {
-      res.writeHead(decision.status, { 'Content-Type': 'text/plain' })
-      res.end(decision.message)
-      return
-    }
-    if (decision.kind === 'redirect') {
-      res.writeHead(302, {
-        Location: decision.location,
-        'Set-Cookie': decision.setCookie,
-      })
-      res.end()
-      return
-    }
-    pipeHttp(
-      {
-        endpoint: decision.endpoint,
-        upstreamPath: decision.upstreamPath,
-        sessionId: parsed.sessionId,
-        viewToken: decision.viewToken,
-      },
-      req,
-      res
-    )
-    return
   }
 
   // Аутентификация. До этого сервис не проверял ничего: любой мог залить 100 МБ
@@ -11733,7 +11768,10 @@ async function main() {
     const parsed = parseLive(req.url || '', req.headers.cookie)
     if (!parsed) return refuseUpgrade(socket, 404)
     try {
-      const decision = await authorizeLive((await getPool()) as any, parsed, {
+      const upgradePool = (await getPool()) as any
+      /* Same reason as the HTTP path: nothing else here creates the table. */
+      await ensureBrowserSessions(upgradePool)
+      const decision = await authorizeLive(upgradePool, parsed, {
         secure: false,
       })
       /* A redirect cannot be spoken to a WebSocket: the cookie must exist. */
