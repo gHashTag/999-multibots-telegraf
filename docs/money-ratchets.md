@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 145. Без заголовка: 0.
+Ратчетов: 146. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -45,6 +45,7 @@
 | `creditNotInLoop.test.ts`                              | user credits are not called inside a loop (scalar-credit mint #1468/#1470)                    |
 | `creditSiteCensus.test.ts`                             | credit-site census: no unreviewed mint surface                                                |
 | `creditedIsNotOk.test.ts`                              | ok is not credited                                                                            |
+| `directChargeMovesTheRealWallet.test.ts`               | a direct charge                                                                               |
 | `directPaymentPostCommit.test.ts`                      | a payment that committed is reported as committed                                             |
 | `directPaymentRefusalDoesNotPage.test.ts`              | directPaymentProcessor: which refusals page the owner                                         |
 | `emailWizardPriceAllowlist.test.ts`                    | emailWizard setPayments is allowlist-guarded                                                  |

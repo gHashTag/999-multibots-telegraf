@@ -35,6 +35,18 @@ const insertSingle = vi.fn()
  * database, passing or failing for reasons that have nothing to do with the
  * commit boundary.
  */
+/*
+ * THE LIVE WALLET, added 2026-09-20. `directPaymentProcessor` now moves
+ * `user_tokens` before it writes the archive row -- before that, a charge
+ * only ever wrote to `payments_v2` and the balance never moved, so the same
+ * tokens bought an unbounded number of paid generations. Without this double
+ * the function reaches for a real Postgres pool and this file tests nothing.
+ */
+vi.mock('@/core/wallet/tokenWallet', () => ({
+  debitTokens: async (_id: string, amount: number) => 1000 - amount,
+  creditTokens: async (_id: string, amount: number) => 1000 + amount,
+}))
+
 vi.mock('@/core/supabase', async () => {
   const actual =
     await vi.importActual<typeof import('@/core/supabase')>('@/core/supabase')
