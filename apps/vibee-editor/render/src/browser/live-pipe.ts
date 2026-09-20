@@ -19,7 +19,8 @@
 import { request as httpRequest } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
-import { injectSkin, shouldDress } from './skin'
+import { injectSkin, shouldDress, FIT_PATH } from './skin'
+import { applyScreen, wantedScreen } from './screen'
 import { cookieNameFor, LIVE_PREFIX, LOGIN_PLACEHOLDER } from './live-proxy'
 
 /** Ours to hold, never to forward. */
@@ -64,7 +65,24 @@ export interface PipeTarget {
   sessionId: string
   /** Server-side only. Swapped into the pod login; never sent to a client. */
   viewToken: string
+  /** Server-side only. The pod's admin password; see FIT_PATH below. */
+  adminToken?: string
 }
+
+/**
+ * THE WINDOW ASKS FOR ITS OWN SHAPE.
+ *
+ * The mini app's Browser tab measures its box and asks the broker to reshape
+ * the desktop (screen.ts). Somebody who opens the viewer URL directly -- which
+ * is how it is tested, and how a link shared to a phone behaves -- had no such
+ * fitter, so they got a 1280x800 desktop letterboxed into a phone.
+ *
+ * This is that fitter, on the viewer's own path. It needs no session of the
+ * app: the person already proved who they are to get this far, the cookie is
+ * on the request, and the admin password stays on this side. A reserved name
+ * under the session's own prefix, so it can never collide with a pod route.
+ */
+export { FIT_PATH } from './skin'
 
 /** The one request whose body we touch: the page logging in to its own pod. */
 export function isPodLogin(method: string | undefined, path: string): boolean {
@@ -118,6 +136,11 @@ export function pipeHttp(
   req: IncomingMessage,
   res: ServerResponse
 ): void {
+  if (target.upstreamPath.split('?')[0] === FIT_PATH) {
+    void fitFromQuery(target, req, res)
+    return
+  }
+
   const { host, port } = hostPort(target.endpoint)
   const headers = { ...req.headers }
   delete headers.host
@@ -200,6 +223,30 @@ export function pipeHttp(
     upstream.setHeader('content-length', Buffer.byteLength(body))
     upstream.end(body)
   })
+}
+
+async function fitFromQuery(
+  target: PipeTarget,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  const answer = (status: number, body: unknown) => {
+    res.writeHead(status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(body))
+  }
+  if (!target.adminToken) return answer(409, { ok: false, error: 'no admin' })
+  const q = new URLSearchParams((req.url || '').split('?')[1] || '')
+  const want = wantedScreen({
+    width: Number(q.get('w')),
+    height: Number(q.get('h')),
+  })
+  try {
+    const got = await applyScreen(target.endpoint, target.adminToken, want)
+    answer(200, { ok: true, screen: got })
+  } catch (e) {
+    /* A pod that will not resize is still a pod; the person keeps watching. */
+    answer(502, { ok: false, error: e instanceof Error ? e.message : 'failed' })
+  }
 }
 
 /**

@@ -15,6 +15,22 @@ for i in $(seq 1 240); do
 done
 echo "1) neko http 8080 (the human's side): $c"
 
+# THE FLAGS ACTUALLY REACHED CHROMIUM.
+#
+# This check exists because they once did not. The flags lived in
+# supervisord's `command=` with a shell bolted in front to unlock the
+# profile; supervisord split that line its own way and Chromium came up with
+# NEITHER the profile NOR the debugging port -- and nothing anywhere said so.
+# The pod looked healthy, the stream ran, the person's logins were simply not
+# there. A check that the process carries what we told it to carry is the
+# cheapest way to never repeat that.
+echo -n "1b) chromium carries our flags:      "
+FLAGS=$(docker exec $NAME sh -c "ps -eo args --no-headers | grep -m1 -- --user-data-dir" 2>/dev/null)
+MISSING=""
+case "$FLAGS" in *--user-data-dir=/home/neko/.config/chromium*) ;; *) MISSING="$MISSING user-data-dir";; esac
+case "$FLAGS" in *--remote-debugging-port=9222*) ;; *) MISSING="$MISSING remote-debugging-port";; esac
+if [ -n "$MISSING" ]; then echo "MISSING:$MISSING"; else echo "ok"; fi
+
 echo -n "2) CDP inside the container:        "
 docker exec $NAME curl -s --max-time 3 http://127.0.0.1:9222/json/version 2>/dev/null | head -c 90; echo
 

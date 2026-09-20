@@ -98,7 +98,7 @@ if (storedVersion !== STORAGE_VERSION) {
   localStorage.setItem(VERSION_KEY, STORAGE_VERSION)
   if (keysToRemove.length > 0) {
     console.log(
-      `[VIBEE] Storage reset (v${storedVersion} → v${STORAGE_VERSION}), cleared ${keysToRemove.length} keys`
+      `[Trinity] Storage reset (v${storedVersion} → v${STORAGE_VERSION}), cleared ${keysToRemove.length} keys`
     )
   }
 }

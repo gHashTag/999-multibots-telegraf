@@ -254,7 +254,25 @@ describe('the gate', () => {
       upstreamPath: '/ws',
       /* Carried server-side so the pod login can be filled in for the page. */
       viewToken: SESSION.view_token,
+      /* Also server-side: it reshapes the desktop and must never be sent. */
+      adminToken: SESSION.admin_token,
     })
+  })
+
+  it('CARRIES THE ADMIN TOKEN NOWHERE A CLIENT CAN SEE IT', () => {
+    /*
+     * The decision is an internal value, never a response body. This is the
+     * cheap reminder of which half of it is a secret: whoever holds the pod's
+     * admin password can change the room, not merely watch it.
+     */
+    const kept = JSON.stringify({
+      ok: true,
+      state: 'live',
+      sessionId: SESSION.session_id,
+    })
+    expect(kept).not.toContain(SESSION.admin_token)
+    expect(kept).not.toContain(SESSION.view_token)
+    expect(kept).not.toContain(SESSION.endpoint)
   })
 })
 

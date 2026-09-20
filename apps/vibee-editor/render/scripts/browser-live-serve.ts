@@ -37,10 +37,23 @@ async function main() {
 
   const sessionId = newSessionToken()
   const viewToken = newSessionToken()
+  /*
+   * ONE admin token, given to the pod AND written into the session row.
+   *
+   * It used to be minted inline in the `start` call and never stored, so the
+   * pod had one password and the broker believed another. Nothing noticed
+   * until the window asked to be resized and got a 502: every path that
+   * needs the pod's admin API was quietly broken here.
+   */
+  const adminToken = newSessionToken()
+  /* A real profile name, so the dev stand does not share one volume called
+     "browser-profile-undefined" with every other run. */
+  const profileId = 'dev-900000001'
   const pod = await driver.start({
     sessionId,
     viewToken,
-    adminToken: newSessionToken(),
+    adminToken,
+    profileId,
   })
   for (let i = 0; i < 180; i++) {
     try {
@@ -58,7 +71,8 @@ async function main() {
     endpoint: pod.endpoint,
     state: 'live',
     view_token: viewToken,
-    admin_token: 'kept-on-the-server', // secret-guard-ok: fixture, the point is that it stays here
+    /* The SAME one the pod was started with; see the note above. */
+    admin_token: adminToken,
   }
   const pool: Queryable = {
     async query(sql, params = []) {
