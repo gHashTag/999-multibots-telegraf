@@ -361,6 +361,34 @@ function packsLine(): string {
     .join(', ')
 }
 
+/**
+ * THE LANGUAGE OF THE ANSWER IS THE PERSON'S, NOT THIS FILE'S.
+ *
+ * Owner, 2026-09-20: people write to it in English and it answers in Russian.
+ *
+ * The cause was one line -- an unconditional order to answer in Russian --
+ * which the model obeyed exactly as written. It stayed invisible because
+ * everybody who tested it wrote in Russian and got Russian back, so the bug
+ * looked like correct behaviour to every person able to notice it.
+ *
+ * The replacement has to fight the prompt itself: this whole instruction is
+ * written in Russian, and a model mirrors the language it is instructed in
+ * unless told otherwise. So it is told otherwise, in as many words.
+ *
+ * Assembled from string literals rather than written inside the template, so
+ * the no-cyrillic gate can see that every line of it is TEXT.
+ */
+const ANSWER_IN_THEIR_LANGUAGE = [
+  'ЯЗЫК ОТВЕТА — ЯЗЫК ЧЕЛОВЕКА, А НЕ ЯЗЫК ЭТОЙ ИНСТРУКЦИИ.', // cyrillic-ok: prompt copy
+  'Написали по-английски — отвечай по-английски. По-русски — по-русски.', // cyrillic-ok: prompt copy
+  'На любом другом языке — на нём же.', // cyrillic-ok: prompt copy
+  'Эта инструкция вся по-русски, и это НЕ указание отвечать по-русски:', // cyrillic-ok: prompt copy
+  'человек её не видит и её язык не выбирал.', // cyrillic-ok: prompt copy
+  'Переключение внутри разговора — тоже сигнал: перешли на английский —', // cyrillic-ok: prompt copy
+  'переходи и ты, со следующей реплики, не объявляя об этом.', // cyrillic-ok: prompt copy
+  'Исключение одно: человек прямо попросил другой язык.', // cyrillic-ok: prompt copy
+].join('\n')
+
 const SYSTEM_TEMPLATE = `Ты — агент внутри приложения Trinity S³AI для создания рилсов.
 
 Ты не советчик, а исполнитель: у тебя есть инструменты, которые ДЕЙСТВИТЕЛЬНО
@@ -432,7 +460,9 @@ ${WEB_RULES}
   чем у 90% людей, которые только собираются».
 ${MONEY_AND_PLAN}
 
-Отвечай по-русски, коротко, числами из инструментов, а не примерными.`
+${ANSWER_IN_THEIR_LANGUAGE}
+
+Отвечай коротко, числами из инструментов, а не примерными.`
 
 /** The prompt for a surface: the club for creators, the invoice for a client in the DM. */
 function systemFor(surface?: string): string {
