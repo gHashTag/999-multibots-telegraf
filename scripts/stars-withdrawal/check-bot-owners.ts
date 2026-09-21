@@ -7,6 +7,7 @@
  */
 
 import 'dotenv/config'
+import { telegramApiFor } from '../../src/services/telegramApi'
 
 interface BotConfig {
   username: string
@@ -15,22 +16,62 @@ interface BotConfig {
 }
 
 const BOTS: BotConfig[] = [
-  { username: 'neuro_blogger_bot', tokenEnvVar: 'BOT_TOKEN_1', description: 'NeuroBlogger' },
-  { username: 'MetaMuse_Manifest_bot', tokenEnvVar: 'BOT_TOKEN_2', description: 'MetaMuse' },
+  {
+    username: 'neuro_blogger_bot',
+    tokenEnvVar: 'BOT_TOKEN_1',
+    description: 'NeuroBlogger',
+  },
+  {
+    username: 'MetaMuse_Manifest_bot',
+    tokenEnvVar: 'BOT_TOKEN_2',
+    description: 'MetaMuse',
+  },
   { username: 'ZavaraBot', tokenEnvVar: 'BOT_TOKEN_3', description: 'Zavara' },
-  { username: 'LeeSolarbot', tokenEnvVar: 'BOT_TOKEN_4', description: 'LeeSolar' },
-  { username: 'NeuroLenaAssistant_bot', tokenEnvVar: 'BOT_TOKEN_5', description: 'NeuroLena' },
-  { username: 'NeurostylistShtogrina_bot', tokenEnvVar: 'BOT_TOKEN_6', description: 'Neurostylist' },
-  { username: 'Gaia_Kamskaia_bot', tokenEnvVar: 'BOT_TOKEN_7', description: 'Gaia' },
-  { username: 'Kaya_easy_art_bot', tokenEnvVar: 'BOT_TOKEN_8', description: 'Kaya' },
-  { username: 'AI_STARS_bot', tokenEnvVar: 'BOT_TOKEN_9', description: 'AI Stars' },
-  { username: 'ai_koshey_bot', tokenEnvVar: 'BOT_TOKEN_TEST_1', description: 'AI Koshey' },
-  { username: 'clip_maker_neuro_bot', tokenEnvVar: 'BOT_TOKEN_TEST_2', description: 'Clip Maker' },
+  {
+    username: 'LeeSolarbot',
+    tokenEnvVar: 'BOT_TOKEN_4',
+    description: 'LeeSolar',
+  },
+  {
+    username: 'NeuroLenaAssistant_bot',
+    tokenEnvVar: 'BOT_TOKEN_5',
+    description: 'NeuroLena',
+  },
+  {
+    username: 'NeurostylistShtogrina_bot',
+    tokenEnvVar: 'BOT_TOKEN_6',
+    description: 'Neurostylist',
+  },
+  {
+    username: 'Gaia_Kamskaia_bot',
+    tokenEnvVar: 'BOT_TOKEN_7',
+    description: 'Gaia',
+  },
+  {
+    username: 'Kaya_easy_art_bot',
+    tokenEnvVar: 'BOT_TOKEN_8',
+    description: 'Kaya',
+  },
+  {
+    username: 'AI_STARS_bot',
+    tokenEnvVar: 'BOT_TOKEN_9',
+    description: 'AI Stars',
+  },
+  {
+    username: 'ai_koshey_bot',
+    tokenEnvVar: 'BOT_TOKEN_TEST_1',
+    description: 'AI Koshey',
+  },
+  {
+    username: 'clip_maker_neuro_bot',
+    tokenEnvVar: 'BOT_TOKEN_TEST_2',
+    description: 'Clip Maker',
+  },
 ]
 
 async function getBotInfo(token: string): Promise<any | null> {
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`)
+    const response = await fetch(`${telegramApiFor(token)}/getMe`)
     const data = await response.json()
     return data.ok ? data.result : null
   } catch {
@@ -40,7 +81,9 @@ async function getBotInfo(token: string): Promise<any | null> {
 
 async function getStarBalance(token: string): Promise<number | null> {
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/getStarTransactions?limit=1`)
+    const response = await fetch(
+      `${telegramApiFor(token)}/getStarTransactions?limit=1`
+    )
     const data = await response.json()
     // Bot API doesn't have getMyStarBalance directly, need to calculate from transactions
     // For now just check if we have access
@@ -79,7 +122,7 @@ async function main() {
       console.log(`   Токен: ${bot.tokenEnvVar} ✓`)
 
       // Try to get star balance via Bot API
-      const response = await fetch(`https://api.telegram.org/bot${token}/getMyStarBalance`)
+      const response = await fetch(`${telegramApiFor(token)}/getMyStarBalance`)
       const balanceData = await response.json()
 
       if (balanceData.ok) {
@@ -88,10 +131,12 @@ async function main() {
           username: bot.username,
           hasToken: true,
           botId: info.id,
-          balance: balanceData.result.amount
+          balance: balanceData.result.amount,
         })
       } else {
-        console.log(`   Stars: API недоступен (${balanceData.description || 'unknown'})`)
+        console.log(
+          `   Stars: API недоступен (${balanceData.description || 'unknown'})`
+        )
         results.push({ username: bot.username, hasToken: true, botId: info.id })
       }
     } else {
@@ -109,7 +154,9 @@ async function main() {
   console.log('='.repeat(70))
 
   const withToken = results.filter(r => r.hasToken)
-  const withBalance = results.filter(r => r.balance !== undefined && r.balance > 0)
+  const withBalance = results.filter(
+    r => r.balance !== undefined && r.balance > 0
+  )
   const totalBalance = results.reduce((sum, r) => sum + (r.balance || 0), 0)
 
   console.log(`📊 Ботов с токенами: ${withToken.length}/${BOTS.length}`)

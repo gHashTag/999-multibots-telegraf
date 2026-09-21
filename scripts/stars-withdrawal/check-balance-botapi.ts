@@ -11,6 +11,7 @@
  */
 
 import 'dotenv/config'
+import { telegramApiFor } from '../../src/services/telegramApi'
 
 interface BotConfig {
   username: string
@@ -20,17 +21,57 @@ interface BotConfig {
 
 // Все боты проекта
 const BOTS: BotConfig[] = [
-  { username: 'neuro_blogger_bot', tokenEnvVar: 'BOT_TOKEN_1', description: 'NeuroBlogger' },
-  { username: 'MetaMuse_Manifest_bot', tokenEnvVar: 'BOT_TOKEN_2', description: 'MetaMuse' },
+  {
+    username: 'neuro_blogger_bot',
+    tokenEnvVar: 'BOT_TOKEN_1',
+    description: 'NeuroBlogger',
+  },
+  {
+    username: 'MetaMuse_Manifest_bot',
+    tokenEnvVar: 'BOT_TOKEN_2',
+    description: 'MetaMuse',
+  },
   { username: 'ZavaraBot', tokenEnvVar: 'BOT_TOKEN_3', description: 'Zavara' },
-  { username: 'LeeSolarbot', tokenEnvVar: 'BOT_TOKEN_4', description: 'LeeSolar' },
-  { username: 'NeuroLenaAssistant_bot', tokenEnvVar: 'BOT_TOKEN_5', description: 'NeuroLena' },
-  { username: 'NeurostylistShtogrina_bot', tokenEnvVar: 'BOT_TOKEN_6', description: 'Neurostylist' },
-  { username: 'Gaia_Kamskaia_bot', tokenEnvVar: 'BOT_TOKEN_7', description: 'Gaia' },
-  { username: 'Kaya_easy_art_bot', tokenEnvVar: 'BOT_TOKEN_8', description: 'Kaya' },
-  { username: 'AI_STARS_bot', tokenEnvVar: 'BOT_TOKEN_9', description: 'AI Stars' },
-  { username: 'ai_koshey_bot', tokenEnvVar: 'BOT_TOKEN_TEST_1', description: 'AI Koshey' },
-  { username: 'clip_maker_neuro_bot', tokenEnvVar: 'BOT_TOKEN_TEST_2', description: 'Clip Maker' },
+  {
+    username: 'LeeSolarbot',
+    tokenEnvVar: 'BOT_TOKEN_4',
+    description: 'LeeSolar',
+  },
+  {
+    username: 'NeuroLenaAssistant_bot',
+    tokenEnvVar: 'BOT_TOKEN_5',
+    description: 'NeuroLena',
+  },
+  {
+    username: 'NeurostylistShtogrina_bot',
+    tokenEnvVar: 'BOT_TOKEN_6',
+    description: 'Neurostylist',
+  },
+  {
+    username: 'Gaia_Kamskaia_bot',
+    tokenEnvVar: 'BOT_TOKEN_7',
+    description: 'Gaia',
+  },
+  {
+    username: 'Kaya_easy_art_bot',
+    tokenEnvVar: 'BOT_TOKEN_8',
+    description: 'Kaya',
+  },
+  {
+    username: 'AI_STARS_bot',
+    tokenEnvVar: 'BOT_TOKEN_9',
+    description: 'AI Stars',
+  },
+  {
+    username: 'ai_koshey_bot',
+    tokenEnvVar: 'BOT_TOKEN_TEST_1',
+    description: 'AI Koshey',
+  },
+  {
+    username: 'clip_maker_neuro_bot',
+    tokenEnvVar: 'BOT_TOKEN_TEST_2',
+    description: 'Clip Maker',
+  },
 ]
 
 interface StarBalance {
@@ -40,7 +81,7 @@ interface StarBalance {
 
 async function getStarBalance(token: string): Promise<StarBalance | null> {
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/getMyStarBalance`)
+    const response = await fetch(`${telegramApiFor(token)}/getMyStarBalance`)
     const data = await response.json()
 
     if (data.ok) {
@@ -57,7 +98,7 @@ async function getStarBalance(token: string): Promise<StarBalance | null> {
 
 async function getBotInfo(token: string): Promise<string> {
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`)
+    const response = await fetch(`${telegramApiFor(token)}/getMe`)
     const data = await response.json()
     return data.ok ? `@${data.result.username}` : 'Unknown'
   } catch {
@@ -78,7 +119,9 @@ async function main() {
     const token = process.env[bot.tokenEnvVar]
 
     if (!token) {
-      console.log(`⚠️  ${bot.description}: Токен не найден (${bot.tokenEnvVar})`)
+      console.log(
+        `⚠️  ${bot.description}: Токен не найден (${bot.tokenEnvVar})`
+      )
       continue
     }
 

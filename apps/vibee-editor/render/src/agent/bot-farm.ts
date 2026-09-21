@@ -20,6 +20,7 @@
  */
 
 import { askSupabase } from './crm-tools'
+import { telegramApiFor } from '../telegram-api'
 
 export interface FarmBot {
   /** Lower-case username without the @. */
@@ -60,7 +61,7 @@ async function build(
   await Promise.all(
     tokensFromEnv(env).map(async token => {
       try {
-        const r = await fetchImpl(`https://api.telegram.org/bot${token}/getMe`)
+        const r = await fetchImpl(`${telegramApiFor(token)}/getMe`)
         const d = (await r.json()) as {
           ok?: boolean
           result?: { username?: unknown }

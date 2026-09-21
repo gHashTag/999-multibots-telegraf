@@ -37,6 +37,10 @@
  */
 'use strict'
 
+// The host is chosen per bot: a bot on our own Bot API server must never be
+// asked on the cloud (scripts/lib/telegram-api.cjs).
+const { telegramApiFor } = require('./lib/telegram-api.cjs')
+
 const BASE =
   process.env.RENDER_BASE_URL ||
   'https://vibee-render-production.up.railway.app'
@@ -71,7 +75,7 @@ function advertised() {
 }
 
 async function tg(method, body = {}, token) {
-  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  const r = await fetch(`${telegramApiFor(token)}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

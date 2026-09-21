@@ -3,6 +3,7 @@ import { createInngestFailureHandler } from '@/inngest_app/client'
 import { safeRecipient, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { supabaseAdmin } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import { telegramApiFor } from '@/services/telegramApi'
 
 const STAR_USD = 0.016
 const USD_RUB = 91
@@ -19,7 +20,7 @@ async function sendTelegram(chatId: string, text: string) {
   if (!token || !chatId) return
   const parts = text.match(/[\s\S]{1,4000}/g) || [text]
   for (const part of parts) {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    await fetch(`${telegramApiFor(token)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: part, parse_mode: 'HTML' }),

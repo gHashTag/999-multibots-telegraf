@@ -27,6 +27,7 @@ import {
 } from '@/helpers/video-helpers'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { telegramFileLink } from '@/services/telegramFiles'
 
 const MAX_FILE_SIZE = LIPSYNC_CONSTANTS.MAX_FILE_SIZE
 
@@ -152,7 +153,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         }
 
         const videoFile = await ctx.telegram.getFile(message.video.file_id)
-        const videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
+        const videoUrl = await telegramFileLink(ctx.telegram.token, videoFile)
 
         videoInput = {
           type: 'telegram_file',
@@ -253,7 +254,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         }
 
         const audioFile = await ctx.telegram.getFile(message.audio.file_id)
-        const audioUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${audioFile.file_path}`
+        const audioUrl = await telegramFileLink(ctx.telegram.token, audioFile)
 
         audioInput = {
           type: 'telegram_file',
@@ -281,7 +282,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         }
 
         const voiceFile = await ctx.telegram.getFile(message.voice.file_id)
-        const audioUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${voiceFile.file_path}`
+        const audioUrl = await telegramFileLink(ctx.telegram.token, voiceFile)
 
         audioInput = {
           type: 'telegram_file',

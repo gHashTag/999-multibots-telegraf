@@ -21,6 +21,8 @@
  * the window works without it.
  */
 
+import { telegramApiFor, telegramFileUrlFor } from '../telegram-api'
+
 export interface AvatarBytes {
   contentType: string
   bytes: Buffer
@@ -96,7 +98,7 @@ export async function telegramAvatar(
   if (!telegramId || !token) return remember(null)
 
   try {
-    const api = `https://api.telegram.org/bot${token}`
+    const api = telegramApiFor(token)
     const list = (await (
       await fetcher(
         `${api}/getUserProfilePhotos?user_id=${encodeURIComponent(
@@ -118,9 +120,7 @@ export async function telegramAvatar(
     const path = file?.result?.file_path
     if (!path) return remember(null)
 
-    const bin = await fetcher(
-      `https://api.telegram.org/file/bot${token}/${path}`
-    )
+    const bin = await fetcher(telegramFileUrlFor(token, path))
     if (!bin.ok) return remember(null)
     return remember({
       contentType: bin.headers.get('content-type') || 'image/jpeg',

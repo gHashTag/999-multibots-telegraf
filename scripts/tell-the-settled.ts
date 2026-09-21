@@ -36,6 +36,8 @@
  *   railway run -s 999-multibots-telegraf npx tsx scripts/tell-the-settled.ts
  *   railway run -s 999-multibots-telegraf npx tsx scripts/tell-the-settled.ts --commit
  */
+import { telegramApiFor } from '../src/services/telegramApi'
+
 const COMMIT = process.argv.includes('--commit')
 
 /**
@@ -114,7 +116,7 @@ async function tokenFor(username: string): Promise<string | null> {
     const token = process.env[`BOT_TOKEN_${i}`]
     if (!token) continue
     try {
-      const res = await fetch(`https://api.telegram.org/bot${token}/getMe`)
+      const res = await fetch(`${telegramApiFor(token)}/getMe`)
       const body = (await res.json()) as {
         ok?: boolean
         result?: { username?: string }
@@ -150,14 +152,11 @@ async function main(): Promise<void> {
       continue
     }
     try {
-      const res = await fetch(
-        `https://api.telegram.org/bot${token}/sendMessage`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: person.telegram_id, text: body }),
-        }
-      )
+      const res = await fetch(`${telegramApiFor(token)}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: person.telegram_id, text: body }),
+      })
       const answer = (await res.json()) as {
         ok?: boolean
         description?: string

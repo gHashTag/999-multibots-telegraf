@@ -27,7 +27,7 @@ setupGlobalErrorHandlers()
 
 // Bot initialization (see logs below)
 
-import { Composer, Telegraf, Scenes, Context } from 'telegraf'
+import { Composer, Telegraf, Scenes, Context, Telegram } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
 import { registerCommands, createStage } from './navigation'
 import { MyContext } from './interfaces'
@@ -71,6 +71,12 @@ import { supabase } from './core/supabase'
 // itself. PR #2363 decided this here; the helper now lives in one place so the
 // other six sites that printed prefixes could be moved onto the same rule.
 import { secretFingerprint } from '@/utils/secretFingerprint'
+import {
+  assertBotApiConfig,
+  describeBotApiConfig,
+  telegramClientOptionsFor,
+} from '@/services/telegramApi'
+import { installLocalFileLinks } from '@/services/telegramFiles'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -99,7 +105,9 @@ export async function validateBotToken(
   tokenName?: string
 ): Promise<boolean> {
   try {
-    const bot = new Telegraf(token)
+    const bot = new Telegraf(token, {
+      telegram: telegramClientOptionsFor(token),
+    })
     const botInfo = await bot.telegram.getMe()
     return true
   } catch (error) {
@@ -211,6 +219,19 @@ async function launchWithConflictRetry(
 async function initializeBots() {
   console.log('🤖 Инициализация ботов:', isDev ? 'development' : 'production')
 
+  /*
+   * OUR OWN BOT API SERVER, BEFORE THE FIRST CALL.
+   *
+   * A malformed TELEGRAM_API_ROOT / TELEGRAM_API_FILES_ROOT /
+   * BOT_API_LOCAL_BOTS throws here, naming the variable, and startApplication
+   * exits: a bot that left the cloud must not be called there even once
+   * (services/telegramApi.ts). And Telegraf's getFileLink answers a useless
+   * `file:` URL for such a bot, so it is taught the shelf before any scene
+   * asks for a link.
+   */
+  assertBotApiConfig()
+  installLocalFileLinks(Telegram)
+
   const stage = createStage()
 
   // 🚀 МАСШТАБИРУЕМАЯ АРХИТЕКТУРА: автоматически находим все BOT_TOKEN_*
@@ -247,6 +268,9 @@ async function initializeBots() {
   // This variable holds environment variable NAMES, and is named accordingly.
   const loadedSlots = botTokenEntries.map(e => e.key).join(', ')
   console.log(`   📝 Используются: ${loadedSlots}`)
+  // Bot ids only -- the line names which bots our own server carries.
+  const botApiLine = describeBotApiConfig(botTokens)
+  console.log(`   ${botApiLine}`)
   console.log(
     `   💡 Чтобы добавить ещё ботов, добавьте BOT_TOKEN_${nextFreeBotSlot()} в Infisical\n`
   )
@@ -278,6 +302,7 @@ async function initializeBots() {
     if (await validateBotToken(token, tokenName)) {
       const bot = new Telegraf<MyContext>(token, {
         handlerTimeout: Infinity,
+        telegram: telegramClientOptionsFor(token),
       })
       bot.use(Telegraf.log(scrubbedLog)) // Log all Telegraf updates and middleware flow
 

@@ -204,6 +204,7 @@ function* strings(value, path = '') {
 const SELF_CHECK = [
   [
     'токен бота Telegram',
+    // telegram-api-root-ok: a made-up sample for the scanner's self-check.
     'https://api.telegram.org/file/bot1111111111:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/p/f.jpg', // secret-guard-ok: выдуманный образец самопроверки
   ],
   /**

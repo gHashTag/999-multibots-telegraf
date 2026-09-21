@@ -144,10 +144,20 @@ if [ "${REGRESS_PROBE_PROD:-0}" = "1" ]; then
   #
   # Теперь приёмник один — опрос, — и признак здоровья обратный: вебхука быть
   # НЕ должно. Кассовый токен живёт в vibee-render, печатать нельзя.
-  PAYBOT=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep ^TOKENS_PAYMENT_BOT_TOKEN= | cut -d= -f2-)
+  RENDER_KV=$(railway variables list -s vibee-render -e production --kv 2>/dev/null)
+  PAYBOT=$(printf '%s\n' "$RENDER_KV" | grep ^TOKENS_PAYMENT_BOT_TOKEN= | cut -d= -f2-)
   if [ -n "$PAYBOT" ]; then
-    wh=$(curl -s -m 10 "https://api.telegram.org/bot${PAYBOT}/getWebhookInfo" | python3 -c "import json,sys; u=json.load(sys.stdin)['result'].get('url',''); print('gone' if not u else 'set')" 2>/dev/null)
-    check "у кассира нет вебхука (принимает опросом)" gone "$wh"
+    # Which Bot API holds the cashier is the RENDER's decision
+    # (BOT_API_LOCAL_BOTS). A bot on our own server must never be asked on the
+    # cloud -- that request logs it back in there -- and its server is on the
+    # private network, out of reach from here.
+    PAYROOT=$(printf '%s\n' "$RENDER_KV" | BOT_API_TOKEN="$PAYBOT" node scripts/lib/telegram-api.cjs api-root --env-from-stdin 2>/dev/null)
+    if [ "$PAYROOT" = "$(node -p 'require("./scripts/lib/telegram-api.cjs").CLOUD_API_ROOT')" ]; then
+      wh=$(curl -s -m 10 "${PAYROOT}/bot${PAYBOT}/getWebhookInfo" | python3 -c "import json,sys; u=json.load(sys.stdin)['result'].get('url',''); print('gone' if not u else 'set')" 2>/dev/null)
+      check "у кассира нет вебхука (принимает опросом)" gone "$wh"
+    else
+      echo "  · кассир на нашем Bot API сервере (${PAYROOT:-конфигурация не читается}) — вебхук отсюда не проверить"
+    fi
   fi
 fi
 
