@@ -253,3 +253,21 @@ describe('returnWhenSignedIn', () => {
     expect(d.refresh).not.toHaveBeenCalled()
   })
 })
+
+describe('the board on the app itself (app.t27.ai/queen)', () => {
+  const BOARD = 'https://app.t27.ai/queen/#/queen'
+  it('is a return target, rebuilt from constants, with the same views and screens', () => {
+    expect(returnTargetOf(BOARD)).toBe(BOARD)
+    expect(returnTargetOf(`${BOARD}?tab=kanban`)).toBe(`${BOARD}?tab=kanban`)
+    expect(returnTargetOf(`${BOARD}?tab=tri&screen=profile`)).toBe(
+      `${BOARD}?tab=tri&screen=profile`
+    )
+  })
+  it('refuses anything that is not exactly the board', () => {
+    expect(returnTargetOf('https://app.t27.ai/queenly/#/queen')).toBeNull()
+    expect(returnTargetOf('https://app.t27.ai/#/queen')).toBeNull()
+    expect(returnTargetOf('https://evil.test/queen/#/queen')).toBeNull()
+    expect(returnTargetOf(`${BOARD}?tab=nope`)).toBeNull()
+    expect(returnTargetOf(`${BOARD}?tab=kanban&screen=profile`)).toBeNull()
+  })
+})
