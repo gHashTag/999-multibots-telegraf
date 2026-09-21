@@ -39,6 +39,7 @@ import {
 } from './approvals'
 import { readSession, markAllowed, type Queryable } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
+import { desktopShot } from './screen'
 import {
   frontPage,
   newPage,
@@ -107,6 +108,31 @@ async function podOf(
 }
 
 const noArgs = { type: 'object', properties: {}, additionalProperties: false }
+
+/*
+ * THE WORDS THAT TRAVEL WITH A PICTURE.
+ *
+ * A screenshot is shown to the person and kept in the tool log; the model
+ * that asked for it does not see it (agent/tool-content.ts says why and what
+ * it gets instead). So the shot carries its facts in text: every tab, by
+ * title and address, and which one is in front. Measured 2026-09-22: asked
+ * "take the whole screen and say what is open", the agent was handed 80 KB
+ * of base64 and described "the Queen's board with task cards" -- the screen
+ * showed a Google sign-in page and five tabs.
+ */
+async function tabsOf(
+  cdp: string,
+  frontId?: string
+): Promise<Array<{ title: string; url: string; front?: true }>> {
+  const targets = await listTargets(cdp).catch(() => [])
+  return targets
+    .filter(t => t.type === 'page')
+    .map(t => ({
+      title: t.title,
+      url: t.url,
+      ...(t.id === frontId ? { front: true as const } : {}),
+    }))
+}
 
 /**
  * Where the person's two buttons point. Its own server, so a decision never
@@ -305,12 +331,42 @@ export const BROWSER_TOOLS: AgentTool[] = [
   {
     name: 'browser_screenshot',
     description:
-      'Снимок экрана браузера человека, JPEG в base64. Бери, когда текста ' + // cyrillic-ok
-      'недостаточно: разметка, картинки, где что расположено.', // cyrillic-ok
-    parameters: noArgs,
-    async handler(_args, ctx) {
+      'Снимок страницы, JPEG base64: когда текста мало. desktop — весь экран ' + // cyrillic-ok
+      'человека, не для клика.', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: {
+        desktop: { type: 'boolean' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      /*
+       * The whole screen comes from the pod itself (screen.ts desktopShot):
+       * what the person's video carries, browser chrome and dialogs
+       * included. Its coordinates are the screen's, not the page's, which
+       * is why the description says not to click by them.
+       */
+      if ((args as { desktop?: unknown }).desktop === true) {
+        const session = await readSession(
+          ctx.pool as unknown as Queryable,
+          ctx.telegramId
+        )
+        if (!session || session.state !== 'live' || !session.endpoint) {
+          await podOf(ctx) /* throws the same sentence as every other tool */
+        }
+        return {
+          format: 'jpeg',
+          base64: await desktopShot(session!.endpoint!, session!.adminToken),
+          tabs: session!.cdpEndpoint ? await tabsOf(session!.cdpEndpoint) : [],
+        }
+      }
       const { cdp, targetId } = await podOf(ctx)
-      return { format: 'jpeg', base64: await screenshot(cdp, targetId) }
+      return {
+        format: 'jpeg',
+        base64: await screenshot(cdp, targetId),
+        tabs: await tabsOf(cdp, targetId),
+      }
     },
   },
   {

@@ -44,7 +44,7 @@ export type РольРеплики = 'user' | 'assistant'
  *
  * Until 2026-09-13 one person had exactly one thread, keyed by telegram_id,
  * and the owner's talk about client A, the invoice for client B and the duet
- * with @playom all landed in the same list. The owner asked for a separate
+ * with a connected buyer all landed in the same list. The owner asked for a separate
  * CRM per client. `'self'` is the pre-existing personal thread (the default
  * everywhere, so no caller changes); `'client:<id>'` is the owner's thread
  * ABOUT one client. Spec: t27 specs/automation/crm-client-workspace.t27.
@@ -140,7 +140,7 @@ export function забытьТаблицу(): void {
  *
  * THE SAME TURN TWICE IN A ROW IS NEVER A SECOND TURN (added 21.09.2026).
  *
- * Measured in a live client's transcript, telegram 2086031075, 20.09: one
+ * Measured in a live client's transcript, 20.09: one
  * three-letter word of hers stands there twice, at 17:07:45 and 17:11:10,
  * with nothing between them. She typed it once. The bot retries a turn the
  * render dropped,
