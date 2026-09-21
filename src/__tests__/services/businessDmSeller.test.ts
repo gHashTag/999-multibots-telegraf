@@ -180,7 +180,10 @@ describe('messages that must never be answered', () => {
       bot as any,
       BOT
     )
-    expect(bot.telegram.sendMessage).not.toHaveBeenCalled()
+    // Nothing reaches the customer. The owner DOES get a notice in their own
+    // chat that the assistant has gone quiet -- see
+    // aMutedAssistantCanBeGivenBack.test.ts for why that notice exists.
+    expect(customerSends(bot)).toHaveLength(0)
     await svc.handleBusinessMessage(
       dm({ text: 'ок, жду' }) as any,
       bot as any,

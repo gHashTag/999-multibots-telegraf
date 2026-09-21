@@ -8,7 +8,7 @@
  */
 
 import { Telegraf } from 'telegraf'
-import { dmLeadMenu } from '@/navigation/helpers/crmMenu'
+import { dmLeadMenu, takeoverMenu } from '@/navigation/helpers/crmMenu'
 import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
 import { разбитьДлинное } from '@/helpers/telegramLongAnswer' // cyrillic-ok: pre-existing helper name
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -105,9 +105,32 @@ export const OWNER_TAKEOVER_MS = 30 * 60 * 1000
 const ownerTakeoverUntil = new Map<string, number>()
 
 /**
+ * THE SILENCE HAD TO BE VISIBLE AND REVERSIBLE.
+ *
+ * `${connId}:${chatId}` -> the deadline the owner was already told about.
+ *
+ * Measured in production on 2026-09-21: the owner typed one line in a client's
+ * chat at 12:00:15 and the assistant went mute for half an hour. Four client
+ * messages were then dropped at 12:00:45, 12:03:44, 12:08:40 and 12:08:57,
+ * each one logged at `info` and nowhere else, and there was no button, command
+ * or timer readout anywhere to bring the assistant back. From the outside that
+ * is indistinguishable from a broken agent, which is exactly what it was
+ * reported as.
+ *
+ * So the pause now announces itself once per window (re-arming refreshes the
+ * deadline but must not re-announce, or answering three messages in a row
+ * sends three notices), and `resumeAiFor` gives it back.
+ */
+const takeoverAnnounced = new Map<string, number>()
+
+/**
  * The owner takes a client's chat over from a button ("🤫 Отвечу сам"):
  * the AI stays quiet there for `ms`, exactly as when the owner types in it.
  * Returns how many connections were paused.
+ *
+ * Pressing the button IS the announcement, so the deadline is recorded as
+ * announced: the owner's next typed line must not tell them what they just
+ * asked for.
  */
 export function pauseAiFor(
   chatId: number | string,
@@ -117,10 +140,49 @@ export function pauseAiFor(
   let paused = 0
   for (const [connId, conn] of connections) {
     if (ownerUserId !== undefined && conn.userId !== ownerUserId) continue
-    ownerTakeoverUntil.set(`${connId}:${chatId}`, Date.now() + ms)
+    const key = `${connId}:${chatId}`
+    ownerTakeoverUntil.set(key, Date.now() + ms)
+    takeoverAnnounced.set(key, Date.now() + ms)
     paused += 1
   }
   return paused
+}
+
+/**
+ * The owner hands the chat back ("🔔 Вернуть ассистента"): the AI answers the
+ * client's next message instead of dropping it. Returns how many connections
+ * were actually silent — 0 means there was nothing to undo.
+ */
+export function resumeAiFor(
+  chatId: number | string,
+  ownerUserId?: number
+): number {
+  let resumed = 0
+  for (const [connId, conn] of connections) {
+    if (ownerUserId !== undefined && conn.userId !== ownerUserId) continue
+    const key = `${connId}:${chatId}`
+    if ((ownerTakeoverUntil.get(key) ?? 0) > Date.now()) resumed += 1
+    ownerTakeoverUntil.delete(key)
+    takeoverAnnounced.delete(key)
+  }
+  return resumed
+}
+
+/**
+ * Minutes of silence left in this chat, 0 when the assistant is answering.
+ * Read by the CRM card so the owner can see the pause rather than infer it.
+ */
+export function aiPausedMinutes(
+  chatId: number | string,
+  ownerUserId?: number
+): number {
+  let left = 0
+  for (const [connId, conn] of connections) {
+    if (ownerUserId !== undefined && conn.userId !== ownerUserId) continue
+    const until = ownerTakeoverUntil.get(`${connId}:${chatId}`) ?? 0
+    left = Math.max(left, until - Date.now())
+  }
+  return left > 0 ? Math.ceil(left / 60_000) : 0
 }
 
 /** `${connId}:${chatId}` -> UTC day the owner was told about this customer. */
@@ -996,11 +1058,18 @@ export async function handleBusinessMessage(
 
   // The owner typed in this chat themselves: hand the conversation to them.
   if (msg.from?.id === conn.userId) {
+    const announced = takeoverAnnounced.get(chatKey) ?? 0
     ownerTakeoverUntil.set(chatKey, Date.now() + OWNER_TAKEOVER_MS)
     logger.info('[Business] Owner replied manually, AI paused', {
       connId,
       chatId,
+      reannounced: announced <= Date.now(),
     })
+    // Say it once per window: three answers in a row are one takeover.
+    if (announced <= Date.now()) {
+      takeoverAnnounced.set(chatKey, Date.now() + OWNER_TAKEOVER_MS)
+      void announceTakeover(msg, conn, bot, chatKey)
+    }
     return
   }
   const pausedUntil = ownerTakeoverUntil.get(chatKey) ?? 0
@@ -1010,10 +1079,12 @@ export async function handleBusinessMessage(
     logger.info('[Business] Owner takeover active, AI silent', {
       connId,
       chatId,
+      minutesLeft: Math.ceil((pausedUntil - Date.now()) / 60_000),
     })
     return
   }
   ownerTakeoverUntil.delete(chatKey)
+  takeoverAnnounced.delete(chatKey)
 
   void notifyOwnerOfLead(msg, conn, bot, chatKey)
 
@@ -1302,6 +1373,52 @@ async function notifyOwnerOfLead(
   } catch (error) {
     leadNotifiedOn.delete(chatKey)
     logger.warn('[Business] Owner lead notification failed', {
+      error: error instanceof Error ? error.message : String(error),
+      chatKey,
+    })
+  }
+}
+
+/**
+ * Tell the owner, in their own chat, that the assistant has just gone quiet
+ * where they typed -- with the client's name, the length of the silence and
+ * the one button that ends it early. Never sent into the client's chat.
+ *
+ * Failing to send gives the announcement back, exactly as `notifyOwnerOfLead`
+ * does: an unannounced pause is worse than a repeated notice.
+ */
+async function announceTakeover(
+  msg: BusinessMessage,
+  conn: ConnectionInfo,
+  bot: Telegraf<any>,
+  chatKey: string
+): Promise<void> {
+  // In a business chat `msg.chat` is the client even when the owner is the
+  // sender, so the name comes from the chat and not from `msg.from`.
+  const who = msg.chat.first_name || `id ${msg.chat.id}`
+  const minutes = Math.round(OWNER_TAKEOVER_MS / 60_000)
+  try {
+    // Same rule as the lead notification: buttons only for an admin of this
+    // bot, because nobody answers a farm owner's press.
+    const menu = ADMIN_IDS_ARRAY.includes(Number(conn.userId))
+      ? takeoverMenu(msg.chat.id)
+      : undefined
+    await bot.telegram.sendMessage(
+      conn.ownerChatId,
+      [
+        `🤫 Ты ответил сам в чате с <b>${escapeHtml(who)}</b>.`,
+        `Ассистент там молчит ${minutes} минут и не ответит клиенту.`,
+        'Напишешь ещё раз — отсчёт начнётся заново.',
+      ].join('\n'),
+      {
+        parse_mode: 'HTML',
+        ...(menu ? { reply_markup: menu.reply_markup } : {}),
+      }
+    )
+    logger.info('[Business] Owner told the AI went quiet', { chatKey })
+  } catch (error) {
+    takeoverAnnounced.delete(chatKey)
+    logger.warn('[Business] Takeover notice failed', {
       error: error instanceof Error ? error.message : String(error),
       chatKey,
     })
