@@ -142,6 +142,16 @@ describe('a club charge', () => {
     expect(said).not.toMatch(/баланс пополнен|подписка .* оформлена/i) // cyrillic-ok: UI copy under test
   })
 
+  it('books the charge for whoever paid, not for the id the link was minted for', async () => {
+    // The render finds a charge by its payer (the Stars transaction's user);
+    // asking it about the id in the payload would find nothing to book.
+    const { said } = await pay('club:10000:900000059', BOOKED)
+    expect(
+      wire.map(w => new URL(w.url).searchParams.get('telegram_id'))
+    ).toEqual([String(PAYER)])
+    expect(said).toContain('Добро пожаловать в клуб')
+  })
+
   it('is a row in the funnel, renewal or not', async () => {
     await pay(`club:10000:${PAYER}`, BOOKED, true)
     await vi.waitFor(() =>
