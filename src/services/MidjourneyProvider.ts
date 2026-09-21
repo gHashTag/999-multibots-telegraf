@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios'
 import { logger } from '@/utils/logger'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 
 interface MidjourneyRequest {
   prompt: string
@@ -120,7 +121,7 @@ export class MidjourneyProvider {
 
     const {
       prompt,
-      aspectRatio = '1:1',
+      aspectRatio = DEFAULT_ASPECT_RATIO,
       version = 'v6',
       style = 'raw',
     } = request

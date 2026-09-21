@@ -23,6 +23,7 @@ import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
 import fs from 'fs'
 import { Markup } from 'telegraf'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 const supportedSizes = [
   '1024x1024',
   '1365x1024',
@@ -108,7 +109,7 @@ export const generateTextToImageDirect = async (
     let successfulGenerations = 0
 
     const userAspectRatio = await getAspectRatio(Number(telegram_id))
-    const aspectRatioToUse = userAspectRatio || '1:1'
+    const aspectRatioToUse = userAspectRatio || DEFAULT_ASPECT_RATIO
 
     const inputParams: {
       prompt: string

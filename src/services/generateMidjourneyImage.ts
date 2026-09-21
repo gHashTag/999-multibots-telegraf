@@ -1,6 +1,7 @@
 import { replicate } from '@/core/replicate'
 import { logger } from '@/utils/logger'
 import axios from 'axios'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 
 export interface MidjourneyRequest {
   prompt: string
@@ -45,7 +46,7 @@ export async function generateMidjourneyImage(
 
     // Construct input for adminconteudosflix/midjourney-allcraft (FLUX-based with Midjourney style)
     // Map aspect ratio for FLUX model
-    const aspectRatio = request.aspectRatio || '1:1'
+    const aspectRatio = request.aspectRatio || DEFAULT_ASPECT_RATIO
 
     const input: any = {
       prompt: request.prompt, // No prefix needed - model handles Midjourney style natively
