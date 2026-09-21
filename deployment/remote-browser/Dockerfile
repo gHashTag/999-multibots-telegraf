@@ -32,7 +32,7 @@ FROM ghcr.io/m1k1o/neko/chromium:latest
 # non-root process that cannot drop anything, and the container dies at start
 # with `Can't drop privilege as nonroot user` -- measured 2026-09-20.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends socat \
+ && apt-get install -y --no-install-recommends socat jq \
  && rm -rf /var/lib/apt/lists/*
 
 # THE AGENT COULD NOT DRIVE THE BROWSER, AND THIS IS WHY.
@@ -55,9 +55,46 @@ RUN sed -i 's/"DeveloperToolsAvailability": 2/"DeveloperToolsAvailability": 1/' 
  && grep -q '"DeveloperToolsAvailability": 1' /etc/chromium/policies/managed/policies.json
 
 # The stale-lock sweeper. See the script for what it saw and why it is safe.
+COPY own-profile.sh /usr/local/bin/own-profile.sh
 COPY unlock-profile.sh /usr/local/bin/unlock-profile.sh
 COPY start-chromium.sh /usr/local/bin/start-chromium.sh
-RUN chmod +x /usr/local/bin/unlock-profile.sh /usr/local/bin/start-chromium.sh
+RUN chmod +x /usr/local/bin/own-profile.sh /usr/local/bin/unlock-profile.sh /usr/local/bin/start-chromium.sh
 
 COPY chromium.conf /etc/neko/supervisord/chromium.conf
 COPY cdp-bridge.conf /etc/neko/supervisord/cdp-bridge.conf
+
+# ── POLICY, EDITED AS JSON AND CHECKED ───────────────────────────────────
+#
+# Chromium ignores a policy file it cannot parse -- ALL of it, blocklists
+# included -- so the file is edited with jq and read back, never with sed.
+#
+# TRANSLATE OFF. Chromium offered "Russian | English" over every page the
+# owner opened, in the middle of the picture, photographed twice.
+#
+# BITWARDEN IN. Moving somebody's passwords in bulk is the one thing this
+# browser should never do through us: the owner's rule is that the person
+# types secrets themselves, inside the stream, and they reach the pod and
+# nothing else. A password manager the person unlocks inside the stream does
+# exactly that for all of them at once. Allowed and installed; nobody is
+# signed in to it until the person does it themselves.
+#
+# CHROMIUM'S OWN PASSWORD STORE STAYS OFF (PasswordManagerEnabled false, as
+# upstream ships it). On Linux without a keyring it keeps passwords behind a
+# fixed key, and whoever drives the browser -- the agent included -- could
+# open chrome://password-manager and read them.
+RUN jq '.TranslateEnabled = false \
+      | .ExtensionInstallForcelist += ["nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"] \
+      | .ExtensionInstallAllowlist += ["nngceckbapebfimnlniiiahkandclblb"]' \
+      /etc/chromium/policies/managed/policies.json > /tmp/policies.json \
+ && mv /tmp/policies.json /etc/chromium/policies/managed/policies.json \
+ && jq -e '.TranslateEnabled == false \
+      and .PasswordManagerEnabled == false \
+      and .DeveloperToolsAvailability == 1 \
+      and any(.ExtensionInstallBlocklist[]; . == "*") \
+      and any(.ExtensionInstallAllowlist[]; . == "nngceckbapebfimnlniiiahkandclblb")' \
+      /etc/chromium/policies/managed/policies.json
+
+# The profile lives on a volume; see own-profile.sh. It hands the mount to
+# the neko user and then runs the image's own CMD.
+CMD ["/usr/local/bin/own-profile.sh"]
+
