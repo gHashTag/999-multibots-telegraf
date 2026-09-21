@@ -44,6 +44,21 @@ const en: Translations = {
     'Closing keeps you signed in. “Forget everything” wipes the logins for good.',
   'browser.forget': 'Forget everything',
   'browser.forget.sure': 'Yes, wipe it',
+  'browser.import.open': 'Bring my logins',
+  'browser.import.title': 'Bring your logins over',
+  'browser.import.passwords':
+    'Passwords: open Bitwarden in the browser (its icon is in the toolbar) and sign in to it. Every password then fills in by itself, and none of them passes through us.',
+  'browser.import.cookiesHow':
+    'Sessions: on your computer, export your cookies with the Cookie-Editor extension (Export → JSON), or with “Get cookies.txt LOCALLY” for every site at once, and drop the file here.',
+  'browser.import.file': 'Choose a file',
+  'browser.import.paste': 'or paste the export here',
+  'browser.import.go': 'Bring them in',
+  'browser.import.going': 'Bringing them in…',
+  'browser.import.done': 'Done: {n} cookies for {sites}.',
+  'browser.import.andMore': 'and {n} more',
+  'browser.import.fail': 'Could not bring them in: {error}',
+  'browser.import.warn':
+    'Cookies are the keys to your accounts: bring only your own. They go straight into your browser and are not kept by us. Google and banks may still ask you to sign in again — that is their protection working.',
   'browser.unavailable':
     'A remote browser is not set up on this deployment yet.',
   'browser.signInFirst':
@@ -2080,6 +2095,21 @@ const ru: Translations = {
     'Закрытие сохраняет ваши входы. «Стереть всё» удаляет их насовсем.',
   'browser.forget': 'Стереть всё',
   'browser.forget.sure': 'Да, стереть',
+  'browser.import.open': 'Перенести входы',
+  'browser.import.title': 'Перенести входы',
+  'browser.import.passwords':
+    'Пароли: откройте в браузере Bitwarden (значок на панели) и войдите в него. Дальше пароли подставляются сами, и ни один не проходит через нас.',
+  'browser.import.cookiesHow':
+    'Входы: на компьютере выгрузите cookies расширением Cookie-Editor (Export → JSON) или «Get cookies.txt LOCALLY» — сразу для всех сайтов — и загрузите файл сюда.',
+  'browser.import.file': 'Выбрать файл',
+  'browser.import.paste': 'или вставьте выгрузку сюда',
+  'browser.import.go': 'Перенести',
+  'browser.import.going': 'Переношу…',
+  'browser.import.done': 'Готово: {n} cookies для {sites}.',
+  'browser.import.andMore': 'и ещё {n}',
+  'browser.import.fail': 'Не удалось перенести: {error}',
+  'browser.import.warn':
+    'Cookies — это ключи от ваших аккаунтов: переносите только свои. Они уходят прямо в ваш браузер и у нас не хранятся. Google и банки всё равно могут попросить войти заново — это их защита.',
   'browser.unavailable': 'На этой площадке удалённый браузер пока не настроен.',
   'browser.signInFirst':
     'Откройте эту страницу из бота, чтобы увидеть свой браузер: сначала нужно понять, кто вы.',
