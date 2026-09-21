@@ -40,6 +40,13 @@ type Row = {
   transcribed_at: Date | null
 }
 
+/**
+ * The same predicate the sweep uses: never asked about, or asked while the
+ * transcriber was broken.
+ */
+const isUnread = (r: Row, before: Date) =>
+  r.transcribed_at === null || r.transcribed_at < before
+
 const poolOf = (rows: Row[]) => {
   const marked: number[][] = []
   return {
@@ -49,9 +56,7 @@ const poolOf = (rows: Row[]) => {
       const q = sql.replace(/\s+/g, ' ')
       if (/count\(\*\)/.test(q)) {
         const before = params[0] as Date
-        const n = rows.filter(
-          r => r.transcribed_at !== null && r.transcribed_at < before
-        ).length
+        const n = rows.filter(r => isUnread(r, before)).length
         return { rows: [{ n }] }
       }
       if (/^UPDATE user_media SET transcribed_at/.test(q.trim())) {
@@ -66,7 +71,7 @@ const poolOf = (rows: Row[]) => {
         const before = params[0] as Date
         const limit = Number(params[1])
         const out = rows
-          .filter(r => r.transcribed_at !== null && r.transcribed_at < before)
+          .filter(r => isUnread(r, before))
           .sort((a, b) => b.at.getTime() - a.at.getTime())
           .slice(0, limit)
           .map(r => ({
@@ -142,7 +147,53 @@ describe('the backlog of unread recordings', () => {
     expect(reads.length, 'it never read the table').toBeGreaterThanOrEqual(2)
     for (const r of reads) {
       expect(r.q).toMatch(/transcribed_at < \$1/)
+      expect(r.q).toMatch(/transcribed_at IS NULL/)
       expect(r.p[0]).toEqual(BROKEN_UNTIL)
+    }
+  })
+
+  /*
+   * NEVER ASKED IS NOT "ASKED AND SILENT".
+   *
+   * Describing a row happens once, fire-and-forget on insert; a restart there
+   * leaves `transcribed_at` NULL for ever. The first version of this sweep
+   * required `transcribed_at IS NOT NULL` and walked past 346 such rows --
+   * 23 of them one client's, which is why the agent kept answering his
+   * recordings with "send it as text". They are the sweep's job too.
+   */
+  it('picks up rows nobody ever asked about', async () => {
+    const { transcribeBacklogOnce } = await import('./transcribe-backlog')
+    const pool = poolOf([
+      {
+        id: 42,
+        owner_id: OWNER,
+        at: new Date('2026-09-19'),
+        transcribed_at: null,
+      },
+    ])
+    const r = await transcribeBacklogOnce(pool as never, NOW)
+    expect(r.reopened).toBe(1)
+    expect(transcribed[0].ids).toEqual([42])
+  })
+
+  /*
+   * AND IT IS NOT AUDIO-ONLY. `describeMedia` reads photos, sampled video
+   * frames and text-like documents; 139 unread images were stranded by a
+   * `kind = 'audio'` clause that had no reason to be there.
+   */
+  it('does not restrict itself to recordings', async () => {
+    const { transcribeBacklogOnce } = await import('./transcribe-backlog')
+    const seen: string[] = []
+    const pool = {
+      async query(sql: string) {
+        seen.push(sql.replace(/\s+/g, ' '))
+        if (/count\(\*\)/.test(sql)) return { rows: [{ n: 1 }] }
+        return { rows: [] }
+      },
+    }
+    await transcribeBacklogOnce(pool as never, NOW)
+    for (const q of seen.filter(s => /FROM user_media/.test(s))) {
+      expect(q).not.toMatch(/kind = 'audio'/)
     }
   })
 

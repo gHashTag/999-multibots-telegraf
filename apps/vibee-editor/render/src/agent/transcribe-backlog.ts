@@ -20,6 +20,21 @@ import {
  * So this exists to ask again, exactly once, for everything that was asked
  * before the transcriber was fixed.
  *
+ * ── AND THE ONES NOBODY EVER ASKED ABOUT ───────────────────────────────────
+ *
+ * Measured 2026-09-21: 346 rows had `transcribed_at IS NULL` -- not "asked and
+ * silent", but never asked at all, spanning 2020 to yesterday. Describing a
+ * row happens exactly once, as a fire-and-forget on insert; a restart or a
+ * failure there leaves the row unread for ever, and the sweep as first written
+ * required `transcribed_at IS NOT NULL`, so it walked straight past them. One
+ * client alone (Tim, Woody Weed) had 23 files the agent had never perceived,
+ * which is why it kept answering his recordings with "send it as text".
+ *
+ * The sweep now takes both: never asked, or asked while the transcriber was
+ * broken. It is no longer audio-only either -- `describeMedia` reads images,
+ * sampled video frames and text-like documents too, and those were stranded by
+ * the same hole.
+ *
  * ── WHY A CUT-OFF AND NOT A FLAG ───────────────────────────────────────────
  *
  * A flag would need a migration and would be read by nothing else ever again.
@@ -52,6 +67,16 @@ export const BROKEN_UNTIL = new Date('2026-09-20T12:00:00Z')
 
 /** How many are re-read per tick. Small: see above. */
 export const BATCH = 5
+
+/**
+ * The unread: never asked about, or asked while the transcriber was broken.
+ *
+ * One clause, used by both the count and the fetch, because the two drifting
+ * apart is how a backlog reports `left 0` about rows it is excluding.
+ * `$1` is BROKEN_UNTIL.
+ */
+const UNREAD_WHERE = `transcript IS NULL
+     AND (transcribed_at IS NULL OR transcribed_at < $1)`
 
 export interface BacklogOutcome {
   /** How many rows are still waiting to be asked again. */
@@ -97,8 +122,7 @@ export async function transcribeBacklogOnce(
   try {
     const counted = await pool.query(
       `SELECT count(*)::int AS n FROM user_media
-        WHERE kind = 'audio' AND transcript IS NULL
-          AND transcribed_at IS NOT NULL AND transcribed_at < $1`,
+        WHERE ${UNREAD_WHERE}`,
       [BROKEN_UNTIL]
     )
     left = Number((counted.rows?.[0] as { n?: number })?.n ?? 0)
@@ -114,8 +138,7 @@ export async function transcribeBacklogOnce(
       `SELECT id, owner_id, lead_id, surface, msg_id, at, "out", kind,
               name, mime, bytes, url, tg_file_unique_id, caption
          FROM user_media
-        WHERE kind = 'audio' AND transcript IS NULL
-          AND transcribed_at IS NOT NULL AND transcribed_at < $1
+        WHERE ${UNREAD_WHERE}
         ORDER BY at DESC
         LIMIT $2`,
       [BROKEN_UNTIL, BATCH]
