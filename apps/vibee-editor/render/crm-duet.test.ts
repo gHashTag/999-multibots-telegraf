@@ -157,9 +157,9 @@ describe('crm_duet loop', () => {
     await runDuet(freshRun(), ctx, d)
     expect(histories[0][0].role).toBe('user')
     expect(histories[0][0].content).toContain('Лила Чакра')
-    expect(histories[1].at(-1)?.content).toContain(
-      'Покупатель (@playom): Кто вы?'
-    )
+    // No profile installed: the buyer is named by no one (#2712).
+    expect(histories[1].at(-1)?.content).toContain('Покупатель: Кто вы?')
+    expect(histories[1].at(-1)?.content).not.toMatch(/@\w/)
   })
 
   it('a finished generation is forwarded as media and counted as paid; a failed one is not', async () => {
@@ -271,11 +271,27 @@ describe('crm_duet helpers', () => {
     expect(brief).toContain('LeelaPlanReel')
     expect(brief).toContain('leela_plan')
     expect(brief).toContain('Профиль клиента не настроен')
+    // No profile, no name: the brief says "the buyer", never a real handle.
+    expect(brief).toContain(
+      `диалог в Telegram с покупателем, Telegram ID ${BUYER}`
+    )
     expect(brief).toContain('Не вызывай tg_*')
     expect(brief).toContain('не больше одного раза')
     expect(brief).toContain('Здесь нет правильного ответа')
     expect(brief).not.toContain('не больше трёх')
-    expect(buyerPersona()).toContain('@playom')
+    expect(buyerPersona()).toContain('Ты — хранительница игры')
+    // Unnamed: the only handles left are the game's own bot and channel.
+    expect(
+      buyerPersona()
+        .match(/@\w+/g)
+        ?.filter(h => !/^@leela/i.test(h))
+    ).toEqual([])
+    expect(
+      buyerPersona('', { name: 'Мира', handle: '@example_buyer' })
+    ).toContain('Ты — Мира (@example_buyer), хранительница игры')
+    expect(buyerPersona('', { handle: '@example_buyer' })).toContain(
+      'Ты — @example_buyer, хранительница игры'
+    )
     expect(buyerPersona('Я хозяйка стола.')).toContain('Я хозяйка стола.')
     expect(PAID_TOOLS.size).toBe(5)
     expect(TURNS_MAX).toBe(8)
@@ -283,8 +299,8 @@ describe('crm_duet helpers', () => {
 
   it('an installed client profile is quoted into the brief: discovery questions, series, forbidden claims, her template', () => {
     const profile = {
-      name: 'Гея',
-      handle: '@playom',
+      name: 'Мира',
+      handle: '@example_buyer',
       status: 'draft',
       role: 'Хранительница Лилы',
       business: {
@@ -301,7 +317,7 @@ describe('crm_duet helpers', () => {
       approved_cta: { text: 'Приходите на доску.', button: '🎲 Играть' },
     }
     const brief = sellerBrief(BUYER, profile)
-    expect(brief).toContain('Гея (@playom)')
+    expect(brief).toContain('Мира (@example_buyer)')
     expect(brief).toContain('Где живёт ваша аудитория?')
     expect(brief).toContain('новичок после первого броска')
     expect(brief).toContain('устройство партии: вход с шестёрки')
@@ -351,16 +367,38 @@ describe('crm_duet helpers', () => {
     d.clientProfile = async () => ({
       has_profile: true,
       profile: {
-        name: 'Гея',
-        handle: '@playom',
+        name: 'Мира',
+        handle: '@example_buyer',
         reel_template: { composition: 'LeelaPlanReel' },
       },
       soul_excerpt: 'Я хозяйка стола.',
     })
     const run = await runDuet(freshRun({ turns: 1 }), ctx, d)
     expect(run.profile_used).toBe(true)
-    expect(histories[0][0].content).toContain('Гея (@playom)')
+    expect(histories[0][0].content).toContain('Мира (@example_buyer)')
     expect(run.violations.some(v => /image_generate/.test(v))).toBe(true)
+  })
+
+  it('with a profile, the buyer persona and the label the seller hears carry her name from it, not from the code', async () => {
+    const { d, histories } = deps(
+      [[text('Здравствуйте.')], [text('Ок.')]],
+      ['Кто вы?', 'Ясно.']
+    )
+    const personas: string[] = []
+    const replies = ['Кто вы?', 'Ясно.']
+    d.buyerModel = async h => {
+      personas.push(String(h[0]?.content ?? ''))
+      return replies.shift() ?? ''
+    }
+    d.clientProfile = async () => ({
+      has_profile: true,
+      profile: { name: 'Мира', handle: '@example_buyer' },
+    })
+    await runDuet(freshRun(), ctx, d)
+    expect(personas[0]).toContain('Ты — Мира (@example_buyer), хранительница')
+    expect(histories[1].at(-1)?.content).toContain(
+      'Покупатель (@example_buyer): Кто вы?'
+    )
   })
 
   it('without a profile the run says so in the report', async () => {
@@ -1069,7 +1107,7 @@ describe('crm_duet: what the seller and the card are told about her plan', () =>
       '[дуэт] Ролик прошлого хода записан в её контент-план'
     )
     expect(line.indexOf('[дуэт]')).toBeLessThan(
-      line.indexOf('Покупатель (@playom): Вижу ролик.')
+      line.indexOf('Покупатель: Вижу ролик.')
     )
     const card = items.find(r => r.id === 4)!
     expect(card.note).toContain(REEL_URL)
@@ -1167,7 +1205,7 @@ describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
   it('promisesFile fires only on a sending verb and a file noun in one sentence', () => {
     expect(
       promisesFile(
-        'Гея, договорились. Отправляю видео файлом прямо в этот чат — оно должно прийти следующим сообщением.'
+        'Мира, договорились. Отправляю видео файлом прямо в этот чат — оно должно прийти следующим сообщением.'
       )
     ).toBe(true)
     expect(promisesFile('Пришлю ролик, как только он соберётся.')).toBe(true)
@@ -1612,7 +1650,7 @@ describe('crm_duet one retry on a provider limit (duet-mu00klri, 2026-09-13)', (
           result('crm_client_profile', { has_profile: false }),
           { тип: 'ошибка', текст: ZAI_429 }, // cyrillic-ok
         ],
-        [text('Гея, здравствуйте! Какой план сейчас ближе всего?')],
+        [text('Мира, здравствуйте! Какой план сейчас ближе всего?')],
       ],
       ['План 6.']
     )
@@ -1660,7 +1698,7 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
   // Live line 0 of that run: a paid reel_render before the buyer spoke, and
   // "the same style you liked" to a person who had liked nothing yet.
   const LIVE_LINE_0 =
-    'Гея, ролик готов — тот же стиль, что вам понравился: план 6, крючок «Первая клетка игры называется Заблуждение. Не случайно.». Публикуем?'
+    'Мира, ролик готов — тот же стиль, что вам понравился: план 6, крючок «Первая клетка игры называется Заблуждение. Не случайно.». Публикуем?'
   const LIVE_LINE_4 =
     'Ролик отправлен, но я задавала его сама и сам кадр я не видела.'
   const LIVE_LINE_2 =
@@ -1680,7 +1718,7 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
       [
         [
           text(
-            'Здравствуйте, Гея. Кому вы играете чаще: новичкам или тем, кто уже ходил по полю?'
+            'Здравствуйте, Мира. Кому вы играете чаще: новичкам или тем, кто уже ходил по полю?'
           ),
         ],
         [text('Понял. А какой план вам самой ближе сейчас?')],
@@ -1707,7 +1745,7 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
       [
         [
           result('reel_render', refusal),
-          text('Здравствуйте, Гея. Кому вы играете чаще?'),
+          text('Здравствуйте, Мира. Кому вы играете чаще?'),
         ],
       ],
       ['Новичкам.']
@@ -1724,7 +1762,7 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
     expect(claimsFamiliarity(LIVE_LINE_0)).toBe(true)
     expect(claimsFamiliarity('Как договаривались, план 6.')).toBe(true)
     expect(claimsFamiliarity('Сделал, как вы просили.')).toBe(true)
-    expect(claimsFamiliarity('Здравствуйте, Гея. Кому вы играете чаще?')).toBe(
+    expect(claimsFamiliarity('Здравствуйте, Мира. Кому вы играете чаще?')).toBe(
       false
     )
     expect(claimsFamiliarity('Могу собрать пример вашим шаблоном.')).toBe(false)
@@ -1735,10 +1773,10 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
       [
         // Live line 0 minus the finished-work claim, which the claim check
         // takes first (its own test above); here only the familiarity part.
-        [text('Гея, тот же стиль, что вам понравился: план 6. Публикуем?')],
+        [text('Мира, тот же стиль, что вам понравился: план 6. Публикуем?')],
         [
           text(
-            'Здравствуйте, Гея. Я Дмитрий, делаю ролики для игры. Кому вы играете чаще?'
+            'Здравствуйте, Мира. Я Дмитрий, делаю ролики для игры. Кому вы играете чаще?'
           ),
         ],
       ],
