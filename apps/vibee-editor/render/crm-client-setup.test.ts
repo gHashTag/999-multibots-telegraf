@@ -593,3 +593,66 @@ describe('the woody-weed client package', () => {
     expect(tight).toMatch(/content_plan/)
   })
 })
+
+/*
+ * THE THIRD PACKAGE: THE CLIENT WHO PAID AND WAITED.
+ *
+ * Lead 2086031075 bought a bot eighteen months ago, says she has seen no
+ * revenue since, and on 2026-09-20 was greeted by the agent as a stranger --
+ * "hello, I am your personal assistant" -- in the second year of the
+ * correspondence. Her package exists to make two things impossible: starting
+ * that conversation over, and offering her something to buy while she is still
+ * owed an answer about the money she already paid.
+ */
+describe('the neuro-lena client package', () => {
+  it('carries her name, her own prefix, and a plan built from her own words', () => {
+    const pkg = loadClientPackage('neuro-lena')
+    expect(pkg.profile.telegram_id).toBe('2086031075')
+    expect(pkg.profile.name).toBe('Лена') // cyrillic-ok
+    expect(pkg.soul).not.toBe('')
+    for (const s of pkg.skills) {
+      expect(s.name.startsWith('Лена: ')).toBe(true) // cyrillic-ok
+      expect(s.name).not.toContain(SKILL_PREFIX)
+    }
+    const plan = planFor(pkg)!
+    expect(plan.goal).not.toBe(REEL_GOAL_TITLE)
+    expect(plan.items.length).toBeGreaterThan(0)
+    for (const it of plan.items)
+      expect(REEL_SERIES.some(r => r.title === it.title)).toBe(false)
+  })
+
+  it('the whole package fits the real budget, rules and all', () => {
+    const p = loadClientPackage('neuro-lena').profile as Record<string, unknown>
+    const out = profileForPrompt(p, 6000)
+    expect(out).not.toContain('не влезло') // cyrillic-ok
+    const parsed = JSON.parse(out)
+    expect(parsed.name).toBe('Лена') // cyrillic-ok
+    expect(Array.isArray(parsed.how_to_work_with_her)).toBe(true)
+    // `how_to_work_with_her`, not `_him`: the priority list matches the prefix,
+    // so a package does not lose its manner over a pronoun.
+    expect(
+      profileForPrompt({ how_to_work_with_her: ['x'], zzz: 'y' }, 40)
+    ).toContain('how_to_work_with_her')
+  })
+
+  it('what may not be said outranks what should be said', () => {
+    const p = loadClientPackage('neuro-lena').profile as Record<string, unknown>
+    // A budget too small for the package: the money question still makes it,
+    // and the manner does not -- a polite upsell is worse than a terse answer.
+    const parsed = JSON.parse(profileForPrompt(p, 2000).split('\n')[0])
+    expect(parsed.name).toBe('Лена') // cyrillic-ok
+    expect(Array.isArray(parsed.forbidden)).toBe(true)
+    expect(parsed.open_money_question).toBeTruthy()
+    // Whose question it is: not the agent's to close.
+    expect(JSON.stringify(parsed.open_money_question)).toContain('Дмитрий') // cyrillic-ok
+  })
+
+  it('her first-answer skill forbids starting the acquaintance over', () => {
+    const first = loadClientPackage('neuro-lena').skills.find(
+      s => /первый ответ/i.test(s.name) // cyrillic-ok
+    )!
+    expect(first.content).toContain('2086031075')
+    expect(first.content).toMatch(/Здравствуйте/) // cyrillic-ok
+    expect(first.content).toMatch(/crm_owed/)
+  })
+})
