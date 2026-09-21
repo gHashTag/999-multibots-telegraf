@@ -9,6 +9,9 @@ import './styles/telegram.css'
 import App from './App.tsx'
 import { initSentry } from './lib/sentry'
 import { captureReturnTarget } from './lib/returnTarget'
+import { isOurServer } from './lib/apiFetch'
+import { resumeAppSessionRefresh } from './lib/appSession'
+import { installSessionRenewal } from './lib/sessionRenewal'
 import { sessionStore } from './lib/framedSession'
 import { IS_EMBED, announceStorageBlocked } from './lib/embed'
 import { isTelegram } from './lib/telegram'
@@ -123,6 +126,12 @@ captureReturnTarget(
   sessionStore(),
   window.self === window.top && !IS_EMBED && !isTelegram()
 )
+
+// Every request to our servers leaves with a live session token, and the timer
+// that renews it runs from the first page load, not only after a sign-in
+// widget has mounted (lib/sessionRenewal.ts).
+installSessionRenewal(isOurServer)
+resumeAppSessionRefresh()
 
 // Inside the game's TRI frame, a browser that refuses this frame its storage
 // is reported to the game once (lib/embed.ts). The screen still renders.

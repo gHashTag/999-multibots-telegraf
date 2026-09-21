@@ -512,6 +512,11 @@ const en: Translations = {
   'embed.guest.body':
     'Here in the game you are a guest, and this screen needs your account. Open it on app.t27.ai and sign in with Telegram there.',
   'embed.guest.open': 'Open in the app',
+  // The same panel inside the board on app.t27.ai/queen: here the sign-in
+  // happens in this tab and comes back to this screen.
+  'embed.guest.bodyBoard':
+    'This screen needs your account. Sign in with Telegram and you will come straight back here.',
+  'embed.guest.signIn': 'Sign in with Telegram',
   'login.button': 'Login',
   'login.buttonFull': 'Sign in with Telegram',
 
@@ -1234,6 +1239,9 @@ const en: Translations = {
   'welcome.club.loading': 'Asking the server for the price…',
   'welcome.club.retry': 'Ask the price again',
   'welcome.club.join': 'Join for {stars} Stars',
+  'welcome.club.signIn': 'Sign in to join',
+  'welcome.club.signInNote':
+    'The price is the same for everyone; to join, the app needs to know who you are. Owners and keepers enter free once signed in.',
   'welcome.club.going': 'Opening the invoice…',
   'welcome.club.pending':
     'Telegram says paid, but the ledger has not shown the charge yet. It is booked automatically within the hour — come back and the road continues.',
@@ -2531,6 +2539,9 @@ const ru: Translations = {
   'embed.guest.body':
     'Здесь, в игре, вы гость, а этому экрану нужен ваш аккаунт. Откройте его на app.t27.ai и войдите там через Telegram.',
   'embed.guest.open': 'Открыть в приложении',
+  'embed.guest.bodyBoard':
+    'Этому экрану нужен ваш аккаунт. Войдите через Telegram — и вы сразу вернётесь сюда.',
+  'embed.guest.signIn': 'Войти через Telegram',
   'login.button': 'Войти',
   'login.buttonFull': 'Войти через Telegram',
 
@@ -3258,6 +3269,9 @@ const ru: Translations = {
   'welcome.club.loading': 'Спрашиваю цену у сервера…',
   'welcome.club.retry': 'Спросить цену ещё раз',
   'welcome.club.join': 'Вступить за {stars} звёзд',
+  'welcome.club.signIn': 'Войти, чтобы вступить',
+  'welcome.club.signInNote':
+    'Цена одна для всех; чтобы вступить, приложению нужно знать, кто вы. Владельцы и хранители после входа проходят бесплатно.',
   'welcome.club.going': 'Открываю счёт…',
   'welcome.club.pending':
     'Telegram сказал «оплачено», но в реестре платёж ещё не виден. Он зачислится сам в течение часа — вернись, и дорога продолжится.',

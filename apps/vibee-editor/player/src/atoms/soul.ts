@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import { RENDER_URL } from '../config'
-import { getInitData } from '../lib/telegram'
+import { authHeaders } from '../lib/apiFetch'
 import { getErrorMessage } from '../features/script/utils/errorMessages'
 import { languageAtom } from './language'
 
@@ -15,21 +15,16 @@ export const soulLoadedAtom = atom(false)
 export const soulSavingAtom = atom(false)
 export const soulErrorAtom = atom<string | null>(null)
 
-/** Подпись initData, в DEV — ключ агента (не попадает в прод-сборку). */
-function soulHeaders(): Headers {
-  const h = new Headers({ 'Content-Type': 'application/json' })
-  const initData = getInitData()
-  if (initData) {
-    h.set('X-Telegram-Init-Data', initData)
-    return h
-  }
-  const devKey = import.meta.env.DEV
-    ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-    : undefined
-  if (devKey) h.set('X-Agent-Key', devKey)
-  return h
-}
-
+/*
+ * THE ONE DOOR, NOT A COPY OF IT.
+ *
+ * This screen built its own headers: the Telegram signature, or a dev agent
+ * key -- and nothing else. Opened in a browser, where there is no signature,
+ * it sent no identity at all, and the owner's "Save and continue" on the twin
+ * form answered "a Telegram signature or an agent key is required" while he
+ * was signed in (2026-09-22). authHeaders already knows the order: the
+ * signature alone when there is one, the app session when there is not.
+ */
 /** Вызов инструмента агента через MCP — тот же вход, что у внешних
  *  клиентов (Claude/Codex/Gemini): один реестр инструментов, одна
  *  проверка личности (подпись или ключ), ноль отдельных HTTP-роутов. */
@@ -39,7 +34,7 @@ async function callTool<T>(
 ): Promise<T> {
   const res = await fetch(`${RENDER_URL}/mcp`, {
     method: 'POST',
-    headers: soulHeaders(),
+    headers: authHeaders(),
     body: JSON.stringify({
       jsonrpc: '2.0',
       id: 1,

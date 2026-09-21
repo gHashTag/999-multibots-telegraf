@@ -7,7 +7,6 @@ import {
 } from '@/utils/discoverBotTokens'
 import { stopBotsQuietly } from '@/utils/stopBotsQuietly'
 import { agentLanes, shutdownDrainMs } from '@/services/agentLanes'
-import { tellOwnersWhoWasLeftUnanswered } from '@/services/businessBotService'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -642,6 +641,19 @@ async function gracefulShutdown(signal: string) {
     `⏳ Agent lanes drained: ${unfinished.length} unfinished after up to ${drainMs} ms`
   )
   if (unfinished.length) {
+    /*
+     * Imported HERE, at shutdown, and never at the top of this file. A static
+     * import put businessBotService first in the bundle's init order, and that
+     * closed a cycle -- businessBotService > aiChatService > chatMemoryService
+     * > core/supabase > interfaces > price/helpers > navigation > scenes >
+     * aiChatWizard > aiChatService -- in which aiChatWizard read
+     * AI_CHAT_MODELS before it existed. Every start crashed with "Cannot
+     * convert undefined or null to object" and Railway kept the old build
+     * (2026-09-22, deploy e4a0a2fe, healthcheck failed 11 times).
+     */
+    const { tellOwnersWhoWasLeftUnanswered } = await import(
+      '@/services/businessBotService'
+    )
     await tellOwnersWhoWasLeftUnanswered(unfinished).catch(() => 0)
   }
   process.exit(0)
