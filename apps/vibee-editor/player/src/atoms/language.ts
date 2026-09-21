@@ -1238,6 +1238,8 @@ const en: Translations = {
     'Cancel any time: Telegram → Settings → My Stars → subscriptions',
   'welcome.club.loading': 'Asking the server for the price…',
   'welcome.club.retry': 'Ask the price again',
+  'welcome.club.signedOut':
+    'The app has stopped recognising you — your sign-in has lapsed. Sign in again and your membership comes back with you. Nothing needs to be bought twice.',
   'welcome.club.join': 'Join for {stars} Stars',
   'welcome.club.signIn': 'Sign in to join',
   'welcome.club.signInNote':
@@ -3268,6 +3270,8 @@ const ru: Translations = {
     'Отменить можно всегда: Telegram → Настройки → Мои звёзды → подписки',
   'welcome.club.loading': 'Спрашиваю цену у сервера…',
   'welcome.club.retry': 'Спросить цену ещё раз',
+  'welcome.club.signedOut':
+    'Приложение перестало вас узнавать — вход истёк. Войдите снова, и членство вернётся вместе с вами. Второй раз покупать ничего не нужно.',
   'welcome.club.join': 'Вступить за {stars} звёзд',
   'welcome.club.signIn': 'Войти, чтобы вступить',
   'welcome.club.signInNote':

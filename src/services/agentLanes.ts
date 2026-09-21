@@ -335,6 +335,12 @@ export function createLanes(o: LaneOptions): Lanes {
  * to 0, which would silently turn the drain off.
  */
 export const SHUTDOWN_DRAIN_DEFAULT_MS = 25_000
+/**
+ * The most shutdown waits for the "you were left unanswered" notices after
+ * the drain (index.ts): they go out in parallel, and 25 + 4 s stays inside
+ * Railway's 30 s so the process exits rather than being killed mid-send.
+ */
+export const SHUTDOWN_NOTICE_BUDGET_MS = 4_000
 export function shutdownDrainMs(raw: string | undefined): number {
   if (raw === undefined || raw.trim() === '') return SHUTDOWN_DRAIN_DEFAULT_MS
   const n = Number(raw)
