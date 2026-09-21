@@ -402,7 +402,7 @@ const TOKEN_START = 20
  * metering them against a customer wallet only stops our own factory -- which
  * is exactly what happened on 2026-08-27, for 51 hours.
  *
- * Set HOUSE_TELEGRAM_IDS="144022504,..." on the render service. Empty by
+ * Set HOUSE_TELEGRAM_IDS="<owner id>,..." on the render service. Empty by
  * default: nobody is exempt unless deployment says so.
  */
 const HOUSE_TELEGRAM_IDS = (process.env.HOUSE_TELEGRAM_IDS || '')
@@ -504,7 +504,7 @@ function stableJson(v: unknown): string {
 /**
  * The fingerprint of a job: the composition plus its inputs.
  *
- * MEASURED ON A REAL PERSON. On 2026-09-15 lead 1900592465 paid for three
+ * MEASURED ON A REAL PERSON. On 2026-09-15 one lead paid for three
  * builds in a row. One failed; the other two returned EXACTLY ONE file:
  * sha256 79741cd2..., 1 426 269 bytes, 1080x1920, 30.000 s - byte-identical
  * mp4s under two different renderIds. Two charges for one result.
@@ -3079,8 +3079,9 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
  * browser_ask_permission alone is 254 tokens of prose -- not dropping tools.
  */
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
-/** Owner-only diagnostics wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
-export const COMPACT_TOOLS_EXCLUDED = /^(crm_schema_check|crm_portrait_rescue)$/
+/** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
+export const COMPACT_TOOLS_EXCLUDED =
+  /^(crm_schema_check|crm_client_package_upload|crm_portrait_rescue)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

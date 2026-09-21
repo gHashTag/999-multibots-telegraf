@@ -1,9 +1,10 @@
 /**
  * A REAL TELEGRAM DIALOGUE BETWEEN TWO AGENTS.
  *
- * The owner's seller agent (his session, @t27_dev) sells every function of
- * the bot to a connected seller who plays a NEW BUYER (her session, @playom);
- * a persona model answers for her. The content the seller offers is for her
+ * The owner's seller agent (his own connected session) sells every function
+ * of the bot to a connected seller who plays a NEW BUYER (her own connected
+ * session); a persona model answers for her. Who she is -- name and handle --
+ * comes from her installed client profile, never from this file (#2712). The content the seller offers is for her
  * real game, Leela Chakra (@leela_chakra_ai_bot, t27.ai/leela): a post, a 9:16
  * picture, a voice-over, a reel -- so the run exercises the tools on a real
  * product and leaves her with usable material.
@@ -41,7 +42,13 @@ import {
 import { clientProfileFor } from './crm-client-setup-tool'
 import { violatesLeelaVoice, LEELA_CTA_RU, LEELA_PLAY_RU } from './leela-canon'
 
-export const DEFAULT_BUYER = '435572800'
+/**
+ * The refusal when no buyer is named. The tool used to fall back to one real
+ * person's id; a duet sends from somebody's own session, so it names nobody
+ * by default.
+ */
+export const NO_BUYER_REASON =
+  'Укажите buyer — Telegram ID покупателя: дуэт не выбирает человека сам.'
 export const TURNS_DEFAULT = 4
 export const TURNS_MAX = 8
 export const PAID_TOOLS = new Set([
@@ -493,6 +500,20 @@ export const NO_PUBLISH_RULE =
   'Не вызывай feed_publish: «давайте опубликуем» в переписке — не одобрение. Готовый ролик уходит ей в чат файлом, а публикует только она сама. Что ролик записан в её контент-план, говори только после строки «[дуэт]» об этом; что он «ждёт её одобрения» — не говори.'
 
 /**
+ * How the buyer is named to both models: "Name (@handle)", or whichever of
+ * the two her installed profile has. Null when the profile names nobody --
+ * the brief and the persona then say "the buyer" and no real person's name
+ * or handle is written in their place (#2712).
+ */
+export function buyerTag(profile: ClientProfile = null): string | null {
+  const name = typeof profile?.name === 'string' ? profile.name.trim() : ''
+  const handle =
+    typeof profile?.handle === 'string' ? profile.handle.trim() : ''
+  if (name && handle) return `${name} (${handle})`
+  return name || handle || null
+}
+
+/**
  * The seller's brief. Runs 1-5 sold from a catalogue: a blog reel, a generated
  * picture with pseudo-text, the app link twice, a caption praised for being
  * legible. The brief now opens with discovery -- what she has, where her
@@ -506,7 +527,7 @@ export function sellerBrief(
   profile: ClientProfile = null
 ): string {
   const p = profile ?? {}
-  const name = p.name ? `${p.name} (${p.handle ?? '@playom'})` : '@playom'
+  const name = buyerTag(profile) ?? 'покупателем'
   const cta = p.approved_cta?.text ?? LEELA_CTA_RU
   const button = p.approved_cta?.button ?? LEELA_PLAY_RU
   const template = p.reel_template?.composition ?? 'LeelaPlanReel'
@@ -570,10 +591,17 @@ export function sellerBrief(
   ].join('\n')
 }
 
-/** The buyer speaks in her own draft voice when her SOUL is installed. */
-export function buyerPersona(soulExcerpt = ''): string {
+/**
+ * The buyer speaks in her own draft voice when her SOUL is installed, and
+ * under the name her profile gives; without a profile she is unnamed.
+ */
+export function buyerPersona(
+  soulExcerpt = '',
+  profile: ClientProfile = null
+): string {
+  const who = buyerTag(profile)
   return [
-    'Ты — Гея (@playom), хранительница игры самопознания «Лила Чакра». Тебе пишет владелец бота Trinity S³AI и предлагает функции для продвижения твоей игры.',
+    `Ты — ${who ? `${who}, ` : ''}хранительница игры самопознания «Лила Чакра». Тебе пишет владелец бота Trinity S³AI и предлагает функции для продвижения твоей игры.`,
     'Ты — новый покупатель: любопытная, практичная, бережёшь голос игры. Отвечаешь на вопросы о своей аудитории и целях честно и коротко; просишь показать пример именно в стиле игры; не соглашаешься на оплату, пока не увидела пример.',
     'Пометка «[в чат пришло видео …]» (или картинка, аудио) означает, что файл уже у тебя в Telegram и ты его видишь. Не говори, что файл не пришёл или ссылка не открывается; оценивай стиль по тому, что продавец о нём сказал, и по канону игры.',
     ...(soulExcerpt ? ['Твой голос (из твоего SOUL):', soulExcerpt] : []),
@@ -1427,8 +1455,12 @@ export async function runDuet(
     { role: 'user', content: sellerBrief(run.buyer, profile) },
   ]
   const buyer: ChatMessage[] = [
-    { role: 'system', content: buyerPersona(soulExcerpt) },
+    { role: 'system', content: buyerPersona(soulExcerpt, profile) },
   ]
+  // The seller hears her replies under her handle (or name) from the
+  // profile, the same label as before #2712 once her package is installed.
+  const tag = buyerTag({ handle: profile?.handle }) ?? buyerTag(profile)
+  const buyerLabel = tag ? `Покупатель (${tag})` : 'Покупатель'
   const linksSent = new Set<string>()
   let lastMedia: string | null = null
   // Plans looked up with leela_plan in this run: the plan of a reel whose
@@ -1669,7 +1701,7 @@ export async function runDuet(
         buyer.push({ role: 'assistant', content: reply })
         seller.push({
           role: 'user',
-          content: `${planNote ? `${planNote}\n` : ''}Покупатель (@playom): ${reply}`,
+          content: `${planNote ? `${planNote}\n` : ''}${buyerLabel}: ${reply}`,
         })
         planNote = ''
         await save(deps, run)
@@ -1873,7 +1905,7 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
     name: 'crm_duet',
     description:
       'Запустить РЕАЛЬНЫЙ диалог в Telegram: агент-продавец от сессии владельца продаёт функции ' +
-      'бота подключённому продавцу в роли нового покупателя (по умолчанию @playom), контент — ' +
+      'бота подключённому продавцу в роли нового покупателя, контент — ' +
       'для её игры «Лила Чакра»; за покупателя отвечает модель от её сессии. Только для владельца; ' +
       'идёт в фоне, вернёт id — статус смотри crm_duet_status. dry_run=true: агенты говорят, ' +
       'в Telegram ничего не уходит.',
@@ -1882,8 +1914,7 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
       properties: {
         buyer: {
           type: 'string',
-          description:
-            'Telegram ID покупателя (по умолчанию 435572800, @playom)',
+          description: 'Telegram ID покупателя',
         },
         turns: {
           type: 'number',
@@ -1894,11 +1925,15 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
           description: 'Не отправлять в Telegram, только транскрипт',
         },
       },
+      required: ['buyer'],
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const buyer = String(args.buyer ?? DEFAULT_BUYER).trim()
+      // No default buyer: a run sends from a real person's session, so the
+      // owner names that person every time.
+      const buyer = String(args.buyer ?? '').trim()
+      if (!buyer) throw new Error(NO_BUYER_REASON)
       if (!/^\d{5,15}$/.test(buyer))
         throw new Error('buyer должен быть числовым Telegram ID')
       const owner = String(ctx!.telegramId)

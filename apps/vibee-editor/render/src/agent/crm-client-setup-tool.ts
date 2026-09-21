@@ -1,15 +1,23 @@
 /**
- * SET UP A CLIENT'S WORKSPACE FROM A BUNDLED CLIENT PACKAGE.
+ * SET UP A CLIENT'S WORKSPACE FROM A CLIENT PACKAGE.
  *
- * Duet runs 1-5 on 2026-09-13 showed the seller agent selling to @playom with
+ * Duet runs 1-5 on 2026-09-13 showed the seller agent selling to a client with
  * nothing known about her: a generic blog reel, an off-brand generated image,
  * the app link sent twice. The fix is not a better prompt but a client package
- * the seller can read: `src/agent/clients/<client>/` holds her draft SOUL, a
- * structured profile (business, audience hypotheses, discovery questions,
- * content series, forbidden claims, visual tokens) and the skills her own
- * editorial agent would carry. This tool installs that package into the rows
- * the rest of the app already reads: user_soul, user_skills, the content plan,
- * and one new table for the profile itself.
+ * the seller can read: her draft SOUL, a structured profile (business,
+ * audience hypotheses, discovery questions, content series, forbidden claims,
+ * visual tokens) and the skills her own editorial agent would carry. This tool
+ * installs that package into the rows the rest of the app already reads:
+ * user_soul, user_skills, the content plan, and one table for the profile.
+ *
+ * WHERE A PACKAGE LIVES (#2712). Packages used to be folders in
+ * `src/agent/clients/`, and this repository is PUBLIC: every dossier -- a real
+ * telegram_id, the owner's private notes about money, law and past incidents
+ * -- was published with the code. A package now lives in the render's own
+ * Postgres (`crm_client_packages`), written by the owner through
+ * `crm_client_package_upload`. The folder keeps ONE synthetic example with an
+ * invented id, so the install path and its tests still have something real to
+ * install. Nothing picks a person by default: every tool here is told whom.
  *
  * WHY OWNER-ONLY. The rows are written under ANOTHER person's telegram_id.
  * That is legitimate only because she connected her own account (tg_sessions)
@@ -24,8 +32,8 @@
  * the client's own style, not the catalogue.
  *
  * THE PACKAGE SHAPES THE PORTRAIT; IT DOES NOT REPLACE IT (owner, 2026-09-21).
- * This header used to end "proposes the client's own template (LeelaPlanReel)",
- * and the seller took it literally: a client with a package got reels, and the
+ * This header used to end "proposes the client's own template", and the
+ * seller took it literally: a client with a package got reels, and the
  * portrait from her own face -- the first gift every other person gets --
  * stopped coming. The first gift is the portrait for everybody; the package
  * gives it its scene and style (visual tokens, forbidden claims), and her
@@ -40,17 +48,42 @@ import { requireOwner, isSeller } from './telegram-tools'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const CLIENTS_DIR = join(HERE, 'clients')
 
-export const DEFAULT_CLIENT = 'playom'
-export const DEFAULT_CLIENT_ID = '435572800'
 /** The Leela repo's sync contract prefixes every imported private row. */
 export const SKILL_PREFIX = 'Leela: '
 export const REEL_GOAL_TITLE = 'Leela: серия рилс LeelaPlanReel v1'
+/** The reel template whose packages get the Leela series as their plan. */
+export const LEELA_TEMPLATE = 'LeelaPlanReel'
+
+/** Upper bounds for one uploaded package: a dossier, not a data dump. */
+export const PACKAGE_LIMITS = {
+  profileChars: 64_000,
+  soulChars: 32_000,
+  skills: 24,
+  skillChars: 32_000,
+  skillNameChars: 120,
+}
 
 export interface ClientPackage {
   client: string
   soul: string
   profile: Record<string, unknown>
   skills: { name: string; content: string }[]
+}
+
+/** A package found for an install, and where it was found. */
+export interface FoundPackage extends ClientPackage {
+  source: 'db' | 'bundled'
+  /** The person the package describes, when it says so. */
+  telegram_id: string | null
+}
+
+/**
+ * A package name is a slug, never a path: letters, digits, dash, underscore.
+ * Anything else is refused rather than cleaned, so `../x` never becomes `x`.
+ */
+export function packageSlug(client: unknown): string {
+  const raw = typeof client === 'string' ? client.trim() : ''
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(raw) ? raw : ''
 }
 
 /**
@@ -69,39 +102,280 @@ export function skillNameFromMarkdown(
   return raw.startsWith(prefix) ? raw : prefix + raw
 }
 
-export function loadClientPackage(
-  client: string = DEFAULT_CLIENT
+/**
+ * One shape for both homes of a package: the skill names are derived the same
+ * way whether the markdown came from a bundled file or from an uploaded row.
+ */
+function assemblePackage(
+  client: string,
+  profile: Record<string, unknown>,
+  soul: string,
+  raw: { name?: unknown; content?: unknown }[]
 ): ClientPackage {
-  const safe = client.replace(/[^a-z0-9_-]/gi, '')
+  const prefix =
+    typeof profile.skill_prefix === 'string' && profile.skill_prefix
+      ? profile.skill_prefix
+      : SKILL_PREFIX
+  const skills = raw
+    .filter(s => typeof s?.content === 'string' && s.content.trim())
+    .map(s => {
+      const content = String(s.content).trim()
+      const fallback =
+        String(typeof s.name === 'string' ? s.name : '')
+          .replace(/\.md$/, '')
+          .trim() || 'skill'
+      return { name: skillNameFromMarkdown(content, fallback, prefix), content }
+    })
+  return { client, soul: soul.trim(), profile, skills }
+}
+
+/** The packages that ship with the code: the synthetic example, nothing real. */
+export function bundledPackageNames(): string[] {
+  if (!existsSync(CLIENTS_DIR)) return []
+  return readdirSync(CLIENTS_DIR)
+    .filter(d => existsSync(join(CLIENTS_DIR, d, 'profile.json')))
+    .sort()
+}
+
+/** A bundled package by name; throws when there is no such folder. */
+export function loadClientPackage(client: string): ClientPackage {
+  const safe = packageSlug(client)
   const dir = join(CLIENTS_DIR, safe)
   if (!safe || !existsSync(join(dir, 'profile.json'))) {
     throw new Error(`Пакет клиента «${client}» не найден`) // cyrillic-ok
   }
   const profile = JSON.parse(readFileSync(join(dir, 'profile.json'), 'utf8'))
-  const prefix =
-    typeof profile.skill_prefix === 'string' && profile.skill_prefix
-      ? profile.skill_prefix
-      : SKILL_PREFIX
   const soulPath = join(dir, 'SOUL.md')
-  const soul = existsSync(soulPath) ? readFileSync(soulPath, 'utf8').trim() : ''
+  const soul = existsSync(soulPath) ? readFileSync(soulPath, 'utf8') : ''
   const skillsDir = join(dir, 'skills')
   const skills = existsSync(skillsDir)
     ? readdirSync(skillsDir)
         .filter(f => f.endsWith('.md'))
         .sort()
-        .map(f => {
-          const content = readFileSync(join(skillsDir, f), 'utf8').trim()
-          return {
-            name: skillNameFromMarkdown(
-              content,
-              f.replace(/\.md$/, ''),
-              prefix
-            ),
-            content,
-          }
-        })
+        .map(f => ({
+          name: f,
+          content: readFileSync(join(skillsDir, f), 'utf8'),
+        }))
     : []
-  return { client: safe, soul, profile, skills }
+  return assemblePackage(safe, profile, soul, skills)
+}
+
+/**
+ * WHERE UPLOADED PACKAGES LIVE. Keyed by (owner_id, client): the owner who
+ * uploaded a package is the one who installs it, the same ownership rule
+ * `crm_client_profiles` follows. `telegram_id` names the person the package
+ * describes, so an install under somebody else's id can be refused.
+ *
+ * Idempotent, like every other table this module creates on first use.
+ */
+export async function ensurePackageTable(ctx: ToolContext): Promise<void> {
+  await ctx.pool.query(
+    `CREATE TABLE IF NOT EXISTS crm_client_packages (
+       owner_id    text NOT NULL,
+       client      text NOT NULL,
+       telegram_id text NOT NULL,
+       profile     jsonb NOT NULL,
+       soul        text NOT NULL DEFAULT '',
+       skills      jsonb NOT NULL DEFAULT '[]'::jsonb,
+       updated_at  timestamptz NOT NULL DEFAULT now(),
+       PRIMARY KEY (owner_id, client)
+     )`
+  )
+}
+
+/** jsonb comes back parsed from pg, but a string from some drivers and doubles. */
+function jsonValue<T>(v: unknown, fallback: T): T {
+  if (typeof v === 'string') {
+    try {
+      return JSON.parse(v) as T
+    } catch {
+      return fallback
+    }
+  }
+  return (v ?? fallback) as T
+}
+
+/**
+ * The package an install will use: the caller's uploaded row first, then the
+ * bundled example. `null` when neither exists -- the caller says so plainly.
+ */
+export async function findClientPackage(
+  ctx: ToolContext,
+  client: string
+): Promise<FoundPackage | null> {
+  const slug = packageSlug(client)
+  if (!slug) return null
+  await ensurePackageTable(ctx)
+  const r = await ctx.pool.query(
+    `SELECT client, telegram_id, profile, soul, skills FROM crm_client_packages
+      WHERE owner_id = $1 AND client = $2`,
+    [String(ctx.telegramId), slug]
+  )
+  const row = r.rows?.[0]
+  if (row) {
+    const profile = jsonValue<Record<string, unknown>>(row.profile, {})
+    const skills = jsonValue<{ name?: unknown; content?: unknown }[]>(
+      row.skills,
+      []
+    )
+    return {
+      ...assemblePackage(
+        slug,
+        profile && typeof profile === 'object' ? profile : {},
+        String(row.soul ?? ''),
+        Array.isArray(skills) ? skills : []
+      ),
+      source: 'db',
+      telegram_id: String(row.telegram_id),
+    }
+  }
+  if (!bundledPackageNames().includes(slug)) return null
+  const pkg = loadClientPackage(slug)
+  const own = pkg.profile.telegram_id
+  return {
+    ...pkg,
+    source: 'bundled',
+    telegram_id: own == null ? null : String(own),
+  }
+}
+
+/** The refusal for a package that is in neither home. */
+export function packageNotFound(client: string): string {
+  const bundled = bundledPackageNames()
+  return (
+    `Пакета «${client}» нет ни в базе, ни среди встроенных` + // cyrillic-ok
+    (bundled.length ? ` (встроенные: ${bundled.join(', ')})` : '') + // cyrillic-ok
+    '. Досье клиента загружает владелец через crm_client_package_upload.' // cyrillic-ok
+  )
+}
+
+export interface UploadInput {
+  client: unknown
+  telegram_id: unknown
+  profile: unknown
+  soul?: unknown
+  skills?: unknown
+}
+
+export type UploadResult =
+  | {
+      stored: true
+      client: string
+      telegram_id: string
+      replaced: boolean
+      soul: boolean
+      skills: string[]
+      next: string
+    }
+  | { stored: false; reason: string }
+
+/**
+ * STORE ONE PACKAGE IN THE RENDER'S DATABASE.
+ *
+ * Validation first, and a refusal writes nothing -- not even the table. A
+ * profile that names a person must name the same person as `telegram_id`: a
+ * dossier filed under the wrong id is exactly how the agent came to call a
+ * client by another man's name. A bundled name is refused so an upload can
+ * never shadow the example the tests install.
+ */
+export async function uploadClientPackage(
+  ctx: ToolContext,
+  input: UploadInput
+): Promise<UploadResult> {
+  const refuse = (reason: string): UploadResult => ({ stored: false, reason })
+  const client = packageSlug(input.client)
+  if (!client)
+    return refuse(
+      'Укажите client — имя пакета: латиница, цифры, «-» и «_», до 64 знаков.'
+    )
+  if (bundledPackageNames().includes(client))
+    return refuse(
+      `Имя «${client}» занято встроенным пакетом — выберите другое.`
+    )
+  const telegramId =
+    typeof input.telegram_id === 'string' ||
+    typeof input.telegram_id === 'number'
+      ? String(input.telegram_id).trim()
+      : ''
+  if (!telegramId)
+    return refuse(
+      'Укажите telegram_id человека, которого описывает пакет: без него досье ничьё.'
+    )
+  if (!/^\d{5,20}$/.test(telegramId))
+    return refuse('telegram_id должен быть числом')
+  const profile = input.profile
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile))
+    return refuse('profile должен быть JSON-объектом (как profile.json)')
+  const profileJson = JSON.stringify(profile)
+  if (profileJson.length > PACKAGE_LIMITS.profileChars)
+    return refuse(
+      `profile длиннее ${PACKAGE_LIMITS.profileChars} знаков — это досье, а не архив`
+    )
+  const named = (profile as Record<string, unknown>).telegram_id
+  if (named != null && String(named).trim() !== telegramId)
+    return refuse(
+      'profile.telegram_id называет другого человека, чем telegram_id: досье под чужим id не сохраняю.'
+    )
+  if (input.soul != null && typeof input.soul !== 'string')
+    return refuse('soul должен быть текстом (markdown)')
+  const soul = String(input.soul ?? '').trim()
+  if (soul.length > PACKAGE_LIMITS.soulChars)
+    return refuse(`soul длиннее ${PACKAGE_LIMITS.soulChars} знаков`)
+  const rawSkills = input.skills ?? []
+  if (!Array.isArray(rawSkills))
+    return refuse('skills должен быть списком [{name, content}]')
+  if (rawSkills.length > PACKAGE_LIMITS.skills)
+    return refuse(`skills: не больше ${PACKAGE_LIMITS.skills} скиллов`)
+  const skills: { name: string; content: string }[] = []
+  for (const s of rawSkills) {
+    const content =
+      s && typeof s === 'object' && typeof s.content === 'string'
+        ? s.content.trim()
+        : ''
+    const name =
+      s && typeof s === 'object' && typeof s.name === 'string'
+        ? s.name.trim()
+        : ''
+    if (!content) return refuse('skills: у каждого скилла нужен content')
+    if (content.length > PACKAGE_LIMITS.skillChars)
+      return refuse(`skills: скилл длиннее ${PACKAGE_LIMITS.skillChars} знаков`)
+    if (name.length > PACKAGE_LIMITS.skillNameChars)
+      return refuse(
+        `skills: имя длиннее ${PACKAGE_LIMITS.skillNameChars} знаков`
+      )
+    skills.push({ name, content })
+  }
+
+  const owner = String(ctx.telegramId)
+  await ensurePackageTable(ctx)
+  const had = await ctx.pool.query(
+    `SELECT client FROM crm_client_packages WHERE owner_id = $1 AND client = $2`,
+    [owner, client]
+  )
+  await ctx.pool.query(
+    `INSERT INTO crm_client_packages
+       (owner_id, client, telegram_id, profile, soul, skills, updated_at)
+     VALUES ($1, $2, $3, $4::jsonb, $5, $6::jsonb, now())
+     ON CONFLICT (owner_id, client) DO UPDATE
+       SET telegram_id = $3, profile = $4::jsonb, soul = $5,
+           skills = $6::jsonb, updated_at = now()`,
+    [owner, client, telegramId, profileJson, soul, JSON.stringify(skills)]
+  )
+  const pkg = assemblePackage(
+    client,
+    profile as Record<string, unknown>,
+    soul,
+    skills
+  )
+  return {
+    stored: true,
+    client,
+    telegram_id: telegramId,
+    replaced: Boolean(had.rows?.length),
+    soul: Boolean(soul),
+    skills: pkg.skills.map(s => s.name),
+    next: `crm_client_setup client=${client} telegram_id=${telegramId}`,
+  }
 }
 
 /** The twelve reel ideas the seller proposes, one canonical plan each. */
@@ -286,12 +560,15 @@ export interface ClientPlan {
 /**
  * THE PLAN BELONGS TO THE PACKAGE, NOT TO LEELA.
  *
- * `REEL_SERIES` is twelve reels about a board game. Installing it for a
- * cannabis shop on Ko Phangan -- because it happened to be the constant the
+ * `REEL_SERIES` is twelve reels about a board game. Installing it for a shop
+ * that sells something else -- because it happened to be the constant the
  * installer reached for -- would fill that client's plan with another client's
- * product. A package now carries its own `content_plan`; the Leela constants
- * remain the plan of the one package that has always meant them, and a package
- * with neither gets no plan rather than somebody else's.
+ * product. A package carries its own `content_plan`; the Leela constants
+ * remain the plan of a package whose own reel template is the Leela one, and
+ * a package with neither gets no plan rather than somebody else's.
+ *
+ * The fallback used to be keyed by one package NAME, which tied the code to
+ * one real person's folder. The template is what the series is actually for.
  */
 export function planFor(pkg: ClientPackage): ClientPlan | null {
   const own = (pkg.profile as { content_plan?: unknown }).content_plan
@@ -314,11 +591,14 @@ export function planFor(pkg: ClientPackage): ClientPlan | null {
       }
     }
   }
-  if (pkg.client !== DEFAULT_CLIENT) return null
+  const template = (
+    pkg.profile as { reel_template?: { composition?: unknown } }
+  ).reel_template?.composition
+  if (template !== LEELA_TEMPLATE) return null
   return {
     goal: REEL_GOAL_TITLE,
     intent: 'Привести на доску со своим вопросом — один план, один рил.', // cyrillic-ok
-    templateId: 'LeelaPlanReel',
+    templateId: LEELA_TEMPLATE,
     items: REEL_SERIES.map(it => ({
       title: it.title,
       note: it.plan == null ? it.note : `План ${it.plan}. ${it.note}`, // cyrillic-ok
@@ -363,9 +643,12 @@ export async function setupClient(
      * person -- and touch none of the rows that belong to the client.
      */
     profileOnly?: boolean
+    /** A package already found by the caller; otherwise it is looked up. */
+    pkg?: ClientPackage
   }
 ): Promise<SetupReport> {
-  const pkg = loadClientPackage(o.client)
+  const pkg = o.pkg ?? (await findClientPackage(ctx, o.client))
+  if (!pkg) throw new Error(packageNotFound(o.client))
   const id = o.telegramId
   const profileOnly = o.profileOnly === true
   const report: SetupReport = {
@@ -513,9 +796,9 @@ const PROMPT_PRIORITY = [
   'forbidden_claims',
   /*
    * An unsettled dispute decides what may be said at all, so it outranks even
-   * the how-to: Lena's open money question is the reason nothing is offered to
-   * her for sale, and a budget that kept the manner and dropped the reason
-   * would produce a polite upsell.
+   * the how-to: an open money question is the reason nothing is offered to
+   * that client for sale, and a budget that kept the manner and dropped the
+   * reason would produce a polite upsell.
    */
   'open_money_question',
   /*
@@ -692,24 +975,35 @@ export async function schemaCheck(ctx: ToolContext): Promise<SchemaCheck> {
   }
 }
 
+/**
+ * THE REFUSAL FOR A MISSING ID.
+ *
+ * Each of these tools used to fall back to one real person's id when the
+ * caller named nobody, and `crm_client_profile` -- reachable by any connected
+ * seller -- therefore answered an empty call with that person's dossier. No
+ * tool here picks a person any more: no id, no answer, and the answer says why.
+ */
+export const NO_ID_REASON =
+  'Укажите telegram_id клиента: инструмент не выбирает человека сам.'
+
 export const CRM_CLIENT_TOOLS: AgentTool[] = [
   {
     name: 'crm_client_setup',
     description:
-      'Установить клиенту его пакет: черновик SOUL (если своего нет), скиллы «Leela: …», ' +
-      'профиль для продавца и цель контент-плана с серией рилс LeelaPlanReel. ' +
+      'Установить клиенту его пакет из базы (crm_client_package_upload) или встроенный пример: ' +
+      'черновик SOUL (если своего нет), скиллы, профиль для продавца и цель контент-плана. ' +
       'Только для владельца платформы. Свой SOUL клиента не перезаписывается без overwrite_soul; ' +
-      'скиллы с другим содержимым помечаются как конфликт. dry_run показывает, что будет сделано.',
+      'скиллы с другим содержимым помечаются как конфликт.',
     parameters: {
       type: 'object',
       properties: {
         client: {
           type: 'string',
-          description: 'имя пакета в src/agent/clients (по умолчанию playom)',
+          description: 'имя пакета',
         },
         telegram_id: {
           type: 'string',
-          description: 'Telegram ID клиента (по умолчанию 435572800)',
+          description: 'Telegram ID клиента',
         },
         overwrite_soul: {
           type: 'boolean',
@@ -724,21 +1018,44 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
         with_plan: {
           type: 'boolean',
           description:
-            'создать цель и 12 карточек серии рилс (по умолчанию true)',
+            'создать цель и карточки контент-плана пакета (по умолчанию true)',
         },
         dry_run: {
           type: 'boolean',
           description: 'только показать план действий (по умолчанию false)',
         },
       },
+      required: ['client', 'telegram_id'],
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
       if (!ctx) throw new Error('no context')
-      const telegramId = String(args.telegram_id ?? DEFAULT_CLIENT_ID).trim()
+      const telegramId = String(args.telegram_id ?? '').trim()
+      if (!telegramId) return { done: false, reason: NO_ID_REASON }
       if (!/^\d{5,20}$/.test(telegramId)) {
         return { done: false, reason: 'telegram_id должен быть числом' }
+      }
+      const client = packageSlug(args.client)
+      if (!client) {
+        return {
+          done: false,
+          reason:
+            'Укажите client — имя пакета (латиница, цифры, «-» и «_»): установщик не выбирает пакет сам.',
+        }
+      }
+      const pkg = await findClientPackage(ctx, client)
+      if (!pkg) return { done: false, reason: packageNotFound(client) }
+      /*
+       * A package that names its person is installed only for that person.
+       * Filing one client's dossier under another's id is how an agent ends up
+       * calling somebody by the wrong name.
+       */
+      if (pkg.telegram_id && pkg.telegram_id !== telegramId) {
+        return {
+          done: false,
+          reason: `Пакет «${client}» описывает другого человека, не ${telegramId}: чужое досье не ставлю.`, // cyrillic-ok
+        }
       }
       /*
        * A CLIENT WITH NO ACCOUNT STILL GETS A DOSSIER.
@@ -755,7 +1072,8 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
       const connected = await isSeller(asClient)
       const report = await setupClient(ctx, {
         profileOnly: !connected,
-        client: String(args.client ?? DEFAULT_CLIENT),
+        client,
+        pkg,
         telegramId,
         overwriteSoul: args.overwrite_soul === true,
         overwriteSkills: args.overwrite_skills === true,
@@ -785,9 +1103,10 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
       properties: {
         telegram_id: {
           type: 'string',
-          description: 'Telegram ID клиента (по умолчанию 435572800)',
+          description: 'Telegram ID клиента',
         },
       },
+      required: ['telegram_id'],
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
@@ -796,7 +1115,12 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
           'Профиль клиента читает только продавец с подключённым Telegram.'
         )
       }
-      const telegramId = String(args.telegram_id ?? DEFAULT_CLIENT_ID).trim()
+      // Only the profile that was asked for: an empty call reads nobody's.
+      const telegramId = String(args.telegram_id ?? '').trim()
+      if (!telegramId) throw new Error(NO_ID_REASON)
+      if (!/^\d{5,20}$/.test(telegramId)) {
+        throw new Error('telegram_id должен быть числом')
+      }
       const profile = await clientProfileFor(ctx, telegramId)
       // Which gift is due, beside the package that styles it. Loaded here,
       // not at the top: the delivery module pulls in billing and Telegram,
@@ -808,6 +1132,62 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
         telegramId
       ).catch(() => null)
       return portrait ? { ...profile, portrait } : profile
+    },
+  },
+  {
+    name: 'crm_client_package_upload',
+    description:
+      'Загрузить пакет клиента в базу рендера: профиль (JSON), черновик SOUL и скиллы. ' +
+      'Досье живёт в базе, не в публичном репозитории. Только для владельца платформы. ' +
+      'Пакет с тем же client перезаписывается; поставить клиенту — crm_client_setup.',
+    parameters: {
+      type: 'object',
+      properties: {
+        client: {
+          type: 'string',
+          description: 'имя пакета: латиница, цифры, «-» и «_»',
+        },
+        telegram_id: {
+          type: 'string',
+          description: 'Telegram ID человека, которого описывает пакет',
+        },
+        profile: {
+          type: 'object',
+          description: 'профиль клиента, JSON-объект',
+        },
+        soul: {
+          type: 'string',
+          description: 'черновик SOUL клиента, markdown (можно пусто)',
+        },
+        skills: {
+          type: 'array',
+          description:
+            'скиллы [{name, content}]: content — markdown, заголовок # становится именем',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              content: { type: 'string' },
+            },
+            required: ['content'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['client', 'telegram_id', 'profile'],
+      additionalProperties: false,
+    },
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
+      // The gate before anything else: a refused caller writes nothing.
+      requireOwner(ctx)
+      if (!ctx) throw new Error('no context')
+      return uploadClientPackage(ctx, {
+        client: args.client,
+        telegram_id: args.telegram_id,
+        profile: args.profile,
+        soul: args.soul,
+        skills: args.skills,
+      })
     },
   },
   {

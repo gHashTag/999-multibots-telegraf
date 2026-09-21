@@ -52,6 +52,7 @@ import {
 import { saveSoulAtom, soulErrorAtom, soulSavingAtom } from '@/atoms/soul'
 import { cloneReadyAtom, loadCloneStatusAtom } from '@/atoms/clone'
 import { ConnectTelegram } from './ConnectTelegram'
+import { TelegramLoginButton } from '../Auth/TelegramLoginButton'
 import {
   WELCOME_EXIT_ROUTE,
   WELCOME_STEPS,
@@ -300,6 +301,40 @@ function ClubStep(props: { onJoined: () => void }) {
   const days = status?.period_days ?? 0
   const tokens = status?.tokens_per_period ?? 0
   const share = stars > 0 && tokens > 0 ? t('welcome.club.share') : ''
+
+  /*
+   * THE SERVER DOES NOT KNOW WHO THIS IS -- SAY THAT, DO NOT SELL.
+   *
+   * An anonymous answer carries the public price and zeroes for everything
+   * personal (atoms/club.ts). Rendered as a paywall it accuses a paid member
+   * of never having paid, which is exactly what two invited people saw. A
+   * person whose session lapsed needs to sign in, not to buy a second
+   * membership -- and the button that would take a month's Stars must not be
+   * reachable while we do not know whose Stars they are.
+   */
+  const unknownPerson = status?.anonymous === true
+
+  if (unknownPerson) {
+    return (
+      <div className="welcome__card">
+        <div className="welcome__why">
+          <Star size={28} aria-hidden="true" />
+          <h2>{t('welcome.club.title')}</h2>
+          <p>{t('welcome.club.signedOut')}</p>
+        </div>
+        <div className="welcome__actions">
+          <TelegramLoginButton onSuccess={() => void reloadStatus()} />
+          <button
+            type="button"
+            className="welcome__btn welcome__btn--secondary"
+            onClick={() => void reloadStatus()}
+          >
+            {t('welcome.club.retry')}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="welcome__card">

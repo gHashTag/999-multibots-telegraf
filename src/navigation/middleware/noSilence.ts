@@ -98,6 +98,13 @@ export const replyWitness = (ctx: any, next: any) => {
   ctx.state.answered = false
   ctx.state.pressAnswered = false
   /*
+   * How many times anything was said, not just whether. `answered` is a
+   * one-way flag the agent fallback sets BEFORE its detached turn has said a
+   * word (see registerCommands.ts, the `dm:` lane), so that turn cannot ask
+   * the flag whether it spoke. It compares this count instead.
+   */
+  ctx.state.replies = 0
+  /*
    * A press is answered by `answerCbQuery`, not by a message. Telegram spins a
    * clock on the button until that call arrives and gives up after about half a
    * minute, so a handler that replies but forgets to answer still leaves the
@@ -115,6 +122,7 @@ export const replyWitness = (ctx: any, next: any) => {
     if (typeof original !== 'function') continue
     ctx[name] = (...args: any[]) => {
       ctx.state.answered = true
+      ctx.state.replies = (ctx.state.replies ?? 0) + 1
       return original.apply(ctx, args)
     }
   }
@@ -160,7 +168,8 @@ export const silenceNet = async (ctx: any, next: any) => {
  * Exported for the one handler that finishes AFTER the chain has ended: the
  * agent turn in the bot chat runs in its lane (services/agentLanes.ts), so it
  * marks the message answered up front and, when its turn turns out to have
- * nothing to say, speaks for the net itself.
+ * nothing to say -- or throws before saying anything -- speaks for the net
+ * itself.
  */
 export async function answerIfNobodyDid(ctx: any): Promise<void> {
   const message = ctx.message

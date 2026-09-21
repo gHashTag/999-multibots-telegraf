@@ -19,6 +19,12 @@
  * agent is faked -- with a turn that does not end until the test says so. The
  * payment query is delivered in the NEXT batch after the turn has started,
  * which is exactly the case the old loop could not serve.
+ *
+ * The owner's correspondence import (the "crm:ingest" press) is the same
+ * shape: it awaited the render for up to 170 s on the loop, and a buyer who
+ * paid on that bot meanwhile was answered only when the import ended --
+ * measured with this harness before the fix, exactly when the test released
+ * it. It runs in the owner's lane now and is held here too.
  */
 import {
   describe,
@@ -60,13 +66,19 @@ vi.mock('@/services/trinityAgent', async importOriginal => ({
   recordTurns: vi.fn(async () => undefined),
   fetchHistory: vi.fn(async () => []),
 }))
+/** Imports that have started and not ended; the test ends them by hand. */
+const ingests: Array<(r: unknown) => void> = []
 vi.mock('@/services/modelSwitch', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   mirrorDm: vi.fn(async () => ({ ok: true })),
-  ingestChats: vi.fn(async () => ({})),
+  ingestChats: vi.fn(
+    () => new Promise(resolve => ingests.push(resolve as (r: unknown) => void))
+  ),
 }))
 
 const OWNER = 900000091
+// The CRM dispatcher answers the owner only: the gate is parsed at import.
+process.env.ADMIN_IDS = String(OWNER)
 const CLIENT = 900000092
 const BUYER = 900000093
 
@@ -152,6 +164,7 @@ afterAll(() => {
 let running: { bot: Telegraf<any>; loop: Promise<void> } | null = null
 afterEach(async () => {
   for (const a of asks) if (!a.settled) a.answer('released')
+  for (const end of ingests.splice(0)) end({})
   if (running) {
     running.bot.stop('test over')
     await running.loop.catch(() => undefined)
@@ -249,5 +262,42 @@ describe('pre_checkout_query is answered while an agent turn runs on the same bo
     ])
     launchProductionBot()
     await answeredWhileTurnRuns()
+  }, 30_000)
+
+  it("during the owner's correspondence import (crm:ingest)", async () => {
+    deliver([
+      {
+        update_id: ++updateId,
+        callback_query: {
+          id: `q${updateId}`,
+          from: {
+            id: OWNER,
+            is_bot: false,
+            first_name: 'Owner',
+            language_code: 'ru',
+          },
+          chat_instance: 'c1',
+          data: 'crm:ingest',
+          message: {
+            message_id: 7,
+            date: Math.floor(Date.now() / 1000),
+            chat: { id: OWNER, type: 'private' },
+            text: 'the CRM menu',
+          },
+        },
+      },
+    ])
+    launchProductionBot()
+    // The import is running: the render was asked and has not answered.
+    await vi.waitFor(() => expect(ingests).toHaveLength(1), {
+      timeout: 10_000,
+    })
+
+    const paidAt = Date.now()
+    deliver([preCheckout()])
+    await vi.waitFor(() => expect(answeredAt).not.toBeNull(), { timeout: 3000 })
+    expect(answeredAt! - paidAt).toBeLessThan(1000)
+    // ...and the import is STILL running.
+    expect(ingests).toHaveLength(1)
   }, 30_000)
 })

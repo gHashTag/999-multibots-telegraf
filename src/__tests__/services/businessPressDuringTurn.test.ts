@@ -17,7 +17,11 @@
  *   - the owner's press (or typed line) is handled while that turn is STILL
  *     pending -- the pause is in force before the agent has answered;
  *   - when the agent answers, nothing reaches the client, and the owner is
- *     told once that the agent's answer was not sent.
+ *     told once that the agent's answer was not sent -- WITH that answer,
+ *     because the render has already saved it as said and its tools may
+ *     already have paid for what it carries;
+ *   - the agent's next question in that chat starts with a note that its last
+ *     answer was withheld, once.
  *
  * Fictional ids only (9000000xx).
  */
@@ -189,7 +193,7 @@ const discardNotices = () =>
     s =>
       s.method === 'sendMessage' &&
       s.payload.chat_id === OWNER &&
-      s.payload.text === DISCARD_NOTICE
+      String(s.payload.text).startsWith(DISCARD_NOTICE)
   )
 
 describe('the owner takes the chat back mid-turn', () => {
@@ -227,6 +231,10 @@ describe('the owner takes the chat back mid-turn', () => {
 
     expect(toClient(CLIENT)).toEqual([])
     expect(discardNotices()).toHaveLength(1)
+    // The owner gets the words the client never saw, to pass on by hand.
+    expect(discardNotices()[0].payload.text).toContain('Рилс стоит 2 токена.')
+    // In the owner's own chat, never as the owner into the client's chat.
+    expect(discardNotices()[0].payload.business_connection_id).toBeUndefined()
   }, 60_000)
 
   it('the owner typing in the chat lands while the agent is still writing, and wins the same way', async () => {
@@ -261,6 +269,44 @@ describe('the owner takes the chat back mid-turn', () => {
     expect(asks).toHaveLength(1)
   }, 60_000)
 
+  it('the agent is told, on its next turn in that chat, that its last answer was withheld -- once', async () => {
+    const CLIENT = 900000044
+    sink = []
+    asks.length = 0
+    const bot = productionBot()
+
+    await bot.handleUpdate(
+      businessMessage('conn-note', CLIENT, CLIENT, 'сколько стоит?') as any
+    )
+    await vi.waitFor(() => expect(asks).toHaveLength(1), { timeout: 10_000 })
+    expect(asks[0].text).not.toContain(svc.WITHHELD_NOTE)
+    await bot.handleUpdate(ownerPress(`crm:mute:${CLIENT}`) as any)
+    asks[0].answer('Стоит 5 токенов, вот ссылка на оплату.')
+    expect((await agentLanes.drain(10_000)).unfinished).toEqual([])
+    expect(discardNotices()).toHaveLength(1)
+
+    // The owner hands the chat back; the client writes again.
+    expect(svc.resumeAiFor(CLIENT, OWNER)).toBeGreaterThan(0)
+    await bot.handleUpdate(
+      businessMessage('conn-note', CLIENT, CLIENT, 'алло?') as any
+    )
+    await vi.waitFor(() => expect(asks).toHaveLength(2), { timeout: 10_000 })
+    expect(asks[1].text.startsWith(svc.WITHHELD_NOTE)).toBe(true)
+    expect(asks[1].text).toContain('алло?')
+    asks[1].answer('Да, я здесь.')
+    expect((await agentLanes.drain(10_000)).unfinished).toEqual([])
+    expect(toClient(CLIENT).map(s => s.payload.text)).toEqual(['Да, я здесь.'])
+
+    // Said once: the turn after that is an ordinary one.
+    await bot.handleUpdate(
+      businessMessage('conn-note', CLIENT, CLIENT, 'спасибо') as any
+    )
+    await vi.waitFor(() => expect(asks).toHaveLength(3), { timeout: 10_000 })
+    expect(asks[2].text).not.toContain(svc.WITHHELD_NOTE)
+    asks[2].answer('Пожалуйста!')
+    expect((await agentLanes.drain(10_000)).unfinished).toEqual([])
+  }, 60_000)
+
   it('control: with no takeover the same turn does reach the client', async () => {
     const CLIENT = 900000043
     sink = []
@@ -278,4 +324,18 @@ describe('the owner takes the chat back mid-turn', () => {
     expect(toClient(CLIENT)[0].payload.text).toBe('Здравствуйте!')
     expect(discardNotices()).toHaveLength(0)
   }, 60_000)
+})
+
+describe("the owner's notice for a withheld answer", () => {
+  it('names what the client did not get, and says so when part of it did go out', () => {
+    const whole = svc.discardNotice('Стоит 5 токенов: https://t.me/$pay', false)
+    expect(whole.startsWith(DISCARD_NOTICE)).toBe(true)
+    expect(whole).toContain('https://t.me/$pay')
+    const partial = svc.discardNotice('вторая часть', true)
+    expect(partial.startsWith(DISCARD_NOTICE)).toBe(false)
+    expect(partial).toContain('не целиком')
+    expect(partial).toContain('вторая часть')
+    // Nothing withheld, nothing to quote.
+    expect(svc.discardNotice('  ', false)).toBe(DISCARD_NOTICE)
+  })
 })

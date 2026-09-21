@@ -800,7 +800,7 @@ export function makeCrmDeliverTools(
            * AND THE THIRD ANSWER: to whom. The two calls above know that the
            * provider is down and that a gift was refused; neither can name the
            * person left waiting, so nobody goes back to them when it works
-           * again (crm-owed.ts).
+           * again (see crm-owed.ts).
            */
           if (ctx?.pool) {
             await noteOwed(pool, {

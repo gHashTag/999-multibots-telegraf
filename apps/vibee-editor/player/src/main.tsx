@@ -13,6 +13,7 @@ import { isOurServer } from './lib/apiFetch'
 import { resumeAppSessionRefresh } from './lib/appSession'
 import { installSessionRenewal } from './lib/sessionRenewal'
 import { sessionStore } from './lib/framedSession'
+import { startAppSessionHealing } from './lib/appSession'
 import { IS_EMBED, announceStorageBlocked } from './lib/embed'
 import { isTelegram } from './lib/telegram'
 
@@ -136,6 +137,16 @@ resumeAppSessionRefresh()
 // Inside the game's TRI frame, a browser that refuses this frame its storage
 // is reported to the game once (lib/embed.ts). The screen still renders.
 announceStorageBlocked()
+
+/*
+ * Keep the browser session alive on EVERY screen.
+ *
+ * Rotation used to be armed only by <TelegramLoginButton>, which renders null
+ * inside Telegram and is not mounted on most pages. A reload anywhere else
+ * left no timer at all, the ten-minute access token died, and the person was
+ * refused until they signed in by hand (lib/appSession.ts).
+ */
+startAppSessionHealing()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

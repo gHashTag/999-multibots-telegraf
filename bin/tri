@@ -88,6 +88,7 @@ tri — оболочка Trinity S³AI
   tri bridge [id...]  радужный мост: вся ферма и обе стороны разом, никому не пишет
   tri commands   каждая команда меню на каждом боте: ответил / молчит / не пробовали
   tri pack <id> <username>  упаковка клиента: восемь частей, у каждой — следующее нажатие
+  tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
   tri throttle   тормоз на входе: по чему считает и кого не заденет
@@ -97,6 +98,7 @@ tri — оболочка Trinity S³AI
   tri schema     таблицы, которые код считает существующими, против настоящих
   tri crm-source какая копия users/payments живая: Supabase или Railway
   tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
+  tri drift      влито, но не выехало: сервис отвязан, main застрял или сборка падает
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
@@ -393,6 +395,10 @@ case "${1:-}" in
       echo "  НЕТ ПЛАГИНА -- подставка уедет в продакшен"
     fi
     ;;
+
+  drift)
+    # Merged is not shipped. 0 clear, 1 an anomaly (named), 2 could not look.
+    shift; node "$ROOT/scripts/railway-drift.mjs" "$@" ;;
 
   shipped)
     # Уехало ли в прод -- и пользуется ли им кто-нибудь. Два разных вопроса.
@@ -893,6 +899,7 @@ PYEOF
   landing) shift; bash "$ROOT/bin/helpers/landing.sh" "$ROOT" "$@" ;;
   facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
   sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
+  inflight) shift; bash "$ROOT/bin/helpers/inflight.sh" "$ROOT" ;;
   funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
   headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
   lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
