@@ -224,8 +224,8 @@ export async function readScreen(
  * asked for, and X then reports that mode's refresh rounded from its pixel
  * clock -- 29 or 31 for some sizes, 30 for others. Asking for 30 on a mode
  * X lists as 29 is BadValue. (server/pkg/xorg/xorg.go, ChangeScreenSize.)
- * The failed ask still CREATED the mode, so the menu now lists it with the
- * rate X gave it, and the menu choice below picks exactly that.
+ * The failed ask still CREATED the mode; see the retry below for why it is
+ * asked for again at one hertz less, and why the menu cannot help.
  */
 export async function applyScreen(
   endpoint: string,
@@ -260,15 +260,33 @@ export async function applyScreen(
   const exact = await ask(want)
   if (exact && landed(want, exact)) return exact
 
+  /*
+   * REFUSED FOR ITS RATE: THE MODE NOW EXISTS, AT ONE HERTZ LESS.
+   *
+   * CVT rounds a new mode's pixel clock DOWN, so its real refresh lands just
+   * under the rate asked for, and X rounds that to the nearest whole number:
+   * 30 for a big screen, 29 for a phone-sized one (the clock step is a
+   * bigger share of a small clock). The refused ask still created the mode,
+   * so the same size at one hertz less is what lands.
+   *
+   * It cannot come from the menu: neko reads its list of sizes ONCE, at
+   * start (server/internal/desktop/manager.go), so a mode made afterwards is
+   * never on it. Relying on the menu is exactly what put the owner back on
+   * 800x1600, with black edges either side, after the fix that assumed it.
+   *
+   * Only after a refusal (422). A polite 200 that left the screen alone is
+   * not a rate problem, and a second ask would be a second video restart
+   * for nothing.
+   */
+  if (!exact) {
+    const slower = await ask({ ...want, rate: want.rate - 1 })
+    if (slower && landed(want, slower)) return slower
+  }
+
   const menu = await listConfigurations(endpoint, bearer, fetcher).catch(
     () => [] as ScreenSize[]
   )
 
-  /*
-   * The refused ask still created the size, at the rate X gave it, so the
-   * menu now lists it -- and being exactly the wanted shape, it is what the
-   * menu choice picks. No separate retry: one path, one more restart.
-   */
   const nearest = pickFromMenu(want, menu)
   if (nearest) {
     const settled = await ask(nearest)
