@@ -39,7 +39,11 @@ vi.mock('@/utils/logger', () => ({
 }))
 
 import { getHandler } from '@/inngest_app/test/utils/test-helpers'
-import { crmProactiveSweep } from '@/inngest_app/functions/crm/crmProactiveSweep'
+import {
+  crmProactiveSweep,
+  withStepBudget,
+  SWEEP_STEP_BUDGET_MS,
+} from '@/inngest_app/functions/crm/crmProactiveSweep'
 
 const handler = getHandler(crmProactiveSweep)
 
@@ -135,5 +139,89 @@ describe('crm-proactive-sweep runs one step per seller', () => {
 
   it('retries stay 0 -- a retry could push a second card', () => {
     expect((crmProactiveSweep as any).opts.retries).toBe(0)
+  })
+})
+
+/**
+ * THE STEP BUDGET -- production run 01M31ASM93K61CECEAWEYWH9GW, 2026-09-21.
+ *
+ * Request out at 06:30:00, run FAILED at 06:35:00 sharp ("HTTP 502 before the
+ * SDK responded"), and the sweep it carried logged its own result at 06:36:14:
+ * the work was healthy, the socket was not. The step has to give up before the
+ * edge does, and hand back a row instead of a dead run.
+ */
+describe('a sweep that outlasts the wire', () => {
+  beforeEach(() => {
+    svc.carrier = { bot: { tag: 'bot' }, opts: { ownerId: '144022504' } }
+    svc.resolveSellers.mockReset()
+    svc.runProactiveTick.mockReset()
+  })
+
+  it('gives up before the five minutes the edge allows', () => {
+    expect(SWEEP_STEP_BUDGET_MS).toBeLessThan(300_000)
+  })
+
+  it('returns the slow row and stops waiting', async () => {
+    const forever = new Promise<never>(() => undefined)
+    const out = await withStepBudget(forever, 5, () => ({
+      did: 'slow' as const,
+      why: 'still running',
+      ms: 6,
+    }))
+    expect(out).toMatchObject({ did: 'slow' })
+  })
+
+  it('a sweep that rejects after we walked away does not go unhandled', async () => {
+    let boom: (e: Error) => void = () => undefined
+    const late = new Promise<never>((_, reject) => {
+      boom = reject
+    })
+    const out = await withStepBudget(late, 5, () => ({
+      did: 'slow' as const,
+      why: 'still running',
+      ms: 6,
+    }))
+    expect(out).toMatchObject({ did: 'slow' })
+    boom(new Error('terminated, long after nobody was listening'))
+    await new Promise(r => setTimeout(r, 10))
+  })
+
+  it('a sweep that answers in time is not called slow', async () => {
+    const out = await withStepBudget(
+      Promise.resolve({ did: 'card' }),
+      5_000,
+      () => ({
+        did: 'slow' as const,
+        why: 'unused',
+        ms: 0,
+      })
+    )
+    expect(out).toEqual({ did: 'card' })
+  })
+
+  it('the slow seller does not stop the next one', async () => {
+    svc.resolveSellers.mockResolvedValue(['144022504', '435572800'])
+    svc.runProactiveTick
+      .mockReturnValueOnce(new Promise(() => undefined))
+      .mockResolvedValueOnce({ did: 'quiet' })
+    const { step, names } = fakeStep()
+    /*
+     * The real budget is four minutes; a test cannot wait for it, so the whole
+     * point here is the SHAPE -- the second seller gets its own step and its
+     * own answer. Timing is pinned by the two withStepBudget tests above.
+     */
+    vi.useFakeTimers()
+    const run = handler({ event: cronEvent, step } as never) as Promise<any>
+    await vi.advanceTimersByTimeAsync(SWEEP_STEP_BUDGET_MS + 10)
+    const out = await run
+    vi.useRealTimers()
+
+    expect(names).toEqual([
+      'resolve-sellers',
+      'sweep-144022504',
+      'sweep-435572800',
+    ])
+    expect(out.outcomes[0].outcome).toMatchObject({ did: 'slow' })
+    expect(out.outcomes[1].outcome).toEqual({ did: 'quiet' })
   })
 })
