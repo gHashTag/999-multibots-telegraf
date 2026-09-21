@@ -794,6 +794,41 @@ export async function transcribeShelfAudioNow(
 }
 
 /**
+ * Describe a shelf photo NOW, on the turn's own clock, and never throw.
+ *
+ * The twin of `transcribeShelfAudioNow`, and it is new for the same reason
+ * that one was: until 21.09.2026 there was no live path for sight at all.
+ * A recording sent this minute was transcribed while the person waited, but
+ * a photo sent this minute could only be answered from a description the
+ * background sweep had already stored -- and on the first turn there is
+ * never one. So the agent said, to a client on 21.09.2026 (translated):
+ * "I see the photo, but without a description". It saw a filename.
+ *
+ * Same contract as its twin: our own shelf only, one attempt, a short
+ * deadline, and failure means "no description" rather than an exception --
+ * the caller turns that into a line saying plainly that nothing looked.
+ */
+export async function describeShelfImageNow(
+  url: string,
+  name: string | null,
+  timeoutMs: number
+): Promise<string | null> {
+  const safe = usableMediaUrl(url, 'image')
+  if (!safe) {
+    console.warn(`[media] not viewable live: ${String(name ?? url).slice(-60)}`)
+    return null
+  }
+  const v = visionConfig()
+  if (!v) return null
+  try {
+    return await describeImageWithVision(v, safe, timeoutMs)
+  } catch (e) {
+    console.warn('[media] live description failed', String(e))
+    return null
+  }
+}
+
+/**
  * Descriptions already on record for these exact URLs, keyed by URL.
  *
  * Scoped to ONE owner, like every other read here: the table is keyed by

@@ -82,12 +82,15 @@ import {
 } from './media-parts'
 import { allProviders } from './provider'
 import {
+  describeShelfImageNow,
   isTextLikeDocument,
   mediaByUrls,
   readShelfDocument,
   transcribeShelfAudioNow,
+  whisperConfig,
   type Pool,
 } from './media-library'
+import { visionConfig } from './media-vision'
 import { foreignText } from './telegram-tools'
 
 /**
@@ -111,12 +114,24 @@ const INLINE_BUDGET = 8_000
  */
 const MAX_LIVE_TRANSCRIPTS = 1
 /**
+ * Two photos, not one: people send a screenshot and the thing it is about in
+ * the same breath, and the second one carries the question half the time.
+ * Measured on our own vision service 20.09.2026, one photo answered in about
+ * six seconds -- cheap enough for two and not for six.
+ */
+const MAX_LIVE_DESCRIPTIONS = 2
+/**
  * Short on purpose -- see `transcribeShelfAudioNow`. The sweep's own deadline
  * is 180 s because nothing waits on it.
  */
 const LIVE_TRANSCRIBE_MS = Math.max(
   5_000,
   Number(process.env.MEDIA_LIVE_TRANSCRIBE_MS) || 45_000
+)
+/** The same clock, for sight. See `describeShelfImageNow`. */
+const LIVE_DESCRIBE_MS = Math.max(
+  5_000,
+  Number(process.env.MEDIA_LIVE_DESCRIBE_MS) || 45_000
 )
 
 /** Formats named often enough to deserve being named back. */
@@ -141,6 +156,10 @@ interface InlineOptions {
  * whole or not at all. Reading that differently here would produce the exact
  * bug this file exists to remove -- a file inlined as text AND sent as a part,
  * or neither.
+ *
+ * The one difference is the SET it is given: our own senses are subtracted
+ * first (`ownSenses`), because what we read here stops being an attachment
+ * before `chat.ts` ever looks. Same question, asked about what is left.
  */
 function chainPerceives(kinds: Set<'image' | 'audio'>, toolsOnly?: boolean) {
   if (!kinds.size) return false
@@ -148,6 +167,62 @@ function chainPerceives(kinds: Set<'image' | 'audio'>, toolsOnly?: boolean) {
   return configured.some(
     p => (!kinds.has('image') || p.vision) && (!kinds.has('audio') || p.audio)
   )
+}
+
+/**
+ * THE SENSES WE OWN, AND WHY THEY GO FIRST (21.09.2026).
+ *
+ * This file used to stand aside whenever ANY configured provider declared the
+ * matching sense -- and exactly one ever has, nemotron. So every turn carrying
+ * a photo or a voice note was handed to a single third-party model, and when
+ * that model was rate-limited, slow, or simply did not look, the person got a
+ * filename back. Meanwhile this service runs its own transcriber and its own
+ * vision endpoint on the private network: faster-whisper and a Qwen3-VL served
+ * by llama.cpp, both paid for, both up, both never asked on a live turn for
+ * sight at all.
+ *
+ * So the order is inverted. What we can read, we read here, on our own
+ * hardware, where a failure is visible and a success is words in the
+ * transcript that survive every later tool step. The provider chain is asked
+ * only about what is LEFT -- which keeps the invariant this file was built on:
+ * a file is inlined as text OR sent as a native part, never both, never
+ * neither. `handled` below carries that through to the text, by breaking the
+ * marker of anything we read so `withMediaParts` cannot send it again.
+ */
+function ownSenses(): Set<'image' | 'audio'> {
+  const mine = new Set<'image' | 'audio'>()
+  if (visionConfig()) mine.add('image')
+  if (whisperConfig()) mine.add('audio')
+  return mine
+}
+
+/**
+ * Break the marker lines of the files we read ourselves, and only those.
+ *
+ * Line by line through the one parser, so the format keeps a single
+ * implementation: a line that `parseMarkers` does not recognise is not a
+ * marker and is left exactly as the person wrote it.
+ */
+function defangHandled(text: string, handled: Set<string>): string {
+  if (!handled.size) return text
+  return text
+    .split('\n')
+    .map(line => {
+      const [ref] = parseMarkers(line)
+      if (!ref || !handled.has(markerKey(ref))) return line
+      return line.replace(/^\[attached /, '[ attached ')
+    })
+    .join('\n')
+}
+
+/**
+ * The identity of an attachment: its canonical shelf URL when it is ours.
+ * `a.ogg`, `a.ogg?v=2` and `a.ogg#x` are one object, and were three before
+ * this -- three cache misses, three transcriptions, three native slots.
+ */
+function markerKey(ref: MarkerRef): string {
+  const found = shelfObject(ref.url)
+  return found ? found.url : `raw:${ref.url}`
 }
 
 /** One line of machine-added context, clearly labelled as such. */
@@ -211,21 +286,30 @@ export async function inlineUnperceivedMedia(
     if (ref.kind !== 'image' && ref.kind !== 'audio') continue
     if (usableMediaUrl(ref.url, ref.kind)) kinds.add(ref.kind)
   }
-  const perceived = chainPerceives(kinds, opts.toolsOnly)
+  /*
+   * The chain is asked about what is LEFT once our own senses have taken
+   * their share -- the same set `chat.ts` will compute for itself, because
+   * everything we read gets its marker broken below. Asking about the whole
+   * set would produce the one outcome this file exists to prevent: a photo
+   * described here AND sent as a part, or a voice note refused in the text
+   * while its bytes travel beside the refusal.
+   */
+  const mine = ownSenses()
+  const left = new Set([...kinds].filter(k => !mine.has(k)))
+  const perceived = chainPerceives(left, opts.toolsOnly)
 
   /* Which refs actually need work, canonical and de-duplicated. */
   const todo: Array<{ ref: MarkerRef; key: string; url: string }> = []
   const seen = new Set<string>()
   for (const ref of refs) {
     if (ref.kind === 'image' || ref.kind === 'audio') {
-      // Handled natively: the provider will fetch it itself.
-      if (perceived && usableMediaUrl(ref.url, ref.kind)) continue
+      // Handled natively: the provider will fetch it itself. Only ever for a
+      // sense we do not own -- ours are read here, on this turn's clock.
+      if (perceived && !mine.has(ref.kind) && usableMediaUrl(ref.url, ref.kind))
+        continue
     }
     const found = shelfObject(ref.url)
-    // The canonical URL is the identity. `a.ogg`, `a.ogg?v=2` and `a.ogg#x`
-    // are one object, and were three before this -- three cache misses, three
-    // transcriptions, three of the four native slots.
-    const key = found ? found.url : `raw:${ref.url}`
+    const key = markerKey(ref)
     if (seen.has(key)) continue
     seen.add(key)
     todo.push({ ref, key, url: found ? found.url : ref.url })
@@ -244,8 +328,18 @@ export async function inlineUnperceivedMedia(
   }
 
   const lines: string[] = []
+  /*
+   * Everything here is answered in the text, so its marker must stop being
+   * one. Both outcomes count: a photo we described and a photo we admitted we
+   * could not look at are equally settled, and a native part sent beside
+   * either would contradict the sentence the model is reading.
+   */
+  const handled = new Set<string>()
+  /** Names nothing could perceive -- the line the owner greps for. */
+  const blind: string[] = []
   let budget = INLINE_BUDGET
   let live = 0
+  let looked = 0
 
   const add = (line: string) => {
     if (budget <= 0) return
@@ -253,9 +347,10 @@ export async function inlineUnperceivedMedia(
     budget -= line.length
   }
 
-  for (const { ref, url } of todo) {
+  for (const { ref, key, url } of todo) {
     const name = ref.name || 'file'
     const stored = cached.get(url)
+    if (ref.kind === 'image' || ref.kind === 'audio') handled.add(key)
 
     if (ref.kind === 'file') {
       const refusal = documentRefusal(ref)
@@ -289,6 +384,7 @@ export async function inlineUnperceivedMedia(
           continue
         }
       }
+      blind.push(name)
       add(
         `[not heard: ${name} — nothing here could listen to this recording, and no transcript is on record. Say so plainly and ask what was said; do NOT infer it from the conversation.]`
       )
@@ -300,6 +396,24 @@ export async function inlineUnperceivedMedia(
         add(note('seen earlier', name, stored))
         continue
       }
+      /*
+       * Sight, live, at last. The shape is the transcriber's, deliberately:
+       * a cap on how many one turn may do, a short deadline, one attempt,
+       * and a refusal that names the file when it does not come back.
+       */
+      if (looked < MAX_LIVE_DESCRIPTIONS) {
+        looked += 1
+        const sight = await describeShelfImageNow(
+          url,
+          name,
+          LIVE_DESCRIBE_MS
+        ).catch(() => null)
+        if (sight) {
+          add(note('seen', name, sight))
+          continue
+        }
+      }
+      blind.push(name)
       add(
         `[not seen: ${name} — nothing here could look at this image, and no description is on record. Say so plainly; do NOT describe it from the conversation.]`
       )
@@ -317,9 +431,25 @@ export async function inlineUnperceivedMedia(
 
   if (!lines.length) return messages
 
+  /*
+   * The warning `chat.ts` used to print lived there because the marker
+   * survived this far. It no longer does for anything we settled, so the
+   * signal moves here, where the failure actually happened -- and it now
+   * names the files, which the old line never did.
+   */
+  if (blind.length) {
+    console.warn(
+      `[media] nothing could perceive: ${blind.join(', ')} — ` +
+        'check the whisper and vision services and WHISPER_API_KEY/VISION_API_KEY'
+    )
+  }
+
   const block =
     '\n\n[ATTACHMENTS — opened by the server, not typed by the person]\n' +
     lines.join('\n')
 
-  return [...messages.slice(0, -1), { ...last, content: last.content + block }]
+  return [
+    ...messages.slice(0, -1),
+    { ...last, content: defangHandled(last.content, handled) + block },
+  ]
 }
