@@ -88,6 +88,7 @@ import {
   refuseUpgrade,
 } from './src/browser/live-pipe'
 import { telegramName } from './src/browser/telegram-name'
+import { FRAMES_PATH, frameSize, serveFrames } from './src/browser/frames'
 import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
 import {
   ensureApprovals,
@@ -11519,6 +11520,13 @@ const WS_MAX_BUFFERED_BYTES = 8 * 1024 * 1024
  * Now there is ONE dispatcher (the 'upgrade' handler further down) and it
  * hands each upgrade to exactly one owner.
  */
+/*
+ * The live-frames socket (src/browser/frames.ts): its own server, because it
+ * is answered here rather than piped, and it only ever SENDS -- a viewer has
+ * nothing to say on it, so anything bigger than a ping is refused.
+ */
+const framesWss = new WebSocketServer({ noServer: true, maxPayload: 1024 })
+
 const wss = new WebSocketServer({
   noServer: true,
   maxPayload: WS_MAX_PAYLOAD_BYTES,
@@ -11856,6 +11864,30 @@ async function main() {
           socket,
           decision.kind === 'refuse' ? decision.status : 400
         )
+      }
+      /*
+       * LIVE FRAMES WHILE THE VIDEO CONNECTS (frames.ts): answered here, from
+       * the person's browser over CDP, never piped to the pod. Pictures one
+       * way; nothing typed goes through this socket.
+       */
+      if (decision.upstreamPath.split('?')[0] === FRAMES_PATH) {
+        const q = new URLSearchParams(decision.upstreamPath.split('?')[1] || '')
+        const size = frameSize(q.get('w'), q.get('h'))
+        framesWss.handleUpgrade(req, socket, head, ws => {
+          void serveFrames(
+            {
+              send: data => ws.send(data, { binary: true }),
+              get bufferedAmount() {
+                return ws.bufferedAmount
+              },
+              close: code => ws.close(code),
+              onClose: fn => ws.on('close', fn),
+            },
+            decision.cdpEndpoint,
+            size
+          )
+        })
+        return
       }
       pipeUpgrade(
         {
