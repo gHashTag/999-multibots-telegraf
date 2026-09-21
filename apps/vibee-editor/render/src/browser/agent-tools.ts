@@ -109,6 +109,31 @@ async function podOf(
 
 const noArgs = { type: 'object', properties: {}, additionalProperties: false }
 
+/*
+ * THE WORDS THAT TRAVEL WITH A PICTURE.
+ *
+ * A screenshot is shown to the person and kept in the tool log; the model
+ * that asked for it does not see it (agent/tool-content.ts says why and what
+ * it gets instead). So the shot carries its facts in text: every tab, by
+ * title and address, and which one is in front. Measured 2026-09-22: asked
+ * "take the whole screen and say what is open", the agent was handed 80 KB
+ * of base64 and described "the Queen's board with task cards" -- the screen
+ * showed a Google sign-in page and five tabs.
+ */
+async function tabsOf(
+  cdp: string,
+  frontId?: string
+): Promise<Array<{ title: string; url: string; front?: true }>> {
+  const targets = await listTargets(cdp).catch(() => [])
+  return targets
+    .filter(t => t.type === 'page')
+    .map(t => ({
+      title: t.title,
+      url: t.url,
+      ...(t.id === frontId ? { front: true as const } : {}),
+    }))
+}
+
 /**
  * Where the person's two buttons point. Its own server, so a decision never
  * has to cross into the bot to be recorded.
@@ -333,10 +358,15 @@ export const BROWSER_TOOLS: AgentTool[] = [
         return {
           format: 'jpeg',
           base64: await desktopShot(session!.endpoint!, session!.adminToken),
+          tabs: session!.cdpEndpoint ? await tabsOf(session!.cdpEndpoint) : [],
         }
       }
       const { cdp, targetId } = await podOf(ctx)
-      return { format: 'jpeg', base64: await screenshot(cdp, targetId) }
+      return {
+        format: 'jpeg',
+        base64: await screenshot(cdp, targetId),
+        tabs: await tabsOf(cdp, targetId),
+      }
     },
   },
   {
