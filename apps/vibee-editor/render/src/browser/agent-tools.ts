@@ -41,6 +41,7 @@ import {
 import { readSession, markAllowed, type Queryable } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
 import { desktopShot } from './screen'
+import { recordStep, stepOf } from './journal'
 import { askVision, shrinkJpeg, visionConfig } from '../agent/media-vision'
 import {
   frontPage,
@@ -257,7 +258,7 @@ const approvalBase = () =>
 const WAIT_CAP_MS = 120_000
 const POLL_MS = 2_000
 
-export const BROWSER_TOOLS: AgentTool[] = [
+const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_ask_permission',
     description:
@@ -558,6 +559,42 @@ export const BROWSER_TOOLS: AgentTool[] = [
     },
   },
 ]
+
+/*
+ * Every call is written to the person's journal (journal.ts): which tool,
+ * where, what came back, how long. In the background and never fatal -- a
+ * journal that cannot be written must not turn a working click into an
+ * error. Typed text and evaluated code are kept by length only.
+ */
+function journaled(tool: AgentTool): AgentTool {
+  return {
+    ...tool,
+    async handler(args, ctx) {
+      const t0 = Date.now()
+      const write = (outcome: { result?: unknown; error?: unknown }) =>
+        void recordStep(
+          ctx.pool as unknown as Queryable,
+          ctx.telegramId,
+          stepOf(
+            tool.name,
+            (args ?? {}) as Record<string, unknown>,
+            outcome,
+            Date.now() - t0
+          )
+        )
+      try {
+        const result = await tool.handler(args, ctx)
+        write({ result })
+        return result
+      } catch (error) {
+        write({ error })
+        throw error
+      }
+    },
+  }
+}
+
+export const BROWSER_TOOLS: AgentTool[] = TOOLS_UNJOURNALED.map(journaled)
 
 /**
  * The message with the two buttons.
