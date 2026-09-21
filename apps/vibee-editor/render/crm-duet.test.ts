@@ -23,6 +23,9 @@ import {
   claimsFamiliarity,
   claimsLivedExperience,
   LIVED_EXPERIENCE_REWRITE,
+  REWRITE_DENY_REASONS,
+  DUET_DENY_REASONS,
+  planNoteForSeller,
   PLAN_MEANING_RULE,
   NO_LIVED_EXPERIENCE_RULE,
   NO_PUBLISH_RULE,
@@ -40,6 +43,7 @@ import {
   type DuetRun,
   type DuetDeps,
 } from './src/agent/crm-duet-tool'
+import { dispatchToolCall } from './src/agent/chat'
 import type { ChatMessage, ToolDenial } from './src/agent/chat'
 import type { ToolContext } from './src/agent/tools'
 
@@ -410,6 +414,74 @@ describe('crm_duet: no lived experience (t27#4522 NO_LIVED_EXPERIENCE_CLAIM)', (
       expect(claimsLivedExperience(s), s).toBe(true)
   })
 
+  /*
+   * Review of PR #2709: close rewordings of the live sentence were quiet --
+   * an adverb between the subject and the verb, a dropped pronoun, the object
+   * first, a perfective verb, a habit after the verb, "from experience" with
+   * a first-person verb, and "you" in a sentence that is still the speaker's.
+   * These are what a rewrite round is likely to produce, so the promise "a
+   * second miss is reported" depends on catching them.
+   */
+  it('fires on close rewordings of the live sentence', () => {
+    for (const s of [
+      'Да, я уже бросал кубик.',
+      'Да, я и правда бросал кубик.',
+      'Да, я действительно играл в Лилу.',
+      'Сам бросал кубик, это моя работа каждый день.',
+      'Да, сам бросал кубик.',
+      'Я бросил кубик и прочитал план.',
+      'Я кубик бросал каждый день.',
+      'Я сам уже много раз играл.',
+      'Я тоже когда-то играл в Лилу.',
+      'Я сыграл в Лилу вчера.',
+      'Я сам через это прошёл.',
+      'Я прошёл поле до 68.',
+      'Мы прошли всё поле до 68.',
+      'Я читаю планы каждое утро.',
+      'Я каждое утро читаю план.',
+      'Скажу по опыту: первый бросок волнует.',
+      'Знаю по себе: первый бросок волнует.',
+      'это моя работа каждый день',
+      'По своему опыту скажу вам: первый бросок волнует.',
+      'По своему опыту скажу: вы почувствуете волнение.',
+      // No "I will tell" to lean on: "his own experience" alone, with "you"
+      // in the next clause, or "you" in the dative.
+      'По своему опыту: вы почувствуете волнение на первом броске.',
+      'По своему опыту подскажу вам: первый бросок волнует.',
+    ])
+      expect(claimsLivedExperience(s), s).toBe(true)
+  })
+
+  it('the wider net still lets through sends, negations, other subjects and conditionals', () => {
+    for (const s of [
+      // "threw" is slang for "sent"
+      'Я уже кидал вам ссылку на приложение.',
+      'Я бросил вам ссылку на бота.',
+      // a negation or a new clause ends the chain
+      'Я никогда не играл в Лилу.',
+      'Я ещё не бросал кубик.',
+      'Я давно не играл.',
+      'Я знаю, кто играл в Лилу вчера.',
+      'Я знаю кто играл в Лилу.',
+      // somebody else does the playing
+      'Сам игрок бросал кубик и читал план.',
+      'Сами игроки бросали кубик.',
+      'Тоже играли в Лилу?',
+      'Я понимаю, что игроки бросают кубик каждый день.',
+      // "his own experience" is the nominative subject's of its clause
+      'По своему опыту вы поймёте, какой план ваш.',
+      // a conditional is not a memory
+      'Я на вашем месте играл бы по плану.',
+      'Я бы играл по плану 6.',
+      // tool work and an honest job description
+      'Я прочитал план 6 и собрал ролик.',
+      'Я читал текст плана 6 в этом ходу.',
+      'Я уже прошёл по вашему каналу и посмотрел посты.',
+      'Моя работа — собрать ролик вашим шаблоном.',
+    ])
+      expect(claimsLivedExperience(s), s).toBe(false)
+  })
+
   it('stays quiet on offers, production, negation and talk about the product', () => {
     for (const s of [
       'Я могу собрать один ролик вашим шаблоном.',
@@ -436,7 +508,7 @@ describe('crm_duet: no lived experience (t27#4522 NO_LIVED_EXPERIENCE_CLAIM)', (
     )
     const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(), d)
     expect(histories).toHaveLength(2)
-    expect(histories[1].at(-1)?.content).toBe(LIVED_EXPERIENCE_REWRITE)
+    expect(histories[1].at(-1)?.content).toContain(LIVED_EXPERIENCE_REWRITE)
     expect(sent[0].text).toBe(REWRITE)
     expect(run.transcript[0].text).toBe(REWRITE)
     expect(run.violations).toEqual([
@@ -461,6 +533,143 @@ describe('crm_duet: no lived experience (t27#4522 NO_LIVED_EXPERIENCE_CLAIM)', (
     expect(run.violations).toEqual([
       'turn 4 (после правки): личный опыт от лица человека',
     ])
+  })
+})
+
+/*
+ * THE AGENT DOUBLE OBEYS THE DENIAL THE WAY runAgent DOES.
+ *
+ * A scripted result for a tool the call's options deny is replaced by what
+ * the REAL dispatcher answers for it (dispatchToolCall, which refuses before
+ * any handler) -- so a test about the gate cannot pass on a double that
+ * decided the refusal itself. Every call's options are recorded.
+ */
+function obeyDenial(d: DuetDeps): Array<ToolDenial | undefined> {
+  const seen: Array<ToolDenial | undefined> = []
+  const agent = d.agent
+  d.agent = (h, c, o) => {
+    seen.push(o)
+    return (async function* () {
+      for await (const ev of agent(h, c, o)) {
+        const e = ev as unknown as Record<string, unknown>
+        // Quoted keys: the event envelope's own field names.
+        const name = String(e['имя'] ?? '')
+        const isResult = e['тип'] === 'результат'
+        if (!isResult || !o?.denyTools?.has(name)) {
+          yield ev
+          continue
+        }
+        const gen = dispatchToolCall({ function: { name } }, c, o)
+        let step = await gen.next()
+        while (!step.done) step = await gen.next()
+        yield result(name, step.value) as never
+      }
+    })()
+  }
+  return seen
+}
+
+describe('crm_duet: a rewrite round changes words, not work (review of #2709)', () => {
+  const U = 'https://bucket.example/renders/leela-plan-6.mp4'
+  const U2 = 'https://bucket.example/renders/leela-plan-6-again.mp4'
+  const reel = (url: string) => [
+    announce('reel_render', {
+      compositionId: 'LeelaPlanReel',
+      props: { plan: 6 },
+    }),
+    result('reel_render', { ['готово']: true, url }), // cyrillic-ok: tool result key
+  ]
+  const REWRITTEN =
+    'В Лиле игрок бросает кубик и читает текст плана — так устроена игра. Какой план вам ближе?'
+
+  it('after discovery, a lived-experience rewrite cannot render again, pay again, publish or send a second file', async () => {
+    const { d, sent, histories } = deps(
+      [
+        [text('Здравствуйте. Кому вы играете чаще?')],
+        [text('Понял. Какой план ближе?')],
+        // Turn 4, first attempt: a real reel, and the live line.
+        [...reel(U), text(LIVE_LIVED)],
+        // The rewrite tries to render again.
+        [...reel(U2), text(REWRITTEN)],
+      ],
+      ['Новичкам.', 'Шестой.', 'Вижу.']
+    )
+    d.clientProfile = noProfile
+    const seen = obeyDenial(d)
+    const run = await runDuet(judgedRun({ turns: 3 }), judgedCtx(), d)
+
+    expect(run.state).toBe('done')
+    expect(seen).toHaveLength(4)
+    // Every call of the run carries the publish ban, the rewrite included.
+    for (const o of seen) expect(o?.denyTools?.has('feed_publish')).toBe(true)
+    // The turn itself may render (discovery is over); its rewrite may not.
+    expect(seen[2]?.denyTools?.has('reel_render')).toBe(false)
+    for (const t of PAID_TOOLS) expect(seen[3]?.denyTools?.has(t), t).toBe(true)
+    expect(seen[3]?.denyReasons?.get('reel_render')).toBe(
+      REWRITE_DENY_REASONS.get('reel_render')
+    )
+    // One reel paid for, one file sent -- the first attempt's.
+    expect(run.paid_calls).toBe(1)
+    expect(run.media_sent).toBe(1)
+    expect(sent.filter(x => x.url).map(x => x.url)).toEqual([U])
+    expect(sent.find(x => x.text)?.text).not.toBe(LIVE_LIVED)
+    expect(run.violations).toEqual([
+      'turn 4: личный опыт от лица человека — переписано',
+      'turn 4: reel_render на правке реплики — отклонён',
+    ])
+    // The rewrite is told the reel of this turn already exists.
+    expect(histories[3].at(-1)?.content).toContain(LIVED_EXPERIENCE_REWRITE)
+    expect(histories[3].at(-1)?.content).toContain(U)
+  })
+
+  it('every rewrite round runs under the rewrite gate: voice, done work, familiarity, lived', async () => {
+    const { d } = deps(
+      [
+        // Turn 0: pressure; its rewrite assumes an agreement; that rewrite
+        // claims lived practice; the last one is clean.
+        [text('Срочно: скажу по делу. Кому вы играете?')],
+        [text('Как договорились, пишу вам. Кому вы играете?')],
+        [text('Я сам бросал кубик. Кому вы играете?')],
+        [text('Здравствуйте. Кому вы играете чаще?')],
+        // Turn 2: claimed work with no tool.
+        [text('Я уже собрал готовый ролик по плану 6.')],
+        [text('Могу собрать один пример вашим шаблоном. Какой план?')],
+      ],
+      ['Новичкам.', 'Шестой.']
+    )
+    const seen = obeyDenial(d)
+    const run = await runDuet(judgedRun({ turns: 2 }), judgedCtx(), d)
+    expect(seen).toHaveLength(6)
+    expect(run.voice_flags[0]).toContain('turn 0')
+    expect(run.violations).toEqual([
+      'turn 0: ссылка на несуществующую договорённость — переписано',
+      'turn 0: личный опыт от лица человека — переписано',
+      'turn 2: заявлена сделанная работа без инструмента — переписано',
+    ])
+    // Calls 1, 2, 3 (voice, familiarity, lived) and 5 (done work) are rewrites.
+    for (const k of [1, 2, 3, 5]) {
+      expect(seen[k]?.denyReasons, `call ${k}`).toBe(REWRITE_DENY_REASONS)
+      for (const t of [...PAID_TOOLS, 'feed_publish'])
+        expect(seen[k]?.denyTools?.has(t), `call ${k}: ${t}`).toBe(true)
+    }
+  })
+
+  it('the same file twice in one turn reaches her once', async () => {
+    const { d, sent } = deps(
+      [
+        [
+          ...reel(U),
+          ...reel(U),
+          text('Собрал пример по плану 6. Что не в стиле?'),
+        ],
+      ],
+      ['Вижу.']
+    )
+    d.clientProfile = noProfile
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(), d)
+    expect(sent.filter(x => x.url).map(x => x.url)).toEqual([U])
+    expect(run.media_sent).toBe(1)
+    expect(run.transcript[0].media).toEqual([U])
   })
 })
 
@@ -828,6 +1037,93 @@ describe('crm_duet: what was made goes into HER plan (t27#4522)', () => {
     expect(
       reelPlanOf(reel({ compositionId: 'TrinityBlogReel', props: {} }), [6])
     ).toEqual({ plan: null, leela: false })
+  })
+})
+
+/*
+ * THE TEXTS SAY WHAT HAPPENED (review of #2709).
+ *
+ * The owner asked for the reel to reach her plan AND her approval queue; only
+ * the plan is written. The refusal the model read said "the reel is already
+ * in her chat and her content plan", whether or not a reel or a card existed,
+ * and the card note promised "waits for your approval" with no approve
+ * control behind it. Now the seller hears the real PlanLink result, on the
+ * turn after the link, and nothing promises an approval step.
+ */
+describe('crm_duet: what the seller and the card are told about her plan', () => {
+  const nextSellerLine = (h: ChatMessage[][]) =>
+    String(h[1].at(-1)?.content ?? '')
+
+  it('a reel that landed in her plan: the seller hears it before her reply, and the card promises no approval', async () => {
+    const items = herPlan()
+    const { pool } = planPool(items)
+    const { d, histories } = deps(
+      [reelTurn(), [text('Что в нём поправить?')]],
+      ['Вижу ролик.', 'Хорошо.']
+    )
+    d.clientProfile = noProfile
+    await runDuet(judgedRun({ turns: 2 }), judgedCtx(pool), d)
+    const line = nextSellerLine(histories)
+    expect(line).toContain(
+      '[дуэт] Ролик прошлого хода записан в её контент-план'
+    )
+    expect(line.indexOf('[дуэт]')).toBeLessThan(
+      line.indexOf('Покупатель (@playom): Вижу ролик.')
+    )
+    const card = items.find(r => r.id === 4)!
+    expect(card.note).toContain(REEL_URL)
+    expect(String(card.note).toLowerCase()).not.toContain('одобрени')
+  })
+
+  it('a reel with no card: the seller is told it is NOT in her plan', async () => {
+    const { pool } = planPool(herPlan().filter(r => r.id !== 4))
+    const { d, histories } = deps(
+      [reelTurn(), [text('Что в нём поправить?')]],
+      ['Вижу ролик.', 'Хорошо.']
+    )
+    d.clientProfile = noProfile
+    await runDuet(judgedRun({ turns: 2 }), judgedCtx(pool), d)
+    const line = nextSellerLine(histories)
+    expect(line).toContain('в её контент-план НЕ записан')
+    expect(line).not.toContain('записан в её контент-план:')
+  })
+
+  it('the note is said once: the turn after it carries none', async () => {
+    const { pool } = planPool(herPlan())
+    const { d, histories } = deps(
+      [reelTurn(), [text('Что поправить?')], [text('Понял.')]],
+      ['Вижу ролик.', 'Хорошо.', 'Да.']
+    )
+    d.clientProfile = noProfile
+    await runDuet(judgedRun({ turns: 3 }), judgedCtx(pool), d)
+    expect(String(histories[2].at(-1)?.content)).not.toContain('[дуэт]')
+  })
+
+  it('every PlanLink result has a note, and only moved/noted/already say "in her plan"', () => {
+    const results = [
+      'moved',
+      'noted',
+      'already',
+      'no_row',
+      'plan_unknown',
+      'not_leela',
+      'dry_run',
+      'changed',
+      'failed',
+    ] as const
+    for (const result of results) {
+      const note = planNoteForSeller({ plan: 6, url: REEL_URL, result })
+      const inPlan = ['moved', 'noted', 'already'].includes(result)
+      expect(note.includes('записан в её контент-план:'), result).toBe(inPlan)
+      expect(note.includes('НЕ записан'), result).toBe(!inPlan)
+    }
+  })
+
+  it('the publish refusal claims nothing about her chat or plan', () => {
+    const reason = DUET_DENY_REASONS.get('feed_publish') ?? ''
+    expect(reason).toContain('не одобрение клиента')
+    expect(reason).not.toContain('контент-план')
+    expect(reason).not.toContain('в чате')
   })
 })
 

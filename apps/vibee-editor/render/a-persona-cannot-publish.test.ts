@@ -13,8 +13,29 @@
  * same call outside the ban does reach both.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { dispatchToolCall, DENIED_DEFAULT_REASON } from './src/agent/chat'
-import { toOpenAITools, type ToolContext } from './src/agent/tools'
+
+/*
+ * One model provider the test owns: runAgent walks allProviders(), and the
+ * turn below must reach a model whose every answer the test wrote.
+ */
+const model = vi.hoisted(() => ({
+  providers: [] as unknown[],
+}))
+vi.mock('./src/agent/provider', async importOriginal => ({
+  ...(await importOriginal<typeof import('./src/agent/provider')>()),
+  allProviders: () => model.providers,
+}))
+
+import {
+  dispatchToolCall,
+  runAgent,
+  DENIED_DEFAULT_REASON,
+} from './src/agent/chat'
+import {
+  toOpenAITools,
+  TOOLS_BY_NAME,
+  type ToolContext,
+} from './src/agent/tools'
 import {
   deniedToolsFor,
   refusedOf,
@@ -109,5 +130,142 @@ describe('feed_publish in a duet', () => {
     )
     expect(refusedOf(value)).toBe(true)
     expect(String(value['ошибка'])).toContain(DENIED_DEFAULT_REASON) // cyrillic-ok: tool result key
+  })
+})
+
+/*
+ * THROUGH runAgent, NOT BESIDE IT (review of PR #2709).
+ *
+ * The tests above call dispatchToolCall directly, and the live-wiring test in
+ * crm-duet.test.ts mocks runAgent. So the one seam that carries the ban into
+ * a real turn -- runAgent handing its options to dispatchToolCall -- could be
+ * cut (`dispatchToolCall(call, ctx, undefined, t0)`) and every test stayed
+ * green. Here a real runAgent talks to a model the test scripts: the model
+ * calls feed_publish although it was not offered, and the handler must not
+ * run.
+ */
+describe('feed_publish through a real agent turn', () => {
+  const BASE = 'http://model.test/v1'
+  const FAKE_PROVIDER = {
+    id: 'reserve',
+    base: BASE,
+    model: 'scripted',
+    key: 'k',
+    thinking: false,
+    tools: true,
+    vision: false,
+    audio: false,
+    context: 128_000,
+    compact: false,
+  }
+
+  /** A streamed chat completion, the shape runAgent reads. */
+  function sse(delta: Record<string, unknown>): Response {
+    const chunk = JSON.stringify({ choices: [{ delta }] })
+    return new Response(`data: ${chunk}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    })
+  }
+
+  function scriptedTurn() {
+    model.providers = [FAKE_PROVIDER]
+    const offered: string[][] = []
+    const elsewhere: string[] = []
+    const queries: string[] = []
+    let answers = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: { body?: unknown }) => {
+        const url = String(input)
+        if (!url.startsWith(BASE)) {
+          elsewhere.push(url)
+          return new Response('{}', { status: 200 })
+        }
+        const body = JSON.parse(String(init?.body ?? '{}'))
+        offered.push(
+          (body.tools ?? []).map(
+            (t: { function: { name: string } }) => t.function.name
+          )
+        )
+        // First answer: the persona-consented publish. Then: words.
+        return answers++ === 0
+          ? sse({
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call-1',
+                  type: 'function',
+                  function: {
+                    name: 'feed_publish',
+                    arguments: PUBLISH.function.arguments,
+                  },
+                },
+              ],
+            })
+          : sse({ content: 'Публикует только она сама.' })
+      })
+    )
+    const ctx = {
+      telegramId: SELLER,
+      pool: {
+        query: async (sql: string) => {
+          queries.push(sql)
+          return { rows: [] }
+        },
+      },
+    } as unknown as ToolContext
+    return { ctx, offered, elsewhere, queries }
+  }
+
+  async function play(ctx: ToolContext, opts?: Parameters<typeof runAgent>[2]) {
+    const events: Array<Record<string, unknown>> = []
+    for await (const ev of runAgent(
+      [{ role: 'user', content: 'давайте опубликуем как пробу' }],
+      ctx,
+      opts
+    ))
+      events.push(ev as unknown as Record<string, unknown>)
+    return events
+  }
+
+  // Quoted keys: the event envelope's own field names.
+  const resultOf = (events: Array<Record<string, unknown>>) =>
+    events.find(e => e['тип'] === 'результат' && e['имя'] === 'feed_publish')?.[
+      'значение'
+    ]
+
+  afterEach(() => {
+    model.providers = []
+    vi.restoreAllMocks()
+  })
+
+  it('a call that arrives despite the hidden listing is refused by the turn, and the handler never runs', async () => {
+    const handler = vi.spyOn(TOOLS_BY_NAME.get('feed_publish')!, 'handler')
+    const { ctx, offered, elsewhere, queries } = scriptedTurn()
+    const events = await play(ctx, {
+      denyTools: deniedToolsFor(5),
+      denyReasons: DUET_DENY_REASONS,
+    })
+    expect(offered.length).toBeGreaterThan(0)
+    for (const names of offered) expect(names).not.toContain('feed_publish')
+    const value = resultOf(events)
+    expect(refusedOf(value)).toBe(true)
+    const said = String((value as Record<string, unknown>)['ошибка'])
+    expect(said).toContain('не одобрение клиента')
+    expect(handler).not.toHaveBeenCalled()
+    expect(queries.filter(q => /FROM users/.test(q))).toEqual([])
+    expect(elsewhere).toEqual([])
+  })
+
+  it('CONTROL: the same turn without the ban lists the tool and runs its handler', async () => {
+    const handler = vi
+      .spyOn(TOOLS_BY_NAME.get('feed_publish')!, 'handler')
+      .mockResolvedValue({ ok: true })
+    const { ctx, offered } = scriptedTurn()
+    const events = await play(ctx)
+    expect(offered[0]).toContain('feed_publish')
+    expect(refusedOf(resultOf(events))).toBe(false)
+    expect(handler).toHaveBeenCalledTimes(1)
   })
 })
