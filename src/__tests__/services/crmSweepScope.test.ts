@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   SWEEP_HEAD,
   SWEEP_RULES,
+  SWEEP_ACTIONS,
+  SWEEP_FILES,
   SWEEP_TAIL,
   SWEEP_WORTH,
   parseSweepArgs,
@@ -274,9 +276,72 @@ describe('the items and the brief', () => {
     expect(p).toContain('SOUL')
     expect(p).toContain('ответы даёт сам человек')
     expect(p).not.toContain('CHAT')
-    expect(p.indexOf('crm_client_profile')).toBeLessThan(
-      p.indexOf('crm_lead_context')
+    // The package is the first ACTION decision: before the steps. Reading
+    // her history and her files comes before any action, the package's too.
+    expect(p.indexOf('crm_client_profile')).toBeLessThan(p.indexOf('Шаги:'))
+    expect(p.indexOf('crm_lead_context с chat=900000041')).toBeLessThan(
+      p.indexOf('crm_client_profile')
     )
+  })
+
+  /*
+   * THE FILES FIRST (owner, 2026-09-22): a client sent photos for her content
+   * plan and the seller answered her words only. Both briefs -- the one-person
+   * one and the whole-base sweep -- now say to open what she sent before the
+   * one action, to use a photo with her face as the picture's source, and
+   * never to describe a file nobody opened.
+   */
+  it('both briefs open the files she sent before the one action', () => {
+    const one = scopedPrompt({
+      chat: '900000041',
+      display: null,
+      next: 'reply',
+    })
+    for (const p of [one, SWEEP_PROMPT]) {
+      expect(p).toContain('tg_fetch_media')
+      expect(p).toContain('their_files')
+      expect(p).toContain('неоткрытый файл не описывай')
+      // Opening comes before the rules of the one action, not after them.
+      expect(p.indexOf('tg_fetch_media')).toBeLessThan(
+        p.indexOf('next=reply —')
+      )
+    }
+  })
+
+  /*
+   * THE READ COMES BEFORE THE PACKAGE (review of 2026-09-22). The client this
+   * was built for has a draft package, and PACKAGE_STEP makes packaging her
+   * ONE action -- "if there is no package or it is confirmed, follow the steps
+   * below". The files rule lived only inside those steps, so for exactly her
+   * the model was told to send the packaging message and never reached "open
+   * her photos". Reading is not an action: it now comes first, for everyone.
+   */
+  it('the one-person brief opens her files before the package decides anything', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: 'reply' })
+    const read = p.indexOf('tg_fetch_media')
+    expect(read).toBeGreaterThan(0)
+    expect(read).toBeLessThan(p.indexOf('crm_client_profile'))
+    expect(read).toBeLessThan(p.indexOf('УПАКОВКА'))
+    expect(p.indexOf('crm_lead_context с chat=900000041')).toBeLessThan(read)
+    // Every CHAT is the person: the read names her too.
+    expect(p).toContain('tg_fetch_media {chat=900000041')
+    expect(p).not.toContain('CHAT')
+    // Said once: the steps below do not repeat the files rule.
+    expect(p.split('their_files').length - 1).toBe(1)
+  })
+
+  /*
+   * ONE ROAD FOR A PICTURE OF HER: crm_deliver_photo (the gift ledger, the
+   * owner's card, the recipient's billing). The files rule used to send it to
+   * image_edit -- a second tool for the same job that charges the owner and
+   * makes no card, inside unattended sweeps too.
+   */
+  it('the files rule sends a picture of her to crm_deliver_photo, not image_edit', () => {
+    const one = scopedPrompt({ chat: '900000041', display: null, next: null })
+    for (const p of [SWEEP_FILES, one, SWEEP_PROMPT]) {
+      expect(p).toContain('crm_deliver_photo (его лицо), не image_edit')
+      expect(p).not.toContain('(image_edit)')
+    }
   })
 
   it('an @username brief has no package step', () => {
@@ -295,7 +360,8 @@ describe('the items and the brief', () => {
     expect(p).toContain('crm_leads НЕ вызывай')
     expect(p).toContain('crm_lead_context с chat=@pilot_client')
     expect(p).toContain('next=talk')
-    expect(p).toContain(SWEEP_RULES)
+    expect(p).toContain(SWEEP_ACTIONS)
+    expect(SWEEP_RULES).toBe(SWEEP_FILES + SWEEP_ACTIONS)
     expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     expect(p).toContain('НИЧЕГО НЕ ОТПРАВЛЯЙ САМ')
     expect(p).toContain('«тихо»')

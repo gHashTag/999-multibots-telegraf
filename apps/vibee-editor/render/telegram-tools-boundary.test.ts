@@ -46,6 +46,13 @@ const READING = [
   'tg_scheduled',
   'tg_participants',
   'tg_common_chats',
+  /*
+   * Opening a file a person sent (2026-09-22): downloads over the caller's
+   * own session into our shelf and the person's library. It reaches nobody
+   * -- no send, no read receipt -- so it is a reader, and it is gated and
+   * hung up like one.
+   */
+  'tg_fetch_media',
 ]
 /*
  * Four media sends (2026-09-14): voice, video, document, album. They are
