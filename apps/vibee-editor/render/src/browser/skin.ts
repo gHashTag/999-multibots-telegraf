@@ -25,6 +25,8 @@
  * Its marks are not used either -- that part was never optional.
  */
 
+import { LOGIN_QUERY } from './live-proxy'
+
 /**
  * THE MARK AND THE NAME ARE THE APP'S OWN, taken from its header rather
  * than invented here: `player/src/components/Header/Header.tsx` renders
@@ -681,6 +683,132 @@ body {
   #t27-boot .ring { animation: none; border-top-color: ${GREEN}; }
 }
 
+/* ── when the connection is lost ──────────────────────────────────────── */
+/*
+ * THE CARD THAT ASKED FOR A PASSWORD NOBODY HAS.
+ *
+ * neko shows this card whenever it is not connected. The first time it logs
+ * in by itself, from the address; if that first attempt fails -- a pod that
+ * restarted, a phone that dropped the network -- it forgets the address and
+ * falls back to a form asking for a name and a password. The password is a
+ * generated token the person has never seen, so the form was a dead end
+ * dressed as a login page, with a cat on it.
+ *
+ * So the card is ours: our mark, our name, our palette. And the form is
+ * replaced by what the person actually needs, which is one button that
+ * connects again. The fields are hidden only once the connect script has
+ * taken the card over (the data-t27 mark): without the script the card is
+ * still styled, and still neko's own.
+ *
+ * Every selector starts at the neko id because the card lives inside it,
+ * and the pill rule for buttons above is written against that id -- a
+ * weaker selector here would simply lose to it.
+ */
+#neko .connect {
+  background: ${BLACK} !important;
+  font-family: ${FONT_STACK} !important;
+}
+#neko .connect .window {
+  width: 320px !important;
+  max-width: calc(100vw - 32px) !important;
+  box-sizing: border-box !important;
+  padding: 28px 24px 24px !important;
+  background: ${CHROME} !important;
+  border: 1px solid ${LINE} !important;
+  border-radius: 16px !important;
+}
+/* Its click opened the engine's About box; the credit lives in the source. */
+#neko .connect .window .logo {
+  flex-direction: column !important;
+  gap: 12px !important;
+  margin-bottom: 20px !important;
+  pointer-events: none !important;
+  cursor: default !important;
+}
+#neko .connect .window .logo img { display: none !important; }
+#neko .connect .window .logo::before {
+  content: '';
+  width: 44px;
+  height: 44px;
+  background: url('${LOGO_URL}') center / contain no-repeat;
+}
+#neko .connect .window .logo span { font-size: 0 !important; line-height: 0 !important; }
+#neko .connect .window .logo span::after {
+  content: '${BRAND_NAME}';
+  font: 600 16px/1.2 ${FONT_STACK};
+  color: #fff;
+}
+#neko .connect .window .message { gap: 10px !important; }
+#neko .connect .window .message > span {
+  text-transform: none !important;
+  font: 500 14px/1.4 ${FONT_STACK} !important;
+  color: #fff !important;
+}
+#neko .connect .window .message input {
+  height: 40px !important;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  background: ${BLACK} !important;
+  border: 1px solid ${IDLE_BORDER} !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+  font: 400 14px/1.2 ${FONT_STACK} !important;
+  outline: none !important;
+}
+#neko .connect .window .message input:focus { border-color: ${GREEN} !important; }
+#neko .connect .window .message button {
+  height: 40px !important;
+  margin: 6px 0 0 !important;
+  padding: 0 16px !important;
+  background: ${GREEN} !important;
+  border: 1px solid ${GREEN} !important;
+  border-radius: 20px !important;
+  color: ${BLACK} !important;
+  font: 600 14px/1 ${FONT_STACK} !important;
+  text-transform: none !important;
+}
+#neko .connect .window .message button:hover { filter: brightness(1.08); }
+
+/* What the connect script says, in place of the engine's words. */
+#neko .connect .window[data-t27] .message input { display: none !important; }
+#neko .connect .window .message > span[data-say],
+#neko .connect .window .message button[data-say] {
+  font-size: 0 !important;
+}
+#neko .connect .window .message > span[data-say]::after,
+#neko .connect .window .message button[data-say]::after {
+  content: attr(data-say);
+  font-size: 14px;
+}
+/* While it is still trying by itself there is nothing to press. */
+#neko .connect .window[data-t27='retry'] .message button { display: none !important; }
+#neko .connect .window[data-t27='retry'] .message::after {
+  content: '';
+  align-self: center;
+  width: 34px;
+  height: 34px;
+  margin-top: 8px;
+  border: 2px solid ${LINE};
+  border-top-color: ${GREEN};
+  border-radius: 50%;
+  animation: t27-spin 0.9s linear infinite;
+}
+
+/* The engine's two bouncing discs become the app's own ring. */
+#neko .connect .window .loader {
+  width: 34px !important;
+  height: 34px !important;
+  border: 2px solid ${LINE};
+  border-top-color: ${GREEN};
+  border-radius: 50%;
+  animation: t27-spin 0.9s linear infinite;
+}
+#neko .connect .window .loader > div { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  #neko .connect .window .loader,
+  #neko .connect .window[data-t27='retry'] .message::after { animation: none; }
+}
+
 /* ── a phone ──────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .header a.neko {
@@ -781,6 +909,16 @@ export const BOOT_SAID = 'Поднимаю браузер…' // cyrillic-ok: re
 export const BOOT_HINT =
   'Первый запуск дольше остальных: браузер поднимается вместе с вашим профилем.' // cyrillic-ok
 
+/**
+ * The same words for everybody else. The markup carries the Russian so the
+ * first paint has words in it; the boot script swaps them before that paint
+ * when the browser does not ask for Russian -- English is the default here,
+ * as everywhere in the app.
+ */
+export const BOOT_SAID_EN = 'Starting your browser…'
+export const BOOT_HINT_EN =
+  'The first start takes longer: the browser comes up together with your profile.'
+
 /** Longer than a cold pod takes, shorter than anyone will stare at a ring. */
 export const BOOT_GIVE_UP_MS = 45_000
 
@@ -804,6 +942,10 @@ export const BOOT_SCRIPT = `
 (function () {
   var el = document.getElementById('t27-boot');
   if (!el) return;
+  if (!/^ru\\b/i.test(navigator.language || '')) {
+    el.querySelector('.said').textContent = __SAID_EN__;
+    el.querySelector('.hint').textContent = __HINT_EN__;
+  }
   var gone = false;
   function done() {
     if (gone) return;
@@ -824,7 +966,10 @@ export const BOOT_SCRIPT = `
     if (v) watch(v);
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();
-`.replace('__GIVEUP__', String(BOOT_GIVE_UP_MS))
+`
+  .replace('__GIVEUP__', String(BOOT_GIVE_UP_MS))
+  .replace('__SAID_EN__', () => JSON.stringify(BOOT_SAID_EN))
+  .replace('__HINT_EN__', () => JSON.stringify(BOOT_HINT_EN))
 
 /**
  * PUT THE PERSON'S OWN FACE ON THE DISC.
@@ -865,6 +1010,127 @@ export const FACE_SCRIPT = `
 })();
 `.replace('__AVATAR__', AVATAR_PATH)
 
+/**
+ * What the card says once the connect script has it. Russian when the
+ * browser asks for Russian -- the same test neko uses for its own words, so
+ * the card never speaks two languages at once -- and English otherwise.
+ */
+export const LOST_WORDS = {
+  ru: {
+    lost: 'Связь прервалась, переподключаю…', // cyrillic-ok: read by a person
+    stuck: 'Браузер не отвечает', // cyrillic-ok: read by a person
+    again: 'Подключить снова', // cyrillic-ok: read by a person
+  },
+  en: {
+    lost: 'Connection lost, reconnecting…',
+    stuck: 'The browser is not answering',
+    again: 'Connect again',
+  },
+}
+
+/** Attempts it makes by itself before it hands the person the button. */
+export const RECONNECT_TRIES = 3
+/** How long the form must stay up before it counts as a failure. */
+export const RECONNECT_SETTLE_MS = 1200
+/** Pause before attempt n is n times this. */
+export const RECONNECT_PAUSE_MS = 1500
+
+/**
+ * CONNECTING AGAIN IS A RELOAD, NOT A FORM.
+ *
+ * The one address that logs the page in by itself is the login address --
+ * the proxy swaps its placeholder for the real token -- so reconnecting means
+ * landing there again. The script does that on its own a few times, then
+ * stops and shows the button, because a page that reloads forever against a
+ * pod that is down is worse than a page that says so.
+ *
+ * Three things it is careful about:
+ *
+ *   - The form flashes for a moment on EVERY load, in the first render
+ *     before neko starts logging in. Only a form that is still there after
+ *     a while counts.
+ *   - The count lives in the tab's session storage and is cleared the moment
+ *     the card goes away, which is the moment neko is connected. Storage it
+ *     cannot use counts as "out of tries": no loop is better than a loop.
+ *   - The engine's own submit is stopped before it runs. It would send
+ *     whatever is in the fields, and nothing a person can type there is the
+ *     password.
+ */
+export const CONNECT_SCRIPT = `
+(function () {
+  var m = location.pathname.match(/^\\/live\\/([^/]+)/);
+  if (!m) return;
+  var home = '/live/' + m[1] + '/' + __QUERY__;
+  var key = 't27-reconnect-' + m[1];
+  var all = __WORDS__;
+  var words = /^ru\\b/i.test(navigator.language || '') ? all.ru : all.en;
+  var MAX = __TRIES__;
+  function tries() {
+    try { return parseInt(sessionStorage.getItem(key) || '0', 10) || 0; }
+    catch (e) { return MAX; }
+  }
+  function note(n) { try { sessionStorage.setItem(key, String(n)); } catch (e) {} }
+  function forget() { try { sessionStorage.removeItem(key); } catch (e) {} }
+  function go() { location.replace(home); }
+  function form() { return document.querySelector('.connect .message'); }
+  var seen = false;
+  var acted = false;
+  var timer = null;
+  function settle() {
+    timer = null;
+    var f = form();
+    if (!f) return;
+    acted = true;
+    var n = tries();
+    var stuck = n >= MAX;
+    var win = document.querySelector('.connect .window');
+    var title = f.querySelector('span');
+    var button = f.querySelector('button');
+    if (win) win.setAttribute('data-t27', stuck ? 'stuck' : 'retry');
+    if (title) title.setAttribute('data-say', stuck ? words.stuck : words.lost);
+    if (button) button.setAttribute('data-say', words.again);
+    if (stuck) {
+      var boot = document.getElementById('t27-boot');
+      if (boot) boot.setAttribute('data-done', '1');
+      return;
+    }
+    note(n + 1);
+    setTimeout(go, __PAUSE__ * (n + 1));
+  }
+  function check() {
+    if (document.querySelector('.connect')) seen = true;
+    else if (seen) { seen = false; forget(); }
+    if (!form()) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      acted = false;
+      return;
+    }
+    if (timer || acted) return;
+    timer = setTimeout(settle, __SETTLE__);
+  }
+  function mine(e) {
+    var t = e.target;
+    if (!t || !t.closest || !t.closest('.connect .message')) return;
+    if (e.type === 'click' && !t.closest('button')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    go();
+  }
+  document.addEventListener('click', mine, true);
+  document.addEventListener('submit', mine, true);
+  check();
+  new MutationObserver(check).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+})();
+`
+  .replace('__QUERY__', () => JSON.stringify(LOGIN_QUERY))
+  .replace('__WORDS__', () => JSON.stringify(LOST_WORDS))
+  .replace('__TRIES__', String(RECONNECT_TRIES))
+  .replace('__PAUSE__', String(RECONNECT_PAUSE_MS))
+  .replace('__SETTLE__', String(RECONNECT_SETTLE_MS))
+
 /** What the tab says it is, in the person's own app rather than a stranger's. */
 export const PAGE_TITLE = `Браузер · ${BRAND_NAME}` // cyrillic-ok: read by a person
 
@@ -888,7 +1154,8 @@ export function injectSkin(html: string): string {
     `<link rel="stylesheet" href="${FONT_HREF}">` +
     `<style data-t27-skin>${BRAND_CSS}</style>` +
     `<script data-t27-fit>${FIT_SCRIPT}</script>` +
-    `<script data-t27-face>${FACE_SCRIPT}</script>`
+    `<script data-t27-face>${FACE_SCRIPT}</script>` +
+    `<script data-t27-connect>${CONNECT_SCRIPT}</script>`
   const styled = html
     .replace('</head>', `${head}\n</head>`)
     /*
