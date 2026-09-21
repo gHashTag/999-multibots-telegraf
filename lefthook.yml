@@ -212,6 +212,17 @@ pre-push:
       run: node scripts/test-guard.cjs
       fail_text: "Упали тесты, которых не было в базе."
 
+    # The production bundle must get past its own imports. On 2026-09-22 a
+    # static import closed a cycle in the bundle's init order (#2741); every
+    # unit test stayed green because none loads the bundle the way production
+    # does, and Railway failed the healthcheck 11 times and kept the old build
+    # (fixed in #2748). This builds the bundle exactly as the Dockerfile does
+    # and runs it with an empty environment, ~3 s. Only when bot source moved.
+    bundle-boots:
+      glob: "src/**/*.{ts,tsx}"
+      run: npx vitest run src/__tests__/bot/bundleBootsPastImports.test.ts
+      fail_text: "The bot bundle crashes while loading its modules -- it will not start in production."
+
     # Событие без подписчика — деньги уходят провайдерам, а результат никуда.
     # Скрипт уже есть в репозитории и печатает недостижимые функции первыми.
     orphan-events:
