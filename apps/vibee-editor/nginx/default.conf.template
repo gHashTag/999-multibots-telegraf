@@ -74,7 +74,16 @@ server {
     # The upstream is the render server, which holds the broker and the guard:
     # nothing here decides who may look. This only moves bytes; every check is
     # in `live-proxy.ts` behind it.
-    location /live/ {
+    #
+    # ^~ , AND WITHOUT IT THE WINDOW NEVER STARTED. A plain prefix loses to
+    # the regex locations below: /live/<id>/js/app.js matched `\.(js|css)$`
+    # first, nginx looked for the file in THIS app's dist, and answered 404.
+    # Measured in production 2026-09-21: the pod's HTML arrived (200), its
+    # three bundles did not (404 from nginx, not from the render), the neko
+    # app never ran, and the person saw our loader spin over nothing. The
+    # pod's fonts, images and media would have gone the same way. /bridge/
+    # and /queen/ already carry ^~ for exactly this reason.
+    location ^~ /live/ {
         proxy_pass https://vibee-render-production.up.railway.app;
         proxy_http_version 1.1;
         proxy_set_header Host vibee-render-production.up.railway.app;
