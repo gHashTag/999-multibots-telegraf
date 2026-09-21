@@ -1495,7 +1495,7 @@ export async function* runAgent(
   /*
    * SOMEBODY ASKED FOR A PICTURE WE CANNOT DRAW RIGHT NOW.
    *
-   * This is the path that lost lead 2086031075 (crm-owed.ts). The playbook
+   * This is the path that lost the lead in crm-owed.ts. The playbook
    * below is about to be told `giftIsDown`, so the agent will answer her
    * honestly and the turn will end well -- and nothing anywhere will remember
    * that she asked. The CRM's own refusal site records a debt; this one, the

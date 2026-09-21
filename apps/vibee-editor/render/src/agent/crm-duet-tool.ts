@@ -41,7 +41,13 @@ import {
 import { clientProfileFor } from './crm-client-setup-tool'
 import { violatesLeelaVoice, LEELA_CTA_RU, LEELA_PLAY_RU } from './leela-canon'
 
-export const DEFAULT_BUYER = '435572800'
+/**
+ * The refusal when no buyer is named. The tool used to fall back to one real
+ * person's id; a duet sends from somebody's own session, so it names nobody
+ * by default.
+ */
+export const NO_BUYER_REASON =
+  'Укажите buyer — Telegram ID покупателя: дуэт не выбирает человека сам.'
 export const TURNS_DEFAULT = 4
 export const TURNS_MAX = 8
 export const PAID_TOOLS = new Set([
@@ -1853,7 +1859,7 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
     name: 'crm_duet',
     description:
       'Запустить РЕАЛЬНЫЙ диалог в Telegram: агент-продавец от сессии владельца продаёт функции ' +
-      'бота подключённому продавцу в роли нового покупателя (по умолчанию @playom), контент — ' +
+      'бота подключённому продавцу в роли нового покупателя, контент — ' +
       'для её игры «Лила Чакра»; за покупателя отвечает модель от её сессии. Только для владельца; ' +
       'идёт в фоне, вернёт id — статус смотри crm_duet_status. dry_run=true: агенты говорят, ' +
       'в Telegram ничего не уходит.',
@@ -1862,8 +1868,7 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
       properties: {
         buyer: {
           type: 'string',
-          description:
-            'Telegram ID покупателя (по умолчанию 435572800, @playom)',
+          description: 'Telegram ID покупателя',
         },
         turns: {
           type: 'number',
@@ -1874,11 +1879,15 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
           description: 'Не отправлять в Telegram, только транскрипт',
         },
       },
+      required: ['buyer'],
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const buyer = String(args.buyer ?? DEFAULT_BUYER).trim()
+      // No default buyer: a run sends from a real person's session, so the
+      // owner names that person every time.
+      const buyer = String(args.buyer ?? '').trim()
+      if (!buyer) throw new Error(NO_BUYER_REASON)
       if (!/^\d{5,15}$/.test(buyer))
         throw new Error('buyer должен быть числовым Telegram ID')
       const owner = String(ctx!.telegramId)
