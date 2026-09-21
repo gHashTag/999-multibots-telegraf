@@ -50,6 +50,7 @@ let sink: Array<{ method: string; payload: any }> = []
 const realCallApi = (Telegram.prototype as any).callApi
 const savedRedis = process.env.REDIS_URL
 let registerCommands: (opts: { bot: any }) => void
+let agentLanes: typeof import('@/services/agentLanes').agentLanes
 let sessionMiddleware: () => any
 let languageMiddleware: any
 
@@ -71,6 +72,7 @@ beforeAll(async () => {
     return true
   }
   ;({ registerCommands } = await import('@/navigation/registerCommands'))
+  ;({ agentLanes } = await import('@/services/agentLanes'))
   ;({ sessionMiddleware } = await import('@/core/session/sessionStore'))
   ;({ languageMiddleware } = await import('@/middlewares/languageMiddleware'))
 }, 60_000)
@@ -103,6 +105,8 @@ describe('business DM through registerCommands', () => {
       update_id: 1,
       business_message: dm('conn-ok', 555),
     } as any)
+    // The middleware only accepts; the turn runs in the chat's lane.
+    expect((await agentLanes.drain(20_000)).unfinished).toEqual([])
 
     const viaConnection = sink.filter(
       s =>
@@ -145,6 +149,7 @@ describe('business DM through registerCommands', () => {
       update_id: 2,
       business_message: dm('conn-noreply', 556),
     } as any)
+    expect((await agentLanes.drain(20_000)).unfinished).toEqual([])
     expect(sink.filter(s => s.method === 'sendMessage')).toHaveLength(0)
     expect(chatWithAI).not.toHaveBeenCalled()
   }, 60_000)

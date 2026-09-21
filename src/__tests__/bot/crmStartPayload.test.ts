@@ -77,6 +77,14 @@ vi.mock('@/services/businessBotService', () => ({
 let sink: Array<{ method: string; payload: any }> = []
 const realCallApi = (Telegram.prototype as any).callApi
 let mod: typeof import('@/navigation/registerCommands')
+let agentLanes: typeof import('@/services/agentLanes').agentLanes
+/**
+ * The prepare behind the deep link runs in the owner's lane, off the handler:
+ * wait for it, or a "was not called" below would be checked too early to mean
+ * anything.
+ */
+const turnsDone = async () =>
+  expect((await agentLanes.drain(5000)).unfinished).toEqual([])
 
 beforeAll(async () => {
   ;(Telegram.prototype as any).callApi = async (
@@ -87,6 +95,7 @@ beforeAll(async () => {
     return { message_id: 1, date: 0, chat: { id: OWNER, type: 'private' } }
   }
   mod = await import('@/navigation/registerCommands')
+  ;({ agentLanes } = await import('@/services/agentLanes'))
 })
 afterAll(() => {
   ;(Telegram.prototype as any).callApi = realCallApi
@@ -162,6 +171,7 @@ describe('the deep link, end to end', () => {
   it('prepares for the owner, asks the sweep for a card, and sends nothing to the lead', async () => {
     const { bot } = boot()
     await bot.handleUpdate(start(`crm-prep-${LEAD}`) as any)
+    await turnsDone()
 
     expect(runSweepNow).toHaveBeenCalledTimes(1)
     const opts = runSweepNow.mock.calls[0]?.[2] as {
@@ -183,6 +193,7 @@ describe('the deep link, end to end', () => {
   it('does nothing for a stranger, and never says what the payload meant', async () => {
     const { bot } = boot()
     await bot.handleUpdate(start(`crm-prep-${LEAD}`, STRANGER) as any)
+    await turnsDone()
 
     expect(runSweepNow).not.toHaveBeenCalled()
     const said = sink
@@ -198,12 +209,14 @@ describe('the deep link, end to end', () => {
     await bot.handleUpdate(
       start(`crm-prep-${LEAD}`, -100123, 'supergroup') as any
     )
+    await turnsDone()
     expect(runSweepNow).not.toHaveBeenCalled()
   })
 
   it('leaves a bare number to the referral branch', async () => {
     const { bot } = boot()
     await bot.handleUpdate(start(LEAD) as any)
+    await turnsDone()
     expect(runSweepNow).not.toHaveBeenCalled()
   })
 })
