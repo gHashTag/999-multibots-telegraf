@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAtom } from 'jotai'
 import './Browser.css'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -26,6 +26,7 @@ import {
   type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
+import { isBrowserPath } from '@/lib/keptBrowser'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 
 /**
@@ -103,9 +104,17 @@ export default function BrowserPage() {
     }
   }, [])
 
+  /*
+   * Read on arrival, and again on every RETURN: the page is kept mounted
+   * while the person is on other tabs (lib/keptBrowser.ts), so "on mount"
+   * would be once per five minutes, and the session may have changed. The
+   * view address is stable for a session, so the frame does not reload.
+   */
+  const { pathname } = useLocation()
+  const onThisTab = isBrowserPath(pathname)
   useEffect(() => {
-    void act(readBrowserSession)
-  }, [act])
+    if (onThisTab) void act(readBrowserSession)
+  }, [act, onThisTab])
 
   /*
    * THE DESKTOP IS MADE THE SHAPE OF THIS BOX.
