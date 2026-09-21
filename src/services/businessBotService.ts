@@ -29,6 +29,7 @@ import {
   fetchHistory,
   markSurface,
 } from '@/services/trinityAgent'
+import { turnAlreadySpent, toolsUsedOf } from '@/services/agentTurnSpend'
 import { guardAssetLinks } from '@/services/assetLinkGuard'
 import { SERVICE_CARDS, deepLink, matchCards } from '@/handlers/inlineQuery'
 import {
@@ -529,13 +530,16 @@ export const getAgentFailStreak = (): number => agentFailStreak
  *    turn (no retry conjures a key), and a run of AGENT_FAILURES_BEFORE_PAGE
  *    failed turns pages once at the crossing.
  *
- * WHAT THIS DELIBERATELY DOES NOT DO. The agent client throws away the list of
- * tools the failed turn already called, so the retry cannot refuse to replay a
- * turn that already paid for a generation the way the duet does
- * (crm-duet-tool.ts:387-397 `retryAllowed`). The replay is bounded to one and
- * to transient faults, and the observed failure is the whole chain refusing
- * before any provider produced anything; closing the gap properly needs
- * trinityAgent to surface its tool list on the thrown error.
+ * A TURN THAT ALREADY SPENT IS NEVER REPLAYED (added 21.09.2026).
+ *
+ * That gap was open until a client paid for it. On 20.09.2026 a turn spent 170
+ * seconds rendering a picture, the bot's flat deadline fired, the error read
+ * "This operation was aborted" -- which AGENT_TRANSIENT_RE calls transient --
+ * and the whole turn was replayed. The second run rendered and charged for the
+ * same picture; the client got two charges and no picture. `trinityAgent` now
+ * carries the failed turn's tool list on the error, so a replay that would
+ * bill or send twice is refused here, the way the duet refuses it
+ * (crm-duet-tool.ts `retryAllowed`).
  */
 export async function answerClient(
   chatId: string,
@@ -580,6 +584,17 @@ export async function answerClient(
       lastFault = classifyAgentFault(lastError)
       if (lastFault !== 'transient' || attempts > AGENT_RETRY_ON_TRANSIENT)
         break
+      if (turnAlreadySpent(error)) {
+        // The client has been charged once for work they may yet receive.
+        // Charging them again to fix our timeout is not a retry, it is a bill.
+        logger.warn('[Business] transient fault, but the turn already spent', {
+          chatId,
+          attempt: attempts,
+          tools: toolsUsedOf(error).slice(0, 8),
+          error: lastError,
+        })
+        break
+      }
       logger.info('[Business] agent hit a transient limit, retrying once', {
         chatId,
         attempt: attempts,
