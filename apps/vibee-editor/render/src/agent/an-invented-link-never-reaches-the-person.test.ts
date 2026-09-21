@@ -114,8 +114,8 @@ describe('the stream, which is where this has to work', () => {
 
   it('text with no address in it is never held back', () => {
     const gate = createLinkGate([])
-    expect(gate.push('Лена, план на месяц готов. ')).toBe(
-      'Лена, план на месяц готов. '
+    expect(gate.push('Вера, план на месяц готов. ')).toBe(
+      'Вера, план на месяц готов. '
     )
     expect(gate.flush()).toBe('')
   })

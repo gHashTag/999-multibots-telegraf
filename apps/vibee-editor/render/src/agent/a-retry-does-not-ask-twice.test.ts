@@ -83,11 +83,11 @@ describe('the pair the fallback sends after a failed turn', () => {
 
     // The bot sends both turns and lets this rule settle which are new.
     await ask(pool, 'user', 'Давай')
-    await ask(pool, 'assistant', 'Запускаю, Лена.')
+    await ask(pool, 'assistant', 'Запускаю, Вера.')
 
     expect(pool.rows.map(r => [r.role, r.content])).toEqual([
       ['user', 'Давай'],
-      ['assistant', 'Запускаю, Лена.'],
+      ['assistant', 'Запускаю, Вера.'],
     ])
   })
 
@@ -96,7 +96,7 @@ describe('the pair the fallback sends after a failed turn', () => {
     await ask(pool, 'assistant', 'Вот план на месяц.')
 
     await ask(pool, 'user', 'Давай')
-    await ask(pool, 'assistant', 'Запускаю, Лена.')
+    await ask(pool, 'assistant', 'Запускаю, Вера.')
 
     expect(pool.rows).toHaveLength(3)
   })

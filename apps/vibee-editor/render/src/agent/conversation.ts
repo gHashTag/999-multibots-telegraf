@@ -44,7 +44,7 @@ export type РольРеплики = 'user' | 'assistant'
  *
  * Until 2026-09-13 one person had exactly one thread, keyed by telegram_id,
  * and the owner's talk about client A, the invoice for client B and the duet
- * with @playom all landed in the same list. The owner asked for a separate
+ * with a connected buyer all landed in the same list. The owner asked for a separate
  * CRM per client. `'self'` is the pre-existing personal thread (the default
  * everywhere, so no caller changes); `'client:<id>'` is the owner's thread
  * ABOUT one client. Spec: t27 specs/automation/crm-client-workspace.t27.
