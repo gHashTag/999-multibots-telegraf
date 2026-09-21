@@ -639,6 +639,18 @@ describe('crm_lead_context', () => {
     expect(r.their_files[0].msg_ids).toEqual([31, 32, 33, 34, 35, 36, 37, 38])
     expect(r.files_note).toContain('tg_fetch_media')
   })
+
+  /*
+   * EVERY SWEEP BRIEF OPENS ITS ONE ACTION WITH "THE PORTRAIT FIRST, UNLESS IT
+   * WAS GIVEN" (crmSweepScope.ts SWEEP_RULES), and this is the call every
+   * brief makes first -- so the answer to "was it given?" is here.
+   */
+  it('says whether the portrait is still due', async () => {
+    const { context } = await tools(fakeClient().client)
+    const r: any = await context.handler({ chat: A }, ctxFor())
+    expect(r.portrait).toMatchObject({ given: false, drawing: false })
+    expect(r.portrait.first).toMatch(/^сначала портрет из его лица/) // cyrillic-ok: the answer under test
+  })
 })
 
 describe('crm_leads', () => {

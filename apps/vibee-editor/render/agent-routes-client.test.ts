@@ -230,6 +230,40 @@ describe('the four routes with a client', () => {
     ])
   })
 
+  /*
+   * THE SWEEP NAMES WHOSE FACE IT DRAWS WITHOUT MOVING THE THREAD. The lead of
+   * a scoped sweep reaches the agent as `faceOf`; the turn stays the owner's,
+   * and a sweep (tools_only) records nothing, as before.
+   */
+  it('chat: face_of reaches the agent as faceOf, and is not a thread', async () => {
+    await handleAgentChat(
+      req('/api/agent/chat', 'POST', {
+        messages: [{ role: 'user', content: 'sweep brief' }],
+        tools_only: true,
+        face_of: '900000243',
+      }),
+      res(),
+      SELLER,
+      getPool
+    )
+    expect(seenOpts).toMatchObject({
+      faceOf: '900000243',
+      client: undefined,
+      toolsOnly: true,
+    })
+    expect(pool.rows).toEqual([])
+    await handleAgentChat(
+      req('/api/agent/chat', 'POST', {
+        messages: [{ role: 'user', content: 'hi' }],
+        face_of: { not: 'a string' },
+      }),
+      res(),
+      SELLER,
+      getPool
+    )
+    expect(seenOpts).toMatchObject({ faceOf: undefined })
+  })
+
   it('chat without a client is unchanged: thread self, no client for the agent', async () => {
     await handleAgentChat(
       req('/api/agent/chat', 'POST', {
