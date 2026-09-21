@@ -103,6 +103,7 @@ tri — оболочка Trinity S³AI
   tri main-guard [--eyes]  здоров ли сам main: типы плеера, загрузка бота, влито = выехало
   tri flaky <N> <пакет> <тесты…>  прогнать набор N раз: нестабильность или поломка
   tri journal [n] что агент делал в браузере владельца: шаги, адреса, что видел
+  tri deployed <PR|sha> [сервис…]  дождаться выкатки ИМЕННО этого коммита и её статуса
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
@@ -400,6 +401,7 @@ case "${1:-}" in
     fi
     ;;
 
+  deployed) shift; bash "$ROOT/bin/helpers/deployed.sh" "$ROOT" "$@" ;;
   journal) shift; bash "$ROOT/bin/helpers/journal.sh" "$ROOT" "$@" ;;
   flaky)  shift; bash "$ROOT/bin/helpers/flaky.sh" "$ROOT" "$@" ;;
   main-guard) shift; bash "$ROOT/bin/helpers/main-guard.sh" "$ROOT" "$@" ;;
