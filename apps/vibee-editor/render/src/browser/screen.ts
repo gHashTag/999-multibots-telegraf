@@ -171,6 +171,45 @@ export async function nekoLogin(
 }
 
 /**
+ * THE WHOLE SCREEN, AS THE PERSON SEES IT.
+ *
+ * A CDP screenshot is the PAGE: no tabs, no address bar, no permission
+ * prompt, no dialog Chromium draws over it, and nothing about what the
+ * stream actually shows. neko's own shot is the X screen itself -- the same
+ * pixels the video carries. 2026-09-22: the owner saw a grey window for an
+ * evening; the CDP shot showed a healthy page throughout, and the fault
+ * (a layer in our skin over the video) was found only once this picture and
+ * the viewer's own were set side by side.
+ *
+ * Admin-only on neko, so it goes through the pod's admin login, server-side.
+ */
+export interface ShotFetcher {
+  (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string }
+  ): Promise<{
+    ok: boolean
+    status: number
+    text: () => Promise<string>
+    arrayBuffer: () => Promise<ArrayBuffer>
+  }>
+}
+
+export async function desktopShot(
+  endpoint: string,
+  adminToken: string,
+  fetcher: ShotFetcher = fetch as unknown as ShotFetcher
+): Promise<string> {
+  const bearer = await nekoLogin(endpoint, adminToken, fetcher)
+  const res = await fetcher(`http://${endpoint}/api/room/screen/shot.jpg`, {
+    headers: { authorization: `Bearer ${bearer}` },
+  })
+  if (!res.ok)
+    throw new Error(`the pod refused the screen shot (${res.status})`)
+  return Buffer.from(await res.arrayBuffer()).toString('base64')
+}
+
+/**
  * The nearest shape on the pod's own menu.
  *
  * Nearest by SHAPE first, not by size: a letterbox is what the person
