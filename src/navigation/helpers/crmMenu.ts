@@ -46,6 +46,7 @@ export const LEAD_VERBS = [
   'refuse!',
   'back',
   'mute',
+  'unmute',
 ] as const
 export const SCOPE_VERBS = [
   'waiting',
@@ -60,7 +61,7 @@ export const SCOPE_VERBS = [
 
 export const CRM_ROOT_RE = /^crm:(menu|leads|summary|sweep|model|ingest|plan)$/
 export const CRM_LEAD_RE =
-  /^crm:(lead|prep|later|refuse!?|back|mute):(\d{5,15})$/
+  /^crm:(lead|prep|later|refuse!?|back|unmute|mute):(\d{5,15})$/
 export const CRM_SCOPE_RE =
   /^crm:scope:(waiting|hot|talk|due|ours|winback|stop|status)$/
 
@@ -270,6 +271,23 @@ export function leadMenu(
     [
       btn('👥 Кому писать', crmCallback('leads')),
       btn('🏠 Меню', crmCallback('menu')),
+    ],
+  ])
+}
+
+/**
+ * Under the notice that the assistant has gone quiet because the owner
+ * answered by hand. The first button is the way back -- without it the
+ * silence could only be waited out.
+ */
+export function takeoverMenu(chatId: string | number) {
+  const id = String(chatId)
+  if (!LEAD_ID_RE.test(id)) return undefined
+  return keyboard([
+    [btn('🔔 Вернуть ассистента', crmCallback('unmute', id))],
+    [
+      Markup.button.url('💬 Открыть чат', `tg://user?id=${id}`),
+      btn('👤 Кто это', crmCallback('lead', id)),
     ],
   ])
 }
