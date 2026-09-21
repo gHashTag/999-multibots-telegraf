@@ -198,6 +198,9 @@ describe('business DM through the production middleware chain', () => {
       }
 
       await bot.handleUpdate({ update_id: 1, business_message: dm() } as any)
+      // The middleware only accepts; the turn runs in the chat's lane.
+      const { agentLanes } = await import('@/services/agentLanes')
+      expect((await agentLanes.drain(20_000)).unfinished).toEqual([])
 
       const sends = sink.filter(
         s => s.method === 'sendMessage' && s.payload.business_connection_id

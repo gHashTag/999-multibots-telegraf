@@ -6,6 +6,8 @@ import {
   nextFreeBotSlot,
 } from '@/utils/discoverBotTokens'
 import { stopBotsQuietly } from '@/utils/stopBotsQuietly'
+import { agentLanes, shutdownDrainMs } from '@/services/agentLanes'
+import { tellOwnersWhoWasLeftUnanswered } from '@/services/businessBotService'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -621,6 +623,26 @@ async function gracefulShutdown(signal: string) {
     } else {
       console.error(`⚠️ Бот ${o.name}: остановка не удалась`, o.error)
     }
+  }
+  /*
+   * THE TURNS ALREADY ACCEPTED ARE FINISHED BEFORE THE PROCESS GOES.
+   *
+   * Handlers only accept now; agent turns run in the lanes
+   * (services/agentLanes.ts). Polling is already stopped above, so nothing new
+   * arrives, and the messages being answered were confirmed to Telegram when
+   * they were fetched -- the next process will never see them. Exiting at
+   * once, as this used to, cut a client's answer off mid-turn. So the lanes
+   * get SHUTDOWN_DRAIN_MS (25 s, under railway.toml's drainingSeconds = 30)
+   * to finish, and every business client still unanswered after that is
+   * named to their seller in one message -- not paged to the platform.
+   */
+  const drainMs = shutdownDrainMs(process.env.SHUTDOWN_DRAIN_MS)
+  const { unfinished } = await agentLanes.drain(drainMs)
+  console.log(
+    `⏳ Agent lanes drained: ${unfinished.length} unfinished after up to ${drainMs} ms`
+  )
+  if (unfinished.length) {
+    await tellOwnersWhoWasLeftUnanswered(unfinished).catch(() => 0)
   }
   process.exit(0)
 }

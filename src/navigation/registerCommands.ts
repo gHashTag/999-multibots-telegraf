@@ -17,6 +17,7 @@ import {
   replyWitness,
   silenceNet,
   deadPressNet,
+  answerIfNobodyDid,
 } from '@/navigation/middleware/noSilence'
 import { track } from '@/services/trackEvent'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
@@ -27,7 +28,12 @@ import {
   attachmentFromMessage,
   buildAgentTurn,
 } from '@/services/agentAttachments'
-import { createAlbumBuffer, albumCaption } from '@/services/albumBuffer'
+import {
+  createAlbumBuffer,
+  albumCaption,
+  type AlbumPart,
+} from '@/services/albumBuffer'
+import { agentLanes } from '@/services/agentLanes'
 import {
   mediaItemsFrom,
   rememberClientMediaQuietly,
@@ -701,7 +707,8 @@ If not, continue on your own and click the "I myself" button`
           `Leads sent to owner today: ${s.todayLeads}\n` +
           `Non-text messages today: ${s.todayNonText}\n` +
           `Media relayed to owner today: ${s.todayMediaRelayed}\n` +
-          `Skipped (owner replied): ${s.todayTakeoverSkipped}\n\n` +
+          `Skipped (owner replied): ${s.todayTakeoverSkipped}\n` +
+          `Merged into one answer: ${s.todayMerged}\n\n` +
           `Connections:\n${connList}`
       )
     })
@@ -1266,70 +1273,27 @@ If not, continue on your own and click the "I myself" button`
      */
     const albums = createAlbumBuffer()
 
-    // 10. AI FALLBACK — последний handler, ловит необработанный текст
-    bot.use(async (ctx: any, next: any) => {
-      if (!ctx.message) return next()
-
-      /*
-       * A FILE IS A TURN IN THE CONVERSATION TOO.
-       *
-       * The first line used to be `if (!('text' in ctx.message)) return next()`
-       * -- everything that was not text went past the agent and vanished
-       * without a trace. Measured 2026-09-07: the agent path had NO handler at
-       * all for `document`, `video`, `voice`, `audio`, `video_note` or
-       * `animation`, and a photo was cut off by the global handler above.
-       *
-       * The agent's message type is text-only (`content: string | null`), so a
-       * file moves to our own shelf and becomes a line of the form
-       * `[attached image: ...; url=...]` -- exactly the one the mini app
-       * writes. That way both surfaces speak one language to the model rather
-       * than two.
-       *
-       * The caption IS the person's text: "make a reel out of this" arrives
-       * there, not as a separate message.
-       */
-      const attachment = attachmentFromMessage(ctx.message)
-      const written: string =
-        ('text' in ctx.message ? ctx.message.text : ctx.message.caption) || ''
-
-      if (!attachment) {
-        if (!('text' in ctx.message)) return next()
-        if (!written || written.startsWith('/')) return next()
-        if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(written))
-          return next()
-      }
-      if (ctx.scene?.current) return next()
-
-      /*
-       * IN A GROUP, ONLY WHEN SPOKEN TO.
-       *
-       * This handler is the agent fallback and it had no chat-type gate: with
-       * privacy mode off -- which a concierge in a group needs -- it would
-       * answer EVERY message in a room where five paying clients read each
-       * other. An answer meant for one of them in front of all five, and an
-       * answer nobody asked for in front of all five too.
-       *
-       * A private chat is unaffected: one person writing to the bot alone is
-       * addressing it by definition. See groupAddressing.ts for what counts.
-       */
-      if (!isAddressedToUs(ctx)) return next()
-
-      /*
-       * The file reaches the shelf BEFORE the agent is asked, and a refusal is
-       * spoken out loud.
-       *
-       * Silence is the thing being fixed here, so a failed upload ends in a
-       * sentence rather than in nothing. If the file did not make it but the
-       * person wrote something, the conversation still continues: the text goes
-       * to the agent without the attachment, which is more honest than refusing
-       * the whole turn.
-       */
-      if (attachment) {
-        // The file travels over the network to us. Without this signal the
-        // person stares at silence for several seconds with no idea whether
-        // anything arrived.
-        await ctx.sendChatAction('upload_document').catch(() => {})
-      }
+    /*
+     * THE AGENT'S TURN IN THE BOT CHAT, RUN IN THE CHAT'S LANE.
+     *
+     * This body used to run inside the middleware below, awaited, for as long
+     * as the agent took -- up to 420 s -- and Telegraf does not fetch the next
+     * batch of updates until every handler of the current one has settled. So
+     * one person's question held the WHOLE bot: other people's messages, every
+     * button press and every payment pre-checkout waited behind it (see
+     * services/agentLanes.ts for the measurement). The middleware now only
+     * decides that the message is the agent's and hands this to the lane
+     * `dm:<chat>`, which runs one turn per chat at a time, in order.
+     *
+     * Everything here runs after the chain has ended: nothing may be handed
+     * down the chain, and nothing may be written to the session (a write after
+     * the chain would never be saved). Reading it, as `isRussianFromState`
+     * does, is fine.
+     */
+    const answerInBotChat = async (
+      ctx: any,
+      albumParts: AlbumPart[]
+    ): Promise<void> => {
       /*
        * Did the question already reach the shared conversation?
        *
@@ -1339,24 +1303,6 @@ If not, continue on your own and click the "I myself" button`
        * would appear in the conversation with nothing it answers.
        */
       let questionRecorded = false
-
-      /*
-       * SEVERAL PHOTOS SENT TOGETHER ARE ONE MESSAGE, NOT FIVE.
-       *
-       * Telegram delivers an album as separate updates sharing a
-       * `media_group_id`, and only one of them carries the caption. Handled
-       * one by one, five photos became five turns: five trips to the model and
-       * five answers, four of them about a picture with no question attached.
-       *
-       * The FIRST part waits for its group and continues with all of them;
-       * every later part gets `null` and stops here. A message that is not
-       * part of an album passes straight through with itself as the only part.
-       */
-      const albumParts = await albums.collect(
-        String(ctx.chat?.id ?? ctx.from?.id ?? ''),
-        ctx.message
-      )
-      if (!albumParts) return
 
       const plan = await buildAgentTurn(ctx.telegram, albumParts)
       // The person's own files, indexed per person: in the bot the owner and
@@ -1372,7 +1318,19 @@ If not, continue on your own and click the "I myself" button`
       }
       if (plan.refusal) await ctx.reply(plan.refusal)
       const text = plan.text
-      if (!text.trim()) return next()
+      if (!text.trim()) {
+        /*
+         * Nothing to ask the agent. This used to hand the message on down the
+         * chain, to the silence net at its end -- but the chain has already
+         * finished by the time a lane runs this, so the net is spoken for here
+         * instead. A refusal above has already answered.
+         */
+        if (!plan.refusal) {
+          ctx.state.answered = false
+          await answerIfNobodyDid(ctx)
+        }
+        return
+      }
 
       /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
@@ -1745,6 +1703,101 @@ If not, continue on your own and click the "I myself" button`
             // Если не отправляется даже это — писать больше некуда.
           })
       }
+    }
+
+    // 10. AI FALLBACK — последний handler, ловит необработанный текст
+    bot.use(async (ctx: any, next: any) => {
+      if (!ctx.message) return next()
+
+      /*
+       * A FILE IS A TURN IN THE CONVERSATION TOO.
+       *
+       * The first line used to be `if (!('text' in ctx.message)) return next()`
+       * -- everything that was not text went past the agent and vanished
+       * without a trace. Measured 2026-09-07: the agent path had NO handler at
+       * all for `document`, `video`, `voice`, `audio`, `video_note` or
+       * `animation`, and a photo was cut off by the global handler above.
+       *
+       * The agent's message type is text-only (`content: string | null`), so a
+       * file moves to our own shelf and becomes a line of the form
+       * `[attached image: ...; url=...]` -- exactly the one the mini app
+       * writes. That way both surfaces speak one language to the model rather
+       * than two.
+       *
+       * The caption IS the person's text: "make a reel out of this" arrives
+       * there, not as a separate message.
+       */
+      const attachment = attachmentFromMessage(ctx.message)
+      const written: string =
+        ('text' in ctx.message ? ctx.message.text : ctx.message.caption) || ''
+
+      if (!attachment) {
+        if (!('text' in ctx.message)) return next()
+        if (!written || written.startsWith('/')) return next()
+        if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(written))
+          return next()
+      }
+      if (ctx.scene?.current) return next()
+
+      /*
+       * IN A GROUP, ONLY WHEN SPOKEN TO.
+       *
+       * This handler is the agent fallback and it had no chat-type gate: with
+       * privacy mode off -- which a concierge in a group needs -- it would
+       * answer EVERY message in a room where five paying clients read each
+       * other. An answer meant for one of them in front of all five, and an
+       * answer nobody asked for in front of all five too.
+       *
+       * A private chat is unaffected: one person writing to the bot alone is
+       * addressing it by definition. See groupAddressing.ts for what counts.
+       */
+      if (!isAddressedToUs(ctx)) return next()
+
+      /*
+       * The file reaches the shelf BEFORE the agent is asked, and a refusal is
+       * spoken out loud.
+       *
+       * Silence is the thing being fixed here, so a failed upload ends in a
+       * sentence rather than in nothing. If the file did not make it but the
+       * person wrote something, the conversation still continues: the text goes
+       * to the agent without the attachment, which is more honest than refusing
+       * the whole turn.
+       */
+      if (attachment) {
+        // The file travels over the network to us. Without this signal the
+        // person stares at silence for several seconds with no idea whether
+        // anything arrived. Not awaited: the loop does not wait on a courtesy.
+        void ctx.sendChatAction('upload_document').catch(() => {})
+      }
+      /*
+       * SEVERAL PHOTOS SENT TOGETHER ARE ONE MESSAGE, NOT FIVE.
+       *
+       * Telegram delivers an album as separate updates sharing a
+       * `media_group_id`, and only one of them carries the caption. Handled
+       * one by one, five photos became five turns: five trips to the model and
+       * five answers, four of them about a picture with no question attached.
+       *
+       * The part is offered to the buffer HERE, on the loop, so every part
+       * joins its group the moment it arrives; only the waiting happens in the
+       * lane. The FIRST part's job waits for the group and continues with all
+       * of them; every later part's job gets `null` and stops. A message that
+       * is not part of an album passes straight through as the only part.
+       */
+      const chatLane = String(ctx.chat?.id ?? ctx.from?.id ?? '')
+      const albumParts = albums.collect(chatLane, ctx.message)
+
+      /*
+       * DETACHED: the turn runs in the lane and this handler returns now.
+       *
+       * The message IS answered -- later, by the lane -- so the silence net at
+       * the end of this chain must not speak for it in the meantime -- nor
+       * for the later parts of an album, which the first part's turn answers.
+       */
+      ctx.state.answered = true
+      agentLanes.exclusive(`dm:${chatLane}`, async () => {
+        const parts = await albumParts
+        if (parts) await answerInBotChat(ctx, parts)
+      })
     })
 
     logger.info(
@@ -3445,46 +3498,61 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
    * A TURN FROM A BUTTON. The agent prepares; the card, if any, arrives by
    * itself through the sweep's own push, so here only the outcome is said,
    * with the buttons that fit it. Nothing sends without the card's button.
+   *
+   * IN THE OWNER'S LANE, NOT IN THE HANDLER. The turn takes up to three
+   * minutes, and awaited here it held the bot's polling loop for all of them:
+   * the owner pressed "Prepare" and the bot stopped hearing everybody,
+   * including the owner's own next press and every client of that bot. Now
+   * the press returns at once (its "⏳" line is already sent) and the turn
+   * runs in `crm:<owner>` -- one at a time per owner, so two prepares run one
+   * after the other instead of racing.
    */
-  const runTurn = async (
+  const runTurn = (
     ctx: MyContext,
     opts: import('@/services/crmProactive').SweepOpts,
     lead: string | null,
     retry: string
-  ) => {
-    const { runSweepNow, MENU_HOLD_MS } = await import(
-      '@/services/crmProactive'
-    )
-    const r = await runSweepNow(bot, ownerId(ctx), {
-      holdMs: MENU_HOLD_MS,
-      ...opts,
+  ): void => {
+    agentLanes.exclusive(`crm:${ownerId(ctx)}`, async () => {
+      try {
+        const { runSweepNow, MENU_HOLD_MS } = await import(
+          '@/services/crmProactive'
+        )
+        const r = await runSweepNow(bot, ownerId(ctx), {
+          holdMs: MENU_HOLD_MS,
+          ...opts,
+        })
+        if (r.did === 'card')
+          await sendLong(
+            ctx,
+            'Готово — карточка выше, кнопки твои.',
+            afterTurnKeyboard(lead)
+          )
+        else if (r.did === 'idle')
+          await sendLong(ctx, `Тихо: ${r.why}`, afterTurnKeyboard(lead))
+        else if (r.did === 'held')
+          await sendLong(
+            ctx,
+            'Карточка ещё ждёт нажатия — нажми на ней «Отправить» или «Отмена».',
+            hub()
+          )
+        else if (r.did === 'busy')
+          await sendLong(
+            ctx,
+            'Уже готовлю, подожди минуту.',
+            failKeyboard(retry, false)
+          )
+        else
+          await sendLong(
+            ctx,
+            `Не вышло: ${r.why}`,
+            failKeyboard(retry, noTools.test(r.why))
+          )
+      } catch (e) {
+        // Off the loop, a throw no longer reaches bot.catch: say it here.
+        await crmFail(ctx, 'Не вышло', e, retry)
+      }
     })
-    if (r.did === 'card')
-      await sendLong(
-        ctx,
-        'Готово — карточка выше, кнопки твои.',
-        afterTurnKeyboard(lead)
-      )
-    else if (r.did === 'idle')
-      await sendLong(ctx, `Тихо: ${r.why}`, afterTurnKeyboard(lead))
-    else if (r.did === 'held')
-      await sendLong(
-        ctx,
-        'Карточка ещё ждёт нажатия — нажми на ней «Отправить» или «Отмена».',
-        hub()
-      )
-    else if (r.did === 'busy')
-      await sendLong(
-        ctx,
-        'Уже готовлю, подожди минуту.',
-        failKeyboard(retry, false)
-      )
-    else
-      await sendLong(
-        ctx,
-        `Не вышло: ${r.why}`,
-        failKeyboard(retry, noTools.test(r.why))
-      )
   }
   const menuOnly = () =>
     Markup.inlineKeyboard([
@@ -3501,7 +3569,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
         `⏳ Готовлю для ${lead}: читаю переписку, спрашиваю агента (до 3 минут). Ничего не уйдёт без твоей кнопки.`,
       menuOnly()
     )
-    await runTurn(
+    runTurn(
       ctx,
       {
         // `note` is the rewrite: the brief the agent gets carries the line the
@@ -3526,7 +3594,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       'Обход пошёл: загружаю переписку, спрашиваю агента. Если есть что предложить — карточка придёт сюда.',
       menuOnly()
     )
-    await runTurn(ctx, { label: '[кнопка: обход]' }, null, crmCallback('sweep'))
+    runTurn(ctx, { label: '[кнопка: обход]' }, null, crmCallback('sweep'))
   }
   const ingest = async (ctx: MyContext) => {
     await sendLong(ctx, '📥 Загружаю переписку (до 3 минут)…', menuOnly())
