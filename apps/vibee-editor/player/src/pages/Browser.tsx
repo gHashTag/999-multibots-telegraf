@@ -28,6 +28,7 @@ import {
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { isBrowserPath } from '@/lib/keptBrowser'
+import { frameStateOf, shouldReread } from '@/lib/frameState'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 
 /**
@@ -117,6 +118,25 @@ export default function BrowserPage() {
   useEffect(() => {
     if (onThisTab) void act(readBrowserSession)
   }, [act, onThisTab])
+
+  /*
+   * The window says when its connection is lost (lib/frameState.ts). A lost
+   * connection may be a session that ended: read the state again rather
+   * than keep a frozen frame on screen.
+   */
+  const frame = useRef<HTMLIFrameElement | null>(null)
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const state = frameStateOf(
+        e,
+        frame.current?.contentWindow,
+        window.location.origin
+      )
+      if (shouldReread(state)) void act(readBrowserSession)
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [act])
 
   /*
    * THE DESKTOP IS MADE THE SHAPE OF THIS BOX.
@@ -255,6 +275,7 @@ export default function BrowserPage() {
               onKeyDownCapture={takeTheWheel}
             >
               <iframe
+                ref={frame}
                 className="remote-browser__frame"
                 src={absoluteViewUrl(view!.viewUrl!)}
                 title={t('browser.title')}

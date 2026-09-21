@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from 'vitest'
 
 /**
  * OUR OWN MODEL in the chain: last by default, first on request, and shown a
@@ -129,6 +137,17 @@ describe('who is in the chain', () => {
 })
 
 describe('what a small model is shown', () => {
+  /*
+   * The tool registry is a large module graph. Its first, cold import took
+   * ~5 s under a full parallel run, and it happened inside the first test
+   * of this block -- which then failed on vitest's 5 s limit while passing
+   * alone (seen three times on 2026-09-22). The import is paid here, once,
+   * under its own deadline; the tests below measure only their own logic.
+   */
+  beforeAll(async () => {
+    await import('./src/agent/tools')
+  }, 60_000)
+
   it('the seller kit only: CRM, Telegram, SOUL, one generator', async () => {
     const { toolsForProvider } = await import('./src/agent/tools')
     const all = [

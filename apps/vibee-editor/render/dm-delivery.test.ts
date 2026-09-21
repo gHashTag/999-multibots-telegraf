@@ -162,8 +162,12 @@ async function deliverer(
   return { tool, q, calls, photos }
 }
 
-/** The paid, text-to-image mode the older tests below were written for. */
-const PAID = { gift: false, from_photo: false } as const
+/**
+ * The paid, text-to-image mode the older tests below were written for. Since
+ * 2026-09-21 text-to-image is only the no-person door (a person is always
+ * drawn from their own face, client-face.ts), so that is what these name.
+ */
+const PAID = { gift: false, no_person: true } as const
 
 describe('a refused gift leaves a line, because nothing else does', () => {
   /*
@@ -332,7 +336,9 @@ describe('crm_deliver_photo asks the provider last and charges nobody', () => {
       ctxWith(pool)
     )
     expect(calls[0].who).toBe(OWNER)
-    expect(String(calls[0].args.prompt)).toMatch(/^кот/)
+    // The no-person door opens with the ban on people, then the scene.
+    expect(String(calls[0].args.prompt)).toMatch(/^No people, no faces/)
+    expect(String(calls[0].args.prompt)).toContain('кот')
     // The generator is told the owner's wallet is not the one that pays.
     expect(calls[0].chargeLater).toBe(true)
     expect(
@@ -461,7 +467,7 @@ describe("crm_deliver_photo, by default, is the GIFT lead magnet from the person
     expect(d.media).toEqual({ kind: 'photo', url: PIC })
     expect(r.gift).toBe(true)
     expect(r.price).toBe(0)
-    expect(r.source).toBe('фото человека')
+    expect(r.source).toBe('его аватарка')
     expect(r.aspect_ratio).toBe('9:16')
   })
 
@@ -496,33 +502,39 @@ describe("crm_deliver_photo, by default, is the GIFT lead magnet from the person
     expect(what).not.toMatch(/токен|₽|\$/) // cyrillic-ok: UI text pattern
   })
 
-  it('no readable photo: falls back to text-to-image at 1080x1920, says so, still a gift', async () => {
+  /*
+   * NO FACE, NO STRANGER (owner, 2026-09-21: "the client's face is
+   * mandatory"). These two used to pin the opposite -- a text-to-image
+   * "portrait" when the avatar did not load -- which is exactly the picture
+   * of somebody else the owner stopped work over.
+   */
+  it('no readable photo: nobody is drawn, and the card asks the person for a photo', async () => {
     stubSupabase([leadRow])
     const { tool, q, calls } = await deliverer({ leadPhoto: '' })
     const r: any = await tool.handler(
       { chat: '@pilot_client', prompt: 'кот' },
       ctxWith(poolWith([{ balance: 0 }]))
     )
-    expect(calls.length).toBe(1)
-    expect(calls[0].tool).toBe('image_generate')
-    expect(calls[0].args.width).toBe(1080)
-    expect(calls[0].args.height).toBe(1920)
-    // Still the owner's wallet, now: a gift is never deferred to the recipient.
-    expect(calls[0].chargeLater).toBeUndefined()
-    expect(r.source).toBe('по описанию')
-    expect(r.gift).toBe(true)
-    expect(q.pendingFor(OWNER)!.charge).toBeUndefined()
+    expect(calls.length, 'a picture was drawn with no face to draw').toBe(0)
+    expect(r.need_photo).toBe(true)
+    expect(r.delivered).toBe(false)
+    const d = q.pendingFor(OWNER)!
+    expect(d.media, 'the ask carries no picture').toBeUndefined()
+    expect(d.charge).toBeUndefined()
+    expect(String(d.what)).toMatch(/^Ольга, пришлите/) // cyrillic-ok: the ask line under test
+    expect(String(d.what)).toContain('фото')
+    expect(String(d.what)).not.toContain('\n')
   })
 
-  it('without a photo door wired at all, the gift is still made from text', async () => {
+  it('without a photo door wired at all, the answer is the same: ask, do not draw', async () => {
     stubSupabase([leadRow])
     const { tool, calls } = await deliverer()
     const r: any = await tool.handler(
       { chat: '@pilot_client', prompt: 'кот' },
       ctxWith(poolWith([{ balance: 0 }]))
     )
-    expect(calls[0].tool).toBe('image_generate')
-    expect(r.source).toBe('по описанию')
+    expect(calls.length).toBe(0)
+    expect(r.need_photo).toBe(true)
   })
 
   it('an edit that fails files nothing and refunds nobody here (image_edit already did)', async () => {

@@ -148,9 +148,47 @@ export function editInputFor(
  */
 export const T2I_MODEL = 'google/nano-banana'
 
+/**
+ * `pending` is the one refusal that is not a refusal: the task was accepted
+ * and paid for, and we simply stopped waiting. The caller keeps `taskId` and
+ * asks again later instead of paying for a second one (late-picture.ts).
+ */
 export type KieResult =
   | { ok: true; url: string; taskId: string; credits: number | null }
-  | { ok: false; reason: string; taskId?: string }
+  | { ok: false; reason: string; taskId?: string; pending?: true }
+
+/**
+ * What ONE recordInfo call says about a task, and nothing more.
+ *
+ * MEASURED 2026-09-21: task 2ef3f5ef... of the CRM gift answered `success`
+ * after 380 s (costTime), while this file stopped waiting at 180 s and the
+ * caller reported a failure. The credits were spent, the portrait existed on
+ * the provider's temporary host, and nothing here could ever ask about it
+ * again: the loop below was the only reader of recordInfo. Now the question
+ * "what happened to task X?" has its own answer, usable after the turn, after
+ * a redeploy, and by hand.
+ */
+export type KieTaskState =
+  | { state: 'success'; taskId: string; url: string }
+  | { state: 'fail'; taskId: string; reason: string }
+  | { state: 'running'; taskId: string }
+  /** The question itself failed (network, auth): says nothing about the task. */
+  | { state: 'unknown'; taskId: string; reason: string }
+
+/** A Kie task id as it appears in their API and in our own old refusal text. */
+export const KIE_TASK_ID_RE = /(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])/i
+
+/**
+ * The task id inside a sentence, or null.
+ *
+ * The refusal this file used to return carried the id only as text (the
+ * words "task id" and 32 hex digits), and that text went into crm_owed.why. A debt written
+ * before the id had its own column is still recoverable from its words.
+ */
+export function kieTaskIdIn(text: unknown): string | null {
+  const m = KIE_TASK_ID_RE.exec(String(text ?? ''))
+  return m ? m[0].toLowerCase() : null
+}
 
 function key(): string {
   return process.env.KIE_AI_API_KEY || ''
@@ -192,6 +230,60 @@ export async function credits(): Promise<number | null> {
 }
 
 /**
+ * Ask Kie once where a task stands. Free: recordInfo does not bill.
+ *
+ * recordInfo, not taskStatus -- see the block comment at the top.
+ */
+export async function kieTaskState(taskId: string): Promise<KieTaskState> {
+  const id = String(taskId ?? '').trim()
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(id))
+    return { state: 'unknown', taskId: id, reason: 'не похоже на id задачи' }
+  if (!key())
+    return {
+      state: 'unknown',
+      taskId: id,
+      reason: 'KIE_AI_API_KEY не задан в сервисе',
+    }
+  const st = await api(`/jobs/recordInfo?taskId=${encodeURIComponent(id)}`, {
+    method: 'GET',
+  })
+  const d = st.json?.data
+  if (!d)
+    return {
+      state: 'unknown',
+      taskId: id,
+      reason: `recordInfo: HTTP ${st.status} ${String(st.text).slice(0, 120)}`,
+    }
+  const state = String(d.state || '')
+  if (state === 'success') {
+    let urls: string[] = []
+    try {
+      urls = JSON.parse(d.resultJson || '{}').resultUrls || []
+    } catch {
+      /* fall through to the empty-result refusal below */
+    }
+    if (!urls.length)
+      return {
+        state: 'fail',
+        taskId: id,
+        reason: 'Kie сказал success без файла',
+      }
+    return { state: 'success', taskId: id, url: String(urls[0]) }
+  }
+  if (state === 'fail' || state === 'failed') {
+    return {
+      state: 'fail',
+      taskId: id,
+      reason: `Kie отказал: ${String(d.failMsg || 'без причины').slice(0, 200)}`,
+    }
+  }
+  return { state: 'running', taskId: id }
+}
+
+/** How often a turn asks while it still waits. */
+const TURN_POLL_MS = 4_000
+
+/**
  * Create a Kie job, poll it to a verdict, return the URL and what it cost.
  *
  * Extracted from editImage when text-to-image was added: everything below the
@@ -203,6 +295,7 @@ async function runKieJob(opts: {
   model: string
   input: Record<string, unknown>
   timeoutMs?: number
+  onCreated?: (taskId: string) => unknown
 }): Promise<KieResult> {
   if (!key()) return { ok: false, reason: 'KIE_AI_API_KEY не задан в сервисе' }
 
@@ -218,37 +311,40 @@ async function runKieJob(opts: {
     ).slice(0, 200)
     return { ok: false, reason: `Kie не принял задачу: ${msg}` }
   }
+  /*
+   * THE ID LEAVES HERE, BEFORE THE WAIT -- not with the verdict.
+   *
+   * The task is paid for from this line on. Handing the id back only when the
+   * wait ends left a window of a whole minute in which the caller knew
+   * nothing: a second request for the same picture found no task and paid
+   * for another one, and a render killed mid-wait took the only copy of the
+   * id with it. A caller that records it here (crm_deliver_photo puts it on
+   * the person's debt) closes both. Bookkeeping must not lose the task, so a
+   * throw from it is swallowed and the wait goes on.
+   */
+  if (opts.onCreated) {
+    try {
+      await opts.onCreated(String(taskId))
+    } catch {
+      /* see above: the picture is worth more than the note about it */
+    }
+  }
 
   const deadline = Date.now() + (opts.timeoutMs ?? 180_000)
   while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 4_000))
-    // recordInfo, not taskStatus -- see the block comment at the top.
-    const st = await api(`/jobs/recordInfo?taskId=${taskId}`, { method: 'GET' })
-    const d = st.json?.data
-    const state = String(d?.state || '')
-    if (state === 'success') {
-      let urls: string[] = []
-      try {
-        urls = JSON.parse(d.resultJson || '{}').resultUrls || []
-      } catch {
-        /* fall through to the empty-result refusal below */
-      }
-      if (!urls.length)
-        return { ok: false, reason: 'Kie сказал success без файла', taskId }
+    await new Promise(r => setTimeout(r, TURN_POLL_MS))
+    const st = await kieTaskState(String(taskId))
+    if (st.state === 'success') {
       const after = await credits()
       return {
         ok: true,
-        url: urls[0],
-        taskId,
+        url: st.url,
+        taskId: String(taskId),
         credits: before != null && after != null ? before - after : null,
       }
     }
-    if (state === 'fail' || state === 'failed') {
-      return {
-        ok: false,
-        reason: `Kie отказал: ${String(d?.failMsg || 'без причины').slice(0, 200)}`,
-        taskId,
-      }
+    if (st.state === 'fail') {
+      return { ok: false, reason: st.reason, taskId: String(taskId) }
     }
   }
   // A timeout is NOT a failure of the generation: the task may still finish and
@@ -256,10 +352,11 @@ async function runKieJob(opts: {
   // can look it up rather than paying twice.
   return {
     ok: false,
+    pending: true,
     reason:
       'Kie не ответил за отведённое время. Задача может ещё выполняться — ' +
       `кредиты уже списаны, id задачи ${taskId}`,
-    taskId,
+    taskId: String(taskId),
   }
 }
 
@@ -276,12 +373,15 @@ export async function editImage(opts: {
   aspectRatio?: string
   model?: string
   timeoutMs?: number
+  /** Told the task id as soon as Kie accepts the task (see runKieJob). */
+  onCreated?: (taskId: string) => unknown
 }): Promise<KieResult> {
   const model = opts.model || EDIT_MODEL
   return runKieJob({
     model,
     input: editInputFor(model, opts),
     timeoutMs: opts.timeoutMs,
+    onCreated: opts.onCreated,
   })
 }
 

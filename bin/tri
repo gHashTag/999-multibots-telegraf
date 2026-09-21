@@ -34,7 +34,7 @@ usage() {
   cat <<'U'
 tri — оболочка Trinity S³AI
 
-  tri doctor     всё перед началом смены: копия, диск, конвейер
+  tri doctor     всё перед началом смены: копия, диск, конвейер, влито = выехало
   tri fresh      сверить рабочую копию с origin/main (частая причина ложных диагнозов)
   tri disk       освободить место и проверить сам инструмент чистки
   tri pipeline   проверка конвейера без единой траты кредитов
@@ -910,7 +910,12 @@ PYEOF
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
-    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3) ;;
+    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3)
+    # Guards of earlier work (continuous-improvement-loop, 2026-09-22): merged
+    # must also be shipped. `tri eyes` is NOT here -- it opens the owner's
+    # browser, and a doctor must not act. Run it by hand when the browser
+    # is the subject.
+    echo; echo "── влито = выехало ──"; node "$ROOT/scripts/railway-drift.mjs" || true ;;
   # 64 = "not mine", so the root tri can tell an unknown command from a
   # command that ran and failed. Any other exit code is the command's own.
   # Under the bridge the root prints the one usage; two for one typo is noise.
