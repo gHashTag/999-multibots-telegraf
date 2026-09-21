@@ -135,20 +135,11 @@ import {
   initDataBotOf,
 } from './auth'
 import { countInitDataBot } from './src/auth/initdata-bot-counts'
-import { z } from 'zod'
 import { TEMPLATE_CARDS } from './src/templates/registry'
-import { SplitTalkingHeadSchema } from './src/compositions/SplitTalkingHead'
-
-/**
- * Композиции, чью заявку сверяем со схемой перед рендером.
- *
- * Список, а не «сверять всё»: у части композиций схемы нет вовсе, и
- * отсутствие проверки должно быть ВИДНО здесь, а не выясняться по тому, что
- * ролик вышел не тем. Появилась схема — появилась строка.
- */
-const ПРОВЕРЯЕМЫЕ_КОМПОЗИЦИИ: Record<string, z.ZodType> = {
-  SplitTalkingHead: SplitTalkingHeadSchema,
-}
+// The list of checked compositions and the check itself live in one module
+// because there are two render routes and both must apply the same rule --
+// see src/template-check.ts.
+import { templateSchemaProblem } from './src/template-check'
 
 import {
   credits as kieCredits,
@@ -2722,20 +2713,14 @@ function startRenderAsync(
        * Отказ ДО рендера, а не картинка не о том: рендер стоит минут и денег,
        * а заявка неверной формы не станет верной ни при каких настройках.
        * Причина называет ПОЛЕ — «неверная форма» заставляет угадывать.
+       *
+       * The check itself moved to src/template-check.ts: there are TWO doors
+       * into a render, and the second one (POST /render/template, the one the
+       * agent uses) applied no check at all. A rule standing in one doorway
+       * out of two is not a rule.
        */
-      const проверка = ПРОВЕРЯЕМЫЕ_КОМПОЗИЦИИ[req.compositionId]
-      if (проверка) {
-        const r = проверка.safeParse(inputProps)
-        if (!r.success) {
-          const где = r.error.issues
-            .slice(0, 4)
-            .map(i => `${i.path.join('.') || '(корень)'}: ${i.message}`)
-            .join('; ')
-          throw new Error(
-            `заявка не проходит схему ${req.compositionId}: ${где}`
-          )
-        }
-      }
+      const problem = templateSchemaProblem(req.compositionId, inputProps)
+      if (problem) throw new Error(problem)
 
       const composition = await selectComposition({
         serveUrl: bundleLocation,
@@ -6153,6 +6138,29 @@ const server = createServer(async (req, res) => {
         if (!request.compositionId) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ error: 'compositionId is required' }))
+          return
+        }
+
+        /*
+         * THE SHAPE IS CHECKED HERE TOO, AND BEFORE THE 202.
+         *
+         * This is the door the agent uses (`reel_render`), and it had no check
+         * at all: the twin check lived inline in POST /render only. Measured
+         * 2026-09-21 on render aee823b0-8780-4dec-8ba5-941be5a2645c -- a reel
+         * asked for in a DM got a renderId, the client waited, and minutes
+         * later Remotion died on "No `src` was passed to <OffthreadVideo>".
+         *
+         * Before the 202, not after: a renderId already handed out is a
+         * promise, and `reel_render` then holds the turn for up to six minutes
+         * waiting on work that cannot succeed. A 400 here is refused in one
+         * round trip, names the field, and costs nothing.
+         */
+        const problem = templateSchemaProblem(
+          request.compositionId,
+          request.props || {}
+        )
+        if (problem) {
+          sendJson(res, 400, { error: problem })
           return
         }
 
