@@ -39,6 +39,7 @@ import {
   PROJECT_ID,
   MUST_DEPLOY_FROM_MAIN,
   unwired,
+  freshToken,
 } from './railway-sources-check.mjs'
 
 /** Longer than this without Railway naming main's head is a stall. */
@@ -85,18 +86,6 @@ export function anomalyOf({ name, deploys, mainHead, mainHeadAtMs, nowMs }) {
 
 const short = c => (c ? String(c).slice(0, 9) : '(by hand)')
 
-function token() {
-  if (process.env.RAILWAY_API_TOKEN) return process.env.RAILWAY_API_TOKEN // secret-guard-ok: a variable name, no value
-  try {
-    const cfg = JSON.parse(
-      readFileSync(path.join(homedir(), '.railway/config.json'), 'utf8')
-    )
-    return cfg?.user?.accessToken || null
-  } catch {
-    return null
-  }
-}
-
 async function gql(t, query, variables = {}) {
   const res = await fetch('https://backboard.railway.com/graphql/v2', {
     method: 'POST',
@@ -112,14 +101,26 @@ async function gql(t, query, variables = {}) {
   return body.data
 }
 
+/* One retry with a refreshed CLI token when Railway says Not Authorized. */
+async function gqlFresh(state, query, variables) {
+  try {
+    return await gql(state.t, query, variables)
+  } catch (e) {
+    if (!/Not Authorized/i.test(String(e?.message))) throw e
+    state.t = freshToken({ forceRefresh: true })
+    return await gql(state.t, query, variables)
+  }
+}
+
 async function main() {
-  const t = token()
+  const t = freshToken()
   if (!t) {
     console.log(
       'drift: no Railway token (RAILWAY_API_TOKEN or `railway login`) -- could not look'
     )
     process.exit(2)
   }
+  const state = { t }
   let head, headAt
   try {
     execFileSync('git', ['fetch', '-q', 'origin', 'main'], { stdio: 'ignore' })
@@ -137,8 +138,8 @@ async function main() {
   }
   let services
   try {
-    const data = await gql(
-      t,
+    const data = await gqlFresh(
+      state,
       `query($p:String!){ project(id:$p){ services{ edges{ node{ id name repoTriggers{ edges{ node{ repository branch } } } } } } } }`,
       { p: PROJECT_ID }
     )
@@ -161,8 +162,8 @@ async function main() {
     const s = services.find(x => x.name === name)
     if (!s) continue
     try {
-      const data = await gql(
-        t,
+      const data = await gqlFresh(
+        state,
         `query($p:String!,$s:String!){ deployments(first:15, input:{projectId:$p, serviceId:$s}){ edges{ node{ status createdAt meta } } } }`,
         { p: PROJECT_ID, s: s.id }
       )
