@@ -330,6 +330,13 @@ export async function спроситьАгента(
      * words: a profile bio is written by a stranger.
      */
     personNote?: string
+    /**
+     * The lead this turn makes pictures for (a scoped sweep, the "prepare"
+     * press). The render then draws a person from THEIR face and never from
+     * the caller's -- the owner's -- avatar. Numeric only; the thread stays
+     * the owner's.
+     */
+    faceOf?: string
   } = {}
 ): Promise<ОтветАгента> {
   if (!apiKey()) {
@@ -385,6 +392,9 @@ export async function спроситьАгента(
           surface: opts.surface ?? 'bot',
           ...(opts.toolsOnly ? { tools_only: true } : {}),
           ...(opts.personNote ? { person_note: opts.personNote } : {}),
+          ...(opts.faceOf && /^\d{5,15}$/.test(opts.faceOf)
+            ? { face_of: opts.faceOf }
+            : {}),
         }),
         signal: прерыватель.signal,
       }

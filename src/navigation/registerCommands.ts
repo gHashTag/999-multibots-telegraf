@@ -71,7 +71,7 @@ import {
   rewriteNote,
   rewriteStyleById,
 } from '@/navigation/helpers/rewriteMenu'
-import { scopedPrompt } from '@/services/crmSweepScope'
+import { scopedPrompt, faceOfItem } from '@/services/crmSweepScope'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
@@ -3659,6 +3659,9 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
         }),
         ingest: false,
         label: `[кнопка: подготовить для ${lead}]`,
+        // The card is for this person: a picture in it is drawn from THEIR
+        // face, never from the owner's own avatar.
+        faceOf: faceOfItem({ chat: lead }),
       },
       lead,
       crmCallback('prep', lead)
