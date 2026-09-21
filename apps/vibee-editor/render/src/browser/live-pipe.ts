@@ -29,6 +29,13 @@ import {
 } from './skin'
 import { telegramAvatar } from './avatar'
 import { fitDesktop, wantedScreen } from './screen'
+import {
+  cachePolicyFor,
+  EMOJI_PATH,
+  EMPTY_EMOJI,
+  POSTER_PATH,
+  posterOf,
+} from './fast-start'
 import { cookieNameFor, LIVE_PREFIX, LOGIN_PLACEHOLDER } from './live-proxy'
 
 /** Ours to hold, never to forward. */
@@ -187,6 +194,19 @@ export function pipeHttp(
     res.end()
     return
   }
+  /* 188 KB for a picker this window hides; see fast-start.ts. */
+  if (target.upstreamPath.split('?')[0] === EMOJI_PATH) {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=86400',
+    })
+    res.end(EMPTY_EMOJI)
+    return
+  }
+  if (target.upstreamPath.split('?')[0] === POSTER_PATH) {
+    void posterForTheLoader(target, res)
+    return
+  }
 
   const { host, port } = hostPort(target.endpoint)
   const headers = { ...req.headers }
@@ -218,6 +238,11 @@ export function pipeHttp(
     },
     podRes => {
       const out = { ...podRes.headers }
+      /* A hashed bundle can never change: cache it for a year. */
+      const policy = cachePolicyFor(req.method, target.upstreamPath)
+      if (policy && (podRes.statusCode || 0) === 200) {
+        out['cache-control'] = policy
+      }
       if (podRes.headers['set-cookie']) {
         out['set-cookie'] = rescopeSetCookie(
           podRes.headers['set-cookie'],
@@ -242,6 +267,15 @@ export function pipeHttp(
       }
       /* The length changes when the skin goes in; chunked is simplest. */
       delete out['content-length']
+      /*
+       * The dressed document must never come from a cache: the pod's file
+       * server sends Last-Modified and no policy, which lets a browser keep
+       * yesterday's skin by heuristic. The bundles it loads are the cached
+       * part (fast-start.ts), not this.
+       */
+      out['cache-control'] = 'no-cache'
+      delete out['last-modified']
+      delete out['etag']
       let page = ''
       podRes.setEncoding('utf8')
       podRes.on('data', c => (page += c))
@@ -274,6 +308,31 @@ export function pipeHttp(
     upstream.setHeader('content-length', Buffer.byteLength(body))
     upstream.end(body)
   })
+}
+
+/**
+ * The page the person left open, for the loader to stand on while the stream
+ * connects. 404 when there is none: the loader stands on its own.
+ */
+async function posterForTheLoader(
+  target: PipeTarget,
+  res: ServerResponse
+): Promise<void> {
+  const jpeg = await posterOf(target.cdpEndpoint)
+  if (!jpeg) {
+    res.writeHead(404, {
+      'Content-Type': 'text/plain',
+      'Cache-Control': 'no-store',
+    })
+    res.end('no poster')
+    return
+  }
+  /* The page as it is NOW: never from a cache. */
+  res.writeHead(200, {
+    'Content-Type': 'image/jpeg',
+    'Cache-Control': 'no-store',
+  })
+  res.end(jpeg)
 }
 
 /**
