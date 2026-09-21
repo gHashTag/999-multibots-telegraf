@@ -20,7 +20,7 @@
  */
 import { atom } from 'jotai'
 import { API_BASE } from '@/config'
-import { authHeaders } from '@/lib/apiFetch'
+import { apiFetch, authHeaders } from '@/lib/apiFetch'
 import { openInvoice } from '@/lib/telegram'
 import { reportPayOutcome } from '@/lib/payOutcome'
 
@@ -28,6 +28,22 @@ import { reportPayOutcome } from '@/lib/payOutcome'
 export type ClubGrant = 'owner' | 'keeper' | 'guest' | null
 
 export interface ClubStatus {
+  /**
+   * THE SERVER DOES NOT KNOW WHO IS ASKING.
+   *
+   * `/api/club/status` answers a visitor without identity with 200 and the
+   * PRICE -- deliberately, because the price is public (club-membership.ts).
+   * Everything else in that answer is zeroes, and this side used to read the
+   * zeroes as fact: `active: false` became `!facts.club`, which
+   * `welcomeStart` turns into the paywall. So a person whose session had
+   * quietly expired was shown "join for 10 000 Stars" -- the same screen a
+   * stranger sees -- with no hint that the app had simply stopped knowing
+   * them. That is what @SamHold photographed and what he kept signing in
+   * against, on 2026-09-21.
+   *
+   * Carried through so the screen can say the true thing instead.
+   */
+  anonymous: boolean
   active: boolean
   /**
    * Bot owners (their bots in `avatars`) and keepers enter without paying
@@ -65,22 +81,17 @@ function pause(ms: number): Promise<void> {
 export const loadClubStatusAtom = atom(null, async (_get, set) => {
   set(clubErrorAtom, null)
   try {
-    const r = await fetch(`${API_BASE}/api/club/status`, {
-      headers: authHeaders(),
-    })
-    const d = (await r.json()) as Partial<ClubStatus> & {
-      ok?: boolean
-      error?: string
-    }
-    if (!r.ok || d.ok === false) {
-      throw new Error(String(d.error ?? `HTTP ${r.status}`))
-    }
+    // Through the door, so an expired session is rotated and the call retried
+    // instead of silently coming back as an anonymous visitor (lib/apiFetch).
+    const d = await apiFetch<
+      Partial<ClubStatus> & { ok?: boolean; error?: string }
+    >(`${API_BASE}/api/club/status`)
+    if (d.ok === false) throw new Error(String(d.error ?? 'club status failed'))
     set(clubStatusAtom, {
+      anonymous: d.anonymous === true,
       active: !!d.active,
       granted:
-        d.granted === 'owner' ||
-        d.granted === 'keeper' ||
-        d.granted === 'guest'
+        d.granted === 'owner' || d.granted === 'keeper' || d.granted === 'guest'
           ? d.granted
           : null,
       until: d.until ?? null,
