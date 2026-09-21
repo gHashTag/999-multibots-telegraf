@@ -32,6 +32,7 @@ import { imagesLookDown } from './image-health'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
+import { createLinkGate } from './asset-links'
 import { TEXT_LIKE_EXTENSIONS } from './media-library'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -1340,6 +1341,37 @@ export async function* runAgent(
     return messages
   })
 
+  /*
+   * NO ADDRESS LEAVES THAT THIS TURN WAS NOT GIVEN (added 21.09.2026).
+   *
+   * See asset-links.ts for the splice that cost a client a working link. The
+   * gate is built from everything the model can see at this moment -- prompt,
+   * files block, history -- and learns each tool result as it returns, so a
+   * picture made on this turn is repeatable and an invented one is not.
+   */
+  const links = createLinkGate(messages.map(m => m.content))
+
+  /*
+   * A composed address is a model defect, and it is invisible unless the
+   * address itself is kept: the 20.09 one was only ever diagnosed because the
+   * client pasted it back. Logged as an error, once per new address.
+   */
+  let fabricatedSeen = 0
+  const noteFabricated = () => {
+    const bad = links.fabricated()
+    if (bad.length === fabricatedSeen) return
+    fabricatedSeen = bad.length
+    console.error(
+      '[agent] a composed asset link was stopped before the person',
+      JSON.stringify({
+        turn: turnId,
+        telegram_id: ctx.telegramId,
+        surface: opts?.surface ?? 'unknown',
+        links: bad.slice(-3),
+      })
+    )
+  }
+
   for (let step = 0; step < MAX_STEPS; step++) {
     if (opts?.signal?.aborted) {
       logTurnEnd('aborted', `caller left before step ${step + 1}`)
@@ -1356,9 +1388,20 @@ export async function* runAgent(
           yield { тип: 'провайдер', id: ev.id, model: ev.model } // cyrillic-ok: pre-existing event envelope
         else if (ev.kind === 'reasoning')
           yield { тип: 'размышление', текст: ev.text }
-        else if (ev.kind === 'content') yield { тип: 'текст', текст: ev.text }
-        else assistant = ev.message
+        else if (ev.kind === 'content') {
+          const safe = links.push(ev.text)
+          if (safe) yield { тип: 'текст', текст: safe }
+        } else assistant = ev.message
       }
+      /*
+       * The model has stopped writing for this step, so whatever the gate was
+       * holding is as finished as it will ever be. Flushing here and not only
+       * at the end of the turn keeps a held tail from being delayed behind a
+       * tool call that may take minutes.
+       */
+      const tail = links.flush()
+      if (tail) yield { тип: 'текст', текст: tail }
+      noteFabricated()
     } catch (e) {
       logTurnEnd('error', String(e))
       yield { тип: 'ошибка', текст: String(e).slice(0, 500) }
@@ -1426,6 +1469,9 @@ export async function* runAgent(
       if (!slowestTool || мс > slowestTool['мс']) {
         slowestTool = { имя, мс } // cyrillic-ok: pre-existing field names
       }
+      // An address a tool just produced is one the model is SUPPOSED to
+      // repeat, and it was not in the prompt -- the file did not exist yet.
+      links.allow(значение) // cyrillic-ok: pre-existing local
       yield { тип: 'результат', имя, значение, мс }
       messages.push({
         role: 'tool',
