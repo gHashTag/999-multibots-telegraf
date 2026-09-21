@@ -113,9 +113,20 @@
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" />
     <link rel="dns-prefetch" href="https://vibee-render-production.up.railway.app" />
 
-    <!-- Prefetch default video and audio for faster editor startup -->
-    <link rel="prefetch" href="/lipsync/lipsync.mp4" />
-    <link rel="prefetch" href="/audio/music/bgmusic.mp3" />
+    <!-- Two prefetch hints used to live here, for /lipsync/lipsync.mp4
+         (16,270,479 bytes) and /audio/music/bgmusic.mp3 (5,157,888 bytes):
+         21.4 MB pulled on EVERY page load, against ~560 kB for the whole app.
+         They were for the editor's cold start, and everyone who opened a feed
+         link, a profile or the board paid for them. Measured on production
+         2026-09-21: the feed's own stylesheet (5,442 bytes) took 4,602 ms and
+         the first API call did not start until 7,541 ms, because these two
+         were ahead of it in the queue.
+
+         Both files are played through a media element, which streams them with
+         Range requests: neither needs the whole body up front, so the editor
+         lost nothing. If its cold start ever needs warming again, the hint
+         belongs on the editor route, where only the people who opened the
+         editor pay for it. -->
 
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
