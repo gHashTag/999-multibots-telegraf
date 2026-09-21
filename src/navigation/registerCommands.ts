@@ -1891,6 +1891,46 @@ export function createStage(): Scenes.Stage<MyContext> {
     }
     return next()
   })
+  /*
+   * /browser NEEDS ITS OWN DOOR OUT OF A SCENE, like every command here.
+   *
+   * Found in production logs, not guessed: the owner typed /browser while
+   * inside starPaymentScene, the message was received, the language was
+   * resolved -- and then nothing. stage.middleware() runs BEFORE
+   * bot.command(), so an active scene swallows any command that has no
+   * interceptor of its own. From the outside that reads as "this command
+   * does not exist", which is exactly how it was reported.
+   */
+  stage.command('browser', async (ctx, next) => {
+    if (ctx.scene.current) {
+      console.log(
+        '🔴 [stage.command] /browser intercepted, leaving scene:',
+        ctx.scene.current.id
+      )
+      await ctx.scene.leave()
+    }
+    return next()
+  })
+  /*
+   * THE REST OF THE MENU, WHICH HAD THE SAME HOLE.
+   *
+   * Checked after /browser was found swallowed: /app, /price and /support
+   * are listed in Telegram's command menu (setCommands.ts) and had no
+   * interceptor, so inside any wizard they did nothing. /support is the
+   * worst of them -- somebody stuck halfway through a payment could not
+   * reach the person who would get them out of it.
+   * browserDoorInTheBot.test.ts now fails if a menu command lacks one.
+   */
+  stage.command(['app', 'price', 'support'], async (ctx, next) => {
+    if (ctx.scene.current) {
+      console.log(
+        '🔴 [stage.command] menu command intercepted, leaving scene:',
+        ctx.scene.current.id
+      )
+      await ctx.scene.leave()
+    }
+    return next()
+  })
   stage.command(['club', 'foundry'], async (ctx, next) => {
     if (ctx.scene.current) {
       console.log(
