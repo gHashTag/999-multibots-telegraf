@@ -37,6 +37,14 @@
  * Both of 3's tables are keyed by owner_id, so the question is answered inside
  * the database rather than by filtering after the fact.
  *
+ * Steps 1 and 2 are exactly `canSeePerson` in src/hive/roles.ts -- self, or
+ * keeper -- reached through `visibleScope`, which is that module's CRM-side
+ * entry and returns null for precisely the keeper. Step 3 is the widening this
+ * surface needs and that one deliberately refuses: on a CRM, "my lead" is the
+ * whole subject. It does not reopen the border `canSeePerson` guards, because
+ * correspondence cannot be manufactured -- both tables are written from the
+ * caller's OWN dialogs, so an id picked by counting upwards still answers no.
+ *
  * FAIL-CLOSED
  *
  * If the tables are missing or the query throws, the answer is "not yours".
