@@ -56,13 +56,23 @@ export const CRM_SWEEP_CRON = '*/30 * * * *'
  * So the step stops waiting first, at a budget comfortably under the five
  * minutes the edge allows.
  *
+ * WHY NINETY SECONDS AND NOT FOUR MINUTES (2026-09-21, second pass). The first
+ * pass picked 240 s -- one minute of margin against a ceiling the lesson of
+ * 2026-09-17 says to observe and not to trust. The very next tick used it:
+ * 07:30:00 out, 07:34:00 back, sixty seconds from a 502. Waiting longer buys
+ * nothing, because the step does not carry the work -- it only reports on it,
+ * and the report for a sweep this slow is 'slow' either way. Ninety seconds
+ * still covers every healthy sweep with room to spare (a normal tick answers
+ * in one to four seconds; the whole 08:00 tick took two), so a real outcome
+ * still reaches the trace, and the margin against the edge triples.
+ *
  * NOTHING IS LOST BY NOT WAITING. The sweep's effects -- the card, the
  * messages, the journal rows -- happen inside the bot process, not in this
  * return value; the step only reports. Letting go of the promise gives up a
  * line in the trace, not the work. The sweep keeps its own per-seller
  * `running` latch, so the next tick will not double it.
  */
-export const SWEEP_STEP_BUDGET_MS = 240_000
+export const SWEEP_STEP_BUDGET_MS = 90_000
 
 export type SlowSweep = { did: 'slow'; why: string; ms: number }
 

@@ -157,8 +157,15 @@ describe('a sweep that outlasts the wire', () => {
     svc.runProactiveTick.mockReset()
   })
 
-  it('gives up before the five minutes the edge allows', () => {
-    expect(SWEEP_STEP_BUDGET_MS).toBeLessThan(300_000)
+  /*
+   * Not merely "under the ceiling". The first budget was 240 s and the next
+   * tick came back at 239.9 -- inside the rule, sixty seconds from the 502 it
+   * was written to prevent. The ceiling is an observation (lesson
+   * 2026-09-17), so the budget has to leave most of it unused, not a sliver.
+   */
+  it('leaves most of the edge budget unused, not a sliver', () => {
+    const EDGE_MS = 300_000
+    expect(SWEEP_STEP_BUDGET_MS).toBeLessThanOrEqual(EDGE_MS / 2)
   })
 
   it('returns the slow row and stops waiting', async () => {
@@ -206,7 +213,7 @@ describe('a sweep that outlasts the wire', () => {
       .mockResolvedValueOnce({ did: 'quiet' })
     const { step, names } = fakeStep()
     /*
-     * The real budget is four minutes; a test cannot wait for it, so the whole
+     * The real budget is ninety seconds; a test cannot wait for it, so the whole
      * point here is the SHAPE -- the second seller gets its own step and its
      * own answer. Timing is pinned by the two withStepBudget tests above.
      */
