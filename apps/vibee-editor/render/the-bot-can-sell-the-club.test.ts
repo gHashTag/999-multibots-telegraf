@@ -1,11 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { IncomingMessage } from 'node:http'
+import { Socket } from 'node:net'
 import {
   clubCaller,
   handleClub,
   forgetClubTablesForTests,
 } from './src/agent/club-membership'
+import { clubIdentity } from './src/agent/club-identity'
+import { authenticate, isPublic } from './auth'
 import { forgetTable } from './src/hive/journal'
 
 /**
@@ -184,16 +188,204 @@ describe('the invoice route, through clubCaller', () => {
   })
 })
 
+/*
+ * THE FUNCTION THE SERVER USES, RUN WITH THE BOT'S OWN REQUEST.
+ *
+ * Everything above takes "is this the server key" as a boolean. The defect
+ * that shipped was in computing that boolean: the server asked
+ * `authenticate(req).via === 'api-key'`, and on a PUBLIC_EXACT path
+ * `authenticate` answers 'public' before it looks at any key -- so the bot's
+ * route into the club was closed in production while every test here passed,
+ * because the only wiring test read that expression out of render-server.ts
+ * and pinned it. Here the real `clubIdentity` runs against a real
+ * IncomingMessage carrying what the bot sends (src/services/clubMembership.ts:
+ * X-Api-Key, ?telegram_id=), through the real auth.ts.
+ */
+const SERVER_KEY = 'club-server-key-for-tests-long-enough'
+
+function incoming(
+  url: string,
+  method: string,
+  headers: Record<string, string>
+): IncomingMessage {
+  const req = new IncomingMessage(new Socket())
+  req.url = url
+  req.method = method
+  // Node hands a handler lower-cased header names, whatever the client wrote.
+  req.headers = Object.fromEntries(
+    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])
+  )
+  return req
+}
+
+/** Exactly the request src/services/clubMembership.ts (callClub) makes. */
+const fromTheBot = (
+  route: 'status' | 'invoice' | 'verify',
+  id: string,
+  key: string | null = SERVER_KEY
+) =>
+  incoming(
+    `/api/club/${route}?telegram_id=${encodeURIComponent(id)}`,
+    route === 'status' ? 'GET' : 'POST',
+    {
+      ...(key === null ? {} : { 'X-Api-Key': key }),
+      'Content-Type': 'application/json',
+    }
+  )
+
+describe('clubIdentity: the server key reaches the club although the paths are public', () => {
+  let savedKey: string | undefined
+  let savedAgentKeys: string | undefined
+  beforeEach(() => {
+    savedKey = process.env.RENDER_API_KEY
+    savedAgentKeys = process.env.AGENT_KEYS
+    process.env.RENDER_API_KEY = SERVER_KEY
+    delete process.env.AGENT_KEYS
+  })
+  afterEach(() => {
+    if (savedKey === undefined) delete process.env.RENDER_API_KEY
+    else process.env.RENDER_API_KEY = savedKey
+    if (savedAgentKeys === undefined) delete process.env.AGENT_KEYS
+    else process.env.AGENT_KEYS = savedAgentKeys
+  })
+
+  it('the trap is real: the club paths are public, so authenticate() never says api-key', () => {
+    // If this stops being true the reason for clubIdentity changes, and this
+    // file should be re-read rather than left green.
+    for (const route of ['status', 'invoice', 'verify'] as const) {
+      const req = fromTheBot(route, '900000061')
+      expect(isPublic(req), route).toBe(true)
+      expect(authenticate(req).via, route).toBe('public')
+    }
+  })
+
+  it("the bot's request with the right key names the person", () => {
+    for (const route of ['status', 'invoice', 'verify'] as const) {
+      expect(clubIdentity(fromTheBot(route, '900000061')), route).toBe(
+        '900000061'
+      )
+    }
+  })
+
+  it('without the key, with a wrong key or a prefix of it, the name is nobody', () => {
+    for (const key of [
+      null,
+      '',
+      'another-key-of-exactly-the-same-len!',
+      SERVER_KEY.slice(0, 8),
+      SERVER_KEY + 'x',
+    ]) {
+      expect(
+        clubIdentity(fromTheBot('invoice', '900000061', key)),
+        String(key)
+      ).toBeNull()
+    }
+  })
+
+  it('an unset server key on the render opens nothing, even to an empty header', () => {
+    process.env.RENDER_API_KEY = ''
+    expect(clubIdentity(fromTheBot('invoice', '900000061', ''))).toBeNull()
+    expect(clubIdentity(fromTheBot('invoice', '900000061'))).toBeNull()
+  })
+
+  it("a person's own proof wins over a name the server key puts in the query", () => {
+    process.env.AGENT_KEYS = 'agent-key-of-the-person:900000062'
+    const req = incoming('/api/club/invoice?telegram_id=900000061', 'POST', {
+      'X-Api-Key': SERVER_KEY,
+      'X-Agent-Key': 'agent-key-of-the-person',
+    })
+    expect(clubIdentity(req)).toBe('900000062')
+  })
+})
+
+describe("the bot's exact request through handleClub, with the server's identity", () => {
+  let savedKey: string | undefined
+  beforeEach(() => {
+    savedKey = process.env.RENDER_API_KEY
+    process.env.RENDER_API_KEY = SERVER_KEY
+  })
+  afterEach(() => {
+    if (savedKey === undefined) delete process.env.RENDER_API_KEY
+    else process.env.RENDER_API_KEY = savedKey
+  })
+
+  const served = (
+    pool: ReturnType<typeof strictPool>,
+    fetchImpl: typeof fetch
+  ) => ({
+    getPool: async () => pool,
+    // What render-server.ts passes -- the function itself, not a copy of it.
+    identity: (r: { url?: string; method?: string }) =>
+      clubIdentity(r as IncomingMessage),
+    botToken: 'cashier-token',
+    credit: async () => ({ credited: true }),
+    fetchImpl,
+  })
+
+  it('Join mints an invoice for the person the bot named', async () => {
+    const pool = strictPool()
+    const c = cashier()
+    const out = await handleClub(
+      fromTheBot('invoice', '900000061'),
+      served(pool, c.fetchImpl)
+    )
+    expect(out.status).toBe(200)
+    expect(out.body).toMatchObject({ ok: true, stars: 10_000 })
+    expect(c.minted.map(m => m.payload)).toEqual(['club:10000:900000061'])
+  })
+
+  it('status is about the named person, not the anonymous price', async () => {
+    const out = await handleClub(
+      fromTheBot('status', '900000061'),
+      served(strictPool(), cashier().fetchImpl)
+    )
+    expect(out.status).toBe(200)
+    expect(out.body.anonymous).toBeUndefined()
+    expect(out.body).toMatchObject({ active: false, stars: 10_000 })
+  })
+
+  it('the same request without the key: no invoice, the anonymous price, no verify', async () => {
+    const c = cashier()
+    const invoice = await handleClub(
+      fromTheBot('invoice', '900000061', null),
+      served(strictPool(), c.fetchImpl)
+    )
+    expect(invoice.status).toBe(401)
+    expect(c.minted).toEqual([])
+    const status = await handleClub(
+      fromTheBot('status', '900000061', null),
+      served(strictPool(), c.fetchImpl)
+    )
+    expect(status.body).toMatchObject({ anonymous: true, active: false })
+    const verify = await handleClub(
+      fromTheBot('verify', '900000061', null),
+      served(strictPool(), c.fetchImpl)
+    )
+    expect(verify.status).toBe(401)
+  })
+})
+
 describe('the server wires it that way', () => {
-  it('reads the named person only behind the server key', () => {
+  /*
+   * render-server.ts cannot be imported by a test (it starts the server), so
+   * whether it hands handleClub THIS function is only visible in its text.
+   * What the function does is pinned above by running it; this only checks
+   * the seam, and that no second decision about the key sits next to it.
+   */
+  it('hands the club routes clubIdentity and decides nothing about the key itself', () => {
     const src = fs.readFileSync(
       path.join(__dirname, 'render-server.ts'),
       'utf8'
     )
     const at = src.indexOf('if (isClubPath(')
     expect(at).toBeGreaterThan(0)
-    const block = src.slice(at, at + 900)
-    expect(block).toMatch(/clubCaller\(/)
-    expect(block).toMatch(/authenticate\(r as any\)\.via === 'api-key'/)
+    // Code only: the comment beside the seam may explain the trap by name.
+    const block = src
+      .slice(at, src.indexOf('botToken:', at))
+      .split('\n')
+      .filter(line => !line.trim().startsWith('//'))
+      .join('\n')
+    expect(block).toMatch(/identity: r => clubIdentity\(r as any\),/)
+    expect(block).not.toMatch(/authenticate\(|\.via\b|hasServerKey|clubCaller/)
   })
 })
