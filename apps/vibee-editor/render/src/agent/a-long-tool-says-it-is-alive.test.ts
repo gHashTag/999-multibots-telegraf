@@ -78,7 +78,9 @@ describe('a caller who has already left', () => {
     const seen: Array<Record<string, unknown>> = []
     for await (const ev of runAgent(
       [{ role: 'user', content: 'сделай картинку' }],
-      { telegramId: '555' },
+      /* Only the id matters to this test; the rest of ToolContext is not
+         exercised, and main's typecheck was red on the bare literal. */
+      { telegramId: '555' } as Parameters<typeof runAgent>[1],
       { signal: gone.signal }
     ))
       seen.push(ev)
