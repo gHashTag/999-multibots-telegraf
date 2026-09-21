@@ -1,0 +1,56 @@
+/*
+ * The remote window's loader, measured: a 44px mark, a 34px ring 2px wide,
+ * the track the app's hairline and the moving arc its accent, 0.9s linear.
+ */
+.brand-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.brand-loader--fill {
+  width: 100%;
+  min-height: var(--app-vh-stable, 100dvh);
+  background: #000;
+}
+
+.brand-loader__mark {
+  width: 44px;
+  height: 44px;
+  opacity: 0.9;
+}
+
+.brand-loader__ring {
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  border: 2px solid #1a1a1a;
+  border-top-color: #00ff88;
+  border-radius: 50%;
+  animation: brand-loader-spin 0.9s linear infinite;
+}
+
+.brand-loader__label {
+  margin: 0;
+  max-width: 280px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #888;
+}
+
+@keyframes brand-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The ring stays for somebody who asked motion to stop; the motion goes. */
+@media (prefers-reduced-motion: reduce) {
+  .brand-loader__ring {
+    animation: none;
+  }
+}
