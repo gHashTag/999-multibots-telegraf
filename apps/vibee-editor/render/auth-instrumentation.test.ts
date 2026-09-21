@@ -711,7 +711,9 @@ describe('privileged path classes are counted per bot', () => {
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/^\s*\/\/.*$/gm, '')
     const chat = read('src/agent/chat.ts')
-    const count = chat.indexOf('countInitDataToolCall(ctx, имя)')
+    // The call, not one spelling of its argument: the dispatch moved into
+    // dispatchToolCall and the local is `name` there.
+    const count = chat.search(/countInitDataToolCall\(\s*ctx,/)
     expect(count, 'chat.ts does not count tool calls').toBeGreaterThan(-1)
     // Not `await tool.handler(`: since the heartbeat landed, the handler is
     // started inside a promise and awaited through withHeartbeat. The
