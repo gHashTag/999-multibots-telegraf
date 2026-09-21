@@ -156,7 +156,20 @@ describe('the greeting keyboard', () => {
       .map(b => b.web_app?.url)
       .filter((u): u is string => !!u)
       .map(u => new URL(u).searchParams.get('tgWebAppStartParam'))
-    expect(params).toEqual(['hive', 'chat', 'club', 'profile', 'pair'])
+    expect(params).toEqual([
+      'hive',
+      'chat',
+      /*
+       * `browser` joined on 2026-09-21, under the agent, because that is the
+       * pair: the agent works in the browser while the person watches. Until
+       * then the bot said nothing about it at all -- grep across src/ found
+       * nothing -- and the only way in was to know the tab existed.
+       */
+      'browser',
+      'club',
+      'profile',
+      'pair',
+    ])
   })
 
   it('drops rubles where the bot hides them, and web_app buttons outside a private chat', () => {
