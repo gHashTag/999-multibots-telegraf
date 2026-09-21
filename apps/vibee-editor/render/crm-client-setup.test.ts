@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   loadClientPackage,
+  planFor,
   setupClient,
   clientProfileFor,
   skillNameFromMarkdown,
@@ -466,5 +467,98 @@ describe('the playom client package', () => {
       migrated: false,
       rows_total: 0,
     })
+  })
+})
+
+/*
+ * THE SECOND PACKAGE IS THE ONE THAT PROVES THE FIRST WAS A PACKAGE.
+ *
+ * Everything the installer hard-coded -- the `Leela: ` skill prefix, the twelve
+ * reels, the goal title -- was invisible while one client existed. A cannabis
+ * shop on Ko Phangan reveals them: it must not inherit a board game's content
+ * plan, and its skills must not be filed under somebody else's product.
+ */
+describe('the woody-weed client package', () => {
+  it('carries its own prefix, its own plan, and never Leela’s', () => {
+    const pkg = loadClientPackage('woody-weed')
+    expect(pkg.profile.telegram_id).toBe('8420420131')
+    expect(pkg.profile.name).toBe('Тим') // cyrillic-ok
+    expect(pkg.skills.length).toBeGreaterThanOrEqual(2)
+    for (const s of pkg.skills) {
+      expect(s.name.startsWith('Woody: ')).toBe(true)
+      expect(s.name).not.toContain(SKILL_PREFIX)
+    }
+    const plan = planFor(pkg)!
+    expect(plan.goal).not.toBe(REEL_GOAL_TITLE)
+    expect(plan.templateId).toBe(null)
+    expect(plan.items.length).toBeGreaterThan(0)
+    for (const it of plan.items)
+      expect(REEL_SERIES.some(r => r.title === it.title)).toBe(false)
+  })
+
+  /*
+   * HIS NAME IS THE DEFECT THIS PACKAGE EXISTS FOR. The agent called him by
+   * another man's name for a week; he corrected it, and the very next message
+   * used the wrong name again. The name has to come from a row, not from
+   * whatever scrolled past in the feed.
+   */
+  it('states the name he was not called, so the agent cannot drift back to it', () => {
+    const pkg = loadClientPackage('woody-weed')
+    expect(pkg.profile.not_name).toBe('Паша') // cyrillic-ok
+    const first = pkg.skills.find(s => /первый ответ/i.test(s.name))! // cyrillic-ok
+    expect(first.content).toContain('Тим') // cyrillic-ok
+    // An emergency outranks the upsell that was actually sent during one.
+    expect(first.content).toMatch(/401/)
+    expect(first.content).toMatch(/токен/i) // cyrillic-ok
+  })
+
+  it('the two stops he has not named stay empty', () => {
+    const pkg = loadClientPackage('woody-weed')
+    const stops = (pkg.profile as any).open_work.quest.stops
+    expect(stops).toHaveLength(5)
+    expect(stops.filter((s: any) => s.name === null)).toHaveLength(2)
+    expect(stops[0].name).toBe('AuditLoc')
+    expect(stops[4].name).toBe('Гравитюнс') // cyrillic-ok
+  })
+
+  /*
+   * A PACKAGE WITH NO PLAN OF ITS OWN GETS NONE -- not Leela's. The fallback
+   * is the one package the constants have always meant.
+   */
+  it('gives no plan to a package that declares none', () => {
+    const bare = {
+      client: 'someone-else',
+      soul: '',
+      profile: {},
+      skills: [],
+    }
+    expect(planFor(bare)).toBe(null)
+    expect(planFor(loadClientPackage('playom'))!.goal).toBe(REEL_GOAL_TITLE)
+  })
+
+  /*
+   * A CLIENT WHO NEVER OPENED THE APP STILL GETS A DOSSIER. The old gate
+   * refused the whole install, so the one client the agent knew nothing about
+   * was precisely the one it could learn nothing about.
+   */
+  it('writes only the seller’s own notes when the client has no account', async () => {
+    const { pool, state } = fakePool({})
+    const report = await setupClient(ctxWith(pool), {
+      client: 'woody-weed',
+      telegramId: '8420420131',
+      overwriteSoul: false,
+      overwriteSkills: false,
+      withPlan: true,
+      dryRun: false,
+      profileOnly: true,
+    })
+    expect(report.profile_only).toBe(true)
+    expect(report.soul).toBe('not_connected')
+    expect(report.skills).toEqual([])
+    expect(report.plan.items_added).toBe(0)
+    expect(state.soul).toBeUndefined()
+    expect(Object.keys(state.skills)).toEqual([])
+    expect(state.profiles).toHaveLength(1)
+    expect(JSON.parse(state.profiles[0].profile).name).toBe('Тим') // cyrillic-ok
   })
 })
