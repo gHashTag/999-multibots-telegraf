@@ -11,8 +11,9 @@ import {
   shutdownDrainMs,
   SHUTDOWN_NOTICE_BUDGET_MS,
 } from '@/services/agentLanes'
+// laneNotices imports the logger and nothing else: safe at the top, unlike
+// businessBotService (see the dynamic import in gracefulShutdown).
 import { sendShutdownNotices } from '@/services/laneNotices'
-import { tellOwnersWhoWasLeftUnanswered } from '@/services/businessBotService'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -660,10 +661,23 @@ async function gracefulShutdown(signal: string) {
     `⏳ Agent lanes drained: ${unfinished.length} unfinished after up to ${drainMs} ms`
   )
   if (unfinished.length) {
-    // All at once, and bounded: Railway kills the container at 30 s.
+    /*
+     * businessBotService is imported HERE, at shutdown, and never at the top
+     * of this file. A static import put it first in the bundle's init order,
+     * and that closed a cycle -- businessBotService > aiChatService >
+     * chatMemoryService > core/supabase > interfaces > price/helpers >
+     * navigation > scenes > aiChatWizard > aiChatService -- in which
+     * aiChatWizard read AI_CHAT_MODELS before it existed. Every start crashed
+     * with "Cannot convert undefined or null to object" and Railway kept the
+     * old build (2026-09-22, deploy e4a0a2fe, healthcheck failed 11 times).
+     *
+     * All notices at once, and bounded: Railway kills the container at 30 s.
+     */
     await Promise.race([
       Promise.allSettled([
-        tellOwnersWhoWasLeftUnanswered(unfinished),
+        import('@/services/businessBotService').then(m =>
+          m.tellOwnersWhoWasLeftUnanswered(unfinished)
+        ),
         sendShutdownNotices(unfinished),
       ]),
       new Promise(resolve => setTimeout(resolve, SHUTDOWN_NOTICE_BUDGET_MS)),

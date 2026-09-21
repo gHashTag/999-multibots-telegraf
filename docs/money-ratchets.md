@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 146. Без заголовка: 0.
+Ратчетов: 147. Без заголовка: 0.
 
 | файл                                                   | что утверждает                                                                                |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -33,6 +33,7 @@
 | `balanceRefusalIsToldApartFromAnOutage.test.ts`        | a balance refusal is told apart from an outage                                                |
 | `batchRefundReconciliation.test.ts`                    | aiPhotoshop batch refunds reconcile the exact charge                                          |
 | `cache-invalidation-isolated-ratchet.test.ts`          | every invalidateBalanceCache call is isolated in its own try (#1397)                          |
+| `cashPayersCarry.test.ts`                              | cash paid off-platform, as the archive recorded it                                            |
 | `charge-order.test.ts`                                 | деньги не уходят раньше работы                                                                |
 | `chargeNotBeforeDelivery.test.ts`                      | a failure costs the user nothing in the files that never refund                               |
 | `chargeReachability.test.ts`                           | the set of callers that can reach a charge is frozen                                          |

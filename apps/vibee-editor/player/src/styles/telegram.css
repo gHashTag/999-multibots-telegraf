@@ -124,3 +124,15 @@ html.sheet-open #root {
       var(--app-safe-bottom, 0px)
   );
 }
+
+/* NO BAR, NO RESERVE. The value above is defined for every page, and pages
+   subtract it from their height (Generate.css, Chat.css, Script.css,
+   Browser.css). Where the bar is not drawn -- inside the board's frame on
+   app.t27.ai/queen (embed hides it) and on the routes TelegramTabBar hides --
+   that left a 64px band at the bottom: the page was cut short and the empty
+   body showed black beneath it, over the last lines of content (owner's
+   screenshot of the AI screen, 2026-09-21). TelegramTabBar publishes
+   data-tabbar="visible" on <body> exactly while it is drawn. */
+body:not([data-tabbar='visible']) {
+  --app-tabbar-total: 0px;
+}

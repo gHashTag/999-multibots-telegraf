@@ -8306,8 +8306,22 @@ const server = createServer(async (req, res) => {
         botsOwnedBy: async id =>
           (await import('./src/agent/hive-tools')).botsOwnedBy(id),
         // The guest pass (club-guests.ts): people the owner invited by
-        // @username. The name comes from the verified signature only.
+        // @username. The name comes from the verified signature first.
         usernameOf: r => verifiedTelegramUsername(r as any),
+        // ...and when there is no signature to read a name from -- a desktop
+        // browser or the iOS app, which never send x-telegram-init-data -- we
+        // ask our own users table what the ALREADY-VERIFIED id is called.
+        // Without this an invitation written as a name only worked inside
+        // Telegram, which is how @SamHold sat behind the paywall while being
+        // on the guest list (measured 2026-09-21).
+        usernameById: async id => {
+          const r = await ((await getPool()) as any).query(
+            'SELECT username FROM users WHERE telegram_id = $1 LIMIT 1',
+            [String(id)]
+          )
+          const name = r.rows?.[0]?.username
+          return name ? String(name) : null
+        },
       },
       creditGrant: async g => creditClubGrant((await getPool()) as any, g),
     })
