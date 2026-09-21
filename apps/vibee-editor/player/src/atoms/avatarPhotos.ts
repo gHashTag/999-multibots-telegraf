@@ -1,7 +1,8 @@
 import { atom } from 'jotai'
 import { userAtom } from './user'
 import { RENDER_URL } from '../config'
-import { getTelegramUser, getInitData } from '../lib/telegram'
+import { authHeaders } from '../lib/apiFetch'
+import { getTelegramUser } from '../lib/telegram'
 import { getErrorMessage } from '../features/script/utils/errorMessages'
 import { languageAtom } from './language'
 
@@ -31,21 +32,9 @@ function resolveTelegramId(user: { id?: number } | null): string | null {
   return null
 }
 
-/** Подпись + dev-ключ. В DEV на localhost подписи нет — тогда ключ агента
- *  из VITE_AGENT_KEY (в прод-сборку не попадает, см. Chat.tsx). */
-function avatarHeaders(): Headers {
-  const h = new Headers({ 'Content-Type': 'application/json' })
-  const initData = getInitData()
-  if (initData) {
-    h.set('X-Telegram-Init-Data', initData)
-    return h
-  }
-  const devKey = import.meta.env.DEV
-    ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-    : undefined
-  if (devKey) h.set('X-Agent-Key', devKey)
-  return h
-}
+/** Identity through the one door (lib/apiFetch authHeaders): the signature
+ *  inside Telegram, the app session in a browser. */
+const avatarHeaders = (): Headers => authHeaders()
 
 export const loadAvatarPhotosAtom = atom(null, async (get, set) => {
   const telegramId = resolveTelegramId(get(userAtom))

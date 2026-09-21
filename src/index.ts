@@ -6,7 +6,14 @@ import {
   nextFreeBotSlot,
 } from '@/utils/discoverBotTokens'
 import { stopBotsQuietly } from '@/utils/stopBotsQuietly'
-import { agentLanes, shutdownDrainMs } from '@/services/agentLanes'
+import {
+  agentLanes,
+  shutdownDrainMs,
+  SHUTDOWN_NOTICE_BUDGET_MS,
+} from '@/services/agentLanes'
+// laneNotices imports the logger and nothing else: safe at the top, unlike
+// businessBotService (see the dynamic import in gracefulShutdown).
+import { sendShutdownNotices } from '@/services/laneNotices'
 import { setupSafeConsoleLogging } from './utils/logger'
 
 // Активируем безопасное логирование для предотвращения вывода Buffer данных
@@ -624,16 +631,29 @@ async function gracefulShutdown(signal: string) {
     }
   }
   /*
-   * THE TURNS ALREADY ACCEPTED ARE FINISHED BEFORE THE PROCESS GOES.
+   * THE TURNS ALREADY ACCEPTED ARE FINISHED BEFORE THE PROCESS GOES -- AND
+   * THE ONES THAT CANNOT BE ARE ANNOUNCED. THIS IS A TRADE, SAID PLAINLY.
    *
-   * Handlers only accept now; agent turns run in the lanes
-   * (services/agentLanes.ts). Polling is already stopped above, so nothing new
-   * arrives, and the messages being answered were confirmed to Telegram when
-   * they were fetched -- the next process will never see them. Exiting at
-   * once, as this used to, cut a client's answer off mid-turn. So the lanes
-   * get SHUTDOWN_DRAIN_MS (25 s, under railway.toml's drainingSeconds = 30)
-   * to finish, and every business client still unanswered after that is
-   * named to their seller in one message -- not paged to the platform.
+   * Before the agent lanes a handler awaited its whole turn, so a turn still
+   * running at SIGTERM held Telegraf's polling loop and its update was never
+   * confirmed: the next process got it again from Telegram and answered it
+   * (the old process exited at once and cut off whatever it had begun).
+   * Redelivery was the safety net, for free.
+   *
+   * Agent turns, and the CRM's prepare / sweep / import, now run in the lanes
+   * (services/agentLanes.ts) and their handlers return at once, so the next
+   * getUpdates confirms each update within moments of its arrival. Stopping
+   * polling above syncs that offset too. From here on no process will ever
+   * see those messages again: what the lanes do not finish is lost.
+   *
+   * So drain + notice replaces redelivery. The lanes get SHUTDOWN_DRAIN_MS
+   * (25 s, under railway.toml's drainingSeconds = 30) to finish. After that,
+   * everyone left is told, in one message each and never as a page to the
+   * platform: a seller hears which business clients went unanswered, a
+   * person in the bot chat is asked to send the message again, and an owner
+   * whose prepare / sweep / import was cut off gets a button to rerun it.
+   * A turn longer than the drain (the agent may take up to 420 s) still
+   * loses its answer; the real fix for that is the durable inbox (F7).
    */
   const drainMs = shutdownDrainMs(process.env.SHUTDOWN_DRAIN_MS)
   const { unfinished } = await agentLanes.drain(drainMs)
@@ -642,19 +662,26 @@ async function gracefulShutdown(signal: string) {
   )
   if (unfinished.length) {
     /*
-     * Imported HERE, at shutdown, and never at the top of this file. A static
-     * import put businessBotService first in the bundle's init order, and that
-     * closed a cycle -- businessBotService > aiChatService > chatMemoryService
-     * > core/supabase > interfaces > price/helpers > navigation > scenes >
-     * aiChatWizard > aiChatService -- in which aiChatWizard read
-     * AI_CHAT_MODELS before it existed. Every start crashed with "Cannot
-     * convert undefined or null to object" and Railway kept the old build
-     * (2026-09-22, deploy e4a0a2fe, healthcheck failed 11 times).
+     * businessBotService is imported HERE, at shutdown, and never at the top
+     * of this file. A static import put it first in the bundle's init order,
+     * and that closed a cycle -- businessBotService > aiChatService >
+     * chatMemoryService > core/supabase > interfaces > price/helpers >
+     * navigation > scenes > aiChatWizard > aiChatService -- in which
+     * aiChatWizard read AI_CHAT_MODELS before it existed. Every start crashed
+     * with "Cannot convert undefined or null to object" and Railway kept the
+     * old build (2026-09-22, deploy e4a0a2fe, healthcheck failed 11 times).
+     *
+     * All notices at once, and bounded: Railway kills the container at 30 s.
      */
-    const { tellOwnersWhoWasLeftUnanswered } = await import(
-      '@/services/businessBotService'
-    )
-    await tellOwnersWhoWasLeftUnanswered(unfinished).catch(() => 0)
+    await Promise.race([
+      Promise.allSettled([
+        import('@/services/businessBotService').then(m =>
+          m.tellOwnersWhoWasLeftUnanswered(unfinished)
+        ),
+        sendShutdownNotices(unfinished),
+      ]),
+      new Promise(resolve => setTimeout(resolve, SHUTDOWN_NOTICE_BUDGET_MS)),
+    ])
   }
   process.exit(0)
 }

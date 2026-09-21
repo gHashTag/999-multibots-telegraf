@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { filesBlock, FILES_IN_CONTEXT } from './chat'
 
-const CLIENT = '2086031075'
+const CLIENT = '900000011'
 const URL_ONE =
   'https://bucket-production-8259.up.railway.app/vibee-assets/assets/1789924235674-agent-edit-1789924235613.png'
 

@@ -30,6 +30,7 @@
  */
 
 import crypto from 'node:crypto'
+import { PLATFORM_OWNER_FALLBACK } from '../platform-owner'
 import { hangUp } from './hang-up'
 import type { AgentTool, ToolContext } from './tools'
 import { remember } from './tg-proposals'
@@ -71,11 +72,14 @@ import {
  * refused. It cannot lock the owner out, because every dispatcher passes a
  * ctx (routes.ts, chat.ts, a2a.ts all invoke handler(args, ctx)).
  *
- * The id matches render-server.ts (TELEGRAM_OWNER_ID), which already uses this
- * same value for its admin checks; OWNER_TELEGRAM_ID may override it per
- * deployment.
+ * The fallback matches render-server.ts (TELEGRAM_OWNER_ID), which already
+ * uses this same value for its admin checks; OWNER_TELEGRAM_ID may override
+ * it per deployment. The value lives in ../platform-owner.ts, outside the
+ * agent tree, which carries no person's id (#2712).
  */
-const OWNER_TELEGRAM_ID = (process.env.OWNER_TELEGRAM_ID || '144022504').trim()
+const OWNER_TELEGRAM_ID = (
+  process.env.OWNER_TELEGRAM_ID || PLATFORM_OWNER_FALLBACK
+).trim()
 
 /**
  * Throwing, not returning a value: a refusal must not be mistakable for data.
@@ -97,8 +101,8 @@ function requireOwner(ctx?: ToolContext): void {
  * photo) asked `requireOwner` -- ONE id from the environment -- while the
  * session they open and every CRM table they read were already keyed by the
  * caller's own id. Measured on the render's Postgres that day: tg_sessions
- * held two rows, the owner's (144022504) and @playom's (435572800), and the
- * second was refused by the gate alone. A seller is a person with a session;
+ * held two rows, the owner's and a second seller's, and the second was
+ * refused by the gate alone. A seller is a person with a session;
  * the platform owner keeps the env-string fallback so a fresh base does not
  * lock them out. Spec: t27 specs/automation/crm-sellers.t27.
  */
