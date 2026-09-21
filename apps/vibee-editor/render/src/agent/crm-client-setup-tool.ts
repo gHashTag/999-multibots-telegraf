@@ -28,6 +28,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AgentTool, ToolContext } from './tools'
 import { requireOwner, isSeller } from './telegram-tools'
+import { ownsLead } from './crm-reach'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const CLIENTS_DIR = join(HERE, 'clients')
@@ -555,20 +556,48 @@ export async function clientProfileFor(
       ORDER BY owner_id NULLS LAST LIMIT 1`,
     [telegramId, String(ctx.telegramId)]
   )
-  const soul = await ctx.pool.query(
-    `SELECT content, updated_at::text FROM user_soul WHERE telegram_id = $1`,
-    [telegramId]
-  )
-  const skills = await ctx.pool.query(
-    `SELECT name FROM user_skills WHERE telegram_id = $1 ORDER BY name`,
-    [telegramId]
-  )
+  const ownsTheProfile = p.rows[0]?.owner_id === String(ctx.telegramId)
+  /*
+   * `user_soul` and `user_skills` are PLATFORM-WIDE: one row per person, no
+   * owner column, nothing in the SQL that could scope them. Until 2026-09-21
+   * they were read here on the strength of `isSeller` alone -- which only
+   * means "this caller connected their own Telegram" -- so any seller who
+   * passed any telegram_id received 400 characters of that person's private
+   * SOUL and the names of their skills, including from the `!p.rows.length`
+   * branch, where the seller was being told the profile was not theirs in the
+   * same breath.
+   *
+   * Two ways to earn them, and no third: you set this client up (the profile
+   * row is yours), or crm-reach says the person is reachable for you -- you,
+   * a keeper, or somebody you have corresponded with. An unowned legacy
+   * profile row stays readable, because that is a deliberate migration
+   * affordance for the profile only; it grants nothing private.
+   */
+  const mayReadPrivate = ownsTheProfile || (await ownsLead(ctx, telegramId))
+  const empty = { rows: [] as Array<Record<string, any>> }
+  const soul = mayReadPrivate
+    ? await ctx.pool.query(
+        `SELECT content, updated_at::text FROM user_soul WHERE telegram_id = $1`,
+        [telegramId]
+      )
+    : empty
+  const skills = mayReadPrivate
+    ? await ctx.pool.query(
+        `SELECT name FROM user_skills WHERE telegram_id = $1 ORDER BY name`,
+        [telegramId]
+      )
+    : empty
+  // Named rather than silently absent: a caller that gets `has_soul: false`
+  // should be able to tell "they have not written one" from "not yours to
+  // read". It says nothing about whose client the person is.
+  const withheld = mayReadPrivate ? {} : { private_withheld: true }
   if (!p.rows.length) {
     return {
       has_profile: false,
       hint: 'Профиль клиента не настроен. Начни с вопросов: где аудитория, что уже публикует, какой результат за месяц был бы удачей.',
       has_soul: soul.rows.length > 0,
       skills: skills.rows.map((r: { name: string }) => r.name),
+      ...withheld,
     }
   }
   const content = String(soul.rows[0]?.content ?? '')
@@ -576,13 +605,14 @@ export async function clientProfileFor(
     has_profile: true,
     client: p.rows[0].client,
     owner_id: p.rows[0].owner_id ?? null,
-    owned_by_caller: p.rows[0].owner_id === String(ctx.telegramId),
+    owned_by_caller: ownsTheProfile,
     updated_at: p.rows[0].updated_at,
     profile: p.rows[0].profile,
     has_soul: soul.rows.length > 0,
     soul_is_draft: content.includes('Статус: ЧЕРНОВИК'),
     soul_excerpt: content.slice(0, 400),
     skills: skills.rows.map((r: { name: string }) => r.name),
+    ...withheld,
   }
 }
 

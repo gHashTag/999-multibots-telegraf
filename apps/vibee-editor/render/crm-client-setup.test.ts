@@ -292,6 +292,11 @@ describe('the playom client package', () => {
     const other = { telegramId: '500000001', pool } as unknown as ToolContext
     const strangerView = await clientProfileFor(other, CLIENT)
     expect(strangerView.has_profile).toBe(false)
+    // Nothing private either: user_soul and user_skills have no owner column,
+    // so this gate is the only thing between a stranger and her SOUL. The flag
+    // says "not yours to read" rather than letting `has_soul: false` be taken
+    // for "she never wrote one". Covered end to end in crm-reach.test.ts.
+    expect(strangerView.private_withheld).toBe(true)
     await setup('500000001')
     expect(state.profiles.map(r => r.owner).sort()).toEqual(
       [OWNER, '500000001'].sort()
