@@ -1362,11 +1362,13 @@
     padding: 0 2px;
   }
 
-  /* Telegram login button */
-  .telegram-login-container {
-    transform: scale(0.85);
-    transform-origin: right center;
-  }
+  /* Правила .telegram-login-container здесь больше нет. Она была написана,
+     когда виджет Telegram стоял в шапке и жался к правому краю. Сегодня этот
+     класс рисует только TelegramLoginButton, а его рисует только LoginModal,
+     так что единственным следом правила был виджет, сжатый до 85% и
+     прижатый к правому краю карточки, выровненной по левому, — отступ в
+     36px на телефоне ровно там, где нативный iframe и есть кнопка входа.
+     Шапка входит своей кнопкой .telegram-login-btn.small (Header.tsx). */
 }
 
 @media (max-width: 480px) {

@@ -84,7 +84,7 @@ describe('the modal answers the door that opened it', () => {
     expect(body().toLowerCase()).toMatch(/board/)
   })
 
-  it('export and generate both name the renders they spend', () => {
+  it('only the export door promises the free video renders', () => {
     openedBy('export')
     expect(title().toLowerCase()).toMatch(/export/)
     const exportBody = body()
@@ -96,9 +96,19 @@ describe('the modal answers the door that opened it', () => {
 
     openedBy('generate')
     expect(title().toLowerCase()).toMatch(/generate/)
-    // One key for two doors: they draw on the same server quota, and two
-    // copies of one promise are how the promise and the quota drift apart.
-    expect(body()).toBe(exportBody)
+    // These two shared one body on the premise that both spend the free
+    // render quota. Only export does: that quota is reserved by POST /render
+    // and POST /render/template, and the generate door also opens on image,
+    // audio and lipsync, which hit neither. Offering "three free video
+    // renders" to somebody asking for a voiceover is the same defect this
+    // file exists to prevent, one door further in.
+    expect(body()).not.toBe(exportBody)
+    // The promise itself, in either language. Kept as strings, not a regex
+    // literal: scripts/no-cyrillic-guard.cjs allows Cyrillic inside string
+    // literals only, and reads it anywhere else as an untranslated comment.
+    for (const promise of ['video render', 'видеорендер']) {
+      expect(body().toLowerCase()).not.toContain(promise)
+    }
   })
 
   it('follow talks about following', () => {
@@ -153,8 +163,15 @@ describe('the modal answers the door that opened it', () => {
       path.resolve(__dirname, '../styles.css'),
       'utf8'
     )
-    const rule = css.slice(css.indexOf('.login-modal-close {'))
-    expect(rule).toMatch(/var\(--touch-target, 44px\)/)
+    // Bounded at the closing brace. Slicing to end-of-file let any later rule
+    // anywhere in the sheet satisfy the assertion: measured, shrinking this
+    // button back to 32px and adding an unrelated `min-height:
+    // var(--touch-target, 44px)` in a media query below kept the suite green.
+    const start = css.indexOf('.login-modal-close {')
+    expect(start).toBeGreaterThan(-1)
+    const rule = css.slice(start, css.indexOf('}', start))
+    expect(rule).toMatch(/width:\s*var\(--touch-target, 44px\)/)
+    expect(rule).toMatch(/height:\s*var\(--touch-target, 44px\)/)
     expect(css).toMatch(/\.login-modal-close:focus-visible/)
   })
 })
@@ -179,22 +196,59 @@ describe('the wiring that keeps the sentence honest', () => {
     return out
   }
 
+  /**
+   * The file that DEFINES the door, and nothing else. `src/atoms/` as a whole
+   * used to be exempt, and it is not only definitions: src/atoms/hooks.ts is a
+   * file of exported React hooks that components call. Measured -- a
+   * `useLoginModal()` wrapper added there, in that file's own house style,
+   * opened the modal with no reason and left all twelve cases green.
+   */
+  const DOOR_DEFINITION = path.join(SRC, 'atoms', 'user.ts')
+
   it('no component opens the modal without naming its door', () => {
     const offenders = sources()
       .filter(
         p =>
-          !p.includes(`${path.sep}atoms${path.sep}`) &&
+          p !== DOOR_DEFINITION &&
           !/\.test\.tsx?$/.test(p) &&
           !p.includes(`${path.sep}__tests__${path.sep}`)
       )
       .filter(p => {
         const s = fs.readFileSync(p, 'utf8')
-        // Reading it is fine -- the modal itself does. Writing it outside the
-        // single writer is what leaves the reason stale.
-        return /useSetAtom\(\s*showLoginModalAtom\s*\)/.test(s)
+        // Reading it is fine -- the modal itself does. WRITING it outside the
+        // single writer is what leaves the reason stale, and this repo spells
+        // a write at least four ways. The old guard matched only
+        // `useSetAtom(showLoginModalAtom)`; measured, the pre-fix opener
+        // written as `const [, setShow] = useAtom(showLoginModalAtom)` -- the
+        // exact defect the commit fixed, and a form already used in
+        // PropertiesPanel and GestureHints -- passed it.
+        return (
+          /useSetAtom\(\s*showLoginModalAtom\s*\)/.test(s) ||
+          /useAtom\(\s*showLoginModalAtom\s*\)/.test(s) ||
+          /\.set\(\s*showLoginModalAtom\s*,/.test(s) ||
+          /showLoginModalAtom\s+as\s+\w+/.test(s)
+        )
       })
       .map(p => path.relative(SRC, p))
     expect(offenders).toEqual([])
+  })
+
+  it('the modal is mounted exactly once, above the routes', () => {
+    // Opening it and rendering it are different powers, and they used to live
+    // in different places: <ReturnToGame /> sits outside <Routes> and fires
+    // openLogin('board') on any screen, while the modal was mounted by Header
+    // and by Hive. /learn draws its own LearnHeader, is in RouteMemory's
+    // restorable list, and mounts no Header -- so a person returning there
+    // from the board's sign-in chip flipped the atom and saw nothing at all.
+    const mounts = sources()
+      .filter(
+        p =>
+          !/\.test\.tsx?$/.test(p) &&
+          !p.includes(`${path.sep}__tests__${path.sep}`)
+      )
+      .filter(p => /<LoginModal\s*\/>/.test(fs.readFileSync(p, 'utf8')))
+      .map(p => path.relative(SRC, p))
+    expect(mounts).toEqual(['App.tsx'])
   })
 
   it('the modal carries its own stylesheet', () => {
@@ -211,7 +265,16 @@ describe('the wiring that keeps the sentence honest', () => {
       path.resolve(SRC, 'components/Header/styles.css'),
       'utf8'
     )
-    expect(header).not.toMatch(/^\.login-modal\s*\{/m)
+    // Any `.login-modal…` selector, at any indentation. The old assertion was
+    // `/^\.login-modal\s*\{/m`: anchored at column 0, and unable to span
+    // `-overlay`. The duplicate it was written against was six blocks --
+    // `-overlay`, `h2`, `p` and two copies indented inside a media query --
+    // so it caught one of the six. Measured: re-adding the whole @media block
+    // verbatim left the suite green.
+    const offending = [
+      ...header.matchAll(/^[^\S\n]*(\.login-modal[\w-]*)/gm),
+    ].map(m => m[1])
+    expect(offending).toEqual([])
   })
 
   it('the card is positioned, sized and inset like the site says', () => {
@@ -230,18 +293,48 @@ describe('the wiring that keeps the sentence honest', () => {
     expect(card).toMatch(/background:\s*#0b0d0c/)
     expect(card).toMatch(/border-radius:\s*6px/)
 
-    // The login block only, and without its comments: the paywall below it
-    // may legitimately use env(), and the comment that explains why the login
-    // rules do not is the very string being searched for.
-    const login = css
-      .slice(css.indexOf('.login-modal-overlay'), css.indexOf('.quota-display'))
-      .replace(/\/\*[\s\S]*?\*\//g, '')
+    // EVERY `.login-modal…` rule in the sheet, including the ones inside
+    // @media blocks. The old check sliced from `.login-modal-overlay` to
+    // `.quota-display` -- styles.css:324-436 -- and the media queries start at
+    // 466, so it read none of them. Both banned constructs are phone
+    // overrides by nature: that is where the original defect lived. Measured,
+    // adding `max-height: 100vh` and an `env(safe-area-inset-top, 28px)`
+    // padding inside the existing @media block left the suite green.
+    const noComments = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const loginRules = [
+      ...noComments.matchAll(/\.login-modal[^{}]*\{([^}]*)\}/g),
+    ].map(m => m[1])
+    expect(loginRules.length).toBeGreaterThan(4)
+    const login = loginRules.join('\n')
     // env(safe-area-inset-*) resolves to 0 inside the Telegram WebView, so a
     // fallback written against it never applies. The app measures its own.
     expect(login).not.toMatch(/env\(safe-area-inset/)
     // 100vh is the wrong height under a collapsing Telegram header.
     expect(login).not.toMatch(/100vh/)
     expect(login).toMatch(/--app-vh-stable/)
+  })
+
+  it('the card stretches its one control to the card, not to the text', () => {
+    // `.telegram-login-wrapper` is a shrink-to-fit flex item, so the button's
+    // `width: 100%` inside it resolved against the wrapper, not the card:
+    // 167px of green in a 301px card at 375px, and narrower than the same
+    // button was before `min-width: 260px` came off. Three of the modal's
+    // four branches put the button directly in the widget and stretched
+    // correctly -- one card, two button widths, decided by which door you
+    // came through.
+    const css = fs.readFileSync(
+      path.resolve(__dirname, '../styles.css'),
+      'utf8'
+    )
+    const wrapper = css.match(
+      /\.login-modal \.telegram-login-wrapper\s*\{([^}]*)\}/
+    )
+    expect(
+      wrapper,
+      'the modal must size the wrapper it stretches into'
+    ).not.toBeNull()
+    expect(wrapper![1]).toMatch(/width:\s*100%/)
+    expect(wrapper![1]).toMatch(/align-items:\s*stretch/)
   })
 
   it('the native Telegram widget is given the card radius', () => {

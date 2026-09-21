@@ -454,17 +454,29 @@ const en: Translations = {
   // must stay true everywhere, so it promises nothing in particular; it is
   // also, word for word, the site's own sign-in card (ClientsConsole.tsx).
   //
-  // `login.rendersBody` is deliberately ONE key for two doors: export and
-  // generate draw on the same server quota, and two copies of one promise is
-  // how the promise and the quota drift apart.
+  // `login.rendersBody` belongs to the EXPORT door alone. It used to be shared
+  // with generate on the stated premise that both spend the same quota, and
+  // that premise is false: the free renders are reserved server-side by
+  // POST /render and POST /render/template only, while the generate door also
+  // covers image, audio and lipsync, none of which touch either route. Three
+  // of its four handlers are not about video at all — so the generate door
+  // gets a line that is true for all four (GeneratePanel.tsx,
+  // checkBalanceAndProceed).
+  //
+  // `login.followBody` says only what signing in does. It used to add "your
+  // follows stay on your account", which no server keeps: there is no
+  // POST/DELETE /api/users/:username/follow anywhere in this repo, and the
+  // profile routes return followers_count: 0 / is_following: false
+  // unconditionally (render/render-server.ts).
   'login.title': 'Sign in with Telegram',
   'login.exportTitle': 'Sign in to export',
   'login.generateTitle': 'Sign in to generate',
   'login.rendersBody':
     'Sign in with Telegram — your first three video renders are free.',
+  'login.generateBody':
+    'Sign in with Telegram — generation runs on your own account and balance.',
   'login.followTitle': 'Sign in to follow',
-  'login.followBody':
-    'Sign in with Telegram and your follows stay on your account.',
+  'login.followBody': 'Following creators needs an account. Telegram is one.',
   'login.boardTitle': 'Sign in to your board',
   'login.boardBody':
     'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
@@ -475,6 +487,7 @@ const en: Translations = {
   'templates.canons': 'Server templates',
   'templates.noneOnServer': 'The server has no renderable templates yet.',
   'common.close': 'Close',
+  'common.loading': 'Loading...',
   'login.tgUnsignedTitle': 'Open the app from the menu button',
   'login.tgUnsignedBody':
     "This launch carries no signed data, so the server cannot verify who you are. Open the app from the bot's menu button or an inline button, and everything will work.",
@@ -510,6 +523,7 @@ const en: Translations = {
   'props.center': 'Center',
   'props.right': 'Right',
   'props.position': 'Position',
+  'props.rotation': 'Rotation',
   'props.opacity': 'Opacity',
   'props.timing': 'Timing',
   'props.start': 'Start',
@@ -640,6 +654,10 @@ const en: Translations = {
   'assets.noAudio': 'No audio files yet',
   'assets.noVoice': 'Voice files will appear here from AI generation',
   'assets.noMusic': 'No music files yet. Upload or generate music.',
+  'assets.upload': 'Upload files',
+  'assets.search': 'Search assets',
+  'assets.searchPlaceholder': 'Search...',
+  'assets.empty': 'Nothing here yet',
 
   // Chat Panel
   'chat.offlineMessage':
@@ -791,6 +809,9 @@ const en: Translations = {
   'feed.refresh': 'Refresh',
   'feed.loading': 'Loading...',
   'feed.empty': 'No templates yet',
+  'feed.remixInfo': 'Remix info',
+  'feed.basedOn': 'Based on a template by',
+  'feed.unknownCreator': 'Unknown author',
   'feed.loadMore': 'Load More',
   'feed.retry': 'Retry',
   'feed.useTemplate': 'Use Template',
@@ -1062,6 +1083,7 @@ const en: Translations = {
   'generate.audioUrl': 'Audio URL',
   'generate.imageUrl': 'Image URL',
   'generate.generating': 'Generating...',
+  'generate.uploading': 'Uploading...',
   'generate.generateImage': 'Generate Image',
   'generate.generateVideo': 'Generate Video',
   'generate.generateAudio': 'Generate Audio',
@@ -2456,9 +2478,10 @@ const ru: Translations = {
   'login.generateTitle': 'Войдите, чтобы сгенерировать',
   'login.rendersBody':
     'Войдите через Telegram — первые три видеорендера бесплатны.',
+  'login.generateBody':
+    'Войдите через Telegram — генерация идёт на вашем аккаунте и балансе.',
   'login.followTitle': 'Войдите, чтобы подписаться',
-  'login.followBody':
-    'Войдите через Telegram — подписки сохранятся в вашем аккаунте.',
+  'login.followBody': 'Для подписок нужен аккаунт. Telegram подходит.',
   'login.boardTitle': 'Вход на вашу доску',
   'login.boardBody':
     'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
@@ -2469,6 +2492,7 @@ const ru: Translations = {
   'templates.canons': 'Шаблоны сервера',
   'templates.noneOnServer': 'На сервере пока нет шаблонов, готовых к рендеру.',
   'common.close': 'Закрыть',
+  'common.loading': 'Загрузка...',
   'login.tgUnsignedTitle': 'Откройте приложение кнопкой меню',
   'login.tgUnsignedBody':
     'Этот запуск не несёт подписанных данных, и сервер не может подтвердить, кто вы. Откройте приложение через кнопку меню бота или инлайн-кнопку — и всё заработает.',
@@ -2503,6 +2527,7 @@ const ru: Translations = {
   'props.center': 'По центру',
   'props.right': 'Справа',
   'props.position': 'Позиция',
+  'props.rotation': 'Поворот',
   'props.opacity': 'Прозрачность',
   'props.timing': 'Тайминг',
   'props.start': 'Начало',
@@ -2633,6 +2658,10 @@ const ru: Translations = {
   'assets.noAudio': 'Пока нет аудио файлов',
   'assets.noVoice': 'Голосовые файлы появятся здесь после AI генерации',
   'assets.noMusic': 'Пока нет музыки. Загрузите или сгенерируйте музыку.',
+  'assets.upload': 'Загрузить файлы',
+  'assets.search': 'Искать в материалах',
+  'assets.searchPlaceholder': 'Поиск...',
+  'assets.empty': 'Здесь пока пусто',
 
   // Chat Panel
   'chat.offlineMessage':
@@ -2787,6 +2816,9 @@ const ru: Translations = {
   'feed.refresh': 'Обновить',
   'feed.loading': 'Загрузка...',
   'feed.empty': 'Пока нет шаблонов',
+  'feed.remixInfo': 'О ремиксе',
+  'feed.basedOn': 'Сделано на основе шаблона автора',
+  'feed.unknownCreator': 'Автор неизвестен',
   'feed.loadMore': 'Загрузить ещё',
   'feed.retry': 'Повторить',
   'feed.useTemplate': 'Использовать',
@@ -3059,6 +3091,7 @@ const ru: Translations = {
   'generate.audioUrl': 'URL аудио',
   'generate.imageUrl': 'URL картинки',
   'generate.generating': 'Генерация...',
+  'generate.uploading': 'Загрузка...',
   'generate.generateImage': 'Сгенерировать фото',
   'generate.generateVideo': 'Сгенерировать видео',
   'generate.generateAudio': 'Сгенерировать аудио',

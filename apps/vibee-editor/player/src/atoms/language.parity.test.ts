@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
 import { translations } from './language'
 
 /**
@@ -52,5 +54,62 @@ describe('the two locales agree', () => {
     // It named one door out of seven and was shown at all of them.
     expect(translations.en['login.returnToGame']).toBeUndefined()
     expect(translations.ru['login.returnToGame']).toBeUndefined()
+  })
+})
+
+/**
+ * THE KEY THAT IS MISSING FROM BOTH DICTIONARIES.
+ *
+ * Comparing the two locales to each other is a symmetric-difference check: a
+ * key that `t()` calls and NEITHER dictionary defines is equally absent from
+ * both and sails through. That is not hypothetical -- it is how `assets.empty`
+ * and `common.loading` came to render as their own names on screen, in both
+ * languages, while all four cases above were green.
+ *
+ * So compare the call sites to the dictionary, not the dictionary to itself.
+ */
+describe('every key a component asks for exists', () => {
+  const SRC = path.resolve(__dirname, '..')
+
+  function sources(): string[] {
+    const out: string[] = []
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) {
+          if (e.name !== 'node_modules') walk(p)
+        } else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) {
+          out.push(p)
+        }
+      }
+    }
+    walk(SRC)
+    return out
+  }
+
+  it('no live t() call names a key neither locale defines', () => {
+    const missing = new Map<string, string[]>()
+    for (const file of sources()) {
+      // Comments are not call sites. The doc comment on translateAtom shows
+      // the substitution form as `t('hive.andMore', { n: 4 })`, and a scan
+      // that reads it reports a missing key for an example. One such false
+      // name in the output and the whole list stops being believed.
+      const s = fs
+        .readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^[^\S\n]*\/\/.*$/gm, '')
+      // Literal calls only: t(`x.${y}`) and t(variable) cannot be resolved by
+      // reading, and a check that pretends otherwise reports noise.
+      for (const m of s.matchAll(
+        /\bt\(\s*'([a-zA-Z][\w.]*\.[\w.]+)'\s*[),]/g
+      )) {
+        const key = m[1]
+        if (key in translations.en || key in translations.ru) continue
+        const where = missing.get(key) ?? []
+        where.push(path.relative(SRC, file))
+        missing.set(key, where)
+      }
+    }
+    expect(Object.fromEntries(missing)).toEqual({})
   })
 })
