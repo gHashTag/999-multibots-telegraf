@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   pickFromMenu,
   wantedScreen,
+  MIN_WINDOW_WIDTH,
   applyScreen,
   fitDesktop,
   MIN_EDGE,
@@ -29,6 +30,33 @@ describe('the size we ask the pod for', () => {
   it('keeps a laptop landscape', () => {
     const s = wantedScreen({ width: 1440, height: 810 })
     expect(s.width).toBeGreaterThan(s.height)
+  })
+
+  it('NEVER ASKS FOR A SCREEN NARROWER THAN CHROMIUM CAN BE', () => {
+    /*
+     * A ~400px phone-shaped screen left Chromium's window hanging off the
+     * right edge: menu, extensions and the right of every page cut off.
+     */
+    for (const w of [320, 368, 390, 412, 480]) {
+      expect(
+        wantedScreen({ width: w, height: 700 }).width
+      ).toBeGreaterThanOrEqual(MIN_WINDOW_WIDTH)
+    }
+  })
+
+  it('KEEPS THE SHAPE when it widens a narrow box, so no black bars come back', () => {
+    const box = { width: 390, height: 700 }
+    const s = wantedScreen(box)
+    const want = box.height / box.width
+    /* Within one snap of the exact shape. */
+    expect(Math.abs(s.height / s.width - want)).toBeLessThan(0.02)
+  })
+
+  it('leaves a box that is already wide enough alone', () => {
+    expect(wantedScreen({ width: 1440, height: 810 })).toMatchObject({
+      width: 1440,
+      height: 808,
+    })
   })
 
   it('asks only for widths X will actually build', () => {
