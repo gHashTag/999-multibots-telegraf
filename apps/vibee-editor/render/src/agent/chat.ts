@@ -19,6 +19,7 @@
  *    и повторить; ронять весь запрос из-за одного неудачного вызова значит
  *    показывать пятисотку там, где был связный ответ.
  */
+import { toolContentForModel } from './tool-content'
 import {
   TOOLS_BY_NAME,
   toOpenAITools,
@@ -1495,7 +1496,7 @@ export async function* runAgent(
   /*
    * SOMEBODY ASKED FOR A PICTURE WE CANNOT DRAW RIGHT NOW.
    *
-   * This is the path that lost lead 2086031075 (crm-owed.ts). The playbook
+   * This is the path that lost the lead in crm-owed.ts. The playbook
    * below is about to be told `giftIsDown`, so the agent will answer her
    * honestly and the turn will end well -- and nothing anywhere will remember
    * that she asked. The CRM's own refusal site records a debt; this one, the
@@ -1688,7 +1689,9 @@ export async function* runAgent(
         role: 'tool',
         tool_call_id: call.id,
         name: имя,
-        content: JSON.stringify(значение),
+        // A picture goes to the person, never as base64 to the model
+        // (tool-content.ts: the model described a screen it could not see).
+        content: toolContentForModel(значение),
       })
     }
   }

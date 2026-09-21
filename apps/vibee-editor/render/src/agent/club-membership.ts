@@ -173,7 +173,7 @@ export interface ClubGrantSource {
    * OUTSIDE THE MINI APP THERE IS NO NAME IN THE SIGNATURE. `usernameOf` reads
    * `x-telegram-init-data`, and a desktop browser or the iOS app never sends
    * that header -- so an invitation written as a name matched nothing there,
-   * and an invited person met the paywall (measured 2026-09-21, @SamHold).
+   * and an invited person met the paywall (measured 2026-09-21).
    *
    * This is not a weaker identity: the id was verified before we got here, and
    * this only asks our own users table what that id is called. Returns null

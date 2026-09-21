@@ -1453,7 +1453,7 @@ export async function sendFileWithAddressBook(
    * `client.getInputEntity(entity)` -- answered the owner's press with
    * "Cannot read properties of undefined (reading 'getInputEntity')".
    * Every PHOTO send failed this way in production (2026-09-13, a lead-magnet
-   * card to @Best_WoodyWeed); text went out because `sendWithAddressBook`
+   * card to a lead); text went out because `sendWithAddressBook`
    * calls `c.sendMessage` attached.
    *
    * The tests never saw it: their fake client is an object literal whose

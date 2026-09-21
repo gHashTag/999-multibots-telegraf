@@ -184,6 +184,8 @@ export const OUTWARD_TOOLS = new Set<string>([
   'skills_delete',
   'skills_install',
   'crm_client_setup',
+  // Writes a client's dossier that crm_client_setup later installs.
+  'crm_client_package_upload',
   'plan_goal_delete',
   'plan_item_delete',
   // Spends the owner's stars.
