@@ -82,6 +82,38 @@ export function sensitiveList(
 }
 
 /**
+ * THE BROWSER'S OWN ROOMS WHERE THE KEYS ARE KEPT.
+ *
+ * Since the pod carries a password manager (Bitwarden, see
+ * deployment/remote-browser/Dockerfile), the person's unlocked vault is a
+ * page of the browser itself -- chrome-extension:// -- and the settings and
+ * extension pages can change what the browser trusts. Acting there is as
+ * sensitive as acting on a bank. A new tab or a blank page is not.
+ */
+export const SENSITIVE_BROWSER_PAGES = [
+  'chrome://settings',
+  'chrome://password-manager',
+  'chrome://extensions',
+  'chrome-extension://',
+  'devtools://',
+] as const
+
+/**
+ * Where an agent may OPEN a page: the web and a blank tab. Nothing of the
+ * browser's own -- its settings, its extensions (the vault among them), its
+ * devtools -- and no file:, data: or javascript: address that is not a
+ * place at all.
+ */
+export function agentMayOpen(url: string): boolean {
+  if (url.trim().toLowerCase() === 'about:blank') return true
+  try {
+    return /^https?:$/.test(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Matched against host AND path, because "where" is sometimes a corner of a
  * site: `yandex.ru` is a search engine, `yandex.ru/mail` is somebody's inbox.
  */
@@ -89,8 +121,14 @@ export function isSensitive(url: string, list = sensitiveList()): boolean {
   let subject: string
   try {
     const parsed = new URL(url)
-    /* Only http(s): about:blank and chrome:// are not somebody's bank. */
-    if (!/^https?:$/.test(parsed.protocol)) return false
+    /*
+     * Not the web: a new tab or about:blank is nobody's bank, but the
+     * browser's own settings and extensions are where its keys are kept.
+     */
+    if (!/^https?:$/.test(parsed.protocol)) {
+      const lower = url.toLowerCase()
+      return SENSITIVE_BROWSER_PAGES.some(page => lower.startsWith(page))
+    }
     subject = (parsed.host + parsed.pathname).toLowerCase()
   } catch {
     /*

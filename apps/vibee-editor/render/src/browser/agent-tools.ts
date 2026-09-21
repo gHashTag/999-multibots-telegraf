@@ -38,7 +38,7 @@ import {
   APPROVAL_TTL_MS,
 } from './approvals'
 import { readSession, markAllowed, type Queryable } from './sessions'
-import { mayAct } from './guard'
+import { agentMayOpen, mayAct } from './guard'
 import {
   frontPage,
   newPage,
@@ -262,6 +262,14 @@ export const BROWSER_TOOLS: AgentTool[] = [
       )
       if (!session?.cdpEndpoint || session.state !== 'live') {
         throw new Error('no browser is running for this person')
+      }
+      /* The web only: never the browser's settings, extensions or vault. */
+      if (!agentMayOpen(String(args.url))) {
+        throw new Error(
+          'only http(s) addresses and about:blank can be opened. The ' +
+            "browser's own pages -- settings, extensions, the password " +
+            "manager -- are the person's to open, not an agent's."
+        )
       }
       const page = await newPage(session.cdpEndpoint, String(args.url))
       return { opened: page.url || String(args.url), id: page.id }

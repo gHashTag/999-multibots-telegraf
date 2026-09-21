@@ -32,6 +32,13 @@
  */
 
 import {
+  importCookies,
+  MAX_IMPORT_BYTES,
+  parseCookieExport,
+  sitesOf,
+  type CookieParam,
+} from './cookie-import'
+import {
   ensureBrowserSessions,
   readSession,
   writeSession,
@@ -54,6 +61,7 @@ export const BROWSER_PATHS = [
   '/api/browser/session',
   '/api/browser/profile',
   '/api/browser/screen',
+  '/api/browser/cookies',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -81,6 +89,16 @@ export interface BrowserDeps {
   announcer?: Announcer
   /** Injected for tests; defaults to process.env. */
   env?: Record<string, string | undefined>
+  /**
+   * The request body, for the one route that has one (the logins import).
+   * Capped by the caller; absent, that route answers that it is not wired.
+   */
+  readBody?: (
+    req: { url?: string; method?: string },
+    maxBytes: number
+  ) => Promise<string>
+  /** Injected for tests; defaults to writing into the pod over CDP. */
+  importCookies?: (cdpEndpoint: string, cookies: CookieParam[]) => Promise<void>
 }
 
 /**
@@ -211,6 +229,27 @@ export async function handleBrowser(
       return { status: 405, body: { ok: false, error: 'POST only' } }
     }
     return await fit(pool, who, req.url || '')
+  }
+
+  /*
+   * THE PERSON BRINGS THEIR LOGINS (cookie-import.ts). The person's door
+   * only: an agent key is refused, because moving somebody's sessions is
+   * theirs to do, not something done to them.
+   */
+  if (path === '/api/browser/cookies') {
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: 'переносить входы может только сам человек', // cyrillic-ok: user-facing error
+        },
+      }
+    }
+    return await bringLogins(pool, deps, who, req)
   }
 
   if (method === 'GET') return await describe(pool, deps, driver, who)
@@ -420,4 +459,68 @@ async function wipe(
   }
   await forgetProfile(pool, who)
   return { status: 200, body: { ok: true, state: 'none', wiped: true } }
+}
+
+async function bringLogins(
+  pool: Queryable,
+  deps: BrowserDeps,
+  who: string,
+  req: { url?: string; method?: string }
+): Promise<RouteResult> {
+  const session = await readSession(pool, who)
+  if (!session || session.state !== 'live' || !session.cdpEndpoint) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        error: 'сначала откройте браузер', // cyrillic-ok: user-facing error
+      },
+    }
+  }
+  if (!deps.readBody) {
+    return { status: 501, body: { ok: false, error: 'import is not wired' } }
+  }
+
+  let parsed: ReturnType<typeof parseCookieExport>
+  try {
+    parsed = parseCookieExport(await deps.readBody(req, MAX_IMPORT_BYTES))
+  } catch (e) {
+    /* The parser's own words, which never contain a value. */
+    return {
+      status: 400,
+      body: { ok: false, error: e instanceof Error ? e.message : 'bad file' },
+    }
+  }
+  if (parsed.cookies.length === 0) {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        error: 'no usable cookies in this file',
+        skipped: parsed.skipped,
+      },
+    }
+  }
+
+  try {
+    await (deps.importCookies ?? importCookies)(
+      session.cdpEndpoint,
+      parsed.cookies
+    )
+  } catch {
+    return {
+      status: 502,
+      body: { ok: false, error: 'the browser did not take them' },
+    }
+  }
+  /* Counts and site names. Never a value. */
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      imported: parsed.cookies.length,
+      skipped: parsed.skipped,
+      sites: sitesOf(parsed.cookies),
+    },
+  }
 }
