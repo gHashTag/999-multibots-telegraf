@@ -433,6 +433,30 @@ export function itemsFromChats(
 }
 
 /** The brief for ONE person: the generic rules, aimed. */
+/*
+ * A CLIENT WITH A PACKAGE IN DRAFT IS PACKAGED FIRST.
+ *
+ * Owner, 2026-09-21: "package the client while testing every function on
+ * this business case, so it scales". The first case had a package installed
+ * for eight days -- profile and SOUL still drafts, content plan 0 of 14 --
+ * and a press on "prepare" for her produced an ordinary follow-up, because
+ * this brief never looked at the package. The half only the person can do
+ * (her own answers, her own SOUL, her approval) needs to be ASKED for, and
+ * this is the one message that asks. A persona's or a model's guess is never
+ * written into the profile as her answer.
+ *
+ * Only for a numeric id: crm_client_profile takes a telegram_id.
+ */
+export const PACKAGE_STEP =
+  'Сначала crm_client_profile с telegram_id=CHAT. Если у него есть пакет и статус — ' +
+  'черновик, твоё ОДНО действие — УПАКОВКА: одно сообщение через tg_send, где ' +
+  '(а) вопросы знакомства из discovery_questions, пронумерованные, как есть; ' +
+  '(б) приглашение прочитать и поправить черновик SOUL в приложении — это его слова, ' +
+  'пока он их не подтвердил; (в) если есть готовое, что ждёт одобрения, — попросить ' +
+  'посмотреть и одобрить. Без цены и без счёта. Ответы модели или персоны в профиль ' +
+  'не записывай — ответы даёт сам человек. Если пакета нет или он подтверждён — ' +
+  'действуй по шагам ниже. '
+
 export function scopedPrompt(item: ScopeItem): string {
   return (
     'Обход продавца по выбору владельца: ОДИН человек — ' +
@@ -442,6 +466,9 @@ export function scopedPrompt(item: ScopeItem): string {
     'ходах — про других. ' +
     (item.next ? 'По памяти его шаг: next=' + item.next + '. ' : '') +
     (item.note ? item.note + ' ' : '') +
+    (/^\d{5,15}$/.test(item.chat)
+      ? PACKAGE_STEP.replace('CHAT', item.chat)
+      : '') +
     'Шаги: 1) crm_lead_context с chat=' +
     item.chat +
     ' — и продолжай ИМЕННО ЭТУ переписку, по её истории и памяти, а не начинай заново. ' +

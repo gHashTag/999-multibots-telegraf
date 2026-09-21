@@ -48,6 +48,7 @@ import {
   leadsKeyboard,
   emptyLeadsKeyboard,
   leadMenu,
+  takeoverMenu,
   cardMenuRows,
   afterSentKeyboard,
   afterCancelKeyboard,
@@ -3682,11 +3683,25 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     if (verb === 'mute') {
       const { pauseAiFor } = await import('@/services/businessBotService')
       const n = pauseAiFor(id, undefined, Number(ctx.from?.id))
+      // The way back travels WITH the mute: a pause you cannot see the end of
+      // reads as a dead agent, which is how this one was reported.
       await sendLong(
         ctx,
         n
           ? `🤫 Молчу в этом чате 30 минут — отвечаешь ты.`
           : '🤫 Бизнес-подключения нет — в этом чате бот и так не отвечает.',
+        n ? takeoverMenu(id) : afterTurnKeyboard(id)
+      )
+      return
+    }
+    if (verb === 'unmute') {
+      const { resumeAiFor } = await import('@/services/businessBotService')
+      const n = resumeAiFor(id, Number(ctx.from?.id))
+      await sendLong(
+        ctx,
+        n
+          ? '🔔 Ассистент снова отвечает в этом чате.'
+          : '🔔 Ассистент и так отвечает — пауза уже кончилась.',
         afterTurnKeyboard(id)
       )
       return

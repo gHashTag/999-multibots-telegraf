@@ -63,7 +63,44 @@ describe('the phone layout and the phone measurement agree', () => {
     )
     expect(rule).not.toBeNull()
     expect(rule![1]).toContain('position: fixed')
-    expect(rule![1]).toContain('var(--app-top-inset')
+    /*
+     * Not the inset: the transformed, already-moved body is what it is
+     * positioned against in Telegram fullscreen (styles/telegram.css).
+     */
+    expect(rule![1]).toMatch(/top: 0;/)
+    expect(rule![1]).not.toContain('--app-top-inset')
     expect(rule![1]).toMatch(/z-index: calc\(var\(--z-tabbar/)
+  })
+})
+
+describe('the button to open the browser', () => {
+  it('HAS ITS OWN HEIGHT, so its words sit inside it', () => {
+    /* The design system fixes every button's height; padding alone did not fit. */
+    const rule = css.match(/\.remote-browser__cta \{([^}]*)\}/)
+    expect(rule).not.toBeNull()
+    expect(rule![1]).toMatch(/height: 48px/)
+    expect(rule![1]).toMatch(/line-height: 1/)
+    expect(rule![1]).toMatch(/align-items: center/)
+  })
+
+  it('is the app pill: green with black on it', () => {
+    const rule = css.match(/\.remote-browser__cta \{([^}]*)\}/)
+    expect(rule![1]).toContain('background: #00ff88')
+    expect(rule![1]).toContain('color: #000')
+  })
+})
+
+describe('the fullscreen body is a containing block', () => {
+  it('telegram.css still moves and transforms the body, which the zero relies on', () => {
+    const tg = readFileSync(
+      join(__dirname, '..', 'styles', 'telegram.css'),
+      'utf8'
+    )
+    const body = tg.match(
+      /html\[data-tg='1'\]\[data-tg-fullscreen='1'\] body \{([^}]*)\}/
+    )
+    expect(body).not.toBeNull()
+    expect(body![1]).toContain('top: var(--app-top-inset)')
+    expect(body![1]).toMatch(/transform:/)
   })
 })

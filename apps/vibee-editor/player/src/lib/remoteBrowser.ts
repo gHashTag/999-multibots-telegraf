@@ -170,3 +170,48 @@ export async function fitBrowserScreen(box: {
     return null
   }
 }
+
+/** What the broker says after bringing the person's logins in. */
+export interface LoginsImported {
+  imported: number
+  skipped: number
+  /** Site names and how many cookies each got. Never a value. */
+  sites: Record<string, number>
+}
+
+/**
+ * The person's own cookie export, into their own browser. The text goes to
+ * the broker as it is and straight into the pod; nothing keeps it. See
+ * render/src/browser/cookie-import.ts for what is read and what is refused.
+ */
+export async function importBrowserLogins(
+  exported: string
+): Promise<LoginsImported> {
+  const answer = await apiFetch<Partial<LoginsImported>>(
+    `${API_BASE}/api/browser/cookies`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: exported,
+    }
+  )
+  return {
+    imported: Number(answer.imported ?? 0),
+    skipped: Number(answer.skipped ?? 0),
+    sites: answer.sites ?? {},
+  }
+}
+
+/** "habr.com, github.com and 12 more" -- the busiest sites first. */
+export function sitesInWords(
+  sites: Record<string, number>,
+  andMore: (n: number) => string,
+  show = 3
+): string {
+  const names = Object.entries(sites)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([site]) => site)
+  const head = names.slice(0, show).join(', ')
+  const rest = names.length - show
+  return rest > 0 ? `${head} ${andMore(rest)}` : head
+}

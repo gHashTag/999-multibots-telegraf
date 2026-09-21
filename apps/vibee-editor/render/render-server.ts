@@ -8383,6 +8383,8 @@ const server = createServer(async (req, res) => {
       announcer: {
         send: (id, text, markup) => sendToTelegram(id, text, markup),
       },
+      /* The logins import: the only browser route with a body. */
+      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
     })
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
