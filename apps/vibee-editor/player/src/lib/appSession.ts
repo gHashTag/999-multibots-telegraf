@@ -92,6 +92,95 @@ export function resumeAppSessionRefresh(): void {
   scheduleRefresh()
 }
 
+/**
+ * A SESSION KEPT ALIVE ONLY BY A TIMER IS A SESSION THAT DIES.
+ *
+ * Measured on production 2026-09-21. @SamHold (504608015) signed in on the web
+ * three times inside forty minutes -- 16:38, 17:17, 17:20 UTC -- and between
+ * those sign-ins the render log refuses the same two calls over and over --
+ * GET /api/render-quota and GET /api/browser/session -- with one reason:
+ * "session rejected: expired".
+ *
+ * Not "unknown", not "revoked": EXPIRED. He was holding a ten-minute access
+ * token that nothing ever exchanged. Rotation had exactly one trigger -- the
+ * `setTimeout` armed by `storeAppSession`, re-armed by
+ * `resumeAppSessionRefresh` -- and that single call site is inside
+ * `TelegramLoginButton`, a component that renders null inside Telegram and is
+ * not mounted on most screens at all. So after a reload on any other page no
+ * timer existed; and where one did, a sleeping laptop or a throttled
+ * background tab is enough to miss it. A missed tick was permanent: nothing
+ * refreshed on demand, so every later request was refused until the person
+ * signed in by hand. From the outside that is exactly "sign-in does not work",
+ * which is what the owner reported.
+ *
+ * The cure is to stop treating the timer as the only clock. This function is
+ * the on-demand one: it is cheap while the token is live, it is deduplicated
+ * by `refreshInFlight`, and it answers whether a request may proceed with a
+ * credential at all.
+ *
+ * It returns false rather than throwing: a caller asking "can I still act as
+ * this person" is entitled to a plain no, and the Mini App -- which
+ * authenticates by signature and has no session at all -- must not treat that
+ * no as an error.
+ */
+export async function ensureFreshSession(): Promise<boolean> {
+  if (hasLiveAppSession()) return true
+  return renewAppSession()
+}
+
+/**
+ * Rotate now, whatever the stored expiry claims.
+ *
+ * For the caller who has just been told 401 by the server: the token it used
+ * is spent, and the local clock saying otherwise is the thing that is wrong
+ * (a machine that slept, a clock that drifted, a token revoked from another
+ * device). False means there is nothing to rotate -- no session here, or the
+ * refresh family itself is finished -- and the caller must not retry.
+ */
+export async function renewAppSession(): Promise<boolean> {
+  if (!(storage()?.getItem(REFRESH_KEY) || '')) return false
+  try {
+    await refreshAppSession()
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The part of `window` session healing listens to. A plain object in tests. */
+export interface HealingWindow {
+  addEventListener(type: string, listener: () => void): void
+  removeEventListener(type: string, listener: () => void): void
+}
+
+/**
+ * Arm rotation for the whole application, not for one button.
+ *
+ * Called once at boot (main.tsx), so a reload on ANY screen re-arms the timer.
+ * The three events are the moments a missed tick becomes visible: the tab
+ * comes back from the background or from a sleeping machine, the window is
+ * focused again, the network returns. Each asks `ensureFreshSession`, which
+ * does nothing while the token is still live.
+ *
+ * Returns the unsubscribe, so a test can take its listeners back.
+ */
+export function startAppSessionHealing(
+  win: HealingWindow | undefined = typeof window === 'undefined'
+    ? undefined
+    : (window as unknown as HealingWindow)
+): () => void {
+  scheduleRefresh()
+  if (!win) return () => {}
+  const heal = () => {
+    void ensureFreshSession()
+  }
+  const events = ['visibilitychange', 'focus', 'online']
+  for (const event of events) win.addEventListener(event, heal)
+  return () => {
+    for (const event of events) win.removeEventListener(event, heal)
+  }
+}
+
 export async function refreshAppSession(): Promise<AppSession> {
   if (refreshInFlight) return refreshInFlight
   const refreshToken = storage()?.getItem(REFRESH_KEY) || ''
