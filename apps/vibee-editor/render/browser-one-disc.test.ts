@@ -123,3 +123,33 @@ describe('the other screens', () => {
     expect(w.selfAttrs['data-t27-more']).toBeUndefined()
   })
 })
+
+describe('the window sounds like the product', () => {
+  it('ANSWERS THE ENGINE CHAT CHIME WITH OUR SOUND', async () => {
+    const { pipeHttp } = await import('./src/browser/live-pipe')
+    const { BRAND_SOUND_URL } = await import('./src/browser/skin')
+    const head: { status?: number; headers?: Record<string, string> } = {}
+    let ended = false
+    pipeHttp(
+      {
+        endpoint: '127.0.0.1:1',
+        upstreamPath: '/chat.mp3',
+        sessionId: 'sessAbCd1234',
+        viewToken: 'x',
+      },
+      { method: 'GET', headers: {} } as never,
+      {
+        writeHead(status: number, headers: Record<string, string>) {
+          head.status = status
+          head.headers = headers
+        },
+        end() {
+          ended = true
+        },
+      } as never
+    )
+    expect(head.status).toBe(302)
+    expect(head.headers?.Location).toBe(BRAND_SOUND_URL)
+    expect(ended).toBe(true)
+  })
+})

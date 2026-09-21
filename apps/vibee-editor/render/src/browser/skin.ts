@@ -44,6 +44,17 @@ import { LOGIN_QUERY } from './live-proxy'
  */
 export const LOGO_URL = '/t27-mark.svg'
 
+/**
+ * OUR SOUND, IN PLACE OF THE ENGINE'S CHAT CHIME.
+ *
+ * The app's own file (player/public/sounds, generated from
+ * player/src/lib/bambooSound.ts), at the same origin for the same reason as
+ * the mark above. The engine asks for "chat.mp3" relative to the page; the
+ * proxy answers that one path with a redirect here.
+ */
+export const BRAND_SOUND_URL = '/sounds/bamboo.wav'
+export const ENGINE_CHAT_SOUND = '/chat.mp3'
+
 /** Kept here as a literal: skin.ts must not import live-pipe.ts, which
  *  imports this file. One constant, one home -- live-pipe re-exports it. */
 export const FIT_PATH = '/__fit'
