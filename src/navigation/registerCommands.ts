@@ -166,6 +166,11 @@ import sharePhoneCommand from '@/commands/sharePhoneCommand'
 import expenseAnalysisCommand from '@/commands/expenseAnalysisCommand'
 import { setupAutoFixerCommands } from '@/commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scene'
+import {
+  browserInviteText,
+  browserInviteKeyboard,
+  browserElsewhereText,
+} from '@/navigation/helpers/browserInvite'
 import { requireAdmin } from '@/middleware/adminOnly'
 import { setupAutonomousMonitor } from '@/commands/autonomousMonitor'
 import { setupInngestProbeCommand } from '@/commands/inngestProbeCommand'
@@ -468,6 +473,25 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       await handleClubCommand(ctx)
     })
     registerClubActions(bot)
+
+    // 🌍 THE PERSON'S OWN BROWSER. Until this command the bot said nothing
+    // about it at all: grep across src/ for browser_ returned nothing, and
+    // the only way in was to open the mini app already knowing which tab to
+    // look for. A feature nobody is told about is a feature nobody has.
+    bot.command('browser', async ctx => {
+      const isRu = await isRussianFromState(ctx)
+      const app = ctx.chat.type === 'private'
+      const keyboard = browserInviteKeyboard(isRu, { app })
+      await ctx.reply(
+        app ? browserInviteText(isRu) : browserElsewhereText(isRu),
+        {
+          parse_mode: 'HTML',
+          ...(keyboard.length
+            ? { reply_markup: { inline_keyboard: keyboard } }
+            : {}),
+        }
+      )
+    })
 
     // 🏭 КОНТЕНТ-ЗАВОД: рилс из текста. Админская — прогон платный.
     bot.command('factory', requireAdmin(), handleFactoryCommand)

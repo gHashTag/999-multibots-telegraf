@@ -4002,14 +4002,52 @@ const translations: Record<Language, Translations> = { en, ru }
 // Detect browser language
 // ===============================
 
+/**
+ * INSIDE TELEGRAM, ASK TELEGRAM.
+ *
+ * `navigator.language` in a Telegram WebView is the DEVICE's locale, not the
+ * person's. A Russian-speaking person on an English phone got an English
+ * app -- which is exactly how the owner found this: they opened their own
+ * browser tab and read it in English.
+ *
+ * Telegram hands us `initDataUnsafe.user.language_code`, which is the
+ * language that person chose in Telegram itself. Inside the mini app that is
+ * the better answer, and outside it the field does not exist, so the
+ * browser's own locale keeps its job.
+ *
+ * This only decides the FIRST visit: the choice is stored, and a person who
+ * switches languages by hand keeps their switch.
+ */
+function telegramLanguage(): Language | null {
+  try {
+    const code = (
+      window as unknown as {
+        Telegram?: {
+          WebApp?: { initDataUnsafe?: { user?: { language_code?: string } } }
+        }
+      }
+    ).Telegram?.WebApp?.initDataUnsafe?.user?.language_code
+    if (!code) return null
+    return code.toLowerCase().startsWith('ru') ? 'ru' : 'en'
+  } catch {
+    /* A mini app that cannot read its own host still has to pick a language. */
+    return null
+  }
+}
+
 function detectBrowserLanguage(): Language {
   if (typeof window === 'undefined') return 'en'
+  const fromTelegram = telegramLanguage()
+  if (fromTelegram) return fromTelegram
   const browserLang = navigator.language.toLowerCase()
   if (browserLang.startsWith('ru')) {
     return 'ru'
   }
   return 'en'
 }
+
+/** Exported for the test that pins the order of the two sources. */
+export const __languageSources = { telegramLanguage, detectBrowserLanguage }
 
 // ===============================
 // Atoms
