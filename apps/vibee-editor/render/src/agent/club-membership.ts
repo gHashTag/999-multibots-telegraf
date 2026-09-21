@@ -50,6 +50,7 @@ import { record } from '../hive/journal'
 import { keepers } from '../hive/roles'
 import { clubGuests, isClubGuest } from './club-guests'
 import { noteCashierFailure, noteInvoiceMinted } from './payment-alarms'
+import { telegramApiFor } from '../telegram-api'
 
 type Queryable = {
   query: (sql: string, params?: unknown[]) => Promise<any>
@@ -316,7 +317,7 @@ export async function mintClubInvoice(
   const payload = `club:${CLUB_STARS}:${forId}`
   const doFetch = input.fetchImpl ?? fetch
   const r = await doFetch(
-    `https://api.telegram.org/bot${input.botToken}/createInvoiceLink`,
+    `${telegramApiFor(input.botToken)}/createInvoiceLink`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -673,7 +674,7 @@ export async function fetchStarTransactions(
   limit = 100
 ): Promise<StarTx[]> {
   const r = await fetchImpl(
-    `https://api.telegram.org/bot${botToken}/getStarTransactions?limit=${limit}`
+    `${telegramApiFor(botToken)}/getStarTransactions?limit=${limit}`
   )
   const d = (await r.json()) as {
     ok?: boolean

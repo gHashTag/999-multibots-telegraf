@@ -3,6 +3,7 @@ import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { supabase } from '@/core/supabase'
 import { inngest } from '@/inngest_app/client'
+import { telegramApiFor } from '@/services/telegramApi'
 
 const router = Router()
 
@@ -111,14 +112,11 @@ router.post('/test-training', async (req, res) => {
       : `🧪 TEST MODE ACTIVATED!\n\n✅ Training started for FREE\n🆔 Test ID: ${testTrainingId}\n⏱️ Time: 30 seconds (emulation)\n\n💡 This is a test - NO CHARGES!`
 
     try {
-      const response = await fetch(
-        `https://api.telegram.org/bot${token}/sendMessage`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: telegramId, text: message }),
-        }
-      )
+      const response = await fetch(`${telegramApiFor(token)}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: telegramId, text: message }),
+      })
       if (response.ok) {
         logger.info(`[TEST TRAINING] ${requestId} - Initial message sent`, {
           telegramId,
@@ -248,7 +246,7 @@ async function simulateTraining(
       ? `🎉 ТЕСТОВАЯ ТРЕНИРОВКА ЗАВЕРШЕНА!\n\n✅ Модель готова к использованию\n📦 Название: ${modelName}\n🏷️ Триггер: ${triggerWord}\n🆔 Test ID: ${testTrainingId}\n\n💡 Это был БЕСПЛАТНЫЙ тест!\n🔗 Ссылка: https://replicate.com/models/${testTrainingId}`
       : `🎉 TEST TRAINING COMPLETED!\n\n✅ Model is ready to use\n📦 Name: ${modelName}\n🏷️ Trigger: ${triggerWord}\n🆔 Test ID: ${testTrainingId}\n\n💡 This was a FREE test!\n🔗 Link: https://replicate.com/models/${testTrainingId}`
 
-    await fetch(`https://api.telegram.org/bot${token2}/sendMessage`, {
+    await fetch(`${telegramApiFor(token2)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: telegramId, text: successMessage }),

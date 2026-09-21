@@ -2,6 +2,7 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '../interfaces'
 import { FixResult } from '../webhooks/github-autofixer.service'
 import { normalizeChatId, resolveAdminChatId } from '../helpers/adminChatId'
+import { telegramClientOptionsFor } from '@/services/telegramApi'
 
 export interface AutoFixStartNotification {
   prNumber: number
@@ -44,7 +45,9 @@ export class TelegramNotifierService {
     this.devChannelId = normalizeChatId(process.env.DEV_CHANNEL_ID)
 
     if (botToken) {
-      this.bot = new Telegraf<MyContext>(botToken)
+      this.bot = new Telegraf<MyContext>(botToken, {
+        telegram: telegramClientOptionsFor(botToken),
+      })
     } else {
       this.bot = null
       // TelegramNotifier не используется - уведомления через Typefully

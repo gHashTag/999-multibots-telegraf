@@ -1,0 +1,19 @@
+# Our own Telegram Bot API server as a Railway service (README.md).
+#
+# Root directory of the service: deployment/telegram-bot-api. No [service]
+# section: it is not a config-as-code key, and deployment/remote-browser paid
+# four failed deploys to learn that Railway rejects the whole file for it.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+# Redeploy only when this directory changes. Every restart of this server is a
+# few seconds in which every bot on it is unreachable; a push that touched
+# only the bot must not cause one. Written from the repository root; README
+# step 2 checks that a push touching only src/ leaves this service alone.
+watchPatterns = ["deployment/telegram-bot-api/**"]
+
+[deploy]
+restartPolicyType = "ALWAYS"
+# ONE replica, always. Two servers on one volume would both hold the same bot
+# sessions, which is exactly the split this whole design exists to avoid.
+numReplicas = 1
