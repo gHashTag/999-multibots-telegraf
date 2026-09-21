@@ -137,6 +137,23 @@ export function забытьТаблицу(): void {
  * Пустое НЕ пишем: агент иногда заканчивает ход одними вызовами инструментов,
  * без текста, и пустая строка в истории выглядела бы как молчание в ответ на
  * вопрос.
+ *
+ * THE SAME TURN TWICE IN A ROW IS NEVER A SECOND TURN (added 21.09.2026).
+ *
+ * Measured in a live client's transcript, telegram 2086031075, 20.09: one
+ * three-letter word of hers stands there twice, at 17:07:45 and 17:11:10,
+ * with nothing between them. She typed it once. The bot retries a turn the
+ * render dropped,
+ * and a retry resends the SAME `messages` array, so the arrival write in
+ * `handleAgentChat` stored her question again. Every retry that day cost the
+ * conversation one turn of its 40-turn window, and the window is the whole of
+ * what the agent remembers.
+ *
+ * The rule is deliberately the narrowest one that fixes it: identical role,
+ * identical text, and nothing written since. A person who really repeats
+ * themselves after an answer keeps both lines, because the answer is in
+ * between. A person who repeats themselves with nothing in between has told
+ * the transcript nothing it does not already hold.
  */
 export async function записатьРеплику(
   pool: Пул,
@@ -147,13 +164,23 @@ export async function записатьРеплику(
   const текст = (реплика.content || '').trim()
   if (!telegramId || !текст) return false
   await убедитьсяВТаблице(pool)
+  const saved = текст.slice(0, МАКС_ДЛИНА) // cyrillic-ok: pre-existing locals
+  const role = реплика.role // cyrillic-ok: pre-existing parameter
+  const previous = await pool.query(
+    `SELECT role, content FROM agent_messages
+      WHERE telegram_id = $1 AND thread = $2
+      ORDER BY id DESC LIMIT 1`,
+    [String(telegramId), thread || SELF_THREAD]
+  )
+  const last = (previous.rows || [])[0]
+  if (last && last.role === role && String(last.content) === saved) return false
   await pool.query(
     `INSERT INTO agent_messages (telegram_id, role, content, surface, thread)
      VALUES ($1, $2, $3, $4, $5)`,
     [
       String(telegramId),
-      реплика.role,
-      текст.slice(0, МАКС_ДЛИНА),
+      role,
+      saved,
       реплика.surface || 'unknown',
       thread || SELF_THREAD,
     ]

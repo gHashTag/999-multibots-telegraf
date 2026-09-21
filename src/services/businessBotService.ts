@@ -560,17 +560,24 @@ export async function answerClient(
         chatId
       )
       if (said) {
-        void recordTurns(
-          chatId,
-          [
-            { role: 'user', content: text },
-            // What the transcript keeps is what the person was actually sent.
-            // Recording the unguarded text would put the dead address back
-            // into the context of every later turn.
-            { role: 'assistant', content: said },
-          ],
-          'business'
-        )
+        /*
+         * NOTHING IS WRITTEN HERE, AND THAT IS THE FIX (21.09.2026).
+         *
+         * This used to record the pair, and the render had already recorded
+         * the same pair itself -- the question on its way into `runAgent`, the
+         * answer on its way out. Live proof in telegram 2086031075's
+         * transcript: rows 1716-1719, her one line and one answer standing
+         * there twice each, seconds apart. Every answered exchange cost the
+         * 40-turn window two turns instead of one, so the agent remembered
+         * half as far back as anybody believed, and the client's complaint was
+         * that it had lost the thread.
+         *
+         * The reason the duplicate was here is gone: it recorded the GUARDED
+         * text, because the render used to be able to hand out an address it
+         * had invented. The render now stops those at the source
+         * (render/src/agent/asset-links.ts), so what it stores is already the
+         * text the person was sent.
+         */
         noteAgentAnswered(chatId, attempts, lastError)
         return said
       }
@@ -608,7 +615,38 @@ export async function answerClient(
   // The fallback is forbidden to hand out links at all, but the guard is on
   // both paths on purpose: a rule in a prompt is a request, and this is the
   // one place every answer to a client passes through.
-  return guardAssetLinks(await fallback(), chatId)
+  const rescued = await guardAssetLinks(await fallback(), chatId)
+
+  /*
+   * THE FALLBACK'S ANSWER GOES ON RECORD (21.09.2026).
+   *
+   * It never did, and nobody could see it because the path is rare. On
+   * 20.09.2026 the render missed its ceiling twice for a live client and this
+   * fallback took two turns of her conversation; neither the question nor the
+   * answer reached `agent_messages`. The next turn therefore handed the model
+   * a transcript in which the client had asked and been ignored -- which is
+   * the exact shape that makes an agent start over and say hello to somebody
+   * it has been talking to all afternoon.
+   *
+   * BOTH TURNS ARE ALWAYS SENT, and this path deliberately does not try to
+   * work out whether the render already stored the question. It cannot know:
+   * an answer that came back empty means the call arrived, a thrown one
+   * usually means it did not, and a turn aborted mid-stream is either. The
+   * render settles it instead, with the rule it now enforces for its own
+   * retries -- the same turn twice in a row is never a second turn
+   * (conversation.ts). One rule, in one place, rather than a guess here that
+   * has to stay in step with it.
+   */
+  if (rescued)
+    void recordTurns(
+      chatId,
+      [
+        { role: 'user', content: text },
+        { role: 'assistant', content: rescued },
+      ],
+      'business'
+    )
+  return rescued
 }
 
 /** The agent answered: the streak is over, and a rescue is worth one line. */

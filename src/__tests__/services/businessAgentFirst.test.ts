@@ -43,7 +43,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('answerClient', () => {
-  it('asks the agent as the client on the business surface, and writes the turn down', async () => {
+  it('asks the agent as the client on the business surface, and leaves the writing to it', async () => {
     const { answerClient } = await import('@/services/businessBotService')
     const fallback = vi.fn(async () => 'fallback')
     const said = await answerClient('555', 'хочу оплатить', fallback)
@@ -53,11 +53,15 @@ describe('answerClient', () => {
     ])
     expect(fallback).not.toHaveBeenCalled()
     await new Promise(r => setTimeout(r, 0))
-    expect(recorded[0]?.surface).toBe('business')
-    expect(recorded[0]?.turns).toHaveLength(2)
+    // This used to expect the pair on record HERE, and the render was already
+    // recording the same pair itself -- the question on its way in, the answer
+    // on its way out. Live proof in telegram 2086031075's transcript, 20.09:
+    // one question and one answer standing there twice each. Every answered
+    // exchange cost the agent's window two turns instead of one.
+    expect(recorded).toEqual([])
   })
 
-  it('an unreachable agent falls back to the prompt-only responder', async () => {
+  it('an unreachable agent falls back, and the rescue goes on record', async () => {
     agentAnswer = async () => {
       throw new Error('render 502')
     }
@@ -67,7 +71,16 @@ describe('answerClient', () => {
       'из запасного ответчика'
     )
     expect(fallback).toHaveBeenCalledTimes(1)
-    expect(recorded).toEqual([])
+    await new Promise(r => setTimeout(r, 0))
+    // This used to expect NOTHING on record, which is what it observed and
+    // what was wrong: the render never saw this turn, so if the bot does not
+    // write it down nobody does, and the next turn is handed a transcript in
+    // which the client asked and was ignored.
+    expect(recorded[0]?.surface).toBe('business')
+    expect(recorded[0]?.turns).toEqual([
+      { role: 'user', content: 'привет' },
+      { role: 'assistant', content: 'из запасного ответчика' },
+    ])
   })
 
   it('an empty answer is not an answer: fallback', async () => {
