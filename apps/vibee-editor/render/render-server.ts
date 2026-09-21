@@ -81,7 +81,13 @@ import { isBrowserPath, handleBrowser } from './src/browser/routes'
 import { identityWithSource } from './src/agent/routes'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
-import { pipeHttp, pipeUpgrade, refuseUpgrade } from './src/browser/live-pipe'
+import {
+  isPodLogin,
+  pipeHttp,
+  pipeUpgrade,
+  refuseUpgrade,
+} from './src/browser/live-pipe'
+import { telegramName } from './src/browser/telegram-name'
 import { sweepIdleSessions, IDLE_LIMIT_MS } from './src/browser/reaper'
 import {
   ensureApprovals,
@@ -3121,6 +3127,11 @@ const server = createServer(async (req, res) => {
            */
           adminToken: decision.adminToken,
           telegramId: decision.telegramId,
+          /* Only the login needs it; nothing else waits on Telegram. */
+          displayName:
+            decision.telegramId && isPodLogin(req.method, decision.upstreamPath)
+              ? (await telegramName(decision.telegramId)) || undefined
+              : undefined,
         },
         req,
         res
@@ -11851,6 +11862,14 @@ async function main() {
           upstreamPath: decision.upstreamPath,
           sessionId: parsed.sessionId,
           viewToken: decision.viewToken,
+          /*
+           * The socket IS the login: neko sends the password and the name in
+           * its address. So the person's Telegram name goes in here, and the
+           * page itself only ever says "you".
+           */
+          displayName: decision.telegramId
+            ? (await telegramName(decision.telegramId)) || undefined
+            : undefined,
         },
         req,
         socket,
