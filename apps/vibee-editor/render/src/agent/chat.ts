@@ -789,12 +789,22 @@ function canTakeSection(surface?: string): string {
  * had and was never told it had, which is why it denied being able to do
  * things it could do.
  *
- * But they are NOT all for every surface. `crm_*` reads the owner's leads
- * and `tg_*` reads the owner's own Telegram -- dialogs, contacts, history.
- * Naming those in a CLIENT's direct message would have the seller offering
- * a stranger somebody else's correspondence. The tools are not gated by
- * caller today (countInitDataToolCall only counts), so the prompt must not
- * advertise what the code does not refuse.
+ * They are not all for every surface, and the reason is USEFULNESS, not
+ * safety -- an earlier version of this comment claimed the tools were not
+ * gated by caller. That was wrong, checked 2026-09-21:
+ *
+ *   - `tg_*` opens the CALLER's own connected Telegram (`сессияДля` in
+ *     telegram-tools.ts), and falls back to the owner's session only when
+ *     the caller IS the owner. A stranger gets "your Telegram is not
+ *     connected", never somebody else's dialogs.
+ *   - `crm_*` shows only the audience of the caller's OWN bots
+ *     (`visibilityOf` by bot_name from `avatars`), and refuses fail-closed
+ *     when it cannot tell.
+ *
+ * So nothing leaks either way. They are still left out of a client's direct
+ * message because there they do not apply: a client has no bots of their
+ * own and asked about none, so naming the CRM would only produce refusals.
+ * `countInitDataToolCall`, which the old comment pointed at, only counts.
  *
  * Hence: named everywhere the person IS the owner or an ordinary user of the
  * app, and silent in the business DM.

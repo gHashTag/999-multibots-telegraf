@@ -51,10 +51,11 @@ describe('the agent is told what it has', () => {
 
   it('KEEPS THE OWNER SIDE OUT OF A CLIENT DM', () => {
     /*
-     * `crm_*` reads the owner's leads and `tg_*` reads the owner's own
-     * Telegram. The tools are not refused by caller today -- the counter
-     * counts and does not gate -- so the prompt must not advertise to a
-     * stranger what the code would not refuse them.
+     * Not for safety -- the tools ARE gated per caller: `tg_*` opens the
+     * caller's own Telegram and `crm_*` shows only the caller's own bots'
+     * audience, refusing fail-closed otherwise. An earlier comment here said
+     * they were not; that was wrong. They stay out of a client DM because
+     * there they do not apply, and naming them would only earn refusals.
      */
     const dm = systemPrompt('business')
     for (const secret of ['crm_', 'tg_dialogs', 'tg_contacts', 'hive_']) {
