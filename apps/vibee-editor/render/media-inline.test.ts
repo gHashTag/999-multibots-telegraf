@@ -45,6 +45,8 @@ const PROVIDER_ENV = [
   'NVIDIA_API_KEY',
   'OPENAI_API_KEY',
   'WHISPER_API_KEY',
+  'VISION_API_KEY',
+  'VISION_BASE_URL',
   'RESERVE_BASE_URL',
   'RESERVE_API_KEY',
   'RESERVE_MODEL',
@@ -235,6 +237,87 @@ describe('a document cannot smuggle in an attachment', () => {
   })
 })
 
+/**
+ * SIGHT, ON THE TURN'S OWN CLOCK (21.09.2026).
+ *
+ * A client was told, in Russian: "I see the photo, but without a description".
+ * True, and useless: until this there was NO live path for images at all. The
+ * background sweep could describe a photo hours later, and the live turn could
+ * only read what the sweep had already stored -- which on the first turn is
+ * nothing. Audio had had a live path since the 17th; sight had none.
+ */
+describe('images are looked at, or honestly not', () => {
+  const asSeen = (url: unknown) => {
+    const u = String(url)
+    if (u.includes('/s3/'))
+      return new Response(Buffer.from('jpeg-bytes'), {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      })
+    if (u.includes('/chat/completions'))
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Рыжий кот на подоконнике.' } }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    return new Response('', { status: 500 })
+  }
+
+  it('describes a photo on the turn that carries it', async () => {
+    process.env.VISION_API_KEY = 'v-test'
+    fetchSpy.mockImplementation(async (input: unknown) => asSeen(input))
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('image', 'cat.jpg', 'image/jpeg', IMG)),
+      {}
+    )
+
+    expect(tail(out)).toContain('Рыжий кот на подоконнике')
+  })
+
+  it('looks with our own eyes even when a provider claims sight, and breaks the marker', async () => {
+    process.env.NVIDIA_API_KEY = 'nv-test' // nemotron declares `vision`
+    process.env.VISION_API_KEY = 'v-test'
+    fetchSpy.mockImplementation(async (input: unknown) => asSeen(input))
+    const { inlineUnperceivedMedia } = await load()
+    const { mediaKindsPresent } = await import('./src/agent/media-parts.ts')
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('image', 'cat.jpg', 'image/jpeg', IMG)),
+      {}
+    )
+
+    expect(tail(out)).toContain('Рыжий кот на подоконнике')
+    // Described here, so it must not ALSO travel as an `image_url` part.
+    expect([...mediaKindsPresent(out as never)]).toEqual([])
+  })
+
+  it('leaves the photo to the provider when we have no eyes of our own', async () => {
+    process.env.NVIDIA_API_KEY = 'nv-test'
+    const { inlineUnperceivedMedia } = await load()
+
+    const messages = turn(marker('image', 'cat.jpg', 'image/jpeg', IMG))
+    expect(await inlineUnperceivedMedia(messages, {})).toBe(messages)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('says it did not look rather than describing from the conversation', async () => {
+    process.env.VISION_API_KEY = 'v-test'
+    // The vision service answers 500: one attempt, then the honest line.
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('image', 'cat.jpg', 'image/jpeg', IMG)),
+      {}
+    )
+
+    expect(tail(out)).toContain('[not seen: cat.jpg')
+    expect(tail(out)).toContain('do NOT describe it')
+  })
+})
+
 describe('audio the chain cannot hear is transcribed', () => {
   it('transcribes a voice message when no provider declares hearing', async () => {
     process.env.WHISPER_API_KEY = 'gsk_test'
@@ -266,10 +349,9 @@ describe('audio the chain cannot hear is transcribed', () => {
     expect(tail(out)).toContain('нужен контент-план на месяц')
   })
 
-  it('leaves audio alone when a configured provider can hear it', async () => {
+  it('leaves audio alone when a configured provider can hear it and we cannot', async () => {
     // nemotron is the one provider that declares `audio`.
     process.env.NVIDIA_API_KEY = 'nv-test'
-    process.env.WHISPER_API_KEY = 'gsk_test'
     const { inlineUnperceivedMedia } = await load()
 
     const messages = turn(marker('audio', 'voice.ogg', 'audio/ogg', VOICE))
@@ -279,6 +361,46 @@ describe('audio the chain cannot hear is transcribed', () => {
     // the native audio part will carry the sound.
     expect(out).toBe(messages)
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  /*
+   * OUR OWN EARS COME FIRST (21.09.2026).
+   *
+   * This case used to assert the opposite -- with both configured, the file
+   * was handed to nemotron and nothing was read here. Exactly one provider
+   * has ever declared a sense, and on the day of the complaint it was the one
+   * answering `ResourceExhausted 16/16`; meanwhile our own transcriber sat
+   * idle on the private network. Deferring to a single third-party model for
+   * a sense we own is how a client gets a filename back.
+   */
+  it('transcribes here even when a provider says it can hear, and breaks the marker so the sound is not sent twice', async () => {
+    process.env.NVIDIA_API_KEY = 'nv-test'
+    process.env.WHISPER_API_KEY = 'gsk_test'
+    fetchSpy.mockImplementation(async (input: unknown) => {
+      const url = String(input)
+      if (url.includes('/s3/'))
+        return new Response(Buffer.from('ogg-bytes'), {
+          status: 200,
+          headers: { 'content-type': 'audio/ogg' },
+        })
+      if (url.includes('/audio/transcriptions'))
+        return new Response('data: {"text":"я на связи"}\ndata: [DONE]\n', {
+          status: 200,
+        })
+      return new Response('', { status: 500 })
+    })
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('audio', 'voice.ogg', 'audio/ogg', VOICE)),
+      {}
+    )
+
+    expect(tail(out)).toContain('я на связи')
+    // The marker is broken, so `withMediaParts` cannot ALSO send the bytes:
+    // a file is inlined as text or sent as a part, never both.
+    expect(tail(out)).not.toContain('[attached audio:')
+    expect(tail(out)).toContain('[ attached audio:')
   })
 
   it('says it did not hear rather than letting the model guess', async () => {
