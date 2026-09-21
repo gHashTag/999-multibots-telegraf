@@ -299,3 +299,40 @@ describe('the tools that act are the ones that are gated', () => {
     )
   })
 })
+
+describe('the browser keeps its keys in its own rooms', () => {
+  it('TREATS THE VAULT AND THE SETTINGS AS SENSITIVE', async () => {
+    const { isSensitive } = await import('./src/browser/guard')
+    for (const url of [
+      'chrome-extension://nngceckbapebfimnlniiiahkandclblb/popup/index.html#/vault',
+      'chrome://settings/passwords',
+      'chrome://password-manager/passwords',
+      'chrome://extensions/',
+      'devtools://devtools/bundled/inspector.html',
+    ])
+      expect(isSensitive(url, []), url).toBe(true)
+  })
+
+  it('leaves a new tab and a blank page free', async () => {
+    const { isSensitive } = await import('./src/browser/guard')
+    expect(isSensitive('chrome://newtab/', [])).toBe(false)
+    expect(isSensitive('about:blank', [])).toBe(false)
+  })
+
+  it('LETS AN AGENT OPEN THE WEB, AND NOTHING OF THE BROWSER ITSELF', async () => {
+    const { agentMayOpen } = await import('./src/browser/guard')
+    expect(agentMayOpen('https://habr.com/ru/feed/')).toBe(true)
+    expect(agentMayOpen('http://example.com')).toBe(true)
+    expect(agentMayOpen('about:blank')).toBe(true)
+    for (const url of [
+      'chrome://settings/passwords',
+      'chrome-extension://nngceckbapebfimnlniiiahkandclblb/popup/index.html',
+      'devtools://devtools/bundled/inspector.html',
+      'file:///home/neko/.config/chromium/Default/Cookies',
+      'javascript:alert(1)',
+      'data:text/html,<b>x</b>',
+      'not a url',
+    ])
+      expect(agentMayOpen(url), url).toBe(false)
+  })
+})

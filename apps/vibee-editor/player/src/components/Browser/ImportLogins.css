@@ -1,0 +1,79 @@
+/* Bring your logins over. Layout only; colours are the app's tokens. */
+.import-logins {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  box-sizing: border-box;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  background: #111;
+}
+
+.import-logins h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.import-logins p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #bbb;
+}
+
+.import-logins__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #fff;
+}
+
+.import-logins__file input {
+  font-size: 12px;
+  color: #888;
+}
+
+.import-logins__paste {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #444;
+  border-radius: 10px;
+  background: #000;
+  color: #fff;
+  font:
+    12px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  resize: vertical;
+}
+
+.import-logins__paste:focus {
+  outline: none;
+  border-color: #00ff88;
+}
+
+.import-logins .remote-browser__cta {
+  align-self: flex-start;
+  background: #00ff88;
+  color: #000;
+  border-radius: 20px;
+}
+
+.import-logins__ok {
+  color: #00ff88 !important;
+}
+
+.import-logins__fail {
+  color: #ff6b6b !important;
+}
+
+.import-logins__warn {
+  font-size: 11px !important;
+  color: #888 !important;
+}
