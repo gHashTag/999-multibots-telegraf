@@ -82,7 +82,17 @@ COPY cdp-bridge.conf /etc/neko/supervisord/cdp-bridge.conf
 # upstream ships it). On Linux without a keyring it keeps passwords behind a
 # fixed key, and whoever drives the browser -- the agent included -- could
 # open chrome://password-manager and read them.
+#
+# OUR PAGE BY DEFAULT. Owner, 2026-09-21: an empty browser opens t27.ai. A
+# new tab and the home button land there; RestoreOnStartup 1 keeps the
+# person's own tabs across a restart, so t27.ai is what an EMPTY browser
+# shows, never something that replaces what they had open.
 RUN jq '.TranslateEnabled = false \
+      | .NewTabPageLocation = "https://t27.ai/" \
+      | .HomepageLocation = "https://t27.ai/" \
+      | .HomepageIsNewTabPage = false \
+      | .ShowHomeButton = true \
+      | .RestoreOnStartup = 1 \
       | .ExtensionInstallForcelist += ["nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"] \
       | .ExtensionInstallAllowlist += ["nngceckbapebfimnlniiiahkandclblb"]' \
       /etc/chromium/policies/managed/policies.json > /tmp/policies.json \
@@ -90,6 +100,9 @@ RUN jq '.TranslateEnabled = false \
  && jq -e '.TranslateEnabled == false \
       and .PasswordManagerEnabled == false \
       and .DeveloperToolsAvailability == 1 \
+      and .NewTabPageLocation == "https://t27.ai/" \
+      and .HomepageLocation == "https://t27.ai/" \
+      and .RestoreOnStartup == 1 \
       and any(.ExtensionInstallBlocklist[]; . == "*") \
       and any(.ExtensionInstallAllowlist[]; . == "nngceckbapebfimnlniiiahkandclblb")' \
       /etc/chromium/policies/managed/policies.json
