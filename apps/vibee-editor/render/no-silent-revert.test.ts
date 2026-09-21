@@ -39,7 +39,18 @@ describe('merged money fixes are still in main', () => {
 
   it('#874: /api/tokens/verify compares dates numerically', () => {
     // A string compare made the fallback verification never credit anything.
-    expect(SERVER).toContain('Number(t.date)')
+    //
+    // The rule moved out of render-server.ts on 2026-09-21 into
+    // src/lib/star-tx-match.ts, so it could be tested by RUNNING it rather
+    // than by reading it -- see a-club-payment-is-not-a-token-payment.test.ts,
+    // whose stale-payment case fails if the comparison stops being numeric.
+    // This ratchet follows the rule to where it lives now.
+    const MATCH = fs.readFileSync(
+      path.resolve(__dirname, 'src/lib/star-tx-match.ts'),
+      'utf8'
+    )
+    expect(MATCH).toContain('Number(tx.date)')
+    expect(SERVER).toContain('txPaysInvoice(')
   })
 
   it('#1047: the Mini App generation paths are billed', () => {
