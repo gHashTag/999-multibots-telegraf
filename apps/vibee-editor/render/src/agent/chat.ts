@@ -731,7 +731,7 @@ export function soul(): string | null {
  * because a person who sends a PDF and gets a vague answer concludes the
  * agent is stupid rather than that the format is unsupported.
  */
-function canTakeSection(): string {
+function canTakeSection(surface?: string): string {
   const readable = TEXT_LIKE_EXTENSIONS.map(e => '.' + e).join(', ')
   return (
     /* cyrillic-ok: prompt copy, read by the model and paraphrased to people */
@@ -742,10 +742,63 @@ function canTakeSection(): string {
     'извлекателя, и это надо сказать прямо, а не отвечать расплывчато. ' +
     'Когда человек впервые присылает файл или спрашивает, что ты умеешь, — ' +
     'назови это одной строкой, без списка на пол-экрана.' +
+    /*
+     * THE BROWSER, SAID OUT LOUD.
+     *
+     * The nine `browser_*` tools were in the registry and in the compact kit
+     * and the agent still did not know it had a browser -- the owner found
+     * this by asking the bot. A tool in a list is a thing a model MAY call;
+     * a capability in this section is a thing it knows it HAS and offers.
+     * The difference showed up as an agent denying it could browse at all.
+     */
+    '\n\nУ ТЕБЯ ЕСТЬ БРАУЗЕР. Настоящий, на сервере, с входами этого ' + // cyrillic-ok: prompt copy
+    'человека в его аккаунты. Инструменты: browser_status (запущен ли), ' +
+    'browser_open, browser_read, browser_screenshot, browser_click, ' +
+    'browser_type, browser_evaluate, browser_close_tab. Человек видит ' +
+    'КАЖДОЕ твоё действие и может перехватить руль — невидимого режима нет. ' +
+    'Если браузер не запущен, скажи: открыть его на вкладке «Браузер» в ' +
+    'приложении. Пароли НЕ спрашивай и НЕ набирай: человек вводит их сам ' +
+    'внутри окна. На банке, почте и странице оплаты нажимать, набирать и ' +
+    'выполнять код можно только после browser_ask_permission — это не ' +
+    'вежливость, а то, что иначе остановит страж.' +
     '\n\nГОВОРИ ШАГИ ВПЕРЁД. Прежде чем начать работу дольше пары секунд ' +
     '(расшифровка, генерация, отправка, оплата) — одной фразой скажи, что ' +
     'сейчас сделаешь и что будет дальше. Молчание во время работы человек ' +
-    'читает как зависший бот, и это дороже любой лишней строки.'
+    'читает как зависший бот, и это дороже любой лишней строки.' +
+    ownerSideSection(surface)
+  )
+}
+
+/**
+ * THE CAPABILITIES THAT ARE NOT A CLIENT'S BUSINESS.
+ *
+ * Measured, not guessed: of 25 tool families in the registry, SEVEN were
+ * never named anywhere in this prompt -- crm (23 tools), tg (16), inngest
+ * (5), hive (3), project/projects (3), leela (1). Fifty-one tools the agent
+ * had and was never told it had, which is why it denied being able to do
+ * things it could do.
+ *
+ * But they are NOT all for every surface. `crm_*` reads the owner's leads
+ * and `tg_*` reads the owner's own Telegram -- dialogs, contacts, history.
+ * Naming those in a CLIENT's direct message would have the seller offering
+ * a stranger somebody else's correspondence. The tools are not gated by
+ * caller today (countInitDataToolCall only counts), so the prompt must not
+ * advertise what the code does not refuse.
+ *
+ * Hence: named everywhere the person IS the owner or an ordinary user of the
+ * app, and silent in the business DM.
+ */
+function ownerSideSection(surface?: string): string {
+  if (surface === 'business') return ''
+  /* cyrillic-ok: prompt copy, read by the model and paraphrased to people */
+  return (
+    '\n\nЧТО ЕЩЁ У ТЕБЯ ЕСТЬ, одной строкой каждое — не перечисляй списком, ' +
+    'просто знай и предлагай к месту. CRM: лиды, их история, кто ждёт ' +
+    'ответа, кого вернуть (crm_*). Telegram владельца: диалоги, ' +
+    'неотвеченные, поиск, контакты (tg_*). Фоновые задачи: что сейчас ' +
+    'считается и чем кончилось (inngest_*). Улей и Королева: пульс, ' +
+    'события, суд по коду (hive_*). Проекты: открыть и сохранить ' +
+    '(project_get, project_save, projects_list). План по Лиле (leela_plan).'
   )
 }
 
@@ -759,7 +812,7 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
    * nobody. Everything else -- the bot, the business DM, the mini app -- is a
    * person on the other side who deserves to know what they can send.
    */
-  const canTake = toolsOnly ? '' : canTakeSection()
+  const canTake = toolsOnly ? '' : canTakeSection(surface)
   /*
    * THE LANGUAGE RULE GOES LAST, AND THAT IS NOT A STYLE CHOICE.
    *
