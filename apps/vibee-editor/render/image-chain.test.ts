@@ -46,7 +46,9 @@ import {
   imageChainShortNote,
   imageLegCost,
   legFitsPrice,
+  vendorOfLeg,
   type ImageLeg,
+  type ImageVendor,
 } from './src/image-chain'
 import {
   COST_PER_TOKEN_USD,
@@ -60,7 +62,10 @@ import { T2I_MODEL } from './src/kie-image'
 import { PAID } from './src/agent/pricing'
 import { TOOLS } from './src/agent/tools'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
+const {
+  sliceFrom,
+  sliceBetween,
+} = require('../../../scripts/lib/anchored-slice.cjs')
 
 /**
  * Source with comments removed, so an assertion about CODE cannot be satisfied
@@ -539,6 +544,68 @@ describe('every leg the route can build carries its price', () => {
     }
   })
 
+  /**
+   * Provider calls that SAY which vendor they are. The doubles above prove a
+   * chain can be built without calling anything; these prove that the leg
+   * priced as a vendor is the leg that calls it. Without them, swapping two
+   * `run` fields in imageChainLegs -- every picture to FAL at $0.15 under the
+   * $0.003 Replicate label -- passed this whole file (mutation, 2026-09-22).
+   */
+  const recordingVendors = () => {
+    const called: ImageVendor[] = []
+    const rec = (vendor: ImageVendor) => async () => {
+      called.push(vendor)
+      return `https://${vendor}.invalid/picture.png`
+    }
+    return {
+      called,
+      run: { fal: rec('fal'), replicate: rec('replicate'), kie: rec('kie') },
+    }
+  }
+
+  it('each leg calls the provider its price was written for', async () => {
+    for (const model of [...FAL_IMAGE_MODELS, 'nobody/knows-this', undefined]) {
+      const endpoint = falEndpointFor(model)
+      const { called, run } = recordingVendors()
+      const pairs: [string, ImageVendor | undefined][] = []
+      for (const leg of imageChainLegs(endpoint, run)) {
+        const before = called.length
+        await leg.run()
+        expect(called.length - before, `${leg.name} made one call`).toBe(1)
+        pairs.push([leg.name, called.at(-1)])
+      }
+      // Written out, not derived: deriving the expectation from the same
+      // prefix rule the code uses would agree with the code by construction.
+      expect(pairs, String(model)).toEqual([
+        [falLeg(endpoint), 'fal'],
+        [REPLICATE_IMAGE_LEG, 'replicate'],
+        [KIE_IMAGE_LEG, 'kie'],
+      ])
+    }
+  })
+
+  it("at today's price the real chain pays Replicate and nobody else", async () => {
+    const { called, run } = recordingVendors()
+    const outcome = await runImageChain(
+      imageChainLegs(falEndpointFor(undefined), run),
+      { ceilingUsd: imageChainCeilingUsd() }
+    )
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.provider).toBe(REPLICATE_IMAGE_LEG)
+    expect(outcome.url).toBe('https://replicate.invalid/picture.png')
+    // The money property itself: the only provider asked is the one the
+    // 2-token price was set for.
+    expect(called).toEqual(['replicate'])
+  })
+
+  it('a leg name with no callable vendor is an error, not a guess', () => {
+    expect(vendorOfLeg(REPLICATE_IMAGE_LEG)).toBe('replicate')
+    expect(vendorOfLeg(KIE_IMAGE_LEG)).toBe('kie')
+    expect(vendorOfLeg(falLeg('fal-ai/flux/dev'))).toBe('fal')
+    expect(() => vendorOfLeg('openai/gpt-image-1')).toThrow(/no vendor/)
+  })
+
   it('the price table and the route name the same legs', () => {
     const built = new Set(
       [...FAL_IMAGE_MODELS, 'nobody/knows-this'].flatMap(m =>
@@ -620,6 +687,57 @@ describe('the route charges one price and runs only the legs it covers', () => {
     expect(route).toMatch(/runImageChain\(\s*imageChainLegs\(/)
     // A hand-built leg would carry no price from the table.
     expect(route).not.toMatch(/name:\s*['`](fal|replicate|kie)\//)
+  })
+
+  /**
+   * THE ROUTE'S HALF OF THE PAIRING. imageChainLegs runs `run.replicate` for
+   * the Replicate leg; the route decides what `run.replicate` IS. Swapping
+   * the two functions here -- `replicate: () => generateImageViaFal(...)` --
+   * passed this whole file (mutation, 2026-09-22), so each key is pinned to
+   * its function, and each function to the model its leg is priced as.
+   */
+  it('hands each vendor key the function that calls that vendor', () => {
+    const legs = sliceBetween(route, 'imageChainLegs(', 'ceilingUsd:')
+    expect(legs).toMatch(/^imageChainLegs\(modelEndpoint,/)
+    expect(legs).toMatch(
+      /\bfal:\s*\(\)\s*=>\s*generateImageViaFal\(\s*prompt,\s*aspectRatio,\s*modelEndpoint\s*\)/
+    )
+    expect(legs).toMatch(
+      /\breplicate:\s*\(\)\s*=>\s*generateImageViaReplicate\(/
+    )
+    expect(legs).toMatch(/\bkie:\s*\(\)\s*=>\s*generateImageViaKie\(/)
+    // Exactly one call per vendor: a second call smuggled into a key would
+    // satisfy the three patterns above and still pay the wrong provider.
+    expect(legs.match(/generateImageVia\w+\(/g)).toHaveLength(3)
+  })
+
+  it('each provider function calls the model its leg is priced as', () => {
+    const fn = (name: string) =>
+      code(sliceBetween(SERVER, `async function ${name}(`, '\n  }\n'))
+    // replicate/flux-schnell is priced at $0.003: the call must be to it.
+    const replicateModel = REPLICATE_IMAGE_LEG.split('/').slice(1).join('/')
+    expect(fn('generateImageViaReplicate')).toContain(
+      `https://api.replicate.com/v1/models/black-forest-labs/${replicateModel}/predictions`
+    )
+    // fal/<endpoint> is priced per endpoint: the call must be to that one.
+    expect(fn('generateImageViaFal')).toContain(
+      'https://queue.fal.run/${modelEndpoint}'
+    )
+    // kie/<T2I_MODEL> is priced from the Kie list: no model is named, so
+    // kie-image.ts falls back to T2I_MODEL -- the model the leg is named for.
+    expect(fn('generateImageViaKie')).toMatch(
+      /kieGenerateImage\(\{\s*prompt,\s*aspectRatio\s*\}\)/
+    )
+    expect(
+      fs.readFileSync(path.join(__dirname, 'src/kie-image.ts'), 'utf8')
+    ).toContain('opts.model || T2I_MODEL')
+    // The denominator: each region is one function, not the rest of the file.
+    for (const name of [
+      'generateImageViaReplicate',
+      'generateImageViaFal',
+      'generateImageViaKie',
+    ])
+      expect(fn(name).length, name).toBeLessThan(6000)
   })
 
   it('tells the chain what the charged price covers', () => {

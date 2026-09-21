@@ -33,6 +33,7 @@ import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
 import { clubOfferLine } from './club-membership'
 import { FAL_IMAGE_MODELS, imageChainShortNote } from '../image-chain'
+import { imageModelRefusal, videoModelRefusal } from './flat-price-model'
 import {
   LEELA_CTA_EN,
   LEELA_CTA_RU,
@@ -1475,11 +1476,15 @@ export const TOOLS: AgentTool[] = [
           // so today the chain skips it and the picture comes from the leg the
           // price does cover. A caller told otherwise would report the wrong
           // model in its own artefacts.
+          //
+          // THE ENUM IS THE WHOLE LIST THE HANDLER TAKES: any other name,
+          // `kie/...` above all, is refused before the charge
+          // (src/agent/flat-price-model.ts).
           type: 'string',
+          enum: [...FAL_IMAGE_MODELS],
           description:
-            'ПОЖЕЛАНИЕ по модели FAL, не гарантия: ' +
-            FAL_IMAGE_MODELS.join(', ') +
-            '. Дороже цены — пропускается; смотри «провайдер» в ответе.',
+            'ПОЖЕЛАНИЕ по FAL, не гарантия: дороже цены — пропускается, ' +
+            'смотри «провайдер». Другое имя отклоняется до списания.',
         },
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
@@ -1488,6 +1493,11 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      // The model is settled BEFORE the charge: this tool is sold at one
+      // price, and the route sends a `kie/...` name to a provider that price
+      // does not cover (src/agent/flat-price-model.ts).
+      const refused = imageModelRefusal(args.model)
+      if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false,
@@ -1765,6 +1775,10 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      // Settled before the charge, as in image_generate: a `kie/...` name
+      // would buy a per-model-priced clip at this tool's one price.
+      const refused = videoModelRefusal(args.model)
+      if (refused) return { сделано: false, причина: refused } // cyrillic-ok: the tool's own response fields
       if ((await generationsLeftToday(ctx)) <= 0) {
         return {
           сделано: false,
