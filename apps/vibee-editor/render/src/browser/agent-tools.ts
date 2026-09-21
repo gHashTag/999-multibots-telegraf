@@ -200,7 +200,8 @@ export async function describeShot(
       SCREEN_PROMPT,
       [`data:image/jpeg;base64,${small}`],
       SCREEN_VISION_BG_MS,
-      SCREEN_MAX_TOKENS
+      SCREEN_MAX_TOKENS,
+      'live'
     )
       .catch(() => null)
       .then(text => {

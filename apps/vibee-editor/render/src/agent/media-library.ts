@@ -55,6 +55,7 @@ import {
 import {
   describeImageWithVision,
   describeVideoWithVision,
+  VisionPreempted,
   visionConfig,
 } from './media-vision'
 import {
@@ -866,7 +867,7 @@ export async function describeShelfImageNow(
   const v = visionConfig()
   if (!v) return null
   try {
-    return await describeImageWithVision(v, safe, timeoutMs)
+    return await describeImageWithVision(v, safe, timeoutMs, 'live')
   } catch (e) {
     console.warn('[media] live description failed', String(e))
     return null
@@ -1137,8 +1138,10 @@ export async function describeMedia(
       try {
         seen = await describeVideoWithVision(v, safe, name)
       } catch (e) {
-        // With nothing heard the row stays pending, as it always did.
-        if (!heard) throw e
+        // With nothing heard the row stays pending, as it always did. A
+        // clip that gave way to a live request is pending too: saving it
+        // now would keep the words and lose the frames for good.
+        if (!heard || e instanceof VisionPreempted) throw e
       }
       return videoTranscript(seen, heard)
     }
@@ -1227,6 +1230,8 @@ export async function describeMedia(
         try {
           return await describeImageWithVision(v, safe)
         } catch (e) {
+          // Gave way to a live request: try later, not the paid provider.
+          if (e instanceof VisionPreempted) throw e
           console.warn(
             `[media-library] vision did not take ${name ?? ''}: ${String(
               e instanceof Error ? e.message : e

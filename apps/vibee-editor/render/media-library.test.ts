@@ -1105,6 +1105,71 @@ describe('describeMedia with a vision endpoint', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('a photo that gave way to a live screen stays pending and never reaches the paid provider', async () => {
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async (url: string, init?: { signal?: AbortSignal; body?: string }) => {
+          const u = String(url)
+          urls.push(u)
+          if (u === shelfPhoto)
+            return new Response(Buffer.from('JPEG bytes'), {
+              status: 200,
+              headers: { 'content-type': 'image/jpeg' },
+            })
+          if (
+            /vision\.railway\.internal/.test(u) &&
+            !String(init?.body).includes('LIVE-SCREEN')
+          )
+            // The background ask hangs until it is cut off, like a busy slot.
+            return new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () =>
+                reject(new Error('aborted'))
+              )
+            })
+          return new Response(
+            JSON.stringify({
+              choices: [{ message: { content: 'screen seen' } }],
+            }),
+            {
+              status: 200,
+            }
+          )
+        }
+      )
+    )
+    const { resetVisionForTests, askVision, visionConfig } = await import(
+      './src/agent/media-vision'
+    )
+    resetVisionForTests()
+    const { describeMedia, DescribeFailed } = await import(
+      './src/agent/media-library'
+    )
+    const sweep = describeMedia(
+      shelfPhoto,
+      'image',
+      'image/jpeg',
+      'photo.jpg'
+    ).catch(e => e)
+    await new Promise(r => setTimeout(r, 30))
+    const live = await askVision(
+      visionConfig()!,
+      'LIVE-SCREEN',
+      ['x'],
+      5000,
+      undefined,
+      'live'
+    )
+    expect(live).toBe('screen seen')
+    expect(await sweep).toBeInstanceOf(DescribeFailed)
+    // Only the shelf, the cut-off vision ask and the live ask: no chat provider.
+    expect(
+      urls.filter(u => !u.includes('vision.railway') && u !== shelfPhoto)
+    ).toEqual([])
+  })
+
   it('a refused vision key falls back to the chat provider for photos and is not asked again', async () => {
     process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
     const urls: string[] = []
