@@ -721,7 +721,24 @@ html[data-t27-face] .members .self .avatar {
   transition: opacity 0.35s ease;
 }
 #t27-boot[data-done='1'] { opacity: 0; pointer-events: none; }
-#t27-boot img {
+#t27-boot { overflow: hidden; }
+/*
+ * THE PAGE UNDER THE RING. Dimmed, not blurred away: the point is that the
+ * person recognises their own page at once. Everything else in the loader
+ * sits above it.
+ */
+#t27-boot img.poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 1;
+  filter: brightness(0.45);
+  z-index: 0;
+}
+#t27-boot > :not(.poster) { position: relative; z-index: 1; }
+#t27-boot img:not(.poster) {
   width: 44px;
   height: 44px;
   opacity: 0.9;
@@ -993,6 +1010,13 @@ export const BOOT_GIVE_UP_MS = 45_000
 
 export const BOOT_HTML =
   `<div id="t27-boot">` +
+  /*
+   * The person's own page as it is right now, under the loader (the proxy
+   * answers __poster from the browser itself; fast-start.ts). Relative on
+   * purpose: the document lives at /live/<id>/. It removes itself when
+   * there is no poster, and the loader stands on its own.
+   */
+  `<img class="poster" src="__poster" alt="" onerror="this.remove()">` +
   `<img src="${LOGO_URL}" alt="">` +
   `<div class="ring"></div>` +
   `<p class="said">${BOOT_SAID}</p>` +
