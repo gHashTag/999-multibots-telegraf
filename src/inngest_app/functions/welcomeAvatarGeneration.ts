@@ -1,6 +1,16 @@
 /**
- * Welcome Avatar Generation Inngest Function
- * Generates a free AI portrait for new users upon registration
+ * THE WELCOME GIFT: A PORTRAIT MADE FROM THE NEWCOMER'S OWN AVATAR.
+ *
+ * A free AI portrait, generated once, when somebody registers.
+ *
+ * It runs image-to-image on GPT-Image-2.5 (kie.ai) from the avatar Telegram
+ * already has, at the platform default 9:16 -- the frame it will be looked at
+ * in. Until 2026-09-21 it ran on SeeDream-4.5 at 2K with no aspect ratio
+ * passed at all, so the gift came back in whatever shape that model chose.
+ *
+ * The newcomer pays nothing: `skipBalanceCheck` skips both the balance check
+ * and the charge, and the generator runs `silent` because its own caption
+ * quotes the five stars this portrait is not costing anybody.
  */
 
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
@@ -8,7 +18,8 @@ import { NonRetriableError } from 'inngest'
 import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { logger } from '@/utils/logger'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
-import { generateSeeDream45 } from '@/services/generateSeeDream45'
+import { generateGptImage25 } from '@/services/generateGptImage25'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 import { reserveWelcomeGiftSlot } from '@/inngest_app/functions/welcomeGiftBudget'
 import { isContentRefusal } from '@/helpers/isContentRefusal'
 
@@ -177,8 +188,8 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     }
 
     // Safe mode: reserve-gift-slot consumes the daily gift budget,
-    // generate-image calls the paid SeeDream API and send-welcome messages a
-    // real user — stop here with an explicit marker.
+    // generate-image calls the paid GPT-Image-2.5 API and send-welcome
+    // messages a real user — stop here with an explicit marker.
     if (isSafeMode(event)) {
       const skipped = skippedInSafeMode('reserve-gift-slot + generate-image')
       logger.warn('🎁 [Welcome Avatar] 🛡️ safe mode — generation skipped', {
@@ -219,7 +230,7 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       )
     }
 
-    // Step 3: Generate image using SeeDream-4 (cheapest option)
+    // Step 3: Generate the portrait (GPT-Image-2.5, image-to-image)
     // ⚠️ IMPORTANT: Get bot INSIDE step to avoid Inngest serialization issues
     // Telegraf instances have methods that cannot be serialized between steps
     // The branch is deterministic across retries (giftSlot came from a step).
@@ -235,7 +246,7 @@ export const welcomeAvatarGeneration = inngest.createFunction(
                 bot_name,
               }
             )
-            return { success: false, error: 'Bot not available' }
+            return { success: false as const, error: 'Bot not available' }
           }
           const bot = botData.bot
 
@@ -281,50 +292,68 @@ export const welcomeAvatarGeneration = inngest.createFunction(
             telegram: bot.telegram,
           } as any
 
-          try {
-            const result = await generateSeeDream45({
-              prompt,
-              inputImageUrl: avatarUrl,
-              telegram_id,
-              username,
-              is_ru,
-              ctx: mockCtx,
-              size: '2K', // SeeDream 4.5 supports 2K/4K (no 1K!)
-              is_welcome_gift: true, // Skip payment!
-              suppressUserErrors: true,
-            })
+          /*
+           * A PROVIDER SAYING NO TO A PHOTO IS NOT AN OUTAGE.
+           *
+           * The gift portrait is made from the newcomer's own photo, and
+           * providers refuse some of them on their content rule. Nothing is
+           * broken: the customer needs a different photo, and the owner's
+           * phone needs nothing at all. The same classifier already governs
+           * aiPhotoshopScene and avatarTransformScene. generateGptImage25
+           * swallows its failures and returns null, so the reason arrives
+           * through its onError hook rather than through a throw.
+           */
+          let failure: string | null = null
 
-            return { success: true, result }
-          } catch (error) {
-            /*
-             * A PROVIDER SAYING NO TO A PHOTO IS NOT AN OUTAGE.
-             *
-             * The gift portrait is made from the newcomer's own photo, and
-             * SeeDream refuses some of them on its content rule (E005, "the
-             * input or output was flagged as sensitive"). Nothing is broken:
-             * the customer needs different words, and the owner's phone needs
-             * nothing at all. The same classifier already governs
-             * aiPhotoshopScene and avatarTransformScene.
-             */
-            const refused = isContentRefusal(error)
-            const message =
-              error instanceof Error ? error.message : 'Unknown error'
-            if (refused) {
-              logger.warn(
-                '🎁 [Welcome Avatar] Photo refused on a content rule',
-                {
-                  telegram_id,
-                  error: message,
-                }
-              )
-            } else {
-              logger.error('🎁 [Welcome Avatar] Generation failed', {
-                telegram_id,
-                error: message,
-              })
-            }
-            return { success: false, error: message, refused }
+          // The service's own status line is tied to the same flag as its
+          // five-star price caption, and a gift has no price -- so the gift
+          // runs silent and says this much itself.
+          const status = await mockCtx.reply(
+            is_ru
+              ? '🎁 Готовлю вам подарок — нейро-портрет по вашей аватарке...'
+              : '🎁 Preparing your gift — an AI portrait from your avatar...'
+          )
+
+          const imageUrl = await generateGptImage25({
+            telegram_id,
+            promptText: prompt,
+            // The gift is made FROM the newcomer's own avatar: image-to-image.
+            // pickGptImage25Model switches on this being a non-empty url.
+            inputImageUrl: avatarUrl,
+            ctx: mockCtx,
+            username,
+            is_ru,
+            aspect_ratio: DEFAULT_ASPECT_RATIO,
+            resolution: '1K',
+            // The owner pays the provider for this one, not the newcomer --
+            // this skips both the balance check and the charge, so the
+            // service's refund path stays correctly dormant.
+            skipBalanceCheck: true,
+            suppressUserErrors: true,
+            silent: true,
+            onError: message => {
+              failure = message
+            },
+          })
+
+          await mockCtx.deleteMessage(status.message_id)
+
+          if (imageUrl) return { success: true as const, imageUrl }
+
+          const message = failure ?? 'GPT-Image-2.5 returned no image'
+          const refused = isContentRefusal(message)
+          if (refused) {
+            logger.warn('🎁 [Welcome Avatar] Photo refused on a content rule', {
+              telegram_id,
+              error: message,
+            })
+          } else {
+            logger.error('🎁 [Welcome Avatar] Generation failed', {
+              telegram_id,
+              error: message,
+            })
           }
+          return { success: false as const, error: message, refused }
         })
 
     // Step 4: Send welcome message
@@ -345,9 +374,29 @@ export const welcomeAvatarGeneration = inngest.createFunction(
           ? `🎁 *Добро пожаловать!*\n\nВот ваш первый нейро-портрет в образе *${selectedHero}* в подарок!\n\n✨ Попробуйте создать ещё больше образов в главном меню.`
           : `🎁 *Welcome!*\n\nHere's your first AI portrait as *${selectedHero}* as a gift!\n\n✨ Try creating more looks in the main menu.`
 
-        await bot.telegram.sendMessage(telegram_id, message, {
-          parse_mode: 'Markdown',
-        })
+        /*
+         * The picture and the words arrive together, as one gift. The
+         * generator used to send the photo itself and this step added a
+         * second, separate message about it; now the generator runs silent
+         * (its own caption quotes a price this portrait does not have), so
+         * the caption is written here -- and it names no price.
+         */
+        try {
+          await bot.telegram.sendPhoto(telegram_id, generationResult.imageUrl, {
+            caption: message,
+            parse_mode: 'Markdown',
+          })
+        } catch (sendError) {
+          // A portrait that cannot be delivered must not swallow the welcome.
+          logger.error('🎁 [Welcome Avatar] Failed to send the gift photo', {
+            telegram_id,
+            error:
+              sendError instanceof Error ? sendError.message : 'Unknown error',
+          })
+          await bot.telegram.sendMessage(telegram_id, message, {
+            parse_mode: 'Markdown',
+          })
+        }
       } else {
         // A refused photo needs different advice than a broken generator: told
         // to "do it yourself in the main menu", the newcomer uploads the very

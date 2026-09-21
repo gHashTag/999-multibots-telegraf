@@ -16,6 +16,7 @@ import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { processApiResponse } from '@/helpers/error/processApiResponse'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 import { v4 as uuidv4 } from 'uuid'
 import { ApiResponse } from '@/interfaces/api.interface'
 import crypto from 'crypto'
@@ -607,14 +608,14 @@ export async function generateNeuroPhotoDirect(
         )
       } else {
         logger.warn(
-          `⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio из БД (${dbAspectRatio}), используется значение по умолчанию "1:1"`,
+          '[DIRECT] aspectRatio from DB unusable, using the default',
           {
             original_value: dbAspectRatio,
-            default_value: '1:1',
+            default_value: DEFAULT_ASPECT_RATIO,
             telegram_id,
           }
         )
-        finalAspectRatio = '1:1' // Значение по умолчанию
+        finalAspectRatio = DEFAULT_ASPECT_RATIO
       }
     }
 
@@ -929,7 +930,7 @@ export async function generateNeuroPhotoDirect(
             botName: botName,
             additionalInfo: {
               model_url: model_url,
-              aspect_ratio: finalAspectRatio || '1:1',
+              aspect_ratio: finalAspectRatio || DEFAULT_ASPECT_RATIO,
               original_url: imageUrl.substring(0, 50) + '...',
             },
           }

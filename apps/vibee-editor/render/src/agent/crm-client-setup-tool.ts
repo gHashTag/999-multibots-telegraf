@@ -503,7 +503,19 @@ const PROMPT_PRIORITY = [
   'identity_rules',
   'forbidden',
   'forbidden_claims',
-  'how_to_work_with_him',
+  /*
+   * An unsettled dispute decides what may be said at all, so it outranks even
+   * the how-to: Lena's open money question is the reason nothing is offered to
+   * her for sale, and a budget that kept the manner and dropped the reason
+   * would produce a polite upsell.
+   */
+  'open_money_question',
+  /*
+   * One entry, not one per person. The key is `how_to_work_with_him` in one
+   * package and `how_to_work_with_her` in the next, and a list of spellings
+   * would silently demote whichever spelling somebody forgot to add.
+   */
+  'how_to_work_with_',
   'legal_note',
   'relationship',
   'open_work',
@@ -521,7 +533,9 @@ export function profileForPrompt(
 ): string {
   const keys = Object.keys(profile ?? {})
   const rank = (k: string) => {
-    const i = PROMPT_PRIORITY.indexOf(k)
+    const i = PROMPT_PRIORITY.findIndex(p =>
+      p.endsWith('_') ? k.startsWith(p) : k === p
+    )
     return i < 0 ? PROMPT_PRIORITY.length + keys.indexOf(k) : i
   }
   const kept: Record<string, unknown> = {}

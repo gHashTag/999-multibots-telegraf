@@ -1,6 +1,7 @@
 import { KieAiProvider } from './video-providers/KieAiProvider'
 import { generateFaceSwap, FaceSwapRequest } from './generateFaceSwap'
 import { logger } from '@/utils/logger'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 
 interface VideoGenerationRequest {
   prompt: string
@@ -344,7 +345,7 @@ export class UniversalProviderManager {
         return await generateNanoBananaPro({
           prompt: request.prompt,
           numImages: request.numImages || 1,
-          aspectRatio: request.style || '1:1',
+          aspectRatio: request.style || DEFAULT_ASPECT_RATIO,
           width: request.width,
           height: request.height,
           telegramId: request.userId || 'unknown',

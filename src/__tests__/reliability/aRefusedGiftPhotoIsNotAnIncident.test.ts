@@ -9,8 +9,8 @@
  * through: the gift portrait is made automatically, from whatever photo sits on
  * their Telegram profile, without anybody asking for it.
  *
- * So SeeDream's content filter declining a stranger's profile picture paged the
- * owner, verbatim, in production:
+ * So a content filter declining a stranger's profile picture paged the owner,
+ * verbatim, in production:
  *
  *   🚨 ERROR ❌ [Welcome Avatar] Generation failed
  *   Prediction failed: ... The input or output was flagged as sensitive ... (E005)
@@ -26,25 +26,33 @@
  * receives. Each "goes quiet" case is paired with a failure of OURS on the same
  * path that must still page, because a demotion is only a fix if the machinery
  * still shouts.
+ *
+ * 2026-09-21: the generator underneath changed from SeeDream-4.5 to
+ * GPT-Image-2.5, which does not throw -- it returns null and reports the reason
+ * through its `onError` hook. The classification had to survive that change, so
+ * it is re-pinned here against the new shape, together with the shape of the
+ * gift itself (see below).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const { generate, reserveSlot, sendMessage, sendPhoto } = vi.hoisted(() => ({
-  generate: vi.fn(),
-  reserveSlot: vi.fn(),
-  sendMessage: vi.fn(),
-  sendPhoto: vi.fn(),
-}))
+const { generate, reserveSlot, sendMessage, sendPhoto, deleteMessage } =
+  vi.hoisted(() => ({
+    generate: vi.fn(),
+    reserveSlot: vi.fn(),
+    sendMessage: vi.fn(),
+    sendPhoto: vi.fn(),
+    deleteMessage: vi.fn(),
+  }))
 
-vi.mock('@/services/generateSeeDream45', () => ({
-  generateSeeDream45: generate,
+vi.mock('@/services/generateGptImage25', () => ({
+  generateGptImage25: generate,
 }))
 vi.mock('@/inngest_app/functions/welcomeGiftBudget', () => ({
   reserveWelcomeGiftSlot: reserveSlot,
 }))
 vi.mock('@/inngest_app/services/bot-adapter', () => ({
   getBotByNameAdapter: () => ({
-    bot: { telegram: { sendMessage, sendPhoto, deleteMessage: vi.fn() } },
+    bot: { telegram: { sendMessage, sendPhoto, deleteMessage } },
   }),
 }))
 
@@ -53,12 +61,24 @@ import { welcomeAvatarGeneration } from '@/inngest_app/functions/welcomeAvatarGe
 import { getHandler } from '@/inngest_app/test/utils/test-helpers'
 
 /** The provider's refusal, worded exactly as the production alert carried it. */
-const REFUSED = () =>
-  new Error(
-    'Prediction failed: Prediction failed: Async prediction failed: ' +
-      'ModelError: The input or output was flagged as sensitive. ' +
-      'Please try again with different inputs. (E005)'
-  )
+const REFUSED =
+  'Prediction failed: Prediction failed: Async prediction failed: ' +
+  'ModelError: The input or output was flagged as sensitive. ' +
+  'Please try again with different inputs. (E005)'
+
+/**
+ * The new generator swallows its own failures: it returns null and hands the
+ * reason to `onError`. That hook is the only way the caller learns WHY, so the
+ * mock has to honour it or every classification below is vacuous.
+ */
+const fails = (why: string) =>
+  generate.mockImplementation(async (params: any) => {
+    params.onError?.(why)
+    return null
+  })
+
+const succeeds = (url = 'https://kie.example/gift.png') =>
+  generate.mockResolvedValue(url)
 
 const handler = getHandler(welcomeAvatarGeneration)
 
@@ -88,7 +108,11 @@ let warn: { mock: { calls: any[][] } }
 const pages = () => error.mock.calls.map(c => String(c[0]))
 const warnings = () => warn.mock.calls.map(c => String(c[0]))
 /** Everything the newcomer was told, in one string. */
-const said = () => sendMessage.mock.calls.map(c => String(c[1])).join(' ')
+const said = () =>
+  [
+    ...sendMessage.mock.calls.map(c => String(c[1])),
+    ...sendPhoto.mock.calls.map(c => String(c[2]?.caption ?? '')),
+  ].join(' ')
 
 beforeEach(() => {
   // Spied on the real logger object -- the same instance the Telegram
@@ -101,6 +125,7 @@ beforeEach(() => {
   generate.mockReset()
   sendMessage.mockReset().mockResolvedValue({ message_id: 1 })
   sendPhoto.mockReset().mockResolvedValue({ message_id: 2 })
+  deleteMessage.mockReset().mockResolvedValue(true)
   reserveSlot.mockReset().mockReturnValue({ granted: true, used: 1, limit: 30 })
   // The hero is drawn at random; pinning the draw keeps the run identical.
   vi.spyOn(Math, 'random').mockReturnValue(0)
@@ -114,7 +139,7 @@ describe('the welcome gift: a refused profile photo', () => {
   it('reaches the generator at all', async () => {
     // Without this, every "does not page" below could pass by never running
     // the code under test -- the bot lookup and the budget both return early.
-    generate.mockResolvedValue({ image: 'ok' })
+    succeeds()
 
     const result = await run()
 
@@ -127,7 +152,7 @@ describe('the welcome gift: a refused profile photo', () => {
   })
 
   it('writes the refusal down instead of sending it to the phone', async () => {
-    generate.mockRejectedValue(REFUSED())
+    fails(REFUSED)
 
     await run()
 
@@ -141,7 +166,7 @@ describe('the welcome gift: a refused profile photo', () => {
   })
 
   it('tells the newcomer about the filter, not to retry the same photo', async () => {
-    generate.mockRejectedValue(REFUSED())
+    fails(REFUSED)
 
     await run()
 
@@ -156,7 +181,7 @@ describe('the welcome gift: a refused profile photo', () => {
   })
 
   it('says the same thing in English when the newcomer reads English', async () => {
-    generate.mockRejectedValue(REFUSED())
+    fails(REFUSED)
 
     await run(false)
 
@@ -165,7 +190,7 @@ describe('the welcome gift: a refused profile photo', () => {
 
   it('STILL pages when the provider behind the gift is down', async () => {
     // The trade this must not make: an outage hiding behind a refused photo.
-    generate.mockRejectedValue(new Error('Replicate returned 503'))
+    fails('kie.ai returned 503')
 
     await run()
 
@@ -178,10 +203,81 @@ describe('the welcome gift: a refused profile photo', () => {
   it('STILL pages when the failure only LOOKS like a refusal in passing', async () => {
     // The predicate is narrow on purpose. A provider that dies while the word
     // "sensitive" happens to sit in a field name is still our outage.
-    generate.mockRejectedValue(new Error('ECONNRESET reading sensitive_config'))
+    fails('ECONNRESET reading sensitive_config')
 
     await run()
 
     expect(pages().join('\n')).toContain('[Welcome Avatar] Generation failed')
+  })
+
+  it('a generator that returns nothing and says nothing still pages', async () => {
+    // null with no onError call: no reason to classify, so it is machinery.
+    generate.mockResolvedValue(null)
+
+    await run()
+
+    expect(pages().join('\n')).toContain('[Welcome Avatar] Generation failed')
+  })
+})
+
+/**
+ * WHAT THE GIFT IS MADE OF.
+ *
+ * Owner's instruction, 2026-09-21: the gift is GPT-Image-2.5 image-to-image
+ * FROM the newcomer's own avatar, and every asset is 9:16 by default because
+ * that is the frame Reels, Stories and TikTok give it. Before this, the gift
+ * ran on SeeDream-4.5 at 2K with no aspect ratio passed at all.
+ *
+ * And it is a GIFT: the newcomer is not charged, and is not shown a price.
+ * The generator's own caption quotes a cost of five stars, which is why the
+ * gift runs `silent` and writes its own.
+ */
+describe('the welcome gift: what it is made of', () => {
+  const askedWith = () => generate.mock.calls[0][0]
+
+  beforeEach(() => succeeds())
+
+  it("is image-to-image from the newcomer's own avatar", async () => {
+    await run()
+    expect(askedWith().inputImageUrl).toBe(
+      'https://example.com/profile-photo.jpg'
+    )
+  })
+
+  it('is portrait, 9:16, the shape a phone will look at it in', async () => {
+    await run()
+    expect(askedWith().aspect_ratio).toBe('9:16')
+  })
+
+  it('costs the newcomer nothing and never quotes a price', async () => {
+    await run()
+    // skipBalanceCheck skips the charge as well as the check, which is what
+    // keeps the service's refund path correctly dormant.
+    expect(askedWith().skipBalanceCheck).toBe(true)
+    // ...and silent keeps the five-star price caption off a free portrait.
+    expect(askedWith().silent).toBe(true)
+    expect(said()).not.toContain('5⭐')
+    // Written as literals rather than one regex: the no-cyrillic gate reads
+    // a regex body as code, and only a string literal may carry Cyrillic.
+    expect(said()).not.toContain('Стоимость')
+    expect(said()).not.toContain('Cost:')
+  })
+
+  it('arrives as one gift: the picture carries the welcome', async () => {
+    await run()
+    expect(sendPhoto).toHaveBeenCalledTimes(1)
+    expect(sendPhoto.mock.calls[0][1]).toBe('https://kie.example/gift.png')
+    expect(String(sendPhoto.mock.calls[0][2].caption)).toContain(
+      'Добро пожаловать'
+    )
+  })
+
+  it('a picture that cannot be delivered still leaves a welcome behind', async () => {
+    sendPhoto.mockRejectedValue(new Error('Bad Request: wrong file identifier'))
+
+    await run()
+
+    expect(said()).toContain('Добро пожаловать')
+    expect(pages().join('\n')).toContain('Failed to send the gift photo')
   })
 })
