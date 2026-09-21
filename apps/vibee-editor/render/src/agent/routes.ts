@@ -405,7 +405,7 @@ export async function handleMcp(
       error: {
         code: -32001,
         message:
-          'Нужна подпись Telegram (X-Telegram-Init-Data) или корректный ключ агента (X-Agent-Key). Карточка: GET этот же адрес.',
+          'Нужна подпись Telegram (X-Telegram-Init-Data), сессия приложения (Authorization: Bearer) или корректный ключ агента (X-Agent-Key). Карточка: GET этот же адрес.',
       },
     })
   }
