@@ -34,6 +34,7 @@ const GeneratePage = lazy(() => import('@/pages/Generate'))
 const HivePage = lazy(() => import('@/pages/Hive'))
 const BrowserPage = lazy(() => import('@/pages/Browser'))
 import { useBrowserWatch } from '@/hooks/useBrowserWatch'
+import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 const CrmPage = lazy(() => import('@/pages/Crm'))
 const CrmClientPage = lazy(() => import('@/pages/CrmClient'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
@@ -324,13 +325,9 @@ function RouteTable() {
   )
 }
 
-// Loading fallback
+// Loading fallback: the product's own loader, not a bare ring.
 function PageLoader() {
-  return (
-    <div className="page-loader">
-      <div className="page-loader__spinner" />
-    </div>
-  )
+  return <BrandLoader fill />
 }
 
 function App() {
