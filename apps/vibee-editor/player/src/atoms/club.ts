@@ -30,6 +30,12 @@ export type ClubGrant = 'owner' | 'keeper' | 'guest' | null
 export interface ClubStatus {
   active: boolean
   /**
+   * The server did not know who asked (club-membership.ts answers the public
+   * price to anyone). "Join" can only fail then -- invoice needs a person --
+   * so the paywall asks for a sign-in instead.
+   */
+  anonymous: boolean
+  /**
    * Bot owners (their bots in `avatars`) and keepers enter without paying
    * (owner, 2026-09-10). The server decides; this side only shows it.
    */
@@ -77,10 +83,9 @@ export const loadClubStatusAtom = atom(null, async (_get, set) => {
     }
     set(clubStatusAtom, {
       active: !!d.active,
+      anonymous: d.anonymous === true,
       granted:
-        d.granted === 'owner' ||
-        d.granted === 'keeper' ||
-        d.granted === 'guest'
+        d.granted === 'owner' || d.granted === 'keeper' || d.granted === 'guest'
           ? d.granted
           : null,
       until: d.until ?? null,

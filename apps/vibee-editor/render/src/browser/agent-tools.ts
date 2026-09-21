@@ -39,6 +39,7 @@ import {
 } from './approvals'
 import { readSession, markAllowed, type Queryable } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
+import { desktopShot } from './screen'
 import {
   frontPage,
   newPage,
@@ -305,10 +306,35 @@ export const BROWSER_TOOLS: AgentTool[] = [
   {
     name: 'browser_screenshot',
     description:
-      'Снимок экрана браузера человека, JPEG в base64. Бери, когда текста ' + // cyrillic-ok
-      'недостаточно: разметка, картинки, где что расположено.', // cyrillic-ok
-    parameters: noArgs,
-    async handler(_args, ctx) {
+      'Снимок страницы, JPEG base64: когда текста мало. desktop — весь экран ' + // cyrillic-ok
+      'человека, не для клика.', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: {
+        desktop: { type: 'boolean' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      /*
+       * The whole screen comes from the pod itself (screen.ts desktopShot):
+       * what the person's video carries, browser chrome and dialogs
+       * included. Its coordinates are the screen's, not the page's, which
+       * is why the description says not to click by them.
+       */
+      if ((args as { desktop?: unknown }).desktop === true) {
+        const session = await readSession(
+          ctx.pool as unknown as Queryable,
+          ctx.telegramId
+        )
+        if (!session || session.state !== 'live' || !session.endpoint) {
+          await podOf(ctx) /* throws the same sentence as every other tool */
+        }
+        return {
+          format: 'jpeg',
+          base64: await desktopShot(session!.endpoint!, session!.adminToken),
+        }
+      }
       const { cdp, targetId } = await podOf(ctx)
       return { format: 'jpeg', base64: await screenshot(cdp, targetId) }
     },
