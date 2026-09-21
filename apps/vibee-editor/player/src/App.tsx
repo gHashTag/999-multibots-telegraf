@@ -1,5 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { LanguageProvider } from '@/hooks/useLanguage'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -35,6 +41,7 @@ const HivePage = lazy(() => import('@/pages/Hive'))
 const BrowserPage = lazy(() => import('@/pages/Browser'))
 import { useBrowserWatch } from '@/hooks/useBrowserWatch'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
+import { isBrowserPath, keepMounted, KEEP_BROWSER_MS } from '@/lib/keptBrowser'
 const CrmPage = lazy(() => import('@/pages/Crm'))
 const CrmClientPage = lazy(() => import('@/pages/CrmClient'))
 const ScriptPage = lazy(() => import('@/pages/Script'))
@@ -265,7 +272,49 @@ export function AppRoutes() {
   return (
     <EmbedGuestGate>
       <RouteTable />
+      <KeptBrowser />
     </EmbedGuestGate>
+  )
+}
+
+/**
+ * The Browser tab, kept alive and hidden for a while after the person leaves
+ * it, so coming back is instant instead of a full reconnect. The rule is in
+ * lib/keptBrowser.ts; this only applies it.
+ */
+function KeptBrowser() {
+  const { pathname } = useLocation()
+  const onBrowser = isBrowserPath(pathname)
+  const [leftAt, setLeftAt] = useState<number | null>(null)
+  const [, tick] = useState(0)
+
+  useEffect(() => {
+    if (onBrowser) {
+      setLeftAt(null)
+      return
+    }
+    setLeftAt(was => (was === null ? Date.now() : was))
+  }, [onBrowser])
+
+  /* Let it go when the time is up, not at the next render by chance. */
+  useEffect(() => {
+    if (onBrowser || leftAt === null) return
+    const wait = Math.max(0, leftAt + KEEP_BROWSER_MS - Date.now())
+    const timer = setTimeout(() => tick(n => n + 1), wait)
+    return () => clearTimeout(timer)
+  }, [onBrowser, leftAt])
+
+  const [ever, setEver] = useState(onBrowser)
+  useEffect(() => {
+    if (onBrowser) setEver(true)
+  }, [onBrowser])
+
+  const mounted = keepMounted(onBrowser, ever ? leftAt : null, Date.now())
+  if (!mounted) return null
+  return (
+    <div hidden={!onBrowser}>
+      <BrowserPage />
+    </div>
   )
 }
 
@@ -299,7 +348,9 @@ function RouteTable() {
       <Route path="/hive/*" element={<Navigate to="/hive" replace />} />
       {/* The person's own remote browser: one pod, one profile, started on
           demand. See docs/architecture/remote-browser-per-user.md. */}
-      <Route path="/browser" element={<BrowserPage />} />
+      {/* Rendered by KeptBrowser below, which outlives a visit to another
+          tab; the route stays so nothing else claims the address. */}
+      <Route path="/browser" element={null} />
       <Route path="/crm" element={<CrmPage />} />
       {/* One client's workspace and the thread about them. Declared before
           `/:username`, and tested to resolve here rather than to a profile
