@@ -100,3 +100,37 @@ describe('railway drift', () => {
     ).toBeNull()
   })
 })
+
+/*
+ * A copy run from the OS temp dir must still RUN. On macOS /var links to
+ * /private/var, and the first version compared URLs literally: main() never
+ * ran and the process exited 0 having checked nothing -- the daily task runs
+ * exactly such a copy. With no token it must say so and exit 2.
+ */
+describe('run from a temp copy, as the daily task does', () => {
+  it.each(['railway-drift.mjs', 'railway-sources-check.mjs'])(
+    '%s speaks and exits 2 without a token -- never a silent 0',
+    async script => {
+      const { mkdtempSync, copyFileSync, rmSync } = await import('node:fs')
+      const { tmpdir } = await import('node:os')
+      const path = await import('node:path')
+      const { spawnSync } = await import('node:child_process')
+      const root = path.resolve(__dirname, '../../..')
+      const dir = mkdtempSync(path.join(tmpdir(), 'drift-copy-'))
+      try {
+        for (const f of ['railway-drift.mjs', 'railway-sources-check.mjs']) {
+          copyFileSync(path.join(root, 'scripts', f), path.join(dir, f))
+        }
+        const run = spawnSync(process.execPath, [path.join(dir, script)], {
+          cwd: root,
+          env: { PATH: process.env.PATH ?? '', HOME: dir },
+          encoding: 'utf8',
+        })
+        expect(run.stdout).toMatch(/no (Railway )?token/)
+        expect(run.status).toBe(2)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+  )
+})
