@@ -45,11 +45,20 @@ export interface ClientPackage {
   skills: { name: string; content: string }[]
 }
 
-/** First markdown H1 becomes the skill name; the file body is the content. */
-export function skillNameFromMarkdown(md: string, fallback: string): string {
+/**
+ * First markdown H1 becomes the skill name; the file body is the content.
+ *
+ * The prefix is the package's, not Leela's: a second client's skills carrying
+ * `Leela: ` in their titles would be filed under somebody else's product.
+ */
+export function skillNameFromMarkdown(
+  md: string,
+  fallback: string,
+  prefix: string = SKILL_PREFIX
+): string {
   const m = md.match(/^#\s+(.+)$/m)
   const raw = (m?.[1] ?? fallback).trim()
-  return raw.startsWith(SKILL_PREFIX) ? raw : SKILL_PREFIX + raw
+  return raw.startsWith(prefix) ? raw : prefix + raw
 }
 
 export function loadClientPackage(
@@ -61,6 +70,10 @@ export function loadClientPackage(
     throw new Error(`Пакет клиента «${client}» не найден`) // cyrillic-ok
   }
   const profile = JSON.parse(readFileSync(join(dir, 'profile.json'), 'utf8'))
+  const prefix =
+    typeof profile.skill_prefix === 'string' && profile.skill_prefix
+      ? profile.skill_prefix
+      : SKILL_PREFIX
   const soulPath = join(dir, 'SOUL.md')
   const soul = existsSync(soulPath) ? readFileSync(soulPath, 'utf8').trim() : ''
   const skillsDir = join(dir, 'skills')
@@ -71,7 +84,11 @@ export function loadClientPackage(
         .map(f => {
           const content = readFileSync(join(skillsDir, f), 'utf8').trim()
           return {
-            name: skillNameFromMarkdown(content, f.replace(/\.md$/, '')),
+            name: skillNameFromMarkdown(
+              content,
+              f.replace(/\.md$/, ''),
+              prefix
+            ),
             content,
           }
         })
@@ -250,11 +267,72 @@ export async function ensurePlanTables(ctx: ToolContext): Promise<void> {
   )
 }
 
+/** A goal and its cards, as one package describes them. */
+export interface ClientPlan {
+  goal: string
+  intent: string
+  templateId: string | null
+  items: { title: string; note: string }[]
+}
+
+/**
+ * THE PLAN BELONGS TO THE PACKAGE, NOT TO LEELA.
+ *
+ * `REEL_SERIES` is twelve reels about a board game. Installing it for a
+ * cannabis shop on Ko Phangan -- because it happened to be the constant the
+ * installer reached for -- would fill that client's plan with another client's
+ * product. A package now carries its own `content_plan`; the Leela constants
+ * remain the plan of the one package that has always meant them, and a package
+ * with neither gets no plan rather than somebody else's.
+ */
+export function planFor(pkg: ClientPackage): ClientPlan | null {
+  const own = (pkg.profile as { content_plan?: unknown }).content_plan
+  if (own && typeof own === 'object') {
+    const p = own as {
+      goal?: string
+      intent?: string
+      template_id?: string | null
+      items?: { title?: string; note?: string }[]
+    }
+    const items = (p.items ?? [])
+      .filter(i => typeof i?.title === 'string' && i.title)
+      .map(i => ({ title: String(i.title), note: String(i.note ?? '') }))
+    if (p.goal && items.length) {
+      return {
+        goal: p.goal,
+        intent: p.intent ?? '',
+        templateId: p.template_id ?? null,
+        items,
+      }
+    }
+  }
+  if (pkg.client !== DEFAULT_CLIENT) return null
+  return {
+    goal: REEL_GOAL_TITLE,
+    intent: 'Привести на доску со своим вопросом — один план, один рил.', // cyrillic-ok
+    templateId: 'LeelaPlanReel',
+    items: REEL_SERIES.map(it => ({
+      title: it.title,
+      note: it.plan == null ? it.note : `План ${it.plan}. ${it.note}`, // cyrillic-ok
+    })),
+  }
+}
+
 export interface SetupReport {
   client: string
   telegram_id: string
   dry_run: boolean
-  soul: 'created' | 'kept_hers' | 'overwritten' | 'empty_package'
+  /**
+   * True when only the seller's own dossier was written, because the client
+   * has no connected account of their own to hold a SOUL, skills or a plan.
+   */
+  profile_only: boolean
+  soul:
+    | 'created'
+    | 'kept_hers'
+    | 'overwritten'
+    | 'empty_package'
+    | 'not_connected'
   skills: {
     name: string
     result: 'created' | 'identical' | 'conflict' | 'overwritten'
@@ -272,15 +350,22 @@ export async function setupClient(
     overwriteSkills: boolean
     withPlan: boolean
     dryRun: boolean
+    /**
+     * Write only `crm_client_profiles` -- the seller's own notes about this
+     * person -- and touch none of the rows that belong to the client.
+     */
+    profileOnly?: boolean
   }
 ): Promise<SetupReport> {
   const pkg = loadClientPackage(o.client)
   const id = o.telegramId
+  const profileOnly = o.profileOnly === true
   const report: SetupReport = {
     client: pkg.client,
     telegram_id: id,
     dry_run: o.dryRun,
-    soul: 'empty_package',
+    profile_only: profileOnly,
+    soul: profileOnly ? 'not_connected' : 'empty_package',
     skills: [],
     profile: 'written',
     plan: { goal: 'exists', items_added: 0 },
@@ -290,7 +375,7 @@ export async function setupClient(
   await ensureSkillsTable(ctx)
   await ensureProfileTable(ctx)
 
-  if (pkg.soul) {
+  if (pkg.soul && !profileOnly) {
     const has = await ctx.pool.query(
       `SELECT content FROM user_soul WHERE telegram_id = $1`,
       [id]
@@ -310,7 +395,7 @@ export async function setupClient(
     }
   }
 
-  for (const s of pkg.skills) {
+  for (const s of profileOnly ? [] : pkg.skills) {
     const cur = await ctx.pool.query(
       `SELECT content FROM user_skills WHERE telegram_id = $1 AND name = $2`,
       [id, s.name]
@@ -357,11 +442,12 @@ export async function setupClient(
     )
   }
 
-  if (o.withPlan) {
+  const plan = planFor(pkg)
+  if (o.withPlan && plan && !profileOnly) {
     await ensurePlanTables(ctx)
     const goal = await ctx.pool.query(
       `SELECT id FROM content_plan_goals WHERE telegram_id = $1 AND title = $2`,
-      [id, REEL_GOAL_TITLE]
+      [id, plan.goal]
     )
     let goalId: number | null = goal.rows[0]?.id ?? null
     if (goalId == null) {
@@ -370,11 +456,7 @@ export async function setupClient(
         const r = await ctx.pool.query(
           `INSERT INTO content_plan_goals (telegram_id, title, intent)
            VALUES ($1, $2, $3) RETURNING id`,
-          [
-            id,
-            REEL_GOAL_TITLE,
-            'Привести на доску со своим вопросом — один план, один рил.',
-          ] // cyrillic-ok
+          [id, plan.goal, plan.intent]
         )
         goalId = r.rows[0]?.id ?? null
       }
@@ -385,25 +467,19 @@ export async function setupClient(
         [id, goalId]
       )
       const titles = new Set(have.rows.map((r: { title: string }) => r.title))
-      for (const it of REEL_SERIES) {
+      for (const it of plan.items) {
         if (titles.has(it.title)) continue
         report.plan.items_added++
         if (!o.dryRun) {
           await ctx.pool.query(
             `INSERT INTO content_plan_items (goal_id, telegram_id, title, note, template_id)
              VALUES ($1, $2, $3, $4, $5)`,
-            [
-              goalId,
-              id,
-              it.title,
-              it.plan == null ? it.note : `План ${it.plan}. ${it.note}`,
-              'LeelaPlanReel',
-            ] // cyrillic-ok
+            [goalId, id, it.title, it.note, plan.templateId]
           )
         }
       }
     } else if (o.dryRun) {
-      report.plan.items_added = REEL_SERIES.length
+      report.plan.items_added = plan.items.length
     }
   }
 
@@ -589,14 +665,21 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
       if (!/^\d{5,20}$/.test(telegramId)) {
         return { done: false, reason: 'telegram_id должен быть числом' }
       }
+      /*
+       * A CLIENT WITH NO ACCOUNT STILL GETS A DOSSIER.
+       *
+       * The gate used to refuse everything, and the refusal cost a real VIP:
+       * the one client the seller agent knew nothing about was exactly the one
+       * who had never opened the app, so nothing could be installed and the
+       * agent kept calling him by another man's name. SOUL, skills and a
+       * content plan are rows under HIS telegram_id and still need his
+       * account; `crm_client_profiles` is the seller's own notes about a
+       * person they already talk to, and needs nothing from him.
+       */
       const asClient = { ...ctx, telegramId }
-      if (!(await isSeller(asClient))) {
-        return {
-          done: false,
-          reason: `Клиент ${telegramId} не подключил свой Telegram в приложении — пакет ставится только подключённому.`,
-        }
-      }
+      const connected = await isSeller(asClient)
       const report = await setupClient(ctx, {
+        profileOnly: !connected,
         client: String(args.client ?? DEFAULT_CLIENT),
         telegramId,
         overwriteSoul: args.overwrite_soul === true,
@@ -604,7 +687,15 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
         withPlan: args.with_plan !== false,
         dryRun: args.dry_run === true,
       })
-      return { done: !report.dry_run, report: report }
+      return {
+        done: !report.dry_run,
+        report,
+        ...(connected
+          ? {}
+          : {
+              note: `Клиент ${telegramId} не подключил свой Telegram в приложении: записан только профиль для продавца, без SOUL, скиллов и контент-плана.`, // cyrillic-ok
+            }),
+      }
     },
   },
   {
