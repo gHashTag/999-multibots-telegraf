@@ -40,6 +40,7 @@ import {
 import { readSession, markAllowed, type Queryable } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
 import { desktopShot } from './screen'
+import { askVision, visionConfig } from '../agent/media-vision'
 import {
   frontPage,
   newPage,
@@ -120,6 +121,34 @@ const noArgs = { type: 'object', properties: {}, additionalProperties: false }
  * of base64 and described "the Queen's board with task cards" -- the screen
  * showed a Google sign-in page and five tabs.
  */
+/*
+ * EYES FOR THE PICTURE.
+ *
+ * The chat model does not see images (agent/tool-content.ts), so a shot is
+ * described by our own vision endpoint (media-vision.ts: Qwen3-VL on the
+ * private network) and the description travels as text, `seen`. A person is
+ * waiting, so the wait is bounded; no endpoint, a refusal or a timeout gives
+ * `seen: null`, and the model is told plainly it cannot see.
+ */
+export const SCREEN_VISION_MS = 45_000
+export const SCREEN_PROMPT =
+  'This is a screenshot of a web browser. In 3-5 sentences say which site and page is shown, the main heading, and any dialog, error, sign-in form or button on screen; quote short visible text verbatim in its original language. If text is too small to read, say so instead of guessing. Write in Russian.'
+
+export async function describeShot(base64: string): Promise<string | null> {
+  const v = visionConfig()
+  if (!v) return null
+  try {
+    return await askVision(
+      v,
+      SCREEN_PROMPT,
+      [`data:image/jpeg;base64,${base64}`],
+      SCREEN_VISION_MS
+    )
+  } catch {
+    return null
+  }
+}
+
 async function tabsOf(
   cdp: string,
   frontId?: string
@@ -355,17 +384,24 @@ export const BROWSER_TOOLS: AgentTool[] = [
         if (!session || session.state !== 'live' || !session.endpoint) {
           await podOf(ctx) /* throws the same sentence as every other tool */
         }
+        const base64 = await desktopShot(
+          session!.endpoint!,
+          session!.adminToken
+        )
         return {
           format: 'jpeg',
-          base64: await desktopShot(session!.endpoint!, session!.adminToken),
+          base64,
           tabs: session!.cdpEndpoint ? await tabsOf(session!.cdpEndpoint) : [],
+          seen: await describeShot(base64),
         }
       }
       const { cdp, targetId } = await podOf(ctx)
+      const base64 = await screenshot(cdp, targetId)
       return {
         format: 'jpeg',
-        base64: await screenshot(cdp, targetId),
+        base64,
         tabs: await tabsOf(cdp, targetId),
+        seen: await describeShot(base64),
       }
     },
   },
