@@ -57,7 +57,13 @@ describe('the phone layout and the phone measurement agree', () => {
     expect(css).toContain('orientation: landscape')
   })
 
-  it('lets fullscreen actually fill the screen', () => {
-    expect(css).toContain(':fullscreen')
+  it('lets full screen actually fill the screen, above the tab bar', () => {
+    const rule = css.match(
+      /\.remote-browser--full \.remote-browser__stage \{([^}]*)\}/
+    )
+    expect(rule).not.toBeNull()
+    expect(rule![1]).toContain('position: fixed')
+    expect(rule![1]).toContain('var(--app-top-inset')
+    expect(rule![1]).toMatch(/z-index: calc\(var\(--z-tabbar/)
   })
 })

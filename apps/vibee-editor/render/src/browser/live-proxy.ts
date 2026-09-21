@@ -169,6 +169,8 @@ export type LiveDecision =
       adminToken: string
       /** Whose window this is. Server-side; used to fetch their own face. */
       telegramId: string
+      /** Server-side: where the window is fitted to the screen (cdp.ts). */
+      cdpEndpoint: string | null
     }
   | { kind: 'refuse'; status: number; message: string }
 
@@ -272,6 +274,7 @@ export async function authorizeLive(
     kind: 'proxy',
     adminToken: session.adminToken,
     telegramId: session.telegramId,
+    cdpEndpoint: session.cdpEndpoint,
     endpoint: session.endpoint,
     upstreamPath: req.upstreamPath,
     viewToken: session.viewToken,
