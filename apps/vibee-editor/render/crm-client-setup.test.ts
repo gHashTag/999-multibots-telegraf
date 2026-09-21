@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest'
 import {
   loadClientPackage,
   planFor,
+  profileForPrompt,
   setupClient,
   clientProfileFor,
   skillNameFromMarkdown,
@@ -560,5 +561,35 @@ describe('the woody-weed client package', () => {
     expect(Object.keys(state.skills)).toEqual([])
     expect(state.profiles).toHaveLength(1)
     expect(JSON.parse(state.profiles[0].profile).name).toBe('Тим') // cyrillic-ok
+  })
+
+  /*
+   * THE PROMPT USED TO CUT THE RULES OFF FIRST.
+   *
+   * A profile reaches the model as JSON under a character budget, and the
+   * budget was a blind slice at 3000 -- then foreignText clipped the result
+   * again at its own default of 2000. Both real packages are larger than
+   * either number, so what actually arrived was invalid JSON ending
+   * mid-sentence, and the parts that never arrived were the ones at the end:
+   * how to work with him, and what never to say.
+   */
+  it('keeps the name and the rules when the profile does not fit', () => {
+    const pkg = loadClientPackage('woody-weed')
+    const p = pkg.profile as Record<string, unknown>
+    const full = profileForPrompt(p, 100_000)
+    expect(JSON.parse(full).name).toBe('Тим') // cyrillic-ok
+    expect(full).not.toContain('не влезло') // cyrillic-ok
+
+    const tight = profileForPrompt(p, 1200)
+    const [body] = tight.split('\n')
+    const parsed = JSON.parse(body)
+    expect(parsed.name).toBe('Тим') // cyrillic-ok
+    expect(parsed.not_name).toBe('Паша') // cyrillic-ok
+    expect(Array.isArray(parsed.identity_rules)).toBe(true)
+    expect(Array.isArray(parsed.forbidden)).toBe(true)
+    expect(body.length).toBeLessThanOrEqual(1200)
+    // What did not fit is named, not silently lost.
+    expect(tight).toContain('crm_client_profile')
+    expect(tight).toMatch(/content_plan/)
   })
 })
