@@ -96,7 +96,8 @@ describe('the poster', () => {
 
   it('stands under the loader, and leaves when there is none', () => {
     expect(BOOT_HTML).toContain('class="poster" src="__poster"')
-    expect(BOOT_HTML).toContain('onerror="this.remove()"')
+    /* Hidden, not removed: the live frames arrive in the same picture. */
+    expect(BOOT_HTML).toContain(`onerror="this.style.visibility='hidden'"`)
     expect(BRAND_CSS).toMatch(/#t27-boot img\.poster \{[^}]*z-index: 0/)
   })
 })
