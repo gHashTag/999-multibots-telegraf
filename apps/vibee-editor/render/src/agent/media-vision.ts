@@ -154,15 +154,102 @@ function dataUrl(bytes: Buffer, mime: string): string {
  * a refusal or an unreadable answer so the caller can fall back or keep the
  * row pending; a 401/403 stops further asks for the life of the process.
  */
+/*
+ * TWO LANES, ONE SLOT.
+ *
+ * The vision service is llama-server with ONE slot on a CPU (n_parallel=1).
+ * The media sweep sends it clips of four frames; a person waiting on a
+ * screenshot or a live photo queued behind them, and on 2026-09-22 a new
+ * screen was still unfinished after 45 s while the service worked through
+ * the sweep. llama-server cannot reorder its queue, but it does cancel a
+ * task whose client disconnects (its log: "stop: cancel task").
+ *
+ * So a LIVE ask aborts whatever background ask is running and holds new
+ * ones until it is done. A background ask cut short that way throws
+ * VisionPreempted: not a failure of the file, a "try later" -- callers keep
+ * the row pending (media-library) instead of falling back to the paid chat
+ * provider or saving a video with no frames.
+ */
+export type VisionLane = 'live' | 'background'
+
+export class VisionPreempted extends Error {
+  constructor() {
+    super('vision: gave way to a live request; try again later')
+  }
+}
+
+let liveInFlight = 0
+const backgroundAsks = new Set<AbortController>()
+let liveGate: Promise<void> | null = null
+let openGate: (() => void) | null = null
+
+function liveFinished(): void {
+  liveInFlight -= 1
+  if (liveInFlight === 0 && openGate) {
+    openGate()
+    openGate = null
+    liveGate = null
+  }
+}
+
+async function gateForBackground(): Promise<void> {
+  while (liveInFlight > 0) {
+    if (!liveGate) liveGate = new Promise<void>(r => (openGate = r))
+    await liveGate
+  }
+}
+
 export async function askVision(
   v: VisionConfig,
   prompt: string,
   images: string[],
   timeoutMs: number = VISION_TIMEOUT_MS,
-  maxTokens?: number
+  maxTokens?: number,
+  lane: VisionLane = 'background'
+): Promise<string | null> {
+  if (lane === 'live') {
+    liveInFlight += 1
+    for (const ask of backgroundAsks) ask.abort()
+    try {
+      return await askVisionRaw(v, prompt, images, timeoutMs, maxTokens)
+    } finally {
+      liveFinished()
+    }
+  }
+  await gateForBackground()
+  const mine = new AbortController()
+  backgroundAsks.add(mine)
+  try {
+    return await askVisionRaw(
+      v,
+      prompt,
+      images,
+      timeoutMs,
+      maxTokens,
+      mine.signal
+    )
+  } catch (e) {
+    if (mine.signal.aborted) throw new VisionPreempted()
+    throw e
+  } finally {
+    backgroundAsks.delete(mine)
+  }
+}
+
+async function askVisionRaw(
+  v: VisionConfig,
+  prompt: string,
+  images: string[],
+  timeoutMs: number,
+  maxTokens?: number,
+  cancel?: AbortSignal
 ): Promise<string | null> {
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), timeoutMs)
+  if (cancel) {
+    if (cancel.aborted) ac.abort()
+    else cancel.addEventListener('abort', () => ac.abort(), { once: true })
+  }
   let r: Response
   try {
     r = await fetch(`${v.base}/chat/completions`, {
@@ -223,14 +310,17 @@ export async function askVision(
 export async function describeImageWithVision(
   v: VisionConfig,
   url: string,
-  timeoutMs: number = VISION_TIMEOUT_MS
+  timeoutMs: number = VISION_TIMEOUT_MS,
+  lane: VisionLane = 'background'
 ): Promise<string | null> {
   const got = await fetchBytes(url, timeoutMs)
   return askVision(
     v,
     VISION_PROMPTS.image,
     [dataUrl(got.bytes, got.mime)],
-    timeoutMs
+    timeoutMs,
+    undefined,
+    lane
   )
 }
 
