@@ -213,7 +213,15 @@ describe('the login modal', () => {
 })
 
 describe('the header', () => {
-  const render = () => {
+  // The tree App.tsx renders: the header on the route, and ONE LoginModal
+  // above the routes. These cases used to mount <Header /> alone and read the
+  // card out of it, which stopped being true the moment the card moved to the
+  // app root -- and a test that asserts where a thing is mounted fails on a
+  // refactor that keeps the screen identical. What has to stay true is what
+  // the person sees: the atom is set, so the card is on screen, in embed and
+  // out of it. Where it is mounted is checked once, structurally, in
+  // components/Auth/__tests__/oneDoorOneSentence.test.tsx.
+  const render = (withRoot = true) => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('{}', { status: 404 }))
@@ -224,12 +232,13 @@ describe('the header', () => {
       <Provider store={store}>
         <MemoryRouter initialEntries={['/feed']}>
           <Header />
+          {withRoot && <LoginModal />}
         </MemoryRouter>
       </Provider>
     )
   }
 
-  it('in embed keeps only its modals: sign-in still opens', () => {
+  it('in embed drops its chrome and the sign-in card still opens', () => {
     embed.on = true
     render()
     expect(host.querySelector('header.header')).toBeNull()
@@ -237,10 +246,25 @@ describe('the header', () => {
     expect(host.querySelector('.login-modal')).not.toBeNull()
   })
 
-  it('outside embed renders the header with its modals (control)', () => {
+  it('outside embed renders the header, and the card with it (control)', () => {
     render()
     expect(host.querySelector('header.header')).not.toBeNull()
     expect(host.querySelector('.login-modal')).not.toBeNull()
+  })
+
+  // The direction that actually hurts: a second copy of the card coming back
+  // into the header. Two mounts means two overlays stacked on one screen, and
+  // the lower one eats the clicks meant for the upper.
+  it('draws no card of its own', () => {
+    render(false)
+    expect(host.querySelector('header.header')).not.toBeNull()
+    expect(host.querySelector('.login-modal')).toBeNull()
+  })
+
+  it('draws no card of its own in embed either', () => {
+    embed.on = true
+    render(false)
+    expect(host.querySelector('.login-modal')).toBeNull()
   })
 })
 
