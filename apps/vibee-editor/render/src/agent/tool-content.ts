@@ -23,7 +23,8 @@ const PICTURE_KEYS = new Set(['base64', 'image', 'image_base64', 'data'])
 export const PICTURE_NOTE =
   'A picture was taken and shown to the person. YOU DO NOT SEE IT: do not ' +
   'describe what is in it. Say only what the text fields here state, or ' +
-  'call browser_read for the page text.'
+  'call browser_read for the page text. A `seen` field, when present, is a ' +
+  'vision model describing the picture: use it, and say small text may be misread.'
 
 function isPicture(key: string, value: unknown): value is string {
   return (

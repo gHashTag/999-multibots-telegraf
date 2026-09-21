@@ -194,6 +194,9 @@ describe('what a small model is shown', () => {
       // earn their tokens in the small kit.
       'tg_send_document',
       'tg_send_album',
+      // Opening files is for the tool-calling models, all 128k; the kit sat
+      // at 6996 of 7000 when it arrived (2026-09-22).
+      'tg_fetch_media',
     ]) {
       expect(kit.some(t => t.name === hidden)).toBe(false)
     }

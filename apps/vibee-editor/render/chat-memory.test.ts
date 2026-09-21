@@ -150,6 +150,124 @@ describe('what is new', () => {
   })
 })
 
+/*
+ * A PHOTO WITHOUT A CAPTION IS NOT AN EMPTY MESSAGE (owner, 2026-09-22).
+ *
+ * The memory used to drop every empty text, which is exactly what a photo
+ * sent without a caption is. It now writes the marker itself from `media`,
+ * and hands the composed line on, because Zep and the reply detector read
+ * `text` from what it returns.
+ */
+describe('a media message is kept as what it is', () => {
+  it('an album photo with no caption becomes its marker row, with its id; a truly empty message is still dropped', async () => {
+    const { rememberMessagesFresh } = await import('./src/agent/chat-memory')
+    const pool = fakePool([
+      {
+        when: /^INSERT INTO crm_messages/,
+        rows: p => {
+          const out: unknown[] = []
+          for (let i = 0; i < p.length; i += 6) out.push({ msg_id: p[i + 2] })
+          return out
+        },
+      },
+    ])
+    const fresh = await rememberMessagesFresh(pool, OWNER, '900000021', [
+      {
+        msgId: 11,
+        at: D('2026-09-21T06:50:00Z'),
+        out: false,
+        text: '',
+        media: { kind: 'photo', album: '7001', album_size: 8 },
+      },
+      {
+        msgId: 12,
+        at: D('2026-09-21T06:50:05Z'),
+        out: false,
+        text: 'для плана',
+        media: { kind: 'photo', album: '7001', album_size: 8 },
+      },
+      { msgId: 13, at: D('2026-09-21T06:51:00Z'), out: false, text: '' },
+    ])
+    const ins = pool.queries.find(q =>
+      q.sql.startsWith('INSERT INTO crm_messages')
+    )!
+    // Two rows of six: the service message with neither words nor media is gone.
+    expect(ins.params).toHaveLength(12)
+    expect(ins.params[2]).toBe(11)
+    expect(ins.params[5]).toBe('[фото, альбом из 8]')
+    expect(ins.params[8]).toBe(12)
+    expect(ins.params[11]).toBe('[фото, альбом из 8] для плана')
+    // What travels on to Zep is the composed line, not the empty caption.
+    expect(fresh.map(m => m.text)).toEqual([
+      '[фото, альбом из 8]',
+      '[фото, альбом из 8] для плана',
+    ])
+  })
+})
+
+describe('what they sent as files, counted', () => {
+  it('two bursts of photos with their times; the one after our last word is flagged', async () => {
+    const { fileBursts } = await import('./src/agent/chat-memory')
+    const at = (hhmm: string) => D(`2026-09-21T${hhmm}:00Z`)
+    const msgs = [
+      ...[0, 1, 2, 3, 4, 5, 6].map(i => ({
+        msgId: 100 + i,
+        at: at(`06:5${i}`),
+        out: false,
+        text: '[фото, альбом из 7]',
+      })),
+      { msgId: 110, at: at('09:00'), out: true, text: 'спасибо!' },
+      { msgId: 111, at: at('11:49'), out: false, text: 'вот ещё' },
+      ...[0, 1, 2, 3, 4, 5, 6, 7].map(i => ({
+        msgId: 120 + i,
+        at: at(`11:5${i}`),
+        out: false,
+        // The old label shape is read too: rows written before this change.
+        text: i === 7 ? '[видео: clip.mp4]' : `[фото: photo-${120 + i}.jpg]`,
+      })),
+    ]
+    const bursts = fileBursts(msgs, at('09:00'))
+    expect(bursts).toHaveLength(2)
+    expect(bursts[0]).toMatchObject({
+      at: '2026-09-21T06:50:00.000Z',
+      until: '2026-09-21T06:56:00.000Z',
+      count: 7,
+      what: 'фото ×7',
+      after_our_last_word: false,
+    })
+    expect(bursts[0].msg_ids).toEqual([100, 101, 102, 103, 104, 105, 106])
+    expect(bursts[1]).toMatchObject({
+      at: '2026-09-21T11:50:00.000Z',
+      count: 8,
+      what: 'фото ×7, видео ×1',
+      after_our_last_word: true,
+    })
+    // Words are not files: the text line between is not counted.
+    expect(bursts[1].msg_ids).not.toContain(111)
+  })
+
+  it('half an hour of quiet splits a burst; our own word splits it too', async () => {
+    const { fileBursts } = await import('./src/agent/chat-memory')
+    const m = (id: number, iso: string, out = false) => ({
+      msgId: id,
+      at: D(iso),
+      out,
+      text: out ? 'ок' : '[фото]',
+    })
+    const bursts = fileBursts(
+      [
+        m(1, '2026-09-21T10:00:00Z'),
+        m(2, '2026-09-21T10:40:00Z'),
+        m(3, '2026-09-21T10:41:00Z', true),
+        m(4, '2026-09-21T10:42:00Z'),
+      ],
+      null
+    )
+    expect(bursts.map(b => b.msg_ids)).toEqual([[1], [2], [4]])
+    expect(bursts.every(b => b.after_our_last_word)).toBe(true)
+  })
+})
+
 describe('the story of one person', () => {
   const rows = [
     { msg_id: 3, at: '2026-09-07T10:00:00Z', out: false, text: 'а цена?' },
