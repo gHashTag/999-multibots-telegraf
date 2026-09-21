@@ -9,6 +9,52 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+# Whether a /queen/ asset may be promised `immutable`.
+#
+# `immutable` tells a browser the bytes behind a URL will never change: it does
+# not revalidate, does not send If-None-Match, and does not ask again until the
+# max-age runs out -- here, a year. The comment on the board's asset rule below
+# already stated the only condition that makes that true, "the filename changes
+# when the bytes do", but the rule it justified matched EVERY asset under
+# /queen/, hashed name or not, and the board ships plenty that are not hashed.
+#
+# t27/t27_compiler.wasm is the one that collected on it. Adding a seventh
+# compiler backend shipped a bundle that drew a TypeScript tab and asked the
+# CACHED six-backend compiler to fill it; the pane printed "This backend
+# produced no output". Fetched twice in one second from the live page, the same
+# URL returned 695 132 bytes knowing six targets out of cache and 712 420 bytes
+# knowing seven off the wire. Nothing was wrong with the deploy, and nothing
+# done here could have repaired it either -- a response already held under
+# `immutable` is never revalidated, so only a NEW URL reaches those browsers.
+# That half of the fix is gHashTag/trinity#1078.
+#
+# This half stops the next one. The promise is now made only where it is true:
+# a filename Vite has hashed (everything it writes under /queen/assets/), or a
+# request carrying its own content tag in `?v=`. Anything else revalidates --
+# one conditional request, answered 304 while the bytes hold still, instead of
+# a year of silence after they move.
+#
+# Two maps feeding a third because nginx cannot test two variables in one, and
+# the query is load-bearing on its own: nginx matches `location` on the
+# normalized path and ignores the query string, so a content-addressed
+# `?v=<sha>` URL lands in the same block as a bare one and must be told apart
+# here or nowhere.
+map $uri $queen_hashed_name {
+    default          0;
+    ~^/queen/assets/ 1;
+}
+
+map $arg_v $queen_tagged_url {
+    default 1;
+    ''      0;
+}
+
+map $queen_hashed_name$queen_tagged_url $queen_asset_cache {
+    # Neither hashed nor tagged: the URL does not describe its own bytes.
+    "00"    "public, max-age=0, must-revalidate";
+    default "public, max-age=31536000, immutable";
+}
+
 server {
     # ${PORT} is substituted at container start by docker-entrypoint.sh.
     # Railway assigns PORT at RUNTIME and it is not always 8080 — a hardcoded
@@ -197,8 +243,11 @@ server {
     #     logs stay clean. The board ships real data files — t27/manifest.json,
     #     t27/universe-atlas.json, t27/shared-core.json — so it is exposed to
     #     exactly that failure.
-    #   - the hashed-asset cache, which is what makes a 1-year immutable header
-    #     safe: the filename changes when the bytes do.
+    #   - the asset cache. A 1-year immutable header is only safe when the URL
+    #     changes as the bytes do; that sentence used to sit here as a
+    #     justification while the rule below applied the header to unhashed
+    #     names too. It is now a condition the config tests, via
+    #     $queen_asset_cache above.
     #
     # The fallback is /queen/index.html and NOT /index.html: the board is a hash
     # router, but a hard reload of a deep path must land in the board rather
@@ -210,9 +259,23 @@ server {
             try_files $uri =404;
         }
 
+        # The policy comes from $queen_asset_cache at the top of this file:
+        # a year of `immutable` for a URL that describes its own bytes, and
+        # revalidation for one that does not. `expires` is gone on purpose --
+        # it writes its own max-age into a SECOND Cache-Control header, which
+        # would have contradicted the map on every unhashed asset.
+        #
+        # add_header in a location REPLACES what it inherited, so the three
+        # server-level security headers are repeated here, exactly as
+        # /queen/index.html and /pair repeat them. They were being dropped: the
+        # old block added Cache-Control and nothing else, so every script,
+        # stylesheet, font and image the board serves went out with no
+        # X-Content-Type-Options at all.
         location ~* ^/queen/.+\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|wasm)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
+            add_header Content-Security-Policy "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Cache-Control $queen_asset_cache always;
         }
 
         # The entry document names the hashed files and must never be cached,
