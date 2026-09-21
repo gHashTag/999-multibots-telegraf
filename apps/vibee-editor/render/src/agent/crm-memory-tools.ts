@@ -35,6 +35,7 @@ import {
 } from './media-library'
 import { s3PutBytes } from '../lib/s3-put'
 import { imagesLookDown } from './image-health'
+import { openDebts } from './crm-owed'
 
 /**
  * THE SELLER'S MEMORY, AS TOOLS.
@@ -592,6 +593,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         segment: wanted as Segment | undefined,
         // What the platform can actually do today travels with the plan.
         imagesDown: imagesLookDown(),
+        // And what we still owe from the days it could not (crm-owed.ts).
+        owed: await openDebts(pool, owner),
       })
       /*
        * FULL DATA, NOT A LIST OF NUMBERS.
