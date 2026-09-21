@@ -30,7 +30,9 @@ export const GAME_ORIGIN = 'https://t27.ai'
 
 /**
  * Copied from gHashTag/trinity apps/website/src/components/queenHud.ts
- * HUD_VIEWS (f49e4fb32a): the names `?tab=` accepts there.
+ * HUD_VIEWS (2c7330175f): the names `?tab=` accepts there. `passport` and
+ * `browser` arrived later; until they were listed here a person who signed in
+ * from either view was returned to the comb instead.
  */
 export const QUEEN_VIEWS = [
   'comb',
@@ -46,6 +48,8 @@ export const QUEEN_VIEWS = [
   'tools',
   'project',
   'tri',
+  'passport',
+  'browser',
 ] as const
 
 /**
