@@ -98,6 +98,52 @@ describe('kie-image: a timeout is pending, with the id, after ONE task', () => {
     expect(hits.filter(h => /recordInfo/.test(h)).length).toBe(2)
   })
 
+  /*
+   * THE ID LEAVES WITH THE TASK. Returned only when the wait ended, it left a
+   * minute in which a second request found nothing and paid again, and a
+   * render killed in that minute took the only copy of the id with it.
+   */
+  it('tells the caller the task id right after createTask, before the wait', async () => {
+    vi.useFakeTimers()
+    process.env.KIE_AI_API_KEY = 'test-key'
+    const order: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const u = String(url)
+        if (/createTask/.test(u)) order.push('createTask')
+        if (/recordInfo/.test(u)) order.push('recordInfo')
+        const json = /createTask/.test(u)
+          ? { data: { taskId: TASK } }
+          : /recordInfo/.test(u)
+            ? { data: { state: 'generating' } }
+            : { data: 100 }
+        return { status: 200, text: async () => JSON.stringify(json) }
+      })
+    )
+    const { editImage } = await import('./src/kie-image')
+    const run = editImage({
+      prompt: 'p',
+      imageUrl: AVATAR,
+      model: 'gpt-image-2-5-flare-image-to-image',
+      timeoutMs: 8_000,
+      onCreated: id => {
+        order.push(`told ${id}`)
+        // A failing note must not lose the task.
+        throw new Error('the debt table is down')
+      },
+    })
+    await vi.advanceTimersByTimeAsync(12_000)
+    const r = await run
+    expect(order.slice(0, 3)).toEqual([
+      'createTask',
+      `told ${TASK}`,
+      'recordInfo',
+    ])
+    expect(!r.ok && r.pending).toBe(true)
+    expect(r.taskId).toBe(TASK)
+  })
+
   it('a refusal by the provider is NOT pending', async () => {
     vi.useFakeTimers()
     process.env.KIE_AI_API_KEY = 'test-key'
@@ -502,6 +548,321 @@ describe('crm_portrait_rescue: the lost one, by hand', () => {
     expect(r.rescued).toBe(false)
     expect(s.check).not.toHaveBeenCalled()
     delete process.env.OWNER_TELEGRAM_ID
+  })
+})
+
+// ─── one portrait at a time, and the id on the debt at once ────────────────
+
+describe('a second request inside the wait does not pay again', () => {
+  /*
+   * The entry path is real: on 20.09 the bot gave up on a turn at its ceiling
+   * and asked again while the first turn ran on, and the same picture was
+   * charged twice. The drawing tool here takes the task and the charge at the
+   * start of the call and answers after a gate -- the real order.
+   */
+  it('two overlapping deliveries: one task, one charge, the first task on the debt', async () => {
+    vi.useFakeTimers()
+    const owed = owedDouble()
+    let open!: () => void
+    const gate = new Promise<void>(r => (open = r))
+    const s = await deliverySetup({ owed, plan: ['pending'], gate })
+    const first = s.deliver.handler(
+      { chat: '@test_lead', prompt: 'captain' },
+      s.ctx
+    ) as Promise<any>
+    await flush()
+    // Inside the wait: the task exists, is paid for, and is on the debt.
+    expect(s.draw.ledger).toEqual({ tasks: 1, charges: 1 })
+    expect(openRow(owed)).toMatchObject({ task_id: TASK, task_mode: 'gift' })
+    const second: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'captain' },
+      s.ctx
+    )
+    expect(second.pending).toBe(true)
+    expect(second.task_id).toBe(TASK)
+    expect(s.draw.ledger, 'the second request paid again').toEqual({
+      tasks: 1,
+      charges: 1,
+    })
+    open()
+    const r = await first
+    expect(r.pending).toBe(true)
+    expect(openRow(owed)?.task_id).toBe(TASK)
+    expect(s.draw.ledger).toEqual({ tasks: 1, charges: 1 })
+  })
+
+  /*
+   * EARLIER STILL: the first request has not even reached Kie -- it is still
+   * reading the face (the avatar comes through the owner's Telegram session
+   * and takes seconds). There is no task and no debt yet, so only the claim
+   * made at the door stops the second request from drawing too.
+   */
+  it('a second request while the first is still reading the face: one task', async () => {
+    const owed = owedDouble()
+    let open!: () => void
+    const avatarGate = new Promise<void>(r => (open = r))
+    const s = await deliverySetup({ owed, plan: ['done', 'done'], avatarGate })
+    const first = s.deliver.handler(
+      { chat: '@test_lead', prompt: 'captain' },
+      s.ctx
+    ) as Promise<any>
+    await flush()
+    expect(s.avatarAsked.length).toBe(1)
+    expect(s.draw.ledger.tasks, 'no task yet').toBe(0)
+    const second: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'captain' },
+      s.ctx
+    )
+    expect(second.pending).toBe(true)
+    open()
+    const r = await first
+    expect(r.proposal).toBe(true)
+    expect(s.draw.ledger, 'both requests drew').toEqual({
+      tasks: 1,
+      charges: 1,
+    })
+  })
+
+  it('a render killed inside the wait: the next one recovers the portrait from the debt', async () => {
+    vi.useFakeTimers()
+    const owed = owedDouble()
+    const s0 = await deliverySetup({
+      owed,
+      plan: ['pending'],
+      gate: new Promise(() => undefined), // never answers: the process dies
+    })
+    void s0.deliver.handler({ chat: '@test_lead', prompt: 'x' }, s0.ctx)
+    await flush()
+    expect(openRow(owed)?.task_id, 'the id died with the process').toBe(TASK)
+    // A new process: new modules, no watch, no latch -- only the row.
+    const late = await import('./src/agent/late-picture')
+    late.forgetLatePicturesForTests()
+    vi.resetModules()
+    const s = await deliverySetup({ owed, kie: ['success'] })
+    const r: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x' },
+      s.ctx
+    )
+    expect(s.check).toHaveBeenCalledWith(TASK)
+    expect(r.recovered).toBe(true)
+    expect(r.preview).toBe(KEPT)
+    expect(s.draw.ledger).toEqual({ tasks: 0, charges: 0 })
+  })
+
+  it('a task Kie refused inside the wait does not stay on the debt', async () => {
+    const owed = owedDouble()
+    const s = await deliverySetup({ owed, plan: ['fail'] })
+    const r: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x' },
+      s.ctx
+    )
+    expect(r.delivered).toBe(false)
+    // Still owed a picture, but not by that task.
+    expect(openRow(owed)).toMatchObject({ settled_at: null, task_id: null })
+  })
+})
+
+// ─── a settled debt reopened is a NEW promise ──────────────────────────────
+
+describe('a debt reopened after it was settled carries nothing of the old one', () => {
+  it('settled with a portrait, reopened by a new refusal: a new portrait is drawn, not the old one', async () => {
+    const owed = owedDouble()
+    const s = await deliverySetup({ owed, plan: ['done'] })
+    const debts = await import('./src/agent/crm-owed')
+    await debts.ensureOwedTable(owed as never)
+    owed.rows.push({
+      owner_id: OWNER,
+      lead_id: LEAD,
+      what: 'picture',
+      why: 'drawn late',
+      at: new Date('2026-09-20T06:33:00Z'),
+      settled_at: new Date('2026-09-20T07:00:00Z'),
+      task_id: TASK,
+      task_at: new Date('2026-09-20T06:33:00Z'),
+      ready_url: KEPT,
+      ready_at: new Date('2026-09-20T06:40:00Z'),
+      task_mode: 'gift',
+    })
+    await debts.noteOwed(owed as never, {
+      owner: OWNER,
+      lead: LEAD,
+      what: 'picture',
+      why: 'Kie: 402 insufficient balance',
+    })
+    expect(openRow(owed)).toMatchObject({
+      settled_at: null,
+      task_id: null,
+      task_at: null,
+      ready_url: null,
+      ready_at: null,
+      task_mode: null,
+    })
+    const r: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'a different look' },
+      s.ctx
+    )
+    expect(r.recovered, 'the old portrait was handed over again').toBeFalsy()
+    expect(r.preview).toBe('https://s3.example/drawn-1.png')
+    expect(s.draw.ledger.tasks).toBe(1)
+    expect(s.check, 'asked about the old task').not.toHaveBeenCalled()
+  })
+})
+
+// ─── a task that never answers is given up on ──────────────────────────────
+
+describe('a stored task that never reaches a verdict is given up on', () => {
+  const seed = async (owed: OwedDouble, taskAt: string) => {
+    const debts = await import('./src/agent/crm-owed')
+    await debts.ensureOwedTable(owed as never)
+    owed.rows.push({
+      owner_id: OWNER,
+      lead_id: LEAD,
+      what: 'picture',
+      why: 'still drawing',
+      at: new Date(taskAt),
+      settled_at: null,
+      task_id: TASK,
+      task_at: new Date(taskAt),
+      ready_url: null,
+      ready_at: null,
+      task_mode: 'gift',
+    })
+  }
+
+  it('three weeks old and "record not found": a new portrait is drawn', async () => {
+    vi.useFakeTimers()
+    const owed = owedDouble()
+    const s = await deliverySetup({ owed, plan: ['done'], kie: ['unknown'] })
+    await seed(owed, '2026-09-01T10:00:00Z')
+    const r: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x' },
+      s.ctx
+    )
+    expect(s.check).toHaveBeenCalledWith(TASK)
+    expect(r.pending, 'the lead stays in "drawing" forever').toBeFalsy()
+    expect(r.preview).toBe('https://s3.example/drawn-1.png')
+    expect(s.draw.ledger.tasks).toBe(1)
+  })
+
+  it('stuck "running" past the ceiling is given up on too', async () => {
+    vi.useFakeTimers()
+    const owed = owedDouble()
+    const s = await deliverySetup({ owed, plan: ['done'], kie: ['running'] })
+    // Two hours before the double's clock (12:00).
+    await seed(owed, '2026-09-21T10:00:00Z')
+    const r: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x' },
+      s.ctx
+    )
+    expect(r.preview).toBe('https://s3.example/drawn-1.png')
+  })
+
+  it('a young task with no answer yet is still waited for', async () => {
+    vi.useFakeTimers()
+    const owed = owedDouble()
+    const s = await deliverySetup({ owed, kie: ['unknown'] })
+    await seed(owed, '2026-09-21T11:50:00Z')
+    const r: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x' },
+      s.ctx
+    )
+    expect(r.pending).toBe(true)
+    expect(s.draw.ledger).toEqual({ tasks: 0, charges: 0 })
+  })
+
+  it('the watch keeps asking through a failed question, and "unknown" is not "running"', async () => {
+    const late = await import('./src/agent/late-picture')
+    const answers = ['unknown', 'success']
+    const out = await late.watchLate(TASK, {
+      check: async id =>
+        answers.shift() === 'unknown'
+          ? { state: 'unknown', taskId: id, reason: 'HTTP 502' }
+          : { state: 'success', taskId: id, url: PROVIDER },
+      keep: async () => KEPT,
+      sleep: async () => undefined,
+    })
+    expect(out).toEqual({ state: 'ready', taskId: TASK, url: KEPT })
+    const once = await late.lookOnce(TASK2, {
+      check: async id => ({ state: 'unknown', taskId: id, reason: 'no key' }),
+      keep: async () => KEPT,
+    })
+    expect(once.state).toBe('unknown')
+  })
+})
+
+// ─── a paid portrait that came late is still paid ──────────────────────────
+
+describe('a PAID portrait slower than the turn is still paid for, by the recipient', () => {
+  it('pending -> ready -> handed over with the recipient charged 12, not as a gift', async () => {
+    vi.useFakeTimers()
+    const owed = owedDouble()
+    const s = await deliverySetup({
+      owed,
+      plan: ['pending'],
+      kie: ['running', 'success'],
+      ownClient: true,
+      balance: 500,
+    })
+    const first: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x', gift: false },
+      s.ctx
+    )
+    expect(first.pending).toBe(true)
+    expect(first.price).toBe(12)
+    expect(s.draw.ledger, 'nobody pays at the owner turn').toEqual({
+      tasks: 1,
+      charges: 0,
+    })
+    expect(openRow(owed)?.task_mode).toBe('paid')
+    await vi.advanceTimersByTimeAsync(30_000)
+    await flush()
+    expect(openRow(owed)?.ready_url).toBe(KEPT)
+    // Asked again -- even by a call that says "gift": the terms it was
+    // ordered on decide, and nobody has paid for it yet.
+    const second: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x' },
+      s.ctx
+    )
+    expect(second.recovered).toBe(true)
+    expect(second.preview).toBe(KEPT)
+    expect(second.price).toBe(12)
+    expect(second.gift).toBe(false)
+    expect(s.q.pendingFor(OWNER)!.charge).toEqual({
+      telegramId: LEAD,
+      op: 'gpt_image_edit',
+      tokens: 12,
+    })
+    expect(String(s.q.pendingFor(OWNER)!.what ?? '')).not.toContain('подарок') // cyrillic-ok: the caption under test
+    expect(s.draw.ledger).toEqual({ tasks: 1, charges: 0 })
+  })
+
+  it('a recipient who cannot pay is asked to top up; the portrait waits on the debt', async () => {
+    const owed = owedDouble()
+    const s = await deliverySetup({ owed, ownClient: true, balance: 3 })
+    const debts = await import('./src/agent/crm-owed')
+    await debts.ensureOwedTable(owed as never)
+    owed.rows.push({
+      owner_id: OWNER,
+      lead_id: LEAD,
+      what: 'picture',
+      why: 'drawn late',
+      at: new Date('2026-09-21T06:33:00Z'),
+      settled_at: null,
+      task_id: TASK,
+      task_at: new Date('2026-09-21T06:33:00Z'),
+      ready_url: KEPT,
+      ready_at: new Date('2026-09-21T06:40:00Z'),
+      task_mode: 'paid',
+    })
+    const r: any = await s.deliver.handler(
+      { chat: '@test_lead', prompt: 'x', gift: false },
+      s.ctx
+    )
+    expect(r.delivered).toBe(false)
+    expect(r.price).toBe(12)
+    expect(s.q.pendingCount()).toBe(0)
+    expect(openRow(owed)).toMatchObject({ ready_url: KEPT, settled_at: null })
+    expect(s.draw.ledger).toEqual({ tasks: 0, charges: 0 })
   })
 })
 

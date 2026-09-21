@@ -45,6 +45,7 @@ import {
   kieTaskState,
   EDIT_MODEL,
   GPT_IMAGE_25_EDIT_MODELS,
+  LEAD_MAGNET_MODEL,
   isGptImage25Edit,
 } from '../kie-image'
 import { watchLate } from './late-picture'
@@ -52,6 +53,8 @@ import {
   clientFace,
   sentPhotosFromLibrary,
   NO_PERSON_PREFIX,
+  PORTRAIT_IDENTITY_PREFIX,
+  PORTRAIT_FRAMING_SUFFIX,
 } from './client-face'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
@@ -104,6 +107,20 @@ export interface ToolContext {
    * the caller's avatar, never from a description.
    */
   faceOf?: string
+  /**
+   * Told the provider's task id the moment an image edit is accepted, BEFORE
+   * the wait (kie-image.ts runKieJob). Set only by code: crm_deliver_photo
+   * puts the id on the person's debt at once, so a second request inside the
+   * wait, or a render killed during it, does not pay for the portrait again.
+   */
+  onImageTask?: (taskId: string) => unknown
+  /**
+   * A turn of the unattended seller (the timer's sweep, /sweep, the owner's
+   * "prepare" press -- all `tools_only`). Every picture in it is for a lead,
+   * so the caller's own avatar -- the OWNER's face -- is never a default
+   * there, and a picture drawn from text has nobody in it. Set only by code.
+   */
+  sellerSweep?: boolean
 }
 
 export interface AgentTool {
@@ -1389,10 +1406,10 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'image_edit',
     description:
-      'ПЕРЕРИСОВАТЬ ФОТО по описанию (img2img). Без image_url берётся АВАТАРКА ' +
-      'самого человека из Telegram — то есть «сделай историю про меня» работает ' +
-      'без единого файла от него. Лицо сохраняется. Файл ложится в S3 и в «мои ' +
-      'файлы», ссылку можно сразу отдавать в reel_render или в ленту.',
+      'ПЕРЕРИСОВАТЬ ФОТО по описанию (img2img). Без image_url — аватарка ВЫЗЫВАЮЩЕГО ' +
+      '(«историю про меня»); это владелец, не клиент: портрет клиента — crm_deliver_photo ' +
+      '(в диалоге о клиенте лицо клиента берётся само). Лицо сохраняется. Файл — в S3 ' +
+      'и «мои файлы», годится для reel_render и ленты.',
     parameters: {
       type: 'object',
       properties: {
@@ -1421,9 +1438,24 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      /*
+       * A CLIENT'S PORTRAIT IS GPT IMAGE 2.5 (owner, 2026-09-21: "img2img gpt
+       * 2.5 from the user's avatar"). In a turn that works for a client -- the
+       * duet, the client thread, a scoped sweep -- the seller reaches the
+       * portrait through THIS tool, and its default was nano-banana: the
+       * client's face, but not the model the owner asked for. So for a client
+       * the model is GPT Image 2.5 whatever was named, and the prompt opens
+       * with the same identity line as crm_deliver_photo.
+       */
+      const forClient = !!ctx.faceOf
+      const named = args.model ? String(args.model) : ''
       // The model decides the tariff, so it is settled BEFORE any charge. An
       // unknown name is refused here rather than paid for and refused by Kie.
-      const model = args.model ? String(args.model) : EDIT_MODEL
+      const model = forClient
+        ? isGptImage25Edit(named)
+          ? named
+          : LEAD_MAGNET_MODEL
+        : named || EDIT_MODEL
       if (model !== EDIT_MODEL && !isGptImage25Edit(model))
         return {
           done: false,
@@ -1484,6 +1516,18 @@ export const TOOLS: AgentTool[] = [
         source = face.url
         sourceNote =
           face.from === 'sent' ? 'присланное клиентом фото' : 'аватарка клиента'
+      } else if (!args.image_url && ctx.sellerSweep) {
+        /*
+         * THE SWEEP HAS NO FACE OF ITS OWN. Its caller is the owner, so "no
+         * file" meant the OWNER's avatar in a picture made for a lead -- the
+         * stranger the owner stopped work over. Nothing is charged.
+         */
+        return {
+          done: false,
+          reason:
+            'в обходе продавца без image_url взялось бы лицо владельца, а картинка — для ' +
+            'клиента. Портрет клиента — crm_deliver_photo (из его лица). Ничего не списано.',
+        }
       } else {
         source = args.image_url
           ? String(args.image_url)
@@ -1501,14 +1545,22 @@ export const TOOLS: AgentTool[] = [
         // The charge helper reports its refusal under a Russian key; this is
         // the file's long-standing convention and not worth churning here.
         return { done: false, reason: charge['причина'] } // cyrillic-ok
-      const prompt = String(args.prompt)
+      const aspectRatio = args.aspect_ratio ? String(args.aspect_ratio) : '9:16'
+      const scene = String(args.prompt)
+      const prompt =
+        forClient && !scene.startsWith(PORTRAIT_IDENTITY_PREFIX)
+          ? PORTRAIT_IDENTITY_PREFIX +
+            scene +
+            (aspectRatio === '9:16' ? PORTRAIT_FRAMING_SUFFIX : '')
+          : scene
 
       const edited = await editImage({
         prompt,
         imageUrl: source,
-        aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : '9:16',
+        aspectRatio,
         model,
         timeoutMs: ctx.imageWaitMs,
+        onCreated: ctx.onImageTask,
       })
       if (!edited.ok && edited.pending && edited.taskId) {
         /*
@@ -1642,9 +1694,10 @@ export const TOOLS: AgentTool[] = [
        * A person drawn from a description is a stranger, and for a client
        * that stranger carries their name. While a turn works for a client the
        * prompt opens with a hard "no people" line; their own picture is
-       * image_edit, which takes their face.
+       * image_edit, which takes their face. The same holds for the whole
+       * unattended sweep, which works for leads only.
        */
-      const clientPrompt = ctx.faceOf ? NO_PERSON_PREFIX : ''
+      const clientPrompt = ctx.faceOf || ctx.sellerSweep ? NO_PERSON_PREFIX : ''
       const base = selfBase()
       const gen = await selfFetch(`${base}/api/generate/image`, {
         method: 'POST',

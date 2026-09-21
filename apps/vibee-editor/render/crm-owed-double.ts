@@ -15,7 +15,7 @@
  */
 
 const BASE = ['owner_id', 'lead_id', 'what', 'why', 'at', 'settled_at']
-const LATER = ['task_id', 'task_at', 'ready_url', 'ready_at']
+const LATER = ['task_id', 'task_at', 'ready_url', 'ready_at', 'task_mode']
 
 export type OwedRow = Record<string, unknown>
 

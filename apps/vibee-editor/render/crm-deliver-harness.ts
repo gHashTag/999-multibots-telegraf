@@ -54,11 +54,17 @@ export function deliveryPool(owed: OwedDouble, balance?: number) {
 }
 
 /**
- * The drawing tool, as the delivery sees it: every call is one Kie task and
- * one charge to whoever the context says pays. `plan` says what each call
- * answers.
+ * The drawing tool, as the delivery sees it -- and in the ORDER the real
+ * image_edit works: the charge is taken and the Kie task created at the start
+ * of the call, the task id is reported at once (onImageTask, as runKieJob's
+ * onCreated does), and only then does the call wait for the picture. `plan`
+ * says what each call answers; `gate`, when given, is what the wait waits on,
+ * so a test can put a second call inside the first one's wait.
  */
-export function drawingTool(plan: Array<'pending' | 'done'>) {
+export function drawingTool(
+  plan: Array<'pending' | 'done' | 'fail'>,
+  gate?: Promise<unknown>
+) {
   const ledger = { tasks: 0, charges: 0 }
   const calls: Array<Record<string, unknown>> = []
   const tool = {
@@ -74,15 +80,16 @@ export function drawingTool(plan: Array<'pending' | 'done'>) {
       })
       ledger.tasks++
       if (!ctx?.chargeLater) ledger.charges++
+      const taskId = ledger.tasks === 1 ? TASK : TASK2
+      const n = ledger.tasks
+      await ctx?.onImageTask?.(taskId)
+      if (gate) await gate
       const next = plan.shift() ?? 'done'
       return next === 'pending'
-        ? {
-            done: false,
-            pending: true,
-            taskId: ledger.tasks === 1 ? TASK : TASK2,
-            reason: 'still drawing',
-          }
-        : { done: true, url: `https://s3.example/drawn-${ledger.tasks}.png` }
+        ? { done: false, pending: true, taskId, reason: 'still drawing' }
+        : next === 'fail'
+          ? { done: false, reason: 'Kie refused inside the wait' }
+          : { done: true, url: `https://s3.example/drawn-${n}.png` }
     },
   }
   return { tool, ledger, calls }
@@ -103,10 +110,19 @@ export function generatingTool() {
   return { tool, calls }
 }
 
+/** The clock the owed double writes with, unless a test gives it another. */
+export const DOUBLE_NOW = Date.parse('2026-09-21T12:00:00Z')
+
 export async function deliverySetup(o: {
   owed: OwedDouble
-  plan?: Array<'pending' | 'done'>
-  kie?: Array<'running' | 'success' | 'fail'>
+  plan?: Array<'pending' | 'done' | 'fail'>
+  /** What the drawing tool's wait waits on (see drawingTool). */
+  gate?: Promise<unknown>
+  /** What reading the avatar waits on: a request still choosing the face. */
+  avatarGate?: Promise<unknown>
+  kie?: Array<'running' | 'success' | 'fail' | 'unknown'>
+  /** The delivery's clock; default: the owed double's own. */
+  now?: () => number
   avatar?: string
   sent?: Array<{ url: string; transcript: string | null }>
   /** The caller has corresponded with the lead (paid deliveries need it). */
@@ -139,7 +155,7 @@ export async function deliverySetup(o: {
   const mod = await import('./src/agent/crm-deliver-tool')
   const q = await import('./src/agent/tg-proposals')
   q.forgetProposals()
-  const draw = drawingTool(o.plan ?? [])
+  const draw = drawingTool(o.plan ?? [], o.gate)
   const gen = generatingTool()
   const kie = o.kie ?? []
   const check = vi.fn(async (id: string) => {
@@ -148,7 +164,13 @@ export async function deliverySetup(o: {
       ? { state: 'success' as const, taskId: id, url: PROVIDER }
       : s === 'fail'
         ? { state: 'fail' as const, taskId: id, reason: 'Kie refused' }
-        : { state: 'running' as const, taskId: id }
+        : s === 'unknown'
+          ? {
+              state: 'unknown' as const,
+              taskId: id,
+              reason: 'recordInfo: HTTP 404 record not found',
+            }
+          : { state: 'running' as const, taskId: id }
   })
   const keep = vi.fn(async () => KEPT)
   const avatarAsked: string[] = []
@@ -162,11 +184,13 @@ export async function deliverySetup(o: {
     {
       leadPhoto: async (_c, lead) => {
         avatarAsked.push(lead.id)
+        if (o.avatarGate) await o.avatarGate
         return o.avatar ?? AVATAR
       },
       sentPhotos: async () => o.sent ?? [],
       checkTask: check,
       keepImage: keep,
+      now: o.now ?? (() => DOUBLE_NOW),
     }
   )
   const pool = deliveryPool(o.owed, o.balance)

@@ -407,10 +407,21 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const display =
         lead.display ?? displayOf(fullName(person), person?.username) ?? null
       const story = await leadContext(pool, owner, lead.id, limit)
-      const [touches, balance, zep] = await Promise.all([
+      /*
+       * `portrait`: has this person had the gift yet? Every sweep brief opens
+       * its ONE action with "the portrait first, unless it was given"
+       * (crmSweepScope.ts SWEEP_RULES), and this is the call every brief
+       * makes first -- so the fact is here, not left for the model to read
+       * out of the touches. Loaded lazily: the delivery module pulls in
+       * billing and Telegram, which reading a context does not otherwise need.
+       */
+      const [touches, balance, zep, portrait] = await Promise.all([
         touchesFor(pool, owner, lead.id, 10).catch(() => []),
         balanceOf(pool, lead.id).catch(() => null),
         zepContext(owner, lead.id).catch(() => null),
+        import('./crm-deliver-tool')
+          .then(m => m.portraitOf(pool, owner, lead.id))
+          .catch(() => null),
       ])
       return {
         lead: lead.id,
@@ -424,6 +435,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         signals: story.signals,
         intent_score: story.intentScore,
         balance_tokens: balance,
+        ...(portrait ? { portrait } : {}),
         touches,
         zep_context: zep ? foreignText(zep) : null,
         // The dialog, newest last; theirs framed, the owner's own words plain.

@@ -45,6 +45,13 @@ export interface OwedDebt {
    * delivery gives THIS instead of drawing (and paying for) another one.
    */
   readyUrl?: string | null
+  /**
+   * WHO PAYS FOR THAT PORTRAIT, decided when it was started: 'gift' -- the
+   * owner paid the drawing and the person gets it free; 'paid' -- nobody paid
+   * yet, the person pays at the owner's press, as they would have had it come
+   * on time. Null for a debt older than this column: those were all gifts.
+   */
+  taskMode?: 'gift' | 'paid' | null
 }
 
 let tableReady = false
@@ -75,7 +82,8 @@ export async function ensureOwedTable(pool: Pool): Promise<void> {
        ADD COLUMN IF NOT EXISTS task_id   text,
        ADD COLUMN IF NOT EXISTS task_at   timestamptz,
        ADD COLUMN IF NOT EXISTS ready_url text,
-       ADD COLUMN IF NOT EXISTS ready_at  timestamptz`
+       ADD COLUMN IF NOT EXISTS ready_at  timestamptz,
+       ADD COLUMN IF NOT EXISTS task_mode text`
   )
   tableReady = true
 }
@@ -112,6 +120,15 @@ export function asksForAPicture(text: unknown): boolean {
  * signal, and refreshing `at` on every failed retry would make an hours-old
  * promise look like it was made a second ago -- which is precisely the way
  * this person fell out of the queue the first time.
+ *
+ * A SETTLED ONE IS REOPENED AS A NEW PROMISE, WITH NOTHING OF THE OLD ONE ON
+ * IT. Settling keeps the row's task and finished picture (they are the record
+ * of what was handed over), and reopening used to keep them too: the next
+ * request -- a different picture, asked for days later -- found the portrait
+ * already given, "recovered" it and handed the same file over again with the
+ * gift caption, while the queue told the seller "the portrait is ready". The
+ * new promise has no task and no picture until attachTask or markReady gives
+ * it its own.
  */
 export async function noteOwed(
   pool: Pool,
@@ -129,7 +146,12 @@ export async function noteOwed(
           SET what = EXCLUDED.what,
               why = EXCLUDED.why,
               at = now(),
-              settled_at = NULL
+              settled_at = NULL,
+              task_id = NULL,
+              task_at = NULL,
+              ready_url = NULL,
+              ready_at = NULL,
+              task_mode = NULL
         WHERE crm_owed.settled_at IS NOT NULL`,
       [
         owner,
@@ -148,7 +170,7 @@ export async function noteOwed(
   }
 }
 
-const DEBT_COLUMNS = 'what, why, at, task_id, task_at, ready_url'
+const DEBT_COLUMNS = 'what, why, at, task_id, task_at, ready_url, task_mode'
 
 function debtOfRow(row: any): OwedDebt {
   const why = String(row.why ?? '')
@@ -160,6 +182,10 @@ function debtOfRow(row: any): OwedDebt {
     taskId: row.task_id ? String(row.task_id) : kieTaskIdIn(why),
     taskAt: row.task_at ? new Date(row.task_at) : null,
     readyUrl: row.ready_url ? String(row.ready_url) : null,
+    taskMode:
+      row.task_mode === 'gift' || row.task_mode === 'paid'
+        ? row.task_mode
+        : null,
   }
 }
 
@@ -215,7 +241,14 @@ export async function debtOf(
  */
 export async function attachTask(
   pool: Pool,
-  d: { owner: string; lead: string; taskId: string; why: unknown }
+  d: {
+    owner: string
+    lead: string
+    taskId: string
+    why: unknown
+    /** Who pays for this portrait (OwedDebt.taskMode); null when unknown. */
+    mode?: 'gift' | 'paid' | null
+  }
 ): Promise<void> {
   const owner = String(d.owner ?? '')
   const lead = String(d.lead ?? '')
@@ -225,9 +258,10 @@ export async function attachTask(
   try {
     await pool.query(
       `UPDATE crm_owed
-          SET task_id = $3, task_at = now(), ready_url = NULL, ready_at = NULL
+          SET task_id = $3, task_at = now(), ready_url = NULL, ready_at = NULL,
+              task_mode = $4
         WHERE owner_id = $1 AND lead_id = $2 AND settled_at IS NULL`,
-      [owner, lead, taskId]
+      [owner, lead, taskId, d.mode ?? null]
     )
   } catch {
     /* See noteOwed. */
@@ -308,7 +342,8 @@ export async function clearTask(
       .replace(new RegExp(KIE_TASK_ID_RE.source, 'gi'), '')
       .slice(0, 200)
     await pool.query(
-      `UPDATE crm_owed SET task_id = NULL, task_at = NULL, why = $4
+      `UPDATE crm_owed
+          SET task_id = NULL, task_at = NULL, task_mode = NULL, why = $4
         WHERE owner_id = $1 AND lead_id = $2 AND settled_at IS NULL
           AND (task_id = $3 OR task_id IS NULL)`,
       [String(d.owner), String(d.lead), String(d.taskId ?? ''), why]
