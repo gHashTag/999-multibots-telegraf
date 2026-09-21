@@ -58,7 +58,19 @@ afterEach(() => {
 })
 
 /** A pool that answers balance reads and records every statement. */
-function poolWith(balanceRows: unknown[]) {
+/*
+ * WHO THE OWNER HAS ACTUALLY CORRESPONDED WITH.
+ *
+ * Since the 2026-09-20 security fix, a PAID delivery requires the lead to be
+ * in the caller's own correspondence (`crm_people`). The tests below exercise
+ * the legitimate case -- the owner sending to a real client, @pilot_client --
+ * so the double has to say that the client is theirs. It is an explicit set,
+ * not "every query returns a person": a double that knows everybody is how
+ * the original hole looked like a working feature.
+ */
+const KNOWN_CLIENTS = new Set<string>([String(LEAD)])
+
+function poolWith(balanceRows: unknown[], clients = KNOWN_CLIENTS) {
   const sqls: string[] = []
   // The PARAMS too: a journal line is judged by what it carries, not by the
   // fact that an INSERT happened.
@@ -70,6 +82,19 @@ function poolWith(balanceRows: unknown[]) {
       const flat = sql.replace(/\s+/g, ' ').trim()
       sqls.push(flat)
       args.push(params)
+      if (/FROM crm_people/.test(flat)) {
+        return {
+          rows: clients.has(String(params[1]))
+            ? [
+                {
+                  first_name: 'Olga',
+                  last_name: null,
+                  username: 'pilot_client',
+                },
+              ]
+            : [],
+        }
+      }
       return { rows: /SELECT balance/.test(flat) ? balanceRows : [] }
     },
   }
@@ -210,6 +235,48 @@ describe('a refused gift leaves a line, because nothing else does', () => {
       ctxWith(angry, 'mcp')
     )
     expect(r.proposal, 'the refusal itself still reached the model').toBe(true)
+  })
+})
+
+/**
+ * A SELF-SERVE SELLER CANNOT CHARGE A STRANGER.
+ *
+ * Found by the adversarial security sweep of 2026-09-20, confirmed by three
+ * refuters. `isSeller` is true for anybody who connected their own Telegram --
+ * a self-serve step. The paid path then resolved the target by @username
+ * through GramJS, which resolves ANYBODY, drew the picture at chargeLater
+ * (spent: 0) and, on confirm, debited the STRANGER's wallet.
+ */
+describe('a seller charges only their own clients', () => {
+  it('refuses a paid delivery to somebody the caller never corresponded with', async () => {
+    stubSupabase([leadRow])
+    const { tool, calls, q } = await deliverer()
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'cat', ...PAID },
+      // The same person, but NOT in this caller's correspondence.
+      ctxWith(poolWith([{ balance: 50 }], new Set()))
+    )
+    expect(r.delivered).toBe(false)
+    expect(calls.length, 'a picture was drawn for a stranger').toBe(0)
+    expect(q.pendingCount(), 'a charge card was filed for a stranger').toBe(0)
+  })
+
+  /*
+   * THE GIFT IS NOT THE HOLE. The house pays for a gift and no wallet but the
+   * owner's moves, so reaching a new person by a verified @username is the
+   * feature. It must keep working for somebody outside the correspondence.
+   */
+  it('still lets a gift reach somebody new', async () => {
+    stubSupabase([leadRow])
+    const { tool } = await deliverer({ leadPhoto: '' })
+    const r: any = await tool.handler(
+      { chat: '@pilot_client', prompt: 'cat', gift: true },
+      ctxWith(poolWith([{ balance: 50 }], new Set()))
+    )
+    // The own-client refusal must not fire on a gift. (An assertion on the
+    // number of provider calls was here and removed: `>= 0` cannot fail, and
+    // a line that cannot fail is a blind guard, not a check.)
+    expect(String(r.причина ?? '')).not.toMatch(new RegExp('клиентам')) // cyrillic-ok: the refusal text under test
   })
 })
 

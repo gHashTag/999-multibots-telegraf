@@ -68,11 +68,62 @@ describe('crm_client_plan', () => {
     expect(out.items.length).toBe(4)
   })
 
+  /*
+   * A SELF-SERVE SELLER CANNOT READ A STRANGER'S PLAN.
+   *
+   * Security sweep 2026-09-20, same class as crm_deliver_photo: the read took
+   * telegram_id from the call and returned that person's goals and cards to
+   * ANY seller. A plan is somebody's unpublished ideas.
+   */
+  it("refuses a stranger's plan, and never reaches the plan tables", async () => {
+    const seen: string[] = []
+    const pool = {
+      query: async (sql: string) => {
+        seen.push(sql.replace(/\s+/g, ' '))
+        return { rows: [] }
+      },
+    }
+    const tool = CRM_CLIENT_WORKSPACE_TOOLS.find(
+      t => t.name === 'crm_client_plan'
+    )!
+    await expect(
+      tool.handler({ telegram_id: '900000999' }, {
+        telegramId: OWNER,
+        pool,
+      } as unknown as ToolContext)
+    ).rejects.toThrow()
+    expect(
+      seen.some(q => /content_plan_(goals|items)/.test(q) && /SELECT/.test(q)),
+      "a stranger's plan was read"
+    ).toBe(false)
+  })
+
+  it('still lets a person read their own plan', async () => {
+    const pool = { query: async () => ({ rows: [] }) }
+    const tool = CRM_CLIENT_WORKSPACE_TOOLS.find(
+      t => t.name === 'crm_client_plan'
+    )!
+    const out = (await tool.handler({ telegram_id: OWNER }, {
+      telegramId: OWNER,
+      pool,
+    } as unknown as ToolContext)) as any
+    expect(out.telegram_id).toBe(OWNER)
+  })
+
   it('reads both tables for the given client only, after the gate', async () => {
     const seen: Array<{ sql: string; params: unknown[] }> = []
     const pool = {
       query: async (sql: string, params: unknown[] = []) => {
         seen.push({ sql: sql.replace(/\s+/g, ' '), params })
+        // The owner HAS corresponded with this client -- which, since the
+        // 2026-09-20 fix, is what makes the plan theirs to read.
+        if (/FROM crm_people/.test(sql))
+          return {
+            rows:
+              String(params[1]) === String(CLIENT)
+                ? [{ first_name: 'C', last_name: null, username: 'c' }]
+                : [],
+          }
         if (/content_plan_goals WHERE/.test(sql))
           return { rows: [{ id: 1, title: 'g', intent: null }] }
         if (/content_plan_items WHERE/.test(sql))
