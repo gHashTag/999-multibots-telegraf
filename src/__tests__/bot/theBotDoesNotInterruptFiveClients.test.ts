@@ -20,7 +20,7 @@ const BOT = { id: 8527452024, username: 't27ai_bot' }
 
 const inGroup = (message: Record<string, unknown>) =>
   ({
-    chat: { id: -5350275033, type: 'group' },
+    chat: { id: -900000077, type: 'group' },
     botInfo: BOT,
     message,
   }) as never
@@ -146,7 +146,7 @@ describe('when the bot may answer in a group', () => {
    */
   it('stays silent when it does not know its own name', () => {
     const noName = {
-      chat: { id: -5350275033, type: 'group' },
+      chat: { id: -900000077, type: 'group' },
       botInfo: undefined,
       message: { text: '@t27ai_bot сделай' }, // cyrillic-ok: fixture
     } as never
