@@ -4,18 +4,14 @@ import type { AddressInfo } from 'node:net'
 import { pipeUpgrade } from './src/browser/live-pipe'
 
 /**
- * NO COMPRESSION ON THE VIEWER'S SOCKET, NEGOTIATED BY ANYBODY.
+ * THE POD IS NEVER OFFERED COMPRESSION.
  *
- * Measured in production with a real WebSocket client:
- *   "Invalid WebSocket frame: RSV1 must be clear" after the FIRST message,
- *   and no Sec-WebSocket-Extensions in the 101 -- even when the client never
- *   offered compression. A hop in between made its own offer, we passed it
- *   to the pod, the pod compressed, and the browser was never told. The
- *   picture never started.
- *
- * Locally there is no such hop, so a test that only checks messages flow
- * would pass with or without the fix. This checks the thing that matters:
- * the pod is never OFFERED compression, so it cannot agree to it.
+ * Kept as hardening. It was first shipped as the fix for "RSV1 must be clear"
+ * in production, and that diagnosis was wrong: the raw bytes showed a SECOND
+ * "HTTP/1.1 101" inside the stream, from two upgrade listeners answering one
+ * socket (see one-upgrade-dispatcher.test.ts, which guards the real fix).
+ * Not negotiating compression through a proxy that rewrites the handshake is
+ * still the safer default, and this holds it.
  */
 
 async function listen(server: http.Server): Promise<number> {
