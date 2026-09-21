@@ -10,6 +10,7 @@ import {
   ACTION_PREFIX,
   isKnownAction,
 } from '@/navigation/helpers/actionButtons'
+import { CLUB_CARD } from '@/navigation/helpers/clubCard'
 import { SUPPORT_HANDLE, supportMention } from '@/config/support'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { sliceFrom } = require('../../../scripts/lib/anchored-slice.cjs')
@@ -125,13 +126,25 @@ describe('the greeting keyboard', () => {
     const callbacks = buttons
       .map(b => b.callback_data)
       .filter((c): c is string => !!c)
-    // Every press lands: the id after the prefix is a registered action.
-    for (const c of callbacks) {
+    /*
+     * Every press lands: the id after the prefix is a registered action -- or
+     * it is the club card, which is not an agent action (the agent must never
+     * be able to put a club button on an answer nobody asked for) and is
+     * registered at bot level by registerClubButtons.
+     */
+    for (const c of callbacks.filter(c => c !== CLUB_CARD)) {
       expect(c.startsWith(ACTION_PREFIX), c).toBe(true)
       expect(isKnownAction(c.slice(ACTION_PREFIX.length)), c).toBe(true)
     }
+    expect(read('src/navigation/helpers/clubCard.ts')).toContain(
+      'bot.action(CLUB_CARD'
+    )
+    expect(read('src/navigation/registerCommands.ts')).toContain(
+      'registerClubButtons(bot)'
+    )
     expect(callbacks).toEqual([
       `${ACTION_PREFIX}human`,
+      CLUB_CARD,
       `${ACTION_PREFIX}topup`,
       `${ACTION_PREFIX}pay_rub`,
       `${ACTION_PREFIX}pay_crypto`,
@@ -166,7 +179,11 @@ describe('the greeting keyboard', () => {
        * nothing -- and the only way in was to know the tab existed.
        */
       'browser',
-      'club',
+      /*
+       * `club` left on 2026-09-22: it opened the profile's welcome road, where
+       * the price came two presses later. The club card now opens in the chat
+       * (CLUB_CARD above).
+       */
       'profile',
       'pair',
     ])
@@ -196,7 +213,7 @@ describe('the greeting keyboard', () => {
     const routes = [
       ...provider.matchAll(/^\s{2}([a-z_]+):\s*'\/[^']*',?\s*$/gm),
     ].map(m => m[1])
-    for (const p of ['hive', 'chat', 'club', 'profile']) {
+    for (const p of ['hive', 'chat', 'profile']) {
       expect(
         routes,
         `start_param "${p}" is not mapped by the mini app`

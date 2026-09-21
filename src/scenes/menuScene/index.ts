@@ -170,7 +170,7 @@ const menuCommandStep = async (ctx: MyContext) => {
         const inlineKeyboard = Markup.inlineKeyboard([
           [
             {
-              text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+              text: isRu ? '⭐ Клуб' : '⭐ Club',
               callback_data: 'go_to_subscription_scene',
             },
           ],
@@ -208,7 +208,7 @@ const menuCommandStep = async (ctx: MyContext) => {
           const inlineKeyboard = Markup.inlineKeyboard([
             [
               {
-                text: isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+                text: isRu ? '⭐ Клуб' : '⭐ Club',
                 callback_data: 'go_to_subscription_scene',
               },
             ],
@@ -310,7 +310,9 @@ const menuNextStep = async (ctx: MyContext) => {
       text === '💫 Оформить подписку' ||
       text === '💫 Subscribe' ||
       text === '💳 Оформить подписку' ||
-      text === '💳 Subscribe'
+      text === '💳 Subscribe' ||
+      text === '⭐ Клуб' ||
+      text === '⭐ Club'
     ) {
       console.log(`🎯 [DEBUG] SUBSCRIPTION BUTTON MATCHED! Processing: ${text}`)
       logger.info(`[menuNextStep] DIRECT SUBSCRIPTION BUTTON HANDLING: ${text}`)

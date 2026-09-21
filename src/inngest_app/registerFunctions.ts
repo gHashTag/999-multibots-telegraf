@@ -80,6 +80,7 @@ import { robokassaUnclaimedWatch } from './functions/money/robokassaUnclaimedWat
 import { dailySalesAdvisor } from './functions/analytics/dailySalesAdvisor'
 import { skillDetector } from './functions/analytics/skillDetector'
 import { clientTelemetryDaily } from './functions/analytics/clientTelemetryDaily'
+import { clubInvoiceAbandonedWatch } from './functions/analytics/clubInvoiceAbandonedWatch'
 
 // Existing Functions
 import { generateAIReelsFunction } from './functions/existing/generateAIReelsFunction'
@@ -148,10 +149,12 @@ const allFunctionsRaw = [
   renderAvatarVideoFunction,
   renderRiddleFunction,
 
-  // Analytics (3)
+  // Analytics (4)
   dailySalesAdvisor,
   skillDetector,
   clientTelemetryDaily,
+  // Hourly: club invoices nobody paid become a funnel row, once each.
+  clubInvoiceAbandonedWatch,
 
   // CRM (1): the seller's 30-min tick, moved from setInterval to a cron run
   // so every sweep has a trace (CRM_SWEEP_DRIVER=timer restores the interval).
