@@ -203,6 +203,14 @@ export type EventKind =
   | 'draft-unsent'
   /** The lead magnet refused to be made, and why. */
   | 'gift-refused'
+  /**
+   * The lead magnet was accepted and paid for at the provider, but was still
+   * drawing when the turn stopped waiting. NOT a refusal: its task id is kept
+   * with the debt and the picture comes later (late-picture.ts).
+   */
+  | 'gift-late'
+  /** A late portrait finished and was copied to our storage for its person. */
+  | 'gift-recovered'
   // other
   | 'failure'
 

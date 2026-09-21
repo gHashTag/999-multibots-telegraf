@@ -34,12 +34,16 @@ const OWNER = 900000071
 process.env.ADMIN_IDS = String(OWNER)
 process.env.RENDER_API_KEY = 'k' // secret-guard-ok: invented for this test
 
-const sweeps: Array<{ lead: string; done: (r: unknown) => void }> = []
+const sweeps: Array<{
+  lead: string
+  faceOf?: string
+  done: (r: unknown) => void
+}> = []
 const runSweepNow = vi.fn(
-  (_bot: unknown, _owner: string, opts: { prompt?: string }) =>
+  (_bot: unknown, _owner: string, opts: { prompt?: string; faceOf?: string }) =>
     new Promise(resolve => {
       const lead = /\d{9}/.exec(String(opts?.prompt ?? ''))?.[0] ?? ''
-      sweeps.push({ lead, done: resolve })
+      sweeps.push({ lead, faceOf: opts?.faceOf, done: resolve })
     })
 )
 vi.mock('@/services/crmProactive', () => ({
@@ -181,6 +185,8 @@ describe('prepare runs in the owner lane, not in the handler', () => {
     await new Promise(r => setTimeout(r, 200))
     expect(sweeps).toHaveLength(1)
     expect(sweeps[0].lead).toBe('900000082')
+    // The card is for this person: a picture in it is drawn from THEIR face.
+    expect(sweeps[0].faceOf).toBe('900000082')
 
     sweeps[0].done({ did: 'idle', why: 'one' })
     await vi.waitFor(() => expect(sweeps).toHaveLength(2), { timeout: 5000 })

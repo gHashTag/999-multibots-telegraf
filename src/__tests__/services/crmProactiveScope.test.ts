@@ -91,6 +91,48 @@ describe('sweepOnce options', () => {
   })
 })
 
+/*
+ * THE SWEEP SAYS WHOSE FACE IT DRAWS (owner, 2026-09-21: "the client's face is
+ * mandatory"). The render learned the client of a turn only on its own
+ * client-thread route; the sweeps -- where the CRM cards are made -- never
+ * said, so a picture drawn in them without a file was the OWNER's avatar.
+ */
+describe('a scoped turn names its lead to the render; the generic one names nobody', () => {
+  function faceDeps(answer: () => unknown = idle) {
+    const faces: Array<string | null> = []
+    const d: SweepDeps = {
+      ask: async (_o, _text, o) => {
+        faces.push(o?.faceOf ?? null)
+        return answer() as never
+      },
+      ingest: async () => undefined,
+      push: async () => undefined,
+    }
+    return { d, faces }
+  }
+
+  it('a numeric item carries its own id as the face; an @username carries none', async () => {
+    const { d, faces } = faceDeps()
+    const { say } = sayer()
+    await startScope(OWNER, 'f', [item('900000241'), item('@pilot')], d, say)
+    await flush()
+    expect(faces).toEqual(['900000241', null])
+  })
+
+  it('the generic sweep draws for nobody in particular', async () => {
+    const { d, faces } = faceDeps()
+    await sweepOnce(OWNER, d)
+    expect(faces).toEqual([null])
+  })
+
+  it('an explicit face travels through both attempts of one sweep', async () => {
+    const { d, faces } = faceDeps(noTools)
+    await sweepOnce(OWNER, d, { prompt: 'X', faceOf: '900000242' })
+    // The no-tools answer is asked once more, for the same person.
+    expect(faces).toEqual(['900000242', '900000242'])
+  })
+})
+
 describe('the queue', () => {
   it('asks for the second person only after the press on the first card; a foreign press skips nobody', async () => {
     const { d, asks, calls } = deps(n => card(`p${n + 1}`))
