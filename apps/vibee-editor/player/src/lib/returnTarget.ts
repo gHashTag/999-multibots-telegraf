@@ -15,7 +15,16 @@ import type { SessionStore } from './framedSession'
  *     https://t27.ai/#/queen?tab=<one of QUEEN_VIEWS>
  *     https://t27.ai/#/queen?tab=tri&screen=<one of TRI_SCREEN_IDS>
  *
- * and the URL that is followed is rebuilt from the constants below, never
+ * and the same three on the board's home in the app itself,
+ *
+ *     https://app.t27.ai/queen/#/queen...
+ *
+ * which is where the board is served now (nginx `location ^~ /queen/`). Until
+ * 2026-09-21 only t27.ai was accepted, so the board on app.t27.ai sent its
+ * sign-in back to t27.ai -- another site, where the app's frame is a guest and
+ * cannot read the session the person had just made.
+ *
+ * The URL that is followed is rebuilt from the constants below, never
  * copied from the input. Anything else is ignored: the app's origin must not
  * become an open redirect.
  *
@@ -27,6 +36,8 @@ import type { SessionStore } from './framedSession'
  */
 
 export const GAME_ORIGIN = 'https://t27.ai'
+/** The board on the app's own origin; a return there never leaves the app. */
+export const APP_BOARD = 'https://app.t27.ai/queen/'
 
 /**
  * Copied from gHashTag/trinity apps/website/src/components/queenHud.ts
@@ -70,7 +81,7 @@ export const TRI_SCREEN_IDS = [
 ] as const
 
 const SHAPE =
-  /^https:\/\/t27\.ai\/#\/queen(?:\?tab=([a-z]{1,16})(?:&screen=([a-z]{1,16}))?)?$/
+  /^(https:\/\/t27\.ai\/|https:\/\/app\.t27\.ai\/queen\/)#\/queen(?:\?tab=([a-z]{1,16})(?:&screen=([a-z]{1,16}))?)?$/
 
 const KEY_PREFIX = 'trinity.return.'
 
@@ -79,8 +90,9 @@ export function returnTargetOf(raw: unknown): string | null {
   if (typeof raw !== 'string' || raw.length > 128) return null
   const match = SHAPE.exec(raw)
   if (!match) return null
-  const [, tab, screen] = match
-  const queen = `${GAME_ORIGIN}/#/queen`
+  const [, home, tab, screen] = match
+  const queen =
+    home === APP_BOARD ? `${APP_BOARD}#/queen` : `${GAME_ORIGIN}/#/queen`
   if (tab === undefined) return queen
   const view = QUEEN_VIEWS.find(known => known === tab)
   if (!view) return null

@@ -1,6 +1,6 @@
 import { APP_ORIGIN, IS_EMBED } from './embed'
-import { getAppAccessToken } from './appSession'
-import { TRI_SCREEN_IDS } from './returnTarget'
+import { hasLiveAppSession, hasRenewableAppSession } from './appSession'
+import { APP_BOARD, TRI_SCREEN_IDS } from './returnTarget'
 import { getInitData } from './telegram'
 
 /**
@@ -61,14 +61,53 @@ export function guestScreenOf(pathname: string): TriScreenId | null {
 }
 
 /** The same screen in the app, top level, where the person can sign in. */
+/**
+ * Is this frame inside the board on the app's own origin (app.t27.ai/queen)?
+ * Every ancestor must be the app: then the tab's session IS this frame's
+ * session (framedSession.ts), and a sign-in made at the top of this tab is one
+ * the frame will read. Without ancestorOrigins (Firefox) the answer is no, and
+ * the panel keeps its old link out.
+ */
+export function framedByAppBoard(win: {
+  self: unknown
+  top: unknown
+  location: { ancestorOrigins?: ArrayLike<string> }
+}): boolean {
+  if (win.self === win.top) return false
+  const list = win.location.ancestorOrigins
+  if (!list || typeof list.length !== 'number' || list.length === 0) {
+    return false
+  }
+  return Array.from(list).every(origin => origin === APP_ORIGIN)
+}
+
+/**
+ * The sign-in for a screen inside the app's board: the app's own login, which
+ * returns to this screen of the board (returnTarget.ts accepts APP_BOARD).
+ * Opened at the top of THIS tab -- a new tab would hold the new session in
+ * its own sessionStorage, and the board and this frame would never see it
+ * (the "Open in the app" link did exactly that until 2026-09-21).
+ */
+export function boardSignInHref(screen: TriScreenId): string {
+  const back = `${APP_BOARD}#/queen?tab=tri&screen=${screen}`
+  return `${APP_ORIGIN}/?return=${encodeURIComponent(back)}`
+}
+
 export function appScreenHref(screen: TriScreenId): string {
   const path = AI_STAGES.includes(screen) ? `/generate/${screen}` : `/${screen}`
   return `${APP_ORIGIN}${path}`
 }
 
 /** Whether calls from this document carry a credential (lib/apiFetch.ts). */
+/**
+ * A credential the server will accept, or one that can be renewed before it is
+ * sent (lib/sessionRenewal.ts). A token that merely sits in the store is not
+ * one: an expired access token with no refresh token behind it was read as
+ * "signed in" here, the profile form was shown, and saving it could only fail
+ * with 401 (app.t27.ai/queen, 2026-09-21).
+ */
 export function hasCredential(): boolean {
-  return !!getInitData() || !!getAppAccessToken()
+  return !!getInitData() || hasLiveAppSession() || hasRenewableAppSession()
 }
 
 let signInNeeded = false

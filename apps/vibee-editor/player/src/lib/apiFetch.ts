@@ -22,7 +22,7 @@ const SERVER_ORIGINS = [RENDER_URL, API_BASE]
   .filter(Boolean)
   .map(u => u.replace(/\/+$/, ''))
 
-const isOurServer = (url: string): boolean => {
+export const isOurServer = (url: string): boolean => {
   if (url.startsWith('/')) return true
   return SERVER_ORIGINS.some(origin => url.startsWith(origin))
 }
