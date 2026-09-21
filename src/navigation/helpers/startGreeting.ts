@@ -140,6 +140,17 @@ export function startGreetingKeyboard(
       ),
       actionButton('human', isRu),
     ])
+    /*
+     * The browser sits in the row under the agent because that is the pair:
+     * the agent works in it while the person watches. Before this the only
+     * way in was to know the tab existed.
+     */
+    rows.push([
+      Markup.button.webApp(
+        isRu ? '🌍 Мой браузер' : '🌍 My browser',
+        buildMiniAppUrl('browser')
+      ),
+    ])
     rows.push([
       Markup.button.webApp(
         isRu ? '⭐ Вступить в клуб' : '⭐ Join the club',

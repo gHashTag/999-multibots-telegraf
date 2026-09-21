@@ -43,6 +43,13 @@ const START_PARAM_ROUTES: Record<string, string> = {
    */
   hive: '/hive',
   chat: '/chat',
+  /*
+   * `browser` — THE PERSON'S OWN BROWSER. It sits next to `chat` because
+   * that is what it is for: the agent works in it while they watch. Without
+   * this line the bot's button would land on the feed, which is how a new
+   * start_param usually fails -- silently, on the default route.
+   */
+  browser: '/browser',
   club: '/profile',
   /**
    * `pair` — SIGN-IN FOR THE NATIVE APP. It was missing, and that alone made
