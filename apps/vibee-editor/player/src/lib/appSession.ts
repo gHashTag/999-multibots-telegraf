@@ -39,6 +39,15 @@ export function hasLiveAppSession(): boolean {
   return !!getAppAccessToken() && expiresAt > Date.now()
 }
 
+/**
+ * A session that can be brought back to life: a refresh token is stored. The
+ * access token beside it may have expired while no page was open to renew it
+ * (lib/sessionRenewal.ts renews it before the next request).
+ */
+export function hasRenewableAppSession(): boolean {
+  return !!storage()?.getItem(REFRESH_KEY)
+}
+
 export function storeAppSession(session: AppSession): void {
   const s = storage()
   if (!s) return

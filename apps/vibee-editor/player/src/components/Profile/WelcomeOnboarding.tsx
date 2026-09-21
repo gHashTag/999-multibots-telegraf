@@ -37,6 +37,9 @@ import {
   Star,
 } from 'lucide-react'
 import { useLanguage } from '@/hooks/useLanguage'
+import { openLoginAtom } from '@/atoms/user'
+import { IS_EMBED } from '@/lib/embed'
+import { markEmbedSignInNeeded } from '@/lib/embedGuest'
 import { agentTelegramConnectedAtom } from '@/atoms/agentTelegram'
 import {
   clubBusyAtom,
@@ -274,7 +277,17 @@ function ClubStep(props: { onJoined: () => void }) {
   const error = useAtomValue(clubErrorAtom)
   const join = useSetAtom(joinClubAtom)
   const reloadStatus = useSetAtom(loadClubStatusAtom)
+  const openLogin = useSetAtom(openLoginAtom)
   const [outcome, setOutcome] = useState<ClubBuyOutcome | null>(null)
+  // The server answered the public price to nobody in particular: "Join"
+  // would be refused ("a signature, an app session or an agent key is
+  // required", app.t27.ai/queen 2026-09-21), and an owner or keeper -- who
+  // enters free -- would be shown a price that is not theirs. Sign in first.
+  const anonymous = status?.anonymous === true
+  const signIn = () => {
+    if (IS_EMBED) markEmbedSignInNeeded()
+    else openLogin(null)
+  }
 
   const buy = async () => {
     setOutcome(null)
@@ -341,6 +354,9 @@ function ClubStep(props: { onJoined: () => void }) {
         </div>
       )}
 
+      {anonymous && (
+        <p className="welcome__note">{t('welcome.club.signInNote')}</p>
+      )}
       {error && <p className="welcome__error">{error}</p>}
       {error && !status && (
         // The price request failed: say so and let the person ask again
@@ -372,10 +388,12 @@ function ClubStep(props: { onJoined: () => void }) {
         <button
           type="button"
           className="welcome__btn welcome__btn--primary"
-          onClick={buy}
-          disabled={busy || !status || stars <= 0}
+          onClick={anonymous ? signIn : buy}
+          disabled={busy || !status || (!anonymous && stars <= 0)}
         >
-          {busy ? (
+          {anonymous ? (
+            t('welcome.club.signIn')
+          ) : busy ? (
             <>
               <Loader2 size={18} className="welcome__spin" aria-hidden="true" />
               {t('welcome.club.going')}
