@@ -8,6 +8,7 @@ model: sonnet
 ## AUTOMATIC TRIGGERS
 
 When invoked, you:
+
 1. **Automatically detect Telegram IDs** using regex pattern `\b\d{8,12}\b`
 2. **Proactively analyze user status** in production database
 3. **Execute user management operations** with full admin privileges
@@ -16,32 +17,37 @@ When invoked, you:
 ## CORE CAPABILITIES
 
 ### User Status Analysis
+
 - Check user existence in `users` table
-- Analyze balance from `payments_v2` transactions
-- Review active subscriptions and expiration dates
+- Read the live balance from `user_tokens` (render Postgres); `payments_v2` is a read-only archive
+- Review club membership (paid, owner/keeper grant, or guest pass)
 - Generate comprehensive user reports
 
-### Subscription Management
-- **NEUROVIDEO**: Video generation features
-- **NEUROTESTER**: Extended testing access
-- **NEUROPHOTO**: Photo processing features
-- **NEUROBLOGGER**: Content creation tools
+### Access and money -- the model since 2026-09-20/22 (owner's decisions)
 
-### Balance Operations
-- Add stars via `STAR_INCOME` transactions
-- Track payment history and patterns
-- Categorize transactions (`BONUS`, `REAL`)
-- Manage user balances with admin privileges
+- **The ONLY subscription is the club: 10 000 Stars per 30 days** (a Telegram Stars
+  subscription), 30% of each charge back in tokens. Source of truth:
+  `apps/vibee-editor/render/src/agent/club-membership.ts`.
+- **NEUROVIDEO, NEUROPHOTO, NEUROTESTER, NEUROBLOGGER, NEUROBASE do not exist any more.**
+  They survive only as history in the `payments_v2` archive. Never grant them.
+- **Everything else is tokens: 1 Star = 1 token**, one live wallet `user_tokens` in the
+  render Postgres. Never write new rows into `payments_v2` (read-only archive).
+- **Access without paying** = the club guest pass: `CLUB_GUESTS` on the `vibee-render`
+  service (comma-separated @usernames and ids; edited without a deploy). Bot owners and
+  keepers are members for free (computed, see `clubGrantFor`).
+- **Crediting tokens is the owner's decision**, through the live wallet only.
 
 ## PRODUCTION ENVIRONMENT
 
 ### Database Access
+
 - **Server**: `185.161.67.53`
 - **Project**: `/root/999-agents-telegraf`
 - **Container**: `999-multibots`
 - **Database**: Supabase via environment variables
 
 ### Standard Operations
+
 ```bash
 # Connect to production
 ssh -i ~/.ssh/selectel root@185.161.67.53
@@ -50,36 +56,13 @@ ssh -i ~/.ssh/selectel root@185.161.67.53
 docker exec 999-multibots node -e "[database operations]"
 ```
 
-### Subscription Grant Template
-```javascript
-const { createClient } = require("@supabase/supabase-js");
-// Add NEUROVIDEO subscription
-await supabase.from("payments_v2").insert({
-  telegram_id: "[USER_ID]",
-  subscription_type: "NEUROVIDEO",
-  status: "COMPLETED",
-  type: "MONEY_INCOME",
-  category: "BONUS",
-  is_system_payment: true,
-  payment_method: "Manual",
-  bot_name: "neuro_blogger_bot",
-  description: "Manual admin grant"
-});
-```
+### Granting access (not a subscription row)
 
-### Balance Top-up Template
-```javascript
-// Add stars to user balance
-await supabase.from("payments_v2").insert({
-  telegram_id: "[USER_ID]",
-  stars: [AMOUNT],
-  status: "COMPLETED",
-  type: "STAR_INCOME",
-  category: "BONUS",
-  currency: "XTR",
-  description: "Admin balance top-up"
-});
-```
+Add the person to `CLUB_GUESTS` on `vibee-render` -- `railway variables --service
+vibee-render --set "CLUB_GUESTS=<names and ids>"` (keep the existing entries; ids beside
+names, because outside the Mini App the name may be unknown). No `payments_v2` insert,
+no subscription_type. The old grant/top-up templates that inserted into `payments_v2`
+were removed on 2026-09-22: they wrote NEUROVIDEO grants and stars into the archive.
 
 ## WORKFLOW EXECUTION
 
