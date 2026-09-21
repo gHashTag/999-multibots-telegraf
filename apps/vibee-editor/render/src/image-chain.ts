@@ -140,24 +140,47 @@ export function imageLegCost(name: string): number | null {
   return typeof cost === 'number' && Number.isFinite(cost) ? cost : null
 }
 
+/** The vendors the chain has a provider call for. */
+export const IMAGE_VENDORS = ['fal', 'replicate', 'kie'] as const
+export type ImageVendor = (typeof IMAGE_VENDORS)[number]
+
+/**
+ * The vendor a leg name starts with: `replicate/flux-schnell` -> `replicate`.
+ * A name that starts with no vendor we can call is a programming error, and
+ * it throws rather than guessing a call.
+ */
+export function vendorOfLeg(name: string): ImageVendor {
+  const vendor = name.split('/')[0]
+  if ((IMAGE_VENDORS as readonly string[]).includes(vendor))
+    return vendor as ImageVendor
+  throw new Error(`image leg ${name} names no vendor the chain can call`)
+}
+
 /**
  * The chain behind /api/generate/image, in order, each leg with its cost. The
  * route passes only the functions that call the providers; which legs exist
  * and what they cost is decided here, where a test can see all of it.
+ *
+ * THE NAME PICKS THE CALL, SO THE PRICE AND THE PROVIDER CANNOT PART. A leg
+ * is priced by its name and run by `run[vendorOfLeg(name)]`, and there is no
+ * second place that pairs them. When the pairing was written out by hand
+ * (`{ name: REPLICATE_IMAGE_LEG, run: run.replicate }`), swapping two `run`
+ * fields sent every picture to FAL at $0.15 under the $0.003 Replicate label,
+ * the floor let it through as covered, and the whole suite stayed green
+ * (measured by mutation, 2026-09-22). Now such a swap has to rename the leg
+ * -- which moves its price with it.
  */
 export function imageChainLegs(
   falEndpoint: string,
-  run: {
-    fal: () => Promise<string>
-    replicate: () => Promise<string>
-    kie: () => Promise<string>
-  }
+  run: Readonly<Record<ImageVendor, () => Promise<string>>>
 ): ImageLeg[] {
-  return [
-    { name: falLeg(falEndpoint), run: run.fal },
-    { name: REPLICATE_IMAGE_LEG, run: run.replicate },
-    { name: KIE_IMAGE_LEG, run: run.kie },
-  ].map(leg => ({ ...leg, costUsd: imageLegCost(leg.name) }))
+  return [falLeg(falEndpoint), REPLICATE_IMAGE_LEG, KIE_IMAGE_LEG].map(
+    name => ({
+      name,
+      costUsd: imageLegCost(name),
+      run: run[vendorOfLeg(name)],
+    })
+  )
 }
 
 /** Every leg the route can build, for the census and the price note. */
@@ -219,7 +242,7 @@ export function imageChainNote(): string {
  */
 export function imageChainShortNote(): string {
   const { ceiling, runs, dear, price } = priceSplit()
-  const vendors = [...new Set(dear.map(n => n.split('/')[0]))]
+  const vendors = [...new Set(dear.map(vendorOfLeg))]
   return (
     `Цена ${price} ток. покрывает себестоимость до ${usd(ceiling)}: рисует ` + // cyrillic-ok: tool copy
     `${runs.length ? runs.join(', ') : 'никто'}` + // cyrillic-ok: tool copy
