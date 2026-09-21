@@ -515,6 +515,43 @@ export async function dmHistoryBlock(ctx: ToolContext): Promise<string> {
 }
 
 /**
+ * WHOSE FACE A TURN DRAWS -- decided by code, from the request, never by the
+ * model (client-face.ts).
+ *
+ *  - A CLIENT THREAD draws the client: pictures made while the seller talks
+ *    about one person are pictures for that person.
+ *  - A SCOPED SWEEP ("prepare" for one person, /sweep on a numeric id) names
+ *    its lead in `face_of`. It used to name nobody: the render learned the
+ *    client only on its own client-thread route, so in the sweeps -- where the
+ *    CRM cards are actually made -- image_edit without a file drew the
+ *    caller's avatar, the OWNER's face, in a picture for a lead.
+ *  - ANY UNATTENDED SWEEP (`tools_only`) works for leads only, whether or not
+ *    it knows which one: `sellerSweep` keeps the owner's avatar out of it and
+ *    the people out of its text-to-image pictures (tools.ts).
+ *
+ * `face_of` never changes the thread: the turn is still the owner's, stored in
+ * the owner's history. A face equal to the caller is not a client's face.
+ */
+export function clientTurnContext(
+  ctx: ToolContext,
+  opts?: { client?: string; faceOf?: string; toolsOnly?: boolean }
+): ToolContext {
+  const numeric = (v: unknown) => /^\d{5,15}$/.test(String(v ?? ''))
+  let out = ctx
+  if (!out.faceOf) {
+    const face = numeric(opts?.client)
+      ? String(opts!.client)
+      : numeric(opts?.faceOf) && String(opts!.faceOf) !== String(ctx.telegramId)
+        ? String(opts!.faceOf)
+        : undefined
+    if (face) out = { ...out, faceOf: face }
+  }
+  if (opts?.toolsOnly === true && !out.sellerSweep)
+    out = { ...out, sellerSweep: true }
+  return out
+}
+
+/**
  * THE CLIENT'S PACKAGE, WHEREVER THE CONVERSATION HAPPENS.
  *
  * Just the package: who this person is, what they are called, what is never
@@ -550,6 +587,24 @@ export async function clientBriefBlock(
     )
     if (p.has_profile) {
       if (typeof p.client === 'string' && p.client) name = p.client
+      /*
+       * WHICH GIFT IS DUE, BEFORE THE PACKAGE THAT STYLES IT.
+       *
+       * A package's own notes can tell the seller to open with one reel of
+       * its template -- the first real package did, in as many words -- and
+       * the stored copy of a package does not change when the file it came
+       * from does. That note is exactly how the portrait from the client's own
+       * face stopped coming. So wherever the package is shown, the fact that
+       * decides the first gift is shown first, and it outranks the package.
+       */
+      const { portraitOf } = await import('./crm-deliver-tool')
+      const portrait = await portraitOf(ctx.pool, owner, lead).catch(() => null)
+      if (portrait)
+        parts.push(
+          'ПЕРВЫЙ ПОДАРОК — портрет 9:16 из лица этого человека, раньше любого рилса или ' +
+            'примера, которые называет пакет: ' +
+            portrait.first
+        )
       parts.push(
         'ПРОФИЛЬ КЛИЕНТА (crm_client_profile):\n' +
           /*
@@ -1313,6 +1368,11 @@ export async function* runAgent(
     toolsOnly?: boolean
     client?: string
     /**
+     * The lead this turn makes pictures for, WITHOUT making it that lead's
+     * thread (a scoped sweep, the "prepare" press). See clientTurnContext.
+     */
+    faceOf?: string
+    /**
      * Tools this turn may not use. They are not listed to the model and a
      * call that arrives anyway is answered with an error instead of running
      * the handler (nothing is spent). Used by the duet's discovery gate:
@@ -1376,6 +1436,7 @@ export async function* runAgent(
    * callers that don't set `ctx.turn` (`crm-duet-tool.ts`, `a2a.ts` aren't
    * required to), not the primary path.
    */
+  ctx = clientTurnContext(ctx, opts)
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
   const turnStartedAt = Date.now()
   let toolCallCount = 0

@@ -16,6 +16,8 @@
  * interprets it; the tools frame it as foreign content before the model
  * sees it.
  */
+import { LATE_WATCH_MS } from './late-picture'
+import type { OwedDebt } from './crm-owed'
 import {
   mediaLine,
   markerKind,
@@ -597,7 +599,7 @@ export async function leadCandidates(
      * apology is an outbound message, so a debt looks exactly like a
      * finished conversation.
      */
-    owed?: Map<string, { what: string; why: string; at: Date }>
+    owed?: Map<string, OwedDebt>
   } = {}
 ): Promise<LeadCandidate[]> {
   await ensureTable(pool)
@@ -788,10 +790,32 @@ export async function leadCandidates(
     if (debt) {
       const hours = Math.floor((now.getTime() - debt.at.getTime()) / 3600_000)
       score += 6
-      why.push(
-        `мы должны: ${debt.what}, ${hours} ч. назад не получилось (${debt.why})`
-      )
-      next = opts.imagesDown ? 'reply' : 'deliver'
+      /*
+       * A PORTRAIT THAT ALREADY EXISTS, OR IS STILL BEING DRAWN, IS NOT A
+       * PICTURE TO MAKE (late-picture.ts). A finished one is handed over even
+       * while the provider looks down -- nothing needs drawing -- and one
+       * still inside its watch is left alone: chasing it would spend a turn
+       * to learn "not yet". Past the watch, `deliver` asks the stored task.
+       */
+      const drawing =
+        !debt.readyUrl &&
+        !!debt.taskId &&
+        !!debt.taskAt &&
+        now.getTime() - debt.taskAt.getTime() < LATE_WATCH_MS
+      if (debt.readyUrl) {
+        why.push(
+          `мы должны: ${debt.what} — портрет готов, отдать его (crm_deliver_photo), заново не рисовать`
+        )
+        next = 'deliver'
+      } else if (drawing) {
+        why.push(`мы должны: ${debt.what} — портрет рисуется, придёт сам`)
+        next = 'wait'
+      } else {
+        why.push(
+          `мы должны: ${debt.what}, ${hours} ч. назад не получилось (${debt.why})`
+        )
+        next = opts.imagesDown ? 'reply' : 'deliver'
+      }
     }
     const segment = segmentOf({
       unanswered,
