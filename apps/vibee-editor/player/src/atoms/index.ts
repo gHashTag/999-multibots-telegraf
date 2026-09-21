@@ -252,6 +252,9 @@ export {
   quotaLoadingAtom,
   showPaywallAtom,
   showLoginModalAtom,
+  loginReasonAtom,
+  openLoginAtom,
+  closeLoginAtom,
   fetchQuotaAtom,
   logRenderAtom,
   canRenderAtom,
@@ -269,6 +272,7 @@ export {
   type RenderQuota,
   type SubscriptionInfo,
   type InstagramStatus,
+  type LoginReason,
 } from './user'
 
 // ===============================

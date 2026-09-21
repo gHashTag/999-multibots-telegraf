@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useSetAtom } from 'jotai'
-import { showLoginModalAtom } from '@/atoms'
+import { openLoginAtom } from '@/atoms'
 import { hasLiveAppSession, refreshAppSession } from '@/lib/appSession'
 import { sessionStore } from '@/lib/framedSession'
 import { returnWhenSignedIn } from '@/lib/returnTarget'
@@ -13,7 +13,7 @@ import { returnWhenSignedIn } from '@/lib/returnTarget'
  * nothing, and does nothing when no return is pending.
  */
 export function ReturnToGame() {
-  const setShowLoginModal = useSetAtom(showLoginModalAtom)
+  const openLogin = useSetAtom(openLoginAtom)
 
   useEffect(() => {
     let mounted = true
@@ -23,12 +23,12 @@ export function ReturnToGame() {
       refresh: refreshAppSession,
       assign: url => window.location.assign(url),
     }).then(outcome => {
-      if (mounted && outcome === 'sign-in') setShowLoginModal(true)
+      if (mounted && outcome === 'sign-in') openLogin('board')
     })
     return () => {
       mounted = false
     }
-  }, [setShowLoginModal])
+  }, [openLogin])
 
   return null
 }
