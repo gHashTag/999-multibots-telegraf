@@ -8,8 +8,16 @@
  * (Send / Cancel on a card already on screen) and every client of that bot
  * waited behind it. The turn now runs in the owner's lane (`crm:<owner>`).
  *
- * The dispatchers are the real ones; the sweep and the proposal service are
- * faked, the sweep with a promise this test resolves by hand.
+ * The correspondence import ("crm:ingest") awaited the render for up to
+ * 170 s on the loop in the same way, and runs in the same lane now.
+ *
+ * A job in that lane that the process cannot finish before it stops is
+ * announced to the owner with a button to run it again (laneNotices.ts):
+ * the press was confirmed to Telegram long ago and will not come back.
+ *
+ * The dispatchers are the real ones; the sweep, the import and the proposal
+ * service are faked, the sweep and the import with promises this test
+ * resolves by hand.
  */
 import {
   describe,
@@ -48,6 +56,14 @@ vi.mock('@/services/telegramProposals', async importOriginal => ({
   cancelProposal: (...a: unknown[]) => cancelProposal(...(a as [])),
   takeCardLead: () => null,
 }))
+const ingests: Array<(r: unknown) => void> = []
+const ingestChats = vi.fn(
+  () => new Promise(resolve => ingests.push(resolve as (r: unknown) => void))
+)
+vi.mock('@/services/modelSwitch', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ingestChats: (...a: unknown[]) => ingestChats(...(a as [])),
+}))
 vi.mock('@/services/hiveNote', () => ({
   notePressToHive: vi.fn(async () => undefined),
 }))
@@ -57,6 +73,7 @@ const realCallApi = (Telegram.prototype as any).callApi
 let registerCrmCommands: (bot: Telegraf<any>) => void
 let registerProposalButtons: (bot: Telegraf<any>) => void
 let agentLanes: typeof import('@/services/agentLanes').agentLanes
+let laneNotices: typeof import('@/services/laneNotices')
 
 beforeAll(async () => {
   ;(Telegram.prototype as any).callApi = async (
@@ -70,6 +87,7 @@ beforeAll(async () => {
   registerCrmCommands = mod.registerCrmCommands
   registerProposalButtons = mod.registerProposalButtons
   ;({ agentLanes } = await import('@/services/agentLanes'))
+  laneNotices = await import('@/services/laneNotices')
 }, 60_000)
 afterAll(() => {
   ;(Telegram.prototype as any).callApi = realCallApi
@@ -79,6 +97,8 @@ beforeEach(() => {
   sweeps.length = 0
   runSweepNow.mockClear()
   cancelProposal.mockClear()
+  ingestChats.mockClear()
+  ingests.length = 0
 })
 
 const press = (data: string) => ({
@@ -183,5 +203,51 @@ describe('prepare runs in the owner lane, not in the handler', () => {
       .map((b: any) => b.callback_data)
     expect(buttons).toContain('crm:sweep')
     expect(errors).toEqual([])
+  })
+
+  it('the import runs in the lane too: the press returns at once and a Cancel is heard while it runs', async () => {
+    const { bot, errors } = boot()
+
+    await settlesWithin(bot.handleUpdate(press('crm:ingest') as any), 2000)
+    await vi.waitFor(() => expect(ingestChats).toHaveBeenCalledTimes(1), {
+      timeout: 5000,
+    })
+    expect(texts()[0]).toContain('Загружаю переписку')
+
+    await settlesWithin(
+      bot.handleUpdate(press('tgp:no:abc123abc123:secret') as any),
+      2000
+    )
+    expect(cancelProposal).toHaveBeenCalledTimes(1)
+    expect(texts().some(t => t.includes('Готово'))).toBe(false)
+
+    ingests[0]({ people: 3, messages_new: 7 })
+    expect((await agentLanes.drain(5000)).unfinished).toEqual([])
+    expect(texts().at(-1)).toContain('Готово: 3 людей, 7 новых сообщений')
+    expect(errors).toEqual([])
+  })
+
+  it('a prepare cut off by shutdown tells the owner, with the button to run it again', async () => {
+    const { bot } = boot()
+    await bot.handleUpdate(press('crm:prep:900000084') as any)
+    await vi.waitFor(() => expect(sweeps).toHaveLength(1), { timeout: 5000 })
+
+    const { unfinished } = await agentLanes.drain(200)
+    expect(unfinished).toEqual([`crm:${OWNER}`])
+    sink = []
+    expect(await laneNotices.sendShutdownNotices(unfinished)).toBe(1)
+    const told = sink.filter(s => s.method === 'sendMessage')
+    expect(told).toHaveLength(1)
+    expect(told[0].payload.chat_id).toBe(OWNER)
+    expect(String(told[0].payload.text)).toContain('перезапускался') // cyrillic-ok: matches UI text
+    const buttons = (told[0].payload.reply_markup?.inline_keyboard ?? [])
+      .flat()
+      .map((b: any) => b.callback_data)
+    expect(buttons).toContain('crm:prep:900000084')
+
+    // Finished after all: the notice is let go.
+    sweeps[0].done({ did: 'idle', why: 'никого' })
+    expect((await agentLanes.drain(5000)).unfinished).toEqual([])
+    expect(laneNotices.heldNoticeCount()).toBe(0)
   })
 })
