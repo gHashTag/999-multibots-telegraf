@@ -80,15 +80,22 @@ describe('crm_client_plan', () => {
     const pool = {
       query: async (sql: string) => {
         seen.push(sql.replace(/\s+/g, ' '))
+        // OTHER has connected their own Telegram, so `isSeller` is true and
+        // the refusal below has to come from the reach gate rather than from
+        // the seller check standing in for it.
+        if (/FROM tg_sessions/.test(sql)) return { rows: [{ session: 's' }] }
         return { rows: [] }
       },
     }
     const tool = CRM_CLIENT_WORKSPACE_TOOLS.find(
       t => t.name === 'crm_client_plan'
     )!
+    // A self-serve seller, NOT the keeper: since the gate moved to crm-reach
+    // the platform owner is the super-admin and does reach everyone, so using
+    // OWNER here would have tested the keeper's allowance, not the refusal.
     await expect(
       tool.handler({ telegram_id: '900000999' }, {
-        telegramId: OWNER,
+        telegramId: OTHER,
         pool,
       } as unknown as ToolContext)
     ).rejects.toThrow()
@@ -96,6 +103,69 @@ describe('crm_client_plan', () => {
       seen.some(q => /content_plan_(goals|items)/.test(q) && /SELECT/.test(q)),
       "a stranger's plan was read"
     ).toBe(false)
+  })
+
+  /*
+   * THE SUPER-ADMIN SEES EVERYTHING; A CLIENT SEES ONLY THEIR OWN.
+   *
+   * The owner's standing rule, and the half the inline 2026-09-20 check could
+   * not express: it knew only "have you corresponded", so it refused the
+   * keeper their own farm. Pinned here because it is the difference between
+   * the shared gate and the copy it replaced.
+   */
+  it('lets the keeper read a plan they have never corresponded about', async () => {
+    const pool = {
+      query: async (sql: string) => {
+        if (/content_plan_goals WHERE/.test(sql))
+          return { rows: [{ id: 1, title: 'g', intent: null }] }
+        return { rows: [] }
+      },
+    }
+    const tool = CRM_CLIENT_WORKSPACE_TOOLS.find(
+      t => t.name === 'crm_client_plan'
+    )!
+    const out = (await tool.handler({ telegram_id: '900000999' }, {
+      telegramId: OWNER,
+      pool,
+    } as unknown as ToolContext)) as any
+    expect(out.telegram_id).toBe('900000999')
+  })
+
+  /*
+   * The correspondence path, exercised by somebody who is NOT the keeper --
+   * the keeper is waved through before any of it runs, so only a plain seller
+   * can prove that "I have written to this person" still opens the door.
+   */
+  it('lets a plain seller read the plan of a person they have written to', async () => {
+    const pool = {
+      query: async (sql: string, params: unknown[] = []) => {
+        if (/FROM tg_sessions/.test(sql)) return { rows: [{ session: 's' }] }
+        if (/FROM crm_messages/.test(sql))
+          return {
+            rows:
+              String(params[0]) === OTHER && String(params[1]) === CLIENT
+                ? [{ '?column?': 1 }]
+                : [],
+          }
+        if (/content_plan_goals WHERE/.test(sql))
+          return { rows: [{ id: 1, title: 'g', intent: null }] }
+        return { rows: [] }
+      },
+    }
+    const tool = CRM_CLIENT_WORKSPACE_TOOLS.find(
+      t => t.name === 'crm_client_plan'
+    )!
+    const out = (await tool.handler({ telegram_id: CLIENT }, {
+      telegramId: OTHER,
+      pool,
+    } as unknown as ToolContext)) as any
+    expect(out.telegram_id).toBe(CLIENT)
+    await expect(
+      tool.handler({ telegram_id: '900000999' }, {
+        telegramId: OTHER,
+        pool,
+      } as unknown as ToolContext)
+    ).rejects.toThrow()
   })
 
   it('still lets a person read their own plan', async () => {
@@ -115,8 +185,9 @@ describe('crm_client_plan', () => {
     const pool = {
       query: async (sql: string, params: unknown[] = []) => {
         seen.push({ sql: sql.replace(/\s+/g, ' '), params })
-        // The owner HAS corresponded with this client -- which, since the
-        // 2026-09-20 fix, is what makes the plan theirs to read.
+        // The caller here is the keeper, so the gate lets them through before
+        // this row is consulted; it stays because the point of this case is
+        // WHICH id the plan tables are read with, not who may read them.
         if (/FROM crm_people/.test(sql))
           return {
             rows:
