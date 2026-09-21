@@ -88,6 +88,7 @@ tri — оболочка Trinity S³AI
   tri bridge [id...]  радужный мост: вся ферма и обе стороны разом, никому не пишет
   tri commands   каждая команда меню на каждом боте: ответил / молчит / не пробовали
   tri pack <id> <username>  упаковка клиента: восемь частей, у каждой — следующее нажатие
+  tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
   tri throttle   тормоз на входе: по чему считает и кого не заденет
@@ -893,6 +894,7 @@ PYEOF
   landing) shift; bash "$ROOT/bin/helpers/landing.sh" "$ROOT" "$@" ;;
   facts)  shift; bash "$ROOT/bin/helpers/facts.sh" "$ROOT" "$@" ;;
   sweep)  shift; bash "$ROOT/bin/helpers/sweep.sh" "$ROOT" "$@" ;;
+  inflight) shift; bash "$ROOT/bin/helpers/inflight.sh" "$ROOT" ;;
   funnel) shift; bash "$ROOT/bin/helpers/funnel.sh" "$ROOT" "$@" ;;
   headroom) shift; bash "$ROOT/bin/helpers/headroom.sh" "$ROOT" "$@" ;;
   lost)   shift; bash "$ROOT/bin/helpers/lost.sh" "$ROOT" "$@" ;;
