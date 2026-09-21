@@ -98,6 +98,7 @@ tri — оболочка Trinity S³AI
   tri schema     таблицы, которые код считает существующими, против настоящих
   tri crm-source какая копия users/payments живая: Supabase или Railway
   tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
+  tri drift      влито, но не выехало: сервис отвязан, main застрял или сборка падает
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
@@ -394,6 +395,10 @@ case "${1:-}" in
       echo "  НЕТ ПЛАГИНА -- подставка уедет в продакшен"
     fi
     ;;
+
+  drift)
+    # Merged is not shipped. 0 clear, 1 an anomaly (named), 2 could not look.
+    shift; node "$ROOT/scripts/railway-drift.mjs" "$@" ;;
 
   shipped)
     # Уехало ли в прод -- и пользуется ли им кто-нибудь. Два разных вопроса.
