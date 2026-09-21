@@ -3,7 +3,6 @@ import {
   pickFromMenu,
   wantedScreen,
   applyScreen,
-  nearbySizes,
   fitDesktop,
   MIN_EDGE,
   MAX_WIDTH,
@@ -75,6 +74,8 @@ describe('what the pod says versus what the pod did', () => {
    */
   const fetcherThatEchoes = () => {
     const calls: string[] = []
+    /* It starts elsewhere, or the fit would rightly ask for nothing. */
+    let screen = { width: 1280, height: 800, rate: 30 }
     const fetcher = async (url: string, init?: { method?: string }) => {
       calls.push(`${init?.method || 'GET'} ${url}`)
       const ok = (o: unknown) => ({
@@ -84,9 +85,10 @@ describe('what the pod says versus what the pod did', () => {
       })
       if (url.endsWith('/api/login')) return ok({ token: 'bearer-1' })
       if ((init?.method || 'GET') === 'POST') {
+        screen = { width: 416, height: 880, rate: 30 } /* the truth */
         return ok({ width: 420, height: 880, rate: 30 }) /* the lie */
       }
-      return ok({ width: 416, height: 880, rate: 30 }) /* the truth */
+      return ok(screen)
     }
     return { fetcher, calls }
   }
@@ -113,7 +115,7 @@ describe('what the pod says versus what the pod did', () => {
     const post = calls.findIndex(c =>
       c.startsWith('POST http://pod:8080/api/room/screen')
     )
-    const get = calls.findIndex(c =>
+    const get = calls.findLastIndex(c =>
       c.startsWith('GET http://pod:8080/api/room/screen')
     )
     expect(post).toBeGreaterThanOrEqual(0)
@@ -277,7 +279,7 @@ describe('what happens when the pod says 422', () => {
     return { fetcher, asked, current: () => screen }
   }
 
-  it('TRIES THE NEIGHBOURS, THEN FALLS BACK TO THE MENU', async () => {
+  it('FALLS BACK TO THE MENU INSTEAD OF GIVING UP', async () => {
     const pod = podThatRefusesExact()
     const got = await applyScreen(
       'pod:8080',
@@ -286,17 +288,17 @@ describe('what happens when the pod says 422', () => {
       pod.fetcher as never
     )
     expect(`${got.width}x${got.height}`).toBe('800x1600')
-    expect(pod.asked[0]).toBe('360x664')
-    expect(pod.asked.at(-1)).toBe('800x1600')
-    const neighbours = nearbySizes({ width: 360, height: 664, rate: 30 })
-    expect(pod.asked.slice(1, -1)).toEqual(
-      neighbours.map(n => `${n.width}x${n.height}`)
-    )
+    /* One refused ask and the menu: no blind retries, each is a restart. */
+    expect(pod.asked).toEqual(['360x664', '800x1600'])
   })
 
-  it('TAKES A NEIGHBOUR over a menu size of another shape', async () => {
-    /* Measured: at 852 high, 360 and 368 refused, 352 and 376 accepted. */
+  it('ASKS AGAIN AT THE RATE X REALLY GAVE THE NEW SIZE', async () => {
+    /*
+     * The pod log: "unsupported screen rate 30". The refused ask created the
+     * mode anyway, at the refresh X computed for it; the menu lists it.
+     */
     let screen = { width: 1280, height: 800, rate: 30 }
+    const menu = [{ width: 800, height: 1600, rate: 30 }]
     const asked: string[] = []
     const fetcher = async (
       url: string,
@@ -308,15 +310,16 @@ describe('what happens when the pod says 422', () => {
         text: async () => JSON.stringify(o),
       })
       if (url.endsWith('/api/login')) return ok({ token: 'b' })
-      if (url.endsWith('/configurations'))
-        return ok([{ width: 800, height: 1600, rate: 30 }])
+      if (url.endsWith('/configurations')) return ok(menu)
       if ((init?.method || 'GET') === 'POST') {
-        const want = JSON.parse(init!.body!)
-        asked.push(`${want.width}x${want.height}`)
-        if (want.width === 352 || want.width === 376) {
-          screen = want
-          return ok(want)
+        const w = JSON.parse(init!.body!)
+        asked.push(`${w.width}x${w.height}@${w.rate}`)
+        if (w.rate === 29) {
+          screen = w
+          return ok(w)
         }
+        /* X built it at 29 Hz and refuses 30. */
+        menu.push({ width: w.width, height: w.height, rate: 29 })
         return { ok: false, status: 422, text: async () => 'no' }
       }
       return ok(screen)
@@ -324,12 +327,37 @@ describe('what happens when the pod says 422', () => {
     const got = await applyScreen(
       'pod:8080',
       'pw',
-      { width: 360, height: 852, rate: 30 },
+      { width: 368, height: 536, rate: 30 },
       fetcher as never
     )
-    expect(got.height).toBe(852)
-    expect([352, 376]).toContain(got.width)
-    expect(asked).not.toContain('800x1600')
+    expect(`${got.width}x${got.height}`).toBe('368x536')
+    expect(asked).toEqual(['368x536@30', '368x536@29'])
+  })
+
+  it('DOES NOT TOUCH A SCREEN THAT IS ALREADY THE RIGHT SHAPE', async () => {
+    /* Every ask restarts the video, so the cheapest ask is the one not made. */
+    const asked: string[] = []
+    const fetcher = async (url: string, init?: { method?: string }) => {
+      const ok = (o: unknown) => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(o),
+      })
+      if (url.endsWith('/api/login')) return ok({ token: 'b' })
+      if ((init?.method || 'GET') === 'POST') {
+        asked.push('post')
+        return ok({})
+      }
+      return ok({ width: 368, height: 536, rate: 29 })
+    }
+    const got = await applyScreen(
+      'pod:8080',
+      'pw',
+      { width: 368, height: 544, rate: 30 },
+      fetcher as never
+    )
+    expect(asked).toEqual([])
+    expect(got).toEqual({ width: 368, height: 536, rate: 29 })
   })
 
   it('does not ask twice when the exact size was taken', async () => {
@@ -397,38 +425,7 @@ describe('what happens when the pod says 422', () => {
       { width: 393, height: 852, rate: 30 },
       fetcher as never
     )
-    expect(asked[0]).toBe('393')
-    expect(asked.at(-1)).toBe('800')
-    /* Every polite no in between was read back and disbelieved too. */
-    expect(asked).toHaveLength(
-      2 + nearbySizes({ width: 393, height: 852, rate: 30 }).length
-    )
-  })
-})
-
-describe('the neighbours of a refused size', () => {
-  const want = { width: 400, height: 800, rate: 30 }
-
-  it('are one or two snaps away, nearest first, twelve at most', () => {
-    const near = nearbySizes(want)
-    expect(near.length).toBe(12)
-    const d = (n: { width: number; height: number }) =>
-      (n.width - want.width) ** 2 + (n.height - want.height) ** 2
-    for (let i = 1; i < near.length; i++)
-      expect(d(near[i])).toBeGreaterThanOrEqual(d(near[i - 1]))
-    for (const n of near) {
-      expect(Math.abs(n.width - want.width)).toBeLessThanOrEqual(16)
-      expect(Math.abs(n.height - want.height)).toBeLessThanOrEqual(16)
-      expect(n.width % 8).toBe(0)
-    }
-    expect(near.map(n => `${n.width}x${n.height}`)).not.toContain('400x800')
-  })
-
-  it('never leave the sizes a pod may be asked for', () => {
-    for (const n of nearbySizes({ width: 320, height: 1600, rate: 30 })) {
-      expect(n.width).toBeGreaterThanOrEqual(320)
-      expect(n.height).toBeLessThanOrEqual(1600)
-    }
+    expect(asked).toEqual(['393', '800'])
   })
 })
 
@@ -475,5 +472,72 @@ describe('the window follows the screen', () => {
       },
     })
     expect(got).toEqual(want)
+  })
+})
+
+describe('one fit at a time', () => {
+  it('RUNS TWO FITS FOR ONE POD IN TURN, never side by side', async () => {
+    const log: string[] = []
+    let release!: () => void
+    const gate = new Promise<void>(r => (release = r))
+    const io = (name: string, wait?: Promise<void>) => ({
+      apply: async () => {
+        log.push(`${name} start`)
+        if (wait) await wait
+        log.push(`${name} end`)
+        return { width: 368, height: 536, rate: 29 }
+      },
+      fitWindow: async () => 1,
+    })
+    const desk = { endpoint: 'pod:1', adminToken: 'pw', cdpEndpoint: null }
+    const want = { width: 368, height: 536, rate: 30 }
+    const first = fitDesktop(desk, want, io('app', gate))
+    const second = fitDesktop(desk, want, io('window'))
+    await new Promise(r => setTimeout(r, 0))
+    expect(log).toEqual(['app start'])
+    release()
+    await Promise.all([first, second])
+    expect(log).toEqual(['app start', 'app end', 'window start', 'window end'])
+  })
+
+  it('does not hold one pod behind another', async () => {
+    const log: string[] = []
+    const never = new Promise<void>(() => {})
+    const slow = {
+      apply: async () => {
+        log.push('a')
+        await never
+        return { width: 1, height: 1, rate: 1 }
+      },
+      fitWindow: async () => 1,
+    }
+    const fast = {
+      apply: async () => {
+        log.push('b')
+        return { width: 1, height: 1, rate: 1 }
+      },
+      fitWindow: async () => 1,
+    }
+    const want = { width: 368, height: 536, rate: 30 }
+    void fitDesktop({ endpoint: 'pod:a', adminToken: 'x' }, want, slow)
+    await fitDesktop({ endpoint: 'pod:b', adminToken: 'x' }, want, fast)
+    expect(log).toEqual(['a', 'b'])
+  })
+
+  it('a failed fit does not block the one queued behind it', async () => {
+    const want = { width: 368, height: 536, rate: 30 }
+    const desk = { endpoint: 'pod:c', adminToken: 'x' }
+    const failing = fitDesktop(desk, want, {
+      apply: async () => {
+        throw new Error('pod down')
+      },
+      fitWindow: async () => 1,
+    })
+    const queued = fitDesktop(desk, want, {
+      apply: async () => ({ ...want }),
+      fitWindow: async () => 1,
+    })
+    await expect(failing).rejects.toThrow('pod down')
+    expect(await queued).toEqual(want)
   })
 })
