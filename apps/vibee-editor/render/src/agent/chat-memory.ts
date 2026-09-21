@@ -18,6 +18,13 @@
  */
 import { LATE_WATCH_MS } from './late-picture'
 import type { OwedDebt } from './crm-owed'
+import {
+  mediaLine,
+  markerKind,
+  countedKinds,
+  type SentMedia,
+  type SentMediaKind,
+} from './tg-message-media'
 
 export interface Pool {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -28,7 +35,14 @@ export interface StoredMessage {
   at: Date
   /** true = the owner wrote it; false = the other person did. */
   out: boolean
+  /** The words; for a media message, its caption (empty when there is none). */
   text: string
+  /**
+   * What the message carries, when it carries a file. The memory writes the
+   * marker line itself (`[фото, альбом из 8] caption`), so no writer can
+   * store a photo as nothing. `name` is the sender's file name, if any.
+   */
+  media?: SentMedia & { name?: string | null }
 }
 
 const TEXT_CAP = 4000
@@ -169,7 +183,8 @@ export function fullName(p: PersonName | null | undefined): string | null {
 /**
  * Store what was said. Idempotent by (owner, lead, msg_id): a second ingest
  * of the same dialog writes nothing and reports zero, so a sweep can run as
- * often as it likes. Empty texts (media without a caption) are skipped.
+ * often as it likes. A message with neither words nor media (a service
+ * action) is skipped; a media message is NEVER skipped -- see below.
  */
 export async function rememberMessages(
   pool: Pool,
@@ -192,9 +207,27 @@ export async function rememberMessagesFresh(
   lead: string,
   msgs: StoredMessage[]
 ): Promise<StoredMessage[]> {
-  const rows = msgs.filter(
-    m => m.text && m.text.trim() && Number.isFinite(m.msgId)
-  )
+  /*
+   * A PHOTO WITHOUT A CAPTION IS NOT AN EMPTY MESSAGE.
+   *
+   * This filter used to be the whole rule -- empty text, skipped -- and the
+   * comment above it said so in as many words: "media without a caption are
+   * skipped". The CRM ingest worked around it by writing its own label before
+   * calling here, which left every other writer one forgotten label away
+   * from a hole exactly where a client sent her photos. Owner, 2026-09-22:
+   * she sent photos for her content plan and the agent never knew.
+   *
+   * So the memory composes the line itself from `media`: the marker, then
+   * the caption. What is returned is the COMPOSED message, because Zep and
+   * the reply detector read `text` from it.
+   */
+  const rows = msgs
+    .map(m =>
+      m.media
+        ? { ...m, text: mediaLine(m.media, m.media.name ?? null, m.text) }
+        : m
+    )
+    .filter(m => m.text && m.text.trim() && Number.isFinite(m.msgId))
   if (!rows.length) return []
   await ensureTable(pool)
   const values: string[] = []
@@ -405,6 +438,71 @@ export async function leadContext(
     signals,
     intentScore: score,
   }
+}
+
+/**
+ * WHAT THEY SENT AS FILES, AS THE OWNER WOULD SAY IT: "eight photos at 06:50".
+ *
+ * The rows are already in the dialog -- one `[фото, альбом из 8]` line per
+ * message -- and a model shown fifteen of those lines in a row reads them as
+ * noise, or skims past them to the last words. This counts them into bursts:
+ * their files one after another, broken by our own word or by half an hour
+ * of quiet, each with its time, its count and the message ids a look needs.
+ *
+ * `after_our_last_word` is the question the seller must ask before replying:
+ * did they send something we have not answered? That is exactly the burst the
+ * brief tells it to open (tg_fetch_media) first.
+ *
+ * Their files only. What the owner sent is the owner's own knowledge.
+ */
+export interface FileBurst {
+  /** When the first file of the burst came, ISO. */
+  at: string
+  /** When the last one came, ISO. */
+  until: string
+  count: number
+  /** "фото ×8", "фото ×7, видео ×1". */
+  what: string
+  msg_ids: number[]
+  after_our_last_word: boolean
+}
+
+const BURST_GAP_MS = 30 * 60_000
+
+export function fileBursts(
+  messages: StoredMessage[],
+  lastOutboundAt: Date | null
+): FileBurst[] {
+  type Open = { first: Date; last: Date; kinds: SentMediaKind[]; ids: number[] }
+  const out: Open[] = []
+  let open: Open | null = null
+  const sorted = [...messages].sort((a, b) => a.at.getTime() - b.at.getTime())
+  for (const m of sorted) {
+    if (m.out) {
+      // Our own word ends whatever they were sending before it.
+      open = null
+      continue
+    }
+    const kind = markerKind(m.text)
+    if (!kind) continue
+    if (open && m.at.getTime() - open.last.getTime() <= BURST_GAP_MS) {
+      open.last = m.at
+      open.kinds.push(kind)
+      open.ids.push(m.msgId)
+      continue
+    }
+    open = { first: m.at, last: m.at, kinds: [kind], ids: [m.msgId] }
+    out.push(open)
+  }
+  return out.map(b => ({
+    at: b.first.toISOString(),
+    until: b.last.toISOString(),
+    count: b.ids.length,
+    what: countedKinds(b.kinds),
+    msg_ids: b.ids,
+    after_our_last_word:
+      lastOutboundAt === null || b.first.getTime() > lastOutboundAt.getTime(),
+  }))
 }
 
 import { segmentOf, type Segment } from './crm-segments'
