@@ -1144,38 +1144,11 @@
   color: var(--status-error);
 }
 
-/* Login Modal */
-.login-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-modal);
-}
-
-.login-modal {
-  background: var(--bg-darkest);
-  border-radius: 16px;
-  padding: 40px;
-  text-align: center;
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  max-width: 400px;
-}
-
-.login-modal h2 {
-  color: #fff;
-  font-size: 24px;
-  margin: 0 0 12px;
-}
-
-.login-modal p {
-  color: #9ca3af;
-  font-size: 14px;
-  margin: 0 0 24px;
-}
+/* Login Modal — живёт в components/Auth/styles.css, рядом со своей разметкой.
+   Здесь стояла вторая копия тех же правил: оверлей, карточка, h2 и p. Две
+   копии одного правила — это одно правило, которое знают не все: кто менял
+   Auth/styles.css, не видел изменений вовсе, потому что порядок импортов
+   отдавал победу этой. Правило теперь одно, и оно там, где разметка. */
 
 /* Save Template Dialog */
 .save-template-overlay {
@@ -1548,28 +1521,7 @@
     min-height: var(--touch-target, 44px);
   }
 
-  /* Login Modal - Fullscreen */
-  .login-modal {
-    max-width: 100%;
-    width: 100%;
-    height: auto;
-    max-height: calc(100% - 32px);
-    border-radius: 12px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 24px;
-    padding-top: env(safe-area-inset-top, 24px);
-    padding-bottom: env(safe-area-inset-bottom, 24px);
-  }
-
-  /* Оверлей больше не растягивает модалку в край: на телефоне это лишало
-     подложку последнего кликабельного пикселя, а обработчик закрытия висит
-     именно на ней. Крестик добавлен в разметку, но зазор нужен и сам по себе. */
-  .login-modal-overlay {
-    align-items: center;
-    padding: 16px;
-  }
+  /* Телефонный вид модалки входа переехал туда же, в Auth/styles.css. */
 }
 
 /* ===============================

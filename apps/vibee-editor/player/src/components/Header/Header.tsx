@@ -7,7 +7,7 @@ import {
   // User & Quota atoms
   userAtom,
   renderQuotaAtom,
-  showLoginModalAtom,
+  openLoginAtom,
   fetchQuotaAtom,
   logoutAtom,
   myProfileAtom,
@@ -164,7 +164,7 @@ export function Header() {
     const next = branding.title || t('app.title')
     if (next && document.title !== next) document.title = next
   }, [branding.resolved, branding.title, t])
-  const setShowLoginModal = useSetAtom(showLoginModalAtom)
+  const openLogin = useSetAtom(openLoginAtom)
 
   // Instagram connection
   const instagramStatus = useAtomValue(instagramStatusAtom)
@@ -286,7 +286,7 @@ export function Header() {
   // the tabs (pinned to the bottom on phones), the language toggle and the
   // settings go. The modals stay, because LoginModal is mounted only here and
   // GeneratePanel, Timeline, ProfileHeader and UserCard open it through
-  // showLoginModalAtom. This return must stay below every hook.
+  // openLoginAtom. This return must stay below every hook.
   if (IS_EMBED) {
     return (
       <>
@@ -507,7 +507,7 @@ export function Header() {
             <button
               type="button"
               className="telegram-login-btn small"
-              onClick={() => setShowLoginModal(true)}
+              onClick={() => openLogin(null)}
             >
               <span>{t('login.button')}</span>
             </button>

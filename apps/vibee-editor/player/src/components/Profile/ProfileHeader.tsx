@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import {
   User,
   Users,
@@ -16,7 +16,7 @@ import {
   userAtom,
   followUserAtom,
   unfollowUserAtom,
-  showLoginModalAtom,
+  openLoginAtom,
 } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '@/config'
@@ -36,7 +36,7 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
   const user = useAtomValue(userAtom)
   const follow = useSetAtom(followUserAtom)
   const unfollow = useSetAtom(unfollowUserAtom)
-  const [, setShowLogin] = useAtom(showLoginModalAtom)
+  const openLogin = useSetAtom(openLoginAtom)
 
   if (!profile) return null
 
@@ -60,7 +60,7 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
     )
     if (!user) {
       console.log('[Follow] No user, showing login modal')
-      setShowLogin(true)
+      openLogin('follow')
       return
     }
 

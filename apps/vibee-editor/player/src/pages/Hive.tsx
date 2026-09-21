@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSetAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
-import { showLoginModalAtom } from '@/atoms'
+import { openLoginAtom } from '@/atoms'
 import { LoginModal } from '@/components/Auth/LoginModal'
 import '@/components/Auth/styles.css'
 import { answerIdentityRequests, queenPage } from '@/lib/hive'
@@ -65,7 +65,7 @@ export default function HivePage() {
   const [loaded, setLoaded] = useState(false)
   const page = queenPage(lang)
   const frameRef = useRef<HTMLIFrameElement>(null)
-  const setShowLoginModal = useSetAtom(showLoginModalAtom)
+  const openLogin = useSetAtom(openLoginAtom)
 
   // The framed game asks who the visitor is. The answer is a 300 s game token
   // minted from this app's credential, never the credential itself, and only
@@ -103,9 +103,11 @@ export default function HivePage() {
         accessToken: getAppAccessToken(), // secret-guard-ok: runtime session value, never a literal credential
       }),
       apiBase: API_BASE,
-      onSignIn: () => setShowLoginModal(true),
+      // The board asked for a sign-in, so the modal says so rather than
+      // offering video renders to somebody looking at their clients.
+      onSignIn: () => openLogin('board'),
     })
-  }, [setShowLoginModal])
+  }, [openLogin])
 
   // Inside the game's TRI frame the hive IS the page around this frame.
   // Framing it again would nest game > app > game > app without end, so no
