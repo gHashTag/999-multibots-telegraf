@@ -119,13 +119,18 @@ export function parseLive(
   }
 }
 
+/**
+ * The part of the address that makes the pod log the page in by itself.
+ * The window's own reconnect script lands on the same address, so both read
+ * it from here.
+ */
+export const LOGIN_QUERY =
+  `?usr=${encodeURIComponent(DEFAULT_DISPLAY_NAME)}` +
+  `&pwd=${encodeURIComponent(LOGIN_PLACEHOLDER)}`
+
 /** Where the page must land for the pod to let it in without asking. */
 export function loginUrlFor(sessionId: string): string {
-  return (
-    `${LIVE_PREFIX}${sessionId}/` +
-    `?usr=${encodeURIComponent(DEFAULT_DISPLAY_NAME)}` +
-    `&pwd=${encodeURIComponent(LOGIN_PLACEHOLDER)}`
-  )
+  return `${LIVE_PREFIX}${sessionId}/${LOGIN_QUERY}`
 }
 
 export function readCookie(
