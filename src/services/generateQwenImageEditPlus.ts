@@ -28,6 +28,7 @@ import {
   extractImageUrlsFromQwenResponse,
 } from '@/schemas/qwenImageEditPlus.schema'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 
 // Service parameters interface
 // ✅ REFACTOR: inputImageUrl FIRST (what to edit), then prompt (how to edit)
@@ -112,7 +113,8 @@ export const generateQwenImageEditPlus = async (
 
     // ✅ Get centralized aspect_ratio from database
     const dbAspectRatio = await getAspectRatio(Number(telegram_id))
-    const finalAspectRatio = dbAspectRatio || aspect_ratio || '1:1'
+    const finalAspectRatio =
+      dbAspectRatio || aspect_ratio || DEFAULT_ASPECT_RATIO
 
     logger.info('QwenEditPlus aspect_ratio resolved', {
       telegram_id,

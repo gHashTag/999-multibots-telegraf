@@ -33,6 +33,17 @@ export interface GptImage25ServiceParams {
   skipBalanceCheck?: boolean
   /** Don't tell the user about failures -- for fallback chains. */
   suppressUserErrors?: boolean
+  /**
+   * Called with the failure message just before it is swallowed.
+   *
+   * This function returns `null` on failure, which tells a caller THAT it
+   * failed and never WHY -- and some callers need the why. The welcome gift
+   * is one: a photo refused on a content rule has to be answered with "send a
+   * different photo, here is the kind", while a broken generator has to be
+   * answered with "try again from the menu". Without the message there is
+   * nothing to classify and the newcomer gets the wrong advice.
+   */
+  onError?: (message: string) => void
 }
 
 const GPT_IMAGE_25_MODEL = {
@@ -294,6 +305,13 @@ export async function generateGptImage25(
       telegram_id: params.telegram_id,
       error: message,
     })
+
+    try {
+      params.onError?.(message)
+    } catch (hookError) {
+      // A caller's own bug must not replace the failure it was told about.
+      logger.error('[GptImage25] onError hook threw', { hookError })
+    }
 
     if (!params.suppressUserErrors) {
       await params.ctx.reply(
