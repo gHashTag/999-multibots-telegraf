@@ -153,3 +153,53 @@ describe('the window sounds like the product', () => {
     expect(ended).toBe(true)
   })
 })
+
+describe('the proxy answers the fast-start paths itself', () => {
+  function call(path: string) {
+    return new Promise<{
+      status?: number
+      headers?: Record<string, string>
+      body?: string
+    }>(resolve => {
+      const out: {
+        status?: number
+        headers?: Record<string, string>
+        body?: string
+      } = {}
+      void import('./src/browser/live-pipe').then(({ pipeHttp }) =>
+        pipeHttp(
+          {
+            endpoint: '127.0.0.1:1',
+            upstreamPath: path,
+            sessionId: 'sessAbCd1234',
+            viewToken: 'x',
+            cdpEndpoint: null,
+          },
+          { method: 'GET', headers: {} } as never,
+          {
+            writeHead(status: number, headers: Record<string, string>) {
+              out.status = status
+              out.headers = headers
+            },
+            end(body?: string) {
+              out.body = body ? String(body) : undefined
+              resolve(out)
+            },
+          } as never
+        )
+      )
+    })
+  }
+
+  it('ANSWERS emoji.json WITHOUT ASKING THE POD', async () => {
+    const r = await call('/emoji.json')
+    expect(r.status).toBe(200)
+    expect(JSON.parse(r.body!).groups).toEqual([])
+  })
+
+  it('answers no poster with a 404, never from a cache', async () => {
+    const r = await call('/__poster')
+    expect(r.status).toBe(404)
+    expect(r.headers?.['Cache-Control']).toBe('no-store')
+  })
+})
