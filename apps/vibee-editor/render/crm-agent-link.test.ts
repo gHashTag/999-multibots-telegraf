@@ -13,7 +13,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const OWNER = '144022504'
-const PLAYOM = '435572800'
+/** An invented claimant: no real person's id appears in this repository. */
+const CLAIMANT = '900000043'
 const STRANGER = '900000042'
 process.env.OWNER_TELEGRAM_ID = OWNER
 process.env.TELEGRAM_API_ID = '1'
@@ -53,7 +54,7 @@ function leelaBot() {
       return `Заявка ${CLAIM}\nTelegram ID: ${by}\nИстекает 2026-09-14T00:00:00.000Z.\nДоступ не выдан.`
     }
     if (text === '/agent_claims') {
-      return `Ожидают отдельного одобрения (не более 20):\n${CLAIM} · @playom · Telegram ID ${PLAYOM} · до 2026-09-14T00:00:00.000Z`
+      return `Ожидают отдельного одобрения (не более 20):\n${CLAIM} · @example_seller · Telegram ID ${CLAIMANT} · до 2026-09-14T00:00:00.000Z`
     }
     if (text.startsWith('/agent_approve ')) {
       approved = text.endsWith(CLAIM) && by === OWNER
@@ -62,7 +63,7 @@ function leelaBot() {
         : 'Заявка не найдена, истекла, отозвана или не допускает выдачу роли.'
     }
     if (text === '/agent') {
-      return `Leela • редакционный агент. Роль: ${approved && by === PLAYOM ? 'администратор контента' : by === OWNER ? 'доверенный владелец' : 'не одобрена'}.`
+      return `Leela • редакционный агент. Роль: ${approved && by === CLAIMANT ? 'администратор контента' : by === OWNER ? 'доверенный владелец' : 'не одобрена'}.`
     }
     return 'Используйте /agent help.'
   }
@@ -164,7 +165,7 @@ describe('claimIdOf / linkedFromStatus', () => {
     const { claimIdOf, linkedFromStatus } = await import(
       './src/agent/crm-agent-link-tool'
     )
-    expect(claimIdOf(`Заявка ${CLAIM}\nTelegram ID: ${PLAYOM}`)).toBe(CLAIM)
+    expect(claimIdOf(`Заявка ${CLAIM}\nTelegram ID: ${CLAIMANT}`)).toBe(CLAIM)
     expect(claimIdOf('Ожидающих заявок нет.')).toBeNull()
     expect(
       linkedFromStatus(
@@ -180,28 +181,30 @@ describe('claimIdOf / linkedFromStatus', () => {
 describe('crm_agent_link', () => {
   it('runs the four steps through the two sessions and reports linked', async () => {
     const bot = leelaBot()
-    await mockTelegram(bot, [PLAYOM, OWNER, PLAYOM])
+    await mockTelegram(bot, [CLAIMANT, OWNER, CLAIMANT])
     const { CRM_AGENT_LINK_TOOLS } = await import(
       './src/agent/crm-agent-link-tool'
     )
     const tool = CRM_AGENT_LINK_TOOLS[0]
     expect(tool.name).toBe('crm_agent_link')
-    const out: any = await tool.handler({ wait_ms: 1000 }, {
+    const out: any = await tool.handler({ claimant: CLAIMANT, wait_ms: 1000 }, {
       telegramId: OWNER,
-      pool: sessionsPool([OWNER, PLAYOM]),
+      pool: sessionsPool([OWNER, CLAIMANT]),
     } as never)
     expect(out.linked).toBe(true)
     expect(out.approved).toBe(true)
     expect(out.claim_id).toBe(CLAIM)
     expect(out.steps.map((s: any) => [s.from, s.sent])).toEqual([
-      [PLAYOM, '/agent_claim'],
+      [CLAIMANT, '/agent_claim'],
       [OWNER, '/agent_claims'],
       [OWNER, `/agent_approve ${CLAIM}`],
-      [PLAYOM, '/agent'],
+      [CLAIMANT, '/agent'],
     ])
-    expect(bot.sent.map(s => s.by)).toEqual([PLAYOM, OWNER, OWNER, PLAYOM])
+    expect(bot.sent.map(s => s.by)).toEqual([CLAIMANT, OWNER, OWNER, CLAIMANT])
     expect(JSON.stringify(out)).not.toContain(SESSION.slice(0, 12))
-  })
+    // Four real one-second polls: ~4.2 s alone, past the 5 s default under a
+    // parallel run. The ceiling is time, not correctness.
+  }, 15_000)
 
   it("is the owner's tool: a seller cannot link another seller", async () => {
     const { CRM_AGENT_LINK_TOOLS } = await import(
@@ -209,8 +212,8 @@ describe('crm_agent_link', () => {
     )
     await expect(
       CRM_AGENT_LINK_TOOLS[0].handler({ claimant: OWNER }, {
-        telegramId: PLAYOM,
-        pool: sessionsPool([OWNER, PLAYOM]),
+        telegramId: CLAIMANT,
+        pool: sessionsPool([OWNER, CLAIMANT]),
       } as never)
     ).rejects.toThrow('владельцу')
   })
@@ -228,6 +231,40 @@ describe('crm_agent_link', () => {
       } as never)
     ).rejects.toThrow('не подключён')
     expect(bot.sent).toHaveLength(0)
+  })
+
+  /*
+   * NO CLAIMANT, NO HANDSHAKE. The tool used to fall back to one real
+   * person's id and send /agent_claim from her session. Refused before any
+   * session is read or any message leaves.
+   */
+  it('refuses a call that names no claimant, before touching a session', async () => {
+    const bot = leelaBot()
+    await mockTelegram(bot, [CLAIMANT])
+    const { CRM_AGENT_LINK_TOOLS, NO_CLAIMANT_REASON } = await import(
+      './src/agent/crm-agent-link-tool'
+    )
+    const reads: unknown[] = []
+    const pool = sessionsPool([OWNER, CLAIMANT])
+    const counting = {
+      query: async (sql: string, params: unknown[] = []) => {
+        reads.push(sql)
+        return pool.query(sql, params)
+      },
+    }
+    for (const args of [{}, { claimant: '' }, { wait_ms: 1000 }]) {
+      await expect(
+        CRM_AGENT_LINK_TOOLS[0].handler(args, {
+          telegramId: OWNER,
+          pool: counting,
+        } as never)
+      ).rejects.toThrow(NO_CLAIMANT_REASON)
+    }
+    expect(reads).toEqual([])
+    expect(bot.sent).toHaveLength(0)
+    const params = CRM_AGENT_LINK_TOOLS[0].parameters as any
+    expect(params.required).toEqual(['claimant'])
+    expect(JSON.stringify(params)).not.toMatch(/по умолчанию \d{5,}/) // cyrillic-ok
   })
 
   it('refuses the owner as his own claimant', async () => {
@@ -258,14 +295,17 @@ describe('crm_agent_link', () => {
         }
       },
     }
-    await mockTelegram(silent as never, [PLAYOM])
+    await mockTelegram(silent as never, [CLAIMANT])
     const { CRM_AGENT_LINK_TOOLS } = await import(
       './src/agent/crm-agent-link-tool'
     )
-    const out: any = await CRM_AGENT_LINK_TOOLS[0].handler({ wait_ms: 1000 }, {
-      telegramId: OWNER,
-      pool: sessionsPool([OWNER, PLAYOM]),
-    } as never)
+    const out: any = await CRM_AGENT_LINK_TOOLS[0].handler(
+      { claimant: CLAIMANT, wait_ms: 1000 },
+      {
+        telegramId: OWNER,
+        pool: sessionsPool([OWNER, CLAIMANT]),
+      } as never
+    )
     expect(out.linked).toBe(false)
     expect(out.claim_id).toBeNull()
     expect(out.steps).toHaveLength(1)

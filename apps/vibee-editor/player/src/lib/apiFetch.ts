@@ -1,7 +1,11 @@
 import { getInitData } from './telegram'
 import { RENDER_URL } from '../config'
 import { API_BASE } from '../config'
-import { getAppAccessToken } from './appSession'
+import {
+  ensureFreshSession,
+  getAppAccessToken,
+  renewAppSession,
+} from './appSession'
 
 /**
  * Единственная дверь к рендер-серверу.
@@ -114,11 +118,35 @@ export async function apiFetch<T = unknown>(
   url: string,
   init: RequestInit = {}
 ): Promise<T> {
-  const headers = isOurServer(url)
-    ? authHeaders(init.headers)
-    : new Headers(init.headers)
+  const ours = isOurServer(url)
+  /*
+   * AN EXPIRED SESSION IS HEALED HERE, NOT REPORTED HERE.
+   *
+   * The access token lives ten minutes and rotation used to have a single
+   * trigger, a `setTimeout` (lib/appSession.ts). A missed tick was permanent,
+   * and from then on every call answered 401 "session rejected: expired" --
+   * measured on production for @SamHold, 2026-09-21. A person cannot be asked
+   * to sign in again because a timer slept while their laptop did.
+   *
+   * So the door asks for a live credential before knocking, and knocks a
+   * second time if the server says the credential is spent. Once, never in a
+   * loop: if the refresh itself fails the session is genuinely over and the
+   * 401 goes to the caller with its reason, as before.
+   *
+   * Only where the session is what authenticates the request. Inside the Mini
+   * App the launch signature wins and `authHeaders` sends it ALONE (see the
+   * note there); rotating a session that will not travel would heal nothing
+   * and retrying would just repeat the same refusal.
+   */
+  const bySession = ours && !getInitData()
+  if (bySession) await ensureFreshSession()
 
-  const res = await fetch(url, { ...init, headers })
+  const headers = ours ? authHeaders(init.headers) : new Headers(init.headers)
+
+  let res = await fetch(url, { ...init, headers })
+  if (res.status === 401 && bySession && (await renewAppSession())) {
+    res = await fetch(url, { ...init, headers: authHeaders(init.headers) })
+  }
   const raw = await res.text()
 
   let parsed: unknown = undefined

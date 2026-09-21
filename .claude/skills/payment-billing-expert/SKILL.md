@@ -5,13 +5,14 @@ description: Payment processing and billing expert for Telegram bot with Robokas
 
 # 💰 Payment & Billing Expert - Мастер Платежных Операций
 
-**Sanskrit Wisdom**: 🕉️ *"धनं प्रमाणं सर्वस्य"* (Dhanam Pramanam Sarvasya) - "Деньги требуют точности во всём"
+**Sanskrit Wisdom**: 🕉️ _"धनं प्रमाणं सर्वस्य"_ (Dhanam Pramanam Sarvasya) - "Деньги требуют точности во всём"
 
 **Философия**: "One payment error = lost customer trust. Atomicity is not optional. Idempotency is mandatory."
 
 ## 🎯 Core Knowledge
 
 Этот Skill обеспечивает безопасность платежей через:
+
 - 💳 Robokassa integration patterns
 - ⭐ Telegram Stars payment
 - 💰 Balance management (atomic operations)
@@ -32,23 +33,23 @@ description: Payment processing and billing expert for Telegram bot with Robokas
 ```typescript
 // src/handlers/paymentHandlers/handleTopUp.ts
 
-import crypto from 'crypto';
-import { getSecret } from '@/core/infisical/client';
+import crypto from 'crypto'
+import { getSecret } from '@/core/infisical/client'
 
 export interface RobokassaPaymentParams {
-  amount: number;          // Сумма в рублях
-  userId: string;          // User ID для привязки
-  description: string;     // Описание платежа
-  invoiceId?: number;      // Опционально, для идемпотентности
+  amount: number // Сумма в рублях
+  userId: string // User ID для привязки
+  description: string // Описание платежа
+  invoiceId?: number // Опционально, для идемпотентности
 }
 
 export async function generateRobokassaLink(
   params: RobokassaPaymentParams
 ): Promise<string> {
   // 1. Get Robokassa credentials from Infisical
-  const merchantLogin = await getSecret('ROBOKASSA_MERCHANT_LOGIN');
-  const password1 = await getSecret('ROBOKASSA_PASSWORD_1');
-  const isTest = process.env.NODE_ENV !== 'production';
+  const merchantLogin = await getSecret('ROBOKASSA_MERCHANT_LOGIN')
+  const password1 = await getSecret('ROBOKASSA_PASSWORD_1')
+  const isTest = process.env.NODE_ENV !== 'production'
 
   // 2. Generate signature (MD5)
   // Format: MerchantLogin:OutSum:InvoiceID:Password1:Shp_user_id
@@ -57,18 +58,18 @@ export async function generateRobokassaLink(
     params.amount.toFixed(2),
     params.invoiceId || Date.now(),
     password1,
-    `Shp_user_id=${params.userId}`
-  ].join(':');
+    `Shp_user_id=${params.userId}`,
+  ].join(':')
 
   const signature = crypto
     .createHash('md5')
     .update(signatureString)
-    .digest('hex');
+    .digest('hex')
 
   // 3. Build payment URL
   const baseUrl = isTest
     ? 'https://auth.robokassa.ru/Merchant/Index.aspx'
-    : 'https://auth.robokassa.ru/Merchant/Index.aspx';
+    : 'https://auth.robokassa.ru/Merchant/Index.aspx'
 
   const params = new URLSearchParams({
     MerchantLogin: merchantLogin,
@@ -77,34 +78,29 @@ export async function generateRobokassaLink(
     Description: params.description,
     SignatureValue: signature,
     Shp_user_id: params.userId,
-    IsTest: isTest ? '1' : '0'
-  });
+    IsTest: isTest ? '1' : '0',
+  })
 
-  return `${baseUrl}?${params.toString()}`;
+  return `${baseUrl}?${params.toString()}`
 }
 
 // Usage in Telegram scene
-bot.action('topup_100', async (ctx) => {
-  await ctx.answerCbQuery();
+bot.action('topup_100', async ctx => {
+  await ctx.answerCbQuery()
 
-  const userId = ctx.from.id.toString();
+  const userId = ctx.from.id.toString()
   const paymentLink = await generateRobokassaLink({
     amount: 100,
     userId,
-    description: 'Пополнение баланса 100 RUB'
-  });
+    description: 'Пополнение баланса 100 RUB',
+  })
 
-  await ctx.reply(
-    '💳 Для пополнения перейдите по ссылке:',
-    {
-      reply_markup: {
-        inline_keyboard: [[
-          { text: '💰 Оплатить 100 ₽', url: paymentLink }
-        ]]
-      }
-    }
-  );
-});
+  await ctx.reply('💳 Для пополнения перейдите по ссылке:', {
+    reply_markup: {
+      inline_keyboard: [[{ text: '💰 Оплатить 100 ₽', url: paymentLink }]],
+    },
+  })
+})
 ```
 
 ### Pattern 2: Handle Robokassa Result (Success Redirect)
@@ -113,27 +109,27 @@ bot.action('topup_100', async (ctx) => {
 // src/webhooks/robokassa-result.ts
 
 export async function handleRobokassaResult(req: Request): Promise<Response> {
-  const params = new URL(req.url).searchParams;
+  const params = new URL(req.url).searchParams
 
   // 1. Extract parameters
-  const outSum = params.get('OutSum');
-  const invoiceId = params.get('InvId');
-  const signature = params.get('SignatureValue');
-  const userId = params.get('Shp_user_id');
+  const outSum = params.get('OutSum')
+  const invoiceId = params.get('InvId')
+  const signature = params.get('SignatureValue')
+  const userId = params.get('Shp_user_id')
 
   // 2. Verify signature (Password1 for Result URL)
-  const password1 = await getSecret('ROBOKASSA_PASSWORD_1');
+  const password1 = await getSecret('ROBOKASSA_PASSWORD_1')
 
-  const signatureString = `${outSum}:${invoiceId}:${password1}:Shp_user_id=${userId}`;
+  const signatureString = `${outSum}:${invoiceId}:${password1}:Shp_user_id=${userId}`
   const expectedSignature = crypto
     .createHash('md5')
     .update(signatureString)
     .digest('hex')
-    .toUpperCase();
+    .toUpperCase()
 
   if (signature?.toUpperCase() !== expectedSignature) {
-    console.error('❌ Invalid Robokassa Result signature');
-    return new Response('Invalid signature', { status: 403 });
+    console.error('❌ Invalid Robokassa Result signature')
+    return new Response('Invalid signature', { status: 403 })
   }
 
   // 3. This is just user redirect - don't process payment here!
@@ -150,9 +146,9 @@ export async function handleRobokassaResult(req: Request): Promise<Response> {
     </html>`,
     {
       status: 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     }
-  );
+  )
 }
 ```
 
@@ -163,30 +159,30 @@ export async function handleRobokassaResult(req: Request): Promise<Response> {
 
 export async function handleRobokassaWebhook(req: Request): Promise<Response> {
   try {
-    const params = await req.json();
+    const params = await req.json()
 
     // 1. Extract parameters
-    const outSum = parseFloat(params.OutSum);
-    const invoiceId = params.InvId;
-    const signature = params.SignatureValue;
-    const userId = params.Shp_user_id;
+    const outSum = parseFloat(params.OutSum)
+    const invoiceId = params.InvId
+    const signature = params.SignatureValue
+    const userId = params.Shp_user_id
 
     // 2. Verify signature (Password2 for Success URL)
-    const password2 = await getSecret('ROBOKASSA_PASSWORD_2');
+    const password2 = await getSecret('ROBOKASSA_PASSWORD_2')
 
-    const signatureString = `${outSum}:${invoiceId}:${password2}:Shp_user_id=${userId}`;
+    const signatureString = `${outSum}:${invoiceId}:${password2}:Shp_user_id=${userId}`
     const expectedSignature = crypto
       .createHash('md5')
       .update(signatureString)
       .digest('hex')
-      .toUpperCase();
+      .toUpperCase()
 
     if (signature?.toUpperCase() !== expectedSignature) {
       console.error('❌ Invalid Robokassa webhook signature', {
         received: signature,
-        expected: expectedSignature
-      });
-      return new Response('Invalid signature', { status: 403 });
+        expected: expectedSignature,
+      })
+      return new Response('Invalid signature', { status: 403 })
     }
 
     // 3. Check idempotency (prevent duplicate processing)
@@ -195,11 +191,11 @@ export async function handleRobokassaWebhook(req: Request): Promise<Response> {
       .select('id')
       .eq('external_id', invoiceId)
       .eq('provider', 'robokassa')
-      .single();
+      .single()
 
     if (existingTransaction.data) {
-      console.log(`⚠️  Duplicate webhook ignored: ${invoiceId}`);
-      return new Response(`OK${invoiceId}`, { status: 200 });
+      console.log(`⚠️  Duplicate webhook ignored: ${invoiceId}`)
+      return new Response(`OK${invoiceId}`, { status: 200 })
     }
 
     // 4. Process payment ATOMICALLY
@@ -207,15 +203,14 @@ export async function handleRobokassaWebhook(req: Request): Promise<Response> {
       userId,
       amount: outSum,
       invoiceId,
-      provider: 'robokassa'
-    });
+      provider: 'robokassa',
+    })
 
     // 5. Send confirmation to Robokassa
-    return new Response(`OK${invoiceId}`, { status: 200 });
-
+    return new Response(`OK${invoiceId}`, { status: 200 })
   } catch (error) {
-    console.error('❌ Robokassa webhook error:', error);
-    return new Response('Internal error', { status: 500 });
+    console.error('❌ Robokassa webhook error:', error)
+    return new Response('Internal error', { status: 500 })
   }
 }
 ```
@@ -234,17 +229,14 @@ async function updateBalance(userId: string, amount: number) {
     .from('users')
     .select('balance')
     .eq('id', userId)
-    .single();
+    .single()
 
   // ⚠️  Another request might change balance here!
 
   // 2. Update balance
-  const newBalance = user.balance + amount;
+  const newBalance = user.balance + amount
 
-  await supabase
-    .from('users')
-    .update({ balance: newBalance })
-    .eq('id', userId);
+  await supabase.from('users').update({ balance: newBalance }).eq('id', userId)
 
   // ❌ Lost update problem!
 }
@@ -254,14 +246,14 @@ async function updateBalanceAtomic(userId: string, amount: number) {
   // Use Supabase RPC for atomic increment
   const { data, error } = await supabase.rpc('increment_user_balance', {
     p_user_id: userId,
-    p_amount: amount
-  });
+    p_amount: amount,
+  })
 
   if (error) {
-    throw new Error(`Failed to update balance: ${error.message}`);
+    throw new Error(`Failed to update balance: ${error.message}`)
   }
 
-  return data;
+  return data
 }
 
 // PostgreSQL function (create via migration)
@@ -303,23 +295,23 @@ async function deductBalanceAtomic(
   // Use PostgreSQL function with check
   const { data, error } = await supabase.rpc('deduct_user_balance', {
     p_user_id: userId,
-    p_amount: amount
-  });
+    p_amount: amount,
+  })
 
   if (error) {
     if (error.message.includes('Insufficient balance')) {
       return {
         success: false,
-        error: 'Недостаточно средств'
-      };
+        error: 'Недостаточно средств',
+      }
     }
-    throw error;
+    throw error
   }
 
   return {
     success: true,
-    newBalance: data
-  };
+    newBalance: data,
+  }
 }
 
 // PostgreSQL function
@@ -370,26 +362,26 @@ $$;
 ```typescript
 // Complete payment processing with transaction
 async function processSuccessfulPayment(params: {
-  userId: string;
-  amount: number;
-  invoiceId: string;
-  provider: 'robokassa' | 'telegram_stars';
+  userId: string
+  amount: number
+  invoiceId: string
+  provider: 'robokassa' | 'telegram_stars'
 }): Promise<void> {
   // Start transaction
   const { data, error } = await supabase.rpc('process_payment_transaction', {
     p_user_id: params.userId,
     p_amount: params.amount,
     p_invoice_id: params.invoiceId,
-    p_provider: params.provider
-  });
+    p_provider: params.provider,
+  })
 
   if (error) {
-    console.error('❌ Payment processing failed:', error);
-    throw error;
+    console.error('❌ Payment processing failed:', error)
+    throw error
   }
 
   // Send notification to user via Telegram
-  await notifyUserBalanceUpdate(params.userId, params.amount);
+  await notifyUserBalanceUpdate(params.userId, params.amount)
 }
 
 // PostgreSQL function with full transaction
@@ -460,42 +452,40 @@ async function processPaymentIdempotent(
     .from('idempotency_keys')
     .insert({
       key: invoiceId,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     })
     .select()
-    .single();
+    .single()
 
   // 2. If key already exists = duplicate
-  if (error && error.code === '23505') {  // unique_violation
-    console.log(`⚠️  Duplicate payment detected: ${invoiceId}`);
-    return { processed: false, duplicate: true };
+  if (error && error.code === '23505') {
+    // unique_violation
+    console.log(`⚠️  Duplicate payment detected: ${invoiceId}`)
+    return { processed: false, duplicate: true }
   }
 
   if (error) {
-    throw error;
+    throw error
   }
 
   // 3. Process payment
   try {
-    await processFunc();
-    return { processed: true, duplicate: false };
+    await processFunc()
+    return { processed: true, duplicate: false }
   } catch (error) {
     // Cleanup idempotency key on failure
-    await supabase
-      .from('idempotency_keys')
-      .delete()
-      .eq('key', invoiceId);
+    await supabase.from('idempotency_keys').delete().eq('key', invoiceId)
 
-    throw error;
+    throw error
   }
 }
 
 // Usage
 await processPaymentIdempotent(invoiceId, async () => {
-  await updateBalance(userId, amount);
-  await createTransaction(userId, amount, invoiceId);
-  await notifyUser(userId);
-});
+  await updateBalance(userId, amount)
+  await createTransaction(userId, amount, invoiceId)
+  await notifyUser(userId)
+})
 ```
 
 ### Pattern 2: Idempotency Table Schema
@@ -535,102 +525,98 @@ $$;
 export async function createTelegramStarsInvoice(
   ctx: Context,
   params: {
-    title: string;
-    description: string;
-    amount: number;  // in stars
-    payload: string; // unique identifier
+    title: string
+    description: string
+    amount: number // in stars
+    payload: string // unique identifier
   }
 ): Promise<void> {
   await ctx.replyWithInvoice({
     title: params.title,
     description: params.description,
     payload: params.payload,
-    currency: 'XTR',  // Telegram Stars currency
-    prices: [
-      { label: params.title, amount: params.amount }
-    ]
-  });
+    currency: 'XTR', // Telegram Stars currency
+    prices: [{ label: params.title, amount: params.amount }],
+  })
 }
 
 // Usage
-bot.action('buy_100_credits', async (ctx) => {
-  await ctx.answerCbQuery();
+bot.action('buy_100_credits', async ctx => {
+  await ctx.answerCbQuery()
 
   const payload = JSON.stringify({
     userId: ctx.from.id,
     amount: 100,
-    timestamp: Date.now()
-  });
+    timestamp: Date.now(),
+  })
 
   await createTelegramStarsInvoice(ctx, {
     title: '100 кредитов',
     description: 'Пополнение баланса на 100 кредитов',
-    amount: 50,  // 50 stars
-    payload
-  });
-});
+    amount: 50, // 50 stars
+    payload,
+  })
+})
 ```
 
 ### Pattern 2: Handle Pre-Checkout Query
 
 ```typescript
 // Pre-checkout validation
-bot.on('pre_checkout_query', async (ctx) => {
+bot.on('pre_checkout_query', async ctx => {
   try {
-    const payload = JSON.parse(ctx.preCheckoutQuery.invoice_payload);
-    const userId = payload.userId;
+    const payload = JSON.parse(ctx.preCheckoutQuery.invoice_payload)
+    const userId = payload.userId
 
     // Validate user
-    const user = await getUserById(userId);
+    const user = await getUserById(userId)
     if (!user) {
-      await ctx.answerPreCheckoutQuery(false, 'Пользователь не найден');
-      return;
+      await ctx.answerPreCheckoutQuery(false, 'Пользователь не найден')
+      return
     }
 
     // Validate amount
     if (payload.amount <= 0 || payload.amount > 10000) {
-      await ctx.answerPreCheckoutQuery(false, 'Некорректная сумма');
-      return;
+      await ctx.answerPreCheckoutQuery(false, 'Некорректная сумма')
+      return
     }
 
     // All checks passed
-    await ctx.answerPreCheckoutQuery(true);
-
+    await ctx.answerPreCheckoutQuery(true)
   } catch (error) {
-    console.error('Pre-checkout error:', error);
-    await ctx.answerPreCheckoutQuery(false, 'Внутренняя ошибка');
+    console.error('Pre-checkout error:', error)
+    await ctx.answerPreCheckoutQuery(false, 'Внутренняя ошибка')
   }
-});
+})
 ```
 
 ### Pattern 3: Handle Successful Payment
 
 ```typescript
 // Process successful Telegram Stars payment
-bot.on('successful_payment', async (ctx) => {
+bot.on('successful_payment', async ctx => {
   try {
-    const payment = ctx.message.successful_payment;
-    const payload = JSON.parse(payment.invoice_payload);
+    const payment = ctx.message.successful_payment
+    const payload = JSON.parse(payment.invoice_payload)
 
     // Process payment atomically
     await processSuccessfulPayment({
       userId: payload.userId.toString(),
       amount: payload.amount,
       invoiceId: payment.telegram_payment_charge_id,
-      provider: 'telegram_stars'
-    });
+      provider: 'telegram_stars',
+    })
 
     await ctx.reply(
       `✅ Платёж успешен!\n` +
-      `Зачислено: ${payload.amount} кредитов\n` +
-      `Новый баланс: ${await getUserBalance(payload.userId)}`
-    );
-
+        `Зачислено: ${payload.amount} кредитов\n` +
+        `Новый баланс: ${await getUserBalance(payload.userId)}`
+    )
   } catch (error) {
-    console.error('Payment processing error:', error);
-    await ctx.reply('❌ Ошибка обработки платежа. Обратитесь в поддержку.');
+    console.error('Payment processing error:', error)
+    await ctx.reply('❌ Ошибка обработки платежа. Обратитесь в поддержку.')
   }
-});
+})
 ```
 
 ---
@@ -642,10 +628,10 @@ bot.on('successful_payment', async (ctx) => {
 ```typescript
 // Refund user balance
 export async function refundPayment(params: {
-  userId: string;
-  amount: number;
-  reason: string;
-  originalInvoiceId?: string;
+  userId: string
+  amount: number
+  reason: string
+  originalInvoiceId?: string
 }): Promise<{ success: boolean; error?: string }> {
   try {
     // Start refund transaction
@@ -653,21 +639,20 @@ export async function refundPayment(params: {
       p_user_id: params.userId,
       p_amount: params.amount,
       p_reason: params.reason,
-      p_original_invoice_id: params.originalInvoiceId
-    });
+      p_original_invoice_id: params.originalInvoiceId,
+    })
 
     if (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error.message }
     }
 
     // Notify user
-    await notifyUserRefund(params.userId, params.amount, params.reason);
+    await notifyUserRefund(params.userId, params.amount, params.reason)
 
-    return { success: true };
-
+    return { success: true }
   } catch (error) {
-    console.error('Refund error:', error);
-    return { success: false, error: 'Internal error' };
+    console.error('Refund error:', error)
+    return { success: false, error: 'Internal error' }
   }
 }
 
@@ -725,140 +710,69 @@ export async function handleGenerationError(
   error: Error,
   cost: number
 ): Promise<void> {
-  const userId = ctx.from.id.toString();
+  const userId = ctx.from.id.toString()
 
   try {
     // Refund user
     await refundPayment({
       userId,
       amount: cost,
-      reason: `Generation failed: ${error.message}`
-    });
+      reason: `Generation failed: ${error.message}`,
+    })
 
     await ctx.reply(
       `❌ Ошибка генерации: ${error.message}\n` +
-      `💰 Средства возвращены: ${cost} кредитов`
-    );
-
+        `💰 Средства возвращены: ${cost} кредитов`
+    )
   } catch (refundError) {
-    console.error('Refund failed:', refundError);
+    console.error('Refund failed:', refundError)
     await ctx.reply(
       `❌ Ошибка генерации\n` +
-      `⚠️  Не удалось вернуть средства автоматически\n` +
-      `Обратитесь в поддержку: @support`
-    );
+        `⚠️  Не удалось вернуть средства автоматически\n` +
+        `Обратитесь в поддержку: @support`
+    )
   }
 }
 ```
 
 ---
 
-## 📊 Subscription Management
+## 📊 Subscriptions -- there is exactly ONE: the club
 
-### Pattern 1: Check Subscription Status
+The generic `subscriptions` table / `requireSubscription()` / `/subscribe` pattern that
+stood here never matched this project and was removed on 2026-09-22.
 
-```typescript
-// Check if user has active subscription
-export async function hasActiveSubscription(
-  userId: string
-): Promise<boolean> {
-  const { data } = await supabase
-    .from('subscriptions')
-    .select('id, expires_at')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .gte('expires_at', new Date().toISOString())
-    .single();
+**The model (owner, 2026-09-20/22):**
 
-  return !!data;
-}
+| what                                                                       | how                                                                                                                                                                           | source of truth                                       |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Club                                                                       | Telegram Stars subscription, **10 000 Stars per 30 days**; 30% of each charge back as tokens; renewals booked from `getStarTransactions` (`subscription_period`) exactly once | `render/src/agent/club-membership.ts`                 |
+| Free club access                                                           | bot owners and keepers (computed at read time), and the **guest pass** `CLUB_GUESTS` (env on `vibee-render`) + `DEFAULT_GUESTS`                                               | `club-membership.ts` `clubGrantFor`, `club-guests.ts` |
+| Everything else                                                            | **tokens, 1 Star = 1 token**, one live wallet `user_tokens` (render Postgres)                                                                                                 | `docs/architecture/single-wallet-decision.md`         |
+| Old tiers NEUROVIDEO / NEUROPHOTO / NEUROTESTER / NEUROBLOGGER / NEUROBASE | **do not exist**; history only in the `payments_v2` archive; never grant, never check as access                                                                               | --                                                    |
 
-// Middleware to require subscription
-export function requireSubscription() {
-  return async (ctx: Context, next: () => Promise<void>) => {
-    const userId = ctx.from.id.toString();
-
-    if (!(await hasActiveSubscription(userId))) {
-      await ctx.reply(
-        '⭐ Эта функция доступна только по подписке\n' +
-        'Оформить подписку: /subscribe'
-      );
-      return;
-    }
-
-    await next();
-  };
-}
-
-// Usage
-bot.command('premium_feature',
-  requireSubscription(),
-  async (ctx) => {
-    // ... premium feature logic ...
-  }
-);
-```
-
-### Pattern 2: Create Subscription
-
-```typescript
-// Create subscription after payment
-export async function createSubscription(params: {
-  userId: string;
-  planType: 'monthly' | 'yearly';
-  amount: number;
-  invoiceId: string;
-}): Promise<void> {
-  const duration = params.planType === 'monthly' ? 30 : 365;
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + duration);
-
-  await supabase
-    .from('subscriptions')
-    .insert({
-      user_id: params.userId,
-      plan_type: params.planType,
-      status: 'active',
-      amount: params.amount,
-      external_id: params.invoiceId,
-      created_at: new Date().toISOString(),
-      expires_at: expiresAt.toISOString()
-    });
-
-  // Create transaction record
-  await supabase
-    .from('transactions')
-    .insert({
-      user_id: params.userId,
-      amount: params.amount,
-      type: 'subscription',
-      status: 'completed',
-      external_id: params.invoiceId
-    });
-
-  // Notify user
-  await notifyUserSubscription(params.userId, params.planType, expiresAt);
-}
-```
-
----
+Rules: never write new rows into `payments_v2`; crediting tokens is the owner's decision;
+give access with the guest pass, not with a subscription row.
 
 ## 🕉️ Sanskrit Wisdom for Payments
 
 ### On Accuracy
-*"धनं प्रमाणं सर्वस्य"* (Dhanam Pramanam Sarvasya)
+
+_"धनं प्रमाणं सर्वस्य"_ (Dhanam Pramanam Sarvasya)
 "Деньги требуют точности во всём"
 
 → Ни одной ошибки в платежах!
 
 ### On Atomicity
-*"सर्वं वा नकिञ्चित्"* (Sarvam Va Na Kinchit)
+
+_"सर्वं वा नकिञ्चित्"_ (Sarvam Va Na Kinchit)
 "Всё или ничего"
 
 → Транзакции должны быть атомарными
 
 ### On Trust
-*"विश्वासः सर्वधर्मेषु"* (Vishvasah Sarva Dharmeshu)
+
+_"विश्वासः सर्वधर्मेषु"_ (Vishvasah Sarva Dharmeshu)
 "Доверие превыше всего"
 
 → Один баг в платежах = потеря доверия пользователей

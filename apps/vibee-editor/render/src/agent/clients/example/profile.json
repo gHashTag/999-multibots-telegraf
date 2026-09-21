@@ -1,0 +1,58 @@
+{
+  "telegram_id": "900000001",
+  "handle": "@example_client",
+  "name": "Alex",
+  "not_name": "Sasha",
+  "role": "fictional client: a small ceramics studio that sells through a Telegram channel",
+  "status": "example",
+  "skill_prefix": "Example: ",
+  "identity_rules": [
+    "The client is called Alex. Never Sasha.",
+    "This package is synthetic: it describes nobody and exists so the installer has something to install."
+  ],
+  "business": {
+    "product": "hand-made ceramics, small batches",
+    "surfaces": ["Telegram channel", "Instagram"],
+    "languages": "ru, en"
+  },
+  "audience_hypotheses": [
+    "People who buy one gift-sized piece, not a set",
+    "Other makers who follow the process more than the product"
+  ],
+  "discovery_questions": [
+    "Where do your buyers find you today?",
+    "What did you post last week, and what did people answer?",
+    "What would one good month look like, in your own words?"
+  ],
+  "how_to_work_with_them": [
+    "One question per message.",
+    "Quote the client's own words before proposing anything."
+  ],
+  "forbidden": [
+    "Prices the client did not state",
+    "Promises of sales, followers or reach"
+  ],
+  "approved_cta": {
+    "text": "Write to the channel if a piece speaks to you.",
+    "button": "Open the channel"
+  },
+  "content_plan": {
+    "goal": "Example: first month of posts",
+    "intent": "Show the process, one piece at a time.",
+    "template_id": null,
+    "items": [
+      {
+        "title": "From clay to kiln in one minute",
+        "note": "The process, no product shot."
+      },
+      {
+        "title": "The piece that cracked",
+        "note": "An honest failure, and what it taught."
+      },
+      {
+        "title": "One glaze, three firings",
+        "note": "The same pot, three results."
+      }
+    ]
+  }
+}
