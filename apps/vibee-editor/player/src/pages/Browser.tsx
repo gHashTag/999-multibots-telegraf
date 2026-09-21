@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAtom } from 'jotai'
 import './Browser.css'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -24,6 +25,24 @@ import {
   wheelAfterHandBack,
   type Wheel,
 } from '@/lib/browserWatch'
+import { listenForTouchInside } from '@/lib/frameTouch'
+
+/**
+ * THE PICTURE TAKES THE WHOLE SCREEN, AND BACK LEAVES IT.
+ *
+ * This was the element fullscreen API, which Telegram's iOS WebView does not
+ * implement for anything but a video: the button did nothing, photographed
+ * by the owner. The app is already fullscreen on a phone, so "full screen"
+ * here means the picture covers the app -- the tab bar, the buttons, the
+ * text -- and nothing else is on it.
+ *
+ * It is an entry in the history, not a flag in memory, so the way out is the
+ * way out of everything else: Telegram's own Back button, or the browser's.
+ * No button of ours floats over the picture to close it.
+ */
+const FULL_VIEW = 'full'
+/* The address parameter it lives in: ?view=full. */
+const VIEW_PARAM = 'view'
 
 /**
  * THE PERSON'S OWN BROWSER, ON A SCREEN.
@@ -59,6 +78,11 @@ export default function BrowserPage() {
   const lastState = useRef<BrowserSessionView['state'] | null>(null)
   const [explainGone, setExplainGone] = useState(false)
   const stage = useRef<HTMLDivElement | null>(null)
+  const [params, setParams] = useSearchParams()
+  const full = params.get(VIEW_PARAM) === FULL_VIEW
+  /* Undoes the listeners on the frame's current window; see frameTouch.ts. */
+  const unlistenFrame = useRef<(() => void) | null>(null)
+  useEffect(() => () => unlistenFrame.current?.(), [])
   /* The last shape we asked the pod for, so a scroll does not ask again. */
   const fitted = useRef<Box | null>(null)
 
@@ -113,29 +137,48 @@ export default function BrowserPage() {
       timer = setTimeout(measureAndFit, REFIT_DEBOUNCE_MS)
     }
 
+    /*
+     * The BOX is watched, not the window. Going full screen changes the box
+     * and not the window, and the pod has to follow it or the picture comes
+     * back with the black bars it was meant to lose.
+     */
+    const box =
+      typeof ResizeObserver !== 'undefined' && stage.current
+        ? new ResizeObserver(later)
+        : null
+    if (box && stage.current) box.observe(stage.current)
+
     measureAndFit()
     window.addEventListener('resize', later)
     window.addEventListener('orientationchange', later)
     return () => {
       stopped = true
       clearTimeout(timer)
+      box?.disconnect()
       window.removeEventListener('resize', later)
       window.removeEventListener('orientationchange', later)
     }
   }, [view?.state])
 
+  const takeTheWheel = useCallback(
+    () => setAgentWorking(wheelAfterTouch() === 'agent'),
+    [setAgentWorking]
+  )
+
   const state = view?.state ?? 'none'
   const live = state === 'live' && Boolean(view?.viewUrl)
   const embedded = live && canEmbed(view!.viewUrl!)
 
+  const rootClass = [
+    'remote-browser',
+    live && embedded ? 'remote-browser--live' : '',
+    live && embedded && full ? 'remote-browser--full' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <div
-      className={
-        live && embedded
-          ? 'remote-browser remote-browser--live'
-          : 'remote-browser'
-      }
-    >
+    <div className={rootClass}>
       <header className="remote-browser__head">
         <h1>{t('browser.title')}</h1>
         <p className="remote-browser__lead">{t('browser.lead')}</p>
@@ -196,23 +239,23 @@ export default function BrowserPage() {
                   ? 'remote-browser__stage remote-browser__stage--working'
                   : 'remote-browser__stage'
               }
-              onPointerDown={() =>
-                setAgentWorking(wheelAfterTouch() === 'agent')
-              }
-              onKeyDownCapture={() =>
-                setAgentWorking(wheelAfterTouch() === 'agent')
-              }
+              onPointerDown={takeTheWheel}
+              onKeyDownCapture={takeTheWheel}
             >
-              <p className="remote-browser__working" aria-live="polite">
-                {agentWorking
-                  ? t('browser.agentWorking')
-                  : t('browser.youDrive')}
-              </p>
               <iframe
                 className="remote-browser__frame"
                 src={absoluteViewUrl(view!.viewUrl!)}
                 title={t('browser.title')}
                 allow="clipboard-read; clipboard-write; fullscreen"
+                onLoad={e => {
+                  /* Every load is a new window inside: listen to that one. */
+                  unlistenFrame.current?.()
+                  unlistenFrame.current = listenForTouchInside(
+                    e.currentTarget,
+                    window,
+                    takeTheWheel
+                  )
+                }}
               />
             </div>
           ) : (
@@ -229,15 +272,35 @@ export default function BrowserPage() {
             </div>
           )}
 
-          <div className="remote-browser__actions">
-            {/* A phone in portrait shows the stream as a stamp otherwise. */}
-            <button
-              type="button"
-              className="remote-browser__secondary"
-              onClick={() => void stage.current?.requestFullscreen?.()}
+          {/*
+           * Who is driving, said UNDER the picture. It used to sit on the
+           * picture's top edge, and there it lay over the window's own bar:
+           * the controls under it could not be pressed.
+           */}
+          {embedded ? (
+            <p
+              className={
+                agentWorking
+                  ? 'remote-browser__working remote-browser__working--agent'
+                  : 'remote-browser__working'
+              }
+              aria-live="polite"
             >
-              {t('browser.fullscreen')}
-            </button>
+              {agentWorking ? t('browser.agentWorking') : t('browser.youDrive')}
+            </p>
+          ) : null}
+
+          <div className="remote-browser__actions">
+            {/* A history entry, so Back is the way out; see FULL_VIEW. */}
+            {embedded ? (
+              <button
+                type="button"
+                className="remote-browser__secondary"
+                onClick={() => setParams({ view: FULL_VIEW })}
+              >
+                {t('browser.fullscreen')}
+              </button>
+            ) : null}
 
             {/* Handing the wheel back is a press, never a timeout. */}
             {!agentWorking ? (

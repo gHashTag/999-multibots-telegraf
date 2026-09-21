@@ -405,3 +405,71 @@ export async function screenshot(
     return String(out.data ?? '')
   })
 }
+
+/**
+ * THE WINDOW FILLS THE SCREEN, EVERY TIME THE SCREEN CHANGES SHAPE.
+ *
+ * Reshaping the desktop resizes the X screen and nothing else. Chromium's
+ * window kept the size it had before, and the window manager did not
+ * re-maximise it. Measured in the running pod, 2026-09-21: screen 800x1600,
+ * window 945x1060 -- wider than the screen, so the right edge of every page
+ * was cut off, and 540px shorter, so the bottom third of the picture was the
+ * bare black desktop. Those were the "black fields" in the owner's photo.
+ *
+ * So after the screen changes, every window is set to exactly the screen:
+ * first back to "normal" (a maximised or fullscreen window refuses explicit
+ * bounds), then to 0,0 at the screen's size. Explicit bounds rather than
+ * "maximised": the window manager is the part that did not notice the screen
+ * change, so asking it to maximise could answer with the old size again.
+ */
+export interface WindowIo {
+  targets: (endpoint: string) => Promise<CdpTarget[]>
+  wsUrl: (endpoint: string) => Promise<string>
+  call: (
+    wsUrl: string,
+    method: string,
+    params?: Record<string, unknown>
+  ) => Promise<Record<string, unknown>>
+}
+
+const WINDOW_IO: WindowIo = {
+  targets: listTargets,
+  wsUrl: browserWsUrl,
+  call: callOnTarget,
+}
+
+/** Returns how many windows were fitted. */
+export async function fitWindowToScreen(
+  endpoint: string,
+  size: { width: number; height: number },
+  io: WindowIo = WINDOW_IO
+): Promise<number> {
+  const pages = (await io.targets(endpoint)).filter(t => t.type === 'page')
+  if (pages.length === 0) return 0
+  const ws = await io.wsUrl(endpoint)
+
+  /* Tabs share a window; each window is fitted once. */
+  const windows = new Set<number>()
+  for (const page of pages) {
+    try {
+      const found = await io.call(ws, 'Browser.getWindowForTarget', {
+        targetId: page.id,
+      })
+      if (typeof found.windowId === 'number') windows.add(found.windowId)
+    } catch {
+      /* A tab closing under us has no window left to fit. */
+    }
+  }
+
+  for (const windowId of windows) {
+    await io.call(ws, 'Browser.setWindowBounds', {
+      windowId,
+      bounds: { windowState: 'normal' },
+    })
+    await io.call(ws, 'Browser.setWindowBounds', {
+      windowId,
+      bounds: { left: 0, top: 0, width: size.width, height: size.height },
+    })
+  }
+  return windows.size
+}

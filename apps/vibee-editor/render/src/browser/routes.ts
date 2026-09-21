@@ -46,7 +46,7 @@ import {
   readProfileId,
   forgetProfile,
 } from './profiles'
-import { applyScreen, wantedScreen } from './screen'
+import { fitDesktop, wantedScreen } from './screen'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
 
@@ -371,7 +371,14 @@ async function fit(
   }
 
   try {
-    const got = await applyScreen(session.endpoint, session.adminToken, want)
+    const got = await fitDesktop(
+      {
+        endpoint: session.endpoint,
+        adminToken: session.adminToken,
+        cdpEndpoint: session.cdpEndpoint,
+      },
+      want
+    )
     return { status: 200, body: { ok: true, screen: got } }
   } catch (e) {
     /*

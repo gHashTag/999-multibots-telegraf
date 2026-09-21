@@ -442,7 +442,16 @@ body {
  * exactly the kind of "on" this palette colours.
  */
 .members .avatar, .members-list .avatar, div.avatar {
-  background: ${GREEN} !important;
+  /*
+   * THE COLOUR ONLY -- NEVER THE SHORTHAND, HERE EITHER.
+   *
+   * This was the background shorthand with !important, which also sets
+   * background-image to none and beats anything written inline. So the
+   * person's Telegram photo was fetched, loaded, painted on the disc -- and
+   * erased by this line every time. The disc stayed green with two letters
+   * on it, photographed by the owner.
+   */
+  background-color: ${GREEN} !important;
   color: ${BLACK} !important;
   border: 0 !important;
   /*
@@ -567,6 +576,55 @@ body {
   justify-content: center !important;
 }
 .member, .self.member { width: 24px !important; height: 24px !important; }
+
+/*
+ * ONE DISC PER PERSON, AND IT IS THEIR FACE.
+ *
+ * Every screen that opens the window joins the room as its own member: the
+ * phone, the laptop, a tab left open. They are all the same person -- one
+ * pod per person, and everybody who logs in through the broker logs in
+ * under that person's Telegram name -- and neko drew each of them as its
+ * own disc with the same two letters. Three of them overlapping in a 28px
+ * cell is what the owner photographed.
+ *
+ * So the bar shows ONE disc, the person's own, with their Telegram photo on
+ * it; and when more screens are watching, a count on that disc says how
+ * many. The sign that somebody else is watching is kept -- as a number,
+ * rather than as copies of the same face.
+ *
+ * The photo is a CSS variable on the root, set by the face script once the
+ * image has loaded. Not a style on the disc: Vue re-renders the disc when
+ * the room changes, and a style written onto the old element went with it.
+ */
+.members-list li:not(:first-child) { display: none !important; }
+.members-list li:nth-child(2)::before { content: none !important; }
+.members .member::before,
+.members .member::after { content: none !important; }
+html[data-t27-face] .members .self .avatar {
+  background-image: var(--t27-face) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  color: transparent !important;
+}
+.members .self[data-t27-more]::after {
+  content: attr(data-t27-more) !important;
+  display: block !important;
+  position: absolute !important;
+  right: -6px;
+  bottom: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  background: ${CHROME};
+  border: 1px solid ${IDLE_BORDER};
+  color: ${GREEN};
+  font: 600 9px/12px ${FONT_STACK};
+  text-align: center;
+  margin: 0 !important;
+  width: auto !important;
+}
 
 /*
  * THE PICTURE IS THE WHOLE WINDOW.
@@ -972,41 +1030,39 @@ export const BOOT_SCRIPT = `
   .replace('__HINT_EN__', () => JSON.stringify(BOOT_HINT_EN))
 
 /**
- * PUT THE PERSON'S OWN FACE ON THE DISC.
+ * PUT THE PERSON'S OWN FACE ON THE DISC, AND COUNT THEIR OTHER SCREENS.
  *
- * Only on their OWN member -- `.self` -- because the other discs in the bar
- * belong to other viewers, and painting somebody else's face on them would
- * be worse than initials: it would be a lie about who is watching.
+ * The face goes on the ROOT, as a CSS variable, once the picture has really
+ * loaded; the stylesheet applies it to the person's own disc only. A 404
+ * means there is no photo, nothing is set, and the initials stay.
  *
- * A 404 means there is no photo, and the initials stay. The image is set as
- * a background so neko's own text stays underneath it and reappears if the
- * picture ever fails to decode.
+ * The count goes on the person's own disc as an attribute, rewritten
+ * whenever the room changes: the number of OTHER members, that is, the
+ * person's other screens (see the stylesheet for why they are all theirs).
  */
 export const FACE_SCRIPT = `
 (function () {
   var m = location.pathname.match(/^\\/live\\/([^/]+)/);
   if (!m) return;
+  var root = document.documentElement;
   var url = '/live/' + m[1] + '__AVATAR__';
-  var done = false;
-  function paint() {
-    if (done) return;
-    var el = document.querySelector('.members .self .avatar, .members .self.member .avatar');
-    if (!el) return;
-    done = true;
-    var img = new Image();
-    img.onload = function () {
-      el.style.backgroundImage = 'url(' + url + ')';
-      el.style.backgroundSize = 'cover';
-      el.style.backgroundPosition = 'center';
-      el.style.color = 'transparent';
-    };
-    img.src = url;
+  var img = new Image();
+  img.onload = function () {
+    root.style.setProperty('--t27-face', 'url("' + url + '")');
+    root.setAttribute('data-t27-face', '1');
+  };
+  img.src = url;
+  function count() {
+    var self = document.querySelector('.members .self');
+    if (!self) return;
+    var more = document.querySelectorAll('.members-list > li').length - 1;
+    var want = more > 0 ? '+' + more : '';
+    if ((self.getAttribute('data-t27-more') || '') === want) return;
+    if (want) self.setAttribute('data-t27-more', want);
+    else self.removeAttribute('data-t27-more');
   }
-  paint();
-  new MutationObserver(paint).observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-  });
+  count();
+  new MutationObserver(count).observe(root, { childList: true, subtree: true });
 })();
 `.replace('__AVATAR__', AVATAR_PATH)
 

@@ -21,7 +21,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { injectSkin, shouldDress, FIT_PATH, AVATAR_PATH } from './skin'
 import { telegramAvatar } from './avatar'
-import { applyScreen, wantedScreen } from './screen'
+import { fitDesktop, wantedScreen } from './screen'
 import { cookieNameFor, LIVE_PREFIX, LOGIN_PLACEHOLDER } from './live-proxy'
 
 /** Ours to hold, never to forward. */
@@ -75,6 +75,8 @@ export interface PipeTarget {
    * pod login beside the password, so the page never carries it.
    */
   displayName?: string
+  /** Server-side only. Where the window is fitted to the screen. */
+  cdpEndpoint?: string | null
 }
 
 /**
@@ -300,7 +302,14 @@ async function fitFromQuery(
     height: Number(q.get('h')),
   })
   try {
-    const got = await applyScreen(target.endpoint, target.adminToken, want)
+    const got = await fitDesktop(
+      {
+        endpoint: target.endpoint,
+        adminToken: target.adminToken,
+        cdpEndpoint: target.cdpEndpoint,
+      },
+      want
+    )
     answer(200, { ok: true, screen: got })
   } catch (e) {
     /* A pod that will not resize is still a pod; the person keeps watching. */

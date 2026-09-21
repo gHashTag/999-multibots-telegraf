@@ -3127,6 +3127,7 @@ const server = createServer(async (req, res) => {
            */
           adminToken: decision.adminToken,
           telegramId: decision.telegramId,
+          cdpEndpoint: decision.cdpEndpoint,
           /* Only the login needs it; nothing else waits on Telegram. */
           displayName:
             decision.telegramId && isPodLogin(req.method, decision.upstreamPath)
