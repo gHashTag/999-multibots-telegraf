@@ -31,6 +31,20 @@ export interface PodHandle {
    * to a client: whoever reaches CDP reads every cookie in the profile.
    */
   cdpEndpoint: string
+  /**
+   * The passwords THIS POD actually accepts, when the driver does not set
+   * them itself.
+   *
+   * The docker driver starts a fresh container and injects the tokens the
+   * broker minted, so they agree by construction. A provisioned pod cannot
+   * be told its password per visit -- it was started once, with its own. The
+   * broker used to store its freshly minted pair regardless, so the proxy
+   * swapped a password the pod had never heard of into the pod's login and
+   * the viewer could never sign in: `fixed` had never worked end to end.
+   * When these are present, the broker stores THEM.
+   */
+  viewToken?: string
+  adminToken?: string
 }
 
 export interface StartInput {
@@ -263,6 +277,10 @@ export function fixedDriver(opts: {
   endpoint: string
   /** Where the agent reaches this pod. Absent means agents cannot drive it. */
   cdpEndpoint?: string
+  /** The pod's own NEKO_MEMBER_MULTIUSER_USER_PASSWORD. */
+  viewPassword?: string
+  /** The pod's own NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD. */
+  adminPassword?: string
 }): PodDriver {
   const endpoint = opts.endpoint.replace(/^https?:\/\//, '').replace(/\/+$/, '')
   const cdp = (opts.cdpEndpoint || '')
@@ -271,7 +289,13 @@ export function fixedDriver(opts: {
   return {
     name: 'fixed',
     async start() {
-      return { podId: `fixed:${endpoint}`, endpoint, cdpEndpoint: cdp }
+      return {
+        podId: `fixed:${endpoint}`,
+        endpoint,
+        cdpEndpoint: cdp,
+        ...(opts.viewPassword ? { viewToken: opts.viewPassword } : {}),
+        ...(opts.adminPassword ? { adminToken: opts.adminPassword } : {}),
+      }
     },
     async stop() {
       /* Nothing to stop. The session row is dropped by the caller. */
@@ -304,6 +328,10 @@ export function driverFromEnv(
       ? fixedDriver({
           endpoint,
           cdpEndpoint: (env.BROWSER_POD_CDP || '').trim(),
+          viewPassword:
+            (env.BROWSER_POD_VIEW_PASSWORD || '').trim() || undefined,
+          adminPassword:
+            (env.BROWSER_POD_ADMIN_PASSWORD || '').trim() || undefined,
         })
       : null
   }
