@@ -46,6 +46,19 @@ export interface ScreenSize {
   rate: number
 }
 
+/**
+ * CHROMIUM'S WINDOW CANNOT BE NARROWER THAN THIS.
+ *
+ * Its tab strip and toolbar have a minimum width, and a screen narrower than
+ * that leaves the window hanging off the right edge: the owner's photo, a
+ * phone-shaped screen ~400px wide, with the extensions and menu buttons and
+ * the right of every page cut off. So a narrow box is scaled UP to this
+ * width with its shape kept (wantedScreen), and the viewer scales the
+ * picture back down into the frame -- all of it visible, a little smaller.
+ * 520 leaves room over the ~500 Chromium needs.
+ */
+export const MIN_WINDOW_WIDTH = 520
+
 /** Below this the pages inside are unusable; above it nobody is served. */
 export const MIN_EDGE = 320
 export const MAX_WIDTH = 2560
@@ -68,8 +81,19 @@ export function wantedScreen(
 ): ScreenSize {
   const clamp = (n: number, lo: number, hi: number) =>
     Math.min(hi, Math.max(lo, n))
-  const w = clamp(Math.round(box.width) || MIN_EDGE, MIN_EDGE, MAX_WIDTH)
-  const h = clamp(Math.round(box.height) || MIN_EDGE, MIN_EDGE, MAX_HEIGHT)
+  let bw = Math.round(box.width) || MIN_EDGE
+  let bh = Math.round(box.height) || MIN_EDGE
+  /*
+   * Narrower than Chromium's window can be: scale the whole box up, keeping
+   * its SHAPE, so the picture still fills the frame -- just drawn a little
+   * smaller -- instead of the window running off the right of the screen.
+   */
+  if (bw > 0 && bw < MIN_WINDOW_WIDTH) {
+    bh = Math.round((bh * MIN_WINDOW_WIDTH) / bw)
+    bw = MIN_WINDOW_WIDTH
+  }
+  const w = clamp(bw, MIN_EDGE, MAX_WIDTH)
+  const h = clamp(bh, MIN_EDGE, MAX_HEIGHT)
   return {
     width: clamp(snap(w), MIN_EDGE, MAX_WIDTH),
     height: clamp(snap(h), MIN_EDGE, MAX_HEIGHT),
