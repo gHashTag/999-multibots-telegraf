@@ -1348,6 +1348,14 @@ export async function* runAgent(
    * callers that don't set `ctx.turn` (`crm-duet-tool.ts`, `a2a.ts` aren't
    * required to), not the primary path.
    */
+  /*
+   * A CLIENT THREAD DRAWS THE CLIENT (client-face.ts). Pictures made while
+   * the seller talks about one person are pictures for that person: a person
+   * in them is that person's face, never the caller's avatar, never a
+   * description. Set by code from the thread's own id, never from arguments.
+   */
+  if (opts?.client && /^\d{5,15}$/.test(String(opts.client)) && !ctx.faceOf)
+    ctx = { ...ctx, faceOf: String(opts.client) }
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
   const turnStartedAt = Date.now()
   let toolCallCount = 0

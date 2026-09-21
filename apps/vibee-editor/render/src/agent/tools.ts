@@ -42,10 +42,17 @@ import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot, botNameOf } from './bot-farm'
 import {
   editImage,
+  kieTaskState,
   EDIT_MODEL,
   GPT_IMAGE_25_EDIT_MODELS,
   isGptImage25Edit,
 } from '../kie-image'
+import { watchLate } from './late-picture'
+import {
+  clientFace,
+  sentPhotosFromLibrary,
+  NO_PERSON_PREFIX,
+} from './client-face'
 
 import { BROWSER_TOOLS } from '../browser/agent-tools'
 
@@ -83,6 +90,20 @@ export interface ToolContext {
    * (countInitDataToolCall). Counts only: no tool decides anything by it.
    */
   initDataBot?: string
+  /**
+   * How long an image edit may wait for the provider inside THIS turn.
+   * Set only by code (crm_deliver_photo: the sweep's step budget); absent
+   * means the tool's own default. A task still drawing at the end of it is
+   * not a failure -- see late-picture.ts.
+   */
+  imageWaitMs?: number
+  /**
+   * THE CLIENT THIS TURN MAKES PICTURES FOR (a duet's buyer, a client
+   * thread's client). Set only by code. While it is set, a picture of a
+   * person is drawn from THAT person's face (client-face.ts) -- never from
+   * the caller's avatar, never from a description.
+   */
+  faceOf?: string
 }
 
 export interface AgentTool {
@@ -237,6 +258,86 @@ function selfFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const key = process.env.RENDER_API_KEY
   if (key) headers.set('X-Api-Key', key)
   return fetch(url, { ...init, headers })
+}
+
+/**
+ * A PROVIDER'S FILE, MADE OURS -- and put where the person looks for it.
+ *
+ * Was the second half of image_edit. It is its own function because a picture
+ * can now arrive AFTER the turn that paid for it (late-picture.ts), and a late
+ * picture must be stored exactly the way an on-time one is: one copy of the
+ * steps, not two that drift.
+ */
+export async function keepGeneratedImage(
+  ctx: ToolContext,
+  providerUrl: string,
+  note: string
+): Promise<
+  | {
+      ok: true
+      url: string
+      assetId: number | null
+      assetError: string | null
+    }
+  | { ok: false; reason: string }
+> {
+  try {
+    // The provider's link is temporary; pull the bytes into our own S3 before
+    // handing the URL onward, exactly as image_generate does -- otherwise the
+    // feed and the render show a broken image an hour later.
+    const got = await fetch(providerUrl)
+    if (!got.ok)
+      return {
+        ok: false,
+        reason: `картинка готова, но не скачалась: HTTP ${got.status}`,
+      }
+    const bytes = Buffer.from(await got.arrayBuffer())
+    const up = await selfFetch(`${selfBase()}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': got.headers.get('content-type') || 'image/png',
+        'X-Filename': `agent-edit-${Date.now()}.png`,
+      },
+      body: new Uint8Array(bytes),
+    })
+    const upData: any = await up.json().catch(() => null)
+    if (!up.ok || !upData?.directUrl)
+      return {
+        ok: false,
+        reason: `картинка готова, но не сохранилась: HTTP ${up.status}`,
+      }
+    /**
+     * REGISTER THE FILE, OR IT DOES NOT EXIST FOR THE PERSON WHO PAID.
+     *
+     * The mini app -- which is where the owner sees an agent's work -- reads
+     * the `assets` table, not S3. This tool shipped without the insert, so a
+     * picture reached the bucket, the caller got a URL in a chat message, and
+     * my_assets still showed 2026-08-24 as the newest file: a week stale.
+     * Measured 2026-08-31 through the production MCP.
+     *
+     * A failure here must NOT fail the call: the picture exists and was paid
+     * for. It is reported instead, so the gap is visible rather than silent.
+     */
+    let assetId: number | null = null
+    let assetError: string | null = null
+    try {
+      const row = await ctx.pool.query(
+        `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
+         VALUES ('generated_image', '', $1, '', $2, $3, 'agent')
+         RETURNING id`,
+        [ctx.telegramId, upData.directUrl, String(note).slice(0, 500)]
+      )
+      assetId = row.rows[0]?.id ?? null
+    } catch (e) {
+      assetError = String((e as Error)?.message || e).slice(0, 160)
+    }
+    return { ok: true, url: upData.directUrl, assetId, assetError }
+  } catch (e) {
+    return {
+      ok: false,
+      reason: `картинка готова, но не скопирована: ${String((e as Error)?.message || e).slice(0, 120)}`,
+    }
+  }
 }
 
 /**
@@ -690,6 +791,22 @@ async function refundTokens(
   if (HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)) {
     console.log(
       `[токены] дом не возвращает себе: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
+    )
+    return
+  }
+  /*
+   * NOTHING TAKEN, NOTHING GIVEN BACK -- the same mirror, for chargeLater.
+   *
+   * spendTokens takes nothing from a caller whose work somebody else pays for
+   * at the press (a paid delivery in a DM) and reports zero spent. The price
+   * line at the top of this function turned that 0 into "no exact amount" and
+   * refunded the TABLE price: a failed paid portrait credited the owner 12
+   * tokens that were never charged. Found while routing the paid delivery
+   * through image_edit (2026-09-21); image_generate had the same hole.
+   */
+  if (ctx.chargeLater || exact === 0) {
+    console.log(
+      `[токены] списано не было, возвращать нечего: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
     )
     return
   }
@@ -1338,9 +1455,40 @@ export const TOOLS: AgentTool[] = [
             'ничего не списано',
         }
 
-      const source = args.image_url
-        ? String(args.image_url)
-        : await ownerAvatarUrl(ctx)
+      /*
+       * WHOSE FACE. For a turn working for a client (a duet, a client thread)
+       * it is the CLIENT's -- the caller's avatar there is the owner's face,
+       * and a portrait of the owner captioned with her name is the defect the
+       * owner stopped work over (client-face.ts). Otherwise, as always: the
+       * given file, or the caller's own avatar.
+       */
+      let source = ''
+      let sourceNote = args.image_url
+        ? 'указанный файл'
+        : 'аватарка из Telegram'
+      if (ctx.faceOf) {
+        const face = await clientFace(
+          ctx,
+          { id: String(ctx.faceOf) },
+          { avatar: leadAvatarUrl, sentPhotos: sentPhotosFromLibrary },
+          { photoUrl: args.image_url ? String(args.image_url) : null }
+        )
+        if (!face || 'refused' in face)
+          return {
+            done: false,
+            reason:
+              'у клиента нет ни аватарки, ни присланного фото с лицом, а человека для ' +
+              'клиента рисуем только из его лица — попроси у него фото одной строкой. ' +
+              'Ничего не списано.',
+          }
+        source = face.url
+        sourceNote =
+          face.from === 'sent' ? 'присланное клиентом фото' : 'аватарка клиента'
+      } else {
+        source = args.image_url
+          ? String(args.image_url)
+          : await ownerAvatarUrl(ctx)
+      }
       if (!source)
         return {
           done: false,
@@ -1353,13 +1501,57 @@ export const TOOLS: AgentTool[] = [
         // The charge helper reports its refusal under a Russian key; this is
         // the file's long-standing convention and not worth churning here.
         return { done: false, reason: charge['причина'] } // cyrillic-ok
+      const prompt = String(args.prompt)
 
       const edited = await editImage({
-        prompt: String(args.prompt),
+        prompt,
         imageUrl: source,
         aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : '9:16',
         model,
+        timeoutMs: ctx.imageWaitMs,
       })
+      if (!edited.ok && edited.pending && edited.taskId) {
+        /*
+         * PAID FOR AND STILL DRAWING -- NOT A FAILURE (late-picture.ts).
+         *
+         * Until 2026-09-21 this was refunded and forgotten while the provider
+         * went on to finish it: 380 s against a 180 s wait, a portrait
+         * drawn, paid for at Kie, and never seen. Now the charge stands for
+         * the picture that is coming, a background watch copies it to our
+         * storage and the person's gallery the moment it exists, and only a
+         * verdict of "no picture" gives the tokens back -- once, from here,
+         * where the charge was taken.
+         */
+        const taskId = edited.taskId
+        void watchLate(taskId, {
+          check: kieTaskState,
+          keep: async url => {
+            const kept = await keepGeneratedImage(ctx, url, prompt)
+            return kept.ok ? kept.url : ''
+          },
+        })
+          .then(async out => {
+            if (out.state === 'ready') return
+            await refundTokens(
+              ctx,
+              op,
+              out.state === 'failed'
+                ? 'провайдер отказал после хода'
+                : 'провайдер не закончил за время наблюдения',
+              charge['потрачено']
+            )
+          })
+          .catch(() => undefined)
+        return {
+          done: false,
+          pending: true,
+          taskId,
+          reason:
+            'картинка ещё рисуется у провайдера — оплачена один раз и придёт сама: ' +
+            'появится в «моих файлах», повторно не рисуй. Если провайдер откажет, токены вернутся.',
+          charged: charge['потрачено'],
+        }
+      }
       if (!edited.ok) {
         await refundTokens(
           ctx,
@@ -1370,11 +1562,8 @@ export const TOOLS: AgentTool[] = [
         return { done: false, reason: edited.reason }
       }
 
-      // The provider's link is temporary; pull the bytes into our own S3 before
-      // handing the URL onward, exactly as image_generate does -- otherwise the
-      // feed and the render show a broken image an hour later.
-      const got = await fetch(edited.url)
-      if (!got.ok) {
+      const kept = await keepGeneratedImage(ctx, edited.url, prompt)
+      if (!kept.ok) {
         await refundTokens(
           ctx,
           op,
@@ -1383,67 +1572,19 @@ export const TOOLS: AgentTool[] = [
         )
         return {
           done: false,
-          reason: `картинка готова, но не скачалась: HTTP ${got.status}`,
+          reason: kept.reason,
           providerUrl: edited.url,
         }
-      }
-      const bytes = Buffer.from(await got.arrayBuffer())
-      const up = await selfFetch(`${selfBase()}/upload`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': got.headers.get('content-type') || 'image/png',
-          'X-Filename': `agent-edit-${Date.now()}.png`,
-        },
-        body: new Uint8Array(bytes),
-      })
-      const upData: any = await up.json().catch(() => null)
-      if (!up.ok || !upData?.directUrl) {
-        await refundTokens(
-          ctx,
-          op,
-          'провайдер не выполнил работу',
-          charge['потрачено']
-        )
-        return {
-          done: false,
-          reason: `картинка готова, но не сохранилась: HTTP ${up.status}`,
-          providerUrl: edited.url,
-        }
-      }
-      /**
-       * REGISTER THE FILE, OR IT DOES NOT EXIST FOR THE PERSON WHO PAID.
-       *
-       * The mini app -- which is where the owner sees an agent's work -- reads
-       * the `assets` table, not S3. This tool shipped without the insert, so a
-       * picture reached the bucket, the caller got a URL in a chat message, and
-       * my_assets still showed 2026-08-24 as the newest file: a week stale.
-       * Measured 2026-08-31 through the production MCP.
-       *
-       * A failure here must NOT fail the call: the picture exists and was paid
-       * for. It is reported instead, so the gap is visible rather than silent.
-       */
-      let assetId: number | null = null
-      let assetError: string | null = null
-      try {
-        const row = await ctx.pool.query(
-          `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
-           VALUES ('generated_image', '', $1, '', $2, $3, 'agent')
-           RETURNING id`,
-          [ctx.telegramId, upData.directUrl, String(args.prompt).slice(0, 500)]
-        )
-        assetId = row.rows[0]?.id ?? null
-      } catch (e) {
-        assetError = String((e as Error)?.message || e).slice(0, 160)
       }
       return {
         done: true,
-        url: upData.directUrl,
-        id: assetId,
+        url: kept.url,
+        id: kept.assetId,
         // Named so a caller can tell "the file is in the shop window" from
         // "the file exists but nobody can find it".
-        inGallery: assetId != null,
-        ...(assetError ? { galleryError: assetError } : {}),
-        source: args.image_url ? 'указанный файл' : 'аватарка из Telegram',
+        inGallery: kept.assetId != null,
+        ...(kept.assetError ? { galleryError: kept.assetError } : {}),
+        source: sourceNote,
         model,
         providerCredits: edited.credits,
         charged: TOKEN_PRICES[op],
@@ -1495,12 +1636,21 @@ export const TOOLS: AgentTool[] = [
       }
       const charge = await spendTokens(ctx, 'image_generate')
       if (!charge.ok) return { сделано: false, причина: charge.причина }
+      /*
+       * FOR A CLIENT, TEXT-TO-IMAGE HAS NOBODY IN IT (client-face.ts).
+       *
+       * A person drawn from a description is a stranger, and for a client
+       * that stranger carries their name. While a turn works for a client the
+       * prompt opens with a hard "no people" line; their own picture is
+       * image_edit, which takes their face.
+       */
+      const clientPrompt = ctx.faceOf ? NO_PERSON_PREFIX : ''
       const base = selfBase()
       const gen = await selfFetch(`${base}/api/generate/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: String(args.prompt),
+          prompt: clientPrompt + String(args.prompt),
           model: args.model,
           width: args.width,
           height: args.height,
@@ -2776,6 +2926,13 @@ TOOLS.push(...CRM_OFFER_TOOLS)
 TOOLS.push(
   ...makeCrmDeliverTools(n => TOOLS.find(t => t.name === n), {
     leadPhoto: leadAvatarUrl,
+    sentPhotos: sentPhotosFromLibrary,
+    checkTask: kieTaskState,
+    // A late portrait is stored exactly as image_edit stores an on-time one.
+    keepImage: async (ctx, url, note) => {
+      const kept = await keepGeneratedImage(ctx, url, note)
+      return kept.ok ? kept.url : ''
+    },
   })
 )
 TOOLS.push(...CRM_MEMORY_TOOLS)
@@ -2923,7 +3080,7 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
  */
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
-export const COMPACT_TOOLS_EXCLUDED = /^crm_schema_check$/
+export const COMPACT_TOOLS_EXCLUDED = /^(crm_schema_check|crm_portrait_rescue)$/
 
 /**
  * Which tools a provider is shown. The full catalogue is ~9k tokens of

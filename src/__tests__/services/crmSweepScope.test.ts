@@ -279,6 +279,26 @@ describe('the items and the brief', () => {
     )
   })
 
+  /*
+   * THE PORTRAIT COMES BEFORE THE PACKAGE (owner, 2026-09-21). With a package
+   * installed, the seller's cards went to reels of the package template and
+   * the portrait from the person's own face never came. The brief now asks
+   * whether the portrait is due first, and names the person in that call too.
+   */
+  it('the portrait from their face comes before packaging, reels and the rest', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: null })
+    const portrait = p.indexOf('crm_deliver_photo с chat=900000041')
+    const packaging = p.indexOf('УПАКОВКА')
+    expect(portrait, 'the portrait step lost its person').toBeGreaterThan(0)
+    expect(packaging).toBeGreaterThan(portrait)
+    expect(p).toContain('portrait.given')
+    expect(p).toContain('ПОРТРЕТ из его лица')
+    expect(p).toContain('Пакет, рилс и остальное — только после')
+    // The two exceptions: an unanswered question and a recent refusal.
+    expect(p).toContain('ждёт ответа на вопрос — сначала ответь')
+    expect(p).toContain('отказ за 30 дней или просил позже')
+  })
+
   it('an @username brief has no package step', () => {
     const p = scopedPrompt({ chat: '@pilot_client', display: null, next: null })
     expect(p).not.toContain('crm_client_profile')
