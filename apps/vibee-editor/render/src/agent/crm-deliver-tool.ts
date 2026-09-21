@@ -11,6 +11,7 @@ import {
 } from './billing-shared'
 import { LEAD_MAGNET_MODEL } from '../kie-image'
 import { noteImagesFailed, noteImagesWorked } from './image-health'
+import { noteOwed, settleOwed } from './crm-owed'
 import { record } from '../hive/journal'
 
 /**
@@ -399,6 +400,20 @@ export function makeCrmDeliverTools(
             made?.причина ?? made?.reason, // cyrillic-ok: public API field
             source ? 'edit' : 'generate'
           )
+          /*
+           * AND THE THIRD ANSWER: to whom. The two calls above know that the
+           * provider is down and that a gift was refused; neither can name the
+           * person left waiting, so nobody goes back to them when it works
+           * again (crm-owed.ts, lead 2086031075).
+           */
+          if (ctx?.pool) {
+            await noteOwed(ctx.pool as never, {
+              owner: String(ctx.telegramId ?? ''),
+              lead: lead.id,
+              what: 'picture',
+              why: made?.причина ?? made?.reason, // cyrillic-ok: public API field
+            })
+          }
           return {
             delivered: false,
             // cyrillic-ok: public API field
@@ -408,6 +423,14 @@ export function makeCrmDeliverTools(
           }
         }
         noteImagesWorked()
+        // The picture exists, for this person: whatever we owed them is paid.
+        if (ctx?.pool) {
+          await settleOwed(
+            ctx.pool as never,
+            String(ctx.telegramId ?? ''),
+            lead.id
+          )
+        }
         const caption = oneLine(
           a?.caption
             ? String(a.caption)
