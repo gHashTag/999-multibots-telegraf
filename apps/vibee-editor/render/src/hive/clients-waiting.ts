@@ -88,7 +88,9 @@ const TROUBLE_WORDS = [
   'вернуть деньги',
   'ошибк',
   'сломал',
-  'завис',
+  // "froze", never "depends": the same four letters open both verbs, and a
+  // vendor's mailing about dependence paged the keeper as a fault (2026-09-21).
+  'завис(?![еия])',
   'не могу оплатить',
   'не могу войти',
   'not working',
@@ -105,7 +107,19 @@ const TROUBLE_WORDS = [
  * pattern is the one place where a letter that merely LOOKS Latin changes
  * behaviour invisibly. The words live in strings, where they belong.
  */
-const TROUBLE = new RegExp(`(${TROUBLE_WORDS.join('|')})`, 'i')
+/*
+ * A trouble word starts a word. Matched as a bare substring, the stem for
+ * "charged" sat inside the ordinary word for "schedule", and a stem inside a
+ * longer word raised a false alarm about somebody who asked for nothing.
+ * JavaScript's \b knows only Latin letters, so the start is "no letter
+ * before", in Unicode.
+ */
+const TROUBLE = new RegExp(`(?<!\\p{L})(${TROUBLE_WORDS.join('|')})`, 'iu')
+
+/** Does this client's last message sound like something is broken? */
+export function isTrouble(text: string): boolean {
+  return TROUBLE.test(text)
+}
 
 export interface WaitingPerson {
   owner: string
@@ -169,7 +183,7 @@ export async function whoIsWaiting(
       lead: String(raw.lead_id),
       waitedMs,
       // The words are READ here and never leave this function.
-      trouble: TROUBLE.test(String(raw.last_words ?? '')),
+      trouble: isTrouble(String(raw.last_words ?? '')),
     })
   }
   if (tooOld) lastTooOld = tooOld
