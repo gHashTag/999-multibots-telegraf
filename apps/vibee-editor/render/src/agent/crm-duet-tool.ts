@@ -422,8 +422,14 @@ async function save(deps: DuetDeps, run: DuetRun): Promise<void> {
   }
 }
 
-/** Generations that are off-brand for a client with her own template. */
-export const OFF_BRAND_FOR_CLIENT = new Set(['image_generate', 'image_edit'])
+/**
+ * Generations that are off-brand for a client with her own template.
+ *
+ * image_edit left this set on 2026-09-21: in a duet it draws HER portrait
+ * from her own face (ToolContext.faceOf), which is the first gift, not a
+ * stray picture. A text-to-image picture is still a stranger's.
+ */
+export const OFF_BRAND_FOR_CLIENT = new Set(['image_generate'])
 const URL_RE = /https?:\/\/[^\s)»"']+/g
 
 /**
@@ -559,7 +565,11 @@ export function sellerBrief(
           ),
         ]
       : []),
-    `Рилс для неё — только шаблон ${template}: возьми канон плана инструментом leela_plan {plan}, подставь reel_props в reel_render. Не предлагай TrinityBlogReel, PromoReel и картинки image_generate: они не в стиле игры, а сгенерированный текст на картинке нечитаем.`,
+    // THE PORTRAIT FIRST, FROM HER FACE (owner, 2026-09-21). This line used to
+    // name only the reel, and a seller with her package in hand made reels and
+    // never the portrait every other person gets first.
+    'Первый подарок — её портрет 9:16 из ЕЁ лица: image_edit (в этом диалоге он сам берёт её аватарку или присланное ею фото), сцена и стиль — из визуальных токенов профиля, без текста на картинке и без запрещённых формулировок. Человек на картинке — только её лицо: не image_generate и не рисунок по описанию.',
+    `Рилс — после портрета, и только шаблон ${template}: возьми канон плана инструментом leela_plan {plan}, подставь reel_props в reel_render. Не предлагай TrinityBlogReel, PromoReel и картинки image_generate: они не в стиле игры, а сгенерированный текст на картинке нечитаем.`,
     PLAN_MEANING_RULE,
     `Одобренный призыв: «${cta}» и кнопка «${button}». Других обещаний и призывов не придумывай.`,
     'Факты об игре — только эти:',
@@ -568,7 +578,7 @@ export function sellerBrief(
       ? ['Запрещённые формулировки:', ...lines(p.forbidden_claims)]
       : []),
     'Слова давления запрещены: «сегодня», «срочно», «последний шанс», «серия», «прогресс», «молодец», «успех», поздравления. Цены, скидки, проценты и отзывы не называй; о цене говори только если она сама спросила, и только цифрами из ответа pricing.',
-    'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — только один ролик за диалог и только после того, как она сказала, чего хочет.',
+    'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — один портрет и один ролик за диалог, и только после того, как она сказала, чего хочет.',
     NO_LIVED_EXPERIENCE_RULE,
     NO_PUBLISH_RULE,
     'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
@@ -1415,6 +1425,16 @@ export async function runDuet(
   deps: DuetDeps
 ): Promise<DuetRun> {
   const buyerCtx = { ...ownerCtx, telegramId: run.buyer } as ToolContext
+  /*
+   * THE SELLER DRAWS HER, NOT HIMSELF (client-face.ts).
+   *
+   * The seller's tools run on the owner's context, so image_edit without a
+   * file took the OWNER's avatar: "her portrait" was his face. The turn now
+   * says whom it works for, and every picture of a person in it is drawn
+   * from the buyer's own face -- her photo or her avatar. Sending and the
+   * plan links still act as the owner (ownerCtx below).
+   */
+  const sellerCtx = { ...ownerCtx, faceOf: run.buyer } as ToolContext
   // The profile is read by the duet, not left to the model's discretion: the
   // brief is built from it, and the buyer persona borrows her draft voice.
   let profile: ClientProfile = null
@@ -1465,14 +1485,14 @@ export async function runDuet(
         let { text, results, error } = await sellerTurn(
           deps,
           seller,
-          ownerCtx,
+          sellerCtx,
           gate
         )
         let retried: string | undefined
         if (!text && retryAllowed(0, error, results)) {
           retried = error
           await (deps.sleep ?? defaultSleep)(SELLER_RETRY_PAUSE_MS)
-          const again = await sellerTurn(deps, seller, ownerCtx, gate)
+          const again = await sellerTurn(deps, seller, sellerCtx, gate)
           text = again.text
           results = [...results, ...again.results]
           error = again.error
@@ -1487,7 +1507,7 @@ export async function runDuet(
             role: 'user',
             content: `${instruction}\n${madeThisTurnNote(results)}`,
           })
-          const again = await sellerTurn(deps, seller, ownerCtx, REWRITE_GATE)
+          const again = await sellerTurn(deps, seller, sellerCtx, REWRITE_GATE)
           if (again.text) {
             text = again.text
             results = [

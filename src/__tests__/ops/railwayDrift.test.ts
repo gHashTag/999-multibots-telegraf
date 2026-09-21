@@ -134,3 +134,63 @@ describe('run from a temp copy, as the daily task does', () => {
     }
   )
 })
+
+/*
+ * The CLI's accessToken expires overnight and the CLI refreshes it itself on
+ * any command. Read raw from the file it answered "Not Authorized" at 02:57
+ * on 2026-09-22. freshToken lets the CLI refresh a token near expiry.
+ */
+describe('freshToken', () => {
+  it.each([
+    ['expired', -60, 'fresh-token'],
+    ['valid for an hour', 3600, 'old-token'],
+  ])('a token that is %s', async (_label, inSeconds, expected) => {
+    const { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } =
+      await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const path = await import('node:path')
+    const { spawnSync } = await import('node:child_process')
+    const root = path.resolve(__dirname, '../../..')
+    const home = mkdtempSync(path.join(tmpdir(), 'rw-home-'))
+    try {
+      mkdirSync(path.join(home, '.railway'))
+      const cfg = path.join(home, '.railway/config.json')
+      const nowS = Math.floor(Date.now() / 1000)
+      writeFileSync(
+        cfg,
+        JSON.stringify({
+          user: {
+            accessToken: 'old-token',
+            tokenExpiresAt: nowS + Number(inSeconds),
+          },
+        })
+      )
+      // A stand-in `railway` that does what the CLI does: rewrite the token.
+      const bin = path.join(home, 'bin')
+      mkdirSync(bin)
+      writeFileSync(
+        path.join(bin, 'railway'),
+        `#!/bin/sh\necho called >> "${home}/calls"\nprintf '%s' '{"user":{"accessToken":"fresh-token","tokenExpiresAt":${nowS + 3600}}}' > "${cfg}"\n`
+      )
+      chmodSync(path.join(bin, 'railway'), 0o755)
+      const run = spawnSync(
+        process.execPath,
+        [
+          '-e',
+          `import('${path.join(root, 'scripts/railway-sources-check.mjs')}').then(m => console.log(m.freshToken()))`,
+        ],
+        {
+          env: { PATH: `${bin}:${process.env.PATH}`, HOME: home },
+          encoding: 'utf8',
+        }
+      )
+      expect(run.stdout.trim()).toBe(expected)
+      const { existsSync } = await import('node:fs')
+      expect(existsSync(path.join(home, 'calls'))).toBe(
+        expected === 'fresh-token'
+      )
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+})

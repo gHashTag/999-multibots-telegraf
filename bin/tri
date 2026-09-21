@@ -34,7 +34,7 @@ usage() {
   cat <<'U'
 tri — оболочка Trinity S³AI
 
-  tri doctor     всё перед началом смены: копия, диск, конвейер
+  tri doctor     всё перед началом смены: копия, диск, конвейер, влито = выехало
   tri fresh      сверить рабочую копию с origin/main (частая причина ложных диагнозов)
   tri disk       освободить место и проверить сам инструмент чистки
   tri pipeline   проверка конвейера без единой траты кредитов
@@ -99,6 +99,8 @@ tri — оболочка Trinity S³AI
   tri crm-source какая копия users/payments живая: Supabase или Railway
   tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
   tri drift      влито, но не выехало: сервис отвязан, main застрял или сборка падает
+  tri eyes       видит ли агент браузер человека: вкладки, снимок, описание от зрения
+  tri main-guard [--eyes]  здоров ли сам main: типы плеера, загрузка бота, влито = выехало
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
@@ -396,6 +398,8 @@ case "${1:-}" in
     fi
     ;;
 
+  main-guard) shift; bash "$ROOT/bin/helpers/main-guard.sh" "$ROOT" "$@" ;;
+  eyes)   shift; bash "$ROOT/bin/helpers/eyes.sh" "$ROOT" "$@" ;;
   drift)
     # Merged is not shipped. 0 clear, 1 an anomaly (named), 2 could not look.
     shift; node "$ROOT/scripts/railway-drift.mjs" "$@" ;;
@@ -908,7 +912,12 @@ PYEOF
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
-    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3) ;;
+    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3)
+    # Guards of earlier work (continuous-improvement-loop, 2026-09-22): merged
+    # must also be shipped. `tri eyes` is NOT here -- it opens the owner's
+    # browser, and a doctor must not act. Run it by hand when the browser
+    # is the subject.
+    echo; echo "── влито = выехало ──"; node "$ROOT/scripts/railway-drift.mjs" || true ;;
   # 64 = "not mine", so the root tri can tell an unknown command from a
   # command that ran and failed. Any other exit code is the command's own.
   # Under the bridge the root prints the one usage; two for one typo is noise.

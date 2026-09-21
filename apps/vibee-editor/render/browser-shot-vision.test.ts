@@ -10,6 +10,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import http from 'node:http'
 import {
   describeShot,
+  resetSeenCacheForTests,
   SCREEN_PROMPT,
   SCREEN_MAX_TOKENS,
 } from './src/browser/agent-tools'
@@ -43,6 +44,7 @@ const saved = { ...process.env }
 afterEach(() => {
   process.env = { ...saved }
   resetVisionForTests()
+  resetSeenCacheForTests()
 })
 
 describe('describeShot', () => {
@@ -66,7 +68,7 @@ describe('describeShot', () => {
     process.env.VISION_BASE_URL = v.base
     resetVisionForTests()
     try {
-      const seen = await describeShot(SHOT)
+      const { seen } = await describeShot(SHOT)
       expect(seen).toMatch(/Страница входа Google/) // cyrillic-ok: the vision answer is Russian by design
       const [call] = v.got
       expect(call.auth).toBe('Bearer vk')
@@ -88,7 +90,7 @@ describe('describeShot', () => {
     process.env.VISION_BASE_URL = v.base
     resetVisionForTests()
     try {
-      expect(await describeShot(SHOT)).toBeNull()
+      expect(await describeShot(SHOT)).toEqual({ seen: null })
     } finally {
       v.close()
     }
@@ -97,7 +99,7 @@ describe('describeShot', () => {
   it('no endpoint configured gives null without asking anyone', async () => {
     delete process.env.VISION_API_KEY
     resetVisionForTests()
-    expect(await describeShot(SHOT)).toBeNull()
+    expect(await describeShot(SHOT)).toEqual({ seen: null })
   })
 })
 
@@ -161,5 +163,87 @@ describe('shrinkJpeg', () => {
   it('bytes ffmpeg cannot read come back untouched', async () => {
     const junk = Buffer.from('not a picture')
     expect(await shrinkJpeg(junk)).toEqual(junk)
+  })
+})
+
+/*
+ * The one-slot CPU service can take longer than a person should wait. The
+ * turn gets "pending"; the description lands in a cache keyed by the image,
+ * and the next shot of the same screen has it without a second request.
+ */
+describe('a slow description does not hold the turn', () => {
+  it('pending first, then the same screen is described from the cache', async () => {
+    const v = await fakeVision(res => {
+      setTimeout(() => {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            choices: [{ message: { content: 'Google sign-in page' } }],
+          })
+        )
+      }, 300)
+    })
+    process.env.VISION_API_KEY = 'vk'
+    process.env.VISION_BASE_URL = v.base
+    resetVisionForTests()
+    try {
+      expect(await describeShot(SHOT, 50)).toEqual({
+        seen: null,
+        seenPending: true,
+      })
+      await new Promise(r => setTimeout(r, 450))
+      expect(await describeShot(SHOT, 50)).toEqual({
+        seen: 'Google sign-in page',
+      })
+      expect(v.got).toHaveLength(1)
+    } finally {
+      v.close()
+    }
+  })
+
+  it('two shots of one screen at once ask the service once', async () => {
+    const v = await fakeVision(res => {
+      setTimeout(() => {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ choices: [{ message: { content: 'same' } }] }))
+      }, 100)
+    })
+    process.env.VISION_API_KEY = 'vk'
+    process.env.VISION_BASE_URL = v.base
+    resetVisionForTests()
+    try {
+      const [a, b] = await Promise.all([
+        describeShot(SHOT, 1000),
+        describeShot(SHOT, 1000),
+      ])
+      expect(a).toEqual({ seen: 'same' })
+      expect(b).toEqual({ seen: 'same' })
+      expect(v.got).toHaveLength(1)
+    } finally {
+      v.close()
+    }
+  })
+
+  it('a refusal is not remembered: the next shot asks again', async () => {
+    let calls = 0
+    const v = await fakeVision(res => {
+      calls++
+      if (calls === 1) {
+        res.writeHead(503)
+        res.end('busy')
+        return
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ choices: [{ message: { content: 'now' } }] }))
+    })
+    process.env.VISION_API_KEY = 'vk'
+    process.env.VISION_BASE_URL = v.base
+    resetVisionForTests()
+    try {
+      expect(await describeShot(SHOT)).toEqual({ seen: null })
+      expect(await describeShot(SHOT)).toEqual({ seen: 'now' })
+    } finally {
+      v.close()
+    }
   })
 })

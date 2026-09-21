@@ -12,6 +12,7 @@ import {
   RECONNECT_PAUSE_MS,
   RECONNECT_SETTLE_MS,
   RECONNECT_TRIES,
+  WINDOW_EVENT,
   injectSkin,
 } from './src/browser/skin'
 import { LOGIN_PLACEHOLDER, loginUrlFor } from './src/browser/live-proxy'
@@ -35,7 +36,10 @@ interface Node {
   closest(sel: string): Node | null
 }
 
-function world(opts: { language?: string; storage?: 'ok' | 'broken' } = {}) {
+function world(
+  opts: { language?: string; storage?: 'ok' | 'broken'; framed?: boolean } = {}
+) {
+  const posts: Array<{ msg: any; origin: string }> = []
   const shown = new Set<string>()
   const nodes: Record<string, Node> = {}
   const node = (name: string): Node => {
@@ -114,8 +118,16 @@ function world(opts: { language?: string; storage?: 'ok' | 'broken' } = {}) {
   function run(path = `/live/${ID}/`) {
     const location = {
       pathname: path,
+      origin: 'https://app.t27.ai',
       replace: (url: string) => void went.push(url),
     }
+    const self: any = {}
+    self.parent = opts.framed
+      ? {
+          postMessage: (msg: any, origin: string) =>
+            void posts.push({ msg, origin }),
+        }
+      : self
     const navigator = { language: opts.language ?? 'en-US' }
     new Function(
       'document',
@@ -125,6 +137,7 @@ function world(opts: { language?: string; storage?: 'ok' | 'broken' } = {}) {
       'setTimeout',
       'clearTimeout',
       'MutationObserver',
+      'window',
       CONNECT_SCRIPT
     )(
       document,
@@ -133,7 +146,8 @@ function world(opts: { language?: string; storage?: 'ok' | 'broken' } = {}) {
       sessionStorage,
       setTimeout,
       clearTimeout,
-      MutationObserver
+      MutationObserver,
+      self
     )
   }
 
@@ -197,6 +211,7 @@ function world(opts: { language?: string; storage?: 'ok' | 'broken' } = {}) {
     connected,
     fire,
     went,
+    posts,
     store,
     shown,
     node,
@@ -431,5 +446,57 @@ describe('the loader speaks the person language', () => {
   it('keeps Russian for a browser that asks for Russian', () => {
     expect(boot('ru-RU').said).toBe(BOOT_SAID)
     expect(boot('ru').said).toBe(BOOT_SAID)
+  })
+})
+
+/*
+ * The page around the window hears what the connection is doing. Without
+ * this the Queen's panel and the app's tab showed a frozen frame while neko
+ * retried, and after the session closed.
+ */
+describe('the window tells its parent', () => {
+  const ORIGIN = 'https://app.t27.ai'
+
+  it('a lost connection is "reconnecting", to its own origin only', () => {
+    const w = world({ framed: true })
+    w.run()
+    w.showForm()
+    w.advance(RECONNECT_SETTLE_MS + 1)
+    expect(w.posts).toEqual([
+      {
+        msg: { source: WINDOW_EVENT, state: 'reconnecting', session: ID },
+        origin: ORIGIN,
+      },
+    ])
+  })
+
+  it('out of tries is "stuck"', () => {
+    const w = world({ framed: true })
+    w.store.set(KEY, String(RECONNECT_TRIES))
+    w.run()
+    w.showForm()
+    w.advance(RECONNECT_SETTLE_MS + 1)
+    expect(w.posts.map(p => p.msg.state)).toEqual(['stuck'])
+  })
+
+  it('the card going away is "connected"', () => {
+    const w = world({ framed: true })
+    w.run()
+    w.showForm()
+    w.connected()
+    expect(w.posts.at(-1)?.msg).toEqual({
+      source: WINDOW_EVENT,
+      state: 'connected',
+      session: ID,
+    })
+  })
+
+  it('a window opened on its own posts to nobody', () => {
+    const w = world({ framed: false })
+    w.run()
+    w.showForm()
+    w.advance(RECONNECT_SETTLE_MS + 1)
+    w.connected()
+    expect(w.posts).toEqual([])
   })
 })

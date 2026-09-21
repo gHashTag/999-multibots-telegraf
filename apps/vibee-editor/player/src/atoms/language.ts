@@ -696,6 +696,7 @@ const en: Translations = {
   'chat.errors': 'errors',
   'chat.placeholder': 'Describe what you want to create...',
   'chat.messagePlaceholder': 'Message the agent…',
+  'chat.attachAny': 'Attach a file: photo, video, voice, PDF, document',
   'chat.send': 'Send',
   'chat.welcome':
     "Hi! I'm your Trinity S³AI AI assistant. I can help you create and edit video templates. What would you like to build today?",
@@ -2725,6 +2726,7 @@ const ru: Translations = {
   // Поле ввода 240px — длинная подсказка обрезалась на «или за…».
   // Короткая читается целиком, а про файлы человек узнаёт из кнопки рядом.
   'chat.messagePlaceholder': 'Сообщение агенту…',
+  'chat.attachAny': 'Прикрепить файл: фото, видео, голос, PDF, документ',
   'chat.send': 'Отправить',
   'chat.welcome':
     'Привет! Я Trinity S³AI AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',

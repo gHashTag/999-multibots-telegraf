@@ -31,6 +31,7 @@ import {
 } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
+import { rememberMiniAppFiles } from './miniapp-media'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
@@ -662,6 +663,24 @@ export async function handleAgentChat(
         // должна лишать человека ответа: он и так уже ждёт.
       })
     }
+    /*
+     * The mini app's files join the person's media library (2026-09-22), the
+     * way the bot's always have -- see miniapp-media.ts. Not awaited: a row
+     * is memory for later turns, and this turn reads the file itself.
+     */
+    if (
+      !ephemeral &&
+      поверхность === 'miniapp' && // cyrillic-ok: pre-existing local
+      последняя?.role === 'user' // cyrillic-ok: pre-existing local
+    ) {
+      void rememberMiniAppFiles(
+        pool,
+        telegramId,
+        String(последняя.content ?? '') // cyrillic-ok: pre-existing local
+      ).catch(e =>
+        console.warn('[agent] mini app files not remembered:', String(e))
+      )
+    }
 
     /*
      * THE CALLER LEAVING IS NEWS THE TURN NEEDS.
@@ -704,6 +723,9 @@ export async function handleAgentChat(
         signal: gone.signal,
         toolsOnly: body.tools_only === true,
         client: gate.client ?? undefined,
+        // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
+        // not the caller) in chat.ts clientTurnContext. Not a thread.
+        faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
         personNote:
           typeof body.person_note === 'string' && body.person_note.trim()
             ? body.person_note.slice(0, 600)

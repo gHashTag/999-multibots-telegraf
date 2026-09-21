@@ -36,6 +36,12 @@ import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate } from './asset-links'
 import { TEXT_LIKE_EXTENSIONS } from './media-library'
+import {
+  ARCHIVE_EXTENSIONS,
+  OFFICE_EXTENSIONS,
+  PDF_EXTENSIONS,
+  UNREADABLE_EXTENSIONS,
+} from './media-extract'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -491,6 +497,43 @@ export async function dmHistoryBlock(ctx: ToolContext): Promise<string> {
 }
 
 /**
+ * WHOSE FACE A TURN DRAWS -- decided by code, from the request, never by the
+ * model (client-face.ts).
+ *
+ *  - A CLIENT THREAD draws the client: pictures made while the seller talks
+ *    about one person are pictures for that person.
+ *  - A SCOPED SWEEP ("prepare" for one person, /sweep on a numeric id) names
+ *    its lead in `face_of`. It used to name nobody: the render learned the
+ *    client only on its own client-thread route, so in the sweeps -- where the
+ *    CRM cards are actually made -- image_edit without a file drew the
+ *    caller's avatar, the OWNER's face, in a picture for a lead.
+ *  - ANY UNATTENDED SWEEP (`tools_only`) works for leads only, whether or not
+ *    it knows which one: `sellerSweep` keeps the owner's avatar out of it and
+ *    the people out of its text-to-image pictures (tools.ts).
+ *
+ * `face_of` never changes the thread: the turn is still the owner's, stored in
+ * the owner's history. A face equal to the caller is not a client's face.
+ */
+export function clientTurnContext(
+  ctx: ToolContext,
+  opts?: { client?: string; faceOf?: string; toolsOnly?: boolean }
+): ToolContext {
+  const numeric = (v: unknown) => /^\d{5,15}$/.test(String(v ?? ''))
+  let out = ctx
+  if (!out.faceOf) {
+    const face = numeric(opts?.client)
+      ? String(opts!.client)
+      : numeric(opts?.faceOf) && String(opts!.faceOf) !== String(ctx.telegramId)
+        ? String(opts!.faceOf)
+        : undefined
+    if (face) out = { ...out, faceOf: face }
+  }
+  if (opts?.toolsOnly === true && !out.sellerSweep)
+    out = { ...out, sellerSweep: true }
+  return out
+}
+
+/**
  * THE CLIENT'S PACKAGE, WHEREVER THE CONVERSATION HAPPENS.
  *
  * Just the package: who this person is, what they are called, what is never
@@ -526,6 +569,24 @@ export async function clientBriefBlock(
     )
     if (p.has_profile) {
       if (typeof p.client === 'string' && p.client) name = p.client
+      /*
+       * WHICH GIFT IS DUE, BEFORE THE PACKAGE THAT STYLES IT.
+       *
+       * A package's own notes can tell the seller to open with one reel of
+       * its template -- the first real package did, in as many words -- and
+       * the stored copy of a package does not change when the file it came
+       * from does. That note is exactly how the portrait from the client's own
+       * face stopped coming. So wherever the package is shown, the fact that
+       * decides the first gift is shown first, and it outranks the package.
+       */
+      const { portraitOf } = await import('./crm-deliver-tool')
+      const portrait = await portraitOf(ctx.pool, owner, lead).catch(() => null)
+      if (portrait)
+        parts.push(
+          'ПЕРВЫЙ ПОДАРОК — портрет 9:16 из лица этого человека, раньше любого рилса или ' +
+            'примера, которые называет пакет: ' +
+            portrait.first
+        )
       parts.push(
         'ПРОФИЛЬ КЛИЕНТА (crm_client_profile):\n' +
           /*
@@ -837,20 +898,36 @@ export function soul(): string | null {
  * somebody widened the reader -- and the drift that matters is the one where
  * the product promises a format it refuses.
  *
- * WHAT IT REFUSES IS NAMED TOO. `.pdf`, `.docx`, `.xlsx` cannot be opened
- * here: no extractor is installed. Naming them is worth more than silence,
- * because a person who sends a PDF and gets a vague answer concludes the
- * agent is stupid rather than that the format is unsupported.
+ * WHAT IT REFUSES IS NAMED TOO. Naming a format it cannot open is worth more
+ * than silence, because a person who sends a file and gets a vague answer
+ * concludes the agent is stupid rather than that the format is unsupported.
+ *
+ * 2026-09-22: every list below is the reader's own (media-library.ts for text,
+ * media-extract.ts for PDF, office files, archives and the refused formats).
+ * The sentence used to say "you see photos and video" while a video was only
+ * ever described minutes later; it now says what happens on the turn.
  */
 function canTakeSection(surface?: string): string {
-  const readable = TEXT_LIKE_EXTENSIONS.map(e => '.' + e).join(', ')
+  const list = (exts: readonly string[]) => exts.map(e => '.' + e).join(', ')
   return (
     /* cyrillic-ok: prompt copy, read by the model and paraphrased to people */
     '\n\nЧТО ТЫ УМЕЕШЬ ПРИНИМАТЬ. Ты слышишь голосовые и аудио (их ' +
-    'расшифровывают), смотришь фото и видео, читаешь текстовые файлы: ' +
-    readable +
-    '. Открыть НЕ можешь: .pdf, .docx, .xlsx, .pptx, архивы — в них нет ' +
-    'извлекателя, и это надо сказать прямо, а не отвечать расплывчато. ' +
+    'расшифровывают), смотришь фото, в видео и видеосообщениях слышишь ' +
+    'речь (картинку видео видишь, только когда её описание уже готово). ' +
+    'Читаешь текстовые файлы: ' +
+    list(TEXT_LIKE_EXTENSIONS) +
+    '; PDF (' +
+    list(PDF_EXTENSIONS) +
+    ') — если в нём есть текст, скан без текстового слоя прочитать нельзя; ' +
+    'документы, таблицы и презентации: ' +
+    list(OFFICE_EXTENSIONS) +
+    '. Архивы (' +
+    list(ARCHIVE_EXTENSIONS) +
+    ') не распаковываешь: видишь только список файлов внутри. ' +
+    'Открыть НЕ можешь: ' +
+    list(UNREADABLE_EXTENSIONS) +
+    ' — это надо сказать прямо и попросить PDF или .docx, а не отвечать ' +
+    'расплывчато. ' +
     'Когда человек впервые присылает файл или спрашивает, что ты умеешь, — ' +
     'назови это одной строкой, без списка на пол-экрана.' +
     /*
@@ -1286,6 +1363,11 @@ export async function* runAgent(
     toolsOnly?: boolean
     client?: string
     /**
+     * The lead this turn makes pictures for, WITHOUT making it that lead's
+     * thread (a scoped sweep, the "prepare" press). See clientTurnContext.
+     */
+    faceOf?: string
+    /**
      * Tools this turn may not use. They are not listed to the model and a
      * call that arrives anyway is answered with an error instead of running
      * the handler (nothing is spent). Used by the duet's discovery gate:
@@ -1349,6 +1431,7 @@ export async function* runAgent(
    * callers that don't set `ctx.turn` (`crm-duet-tool.ts`, `a2a.ts` aren't
    * required to), not the primary path.
    */
+  ctx = clientTurnContext(ctx, opts)
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
   const turnStartedAt = Date.now()
   let toolCallCount = 0

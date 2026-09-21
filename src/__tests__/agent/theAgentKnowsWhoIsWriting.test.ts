@@ -137,4 +137,27 @@ describe('the line reaches the agent', () => {
     expect(chat[0].person_note).toContain('Open')
     expect('person_note' in chat[1]).toBe(false)
   })
+
+  /*
+   * THE LEAD'S FACE TRAVELS TOO. A scoped sweep draws for one person, and
+   * only the bot knows which; without the field the render drew the caller's
+   * -- the owner's -- avatar into a picture for a lead. Numeric only: an
+   * @username would be resolved on a session and might name a stranger.
+   */
+  it('sends face_of for a numeric lead, and nothing for anything else', async () => {
+    process.env.RENDER_API_KEY = 'k-for-tests' // secret-guard-ok: invented for this test
+    const { спроситьАгента } = await import('@/services/trinityAgent') // cyrillic-ok: pre-existing identifier
+    const bodies = bodiesOf()
+    for (const faceOf of ['900000247', '@someone', undefined])
+      await /* cyrillic-ok */ спроситьАгента('900000146', 'обход', {
+        toolsOnly: true,
+        faceOf,
+      }).catch(() => undefined)
+    const chat = bodies.filter(b => Array.isArray(b.messages))
+    expect(chat).toHaveLength(3)
+    expect(chat[0].face_of).toBe('900000247')
+    expect(chat[0].tools_only).toBe(true)
+    expect('face_of' in chat[1]).toBe(false)
+    expect('face_of' in chat[2]).toBe(false)
+  })
 })
