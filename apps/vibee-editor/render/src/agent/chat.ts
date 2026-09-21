@@ -113,6 +113,65 @@ export async function* withHeartbeat(
   return await settled
 }
 
+/** Said to the model when a denied tool names no reason of its own. */
+export const DENIED_DEFAULT_REASON = 'сначала узнай, чего хочет клиент'
+
+/**
+ * Tools a turn may not use, and why, in words the model can act on.
+ *
+ * `denyTools` hides them from the listing and refuses a call that arrives
+ * anyway; `denyReasons` says why per tool. One reason for every tool was
+ * wrong once there were two kinds of denial: the duet's discovery gate
+ * ("learn what she wants first") and its publish ban ("her approval is not
+ * given in this chat") want the model to do different things next.
+ */
+export interface ToolDenial {
+  denyTools?: ReadonlySet<string>
+  denyReasons?: ReadonlyMap<string, string>
+}
+
+/**
+ * ONE TOOL CALL, AS THE DISPATCHER ANSWERS IT: unknown, refused on this
+ * turn, or run.
+ *
+ * Lifted out of `runAgent` so the refusal can be proved by calling it: the
+ * duet's publish ban (crm-duet.t27 PERSONA_CONSENT_IS_NOT_CONSENT) promises
+ * that NOTHING is written when a denied tool is called, and that promise is
+ * about whether the handler runs -- which only this branch decides. A refusal
+ * is a result the model reads (`{ error, refused: true }` in the envelope's
+ * own field names), never a throw, and nothing is spent.
+ */
+export async function* dispatchToolCall(
+  call: { function: { name: string; arguments?: string } },
+  ctx: ToolContext,
+  opts?: ToolDenial,
+  startedAt: number = Date.now()
+): AsyncGenerator<Heartbeat, unknown, void> {
+  const name = call.function.name
+  const tool = TOOLS_BY_NAME.get(name)
+  if (!tool) {
+    const missing: Record<string, unknown> = {}
+    missing['ошибка'] = `инструмента ${name} не существует`
+    return missing
+  }
+  if (opts?.denyTools?.has(name)) {
+    const reason = opts.denyReasons?.get(name) ?? DENIED_DEFAULT_REASON
+    const refusal: Record<string, unknown> = {}
+    refusal['ошибка'] = `инструмент ${name} недоступен на этом ходу: ${reason}`
+    refusal['отказано'] = true
+    return refusal
+  }
+  countInitDataToolCall(ctx, name)
+  /*
+   * Malformed arguments used to be caught by the same try/catch as the
+   * handler; the heartbeat needs a promise, so the parse is wrapped here and
+   * a bad JSON string still comes back as a tool result, not a throw.
+   */
+  const raw = call.function.arguments
+  const running = (async () => tool.handler(raw ? JSON.parse(raw) : {}, ctx))()
+  return yield* withHeartbeat(name, startedAt, running)
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string | null
@@ -1229,9 +1288,12 @@ export async function* runAgent(
      * Tools this turn may not use. They are not listed to the model and a
      * call that arrives anyway is answered with an error instead of running
      * the handler (nothing is spent). Used by the duet's discovery gate:
-     * crm-duet.t27 DISCOVERY_HIDES_PAID_TOOLS / DISCOVERY_REFUSES_PAID_CALL.
+     * crm-duet.t27 DISCOVERY_HIDES_PAID_TOOLS / DISCOVERY_REFUSES_PAID_CALL,
+     * and by its publish ban (PERSONA_CONSENT_IS_NOT_CONSENT).
      */
     denyTools?: ReadonlySet<string>
+    /** Why each denied tool is denied, as the model will read it. */
+    denyReasons?: ReadonlyMap<string, string>
     /**
      * THE PERSON WHO ASKED HAS GONE.
      *
@@ -1610,31 +1672,9 @@ export async function* runAgent(
         аргументы: call.function.arguments || '{}',
       }
       const t0 = Date.now()
-      let значение: unknown
-      const tool = TOOLS_BY_NAME.get(имя)
-      if (!tool) {
-        значение = { ошибка: `инструмента ${имя} не существует` }
-      } else if (opts?.denyTools?.has(call.function.name)) {
-        // Discovery gate: the tool exists but this turn may not use it.
-        const refusal: Record<string, unknown> = {}
-        refusal['ошибка'] =
-          `инструмент ${call.function.name} недоступен на этом ходу: сначала узнай, чего хочет клиент` // cyrillic-ok
-        refusal['отказано'] = true // cyrillic-ok
-        значение = refusal // cyrillic-ok: pre-existing identifier
-      } else {
-        countInitDataToolCall(ctx, имя) // cyrillic-ok: pre-existing local
-        /*
-         * Malformed arguments used to be caught by the same try/catch as the
-         * handler; the heartbeat needs a promise, so the parse is wrapped here
-         * and a bad JSON string still comes back as a tool result, not a throw.
-         */
-        const running = (async () =>
-          tool.handler(
-            call.function.arguments ? JSON.parse(call.function.arguments) : {},
-            ctx
-          ))()
-        значение = yield* withHeartbeat(имя, t0, running) // cyrillic-ok: pre-existing locals
-      }
+      // Unknown, refused on this turn, or run: dispatchToolCall decides.
+      // cyrillic-ok-next-line
+      const значение = yield* dispatchToolCall(call, ctx, opts, t0)
       const мс = Date.now() - t0 // cyrillic-ok: pre-existing field name
       toolMsTotal += мс
       if (!slowestTool || мс > slowestTool['мс']) {

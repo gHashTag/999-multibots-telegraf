@@ -21,6 +21,17 @@ import {
   deniedToolsFor,
   refusedOf,
   claimsFamiliarity,
+  claimsLivedExperience,
+  LIVED_EXPERIENCE_REWRITE,
+  REWRITE_DENY_REASONS,
+  DUET_DENY_REASONS,
+  planNoteForSeller,
+  PLAN_MEANING_RULE,
+  NO_LIVED_EXPERIENCE_RULE,
+  NO_PUBLISH_RULE,
+  linkReelToPlan,
+  namesPlan,
+  reelPlanOf,
   sellerGenderSlip,
   DISCOVERY_SELLER_TURNS,
   SELLER_RETRY_PAUSE_MS,
@@ -32,7 +43,8 @@ import {
   type DuetRun,
   type DuetDeps,
 } from './src/agent/crm-duet-tool'
-import type { ChatMessage } from './src/agent/chat'
+import { dispatchToolCall } from './src/agent/chat'
+import type { ChatMessage, ToolDenial } from './src/agent/chat'
 import type { ToolContext } from './src/agent/tools'
 
 const OWNER = '144022504'
@@ -358,6 +370,763 @@ describe('crm_duet helpers', () => {
   })
 })
 
+/*
+ * Duet duet-mub68idg, 2026-09-21, judged afterwards (gHashTag/t27#4522).
+ * Invented ids only: the owner, the buyer, and a stranger whose plan must
+ * never be touched.
+ */
+const JUDGED_OWNER = '900000050'
+const JUDGED_BUYER = '900000051'
+const STRANGER = '900000052'
+const judgedCtx = (pool: unknown = {}) =>
+  ({ telegramId: JUDGED_OWNER, pool }) as unknown as ToolContext
+const judgedRun = (over: Partial<DuetRun> = {}) =>
+  freshRun({
+    id: 'duet-judged',
+    buyer: JUDGED_BUYER,
+    owner: JUDGED_OWNER,
+    ...over,
+  })
+const announce = (name: string, args: unknown) => ({
+  ['тип']: 'инструмент', // cyrillic-ok: event envelope
+  ['имя']: name, // cyrillic-ok: event envelope
+  ['аргументы']: JSON.stringify(args), // cyrillic-ok: event envelope
+})
+const LIVE_LIVED =
+  'да, я сам бросал кубик и читал планы, это моя ежедневная работа'
+
+describe('crm_duet: no lived experience (t27#4522 NO_LIVED_EXPERIENCE_CLAIM)', () => {
+  it('fires on the live sentence and on first-person practice', () => {
+    expect(claimsLivedExperience(LIVE_LIVED)).toBe(true)
+    // The live sentence trips two rules at once; each gets its own line here,
+    // or a broken rule hides behind the other.
+    for (const s of [
+      'Я сам бросал кубик в Лиле.',
+      'Это моя ежедневная работа.',
+      'Я лично играл в Лилу много раз.',
+      'Я не раз проходил поле до 68.',
+      'Мы сами играем в Лилу каждую неделю.',
+      'Моя ежедневная практика — читать план утром.',
+      'По своему опыту скажу: первый бросок волнует.',
+      'Мне сразу выпала шестёрка.',
+      'Я сам читал этот план много раз.',
+    ])
+      expect(claimsLivedExperience(s), s).toBe(true)
+  })
+
+  /*
+   * Review of PR #2709: close rewordings of the live sentence were quiet --
+   * an adverb between the subject and the verb, a dropped pronoun, the object
+   * first, a perfective verb, a habit after the verb, "from experience" with
+   * a first-person verb, and "you" in a sentence that is still the speaker's.
+   * These are what a rewrite round is likely to produce, so the promise "a
+   * second miss is reported" depends on catching them.
+   */
+  it('fires on close rewordings of the live sentence', () => {
+    for (const s of [
+      'Да, я уже бросал кубик.',
+      'Да, я и правда бросал кубик.',
+      'Да, я действительно играл в Лилу.',
+      'Сам бросал кубик, это моя работа каждый день.',
+      'Да, сам бросал кубик.',
+      'Я бросил кубик и прочитал план.',
+      'Я кубик бросал каждый день.',
+      'Я сам уже много раз играл.',
+      'Я тоже когда-то играл в Лилу.',
+      'Я сыграл в Лилу вчера.',
+      'Я сам через это прошёл.',
+      'Я прошёл поле до 68.',
+      'Мы прошли всё поле до 68.',
+      'Я читаю планы каждое утро.',
+      'Я каждое утро читаю план.',
+      'Скажу по опыту: первый бросок волнует.',
+      'Знаю по себе: первый бросок волнует.',
+      'это моя работа каждый день',
+      'По своему опыту скажу вам: первый бросок волнует.',
+      'По своему опыту скажу: вы почувствуете волнение.',
+      // No "I will tell" to lean on: "his own experience" alone, with "you"
+      // in the next clause, or "you" in the dative.
+      'По своему опыту: вы почувствуете волнение на первом броске.',
+      'По своему опыту подскажу вам: первый бросок волнует.',
+    ])
+      expect(claimsLivedExperience(s), s).toBe(true)
+  })
+
+  it('the wider net still lets through sends, negations, other subjects and conditionals', () => {
+    for (const s of [
+      // "threw" is slang for "sent"
+      'Я уже кидал вам ссылку на приложение.',
+      'Я бросил вам ссылку на бота.',
+      // a negation or a new clause ends the chain
+      'Я никогда не играл в Лилу.',
+      'Я ещё не бросал кубик.',
+      'Я давно не играл.',
+      'Я знаю, кто играл в Лилу вчера.',
+      'Я знаю кто играл в Лилу.',
+      // somebody else does the playing
+      'Сам игрок бросал кубик и читал план.',
+      'Сами игроки бросали кубик.',
+      'Тоже играли в Лилу?',
+      'Я понимаю, что игроки бросают кубик каждый день.',
+      // "his own experience" is the nominative subject's of its clause
+      'По своему опыту вы поймёте, какой план ваш.',
+      // a conditional is not a memory
+      'Я на вашем месте играл бы по плану.',
+      'Я бы играл по плану 6.',
+      // tool work and an honest job description
+      'Я прочитал план 6 и собрал ролик.',
+      'Я читал текст плана 6 в этом ходу.',
+      'Я уже прошёл по вашему каналу и посмотрел посты.',
+      'Моя работа — собрать ролик вашим шаблоном.',
+    ])
+      expect(claimsLivedExperience(s), s).toBe(false)
+  })
+
+  it('stays quiet on offers, production, negation and talk about the product', () => {
+    for (const s of [
+      'Я могу собрать один ролик вашим шаблоном.',
+      'Я собрал пробный ролик по плану 6.',
+      'Я сам не играл — скажу по тексту плана.',
+      'Я прочитал текст плана 6 из канона.',
+      'Я не видел ни кадра.',
+      'Игроки бросают кубик и читают план — это их ежедневная практика.',
+      'Вы сами бросаете кубик и читаете текст плана.',
+      'Каждый игрок читает план по своему опыту.',
+      'Если выпала шестёрка, вы входите на поле.',
+      'Сама игра старше любого ролика.',
+      'Я прошёл по вашим постам в канале.',
+    ])
+      expect(claimsLivedExperience(s), s).toBe(false)
+  })
+
+  it('the live line gets one rewrite about the product; the rewrite goes out and the miss is reported', async () => {
+    const REWRITE =
+      'В Лиле игрок бросает кубик и читает текст плана — так устроена игра. Какой план вам ближе?'
+    const { d, sent, histories } = deps(
+      [[text(LIVE_LIVED)], [text(REWRITE)]],
+      ['Шестой.']
+    )
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(), d)
+    expect(histories).toHaveLength(2)
+    expect(histories[1].at(-1)?.content).toContain(LIVED_EXPERIENCE_REWRITE)
+    expect(sent[0].text).toBe(REWRITE)
+    expect(run.transcript[0].text).toBe(REWRITE)
+    expect(run.violations).toEqual([
+      'turn 0: личный опыт от лица человека — переписано',
+    ])
+  })
+
+  it('a second miss is sent as is and reported; a later turn is checked too', async () => {
+    const { d, sent } = deps(
+      [
+        [text('Здравствуйте. Кому вы играете чаще?')],
+        [text('Понял. Какой план ближе?')],
+        [text(LIVE_LIVED)],
+        [text('Я лично играл в Лилу, поверьте.')],
+      ],
+      ['Новичкам.', 'Шестой.', 'Хорошо.']
+    )
+    const run = await runDuet(judgedRun({ turns: 3 }), judgedCtx(), d)
+    expect(sent.filter(x => x.from === JUDGED_OWNER).at(-1)?.text).toBe(
+      'Я лично играл в Лилу, поверьте.'
+    )
+    expect(run.violations).toEqual([
+      'turn 4 (после правки): личный опыт от лица человека',
+    ])
+  })
+})
+
+/*
+ * THE AGENT DOUBLE OBEYS THE DENIAL THE WAY runAgent DOES.
+ *
+ * A scripted result for a tool the call's options deny is replaced by what
+ * the REAL dispatcher answers for it (dispatchToolCall, which refuses before
+ * any handler) -- so a test about the gate cannot pass on a double that
+ * decided the refusal itself. Every call's options are recorded.
+ */
+function obeyDenial(d: DuetDeps): Array<ToolDenial | undefined> {
+  const seen: Array<ToolDenial | undefined> = []
+  const agent = d.agent
+  d.agent = (h, c, o) => {
+    seen.push(o)
+    return (async function* () {
+      for await (const ev of agent(h, c, o)) {
+        const e = ev as unknown as Record<string, unknown>
+        // Quoted keys: the event envelope's own field names.
+        const name = String(e['имя'] ?? '')
+        const isResult = e['тип'] === 'результат'
+        if (!isResult || !o?.denyTools?.has(name)) {
+          yield ev
+          continue
+        }
+        const gen = dispatchToolCall({ function: { name } }, c, o)
+        let step = await gen.next()
+        while (!step.done) step = await gen.next()
+        yield result(name, step.value) as never
+      }
+    })()
+  }
+  return seen
+}
+
+describe('crm_duet: a rewrite round changes words, not work (review of #2709)', () => {
+  const U = 'https://bucket.example/renders/leela-plan-6.mp4'
+  const U2 = 'https://bucket.example/renders/leela-plan-6-again.mp4'
+  const reel = (url: string) => [
+    announce('reel_render', {
+      compositionId: 'LeelaPlanReel',
+      props: { plan: 6 },
+    }),
+    result('reel_render', { ['готово']: true, url }), // cyrillic-ok: tool result key
+  ]
+  const REWRITTEN =
+    'В Лиле игрок бросает кубик и читает текст плана — так устроена игра. Какой план вам ближе?'
+
+  it('after discovery, a lived-experience rewrite cannot render again, pay again, publish or send a second file', async () => {
+    const { d, sent, histories } = deps(
+      [
+        [text('Здравствуйте. Кому вы играете чаще?')],
+        [text('Понял. Какой план ближе?')],
+        // Turn 4, first attempt: a real reel, and the live line.
+        [...reel(U), text(LIVE_LIVED)],
+        // The rewrite tries to render again.
+        [...reel(U2), text(REWRITTEN)],
+      ],
+      ['Новичкам.', 'Шестой.', 'Вижу.']
+    )
+    d.clientProfile = noProfile
+    const seen = obeyDenial(d)
+    const run = await runDuet(judgedRun({ turns: 3 }), judgedCtx(), d)
+
+    expect(run.state).toBe('done')
+    expect(seen).toHaveLength(4)
+    // Every call of the run carries the publish ban, the rewrite included.
+    for (const o of seen) expect(o?.denyTools?.has('feed_publish')).toBe(true)
+    // The turn itself may render (discovery is over); its rewrite may not.
+    expect(seen[2]?.denyTools?.has('reel_render')).toBe(false)
+    for (const t of PAID_TOOLS) expect(seen[3]?.denyTools?.has(t), t).toBe(true)
+    expect(seen[3]?.denyReasons?.get('reel_render')).toBe(
+      REWRITE_DENY_REASONS.get('reel_render')
+    )
+    // One reel paid for, one file sent -- the first attempt's.
+    expect(run.paid_calls).toBe(1)
+    expect(run.media_sent).toBe(1)
+    expect(sent.filter(x => x.url).map(x => x.url)).toEqual([U])
+    expect(sent.find(x => x.text)?.text).not.toBe(LIVE_LIVED)
+    expect(run.violations).toEqual([
+      'turn 4: личный опыт от лица человека — переписано',
+      'turn 4: reel_render на правке реплики — отклонён',
+    ])
+    // The rewrite is told the reel of this turn already exists.
+    expect(histories[3].at(-1)?.content).toContain(LIVED_EXPERIENCE_REWRITE)
+    expect(histories[3].at(-1)?.content).toContain(U)
+  })
+
+  it('every rewrite round runs under the rewrite gate: voice, done work, familiarity, lived', async () => {
+    const { d } = deps(
+      [
+        // Turn 0: pressure; its rewrite assumes an agreement; that rewrite
+        // claims lived practice; the last one is clean.
+        [text('Срочно: скажу по делу. Кому вы играете?')],
+        [text('Как договорились, пишу вам. Кому вы играете?')],
+        [text('Я сам бросал кубик. Кому вы играете?')],
+        [text('Здравствуйте. Кому вы играете чаще?')],
+        // Turn 2: claimed work with no tool.
+        [text('Я уже собрал готовый ролик по плану 6.')],
+        [text('Могу собрать один пример вашим шаблоном. Какой план?')],
+      ],
+      ['Новичкам.', 'Шестой.']
+    )
+    const seen = obeyDenial(d)
+    const run = await runDuet(judgedRun({ turns: 2 }), judgedCtx(), d)
+    expect(seen).toHaveLength(6)
+    expect(run.voice_flags[0]).toContain('turn 0')
+    expect(run.violations).toEqual([
+      'turn 0: ссылка на несуществующую договорённость — переписано',
+      'turn 0: личный опыт от лица человека — переписано',
+      'turn 2: заявлена сделанная работа без инструмента — переписано',
+    ])
+    // Calls 1, 2, 3 (voice, familiarity, lived) and 5 (done work) are rewrites.
+    for (const k of [1, 2, 3, 5]) {
+      expect(seen[k]?.denyReasons, `call ${k}`).toBe(REWRITE_DENY_REASONS)
+      for (const t of [...PAID_TOOLS, 'feed_publish'])
+        expect(seen[k]?.denyTools?.has(t), `call ${k}: ${t}`).toBe(true)
+    }
+  })
+
+  it('the same file twice in one turn reaches her once', async () => {
+    const { d, sent } = deps(
+      [
+        [
+          ...reel(U),
+          ...reel(U),
+          text('Собрал пример по плану 6. Что не в стиле?'),
+        ],
+      ],
+      ['Вижу.']
+    )
+    d.clientProfile = noProfile
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(), d)
+    expect(sent.filter(x => x.url).map(x => x.url)).toEqual([U])
+    expect(run.media_sent).toBe(1)
+    expect(run.transcript[0].media).toEqual([U])
+  })
+})
+
+describe('crm_duet: the brief names the judged rules (t27#4522)', () => {
+  it('the brief the seller receives says: meaning from leela_plan, no lived experience, no feed_publish', async () => {
+    const { d, histories } = deps([[text('Здравствуйте.')]], ['Кто вы?'])
+    await runDuet(judgedRun({ turns: 1 }), judgedCtx(), d)
+    const brief = histories[0][0].content
+    expect(brief).toContain(PLAN_MEANING_RULE)
+    expect(brief).toContain(NO_LIVED_EXPERIENCE_RULE)
+    expect(brief).toContain(NO_PUBLISH_RULE)
+    expect(PLAN_MEANING_RULE).toContain(
+      'только из ответа leela_plan в этом же ходу'
+    )
+  })
+})
+
+describe('crm_duet: persona consent is not consent (t27#4522)', () => {
+  it('every seller turn hands the agent the publish ban and the reason it may read', async () => {
+    const { d } = deps(
+      [[text('Здравствуйте.')], [text('Ясно.')], [text('Хорошо.')]],
+      ['a', 'b', 'c']
+    )
+    const seen: Array<ToolDenial | undefined> = []
+    const agent = d.agent
+    d.agent = (h, c, o) => {
+      seen.push(o)
+      return agent(h, c, o)
+    }
+    await runDuet(judgedRun({ turns: 3 }), judgedCtx(), d)
+    expect(seen).toHaveLength(3)
+    for (const o of seen) {
+      expect(o?.denyTools?.has('feed_publish')).toBe(true)
+      expect(o?.denyReasons?.get('feed_publish')).toContain(
+        'не одобрение клиента'
+      )
+    }
+  })
+
+  it('a refused feed_publish is reported once, as the ban, and is not a paid call', async () => {
+    const refusal = {
+      ['ошибка']: 'инструмент feed_publish недоступен на этом ходу', // cyrillic-ok: tool result key
+      ['отказано']: true, // cyrillic-ok: tool result key
+    }
+    const { d } = deps(
+      [[result('feed_publish', refusal), text('Ролик уже у вас в чате.')]],
+      ['Хорошо.']
+    )
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(), d)
+    expect(run.paid_calls).toBe(0)
+    expect(run.violations).toEqual([
+      'turn 0: feed_publish в дуэте — отклонён (согласие персоны не согласие клиента)',
+    ])
+  })
+
+  it('a feed_publish that got past the ban is still reported', async () => {
+    const { d } = deps(
+      [[result('feed_publish', { ok: true }), text('Смотрите в ленте.')]],
+      ['Хорошо.']
+    )
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(), d)
+    expect(run.violations).toContain('turn 0: feed_publish')
+  })
+})
+
+/*
+ * A POOL DOUBLE THAT DOES NOT AGREE WITH THE CALLER (blind-guards forms 1, 21).
+ *
+ * It knows the real columns of content_plan_items and throws on any other
+ * identifier; it filters rows ONLY by the conditions the SQL actually states,
+ * so a dropped `telegram_id = $1` returns a stranger's card here exactly as it
+ * would in Postgres; the status it writes is read from the SQL, not assumed.
+ */
+type PlanItem = {
+  id: number
+  telegram_id: string
+  title: string
+  note: string | null
+  status: string
+  template_id: string | null
+}
+const PLAN_COLUMNS = new Set([
+  'id',
+  'goal_id',
+  'telegram_id',
+  'title',
+  'note',
+  'status',
+  'template_id',
+  'created_at',
+  'updated_at',
+])
+const SQL_WORDS = new Set(
+  (
+    'select from where and or in order by update set returning now is not ' +
+    'distinct null content_plan_items'
+  ).split(' ')
+)
+
+function planPool(items: PlanItem[], afterSelect?: () => void) {
+  const queries: string[] = []
+  const pool = {
+    async query(sql: string, params: unknown[] = []) {
+      queries.push(sql)
+      const bare = sql.replace(/'[^']*'/g, ' ').replace(/\$\d+/g, ' ')
+      for (const w of bare.toLowerCase().match(/[a-z_]+/g) ?? [])
+        if (!PLAN_COLUMNS.has(w) && !SQL_WORDS.has(w))
+          throw new Error(`column "${w}" does not exist`)
+      if (/^\s*SELECT/i.test(sql)) {
+        let out = items
+        if (/telegram_id = \$1/.test(sql))
+          out = out.filter(r => r.telegram_id === params[0])
+        if (/template_id = \$2/.test(sql))
+          out = out.filter(r => r.template_id === params[1])
+        const within = sql.match(/status IN \(([^)]*)\)/)
+        if (within) {
+          const allowed = (within[1].match(/'[a-z]+'/g) ?? []).map(x =>
+            x.slice(1, -1)
+          )
+          out = out.filter(r => allowed.includes(r.status))
+        }
+        if (/ORDER BY id/.test(sql)) out = [...out].sort((a, b) => a.id - b.id)
+        const rows = out.map(r => ({
+          id: r.id,
+          title: r.title,
+          note: r.note,
+          status: r.status,
+        }))
+        afterSelect?.()
+        return { rows }
+      }
+      if (/^\s*UPDATE content_plan_items/i.test(sql)) {
+        let target = items
+        if (/WHERE id = \$1/.test(sql))
+          target = target.filter(r => r.id === params[0])
+        if (/telegram_id = \$2/.test(sql))
+          target = target.filter(r => r.telegram_id === params[1])
+        if (/status = \$4/.test(sql))
+          target = target.filter(r => r.status === params[3])
+        if (/note IS NOT DISTINCT FROM \$5/.test(sql))
+          target = target.filter(r => r.note === (params[4] ?? null))
+        const status = sql.match(/SET status = '([a-z]+)'/)?.[1]
+        for (const r of target) {
+          if (status) r.status = status
+          if (/note = \$3/.test(sql)) r.note = String(params[2])
+        }
+        return { rows: target.map(r => ({ id: r.id })) }
+      }
+      throw new Error(`unexpected query: ${sql.slice(0, 60)}`)
+    },
+  }
+  return { pool, queries }
+}
+
+const PLAN6_TITLE = 'Вход только с шестёрки — план 6 «Заблуждение (моха)»'
+const PLAN6_NOTE =
+  'План 6. Крючок: «Следующий ход — не обязательно следующий бросок».'
+const item = (
+  id: number,
+  telegram_id: string,
+  title: string,
+  note: string | null,
+  template_id: string | null = 'LeelaPlanReel'
+): PlanItem => ({ id, telegram_id, title, note, status: 'idea', template_id })
+
+function herPlan(): PlanItem[] {
+  return [
+    // Lower ids first: a dropped condition would pick these before hers.
+    item(1, STRANGER, PLAN6_TITLE, PLAN6_NOTE),
+    item(2, JUDGED_BUYER, 'Мой план 6, своими словами', null, null),
+    item(
+      3,
+      JUDGED_BUYER,
+      '68 на старте — ещё не победа',
+      'План 68. Победа — только точное попадание.'
+    ),
+    item(4, JUDGED_BUYER, PLAN6_TITLE, PLAN6_NOTE),
+    item(
+      5,
+      JUDGED_BUYER,
+      '46 → 62: стрела Различения',
+      'План 46. Аджна → Сахасрара.'
+    ),
+  ]
+}
+const REEL_URL = 'https://bucket.example/renders/leela-plan-6.mp4'
+const reelTurn = (props: Record<string, unknown> = { plan: 6, hook: 'h' }) => [
+  announce('leela_plan', { plan: 6 }),
+  result('leela_plan', { plan: 6, title: 'Заблуждение (моха)' }),
+  announce('reel_render', { compositionId: 'LeelaPlanReel', props }),
+  result('reel_render', { ['готово']: true, url: REEL_URL }), // cyrillic-ok: tool result key
+  text('Собрал пример по плану 6 вашим шаблоном. Что в нём не в стиле?'),
+]
+const noProfile = async () => ({ has_profile: false })
+
+describe('crm_duet: what was made goes into HER plan (t27#4522)', () => {
+  it('a reel for plan 6 moves her plan-6 card from idea to doing with the reel in its note; nothing else moves', async () => {
+    const items = herPlan()
+    const before = JSON.parse(JSON.stringify(items)) as PlanItem[]
+    const { pool } = planPool(items)
+    const { d } = deps([reelTurn()], ['Вижу ролик.'])
+    d.clientProfile = noProfile
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(pool), d)
+    expect(run.state).toBe('done')
+    const card = items.find(r => r.id === 4)!
+    expect(card.status).toBe('doing')
+    expect(card.note).toContain(PLAN6_NOTE)
+    expect(card.note).toContain(REEL_URL)
+    expect(items.filter(r => r.id !== 4)).toEqual(
+      before.filter(r => r.id !== 4)
+    )
+    expect(run.transcript[0].plan_item).toMatchObject({
+      plan: 6,
+      result: 'moved',
+      item_id: 4,
+      url: REEL_URL,
+    })
+    expect(reportOf(run)).toContain('idea → doing')
+  })
+
+  it('without props.plan the ONE plan looked up names the card; two different lookups name none and touch nothing', async () => {
+    const items = herPlan()
+    const { pool } = planPool(items)
+    const { d } = deps([reelTurn({ hook: 'h' })], ['Вижу.'])
+    d.clientProfile = noProfile
+    await runDuet(judgedRun({ turns: 1 }), judgedCtx(pool), d)
+    expect(items.find(r => r.id === 4)!.status).toBe('doing')
+
+    const two = planPool(herPlan())
+    const second = deps(
+      [
+        [
+          announce('leela_plan', { plan: 12 }),
+          result('leela_plan', { plan: 12, title: 'Зависть' }),
+          ...reelTurn({ hook: 'h' }),
+        ],
+      ],
+      ['Вижу.']
+    )
+    second.d.clientProfile = noProfile
+    const run = await runDuet(
+      judgedRun({ turns: 1 }),
+      judgedCtx(two.pool),
+      second.d
+    )
+    expect(two.queries).toEqual([])
+    expect(run.transcript[0].plan_item?.result).toBe('plan_unknown')
+    expect(reportOf(run)).toContain('в план не записан')
+  })
+
+  it('no matching card: nothing is written and the report says so', async () => {
+    const items = herPlan().filter(r => r.id !== 4)
+    const before = JSON.parse(JSON.stringify(items))
+    const { pool, queries } = planPool(items)
+    const { d } = deps([reelTurn()], ['Вижу.'])
+    d.clientProfile = noProfile
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(pool), d)
+    expect(items).toEqual(before)
+    expect(queries.filter(q => /UPDATE/.test(q))).toEqual([])
+    expect(run.transcript[0].plan_item?.result).toBe('no_row')
+    expect(reportOf(run)).toContain('ничего не записано')
+  })
+
+  it('a card already in work stays doing -- never done -- and gains the reel in its note', async () => {
+    const items = herPlan()
+    const card = items.find(r => r.id === 4)!
+    card.status = 'doing'
+    card.note = `${PLAN6_NOTE}\nhttps://bucket.example/renders/earlier.mp4`
+    const { pool } = planPool(items)
+    const { d } = deps([reelTurn()], ['Вижу.'])
+    d.clientProfile = noProfile
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(pool), d)
+    expect(card.status).toBe('doing')
+    expect(card.note).toContain('earlier.mp4')
+    expect(card.note).toContain(REEL_URL)
+    expect(run.transcript[0].plan_item?.result).toBe('noted')
+  })
+
+  it('a published card is never pulled back into work', async () => {
+    const items = herPlan()
+    const card = items.find(r => r.id === 4)!
+    card.status = 'done'
+    const { pool } = planPool(items)
+    const { d } = deps([reelTurn()], ['Вижу.'])
+    d.clientProfile = noProfile
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(pool), d)
+    expect(card).toMatchObject({ status: 'done', note: PLAN6_NOTE })
+    expect(run.transcript[0].plan_item?.result).toBe('no_row')
+  })
+
+  it('her edit between the read and the write wins: the card is not touched', async () => {
+    const items = herPlan()
+    const card = items.find(r => r.id === 4)!
+    const { pool } = planPool(items, () => {
+      card.note = 'Моя правка.'
+    })
+    const { d } = deps([reelTurn()], ['Вижу.'])
+    d.clientProfile = noProfile
+    const run = await runDuet(judgedRun({ turns: 1 }), judgedCtx(pool), d)
+    expect(card).toMatchObject({ status: 'idea', note: 'Моя правка.' })
+    expect(run.transcript[0].plan_item?.result).toBe('changed')
+  })
+
+  it('a dry run leaves her plan alone', async () => {
+    const { pool, queries } = planPool(herPlan())
+    const { d } = deps([reelTurn()], ['Вижу.'])
+    d.clientProfile = noProfile
+    const run = await runDuet(
+      judgedRun({ turns: 1, dry_run: true }),
+      judgedCtx(pool),
+      d
+    )
+    expect(queries).toEqual([])
+    expect(run.transcript[0].plan_item?.result).toBe('dry_run')
+  })
+
+  it('linkReelToPlan reads only her LeelaPlanReel cards and answers without a database', async () => {
+    const { pool } = planPool(herPlan())
+    const r = await linkReelToPlan(pool, {
+      buyer: JUDGED_BUYER,
+      plan: 68,
+      url: REEL_URL,
+      runId: 'duet-x',
+    })
+    expect(r).toMatchObject({ result: 'moved', item_id: 3 })
+    expect(
+      await linkReelToPlan(undefined, {
+        buyer: JUDGED_BUYER,
+        plan: 6,
+        url: REEL_URL,
+        runId: 'duet-x',
+      })
+    ).toMatchObject({ result: 'failed' })
+  })
+
+  it('namesPlan: "plan N" in title or note, or a leading N -- never a bare N elsewhere', () => {
+    const [, , p68, p6, p46] = herPlan()
+    expect(namesPlan(p6, 6)).toBe(true)
+    expect(namesPlan(p68, 6)).toBe(false)
+    expect(namesPlan(p68, 68)).toBe(true)
+    expect(namesPlan(p46, 46)).toBe(true)
+    expect(namesPlan(p46, 62)).toBe(false)
+    expect(namesPlan({ title: '12 → 8: змея Зависти', note: null }, 8)).toBe(
+      false
+    )
+    expect(namesPlan({ title: 'x', note: 'План 17. Стрела.' }, 17)).toBe(true)
+    expect(namesPlan({ title: 'x', note: 'План 17. Стрела.' }, 1)).toBe(false)
+  })
+
+  it('reelPlanOf: props first, else one lookup; another composition is not her plan', () => {
+    const reel = (args?: Record<string, unknown>) => ({
+      name: 'reel_render',
+      value: {},
+      ms: 1,
+      ...(args ? { args } : {}),
+    })
+    const leela = (props: Record<string, unknown>) =>
+      reel({ compositionId: 'LeelaPlanReel', props })
+    expect(reelPlanOf(leela({ plan: 17 }), [6])).toEqual({
+      plan: 17,
+      leela: true,
+    })
+    expect(reelPlanOf(reel(), [6, 6])).toEqual({ plan: 6, leela: true })
+    expect(reelPlanOf(reel(), [6, 12])).toEqual({ plan: null, leela: true })
+    expect(
+      reelPlanOf(reel({ compositionId: 'TrinityBlogReel', props: {} }), [6])
+    ).toEqual({ plan: null, leela: false })
+  })
+})
+
+/*
+ * THE TEXTS SAY WHAT HAPPENED (review of #2709).
+ *
+ * The owner asked for the reel to reach her plan AND her approval queue; only
+ * the plan is written. The refusal the model read said "the reel is already
+ * in her chat and her content plan", whether or not a reel or a card existed,
+ * and the card note promised "waits for your approval" with no approve
+ * control behind it. Now the seller hears the real PlanLink result, on the
+ * turn after the link, and nothing promises an approval step.
+ */
+describe('crm_duet: what the seller and the card are told about her plan', () => {
+  const nextSellerLine = (h: ChatMessage[][]) =>
+    String(h[1].at(-1)?.content ?? '')
+
+  it('a reel that landed in her plan: the seller hears it before her reply, and the card promises no approval', async () => {
+    const items = herPlan()
+    const { pool } = planPool(items)
+    const { d, histories } = deps(
+      [reelTurn(), [text('Что в нём поправить?')]],
+      ['Вижу ролик.', 'Хорошо.']
+    )
+    d.clientProfile = noProfile
+    await runDuet(judgedRun({ turns: 2 }), judgedCtx(pool), d)
+    const line = nextSellerLine(histories)
+    expect(line).toContain(
+      '[дуэт] Ролик прошлого хода записан в её контент-план'
+    )
+    expect(line.indexOf('[дуэт]')).toBeLessThan(
+      line.indexOf('Покупатель (@playom): Вижу ролик.')
+    )
+    const card = items.find(r => r.id === 4)!
+    expect(card.note).toContain(REEL_URL)
+    expect(String(card.note).toLowerCase()).not.toContain('одобрени')
+  })
+
+  it('a reel with no card: the seller is told it is NOT in her plan', async () => {
+    const { pool } = planPool(herPlan().filter(r => r.id !== 4))
+    const { d, histories } = deps(
+      [reelTurn(), [text('Что в нём поправить?')]],
+      ['Вижу ролик.', 'Хорошо.']
+    )
+    d.clientProfile = noProfile
+    await runDuet(judgedRun({ turns: 2 }), judgedCtx(pool), d)
+    const line = nextSellerLine(histories)
+    expect(line).toContain('в её контент-план НЕ записан')
+    expect(line).not.toContain('записан в её контент-план:')
+  })
+
+  it('the note is said once: the turn after it carries none', async () => {
+    const { pool } = planPool(herPlan())
+    const { d, histories } = deps(
+      [reelTurn(), [text('Что поправить?')], [text('Понял.')]],
+      ['Вижу ролик.', 'Хорошо.', 'Да.']
+    )
+    d.clientProfile = noProfile
+    await runDuet(judgedRun({ turns: 3 }), judgedCtx(pool), d)
+    expect(String(histories[2].at(-1)?.content)).not.toContain('[дуэт]')
+  })
+
+  it('every PlanLink result has a note, and only moved/noted/already say "in her plan"', () => {
+    const results = [
+      'moved',
+      'noted',
+      'already',
+      'no_row',
+      'plan_unknown',
+      'not_leela',
+      'dry_run',
+      'changed',
+      'failed',
+    ] as const
+    for (const result of results) {
+      const note = planNoteForSeller({ plan: 6, url: REEL_URL, result })
+      const inPlan = ['moved', 'noted', 'already'].includes(result)
+      expect(note.includes('записан в её контент-план:'), result).toBe(inPlan)
+      expect(note.includes('НЕ записан'), result).toBe(!inPlan)
+    }
+  })
+
+  it('the publish refusal claims nothing about her chat or plan', () => {
+    const reason = DUET_DENY_REASONS.get('feed_publish') ?? ''
+    expect(reason).toContain('не одобрение клиента')
+    expect(reason).not.toContain('контент-план')
+    expect(reason).not.toContain('в чате')
+  })
+})
+
 describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
   const MP4 = 'https://bucket.example/renders/leela-plan-6.mp4'
 
@@ -497,6 +1266,60 @@ describe('crm_duet tools', () => {
       'числовым'
     )
     expect(await status.handler({}, ctx)).toMatchObject({ found: false })
+  })
+
+  /*
+   * The live wiring, not a double: crm_duet builds its own dependencies, and
+   * the ban with its reason must reach the real runAgent call, or the model
+   * reads the discovery reason ("learn what she wants") for a publish ban.
+   */
+  it('the live run hands runAgent the publish ban and its reason', async () => {
+    const LIVE_OWNER = '900000070'
+    const LIVE_BUYER = '900000071'
+    const seen: Array<Record<string, any>> = []
+    vi.resetModules()
+    vi.doMock('./src/agent/telegram-tools', () => ({
+      requireOwner: (c?: ToolContext) => {
+        if (String(c?.telegramId) !== LIVE_OWNER)
+          throw new Error('only the owner')
+      },
+      isSeller: async (c?: ToolContext) => String(c?.telegramId) === LIVE_BUYER,
+      withClient: async () => {
+        throw new Error('no live client in tests')
+      },
+    }))
+    vi.doMock('./src/agent/tg-proposals', () => ({
+      sendWithAddressBook: async () => undefined,
+      sendFileWithAddressBook: async () => undefined,
+    }))
+    vi.doMock('./src/agent/chat', () => ({
+      runAgent: async function* (_h: unknown, _c: unknown, o: any) {
+        seen.push(o)
+        yield { ['тип']: 'текст', ['текст']: 'Здравствуйте.' } // cyrillic-ok: event envelope
+      },
+    }))
+    vi.doMock('./src/agent/provider', () => ({
+      allProviders: () => [],
+      diagnose: () => 'none',
+    }))
+    const mod = await import('./src/agent/crm-duet-tool')
+    const start = mod.CRM_DUET_TOOLS.find(t => t.name === 'crm_duet')!
+    const liveCtx = {
+      telegramId: LIVE_OWNER,
+      pool: {},
+    } as unknown as ToolContext
+    const r: any = await start.handler(
+      { buyer: LIVE_BUYER, turns: 1, dry_run: true },
+      liveCtx
+    )
+    expect(r.started).toBe(true)
+    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    expect(seen[0].denyTools.has('feed_publish')).toBe(true)
+    expect(seen[0].denyReasons.get('feed_publish')).toContain(
+      'не одобрение клиента'
+    )
+    vi.doUnmock('./src/agent/chat')
+    vi.doUnmock('./src/agent/provider')
   })
 
   /*
@@ -826,14 +1649,16 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
   const LIVE_LINE_2 =
     'Вы правы, и я забираю эти слова назад: я не видел ни кадра.'
 
-  it('paid tools are denied on the first two seller turns and offered from the third', () => {
+  it('paid tools are denied on the first two seller turns and offered from the third; feed_publish never', () => {
     expect(DISCOVERY_SELLER_TURNS).toBe(2)
-    expect(deniedToolsFor(0)).toBe(PAID_TOOLS)
-    expect(deniedToolsFor(1)).toBe(PAID_TOOLS)
-    expect(deniedToolsFor(2)).toBeUndefined()
+    const paidDenied = (turn: number) =>
+      [...PAID_TOOLS].filter(t => deniedToolsFor(turn).has(t)).length
+    expect([0, 1, 2, 7].map(paidDenied)).toEqual([5, 5, 0, 0])
+    for (const turn of [0, 1, 2, 7])
+      expect(deniedToolsFor(turn).has('feed_publish')).toBe(true)
   })
 
-  it('the agent receives the deny set on seller turns 0 and 2 and nothing on turn 4', async () => {
+  it('the agent receives the paid tools denied on seller turns 0 and 2, not on turn 4, and feed_publish denied on all three', async () => {
     const { d, denies } = deps(
       [
         [
@@ -848,7 +1673,10 @@ describe('crm_duet discovery gate and seller voice (duet-mu027xqr, 2026-09-14)',
     )
     const run = await runDuet(freshRun({ turns: 3 }), ctx, d)
     expect(run.state).toBe('done')
-    expect(denies).toEqual([PAID_TOOLS, PAID_TOOLS, undefined])
+    const paid = (s?: ReadonlySet<string>) =>
+      [...PAID_TOOLS].filter(t => s?.has(t)).length
+    expect(denies.map(paid)).toEqual([5, 5, 0])
+    expect(denies.map(s => s?.has('feed_publish'))).toEqual([true, true, true])
     expect(run.violations).toEqual([])
     expect(run.voice_flags).toEqual([])
   })
