@@ -308,6 +308,28 @@ export function pipeUpgrade(
   const { host, port } = hostPort(target.endpoint)
   const headers = { ...req.headers }
   delete headers.host
+  /*
+   * NO COMPRESSION ON THIS SOCKET, NEGOTIATED BY ANYBODY.
+   *
+   * Measured in production, with a real WebSocket client reading more than
+   * the first message:
+   *
+   *   Invalid WebSocket frame: RSV1 must be clear   (after 1 message)
+   *   Sec-WebSocket-Extensions in the 101:          (empty)
+   *
+   * -- and the SAME result when the client did not offer compression at all.
+   * RSV1 set means a compressed frame; the empty header means the person's
+   * browser was never told. Something between it and us makes its own offer
+   * to this server, we passed that offer on to the pod, the pod agreed and
+   * compressed, and the agreement never reached the browser. The first,
+   * small message got through; the next one killed the socket. The browser
+   * reported it as "Invalid frame header" and the picture never started.
+   *
+   * Locally there is no such hop, which is why it only ever broke deployed.
+   * The pod is simply never offered compression: every frame then travels
+   * uncompressed, whatever any hop on the way asked for.
+   */
+  delete headers['sec-websocket-extensions']
   const cookie = stripOurCookie(req.headers.cookie, target.sessionId)
   if (cookie) headers.cookie = cookie
   else delete headers.cookie
@@ -323,9 +345,10 @@ export function pipeUpgrade(
   upstream.on('upgrade', (podRes, podSocket, podHead) => {
     const lines = [
       'HTTP/1.1 101 Switching Protocols',
-      ...Object.entries(podRes.headers).map(
-        ([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`
-      ),
+      /* And never advertise one back, in case a pod answers with it anyway. */
+      ...Object.entries(podRes.headers)
+        .filter(([k]) => k.toLowerCase() !== 'sec-websocket-extensions')
+        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`),
       '',
       '',
     ]
