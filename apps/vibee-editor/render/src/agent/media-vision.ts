@@ -346,7 +346,14 @@ export async function describeVideoWithVision(
       if (bytes && bytes.length) images.push(dataUrl(bytes, 'image/jpeg'))
     }
     if (!images.length) throw new Error('ffmpeg produced no frames')
-    return askVision(v, VISION_PROMPTS.video, images)
+    /*
+     * `return await`, not `return`: returned bare, a refusal from the vision
+     * endpoint rejected while the `finally` below was still removing the
+     * frames, with no handler attached yet -- an unhandled rejection, which
+     * ends a Node process that has no handler for it (this one has none).
+     * Found 2026-09-22 by the first test that let vision fail on a video.
+     */
+    return await askVision(v, VISION_PROMPTS.video, images)
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined)
   }

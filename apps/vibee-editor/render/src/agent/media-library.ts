@@ -44,6 +44,14 @@ import { mirrorNow } from './crm-mirror'
 import { allProviders, type Provider } from './provider'
 import { usableMediaUrl, shelfObject } from './media-parts'
 import { s3GetBytes } from '../lib/s3-put'
+import { readFile } from 'node:fs/promises'
+import {
+  documentFormat,
+  extensionOf,
+  readShelfExtracted,
+  soundtrackFromFile,
+  withShelfFile,
+} from './media-extract'
 import {
   describeImageWithVision,
   describeVideoWithVision,
@@ -68,11 +76,18 @@ export const MEDIA_KINDS: readonly MediaKind[] = [
   'file',
 ]
 
-export type MediaSurface = 'bot' | 'business' | 'ingest'
+/*
+ * 'miniapp' added 2026-09-22: files attached in the mini app's chat were read
+ * on the turn and then forgotten -- no row, so a video never got its
+ * background description and "what did I send you" had no answer there.
+ * Written by the chat route itself (miniapp-media.ts), never by the bot.
+ */
+export type MediaSurface = 'bot' | 'business' | 'ingest' | 'miniapp'
 export const MEDIA_SURFACES: readonly MediaSurface[] = [
   'bot',
   'business',
   'ingest',
+  'miniapp',
 ]
 
 export interface MediaRow {
@@ -323,8 +338,9 @@ const TEXT_LIKE_MIME = /^(text\/|application\/json$|application\/xml$)/i
  * obviously binary": a format that is not really text reads as mojibake, and
  * mojibake handed to a model is worse than a clean "I cannot read this" -- the
  * model will find meaning in it, exactly the failure this whole change is
- * about. `.pdf`, `.docx`, `.xlsx` are NOT here and are not readable by this
- * repository at all: no extractor is installed (see media-inline.ts).
+ * about. `.pdf`, `.docx`, `.xlsx` and the other packed formats are NOT here:
+ * they are not text on disk, and since 2026-09-22 they are opened by their own
+ * readers in media-extract.ts rather than decoded as if they were.
  */
 export const TEXT_LIKE_EXTENSIONS: readonly string[] = [
   'txt',
@@ -495,6 +511,27 @@ async function transcribeWithWhisper(
   const got = await fetchWithDeadline(url)
   if (!got.ok) throw new Error(`shelf answered ${got.status}`)
   const bytes = Buffer.from(await got.arrayBuffer())
+  return whisperBytes(
+    w,
+    bytes,
+    got.headers.get('content-type'),
+    name,
+    timeoutMs
+  )
+}
+
+/**
+ * The transcriber itself, given the bytes. Split out of `transcribeWithWhisper`
+ * on 2026-09-22 so a video's soundtrack can be handed over without a trip
+ * through the `/s3/` route, which would transcode the whole video first.
+ */
+async function whisperBytes(
+  w: WhisperConfig,
+  bytes: Buffer,
+  contentType: string | null,
+  name: string | null,
+  timeoutMs: number
+): Promise<string | null> {
   if (!bytes.length || bytes.length > WHISPER_MAX_BYTES)
     throw new Error(`audio of ${bytes.length} bytes is outside Whisper's range`)
   /*
@@ -566,7 +603,10 @@ async function transcribeWithWhisper(
    * came to carry stream=false while claiming to be the streamed one. */
   form.append(
     'file',
-    new Blob([bytes], { type: got.headers.get('content-type') || 'audio/ogg' }),
+    // Never a SharedArrayBuffer: these bytes came from a fetch or a file.
+    new Blob([bytes as Uint8Array<ArrayBuffer>], {
+      type: contentType || 'audio/ogg',
+    }),
     name || 'audio.ogg'
   )
   const attempt = async (streaming: boolean): Promise<string> => {
@@ -833,6 +873,100 @@ export async function describeShelfImageNow(
   }
 }
 
+/*
+ * SPEECH INSIDE A VIDEO (2026-09-22, ported from #2414 commit 12f09b597).
+ *
+ * A video note is how a lot of people talk in Telegram, and until this change
+ * the agent only ever SAW one -- frames, minutes later, from the sweep -- and
+ * never heard a word of it. The soundtrack goes to the same transcriber a
+ * voice note does: it opens an mp4, a mov and a webm itself, so the bytes are
+ * handed over as they are. ffmpeg is the FALLBACK, for a video bigger than the
+ * transcriber takes (25 MB): then only the soundtrack is taken out, mono 16 kHz,
+ * which is a few megabytes for ten minutes of talk. #2414 re-uploaded that
+ * soundtrack to the shelf and attached it as a new marker; here it goes
+ * straight to the transcriber, and nothing new is stored.
+ */
+/** A video is fetched for its sound up to the mini app's own upload ceiling. */
+const VIDEO_SOUND_MAX_BYTES = 100 * 1024 * 1024
+
+const VIDEO_MIME: Record<string, string> = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  mkv: 'video/x-matroska',
+}
+
+async function videoSoundtrackWords(
+  w: WhisperConfig,
+  url: string,
+  name: string | null,
+  timeoutMs: number
+): Promise<string | null> {
+  const safe = transcribableUrl(url)
+  if (!safe) return null
+  const got = await withShelfFile(
+    safe,
+    VIDEO_SOUND_MAX_BYTES,
+    async (path, size) => {
+      if (size <= WHISPER_MAX_BYTES) {
+        const ext = extensionOf(safe)
+        return whisperBytes(
+          w,
+          await readFile(path),
+          VIDEO_MIME[ext] ?? 'video/mp4',
+          name || `video.${ext || 'mp4'}`,
+          timeoutMs
+        )
+      }
+      const sound = await soundtrackFromFile(path, timeoutMs)
+      if (!sound) return null
+      return whisperBytes(w, sound, 'audio/mp4', 'soundtrack.m4a', timeoutMs)
+    }
+  )
+  return got === 'missing' || got === 'too-big' ? null : got
+}
+
+/**
+ * The words spoken in a shelf video, NOW, on the turn's own clock -- the
+ * video twin of `transcribeShelfAudioNow`, with the same contract: our shelf
+ * only, one attempt, a deadline, and "no words" instead of an exception.
+ */
+export async function transcribeShelfVideoNow(
+  url: string,
+  name: string | null,
+  timeoutMs: number
+): Promise<string | null> {
+  const w = whisperConfig()
+  if (!w || !transcribableUrl(url)) return null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<null>(resolve => {
+    timer = setTimeout(() => resolve(null), timeoutMs)
+  })
+  try {
+    return await Promise.race([
+      videoSoundtrackWords(w, url, name, timeoutMs).catch(e => {
+        console.warn('[media] live video sound failed', String(e))
+        return null
+      }),
+      late,
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** What a video holds, as one stored text: the picture, then the speech. */
+function videoTranscript(
+  seen: string | null,
+  heard: string | null
+): string | null {
+  if (!heard) return seen
+  // Russian inside the literal: the owner reads this row in the CRM memory.
+  const speech = `Речь в видео: ${heard}`
+  return seen ? `${seen}\n${speech}` : speech
+}
+
 /**
  * Descriptions already on record for these exact URLs, keyed by URL.
  *
@@ -959,8 +1093,10 @@ async function askProviderOnce(
  * transcript must not break a send, so every failure is logged and
  * swallowed here.
  *
- * BINARY DOCUMENTS RETURN NULL WITHOUT CALLING ANYONE, and so does VIDEO
- * unless a vision endpoint is configured (media-vision.ts). No chat
+ * A PDF, an office file or an archive is read by media-extract.ts (an archive
+ * is only listed); any OTHER binary document returns null without calling
+ * anyone. A video's soundtrack goes to the transcriber when one is configured,
+ * and its picture to the vision endpoint (media-vision.ts). No chat
  * provider takes video or arbitrary files (media-parts.ts, measured
  * 2026-09-07: nemotron sees images and hears audio; z.ai takes text only).
  * The row is still kept -- the owner can open the URL -- and the tool says
@@ -979,16 +1115,46 @@ export async function describeMedia(
 ): Promise<string | null> {
   try {
     if (kind === 'video') {
+      /*
+       * The sound first, because it never throws: a vision endpoint that
+       * fails below must not cost the words already heard.
+       */
+      const w = whisperConfig()
+      const heard = w
+        ? await videoSoundtrackWords(w, url, name, WHISPER_TIMEOUT_MS).catch(
+            e => {
+              console.warn(
+                `[media-library] no sound from ${name ?? ''}: ${String(e).slice(0, 160)}`
+              )
+              return null
+            }
+          )
+        : null
       const v = visionConfig()
-      if (!v) return null
       const safe = usableMediaUrl(url, kind)
-      if (!safe) return null
-      return await describeVideoWithVision(v, safe, name)
+      if (!v || !safe) return videoTranscript(null, heard)
+      let seen: string | null = null
+      try {
+        seen = await describeVideoWithVision(v, safe, name)
+      } catch (e) {
+        // With nothing heard the row stays pending, as it always did.
+        if (!heard) throw e
+      }
+      return videoTranscript(seen, heard)
     }
     if (kind === 'file') {
-      if (!isTextLikeDocument(mime, name)) return null
       if (isTelegramFileUrl(url)) return null
-      return await readShelfDocument(url)
+      if (isTextLikeDocument(mime, name)) return await readShelfDocument(url)
+      /*
+       * PDF, office files, archives (2026-09-22). A missing binary is the one
+       * failure that is not final -- the next deploy brings it -- so it keeps
+       * the row pending; a scan with no text or a broken file is an answer.
+       */
+      if (!documentFormat(mime, name)) return null
+      const got = await readShelfExtracted(url, name, mime)
+      if (got.ok) return got.text
+      if (got.reason === 'tool-missing') throw new Error('reader not installed')
+      return null
     }
     /*
      * The transcriber is asked FIRST and by its own rule: it opens more
@@ -1169,7 +1335,7 @@ export async function forgetTranscripts(
   pool: Pool,
   owner: string,
   lead: string,
-  kind: 'image' | 'audio' | 'video'
+  kind: MediaKind
 ): Promise<number> {
   await ensureTable(pool)
   const r = await pool.query(
@@ -1182,9 +1348,15 @@ export async function forgetTranscripts(
 
 /**
  * Forget failed attempts for one lead so `pendingTranscripts` offers the
- * rows again. Image and audio always; video only once a vision endpoint is
- * configured (before that a video null was final and stays so); binary
- * files are final nulls.
+ * rows again. Image and audio always; video once anything here can take one
+ * -- a vision endpoint for the picture, or the transcriber for its speech
+ * (before either, a video null was final and stays so).
+ *
+ * And a PDF, office file or archive (2026-09-22). Until media-extract.ts every
+ * such file was closed with a final null, `transcribed_at` set -- so the
+ * files people had ALREADY sent would never be read, only new ones. They are
+ * picked by the readers' own rule, `documentFormat`, rather than a second
+ * list in SQL; any other binary file is still a final null.
  */
 export async function reopenUnread(
   pool: Pool,
@@ -1192,16 +1364,43 @@ export async function reopenUnread(
   lead: string
 ): Promise<number> {
   await ensureTable(pool)
-  const kinds = visionConfig()
-    ? ['image', 'audio', 'video']
-    : ['image', 'audio']
+  const kinds =
+    visionConfig() || whisperConfig()
+      ? ['image', 'audio', 'video']
+      : ['image', 'audio']
   const r = await pool.query(
     `UPDATE user_media SET transcribed_at = NULL
       WHERE owner_id = $1 AND lead_id = $2 AND transcript IS NULL
         AND transcribed_at IS NOT NULL AND kind = ANY($3::text[])`,
     [owner, lead, kinds]
   )
-  return Number((r as { rowCount?: number }).rowCount ?? 0)
+  let reopened = Number((r as { rowCount?: number }).rowCount ?? 0)
+  const files = await pool.query(
+    `SELECT id, name, mime, url FROM user_media
+      WHERE owner_id = $1 AND lead_id = $2 AND kind = 'file'
+        AND transcript IS NULL AND transcribed_at IS NOT NULL`,
+    [owner, lead]
+  )
+  const ids = (
+    files.rows as Array<{
+      id: number | string
+      name: string | null
+      mime: string | null
+      url: string
+    }>
+  )
+    .filter(x => documentFormat(x.mime, x.name) && !isTelegramFileUrl(x.url))
+    .map(x => String(x.id))
+  if (ids.length) {
+    const f = await pool.query(
+      `UPDATE user_media SET transcribed_at = NULL
+        WHERE owner_id = $1 AND lead_id = $2 AND id = ANY($3::bigint[])
+          AND transcript IS NULL`,
+      [owner, lead, ids]
+    )
+    reopened += Number((f as { rowCount?: number }).rowCount ?? 0)
+  }
+  return reopened
 }
 
 /* ── the memory text ──────────────────────────────────────────────────── */
