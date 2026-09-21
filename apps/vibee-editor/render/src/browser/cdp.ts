@@ -56,6 +56,59 @@ export interface CdpTarget {
   webSocketDebuggerUrl?: string
 }
 
+/**
+ * CHROMIUM ANSWERS ONLY TO AN IP OR TO localhost.
+ *
+ * Its DevTools HTTP endpoint refuses any Host header that is a name, as a
+ * defence against DNS rebinding. Measured against the pod, same request,
+ * two Host headers:
+ *
+ *   Host: 127.0.0.1                          -> 200
+ *   Host: browser-pod.railway.internal:9223  -> 500 "Host header is specified
+ *                                              and is not an IP address or
+ *                                              localhost."
+ *
+ * Locally the broker reached the pod as 127.0.0.1 and everything worked; on
+ * Railway it reaches it by its private DNS name, and every call came back
+ * 500 -- browser_status saw a running pod with no pages, and browser_open
+ * failed outright. The name is resolved to an address first, so the Host
+ * Chromium sees is an IP. It applies to the socket too: the WebSocket URL is
+ * rewritten to this same resolved address.
+ *
+ * Every network call in this module goes through one of the four functions
+ * that call this, so every caller is covered wherever its endpoint came from.
+ */
+const IP_OR_LOCAL = /^(\[[0-9a-f:.]+\]|\d{1,3}(\.\d{1,3}){3}|localhost)$/i
+const resolvedCache = new Map<string, { at: number; value: string }>()
+/** Private DNS can move when a pod redeploys; do not trust an old answer. */
+const RESOLVE_TTL_MS = 30_000
+
+export async function ipEndpoint(
+  endpoint: string,
+  lookup: (
+    host: string
+  ) => Promise<{ address: string; family: number }> = async h =>
+    (await import('node:dns/promises')).lookup(h)
+): Promise<string> {
+  const hostPort = endpoint.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  const m = hostPort.match(/^(\[[^\]]+\]|[^:]+)(?::(\d+))?$/)
+  if (!m) return hostPort
+  const [, host, port] = m
+  if (IP_OR_LOCAL.test(host)) return hostPort
+  const hit = resolvedCache.get(hostPort)
+  if (hit && Date.now() - hit.at < RESOLVE_TTL_MS) return hit.value
+  const { address, family } = await lookup(host)
+  const h = family === 6 ? `[${address}]` : address
+  const value = port ? `${h}:${port}` : h
+  resolvedCache.set(hostPort, { at: Date.now(), value })
+  return value
+}
+
+/** Test seam. */
+export function forgetResolved(): void {
+  resolvedCache.clear()
+}
+
 /** Long enough for a page, short enough that a hung pod is not a hung agent. */
 const CALL_TIMEOUT_MS = 20_000
 
@@ -86,7 +139,8 @@ const reachable = (t: CdpTarget, endpoint: string): CdpTarget => ({
     : undefined,
 })
 
-export async function listTargets(endpoint: string): Promise<CdpTarget[]> {
+export async function listTargets(given: string): Promise<CdpTarget[]> {
+  const endpoint = await ipEndpoint(given)
   const res = await fetch(`${httpBase(endpoint)}/json/list`)
   if (!res.ok) throw new Error(`CDP list failed: HTTP ${res.status}`)
   const targets = (await res.json()) as CdpTarget[]
@@ -103,10 +157,8 @@ export async function frontPage(endpoint: string): Promise<CdpTarget> {
   return page
 }
 
-export async function newPage(
-  endpoint: string,
-  url: string
-): Promise<CdpTarget> {
+export async function newPage(given: string, url: string): Promise<CdpTarget> {
+  const endpoint = await ipEndpoint(given)
   /* PUT, not GET: Chrome refuses the old GET form since 111. */
   const res = await fetch(
     `${httpBase(endpoint)}/json/new?${encodeURIComponent(url)}`,
@@ -116,7 +168,8 @@ export async function newPage(
   return reachable((await res.json()) as CdpTarget, endpoint)
 }
 
-export async function closePage(endpoint: string, id: string): Promise<void> {
+export async function closePage(given: string, id: string): Promise<void> {
+  const endpoint = await ipEndpoint(given)
   await fetch(`${httpBase(endpoint)}/json/close/${id}`)
 }
 
@@ -134,7 +187,8 @@ export async function closePage(endpoint: string, id: string): Promise<void> {
  * `sessionId`. That is the shape Chrome itself has preferred since flattened
  * sessions landed, and here it is the only one that answers.
  */
-export async function browserWsUrl(endpoint: string): Promise<string> {
+export async function browserWsUrl(given: string): Promise<string> {
+  const endpoint = await ipEndpoint(given)
   const res = await fetch(`${httpBase(endpoint)}/json/version`)
   if (!res.ok) throw new Error(`CDP version failed: HTTP ${res.status}`)
   const info = (await res.json()) as { webSocketDebuggerUrl?: string }
