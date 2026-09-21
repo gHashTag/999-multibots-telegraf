@@ -31,12 +31,62 @@
  *     step: each request carries one seller, a finished seller is memoized
  *     and never swept twice inside a run, and the trace names the seller a
  *     502 landed on. Retries stay 0 for the reason above.
+ *   - a step budget (2026-09-21): see SWEEP_STEP_BUDGET_MS.
  */
 import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { isSafeMode, skippedInSafeMode } from '@/inngest_app/safeMode'
 import { logger } from '@/utils/logger'
 
 export const CRM_SWEEP_CRON = '*/30 * * * *'
+
+/**
+ * ONE SELLER STILL OUTLASTS THE WIRE.
+ *
+ * Splitting the tick into one step per seller (2026-09-17) shortened the
+ * request but did not bound it. An honest single sweep may legitimately run
+ * for minutes -- crmProactive's own arithmetic puts the worst case at 880 s
+ * (ingest 170 + crm_leads 170 + three model turns of 180) -- while the edge in
+ * front of this app gives up long before that. Production, 2026-09-21, run
+ * 01M31ASM93K61CECEAWEYWH9GW: the request went out at 06:30:00, the run failed
+ * at 06:35:00 sharp with "HTTP 502 before the SDK responded", and the sweep it
+ * was carrying logged its result at 06:36:14 -- alive the whole time, just
+ * nobody left on the socket. With retries 0 that killed the run and paged the
+ * owner about a sweep that then finished fine.
+ *
+ * So the step stops waiting first, at a budget comfortably under the five
+ * minutes the edge allows.
+ *
+ * NOTHING IS LOST BY NOT WAITING. The sweep's effects -- the card, the
+ * messages, the journal rows -- happen inside the bot process, not in this
+ * return value; the step only reports. Letting go of the promise gives up a
+ * line in the trace, not the work. The sweep keeps its own per-seller
+ * `running` latch, so the next tick will not double it.
+ */
+export const SWEEP_STEP_BUDGET_MS = 240_000
+
+export type SlowSweep = { did: 'slow'; why: string; ms: number }
+
+export async function withStepBudget<T>(
+  work: Promise<T>,
+  ms: number,
+  onSlow: () => SlowSweep
+): Promise<T | SlowSweep> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const budget = new Promise<SlowSweep>(resolve => {
+    timer = setTimeout(() => resolve(onSlow()), ms)
+  })
+  /*
+   * The loser keeps running on purpose (see above), so it needs a handler of
+   * its own: an unattended rejection after we walked away would take the
+   * process down, and the process is the thing still doing the work.
+   */
+  work.catch(() => undefined)
+  try {
+    return await Promise.race([work, budget])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export const crmProactiveSweep = inngest.createFunction(
   {
@@ -88,8 +138,25 @@ export const crmProactiveSweep = inngest.createFunction(
         )
         const c = crmCarrier()
         if (!c) return { did: 'paused' as const, why: 'carrier gone mid-run' }
+        const at = Date.now()
         try {
-          return await runProactiveTick(c.bot, { ...c.opts, ownerId: owner })
+          return await withStepBudget(
+            runProactiveTick(c.bot, { ...c.opts, ownerId: owner }),
+            SWEEP_STEP_BUDGET_MS,
+            () => {
+              const ms = Date.now() - at
+              logger.warn('[crm-proactive] sweep outlasted the step budget', {
+                owner,
+                ms,
+                budgetMs: SWEEP_STEP_BUDGET_MS,
+              })
+              return {
+                did: 'slow' as const,
+                why: 'обход идёт дольше бюджета шага, продолжается в процессе бота', // cyrillic-ok
+                ms,
+              }
+            }
+          )
         } catch (e) {
           const why = e instanceof Error ? e.message : String(e)
           logger.error('[crm-proactive] tick failed for seller', { owner, why })
