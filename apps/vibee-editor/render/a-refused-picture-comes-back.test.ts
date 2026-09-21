@@ -26,56 +26,20 @@ import {
   leadCandidates,
   forgetMemoryTableForTests,
 } from './src/agent/chat-memory'
+import { owedDouble } from './crm-owed-double'
 
 const OWNER = '144022504'
 const LENA = '2086031075'
 const D = (iso: string) => new Date(iso)
 
-/** A pool that keeps crm_owed rows in a Map, the way Postgres would. */
+/**
+ * A pool that keeps crm_owed rows the way Postgres would: it reads the SQL,
+ * evaluates its SET and WHERE, and refuses a column or a shape it does not
+ * know (crm-owed-double.ts). The copy that stood here matched one SELECT by
+ * its text and answered every other statement with success.
+ */
 function owedPool() {
-  const rows = new Map<
-    string,
-    { what: string; why: string; at: Date; settled: Date | null }
-  >()
-  const now = () => new Date('2026-09-21T17:14:45Z')
-  return {
-    rows,
-    query: async (sql: string, p: unknown[] = []) => {
-      const flat = sql.replace(/\s+/g, ' ').trim()
-      if (/^CREATE/.test(flat)) return { rows: [] }
-      const key = `${p[0]}|${p[1]}`
-      if (/^INSERT INTO crm_owed/.test(flat)) {
-        const open = rows.get(key)
-        // ON CONFLICT ... WHERE settled_at IS NOT NULL: an open debt stands.
-        if (!open || open.settled)
-          rows.set(key, {
-            what: String(p[2]),
-            why: String(p[3]),
-            at: now(),
-            settled: null,
-          })
-        return { rows: [] }
-      }
-      if (/^UPDATE crm_owed/.test(flat)) {
-        const open = rows.get(key)
-        if (open && !open.settled) open.settled = now()
-        return { rows: [] }
-      }
-      if (/^SELECT lead_id, what, why, at FROM crm_owed/.test(flat)) {
-        return {
-          rows: [...rows.entries()]
-            .filter(([k, v]) => k.startsWith(`${p[0]}|`) && !v.settled)
-            .map(([k, v]) => ({
-              lead_id: k.split('|')[1],
-              what: v.what,
-              why: v.why,
-              at: v.at,
-            })),
-        }
-      }
-      return { rows: [] }
-    },
-  }
+  return owedDouble({ now: () => new Date('2026-09-21T17:14:45Z') })
 }
 
 beforeEach(() => {

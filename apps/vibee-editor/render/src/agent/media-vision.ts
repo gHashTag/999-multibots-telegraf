@@ -158,7 +158,8 @@ export async function askVision(
   v: VisionConfig,
   prompt: string,
   images: string[],
-  timeoutMs: number = VISION_TIMEOUT_MS
+  timeoutMs: number = VISION_TIMEOUT_MS,
+  maxTokens?: number
 ): Promise<string | null> {
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), timeoutMs)
@@ -182,7 +183,9 @@ export async function askVision(
           },
         ],
         temperature: 0.1,
-        max_tokens: images.length > 1 ? VIDEO_MAX_TOKENS : IMAGE_MAX_TOKENS,
+        max_tokens:
+          maxTokens ??
+          (images.length > 1 ? VIDEO_MAX_TOKENS : IMAGE_MAX_TOKENS), // secret-guard-ok: token COUNT limits, not credentials
         stream: false,
       }),
       signal: ac.signal,
@@ -229,6 +232,44 @@ export async function describeImageWithVision(
     [dataUrl(got.bytes, got.mime)],
     timeoutMs
   )
+}
+
+/**
+ * A still, made small enough for the CPU vision service to read in time.
+ *
+ * Measured 2026-09-22 on the live pod: a full 1240x568 browser screenshot
+ * was still in prompt processing at 9 % after 41 s (1.7 tok/s) and the
+ * caller gave up at 45 s. The same longest-side bound as the video frames
+ * (FRAME_SIDE, ~150 tokens) applies. On any ffmpeg failure the original
+ * bytes are returned -- a slow description is still better than none.
+ */
+export async function shrinkJpeg(
+  bytes: Buffer,
+  side: number = FRAME_SIDE
+): Promise<Buffer> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'shot-'))
+  const input = path.join(dir, 'in.jpg')
+  const output = path.join(dir, 'out.jpg')
+  try {
+    await fs.writeFile(input, bytes)
+    await frameExec('ffmpeg', [
+      '-v',
+      'error',
+      '-y',
+      '-i',
+      input,
+      '-vf',
+      `scale='if(gt(iw,ih),min(${side},iw),-2)':'if(gt(iw,ih),-2,min(${side},ih))'`,
+      '-q:v',
+      '4',
+      output,
+    ])
+    return await fs.readFile(output)
+  } catch {
+    return bytes
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
 }
 
 /**

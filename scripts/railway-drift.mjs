@@ -22,6 +22,19 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+function invokedDirectly() {
+  try {
+    return (
+      realpathSync(fileURLToPath(import.meta.url)) ===
+      realpathSync(process.argv[1] ?? '')
+    )
+  } catch {
+    return false
+  }
+}
 import {
   PROJECT_ID,
   MUST_DEPLOY_FROM_MAIN,
@@ -184,4 +197,11 @@ async function main() {
   process.exit(1)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) await main()
+/*
+ * Run when invoked directly -- compared by REAL path. The plain
+ * `import.meta.url === file://argv[1]` test was false for a copy under
+ * mktemp on macOS (/var is a link to /private/var), so main() never ran and
+ * the process exited 0 having checked nothing: the daily task runs exactly
+ * such a copy. A check that silently skips itself is worse than none.
+ */
+if (invokedDirectly()) await main()

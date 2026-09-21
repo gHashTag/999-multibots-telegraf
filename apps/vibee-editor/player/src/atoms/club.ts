@@ -43,14 +43,15 @@ export interface ClubStatus {
    *
    * Carried through so the screen can say the true thing instead.
    */
-  anonymous: boolean
-  active: boolean
-  /**
-   * The server did not know who asked (club-membership.ts answers the public
-   * price to anyone). "Join" can only fail then -- invoice needs a person --
-   * so the paywall asks for a sign-in instead.
+  /*
+   * Also: the server did not know who asked (club-membership.ts answers the
+   * public price to anyone). "Join" can only fail then -- invoice needs a
+   * person -- so the paywall asks for a sign-in instead. (Two PRs added this
+   * field the same day; the merge kept both, and the player's type gate went
+   * red on main. One field, both reasons.)
    */
   anonymous: boolean
+  active: boolean
   /**
    * Bot owners (their bots in `avatars`) and keepers enter without paying
    * (owner, 2026-09-10). The server decides; this side only shows it.
@@ -96,7 +97,6 @@ export const loadClubStatusAtom = atom(null, async (_get, set) => {
     set(clubStatusAtom, {
       anonymous: d.anonymous === true,
       active: !!d.active,
-      anonymous: d.anonymous === true,
       granted:
         d.granted === 'owner' || d.granted === 'keeper' || d.granted === 'guest'
           ? d.granted
