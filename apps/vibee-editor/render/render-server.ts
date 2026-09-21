@@ -573,6 +573,8 @@ import {
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 import { installGracefulShutdown } from './src/graceful-shutdown'
+// Which Stars transaction pays which token invoice; see the file for the club-payment hole it closes.
+import { txPaysInvoice } from './src/lib/star-tx-match'
 // One home for "this request path stays under this root"; see safe-path.ts.
 import { safeUnder } from './src/lib/safe-path'
 // The one place that decides whether a URL is an object on our own shelf.
@@ -8892,23 +8894,20 @@ const server = createServer(async (req, res) => {
           // Гасим самый свежий подходящий pending: сумма совпала,
           // транзакция новее инвойса, от этого пользователя.
           for (const row of pend.rows) {
-            const invoiceMs = new Date(row.created_at).getTime()
-            const match = txs.find((t: any) => {
-              // t.date is Unix SECONDS (Bot API StarTransaction.date). Compared as
-              // NUMBERS: it used to be Date.parse(t.date*1000), but Date.parse
-              // expects a string and got milliseconds, so it returned NaN, and
-              // `NaN > X` is always false. That is why the fallback verification
-              // never credited anything, ever.
-              const txMs = Number(t.date) * 1000
-              return (
-                !usedTxIds.has(String(t.id)) &&
-                // A subscription charge belongs to club-membership.ts.
-                !t.source?.subscription_period &&
-                Number(t.amount) === row.stars &&
-                t.source?.user?.id === Number(who) &&
-                txMs > invoiceMs - 60_000
+            // The rule, its history and why it refuses a missing payload:
+            // src/lib/star-tx-match.ts.
+            const match = txs.find((t: any) =>
+              txPaysInvoice(
+                t,
+                {
+                  tokens: Number(row.tokens),
+                  stars: Number(row.stars),
+                  createdAt: new Date(row.created_at),
+                },
+                String(who),
+                usedTxIds
               )
-            })
+            )
             if (match) {
               /*
                * THE CREDIT COMES FIRST, THE INVOICE IS CLOSED SECOND.
