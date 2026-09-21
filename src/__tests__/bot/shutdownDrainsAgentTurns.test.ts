@@ -1,20 +1,27 @@
 /**
- * SHUTDOWN WAITS FOR THE TURNS IT ALREADY ACCEPTED.
+ * SHUTDOWN WAITS FOR THE TURNS IT ALREADY ACCEPTED, AND ANNOUNCES THE REST.
  *
- * Handlers only accept now; the agent turns run in the lanes. A client's
- * message is confirmed to Telegram when it is fetched, so the next process
- * will never see it again. `gracefulShutdown` used to call process.exit(0)
- * straight after stopping the bots -- and Railway's default grace between
- * SIGTERM and SIGKILL is 0 s -- which cut any answer in flight.
+ * The trade, stated plainly. When a handler awaited its whole agent turn, a
+ * turn still running at SIGTERM held Telegraf's polling loop and its update
+ * was never confirmed: the next process got it again and answered it.
+ * Agent turns (and the CRM's prepare / sweep / import) now run in the lanes
+ * and their handlers return at once, so the next getUpdates confirms each
+ * update right away -- no process will ever see it again. Redelivery is gone;
+ * drain + notice replaces it. A turn longer than the drain loses its answer
+ * (the durable inbox, F7, is the real fix for that); the least it gets is
+ * that somebody is told.
  *
  * Three things are held here:
  *   1. the wiring: gracefulShutdown stops polling, THEN awaits the drain, THEN
- *      exits (structural, in the style of shutdownDoesNotPageTheOwner);
- *   2. the budget: the drain ends before Railway's kill (railway.toml
- *      drainingSeconds), and a broken SHUTDOWN_DRAIN_MS does not turn it off;
+ *      sends the notices, THEN exits (structural, in the style of
+ *      shutdownDoesNotPageTheOwner);
+ *   2. the budget: the drain and the notices end before Railway's kill
+ *      (railway.toml drainingSeconds), and a broken SHUTDOWN_DRAIN_MS does
+ *      not turn the drain off;
  *   3. the leftovers: a business client still unanswered when the drain gives
  *      up is named to their seller, once -- and nobody is told anything when
- *      nothing was left.
+ *      nothing was left. The bot-chat and CRM lanes tell their own chat
+ *      (agentDmDetached.test.ts, prepareDoesNotBlock.test.ts).
  */
 import { describe, it, expect, vi } from 'vitest'
 import fs from 'fs'
@@ -51,11 +58,17 @@ describe('gracefulShutdown drains the agent lanes before it exits', () => {
     expect(body).toMatch(/process\.exit\(0\)/)
   })
 
-  it('stops polling, then awaits the drain, then tells owners, then exits', () => {
+  it('stops polling, then awaits the drain, then tells everyone left, then exits', () => {
     const stop = body.search(/await\s+stopBotsQuietly\(/)
     const drain = body.search(/await\s+agentLanes\.drain\(/)
     const tell = body.search(/tellOwnersWhoWasLeftUnanswered\(unfinished\)/)
+    const notices = body.search(/sendShutdownNotices\(unfinished\)/)
     const exit = body.search(/process\.exit\(0\)/)
+    // The bot chat and the CRM are told too, not only the business sellers.
+    expect(notices, 'dm: and crm: lanes are told').toBeGreaterThan(drain)
+    expect(notices).toBeLessThan(exit)
+    // Bounded, so the process exits before Railway's kill.
+    expect(body).toMatch(/SHUTDOWN_NOTICE_BUDGET_MS/)
     expect(stop, 'stopBotsQuietly is awaited').toBeGreaterThan(-1)
     expect(
       drain,
@@ -95,6 +108,11 @@ describe('the drain budget', () => {
     // At least five seconds left for the owners' notices and the exit.
     expect(seconds * 1000 - SHUTDOWN_DRAIN_DEFAULT_MS).toBeGreaterThanOrEqual(
       5000
+    )
+    // ...and the notices' own budget fits inside them.
+    const { SHUTDOWN_NOTICE_BUDGET_MS } = await import('@/services/agentLanes')
+    expect(SHUTDOWN_DRAIN_DEFAULT_MS + SHUTDOWN_NOTICE_BUDGET_MS).toBeLessThan(
+      seconds * 1000
     )
   })
 })
