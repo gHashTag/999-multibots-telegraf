@@ -181,6 +181,11 @@ describe('the server hands the name to the pipe', () => {
     )
   })
 
+  it('and where the window lives, so the fitter can resize it', () => {
+    /* Without it the screen changes and Chromium's window does not. */
+    expect(callBlock('pipeHttp')).toContain('cdpEndpoint: decision.cdpEndpoint')
+  })
+
   it('on the REST login too', () => {
     const block = callBlock('pipeHttp')
     expect(block).toMatch(

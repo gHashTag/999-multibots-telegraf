@@ -290,24 +290,40 @@ describe('the row along the bottom is ours too', () => {
 
   it('PAINTS ONLY THE WATCHER OWN FACE, never anybody else', () => {
     /*
-     * The other discs in the bar belong to other viewers. Painting this
-     * person's photo on them would be worse than initials -- it would be a
-     * lie about who is watching.
+     * The face is applied by the stylesheet to the person's own disc only.
+     * Any other disc wearing it would be a lie about who is watching.
      */
-    expect(FACE_SCRIPT).toContain('.self')
+    expect(css).toMatch(
+      /html\[data-t27-face\] \.members \.self \.avatar \{[^}]*var\(--t27-face\)/
+    )
     expect(FACE_SCRIPT).toContain(AVATAR_PATH)
     /* Loaded first, applied second: a 404 leaves the initials alone. */
-    expect(FACE_SCRIPT).toMatch(/img\.onload[\s\S]{0,200}backgroundImage/)
+    expect(FACE_SCRIPT).toMatch(/img\.onload[\s\S]{0,200}--t27-face/)
   })
 
-  it('KEEPS THE SIGN THAT SOMEBODY ELSE IS WATCHING', () => {
+  it('NEVER ERASES THE FACE WITH THE BACKGROUND SHORTHAND', () => {
     /*
-     * The avatars are the only thing on screen that says a second viewer is
-     * present. Tidying them away would be removing a safety signal to save
-     * space, so they move into the bar instead.
+     * background with !important resets background-image and beats the
+     * inline photo. It did exactly that, on every load.
      */
-    expect(css).not.toMatch(/\.members[^{]*\{[^}]*display: none/)
-    expect(css).toMatch(/\.members-list li[^{]*\{/)
+    const avatarRules = css.match(/[^{}]*\.avatar[^{}]*\{[^}]*\}/g) || []
+    for (const rule of avatarRules)
+      expect(rule).not.toMatch(/(^|[\s;{])background:/)
+  })
+
+  it('KEEPS THE SIGN THAT SOMEBODY ELSE IS WATCHING, as a count', () => {
+    /*
+     * Other screens are no longer drawn as copies of the same face; they
+     * are counted on the person's own disc. Hiding them WITHOUT the count
+     * would remove a safety signal to save space.
+     */
+    expect(css).toMatch(
+      /\.members-list li:not\(:first-child\) \{ display: none/
+    )
+    expect(css).toMatch(
+      /\.members \.self\[data-t27-more\]::after \{[^}]*content: attr\(data-t27-more\)/
+    )
+    expect(FACE_SCRIPT).toContain('data-t27-more')
   })
 
   it('PUTS THE WHOLE ROW ON ONE AXIS', () => {

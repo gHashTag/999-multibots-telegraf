@@ -100,6 +100,27 @@ describe('the glow does not lie about who is driving', () => {
     expect(page).toContain('wheelAfterTouch()')
   })
 
+  it('HEARS A TOUCH ON THE PICTURE, which never bubbles out of the frame', () => {
+    /*
+     * The stage's own onPointerDown only ever heard its 3px of glow: events
+     * inside an iframe stay inside it. The frame is listened to directly, on
+     * every load, because the window inside reloads itself to reconnect.
+     */
+    expect(page).toMatch(/onLoad=\{[\s\S]{0,300}listenForTouchInside\(/)
+  })
+
+  it('DRAWS NOTHING OVER THE PICTURE', () => {
+    /*
+     * The "agent is working" pill sat on the frame's top edge, over the
+     * window's own bar, and took the taps meant for its buttons.
+     */
+    const stageStart = page.indexOf('ref={stage}')
+    const stageEnd = page.indexOf('</div>', stageStart)
+    const stage = page.slice(stageStart, stageEnd)
+    expect(stage).toContain('<iframe')
+    expect(stage).not.toContain('remote-browser__working')
+  })
+
   it('frames the picture instead of covering it', () => {
     /* The point of the screen is seeing every pixel the agent touches. */
     const css = readFileSync(join(__dirname, 'Browser.css'), 'utf8')
@@ -129,8 +150,15 @@ describe('the person can tell who is driving, and take the wheel back', () => {
   })
 
   it('offers full screen, because a phone in portrait shows a stamp', () => {
-    expect(page).toContain('requestFullscreen')
     expect(page).toContain('browser.fullscreen')
+    /*
+     * NOT the element fullscreen API: Telegram's iOS WebView ignores it for
+     * anything but a video, and the button did nothing. A history entry
+     * instead, so Back -- Telegram's own -- is the way out.
+     */
+    expect(page).not.toContain('requestFullscreen')
+    expect(page).toMatch(/setParams\(\{ view: FULL_VIEW \}\)/)
+    expect(page).toContain('remote-browser--full')
   })
 })
 
