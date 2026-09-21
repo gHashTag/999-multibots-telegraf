@@ -34,6 +34,7 @@ import {
   type AlbumPart,
 } from '@/services/albumBuffer'
 import { agentLanes } from '@/services/agentLanes'
+import { holdShutdownNotice } from '@/services/laneNotices'
 import {
   mediaItemsFrom,
   rememberClientMediaQuietly,
@@ -1794,9 +1795,54 @@ If not, continue on your own and click the "I myself" button`
        * for the later parts of an album, which the first part's turn answers.
        */
       ctx.state.answered = true
+      /*
+       * WHAT THE NET CAN NO LONGER DO, THE LANE DOES.
+       *
+       * On the awaited shape a throw anywhere in the turn -- the shelf
+       * upload, the album wait, the refusal reply -- reached the silence
+       * net's `finally`, which answered the person. The net has long finished
+       * by the time this job runs, and the lane only logs a failure, so the
+       * job answers for it: if the turn said nothing at all, the net's own
+       * sentence goes out from here. Nothing said is judged by the witness's
+       * count, not by `answered`, which was set to true just above.
+       *
+       * The job also holds a notice for shutdown (laneNotices.ts): a turn
+       * still unfinished when the drain gives up tells the person to send
+       * the message again, because its update is already confirmed and the
+       * next process will never see it.
+       */
+      const repliesBefore = Number(ctx.state.replies ?? 0)
+      const release = holdShutdownNotice(`dm:${chatLane}`, {
+        recipient: `dm:${ctx.botInfo?.username ?? ''}:${ctx.chat?.id}`,
+        send: () =>
+          ctx.telegram.sendMessage(
+            ctx.chat.id,
+            isRussianFromState(ctx)
+              ? 'Я перезапускался посреди ответа и не успел закончить. ' + // cyrillic-ok: user-facing copy
+                  'Если ответ не пришёл целиком, пришлите сообщение ещё раз.' // cyrillic-ok: user-facing copy
+              : 'I restarted in the middle of answering and could not finish. ' +
+                  'If the answer did not arrive in full, please send your message again.'
+          ),
+      })
       agentLanes.exclusive(`dm:${chatLane}`, async () => {
-        const parts = await albumParts
-        if (parts) await answerInBotChat(ctx, parts)
+        try {
+          const parts = await albumParts
+          if (parts) await answerInBotChat(ctx, parts)
+        } catch (error) {
+          logger.error('[agent] bot-chat turn failed outside its own guard', {
+            telegram_id: ctx.from?.id,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          if (Number(ctx.state.replies ?? 0) === repliesBefore) {
+            // Reset and speak in one synchronous step: the witness flips
+            // `answered` back the moment the reply is called, so a net that
+            // has not run yet cannot speak a second time.
+            ctx.state.answered = false
+            await answerIfNobodyDid(ctx)
+          }
+        } finally {
+          release()
+        }
       })
     })
 
@@ -3507,13 +3553,44 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
    * runs in `crm:<owner>` -- one at a time per owner, so two prepares run one
    * after the other instead of racing.
    */
+  /**
+   * A long CRM job in the owner's lane `crm:<owner>`: one at a time per owner,
+   * off the polling loop. The job holds a shutdown notice (laneNotices.ts):
+   * if the process stops before it ends, the owner is told it did not finish
+   * and gets the button to run it again -- the press itself was confirmed to
+   * Telegram long ago and will not come back by itself.
+   */
+  const inOwnerLane = (
+    ctx: MyContext,
+    retry: string,
+    job: () => Promise<void>
+  ): void => {
+    const chatId = ctx.chat?.id ?? ctx.from?.id
+    const release = holdShutdownNotice(`crm:${ownerId(ctx)}`, {
+      recipient: `crm:${ctx.botInfo?.username ?? ''}:${chatId}`,
+      send: () =>
+        ctx.telegram.sendMessage(
+          chatId as number,
+          '⚠️ Бот перезапускался, и начатое не закончилось. Нажми «Ещё раз».',
+          failKeyboard(retry, false)
+        ),
+    })
+    agentLanes.exclusive(`crm:${ownerId(ctx)}`, async () => {
+      try {
+        await job()
+      } finally {
+        release()
+      }
+    })
+  }
+
   const runTurn = (
     ctx: MyContext,
     opts: import('@/services/crmProactive').SweepOpts,
     lead: string | null,
     retry: string
   ): void => {
-    agentLanes.exclusive(`crm:${ownerId(ctx)}`, async () => {
+    inOwnerLane(ctx, retry, async () => {
       try {
         const { runSweepNow, MENU_HOLD_MS } = await import(
           '@/services/crmProactive'
@@ -3596,20 +3673,32 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
     )
     runTurn(ctx, { label: '[кнопка: обход]' }, null, crmCallback('sweep'))
   }
+  /*
+   * THE IMPORT IS A LONG JOB TOO: IN THE OWNER'S LANE, NOT ON THE LOOP.
+   *
+   * It awaits the render for up to TOOL_TIMEOUT_MS (170 s, modelSwitch.ts),
+   * and awaited here it held this bot's polling loop for all of it -- so a
+   * buyer's pre_checkout_query on the same bot went unanswered and Telegram
+   * cancelled the payment after 10 s. Same lane as prepare and sweep: one
+   * long job per owner at a time.
+   */
   const ingest = async (ctx: MyContext) => {
     await sendLong(ctx, '📥 Загружаю переписку (до 3 минут)…', menuOnly())
-    try {
-      const { ingestChats } = await import('@/services/modelSwitch')
-      const r = await ingestChats(ownerId(ctx), { limit: 30, depth: 50 })
-      await sendLong(
-        ctx,
-        `📥 Готово: ${Number(r.people ?? 0)} людей, ${Number(r.messages_new ?? 0)} новых сообщений` +
-          (r.stopped ? `, остановился: ${String(r.stopped)}` : ''),
-        hub()
-      )
-    } catch (e) {
-      await crmFail(ctx, 'Не вышло', e, crmCallback('ingest'))
-    }
+    inOwnerLane(ctx, crmCallback('ingest'), async () => {
+      try {
+        const { ingestChats } = await import('@/services/modelSwitch')
+        const r = await ingestChats(ownerId(ctx), { limit: 30, depth: 50 })
+        await sendLong(
+          ctx,
+          `📥 Готово: ${Number(r.people ?? 0)} людей, ${Number(r.messages_new ?? 0)} новых сообщений` +
+            (r.stopped ? `, остановился: ${String(r.stopped)}` : ''),
+          hub()
+        )
+      } catch (e) {
+        // Off the loop, a throw no longer reaches bot.catch: say it here.
+        await crmFail(ctx, 'Не вышло', e, crmCallback('ingest'))
+      }
+    })
   }
   const scoped = async (ctx: MyContext, args: string[]) => {
     try {
