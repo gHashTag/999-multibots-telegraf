@@ -713,7 +713,11 @@ describe('privileged path classes are counted per bot', () => {
     const chat = read('src/agent/chat.ts')
     const count = chat.indexOf('countInitDataToolCall(ctx, имя)')
     expect(count, 'chat.ts does not count tool calls').toBeGreaterThan(-1)
-    expect(count).toBeLessThan(chat.indexOf('await tool.handler(', count))
+    // Not `await tool.handler(`: since the heartbeat landed, the handler is
+    // started inside a promise and awaited through withHeartbeat. The
+    // property under test is unchanged -- the call is counted before the
+    // handler is ever started.
+    expect(count).toBeLessThan(chat.indexOf('tool.handler(', count))
 
     const agent = read('src/agent/routes.ts')
     const chatRoute = agent.slice(
