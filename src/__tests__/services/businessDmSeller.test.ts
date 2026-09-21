@@ -14,7 +14,8 @@
  * - When the owner types in a chat themselves, the AI goes silent there for
  *   OWNER_TAKEOVER_MS and resumes afterwards.
  * - A photo/voice/video/document gets a short "text only" reply and is
- *   counted; a sticker gets nothing. Neither reaches the LLM.
+ *   counted, and does not reach the LLM. (A sticker used to get nothing at
+ *   all; since 2026-09-22 it is answered -- business-dm-sticker.test.ts.)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
@@ -204,7 +205,7 @@ describe('messages that must never be answered', () => {
     expect(chatWithAI).toHaveBeenCalledTimes(2)
   })
 
-  it('a photo is relayed to the owner and answered with a service offer; a sticker gets nothing; neither reaches the LLM', async () => {
+  it('a photo is relayed to the owner and answered with a service offer; it does not reach the LLM', async () => {
     const svc = await fresh()
     const bot = fakeBot()
     await svc.handleBusinessMessage(
@@ -226,14 +227,14 @@ describe('messages that must never be answered', () => {
     expect(
       customerSends(bot)[0][2].reply_markup.inline_keyboard[0][0].url
     ).toBe(`https://t.me/${BOT}?start=svc_image2video`)
-    await svc.handleBusinessMessage(
-      dm({ text: undefined, sticker: { file_id: 's' } }, 556) as any,
-      bot as any,
-      BOT
-    )
-    expect(customerSends(bot)).toHaveLength(1)
+    /*
+     * The sticker half of this case is gone on purpose (2026-09-22): "a
+     * sticker gets nothing" was the defect -- a client who answered with a
+     * sticker was ignored completely. It is answered now, and that is pinned
+     * in business-dm-sticker.test.ts.
+     */
     expect(chatWithAI).not.toHaveBeenCalled()
-    expect(svc.getBusinessStats().todayNonText).toBe(2)
+    expect(svc.getBusinessStats().todayNonText).toBe(1)
     expect(svc.getBusinessStats().todayMediaRelayed).toBe(1)
   })
 })

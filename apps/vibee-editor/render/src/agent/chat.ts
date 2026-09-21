@@ -35,6 +35,12 @@ import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate } from './asset-links'
 import { TEXT_LIKE_EXTENSIONS } from './media-library'
+import {
+  ARCHIVE_EXTENSIONS,
+  OFFICE_EXTENSIONS,
+  PDF_EXTENSIONS,
+  UNREADABLE_EXTENSIONS,
+} from './media-extract'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -836,20 +842,36 @@ export function soul(): string | null {
  * somebody widened the reader -- and the drift that matters is the one where
  * the product promises a format it refuses.
  *
- * WHAT IT REFUSES IS NAMED TOO. `.pdf`, `.docx`, `.xlsx` cannot be opened
- * here: no extractor is installed. Naming them is worth more than silence,
- * because a person who sends a PDF and gets a vague answer concludes the
- * agent is stupid rather than that the format is unsupported.
+ * WHAT IT REFUSES IS NAMED TOO. Naming a format it cannot open is worth more
+ * than silence, because a person who sends a file and gets a vague answer
+ * concludes the agent is stupid rather than that the format is unsupported.
+ *
+ * 2026-09-22: every list below is the reader's own (media-library.ts for text,
+ * media-extract.ts for PDF, office files, archives and the refused formats).
+ * The sentence used to say "you see photos and video" while a video was only
+ * ever described minutes later; it now says what happens on the turn.
  */
 function canTakeSection(surface?: string): string {
-  const readable = TEXT_LIKE_EXTENSIONS.map(e => '.' + e).join(', ')
+  const list = (exts: readonly string[]) => exts.map(e => '.' + e).join(', ')
   return (
     /* cyrillic-ok: prompt copy, read by the model and paraphrased to people */
     '\n\nЧТО ТЫ УМЕЕШЬ ПРИНИМАТЬ. Ты слышишь голосовые и аудио (их ' +
-    'расшифровывают), смотришь фото и видео, читаешь текстовые файлы: ' +
-    readable +
-    '. Открыть НЕ можешь: .pdf, .docx, .xlsx, .pptx, архивы — в них нет ' +
-    'извлекателя, и это надо сказать прямо, а не отвечать расплывчато. ' +
+    'расшифровывают), смотришь фото, в видео и видеосообщениях слышишь ' +
+    'речь (картинку видео видишь, только когда её описание уже готово). ' +
+    'Читаешь текстовые файлы: ' +
+    list(TEXT_LIKE_EXTENSIONS) +
+    '; PDF (' +
+    list(PDF_EXTENSIONS) +
+    ') — если в нём есть текст, скан без текстового слоя прочитать нельзя; ' +
+    'документы, таблицы и презентации: ' +
+    list(OFFICE_EXTENSIONS) +
+    '. Архивы (' +
+    list(ARCHIVE_EXTENSIONS) +
+    ') не распаковываешь: видишь только список файлов внутри. ' +
+    'Открыть НЕ можешь: ' +
+    list(UNREADABLE_EXTENSIONS) +
+    ' — это надо сказать прямо и попросить PDF или .docx, а не отвечать ' +
+    'расплывчато. ' +
     'Когда человек впервые присылает файл или спрашивает, что ты умеешь, — ' +
     'назови это одной строкой, без списка на пол-экрана.' +
     /*

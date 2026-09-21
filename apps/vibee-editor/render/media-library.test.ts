@@ -422,16 +422,20 @@ describe('describeMedia', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('answers null for a binary document without fetching it', async () => {
+  /*
+   * A PDF is no longer this case (2026-09-22: it is read, see "every file
+   * the sweep meets" below). A format no reader takes still is.
+   */
+  it('answers null for a binary document no reader takes, without fetching it', async () => {
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
     const { describeMedia } = await import('./src/agent/media-library')
     expect(
       await describeMedia(
-        SHELF.replace('voice.ogg', 'brief.pdf'),
+        SHELF.replace('voice.ogg', 'blob.bin'),
         'file',
-        'application/pdf',
-        'brief.pdf'
+        'application/octet-stream',
+        'blob.bin'
       )
     ).toBeNull()
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -668,6 +672,196 @@ describe('describeMedia', () => {
     ])
     expect(r).toEqual({ described: 0, mirrored: 0 })
     expect(updates).toEqual([])
+  })
+})
+
+/*
+ * THE SWEEP READS EVERY FILE TOO (2026-09-22).
+ *
+ * `describeMedia` is what the background pass and the owner-session ingest
+ * call, so a reader that only the live turn knew would leave the memory as
+ * blind as before. A fake bucket answers by key and refuses any other command;
+ * the readers' binaries are doubled at the process boundary, and one the case
+ * did not name is reported as not installed rather than as success.
+ */
+describe('describeMedia: every file the sweep meets', () => {
+  const OBJECTS = new Map<string, Buffer>()
+  const bucket = () =>
+    vi.doMock('@aws-sdk/client-s3', () => {
+      class GetObjectCommand {
+        constructor(public input: Record<string, unknown>) {}
+      }
+      class PutObjectCommand {
+        constructor(public input: Record<string, unknown>) {
+          throw new Error('the sweep must not write to the shelf')
+        }
+      }
+      class S3Client {
+        async send(cmd: { input: Record<string, unknown> }) {
+          if (!(cmd instanceof GetObjectCommand))
+            throw new Error('fake bucket: only GetObject is taught')
+          const body = OBJECTS.get(String(cmd.input.Key))
+          if (!body)
+            throw Object.assign(new Error('NoSuchKey'), { name: 'NoSuchKey' })
+          return {
+            Body: (async function* () {
+              yield body
+            })(),
+          }
+        }
+      }
+      return { S3Client, GetObjectCommand, PutObjectCommand }
+    })
+  const binaries = (answers: Record<string, string>) =>
+    vi.doMock('node:child_process', () => ({
+      execFile: (cmd: string, _args: string[], _o: unknown, cb: Function) => {
+        if (!(cmd in answers)) {
+          cb(
+            Object.assign(new Error(`spawn ${cmd} ENOENT`), { code: 'ENOENT' }),
+            '',
+            ''
+          )
+          return
+        }
+        cb(null, answers[cmd], '')
+      },
+    }))
+
+  afterEach(() => {
+    OBJECTS.clear()
+    vi.doUnmock('@aws-sdk/client-s3')
+    vi.doUnmock('node:child_process')
+    delete process.env.WHISPER_API_KEY
+    delete process.env.VISION_API_KEY
+  })
+
+  it('reads a PDF out of the bucket through pdftotext', async () => {
+    OBJECTS.set('assets/1-brief.pdf', Buffer.from('%PDF-1.4 bytes'))
+    bucket()
+    binaries({ pdftotext: 'Коммерческое предложение\f' })
+    const { describeMedia } = await import('./src/agent/media-library')
+    expect(
+      await describeMedia(
+        SHELF.replace('voice.ogg', 'brief.pdf'),
+        'file',
+        'application/pdf',
+        'brief.pdf'
+      )
+    ).toBe('Коммерческое предложение')
+  })
+
+  it('keeps a PDF pending while its reader is not installed: the next deploy brings it', async () => {
+    OBJECTS.set('assets/1-brief.pdf', Buffer.from('%PDF-1.4 bytes'))
+    bucket()
+    binaries({})
+    const { describeMedia, DescribeFailed } = await import(
+      './src/agent/media-library'
+    )
+    await expect(
+      describeMedia(
+        SHELF.replace('voice.ogg', 'brief.pdf'),
+        'file',
+        'application/pdf',
+        'brief.pdf'
+      )
+    ).rejects.toBeInstanceOf(DescribeFailed)
+  })
+
+  it('stores what was SAID in a video note when there is no vision endpoint', async () => {
+    process.env.WHISPER_API_KEY = 'gsk_test' // secret-guard-ok: invented for this test
+    OBJECTS.set('assets/1-note.mp4', Buffer.from('mp4 bytes'))
+    bucket()
+    binaries({})
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (String(url).includes('/s3/'))
+          throw new Error('the video must come from the bucket, not the proxy')
+        return new Response('data: {"text":"жду ответа"}\ndata: [DONE]\n', {
+          status: 200,
+        })
+      })
+    )
+    const { describeMedia, resetWhisperForTests } = await import(
+      './src/agent/media-library'
+    )
+    resetWhisperForTests()
+    expect(
+      await describeMedia(
+        SHELF.replace('voice.ogg', 'note.mp4'),
+        'video',
+        'video/mp4',
+        'note.mp4'
+      )
+    ).toBe('Речь в видео: жду ответа')
+  })
+
+  it('keeps the words when the vision endpoint fails on the same video', async () => {
+    process.env.WHISPER_API_KEY = 'gsk_test' // secret-guard-ok: invented for this test
+    process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
+    OBJECTS.set('assets/1-note.mp4', Buffer.from('mp4 bytes'))
+    bucket()
+    const { promises: fs } = await import('node:fs')
+    const { setFrameExecForTests, resetVisionForTests } = await import(
+      './src/agent/media-vision'
+    )
+    resetVisionForTests()
+    const prev = setFrameExecForTests(async (bin, args) => {
+      if (bin === 'ffprobe') return { stdout: '4.0\n' }
+      await fs.writeFile(args[args.length - 1], Buffer.from('frame'))
+      return { stdout: '' }
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const u = String(url)
+        if (u.includes('/audio/transcriptions'))
+          return new Response('data: {"text":"жду ответа"}\ndata: [DONE]\n', {
+            status: 200,
+          })
+        if (u.includes('/s3/'))
+          return new Response(Buffer.from('mp4 bytes'), { status: 200 })
+        return new Response('down', { status: 500 })
+      })
+    )
+    try {
+      const { describeMedia, resetWhisperForTests } = await import(
+        './src/agent/media-library'
+      )
+      resetWhisperForTests()
+      expect(
+        await describeMedia(
+          SHELF.replace('voice.ogg', 'note.mp4'),
+          'video',
+          'video/mp4',
+          'note.mp4'
+        )
+      ).toBe('Речь в видео: жду ответа')
+    } finally {
+      setFrameExecForTests(prev)
+    }
+  })
+})
+
+describe('the mini app surface', () => {
+  it('is a surface a row may carry, and one /api/crm/media will not take from outside', async () => {
+    const { MEDIA_SURFACES } = await import('./src/agent/media-library')
+    expect(MEDIA_SURFACES).toContain('miniapp')
+    const { handleCrmMedia } = await import('./src/agent/media-library-route')
+    const pool = fakePool()
+    const bad = res()
+    await handleCrmMedia(
+      req({
+        lead: OWNER,
+        surface: 'miniapp',
+        items: [{ kind: 'image', name: 'a.jpg', url: SHELF }],
+      }),
+      bad as never,
+      OWNER,
+      async () => pool
+    )
+    expect(bad.out.code).toBe(400)
+    expect(pool.rows).toHaveLength(0)
   })
 })
 
