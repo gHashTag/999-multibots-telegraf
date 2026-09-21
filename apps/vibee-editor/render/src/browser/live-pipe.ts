@@ -70,6 +70,11 @@ export interface PipeTarget {
   adminToken?: string
   /** Server-side only. Whose window this is; see AVATAR_PATH. */
   telegramId?: string
+  /**
+   * The name the person goes by in Telegram (telegram-name.ts). Put into the
+   * pod login beside the password, so the page never carries it.
+   */
+  displayName?: string
 }
 
 /**
@@ -104,12 +109,21 @@ export function isPodLogin(method: string | undefined, path: string): boolean {
  * below, is where the placeholder actually becomes the real token for the
  * flow the page uses. Both are kept: the REST login is a real endpoint too.
  */
-export function swapLoginQuery(path: string, viewToken: string): string {
+export function swapLoginQuery(
+  path: string,
+  viewToken: string,
+  displayName?: string
+): string {
   const [base, query = ''] = path.split('?')
   if (!query) return path
   const params = new URLSearchParams(query)
   if (params.get('password') !== LOGIN_PLACEHOLDER) return path
   params.set('password', viewToken)
+  /*
+   * The name goes in only on OUR login -- the one carrying the placeholder --
+   * and only when there is one; otherwise the page's own "you" stays.
+   */
+  if (displayName) params.set('username', displayName)
   return `${base}?${params.toString()}`
 }
 
@@ -120,14 +134,22 @@ export function swapLoginQuery(path: string, viewToken: string): string {
  * expect, or a password that is not the placeholder, is somebody typing into
  * the form by hand, and rewriting that would be guessing.
  */
-export function rewriteLoginBody(raw: string, viewToken: string): string {
+export function rewriteLoginBody(
+  raw: string,
+  viewToken: string,
+  displayName?: string
+): string {
   try {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return raw
     if ((parsed as { password?: unknown }).password !== LOGIN_PLACEHOLDER) {
       return raw
     }
-    return JSON.stringify({ ...parsed, password: viewToken })
+    return JSON.stringify({
+      ...parsed,
+      password: viewToken,
+      ...(displayName ? { username: displayName } : {}),
+    })
   } catch {
     return raw
   }
@@ -168,7 +190,11 @@ export function pipeHttp(
     {
       host,
       port,
-      path: swapLoginQuery(target.upstreamPath, target.viewToken),
+      path: swapLoginQuery(
+        target.upstreamPath,
+        target.viewToken,
+        target.displayName
+      ),
       method: req.method,
       headers,
     },
@@ -226,7 +252,7 @@ export function pipeHttp(
   let raw = ''
   req.on('data', c => (raw += c))
   req.on('end', () => {
-    const body = rewriteLoginBody(raw, target.viewToken)
+    const body = rewriteLoginBody(raw, target.viewToken, target.displayName)
     upstream.setHeader('content-length', Buffer.byteLength(body))
     upstream.end(body)
   })
@@ -332,7 +358,11 @@ export function pipeUpgrade(
   const upstream = httpRequest({
     host,
     port,
-    path: swapLoginQuery(target.upstreamPath, target.viewToken),
+    path: swapLoginQuery(
+      target.upstreamPath,
+      target.viewToken,
+      target.displayName
+    ),
     method: req.method,
     headers,
   })
