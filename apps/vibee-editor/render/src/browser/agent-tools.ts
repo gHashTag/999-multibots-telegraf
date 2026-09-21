@@ -40,7 +40,7 @@ import {
 import { readSession, markAllowed, type Queryable } from './sessions'
 import { agentMayOpen, mayAct } from './guard'
 import { desktopShot } from './screen'
-import { askVision, visionConfig } from '../agent/media-vision'
+import { askVision, shrinkJpeg, visionConfig } from '../agent/media-vision'
 import {
   frontPage,
   newPage,
@@ -132,17 +132,23 @@ const noArgs = { type: 'object', properties: {}, additionalProperties: false }
  */
 export const SCREEN_VISION_MS = 45_000
 export const SCREEN_PROMPT =
-  'This is a screenshot of a web browser. In 3-5 sentences say which site and page is shown, the main heading, and any dialog, error, sign-in form or button on screen; quote short visible text verbatim in its original language. If text is too small to read, say so instead of guessing. Write in Russian.'
+  'This is a screenshot of a web browser. In 2-3 short sentences say which site and page is shown and any dialog, error or form on screen; quote a few visible words verbatim. If text is too small to read, say so instead of guessing. Write in Russian.'
+/** Measured decode on the CPU service can be ~1.5 tok/s: keep it short. */
+export const SCREEN_MAX_TOKENS = 120
 
 export async function describeShot(base64: string): Promise<string | null> {
   const v = visionConfig()
   if (!v) return null
   try {
+    const small = (await shrinkJpeg(Buffer.from(base64, 'base64'))).toString(
+      'base64'
+    )
     return await askVision(
       v,
       SCREEN_PROMPT,
-      [`data:image/jpeg;base64,${base64}`],
-      SCREEN_VISION_MS
+      [`data:image/jpeg;base64,${small}`],
+      SCREEN_VISION_MS,
+      SCREEN_MAX_TOKENS
     )
   } catch {
     return null

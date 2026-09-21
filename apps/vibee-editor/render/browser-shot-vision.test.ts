@@ -8,8 +8,16 @@
  */
 import { describe, it, expect, afterEach } from 'vitest'
 import http from 'node:http'
-import { describeShot, SCREEN_PROMPT } from './src/browser/agent-tools'
-import { resetVisionForTests } from './src/agent/media-vision'
+import {
+  describeShot,
+  SCREEN_PROMPT,
+  SCREEN_MAX_TOKENS,
+} from './src/browser/agent-tools'
+import { resetVisionForTests, shrinkJpeg } from './src/agent/media-vision'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 const SHOT = Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString('base64')
 
@@ -64,7 +72,8 @@ describe('describeShot', () => {
       expect(call.auth).toBe('Bearer vk')
       const parts = call.body.messages[0].content
       expect(parts[0]).toEqual({ type: 'text', text: SCREEN_PROMPT })
-      expect(parts[1].image_url.url).toBe(`data:image/jpeg;base64,${SHOT}`)
+      expect(parts[1].image_url.url).toMatch(/^data:image\/jpeg;base64,/)
+      expect(call.body.max_tokens).toBe(SCREEN_MAX_TOKENS)
     } finally {
       v.close()
     }
@@ -89,5 +98,68 @@ describe('describeShot', () => {
     delete process.env.VISION_API_KEY
     resetVisionForTests()
     expect(await describeShot(SHOT)).toBeNull()
+  })
+})
+
+/*
+ * Measured: a full 1240x568 screenshot was at 9 % of prompt processing after
+ * 41 s on the CPU service. It goes out at the video frames' 448 px bound.
+ */
+describe('shrinkJpeg', () => {
+  const hasFfmpeg = (() => {
+    try {
+      execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' })
+      return true
+    } catch {
+      return false
+    }
+  })()
+
+  it.skipIf(!hasFfmpeg)(
+    'a 1240x568 screen comes out 448 px on its longest side',
+    async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'shrink-'))
+      try {
+        const src = path.join(dir, 'screen.jpg')
+        execFileSync('ffmpeg', [
+          '-v',
+          'error',
+          '-f',
+          'lavfi',
+          '-i',
+          'testsrc=size=1240x568',
+          '-frames:v',
+          '1',
+          src,
+        ])
+        const out = await shrinkJpeg(readFileSync(src))
+        const probe = path.join(dir, 'out.jpg')
+        require('node:fs').writeFileSync(probe, out)
+        const dims = execFileSync(
+          'ffprobe',
+          [
+            '-v',
+            'error',
+            '-select_streams',
+            'v:0',
+            '-show_entries',
+            'stream=width,height',
+            '-of',
+            'csv=p=0',
+            probe,
+          ],
+          { encoding: 'utf8' }
+        ).trim()
+        expect(dims).toBe('448,206')
+        expect(out.length).toBeLessThan(readFileSync(src).length)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+  )
+
+  it('bytes ffmpeg cannot read come back untouched', async () => {
+    const junk = Buffer.from('not a picture')
+    expect(await shrinkJpeg(junk)).toEqual(junk)
   })
 })
