@@ -133,6 +133,17 @@ export function canSeeBot(v: Visibility, botName: string): boolean {
  * Yourself, always. Somebody else, keeper only: even a bot owner must not read
  * an arbitrary profile by id, otherwise the "my clients" border is walked
  * around by counting upwards.
+ *
+ * THE NARROW FORM. This is the rule for a bare id and nothing else, and it has
+ * no production call site today -- read it as the floor, not as the whole law.
+ * The CRM asks a wider question, because "my lead" is the surface's entire
+ * subject, and it asks it in `src/agent/crm-reach.ts`: self, keeper, or
+ * somebody the caller has actually corresponded with (a row under their own
+ * owner_id in crm_messages or crm_people). That third branch does not open the
+ * border this comment is about -- correspondence cannot be manufactured by
+ * counting upwards, so an enumerated id still answers no -- but it is wider
+ * than this function, and a reader who takes this one for the live rule will
+ * either break the CRM by wiring it in or write a fourth copy of the sentence.
  */
 export function canSeePerson(v: Visibility, telegramId: string): boolean {
   if (v.role === 'keeper') return true
