@@ -18,6 +18,7 @@ import {
 } from '@/components/Navigation/RouteMemory'
 import { EmbedBridge } from '@/components/Navigation/EmbedBridge'
 import { ReturnToGame } from '@/components/Navigation/ReturnToGame'
+import { LoginModal } from '@/components/Auth/LoginModal'
 import { EmbedGuestGate } from '@/components/Navigation/EmbedGuestGate'
 import './App.css'
 
@@ -362,6 +363,15 @@ function App() {
                 {/* Back to the game after signing in, when its chip sent
                     the person here with ?return=. */}
                 <ReturnToGame />
+                {/* The one sign-in card for the whole app, and it lives here
+                    rather than in the header. ReturnToGame above sits outside
+                    <Routes> and can open it on ANY screen, while /learn draws
+                    its own LearnHeader and no shared header at all: somebody
+                    returning there pressed "Sign in" on the board, the atom
+                    was set, and nobody drew the card. Mounted next to what
+                    opens it is the one place that cannot repeat on the next
+                    page without a Header. */}
+                <LoginModal />
                 <TelegramTabBar />
                 <ToastContainer />
               </>

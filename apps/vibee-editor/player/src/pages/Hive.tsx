@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSetAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
 import { openLoginAtom } from '@/atoms'
-import { LoginModal } from '@/components/Auth/LoginModal'
 import '@/components/Auth/styles.css'
 import { answerIdentityRequests, queenPage } from '@/lib/hive'
 import { IS_EMBED } from '@/lib/embed'
@@ -154,7 +153,6 @@ export default function HivePage() {
           }}
         />
       </div>
-      <LoginModal />
     </div>
   )
 }

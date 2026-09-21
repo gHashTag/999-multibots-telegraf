@@ -49,11 +49,13 @@ import './styles.css'
  * told that Telegram has already identified them, not why they pressed it.
  */
 
-// The sentence for each door. Export and generate share one body: both draw on
-// the same server quota, and two copies of one promise drift apart.
+// The sentence for each door. Export and generate had one shared body, on the
+// premise that both spend the free render quota. They do not: that quota is
+// reserved by POST /render and POST /render/template, and the generate door
+// also opens on image, audio and lipsync, which touch neither (atoms/language.ts).
 const COPY: Record<LoginReason, { title: string; body: string }> = {
   export: { title: 'login.exportTitle', body: 'login.rendersBody' },
-  generate: { title: 'login.generateTitle', body: 'login.rendersBody' },
+  generate: { title: 'login.generateTitle', body: 'login.generateBody' },
   follow: { title: 'login.followTitle', body: 'login.followBody' },
   board: { title: 'login.boardTitle', body: 'login.boardBody' },
 }
