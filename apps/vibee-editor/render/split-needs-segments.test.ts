@@ -87,19 +87,31 @@ describe('схема ПРИМЕНЯЕТСЯ, а не только описана
      * Схема жила в композиции и никем не применялась: Remotion сам её не
      * сверяет, а props приходили как есть. То есть она была документацией, а
      * ролик неверной формы доезжал до ленты и выглядел другим шаблоном.
+     *
+     * MOVED. The check was written inline here and therefore stood in ONE
+     * doorway out of two: POST /render/template, the route the agent uses,
+     * verified nothing. There is now a single checker for both entrances --
+     * src/template-check.ts -- and both doors call it by name. Its behaviour
+     * is pinned there by calls, not by reading source; only the ORDER is
+     * asserted here.
      */
-    expect(СЕРВЕР).toContain(
-      'const проверка = ПРОВЕРЯЕМЫЕ_КОМПОЗИЦИИ[req.compositionId]'
-    )
-    expect(СЕРВЕР).toMatch(/проверка\.safeParse\(inputProps\)/)
+    expect(СЕРВЕР).toContain('templateSchemaProblem(req.compositionId')
     // Проверка обязана стоять ПЕРЕД выбором композиции: иначе рендер начат.
-    expect(СЕРВЕР.indexOf('проверка.safeParse(inputProps)')).toBeLessThan(
+    expect(
+      СЕРВЕР.indexOf('templateSchemaProblem(req.compositionId')
+    ).toBeLessThan(
       СЕРВЕР.indexOf('const composition = await selectComposition')
     )
   })
 
   it('отказ называет ПОЛЕ, а не «неверная форма»', () => {
-    // Без поля человек и агент угадывают, что именно не так.
-    expect(СЕРВЕР).toContain("i.path.join('.') || '(корень)'")
+    // Without the field name, both a person and the agent have to guess what
+    // exactly is wrong. The wording itself is now pinned by a call --
+    // a-reel-without-footage-is-refused.test.ts.
+    const checker = fs.readFileSync(
+      path.join(__dirname, 'src', 'template-check.ts'),
+      'utf8'
+    )
+    expect(checker).toContain("i.path.join('.') || '(корень)'")
   })
 })

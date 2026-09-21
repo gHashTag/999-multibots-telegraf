@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'
 import {
   AbsoluteFill,
   Audio,
@@ -9,10 +9,10 @@ import {
   spring,
   useCurrentFrame,
   useVideoConfig,
-} from 'remotion';
-import { z } from 'zod';
-import { loadFont as loadOutfit } from '@remotion/google-fonts/Outfit';
-import { loadFont as loadJost } from '@remotion/google-fonts/Jost';
+} from 'remotion'
+import { z } from 'zod'
+import { loadFont as loadOutfit } from '@remotion/google-fonts/Outfit'
+import { loadFont as loadJost } from '@remotion/google-fonts/Jost'
 
 /**
  * NoirReel — канонический шаблон рилса клуба «Золотая Литейная».
@@ -39,24 +39,40 @@ import { loadFont as loadJost } from '@remotion/google-fonts/Jost';
 const { fontFamily: outfitLatin } = loadOutfit('normal', {
   weights: ['300', '500', '700', '800'],
   subsets: ['latin'],
-});
+})
 const { fontFamily: jost } = loadJost('normal', {
   weights: ['300', '500', '700'],
   subsets: ['cyrillic', 'latin'],
-});
-const outfit = `${outfitLatin}, ${jost}, sans-serif`;
+})
+const outfit = `${outfitLatin}, ${jost}, sans-serif`
 
 // Токены главной t27.ai — не менять в отрыве от apps/website/src/index.css.
-const BG = '#000000';
-const TEXT = '#FFFFFF';
-const MUTED = '#888888';
-const ACCENT = '#00FF88';
-const GOLDEN = '#FFD700';
-const HAIRLINE = 'rgba(255,255,255,0.08)';
+const BG = '#000000'
+const TEXT = '#FFFFFF'
+const MUTED = '#888888'
+const ACCENT = '#00FF88'
+const GOLDEN = '#FFD700'
+const HAIRLINE = 'rgba(255,255,255,0.08)'
 
 export const NoirReelSchema = z.object({
-  /** Мультиплановая ч/б липсинк-дорожка (склейка планов, общее аудио). */
-  lipSyncVideo: z.string(),
+  /**
+   * Мультиплановая ч/б липсинк-дорожка (склейка планов, общее аудио).
+   *
+   * AN EMPTY STRING IS NOT A VIDEO, AND THIS REEL IS THE VIDEO.
+   *
+   * `z.string()` accepted `''`, and `''` is exactly what the defaultProps in
+   * Root.tsx carry, so a request that omitted the track passed every check
+   * there was and then died inside Remotion with "No `src` was passed to
+   * <OffthreadVideo>" -- minutes in, after the 202, after the charge.
+   * Measured 2026-09-21 on render aee823b0-8780-4dec-8ba5-941be5a2645c.
+   *
+   * Refused at the door instead: a reel with no footage will not become one
+   * with any setting, and finding that out before the render saves the minutes
+   * and the tokens both.
+   */
+  lipSyncVideo: z
+    .string()
+    .min(1, { message: 'NoirReel без липсинк-дорожки — это не ролик' }),
   /** Пословные титры из whisperx; слово с "/" или "t27" красится золотом. */
   captions: z
     .array(
@@ -71,7 +87,9 @@ export const NoirReelSchema = z.object({
   cutaways: z
     .array(
       z.object({
-        src: z.string(),
+        // Same OffthreadVideo, same crash: a cutaway with no source takes the
+        // whole render down, not just its own seconds.
+        src: z.string().min(1, { message: 'перебивка без src' }),
         startFrame: z.number(),
         durationFrames: z.number(),
       })
@@ -96,14 +114,14 @@ export const NoirReelSchema = z.object({
       cta: 't27.ai/foundry',
       sub: 'оплата в боте · @t27ai_bot',
     }),
-});
+})
 
-type Props = z.infer<typeof NoirReelSchema>;
+type Props = z.infer<typeof NoirReelSchema>
 
 /** Зерно плёнки поверх футажа: статичная пыль + лёгкое мерцание кадра. */
 const Grain: React.FC = () => {
-  const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
   const dots = React.useMemo(
     () =>
       Array.from({ length: 140 }, (_, i) => ({
@@ -113,8 +131,8 @@ const Grain: React.FC = () => {
         o: 0.03 + random(`no${i}`) * 0.06,
       })),
     [width, height]
-  );
-  const flicker = 0.97 + random(`fl${frame}`) * 0.03;
+  )
+  const flicker = 0.97 + random(`fl${frame}`) * 0.03
   return (
     <AbsoluteFill style={{ opacity: flicker }}>
       {dots.map((d, i) => (
@@ -133,8 +151,8 @@ const Grain: React.FC = () => {
         />
       ))}
     </AbsoluteFill>
-  );
-};
+  )
+}
 
 const Vignette: React.FC<{ strength?: number }> = ({ strength = 0.55 }) => (
   <AbsoluteFill
@@ -142,15 +160,18 @@ const Vignette: React.FC<{ strength?: number }> = ({ strength = 0.55 }) => (
       background: `radial-gradient(ellipse at center, transparent 46%, rgba(0,0,0,${strength}) 100%)`,
     }}
   />
-);
+)
 
 /** Шапка как на главной: словомарка слева, метка клуба справа, волосяная линия. */
-const Masthead: React.FC<{ masthead: string; label: string }> = ({ masthead, label }) => {
-  const frame = useCurrentFrame();
+const Masthead: React.FC<{ masthead: string; label: string }> = ({
+  masthead,
+  label,
+}) => {
+  const frame = useCurrentFrame()
   const o = interpolate(frame, [8, 30], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
-  });
+  })
   return (
     <div
       style={{
@@ -166,31 +187,59 @@ const Masthead: React.FC<{ masthead: string; label: string }> = ({ masthead, lab
         opacity: o,
       }}
     >
-      <div style={{ fontFamily: outfit, fontWeight: 700, fontSize: 38, letterSpacing: 10, color: TEXT }}>
+      <div
+        style={{
+          fontFamily: outfit,
+          fontWeight: 700,
+          fontSize: 38,
+          letterSpacing: 10,
+          color: TEXT,
+        }}
+      >
         {masthead}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: ACCENT }} />
-        <div style={{ fontFamily: outfit, fontWeight: 500, fontSize: 24, letterSpacing: 6, color: MUTED, textTransform: 'uppercase' }}>
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: ACCENT,
+          }}
+        />
+        <div
+          style={{
+            fontFamily: outfit,
+            fontWeight: 500,
+            fontSize: 24,
+            letterSpacing: 6,
+            color: MUTED,
+            textTransform: 'uppercase',
+          }}
+        >
           {label}
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
 /** Пословные титры: Outfit 800, белый; слово-адрес — золотом. */
 const Captions: React.FC<{ captions: Props['captions'] }> = ({ captions }) => {
-  const frame = useCurrentFrame();
-  const { fps, height } = useVideoConfig();
-  const ms = (frame / fps) * 1000;
-  const word = captions.find(c => ms >= c.startMs && ms < c.endMs);
-  if (!word) return null;
+  const frame = useCurrentFrame()
+  const { fps, height } = useVideoConfig()
+  const ms = (frame / fps) * 1000
+  const word = captions.find(c => ms >= c.startMs && ms < c.endMs)
+  if (!word) return null
 
-  const isCta = /t27|\//i.test(word.text);
-  const startFrame = Math.round((word.startMs / 1000) * fps);
-  const pop = spring({ frame: frame - startFrame, fps, config: { damping: 200, stiffness: 380 } });
-  const scale = 0.92 + pop * 0.08;
+  const isCta = /t27|\//i.test(word.text)
+  const startFrame = Math.round((word.startMs / 1000) * fps)
+  const pop = spring({
+    frame: frame - startFrame,
+    fps,
+    config: { damping: 200, stiffness: 380 },
+  })
+  const scale = 0.92 + pop * 0.08
 
   return (
     <div
@@ -217,24 +266,24 @@ const Captions: React.FC<{ captions: Props['captions'] }> = ({ captions }) => {
         {word.text}
       </span>
     </div>
-  );
-};
+  )
+}
 
 const rise = (frame: number, delay: number) => {
   const t = interpolate(frame - delay, [0, 16], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
-  });
-  return { opacity: t, transform: `translateY(${(1 - t) * 18}px)` };
-};
+  })
+  return { opacity: t, transform: `translateY(${(1 - t) * 18}px)` }
+}
 
 /** Финальная карточка — герой главной t27.ai: eyebrow, золотое имя, белая кнопка. */
 const EndCard: React.FC<{ brand: Props['brand'] }> = ({ brand }) => {
-  const frame = useCurrentFrame();
+  const frame = useCurrentFrame()
   const bgIn = interpolate(frame, [0, 12], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
-  });
+  })
   return (
     <AbsoluteFill
       style={{
@@ -247,7 +296,9 @@ const EndCard: React.FC<{ brand: Props['brand'] }> = ({ brand }) => {
         textAlign: 'center',
       }}
     >
-      <div style={{ ...rise(frame, 6), width: 64, height: 3, background: ACCENT }} />
+      <div
+        style={{ ...rise(frame, 6), width: 64, height: 3, background: ACCENT }}
+      />
       <div
         style={{
           ...rise(frame, 10),
@@ -301,18 +352,18 @@ const EndCard: React.FC<{ brand: Props['brand'] }> = ({ brand }) => {
         {brand.sub}
       </div>
     </AbsoluteFill>
-  );
-};
+  )
+}
 
 export const NoirReel: React.FC<Props> = props => {
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig()
   const lastWordEnd = props.captions.length
     ? Math.max(...props.captions.map(c => c.endMs))
-    : 0;
+    : 0
   const endCardStart = Math.round(
     (((props.endCardStartMs ?? lastWordEnd + 200) || 0) / 1000) * fps
-  );
-  const endCardFrames = Math.max(0, durationInFrames - endCardStart);
+  )
+  const endCardFrames = Math.max(0, durationInFrames - endCardStart)
 
   return (
     <AbsoluteFill style={{ backgroundColor: BG }}>
@@ -323,7 +374,12 @@ export const NoirReel: React.FC<Props> = props => {
       />
 
       {props.cutaways.map((c, i) => (
-        <Sequence key={i} from={c.startFrame} durationInFrames={c.durationFrames} name={`Cutaway ${i}`}>
+        <Sequence
+          key={i}
+          from={c.startFrame}
+          durationInFrames={c.durationFrames}
+          name={`Cutaway ${i}`}
+        >
           <OffthreadVideo
             src={c.src}
             muted
@@ -343,12 +399,18 @@ export const NoirReel: React.FC<Props> = props => {
       <Captions captions={props.captions} />
 
       {endCardFrames > 0 ? (
-        <Sequence from={endCardStart} durationInFrames={endCardFrames} name="End card">
+        <Sequence
+          from={endCardStart}
+          durationInFrames={endCardFrames}
+          name="End card"
+        >
           <EndCard brand={props.brand} />
         </Sequence>
       ) : null}
 
-      {props.music ? <Audio src={props.music} volume={props.musicVolume} /> : null}
+      {props.music ? (
+        <Audio src={props.music} volume={props.musicVolume} />
+      ) : null}
     </AbsoluteFill>
-  );
-};
+  )
+}
