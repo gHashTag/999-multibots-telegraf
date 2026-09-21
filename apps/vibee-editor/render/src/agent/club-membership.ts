@@ -165,6 +165,21 @@ export interface ClubGrantSource {
    * pass (club-guests.ts). Omitted or null = no name, only the id is tried.
    */
   usernameOf?: (req: unknown) => string | null
+  /**
+   * The @username we recorded for an ALREADY-VERIFIED telegram id, used only
+   * when the signature carried no name.
+   *
+   * OUTSIDE THE MINI APP THERE IS NO NAME IN THE SIGNATURE. `usernameOf` reads
+   * `x-telegram-init-data`, and a desktop browser or the iOS app never sends
+   * that header -- so an invitation written as a name matched nothing there,
+   * and an invited person met the paywall (measured 2026-09-21, @SamHold).
+   *
+   * This is not a weaker identity: the id was verified before we got here, and
+   * this only asks our own users table what that id is called. Returns null
+   * when unknown, and a throw is caught by the caller -- a stranger never
+   * gains a grant from a failed lookup.
+   */
+  usernameById?: (telegramId: string) => Promise<string | null>
   /** The guest list; defaults to club-guests.ts `clubGuests()`. */
   guests?: () => string[]
 }
@@ -193,8 +208,17 @@ export async function clubGrantFor(
     // out by a Supabase hiccup.
   }
   // The guest pass: the owner's invitation by @username or id. The name comes
-  // from the verified signature only; without a request there is no name.
-  const username = req && source.usernameOf ? source.usernameOf(req) : null
+  // from the verified signature first; outside the Mini App there is none, so
+  // the verified id is asked what it is called before giving up on a name.
+  let username = req && source.usernameOf ? source.usernameOf(req) : null
+  if (!username && source.usernameById) {
+    try {
+      username = await source.usernameById(id)
+    } catch {
+      // Unknown name is not a grant and not a refusal: the id below still
+      // decides, exactly as before this lookup existed.
+    }
+  }
   const list = source.guests ? source.guests() : clubGuests()
   return isClubGuest({ telegramId: id, username }, list) ? 'guest' : null
 }
@@ -416,7 +440,9 @@ export async function bookGrantPeriod(
 
   const current = await latestGrantPeriod(pool, tid)
   const running =
-    current && new Date(current.until).getTime() > now.getTime() ? current : null
+    current && new Date(current.until).getTime() > now.getTime()
+      ? current
+      : null
 
   let period: GrantPeriod
   let opened = false
@@ -506,14 +532,19 @@ export async function sweepClubGrants(
   try {
     owners = source.allOwners ? await source.allOwners() : []
   } catch (e) {
-    console.error('[club] grant sweep: owner list failed:', String(e).slice(0, 160))
+    console.error(
+      '[club] grant sweep: owner list failed:',
+      String(e).slice(0, 160)
+    )
     return out
   }
   const keeperList = source.keepers ? source.keepers() : keepers()
   const seen = new Set<string>()
   const people: Array<[string, FundedGrant]> = []
-  for (const k of keeperList) if (k && !seen.has(k)) (seen.add(k), people.push([k, 'keeper']))
-  for (const o of owners) if (o && !seen.has(o)) (seen.add(o), people.push([o, 'owner']))
+  for (const k of keeperList)
+    if (k && !seen.has(k)) (seen.add(k), people.push([k, 'keeper']))
+  for (const o of owners)
+    if (o && !seen.has(o)) (seen.add(o), people.push([o, 'owner']))
   for (const [who, grant] of people) {
     try {
       const b = await bookGrantPeriod(pool, who, grant, credit, now)
@@ -707,7 +738,10 @@ export async function handleClub(
     }
     return {
       status: 401,
-      body: { ok: false, error: 'нужна подпись, сессия приложения или ключ агента' }, // cyrillic-ok: user-facing error
+      body: {
+        ok: false,
+        error: 'нужна подпись, сессия приложения или ключ агента',
+      }, // cyrillic-ok: user-facing error
     }
   }
   if (/^-/.test(who)) {
@@ -765,7 +799,12 @@ export async function handleClub(
   if (path === '/api/club/invoice' && req.method === 'POST') {
     if (!deps.botToken) {
       // Our fault, not the person's: alarm at the point of failure.
-      await noteCashierFailure(pool, who, 'club', 'TOKENS_PAYMENT_BOT_TOKEN not set')
+      await noteCashierFailure(
+        pool,
+        who,
+        'club',
+        'TOKENS_PAYMENT_BOT_TOKEN not set'
+      )
       return {
         status: 503,
         body: {

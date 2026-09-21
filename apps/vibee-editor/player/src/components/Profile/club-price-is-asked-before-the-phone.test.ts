@@ -26,7 +26,11 @@ describe('the club price is asked before the phone step', () => {
 
   it('asks once: not again when the status is known', () => {
     expect(
-      shouldAskClubPrice({ own: true, club: { active: false }, clubError: null })
+      shouldAskClubPrice({
+        own: true,
+        club: { active: false },
+        clubError: null,
+      })
     ).toBe(false)
   })
 
@@ -37,9 +41,9 @@ describe('the club price is asked before the phone step', () => {
   })
 
   it("never asks for somebody else's profile", () => {
-    expect(shouldAskClubPrice({ own: false, club: null, clubError: null })).toBe(
-      false
-    )
+    expect(
+      shouldAskClubPrice({ own: false, club: null, clubError: null })
+    ).toBe(false)
   })
 })
 
@@ -54,12 +58,17 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 describe('the join button never says 0 Stars', () => {
-  const src = readFileSync(
-    join(__dirname, 'WelcomeOnboarding.tsx'),
-    'utf8'
-  )
+  const src = readFileSync(join(__dirname, 'WelcomeOnboarding.tsx'), 'utf8')
   it('is disabled while the price is unknown', () => {
-    expect(src).toContain('disabled={busy || !status || stars <= 0}')
+    // A guest's button signs in (it has no price to be wrong about); for a
+    // person the price must be positive before it can be pressed.
+    expect(src).toContain(
+      'disabled={busy || !status || (!anonymous && stars <= 0)}'
+    )
+  })
+  it('asks a guest to sign in instead of offering a Join the server refuses', () => {
+    expect(src).toContain('onClick={anonymous ? signIn : buy}')
+    expect(src).toMatch(/anonymous \? \(\s*t\('welcome\.club\.signIn'\)/)
   })
   it('shows the join label only for a positive price', () => {
     expect(src).toMatch(/stars > 0 \? \(\s*t\('welcome\.club\.join'/)
