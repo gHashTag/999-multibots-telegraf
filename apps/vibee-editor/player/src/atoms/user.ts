@@ -42,6 +42,47 @@ export const showPaywallAtom = atom<boolean>(false)
 // Login modal visibility
 export const showLoginModalAtom = atom<boolean>(false)
 
+/**
+ * WHY THE MODAL NEEDS TO BE TOLD WHY IT WAS OPENED.
+ *
+ * Seven places open it: the timeline's export, the four generate actions, two
+ * follow buttons, the framed board, the return from the board's sign-in chip
+ * and the header. It showed one headline to all of them -- "Login to Export" --
+ * over a subtitle promising three free video renders. That sentence is true at
+ * exactly one of those doors. Somebody who pressed "Sign in" on their clients
+ * board was told to log in to export a video, and offered renders they had not
+ * asked for.
+ *
+ * So the door says which door it is, and the modal answers in its words. Null
+ * is the honest general case -- the header's own Login button has no ulterior
+ * purpose, and inventing one would be the same lie in a new coat.
+ */
+export type LoginReason = 'export' | 'generate' | 'follow' | 'board'
+
+export const loginReasonAtom = atom<LoginReason | null>(null)
+
+/**
+ * ONE WRITER, BECAUSE TWO ATOMS SET SEPARATELY GO STALE.
+ *
+ * A door that sets `showLoginModalAtom` and forgets the reason inherits the
+ * previous door's sentence -- a Follow showing the export copy. That is the
+ * same defect this reason exists to remove, reintroduced by the fix for it.
+ * Every door goes through here, and closing clears the reason so nothing
+ * survives into the next opening.
+ */
+export const openLoginAtom = atom(
+  null,
+  (_get, set, reason: LoginReason | null) => {
+    set(loginReasonAtom, reason)
+    set(showLoginModalAtom, true)
+  }
+)
+
+export const closeLoginAtom = atom(null, (_get, set) => {
+  set(showLoginModalAtom, false)
+  set(loginReasonAtom, null)
+})
+
 // Fetch render quota from API (also updates is_admin status)
 export const fetchQuotaAtom = atom(null, async (get, set) => {
   const user = get(userAtom)

@@ -42,7 +42,7 @@ import {
   templatePropsAtom,
   userAtom,
   showPaywallAtom,
-  showLoginModalAtom,
+  openLoginAtom,
   canRenderAtom,
   logRenderAtom,
   // Undo/Redo atoms
@@ -314,7 +314,7 @@ export function Timeline({
   // Export actions
   const setExportingAction = useSetAtom(setExportingAtom)
   const setShowPaywall = useSetAtom(showPaywallAtom)
-  const setShowLoginModal = useSetAtom(showLoginModalAtom)
+  const openLogin = useSetAtom(openLoginAtom)
   const logRender = useSetAtom(logRenderAtom)
 
   // Reset atoms
@@ -1249,7 +1249,7 @@ export function Timeline({
   const handleExportClick = () => {
     // Check if user is logged in
     if (!user) {
-      setShowLoginModal(true)
+      openLogin('export')
       return
     }
 

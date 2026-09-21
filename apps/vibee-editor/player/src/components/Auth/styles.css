@@ -13,41 +13,48 @@
   align-items: center;
 }
 
-/* Custom Telegram Login Button (fallback) - Trinity gold canon */
+/* Запасная кнопка входа (виджет Telegram доступен не на каждом домене).
+ *
+ * Единственная залитая кнопка сайта — зелёная: #00ff88 по тексту #001809
+ * (QueenCatalogHive.css .queen-catalog-copy). Золото там — цвет ЗАГОЛОВКА, а
+ * не заливки, и заливать им кнопку значит говорить на похожем, но чужом
+ * языке. Было: градиент к #c99700, радиус 12px и подскок на 2px при
+ * наведении — ни один элемент управления на сайте не прыгает под курсором,
+ * а эта кнопка стоит с ними на одном пути входа.
+ *
+ * На app.t27.ai её почти никто не видит: там рендерится родной виджет
+ * Telegram (lib/telegramWidget.ts — список доменов), и его единственная
+ * ручка настройки — data-radius, выставленный в 6 рядом с data-size. */
 .telegram-login-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 14px 32px;
-  background: linear-gradient(
-    135deg,
-    var(--vibee-gold),
-    #c99700
-  );
-  border: none;
-  border-radius: 12px;
-  color: #000;
-  font-size: 16px;
+  padding: 12px 20px;
+  min-height: var(--touch-target, 44px);
+  background: #00ff88;
+  border: 1px solid #00ff88;
+  border-radius: 6px;
+  color: #001809;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: opacity 0.16s cubic-bezier(0, 0, 0.2, 1);
   min-width: 260px;
 }
 
 .telegram-login-btn:hover {
-  background: linear-gradient(135deg, #ffe14d, var(--vibee-gold));
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.35);
+  opacity: 0.88;
 }
 
-.telegram-login-btn:active {
-  transform: translateY(0);
+.telegram-login-btn:focus-visible {
+  outline: 2px solid #00ff88;
+  outline-offset: 2px;
 }
 
 .telegram-login-btn svg {
   flex-shrink: 0;
-  color: #000;
+  color: #001809;
 }
 
 /* Small variant for header */
@@ -56,7 +63,7 @@
   font-size: 13px;
   min-width: auto;
   gap: 8px;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .telegram-login-btn.small svg {
@@ -288,54 +295,142 @@
   margin: 0;
 }
 
-/* Login Modal (simple wrapper) */
+/* ЕДИНСТВЕННЫЙ ДОМ МОДАЛКИ ВХОДА.
+ *
+ * Те же правила лежали второй копией в Header/styles.css, и порядок импортов
+ * решал, чьи. Копия удалена, телефонный вид перенесён сюда же. Сам файл до
+ * сих пор подключали только Hive и PaywallModal — поэтому копия в Header и
+ * была: без неё на Ленте и в Редакторе модалка оставалась без стилей.
+ * LoginModal.tsx теперь импортирует этот файл сам.
+ *
+ * ОДИН ЯЗЫК С САЙТОМ — С ЕГО КАРТОЧКОЙ ВХОДА, А НЕ С ЕГО HUD.
+ *
+ * Человек приходит сюда с доски на app.t27.ai/queen/, и на сайте УЖЕ есть
+ * ровно такая карточка: apps/website/src/pages/ClientsConsole.tsx:435 —
+ * панель panelBox() (#0b0d0c, граница rgba(0,255,136,.10), радиус 6,
+ * отступ 20, ширина 460), заголовок 16px/700 ЗОЛОТЫМ ТЕКСТОМ, подпись 12.5px
+ * цвета #b9bfc6, под ними тот же самый виджет Telegram. Берём её числа, и
+ * два экрана одного пути перестают быть двумя продуктами.
+ *
+ * Золото на сайте — цвет ТЕКСТА, не заливка; единственная залитая кнопка —
+ * зелёная #00ff88 по #001809 (QueenCatalogHive.css .queen-catalog-copy).
+ * Было: подложка #111, радиус 16, отступ 40 и золотой градиент на кнопке —
+ * ни одного из этих чисел на сайте нет.
+ *
+ * Язык HUD доски (радиус 0, вырезы, 0.58rem капсом) сюда не берётся: он
+ * включается только на мыши от 901px, а эту карточку читают с телефона
+ * внутри Telegram, где у плеера пол в 44px на любое касание.
+ */
 .login-modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-modal);
+  padding: 16px;
+  /* --app-safe-*, а не env(safe-area-inset-*) напрямую: внутри Telegram
+     WebView клиент уже сделал отступ сам, env() там равен нулю, и запасное
+     значение внутри env(..., 28px) не применяется никогда. max() оставляет
+     настоящие 16px в обоих мирах. */
+  padding-top: max(16px, var(--app-safe-top, 0px));
+  padding-bottom: max(16px, var(--app-safe-bottom, 0px));
+  overscroll-behavior: contain;
 }
 
 .login-modal {
-  background: var(--bg-darkest);
-  border-radius: 16px;
-  padding: 40px;
-  text-align: center;
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  max-width: 400px;
+  /* position: relative был нужен и до всякой перекраски: крестик внутри —
+     position: absolute, а ближайшим позиционированным предком был оверлей во
+     весь экран. На широком экране крестик стоял в углу ОКНА, в сотнях
+     пикселей от карточки, которую закрывает. */
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 460px;
+  /* --app-vh-stable, а не 100vh: в WebView на iOS в 100vh входит полоса,
+     которую занимает шапка самого Telegram. */
+  max-height: calc(var(--app-vh-stable, 100dvh) - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+  background: #0b0d0c;
+  border: 1px solid rgba(0, 255, 136, 0.1);
+  border-radius: 6px;
+  box-shadow: none;
+  color: #fff;
+  /* Слева, как вся карточка на сайте: заголовок, подпись, кнопка. */
+  text-align: left;
 }
 
 .login-modal h2 {
-  color: #fff;
-  font-size: 24px;
-  margin: 0 0 12px;
+  margin: 0 0 8px;
+  /* Место под крестик: без этого длинный заголовок заезжает под него. */
+  padding-right: 48px;
+  color: #ffd700;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .login-modal p {
-  color: #9ca3af;
-  font-size: 14px;
-  margin: 0 0 24px;
+  margin: 0 0 16px;
+  color: #b9bfc6;
+  /* На сайте эта подпись 12.5px на настольной консоли; здесь 13px, потому
+     что эту карточку читают с телефона внутри Telegram. */
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .login-modal-widget {
   min-height: 50px;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
+}
+
+/* Внутри модалки кнопка — основное действие карточки: во всю её ширину и не
+   ниже пальца. Снаружи (маленькая кнопка в шапке) правило выше остаётся. */
+.login-modal .telegram-login-btn {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-target, 44px);
 }
 
 .login-modal-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px везде, а не только на телефоне: внутри Telegram виджет входа не
+     рендерится вовсе, и крестик — единственный выход из модалки. Esc на
+     телефоне нет. */
+  width: var(--touch-target, 44px);
+  height: var(--touch-target, 44px);
+  padding: 0;
   background: none;
-  border: none;
-  color: #9ca3af;
+  border: 0;
+  border-radius: 6px;
+  color: #8b9490;
+  font-size: 20px;
+  line-height: 1;
   cursor: pointer;
+  transition: color 0.16s cubic-bezier(0, 0, 0.2, 1);
+}
+
+.login-modal-close:hover {
+  color: #fff;
+}
+
+/* Кольца фокуса у этой кнопки не было вовсе. */
+.login-modal-close:focus-visible {
+  outline: 2px solid #00ff88;
+  outline-offset: 2px;
+  color: #fff;
 }
 
 /* Quota Display */
@@ -409,15 +504,11 @@
     font-size: 15px;
   }
 
-  .login-modal {
-    padding: 32px 24px;
-    margin: 16px;
-    max-width: calc(100% - 32px);
-  }
-
-  .login-modal h2 {
-    font-size: 20px;
-  }
+  /* Телефонных правил у модалки входа больше нет, и это не пропуск.
+     В Header/styles.css @media (max-width: 640px) лежала вторая копия
+     четырёх таких блоков; базовые правила выше (width: 100%, max-width: 460,
+     отступ оверлея, крестик 44px, --app-vh-stable) тянутся сами и верны на
+     любой ширине. Одно правило вместо восьми. */
 }
 
 /* Small phones */
@@ -483,7 +574,7 @@
     min-width: 0;
     padding: 9px 16px;
     font-size: 13px;
-    border-radius: 10px;
+    border-radius: 6px;
     gap: 8px;
   }
 }

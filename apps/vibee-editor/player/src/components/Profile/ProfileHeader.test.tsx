@@ -49,7 +49,7 @@ vi.mock('@/atoms', () => ({
   userAtom: Symbol('userAtom'),
   followUserAtom: Symbol('followUserAtom'),
   unfollowUserAtom: Symbol('unfollowUserAtom'),
-  showLoginModalAtom: Symbol('showLoginModalAtom'),
+  openLoginAtom: Symbol('openLoginAtom'),
 }))
 
 vi.mock('@/hooks/useLanguage', () => ({

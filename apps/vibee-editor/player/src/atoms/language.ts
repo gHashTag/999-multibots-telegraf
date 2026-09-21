@@ -9,7 +9,7 @@ import { IS_EMBED, embedLang } from '@/lib/embed'
 
 export type Language = 'ru' | 'en'
 
-interface Translations {
+export interface Translations {
   [key: string]: string
 }
 
@@ -444,7 +444,30 @@ const en: Translations = {
   'dialog.ok': 'OK',
 
   // Login Modal
-  'login.title': 'Login to Export',
+  //
+  // ONE SENTENCE PER DOOR. This modal is opened from seven places, and it used
+  // to greet all of them with "Login to Export" over a promise of three free
+  // video renders. That is true at the export button and at none of the other
+  // six: somebody who pressed "Sign in" on their clients board was told to log
+  // in to export a video. The door now says which door it is (LoginReason in
+  // atoms/user.ts) and the words follow. `login.title` is the general case and
+  // must stay true everywhere, so it promises nothing in particular; it is
+  // also, word for word, the site's own sign-in card (ClientsConsole.tsx).
+  //
+  // `login.rendersBody` is deliberately ONE key for two doors: export and
+  // generate draw on the same server quota, and two copies of one promise is
+  // how the promise and the quota drift apart.
+  'login.title': 'Sign in with Telegram',
+  'login.exportTitle': 'Sign in to export',
+  'login.generateTitle': 'Sign in to generate',
+  'login.rendersBody':
+    'Sign in with Telegram — your first three video renders are free.',
+  'login.followTitle': 'Sign in to follow',
+  'login.followBody':
+    'Sign in with Telegram and your follows stay on your account.',
+  'login.boardTitle': 'Sign in to your board',
+  'login.boardBody':
+    'Sign in with Telegram and the board opens under your name: your clients and your tasks.',
   'login.tgSignedTitle': 'You are already signed in',
   'login.tgSignedBody':
     'Telegram already identified you — no separate login exists inside the Mini App.',
@@ -455,8 +478,7 @@ const en: Translations = {
   'login.tgUnsignedTitle': 'Open the app from the menu button',
   'login.tgUnsignedBody':
     "This launch carries no signed data, so the server cannot verify who you are. Open the app from the bot's menu button or an inline button, and everything will work.",
-  'login.subtitle': 'Sign in with Telegram to get 3 free video renders!',
-  'login.returnToGame': 'Sign in with Telegram to return to the game.',
+  'login.subtitle': 'One sign-in for the studio, your clients and the board.',
   // The game's TRI frame, a screen that needs a person (EmbedGuestGate.tsx).
   'embed.guest.title': 'This screen works in the app',
   'embed.guest.body':
@@ -2429,7 +2451,17 @@ const ru: Translations = {
   'dialog.ok': 'OK',
 
   // Login Modal
-  'login.title': 'Войдите для экспорта',
+  'login.title': 'Войдите через Telegram',
+  'login.exportTitle': 'Войдите для экспорта',
+  'login.generateTitle': 'Войдите, чтобы сгенерировать',
+  'login.rendersBody':
+    'Войдите через Telegram — первые три видеорендера бесплатны.',
+  'login.followTitle': 'Войдите, чтобы подписаться',
+  'login.followBody':
+    'Войдите через Telegram — подписки сохранятся в вашем аккаунте.',
+  'login.boardTitle': 'Вход на вашу доску',
+  'login.boardBody':
+    'Войдите через Telegram — доска откроется под вашим именем: ваши клиенты и ваши задачи.',
   'login.tgSignedTitle': 'Вы уже вошли',
   'login.tgSignedBody':
     'Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.',
@@ -2440,8 +2472,7 @@ const ru: Translations = {
   'login.tgUnsignedTitle': 'Откройте приложение кнопкой меню',
   'login.tgUnsignedBody':
     'Этот запуск не несёт подписанных данных, и сервер не может подтвердить, кто вы. Откройте приложение через кнопку меню бота или инлайн-кнопку — и всё заработает.',
-  'login.subtitle': 'Войдите через Telegram и получите 3 бесплатных рендера!',
-  'login.returnToGame': 'Войдите через Telegram, чтобы вернуться в игру.',
+  'login.subtitle': 'Один вход — студия, ваши клиенты и доска.',
   'embed.guest.title': 'Этот экран работает в приложении',
   'embed.guest.body':
     'Здесь, в игре, вы гость, а этому экрану нужен ваш аккаунт. Откройте его на app.t27.ai и войдите там через Telegram.',
@@ -3996,7 +4027,10 @@ types:
   'token.footer.back': '← Вернуться на главную',
 }
 
-const translations: Record<Language, Translations> = { en, ru }
+// Exported so a test can compare the two dictionaries as objects. The
+// alternative is parsing line ranges out of this file, which is how a key
+// added to one locale and not the other stays invisible.
+export const translations: Record<Language, Translations> = { en, ru }
 
 // ===============================
 // Detect browser language
