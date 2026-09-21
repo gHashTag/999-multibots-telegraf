@@ -18,6 +18,7 @@
  *
  *   node scripts/railway-sources-check.mjs
  */
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
@@ -57,16 +58,52 @@ export function unwired(services, required = MUST_DEPLOY_FROM_MAIN) {
   })
 }
 
-function token() {
-  if (process.env.RAILWAY_API_TOKEN) return process.env.RAILWAY_API_TOKEN
+/*
+ * The CLI keeps a short-lived accessToken (user.tokenExpiresAt, seconds) and
+ * refreshes it itself on any command. Read raw from the file, it goes stale
+ * overnight: on 2026-09-22 at 02:57 this check and tri drift both answered
+ * "Not Authorized" -- "could not check" -- until `railway whoami` had run.
+ * So: near or past expiry, let the CLI refresh it, then read again.
+ * forceRefresh does the same after Railway refuses a token that looked fine.
+ */
+function readCliToken() {
   try {
     const cfg = JSON.parse(
       readFileSync(path.join(homedir(), '.railway/config.json'), 'utf8')
     )
-    return cfg?.user?.accessToken || null
+    return {
+      token: cfg?.user?.accessToken || null,
+      expiresAt: Number(cfg?.user?.tokenExpiresAt) || 0,
+    }
   } catch {
-    return null
+    return { token: null, expiresAt: 0 }
   }
+}
+
+function cliRefresh() {
+  try {
+    execFileSync('railway', ['whoami'], { stdio: 'ignore', timeout: 30_000 })
+  } catch {
+    /* no CLI or no login: the caller reports "could not check" */
+  }
+}
+
+export function freshToken({ forceRefresh = false, nowMs = Date.now() } = {}) {
+  if (process.env.RAILWAY_API_TOKEN) return process.env.RAILWAY_API_TOKEN // secret-guard-ok: a variable name, no value
+  let t = readCliToken()
+  if (
+    forceRefresh ||
+    !t.token ||
+    (t.expiresAt && t.expiresAt * 1000 < nowMs + 120_000)
+  ) {
+    cliRefresh()
+    t = readCliToken()
+  }
+  return t.token
+}
+
+function token() {
+  return freshToken()
 }
 
 async function main() {
