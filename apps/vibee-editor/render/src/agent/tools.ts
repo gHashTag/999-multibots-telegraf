@@ -31,6 +31,8 @@ import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
 import { pricingSummary, providerSetup } from './pricing'
+import { clubOfferLine } from './club-membership'
+import { FAL_IMAGE_MODELS, imageChainShortNote } from '../image-chain'
 import {
   LEELA_CTA_EN,
   LEELA_CTA_RU,
@@ -1454,9 +1456,9 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'image_generate',
     description:
-      'Сгенерировать картинку по описанию. Провайдер выбирается сам: сначала FAL, ' +
-      'потом Replicate flux-schnell, потом Kie google/nano-banana — кто первый сделает. ' +
-      'В ответе поле «провайдер» говорит, кто нарисовал, а «отказы» — кто не смог и почему. ' +
+      'Сгенерировать картинку по описанию. ' +
+      imageChainShortNote() +
+      ' В ответе «провайдер» — кто нарисовал, «отказы» — кто не смог или пропущен и почему. ' +
       'Файл сохраняется в S3 и появляется в «моих файлах», отдаёт прямую ссылку — ' +
       'её можно сразу отдавать в reel_render или публиковать в ленту.',
     parameters: {
@@ -1468,15 +1470,16 @@ export const TOOLS: AgentTool[] = [
         },
         model: {
           // A PREFERENCE, NOT A PROMISE, and saying so is the whole point.
-          // These ids only select the FAL endpoint; when FAL refuses -- which
-          // it does today, HTTP 403 "Exhausted balance" -- the picture comes
-          // from Replicate or Kie and the id asked for was never used. A caller
-          // told otherwise would report the wrong model in its own artefacts.
+          // These ids only select the FAL endpoint, and every one of them
+          // costs more than the picture's price covers (src/image-chain.ts),
+          // so today the chain skips it and the picture comes from the leg the
+          // price does cover. A caller told otherwise would report the wrong
+          // model in its own artefacts.
           type: 'string',
           description:
-            'ПОЖЕЛАНИЕ по модели FAL, не гарантия: fal-ai/nano-banana-pro (по умолчанию), ' +
-            'fal-ai/flux/dev, fal-ai/flux-pro/v1.1-ultra, fal-ai/reve/text-to-image. ' +
-            'Если FAL откажет, рисовать будет другой провайдер — смотри «провайдер» в ответе.',
+            'ПОЖЕЛАНИЕ по модели FAL, не гарантия: ' +
+            FAL_IMAGE_MODELS.join(', ') +
+            '. Дороже цены — пропускается; смотри «провайдер» в ответе.',
         },
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
@@ -2067,7 +2070,8 @@ export const TOOLS: AgentTool[] = [
       'Бесплатно: счёт — это предложение, деньги спишет Telegram только после подтверждения человеком. ' +
       'Называй цену ИЗ ОТВЕТА этого инструмента, а не по памяти: шкала со скидкой за объём, ' +
       'и придуманное число будет обещанием, за которое платит владелец. ' +
-      'Тарифов и подписок нет — есть только токены.',
+      'Это счёт только на токены: подписка одна — клуб, и этим счётом она не ' +
+      'оформляется (её цену и путь даёт pricing).',
     parameters: {
       type: 'object',
       properties: {
@@ -2719,13 +2723,16 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'pricing',
     description:
-      'Что БЕСПЛАТНО и что ПЛАТНО в Trinity S³AI, в токенах. Тарифов, подписок ' +
-      'и клуба НЕТ — есть баланс токенов. Зови, когда человек спрашивает про ' +
-      'деньги, токены, стоимость, «сколько стоит», подписку или тариф; счёт на ' +
-      'пополнение выписывает tokens_invoice. Бесплатно.',
+      'Что БЕСПЛАТНО и что ПЛАТНО в Trinity S³AI, в токенах, и единственная ' +
+      'подписка. ' +
+      clubOfferLine() +
+      ' Других тарифов и подписок нет. Зови, когда человек спрашивает про ' +
+      'деньги, токены, стоимость, «сколько стоит», клуб, подписку или тариф; счёт на ' +
+      'пополнение токенов выписывает tokens_invoice. Бесплатно.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
-    async handler() {
-      return pricingSummary()
+    async handler(_args, ctx) {
+      // The client in the owner's DM is not sold the club; see pricingSummary.
+      return pricingSummary(ctx?.surface)
     },
   },
   {

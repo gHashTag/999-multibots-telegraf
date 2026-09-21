@@ -144,9 +144,13 @@ import { templateSchemaProblem } from './src/template-check'
 import {
   credits as kieCredits,
   generateImage as kieGenerateImage,
-  T2I_MODEL as KIE_T2I_MODEL,
 } from './src/kie-image'
-import { runImageChain } from './src/image-chain'
+import {
+  runImageChain,
+  imageChainLegs,
+  imageChainCeilingUsd,
+  falEndpointFor,
+} from './src/image-chain'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync, spawn } from 'node:child_process'
@@ -3604,13 +3608,8 @@ const server = createServer(async (req, res) => {
     return r.url
   }
 
-  // Supported fal.ai image models
-  const FAL_IMAGE_MODELS: Record<string, string> = {
-    'fal-ai/flux-pro/v1.1-ultra': 'fal-ai/flux-pro/v1.1-ultra',
-    'fal-ai/flux/dev': 'fal-ai/flux/dev',
-    'fal-ai/nano-banana-pro': 'fal-ai/nano-banana-pro',
-    'fal-ai/reve/text-to-image': 'fal-ai/reve/text-to-image',
-  }
+  // The fal.ai image models a caller may prefer, and what each costs, live in
+  // src/image-chain.ts (FAL_IMAGE_MODELS, IMAGE_LEG_COST_USD).
 
   /**
    * FAL, start to finish, as ONE function that either returns a URL or throws.
@@ -3818,8 +3817,7 @@ const server = createServer(async (req, res) => {
         }
 
         // Get model endpoint (default to nano-banana-pro)
-        const modelEndpoint =
-          FAL_IMAGE_MODELS[model] || 'fal-ai/nano-banana-pro'
+        const modelEndpoint = falEndpointFor(model)
 
         /**
          * THE CHAIN, IN ORDER, EVERY REFUSAL RECORDED.
@@ -3842,23 +3840,23 @@ const server = createServer(async (req, res) => {
          * without shell access to the container. The image layer was dead for
          * weeks precisely because its failure existed nowhere a person looked.
          */
+        /*
+         * THE PRICE FLOOR. The person was charged `image_generate`, one price
+         * whichever leg draws, so a leg whose own cost is above what that
+         * price covers is skipped and named in `tried` -- never run at a
+         * loss. Which legs exist and what each costs is decided in
+         * src/image-chain.ts; this route only hands over the provider calls.
+         */
         const outcome = await runImageChain(
-          [
-            {
-              name: `fal/${modelEndpoint}`,
-              run: () =>
-                generateImageViaFal(prompt, aspectRatio, modelEndpoint),
-            },
-            {
-              name: 'replicate/flux-schnell',
-              run: () => generateImageViaReplicate(prompt, aspectRatio),
-            },
-            {
-              name: `kie/${KIE_T2I_MODEL}`,
-              run: () => generateImageViaKie(prompt, aspectRatio),
-            },
-          ],
-          { log: line => console.warn(`📷 [Generate] ${line}`) }
+          imageChainLegs(modelEndpoint, {
+            fal: () => generateImageViaFal(prompt, aspectRatio, modelEndpoint),
+            replicate: () => generateImageViaReplicate(prompt, aspectRatio),
+            kie: () => generateImageViaKie(prompt, aspectRatio),
+          }),
+          {
+            ceilingUsd: imageChainCeilingUsd(),
+            log: line => console.warn(`📷 [Generate] ${line}`),
+          }
         )
         tried.push(...outcome.tried)
 
