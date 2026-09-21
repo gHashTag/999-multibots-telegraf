@@ -26,6 +26,7 @@ import {
   type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
+import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 
 /**
@@ -74,6 +75,7 @@ export default function BrowserPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmForget, setConfirmForget] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [agentWorking, setAgentWorking] = useAtom(agentWorkingAtom)
   /* Remembers a browser that was here, so its absence can be explained. */
   const lastState = useRef<BrowserSessionView['state'] | null>(null)
@@ -316,6 +318,16 @@ export default function BrowserPage() {
               </button>
             ) : null}
 
+            {/* Passwords through the vault, sessions from a file; see ImportLogins. */}
+            <button
+              type="button"
+              className="remote-browser__secondary"
+              aria-expanded={showImport}
+              onClick={() => setShowImport(v => !v)}
+            >
+              {t('browser.import.open')}
+            </button>
+
             <button
               type="button"
               className="remote-browser__secondary"
@@ -339,6 +351,7 @@ export default function BrowserPage() {
               {confirmForget ? t('browser.forget.sure') : t('browser.forget')}
             </button>
           </div>
+          {showImport ? <ImportLogins /> : null}
           <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
         </section>
       ) : null}
