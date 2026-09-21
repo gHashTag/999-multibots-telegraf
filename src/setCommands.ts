@@ -68,6 +68,15 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         command: 'app',
         description: '🔑 Войти в приложение / Sign in to the app',
       },
+      /*
+       * In the menu, not only registered. A command Telegram does not list
+       * is one a person has to already know, and the owner went looking for
+       * this one and reported it missing.
+       */
+      {
+        command: 'browser',
+        description: '🌍 Мой браузер / My browser',
+      },
       {
         command: 'support',
         description: '🛠 Tech Support / Техподдержка',

@@ -81,3 +81,36 @@ describe('the door from the bot', () => {
     expect(BROWSER_START_PARAM).toBe('browser')
   })
 })
+
+describe('every command in the menu works from inside a scene', () => {
+  /*
+   * Found in production logs: the owner typed /browser while inside
+   * starPaymentScene and nothing happened. stage.middleware() runs BEFORE
+   * bot.command(), so an active scene swallows any command without an
+   * interceptor of its own -- which from outside reads as "this command
+   * does not exist". Checking the rest turned up /app, /price and /support
+   * with the same hole.
+   *
+   * Read from the source on purpose: this is a property of two files that
+   * must agree (the menu Telegram shows, and the interceptors the stage
+   * runs), and there is no runtime seam that holds both.
+   */
+  it('HAS AN INTERCEPTOR FOR EVERY COMMAND TELEGRAM LISTS', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const root = join(__dirname, '..', '..', '..')
+    const menu = readFileSync(join(root, 'src/setCommands.ts'), 'utf8')
+    const reg = readFileSync(
+      join(root, 'src/navigation/registerCommands.ts'),
+      'utf8'
+    )
+    const listed = [...menu.matchAll(/command:\s*'([a-z_]+)'/g)].map(m => m[1])
+    const intercepted = new Set<string>()
+    for (const m of reg.matchAll(/stage\.command\(\s*(\[[^\]]*\]|'[^']+')/g)) {
+      for (const n of m[1].matchAll(/'([a-z_]+)'/g)) intercepted.add(n[1])
+    }
+    const swallowed = listed.filter(c => !intercepted.has(c))
+    expect(swallowed, `съедаются сценой: ${swallowed.join(' ')}`).toEqual([]) // cyrillic-ok
+    expect(listed).toContain('browser')
+  })
+})
