@@ -26,7 +26,7 @@
  * the media forwarded, the count of paid generations. Never a session string.
  */
 import type { AgentTool, ToolContext } from './tools'
-import type { AgentEvent, ChatMessage } from './chat'
+import type { AgentEvent, ChatMessage, ToolDenial } from './chat'
 import {
   requireOwner,
   requireSeller,
@@ -51,8 +51,12 @@ export const PAID_TOOLS = new Set([
   'video_generate',
   'reel_render',
 ])
-/** Tools the seller must not call: sending is the duet's job, not the model's. */
-const FORBIDDEN_FOR_SELLER = /^tg_|^crm_(duet|agent_link|sellers)/
+/**
+ * Tools the seller must not call: sending is the duet's job, not the model's,
+ * and publishing is hers (DUET_NEVER refuses it; this reports one that got by).
+ */
+const FORBIDDEN_FOR_SELLER =
+  /^tg_|^crm_(duet|agent_link|sellers)|^feed_publish$/
 
 /** Facts about the buyer's real game -- from gHashTag/leela README and editorial SOUL. */
 export const LEELA_CANON: string[] = [
@@ -78,6 +82,8 @@ export interface Transcript {
   media?: string[]
   /** Files re-sent by the duet itself because the seller promised one without producing it. */
   resent?: string[]
+  /** Where the reel of this turn went in the buyer's content plan (PlanLink). */
+  plan_item?: PlanLink
   sent: boolean
   error?: string
   /** The first attempt's error when the turn was replayed after a provider limit. */
@@ -340,7 +346,7 @@ export interface DuetDeps {
   agent: (
     history: ChatMessage[],
     ctx: ToolContext,
-    opts?: { denyTools?: ReadonlySet<string> }
+    opts?: ToolDenial
   ) => AsyncIterable<AgentEvent>
   buyerModel: (messages: ChatMessage[]) => Promise<string>
   sendText: (fromCtx: ToolContext, to: string, text: string) => Promise<void>
@@ -451,6 +457,28 @@ function lines(v: unknown): string[] {
 }
 
 /**
+ * THE PLAN'S MEANING COMES FROM THE CANON (t27#4522 PLAN_MEANING_FROM_CANON).
+ *
+ * Duet duet-mub68idg: the seller said "plan 6 is about attachment" in a turn
+ * that had called leela_plan, and the buyer corrected it. Brief only, no
+ * checker, on purpose: the canonical text of plan 6 in
+ * assets/leela-plans.ru.json does say "moha means attachment", so a check for
+ * "a distinctive word of the result" would have PASSED the live line, and
+ * Russian inflection would make it flap on honest paraphrase. The rule is
+ * stated; the proof that it holds would be a judge, not a regex.
+ */
+export const PLAN_MEANING_RULE =
+  'Смысл плана — только из ответа leela_plan в этом же ходу: называй его название и опирайся на его описание, без пересказа по памяти и без своих толкований. Не вызывал leela_plan для этого номера в этом ходу — вызови, прежде чем говорить, о чём план.'
+
+/** t27#4522 NO_LIVED_EXPERIENCE_CLAIM, as the seller reads it. */
+export const NO_LIVED_EXPERIENCE_RULE =
+  'Ты агент и пишешь с аккаунта владельца: не говори, что сам играл, бросал кубик или читал планы, что это твоя практика, работа или опыт. Говори о продукте и каноне игры: что делает игрок, что сказано в тексте плана.'
+
+/** t27#4522 PERSONA_CONSENT_IS_NOT_CONSENT, as the seller reads it. */
+export const NO_PUBLISH_RULE =
+  'Не вызывай feed_publish: «давайте опубликуем» в переписке — не одобрение. Готовый ролик уходит ей в чат и в её контент-план, а публикует его она сама в приложении.'
+
+/**
  * The seller's brief. Runs 1-5 sold from a catalogue: a blog reel, a generated
  * picture with pseudo-text, the app link twice, a caption praised for being
  * legible. The brief now opens with discovery -- what she has, where her
@@ -503,6 +531,7 @@ export function sellerBrief(
         ]
       : []),
     `Рилс для неё — только шаблон ${template}: возьми канон плана инструментом leela_plan {plan}, подставь reel_props в reel_render. Не предлагай TrinityBlogReel, PromoReel и картинки image_generate: они не в стиле игры, а сгенерированный текст на картинке нечитаем.`,
+    PLAN_MEANING_RULE,
     `Одобренный призыв: «${cta}» и кнопка «${button}». Других обещаний и призывов не придумывай.`,
     'Факты об игре — только эти:',
     ...LEELA_CANON.map(s => `- ${s}`),
@@ -511,6 +540,8 @@ export function sellerBrief(
       : []),
     'Слова давления запрещены: «сегодня», «срочно», «последний шанс», «серия», «прогресс», «молодец», «успех», поздравления. Цены, скидки, проценты и отзывы не называй; о цене говори только если она сама спросила, и только цифрами из ответа pricing.',
     'Инструменты — по делу: сначала crm_client_profile и crm_lead_context (что о ней уже известно), leela_plan — свободно; платная генерация — только один ролик за диалог и только после того, как она сказала, чего хочет.',
+    NO_LIVED_EXPERIENCE_RULE,
+    NO_PUBLISH_RULE,
     'Не вызывай tg_* и crm_duet/crm_agent_link/crm_sellers: отправкой занимается дуэт — готовый ролик уходит ей файлом отдельным сообщением сразу после твоего текста. Никогда не пиши «отправляю/пришлю файл»: если она просит файл, скажи, что видео уже пришло в чат следующим сообщением после ссылки, и спроси, что в нём не в стиле. Ссылку на приложение или бота давай не больше одного раза за диалог.',
     'О результате инструмента говори только то, что в нём есть: не описывай ролик или картинку, которых не видел, не хвали «читаемость» текста. Генерация занимает минуты; не обещай сроки «за день». Токены списываются с твоего баланса — не пиши ей «списано» и не называй свой остаток.',
     'Если у неё уже есть SOUL-черновик или скиллы «Leela: …» — скажи, что заготовка стоит, и попроси её поправить любое слово, которое не её.',
@@ -535,10 +566,12 @@ export function buyerPersona(soulExcerpt = ''): string {
   ].join('\n')
 }
 
-interface ToolResultEvent {
+export interface ToolResultEvent {
   name: string
   value: unknown
   ms: number
+  /** The call's own arguments, when the agent announced them before the result. */
+  args?: Record<string, unknown>
 }
 
 /**
@@ -651,10 +684,41 @@ export function producedWork(results: ToolResultEvent[]): boolean {
  */
 export const DISCOVERY_SELLER_TURNS = 2
 
-export function deniedToolsFor(
-  sellerTurn: number
-): ReadonlySet<string> | undefined {
-  return sellerTurn < DISCOVERY_SELLER_TURNS ? PAID_TOOLS : undefined
+/**
+ * PERSONA CONSENT IS NOT CONSENT (gHashTag/t27#4522).
+ *
+ * Duet duet-mub68idg (2026-09-21): the buyer model said "let us publish it as
+ * a trial" and the seller called feed_publish twice. The hidden-by-default
+ * gate held -- the row was is_public=false -- but a line a persona model wrote
+ * is not the client's approval, and a duet is not where her approval is
+ * given. feed_publish is therefore denied on EVERY duet turn, not only in
+ * discovery: hidden from the listing, and refused with a reason the model can
+ * act on if a call arrives anyway. The reel still reaches her as a file and
+ * lands in her content plan (linkReelToPlan); publishing stays hers.
+ */
+export const DUET_NEVER: ReadonlySet<string> = new Set(['feed_publish'])
+
+/** What the model reads when a duet-denied tool is refused. */
+export const DUET_DENY_REASONS: ReadonlyMap<string, string> = new Map([
+  [
+    'feed_publish',
+    'в этом диалоге публикация запрещена: «давайте опубликуем» в переписке — не одобрение клиента. Ролик уже у неё в чате и в её контент-плане; одобряет и публикует она сама в приложении.',
+  ],
+])
+
+const DISCOVERY_DENIED: ReadonlySet<string> = new Set([
+  ...PAID_TOOLS,
+  ...DUET_NEVER,
+])
+
+/** Paid tools wait for discovery; the duet-never tools wait for ever. */
+export function deniedToolsFor(sellerTurn: number): ReadonlySet<string> {
+  return sellerTurn < DISCOVERY_SELLER_TURNS ? DISCOVERY_DENIED : DUET_NEVER
+}
+
+/** Discovery turns: the first DISCOVERY_SELLER_TURNS seller turns. */
+export function isDiscoveryTurn(sellerTurn: number): boolean {
+  return sellerTurn < DISCOVERY_SELLER_TURNS
 }
 
 /** A dispatcher refusal, as opposed to a tool that ran and failed. */
@@ -676,6 +740,149 @@ export function claimsFamiliarity(text: string): boolean {
   FAMILIARITY_RE.lastIndex = 0
   return FAMILIARITY_RE.test(text)
 }
+
+/*
+ * NO LIVED EXPERIENCE (gHashTag/t27#4522 NO_LIVED_EXPERIENCE_CLAIM).
+ *
+ * Duet duet-mub68idg, 2026-09-21: "yes, I threw the die and read the plans
+ * myself, it is my daily work" -- an agent writing from the owner's account
+ * claimed a human's personal practice of the game, and nothing caught it.
+ * The words are built from string lists so each one can be read and argued;
+ * JS `\b` is ASCII-only, so Cyrillic words are bounded by lookarounds.
+ */
+const CYR = 'а-яё'
+const WORD_START = `(?<![${CYR}])`
+const WORD_END = `(?![${CYR}])`
+const alt = (words: string[]) => `(?:${words.join('|')})`
+
+/** First-person subject: "I" or "we". */
+const SUBJECT = alt(['я', 'мы'])
+/** "myself", "personally", "too" between the subject and the verb. */
+const SELF = alt(['сам', 'сама', 'сами', 'лично', 'тоже', 'и сам', 'и сама'])
+/** How often -- a habit is a claim of practice too. "not once" is "often". */
+const OFTEN = alt([
+  'каждый день',
+  'ежедневно',
+  'годами',
+  'много лет',
+  'давно',
+  'часто',
+  'регулярно',
+  'не раз',
+  'много раз',
+])
+/**
+ * Acts of PLAYING, past or present. Production verbs ("built", "made") are
+ * not here: "I built the reel myself" is claimsDoneWork's business, and "I
+ * can build" is an offer. Only the habitual "went through" counts: the
+ * perfective one is also "I went through your posts", which a tool can do.
+ */
+const PRACTICE = alt([
+  'бросал[аи]?',
+  'бросаю',
+  'бросаем',
+  'кидал[аи]?',
+  'кидаю',
+  'играл[аи]?',
+  'играю',
+  'играем',
+  'проходил[аи]?',
+  'прохожу',
+  'практиковал[аи]?',
+  'практикую',
+  'практикуем',
+  'медитировал[аи]?',
+  'медитирую',
+  'ходил[аи]?',
+  'вставал[аи]?',
+  'попадал[аи]?',
+  'поднимал(?:ся|ась|ись)',
+  'падал[аи]?',
+])
+/** Reading and trying count only with "myself": "I read the plan's text" is a tool. */
+const TRIED = alt(['читал[аи]?', 'читаю', 'пробовал[аи]?', 'пробую'])
+const MY = alt([
+  'моя',
+  'мою',
+  'моей',
+  'моё',
+  'мое',
+  'мой',
+  'моего',
+  'моему',
+  'моим',
+  'моём',
+])
+const PREP_OWN = alt([
+  'своему',
+  'своего',
+  'своём',
+  'своем',
+  'личному',
+  'личного',
+  'личном',
+  'собственному',
+  'собственного',
+  'собственном',
+])
+/** Somebody else is the subject of "his own experience": the player, you. */
+const OTHER_SUBJECT = alt([
+  'каждый',
+  'каждого',
+  'игрок[а-яё]*',
+  'человек[а-яё]*',
+  'люди',
+  'вы',
+  'вас',
+  'вам',
+  'он',
+  'она',
+  'они',
+])
+
+const LIVED_RE: RegExp[] = [
+  // "I myself threw", "I played", "we have played for years"
+  `${WORD_START}${SUBJECT}\\s+(?:${SELF}\\s+)?(?:${OFTEN}\\s+)?${PRACTICE}${WORD_END}`,
+  // "I myself read the plans", "I personally tried"
+  `${WORD_START}${SUBJECT}\\s+${SELF}\\s+(?:${OFTEN}\\s+)?${TRIED}${WORD_END}`,
+  // "my practice", "my daily practice", "in my practice"
+  `${WORD_START}${MY}\\s+(?:[${CYR}]+\\s+)?практик`,
+  // "my daily work", "my everyday work"
+  `${WORD_START}${MY}\\s+(?:ежедневн|каждодневн|повседневн)[${CYR}]*\\s+работ`,
+  // "my experience", "in my own experience"
+  `${WORD_START}${MY}\\s+(?:[${CYR}]+\\s+)?опыт`,
+  // "a six fell to me", "I rolled a six at once"
+  `${WORD_START}(?:мне|у\\s+меня)\\s+(?:[${CYR}]+\\s+){0,2}выпа(?:л|ла|ло|ли|дал|дала|дало|дали)${WORD_END}`,
+].map(src => new RegExp(src, 'iu'))
+
+/** "from one's own experience": first person unless another subject is named. */
+const OWN_EXPERIENCE_RE = new RegExp(
+  `${WORD_START}(?:по|из|на)\\s+${PREP_OWN}\\s+опыт`,
+  'iu'
+)
+const OTHER_SUBJECT_RE = new RegExp(
+  `${WORD_START}${OTHER_SUBJECT}${WORD_END}`,
+  'iu'
+)
+
+/**
+ * A first-person claim of the game played, a practice kept, an experience
+ * lived. An agent has none; it may speak about the product and the canon --
+ * what a player does, what the plan's text says -- and may offer work.
+ */
+export function claimsLivedExperience(text: string): boolean {
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .some(
+      s =>
+        LIVED_RE.some(re => re.test(s)) ||
+        (OWN_EXPERIENCE_RE.test(s) && !OTHER_SUBJECT_RE.test(s))
+    )
+}
+
+/** The rewrite instruction for a lived-experience claim. */
+export const LIVED_EXPERIENCE_REWRITE =
+  'Проверка: ты агент и пишешь с аккаунта владельца — у тебя нет личной практики игры. Нельзя говорить, что ты сам играл, бросал кубик, читал планы, что это твоя практика, работа или опыт. Перепиши реплику тем же смыслом, но о продукте и каноне: что делает игрок, что сказано в тексте плана из leela_plan. 2–5 предложений, один вопрос.'
 
 // A feminine first-person past form: "ya videla", "ya zadavala ... sama".
 // Line 4 of the same run, next to "ya ne videl" on line 2. The seller writes
@@ -699,29 +906,251 @@ export function okOf(value: unknown): boolean {
   return true
 }
 
+/*
+ * WHAT WAS MADE GOES INTO HER PLAN.
+ *
+ * Duet duet-mub68idg: reel_render produced the reel for plan 6, and her
+ * content plan (content_plan_items, her telegram_id, installed by
+ * crm_client_setup with template_id LeelaPlanReel) still said 0 of 14 --
+ * nothing linked a duet's output to her plan. A reel for plan N now moves her
+ * matching card from `idea` to `doing` and writes the file into its note.
+ * Never to `done`: done means published after HER approval, and the duet
+ * does not publish (DUET_NEVER).
+ */
+export const LEELA_REEL_TEMPLATE = 'LeelaPlanReel'
+
+/** What happened to her plan when a turn produced a reel. */
+export interface PlanLink {
+  plan: number | null
+  url: string
+  result:
+    | 'moved'
+    | 'noted'
+    | 'already'
+    | 'no_row'
+    | 'plan_unknown'
+    | 'not_leela'
+    | 'dry_run'
+    | 'changed'
+    | 'failed'
+  item_id?: number
+  title?: string
+  error?: string
+}
+
+const asPlan = (v: unknown): number | null => {
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 1 && n <= 72 ? n : null
+}
+
+/** The plan a leela_plan result is about, or null for a failed lookup. */
+export function lookedUpPlan(r: ToolResultEvent): number | null {
+  if (r.name !== 'leela_plan' || !okOf(r.value)) return null
+  const v = r.value as Record<string, unknown> | null
+  return asPlan(v?.plan ?? r.args?.plan)
+}
+
+/**
+ * The Leela plan a finished reel is for: the reel's own props first, else
+ * the ONE plan looked up with leela_plan in this run. Two different plans
+ * looked up and no props is a guess, and a guess does not move her card.
+ * A reel of another composition is not one of her plan's reels at all.
+ */
+export function reelPlanOf(
+  reel: ToolResultEvent,
+  lookedUp: readonly number[]
+): { plan: number | null; leela: boolean } {
+  const composition = reel.args?.compositionId
+  if (composition !== undefined && composition !== LEELA_REEL_TEMPLATE)
+    return { plan: null, leela: false }
+  const props = reel.args?.props as Record<string, unknown> | undefined
+  const own = asPlan(props?.plan)
+  if (own !== null) return { plan: own, leela: true }
+  const distinct = [...new Set(lookedUp)]
+  return { plan: distinct.length === 1 ? distinct[0] : null, leela: true }
+}
+
+const PLAN_WORD = 'план'
+
+/**
+ * A card is about plan N when its title or note says "plan N", or its title
+ * opens with N ("68 on the start", "12 -> 8: the snake of Envy"). A bare N
+ * anywhere is not enough: "46 -> 62" is a card about 46, not 62, and "plan 6"
+ * must not claim the card of plan 68.
+ */
+export function namesPlan(
+  row: { title: string; note?: string | null },
+  plan: number
+): boolean {
+  const named = new RegExp(
+    `(?<![0-9${CYR}])${PLAN_WORD}\\s*№?\\s*${plan}(?![0-9])`,
+    'iu'
+  )
+  const leading = new RegExp(`^\\s*${plan}(?![0-9])`)
+  return (
+    named.test(row.title) ||
+    named.test(row.note ?? '') ||
+    leading.test(row.title)
+  )
+}
+
+type PlanRow = {
+  id: number
+  title: string
+  note: string | null
+  status: string
+}
+
+/**
+ * Move her card for plan N to `doing` and record the reel in its note.
+ *
+ * WHO MAY CALL THIS. It writes rows under ANOTHER person's telegram_id, which
+ * is legitimate only inside runDuet: the duet starts behind the owner check
+ * and the buyer's own connected account (crm_duet: requireOwner + isSeller),
+ * the same gate crm_client_setup uses to install this very plan. There is no
+ * tool for it on purpose.
+ *
+ * The write is compare-and-set on the status and note it read, so an edit
+ * she makes meanwhile is never overwritten; `done` cards are not read at all.
+ */
+export async function linkReelToPlan(
+  pool: RunsPool | undefined,
+  p: { buyer: string; plan: number; url: string; runId: string }
+): Promise<PlanLink> {
+  const base = { plan: p.plan, url: p.url }
+  if (!pool || typeof pool.query !== 'function')
+    return { ...base, result: 'failed', error: 'no database' }
+  try {
+    const r = await pool.query(
+      `SELECT id, title, note, status FROM content_plan_items
+        WHERE telegram_id = $1 AND template_id = $2
+          AND status IN ('idea', 'doing')
+        ORDER BY id`,
+      [p.buyer, LEELA_REEL_TEMPLATE]
+    )
+    // The SQL decides which cards may move at all (never `done`); here only
+    // which one: a card still an idea before one already in work.
+    const rows = (r.rows ?? []) as PlanRow[]
+    const mine = rows.filter(row => namesPlan(row, p.plan))
+    const row = mine.find(x => x.status === 'idea') ?? mine[0]
+    if (!row) return { ...base, result: 'no_row' }
+    const card = { item_id: Number(row.id), title: String(row.title) }
+    const note = row.note ?? ''
+    if (note.includes(p.url)) return { ...base, ...card, result: 'already' }
+    const line = `Рилс из дуэта ${p.runId}, черновик — ждёт вашего одобрения: ${p.url}`
+    // `telegram_id` here repeats the SELECT's: the id already came from her
+    // rows, so no test can see it -- it is kept for a write under another
+    // person's id, not claimed as tested.
+    const u = await pool.query(
+      `UPDATE content_plan_items
+          SET status = 'doing', note = $3, updated_at = now()
+        WHERE id = $1 AND telegram_id = $2 AND status = $4
+          AND note IS NOT DISTINCT FROM $5
+        RETURNING id`,
+      [row.id, p.buyer, note ? `${note}\n${line}` : line, row.status, row.note]
+    )
+    if (!u.rows?.length) return { ...base, ...card, result: 'changed' }
+    return {
+      ...base,
+      ...card,
+      result: row.status === 'idea' ? 'moved' : 'noted',
+    }
+  } catch (e) {
+    return { ...base, result: 'failed', error: String(e).slice(0, 200) }
+  }
+}
+
+/** One line of the owner's report about a turn's reel and her plan. */
+export function planLinkLine(t: number, l: PlanLink): string {
+  const card = l.title ? `«${l.title}»` : ''
+  const plan = l.plan === null ? '' : `план ${l.plan}`
+  switch (l.result) {
+    case 'moved':
+      return `turn ${t}: ${plan} — карточка ${card} idea → doing, рилс в заметке`
+    case 'noted':
+      return `turn ${t}: ${plan} — карточка ${card} уже в работе, рилс добавлен в заметку`
+    case 'already':
+      return `turn ${t}: ${plan} — этот рилс уже записан в карточке ${card}`
+    case 'no_row':
+      return `turn ${t}: ${plan} — в её плане нет карточки ${LEELA_REEL_TEMPLATE} для этого плана в статусе idea/doing, ничего не записано`
+    case 'plan_unknown':
+      return `turn ${t}: рилс без номера плана (нет props.plan и ровно одного leela_plan) — в план не записан`
+    case 'not_leela':
+      return `turn ${t}: рилс не по шаблону ${LEELA_REEL_TEMPLATE} — в план не записан`
+    case 'dry_run':
+      return `turn ${t}: ${plan} — dry_run, её план не тронут`
+    case 'changed':
+      return `turn ${t}: ${plan} — карточка ${card} изменилась во время прогона, не тронута`
+    default:
+      return `turn ${t}: ${plan} — план не обновлён: ${l.error ?? 'ошибка'}`
+  }
+}
+
+/** A call's arguments: the envelope carries a JSON string, a double an object. */
+function argsOf(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>
+  if (typeof raw !== 'string') return {}
+  try {
+    const v = JSON.parse(raw)
+    return v && typeof v === 'object' ? (v as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** The plan link of a turn that produced a reel, before and after the write. */
+async function planLinkFor(
+  run: DuetRun,
+  ownerCtx: ToolContext,
+  reel: ToolResultEvent,
+  lookedUp: readonly number[]
+): Promise<PlanLink> {
+  const url = mediaOf(reel.value) ?? ''
+  const { plan, leela } = reelPlanOf(reel, lookedUp)
+  if (!leela) return { plan: null, url, result: 'not_leela' }
+  if (plan === null) return { plan: null, url, result: 'plan_unknown' }
+  if (run.dry_run) return { plan, url, result: 'dry_run' }
+  return linkReelToPlan(ownerCtx.pool as RunsPool | undefined, {
+    buyer: run.buyer,
+    plan,
+    url,
+    runId: run.id,
+  })
+}
+
 /** Drain one seller turn: text, tool results, media. */
 export async function sellerTurn(
   deps: DuetDeps,
   history: ChatMessage[],
   ctx: ToolContext,
-  opts?: { denyTools?: ReadonlySet<string> }
+  opts?: ToolDenial
 ): Promise<{ text: string; results: ToolResultEvent[]; error?: string }> {
   const parts: string[] = []
   const results: ToolResultEvent[] = []
   let error: string | undefined
+  // The agent announces each call (name, arguments) just before its result;
+  // the arguments are what tell a Leela reel's plan (reelPlanOf).
+  let announced: { name: string; args: Record<string, unknown> } | null = null
   for await (const ev of deps.agent(history, ctx, opts)) {
     const e = ev as unknown as Record<string, unknown>
     const kind = String(e['тип'] ?? e.kind ?? '') // cyrillic-ok
     if (kind === 'текст' || kind === 'text')
       parts.push(String(e['текст'] ?? e.text ?? '')) // cyrillic-ok
-    else if (kind === 'результат' || kind === 'result')
-      // cyrillic-ok
+    else if (kind === 'инструмент' || kind === 'tool')
+      announced = {
+        name: String(e['имя'] ?? e.name ?? ''),
+        args: argsOf(e['аргументы'] ?? e.args),
+      }
+    else if (kind === 'результат' || kind === 'result') {
+      const name = String(e['имя'] ?? e.name ?? '')
       results.push({
-        name: String(e['имя'] ?? e.name ?? ''), // cyrillic-ok
-        value: e['значение'] ?? e.value, // cyrillic-ok
-        ms: Number(e['мс'] ?? e.ms ?? 0), // cyrillic-ok
+        name,
+        value: e['значение'] ?? e.value,
+        ms: Number(e['мс'] ?? e.ms ?? 0),
+        ...(announced?.name === name ? { args: announced.args } : {}),
       })
-    else if (kind === 'ошибка' || kind === 'error')
+      announced = null
+    } else if (kind === 'ошибка' || kind === 'error')
       error = String(e['текст'] ?? e.text ?? '') // cyrillic-ok
   }
   const text = parts
@@ -761,6 +1190,9 @@ export async function runDuet(
   ]
   const linksSent = new Set<string>()
   let lastMedia: string | null = null
+  // Plans looked up with leela_plan in this run: the plan of a reel whose
+  // props do not name one (reelPlanOf).
+  const plansLookedUp: number[] = []
   // Run duet-mtzyg2t6: turn 2 hit a provider rate limit, the loop broke and
   // the run was stored as `done` with 3 of 8 lines and no error. A run that
   // did not play every turn is `failed` and keeps the turn's error
@@ -770,7 +1202,10 @@ export async function runDuet(
     for (let i = 0; i < run.turns * 2; i++) {
       const fromSeller = i % 2 === 0
       if (fromSeller) {
-        const gate = { denyTools: deniedToolsFor(i / 2) }
+        const gate: ToolDenial = {
+          denyTools: deniedToolsFor(i / 2),
+          denyReasons: DUET_DENY_REASONS,
+        }
         let { text, results, error } = await sellerTurn(
           deps,
           seller,
@@ -841,7 +1276,7 @@ export async function runDuet(
         }
         // Discovery turns: a line that assumes shared history ("you liked",
         // "as we agreed") gets one rewrite; a second miss is sent and reported.
-        if (gate.denyTools && claimsFamiliarity(text)) {
+        if (isDiscoveryTurn(i / 2) && claimsFamiliarity(text)) {
           seller.push({ role: 'assistant', content: text })
           seller.push({
             role: 'user',
@@ -858,6 +1293,24 @@ export async function runDuet(
             claimsFamiliarity(text)
               ? `turn ${i} (после правки): ссылка на несуществующую договорённость` // cyrillic-ok
               : `turn ${i}: ссылка на несуществующую договорённость — переписано` // cyrillic-ok
+          )
+        }
+        // Any turn: an agent claiming a person's practice of the game ("I threw
+        // the die myself, it is my daily work") gets one rewrite about the
+        // product and the canon; a second miss is sent and reported.
+        if (claimsLivedExperience(text)) {
+          seller.push({ role: 'assistant', content: text })
+          seller.push({ role: 'user', content: LIVED_EXPERIENCE_REWRITE })
+          const again = await sellerTurn(deps, seller, ownerCtx, gate)
+          if (again.text) {
+            text = again.text
+            results = [...results, ...again.results]
+            error = error ?? again.error
+          }
+          run.violations.push(
+            claimsLivedExperience(text)
+              ? `turn ${i} (после правки): личный опыт от лица человека`
+              : `turn ${i}: личный опыт от лица человека — переписано`
           )
         }
         if (sellerGenderSlip(text))
@@ -879,10 +1332,15 @@ export async function runDuet(
           c.calls++
           if (r.ok) c.ok++
           else c.fail++
-          if (refusedOf(results.find(x => x.name === r.name)?.value)) {
+          const refused = refusedOf(results.find(x => x.name === r.name)?.value)
+          if (refused && DUET_NEVER.has(r.name)) {
+            run.violations.push(
+              `turn ${i}: ${r.name} в дуэте — отклонён (согласие персоны не согласие клиента)`
+            )
+          } else if (refused) {
             run.violations.push(`turn ${i}: ${r.name} до discovery — отклонён`) // cyrillic-ok
           } else if (PAID_TOOLS.has(r.name)) run.paid_calls++
-          if (FORBIDDEN_FOR_SELLER.test(r.name))
+          if (FORBIDDEN_FOR_SELLER.test(r.name) && !refused)
             run.violations.push(`turn ${i}: ${r.name}`)
           if (profile && OFF_BRAND_FOR_CLIENT.has(r.name))
             run.violations.push(`turn ${i}: ${r.name} (не в стиле клиента)`) // cyrillic-ok
@@ -929,6 +1387,22 @@ export async function runDuet(
           }
           entry.sent = true
         }
+        // A reel made for one of her plans goes into HER plan, after it reached
+        // her (a failed send above ends the run before this line).
+        for (const r of results) {
+          const n = lookedUpPlan(r)
+          if (n !== null) plansLookedUp.push(n)
+        }
+        const reel = results.find(
+          r => r.name === 'reel_render' && mediaOf(r.value)
+        )
+        if (reel)
+          entry.plan_item = await planLinkFor(
+            run,
+            ownerCtx,
+            reel,
+            plansLookedUp
+          )
         seller.push({ role: 'assistant', content: text })
         buyer.push({
           role: 'user',
@@ -966,6 +1440,13 @@ export async function runDuet(
   return run
 }
 
+/** What each reel of the run did to her plan, turn by turn. */
+export function planLinesOf(run: DuetRun): string[] {
+  return run.transcript
+    .filter(t => t && t.plan_item)
+    .map(t => planLinkLine(t.i, t.plan_item as PlanLink))
+}
+
 /** The report the owner finds in Saved Messages when the run ends. */
 export function reportOf(run: DuetRun): string {
   const cov = Object.entries(run.coverage)
@@ -984,6 +1465,7 @@ export function reportOf(run: DuetRun): string {
     run.voice_flags.length
       ? `Проверка голоса: ${run.voice_flags.join('; ')}`
       : '',
+    ...planLinesOf(run).map(l => `План клиента: ${l}`),
     run.profile_used === false
       ? 'Профиль клиента не был настроен (crm_client_setup)'
       : '',
@@ -1108,7 +1590,11 @@ async function liveDeps(pool?: RunsPool): Promise<DuetDeps> {
     )
   return {
     agent: (history, ctx, o) =>
-      runAgent(history, ctx, { surface: 'business', denyTools: o?.denyTools }),
+      runAgent(history, ctx, {
+        surface: 'business',
+        denyTools: o?.denyTools,
+        denyReasons: o?.denyReasons,
+      }),
     buyerModel,
     persist: pool ? run => upsertRun(pool, run) : undefined,
     sendText: async (fromCtx, to, text) => {
