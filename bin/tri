@@ -99,6 +99,7 @@ tri — оболочка Trinity S³AI
   tri crm-source какая копия users/payments живая: Supabase или Railway
   tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
   tri drift      влито, но не выехало: сервис отвязан, main застрял или сборка падает
+  tri eyes       видит ли агент браузер человека: вкладки, снимок, описание от зрения
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
@@ -396,6 +397,7 @@ case "${1:-}" in
     fi
     ;;
 
+  eyes)   shift; bash "$ROOT/bin/helpers/eyes.sh" "$ROOT" "$@" ;;
   drift)
     # Merged is not shipped. 0 clear, 1 an anomaly (named), 2 could not look.
     shift; node "$ROOT/scripts/railway-drift.mjs" "$@" ;;
