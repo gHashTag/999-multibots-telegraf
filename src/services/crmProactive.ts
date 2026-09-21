@@ -20,6 +20,7 @@ import {
   itemsFromRows,
   itemsFromChats,
   scopedPrompt,
+  faceOfItem,
   itemMarker,
   progressLine,
   presetOf,
@@ -63,7 +64,11 @@ import { Markup } from 'telegraf'
 export type Draft = NonNullable<ОтветАгента['proposal']> // cyrillic-ok: pre-existing identifiers
 
 export interface SweepDeps {
-  ask: (telegramId: string, text: string) => Promise<ОтветАгента> // cyrillic-ok: pre-existing identifiers
+  ask: (
+    telegramId: string,
+    text: string,
+    o?: { faceOf?: string }
+  ) => Promise<ОтветАгента> // cyrillic-ok: pre-existing identifiers
   ingest: (telegramId: string) => Promise<unknown>
   push: (
     telegramId: string,
@@ -137,6 +142,11 @@ export interface SweepOpts {
   ingest?: boolean
   /** The user-turn marker written to the transcript. */
   label?: string
+  /**
+   * The one person a scoped turn works for (crmSweepScope.ts faceOfItem):
+   * the render draws people from THEIR face in it, never the owner's.
+   */
+  faceOf?: string
 }
 /** The render's ingest tool may walk dozens of dialogs; it is not quick. */
 const INGEST_TIMEOUT_MS = 170_000
@@ -698,9 +708,12 @@ export async function sweepOnce(
    * second attempt costs another turn of the same 180 s budget, which the
    * ten-minute ceiling above already accounts for.
    */
+  const face = opts.faceOf ? { faceOf: opts.faceOf } : undefined
   const ask = async (text: string): ReturnType<SweepDeps['ask']> => {
     try {
-      return await deps.ask(ownerId, text)
+      return face
+        ? await deps.ask(ownerId, text, face)
+        : await deps.ask(ownerId, text)
     } catch (e) {
       const dead = isTransportDeath(e)
       const aborted = isOurOwnAbort(e)
@@ -717,7 +730,9 @@ export async function sweepOnce(
           error: e instanceof Error ? e.message : String(e),
         }
       )
-      return await deps.ask(ownerId, text)
+      return face
+        ? await deps.ask(ownerId, text, face)
+        : await deps.ask(ownerId, text)
     }
   }
   try {
@@ -1162,7 +1177,8 @@ export function liveDeps(bot: Telegraf<MyContext>): SweepDeps {
   return {
     // toolsOnly: a model that only talks cannot do step 2 or 3, and its
     // answer would be filed as a failure anyway -- better an honest one.
-    ask: (owner, text) => спроситьАгента(owner, text, { toolsOnly: true }), // cyrillic-ok: pre-existing identifiers
+    ask: (owner, text, o) =>
+      спроситьАгента(owner, text, { toolsOnly: true, faceOf: o?.faceOf }), // cyrillic-ok: pre-existing identifiers
     ingest: ingestViaRender,
     pendingCard: pendingCardViaRender,
     push: (owner, draft, opts) =>
@@ -1599,6 +1615,7 @@ async function advanceScope(owner: string): Promise<void> {
       ingest: s.cursor === 0,
       label: itemMarker(item),
       holdMs: MENU_HOLD_MS,
+      faceOf: faceOfItem(item),
     })
     if (!scopes.has(owner)) return
     s.inFlight = false
