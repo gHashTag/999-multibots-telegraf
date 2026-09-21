@@ -103,11 +103,13 @@ const TOOL: Record<string, (a: any) => any> = {
     },
   }),
   feed_publish: a => ({
-    опубликовано: true,
+    сохранено: true, // cyrillic-ok: the tool answer field the model reads
+    опубликовано: false,
+    ждёт_одобрения: true, // cyrillic-ok: the tool answer field the model reads
     id: '99',
     создано: new Date().toISOString(),
     название: a?.name || 'mock',
-    в_ленте: true,
+    в_ленте: false,
   }),
   feed_unpublish: a => ({ снято: true, id: String(a?.id ?? 99) }),
   templates_list: () => ({
