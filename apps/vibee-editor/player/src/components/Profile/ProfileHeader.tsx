@@ -24,6 +24,7 @@ import { authHeaders } from '@/lib/apiFetch'
 import { FollowButton } from './FollowButton'
 import { SocialLinks } from './SocialLinks'
 import { useIsOwnProfile } from './useIsOwnProfile'
+import { useToast } from '@/hooks/useToast'
 
 interface ProfileHeaderProps {
   onEditClick?: () => void
@@ -37,6 +38,7 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
   const follow = useSetAtom(followUserAtom)
   const unfollow = useSetAtom(unfollowUserAtom)
   const openLogin = useSetAtom(openLoginAtom)
+  const toast = useToast()
 
   if (!profile) return null
 
@@ -52,25 +54,25 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
     profile.display_name || (isOwn && user?.first_name) || profile.username
 
   const handleFollowClick = async () => {
-    console.log(
-      '[Follow] Clicked, user:',
-      user?.id,
-      'target:',
-      profile.username
-    )
     if (!user) {
-      console.log('[Follow] No user, showing login modal')
       openLogin('follow')
       return
     }
 
-    if (profile.is_following) {
-      console.log('[Follow] Unfollowing...')
-      await unfollow(profile.username)
-    } else {
-      console.log('[Follow] Following...')
-      const result = await follow(profile.username)
-      console.log('[Follow] Result:', result)
+    const result = profile.is_following
+      ? await unfollow(profile.username)
+      : await follow(profile.username)
+
+    /*
+     * SAY WHY IT DID NOT WORK.
+     *
+     * The old branch logged the result to the console and returned. Every
+     * refusal -- and until this release every request was refused, because the
+     * route did not exist -- looked identical from the person's side: the
+     * count went to +1 and silently back down.
+     */
+    if (!result.ok && result.reason && result.reason !== 'not_signed_in') {
+      toast.error(result.reason)
     }
   }
 
