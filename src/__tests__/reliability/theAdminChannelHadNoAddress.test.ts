@@ -174,11 +174,14 @@ describe('nobody addresses the admin channel by hand', () => {
     ]
     for (const rel of FETCH_SENDERS) {
       const text = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+      // Since the host is chosen per bot (services/telegramApi.ts) a sender
+      // builds its URL with telegramApiFor(token); the literal host is the
+      // older shape of the same fact.
       expect(
         text,
         `${rel} no longer sends to Telegram -- move it off this list rather ` +
           `than leaving an assertion that passes by absence`
-      ).toContain('api.telegram.org')
+      ).toMatch(/api\.telegram\.org|telegramApiFor\(/)
       expect(
         text,
         `${rel} sends to Telegram with fetch and never reads resp.ok, so a ` +

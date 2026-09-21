@@ -26,6 +26,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { telegramApiFor, telegramFileUrlFor } from '../telegram-api'
 import { planTools } from './plan-tools'
 import { INNGEST_TOOLS } from './inngest-tools'
 import { WEB_TOOLS, webTaintRefusal } from './web-tools'
@@ -196,7 +197,7 @@ async function avatarUrlViaBotApi(tid: string): Promise<string> {
     ''
   if (!tid || !token) return ''
   try {
-    const api = `https://api.telegram.org/bot${token}`
+    const api = telegramApiFor(token)
     const list: any = await (
       await fetch(`${api}/getUserProfilePhotos?user_id=${tid}&limit=1`)
     ).json()
@@ -209,7 +210,8 @@ async function avatarUrlViaBotApi(tid: string): Promise<string> {
     ).json()
     const path = file?.result?.file_path
     if (!path) return ''
-    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${path}`)
+    // On our own Bot API server this is its private file endpoint.
+    const bin = await fetch(telegramFileUrlFor(token, path))
     if (!bin.ok) return ''
     const bytes = Buffer.from(await bin.arrayBuffer())
     return publishImageBytes(

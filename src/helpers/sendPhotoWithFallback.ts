@@ -50,6 +50,7 @@ export async function sendPhotoWithFallback(
     }
 
     // === Telegram file URL -> direct buffer upload ===
+    // telegram-api-root-ok: recognises a cloud file URL; it builds nothing.
     if (photoUrl.includes('api.telegram.org/file/bot')) {
       logger.info(
         '[sendPhotoWithFallback] Detected Telegram file URL, using buffer',

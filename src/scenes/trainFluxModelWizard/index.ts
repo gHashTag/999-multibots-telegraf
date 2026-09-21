@@ -6,6 +6,7 @@ import { isRussian } from '@/helpers/language'
 import { handleHelpCancel } from '@/navigation'
 import { getBotToken } from '@/handlers'
 import { sanitizeModelName } from '@/helpers/sanitizeModelName'
+import { telegramFileUrlFor } from '@/services/telegramApi'
 
 export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   'trainFluxModelWizard',
@@ -133,7 +134,7 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         }
         const botToken = getBotToken(ctx)
         const response = await fetch(
-          `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+          telegramFileUrlFor(botToken, file.file_path)
         )
 
         if (!response.ok) {

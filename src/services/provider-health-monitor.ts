@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { resolveAdminChatId } from '@/helpers/adminChatId'
+import { telegramApiFor } from '@/services/telegramApi'
 
 /**
  * WHAT KIND OF FAILURE THIS IS -- BECAUSE THE TWO NEED DIFFERENT ANSWERS.
@@ -278,19 +279,16 @@ async function notifyAdmin(message: string) {
   if (!chatId || !token) return
 
   try {
-    const resp = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'HTML',
-        }),
-        signal: AbortSignal.timeout(probeTimeoutMs()),
-      }
-    )
+    const resp = await fetch(`${telegramApiFor(token)}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+      }),
+      signal: AbortSignal.timeout(probeTimeoutMs()),
+    })
     if (!resp.ok) {
       logger.error('Provider alert was refused by Telegram', {
         chatId,

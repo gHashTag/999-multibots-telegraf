@@ -14,6 +14,7 @@ Monitor production logs in real-time, detect JavaScript errors, automatically cr
 ## 🤖 AUTONOMOUS OPERATION
 
 ### Real-Time Monitoring
+
 - **MCP Server Integration**: Use `autonomous-monitor` MCP server for live log streaming
 - **24/7 Operation**: Continuous monitoring via background process
 - **Instant Detection**: React to errors within seconds
@@ -28,6 +29,7 @@ Error Detected → Create Branch → Apply Fix → Test → Create PR → Notify
 ## 📋 WORKFLOW PHASES
 
 ### Phase 1: Error Detection
+
 ```bash
 # MCP server monitors logs and emits events
 # When error detected:
@@ -40,6 +42,7 @@ Error Detected → Create Branch → Apply Fix → Test → Create PR → Notify
 ```
 
 ### Phase 2: Branch Creation
+
 ```bash
 # Auto-generate branch name
 BRANCH_NAME="autofix/module-not-found-$(date +%s)"
@@ -54,6 +57,7 @@ git push -u origin $BRANCH_NAME
 ### Phase 3: Error Analysis & Fix
 
 **MODULE_NOT_FOUND**:
+
 ```bash
 # Extract module name
 MODULE=$(echo "$ERROR" | grep -oP "Cannot find module '\K[^']+")
@@ -75,6 +79,7 @@ npm run build
 ```
 
 **TYPE_ERROR / REFERENCE_ERROR**:
+
 ```bash
 # Extract file and line from stack trace
 FILE=$(echo "$ERROR" | grep -oP "at .* \(\K[^:]+")
@@ -86,6 +91,7 @@ LINE=$(echo "$ERROR" | grep -oP "at .* \([^:]+:\K[0-9]+")
 ```
 
 **SYNTAX_ERROR**:
+
 ```bash
 # Run TypeScript compiler
 npx tsc --noEmit
@@ -96,6 +102,7 @@ npx eslint --fix $FILES
 ```
 
 **UNHANDLED_REJECTION**:
+
 ```bash
 # Add proper error handling
 # Wrap in try-catch
@@ -103,6 +110,7 @@ npx eslint --fix $FILES
 ```
 
 ### Phase 4: Testing & Validation
+
 ```bash
 # Run TypeScript check
 npm run typecheck
@@ -118,6 +126,7 @@ ssh -i ~/.ssh/zomro root@188.137.250.69 'docker logs 999-multibots --tail 100' |
 ```
 
 ### Phase 5: Create Pull Request
+
 ```bash
 # Commit changes
 git add .
@@ -186,6 +195,7 @@ PREOF
 ```
 
 ### Phase 6: Telegram Notification
+
 ```bash
 # Notify admin via Telegram
 TELEGRAM_MESSAGE="🤖 **Autonomous Fix Created**
@@ -199,8 +209,13 @@ TELEGRAM_MESSAGE="🤖 **Autonomous Fix Created**
 
 View PR: $PR_URL"
 
-# Send notification
-curl -X POST "https://api.telegram.org/bot$NOTIFICATION_BOT_TOKEN/sendMessage" \
+# Send notification. The host comes from the bot service's own variables: a
+# bot on our own Bot API server must never be called on the cloud
+# (deployment/telegram-bot-api/README.md). Unreadable config -> no send.
+TG_ROOT=$(railway variables --service 999-multibots-telegraf --kv 2>/dev/null \
+  | BOT_API_TOKEN="$NOTIFICATION_BOT_TOKEN" node scripts/lib/telegram-api.cjs api-root --env-from-stdin) \
+  || { echo "notification skipped: cannot tell which Bot API holds this bot"; exit 0; }
+curl -X POST "${TG_ROOT}/bot$NOTIFICATION_BOT_TOKEN/sendMessage" \
   -H "Content-Type: application/json" \
   -d "{
     \"chat_id\": \"$ADMIN_TELEGRAM_ID\",
@@ -212,19 +227,21 @@ curl -X POST "https://api.telegram.org/bot$NOTIFICATION_BOT_TOKEN/sendMessage" \
 ## 🔧 MCP SERVER INTEGRATION
 
 ### Start Monitoring
+
 ```typescript
 // Use MCP server to start monitoring
-await mcp.call("autonomous-monitor", "start_monitoring");
+await mcp.call('autonomous-monitor', 'start_monitoring')
 
 // Subscribe to error events
-mcp.on("error_detected", async (error) => {
-  await handleError(error);
-});
+mcp.on('error_detected', async error => {
+  await handleError(error)
+})
 ```
 
 ### Check Status
+
 ```typescript
-const status = await mcp.call("autonomous-monitor", "get_status");
+const status = await mcp.call('autonomous-monitor', 'get_status')
 // {
 //   isMonitoring: true,
 //   errorCount: 5,
@@ -233,18 +250,21 @@ const status = await mcp.call("autonomous-monitor", "get_status");
 ```
 
 ### Manual Trigger
+
 ```typescript
-await mcp.call("autonomous-monitor", "trigger_autofix", {
-  errorType: "MODULE_NOT_FOUND",
-  errorMessage: "Cannot find module '@/services/video'"
-});
+await mcp.call('autonomous-monitor', 'trigger_autofix', {
+  errorType: 'MODULE_NOT_FOUND',
+  errorMessage: "Cannot find module '@/services/video'",
+})
 ```
 
 ## 📊 ERROR PATTERNS & FIXES
 
 ### 1. MODULE_NOT_FOUND
+
 **Pattern**: `Error: Cannot find module` or `MODULE_NOT_FOUND`
 **Fix Strategy**:
+
 1. Check if it's a path alias issue (`@/...`)
 2. Verify tsconfig.json paths configuration
 3. Run `npm run build:alias` to rebuild with aliases
@@ -252,8 +272,10 @@ await mcp.call("autonomous-monitor", "trigger_autofix", {
 5. Full Docker rebuild with `--no-cache`
 
 ### 2. TypeScript Errors
+
 **Pattern**: `TypeError:`, `ReferenceError:`
 **Fix Strategy**:
+
 1. Extract file and line number from stack trace
 2. Add type guards and null checks
 3. Fix type annotations
@@ -261,16 +283,20 @@ await mcp.call("autonomous-monitor", "trigger_autofix", {
 5. Apply ESLint fixes
 
 ### 3. Syntax Errors
+
 **Pattern**: `SyntaxError:`
 **Fix Strategy**:
+
 1. Run TypeScript compiler
 2. Fix compilation errors
 3. Apply auto-formatting
 4. Verify with `npm run typecheck`
 
 ### 4. Unhandled Promise Rejections
+
 **Pattern**: `UnhandledPromiseRejectionWarning`
 **Fix Strategy**:
+
 1. Locate promise without `.catch()`
 2. Wrap in try-catch or add `.catch()`
 3. Add proper error logging
@@ -279,24 +305,28 @@ await mcp.call("autonomous-monitor", "trigger_autofix", {
 ## 🔒 SAFETY PROTOCOLS
 
 ### Before Making Changes
+
 - ✅ Create isolated branch (never modify `production` directly)
 - ✅ Analyze error thoroughly before applying fix
 - ✅ Use existing code patterns and conventions
 - ✅ Preserve existing functionality
 
 ### During Fix Application
+
 - ✅ Make minimal, focused changes
 - ✅ Add comments explaining auto-fix
 - ✅ Run TypeScript compiler to catch issues early
 - ✅ Test that fix doesn't introduce new errors
 
 ### After Fix
+
 - ✅ Run full build and typecheck
 - ✅ Create detailed PR with error context
 - ✅ Notify admin immediately
 - ✅ Monitor logs for verification
 
 ### Never Do This
+
 - ❌ Push directly to `production` or `main`
 - ❌ Skip testing and validation
 - ❌ Apply fixes without understanding the error
@@ -306,6 +336,7 @@ await mcp.call("autonomous-monitor", "trigger_autofix", {
 ## 📱 TELEGRAM INTEGRATION
 
 ### Setup Environment Variables
+
 ```bash
 # In production .env
 ADMIN_TELEGRAM_ID=YOUR_TELEGRAM_ID
@@ -315,6 +346,7 @@ NOTIFICATION_BOT_TOKEN=YOUR_BOT_TOKEN
 ### Notification Templates
 
 **Error Detected**:
+
 ```
 🚨 **Error Detected in Production**
 
@@ -326,6 +358,7 @@ NOTIFICATION_BOT_TOKEN=YOUR_BOT_TOKEN
 ```
 
 **Fix Created**:
+
 ```
 🔧 **Auto-Fix in Progress**
 
@@ -335,6 +368,7 @@ NOTIFICATION_BOT_TOKEN=YOUR_BOT_TOKEN
 ```
 
 **PR Created**:
+
 ```
 ✅ **Pull Request Ready**
 
@@ -348,6 +382,7 @@ Please review and merge if approved.
 ## 🎛️ CONFIGURATION
 
 ### Enable Auto-Fix
+
 ```json
 {
   "autonomousMode": true,
@@ -360,6 +395,7 @@ Please review and merge if approved.
 ```
 
 ### Error Thresholds
+
 ```json
 {
   "errorThreshold": {
@@ -374,6 +410,7 @@ Please review and merge if approved.
 ## 🚀 USAGE
 
 ### Start Autonomous Monitoring
+
 ```bash
 # Via Claude Code
 "Start autonomous error monitoring for production server"
@@ -383,16 +420,19 @@ Please review and merge if approved.
 ```
 
 ### Check Status
+
 ```bash
 "What's the autonomous monitor status?"
 ```
 
 ### Manual Fix Trigger
+
 ```bash
 "Trigger autofix for MODULE_NOT_FOUND error in logs"
 ```
 
 ### Stop Monitoring
+
 ```bash
 /autonomous-monitor stop
 ```
@@ -400,6 +440,7 @@ Please review and merge if approved.
 ## 📈 REPORTING
 
 ### Daily Summary
+
 ```
 📊 **Autonomous Monitor - Daily Report**
 
