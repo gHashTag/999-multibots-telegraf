@@ -53,7 +53,7 @@ import {
   readProfileId,
   forgetProfile,
 } from './profiles'
-import { fitDesktop, wantedScreen } from './screen'
+import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
 
@@ -399,10 +399,11 @@ async function fit(
   url: string
 ): Promise<RouteResult> {
   const q = new URLSearchParams(url.split('?')[1] || '')
-  const want = wantedScreen({
-    width: Number(q.get('w')),
-    height: Number(q.get('h')),
-  })
+  const box = { width: Number(q.get('w')), height: Number(q.get('h')) }
+  /* A hidden box is not asking for anything (screen.ts isVisibleBox). */
+  if (!isVisibleBox(box))
+    return { status: 200, body: { ok: true, ignored: 'hidden' } }
+  const want = wantedScreen(box)
 
   const session = await readSession(pool, who)
   if (!session || session.state !== 'live' || !session.endpoint) {

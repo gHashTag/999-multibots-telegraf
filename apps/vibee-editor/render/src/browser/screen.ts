@@ -70,6 +70,30 @@ export const SNAP = 8
 const snap = (n: number): number => Math.round(n / SNAP) * SNAP
 
 /**
+ * IS THIS A BOX SOMEBODY IS LOOKING AT?
+ *
+ * A hidden frame measures 0 x 0 -- the app keeps its Browser tab mounted
+ * while the person is elsewhere, and a window with display:none still fires
+ * `resize`. wantedScreen read that 0 as "the smallest screen there is" and
+ * the pod shrank to it; the next visible window asked for its own size back.
+ * Measured on the pod 2026-09-21 22:04: the video pipeline torn down and
+ * rebuilt more than ten times in a minute while the owner, with the app's
+ * tab kept and the Queen's BROWSER tab open, looked at a black window. Every
+ * size request restarts the video, even a refused one.
+ *
+ * So a box under 2 px on either side is not a request at all: the pod is
+ * left alone. NaN and missing values are the same answer.
+ */
+export function isVisibleBox(box: { width: number; height: number }): boolean {
+  return (
+    Number.isFinite(box.width) &&
+    Number.isFinite(box.height) &&
+    box.width >= 2 &&
+    box.height >= 2
+  )
+}
+
+/**
  * The size to ask the pod for, given the box the person is watching in.
  *
  * It is the viewer's own box, NOT the device's full screen: what matters is

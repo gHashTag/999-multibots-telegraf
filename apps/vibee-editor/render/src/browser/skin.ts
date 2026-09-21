@@ -968,6 +968,7 @@ export const FIT_SCRIPT = `
 (function () {
   var last = null;
   var timer = null;
+  var hidden = false;
   function want() { return { w: window.innerWidth, h: window.innerHeight }; }
   function worth(next) {
     if (!last) return true;
@@ -976,9 +977,18 @@ export const FIT_SCRIPT = `
     var off = function (a, b) { return Math.abs(a - b) / Math.max(a, b, 1); };
     return off(last.w, next.w) > 0.1 || off(last.h, next.h) > 0.1;
   }
+  // A window nobody is looking at does not get to shape the screen: a hidden
+  // frame measures 0, and a background tab is somebody else's turn. Every size
+  // request restarts the video, so two windows asking in turn is a black
+  // picture for both (screen.ts isVisibleBox has the measurement).
+  function looked() {
+    return document.visibilityState === 'visible' && window.innerWidth >= 2 && window.innerHeight >= 2;
+  }
   function fit() {
     var m = location.pathname.match(/^\\/live\\/([^/]+)/);
     if (!m) return;
+    if (!looked()) { hidden = true; return; }
+    if (hidden) { hidden = false; last = null; }
     var next = want();
     if (!worth(next)) return;
     last = next;
@@ -990,6 +1000,11 @@ export const FIT_SCRIPT = `
   fit();
   window.addEventListener('resize', later);
   window.addEventListener('orientationchange', later);
+  // Coming back into view, this window takes the screen back once: another
+  // window may have shaped it while this one was hidden.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') { last = null; later(); }
+  });
 })();
 `.replace('__FIT__', FIT_PATH)
 
