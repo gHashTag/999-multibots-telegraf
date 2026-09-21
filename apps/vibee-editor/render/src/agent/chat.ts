@@ -451,13 +451,24 @@ export async function clientContextBlock(
   let name = lead
   const parts: string[] = []
   try {
-    const { clientProfileFor } = await import('./crm-client-setup-tool')
+    const { clientProfileFor, profileForPrompt } = await import(
+      './crm-client-setup-tool'
+    )
     const p = await clientProfileFor(ctx, lead)
     if (p.has_profile) {
       if (typeof p.client === 'string' && p.client) name = p.client
       parts.push(
         'ПРОФИЛЬ КЛИЕНТА (crm_client_profile):\n' +
-          foreignText(JSON.stringify(p.profile ?? {}).slice(0, 3000))
+          /*
+           * The limit is explicit because foreignText's default is 2000 --
+           * below the size of both real packages, so the fence was quietly
+           * cutting the profile a second time after the slice already had.
+           * It stays a fence: a profile is built from what the client wrote.
+           */
+          foreignText(
+            profileForPrompt((p.profile ?? {}) as Record<string, unknown>),
+            { limit: 6500 }
+          )
       )
     } else {
       parts.push('Профиль клиента не настроен (crm_client_setup).')

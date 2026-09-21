@@ -486,6 +486,59 @@ export async function setupClient(
   return report
 }
 
+/**
+ * The keys that must survive a truncation, in the order they must survive it.
+ *
+ * A profile goes into the prompt as JSON under a character budget, and the
+ * budget used to be a blind `slice()`: it cut mid-string, produced invalid
+ * JSON, and -- because the rules sit late in the file -- the first things it
+ * dropped were the client's name, the name he is NOT, and the list of things
+ * never to say to him. Those are the whole reason the profile exists.
+ */
+const PROMPT_PRIORITY = [
+  'name',
+  'not_name',
+  'handle',
+  'role',
+  'identity_rules',
+  'forbidden',
+  'forbidden_claims',
+  'how_to_work_with_him',
+  'legal_note',
+  'relationship',
+  'open_work',
+  'incidents',
+  'business',
+]
+
+/**
+ * A profile rendered for the system prompt: still valid JSON, rules first,
+ * and whatever did not fit named out loud rather than silently lost.
+ */
+export function profileForPrompt(
+  profile: Record<string, unknown>,
+  budget = 6000
+): string {
+  const keys = Object.keys(profile ?? {})
+  const rank = (k: string) => {
+    const i = PROMPT_PRIORITY.indexOf(k)
+    return i < 0 ? PROMPT_PRIORITY.length + keys.indexOf(k) : i
+  }
+  const kept: Record<string, unknown> = {}
+  const dropped: string[] = []
+  for (const k of [...keys].sort((a, b) => rank(a) - rank(b))) {
+    const next = { ...kept, [k]: profile[k] }
+    if (JSON.stringify(next).length > budget) {
+      dropped.push(k)
+      continue
+    }
+    kept[k] = profile[k]
+  }
+  const body = JSON.stringify(kept)
+  if (!dropped.length) return body
+  return `${body}\n(в профиле есть ещё, не влезло в контекст: ${dropped.join(', ')} — читается через crm_client_profile)` // cyrillic-ok
+}
+
 /** What a seller may learn about a client before the first message. */
 export async function clientProfileFor(
   ctx: ToolContext,
