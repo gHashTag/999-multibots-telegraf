@@ -81,7 +81,7 @@ RUN npm run build
 FROM node:20-alpine AS queen
 WORKDIR /queen
 ARG QUEEN_REPO=https://github.com/gHashTag/trinity.git
-ARG QUEEN_REF=2c7330175fa58d782d6286e0c5858deed77cda6d
+ARG QUEEN_REF=2fc3f2a5dddc0a301e690c044945d4bf6c4695a3
 RUN apk add --no-cache git
 
 # fetch-by-SHA rather than `clone --branch`: a tag or branch name can be moved
