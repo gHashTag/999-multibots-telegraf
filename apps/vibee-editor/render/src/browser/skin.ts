@@ -665,6 +665,24 @@ html[data-t27-face] .members .self .avatar {
   display: none !important;
 }
 
+/*
+ * THE EMOJI LAYER IS GLASS, NOT A SHEET.
+ *
+ * neko draws flying emoji in .player-container > .emotes, an absolute layer
+ * exactly the size of the picture. Two rules above paint ".emotes" in the bar's
+ * colour -- meant for the emoji picker down in the controls -- and they hit
+ * this layer too: an opaque #111 sheet over the whole stream that also took
+ * every click. Measured 2026-09-21 in a live viewer: the video playing at
+ * 704x592 with real frames (mean luma 22, max 205), elementFromPoint at the
+ * centre answering DIV.emotes, background rgb(17,17,17), pointer-events auto.
+ * The owner saw a grey window where the browser should be, and a click did
+ * nothing. Made transparent and click-through, the picture was there.
+ */
+.player-container > .emotes {
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
 /* ── buttons are pills ────────────────────────────────────────────────── */
 #neko button, .room-menu button, .controls button {
   border-radius: 16px !important;
