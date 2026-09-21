@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   isTrouble,
+  inADuet,
+  DUET_OPEN_MS,
+  DUET_TAIL_MS,
   checkWaitingClients,
   whoIsWaiting,
   lineFor,
@@ -34,11 +37,36 @@ type Lead = {
   notedAt?: number
 }
 
-const poolOf = (leads: Lead[]) => {
+const poolOf = (
+  leads: Lead[],
+  duets: Array<{
+    owner: string
+    buyer: string
+    start: number
+    end: number | null
+    dry?: boolean
+  }> = []
+) => {
   const written: Array<Record<string, unknown>> = []
   return {
     written,
     query: async (sql: string, params?: unknown[]) => {
+      if (/FROM crm_duet_runs/.test(sql)) {
+        // The SQL keeps real runs only; the double does exactly that and no more.
+        if (!/NOT dry_run/.test(sql))
+          throw new Error('dry runs must be excluded in SQL')
+        return {
+          rows: duets
+            .filter(d => !d.dry)
+            .map(d => ({
+              owner_id: d.owner,
+              buyer_id: d.buyer,
+              started_at: new Date(d.start).toISOString(),
+              finished_at:
+                d.end === null ? null : new Date(d.end).toISOString(),
+            })),
+        }
+      }
       if (/INSERT INTO hive_events/.test(sql)) {
         written.push({
           kind: params?.[0],
@@ -329,5 +357,113 @@ describe('trouble words', () => {
       'всё зависит от вас', // cyrillic-ok: "depends", test data
     ])
       expect(isTrouble(t), t).toBe(false)
+  })
+})
+
+/*
+ * 2026-09-21: a live duet ended on the persona's line, and the watcher paged
+ * "has been waiting 3 h" about words a model wrote from the second account.
+ */
+describe('a duet is a rehearsal, not a client', () => {
+  const lead = (lastIn: number) => ({
+    owner: '900000201',
+    lead: '900000351',
+    lastIn,
+    lastOut: null,
+  })
+
+  it('a line written during a real duet with that person is not waiting', async () => {
+    const pool = poolOf(
+      [lead(T - 4 * HOUR)],
+      [
+        {
+          owner: '900000201',
+          buyer: '900000351',
+          start: T - 4 * HOUR - 10 * 60_000,
+          end: T - 4 * HOUR + 60_000,
+        },
+      ]
+    )
+    expect(await whoIsWaiting(pool as never, T)).toEqual([])
+  })
+
+  it('a real message after the duet ended is waiting again', async () => {
+    const pool = poolOf(
+      [lead(T - 4 * HOUR)],
+      [
+        {
+          owner: '900000201',
+          buyer: '900000351',
+          start: T - 6 * HOUR,
+          end: T - 5 * HOUR,
+        },
+      ]
+    )
+    expect((await whoIsWaiting(pool as never, T)).map(p => p.lead)).toEqual([
+      '900000351',
+    ])
+  })
+
+  it('a duet with somebody else, or under another owner, changes nothing', async () => {
+    for (const d of [
+      {
+        owner: '900000201',
+        buyer: '900000399',
+        start: T - 5 * HOUR,
+        end: T - 3 * HOUR,
+      },
+      {
+        owner: '900000299',
+        buyer: '900000351',
+        start: T - 5 * HOUR,
+        end: T - 3 * HOUR,
+      },
+    ]) {
+      const pool = poolOf([lead(T - 4 * HOUR)], [d])
+      expect((await whoIsWaiting(pool as never, T)).map(p => p.lead)).toEqual([
+        '900000351',
+      ])
+    }
+  })
+
+  it('a dry run sends nothing, so it excuses nothing', async () => {
+    const pool = poolOf(
+      [lead(T - 4 * HOUR)],
+      [
+        {
+          owner: '900000201',
+          buyer: '900000351',
+          start: T - 5 * HOUR,
+          end: T - 3 * HOUR,
+          dry: true,
+        },
+      ]
+    )
+    expect((await whoIsWaiting(pool as never, T)).map(p => p.lead)).toEqual([
+      '900000351',
+    ])
+  })
+
+  it('an unfinished run counts as open for a while, then stops excusing', () => {
+    const w = [
+      { owner: 'o', buyer: 'l', from: 0, to: DUET_OPEN_MS + DUET_TAIL_MS },
+    ]
+    expect(inADuet('o', 'l', DUET_OPEN_MS, w)).toBe(true)
+    expect(inADuet('o', 'l', DUET_OPEN_MS + DUET_TAIL_MS + 1, w)).toBe(false)
+  })
+
+  it('a base without the duet table keeps the watcher working', async () => {
+    const pool = poolOf([lead(T - 4 * HOUR)])
+    const failing = {
+      ...pool,
+      query: async (sql: string, params?: unknown[]) => {
+        if (/FROM crm_duet_runs/.test(sql))
+          throw new Error('relation does not exist')
+        return pool.query(sql, params)
+      },
+    }
+    expect((await whoIsWaiting(failing as never, T)).map(p => p.lead)).toEqual([
+      '900000351',
+    ])
   })
 })

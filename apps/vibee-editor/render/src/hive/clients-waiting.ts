@@ -142,6 +142,71 @@ interface Row {
  * The whole base in one query: the alternative is a query per owner, and the
  * report's tick is not a place to open hundreds of round trips.
  */
+/*
+ * A DUET IS A REHEARSAL, NOT A CLIENT.
+ *
+ * crm_duet writes from two connected sessions: the owner's seller and a
+ * persona model answering from the second person's account. Every persona
+ * line lands in crm_messages as an inbound message to the owner, so when a
+ * duet ends on the persona's line the watcher saw a client left waiting --
+ * on 2026-09-21 it paged "has been waiting 3 h" about a line a model wrote.
+ *
+ * A message that arrived while a real (not dry) duet with that person was
+ * running, or within DUET_TAIL_MS of its end, is not somebody waiting. The
+ * windows are read on their own and matched here rather than in the SQL, so
+ * a base without the duet table loses only this refinement, not the watcher.
+ */
+export const DUET_TAIL_MS = 5 * 60_000
+/** A run with no finish time counts as open this long after it started. */
+export const DUET_OPEN_MS = 30 * 60_000
+
+export interface DuetWindow {
+  owner: string
+  buyer: string
+  from: number
+  to: number
+}
+
+export function inADuet(
+  owner: string,
+  lead: string,
+  at: number,
+  windows: DuetWindow[]
+): boolean {
+  return windows.some(
+    w => w.owner === owner && w.buyer === lead && at >= w.from && at <= w.to
+  )
+}
+
+async function duetWindows(pool: JournalPool): Promise<DuetWindow[]> {
+  try {
+    const r = await pool.query(
+      `SELECT owner_id, buyer_id, started_at, finished_at
+         FROM crm_duet_runs
+        WHERE NOT dry_run AND started_at > now() - interval '31 days'`,
+      []
+    )
+    return ((r.rows ?? []) as Array<Record<string, unknown>>).flatMap(row => {
+      const from = new Date(String(row.started_at)).getTime()
+      if (!Number.isFinite(from)) return []
+      const end = row.finished_at
+        ? new Date(String(row.finished_at)).getTime()
+        : from + DUET_OPEN_MS
+      return [
+        {
+          owner: String(row.owner_id),
+          buyer: String(row.buyer_id),
+          from,
+          to: (Number.isFinite(end) ? end : from + DUET_OPEN_MS) + DUET_TAIL_MS,
+        },
+      ]
+    })
+  } catch {
+    // No duet table on this base: nothing to exclude.
+    return []
+  }
+}
+
 export async function whoIsWaiting(
   pool: JournalPool,
   now: number
@@ -167,9 +232,12 @@ export async function whoIsWaiting(
   )
   const out: WaitingPerson[] = []
   let tooOld = 0
+  const duets = await duetWindows(pool)
   for (const raw of (r.rows ?? []) as Row[]) {
     const lastIn = raw.last_in ? new Date(raw.last_in).getTime() : NaN
     if (!Number.isFinite(lastIn)) continue
+    if (inADuet(String(raw.owner_id), String(raw.lead_id), lastIn, duets))
+      continue
     const waitedMs = now - lastIn
     if (waitedMs < WAITING_MS) continue
     // History, not a queue -- see TOO_OLD_MS. Counted by the caller so the
