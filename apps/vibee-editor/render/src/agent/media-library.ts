@@ -1302,7 +1302,7 @@ export async function forgetTranscripts(
   pool: Pool,
   owner: string,
   lead: string,
-  kind: 'image' | 'audio' | 'video'
+  kind: MediaKind
 ): Promise<number> {
   await ensureTable(pool)
   const r = await pool.query(
@@ -1315,9 +1315,15 @@ export async function forgetTranscripts(
 
 /**
  * Forget failed attempts for one lead so `pendingTranscripts` offers the
- * rows again. Image and audio always; video only once a vision endpoint is
- * configured (before that a video null was final and stays so); binary
- * files are final nulls.
+ * rows again. Image and audio always; video once anything here can take one
+ * -- a vision endpoint for the picture, or the transcriber for its speech
+ * (before either, a video null was final and stays so).
+ *
+ * And a PDF, office file or archive (2026-09-22). Until media-extract.ts every
+ * such file was closed with a final null, `transcribed_at` set -- so the
+ * files people had ALREADY sent would never be read, only new ones. They are
+ * picked by the readers' own rule, `documentFormat`, rather than a second
+ * list in SQL; any other binary file is still a final null.
  */
 export async function reopenUnread(
   pool: Pool,
@@ -1325,16 +1331,43 @@ export async function reopenUnread(
   lead: string
 ): Promise<number> {
   await ensureTable(pool)
-  const kinds = visionConfig()
-    ? ['image', 'audio', 'video']
-    : ['image', 'audio']
+  const kinds =
+    visionConfig() || whisperConfig()
+      ? ['image', 'audio', 'video']
+      : ['image', 'audio']
   const r = await pool.query(
     `UPDATE user_media SET transcribed_at = NULL
       WHERE owner_id = $1 AND lead_id = $2 AND transcript IS NULL
         AND transcribed_at IS NOT NULL AND kind = ANY($3::text[])`,
     [owner, lead, kinds]
   )
-  return Number((r as { rowCount?: number }).rowCount ?? 0)
+  let reopened = Number((r as { rowCount?: number }).rowCount ?? 0)
+  const files = await pool.query(
+    `SELECT id, name, mime, url FROM user_media
+      WHERE owner_id = $1 AND lead_id = $2 AND kind = 'file'
+        AND transcript IS NULL AND transcribed_at IS NOT NULL`,
+    [owner, lead]
+  )
+  const ids = (
+    files.rows as Array<{
+      id: number | string
+      name: string | null
+      mime: string | null
+      url: string
+    }>
+  )
+    .filter(x => documentFormat(x.mime, x.name) && !isTelegramFileUrl(x.url))
+    .map(x => String(x.id))
+  if (ids.length) {
+    const f = await pool.query(
+      `UPDATE user_media SET transcribed_at = NULL
+        WHERE owner_id = $1 AND lead_id = $2 AND id = ANY($3::bigint[])
+          AND transcript IS NULL`,
+      [owner, lead, ids]
+    )
+    reopened += Number((f as { rowCount?: number }).rowCount ?? 0)
+  }
+  return reopened
 }
 
 /* ── the memory text ──────────────────────────────────────────────────── */

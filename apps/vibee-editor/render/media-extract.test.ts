@@ -142,6 +142,255 @@ describe('office documents are read from their own XML', () => {
   })
 })
 
+/*
+ * THE WHOLE DOCUMENT HAS ONE BUDGET, AND THE SERVER'S THREAD IS NOT SPENT ON IT.
+ *
+ * Review of 2026-09-22, measured on the first version: every member was
+ * capped at 16 MB and nothing else, on the render server's one event loop. A
+ * workbook naming one sheet many times inflated it every time (17 KB of file,
+ * 20 s blocked; 45 KB, hours); a deck built every slide to keep 4000
+ * characters; and a lazy `[\s\S]*?` hunting for a closing tag that is not
+ * there rescanned the rest of the file from every opening tag -- 74 s for a
+ * 1 KB workbook. Each case below took seconds to hours before; the deadline
+ * is the vitest timeout, and the assertions say what was read and what not.
+ */
+describe('an office file is read on a budget', () => {
+  const MB = 1024 * 1024
+
+  it('stops reading a sheet once there is more text than will be shown', async () => {
+    const { officeText } = await import('./src/agent/media-extract')
+    const row = '<row r="1"><c r="A1" t="inlineStr"><is><t>x</t></is></c></row>'
+    const sheet = `<worksheet><sheetData>${row.repeat(Math.floor((4 * MB) / row.length))}</sheetData></worksheet>`
+    const names = Array.from(
+      { length: 300 },
+      (_, i) => `<sheet name="S${i}" sheetId="${i + 1}" r:id="rId1"/>`
+    ).join('')
+    const book = zipOf({
+      'xl/workbook.xml': `<workbook><sheets>${names}</sheets></workbook>`,
+      'xl/_rels/workbook.xml.rels':
+        '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+      'xl/worksheets/sheet1.xml': sheet,
+    })
+    expect(book.length).toBeLessThan(64 * 1024)
+    const started = Date.now()
+    const got = officeText(book, 'xlsx')
+    expect(Date.now() - started).toBeLessThan(3_000)
+    expect(got).toMatchObject({ ok: true, more: true })
+    if (!got.ok) return
+    expect(got.text).toContain('— S0 —')
+    expect(got.text).not.toContain('— S1 —')
+  })
+
+  it('reads a sheet the workbook names three hundred times once, and gets past it', async () => {
+    const { officeText } = await import('./src/agent/media-extract')
+    // Empty rows: no text to stop at, so only visiting it once keeps this fast.
+    const blank = `<worksheet><sheetData>${'<row r="1"/>'.repeat(Math.floor((4 * MB) / 12))}</sheetData></worksheet>`
+    const names =
+      Array.from(
+        { length: 300 },
+        (_, i) => `<sheet name="S${i}" sheetId="${i + 1}" r:id="rId1"/>`
+      ).join('') + '<sheet name="Итоги" sheetId="301" r:id="rId2"/>'
+    const book = zipOf({
+      'xl/workbook.xml': `<workbook><sheets>${names}</sheets></workbook>`,
+      'xl/_rels/workbook.xml.rels':
+        '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>',
+      'xl/worksheets/sheet1.xml': blank,
+      'xl/worksheets/sheet2.xml':
+        '<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Итого 12</t></is></c></row></sheetData></worksheet>',
+    })
+    const started = Date.now()
+    const got = officeText(book, 'xlsx')
+    expect(Date.now() - started).toBeLessThan(2_000)
+    expect(got).toMatchObject({ ok: true })
+    if (!got.ok) return
+    expect(got.text).toContain('— Итоги —\nИтого 12')
+    expect(got.text.match(/— S\d+ —/g)).toEqual(['— S0 —'])
+  })
+
+  it('inflates a member once however many roles the file gives it', async () => {
+    const { officeText } = await import('./src/agent/media-extract')
+    // The shared strings, 16 MB, also named as a sheet: half the budget each
+    // time it is inflated, so a second inflate would leave none for the rest.
+    const book = zipOf({
+      'xl/sharedStrings.xml': `<sst>${' '.repeat(16 * 1024 * 1024 - 11)}</sst>`,
+      'xl/workbook.xml':
+        '<workbook><sheets><sheet name="A" r:id="rId1"/><sheet name="B" r:id="rId2"/></sheets></workbook>',
+      'xl/_rels/workbook.xml.rels':
+        '<Relationships><Relationship Id="rId1" Target="sharedStrings.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>',
+      'xl/worksheets/sheet2.xml':
+        '<worksheet><sheetData><row r="1"><c r="A1"><v>42</v></c></row></sheetData></worksheet>',
+    })
+    const got = officeText(book, 'xlsx')
+    expect(got).toMatchObject({ ok: true })
+    if (!got.ok) return
+    expect(got.text).toContain('— B —\n42')
+  })
+
+  it('refuses a document whose members together inflate past the budget', async () => {
+    const { officeText } = await import('./src/agent/media-extract')
+    // Three sheets of blank space: no text to stop at, 36 MB between them.
+    const blank = `<worksheet>${' '.repeat(12 * MB)}</worksheet>`
+    const book = zipOf({
+      'xl/worksheets/sheet1.xml': blank,
+      'xl/worksheets/sheet2.xml': blank,
+      'xl/worksheets/sheet3.xml': blank,
+    })
+    expect(book.length).toBeLessThan(200 * 1024)
+    expect(officeText(book, 'xlsx')).toEqual({ ok: false, reason: 'too-big' })
+  })
+
+  it('stops reading a deck once there is more text than will be shown', async () => {
+    const { officeText, DOCUMENT_TEXT_CAP } = await import(
+      './src/agent/media-extract'
+    )
+    const slide = 'слово '.repeat(Math.floor(MB / 6))
+    const got = officeText(pptxOf(Array(20).fill(slide)), 'pptx')
+    expect(got).toMatchObject({ ok: true, more: true })
+    if (!got.ok) return
+    expect(got.text.length).toBe(DOCUMENT_TEXT_CAP)
+    // Read to the cap from the first slide; the other nineteen never inflated.
+    expect(got.chars).toBeLessThan(2 * MB)
+  })
+
+  it('visits at most fifty slides, and says the rest were not read', async () => {
+    const { officeText } = await import('./src/agent/media-extract')
+    const got = officeText(
+      pptxOf(Array.from({ length: 60 }, (_, i) => `s${i + 1}`)),
+      'pptx'
+    )
+    expect(got).toMatchObject({ ok: true, more: true })
+    if (!got.ok) return
+    expect(got.text).toContain('— slide 50 —\ns50')
+    expect(got.text).not.toContain('s51')
+  })
+
+  it('does not rescan the file for a closing tag that is not there', async () => {
+    const { officeText } = await import('./src/agent/media-extract')
+    const cases: Array<[string, Buffer, string]> = [
+      [
+        'shared strings',
+        zipOf({
+          // A cell that asks for a string makes the table be looked through.
+          'xl/sharedStrings.xml': '<sst>' + '<si>'.repeat(120_000),
+          'xl/worksheets/sheet1.xml':
+            '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>7</v></c></row></sheetData></worksheet>',
+        }),
+        'xlsx',
+      ],
+      [
+        'cells',
+        zipOf({
+          'xl/worksheets/sheet1.xml':
+            '<worksheet><sheetData><row r="1">' +
+            '<c r="A1">'.repeat(60_000) +
+            '</row></sheetData></worksheet>',
+        }),
+        'xlsx',
+      ],
+      [
+        'a Word run',
+        zipOf({ 'word/document.xml': '<w:t '.repeat(100_000) }),
+        'docx',
+      ],
+      [
+        'an OpenDocument body with no end',
+        zipOf({ 'content.xml': '<office:body>'.repeat(40_000) }),
+        'odt',
+      ],
+      [
+        'an OpenDocument tag with no end',
+        zipOf({
+          'content.xml': `<office:body>${'<a'.repeat(100_000)}</office:body>`,
+        }),
+        'odt',
+      ],
+    ]
+    for (const [what, bytes, ext] of cases) {
+      const started = Date.now()
+      officeText(bytes, ext)
+      expect(`${what}: ${Date.now() - started < 2_000 ? 'fast' : 'slow'}`).toBe(
+        `${what}: fast`
+      )
+    }
+  })
+
+  it('reads a directory of non-UTF-8 names fast, and at most ZIP_MAX_ENTRIES of it', async () => {
+    const { readZipDirectory } = await import('./src/agent/media-extract')
+    const { ZIP_MAX_ENTRIES } = await import('./src/agent/office-text')
+    // Central directory records only: 60 000 names that are not UTF-8 (a
+    // fatal decoder throws on each one), one of them a DOS-codepage word.
+    const dos = Buffer.from([0x8f, 0xe0, 0xa8, 0xa2, 0xa5, 0xe2]) // a greeting in CP866
+    const parts: Buffer[] = []
+    for (let i = 0; i < 60_000; i += 1) {
+      const name = i === 0 ? dos : Buffer.from([0xff, 0xfe, i & 0xff])
+      const rec = Buffer.alloc(46)
+      rec.writeUInt32LE(0x02014b50, 0)
+      rec.writeUInt16LE(8, 10)
+      rec.writeUInt16LE(name.length, 28)
+      parts.push(rec, name)
+    }
+    const dir = Buffer.concat(parts)
+    const end = Buffer.alloc(22)
+    end.writeUInt32LE(0x06054b50, 0)
+    end.writeUInt16LE(60_000, 8)
+    end.writeUInt16LE(60_000, 10)
+    end.writeUInt32LE(dir.length, 12)
+    const started = Date.now()
+    const got = readZipDirectory(Buffer.concat([dir, end]))
+    expect(Date.now() - started).toBeLessThan(1_500)
+    expect(got?.entries).toHaveLength(ZIP_MAX_ENTRIES)
+    expect(got?.truncated).toBe(true)
+    expect(got?.entries[0].name).toBe('Привет')
+  })
+
+  it('lists a zip it did not read to the end as "more than", not as a total', async () => {
+    const { archiveListingFromFile } = await import('./src/agent/media-extract')
+    const { ZIP_MAX_ENTRIES } = await import('./src/agent/office-text')
+    const files: Record<string, string> = {}
+    for (let i = 0; i < ZIP_MAX_ENTRIES + 50; i += 1) files[`f${i}.txt`] = 'x'
+    const f = tmpFile('many.zip', zipOf(files, { store: true }))
+    try {
+      const got = await archiveListingFromFile(f.path, 'zip', 'many.zip')
+      expect(got).toMatchObject({ ok: true, listing: true, more: true })
+      if (!got.ok) return
+      expect(got.text).toMatch(
+        new RegExp(`^more than ${ZIP_MAX_ENTRIES} file\\(s\\)`)
+      )
+      expect(got.text).toContain(`and more than ${ZIP_MAX_ENTRIES - 60} more`)
+    } finally {
+      f.done()
+    }
+  })
+})
+
+/*
+ * AND IT IS READ OFF THE EVENT LOOP. `readShelfExtracted` hands the bytes to
+ * a worker thread through `officeTextIsolated`; these run the real worker
+ * script, so a broken bootstrap fails here and not in production.
+ */
+describe('an office file is parsed in a thread of its own', () => {
+  it('reads a .docx through the worker', async () => {
+    const { officeTextIsolated } = await import('./src/agent/media-extract')
+    const got = await officeTextIsolated(
+      docxOf(['Акт сверки', 'Итого 5 000']),
+      'docx'
+    )
+    expect(got).toMatchObject({ ok: true, text: 'Акт сверки\nИтого 5 000' })
+  })
+
+  it('turns a parse that outruns its deadline into too-big', async () => {
+    const { officeTextIsolated } = await import('./src/agent/media-extract')
+    // A deadline shorter than the thread's own start: nothing can answer.
+    const got = await officeTextIsolated(docxOf(['x']), 'docx', 1)
+    expect(got).toEqual({ ok: false, reason: 'too-big' })
+    // And the reader is not left broken for the next file.
+    expect(await officeTextIsolated(docxOf(['дальше']), 'docx')).toMatchObject({
+      ok: true,
+      text: 'дальше',
+    })
+  })
+})
+
 describe('archives are listed, never unpacked', () => {
   it('lists a zip by name and size', async () => {
     const { archiveListingFromFile } = await import('./src/agent/media-extract')
@@ -185,6 +434,28 @@ describe('archives are listed, never unpacked', () => {
     expect(calls).toEqual([['bsdtar', ['-tvf', '/tmp/x.rar']]])
     expect(got).toMatchObject({ ok: true, listing: true })
     if (got.ok) expect(got.text).toContain('plan.docx — 1.5 KB')
+  })
+
+  it('parses at most ZIP_MAX_ENTRIES lines of a huge listing, and says there were more', async () => {
+    const { ZIP_MAX_ENTRIES } = await import('./src/agent/office-text')
+    // Names bsdtar escaped to octal, up to its 32 MB output ceiling: parsed
+    // whole, this held the event loop for 1.7 s to show sixty names.
+    const line = `-rw-r--r--  0 0      0          10 Sep 22 00:00 ${'\\320\\241'.repeat(20)}\n`
+    const out = line.repeat(Math.floor((32 * 1024 * 1024) / line.length))
+    vi.doMock('node:child_process', () => ({
+      execFile: (_c: string, _a: string[], _o: unknown, cb: Function) =>
+        cb(null, out, ''),
+    }))
+    const { archiveListingFromFile, parseBsdtarListing } = await import(
+      './src/agent/media-extract'
+    )
+    expect(parseBsdtarListing(line.repeat(12), 5)).toHaveLength(5)
+    const started = Date.now()
+    const got = await archiveListingFromFile('/tmp/x.rar', 'rar', 'x.rar')
+    expect(Date.now() - started).toBeLessThan(800)
+    expect(got).toMatchObject({ ok: true, listing: true, more: true })
+    if (got.ok)
+      expect(got.text).toMatch(new RegExp(`^more than ${ZIP_MAX_ENTRIES} file`))
   })
 
   /*
