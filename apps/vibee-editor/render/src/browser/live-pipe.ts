@@ -309,25 +309,20 @@ export function pipeUpgrade(
   const headers = { ...req.headers }
   delete headers.host
   /*
-   * NO COMPRESSION ON THIS SOCKET, NEGOTIATED BY ANYBODY.
+   * The pod is never offered compression. Kept as hardening, and NOT the fix
+   * it was first shipped as -- corrected the same day.
    *
-   * Measured in production, with a real WebSocket client reading more than
-   * the first message:
+   * The symptom was "Invalid WebSocket frame: RSV1 must be clear" after the
+   * first message, which reads like compression, so compression was blamed.
+   * Wrong: capturing the raw bytes showed frame 1's payload was the literal
+   * text "TP/1.1 101 Switching Protocols". Two 'upgrade' listeners were
+   * answering the same socket -- the editor's sync server and this proxy --
+   * and the second 101 was being parsed as a frame header; its bits land on
+   * RSV1 by accident. The real fix is the single dispatcher in
+   * render-server.ts.
    *
-   *   Invalid WebSocket frame: RSV1 must be clear   (after 1 message)
-   *   Sec-WebSocket-Extensions in the 101:          (empty)
-   *
-   * -- and the SAME result when the client did not offer compression at all.
-   * RSV1 set means a compressed frame; the empty header means the person's
-   * browser was never told. Something between it and us makes its own offer
-   * to this server, we passed that offer on to the pod, the pod agreed and
-   * compressed, and the agreement never reached the browser. The first,
-   * small message got through; the next one killed the socket. The browser
-   * reported it as "Invalid frame header" and the picture never started.
-   *
-   * Locally there is no such hop, which is why it only ever broke deployed.
-   * The pod is simply never offered compression: every frame then travels
-   * uncompressed, whatever any hop on the way asked for.
+   * Not negotiating compression through a proxy that rewrites the handshake
+   * is still the safer default, so it stays.
    */
   delete headers['sec-websocket-extensions']
   const cookie = stripOurCookie(req.headers.cookie, target.sessionId)
