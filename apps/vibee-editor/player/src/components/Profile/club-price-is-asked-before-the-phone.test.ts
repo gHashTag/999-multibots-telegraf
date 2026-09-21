@@ -74,3 +74,41 @@ describe('the join button never says 0 Stars', () => {
     expect(src).toMatch(/stars > 0 \? \(\s*t\('welcome\.club\.join'/)
   })
 })
+
+/**
+ * A PERSON THE SERVER NO LONGER RECOGNISES IS NOT A PERSON WHO NEVER PAID.
+ *
+ * `/api/club/status` answers a visitor without identity with 200, the public
+ * price and zeroes for everything personal. This screen read the zeroes as
+ * fact, so `active: false` became the 10 000-star paywall -- the identical
+ * screen a stranger sees. Two invited people met it with a lapsed session
+ * and, having no way to tell the two apart, signed in again and again
+ * (@SamHold, three times in forty minutes, 2026-09-21).
+ *
+ * So the anonymous answer gets its own card: say the sign-in lapsed, offer
+ * the sign-in, and do not render a button that would take 10 000 Stars while
+ * we do not know whose Stars they are.
+ */
+describe('the club step when the server does not know who is asking', () => {
+  const src = readFileSync(join(__dirname, 'WelcomeOnboarding.tsx'), 'utf8')
+
+  it('reads the anonymous flag rather than inferring from the zeroes', () => {
+    expect(src).toContain('status?.anonymous === true')
+  })
+
+  it('offers a sign-in and returns before the paywall is built', () => {
+    const guard = src.indexOf('if (unknownPerson)')
+    const paywall = src.indexOf('data-testid="welcome-price"')
+    expect(guard).toBeGreaterThan(-1)
+    expect(paywall).toBeGreaterThan(guard)
+    expect(src).toContain('<TelegramLoginButton')
+    expect(src).toContain("t('welcome.club.signedOut')")
+  })
+
+  it('says it in both languages the app speaks', async () => {
+    const { translations } = await import('@/atoms/language')
+    for (const lang of ['en', 'ru'] as const) {
+      expect(translations[lang]['welcome.club.signedOut']).toBeTruthy()
+    }
+  })
+})

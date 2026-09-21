@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from 'vitest'
 import { Telegraf, Telegram, session } from 'telegraf'
 
 /**
@@ -42,6 +50,33 @@ function press(data: string, from = OWNER, chatType = 'private') {
 describe('the rewrite press', () => {
   let sink: Array<{ method: string; payload: any }> = []
   let calls: Array<{ url: string; body: string }> = []
+
+  /*
+   * THE COLD TRANSFORM IS PAID ONCE, HERE, NOT BY THE FIRST TEST.
+   *
+   * Every test resets the module graph and imports registerCommands again
+   * (below): the owner gate, the press de-duplication and the remembered
+   * cards must start fresh. The FIRST such import also transforms the whole
+   * graph -- about 470 of our own modules -- and it did that inside test 1's
+   * 30 s budget. Measured 2026-09-22, paired runs of the pre-lanes tree
+   * (d03886501) and the lanes tree (33f8ea767) at the same moment: that first
+   * import took 9.2 s on both at load ~11, test 1 took 12.8-25.7 s on both,
+   * and with eight copies running at once (load up to 54) test 1 timed out on
+   * 4/4 runs of EACH tree. Its abandoned handler then finished during test 2
+   * and answered its press into test 2's `sink` -- "the press was left
+   * spinning: ... got 2" -- on both trees alike. A re-import after the
+   * transform costs 0.3-0.5 s, so the tests below measure the handler again,
+   * not the machine: with this hook, at load 25-30, test 1 took 2.0-2.1 s
+   * where the unchanged file took 16.2-17.5 s on both trees. The hook has
+   * its own budget because under the heavier load the transform alone took
+   * longer than the 30 s a test gets.
+   */
+  beforeAll(async () => {
+    process.env.ADMIN_IDS = String(OWNER)
+    await import('@/navigation/registerCommands')
+    await import('@/services/telegramProposals')
+    await import('@/services/crmProactive')
+  }, 180_000)
 
   beforeEach(() => {
     sink = []
