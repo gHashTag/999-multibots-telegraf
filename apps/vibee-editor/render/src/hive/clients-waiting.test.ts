@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  isTrouble,
   checkWaitingClients,
   whoIsWaiting,
   lineFor,
@@ -298,5 +299,35 @@ describe('who is waiting for an answer', () => {
     expect(
       lineFor({ owner: 'o', lead: 'l', waitedMs: 72 * HOUR, trouble: false })
     ).toContain('3 дн')
+  })
+})
+
+/**
+ * A TROUBLE WORD IS A WORD, NOT FOUR LETTERS INSIDE ANOTHER.
+ *
+ * 2026-09-21: a vendor's mailing about "dependence" paged the keeper as a
+ * client reporting a fault for 13 days -- the stem for "froze" opens the verb
+ * for "depend" too -- and the stem for "charged" sits inside "schedule".
+ */
+describe('trouble words', () => {
+  it('still hears the real complaints', () => {
+    for (const t of [
+      'деньги списаны дважды', // cyrillic-ok: a client's complaint, test data
+      'бот завис', // cyrillic-ok: test data
+      'всё зависло после оплаты', // cyrillic-ok: test data
+      'ошибка при оплате', // cyrillic-ok: test data
+      'please refund me',
+    ])
+      expect(isTrouble(t), t).toBe(true)
+  })
+
+  it('does not hear them inside other words', () => {
+    for (const t of [
+      'прислали новое расписание', // cyrillic-ok: "schedule", test data
+      'выплаты зависели от питания', // cyrillic-ok: "depended", test data
+      'снизить зависимость от сети', // cyrillic-ok: "dependence", test data
+      'всё зависит от вас', // cyrillic-ok: "depends", test data
+    ])
+      expect(isTrouble(t), t).toBe(false)
   })
 })
