@@ -56,7 +56,7 @@ export const PAID_TOOLS = new Set([
  * and publishing is hers (DUET_NEVER refuses it; this reports one that got by).
  */
 const FORBIDDEN_FOR_SELLER =
-  /^tg_|^crm_(duet|agent_link|sellers)|^feed_publish$/
+  /^tg_|^crm_(duet|agent_link|sellers)|^(feed_publish|feed_unpublish|skills_publish)$/
 
 /** Facts about the buyer's real game -- from gHashTag/leela README and editorial SOUL. */
 export const LEELA_CANON: string[] = [
@@ -706,13 +706,28 @@ export const DISCOVERY_SELLER_TURNS = 2
  * act on if a call arrives anyway. The reel still reaches her as a file and
  * lands in her content plan (linkReelToPlan); publishing stays hers.
  */
-export const DUET_NEVER: ReadonlySet<string> = new Set(['feed_publish'])
+// Every tool that changes what the public sees. skills_publish puts the
+// owner's skill on the public market at once; feed_unpublish takes a live
+// post down. Neither is the duet's to decide.
+export const DUET_NEVER: ReadonlySet<string> = new Set([
+  'feed_publish',
+  'feed_unpublish',
+  'skills_publish',
+])
 
 /** What the model reads when a duet-denied tool is refused. */
 export const DUET_DENY_REASONS: ReadonlyMap<string, string> = new Map([
   [
     'feed_publish',
     'в этом диалоге публикация запрещена: «давайте опубликуем» в переписке — не одобрение клиента. Публикует только она сама.',
+  ],
+  [
+    'feed_unpublish',
+    'в этом диалоге снимать посты с ленты нельзя: это решает владелец, а не переписка.',
+  ],
+  [
+    'skills_publish',
+    'в этом диалоге публиковать скиллы нельзя: выход на общий рынок решает владелец, а не переписка.',
   ],
 ])
 

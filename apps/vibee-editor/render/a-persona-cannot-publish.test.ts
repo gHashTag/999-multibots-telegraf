@@ -269,3 +269,24 @@ describe('feed_publish through a real agent turn', () => {
     expect(handler).toHaveBeenCalledTimes(1)
   })
 })
+
+/*
+ * A one-name ban let the next publishing tool through: skills_publish puts
+ * the owner's skill on the public market at once. Every tool whose name says
+ * it publishes or unpublishes is denied in a duet, with a reason to read --
+ * including one added tomorrow.
+ */
+describe('every publishing tool is denied in a duet', () => {
+  it('the ban covers every tool in the registry that publishes', async () => {
+    const { TOOLS } = await import('./src/agent/tools')
+    const { DUET_NEVER, DUET_DENY_REASONS } = await import(
+      './src/agent/crm-duet-tool'
+    )
+    const publishing = TOOLS.map(t => t.name).filter(n => /publish/.test(n))
+    expect(publishing.length).toBeGreaterThanOrEqual(3)
+    for (const name of publishing) {
+      expect(DUET_NEVER.has(name), name).toBe(true)
+      expect(DUET_DENY_REASONS.get(name), name).toBeTruthy()
+    }
+  })
+})
