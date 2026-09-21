@@ -5,7 +5,7 @@
  * each session still passes Telegram's checkAuthorization.
  *
  * Measured 2026-09-13 on the render's Postgres: tg_sessions held two rows,
- * 144022504 (@t27_dev, the owner) and 435572800 (@playom). Both accounts had
+ * the owner's and a second seller's. Both accounts had
  * done the login in the app days earlier; what kept the second one out of the
  * CRM was `requireOwner` alone. Spec: t27 specs/automation/crm-sellers.t27.
  *
@@ -52,7 +52,10 @@ export async function probeSeller(
     }
     return { alive: true }
   } catch (e) {
-    return { alive: false, error: String((e as Error)?.message ?? e).slice(0, 200) }
+    return {
+      alive: false,
+      error: String((e as Error)?.message ?? e).slice(0, 200),
+    }
   }
 }
 
@@ -77,9 +80,12 @@ export const CRM_SELLERS_TOOLS: AgentTool[] = [
     async handler(a: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
       const pool = ctx?.pool as
-        | { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+        | {
+            query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+          }
         | undefined
-      if (!pool) throw new Error('база недоступна: список продавцов не прочитать')
+      if (!pool)
+        throw new Error('база недоступна: список продавцов не прочитать')
       const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
       const rows: SellerRow[] = (await listSellers(pool)).map(r => ({
         ...r,

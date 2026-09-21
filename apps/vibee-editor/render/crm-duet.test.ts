@@ -48,7 +48,8 @@ import type { ChatMessage, ToolDenial } from './src/agent/chat'
 import type { ToolContext } from './src/agent/tools'
 
 const OWNER = '144022504'
-const BUYER = '435572800'
+/** An invented buyer: no real person's id appears in this repository. */
+const BUYER = '900000060'
 const ctx = { telegramId: OWNER, pool: {} } as unknown as ToolContext
 
 function freshRun(over: Partial<DuetRun> = {}): DuetRun {
@@ -1237,11 +1238,15 @@ describe('crm_duet media honesty (duet-mtzrz4jo, 2026-09-13)', () => {
 describe('crm_duet tools', () => {
   it('refuses a non-owner, the owner as buyer, and an unconnected buyer; status without a run says so', async () => {
     vi.resetModules()
+    let sellerChecks = 0
     vi.doMock('./src/agent/telegram-tools', () => ({
       requireOwner: (c?: ToolContext) => {
         if (String(c?.telegramId) !== OWNER) throw new Error('only the owner')
       },
-      isSeller: async (c?: ToolContext) => String(c?.telegramId) === BUYER,
+      isSeller: async (c?: ToolContext) => {
+        sellerChecks++
+        return String(c?.telegramId) === BUYER
+      },
       withClient: async () => {
         throw new Error('no live client in tests')
       },
@@ -1256,6 +1261,18 @@ describe('crm_duet tools', () => {
     await expect(
       start.handler({}, { telegramId: BUYER } as unknown as ToolContext)
     ).rejects.toThrow('only the owner')
+    /*
+     * NO BUYER, NO RUN. The tool used to fall back to one real person's id,
+     * and a run sends from that person's own session. Refused before anybody
+     * is looked up.
+     */
+    await expect(start.handler({}, ctx)).rejects.toThrow(mod.NO_BUYER_REASON)
+    await expect(start.handler({ buyer: '  ' }, ctx)).rejects.toThrow(
+      mod.NO_BUYER_REASON
+    )
+    expect(sellerChecks).toBe(0)
+    expect((start.parameters as any).required).toEqual(['buyer'])
+    expect(JSON.stringify(start.parameters)).not.toMatch(/по умолчанию \d{5,}/) // cyrillic-ok
     await expect(start.handler({ buyer: OWNER }, ctx)).rejects.toThrow(
       'сам владелец'
     )

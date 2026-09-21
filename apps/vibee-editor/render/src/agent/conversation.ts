@@ -140,7 +140,7 @@ export function забытьТаблицу(): void {
  *
  * THE SAME TURN TWICE IN A ROW IS NEVER A SECOND TURN (added 21.09.2026).
  *
- * Measured in a live client's transcript, telegram 2086031075, 20.09: one
+ * Measured in a live client's transcript, 20.09: one
  * three-letter word of hers stands there twice, at 17:07:45 and 17:11:10,
  * with nothing between them. She typed it once. The bot retries a turn the
  * render dropped,
