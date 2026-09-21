@@ -1248,7 +1248,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         reply_markup: Markup.inlineKeyboard([
           [
             Markup.button.callback(
-              isRu ? '💫 Оформить подписку' : '💫 Subscribe',
+              isRu ? '⭐ Клуб' : '⭐ Club',
               'go_to_subscription_scene'
             ),
           ],
@@ -1317,8 +1317,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Показываем объяснение ИИ Герои + выбор пола
     await ctx.reply(
       isRu
-        ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Полный доступ ко всем стилям - в подписке</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
-        : `🎭 <b>AI HEROES</b>\n\n🎨 Transform into your favorite character!\n\n🤖 <b>Our AI will turn your photo into:</b>\n• Marvel and DC superheroes\n• Anime characters\n• Slavic heroes\n• Game characters\n\n💫 <b>This is a FREE demonstration!</b>\n🚀 <b>Full access to all styles - with subscription</b>\n\n👇 <b>Choose gender for character style:</b>`,
+        ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Весь цифровой двойник — в клубе</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
+        : `🎭 <b>AI HEROES</b>\n\n🎨 Transform into your favorite character!\n\n🤖 <b>Our AI will turn your photo into:</b>\n• Marvel and DC superheroes\n• Anime characters\n• Slavic heroes\n• Game characters\n\n💫 <b>This is a FREE demonstration!</b>\n🚀 <b>Your whole digital twin — in the club</b>\n\n👇 <b>Choose gender for character style:</b>`,
       {
         parse_mode: 'HTML',
         reply_markup: Markup.keyboard([
@@ -1507,8 +1507,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Показываем объяснение ИИ Герои + выбор пола заново
       await ctx.reply(
         isRu
-          ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Полный доступ ко всем стилям - в подписке</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
-          : `🎭 <b>AI HEROES</b>\n\n🎨 Transform into your favorite character!\n\n🤖 <b>Our AI will turn your photo into:</b>\n• Marvel and DC superheroes\n• Anime characters\n• Slavic heroes\n• Game characters\n\n💫 <b>This is a FREE demonstration!</b>\n🚀 <b>Full access to all styles - with subscription</b>\n\n👇 <b>Choose gender for character style:</b>`,
+          ? `🎭 <b>ИИ ГЕРОИ - AI HEROES</b>\n\n🎨 Трансформируйтесь в любимого персонажа!\n\n🤖 <b>Наш ИИ превратит ваше фото в:</b>\n• Супергероев Marvel и DC\n• Персонажей аниме\n• Славянских героев\n• Игровых персонажей\n\n💫 <b>Это БЕСПЛАТНАЯ демонстрация возможностей!</b>\n🚀 <b>Весь цифровой двойник — в клубе</b>\n\n👇 <b>Выберите пол для стиля персонажа:</b>`
+          : `🎭 <b>AI HEROES</b>\n\n🎨 Transform into your favorite character!\n\n🤖 <b>Our AI will turn your photo into:</b>\n• Marvel and DC superheroes\n• Anime characters\n• Slavic heroes\n• Game characters\n\n💫 <b>This is a FREE demonstration!</b>\n🚀 <b>Your whole digital twin — in the club</b>\n\n👇 <b>Choose gender for character style:</b>`,
         {
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([

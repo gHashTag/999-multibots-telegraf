@@ -894,6 +894,32 @@
       ]
     },
     {
+      "id": "club-invoice-abandoned-watch",
+      "legacy_id": "",
+      "domain": "analytics",
+      "trigger": "cron",
+      "event": "",
+      "legacy_events": [],
+      "cron": "20 * * * *",
+      "tz": "UTC",
+      "file": "src/inngest_app/functions/analytics/clubInvoiceAbandonedWatch.ts",
+      "steps": ["mark"],
+      "retries": 0,
+      "on_failure": "admin-telegram",
+      "side_effects": ["db-read", "db-write"],
+      "guard": "safe-mode",
+      "safe_probe": "{\"e2e_test\":true}",
+      "probe_result": "not-deployed",
+      "probe_expect": "COMPLETED",
+      "control": "spec+code",
+      "export": "clubInvoiceAbandonedWatch",
+      "notes": [
+        "2026-09-22: 8 club invoices, 0 payments, and no record of what happened between. Telegram does not report a closed payment window in a chat, so 'abandoned' is concluded: an invoice older than an hour with no club_paid after it.",
+        "Writes only user_events (render Postgres), one club_invoice_abandoned row per invoice; a unique index makes 'once' hold across runs.",
+        "Throws when the table cannot be read, so 'could not look' reaches onFailure instead of printing as 'nobody walked away'."
+      ]
+    },
+    {
       "id": "webhook-generation-validate",
       "legacy_id": "validate-webhook-before-generation",
       "domain": "webhook",

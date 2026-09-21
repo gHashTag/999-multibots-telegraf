@@ -6,6 +6,19 @@ import { imageModelPrices } from '@/price/models/imageModelPrices'
 import { UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
 import { calculateFinalPrice as calculateVideoFinalPrice } from '@/price/helpers'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { Markup } from 'telegraf'
+import { clubButton } from '@/navigation/helpers/clubCard'
+import { actionButton } from '@/navigation/helpers/actionButtons'
+
+/*
+ * The club on the price list: the one subscription, named because the person
+ * asked what things cost. No number here -- the price is on the card, from the
+ * cashier (navigation/helpers/clubCard.ts).
+ */
+const CLUB_LINE_RU =
+  '<b>⭐ Клуб</b> — единственная подписка: ваш цифровой двойник на 30 дней, часть каждого платежа возвращается токенами. Цена и что внутри — по кнопке «Клуб».'
+const CLUB_LINE_EN =
+  '<b>⭐ Club</b> — the one subscription: your digital twin for 30 days, part of every payment comes back as tokens. Price and what is inside — behind the "Club" button.'
 
 // Helper function to handle potential function types in modeCosts.
 const getCost = (
@@ -89,7 +102,9 @@ export const handlePriceCommand = async (ctx: MyContext) => {
 - 🔍 Улучшение изображения: ${getCost(modeCosts[ModeEnum.ImageUpscaler])}
 - 🎙️ Голос в текст: ${getCost(modeCosts[ModeEnum.VoiceToText])}
 - 🧬 Морфинг: ${getCost(modeCosts[ModeEnum.MorphingWizard])}
-${starCostInfoRu}`
+${starCostInfoRu}
+
+${CLUB_LINE_RU}`
       : `<b>💰 Price of services (in ⭐️):</b>
 - 🧠 Training model (1 step):
     v1: ${trainingCostV1}
@@ -106,9 +121,22 @@ ${starCostInfoRu}`
 - 🎙️ Voice to text: ${getCost(modeCosts[ModeEnum.VoiceToText])}
 - 🧬 Morphing: ${getCost(modeCosts[ModeEnum.MorphingWizard])}
 
-<b>💵 Star cost (1 ⭐️):</b> ${SYSTEM_CONFIG.starCost.toFixed(3)} $`
+<b>💵 Star cost (1 ⭐️):</b> ${SYSTEM_CONFIG.starCost.toFixed(3)} $
 
-    await ctx.reply(message, { parse_mode: 'HTML' })
+${CLUB_LINE_EN}`
+
+    /*
+     * The person asked what things cost, so the club is named here -- the one
+     * subscription, where there used to be none on this screen at all. Its
+     * price is not typed into this text: it is on the card, from the cashier.
+     */
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [clubButton(isRu)],
+        [actionButton('topup', isRu)],
+      ]),
+    })
   } catch (error) {
     console.error('Error in handlePriceCommand:', error)
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)

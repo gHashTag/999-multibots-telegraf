@@ -17,21 +17,20 @@ export interface PaymentOption {
   isAdminOnly?: boolean
 }
 
-// Tier-based subscription plans (4 tiers)
-// Legacy NEUROPHOTO/NEUROVIDEO plans kept below for backward compat
+/**
+ * RETIRED TIERS. NEVER OFFERED.
+ *
+ * Owner, 2026-09-22: the one subscription is the club (render
+ * club-membership.ts, shown by navigation/helpers/clubCard.ts); BASIC / PRO /
+ * STUDIO and the NEURO* family do not exist. Nothing in the bot lists these
+ * any more. The list stays for one reader only: handleSuccessfulPayment, which
+ * must still recognise a late payment of an invoice issued before the change
+ * rather than mistake it for something else.
+ */
 export const paymentOptionsPlans: PaymentOption[] = [
   { amount: 299, stars: '130', subscription: SubscriptionType.BASIC },
   { amount: 699, stars: '304', subscription: SubscriptionType.PRO },
   { amount: 1999, stars: '869', subscription: SubscriptionType.STUDIO },
-]
-
-/**
- * @deprecated Legacy plans. Kept for backward compatibility with existing payments.
- * New code should use paymentOptionsPlans (BASIC/PRO/STUDIO).
- */
-export const legacyPaymentOptionsPlans: PaymentOption[] = [
-  { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
-  { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROVIDEO },
 ]
 
 export const paymentOptions: PaymentOption[] = [

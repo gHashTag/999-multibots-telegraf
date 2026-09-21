@@ -321,14 +321,19 @@ export const CATEGORIES: CategoryConfig[] = [
         requiresSubscription: false,
         directScene: true,
       },
+      /*
+       * The club, where a hidden "💫 Оформить подписку" item sat -- hidden
+       * because the tiers behind it were not worth offering. The one
+       * subscription is worth offering in the person's own profile, so it is
+       * shown; the old label still matches as an alias (buttons.config.ts).
+       */
       {
         id: 'subscription',
-        ru: '💫 Оформить подписку',
-        en: '💫 Subscribe',
-        icon: '💫',
+        ru: '⭐️ Клуб',
+        en: '⭐️ Club',
+        icon: '⭐️',
         mode: ModeEnum.SubscriptionScene,
         directScene: true,
-        hidden: true, // ✅ СКРЫТО: Пользователям не нужна подписка, только пополнение баланса
       },
       {
         id: 'invite',

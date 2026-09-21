@@ -21,10 +21,13 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as ts from 'typescript'
 
-const FILES = [
-  path.resolve(__dirname, '../../scenes/subscriptionScene/index.ts'),
-  path.resolve(__dirname, '../../scenes/menuScene/index.ts'),
-]
+/*
+ * subscriptionScene left this list on 2026-09-22: it no longer handles a
+ * single callback (it shows the club card and leaves). The club's own buttons
+ * are bot-level handlers, and "answered before the network" is pinned for them
+ * behaviourally in navigation/theBotSellsTheClub.test.ts.
+ */
+const FILES = [path.resolve(__dirname, '../../scenes/menuScene/index.ts')]
 
 function analyze(source: string): {
   callbackBlocks: number

@@ -66,12 +66,10 @@ describe('🎭 ПРОВЕРКА SCENE-SPECIFIC HANDLERS', () => {
   describe('2️⃣ ПРОВЕРКА SCENE-SPECIFIC ОБРАБОТЧИКОВ', () => {
     test('✅ Сцены должны иметь on("message") обработчики', () => {
       const scenesDir = path.join(__dirname, '../scenes')
-      const criticalScenes = [
-        'subscriptionScene',
-        'paymentScene',
-        'balanceScene',
-        'helpScene',
-      ]
+      // subscriptionScene is not here since 2026-09-22: it shows the club card
+      // and leaves in its only step, so no message ever reaches it to check
+      // for a menu button (theBotSellsTheClub.test.ts pins that behaviour).
+      const criticalScenes = ['paymentScene', 'balanceScene', 'helpScene']
 
       console.log('\n🔍 Анализ scene-specific handlers:')
       console.log('='.repeat(70))

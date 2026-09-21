@@ -60,9 +60,14 @@ export const getGenerationLimitMessage = (
         : ` Limit resets on the 1st of next month.`
       : ''
 
+    /*
+     * The offer here was the NEUROTESTER tier, which no longer exists (owner,
+     * 2026-09-22: the one subscription is the club). The button under this
+     * message opens the club card; the price is on the card, from the cashier.
+     */
     return isRussian
-      ? `🚫 Достигнут месячный лимит генераций (${currentUsage}/${maxUsage}).${resetInfo}\n\n💎 Получите безлимитный доступ с подпиской NEUROTESTER!`
-      : `🚫 Monthly generation limit reached (${currentUsage}/${maxUsage}).${resetInfo}\n\n💎 Get unlimited access with NEUROTESTER subscription!`
+      ? `🚫 Достигнут месячный лимит генераций (${currentUsage}/${maxUsage}).${resetInfo}\n\n⭐ Весь цифровой двойник — в клубе: кнопка ниже.`
+      : `🚫 Monthly generation limit reached (${currentUsage}/${maxUsage}).${resetInfo}\n\n⭐ Your whole digital twin is in the club: button below.`
   }
 
   const remaining = maxUsage - currentUsage
@@ -93,8 +98,8 @@ export const getSuccessGenerationMessage = (
       : `✅ Generation complete! Generations remaining: ${remaining}`
   } else {
     return isRussian
-      ? '✅ Генерация завершена! Это была ваша последняя бесплатная генерация в этом месяце.\n\n💎 Получите безлимитный доступ с NEUROTESTER!'
-      : '✅ Generation complete! This was your last free generation this month.\n\n💎 Get unlimited access with NEUROTESTER!'
+      ? '✅ Генерация завершена! Это была ваша последняя бесплатная генерация в этом месяце.\n\n⭐ Весь цифровой двойник — в клубе: /club'
+      : '✅ Generation complete! This was your last free generation this month.\n\n⭐ Your whole digital twin is in the club: /club'
   }
 }
 
