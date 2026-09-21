@@ -12,6 +12,15 @@ import { describe, it, expect } from 'vitest'
 import http from 'node:http'
 import { askVision, VisionPreempted } from './src/agent/media-vision'
 
+/** Wait for a condition instead of a fixed delay: a loaded runner is slow. */
+async function until(ok: () => boolean, ms = 3000) {
+  const end = Date.now() + ms
+  while (!ok()) {
+    if (Date.now() > end) throw new Error('condition not met in time')
+    await new Promise(r => setTimeout(r, 5))
+  }
+}
+
 async function slowVision(delayMs: number) {
   const order: string[] = []
   const cut: string[] = []
@@ -68,7 +77,7 @@ describe('vision lanes', () => {
       )
       expect(live).toBe('answer to screen')
       expect(await background).toBeInstanceOf(VisionPreempted)
-      await new Promise(r => setTimeout(r, 50))
+      await until(() => s.cut.length > 0)
       expect(s.cut).toEqual(['clip'])
     } finally {
       s.close()
@@ -79,8 +88,9 @@ describe('vision lanes', () => {
     const s = await slowVision(200)
     try {
       const live = askVision(s.v, 'screen', ['x'], 5000, undefined, 'live')
-      await new Promise(r => setTimeout(r, 20))
+      await until(() => s.order.includes('screen'))
       const background = askVision(s.v, 'clip', ['x'], 5000)
+      // Held at the gate while the live ask runs (200 ms): nothing new arrives.
       await new Promise(r => setTimeout(r, 60))
       expect(s.order).toEqual(['screen'])
       expect(await live).toBe('answer to screen')
