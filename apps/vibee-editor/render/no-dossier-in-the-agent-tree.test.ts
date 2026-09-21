@@ -65,7 +65,8 @@ const NOT_A_PERSON: Record<string, string> = {
  * behind the paywall -- and that is the owner's call, not this change's. The
  * way out needs no code: put the ids into CLUB_GUESTS on the render service,
  * delete the two lines, then delete this entry. The count is exact, so the
- * entry cannot outlive the lines it excuses.
+ * entry cannot outlive the lines it excuses. Tracked in #2752, together with
+ * every place outside this tree that still names a client.
  */
 const PENDING_OWNER_DECISION: Record<
   string,
@@ -74,7 +75,7 @@ const PENDING_OWNER_DECISION: Record<
   'club-guests.ts': {
     lines: 2,
     shape: /^ {2}'\d{6,10}', \/\/ an invited guest, by id \(#2744\)$/,
-    why: 'club guests by id, #2744; where they live is the owner decision (#2712)',
+    why: 'club guests by id, #2744; where they live is the owner decision (#2752)',
   },
 }
 

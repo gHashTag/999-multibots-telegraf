@@ -39,7 +39,7 @@
  * identifier every sign-in path knows, it cannot be renamed away, and it needs
  * no lookup at all. The names stay because the owner invites people by name.
  *
- * PENDING THE OWNER'S DECISION (#2712). This repository is public, and the
+ * PENDING THE OWNER'S DECISION (#2752). This repository is public, and the
  * two ids below are real people. They are the only person ids the agent-tree
  * guard (no-dossier-in-the-agent-tree.test.ts) tolerates, as bare list
  * entries in this file and no more of them. They are not moved here because
