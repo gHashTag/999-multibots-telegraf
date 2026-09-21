@@ -35,7 +35,7 @@ export function canShowMiniAppButton(chatType?: string): boolean {
  * startParam соответствует таблице START_PARAM_ROUTES в
  * apps/vibee-editor/player/src/components/Telegram/TelegramProvider.tsx —
  * значения: feed, search, learn, editor, create, avatar, video, image,
- * audio, profile.
+ * audio, profile, hive, chat, club, browser.
  */
 export function buildMiniAppUrl(startParam?: string): string {
   if (!startParam) return MINI_APP_URL
