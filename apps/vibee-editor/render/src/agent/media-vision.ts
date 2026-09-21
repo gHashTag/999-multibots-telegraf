@@ -157,10 +157,11 @@ function dataUrl(bytes: Buffer, mime: string): string {
 export async function askVision(
   v: VisionConfig,
   prompt: string,
-  images: string[]
+  images: string[],
+  timeoutMs: number = VISION_TIMEOUT_MS
 ): Promise<string | null> {
   const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), VISION_TIMEOUT_MS)
+  const timer = setTimeout(() => ac.abort(), timeoutMs)
   let r: Response
   try {
     r = await fetch(`${v.base}/chat/completions`, {
@@ -208,13 +209,26 @@ export async function askVision(
   return clean ? clean.slice(0, TRANSCRIPT_CAP) : null
 }
 
-/** A photo from our shelf, inlined and described. */
+/**
+ * A photo from our shelf, inlined and described.
+ *
+ * The deadline is a parameter because there are two callers with opposite
+ * clocks: the background sweep, which nobody waits on (the 120 s default),
+ * and the live turn, where a person is watching the typing dots and a
+ * description that arrives after the answer is worth nothing.
+ */
 export async function describeImageWithVision(
   v: VisionConfig,
-  url: string
+  url: string,
+  timeoutMs: number = VISION_TIMEOUT_MS
 ): Promise<string | null> {
-  const got = await fetchBytes(url, VISION_TIMEOUT_MS)
-  return askVision(v, VISION_PROMPTS.image, [dataUrl(got.bytes, got.mime)])
+  const got = await fetchBytes(url, timeoutMs)
+  return askVision(
+    v,
+    VISION_PROMPTS.image,
+    [dataUrl(got.bytes, got.mime)],
+    timeoutMs
+  )
 }
 
 /**
