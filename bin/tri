@@ -86,6 +86,7 @@ tri — оболочка Trinity S³AI
   Улей и наблюдение
   tri hive       смотритель, журнал событий, отчёты королевы
   tri bridge [id...]  радужный мост: вся ферма и обе стороны разом, никому не пишет
+  tri commands   каждая команда меню на каждом боте: ответил / молчит / не пробовали
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
   tri throttle   тормоз на входе: по чему считает и кого не заденет
@@ -674,6 +675,24 @@ PYEOF
     shift
     railway service 999-multibots-telegraf >/dev/null 2>&1
     railway run node "$ROOT/scripts/bridge.cjs" "$@"
+    ;;
+
+  commands)
+    # DOES EVERY MENU COMMAND ANSWER -- from the owner's own correspondence.
+    #
+    # `tri bridge` proves a command is SET (getMyCommands); this proves it was
+    # ANSWERED the last time a person sent it. First run, 2026-09-21: 11
+    # answered, 0 silent, 55 never tried by anybody. The code-side twin is
+    # src/__tests__/bot/everyAdvertisedCommandAnswers.test.ts.
+    #
+    # Read-only: tg_history over the render's MCP. It sends nothing.
+    #
+    # `--service`, not `railway service`: the link is per directory and shared
+    # by every session working in this checkout. Switching it here once pulled
+    # the link out from under a session deploying the browser pod.
+    shift
+    railway run --service 999-multibots-telegraf -- \
+      node "$ROOT/scripts/commands-answered.cjs" "$@"
     ;;
 
   tg-as)
