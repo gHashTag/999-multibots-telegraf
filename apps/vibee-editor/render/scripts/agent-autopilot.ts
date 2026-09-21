@@ -995,7 +995,9 @@ async function main() {
       ...(poster ? { poster } : {}),
     },
   })
-  if (!pub?.опубликовано) {
+  // Saved (hidden, waiting for approval) is the success: feed_publish never
+  // makes a post public by itself.
+  if (!pub?.['сохранено']) {
     log(`публикация отклонена: ${JSON.stringify(pub).slice(0, 200)}`)
     // return, а не process.exit — см. пояснение у рендера выше.
     return
