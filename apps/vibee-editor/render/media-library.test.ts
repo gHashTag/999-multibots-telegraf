@@ -111,6 +111,43 @@ function fakePool() {
         }
         return { rows: [] }
       }
+      /*
+       * reopenUnread, statement by statement, with the conditions it relies
+       * on applied rather than assumed: a double that reopened every row it
+       * was shown would pass for a query that forgot `transcript IS NULL`.
+       */
+      if (q.startsWith('UPDATE user_media SET transcribed_at = NULL')) {
+        expect(q).toContain('transcript IS NULL')
+        const [owner_id, lead_id, which] = params as [string, string, string[]]
+        const hit = rows.filter(
+          r =>
+            r.owner_id === owner_id &&
+            r.lead_id === lead_id &&
+            r.transcript === null &&
+            (q.includes('kind = ANY($3::text[])')
+              ? r.transcribed_at !== null && which.includes(r.kind)
+              : q.includes('id = ANY($3::bigint[])') &&
+                which.includes(String(r.id)))
+        )
+        for (const r of hit) r.transcribed_at = null
+        return { rows: [], rowCount: hit.length }
+      }
+      if (q.startsWith('SELECT id, name, mime, url FROM user_media')) {
+        expect(q).toContain(
+          "kind = 'file' AND transcript IS NULL AND transcribed_at IS NOT NULL"
+        )
+        const [owner_id, lead_id] = params as [string, string]
+        return {
+          rows: rows.filter(
+            r =>
+              r.owner_id === owner_id &&
+              r.lead_id === lead_id &&
+              r.kind === 'file' &&
+              r.transcript === null &&
+              r.transcribed_at !== null
+          ),
+        }
+      }
       if (q.startsWith('SELECT') && q.includes('FROM user_media')) {
         const [owner_id, lead_id, limit] = params as [string, string, number]
         let out = rows.filter(
@@ -767,6 +804,63 @@ describe('describeMedia: every file the sweep meets', () => {
     ).rejects.toBeInstanceOf(DescribeFailed)
   })
 
+  /*
+   * THE FILES SENT BEFORE THE READERS EXISTED. Until 2026-09-22 every PDF
+   * was saved as a final null, `transcribed_at` set -- and nothing reopened
+   * a file, so the owner's whole backlog would have stayed unread while only
+   * new files were read. `crm_lead_media reread` goes through reopenUnread.
+   */
+  it('reads a PDF that was closed unread before its reader existed, once reread', async () => {
+    OBJECTS.set('assets/1-old.pdf', Buffer.from('%PDF-1.4 bytes'))
+    bucket()
+    binaries({ pdftotext: 'Договор от марта\f' })
+    const lib = await import('./src/agent/media-library')
+    lib.forgetMediaTableForTests()
+    const pool = fakePool()
+    const row = (name: string, mime: string, url: string) => ({
+      lead: LEAD,
+      surface: 'bot' as const,
+      msgId: null,
+      at: new Date('2026-09-01T10:00:00Z'),
+      out: false,
+      kind: 'file' as const,
+      name,
+      mime,
+      bytes: 100,
+      url,
+      tgFileUniqueId: null,
+      caption: null,
+    })
+    const oldPdf = await lib.rememberMedia(
+      pool,
+      OWNER,
+      row('old.pdf', 'application/pdf', SHELF.replace('voice.ogg', 'old.pdf'))
+    )
+    const blob = await lib.rememberMedia(
+      pool,
+      OWNER,
+      row(
+        'dump.bin',
+        'application/octet-stream',
+        SHELF.replace('voice.ogg', 'dump.bin')
+      )
+    )
+    // As the old code left them: attempted, nothing readable.
+    await lib.saveTranscript(pool, oldPdf.id, null)
+    await lib.saveTranscript(pool, blob.id, null)
+    expect(await lib.pendingTranscripts(pool, OWNER, LEAD, 100)).toHaveLength(0)
+
+    expect(await lib.reopenUnread(pool, OWNER, LEAD)).toBe(1)
+    const again = await lib.pendingTranscripts(pool, OWNER, LEAD, 100)
+    expect(again.map(x => x.name)).toEqual(['old.pdf'])
+    await lib.transcribeAndMirror(pool, OWNER, again)
+
+    const byId = (id: number) => pool.rows.find(r => r.id === id)
+    expect(byId(oldPdf.id)?.transcript).toBe('Договор от марта')
+    // A binary no reader opens is still a final answer, not reopened forever.
+    expect(byId(blob.id)?.transcribed_at).not.toBeNull()
+  })
+
   it('stores what was SAID in a video note when there is no vision endpoint', async () => {
     process.env.WHISPER_API_KEY = 'gsk_test' // secret-guard-ok: invented for this test
     OBJECTS.set('assets/1-note.mp4', Buffer.from('mp4 bytes'))
@@ -1049,26 +1143,38 @@ describe('describeMedia with a vision endpoint', () => {
 describe('reopenUnread', () => {
   afterEach(() => {
     delete process.env.VISION_API_KEY
+    delete process.env.WHISPER_API_KEY
   })
 
-  it('reopens image and audio only; video joins once a vision endpoint is configured', async () => {
+  it('reopens image and audio; video joins once anything here can take one', async () => {
     const params: unknown[][] = []
     const pool = {
       query: async (sql: string, p?: unknown[]) => {
-        if (/UPDATE user_media SET transcribed_at = NULL/.test(sql))
-          params.push(p ?? [])
+        if (/kind = ANY\(\$3::text\[\]\)/.test(sql)) params.push(p ?? [])
         return { rows: [], rowCount: 1 }
       },
     }
     delete process.env.VISION_API_KEY
-    const { reopenUnread } = await import('./src/agent/media-library')
+    delete process.env.WHISPER_API_KEY
+    const { reopenUnread, resetWhisperForTests } = await import(
+      './src/agent/media-library'
+    )
+    const { resetVisionForTests } = await import('./src/agent/media-vision')
+    resetVisionForTests()
+    resetWhisperForTests()
     await reopenUnread(pool as never, '1', '2')
     expect(params[0][2]).toEqual(['image', 'audio'])
     process.env.VISION_API_KEY = 'v' // secret-guard-ok: invented for this test
-    const { resetVisionForTests } = await import('./src/agent/media-vision')
     resetVisionForTests()
     await reopenUnread(pool as never, '1', '2')
     expect(params[1][2]).toEqual(['image', 'audio', 'video'])
+    // The transcriber alone is enough: a video's SPEECH can be read now.
+    delete process.env.VISION_API_KEY
+    resetVisionForTests()
+    process.env.WHISPER_API_KEY = 'gsk_test' // secret-guard-ok: invented for this test
+    resetWhisperForTests()
+    await reopenUnread(pool as never, '1', '2')
+    expect(params[2][2]).toEqual(['image', 'audio', 'video'])
   })
 })
 

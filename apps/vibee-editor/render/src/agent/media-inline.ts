@@ -142,6 +142,19 @@ const LIVE_DESCRIBE_MS = Math.max(
   5_000,
   Number(process.env.MEDIA_LIVE_DESCRIBE_MS) || 45_000
 )
+/**
+ * PDFs, office files and archives opened on one turn, by distinct object.
+ * The same contract as sound and sight (2026-09-22): a PDF costs a download
+ * and a pdftotext of up to a minute, and six of them in a row were six
+ * minutes of somebody watching. The rest wait for the background read, whose
+ * stored text a later turn uses.
+ */
+const MAX_LIVE_DOCUMENTS = 2
+/** And the clock for each: the reader is stopped when the turn stops waiting. */
+const LIVE_READ_MS = Math.max(
+  5_000,
+  Number(process.env.MEDIA_LIVE_READ_MS) || 20_000
+)
 
 /**
  * Formats named often enough to deserve being named back. Built from the one
@@ -285,8 +298,10 @@ function extractedLine(name: string, got: Extracted): string {
     if (got.listing) {
       return `[listed, not unpacked: ${name} — only the names and sizes inside are known; say so, and to read one of these files ask the person to send it on its own]\n${body}`
     }
-    const shown =
-      got.chars > NOTE_SHOWS
+    // `more`: reading stopped early, so the count is not the document's.
+    const shown = got.more
+      ? ' — a long document, only its beginning was read and is shown'
+      : got.chars > NOTE_SHOWS
         ? ` — ${got.chars} characters, only the beginning is shown`
         : ''
     return `[read: ${name}${shown}]\n${body}`
@@ -297,11 +312,38 @@ function extractedLine(name: string, got: Extracted): string {
     case 'encrypted':
       return `[not read: ${name} — the file is password-protected; ask the person for a copy without the password]`
     case 'too-big':
-      return `[not read: ${name} — the file is larger than ${Math.round(DOCUMENT_MAX_BYTES / 1024 / 1024)} MB, too big to open here]`
+      return `[not read: ${name} — the file is too big to open here (over ${Math.round(DOCUMENT_MAX_BYTES / 1024 / 1024)} MB, or too much packed inside it); ask the person for the part that matters]`
     case 'tool-missing':
       return `[not read: ${name} — the reader for this format is not installed on the server yet. Say so plainly; do NOT guess what it says.]`
     default:
       return `[not read: ${name} — the file could not be opened (damaged, or not really this format); ask the person to send it again]`
+  }
+}
+
+/**
+ * A document read NOW, on the turn's own clock: the text, or `'late'` when the
+ * deadline passed first. The reader gets the same deadline, so a turn that
+ * stops waiting does not leave a pdftotext running behind it.
+ */
+async function readDocumentNow(
+  url: string,
+  name: string,
+  mime: string | null | undefined,
+  timeoutMs: number
+): Promise<Extracted | 'late'> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<'late'>(resolve => {
+    timer = setTimeout(() => resolve('late'), timeoutMs)
+  })
+  try {
+    return await Promise.race([
+      readShelfExtracted(url, name, mime ?? null, timeoutMs).catch(
+        (): Extracted => ({ ok: false, reason: 'damaged' })
+      ),
+      late,
+    ])
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -390,6 +432,7 @@ export async function inlineUnperceivedMedia(
   let budget = INLINE_BUDGET
   let live = 0
   let looked = 0
+  let opened = 0
 
   const add = (line: string) => {
     if (budget <= 0) return
@@ -409,10 +452,36 @@ export async function inlineUnperceivedMedia(
         continue
       }
       if (!isTextLikeDocument(ref.mime, name)) {
-        const got = await readShelfExtracted(url, name, ref.mime).catch(
-          (): Extracted => ({ ok: false, reason: 'damaged' })
+        /*
+         * Read before, by the background pass: its words, and no wait. An
+         * archive's stored text is still only a listing, and says so.
+         */
+        if (stored) {
+          add(
+            documentFormat(ref.mime, name) === 'archive'
+              ? extractedLine(name, {
+                  ok: true,
+                  text: stored,
+                  chars: stored.length,
+                  listing: true,
+                })
+              : note('read earlier', name, stored)
+          )
+          continue
+        }
+        if (opened >= MAX_LIVE_DOCUMENTS) {
+          add(
+            `[not read on this turn: ${name} — only ${MAX_LIVE_DOCUMENTS} documents are opened per message. Say so plainly and do NOT guess what it says; it can be read if the person sends it again on its own.]`
+          )
+          continue
+        }
+        opened += 1
+        const got = await readDocumentNow(url, name, ref.mime, LIVE_READ_MS)
+        add(
+          got === 'late'
+            ? `[still reading: ${name} — the file is taking longer to open than this answer can wait. Say so plainly and do NOT guess what it says; ask the person to send it again in a minute, or to paste the part that matters.]`
+            : extractedLine(name, got)
         )
-        add(extractedLine(name, got))
         continue
       }
       const text = await readShelfDocument(url).catch(() => null)

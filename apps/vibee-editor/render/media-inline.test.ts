@@ -59,7 +59,15 @@ const PROVIDER_ENV = [
 
 /** Every subprocess the readers started: [command, args]. */
 let tools: Array<[string, string[]]> = []
-type ToolAnswer = { stdout?: string; stderr?: string; missing?: boolean }
+/** The deadline each of them was started with, in the same order. */
+let toolTimeouts: Array<number | undefined> = []
+/** `hang`: the binary never answers -- a PDF that takes forever. */
+type ToolAnswer = {
+  stdout?: string
+  stderr?: string
+  missing?: boolean
+  hang?: boolean
+}
 type ToolDouble = (args: string[]) => ToolAnswer
 
 /**
@@ -74,9 +82,16 @@ type ToolDouble = (args: string[]) => ToolAnswer
 const load = async (answers: Record<string, ToolDouble> = {}) => {
   vi.resetModules()
   vi.doMock('node:child_process', () => ({
-    execFile: (cmd: string, args: string[], _o: unknown, cb: Function) => {
+    execFile: (
+      cmd: string,
+      args: string[],
+      o: { timeout?: number } | undefined,
+      cb: Function
+    ) => {
       tools.push([cmd, args])
+      toolTimeouts.push(o?.timeout)
       const a = answers[cmd]?.(args) ?? { missing: true }
+      if (a.hang) return
       if (a.missing) {
         cb(
           Object.assign(new Error(`spawn ${cmd} ENOENT`), { code: 'ENOENT' }),
@@ -142,6 +157,7 @@ beforeEach(() => {
   FILES.clear()
   sent = []
   tools = []
+  toolTimeouts = []
   fetchSpy = vi.fn(async () => new Response('', { status: 500 }))
   vi.stubGlobal('fetch', fetchSpy)
 })
@@ -252,6 +268,50 @@ describe('documents reach the model as text', () => {
     expect(tail(out)).toContain('Бриф: три ролика\nБюджет 90 000')
   })
 
+  /*
+   * OFF THE SERVER'S OWN LOOP. The parser the MAIN thread would load is
+   * replaced by one that refuses to run; the file must still be read, which
+   * it only can be in the worker thread, where the real parser lives.
+   */
+  it('reads a .docx in a worker thread, never on the event loop', async () => {
+    FILES.set('assets/1788-deck.docx', docxOf(['Смета на три ролика']))
+    vi.doMock('./src/agent/office-text', async importOriginal => ({
+      ...(await importOriginal<typeof import('./src/agent/office-text')>()),
+      officeText: () => {
+        throw new Error('an office file was parsed on the event loop')
+      },
+    }))
+    try {
+      const { inlineUnperceivedMedia } = await load()
+      const out = await inlineUnperceivedMedia(
+        turn(marker('file', 'deck.docx', 'application/vnd.openxml', DOCX)),
+        {}
+      )
+      expect(tail(out)).toContain('[read: deck.docx]')
+      expect(tail(out)).toContain('Смета на три ролика')
+    } finally {
+      vi.doUnmock('./src/agent/office-text')
+    }
+  })
+
+  it('says a long document was read only from its beginning, not how long it is', async () => {
+    FILES.set(
+      'assets/1788-deck.docx',
+      docxOf(Array.from({ length: 400 }, (_, i) => `Пункт ${i}: условия`))
+    )
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('file', 'deck.docx', 'application/vnd.openxml', DOCX)),
+      {}
+    )
+
+    expect(tail(out)).toContain(
+      '[read: deck.docx — a long document, only its beginning was read and is shown]'
+    )
+    expect(tail(out)).not.toMatch(/\d+ characters/)
+  })
+
   it('lists an archive and says it was not unpacked', async () => {
     FILES.set(
       'assets/1788-pack.zip',
@@ -320,6 +380,67 @@ describe('documents reach the model as text', () => {
     expect(tail(out)).toContain('not read')
     expect(sent).toHaveLength(0)
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+})
+
+/*
+ * A DOCUMENT HAS THE SAME LIVE-TURN CONTRACT AS SOUND AND SIGHT (2026-09-22).
+ *
+ * Audio, photos and video each race a short deadline and are capped per turn;
+ * documents were awaited in sequence with only the reader's own minute each,
+ * so six slow PDFs were six minutes of somebody watching. Now: at most two
+ * opened per message, each on the turn's clock, and the reader stopped with
+ * it -- and anything past that is SAID, never guessed.
+ */
+describe('a live turn does not wait on documents forever', () => {
+  const pdf = (n: string) => `${SHELF}/s3/assets/1788-${n}.pdf`
+
+  it('opens at most two documents per message and names the rest as not read', async () => {
+    for (const n of ['a', 'b', 'c']) FILES.set(`assets/1788-${n}.pdf`, pdfOf(n))
+    const { inlineUnperceivedMedia } = await load({
+      pdftotext: () => ({ stdout: 'текст страницы' }),
+    })
+
+    const out = await inlineUnperceivedMedia(
+      turn(
+        ['a', 'b', 'c']
+          .map(n => marker('file', `${n}.pdf`, 'application/pdf', pdf(n)))
+          .join('\n')
+      ),
+      {}
+    )
+
+    expect(tools.filter(([cmd]) => cmd === 'pdftotext')).toHaveLength(2)
+    expect(tail(out)).toContain('[read: a.pdf]')
+    expect(tail(out)).toContain('[read: b.pdf]')
+    expect(tail(out)).toContain('not read on this turn: c.pdf')
+    expect(tail(out)).toContain('do NOT guess')
+    expect(sent.map(x => x.Key)).not.toContain('assets/1788-c.pdf')
+  })
+
+  it('admits a document it is still reading instead of waiting past the turn, and stops the reader with it', async () => {
+    FILES.set('assets/1788-slow.pdf', pdfOf('slow'))
+    const { inlineUnperceivedMedia } = await load({
+      pdftotext: () => ({ hang: true }),
+    })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const pending = inlineUnperceivedMedia(
+        turn(marker('file', 'slow.pdf', 'application/pdf', pdf('slow'))),
+        {}
+      )
+      // Real I/O first (the bucket into a temp file), then the turn's clock.
+      await vi.waitFor(() => expect(tools).toHaveLength(1), { timeout: 5_000 })
+      await vi.advanceTimersByTimeAsync(20_000)
+      const out = await pending
+
+      expect(tail(out)).toContain('still reading: slow.pdf')
+      expect(tail(out)).toContain('do NOT guess')
+      // The reader was started on the same clock, so it dies with the turn.
+      expect(toolTimeouts[0]).toBe(20_000)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -599,6 +720,24 @@ describe('what a stored transcript is for', () => {
       throw new Error(`the fake pool was not taught: ${sql.slice(0, 60)}`)
     },
   }
+
+  it('uses a document the background pass already read, and opens nothing', async () => {
+    rows.length = 0
+    rows.push({ url: PDF, transcript: 'Счёт 4217, прочитан в фоне' })
+    const { inlineUnperceivedMedia } = await load({
+      pdftotext: () => ({ stdout: 'must not be asked' }),
+    })
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('file', 'report.pdf', 'application/pdf', PDF)),
+      { pool: pool as never, owner: '144022504' }
+    )
+
+    expect(tail(out)).toContain('[read earlier: report.pdf]')
+    expect(tail(out)).toContain('Счёт 4217, прочитан в фоне')
+    expect(tools).toHaveLength(0)
+    expect(sent).toHaveLength(0)
+  })
 
   it('uses a transcript already on record and asks Whisper for nothing', async () => {
     rows.length = 0

@@ -13,10 +13,10 @@
  *   PDF          `pdftotext` (poppler-utils), ported from #2414 commit
  *                12f09b597. A scan with no text layer yields nothing, and that
  *                is SAID -- it is not a document with no words in it.
- *   .docx .xlsx  the zip is opened here and its XML read directly: these
- *   .pptx .odt   formats are zipped XML, Node ships the inflater, and a
- *   .ods .odp    parser dependency for that would be megabytes to do forty
- *                lines of work.
+ *   .docx .xlsx  the zip is opened and its XML read directly (office-text.ts):
+ *   .pptx .odt   these formats are zipped XML, Node ships the inflater, and
+ *   .ods .odp    a parser dependency would be megabytes to do forty lines of
+ *                work. Parsed in a worker thread, on one budget per file.
  *   .rtf         a small control-word reader; the codepage is honoured, so a
  *                Russian RTF is Russian and not mojibake.
  *   archives     LISTED, NEVER UNPACKED: names and sizes. A zip is read here;
@@ -37,17 +37,25 @@
  * key (`withShelfFile`), so a marker line pasted by a person cannot aim this
  * server anywhere. It never unpacks an archive. It never returns more than it
  * was asked for: every read is capped in bytes on the wire and in characters
- * on the way out, and every inflate is capped in output so a zip bomb is a
- * refusal, not an outage.
+ * on the way out. An office file is inflated against one budget for the whole
+ * document and parsed in a worker thread with a deadline and a heap ceiling,
+ * so a zip bomb -- or a parser mistake -- is a refusal, not an outage.
  */
 
 import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { inflateRawSync } from 'node:zlib'
 import { shelfObject } from './media-parts'
 import { s3GetToFile } from '../lib/s3-put'
+import { IsolatedReader } from './isolated-reader'
+import {
+  ZIP_MAX_ENTRIES,
+  extracted,
+  readZipDirectory,
+  type Extracted,
+  type ExtractFailure,
+} from './office-text'
 
 /* ── the lists: one statement of what opens ─────────────────────────────── */
 
@@ -124,26 +132,16 @@ export function documentFormat(
 
 /* ── results ────────────────────────────────────────────────────────────── */
 
-export type ExtractFailure =
-  /** A PDF with no text layer: a scan, or pictures of pages. */
-  | 'no-text'
-  | 'encrypted'
-  | 'too-big'
-  | 'damaged'
-  /** The binary is not installed. Transient: the next deploy brings it. */
-  | 'tool-missing'
-  | 'missing'
-
-export type Extracted =
-  | {
-      ok: true
-      text: string
-      /** How many characters the whole document had, before the cap. */
-      chars: number
-      /** An archive: `text` is its table of contents, nothing was unpacked. */
-      listing: boolean
-    }
-  | { ok: false; reason: ExtractFailure }
+export {
+  DOCUMENT_TEXT_CAP,
+  officeText,
+  readZip,
+  readZipDirectory,
+  rtfText,
+  xmlDecode,
+  type Extracted,
+  type ExtractFailure,
+} from './office-text'
 
 /**
  * Bytes a document may have before it is refused unread. The Bot API's own
@@ -151,27 +149,14 @@ export type Extracted =
  * 100 MB is for video, not for a spreadsheet.
  */
 export const DOCUMENT_MAX_BYTES = 20 * 1024 * 1024
-/** The same character cap every other document read here has. */
-export const DOCUMENT_TEXT_CAP = 4000
 /** A long PDF is read from its start; page 300 is not worth a minute of CPU. */
 const PDF_MAX_PAGES = 30
 /** Seconds a reader may take before it is killed. */
 const TOOL_TIMEOUT_MS = 60_000
-/** One member of a zip is never inflated past this: the zip-bomb ceiling. */
-const ZIP_ENTRY_MAX_BYTES = 16 * 1024 * 1024
 /** An archive listing names this many entries and counts the rest. */
 const LISTING_MAX_ENTRIES = 60
 
-const ok = (full: string, listing = false): Extracted => {
-  const text = full.trim()
-  if (!text) return { ok: false, reason: listing ? 'damaged' : 'no-text' }
-  return {
-    ok: true,
-    text: text.slice(0, DOCUMENT_TEXT_CAP),
-    chars: text.length,
-    listing,
-  }
-}
+const ok = extracted
 
 /* ── the process boundary ───────────────────────────────────────────────── */
 
@@ -251,451 +236,47 @@ export async function pdfTextFromFile(
   }
 }
 
-/* ── zip, read here ─────────────────────────────────────────────────────── */
-
-interface ZipEntry {
-  name: string
-  size: number
-  directory: boolean
-  read(): Buffer | null
-}
-
-const u16 = (b: Buffer, at: number) => b.readUInt16LE(at)
-const u32 = (b: Buffer, at: number) => b.readUInt32LE(at)
-const u64 = (b: Buffer, at: number) => Number(b.readBigUInt64LE(at))
-
-function zipName(raw: Buffer, utf8Flag: boolean): string {
-  if (utf8Flag) return raw.toString('utf8')
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(raw)
-  } catch {
-    /* Windows archivers write Cyrillic names in the DOS codepage. */
-    return new TextDecoder('ibm866').decode(raw)
-  }
-}
+/* ── office files, parsed in a thread of their own ───────────────────────── */
 
 /**
- * The central directory of a zip, or null when the bytes are not one.
- *
- * Reads the directory at the END of the file, which is the authoritative list:
- * local headers can lie (streamed zips leave their sizes zero). ZIP64 is
- * followed for the sizes and offsets that overflow 32 bits.
+ * WHY A WORKER THREAD (2026-09-22). The render server is one event loop:
+ * every chat, upload and render shares it. Parsing a stranger's zipped XML on
+ * it meant that a parser mistake -- and the review found three, one of which
+ * held the loop for 74 s on a 1 KB workbook -- stopped all of them at once,
+ * and a heap blown by one file would have killed the process, which no
+ * try/catch can catch. office-text.ts is now bounded by its own budgets; this
+ * is the second wall, for whatever those budgets miss: the parse runs in a
+ * worker with a heap ceiling and a deadline, and a thread that overruns
+ * either is terminated and the file refused as too big. The server keeps
+ * answering while it happens.
  */
-export function readZip(bytes: Buffer): ZipEntry[] | null {
-  const min = 22
-  if (bytes.length < min) return null
-  let eocd = -1
-  for (
-    let i = bytes.length - min;
-    i >= Math.max(0, bytes.length - min - 0xffff);
-    i -= 1
-  ) {
-    if (u32(bytes, i) === 0x06054b50) {
-      eocd = i
-      break
-    }
-  }
-  if (eocd < 0) return null
-  let count = u16(bytes, eocd + 10)
-  let dirOffset = u32(bytes, eocd + 16)
-  if (dirOffset === 0xffffffff || count === 0xffff) {
-    const locator = eocd - 20
-    if (locator < 0 || u32(bytes, locator) !== 0x07064b50) return null
-    const z64 = u64(bytes, locator + 8)
-    if (z64 + 56 > bytes.length || u32(bytes, z64) !== 0x06064b50) return null
-    count = u64(bytes, z64 + 32)
-    dirOffset = u64(bytes, z64 + 48)
-  }
-  const entries: ZipEntry[] = []
-  let at = dirOffset
-  for (let n = 0; n < count && at + 46 <= bytes.length; n += 1) {
-    if (u32(bytes, at) !== 0x02014b50) return entries.length ? entries : null
-    const flags = u16(bytes, at + 8)
-    const method = u16(bytes, at + 10)
-    let packed = u32(bytes, at + 20)
-    let size = u32(bytes, at + 24)
-    const nameLen = u16(bytes, at + 28)
-    const extraLen = u16(bytes, at + 30)
-    const commentLen = u16(bytes, at + 32)
-    let local = u32(bytes, at + 42)
-    const name = zipName(
-      bytes.subarray(at + 46, at + 46 + nameLen),
-      (flags & 0x800) !== 0
-    )
-    // The ZIP64 extra field carries whichever of the three overflowed, in order.
-    let x = at + 46 + nameLen
-    const xEnd = x + extraLen
-    while (x + 4 <= xEnd) {
-      const id = u16(bytes, x)
-      const len = u16(bytes, x + 2)
-      if (id === 0x0001) {
-        let p = x + 4
-        if (size === 0xffffffff && p + 8 <= x + 4 + len)
-          ((size = u64(bytes, p)), (p += 8))
-        if (packed === 0xffffffff && p + 8 <= x + 4 + len)
-          ((packed = u64(bytes, p)), (p += 8))
-        if (local === 0xffffffff && p + 8 <= x + 4 + len) local = u64(bytes, p)
-      }
-      x += 4 + len
-    }
-    at = xEnd + commentLen
-    const encrypted = (flags & 0x1) !== 0
-    entries.push({
-      name,
-      size,
-      directory: name.endsWith('/'),
-      read: () => {
-        if (encrypted || local + 30 > bytes.length) return null
-        if (u32(bytes, local) !== 0x04034b50) return null
-        const start =
-          local + 30 + u16(bytes, local + 26) + u16(bytes, local + 28)
-        const data = bytes.subarray(start, start + packed)
-        try {
-          if (method === 0)
-            return size > ZIP_ENTRY_MAX_BYTES ? null : Buffer.from(data)
-          if (method === 8)
-            return inflateRawSync(data, {
-              maxOutputLength: ZIP_ENTRY_MAX_BYTES,
-            })
-        } catch {
-          /* over the ceiling, or not deflate after all */
-        }
-        return null
-      },
-    })
-  }
-  return entries
-}
+const officeReader = new IsolatedReader<
+  { bytes: Buffer; ext: string },
+  Extracted
+>(new URL('./office-worker.mjs', import.meta.url), {
+  heapMb: 256,
+  idleMs: 60_000,
+})
 
-/* ── the XML inside Office and OpenDocument files ───────────────────────── */
-
-const ENTITIES: Record<string, string> = {
-  lt: '<',
-  gt: '>',
-  amp: '&',
-  quot: '"',
-  apos: "'",
-}
-
-export function xmlDecode(s: string): string {
-  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, e: string) => {
-    if (e[0] === '#') {
-      const code =
-        e[1] === 'x' || e[1] === 'X'
-          ? parseInt(e.slice(2), 16)
-          : parseInt(e.slice(1), 10)
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
-        ? String.fromCodePoint(code)
-        : ''
-    }
-    return ENTITIES[e.toLowerCase()] ?? all
-  })
-}
-
-/** Lines trimmed, blank runs folded: layout is noise, the words are the point. */
-function tidy(text: string): string {
-  return text
-    .split('\n')
-    .map(l => l.replace(/[\t ]+$/g, ''))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
-function entryText(entries: ZipEntry[], name: string): string | null {
-  const e = entries.find(x => x.name === name)
-  const b = e?.read()
-  return b ? b.toString('utf8') : null
-}
-
-const byNumber = (a: string, b: string) =>
-  Number(/(\d+)\.xml$/.exec(a)?.[1] ?? 0) -
-  Number(/(\d+)\.xml$/.exec(b)?.[1] ?? 0)
-
-function docxText(entries: ZipEntry[]): string | null {
-  const xml = entryText(entries, 'word/document.xml')
-  if (xml === null) return null
-  let out = ''
-  const re =
-    /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:tab\/>|<w:br\b[^>]*\/>|<\/w:tc>|<\/w:p>/g
-  for (const m of xml.matchAll(re)) {
-    if (m[1] !== undefined) out += xmlDecode(m[1])
-    else if (m[0] === '<w:tab/>' || m[0] === '</w:tc>') out += '\t'
-    else out += '\n'
-  }
-  return tidy(out)
-}
-
-function pptxText(entries: ZipEntry[]): string | null {
-  const slides = entries
-    .map(e => e.name)
-    .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
-    .sort(byNumber)
-  if (!slides.length) return null
-  const parts: string[] = []
-  slides.forEach((name, i) => {
-    const xml = entryText(entries, name) ?? ''
-    let out = ''
-    for (const m of xml.matchAll(/<a:t>([^<]*)<\/a:t>|<a:br\/>|<\/a:p>/g)) {
-      out += m[1] !== undefined ? xmlDecode(m[1]) : '\n'
-    }
-    parts.push(`— slide ${i + 1} —\n${tidy(out)}`)
-  })
-  return parts.join('\n\n')
-}
-
-/** `C5` -> 2. Capped so one cell at XFD1 cannot spend the budget on tabs. */
-function columnOf(ref: string): number {
-  const letters = /^[A-Z]+/i.exec(ref)?.[0].toUpperCase() ?? ''
-  let n = 0
-  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64)
-  return Math.min(Math.max(0, n - 1), 50)
-}
-
-function xlsxText(entries: ZipEntry[]): string | null {
-  const shared: string[] = []
-  const sst = entryText(entries, 'xl/sharedStrings.xml') ?? ''
-  for (const si of sst.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
-    let s = ''
-    for (const t of si[1].matchAll(/<t(?:\s[^>]*)?>([^<]*)<\/t>/g)) s += t[1]
-    shared.push(xmlDecode(s))
-  }
-  // Sheets in the workbook's own order, with the names people gave them.
-  const rels = new Map<string, string>()
-  const relXml = entryText(entries, 'xl/_rels/workbook.xml.rels') ?? ''
-  for (const r of relXml.matchAll(/<Relationship\b[^>]*>/g)) {
-    const id = /\bId="([^"]+)"/.exec(r[0])?.[1]
-    const target = /\bTarget="([^"]+)"/.exec(r[0])?.[1]
-    if (id && target) rels.set(id, target.replace(/^\/?(xl\/)?/, 'xl/'))
-  }
-  const sheets: Array<{ name: string; path: string }> = []
-  const book = entryText(entries, 'xl/workbook.xml') ?? ''
-  for (const s of book.matchAll(/<sheet\b[^>]*>/g)) {
-    const name = /\bname="([^"]*)"/.exec(s[0])?.[1] ?? ''
-    const rid = /\br:id="([^"]+)"/.exec(s[0])?.[1] ?? ''
-    const path = rels.get(rid)
-    if (path) sheets.push({ name: xmlDecode(name), path })
-  }
-  if (!sheets.length) {
-    entries
-      .map(e => e.name)
-      .filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
-      .sort(byNumber)
-      .forEach((path, i) => sheets.push({ name: `Sheet${i + 1}`, path }))
-  }
-  if (!sheets.length) return null
-  const parts: string[] = []
-  for (const sheet of sheets) {
-    const xml = entryText(entries, sheet.path)
-    if (xml === null) continue
-    const rows: string[] = []
-    for (const row of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
-      const cells: string[] = []
-      for (const c of row[1].matchAll(
-        /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g
-      )) {
-        const attrs = c[1]
-        const inner = c[2] ?? ''
-        const ref = /\br="([A-Z]+)\d+"/i.exec(attrs)?.[1] ?? ''
-        const type = /\bt="([^"]+)"/.exec(attrs)?.[1] ?? ''
-        const v = /<v>([^<]*)<\/v>/.exec(inner)?.[1]
-        let value = ''
-        if (type === 's' && v !== undefined) value = shared[Number(v)] ?? ''
-        else if (type === 'inlineStr') {
-          for (const t of inner.matchAll(/<t(?:\s[^>]*)?>([^<]*)<\/t>/g))
-            value += xmlDecode(t[1])
-        } else if (v !== undefined) value = xmlDecode(v)
-        const col = ref ? columnOf(ref) : cells.length
-        while (cells.length < col) cells.push('')
-        cells[col] = value.replace(/[\t\n]+/g, ' ')
-      }
-      const line = cells.join('\t').replace(/\t+$/, '')
-      if (line.trim()) rows.push(line)
-    }
-    parts.push(`— ${sheet.name || 'sheet'} —\n${rows.join('\n')}`)
-  }
-  return parts.join('\n\n')
-}
-
-/** OpenDocument: one `content.xml` for text, spreadsheet and presentation. */
-function odfText(entries: ZipEntry[]): string | null {
-  const xml = entryText(entries, 'content.xml')
-  if (xml === null) return null
-  const body = /<office:body>([\s\S]*)<\/office:body>/.exec(xml)?.[1] ?? xml
-  const text = body
-    // A spreadsheet cell holds a paragraph; its end is the cell's, not a line's.
-    .replace(/<\/text:p>\s*<\/table:table-cell>/g, '</table:table-cell>')
-    .replace(/<text:s\s+text:c="(\d+)"\s*\/>/g, (_, n: string) =>
-      ' '.repeat(Math.min(Number(n), 8))
-    )
-    .replace(/<text:s\s*\/>/g, ' ')
-    .replace(/<text:tab\s*\/>/g, '\t')
-    .replace(/<text:line-break\s*\/>/g, '\n')
-    .replace(/<\/table:table-cell>/g, '\t')
-    .replace(/<\/(text:p|text:h|table:table-row)>/g, '\n')
-    .replace(/<draw:page\b[^>]*>/g, '\n')
-    .replace(/<[^>]+>/g, '')
-  return tidy(xmlDecode(text))
-}
-
-/* ── RTF ────────────────────────────────────────────────────────────────── */
-
-const RTF_SKIP = new Set([
-  'fonttbl',
-  'colortbl',
-  'stylesheet',
-  'info',
-  'pict',
-  'object',
-  'header',
-  'footer',
-  'headerl',
-  'headerr',
-  'footerl',
-  'footerr',
-  'listtable',
-  'listoverridetable',
-  'rsidtbl',
-  'themedata',
-  'colorschememapping',
-  'datastore',
-  'latentstyles',
-  'generator',
-  'xmlnstbl',
-  'fldinst',
-])
+/** The longest an office file may take in the background. */
+const OFFICE_TIMEOUT_MS = 20_000
 
 /**
- * The words of an RTF document. `\'hh` escapes are bytes in the document's
- * own codepage (`\ansicpg1251` for a Russian Word file), collected and
- * decoded together so a two-byte character is not split; `\uN` is Unicode
- * with a fallback that is skipped. Groups that are not text -- the font table,
- * pictures, anything marked `\*` -- are skipped whole.
+ * `officeText`, off the event loop. Never throws: a thread that ran out of
+ * time or memory is `too-big`, one that could not start is `tool-missing`
+ * (transient, so a stored row stays pending), one that crashed is `damaged`.
  */
-export function rtfText(bytes: Buffer): string | null {
-  const src = bytes.toString('latin1')
-  if (!src.startsWith('{\\rtf')) return null
-  let codepage = 1252
-  const decoderFor = (cp: number) => {
-    try {
-      return new TextDecoder(`windows-${cp}`)
-    } catch {
-      return new TextDecoder('latin1')
-    }
-  }
-  let out = ''
-  let pending: number[] = []
-  const flush = () => {
-    if (!pending.length) return
-    out += decoderFor(codepage).decode(Uint8Array.from(pending))
-    pending = []
-  }
-  const stack: Array<{ skip: boolean; uc: number }> = []
-  let skip = false
-  let uc = 1
-  let toSkip = 0
-  let i = 0
-  const emit = (s: string) => {
-    if (skip) return
-    if (toSkip > 0) {
-      toSkip -= 1
-      return
-    }
-    flush()
-    out += s
-  }
-  while (i < src.length) {
-    const ch = src[i]
-    if (ch === '{') {
-      stack.push({ skip, uc })
-      i += 1
-      continue
-    }
-    if (ch === '}') {
-      const top = stack.pop()
-      if (top) ({ skip, uc } = top)
-      i += 1
-      continue
-    }
-    if (ch === '\r' || ch === '\n') {
-      i += 1
-      continue
-    }
-    if (ch !== '\\') {
-      emit(ch)
-      i += 1
-      continue
-    }
-    const next = src[i + 1] ?? ''
-    if (next === "'") {
-      const hex = src.slice(i + 2, i + 4)
-      i += 4
-      if (skip) continue
-      if (toSkip > 0) {
-        toSkip -= 1
-        continue
-      }
-      const b = parseInt(hex, 16)
-      if (Number.isFinite(b)) pending.push(b)
-      continue
-    }
-    if (next === '*') {
-      skip = true
-      i += 2
-      continue
-    }
-    if (!/[a-z]/i.test(next)) {
-      // A control symbol: an escaped brace or backslash, or a special space.
-      if (next === '\\' || next === '{' || next === '}') emit(next)
-      else if (next === '~') emit(' ')
-      else if (next === '_') emit('-')
-      else if (next === '\n' || next === '\r') emit('\n')
-      i += 2
-      continue
-    }
-    const m = /^([a-z]+)(-?\d+)? ?/i.exec(src.slice(i + 1, i + 40))
-    const word = m?.[1] ?? ''
-    const arg = m?.[2] !== undefined ? Number(m[2]) : null
-    i += 1 + (m?.[0].length ?? 1)
-    if (RTF_SKIP.has(word)) skip = true
-    else if (word === 'ansicpg' && arg) codepage = arg
-    else if (word === 'uc' && arg !== null) uc = arg
-    else if (word === 'u' && arg !== null) {
-      emit(String.fromCharCode(arg < 0 ? arg + 65536 : arg))
-      toSkip = uc
-    } else if (
-      word === 'par' ||
-      word === 'line' ||
-      word === 'sect' ||
-      word === 'page'
-    )
-      emit('\n')
-    else if (word === 'tab' || word === 'cell') emit('\t')
-    else if (word === 'row') emit('\n')
-  }
-  flush()
-  return tidy(out)
-}
-
-/** Text out of a Word, Excel, PowerPoint, OpenDocument or RTF file. */
-export function officeText(bytes: Buffer, ext: string): Extracted {
-  if (ext === 'rtf') {
-    const text = rtfText(bytes)
-    return text === null ? { ok: false, reason: 'damaged' } : ok(text)
-  }
-  const entries = readZip(bytes)
-  if (!entries) return { ok: false, reason: 'damaged' }
-  if (entries.some(e => e.name === 'EncryptedPackage'))
-    return { ok: false, reason: 'encrypted' }
-  const text =
-    ext === 'docx'
-      ? docxText(entries)
-      : ext === 'xlsx'
-        ? xlsxText(entries)
-        : ext === 'pptx'
-          ? pptxText(entries)
-          : odfText(entries)
-  return text === null ? { ok: false, reason: 'damaged' } : ok(text)
+export async function officeTextIsolated(
+  bytes: Buffer,
+  ext: string,
+  timeoutMs = OFFICE_TIMEOUT_MS
+): Promise<Extracted> {
+  const got = await officeReader.run({ bytes, ext }, timeoutMs)
+  if (typeof got !== 'string') return got
+  console.warn(`[media-extract] office reader stopped: ${got} (.${ext})`)
+  if (got === 'unavailable') return { ok: false, reason: 'tool-missing' }
+  if (got === 'crashed') return { ok: false, reason: 'damaged' }
+  return { ok: false, reason: 'too-big' }
 }
 
 /* ── archives: listed, never unpacked ───────────────────────────────────── */
@@ -708,7 +289,14 @@ export function humanBytes(n: number): string {
   return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
-function listing(files: Array<{ name: string; size: number }>): Extracted {
+/**
+ * The table of contents. `truncated`: the archive holds more entries than were
+ * read (ZIP_MAX_ENTRIES), and the counts say so instead of passing for totals.
+ */
+function listing(
+  files: Array<{ name: string; size: number }>,
+  truncated = false
+): Extracted {
   if (!files.length) return { ok: false, reason: 'damaged' }
   const total = files.reduce(
     (n, f) => n + (Number.isFinite(f.size) ? f.size : 0),
@@ -716,12 +304,16 @@ function listing(files: Array<{ name: string; size: number }>): Extracted {
   )
   const shown = files.slice(0, LISTING_MAX_ENTRIES)
   const lines = [
-    `${files.length} file(s), ${humanBytes(total)} unpacked:`,
+    truncated
+      ? `more than ${files.length} file(s); the first ${files.length} hold ${humanBytes(total)} unpacked:`
+      : `${files.length} file(s), ${humanBytes(total)} unpacked:`,
     ...shown.map(f => `${f.name} — ${humanBytes(f.size)}`),
   ]
-  if (files.length > shown.length)
-    lines.push(`… and ${files.length - shown.length} more`)
-  return ok(lines.join('\n'), true)
+  if (files.length > shown.length || truncated)
+    lines.push(
+      `… and ${truncated ? 'more than ' : ''}${files.length - shown.length} more`
+    )
+  return ok(lines.join('\n'), true, truncated)
 }
 
 /** A lone `.gz`: the name in its header and the size in its trailer. */
@@ -732,11 +324,11 @@ function gzipListing(bytes: Buffer, fallbackName: string): Extracted {
   let name = fallbackName.replace(/\.gz$/i, '')
   if (flags & 0x08) {
     let at = 10
-    if (flags & 0x04) at += 2 + u16(bytes, 10)
+    if (flags & 0x04) at += 2 + bytes.readUInt16LE(10)
     const end = bytes.indexOf(0, at)
     if (end > at) name = bytes.subarray(at, end).toString('latin1')
   }
-  return listing([{ name, size: u32(bytes, bytes.length - 4) }])
+  return listing([{ name, size: bytes.readUInt32LE(bytes.length - 4) }])
 }
 
 /**
@@ -767,13 +359,21 @@ function unescapeOctal(name: string): string {
 
 /**
  * `bsdtar -tvf` prints an `ls -l` line per entry; the size is the fifth
- * column and the name is everything after the date.
+ * column and the name is everything after the date. At most `max` files are
+ * taken: at the 32 MB output ceiling, octal-escaped names cost 1.7 s of the
+ * server's event loop to parse whole, to show sixty of them.
  */
 export function parseBsdtarListing(
-  out: string
+  out: string,
+  max = Infinity
 ): Array<{ name: string; size: number }> {
   const files: Array<{ name: string; size: number }> = []
-  for (const line of out.split('\n')) {
+  let at = 0
+  while (at < out.length && files.length < max) {
+    let end = out.indexOf('\n', at)
+    if (end < 0) end = out.length
+    const line = out.slice(at, end)
+    at = end + 1
     const m =
       /^([dlrwxsStT-]{10})\s+\d+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+\d+\s+[\d:]+\s+(.+)$/.exec(
         line.trim()
@@ -791,19 +391,26 @@ export async function archiveListingFromFile(
   timeoutMs = TOOL_TIMEOUT_MS
 ): Promise<Extracted> {
   if (ext === 'zip') {
-    const entries = readZip(await readFile(path))
-    if (!entries) return { ok: false, reason: 'damaged' }
+    // At most ZIP_MAX_ENTRIES are read: a directory is cheap per entry, and a
+    // 20 MB zip can still declare four hundred thousand of them.
+    const dir = readZipDirectory(await readFile(path), ZIP_MAX_ENTRIES)
+    if (!dir) return { ok: false, reason: 'damaged' }
     return listing(
-      entries
+      dir.entries
         .filter(e => !e.directory)
-        .map(e => ({ name: e.name, size: e.size }))
+        .map(e => ({ name: e.name, size: e.size })),
+      dir.truncated
     )
   }
   // A lone `.gz` is one compressed file; `.tar.gz` arrives here as `tgz`.
   if (ext === 'gz') return gzipListing(await readFile(path), name)
   try {
     const { stdout } = await runTool('bsdtar', ['-tvf', path], timeoutMs)
-    return listing(parseBsdtarListing(String(stdout)))
+    const files = parseBsdtarListing(String(stdout), ZIP_MAX_ENTRIES + 1)
+    return listing(
+      files.slice(0, ZIP_MAX_ENTRIES),
+      files.length > ZIP_MAX_ENTRIES
+    )
   } catch (e) {
     return { ok: false, reason: failureOf(e) }
   }
@@ -890,21 +497,31 @@ export async function withShelfFile<T>(
  * Read a PDF, an office document or an archive's table of contents from OUR
  * shelf. Never throws: every way it can fail is a reason the caller can say
  * out loud.
+ *
+ * `timeoutMs` is how long the reader itself may run -- pdftotext, bsdtar or
+ * the office thread -- so a live turn that stops waiting also stops the work
+ * (see `readDocumentNow` in media-inline.ts). The download is not covered.
  */
 export async function readShelfExtracted(
   url: string,
   name: string | null,
-  mime: string | null
+  mime: string | null,
+  timeoutMs?: number
 ): Promise<Extracted> {
   const format = documentFormat(mime, name)
   if (!format) return { ok: false, reason: 'damaged' }
   const ext = format === 'pdf' ? 'pdf' : extensionOf(name)
   try {
     const got = await withShelfFile(url, DOCUMENT_MAX_BYTES, async path => {
-      if (format === 'pdf') return pdfTextFromFile(path)
+      if (format === 'pdf') return pdfTextFromFile(path, timeoutMs)
       if (format === 'archive')
-        return archiveListingFromFile(path, ext, String(name ?? 'archive'))
-      return officeText(await readFile(path), ext)
+        return archiveListingFromFile(
+          path,
+          ext,
+          String(name ?? 'archive'),
+          timeoutMs
+        )
+      return officeTextIsolated(await readFile(path), ext, timeoutMs)
     })
     if (got === 'missing' || got === 'too-big')
       return { ok: false, reason: got }
