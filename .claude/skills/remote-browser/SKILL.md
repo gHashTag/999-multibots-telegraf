@@ -191,3 +191,63 @@ through untouched -- paint, not a fork.
 - Boxes can measure identical and still LOOK crooked: an inline icon sits on
   the font's baseline, not in the middle of its box. Flex-centre the glyph,
   not only its cell.
+
+---
+
+## Night of 2026-09-21/22: "the window is grey" -- how it was found
+
+**Diagnose in this order, and do not guess past a step.** The evening went
+wrong three times on guesses (screen modes, autoplay, a window off-screen);
+each fell to one measurement.
+
+1. **Is the pod's screen alive?** `browser_screenshot { desktop: true }`
+   (neko's admin shot of the X screen, not the CDP page). If it shows
+   Chromium, the pod is fine and the fault is between the pod and the eye.
+2. **Is the video arriving?** Connect a viewer yourself (BrowserOS neo on the
+   `viewUrl`), then in the page: `video.videoWidth`, `!video.paused`,
+   `currentTime` advancing, and draw one frame to a canvas -- mean luma
+   near 0 is a black stream, anything else is real pixels.
+3. **What is on top?** `document.elementFromPoint(centre)`. On this night it
+   answered `DIV.emotes`: neko's flying-emoji layer, the exact size of the
+   picture, painted `#111` by our skin's `.emotes` rules (meant for the
+   emoji picker) and taking every click. Fix: `.player-container > .emotes`
+   transparent + `pointer-events: none` (#2743).
+
+**Traps paid for:**
+
+- **A hidden frame measures 0 x 0 and still fires `resize`.** The app keeps
+  its Browser tab mounted; its 0 was read as "the smallest screen" and two
+  windows took turns resizing the pod -- ten video restarts a minute.
+  `isVisibleBox` refuses boxes under 2 px on both fit doors; the window's fit
+  script asks only while visible and reclaims the screen once when shown
+  again (#2739).
+- **The chat model does not see pictures.** A screenshot reached it as 80 KB
+  of base64 text and it described a screen it never saw ("the Queen's
+  board") while the real one was a Google sign-in. `tool-content.ts` swaps
+  pictures for a note, every shot carries `tabs` in text (#2755), and `seen`
+  is our own vision endpoint's description (#2762). **Never trust an agent's
+  description of a screenshot without `seen` or tabs to back it.**
+- **The board is a separate repo.** The Queen's BROWSER view lives in
+  `gHashTag/trinity` (`apps/website`), shipped here by bumping `QUEEN_REF`
+  in `apps/vibee-editor/Dockerfile`. Its PRs need the `T27 work report`
+  block (`scripts/pr_blog_report.py validate`) or the merge is refused.
+  A panel over the hive must be `position: relative` or the hive paints over
+  it; keep z-index under the HUD menu (5-9) and hide the scene instead.
+- **Merged is not shipped.** Railway lost the GitHub source of four
+  services the same night; later a build failed its healthcheck and Railway
+  kept the old one. `tri drift` names UNWIRED / STALLED / FAILING per
+  service; a daily task runs it.
+
+**Two doors a checker needs, and how to use them without leaking:**
+
+- agent key for `/mcp` and `/api/agent/chat` -- recipe in
+  `mcp-owner-access`; the owner's pod session opens with
+  `POST /api/browser/session` and `X-Agent-Key`.
+- neko admin through the proxy: `POST /live/<id>/api/login` with the pod's
+  admin password (`NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD` of `browser-pod`,
+  read into a variable, never printed), then `Authorization: Bearer <token>`
+  on `/api/room/screen/shot.jpg`. A member login (placeholder password
+  `proxied-by-the-broker`) gets 403 there.
+- A view URL with `?t=` in a tool call is a credential in the transcript:
+  close the session afterwards (`DELETE /api/browser/session`, logins kept)
+  so the token dies.
