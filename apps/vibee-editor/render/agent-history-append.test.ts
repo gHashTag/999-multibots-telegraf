@@ -60,6 +60,10 @@ function fakePool() {
     rows,
     async query(sql: string, params: any[] = []) {
       if (/^\s*(CREATE|ALTER)/i.test(sql)) return { rows: [] }
+      // The duplicate probe: the write refuses a turn identical to the newest
+      // row of the same thread, so a retry cannot re-ask the same question.
+      if (/^\s*SELECT role, content/i.test(sql))
+        return { rows: rows.length ? [rows[rows.length - 1]] : [] }
       if (/INSERT INTO agent_messages/i.test(sql)) {
         const [telegram_id, role, content, surface] = params
         rows.push({ telegram_id, role, content, surface })
