@@ -32,6 +32,17 @@ export function salesPlaybook(who: {
   giftIsDown?: string | null
 }): string {
   if (who.seller !== true) return ''
+  /*
+   * THE PORTRAIT IS FIRST, AND IT IS THEIR FACE (owner, 2026-09-21).
+   *
+   * Two things this point used to leave open, and the seller filled both the
+   * wrong way. A client with a package (crm_client_profile) got reels of the
+   * package's template instead of the portrait, because the package read like
+   * a newer, more specific instruction than "a gift for the first contact".
+   * And a picture of a person could still come from a description or from the
+   * owner's own avatar. Both are answered here, in the one place every seller
+   * turn reads, rather than by a second rule somewhere that contradicts this.
+   */
   const gift = who.giftIsDown
     ? '4. ПОДАРОК СЕЙЧАС НЕВОЗМОЖЕН: картинки не делаются (' +
       String(who.giftIsDown).slice(0, 80) +
@@ -41,7 +52,13 @@ export function salesPlaybook(who: {
       'после предложения, сделай подарок из ЕГО ЖЕ аватарки — портрет 9:16 в образе по его словам ' +
       '(crm_deliver_photo, gift по умолчанию: получатель не платит, платит владелец). Не описание ' +
       'услуги, а готовый пример с ним самим на картинке. Подпись: имя, кто сделал (ИИ-ассистент), ' +
-      'один мягкий вопрос; без цены и ссылок. Один подарок на человека — второй уже платно.\n'
+      'один мягкий вопрос; без цены и ссылок. Один подарок на человека — второй уже платно. ' +
+      'Портрет — ПЕРВЫЙ подарок и клиенту с пакетом: пакет задаёт только сцену и стиль портрета ' +
+      '(визуальные токены, без запрещённых формулировок); рилс и остальное — после портрета. ' +
+      'ЛИЦО ОБЯЗАТЕЛЬНО: человек на картинке для клиента — только его лицо через crm_deliver_photo ' +
+      '(его аватарка или присланное им фото); не image_generate и не image_edit без его фото — они ' +
+      'рисуют чужого. Нет ни фото, ни аватарки — crm_deliver_photo сам подготовит строку с просьбой ' +
+      'прислать фото. «Портрет рисуется» — не делай второй: он придёт карточкой.\n'
   return (
     '\n\nПРОДАЖИ В ЛИЧКЕ (когда помогаешь владельцу писать людям):\n' +
     '1. Сначала контекст: перед любым предложением человеку вызови crm_lead_context — ' +

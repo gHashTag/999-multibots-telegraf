@@ -446,9 +446,22 @@ export function itemsFromChats(
  * written into the profile as her answer.
  *
  * Only for a numeric id: crm_client_profile takes a telegram_id.
+ *
+ * THE PORTRAIT COMES BEFORE THE PACKAGE (owner, 2026-09-21). This step used to
+ * make packaging the ONE action for a client with a draft package, and the
+ * portrait from the person's own face -- the first gift everybody else gets --
+ * never came to exactly the clients the owner cares most about; the seller's
+ * cards went to reels of the package's template instead. The package now
+ * shapes the portrait (its scene and style) and waits its turn after it. The
+ * render says which is due: crm_client_profile answers `portrait`.
  */
 export const PACKAGE_STEP =
-  'Сначала crm_client_profile с telegram_id=CHAT. Если у него есть пакет и статус — ' +
+  'Сначала crm_client_profile с telegram_id=CHAT. Если в ответе portrait.given не true и ' +
+  'портрет не рисуется — твоё ОДНО действие — ПОРТРЕТ из его лица: crm_deliver_photo с ' +
+  'chat=CHAT, сцена и стиль — из визуальных токенов пакета, без его запрещённых формулировок. ' +
+  'Кроме двух случаев: ждёт ответа на вопрос — сначала ответь, портрет в следующий раз; ' +
+  'отказ за 30 дней или просил позже — «тихо». Пакет, рилс и остальное — только после ' +
+  'портрета. Если портрет уже подарен (или рисуется), а у пакета статус — ' +
   'черновик, твоё ОДНО действие — УПАКОВКА: одно сообщение через tg_send, где ' +
   '(а) вопросы знакомства из discovery_questions, пронумерованные, как есть; ' +
   '(б) приглашение прочитать и поправить черновик SOUL в приложении — это его слова, ' +
@@ -467,7 +480,8 @@ export function scopedPrompt(item: ScopeItem): string {
     (item.next ? 'По памяти его шаг: next=' + item.next + '. ' : '') +
     (item.note ? item.note + ' ' : '') +
     (/^\d{5,15}$/.test(item.chat)
-      ? PACKAGE_STEP.replace('CHAT', item.chat)
+      ? // Every CHAT: the portrait names the person too, not only the profile.
+        PACKAGE_STEP.split('CHAT').join(item.chat)
       : '') +
     'Шаги: 1) crm_lead_context с chat=' +
     item.chat +

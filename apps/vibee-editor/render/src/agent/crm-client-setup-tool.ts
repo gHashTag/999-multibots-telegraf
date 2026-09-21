@@ -21,7 +21,15 @@
  *
  * WHAT THE SELLER READS. `crm_client_profile` returns the profile and what is
  * installed, so the seller opens the conversation with discovery questions and
- * proposes the client's own template (LeelaPlanReel), not the catalogue.
+ * the client's own style, not the catalogue.
+ *
+ * THE PACKAGE SHAPES THE PORTRAIT; IT DOES NOT REPLACE IT (owner, 2026-09-21).
+ * This header used to end "proposes the client's own template (LeelaPlanReel)",
+ * and the seller took it literally: a client with a package got reels, and the
+ * portrait from her own face -- the first gift every other person gets --
+ * stopped coming. The first gift is the portrait for everybody; the package
+ * gives it its scene and style (visual tokens, forbidden claims), and her
+ * template comes after it. The profile says which of the two is due (`portrait`).
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -770,6 +778,7 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
     description:
       'Прочитать профиль клиента перед разговором: бизнес, гипотезы об аудитории, вопросы для discovery, ' +
       'серии контента, запрещённые формулировки, визуальные токены, одобренный CTA, есть ли у него SOUL и какие скиллы. ' +
+      'portrait — подарен ли портрет: пока нет, он первый, пакет задаёт его стиль. ' +
       'Для продавца с подключённым аккаунтом. Бесплатно.',
     parameters: {
       type: 'object',
@@ -788,7 +797,17 @@ export const CRM_CLIENT_TOOLS: AgentTool[] = [
         )
       }
       const telegramId = String(args.telegram_id ?? DEFAULT_CLIENT_ID).trim()
-      return clientProfileFor(ctx, telegramId)
+      const profile = await clientProfileFor(ctx, telegramId)
+      // Which gift is due, beside the package that styles it. Loaded here,
+      // not at the top: the delivery module pulls in billing and Telegram,
+      // which reading a profile does not otherwise need.
+      const { portraitOf } = await import('./crm-deliver-tool')
+      const portrait = await portraitOf(
+        ctx.pool,
+        String(ctx.telegramId),
+        telegramId
+      ).catch(() => null)
+      return portrait ? { ...profile, portrait } : profile
     },
   },
   {
