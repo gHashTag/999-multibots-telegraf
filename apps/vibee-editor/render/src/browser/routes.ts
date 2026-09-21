@@ -79,6 +79,26 @@ export interface BrowserDeps {
   actor: (req: { url?: string; method?: string }) => Actor
   /** Optional: without it nothing is announced and nothing breaks. */
   announcer?: Announcer
+  /** Injected for tests; defaults to process.env. */
+  env?: Record<string, string | undefined>
+}
+
+/**
+ * Who the single shared pod belongs to.
+ *
+ * BROWSER_POD_OWNER names them; unset, it is the platform owner. There is no
+ * way to name two, on purpose -- see the gate in handleBrowser.
+ */
+export function isThePodsOwner(
+  who: string,
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  const owner = (
+    env.BROWSER_POD_OWNER ||
+    env.OWNER_TELEGRAM_ID ||
+    '144022504'
+  ).trim()
+  return Boolean(who) && who === owner
 }
 
 export interface RouteResult {
@@ -122,6 +142,31 @@ export async function handleBrowser(
 
   const driver = deps.driver
   if (!driver) {
+    return {
+      status: 503,
+      body: {
+        ok: false,
+        state: 'unavailable',
+        error: 'удалённый браузер на этой площадке не настроен', // cyrillic-ok: user-facing error
+      },
+    }
+  }
+
+  /*
+   * A SHARED POD BELONGS TO EXACTLY ONE PERSON.
+   *
+   * `fixed` is one provisioned browser: one Chromium, one profile, one set
+   * of cookies. Handed to everybody who opens the tab, the first person to
+   * sign into their mail would open it to all the rest -- the opposite of
+   * the rule this whole design rests on. So it is handed to ONE telegram id
+   * and to nobody else, and everybody else gets the same honest answer they
+   * got before any pod existed.
+   *
+   * One id, not the keepers list: two trusted people sharing one browser
+   * still share each other's logins. A list would be a second place for
+   * "who may see whose accounts" to be decided, and the wrong place.
+   */
+  if (driver.name === 'fixed' && !isThePodsOwner(who, deps.env)) {
     return {
       status: 503,
       body: {
@@ -247,6 +292,9 @@ async function open(
       podId: pod.podId,
       endpoint: pod.endpoint,
       cdpEndpoint: pod.cdpEndpoint,
+      /* The pod's own passwords win over the minted ones; see PodHandle. */
+      viewToken: pod.viewToken || session.viewToken,
+      adminToken: pod.adminToken || session.adminToken,
       state: 'live',
     }
     await writeSession(pool, live)
