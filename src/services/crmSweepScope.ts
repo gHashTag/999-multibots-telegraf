@@ -41,11 +41,35 @@ export const SWEEP_FILES =
   'tg_fetch_media {chat, msg_ids}; это чтение, не действие. Отвечай по тому, что ' +
   'в них увидел; картинка с ним — только crm_deliver_photo (его лицо), не image_edit; ' +
   'неоткрытый файл не описывай. '
-/** The one action by `next`, without the files rule: the one-person brief reads first. */
+/*
+ * THE PORTRAIT COMES FIRST, IN EVERY BRIEF (owner, 2026-09-21: "he does not
+ * use the clients' face -- this is mandatory").
+ *
+ * The rule used to live only in PACKAGE_STEP, which reaches the scoped brief
+ * for a numeric id. The thirty-minute timer's brief and the /sweep @username
+ * brief had no portrait step at all, and their deliver rule -- "next=deliver
+ * and they have tokens -- crm_deliver_photo at their request" -- limited the
+ * gift to people who asked for it and could pay, which is exactly who a lead
+ * magnet is NOT for. The queue never says `deliver` for somebody who has not
+ * had a portrait yet, so the gift simply never came.
+ *
+ * So the rule opens SWEEP_ACTIONS, the part every brief shares, and it is the
+ * first thing the ONE action is. crm_lead_context answers `portrait` (given /
+ * drawing / ready), so the model reads the fact instead of guessing it. The
+ * gift needs no tokens of theirs; paying is only the paid mode.
+ */
+export const SWEEP_PORTRAIT =
+  'ПОРТРЕТ ПЕРВЫЙ: если в crm_lead_context portrait.given не true и портрет не рисуется — ' +
+  'твоё действие crm_deliver_photo с его chat: подарок, портрет 9:16 из ЕГО лица, его токены ' +
+  'не нужны. Кроме двух случаев: ждёт ответа на свой вопрос — сначала ответь, портрет в ' +
+  'следующий раз; отказ за 30 дней или просил позже — без портрета. Иначе по шагу: '
+/** The one action -- the portrait first, then by `next` -- without the files rule: the one-person brief reads first. */
 export const SWEEP_ACTIONS =
+  SWEEP_PORTRAIT +
   'next=reply — короткий ответ по сути его последних слов через tg_send; ' +
   'next=talk — короткое продолжение разговора по контексту через tg_send, без цены ' +
-  'и без счёта; next=deliver и есть токены — crm_deliver_photo по его просьбе; ' +
+  'и без счёта; next=deliver — crm_deliver_photo (готовый или рисующийся портрет отдаётся ' +
+  'без новой оплаты; платно, gift=false, — только по его просьбе и если у него есть токены); ' +
   'next=offer — crm_offer, и только если человек САМ спрашивал цену или хотел купить. ' +
   'НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ: клиент должен захотеть сам. '
 export const SWEEP_RULES = SWEEP_FILES + SWEEP_ACTIONS
@@ -468,16 +492,32 @@ export function itemsFromChats(
  * written into the profile as her answer.
  *
  * Only for a numeric id: crm_client_profile takes a telegram_id.
+ *
+ * THE PORTRAIT COMES BEFORE THE PACKAGE (owner, 2026-09-21). This step used to
+ * make packaging the ONE action for a client with a draft package, and the
+ * portrait from the person's own face -- the first gift everybody else gets --
+ * never came to exactly the clients the owner cares most about; the seller's
+ * cards went to reels of the package's template instead. The package now
+ * shapes the portrait (its scene and style) and waits its turn after it.
+ *
+ * The portrait rule itself is NOT here any more: it opens SWEEP_ACTIONS
+ * (SWEEP_PORTRAIT), which every brief shares. Stated in both places it read as two
+ * orders -- "the portrait is your ONE action", then "if there is no package,
+ * act by the steps below", then "exactly ONE action: next=talk -- tg_send" --
+ * and a model obeying the last one never drew the portrait.
  */
 export const PACKAGE_STEP =
-  'Сначала crm_client_profile с telegram_id=CHAT. Если у него есть пакет и статус — ' +
-  'черновик, твоё ОДНО действие — УПАКОВКА: одно сообщение через tg_send, где ' +
+  'Сначала crm_client_profile с telegram_id=CHAT: portrait в ответе говорит, подарен ли ' +
+  'портрет, а пакет задаёт портрету сцену и стиль — визуальные токены, без его запрещённых ' +
+  'формулировок. Портрет — по правилу ПОРТРЕТ ПЕРВЫЙ ниже, раньше пакета: пакет, рилс и ' +
+  'остальное — только после портрета. Если портрет уже подарен (или рисуется), а у пакета ' +
+  'статус — черновик, твоё ОДНО действие — УПАКОВКА: одно сообщение через tg_send, где ' +
   '(а) вопросы знакомства из discovery_questions, пронумерованные, как есть; ' +
   '(б) приглашение прочитать и поправить черновик SOUL в приложении — это его слова, ' +
   'пока он их не подтвердил; (в) если есть готовое, что ждёт одобрения, — попросить ' +
   'посмотреть и одобрить. Без цены и без счёта. Ответы модели или персоны в профиль ' +
-  'не записывай — ответы даёт сам человек. Если пакета нет или он подтверждён — ' +
-  'действуй по шагам ниже. '
+  'не записывай — ответы даёт сам человек. Если портрет уже подарен, а пакета нет или он ' +
+  'подтверждён — действуй по шагам ниже. '
 
 /*
  * THE READ COMES BEFORE THE PACKAGE (review of 2026-09-22).
@@ -507,7 +547,8 @@ export function scopedPrompt(item: ScopeItem): string {
     (item.note ? item.note + ' ' : '') +
     SWEEP_READ.split('CHAT').join(item.chat) +
     (/^\d{5,15}$/.test(item.chat)
-      ? PACKAGE_STEP.replace('CHAT', item.chat)
+      ? // Every CHAT, not only the first: the step may name the person twice.
+        PACKAGE_STEP.split('CHAT').join(item.chat)
       : '') +
     'Шаги: 1) по прочитанному в crm_lead_context с chat=' +
     item.chat +
@@ -519,6 +560,21 @@ export function scopedPrompt(item: ScopeItem): string {
     'НИЧЕГО НЕ ОТПРАВЛЯЙ САМ: только подготовь; владелец нажмёт кнопку. Ответ — одна ' +
     'строка: кому и что подготовлено.'
   )
+}
+
+/**
+ * WHOSE FACE THIS TURN DRAWS, for a turn aimed at one person.
+ *
+ * The render only knew the client of a turn on its own client-thread route;
+ * the sweeps -- where the CRM cards are actually made -- never said, so
+ * image_edit without a file took the caller's avatar there: the OWNER's face
+ * in a picture for a lead. A numeric id is the only form the render can take
+ * as-is; an @username would have to be resolved on the owner's session, and a
+ * wrong resolution would draw a stranger, so it is not sent at all.
+ */
+export function faceOfItem(item: { chat: string }): string | undefined {
+  const chat = String(item?.chat ?? '').trim()
+  return /^\d{5,15}$/.test(chat) ? chat : undefined
 }
 
 /** The user-turn marker written to the shared transcript for a scoped item. */

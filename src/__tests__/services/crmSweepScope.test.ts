@@ -13,6 +13,7 @@ import {
   itemsFromChats,
   itemsFromRows,
   scopedPrompt,
+  faceOfItem,
   PACKAGE_STEP,
   itemMarker,
   progressLine,
@@ -282,6 +283,66 @@ describe('the items and the brief', () => {
     expect(p.indexOf('crm_lead_context с chat=900000041')).toBeLessThan(
       p.indexOf('crm_client_profile')
     )
+  })
+
+  /*
+   * THE PORTRAIT COMES BEFORE THE PACKAGE (owner, 2026-09-21). With a package
+   * installed, the seller's cards went to reels of the package template and
+   * the portrait from the person's own face never came. The package step now
+   * sends the portrait to the shared rule and waits its own turn after it.
+   */
+  it('the portrait from their face comes before packaging, reels and the rest', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: null })
+    expect(p).toContain('portrait')
+    expect(p).toContain('пакет, рилс и остальное — только после портрета')
+    expect(p.indexOf('раньше пакета')).toBeLessThan(p.indexOf('УПАКОВКА'))
+    // The portrait rule is the first thing the ONE action is.
+    expect(p).toContain('Ровно ОДНО действие: ПОРТРЕТ ПЕРВЫЙ')
+    // The two exceptions: an unanswered question and a recent refusal.
+    expect(p).toContain('ждёт ответа на свой вопрос — сначала ответь')
+    expect(p).toContain('отказ за 30 дней или просил позже — без портрета')
+  })
+
+  /*
+   * ONE ORDER, NOT THREE. The package step said "the portrait is your ONE
+   * action", then "no package -- act by the steps below", then the steps said
+   * "exactly ONE action: next=talk -- tg_send". A model obeying the last one
+   * never drew the portrait. The package step no longer claims the portrait,
+   * and "act by the steps below" is only for a portrait already given.
+   */
+  it('the numeric brief does not give two ONE actions for the portrait', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: 'talk' })
+    expect(p).not.toContain('твоё ОДНО действие — ПОРТРЕТ')
+    expect(p).toContain(
+      'Если портрет уже подарен, а пакета нет или он подтверждён — действуй по шагам ниже'
+    )
+    expect(p).not.toContain('Если пакета нет или он подтверждён')
+  })
+
+  /*
+   * EVERY BRIEF, NOT ONLY THE NUMERIC ONE. The thirty-minute timer's brief and
+   * the /sweep @username brief carried no portrait step at all, and their
+   * deliver rule limited the gift to people who asked and could pay.
+   */
+  it('the timer brief and the @username brief put the portrait first, and the gift needs no tokens', () => {
+    const at = scopedPrompt({
+      chat: '@pilot_client',
+      display: null,
+      next: null,
+    })
+    for (const p of [SWEEP_PROMPT, at]) {
+      expect(p).toContain('ПОРТРЕТ ПЕРВЫЙ')
+      expect(p).toContain('crm_deliver_photo с его chat')
+      expect(p).toContain('его токены не нужны')
+      expect(p).not.toContain('next=deliver и есть токены')
+      expect(p.indexOf('ПОРТРЕТ ПЕРВЫЙ')).toBeLessThan(p.indexOf('next=talk'))
+    }
+  })
+
+  it('only a numeric id is a face the render may draw', () => {
+    expect(faceOfItem({ chat: '900000041' })).toBe('900000041')
+    expect(faceOfItem({ chat: '@pilot_client' })).toBeUndefined()
+    expect(faceOfItem({ chat: '12' })).toBeUndefined()
   })
 
   /*
