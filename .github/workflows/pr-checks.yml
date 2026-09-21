@@ -92,8 +92,13 @@ jobs:
 
       - name: Lint changed files only
         run: |
-          # Получаем список измененных .ts файлов
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.ts$' || true)
+          # THE FILES THIS PR CHANGED, not every file that differs from main's tip.
+          # A two-dot diff (origin/main HEAD) also lists files main added or
+          # deleted after the branch point, and eslint fails on a deleted one:
+          # "No files matching the pattern ... were found". That broke PR after
+          # PR on 2026-09-21 while main moved every few minutes. Three dots =
+          # since the merge base; --diff-filter=ACMR drops deletions.
+          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD | grep '\.ts$' || true)
           if [ -n "$CHANGED_FILES" ]; then
             echo "Linting changed files: $CHANGED_FILES"
             bunx eslint $CHANGED_FILES
@@ -103,7 +108,8 @@ jobs:
 
       - name: Check for console.log in changed files
         run: |
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.ts$' || true)
+          # Same list as the lint step, for the same reason.
+          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD | grep '\.ts$' || true)
           if [ -n "$CHANGED_FILES" ]; then
             if grep -n "console\.log" $CHANGED_FILES; then
               echo "::warning::Found console.log statements in changed files. Consider using proper logging."
