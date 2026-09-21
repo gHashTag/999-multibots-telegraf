@@ -44,20 +44,30 @@ beforeEach(() => forgetClubTablesForTests())
 afterEach(() => vi.unstubAllEnvs())
 
 describe('the list', () => {
-  it('names the two invited people, lower-cased, without the @', () => {
-    expect(DEFAULT_GUESTS).toEqual(['dmtrled', 'samhold'])
+  it('names the invited people, lower-cased, without the @', () => {
+    // The list grows as the owner invites people, and every name now travels
+    // with its id -- see an-invitation-must-work-outside-telegram.test.ts for
+    // why. So the shape is asserted, not the census.
+    expect(DEFAULT_GUESTS).toContain('dmtrled')
+    expect(DEFAULT_GUESTS).toContain('samhold')
+    expect(DEFAULT_GUESTS.every(g => g === normalizeGuest(g))).toBe(true)
     expect(normalizeGuest(' @SamHold ')).toBe('samhold')
   })
 
   it('merges CLUB_GUESTS from the environment, dropping empties and duplicates', () => {
-    expect(clubGuests('@DMTRLED, 777, ,anna')).toEqual(['dmtrled', 'samhold', '777', 'anna'])
-    expect(clubGuests(undefined)).toEqual(['dmtrled', 'samhold'])
+    const merged = clubGuests('@DMTRLED, 777, ,anna')
+    expect(merged).toEqual([...DEFAULT_GUESTS, '777', 'anna'])
+    expect(merged.filter(g => g === 'dmtrled')).toHaveLength(1)
+    expect(merged).not.toContain('')
+    expect(clubGuests(undefined)).toEqual([...DEFAULT_GUESTS])
   })
 
   it('matches by verified username in any case, or by id exactly', () => {
     expect(isClubGuest({ telegramId: '1', username: 'SamHold' })).toBe(true)
     expect(isClubGuest({ telegramId: '1', username: '@dmtrled' })).toBe(true)
-    expect(isClubGuest({ telegramId: '777', username: null }, ['777'])).toBe(true)
+    expect(isClubGuest({ telegramId: '777', username: null }, ['777'])).toBe(
+      true
+    )
     expect(isClubGuest({ telegramId: '1', username: 'samholder' })).toBe(false)
     expect(isClubGuest({ telegramId: '1', username: null })).toBe(false)
   })
@@ -72,7 +82,9 @@ describe('the grant', () => {
 
   it('an invited person is a guest; owners and keepers keep their grants', async () => {
     expect(await clubGrantFor('1', source('dmtrled'), {})).toBe('guest')
-    expect(await clubGrantFor('1', source('dmtrled', ['bot_a']), {})).toBe('owner')
+    expect(await clubGrantFor('1', source('dmtrled', ['bot_a']), {})).toBe(
+      'owner'
+    )
     expect(await clubGrantFor('9', source('dmtrled'), {})).toBe('keeper')
   })
 
@@ -83,9 +95,16 @@ describe('the grant', () => {
   })
 
   it('a Supabase hiccup does not lock an invited person out', async () => {
-    const s = { ...source('samhold'), botsOwnedBy: async () => { throw new Error('avatars replied 503') } }
+    const s = {
+      ...source('samhold'),
+      botsOwnedBy: async () => {
+        throw new Error('avatars replied 503')
+      },
+    }
     expect(await clubGrantFor('1', s, {})).toBe('guest')
-    expect(await clubGrantFor('1', { ...s, usernameOf: () => 'nobody' }, {})).toBeNull()
+    expect(
+      await clubGrantFor('1', { ...s, usernameOf: () => 'nobody' }, {})
+    ).toBeNull()
   })
 })
 
@@ -100,7 +119,11 @@ describe('the HTTP surface', () => {
         identity: () => '424242',
         botToken: 'bot',
         credit: async () => 'credited' as never,
-        grant: { botsOwnedBy: async () => [], keepers: () => [], usernameOf: () => 'dmtrled' },
+        grant: {
+          botsOwnedBy: async () => [],
+          keepers: () => [],
+          usernameOf: () => 'dmtrled',
+        },
         creditGrant: async g => {
           credits.push(g)
           return { ok: true } as never
@@ -109,7 +132,12 @@ describe('the HTTP surface', () => {
       }
     )
     expect(out.status).toBe(200)
-    expect(out.body).toMatchObject({ ok: true, active: true, granted: 'guest', days_left: 0 })
+    expect(out.body).toMatchObject({
+      ok: true,
+      active: true,
+      granted: 'guest',
+      days_left: 0,
+    })
     expect(pool.grants).toHaveLength(0)
     expect(credits).toHaveLength(0)
   })
@@ -118,7 +146,12 @@ describe('the HTTP surface', () => {
 describe('the verified username', () => {
   it('comes from a signed initData only', () => {
     vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
-    const req = { headers: { 'x-telegram-init-data': 'user=%7B%22id%22%3A1%2C%22username%22%3A%22SamHold%22%7D&hash=deadbeef' } }
+    const req = {
+      headers: {
+        'x-telegram-init-data':
+          'user=%7B%22id%22%3A1%2C%22username%22%3A%22SamHold%22%7D&hash=deadbeef',
+      },
+    }
     // No token configured => the signature cannot verify => no name.
     expect(verifiedTelegramUsername(req as never)).toBeNull()
     expect(verifiedTelegramUsername({ headers: {} } as never)).toBeNull()
