@@ -67,6 +67,9 @@ export const FIT_PATH = '/__fit'
  */
 export const AVATAR_PATH = '/__avatar'
 
+/** Where the loader's live frames come from (frames.ts, which checks this). */
+export const FRAMES_PATH = '/__frames'
+
 /** What the app's own header says. One brand, spelled one way. */
 export const BRAND_NAME = 'Trinity S\u00B3AI'
 
@@ -1016,7 +1019,7 @@ export const BOOT_HTML =
    * purpose: the document lives at /live/<id>/. It removes itself when
    * there is no poster, and the loader stands on its own.
    */
-  `<img class="poster" src="__poster" alt="" onerror="this.remove()">` +
+  `<img class="poster" src="__poster" alt="" onerror="this.style.visibility='hidden'">` +
   `<img src="${LOGO_URL}" alt="">` +
   `<div class="ring"></div>` +
   `<p class="said">${BOOT_SAID}</p>` +
@@ -1040,9 +1043,40 @@ export const BOOT_SCRIPT = `
     el.querySelector('.hint').textContent = __HINT_EN__;
   }
   var gone = false;
+  /*
+   * LIVE FRAMES UNDER THE LOADER until the video plays (frames.ts): the
+   * page as it changes, one JPEG at a time, over a socket that is up in one
+   * round trip. Pictures only -- nothing is sent back on it.
+   */
+  var poster = el.querySelector('img.poster');
+  var frames = null;
+  var lastFrame = null;
+  try {
+    var here = location.pathname.match(/^\\/live\\/([^/]+)/);
+    if (here && poster && window.WebSocket && window.URL && URL.createObjectURL) {
+      var dpr = window.devicePixelRatio || 1;
+      frames = new WebSocket(
+        (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
+        '/live/' + here[1] + '__FRAMES__' +
+        '?w=' + Math.round(innerWidth * dpr) + '&h=' + Math.round(innerHeight * dpr)
+      );
+      frames.binaryType = 'blob';
+      frames.onmessage = function (ev) {
+        if (gone) return;
+        var url = URL.createObjectURL(ev.data);
+        poster.onload = function () {
+          if (lastFrame) URL.revokeObjectURL(lastFrame);
+          lastFrame = url;
+        };
+        poster.style.visibility = 'visible';
+        poster.src = url;
+      };
+    }
+  } catch (e) { frames = null; }
   function done() {
     if (gone) return;
     gone = true;
+    if (frames) { try { frames.close(); } catch (e) {} }
     el.setAttribute('data-done', '1');
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
   }
@@ -1061,6 +1095,7 @@ export const BOOT_SCRIPT = `
 })();
 `
   .replace('__GIVEUP__', String(BOOT_GIVE_UP_MS))
+  .replace('__FRAMES__', FRAMES_PATH)
   .replace('__SAID_EN__', () => JSON.stringify(BOOT_SAID_EN))
   .replace('__HINT_EN__', () => JSON.stringify(BOOT_HINT_EN))
 
