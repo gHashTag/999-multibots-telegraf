@@ -21,7 +21,21 @@ export const SWEEP_HEAD =
   'Шаги: 1) crm_leads с limit 5. 2) Возьми первого, у кого next не wait; ' +
   'по нему crm_lead_context — и продолжай ИМЕННО ЭТУ переписку, по её истории ' +
   'и памяти, а не начинай заново. 3) Ровно ОДНО действие: '
+/*
+ * THE FILES FIRST (owner, 2026-09-22). A client sent photos for her content
+ * plan and the seller answered her words and not her photos: nothing in this
+ * brief said a file is something to open. `their_files` in crm_lead_context
+ * now counts them, and tg_fetch_media opens them -- a read, which is why it
+ * comes before the one action and does not replace it.
+ */
+export const SWEEP_FILES =
+  'Если после нашего последнего слова он прислал фото, голосовые или файлы ' +
+  '(their_files с after_our_last_word в crm_lead_context) — СНАЧАЛА открой их: ' +
+  'tg_fetch_media {chat, msg_ids}; это чтение, не действие. Отвечай по тому, что ' +
+  'в них увидел; фото с его лицом — исходник для картинки с ним (image_edit); ' +
+  'неоткрытый файл не описывай. '
 export const SWEEP_RULES =
+  SWEEP_FILES +
   'next=reply — короткий ответ по сути его последних слов через tg_send; ' +
   'next=talk — короткое продолжение разговора по контексту через tg_send, без цены ' +
   'и без счёта; next=deliver и есть токены — crm_deliver_photo по его просьбе; ' +

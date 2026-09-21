@@ -279,6 +279,31 @@ describe('the items and the brief', () => {
     )
   })
 
+  /*
+   * THE FILES FIRST (owner, 2026-09-22): a client sent photos for her content
+   * plan and the seller answered her words only. Both briefs -- the one-person
+   * one and the whole-base sweep -- now say to open what she sent before the
+   * one action, to use a photo with her face as the picture's source, and
+   * never to describe a file nobody opened.
+   */
+  it('both briefs open the files she sent before the one action', () => {
+    const one = scopedPrompt({
+      chat: '900000041',
+      display: null,
+      next: 'reply',
+    })
+    for (const p of [one, SWEEP_PROMPT]) {
+      expect(p).toContain('tg_fetch_media')
+      expect(p).toContain('their_files')
+      expect(p).toContain('image_edit')
+      expect(p).toContain('неоткрытый файл не описывай')
+      // Opening comes before the rules of the one action, not after them.
+      expect(p.indexOf('tg_fetch_media')).toBeLessThan(
+        p.indexOf('next=reply —')
+      )
+    }
+  })
+
   it('an @username brief has no package step', () => {
     const p = scopedPrompt({ chat: '@pilot_client', display: null, next: null })
     expect(p).not.toContain('crm_client_profile')

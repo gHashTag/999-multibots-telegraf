@@ -431,6 +431,55 @@ describe('crm_ingest_chats', () => {
     expect(ins[0].params).toContain('[голосовое]')
   })
 
+  it('an album is written as an album: its size counted over the dialog, one marker row per photo', async () => {
+    // Owner, 2026-09-22: eight photos of one album used to be eight rows of
+    // synthetic file names. The memory now says what the person saw sent.
+    const put = vi.fn(async (_b: Buffer, name: string) => ({
+      key: `assets/3-${name}`,
+      url: `https://vibee-render-production.up.railway.app/s3/assets/3-${name}`,
+    }))
+    vi.doMock('./src/lib/s3-put', () => ({ s3PutBytes: put }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 500, text: async () => '' }))
+    )
+    const f = fakeClient()
+    const shot = (id: number, message = '') => ({
+      id,
+      date: 1757250000 + id,
+      out: false,
+      message,
+      groupedId: { toString: () => '7001' },
+      media: {
+        className: 'MessageMediaPhoto',
+        photo: { sizes: [{ size: 100 }] },
+      },
+    })
+    const baseGetMessages = f.client.getMessages.bind(f.client)
+    f.client.getMessages = async (chat: string) => {
+      const rows = await baseGetMessages(chat)
+      return chat === A ? [shot(22, 'для плана'), shot(21), ...rows] : rows
+    }
+    ;(f.client as any).downloadMedia = async () => Buffer.from('JFIF bytes')
+    const pool = fakePool()
+    const inner = pool.query
+    pool.query = (async (sql: string, params: unknown[] = []) => {
+      const flat = sql.replace(/\s+/g, ' ').trim()
+      if (flat.startsWith('INSERT INTO user_media'))
+        return { rows: [{ id: 1, fresh: false }] }
+      return inner(sql, params)
+    }) as typeof pool.query
+    const { ingest } = await tools(f.client)
+    const r: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(r.messages_read).toBe(6)
+    const ins = pool.queries.find(
+      q => q.sql.startsWith('INSERT INTO crm_messages') && q.params[1] === A
+    )!
+    const texts = ins.params.filter((_, i) => i % 6 === 5)
+    expect(texts).toContain('[фото, альбом из 2]')
+    expect(texts).toContain('[фото, альбом из 2] для плана')
+  })
+
   it('a file whose message is already on the shelf is not downloaded again on the next pass', async () => {
     const put = vi.fn(async (_b: Buffer, name: string) => ({
       key: `assets/2-${name}`,
@@ -496,6 +545,49 @@ describe('crm_lead_context', () => {
     const mine = r.dialog.find((m: any) => m.who === 'owner')
     expect(mine.text).toBe('привет!')
     expect(r.zep_context).toBeNull()
+    // Words only: no files to count, and the answer does not pretend there are.
+    expect('their_files' in r).toBe(false)
+  })
+
+  it('says what they sent as files, with dates, and which of it came after our last word', async () => {
+    const f = fakeClient()
+    const pool = fakePool()
+    const inner = pool.query
+    const ours = daysAgo(1)
+    const later = (min: number) =>
+      new Date(Date.parse(ours) + min * 60_000).toISOString()
+    pool.query = async (sql: string, params: unknown[] = []) => {
+      const flat = sql.replace(/\s+/g, ' ').trim()
+      if (/^SELECT msg_id, at/.test(flat))
+        return {
+          rows: [
+            ...[8, 7, 6, 5, 4, 3, 2, 1].map(i => ({
+              msg_id: 30 + i,
+              at: later(10 + i),
+              out: false,
+              text: '[фото, альбом из 8]',
+            })),
+            { msg_id: 20, at: ours, out: true, text: 'жду фото' },
+          ],
+        }
+      if (/count\(\*\)::int AS total,/.test(flat) && !/GROUP BY/.test(flat))
+        return {
+          rows: [{ total: 9, inbound: 8, last_in: later(18), last_out: ours }],
+        }
+      return inner(sql, params)
+    }
+    const { context } = await tools(f.client)
+    const r: any = await context.handler({ chat: A }, ctxFor(OWNER, pool))
+    expect(r.their_files).toHaveLength(1)
+    expect(r.their_files[0]).toMatchObject({
+      count: 8,
+      what: 'фото ×8',
+      at: later(11),
+      until: later(18),
+      after_our_last_word: true,
+    })
+    expect(r.their_files[0].msg_ids).toEqual([31, 32, 33, 34, 35, 36, 37, 38])
+    expect(r.files_note).toContain('tg_fetch_media')
   })
 })
 
