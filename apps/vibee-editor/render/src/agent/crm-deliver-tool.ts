@@ -262,6 +262,51 @@ export function makeCrmDeliverTools(
           // reaching a stranger.
           lead = await resolveLead(ctx, '@' + handle)
         }
+        /*
+         * A SELLER CHARGES ONLY THEIR OWN CLIENTS.
+         *
+         * Found by the adversarial security sweep of 2026-09-20 and confirmed
+         * by three refuters. `isSeller` is true for anybody who connected
+         * their OWN Telegram in the mini app -- a self-serve step, which is
+         * fine as a role. But the paid path then resolved the target by
+         * @username through GramJS on the caller's session, and Telegram
+         * resolves ANY username. So a self-made "seller" could name a
+         * stranger, have the picture drawn at chargeLater (spent: 0), and on
+         * confirm debit the STRANGER's wallet for something they never asked
+         * for.
+         *
+         * The role was being treated as proof of ownership of somebody else's
+         * telegram_id. It is not. The boundary this codebase already uses
+         * everywhere else is the owner: a lead belongs to a seller when the
+         * seller has actually corresponded with them. So the PAID path now
+         * requires the lead to be in the caller's own correspondence.
+         *
+         * The GIFT path is untouched and that is deliberate: the house pays
+         * for a gift and no wallet but the owner's moves, so reaching a new
+         * person by a verified @username is the feature, not the hole.
+         */
+        if (!gift && ctx?.pool) {
+          const mine = await personOf(
+            ctx.pool as never,
+            String(ctx.telegramId ?? ''),
+            lead.id
+          ).catch(() => null)
+          if (!mine) {
+            await noteGiftRefused(
+              ctx,
+              "paid delivery to a person outside the caller's correspondence",
+              'not-own-client'
+            )
+            return {
+              delivered: false,
+              // cyrillic-ok: public API field
+              причина:
+                'платная доставка возможна только вашим клиентам — тем, с кем ' + // cyrillic-ok: message to the agent
+                'вы уже переписывались. Для нового человека есть подарок (gift).', // cyrillic-ok: message to the agent
+            }
+          }
+        }
+
         const fromPhoto = a?.from_photo !== false
         const aspectRatio = a?.aspect_ratio
           ? String(a.aspect_ratio)

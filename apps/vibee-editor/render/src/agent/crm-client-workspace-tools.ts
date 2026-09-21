@@ -207,6 +207,32 @@ export const CRM_CLIENT_WORKSPACE_TOOLS: AgentTool[] = [
       const telegramId = String(args.telegram_id ?? '').trim()
       if (!ID_RE.test(telegramId))
         throw new Error('telegram_id должен быть числовым Telegram ID')
+      /*
+       * A PLAN IS READ ONLY BY ITS OWNER OR BY THAT PERSON'S OWN SELLER.
+       *
+       * Same class as crm_deliver_photo, same sweep (2026-09-20): `isSeller`
+       * is self-serve, and this read took `telegram_id` from the call and
+       * returned that person's goals and cards to ANY seller. A content plan
+       * is somebody's unpublished ideas; "any user who connected their own
+       * Telegram" is not who should read them.
+       *
+       * The boundary is the one used everywhere else: the caller themselves,
+       * or a person the caller has actually corresponded with.
+       */
+      const caller = String(ctx!.telegramId ?? '')
+      if (telegramId !== caller) {
+        const { personOf } = await import('./chat-memory')
+        const mine = await personOf(
+          ctx!.pool as never,
+          caller,
+          telegramId
+        ).catch(() => null)
+        if (!mine) {
+          throw new Error(
+            'план этого человека недоступен: он не ваш клиент — вы с ним не переписывались' // cyrillic-ok: message to the agent
+          )
+        }
+      }
       await ensurePlanTables(ctx!)
       const goals = await tryQuery<PlanGoalRow>(
         ctx!,
