@@ -1,4 +1,5 @@
 import { secretFingerprint } from '@/utils/secretFingerprint'
+import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 
 const Replicate = require('replicate')
 
@@ -149,7 +150,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 Flux - photorealistic high quality images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.06,
   },
   sdxl: {
@@ -160,7 +161,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 SDXL - photorealistic high quality images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.04,
   },
   sd3: {
@@ -171,7 +172,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 SD3 - photorealistic high quality images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.04,
   },
   recraft: {
@@ -182,7 +183,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 Recraft - photorealistic high quality images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.022,
   },
   photon: {
@@ -193,7 +194,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 Photon - photorealistic high quality images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.03,
   },
   lee_solar: {
@@ -204,7 +205,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 Lee Solar - astrological images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.022,
   },
   dpbelarusx: {
@@ -215,7 +216,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 DPBelarusX - astrological images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.022,
   },
   neuro_coder: {
@@ -226,7 +227,7 @@ export const models: Record<string, ModelConfig> = {
       en: '🎨 NeuroCoder - astrological images',
     },
     getInput: (prompt, aspect_ratio) =>
-      getInput(prompt, aspect_ratio || '16:9'),
+      getInput(prompt, aspect_ratio || DEFAULT_ASPECT_RATIO),
     price: 0.022,
   },
 }

@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger'
 import { getAvailableCallbackUrl } from '@/utils/webhookHealthCheck'
 import { inngest } from '@/inngest_app/client'
 import { KIE_JOBS, readKieJobRecord } from '@/config/kie-jobs'
+import { DEFAULT_VIDEO_ASPECT_RATIO } from '@/config/aspectRatio'
 import {
   ContentRefusalError,
   isContentRefusal,
@@ -257,7 +258,7 @@ export class KieAiProvider {
       model,
       prompt,
       duration = 5,
-      aspectRatio = '16:9',
+      aspectRatio = DEFAULT_VIDEO_ASPECT_RATIO,
       imageUrl,
     } = request
 
