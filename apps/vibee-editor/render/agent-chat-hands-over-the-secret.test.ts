@@ -78,6 +78,9 @@ function response() {
   const written: string[] = []
   return {
     written,
+    // A real ServerResponse is an EventEmitter and the chat route listens for
+    // `close` to abort the turn. This socket never closes, so nothing fires.
+    on: () => undefined,
     writeHead: () => undefined,
     write: (c: string) => {
       written.push(c)

@@ -663,6 +663,22 @@ export async function handleAgentChat(
       })
     }
 
+    /*
+     * THE CALLER LEAVING IS NEWS THE TURN NEEDS.
+     *
+     * Until 20.09.2026 nothing here watched the socket, and the cost was
+     * measured that evening: the bot hit its 180 s ceiling and asked again,
+     * while the abandoned turn ran on to completion -- charging the client a
+     * second time for the same picture and uploading it four minutes after
+     * anybody could receive it. `runAgent` now checks this between steps and
+     * before each tool, so work already paid for still finishes and is
+     * recorded, and nothing new is started or spent for somebody who has gone.
+     */
+    const gone = new AbortController()
+    res.on('close', () => {
+      if (!res.writableEnded) gone.abort()
+    })
+
     const события: Array<{ тип?: string; текст?: string }> = []
     for await (const ev of runAgent(
       history,
@@ -685,6 +701,7 @@ export async function handleAgentChat(
       // this service does not decide how the bot phrases it.
       {
         surface: поверхность, // cyrillic-ok: local defined earlier in this file
+        signal: gone.signal,
         toolsOnly: body.tools_only === true,
         client: gate.client ?? undefined,
         personNote:
@@ -923,7 +940,14 @@ export async function handleAgentHistoryAppend(
   }
 
   // Same check as the chat route: a word from the client, but only a known one.
-  const KNOWN_SURFACES = new Set(['miniapp', 'bot', 'agent', 'ios', 'business', 'queen'])
+  const KNOWN_SURFACES = new Set([
+    'miniapp',
+    'bot',
+    'agent',
+    'ios',
+    'business',
+    'queen',
+  ])
   const surface = KNOWN_SURFACES.has(String(body.surface))
     ? String(body.surface)
     : 'unknown'

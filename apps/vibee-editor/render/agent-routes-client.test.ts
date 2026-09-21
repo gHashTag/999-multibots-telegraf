@@ -54,6 +54,11 @@ function res() {
   const out: { code?: number; body?: any; written: string[] } = { written: [] }
   return {
     out,
+    // A real ServerResponse is an EventEmitter and the chat route listens for
+    // `close` to abort the turn. This socket never closes, so nothing fires.
+    on() {
+      return this
+    },
     writeHead(code: number) {
       out.code = code
       return this
