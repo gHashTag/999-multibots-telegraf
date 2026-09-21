@@ -16,10 +16,14 @@ MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
 AK=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --kv 2>/dev/null) \
       | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 [ -z "$AK" ] && { echo "journal: no agent key (railway login?) -- could not read"; exit 2; }
-curl -s -m 30 "$B/api/browser/journal?limit=$N" -H "X-Agent-Key: $AK" | python3 -c '
-import json, sys
+ANSWER=$(curl -s -m 30 "$B/api/browser/journal?limit=$N" -H "X-Agent-Key: $AK")
+# The answer goes in through the environment and the code through a quoted
+# heredoc: the first version put Python inside a single-quoted bash string,
+# escaped its quotes, and died with SyntaxError on its first real answer.
+ANSWER="$ANSWER" python3 - <<'PY'
+import json, os, sys
 try:
-    d = json.load(sys.stdin)
+    d = json.loads(os.environ.get("ANSWER") or "")
 except Exception:
     print("journal: unreadable answer -- could not read"); sys.exit(2)
 if not d.get("ok"):
@@ -29,10 +33,17 @@ if not steps:
     print("journal: no steps yet"); sys.exit(0)
 for s in steps:
     det = s.get("detail") or {}
-    key = det.get("error") or det.get("seen") or det.get("url") or det.get("title") or det.get("what") \
-          or (f"{det.get(\"chars\")} chars" if "chars" in det else "") \
-          or (f"x={det.get(\"x\")} y={det.get(\"y\")}" if "x" in det else "") \
-          or (f"pages={det.get(\"pages\")}" if "pages" in det else "")
+    if det.get("error"): key = det["error"]
+    elif det.get("seen"): key = det["seen"]
+    elif det.get("seenPending"): key = "(description pending)"
+    elif det.get("url"): key = det["url"]
+    elif det.get("title"): key = det["title"]
+    elif det.get("what"): key = det["what"]
+    elif "chars" in det: key = f"{det['chars']} chars"
+    elif "x" in det: key = f"x={det['x']} y={det['y']}"
+    elif "pages" in det: key = f"pages={det['pages']}"
+    else: key = ""
     mark = "ok " if s.get("ok") else "ERR"
-    print(f"  {s[\"at\"][5:19].replace(\"T\",\" \")}  {mark}  {s[\"tool\"]:<22} {s[\"ms\"]:>6} ms  {str(key)[:90]}")
-'
+    at = s["at"][5:19].replace("T", " ")
+    print(f"  {at}  {mark}  {s['tool']:<22} {s['ms']:>6} ms  {str(key)[:90]}")
+PY
