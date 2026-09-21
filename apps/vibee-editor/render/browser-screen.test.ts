@@ -288,17 +288,20 @@ describe('what happens when the pod says 422', () => {
       pod.fetcher as never
     )
     expect(`${got.width}x${got.height}`).toBe('800x1600')
-    /* One refused ask and the menu: no blind retries, each is a restart. */
-    expect(pod.asked).toEqual(['360x664', '800x1600'])
+    /*
+     * The exact size, once more at one hertz less, then the menu. Nothing
+     * else: every ask is a video restart.
+     */
+    expect(pod.asked).toEqual(['360x664', '360x664', '800x1600'])
   })
 
-  it('ASKS AGAIN AT THE RATE X REALLY GAVE THE NEW SIZE', async () => {
-    /*
-     * The pod log: "unsupported screen rate 30". The refused ask created the
-     * mode anyway, at the refresh X computed for it; the menu lists it.
-     */
+  /*
+   * A pod that behaves like the real one: a new size is created at the rate
+   * asked for and lands at one hertz less; its menu is frozen at start.
+   */
+  function podThatMakesModesAt29() {
     let screen = { width: 1280, height: 800, rate: 30 }
-    const menu = [{ width: 800, height: 1600, rate: 30 }]
+    const made = new Set<string>()
     const asked: string[] = []
     const fetcher = async (
       url: string,
@@ -310,28 +313,68 @@ describe('what happens when the pod says 422', () => {
         text: async () => JSON.stringify(o),
       })
       if (url.endsWith('/api/login')) return ok({ token: 'b' })
-      if (url.endsWith('/configurations')) return ok(menu)
+      /* Read once at start: the new mode never appears here. */
+      if (url.endsWith('/configurations'))
+        return ok([{ width: 800, height: 1600, rate: 30 }])
       if ((init?.method || 'GET') === 'POST') {
         const w = JSON.parse(init!.body!)
         asked.push(`${w.width}x${w.height}@${w.rate}`)
-        if (w.rate === 29) {
+        const size = `${w.width}x${w.height}`
+        if (made.has(size) && w.rate === 29) {
           screen = w
           return ok(w)
         }
-        /* X built it at 29 Hz and refuses 30. */
-        menu.push({ width: w.width, height: w.height, rate: 29 })
+        made.add(size)
         return { ok: false, status: 422, text: async () => 'no' }
       }
       return ok(screen)
     }
+    return { fetcher, asked }
+  }
+
+  it('ASKS AGAIN AT ONE HERTZ LESS, not from the menu', async () => {
+    /*
+     * Photographed by the owner: black edges either side, because the
+     * fallback went to the menu -- which never lists a mode made after the
+     * pod started -- and landed on 800x1600.
+     */
+    const pod = podThatMakesModesAt29()
     const got = await applyScreen(
+      'pod:8080',
+      'pw',
+      { width: 368, height: 536, rate: 30 },
+      pod.fetcher as never
+    )
+    expect(`${got.width}x${got.height}`).toBe('368x536')
+    expect(pod.asked).toEqual(['368x536@30', '368x536@29'])
+  })
+
+  it('does not retry a polite no, which is not a rate problem', async () => {
+    const asked: string[] = []
+    const fetcher = async (
+      url: string,
+      init?: { method?: string; body?: string }
+    ) => {
+      const ok = (o: unknown) => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(o),
+      })
+      if (url.endsWith('/api/login')) return ok({ token: 'b' })
+      if (url.endsWith('/configurations')) return ok([])
+      if ((init?.method || 'GET') === 'POST') {
+        asked.push(JSON.parse(init!.body!).rate + '')
+        return ok(JSON.parse(init!.body!))
+      }
+      return ok({ width: 1280, height: 800, rate: 30 })
+    }
+    await applyScreen(
       'pod:8080',
       'pw',
       { width: 368, height: 536, rate: 30 },
       fetcher as never
     )
-    expect(`${got.width}x${got.height}`).toBe('368x536')
-    expect(asked).toEqual(['368x536@30', '368x536@29'])
+    expect(asked).toEqual(['30'])
   })
 
   it('DOES NOT TOUCH A SCREEN THAT IS ALREADY THE RIGHT SHAPE', async () => {
