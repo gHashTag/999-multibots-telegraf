@@ -160,6 +160,85 @@ async function checkAgent(key, id, surface, question) {
   return { ok: Boolean(text), text, why: text ? '' : 'no words' }
 }
 
+/*
+ * One read-only tool call AS a given person. The server key is trusted with an
+ * explicit telegram_id -- the same entrance every owner-side tool uses
+ * (.claude/skills/mcp-owner-access). Answers null rather than throwing: a
+ * missing profile is a finding, not a crash.
+ */
+async function asPerson(key, id, name, args = {}) {
+  const r = await ask(
+    `${BASE}/mcp?telegram_id=${encodeURIComponent(id)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': key },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    },
+    30_000
+  )
+  if (!r.ok) return null
+  try {
+    const d = await r.json()
+    if (d.error) return null
+    return JSON.parse(d.result?.content?.[0]?.text ?? 'null')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * IS THIS SIDE SET UP FOR REAL WORK, not only reachable.
+ *
+ * The owner's words: "all the functions through the user bots in parallel,
+ * while each profile gets configured for real work." Checking that the agent
+ * answers a side says nothing about whether that side can SELL: a person who
+ * never connected their Telegram is not a seller, so the daily sweep skips
+ * them and the CRM has nobody's correspondence to read; an empty live wallet
+ * refuses every generation. Each gap is printed with the one press that
+ * closes it and whose press it is -- never ours: the login code is typed by
+ * the person, and crediting tokens is the owner's decision.
+ */
+function profileGaps({ id, me, wallet, sellers }) {
+  const gaps = []
+  if (!me) gaps.push('unknown to the render -- sign in to the mini app once')
+  if (sellers && !sellers.has(String(id))) {
+    gaps.push(
+      'not a seller -- in the app: /app -> Profile -> Connect Telegram; ' +
+        'the person types the code themselves'
+    )
+  }
+  const raw = wallet ? wallet['баланс_токенов'] : undefined
+  const balance = typeof raw === 'number' ? raw : NaN
+  if (!Number.isFinite(balance)) gaps.push('live wallet unreadable')
+  else if (balance <= 0) {
+    gaps.push('live wallet empty -- top up, or the owner decides to credit')
+  }
+  return {
+    balance,
+    seller: sellers ? sellers.has(String(id)) : null,
+    gaps,
+  }
+}
+
+async function profileOf(key, id, sellers) {
+  const [me, wallet] = await Promise.all([
+    asPerson(key, id, 'whoami'),
+    asPerson(key, id, 'my_balance'),
+  ])
+  const p = me?.['профиль'] ?? {}
+  return {
+    id,
+    name: String(p.display_name || p.first_name || p.username || '?'),
+    role: String(me?.role ?? '?'),
+    ...profileGaps({ id, me, wallet, sellers }),
+  }
+}
+
 /* What the answer must contain to count as "it told the person what it can do". */
 const SAYS_FILES = /\.md|\.txt|текстов/i // cyrillic-ok: matching the agent's own words
 const SAYS_VOICE = /голосов|расшифр/i // cyrillic-ok: matching the agent's own words
@@ -210,6 +289,35 @@ async function main() {
 
   /* ── the two sides of the bridge ───────────────────────────────────────── */
   const sides = ids.length ? ids : ['144022504']
+
+  /* ── each side's profile: ready for real work, or what is missing ────── */
+  // The seller list is the owner's to read, so it is asked as the first side.
+  const sellerList = await asPerson(key, sides[0], 'crm_sellers')
+  const sellers = Array.isArray(sellerList?.sellers)
+    ? new Set(sellerList.sellers.map(r => String(r.telegram_id)))
+    : null
+  console.log(bold(`profiles, ${sides.length} side(s), in parallel`))
+  if (!sellers) {
+    console.log(
+      dim('  seller list unreadable (the first id must be the owner)')
+    )
+  }
+  const profiles = await inParallel(
+    sides.map(id => () => profileOf(key, id, sellers))
+  )
+  for (const p of profiles) {
+    if (p.gaps.length) needsAPerson += p.gaps.length
+    const mark = p.gaps.length ? yellow('!') : green('✓')
+    const seller =
+      p.seller === null ? '?' : p.seller ? green('seller') : red('not a seller')
+    const tokens = Number.isFinite(p.balance) ? String(p.balance) : '?'
+    console.log(
+      `  ${mark} ${String(p.id).padEnd(12)} ${p.name.slice(0, 20).padEnd(20)}` +
+        ` ${p.role.padEnd(6)} ${seller}  tokens: ${tokens}`
+    )
+    for (const g of p.gaps) console.log(dim(`      · ${g}`))
+  }
+  console.log('')
   const question = 'Какие файлы ты умеешь принимать? Ответь одной строкой.' // cyrillic-ok: the question a person would ask
   const jobs = []
   for (const id of sides) {
@@ -268,7 +376,11 @@ async function main() {
   process.exitCode = needsAPerson ? 1 : 0
 }
 
-main().catch(e => {
-  console.error(e instanceof Error ? e.message : String(e))
-  process.exitCode = 2
-})
+module.exports = { profileGaps }
+
+if (require.main === module) {
+  main().catch(e => {
+    console.error(e instanceof Error ? e.message : String(e))
+    process.exitCode = 2
+  })
+}
