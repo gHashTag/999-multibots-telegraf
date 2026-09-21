@@ -1,7 +1,7 @@
 /**
  * WHAT WE PROMISED AND DID NOT GIVE, WRITTEN DOWN AGAINST A NAME.
  *
- * MEASURED IN PRODUCTION 2026-09-21, lead 2086031075 of owner 144022504.
+ * MEASURED IN PRODUCTION 2026-09-21, on one lead of the platform owner.
  * She asked for a picture three times in four minutes -- 17:14:45, 17:17:46,
  * 17:18:24 -- while the drawing providers were timing out. The seller said so
  * honestly and sent her links to old files instead. Then fourteen hours of
