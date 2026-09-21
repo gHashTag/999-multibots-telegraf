@@ -27,6 +27,15 @@ healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ALWAYS"
 numReplicas = 1
+# Seconds between SIGTERM and SIGKILL for the previous deploy. Railway's
+# default is 0: the old container was killed at once, cutting off any agent
+# turn in flight. src/index.ts drains the agent lanes for SHUTDOWN_DRAIN_MS
+# (25 s) after SIGTERM and then tells sellers who was left unanswered; this
+# gives it the time. Key and default verified 2026-09-21 against
+# https://railway.com/railway.schema.json (deploy.drainingSeconds, number)
+# and docs.railway.com/reference/deployments ("By default, it is given 0
+# seconds to gracefully shutdown before being forcefully stopped").
+drainingSeconds = 30
 
 [service]
 name = "999-multibots-telegraf"

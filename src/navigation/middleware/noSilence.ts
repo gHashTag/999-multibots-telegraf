@@ -156,7 +156,13 @@ export const silenceNet = async (ctx: any, next: any) => {
   }
 }
 
-async function answerIfNobodyDid(ctx: any): Promise<void> {
+/**
+ * Exported for the one handler that finishes AFTER the chain has ended: the
+ * agent turn in the bot chat runs in its lane (services/agentLanes.ts), so it
+ * marks the message answered up front and, when its turn turns out to have
+ * nothing to say, speaks for the net itself.
+ */
+export async function answerIfNobodyDid(ctx: any): Promise<void> {
   const message = ctx.message
   if (!message) return
   if (ctx.chat?.type !== 'private') return

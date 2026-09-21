@@ -107,3 +107,6 @@ export function держатьПечатает(
 
 /** Latin alias for callers that must stay free of Cyrillic identifiers. */
 export const splitLongAnswer = разбитьДлинное // cyrillic-ok: pre-existing helper name
+
+/** Latin alias: keep "typing…" alive until the returned stop is called. */
+export const keepTyping = держатьПечатает // cyrillic-ok: pre-existing helper name

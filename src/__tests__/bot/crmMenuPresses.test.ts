@@ -95,6 +95,10 @@ vi.mock('@/services/businessBotService', () => ({
 let sink: Array<{ method: string; payload: any }> = []
 const realCallApi = (Telegram.prototype as any).callApi
 let registerCrmCommands: (bot: Telegraf<any>) => void
+let agentLanes: typeof import('@/services/agentLanes').agentLanes
+/** The turn behind prepare / sweep runs in the owner's lane, off the handler. */
+const turnsDone = async () =>
+  expect((await agentLanes.drain(5000)).unfinished).toEqual([])
 
 beforeAll(async () => {
   ;(Telegram.prototype as any).callApi = async (
@@ -106,6 +110,7 @@ beforeAll(async () => {
   }
   const mod = await import('@/navigation/registerCommands')
   registerCrmCommands = mod.registerCrmCommands
+  ;({ agentLanes } = await import('@/services/agentLanes'))
 })
 afterAll(() => {
   ;(Telegram.prototype as any).callApi = realCallApi
@@ -221,6 +226,7 @@ describe('what the presses do', () => {
   it('prepare: an ack with a menu, then a bounded agent turn for that person, then the outcome with buttons', async () => {
     const { bot } = boot()
     await bot.handleUpdate(press('crm:prep:900000001') as any)
+    await turnsDone()
     expect(runSweepNow).toHaveBeenCalledTimes(1)
     const opts = (
       runSweepNow.mock.calls[0] as unknown as [unknown, string, any]
@@ -248,6 +254,7 @@ describe('what the presses do', () => {
       bot.handleUpdate(press('crm:prep:900000001') as any),
       bot.handleUpdate(press('crm:prep:900000001') as any),
     ])
+    await turnsDone()
     expect(runSweepNow).toHaveBeenCalledTimes(1)
   })
 
@@ -305,6 +312,7 @@ describe('what the presses do', () => {
   it('/sweep alone runs the generic sweep through the same turn with the short hold', async () => {
     const { bot } = boot()
     await bot.handleUpdate(command('/sweep') as any)
+    await turnsDone()
     expect(startScopedSweep).not.toHaveBeenCalled()
     expect(runSweepNow).toHaveBeenCalledTimes(1)
     const opts = (
@@ -321,6 +329,7 @@ describe('what the presses do', () => {
     } as never)
     const { bot } = boot()
     await bot.handleUpdate(press('crm:sweep') as any)
+    await turnsDone()
     const last = sent().at(-1)!
     expect(last.payload.text).toContain('Не вышло')
     expect(keyboardOf(last)).toEqual([
