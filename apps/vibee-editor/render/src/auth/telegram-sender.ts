@@ -11,6 +11,8 @@
  * вторая продолжит слать по-старому. Новые места зовут эту.
  */
 
+import { telegramApiFor } from '../telegram-api'
+
 /**
  * Токен читается ПРИ КАЖДОМ ВЫЗОВЕ, а не один раз при импорте.
  *
@@ -40,7 +42,7 @@ export async function sendToTelegram(
     console.warn('[telegram] TELEGRAM_BOT_TOKEN не задан — уведомление не ушло')
     return
   }
-  const о = await fetch(`https://api.telegram.org/bot${t}/sendMessage`, {
+  const о = await fetch(`${telegramApiFor(t)}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

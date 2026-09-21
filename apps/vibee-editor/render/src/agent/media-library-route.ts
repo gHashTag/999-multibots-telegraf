@@ -123,6 +123,7 @@ export async function handleCrmMedia(
     if (isTelegramFileUrl(url)) {
       return answer(400, {
         error:
+          // telegram-api-root-ok: names the host to the caller; calls nothing.
           'url: ссылка api.telegram.org содержит токен бота и не сохраняется — загрузите файл на полку и передайте её URL',
       })
     }

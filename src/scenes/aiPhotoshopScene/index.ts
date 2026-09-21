@@ -294,6 +294,7 @@ import {
 import { getBotToken } from '@/handlers/getBotToken'
 // ✅ IMPORT UPSCALER FOR DIALOG MODE
 import { upscaleImage } from '@/services/imageUpscaler'
+import { telegramFileLink } from '@/services/telegramFiles'
 
 // 🎬 CAMERA CONTROL SYSTEM (transferred from FLUX Kontext)
 export const AI_PHOTOSHOP_CAMERA_ANGLES = {
@@ -2752,7 +2753,7 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       }
 
       const botToken = getBotToken(ctx)
-      const telegramUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+      const telegramUrl = await telegramFileLink(botToken, file)
       const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order like Infinity Morphing
@@ -2857,7 +2858,7 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       }
 
       const botToken = getBotToken(ctx)
-      const telegramUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+      const telegramUrl = await telegramFileLink(botToken, file)
       const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order

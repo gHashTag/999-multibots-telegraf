@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { mirrorToOwnStorage } from '@/core/supabase/mirrorToStorage'
+import { telegramFileUrlFor } from '@/services/telegramApi'
 
 // Telegram Bot API limit for getFile
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
@@ -92,7 +93,7 @@ export async function getUserPhotoUrl(
       // не протухает. Если переложить не удалось, mirrorToOwnStorage вернёт
       // исходную ссылку — тогда её нельзя сохранять, и вызывающий получает
       // null вместо адреса с токеном.
-      const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+      const telegramUrl = telegramFileUrlFor(ctx.telegram.token, file.file_path)
       const mirrored = await mirrorToOwnStorage(telegramUrl, userId, 'avatars')
       if (mirrored === telegramUrl) {
         logger.warn(
@@ -126,7 +127,10 @@ export async function getUserPhotoUrl(
 
             if (file.file_path) {
               // Тот же запрет: адрес с токеном наружу не уходит.
-              const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+              const telegramUrl = telegramFileUrlFor(
+                ctx.telegram.token,
+                file.file_path
+              )
               const photoUrl = await mirrorToOwnStorage(
                 telegramUrl,
                 userId,

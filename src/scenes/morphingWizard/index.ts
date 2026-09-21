@@ -20,6 +20,7 @@ import {
   isUserCausedTelegramError,
   telegramErrorInfo,
 } from '@/helpers/telegramErrors'
+import { telegramFileUrlFor } from '@/services/telegramApi'
 
 // ✅ ПОЛУЧАЕМ МОДЕЛИ МОРФИНГА ИЗ ЕДИНОГО КОНФИГА
 const getMorphingModels = () => getModelsByInputType('morph')
@@ -385,7 +386,7 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
         // a bare fetch had neither, so an expired file_path only failed later at
         // isValidImage, and a hung download wedged this step indefinitely.
         const buffer = await downloadTelegramFileBuffer(
-          `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
+          telegramFileUrlFor(botToken, file.file_path)
         )
 
         // Валидация изображения

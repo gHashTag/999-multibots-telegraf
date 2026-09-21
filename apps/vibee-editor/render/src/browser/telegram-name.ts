@@ -17,6 +17,7 @@
  */
 
 import { botToken } from './avatar'
+import { telegramApiFor } from '../telegram-api'
 
 /** A reload is free; a renamed account shows up within the working day. */
 export const NAME_TTL_MS = 6 * 60 * 60 * 1000
@@ -88,7 +89,7 @@ export async function telegramName(
 
   try {
     const res = await fetcher(
-      `https://api.telegram.org/bot${token}/getChat?chat_id=${encodeURIComponent(
+      `${telegramApiFor(token)}/getChat?chat_id=${encodeURIComponent(
         telegramId
       )}`,
       { signal: AbortSignal.timeout(NAME_TIMEOUT_MS) }

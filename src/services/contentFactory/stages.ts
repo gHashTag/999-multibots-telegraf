@@ -6,6 +6,7 @@ import { logger } from '@/utils/logger'
 import { runModel, firstUrl } from './replicate'
 import { mirror, putFile } from './storage'
 import { Artifact, Caption, Cut, FactoryContext, StageError } from './types'
+import { telegramApiFor } from '@/services/telegramApi'
 
 const exec = promisify(execFile)
 
@@ -377,7 +378,7 @@ export async function stageDeliver(
     'reel.mp4'
   )
 
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+  const res = await fetch(`${telegramApiFor(token)}/sendVideo`, {
     method: 'POST',
     body,
   })

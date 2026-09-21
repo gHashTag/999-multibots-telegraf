@@ -39,17 +39,31 @@
  * send it to a third-party model. So the bytes are fetched here and re-uploaded
  * to our own shelf, and only our own URL is ever returned.
  *
- * THE 20 MB CEILING IS TELEGRAM'S, NOT OURS
+ * THE CEILING BELONGS TO THE BOT'S SERVER, NOT TO US
  *
- * The Bot API refuses `getFile` for anything larger than 20 MB, while the mini
- * app accepts 100 MB. Full parity is impossible without running a local Bot API
- * server. A file over the ceiling is refused with a sentence a person can act
- * on, because the failure mode we are replacing is silence.
+ * The cloud Bot API refuses `getFile` for anything larger than 20 MB, while
+ * the mini app accepts 100 MB. A bot moved to our own Bot API server
+ * (BOT_API_LOCAL_BOTS, see services/telegramApi.ts) is handed up to 2000 MB,
+ * and then our shelf's 100 MB is the limit -- the same as the mini app's. The
+ * ceiling is therefore read per bot, from the token, every time; a file over
+ * it is refused with a sentence a person can act on, because the failure mode
+ * we are replacing is silence.
  */
 
 import { logger } from '@/utils/logger'
 import { putBytes } from '@/services/contentFactory/storage'
+import { SHELF_UPLOAD_LIMIT } from '@/services/contentFactory/shelfLimit'
 import { albumCaption } from '@/services/albumBuffer'
+import {
+  CLOUD_DOWNLOAD_LIMIT,
+  botApiIsLocalFor,
+  telegramDownloadLimitFor,
+} from '@/services/telegramApi'
+import {
+  TelegramFileDownloadFailed,
+  TelegramFileTooBig,
+  mirrorTelegramFile,
+} from '@/services/telegramFiles'
 
 /** The four buckets the mini app uses. Keep them identical: same vocabulary. */
 export type AttachmentKind = 'image' | 'video' | 'audio' | 'file'
@@ -67,12 +81,14 @@ export interface TelegramAttachment {
 }
 
 /**
- * The Bot API download ceiling.
+ * The CLOUD Bot API download ceiling.
  *
  * Not a policy of ours and not tunable: `getFile` answers "file is too big" for
- * anything above it, so checking earlier only changes WHO explains it.
+ * anything above it, so checking earlier only changes WHO explains it. A bot on
+ * our own server has a different one: refusals read
+ * `telegramDownloadLimitFor(token)`, never this constant.
  */
-export const TELEGRAM_DOWNLOAD_LIMIT = 20 * 1024 * 1024
+export const TELEGRAM_DOWNLOAD_LIMIT = CLOUD_DOWNLOAD_LIMIT
 
 const EXTENSION_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -312,6 +328,12 @@ export function attachmentRefused(
 /** Just enough of Telegraf's telegram client to fetch a file. */
 export interface FileFetcher {
   getFileLink(fileId: string): Promise<URL | string>
+  /**
+   * The bot's token. It decides the ceiling (20 MB on the cloud, more on our
+   * own server) and where the bytes are read from. `ctx.telegram` has it.
+   */
+  token?: string
+  getFile?(fileId: string): Promise<{ file_path?: string; file_size?: number }>
 }
 
 /**
@@ -420,15 +442,21 @@ export async function attachmentToLine(
   telegram: FileFetcher,
   a: TelegramAttachment
 ): Promise<AttachmentOutcome> {
-  if (a.bytes !== null && a.bytes > TELEGRAM_DOWNLOAD_LIMIT) {
+  // Per bot: 20 MB on the cloud, 2000 MB on our own Bot API server.
+  const ceiling = telegramDownloadLimitFor(telegram.token)
+  if (a.bytes !== null && a.bytes > ceiling) {
     return {
       ok: false,
       reason: 'too-big',
       message:
-        `«${a.name}» весит ${megabytes(a.bytes)}, а Telegram отдаёт ботам ` +
-        `не больше ${megabytes(TELEGRAM_DOWNLOAD_LIMIT)}. Пришлите файл ` +
-        'полегче или загрузите его в приложении — там предел 100 МБ.',
+        `«${a.name}» весит ${megabytes(a.bytes)}, а Telegram отдаёт этому ` +
+        `боту не больше ${megabytes(ceiling)}. Пришлите файл полегче или ` +
+        `загрузите его в приложении — там предел ${megabytes(SHELF_UPLOAD_LIMIT)}.`,
     }
+  }
+
+  if (botApiIsLocalFor(telegram.token) && telegram.getFile) {
+    return streamedFromOurServer(telegram, a)
   }
 
   let bytes: Buffer
@@ -466,13 +494,13 @@ export async function attachmentToLine(
   // A real size beats a declared one: `file_size` is absent on video notes and
   // on some documents, so the ceiling has to be checked again on what actually
   // arrived. Otherwise an undeclared 60 MB file would sail through.
-  if (bytes.length > TELEGRAM_DOWNLOAD_LIMIT) {
+  if (bytes.length > ceiling) {
     return {
       ok: false,
       reason: 'too-big',
       message:
         `«${a.name}» весит ${megabytes(bytes.length)} — больше предела ` +
-        `${megabytes(TELEGRAM_DOWNLOAD_LIMIT)} для файлов из Telegram.`,
+        `${megabytes(ceiling)} для файлов из Telegram.`,
     }
   }
 
@@ -503,5 +531,92 @@ export async function attachmentToLine(
       reason: 'upload',
       message: `«${a.name}» не сохранился на нашей стороне. Попробуйте ещё раз.`,
     }
+  }
+}
+
+/**
+ * A file sent to a bot on our own Bot API server.
+ *
+ * Streamed from the server's private file endpoint straight onto the shelf
+ * (services/telegramFiles.ts): up to 2000 MB may arrive, and none of it is held
+ * in memory. The shelf is the tighter limit here, and it has its own sentence,
+ * because "Telegram gives this bot at most 2000 MB" would be a false reason for
+ * refusing a 150 MB video.
+ */
+async function streamedFromOurServer(
+  telegram: FileFetcher,
+  a: TelegramAttachment
+): Promise<AttachmentOutcome> {
+  const tooBigForShelf = (bytes: number): AttachmentRefused => ({
+    ok: false,
+    reason: 'too-big',
+    message:
+      `«${a.name}» весит ${megabytes(bytes)}, а мы храним файлы до ` +
+      `${megabytes(SHELF_UPLOAD_LIMIT)} — как и приложение. Пришлите файл полегче.`,
+  })
+  if (a.bytes !== null && a.bytes > SHELF_UPLOAD_LIMIT) {
+    return tooBigForShelf(a.bytes)
+  }
+
+  const failed = (
+    stage: 'download' | 'upload',
+    e: unknown
+  ): AttachmentRefused => {
+    logger.error('[attachments] our Bot API server: file did not make it', {
+      kind: a.kind,
+      // The name, never a URL or a path: both carry the token.
+      name: a.name,
+      stage,
+      error: e instanceof Error ? e.name : String(e),
+    })
+    return stage === 'download'
+      ? {
+          ok: false,
+          reason: 'download',
+          message: `«${a.name}» не скачался из Telegram. Попробуйте отправить ещё раз.`,
+        }
+      : {
+          ok: false,
+          reason: 'upload',
+          message: `«${a.name}» не сохранился на нашей стороне. Попробуйте ещё раз.`,
+        }
+  }
+
+  let file: { file_path?: string; file_size?: number }
+  try {
+    file = await telegram.getFile!(a.fileId)
+    if (!file?.file_path) throw new TelegramFileDownloadFailed('no file_path')
+  } catch (e) {
+    return failed('download', e)
+  }
+
+  try {
+    const stored = await mirrorTelegramFile(
+      telegram.token!,
+      file.file_path!,
+      a.name,
+      { declaredBytes: a.bytes ?? file.file_size ?? null }
+    )
+    return {
+      ok: true,
+      kind: a.kind,
+      bytes: stored.bytes,
+      name: a.name,
+      mimeType: a.mimeType,
+      url: stored.url,
+      fileUniqueId: a.fileUniqueId,
+      line: attachmentLine({
+        kind: a.kind,
+        name: a.name,
+        mimeType: a.mimeType,
+        url: stored.url,
+      }),
+    }
+  } catch (e) {
+    if (e instanceof TelegramFileTooBig) return tooBigForShelf(e.bytes)
+    return failed(
+      e instanceof TelegramFileDownloadFailed ? 'download' : 'upload',
+      e
+    )
   }
 }

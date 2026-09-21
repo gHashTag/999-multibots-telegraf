@@ -10,6 +10,7 @@ Ultimate expertise in Telegraf Scene-based architecture with all production patt
 ## Scene Architecture Overview
 
 **This project has 50+ scenes!** Each follows specific patterns:
+
 - BaseScene for simple flows
 - WizardScene for multi-step processes
 - Composer for modular reusable handlers
@@ -30,30 +31,31 @@ import { MyContext } from '@/interfaces'
 export const myScene = new Scenes.BaseScene<MyContext>('scene-id')
 
 // Enter handler - always first
-myScene.enter(async (ctx) => {
-  await ctx.reply('Welcome!',
+myScene.enter(async ctx => {
+  await ctx.reply(
+    'Welcome!',
     Markup.inlineKeyboard([
       [Markup.button.callback('Option 1', 'opt1')],
       [Markup.button.callback('Option 2', 'opt2')],
-      [Markup.button.callback('🔙 Back', 'back')]
+      [Markup.button.callback('🔙 Back', 'back')],
     ])
   )
 })
 
 // Action handlers
-myScene.action('opt1', async (ctx) => {
+myScene.action('opt1', async ctx => {
   await ctx.answerCbQuery() // ALWAYS answer!
   await ctx.reply('You selected option 1')
   // Process...
 })
 
-myScene.action('back', async (ctx) => {
+myScene.action('back', async ctx => {
   await ctx.answerCbQuery()
   await ctx.scene.leave() // Exit scene
 })
 
 // Text handler
-myScene.on('text', async (ctx) => {
+myScene.on('text', async ctx => {
   const userInput = ctx.message.text
   // Process input...
 })
@@ -74,19 +76,19 @@ export const myWizard = new Scenes.WizardScene<MyContext>(
   'wizard-id',
 
   // STEP 1: Initial prompt
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Initialize session
     ctx.session.wizardData = {
       step: 1,
-      startTime: Date.now()
+      startTime: Date.now(),
     }
 
     await ctx.reply(
       isRu ? 'Шаг 1: Отправьте видео' : 'Step 1: Send a video',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
       ])
     )
 
@@ -94,7 +96,7 @@ export const myWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 2: Handle input from step 1
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check for cancel
@@ -106,31 +108,25 @@ export const myWizard = new Scenes.WizardScene<MyContext>(
 
     // Validate input
     if (!ctx.message || !('video' in ctx.message)) {
-      await ctx.reply(
-        isRu ? '❌ Отправьте видео' : '❌ Send a video'
-      )
+      await ctx.reply(isRu ? '❌ Отправьте видео' : '❌ Send a video')
       return // Stay on same step
     }
 
     // Save to session
     ctx.session.wizardData.videoFileId = ctx.message.video.file_id
 
-    await ctx.reply(
-      isRu ? 'Шаг 2: Отправьте аудио' : 'Step 2: Send audio'
-    )
+    await ctx.reply(isRu ? 'Шаг 2: Отправьте аудио' : 'Step 2: Send audio')
 
     return ctx.wizard.next() // Move to step 3
   },
 
   // STEP 3: Handle input from step 2 and process
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Validate audio
     if (!ctx.message || !('audio' in ctx.message)) {
-      await ctx.reply(
-        isRu ? '❌ Отправьте аудио' : '❌ Send audio'
-      )
+      await ctx.reply(isRu ? '❌ Отправьте аудио' : '❌ Send audio')
       return
     }
 
@@ -143,17 +139,14 @@ export const myWizard = new Scenes.WizardScene<MyContext>(
     try {
       const result = await processLipSync({
         videoFileId: ctx.session.wizardData.videoFileId,
-        audioFileId: ctx.session.wizardData.audioFileId
+        audioFileId: ctx.session.wizardData.audioFileId,
       })
 
       await ctx.reply('✅ Done!')
       await ctx.replyWithVideo(result.videoUrl)
-
     } catch (error) {
       console.error('Processing error:', error)
-      await ctx.reply(
-        isRu ? '❌ Ошибка обработки' : '❌ Processing error'
-      )
+      await ctx.reply(isRu ? '❌ Ошибка обработки' : '❌ Processing error')
     }
 
     return ctx.scene.leave() // Exit wizard
@@ -169,14 +162,14 @@ export default myWizard
 
 ```typescript
 // ✅ ALWAYS - первая строка в action handler
-myScene.action('button', async (ctx) => {
+myScene.action('button', async ctx => {
   await ctx.answerCbQuery() // Убирает "loading" анимацию
 
   // Rest of logic...
 })
 
 // ❌ ЗАБЫЛИ - кнопка висит с loading анимацией
-myScene.action('button', async (ctx) => {
+myScene.action('button', async ctx => {
   await ctx.reply('Processing...')
   // Telegram показывает "loading" бесконечно!
 })
@@ -187,20 +180,20 @@ myScene.action('button', async (ctx) => {
 ```typescript
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-myScene.enter(async (ctx) => {
+myScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx) // Всегда первая строка!
 
   await ctx.reply(
     isRu ? 'Привет! Выберите действие:' : 'Hello! Select action:',
     Markup.inlineKeyboard([
       [Markup.button.callback(isRu ? 'Вперёд' : 'Continue', 'continue')],
-      [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+      [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
     ])
   )
 })
 
 // ❌ НЕПРАВИЛЬНО - разные способы определения языка
-myScene.enter(async (ctx) => {
+myScene.enter(async ctx => {
   const lang = ctx.session.language // Inconsistent!
   const isRu = ctx.from?.language_code === 'ru' // Wrong source!
 })
@@ -259,18 +252,18 @@ import { z } from 'zod'
 const VideoInputSchema = z.object({
   fileId: z.string().min(1),
   fileSize: z.number().max(20_000_000), // 20MB
-  duration: z.number().min(1).max(60) // 1-60 seconds
+  duration: z.number().min(1).max(60), // 1-60 seconds
 })
 
 // Use in handler
 myWizard = new Scenes.WizardScene<MyContext>(
   'video-wizard',
-  async (ctx) => {
+  async ctx => {
     await ctx.reply('Send video (max 20MB, 60 seconds)')
     return ctx.wizard.next()
   },
 
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('video' in ctx.message)) {
@@ -284,7 +277,7 @@ myWizard = new Scenes.WizardScene<MyContext>(
     const result = VideoInputSchema.safeParse({
       fileId: video.file_id,
       fileSize: video.file_size,
-      duration: video.duration
+      duration: video.duration,
     })
 
     if (!result.success) {
@@ -317,7 +310,7 @@ function isUserAdmin(telegramId: string): boolean {
   return isValidAdmin(telegramId, adminIds)
 }
 
-myScene.enter(async (ctx) => {
+myScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString()
 
@@ -346,7 +339,7 @@ import { ModeEnum } from '@/interfaces/modes'
 
 const OPERATION_COST = BASE_COSTS[ModeEnum.TextToVideo] || 50
 
-myScene.action('process', async (ctx) => {
+myScene.action('process', async ctx => {
   await ctx.answerCbQuery()
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from!.id.toString()
@@ -372,7 +365,7 @@ myScene.action('process', async (ctx) => {
   const result = await generateVideo(ctx.session.prompt)
 
   await ctx.replyWithVideo(result.videoUrl, {
-    caption: `✅ Done! Cost: ${OPERATION_COST}⭐`
+    caption: `✅ Done! Cost: ${OPERATION_COST}⭐`,
   })
 })
 ```
@@ -383,12 +376,11 @@ myScene.action('process', async (ctx) => {
 myWizard = new Scenes.WizardScene<MyContext>(
   'error-safe-wizard',
 
-  async (ctx) => {
+  async ctx => {
     try {
       // Step 1 logic
       await ctx.reply('Step 1')
       return ctx.wizard.next()
-
     } catch (error) {
       console.error('❌ Step 1 error:', error)
       const isRu = isRussianFromState(ctx)
@@ -401,7 +393,7 @@ myWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     try {
@@ -410,7 +402,6 @@ myWizard = new Scenes.WizardScene<MyContext>(
 
       await ctx.reply('✅ Success!')
       return ctx.scene.leave()
-
     } catch (error) {
       console.error('❌ Step 2 error:', error)
       await ctx.reply(
@@ -433,19 +424,19 @@ myWizard = new Scenes.WizardScene<MyContext>(
   'cancelable-wizard',
 
   // Step 1
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     await ctx.reply(
       'Step 1',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
       ])
     )
     return ctx.wizard.next()
   },
 
   // Step 2
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check cancel FIRST in every step
@@ -460,14 +451,14 @@ myWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       'Step 2',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
       ])
     )
     return ctx.wizard.next()
   },
 
   // Step 3
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check cancel again
@@ -489,7 +480,7 @@ myWizard = new Scenes.WizardScene<MyContext>(
 // Reply Keyboard - for main choices, stays visible
 const replyKeyboard = Markup.keyboard([
   ['📱 Vertical (9:16)', '🖥️ Horizontal (16:9)'],
-  ['⬅️ Back to menu']
+  ['⬅️ Back to menu'],
 ]).resize() // .resize() makes it compact
 
 await ctx.reply('Choose aspect ratio:', replyKeyboard)
@@ -497,7 +488,7 @@ await ctx.reply('Choose aspect ratio:', replyKeyboard)
 // Inline Keyboard - for actions, disappears after click
 const inlineKeyboard = Markup.inlineKeyboard([
   [Markup.button.callback('✅ Confirm', 'confirm')],
-  [Markup.button.callback('❌ Cancel', 'cancel')]
+  [Markup.button.callback('❌ Cancel', 'cancel')],
 ])
 
 await ctx.reply('Confirm action?', inlineKeyboard)
@@ -507,10 +498,10 @@ myWizard = new Scenes.WizardScene<MyContext>(
   'keyboard-wizard',
 
   // Step 1: Choose model (Reply keyboard)
-  async (ctx) => {
+  async ctx => {
     const keyboard = Markup.keyboard([
       ['Model A', 'Model B'],
-      ['⬅️ Back']
+      ['⬅️ Back'],
     ]).resize()
 
     await ctx.reply('Choose model:', keyboard)
@@ -518,7 +509,7 @@ myWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // Step 2: Confirm choice (Inline keyboard)
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) return
@@ -528,13 +519,10 @@ myWizard = new Scenes.WizardScene<MyContext>(
 
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('✅ Confirm', 'confirm')],
-      [Markup.button.callback('🔄 Change', 'change')]
+      [Markup.button.callback('🔄 Change', 'change')],
     ])
 
-    await ctx.reply(
-      `Selected: ${model}. Confirm?`,
-      keyboard
-    )
+    await ctx.reply(`Selected: ${model}. Confirm?`, keyboard)
     return ctx.wizard.next()
   }
 )
@@ -550,19 +538,17 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 myWizard = new Scenes.WizardScene<MyContext>(
   'file-wizard',
 
-  async (ctx) => {
+  async ctx => {
     await ctx.reply('Send a video (max 20MB)')
     return ctx.wizard.next()
   },
 
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check if video
     if (!ctx.message || !('video' in ctx.message)) {
-      await ctx.reply(
-        isRu ? '❌ Отправьте видео' : '❌ Send a video'
-      )
+      await ctx.reply(isRu ? '❌ Отправьте видео' : '❌ Send a video')
       return
     }
 
@@ -580,7 +566,10 @@ myWizard = new Scenes.WizardScene<MyContext>(
 
     // Get file from Telegram
     const file = await ctx.telegram.getFile(video.file_id)
-    const fileUrl = `https://api.telegram.org/file/bot${ctx.botInfo.token}/${file.file_path}`
+    // Never the cloud URL by hand: a bot on our own Bot API server answers
+    // file_path as a path on that server.
+    // import { telegramFileUrlFor } from '@/services/telegramApi'
+    const fileUrl = telegramFileUrlFor(ctx.telegram.token, file.file_path)
 
     ctx.session.videoUrl = fileUrl
     ctx.session.videoFileId = video.file_id
@@ -594,6 +583,7 @@ myWizard = new Scenes.WizardScene<MyContext>(
 ## Scene Registration
 
 ### In `src/scenes/index.ts`
+
 ```typescript
 import { lipSyncWizard } from './lipSyncWizard'
 import { textToVideoWizard } from './textToVideoWizard'
@@ -607,6 +597,7 @@ export const scenes = [
 ```
 
 ### In `src/bot.ts`
+
 ```typescript
 import { Scenes } from 'telegraf'
 import { scenes } from './scenes'
@@ -615,12 +606,13 @@ const stage = new Scenes.Stage<MyContext>(scenes)
 bot.use(stage.middleware())
 
 // Enter scene from command
-bot.command('lipsync', (ctx) => ctx.scene.enter('lip_sync'))
+bot.command('lipsync', ctx => ctx.scene.enter('lip_sync'))
 ```
 
 ## Common Scene Actions
 
 ### Navigate Between Scenes
+
 ```typescript
 // Enter specific scene
 await ctx.scene.enter('lip_sync')
@@ -633,6 +625,7 @@ await ctx.scene.reenter()
 ```
 
 ### Wizard Navigation
+
 ```typescript
 // Move to next step
 return ctx.wizard.next()
@@ -650,30 +643,32 @@ return ctx.scene.leave()
 ## Anti-Patterns to Avoid
 
 ### ❌ Anti-Pattern 1: Forgetting answerCbQuery
+
 ```typescript
 // ❌ BAD
-myScene.action('button', async (ctx) => {
+myScene.action('button', async ctx => {
   await ctx.reply('Processing...')
   // Button stuck with loading animation!
 })
 
 // ✅ GOOD
-myScene.action('button', async (ctx) => {
+myScene.action('button', async ctx => {
   await ctx.answerCbQuery()
   await ctx.reply('Processing...')
 })
 ```
 
 ### ❌ Anti-Pattern 2: Not Initializing Session
+
 ```typescript
 // ❌ BAD - session not initialized
 myWizard = new Scenes.WizardScene<MyContext>(
   'bad-wizard',
-  async (ctx) => {
+  async ctx => {
     await ctx.reply('Step 1')
     return ctx.wizard.next()
   },
-  async (ctx) => {
+  async ctx => {
     ctx.session.data = 'value' // TypeError!
   }
 )
@@ -681,23 +676,24 @@ myWizard = new Scenes.WizardScene<MyContext>(
 // ✅ GOOD
 myWizard = new Scenes.WizardScene<MyContext>(
   'good-wizard',
-  async (ctx) => {
+  async ctx => {
     ctx.session = { ...ctx.session, data: null }
     await ctx.reply('Step 1')
     return ctx.wizard.next()
   },
-  async (ctx) => {
+  async ctx => {
     ctx.session.data = 'value' // Works!
   }
 )
 ```
 
 ### ❌ Anti-Pattern 3: Not Handling Cancel
+
 ```typescript
 // ❌ BAD - no way to exit
 myWizard = new Scenes.WizardScene<MyContext>(
   'trap-wizard',
-  async (ctx) => {
+  async ctx => {
     await ctx.reply('Step 1 - no escape!')
     return ctx.wizard.next()
   }
@@ -707,16 +703,14 @@ myWizard = new Scenes.WizardScene<MyContext>(
 // ✅ GOOD
 myWizard = new Scenes.WizardScene<MyContext>(
   'escape-wizard',
-  async (ctx) => {
+  async ctx => {
     await ctx.reply(
       'Step 1',
-      Markup.inlineKeyboard([
-        [Markup.button.callback('Cancel', 'cancel')]
-      ])
+      Markup.inlineKeyboard([[Markup.button.callback('Cancel', 'cancel')]])
     )
     return ctx.wizard.next()
   },
-  async (ctx) => {
+  async ctx => {
     if (ctx.callbackQuery?.data === 'cancel') {
       await ctx.answerCbQuery()
       return ctx.scene.leave()
@@ -727,29 +721,31 @@ myWizard = new Scenes.WizardScene<MyContext>(
 ```
 
 ### ❌ Anti-Pattern 4: Mixed Language Logic
+
 ```typescript
 // ❌ BAD - inconsistent language detection
-myScene.enter(async (ctx) => {
+myScene.enter(async ctx => {
   const lang = ctx.from?.language_code // ❌
   const isRu = lang === 'ru' || lang === 'ru-RU' // ❌
   // Different logic everywhere!
 })
 
 // ✅ GOOD - centralized
-myScene.enter(async (ctx) => {
+myScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx) // ✅ Always use this!
 })
 ```
 
 ### ❌ Anti-Pattern 5: No Validation
+
 ```typescript
 // ❌ BAD - no validation, crashes easily
 myWizard = new Scenes.WizardScene<MyContext>(
   'unsafe-wizard',
-  async (ctx) => {
+  async ctx => {
     return ctx.wizard.next()
   },
-  async (ctx) => {
+  async ctx => {
     const video = ctx.message.video // TypeError if not video!
     // ...
   }
@@ -758,10 +754,10 @@ myWizard = new Scenes.WizardScene<MyContext>(
 // ✅ GOOD - validated
 myWizard = new Scenes.WizardScene<MyContext>(
   'safe-wizard',
-  async (ctx) => {
+  async ctx => {
     return ctx.wizard.next()
   },
-  async (ctx) => {
+  async ctx => {
     if (!ctx.message || !('video' in ctx.message)) {
       await ctx.reply('Please send a video')
       return
@@ -775,7 +771,9 @@ myWizard = new Scenes.WizardScene<MyContext>(
 ## Real Examples from Project
 
 ### Example 1: LipSync Wizard (Complex)
+
 Location: `src/scenes/lipSyncWizard/index.ts`
+
 - 3 steps: video → audio → process
 - Zod validation
 - Admin-only access
@@ -784,7 +782,9 @@ Location: `src/scenes/lipSyncWizard/index.ts`
 - Cancel handling
 
 ### Example 2: Text-to-Video Simple (Simplified)
+
 Location: `src/scenes/textToVideoWizard/simple.ts`
+
 - Reply keyboards for model selection
 - Aspect ratio selection
 - Cost calculation
@@ -792,7 +792,9 @@ Location: `src/scenes/textToVideoWizard/simple.ts`
 - Processing with Inngest
 
 ### Example 3: Payment Scene (BaseScene)
+
 Location: `src/scenes/paymentScene/index.ts`
+
 - Simple action handlers
 - Payment processing
 - Balance updates
@@ -821,21 +823,21 @@ export const myScene = new Scenes.WizardScene<MyContext>(
   'my-scene-id',
 
   // STEP 1: Initialize
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     ctx.session.sceneData = { step: 1 }
 
     await ctx.reply(
       isRu ? 'Шаг 1: ...' : 'Step 1: ...',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
       ])
     )
     return ctx.wizard.next()
   },
 
   // STEP 2: Process
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (ctx.callbackQuery?.data === 'cancel') {

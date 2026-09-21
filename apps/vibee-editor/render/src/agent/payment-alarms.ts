@@ -33,6 +33,7 @@
  */
 import { record } from '../hive/journal'
 import type { EventKind, Severity } from '../hive/journal'
+import { telegramApiFor } from '../telegram-api'
 
 type Queryable = { query: (sql: string, params?: unknown[]) => Promise<any> }
 
@@ -121,13 +122,19 @@ export async function handlePayOutcome(
   const surface = body.surface as PaySurface
   const outcome = body.outcome as PayOutcome
   if (!SURFACES.includes(surface) || !OUTCOMES.includes(outcome)) {
-    return { status: 400, body: { ok: false, error: 'unknown surface or outcome' } }
+    return {
+      status: 400,
+      body: { ok: false, error: 'unknown surface or outcome' },
+    }
   }
   const now = deps.now ? deps.now() : Date.now()
   const key = `${who}:${surface}`
   const last = lastNoted.get(key) ?? 0
   if (now - last < OUTCOME_THROTTLE_MS) {
-    return { status: 200, body: { ok: true, noted: false, reason: 'throttled' } }
+    return {
+      status: 200,
+      body: { ok: true, noted: false, reason: 'throttled' },
+    }
   }
   lastNoted.set(key, now)
 
@@ -211,9 +218,7 @@ export async function readCashierPulse(
   botToken: string,
   fetchImpl: typeof fetch = fetch
 ): Promise<CashierPulse> {
-  const r = await fetchImpl(
-    `https://api.telegram.org/bot${botToken}/getWebhookInfo`
-  )
+  const r = await fetchImpl(`${telegramApiFor(botToken)}/getWebhookInfo`)
   const d = (await r.json()) as {
     ok?: boolean
     result?: {

@@ -14,6 +14,7 @@ import { handleHelpCancel } from '@/navigation'
 import { logger } from '@/utils/logger'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { PaymentType } from '@/interfaces/payments.interface'
+import { telegramFileLink } from '@/services/telegramFiles'
 
 export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   'voice',
@@ -110,7 +111,7 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           throw new Error('File path not found')
         }
 
-        const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+        const fileUrl = await telegramFileLink(ctx.telegram.token, file)
 
         // Получаем текст сообщения безопасно
         const messageText =
