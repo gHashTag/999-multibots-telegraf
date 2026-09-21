@@ -19,6 +19,7 @@
  *    и повторить; ронять весь запрос из-за одного неудачного вызова значит
  *    показывать пятисотку там, где был связный ответ.
  */
+import { toolContentForModel } from './tool-content'
 import {
   TOOLS_BY_NAME,
   toOpenAITools,
@@ -1688,7 +1689,9 @@ export async function* runAgent(
         role: 'tool',
         tool_call_id: call.id,
         name: имя,
-        content: JSON.stringify(значение),
+        // A picture goes to the person, never as base64 to the model
+        // (tool-content.ts: the model described a screen it could not see).
+        content: toolContentForModel(значение),
       })
     }
   }
