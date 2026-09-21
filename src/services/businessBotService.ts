@@ -10,7 +10,8 @@
 import { Telegraf } from 'telegraf'
 import { dmLeadMenu, takeoverMenu } from '@/navigation/helpers/crmMenu'
 import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
-import { разбитьДлинное } from '@/helpers/telegramLongAnswer' // cyrillic-ok: pre-existing helper name
+import { splitLongAnswer, keepTyping } from '@/helpers/telegramLongAnswer'
+import { agentLanes } from '@/services/agentLanes'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import { delay } from '@/helpers/delay'
@@ -94,11 +95,44 @@ interface ConnectionInfo {
 
 const connections = new Map<string, ConnectionInfo>()
 
-// Per-sender single-flight: while a reply is being generated for a chat,
-// drop further messages from it so one sender cannot spawn many concurrent
-// (paid, ~30s) LLM predictions. Added on entry, removed in finally — bounded
-// to the set of chats with a reply currently in flight.
-const businessReplyInFlight = new Set<string>()
+/*
+ * ONE PAID TURN PER CHAT AT A TIME -- WITHOUT DROPPING ANYTHING.
+ *
+ * This used to be `businessReplyInFlight`, a Set keyed by the chat id alone:
+ * while a reply was being generated, every further message from that chat was
+ * DROPPED, so one sender could not spawn many concurrent paid predictions. It
+ * kept that promise by losing messages -- measured, 9 drops per 47 replies,
+ * every one of them a second message that arrived in the same getUpdates
+ * batch as the first (an album, or a burst that piled up while the polling
+ * loop sat inside the previous turn). The key had no connection id either, so
+ * two sellers on two bots with the same client blocked each other.
+ *
+ * The invariant now lives in the agent lanes (services/agentLanes.ts), keyed
+ * `biz:<connection>:<chat>`: never two turns of one chat at once, a global cap
+ * across every bot, and a burst costs ONE turn instead of N -- its messages
+ * are merged into one question rather than all but one thrown away.
+ *
+ * The handler itself only ACCEPTS: it answers in milliseconds so the polling
+ * loop keeps hearing the owner's presses, the owner's own typing and payment
+ * pre-checkouts while the turn runs in its lane.
+ */
+const laneKeyOf = (connId: string, chatId: number | string): string =>
+  `biz:${connId}:${chatId}`
+
+/** Lane key -> stop for the "typing…" that runs from accept to the end of the turn. */
+const typingStops = new Map<string, () => void>()
+
+/**
+ * Lane key -> who to tell if the process stops before the lane is done. Kept
+ * only while the lane has work; read by `tellOwnersWhoWasLeftUnanswered`.
+ */
+const laneOwners = new Map<
+  string,
+  { bot: Telegraf<any>; ownerChatId: number; name: string; chatId: number }
+>()
+
+/** The longest merged burst handed to the agent in one turn. */
+export const BURST_TEXT_CAP = 6000
 
 /** Owner replied manually in a chat: the AI stays silent there until this time (ms). */
 export const OWNER_TAKEOVER_MS = 30 * 60 * 1000
@@ -338,6 +372,8 @@ interface DailyStats {
   nonTextDropped: number
   mediaRelayed: number
   takeoverSkipped: number
+  /** Messages answered as part of another message's turn (a burst merged). */
+  merged: number
 }
 
 let stats: DailyStats = {
@@ -348,6 +384,7 @@ let stats: DailyStats = {
   nonTextDropped: 0,
   mediaRelayed: 0,
   takeoverSkipped: 0,
+  merged: 0,
 }
 
 function todayKey(): string {
@@ -365,6 +402,7 @@ function ensureToday(): void {
       nonTextDropped: 0,
       mediaRelayed: 0,
       takeoverSkipped: 0,
+      merged: 0,
     }
   }
 }
@@ -546,11 +584,10 @@ export function classifyAgentFault(message: string): ProviderFault {
  *
  * 16/16 is a concurrency ceiling, not a per-minute quota, so a few seconds is
  * enough for an in-flight request to free a slot. Longer is actively harmful
- * here: a live customer is holding a typing indicator, trinityAgent's own
- * deadline already gives each attempt 180 s, and `businessReplyInFlight` DROPS
- * every further
- * message from that customer while the turn is in flight -- so a long pause
- * converts one slow answer into several silently discarded ones.
+ * here: a live customer is watching a typing indicator, trinityAgent's own
+ * deadline already gives each attempt 180 s, and every further message from
+ * that customer waits in the chat's lane until this turn ends -- so a long
+ * pause delays all of them, not just this answer.
  */
 export const AGENT_RETRY_PAUSE_MS = 3_000
 /** One replay, never a storm: the ceiling clears or it does not. */
@@ -1030,31 +1067,40 @@ export function handleBusinessConnection(connection: BusinessConnection): void {
   }
 }
 
-export async function handleBusinessMessage(
+/** What the admission check hands on: the message may be answered. */
+interface Admitted {
+  conn: ConnectionInfo
+  connId: string
+  chatId: number
+  chatKey: string
+}
+
+/**
+ * THE PART OF A BUSINESS MESSAGE THAT MUST HAPPEN AT ONCE, ON THE LOOP.
+ *
+ * Everything here is fast and must not wait behind a turn: the connection
+ * lookup, the skips, and above all the OWNER'S OWN LINE -- it pauses the AI in
+ * that chat, and a reply already being generated checks that pause before
+ * every chunk it sends. Returns null when the message is not to be answered.
+ */
+async function admitBusinessMessage(
   msg: BusinessMessage,
-  bot: Telegraf<any>,
-  botUsername: string
-): Promise<void> {
+  bot: Telegraf<any>
+): Promise<Admitted | null> {
   const connId = msg.business_connection_id
   const conn = connections.get(connId) ?? (await lookupConnection(connId, bot))
 
   if (!conn || !conn.canReply) {
     logger.warn('[Business] No active connection or cannot reply', { connId })
-    return
+    return null
   }
 
   const chatId = msg.chat.id
-  const senderName = msg.from?.first_name || msg.chat.first_name || 'User'
   const chatKey = `${connId}:${chatId}`
-  const sendAsOwner = (text: string, extra: Record<string, unknown> = {}) =>
-    bot.telegram.sendMessage(chatId, text, {
-      ...extra,
-      business_connection_id: connId,
-    } as any)
 
   // Telegram's own away/greeting messages and the bot's outgoing messages come
   // through the same stream; answering them would loop.
-  if (msg.is_from_offline || msg.sender_business_bot) return
+  if (msg.is_from_offline || msg.sender_business_bot) return null
 
   // The owner typed in this chat themselves: hand the conversation to them.
   if (msg.from?.id === conn.userId) {
@@ -1070,7 +1116,7 @@ export async function handleBusinessMessage(
       takeoverAnnounced.set(chatKey, Date.now() + OWNER_TAKEOVER_MS)
       void announceTakeover(msg, conn, bot, chatKey)
     }
-    return
+    return null
   }
   const pausedUntil = ownerTakeoverUntil.get(chatKey) ?? 0
   if (pausedUntil > Date.now()) {
@@ -1081,118 +1127,293 @@ export async function handleBusinessMessage(
       chatId,
       minutesLeft: Math.ceil((pausedUntil - Date.now()) / 60_000),
     })
-    return
+    return null
   }
   ownerTakeoverUntil.delete(chatKey)
   takeoverAnnounced.delete(chatKey)
 
   void notifyOwnerOfLead(msg, conn, bot, chatKey)
+  return { conn, connId, chatId, chatKey }
+}
 
-  // Media: copy it to the owner's own chat first (they asked to SEE what the
-  // customer sends), then either answer the caption through the LLM or answer
-  // the bare media with a service offer. Never a dead end.
+/**
+ * "Typing…" in the client's chat, from the moment the message is accepted to
+ * the end of the turn that answers it. Telegram shows the action for about
+ * five seconds, so it is repeated (keepTyping, every 4 s); sent once, as it
+ * used to be, it went dark long before a 30-second turn was over.
+ */
+function startTyping(
+  laneKey: string,
+  bot: Telegraf<any>,
+  chatId: number,
+  connId: string
+): void {
+  if (typingStops.has(laneKey)) return
+  typingStops.set(
+    laneKey,
+    keepTyping({
+      // async: a fake or broken telegram that throws synchronously becomes a
+      // rejection keepTyping swallows, never a thrown accept.
+      sendChatAction: async action =>
+        bot.telegram.sendChatAction(chatId, action, {
+          business_connection_id: connId,
+        } as any),
+    })
+  )
+}
+
+/**
+ * Stop the typing unless more of this chat is already waiting in its lane:
+ * then the follow-up turn keeps it on and stops it when IT ends.
+ */
+function finishLane(laneKey: string): void {
+  if (agentLanes.pending(laneKey) > 0) return
+  typingStops.get(laneKey)?.()
+  typingStops.delete(laneKey)
+  laneOwners.delete(laneKey)
+}
+
+/**
+ * The owner is shown the file at once, not after the turn: the relay is off
+ * the lane on purpose. Measured 2026-09-21: five photos a client sent during a
+ * 230-second turn reached the owner only when the turn was over.
+ */
+function relayIfMedia(
+  msg: BusinessMessage,
+  conn: ConnectionInfo,
+  bot: Telegraf<any>
+): void {
   const media = customerMedia(msg)
-  let plan: AgentMessagePlan | null = null
-  if (media) {
-    ensureToday()
-    stats.mediaRelayed++
-    await relayMediaToOwner(msg, media, conn, bot)
-    /*
-     * THE AGENT KEEPS, SEES AND HEARS THE FILE.
-     *
-     * Measured 2026-09-13: this branch re-sent the file to the owner, told
-     * the model "[the client sent a photo]" and dropped the bytes -- a
-     * description of a file, never the file. Now the same helper the bot
-     * chat uses fetches it once through the token-bearing link, puts it on
-     * OUR shelf and hands back marker lines the provider can open; the
-     * shelf URLs are indexed per client (media library). The Telegram link
-     * is used inside `buildAgentTurn` and never stored or logged.
-     *
-     * One message = one turn. The bot chat's album buffer is NOT reused
-     * here: a business album arrives as separate updates too, but each part
-     * is relayed and answered on its own, so a part that never comes does
-     * not cost the client a reply.
-     */
-    plan = await buildAgentTurn(bot.telegram as unknown as FileFetcher, [msg])
-    if (plan.stored.length) {
-      rememberClientMediaQuietly(
-        String(conn.userId),
-        String(chatId),
-        'business',
-        mediaItemsFrom(plan, msg.caption ?? null)
-      )
-    }
-  }
+  if (!media) return
+  ensureToday()
+  stats.mediaRelayed++
+  void relayMediaToOwner(msg, media, conn, bot)
+}
 
+/**
+ * THE BUSINESS MIDDLEWARE'S WHOLE JOB: admit, show "typing…", hand the message
+ * to its chat's lane, return. Resolves in milliseconds (one Bot API call after
+ * a redeploy, to look the connection up), so the polling loop is never held
+ * by a turn.
+ */
+export async function acceptBusinessMessage(
+  msg: BusinessMessage,
+  bot: Telegraf<any>,
+  botUsername: string
+): Promise<void> {
+  const admitted = await admitBusinessMessage(msg, bot)
+  if (!admitted) return
+  const { conn, connId, chatId } = admitted
+  const laneKey = laneKeyOf(connId, chatId)
+
+  // Before any relay or upload: the client's first sign of life.
+  startTyping(laneKey, bot, chatId, connId)
+  laneOwners.set(laneKey, {
+    bot,
+    ownerChatId: conn.ownerChatId,
+    name: sanitizeSenderName(msg.chat.first_name || msg.from?.first_name),
+    chatId,
+  })
+  relayIfMedia(msg, conn, bot)
+
+  agentLanes.enqueue(
+    laneKey,
+    msg,
+    batch => runBusinessBatch(batch, conn, bot, botUsername),
+    { pickupLagMs: Date.now() - msg.date * 1000 }
+  )
+}
+
+/**
+ * One message, admitted and answered NOW, outside the lanes. Kept for the tests
+ * that exercise one message's turn end to end; production goes through
+ * `acceptBusinessMessage` (see createBusinessMiddleware), and nothing in src
+ * calls this.
+ */
+export async function handleBusinessMessage(
+  msg: BusinessMessage,
+  bot: Telegraf<any>,
+  botUsername: string
+): Promise<void> {
+  const admitted = await admitBusinessMessage(msg, bot)
+  if (!admitted) return
+  const { conn, connId, chatId } = admitted
+  startTyping(laneKeyOf(connId, chatId), bot, chatId, connId)
+  relayIfMedia(msg, conn, bot)
+  await runBusinessBatch([msg], conn, bot, botUsername)
+}
+
+/**
+ * Several messages of one burst become one question. In order, one per line,
+ * and capped: the cap is here rather than in the lane so that nothing is ever
+ * dropped silently -- the model is told the text was cut.
+ */
+export function mergeBurstTexts(texts: string[]): string {
+  const merged = texts.filter(Boolean).join('\n')
+  if (merged.length <= BURST_TEXT_CAP) return merged
+  return (
+    merged.slice(0, BURST_TEXT_CAP) +
+    `\n[cut: the client sent ${merged.length} characters in a row, only the first ${BURST_TEXT_CAP} are shown]`
+  )
+}
+
+/** The text a single business message contributes to a turn, as it always was. */
+function textOfBusinessMessage(
+  msg: BusinessMessage,
+  media: CustomerMedia | undefined,
+  plan: AgentMessagePlan | null
+): string | undefined {
   const caption = msg.caption?.trim()
   const markers = plan?.stored.map(s => s.line) ?? []
   // With a stored file the note is a human-readable prefix above the marker
   // lines; when every file was refused, the caption travels the way it
   // always did, so the client still gets an answer to their words.
-  const text =
+  return (
     msg.text ??
     (media && markers.length
       ? [`${media.note}.`, caption, ...markers].filter(Boolean).join('\n')
       : media && caption
         ? `[${media.note}] ${caption}`
         : undefined)
-  if (!text) {
-    ensureToday()
-    stats.nonTextDropped++
-    logger.info('[Business] Non-text message', {
-      connId,
-      chatId,
-      kind: media?.field ?? 'other',
-    })
-    if (media) {
-      const card = SERVICE_CARDS.find(c => c.key === media.card)
-      try {
-        // Why the file did not make it (too big, did not download) and the
-        // service offer, in ONE message: two would read as nagging.
-        const said = plan?.refusal
-          ? `${plan.refusal}\n\n${media.reply}`
-          : media.reply
-        await sendAsOwner(said, {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '🚀 Открыть в боте',
-                  url: card
-                    ? deepLink(botUsername, card)
-                    : `https://t.me/${botUsername}?start=${LEAD_START_PARAM}`,
-                },
-              ],
-            ],
-          },
-        })
-      } catch (error) {
-        logger.warn('[Business] Media reply failed', {
-          error: error instanceof Error ? error.message : String(error),
-          connId,
-          chatId,
-        })
-      }
-    }
-    return
-  }
+  )
+}
 
-  const flightKey = String(chatId)
-  if (businessReplyInFlight.has(flightKey)) {
-    logger.info('[Business] Reply already in flight — dropping duplicate', {
-      connId,
-      chatId,
-    })
-    return
-  }
-  businessReplyInFlight.add(flightKey)
+/**
+ * ONE TURN FOR A BATCH OF ONE CHAT'S MESSAGES, run in that chat's lane.
+ *
+ * The batch is everything the client sent since the last turn: usually one
+ * message, several when they typed a burst or sent an album. It is answered
+ * once, as one question.
+ */
+async function runBusinessBatch(
+  batch: BusinessMessage[],
+  conn: ConnectionInfo,
+  bot: Telegraf<any>,
+  botUsername: string
+): Promise<void> {
+  const first = batch[0]
+  if (!first) return
+  const last = batch[batch.length - 1]
+  const connId = first.business_connection_id
+  const chatId = first.chat.id
+  const chatKey = `${connId}:${chatId}`
+  const laneKey = laneKeyOf(connId, chatId)
+  const senderName = last.from?.first_name || last.chat.first_name || 'User'
+  const sendAsOwner = (text: string, extra: Record<string, unknown> = {}) =>
+    bot.telegram.sendMessage(chatId, text, {
+      ...extra,
+      business_connection_id: connId,
+    } as any)
+  const ownerHasTheChat = () =>
+    (ownerTakeoverUntil.get(chatKey) ?? 0) > Date.now()
 
   try {
-    void bot.telegram
-      .sendChatAction(chatId, 'typing', {
-        business_connection_id: connId,
-      } as any)
-      .catch(() => undefined)
+    /*
+     * The owner may have typed, or pressed the take-over button (crm:mute),
+     * while this batch sat out its quiet window. Then the chat is theirs and nothing is answered,
+     * exactly as for a message that arrives during the pause.
+     */
+    if (ownerHasTheChat()) {
+      ensureToday()
+      stats.takeoverSkipped += batch.length
+      logger.info('[Business] held for owner', {
+        connId,
+        chatId,
+        messages: batch.length,
+      })
+      return
+    }
+
+    const inbound: Array<{ msg: BusinessMessage; text: string }> = []
+    let hasText = false
+    let lastBareMedia: {
+      media: CustomerMedia
+      plan: AgentMessagePlan | null
+    } | null = null
+    for (const msg of batch) {
+      const media = customerMedia(msg)
+      let plan: AgentMessagePlan | null = null
+      if (media) {
+        /*
+         * THE AGENT KEEPS, SEES AND HEARS THE FILE.
+         *
+         * Measured 2026-09-13: this branch re-sent the file to the owner, told
+         * the model "[the client sent a photo]" and dropped the bytes -- a
+         * description of a file, never the file. Now the same helper the bot
+         * chat uses fetches it once through the token-bearing link, puts it on
+         * OUR shelf and hands back marker lines the provider can open; the
+         * shelf URLs are indexed per client (media library). The Telegram link
+         * is used inside `buildAgentTurn` and never stored or logged.
+         */
+        plan = await buildAgentTurn(bot.telegram as unknown as FileFetcher, [
+          msg,
+        ])
+        if (plan.stored.length) {
+          rememberClientMediaQuietly(
+            String(conn.userId),
+            String(chatId),
+            'business',
+            mediaItemsFrom(plan, msg.caption ?? null)
+          )
+        }
+      }
+      const text = textOfBusinessMessage(msg, media, plan)
+      if (text) {
+        hasText = true
+        inbound.push({ msg, text })
+        continue
+      }
+      ensureToday()
+      stats.nonTextDropped++
+      logger.info('[Business] Non-text message', {
+        connId,
+        chatId,
+        kind: media?.field ?? 'other',
+      })
+      if (media) {
+        // Next to a message with words, a file that did not make it is still
+        // a line the agent should see; alone, it gets the service card below.
+        inbound.push({ msg, text: `[${media.note}]` })
+        lastBareMedia = { media, plan }
+      }
+    }
+
+    if (!hasText) {
+      if (lastBareMedia) {
+        const { media, plan } = lastBareMedia
+        const card = SERVICE_CARDS.find(c => c.key === media.card)
+        try {
+          // Why the file did not make it (too big, did not download) and the
+          // service offer, in ONE message: two would read as nagging.
+          const said = plan?.refusal
+            ? `${plan.refusal}\n\n${media.reply}`
+            : media.reply
+          await sendAsOwner(said, {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '🚀 Открыть в боте',
+                    url: card
+                      ? deepLink(botUsername, card)
+                      : `https://t.me/${botUsername}?start=${LEAD_START_PARAM}`,
+                  },
+                ],
+              ],
+            },
+          })
+        } catch (error) {
+          logger.warn('[Business] Media reply failed', {
+            error: error instanceof Error ? error.message : String(error),
+            connId,
+            chatId,
+          })
+        }
+      }
+      return
+    }
+
+    const text = mergeBurstTexts(inbound.map(i => i.text))
 
     /*
      * The transcript is read INSIDE the fallback, not before the turn. On the
@@ -1234,39 +1455,88 @@ export async function handleBusinessMessage(
     }
     // Telegram refuses a text over 4096 characters outright: the answer is
     // split, and the keyboard rides on the LAST chunk.
-    const parts = разбитьДлинное(reply) // cyrillic-ok: pre-existing helper name
+    const parts = splitLongAnswer(reply)
     let sentAsOwner: { message_id?: number } | undefined
+    const sentParts: string[] = []
+    let discarded = false
     for (let i = 0; i < parts.length; i++) {
-      const last = i === parts.length - 1
-      sentAsOwner = (await sendAsOwner(parts[i], last ? keyboard : {})) as
+      /*
+       * THE OWNER'S WORD BEATS THE AGENT'S, EVEN MID-TURN.
+       *
+       * With the turn off the polling loop, the owner's typed line and the
+       * take-over press (crm:mute) are handled WHILE the agent is still
+       * writing. So
+       * the pause is checked before every chunk: once the owner has the chat,
+       * nothing more of the agent's answer reaches the client.
+       */
+      if (ownerHasTheChat()) {
+        discarded = true
+        break
+      }
+      const lastPart = i === parts.length - 1
+      sentAsOwner = (await sendAsOwner(parts[i], lastPart ? keyboard : {})) as
         | { message_id?: number }
         | undefined
+      sentParts.push(parts[i])
+    }
+
+    if (discarded) {
+      ensureToday()
+      stats.takeoverSkipped += batch.length
+      logger.info('[Business] reply discarded: owner took over', {
+        connId,
+        chatId,
+        sentParts: sentParts.length,
+        ofParts: parts.length,
+      })
+      await bot.telegram
+        .sendMessage(conn.ownerChatId, 'Ответ агента не отправлен — чат ваш.')
+        .catch(error => {
+          logger.warn('[Business] discard notice failed', {
+            error: error instanceof Error ? error.message : String(error),
+            connId,
+            chatId,
+          })
+        })
     }
 
     /*
-     * THE EXCHANGE GOES INTO THE MEMORY AT ONCE: their message and the
-     * answer, with Telegram's own ids, so the next question is answered
-     * from a memory that already has this one. Best effort, off the path.
+     * THE EXCHANGE GOES INTO THE MEMORY AT ONCE: every message of the burst
+     * with Telegram's own ids, and what was actually sent back, so the next
+     * question is answered from a memory that already has this one. Best
+     * effort, off the path.
      */
     void mirrorExchange(conn.userId, chatId, senderName, [
-      { msg_id: msg.message_id, at: msg.date, out: false, text },
-      ...(sentAsOwner?.message_id
+      ...inbound.map(i => ({
+        msg_id: i.msg.message_id,
+        at: i.msg.date,
+        out: false,
+        text: i.text,
+      })),
+      ...(sentAsOwner?.message_id && sentParts.length
         ? [
             {
               msg_id: sentAsOwner.message_id,
               at: Math.floor(Date.now() / 1000),
               out: true,
-              text: reply,
+              text: sentParts.join('\n\n'),
             },
           ]
         : []),
     ])
 
+    if (discarded) return
+
     ensureToday()
     stats.messagesHandled++
+    stats.merged += batch.length - 1
     stats.uniqueUsers.add(String(chatId))
 
-    logger.info('[Business] Reply sent', { connId, chatId })
+    logger.info('[Business] Reply sent', {
+      connId,
+      chatId,
+      merged: batch.length,
+    })
   } catch (error) {
     logger.error('[Business] Failed to reply', {
       error: error instanceof Error ? error.message : String(error),
@@ -1274,8 +1544,67 @@ export async function handleBusinessMessage(
       chatId,
     })
   } finally {
-    businessReplyInFlight.delete(flightKey)
+    finishLane(laneKey)
   }
+}
+
+/**
+ * THE PROCESS IS STOPPING AND SOME CLIENTS WERE NOT ANSWERED.
+ *
+ * `unfinished` is what `agentLanes.drain` could not finish before the deadline.
+ * Their messages were already confirmed to Telegram, so the next process will
+ * not see them again: the owner is the only one who can still answer. One
+ * message per owner, in the owner's own chat with the bot, naming the clients
+ * -- not a page to the platform admin. Nothing unfinished, nothing sent.
+ * Returns how many owners were told.
+ */
+export async function tellOwnersWhoWasLeftUnanswered(
+  unfinished: string[]
+): Promise<number> {
+  const byOwner = new Map<
+    string,
+    { bot: Telegraf<any>; ownerChatId: number; who: string[] }
+  >()
+  for (const key of unfinished) {
+    // Only business lanes have an owner on record; dm: and crm: keys are
+    // the person's own chat with the bot and have nobody else to tell.
+    const owner = laneOwners.get(key)
+    if (!owner) continue
+    const id = `${owner.bot.botInfo?.username ?? ''}:${owner.ownerChatId}`
+    const entry = byOwner.get(id) ?? {
+      bot: owner.bot,
+      ownerChatId: owner.ownerChatId,
+      who: [],
+    }
+    entry.who.push(`${owner.name} (tg://user?id=${owner.chatId})`)
+    byOwner.set(id, entry)
+  }
+  let told = 0
+  for (const { bot, ownerChatId, who } of byOwner.values()) {
+    try {
+      await bot.telegram.sendMessage(
+        ownerChatId,
+        [
+          '⚠️ Бот перезапускался, и ассистент не успел ответить:',
+          ...who.map(w => `• ${w}`),
+          'Ответьте им сами — после перезапуска я этих сообщений не увижу.',
+        ].join('\n')
+      )
+      told += 1
+    } catch (error) {
+      logger.warn('[Business] shutdown notice failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+  if (byOwner.size) {
+    logger.warn('[Business] left unanswered at shutdown', {
+      owners: byOwner.size,
+      chats: [...byOwner.values()].reduce((n, e) => n + e.who.length, 0),
+      told,
+    })
+  }
+  return told
 }
 
 /**
@@ -1439,7 +1768,11 @@ export function createBusinessMiddleware(bot: Telegraf<any>) {
     if (update.business_message) {
       // botInfo is filled by launch(), after this middleware is registered:
       // read the username per message or the sales prompt names an empty bot.
-      await handleBusinessMessage(
+      //
+      // ACCEPT, NOT ANSWER: this resolves in milliseconds and the turn runs in
+      // the chat's lane. Awaiting the turn here held the whole polling loop
+      // of this bot for as long as the agent took (see services/agentLanes.ts).
+      await acceptBusinessMessage(
         update.business_message as BusinessMessage,
         bot,
         bot.botInfo?.username || ''
@@ -1461,6 +1794,7 @@ export function getBusinessStats(): {
   todayNonText: number
   todayMediaRelayed: number
   todayTakeoverSkipped: number
+  todayMerged: number
   connections: Array<{ id: string; userId: number; canReply: boolean }>
 } {
   ensureToday()
@@ -1472,6 +1806,7 @@ export function getBusinessStats(): {
     todayNonText: stats.nonTextDropped,
     todayMediaRelayed: stats.mediaRelayed,
     todayTakeoverSkipped: stats.takeoverSkipped,
+    todayMerged: stats.merged,
     connections: Array.from(connections.entries()).map(([id, info]) => ({
       id,
       userId: info.userId,
