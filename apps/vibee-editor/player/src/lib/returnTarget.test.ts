@@ -62,6 +62,8 @@ describe('returnTargetOf accepts only the Queen and its known views', () => {
     QUEEN,
     `${QUEEN}?tab=tri`,
     `${QUEEN}?tab=specs`,
+    `${QUEEN}?tab=browser`,
+    `${QUEEN}?tab=passport`,
     `${QUEEN}?tab=tri&screen=crm`,
     `${QUEEN}?tab=tri&screen=feed`,
   ])('%s', url => {
@@ -109,6 +111,7 @@ describe('returnTargetOf accepts only the Queen and its known views', () => {
     `${QUEEN}?tab=tri&screen=profile&path=%2Falice`,
     `${QUEEN}?tab=tri&screen=nope`,
     `${QUEEN}?tab=specs&screen=crm`,
+    `${QUEEN}?tab=browser&screen=crm`,
     `${QUEEN}?screen=crm`,
     `${QUEEN}?tab=tri&tab=comb`,
     `${QUEEN}#x`,
