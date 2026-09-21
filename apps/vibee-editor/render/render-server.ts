@@ -11484,8 +11484,31 @@ const WS_PING_INTERVAL_MS = 30_000
 /** Past this backlog a peer is not reading; queueing more only costs us. */
 const WS_MAX_BUFFERED_BYTES = 8 * 1024 * 1024
 
+/*
+ * noServer, AND THAT IS THE WHOLE FIX FOR TWO OUTAGES.
+ *
+ * With `{ server }` this library attaches its OWN 'upgrade' listener and
+ * takes EVERY upgrade on the port. The person's browser (`/live/`) attaches
+ * a second one. Both fired on every connection, and each broke the other:
+ *
+ *   - /live/: this server answered 101 and sent {"type":"connected"}, then
+ *     the browser proxy wrote ANOTHER "HTTP/1.1 101" into the already-open
+ *     socket. Captured raw: frame 0 was that JSON, frame 1's payload was the
+ *     literal text "TP/1.1 101 Switching Protocols...". The viewer died with
+ *     "Invalid frame header" and the picture never started.
+ *   - `/` (the editor's real-time sync): this server accepted it, and the
+ *     browser proxy -- which refused everything not under /live/ -- wrote
+ *     "HTTP/1.1 404" into the same socket. The sync died after its first
+ *     message, for every user, from the moment the browser shipped.
+ *
+ * Locally the browser's check script has its own server with no sync
+ * socket, which is why neither showed before production.
+ *
+ * Now there is ONE dispatcher (the 'upgrade' handler further down) and it
+ * hands each upgrade to exactly one owner.
+ */
 const wss = new WebSocketServer({
-  server,
+  noServer: true,
   maxPayload: WS_MAX_PAYLOAD_BYTES,
 })
 const wsClients = new Set<WebSocket>()
@@ -11790,13 +11813,22 @@ async function main() {
     drainMs: Number(process.env.SHUTDOWN_DRAIN_MS) || 25_000,
   })
   /*
-   * neko's signalling, and the channel carrying the person's keyboard and
-   * mouse into their pod. Nothing else in this service speaks WebSocket, so
-   * every other upgrade is refused rather than left hanging.
+   * THE ONLY UPGRADE DISPATCHER ON THIS PORT.
+   *
+   * /live/ is the person's browser: neko's signalling, and the channel that
+   * carries their keyboard and mouse into their pod. Everything else is the
+   * editor's real-time sync, and belongs to `wss` above. Each upgrade goes to
+   * exactly one of them -- two listeners each answering the same socket is
+   * what broke both (see the comment on `wss`).
    */
   server.on('upgrade', async (req, socket, head) => {
     const path = (req.url || '').split('?')[0]
-    if (!isLivePath(path)) return refuseUpgrade(socket, 404)
+    if (!isLivePath(path)) {
+      wss.handleUpgrade(req, socket, head, ws =>
+        wss.emit('connection', ws, req)
+      )
+      return
+    }
     const parsed = parseLive(req.url || '', req.headers.cookie)
     if (!parsed) return refuseUpgrade(socket, 404)
     try {
