@@ -1,38 +1,51 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { User } from 'lucide-react';
-import { useAtomValue, useSetAtom } from 'jotai';
-import { userAtom, followUserAtom, unfollowUserAtom, showLoginModalAtom } from '@/atoms';
-import type { FollowUser } from '@/atoms';
-import { FollowButton } from './FollowButton';
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { User } from 'lucide-react'
+import { useAtomValue, useSetAtom } from 'jotai'
+import {
+  userAtom,
+  followUserAtom,
+  unfollowUserAtom,
+  openLoginAtom,
+} from '@/atoms'
+import type { FollowUser } from '@/atoms'
+import { FollowButton } from './FollowButton'
 
 interface UserCardProps {
-  user: FollowUser;
+  user: FollowUser
 }
 
 export function UserCard({ user }: UserCardProps) {
-  const currentUser = useAtomValue(userAtom);
-  const follow = useSetAtom(followUserAtom);
-  const unfollow = useSetAtom(unfollowUserAtom);
-  const setShowLogin = useSetAtom(showLoginModalAtom);
+  const currentUser = useAtomValue(userAtom)
+  const follow = useSetAtom(followUserAtom)
+  const unfollow = useSetAtom(unfollowUserAtom)
+  const openLogin = useSetAtom(openLoginAtom)
 
-  const isOwnProfile = currentUser?.id !== undefined && user?.id !== undefined && String(currentUser.id) === String(user.id);
+  const isOwnProfile =
+    currentUser?.id !== undefined &&
+    user?.id !== undefined &&
+    String(currentUser.id) === String(user.id)
 
   const handleFollowClick = async () => {
     if (!currentUser) {
-      setShowLogin(true);
-      return;
+      openLogin('follow')
+      return
     }
 
     if (user.is_following) {
-      await unfollow(user.username);
+      await unfollow(user.username)
     } else {
-      await follow(user.username);
+      await follow(user.username)
     }
-  };
+  }
 
-  const [imgError, setImgError] = useState(false);
-  const avatarUrl = user.avatar_url && user.avatar_url !== 'null' && user.avatar_url !== 'undefined' ? user.avatar_url : undefined;
+  const [imgError, setImgError] = useState(false)
+  const avatarUrl =
+    user.avatar_url &&
+    user.avatar_url !== 'null' &&
+    user.avatar_url !== 'undefined'
+      ? user.avatar_url
+      : undefined
 
   return (
     <div className="user-card">
@@ -67,5 +80,5 @@ export function UserCard({ user }: UserCardProps) {
         />
       )}
     </div>
-  );
+  )
 }

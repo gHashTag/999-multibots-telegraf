@@ -125,6 +125,11 @@ export function TelegramLoginButton({
       script.async = true
       script.setAttribute('data-telegram-login', botUsername)
       script.setAttribute('data-size', size)
+      // The only styling lever Telegram's iframe offers. Without it the native
+      // widget is a 20px pill inside a card whose every other corner is 6px --
+      // and on app.t27.ai this widget, not our own button, is what renders
+      // (lib/telegramWidget.ts, WIDGET_DOMAINS).
+      script.setAttribute('data-radius', '6')
       script.setAttribute('data-onauth', 'onTelegramAuth(user)')
       script.setAttribute('data-request-access', 'write')
 

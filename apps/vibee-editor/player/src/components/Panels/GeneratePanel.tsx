@@ -44,7 +44,7 @@ import {
   userAtom,
   canRenderAtom,
   showPaywallAtom,
-  showLoginModalAtom,
+  openLoginAtom,
   logRenderAtom,
 } from '@/atoms/user'
 import { PublishModal } from '../Modals/PublishModal'
@@ -302,7 +302,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const user = useAtomValue(userAtom)
   const canRender = useAtomValue(canRenderAtom)
   const setShowPaywall = useSetAtom(showPaywallAtom)
-  const setShowLoginModal = useSetAtom(showLoginModalAtom)
+  const openLogin = useSetAtom(openLoginAtom)
   const logRender = useSetAtom(logRenderAtom)
   const addAsset = useSetAtom(addAssetAtom)
 
@@ -587,9 +587,11 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     // Requiring a production identity here made ?mock=1 look enabled while
     // every Generate button still opened the login modal.
     if (isMockMode()) return true
-    // If not logged in, show login modal
+    // If not logged in, show login modal. This is the generate door, not the
+    // export one: the modal is told so and answers in its own words
+    // (atoms/user.ts, LoginReason).
     if (!user) {
-      setShowLoginModal(true)
+      openLogin('generate')
       return false
     }
     // If no quota, show paywall
