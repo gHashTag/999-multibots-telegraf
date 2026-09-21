@@ -170,26 +170,6 @@ export async function listConfigurations(
   return Array.isArray(b) ? b : []
 }
 
-/**
- * Sizes one or two snaps away from the one wanted, nearest first. At most
- * twelve: each is a request to the pod, and the person is waiting.
- */
-export function nearbySizes(want: ScreenSize): ScreenSize[] {
-  const out: { size: ScreenSize; d: number }[] = []
-  for (let dw = -2; dw <= 2; dw++) {
-    for (let dh = -2; dh <= 2; dh++) {
-      const d = dw * dw + dh * dh
-      if (d === 0 || d > 4) continue
-      const width = want.width + dw * SNAP
-      const height = want.height + dh * SNAP
-      if (width < MIN_EDGE || width > MAX_WIDTH) continue
-      if (height < MIN_EDGE || height > MAX_HEIGHT) continue
-      out.push({ size: { width, height, rate: want.rate }, d })
-    }
-  }
-  return out.sort((a, b) => a.d - b.d).map(o => o.size)
-}
-
 /** Near enough that nobody would see the difference. */
 const CLOSE_ENOUGH = 16
 
@@ -222,6 +202,30 @@ export async function readScreen(
  * The reply to the ask is the request repeated, so it proves nothing: the
  * screen may be a few pixels off, may be unchanged, or the ask may have been
  * refused outright. Only the read afterwards is evidence.
+ *
+ * ── EVERY ASK RESTARTS THE VIDEO, EVEN ONE THAT FAILS ─────────────────────
+ *
+ * neko stops its capture pipelines before it touches the screen and starts
+ * them again afterwards, whatever the outcome (the pod log shows a destroy
+ * and a create around every 422). So each ask is a moment of frozen or
+ * black picture for whoever is watching, and the number of asks is the
+ * number of those moments. Measured 2026-09-21 after a neighbour search
+ * shipped the same morning: ONE fit made 12 refused asks and 31 pipeline
+ * starts in a minute. Hence three rules:
+ *
+ *   1. A screen that is already the right shape is not asked at all.
+ *   2. A refusal is understood rather than retried blindly (below).
+ *   3. At most one retry, then the menu.
+ *
+ * ── WHY SIZES WERE REFUSED "WITH NO PATTERN" ─────────────────────────────
+ *
+ * They were refused for their RATE, not their size. The pod log says so:
+ * "unsupported screen rate 30". neko builds a new size with CVT at the rate
+ * asked for, and X then reports that mode's refresh rounded from its pixel
+ * clock -- 29 or 31 for some sizes, 30 for others. Asking for 30 on a mode
+ * X lists as 29 is BadValue. (server/pkg/xorg/xorg.go, ChangeScreenSize.)
+ * The failed ask still CREATED the mode, so the menu now lists it with the
+ * rate X gave it, and the menu choice below picks exactly that.
  */
 export async function applyScreen(
   endpoint: string,
@@ -230,6 +234,9 @@ export async function applyScreen(
   fetcher: Fetcher = fetch as unknown as Fetcher
 ): Promise<ScreenSize> {
   const bearer = await nekoLogin(endpoint, adminToken, fetcher)
+
+  const current = await readScreen(endpoint, bearer, fetcher).catch(() => null)
+  if (current && landed(want, current)) return current
 
   const ask = async (size: ScreenSize): Promise<ScreenSize | null> => {
     try {
@@ -253,20 +260,15 @@ export async function applyScreen(
   const exact = await ask(want)
   if (exact && landed(want, exact)) return exact
 
-  /*
-   * A refused size usually has a neighbour that is not: probed at a height
-   * of 852, widths 360 and 368 were refused and 352 and 376 accepted. A
-   * neighbour 8 or 16 pixels off is invisible; a menu size of another shape
-   * is the black bars the owner photographed. So the neighbours go first.
-   */
-  for (const near of nearbySizes(want)) {
-    const got = await ask(near)
-    if (got && landed(near, got)) return got
-  }
-
   const menu = await listConfigurations(endpoint, bearer, fetcher).catch(
     () => [] as ScreenSize[]
   )
+
+  /*
+   * The refused ask still created the size, at the rate X gave it, so the
+   * menu now lists it -- and being exactly the wanted shape, it is what the
+   * menu choice picks. No separate retry: one path, one more restart.
+   */
   const nearest = pickFromMenu(want, menu)
   if (nearest) {
     const settled = await ask(nearest)
@@ -300,10 +302,41 @@ export interface DesktopIo {
   fitWindow: typeof fitWindowToScreen
 }
 
-export async function fitDesktop(
+/**
+ * ONE FIT AT A TIME PER POD.
+ *
+ * The app's tab and the window inside it both ask for the shape when the
+ * picture comes up, within milliseconds of each other and a few pixels
+ * apart. Run side by side, both saw the old size and both asked -- two video
+ * restarts. Run in turn, the second finds the screen already right (rule 1
+ * in applyScreen) and asks nothing.
+ */
+const inTurn = new Map<string, Promise<unknown>>()
+
+function oneAtATime<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const before = inTurn.get(key) ?? Promise.resolve()
+  const mine = before.catch(() => undefined).then(work)
+  inTurn.set(key, mine)
+  void mine
+    .catch(() => undefined)
+    .then(() => {
+      if (inTurn.get(key) === mine) inTurn.delete(key)
+    })
+  return mine
+}
+
+export function fitDesktop(
   desktop: Desktop,
   want: ScreenSize,
   io: DesktopIo = { apply: applyScreen, fitWindow: fitWindowToScreen }
+): Promise<ScreenSize> {
+  return oneAtATime(desktop.endpoint, () => fitNow(desktop, want, io))
+}
+
+async function fitNow(
+  desktop: Desktop,
+  want: ScreenSize,
+  io: DesktopIo
 ): Promise<ScreenSize> {
   const got = await io.apply(desktop.endpoint, desktop.adminToken, want)
   if (desktop.cdpEndpoint) {

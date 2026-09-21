@@ -19,7 +19,14 @@
 import { request as httpRequest } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
-import { injectSkin, shouldDress, FIT_PATH, AVATAR_PATH } from './skin'
+import {
+  injectSkin,
+  shouldDress,
+  FIT_PATH,
+  AVATAR_PATH,
+  BRAND_SOUND_URL,
+  ENGINE_CHAT_SOUND,
+} from './skin'
 import { telegramAvatar } from './avatar'
 import { fitDesktop, wantedScreen } from './screen'
 import { cookieNameFor, LIVE_PREFIX, LOGIN_PLACEHOLDER } from './live-proxy'
@@ -169,6 +176,15 @@ export function pipeHttp(
   }
   if (target.upstreamPath.split('?')[0] === AVATAR_PATH) {
     void faceOfTheWatcher(target, res)
+    return
+  }
+  /* The product has one sound, and it is ours (skin.ts). */
+  if (target.upstreamPath.split('?')[0] === ENGINE_CHAT_SOUND) {
+    res.writeHead(302, {
+      Location: BRAND_SOUND_URL,
+      'Cache-Control': 'public, max-age=86400',
+    })
+    res.end()
     return
   }
 
