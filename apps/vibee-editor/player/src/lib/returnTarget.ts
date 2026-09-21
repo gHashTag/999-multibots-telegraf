@@ -61,6 +61,8 @@ export const QUEEN_VIEWS = [
   'tri',
   'passport',
   'browser',
+  // ROADMAP (key m), shipped in the same deploy as this entry.
+  'roadmap',
 ] as const
 
 /**
