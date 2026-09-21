@@ -77,9 +77,15 @@ const dm = (extra: Record<string, unknown>) => ({
   ...extra,
 })
 
-/** Telegram, taught exactly what this path needs; anything else throws. */
+/**
+ * Telegram, taught exactly what this path needs; anything else throws.
+ * `token` is part of every real `ctx.telegram`: the attachment path reads it
+ * to know which Bot API holds this bot and how big a file it hands over
+ * (services/telegramApi.ts). This one is a cloud bot.
+ */
 function strictBot() {
-  const taught: Record<string, ReturnType<typeof vi.fn>> = {
+  const taught: Record<string, any> = {
+    token: '123456:TEST-NOT-A-SECRET',
     sendMessage: vi.fn(async () => ({ message_id: 1 })),
     sendChatAction: vi.fn(async () => true),
     sendSticker: vi.fn(async () => ({ message_id: 2 })),
