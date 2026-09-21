@@ -183,10 +183,16 @@ describe('a voice note in the business DM', () => {
       out: false,
     })
     expect(JSON.stringify(items)).not.toContain('api.telegram.org')
-    // The turn on record carries the marker too, so memory can open it.
-    const recorded = JSON.stringify(recordTurns.mock.calls)
-    expect(recorded).toContain('[attached audio:')
-    expect(recorded).not.toContain('api.telegram.org')
+    /*
+     * The turn on record carries the marker too -- and it is the render that
+     * puts it there now, not this path (21.09.2026). The render stores the
+     * question on its way into the turn, and the question is `text` above:
+     * the marker and the shelf URL are asserted on it at lines 159-162, the
+     * Telegram link's absence at line 162. Writing the same pair here as well
+     * cost the agent's 40-turn window two turns per exchange instead of one,
+     * measured in telegram 2086031075's transcript.
+     */
+    expect(recordTurns).not.toHaveBeenCalled()
   })
 
   it('a file over 20 MB is refused with the service offer in ONE message; nothing fetched or stored', async () => {

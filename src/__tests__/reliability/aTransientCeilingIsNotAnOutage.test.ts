@@ -175,7 +175,10 @@ describe('a transient ceiling costs the customer nothing', () => {
       'a model that cannot invoice must not answer a request to be invoiced'
     ).not.toHaveBeenCalled()
     await settle()
-    expect(recorded[0]?.surface, 'the CRM must see the turn').toBe('business')
+    // The CRM still sees the turn -- the render writes it, on the attempt that
+    // succeeded, and this path no longer writes the same pair a second time
+    // (21.09.2026). The duplicate halved the agent's 40-turn window.
+    expect(recorded, 'the render keeps the record, not this path').toEqual([])
     expect(pages(), 'a rescued blip must not ring anybody').toEqual([])
   })
 
