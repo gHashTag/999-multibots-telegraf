@@ -11,7 +11,7 @@
 import { getBotTokenByName } from '@/core/getBotTokenByName'
 import { getUserByTelegramId } from '@/core/supabase/getUserByTelegramId'
 import axios from 'axios'
-import { telegramApiFor } from '@/services/telegramApi'
+import { assertBotApiListKnown, telegramApiFor } from '@/services/telegramApi'
 import { logger } from '@/utils/logger'
 import { initInfisical, getSecret } from '@/core/infisical'
 
@@ -79,6 +79,11 @@ async function initializeInfisical() {
 
 async function forceExitScene(telegramId: string): Promise<void> {
   try {
+    // The bot token comes from Infisical, and BOT_API_LOCAL_BOTS lives only
+    // on the Railway service: without it a moved bot looks like a cloud bot,
+    // and this send would log it back into the cloud. Run it under
+    // `railway run -s 999-multibots-telegraf`.
+    assertBotApiListKnown()
     console.log(
       `🔄 Начинаю процесс вывода пользователя ${telegramId} из сцены...`
     )

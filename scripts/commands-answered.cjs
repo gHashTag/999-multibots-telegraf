@@ -39,7 +39,10 @@
 
 // The host is chosen per bot: a bot on our own Bot API server must never be
 // asked on the cloud (scripts/lib/telegram-api.cjs).
-const { telegramApiFor } = require('./lib/telegram-api.cjs')
+const {
+  assertBotApiListKnown,
+  telegramApiFor,
+} = require('./lib/telegram-api.cjs')
 
 const BASE =
   process.env.RENDER_BASE_URL ||
@@ -131,6 +134,9 @@ function verdictFor(command, messages, botId) {
 }
 
 async function main() {
+  // A bot on our own Bot API server must not be asked on the cloud, and this
+  // script cannot tell which those are without the service's variables.
+  assertBotApiListKnown()
   const key = process.env.RENDER_API_KEY
   if (!key || !OWNER) {
     console.error(

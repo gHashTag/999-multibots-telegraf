@@ -36,7 +36,10 @@
  *   railway run -s 999-multibots-telegraf npx tsx scripts/tell-the-settled.ts
  *   railway run -s 999-multibots-telegraf npx tsx scripts/tell-the-settled.ts --commit
  */
-import { telegramApiFor } from '../src/services/telegramApi'
+import {
+  assertBotApiListKnown,
+  telegramApiFor,
+} from '../src/services/telegramApi'
 
 const COMMIT = process.argv.includes('--commit')
 
@@ -130,6 +133,9 @@ async function tokenFor(username: string): Promise<string | null> {
 }
 
 async function main(): Promise<void> {
+  // A bot on our own Bot API server must not be asked on the cloud, and this
+  // script cannot tell which those are without the service's variables.
+  assertBotApiListKnown()
   console.log(COMMIT ? 'SENDING\n' : 'DRY RUN -- nothing is sent\n')
 
   for (const person of PEOPLE) {

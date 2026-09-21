@@ -42,8 +42,11 @@ const isTest = (file: string) =>
   /\.(test|spec)\.[cm]?[jt]sx?$/.test(file) ||
   file.includes('__tests__') ||
   file.startsWith('src/tests/')
+// `.claude/` is scanned too, but as runbooks (runbookOffences below): its
+// shell blocks are what agents actually run, every day. `docs/` stays prose.
 const outOfScope = (file: string) =>
   file.startsWith('.claude/') || file.startsWith('docs/')
+const RUNBOOK = /^\.claude\/(skills|commands|agents)\/.*\.md$/
 
 function isCommentLine(file: string, line: string): boolean {
   if (/^\s*(\/\/|\*|\/\*)/.test(line)) return true
@@ -57,6 +60,30 @@ export function hostOffences(file: string, text: string): string[] {
   lines.forEach((line, i) => {
     if (!line.includes(HOST)) return
     if (isCommentLine(file, line)) return
+    if (line.includes(MARKER) || (lines[i - 1] ?? '').includes(MARKER)) return
+    out.push(`${file}:${i + 1}  ${line.trim().slice(0, 100)}`)
+  })
+  return out
+}
+
+/**
+ * Lines inside the fenced code blocks of a runbook (a skill, a command, an
+ * agent) that write the host by hand. Those blocks are run as written -- the
+ * daily /doctor and /check once curled the cloud for EVERY token -- so for a
+ * moved bot each is the request that logs it back into the cloud. Prose
+ * outside the fences, and comment lines inside them, are not counted.
+ */
+export function runbookOffences(file: string, text: string): string[] {
+  const lines = text.split('\n')
+  const out: string[] = []
+  let inFence = false
+  lines.forEach((line, i) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence
+      return
+    }
+    if (!inFence || !line.includes(HOST)) return
+    if (/^\s*(#|\/\/|\*)/.test(line)) return
     if (line.includes(MARKER) || (lines[i - 1] ?? '').includes(MARKER)) return
     out.push(`${file}:${i + 1}  ${line.trim().slice(0, 100)}`)
   })
@@ -145,6 +172,24 @@ describe('the scanners can see an offence', () => {
   })
 })
 
+describe('the runbook scanner can see an offence', () => {
+  it('a planted curl in a fence is reported; prose, a comment and a marked line are not', () => {
+    const planted = [
+      'Prose may name https://api.telegram.org freely.',
+      '```bash',
+      'curl -s "https://api.telegram.org/bot${TOKEN}/getMe"',
+      '# a comment about api.telegram.org',
+      '# telegram-api-root-ok: an example of the shape, not a call',
+      'echo "https://api.telegram.org/bot<token>/METHOD"',
+      '```',
+      'More prose: api.telegram.org.',
+    ].join('\n')
+    expect(runbookOffences('.claude/skills/x/SKILL.md', planted)).toEqual([
+      expect.stringContaining('SKILL.md:3'),
+    ])
+  })
+})
+
 describe('the Bot API host lives in one place', () => {
   it('no code writes api.telegram.org by hand', () => {
     const files = git(['grep', '-l', '-F', HOST]).filter(
@@ -159,6 +204,62 @@ describe('the Bot API host lives in one place', () => {
         '(render: src/telegram-api.ts, scripts: scripts/lib/telegram-api.cjs), ' +
         `or mark the line "${MARKER}" if it is a matcher or a message, not a call.\n\n` +
         offences.join('\n')
+    ).toEqual([])
+  })
+
+  it('no runbook an agent runs writes api.telegram.org by hand', () => {
+    const files = git([
+      'grep',
+      '-l',
+      '-F',
+      HOST,
+      '--',
+      '.claude/skills',
+      '.claude/commands',
+      '.claude/agents',
+    ]).filter(f => RUNBOOK.test(f))
+    const offences = files.flatMap(f => runbookOffences(f, read(f)))
+    expect(
+      offences,
+      'These runbook lines call the Bot API on the cloud whatever the token. ' +
+        'Resolve the host per token with the service variables:\n' +
+        '  railway variables --service 999-multibots-telegraf --kv | ' +
+        'BOT_API_TOKEN="$TOKEN" node scripts/lib/telegram-api.cjs api-root --env-from-stdin\n' +
+        'and skip a bot that is not on the cloud (see .claude/skills/doctor/SKILL.md).\n\n' +
+        offences.join('\n')
+    ).toEqual([])
+  })
+
+  it('every script holding real tokens fails closed without BOT_API_LOCAL_BOTS', () => {
+    // A script run from a laptop takes tokens from Infisical or .env, where the
+    // list of moved bots is not written; "unset" must not read as "all cloud".
+    const TOOLING = /^(scripts\/|src\/scripts\/|src\/utils\/[^/]*-cli\.ts$)/
+    const files = git([
+      'grep',
+      '-l',
+      '-F',
+      '-e',
+      'telegramApiFor(',
+      '-e',
+      'telegramApiRootFor(',
+      '-e',
+      'telegramClientOptionsFor(',
+      '-e',
+      'telegramFileUrlFor(',
+    ]).filter(
+      f => TOOLING.test(f) && CODE.test(f) && !isTest(f) && !HELPERS.includes(f)
+    )
+    expect(files.length, 'the scan found no script at all').toBeGreaterThan(5)
+    const missing = files.filter(
+      f => !read(f).includes('assertBotApiListKnown(')
+    )
+    expect(
+      missing,
+      'These scripts resolve a Bot API host without first calling ' +
+        'assertBotApiListKnown() (src/services/telegramApi.ts, or ' +
+        'scripts/lib/telegram-api.cjs): run from a laptop, they would treat a ' +
+        'moved bot as a cloud bot.\n' +
+        missing.join('\n')
     ).toEqual([])
   })
 

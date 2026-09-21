@@ -4,7 +4,10 @@
 
 import { config } from 'dotenv'
 import path from 'path'
-import { telegramApiFor } from '../src/services/telegramApi'
+import {
+  assertBotApiListKnown,
+  telegramApiFor,
+} from '../src/services/telegramApi'
 
 // Load .env
 config({ path: path.join(process.cwd(), '.env') })
@@ -53,6 +56,11 @@ async function checkAllTokens() {
 
   // Инициализация Infisical
   await initInfisical()
+
+  // The tokens come from Infisical; which bots live on our own Bot API server
+  // is written only on the Railway service. Without it every bot would look
+  // like a cloud bot, and a cloud getMe logs a moved bot back in there.
+  assertBotApiListKnown()
   const stats = getSecretsStats()
 
   console.log(`✅ Infisical: ${stats.environment}`)

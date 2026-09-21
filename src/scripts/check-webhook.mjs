@@ -3,9 +3,9 @@ import { Telegram } from 'telegraf'
 
 // The host is chosen per bot (scripts/lib/telegram-api.cjs): a bot on our own
 // Bot API server must never be asked on the cloud.
-const { telegramApiRootFor } = createRequire(import.meta.url)(
-  '../../scripts/lib/telegram-api.cjs'
-)
+const { assertBotApiListKnown, telegramApiRootFor } = createRequire(
+  import.meta.url
+)('../../scripts/lib/telegram-api.cjs')
 
 const token = process.env.TELEGRAM_BOT_TOKEN
 if (!token) {
@@ -13,6 +13,8 @@ if (!token) {
   process.exit(1)
 }
 
+// Without the service's BOT_API_LOCAL_BOTS a moved bot looks like a cloud bot.
+assertBotApiListKnown()
 const telegram = new Telegram(token, { apiRoot: telegramApiRootFor(token) })
 
 try {

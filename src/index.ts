@@ -73,10 +73,21 @@ import { supabase } from './core/supabase'
 import { secretFingerprint } from '@/utils/secretFingerprint'
 import {
   assertBotApiConfig,
+  assertBotsStayOnCloud,
+  botApiIsLocalFor,
+  botIdOfToken,
   describeBotApiConfig,
   telegramClientOptionsFor,
 } from '@/services/telegramApi'
 import { installLocalFileLinks } from '@/services/telegramFiles'
+import {
+  CHECK_TIMEOUT_MS,
+  retryDelaysFor,
+  retryUntilAnswered,
+  withTimeout,
+} from '@/core/bot/launchWhenItAnswers'
+import { redactBotToken } from '@/utils/redactBotToken'
+import { startBotApiServerMonitor } from '@/services/botApiServerMonitor'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
@@ -100,22 +111,32 @@ let supabaseCredentialsFailed = false
 // ]
 
 // Функция для проверки валидности токена
+//
+// `quiet` is for the background retry (core/bot/launchWhenItAnswers.ts): one
+// line per attempt instead of the full block, which is for the first check.
+// `timeoutMs` bounds a check against a server that hangs instead of refusing.
 export async function validateBotToken(
   token: string,
-  tokenName?: string
+  tokenName?: string,
+  opts: { timeoutMs?: number; quiet?: boolean } = {}
 ): Promise<boolean> {
   try {
     const bot = new Telegraf(token, {
       telegram: telegramClientOptionsFor(token),
     })
-    const botInfo = await bot.telegram.getMe()
+    const check = bot.telegram.getMe()
+    await (opts.timeoutMs ? withTimeout(check, opts.timeoutMs) : check)
     return true
   } catch (error) {
     // В dev окружении может быть тестовый токен - это нормально
-    const errorMsg = (error as Error).message
+    const errorMsg = redactBotToken((error as Error).message)
     const tokenLabel = tokenName || 'unknown'
 
-    if (isDev) {
+    if (opts.quiet) {
+      console.warn(
+        `⚠️  ${tokenLabel}: getMe still fails (${errorMsg}); retrying in the background`
+      )
+    } else if (isDev) {
       console.log(`\n⚠️  ${tokenLabel} невалидный (пропущен)`)
       console.log(`   ℹ️  Ошибка: ${errorMsg}`)
       console.log(`   💡 Это не критично для dev окружения`)
@@ -125,9 +146,20 @@ export async function validateBotToken(
       console.log(`         Переменная: ${tokenLabel}`)
       console.log(`         Путь: https://app.infisical.com\n`)
     } else {
-      console.error(`\n❌ КРИТИЧЕСКАЯ ОШИБКА: ${tokenLabel} невалидный!`)
+      console.error(
+        `\n❌ ${tokenLabel}: getMe failed, the bot is not launched yet`
+      )
       console.error(`   Ошибка: ${errorMsg}`)
-      console.error(`   Действия:`)
+      console.error(
+        '   It is retried in the background and launched when it answers. First, the'
+      )
+      console.error(
+        '   two causes that pass by themselves: the cloud refuses a bot for 10 minutes'
+      )
+      console.error(
+        '   after its logOut (a bot just moved back from our own Bot API server), and'
+      )
+      console.error('   the network. If it never comes back:')
       console.error(
         `   1. Проверьте токен в Infisical (${process.env.INFISICAL_ENVIRONMENT} environment)`
       )
@@ -230,7 +262,12 @@ async function initializeBots() {
    * asks for a link.
    */
   assertBotApiConfig()
+  // The admin alerts go out through BOT_TOKEN_1 (provider-health-monitor, and
+  // the Bot API server monitor below). An alert about our own Bot API server
+  // must not travel through that server.
+  assertBotsStayOnCloud({ BOT_TOKEN_1: 'the admin alerts' })
   installLocalFileLinks(Telegram)
+  startBotApiServerMonitor()
 
   const stage = createStage()
 
@@ -295,337 +332,401 @@ async function initializeBots() {
     return key
   }
 
+  /*
+   * ONE BOT, SET UP AND LAUNCHED.
+   *
+   * A function rather than the body of the loop below, so that a bot which
+   * did not answer at boot can be launched later, from the background retry
+   * (core/bot/launchWhenItAnswers.ts), exactly like the others.
+   */
+  const setUpAndLaunch = async (token: string, tokenName: string) => {
+    const bot = new Telegraf<MyContext>(token, {
+      handlerTimeout: Infinity,
+      telegram: telegramClientOptionsFor(token),
+    })
+    bot.use(Telegraf.log(scrubbedLog)) // Log all Telegraf updates and middleware flow
+
+    // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
+    bot.use(sessionMiddleware()) // 1. Session: Redis-backed when REDIS_URL is set (survives redeploys)
+    bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
+
+    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
+    setupErrorHandler(bot)
+
+    // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
+    setupNotificationProcessor(bot)
+
+    // ✅ Сохраняем первый bot instance для webhooks (legacy)
+    if (!mainBotInstance) {
+      mainBotInstance = bot
+      console.log('✅ Main bot instance saved for webhooks')
+
+      //         // 🔍 ДИАГНОСТИКА: Проверяем статусы моделей ДО миграции
+      //         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      //         console.log('🔍 ДИАГНОСТИКА МОДЕЛЕЙ (ДО МИГРАЦИИ)')
+      //         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+      //
+      //         const { data: diagModels } = await supabase
+      //           .from('model_trainings')
+      //           .select('id, model_name, status, result, api, provider, created_at')
+      //           .eq('telegram_id', '144022504')
+      //           .order('created_at', { ascending: false })
+      //
+      //         if (diagModels && diagModels.length > 0) {
+      //           console.log(`✅ Найдено моделей: ${diagModels.length}\n`)
+      //           diagModels.forEach((m, i) => {
+      //             console.log(`${i + 1}. ${m.model_name}`)
+      //             console.log(
+      //               `   status: ${m.status} | result: ${m.result || 'NULL'} | api: ${m.api || 'NULL'} | provider: ${m.provider || 'NULL'}`
+      //             )
+      //             console.log(`   created: ${m.created_at}\n`)
+      //           })
+      //           const statuses = [...new Set(diagModels.map(m => m.status))]
+      //           console.log('📋 Уникальные статусы в БД:', statuses)
+      //         } else {
+      //           console.log('❌ Модели НЕ НАЙДЕНЫ в БД')
+      //         }
+      //
+      //         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+      //
+      //         // 🧹 ONE-TIME CLEANUP: Remove fake "fal-test" models
+      //         console.log('🧹 Проверяем наличие фейковых моделей "fal-test"...')
+      //         const { data: fakeModels } = await supabase
+      //           .from('model_trainings')
+      //           .select('id, model_name, zip_url')
+      //           .eq('telegram_id', '144022504')
+      //           .eq('model_name', 'fal-test')
+      //           .eq('zip_url', 'https://fal.media/files/fal-test/model.zip')
+      //
+      //         if (fakeModels && fakeModels.length > 0) {
+      //           console.log(
+      //             `🗑️ Найдено ${fakeModels.length} фейковых моделей, удаляем...`
+      //           )
+      //           for (const fake of fakeModels) {
+      //             await supabase.from('model_trainings').delete().eq('id', fake.id)
+      //             console.log(`   ✅ Удалено: ${fake.id}`)
+      //           }
+      //         } else {
+      //           console.log('✅ Фейковых моделей не найдено')
+      //         }
+      //
+      //         // ✅ ДОБАВЛЯЕМ НАСТОЯЩУЮ FAL МОДЕЛЬ
+      //         console.log('\n🔍 Проверяем наличие настоящей FAL модели...')
+      //         const realTrainingId = '2896cb1f-b659-4057-b03d-a3daf5d9a983'
+      //         const { data: existingRealModel } = await supabase
+      //           .from('model_trainings')
+      //           .select('id, model_name')
+      //           .eq('telegram_id', '144022504')
+      //           .eq('replicate_training_id', realTrainingId)
+      //           .single()
+      //
+      //         if (!existingRealModel) {
+      //           console.log('📝 Настоящая FAL модель не найдена, добавляем...')
+      //           const realModelData = {
+      //             telegram_id: '144022504',
+      //             model_name: 'FAL Portrait (2500 steps)',
+      //             trigger_word: 'NEURO_SAGE',
+      //             replicate_training_id: realTrainingId,
+      //             status: 'SUCCESS',
+      //             bot_name: 'neuro_blogger_bot',
+      //             steps: 2500,
+      //             gender: 'male',
+      //             // ✅ ИСПРАВЛЕНИЕ: Используем .safetensors (LoRA weights), а НЕ config.json!
+      //             zip_url:
+      //               'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors',
+      //             api: 'fal', // ✅ FIXED: FAL provider, not Replicate!
+      //           }
+      //
+      //           const { data: newModel, error: insertError } = await supabase
+      //             .from('model_trainings')
+      //             .insert(realModelData)
+      //             .select()
+      //             .single()
+      //
+      //           if (insertError) {
+      //             console.error(
+      //               '❌ Ошибка добавления настоящей FAL модели:',
+      //               insertError
+      //             )
+      //           } else {
+      //             console.log('✅ Настоящая FAL модель добавлена!')
+      //             console.log(`   ID: ${newModel.id}`)
+      //             console.log(`   Name: ${newModel.model_name}`)
+      //           }
+      //         } else {
+      //           console.log(
+      //             `✅ Настоящая FAL модель уже существует: ${existingRealModel.model_name}`
+      //           )
+      //
+      //           // ✅ Проверяем и исправляем api и zip_url, если они неправильные
+      //           const { data: currentModel } = await supabase
+      //             .from('model_trainings')
+      //             .select('api, zip_url')
+      //             .eq('id', existingRealModel.id)
+      //             .single()
+      //
+      //           const updates: any = {}
+      //
+      //           if (currentModel && currentModel.api !== 'fal') {
+      //             console.log(`🔧 Исправляем api с '${currentModel.api}' на 'fal'...`)
+      //             updates.api = 'fal'
+      //           }
+      //
+      //           // ✅ КРИТИЧНО: Заменяем config.json на .safetensors (LoRA weights)!
+      //           if (currentModel && currentModel.zip_url?.includes('config.json')) {
+      //             console.log(
+      //               `🔧 Исправляем zip_url с config.json на .safetensors...`
+      //             )
+      //             console.log(`   Было: ${currentModel.zip_url}`)
+      //             updates.zip_url =
+      //               'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors'
+      //             console.log(`   Стало: ${updates.zip_url}`)
+      //           }
+      //
+      //           if (Object.keys(updates).length > 0) {
+      //             await supabase
+      //               .from('model_trainings')
+      //               .update(updates)
+      //               .eq('id', existingRealModel.id)
+      //             console.log('✅ Модель обновлена:', Object.keys(updates).join(', '))
+      //           }
+      //         }
+      //
+      //         // ❌ REMOVED: Auto-run migrations - they create duplicates on every restart!
+      //         // Run migrations manually when needed via: npx tsx scripts/add-fal-model-manual.ts
+
+      // ✅ Запускаем API сервер СРАЗУ после создания первого бота
+      // (до bot.launch(), чтобы не ждать бесконечного polling loop)
+      startApiServer(bot) // Передаём только первый бот (default)
+      console.log('✅ API сервер запущен с bot instance для webhooks')
+
+      // ✅ Запускаем мониторинг провайдеров (проверка каждые 5 минут)
+      const { startProviderMonitor } = await import(
+        './services/provider-health-monitor'
+      )
+      startProviderMonitor()
+      console.log('✅ Provider health monitor запущен')
+
+      // ✅ Запускаем мониторинг биллинга владельцев ботов (проверка раз в 24ч)
+      const { startBillingMonitor } = await import(
+        './services/bot-owner-billing'
+      )
+      startBillingMonitor()
+      console.log('✅ Bot owner billing monitor запущен')
+    }
+
+    // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
+    botInstances.push(bot)
+
+    /*
+     * ОПЛАТА ЛОВИТСЯ ДО СЦЕН, А НЕ ПОСЛЕ.
+     *
+     * Раньше эти два обработчика стояли ПОСЛЕ registerCommands, внутри
+     * которого регистрируется `bot.use(stage.middleware())`. Пока кассир
+     * жил вебхуком, это было безразлично: оплата вообще не входила в
+     * цепочку middleware бота.
+     *
+     * С опросом входит — и приезжает ВНУТРИ `message`. А десятки шагов
+     * сцен устроены так: «нет текста — ответить и `return`», без вызова
+     * next(). Человек, пополняющий баланс, сидит ровно в такой сцене
+     * (balanceScene). Его оплата была бы съедена шагом сцены, деньги
+     * списаны, токены не начислены — и ни одной записи о том, что что-то
+     * произошло.
+     *
+     * Поэтому регистрация поднята ВЫШЕ сцен: Telegraf идёт по middleware в
+     * порядке регистрации, и оплата разбирается раньше, чем сцена успеет
+     * её отвергнуть.
+     *
+     * Плата за это: до stage.middleware() у контекста ещё нет `ctx.scene`,
+     * поэтому выход из сцены в обработчике зовётся через `?.` — см.
+     * paymentHandlers/index.ts.
+     */
+    bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
+    bot.on('successful_payment', handleSuccessfulPayment as any)
+
+    registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
+    // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
+    setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
+    // AI fallback зарегистрирован внутри registerCommands (последний handler)
+
+    const botInfo = await bot.telegram.getMe()
+    console.log(`🤖 Бот ${botInfo.username} инициализирован`)
+
+    // Используем импортированную функцию setBotCommands
+    await setBotCommands(bot)
+
+    // 🔧 FIX: Очистка webhook перед polling
+    try {
+      const webhookInfo = await bot.telegram.getWebhookInfo()
+
+      console.log(`\n🔍 [WEBHOOK INFO] Бот: ${botInfo.username}`)
+      console.log(`   URL: ${webhookInfo.url || 'не установлен'}`)
+      console.log(
+        `   Pending updates: ${webhookInfo.pending_update_count || 0}`
+      )
+      if (webhookInfo.last_error_date) {
+        const lastErrorDate = new Date(webhookInfo.last_error_date * 1000)
+        console.log(
+          `   ⚠️  Последняя ошибка: ${webhookInfo.last_error_message}`
+        )
+        console.log(`   📅 Время ошибки: ${lastErrorDate.toISOString()}`)
+      }
+      if (webhookInfo.ip_address) {
+        console.log(`   🌐 IP адрес: ${webhookInfo.ip_address}`)
+      }
+      if (
+        webhookInfo.allowed_updates &&
+        webhookInfo.allowed_updates.length > 0
+      ) {
+        console.log(
+          `   📋 Allowed updates: ${webhookInfo.allowed_updates.join(', ')}`
+        )
+      }
+
+      /*
+       * ЗДЕСЬ СТОЯЛ CASHIER GUARD, И ОН ДЕЛАЛ БОТА ГЛУХИМ.
+       *
+       * Замысел был такой: кассир звёзд (@t27ai_bot) живёт вебхуком рендера,
+       * значит polling ему не запускаем — иначе 409 (инциденты №218-220).
+       * Один бот — один режим приёма, всё верно.
+       *
+       * Чего замысел не учёл: вебхук ставился с
+       * `allowed_updates: ['pre_checkout_query', 'successful_payment']`, а
+       * `successful_payment` — НЕ тип апдейта, это поле внутри `message`.
+       * Telegram молча выбрасывает несуществующее имя, и в вебхуке остаётся
+       * один `pre_checkout_query`. Измерено на живом getWebhookInfo 06.09.2026.
+       *
+       * Итог: `message` не шёл никуда — ни в вебхук (не разрешён), ни в
+       * очередь опроса (getUpdates отвечал 409, пока вебхук стоит). Бот не
+       * получал ни одного сообщения: ни /start, ни меню, ни оплату клуба,
+       * которая приходит ИМЕННО внутри message. Продать он тоже ничего не
+       * мог: маршрут вебхука закрыт общим гвардом (Telegram приходит без
+       * X-Api-Key и получает 401), поэтому pre_checkout никто не
+       * подтверждал и покупка срывалась на кассе. Транзакций за всё время
+       * ноль — это следствие, а не везение.
+       *
+       * Теперь кассир принимает апдейты опросом, как остальные десять ботов,
+       * а рендер больше не ставит ему вебхук (см. render-server.ts). Один
+       * режим приёма сохранён — просто это опрос, а не вебхук, и он умеет
+       * доставлять и разговор, и оплату.
+       */
+      if (webhookInfo.url) {
+        console.log(
+          `\n🔌 [WEBHOOK] Обнаружен активный вебхук для ${botInfo.username}: ${webhookInfo.url}`
+        )
+        console.log(`   🗑️  Удаляю вебхук для переключения на polling...`)
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true })
+        console.log(`   ✅ Вебхук удалён, переходим к polling\n`)
+      } else {
+        console.log(`   🟢 Активного вебхука нет, можно запускать polling\n`)
+      }
+    } catch (error) {
+      console.warn(
+        '⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:',
+        String(error)
+      )
+    }
+
+    /*
+     * The blue button next to the input field, for THIS bot.
+     *
+     * Measured 2026-09-20: of eleven bots exactly one had it pointing at the
+     * mini app; the other ten opened a list of slash commands, which is what
+     * "the main button does not work in partner bots" looks like from the
+     * inside. It is per-bot state held by Telegram and had simply never been
+     * set for ten of them. Setting it here makes it a property of the code:
+     * a new bot arrives with it, and a hand-edit that breaks it is undone by
+     * the next deploy. It never fails a launch.
+     */
+    if (botInfo.username) {
+      const { pointMenuButtonAtTheApp } = await import('@/core/bot/menuButton')
+      const outcome = await pointMenuButtonAtTheApp(bot, botInfo.username)
+      console.log(`🔵 [MENU] ${botInfo.username}: menu button ${outcome}`)
+    }
+
+    // ✅ MULTI-BOT FIX: Регистрируем bot instance ДО launch (botInfo уже получен выше)
+    if (typeof setBotInstance === 'function' && botInfo.username) {
+      setBotInstance(bot, botInfo.username)
+      console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
+    }
+
+    // Launch without await so the loop is not blocked; 409 Conflict is retried
+    // (see launchWithConflictRetry), anything else is logged once.
+    const botPromise = launchWithConflictRetry(bot, botInfo.username, [
+      'message',
+      'callback_query',
+      'pre_checkout_query',
+      'successful_payment',
+      'chat_member',
+      'business_connection',
+      'business_message',
+      'inline_query',
+    ])
+
+    botPromises.push(botPromise)
+  }
+
+  /*
+   * A bot that did not answer is asked again in the background, and
+   * launched the moment it answers (core/bot/launchWhenItAnswers.ts says
+   * why: the cloud refuses a bot for 10 minutes after its logOut, and our
+   * own Bot API server may be restarting or not yet serving a bot).
+   */
+  const launchWhenItAnswers = async (
+    token: string,
+    tokenName: string,
+    listed: boolean
+  ) => {
+    const id = botIdOfToken(token)
+    const { delays, forever } = retryDelaysFor(listed)
+    const answered = await retryUntilAnswered({
+      attempt: () =>
+        validateBotToken(token, tokenName, {
+          timeoutMs: CHECK_TIMEOUT_MS,
+          quiet: true,
+        }),
+      delays,
+      forever,
+      immediately: listed,
+    })
+    if (!answered) {
+      console.error(
+        `❌ ${tokenName}: bot ${id} still does not answer after ${delays.length} retries; ` +
+          'not launched until the next deploy. Check the token in @BotFather.'
+      )
+      return
+    }
+    console.log(
+      listed
+        ? `Bot API: listed bot ${id} answers; launching it`
+        : `Bot API: bot ${id} answers now; launching it`
+    )
+    try {
+      await setUpAndLaunch(token, tokenName)
+    } catch (error) {
+      console.error(
+        `❌ ${tokenName}: bot ${id} answered but could not be launched:`,
+        redactBotToken(String((error as Error)?.message ?? error))
+      )
+    }
+  }
+
   for (let i = 0; i < botTokens.length; i++) {
     const token = botTokens[i]
     const tokenName = getTokenName(i)
 
+    // A bot on our own Bot API server is never checked inline: a server that
+    // hangs instead of refusing would hold every bot after it for the length
+    // of Telegraf's call timeout. It is checked in the background, with a
+    // short timeout, and launched when it answers.
+    if (botApiIsLocalFor(token)) {
+      void launchWhenItAnswers(token, tokenName, true)
+      continue
+    }
     if (await validateBotToken(token, tokenName)) {
-      const bot = new Telegraf<MyContext>(token, {
-        handlerTimeout: Infinity,
-        telegram: telegramClientOptionsFor(token),
-      })
-      bot.use(Telegraf.log(scrubbedLog)) // Log all Telegraf updates and middleware flow
-
-      // <<<--- ВОЗВРАЩАЕМ ПОРЯДОК: stage ПЕРЕД paymentHandlers --->>>
-      bot.use(sessionMiddleware()) // 1. Session: Redis-backed when REDIS_URL is set (survives redeploys)
-      bot.use(languageMiddleware) // 2. ✅ LANGUAGE MIDDLEWARE - получает язык из БД ОДИН РАЗ!
-
-      // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК
-      setupErrorHandler(bot)
-
-      // ✅ ДОБАВЛЯЕМ ОБРАБОТЧИК УВЕДОМЛЕНИЙ
-      setupNotificationProcessor(bot)
-
-      // ✅ Сохраняем первый bot instance для webhooks (legacy)
-      if (!mainBotInstance) {
-        mainBotInstance = bot
-        console.log('✅ Main bot instance saved for webhooks')
-
-        //         // 🔍 ДИАГНОСТИКА: Проверяем статусы моделей ДО миграции
-        //         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-        //         console.log('🔍 ДИАГНОСТИКА МОДЕЛЕЙ (ДО МИГРАЦИИ)')
-        //         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
-        //
-        //         const { data: diagModels } = await supabase
-        //           .from('model_trainings')
-        //           .select('id, model_name, status, result, api, provider, created_at')
-        //           .eq('telegram_id', '144022504')
-        //           .order('created_at', { ascending: false })
-        //
-        //         if (diagModels && diagModels.length > 0) {
-        //           console.log(`✅ Найдено моделей: ${diagModels.length}\n`)
-        //           diagModels.forEach((m, i) => {
-        //             console.log(`${i + 1}. ${m.model_name}`)
-        //             console.log(
-        //               `   status: ${m.status} | result: ${m.result || 'NULL'} | api: ${m.api || 'NULL'} | provider: ${m.provider || 'NULL'}`
-        //             )
-        //             console.log(`   created: ${m.created_at}\n`)
-        //           })
-        //           const statuses = [...new Set(diagModels.map(m => m.status))]
-        //           console.log('📋 Уникальные статусы в БД:', statuses)
-        //         } else {
-        //           console.log('❌ Модели НЕ НАЙДЕНЫ в БД')
-        //         }
-        //
-        //         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
-        //
-        //         // 🧹 ONE-TIME CLEANUP: Remove fake "fal-test" models
-        //         console.log('🧹 Проверяем наличие фейковых моделей "fal-test"...')
-        //         const { data: fakeModels } = await supabase
-        //           .from('model_trainings')
-        //           .select('id, model_name, zip_url')
-        //           .eq('telegram_id', '144022504')
-        //           .eq('model_name', 'fal-test')
-        //           .eq('zip_url', 'https://fal.media/files/fal-test/model.zip')
-        //
-        //         if (fakeModels && fakeModels.length > 0) {
-        //           console.log(
-        //             `🗑️ Найдено ${fakeModels.length} фейковых моделей, удаляем...`
-        //           )
-        //           for (const fake of fakeModels) {
-        //             await supabase.from('model_trainings').delete().eq('id', fake.id)
-        //             console.log(`   ✅ Удалено: ${fake.id}`)
-        //           }
-        //         } else {
-        //           console.log('✅ Фейковых моделей не найдено')
-        //         }
-        //
-        //         // ✅ ДОБАВЛЯЕМ НАСТОЯЩУЮ FAL МОДЕЛЬ
-        //         console.log('\n🔍 Проверяем наличие настоящей FAL модели...')
-        //         const realTrainingId = '2896cb1f-b659-4057-b03d-a3daf5d9a983'
-        //         const { data: existingRealModel } = await supabase
-        //           .from('model_trainings')
-        //           .select('id, model_name')
-        //           .eq('telegram_id', '144022504')
-        //           .eq('replicate_training_id', realTrainingId)
-        //           .single()
-        //
-        //         if (!existingRealModel) {
-        //           console.log('📝 Настоящая FAL модель не найдена, добавляем...')
-        //           const realModelData = {
-        //             telegram_id: '144022504',
-        //             model_name: 'FAL Portrait (2500 steps)',
-        //             trigger_word: 'NEURO_SAGE',
-        //             replicate_training_id: realTrainingId,
-        //             status: 'SUCCESS',
-        //             bot_name: 'neuro_blogger_bot',
-        //             steps: 2500,
-        //             gender: 'male',
-        //             // ✅ ИСПРАВЛЕНИЕ: Используем .safetensors (LoRA weights), а НЕ config.json!
-        //             zip_url:
-        //               'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors',
-        //             api: 'fal', // ✅ FIXED: FAL provider, not Replicate!
-        //           }
-        //
-        //           const { data: newModel, error: insertError } = await supabase
-        //             .from('model_trainings')
-        //             .insert(realModelData)
-        //             .select()
-        //             .single()
-        //
-        //           if (insertError) {
-        //             console.error(
-        //               '❌ Ошибка добавления настоящей FAL модели:',
-        //               insertError
-        //             )
-        //           } else {
-        //             console.log('✅ Настоящая FAL модель добавлена!')
-        //             console.log(`   ID: ${newModel.id}`)
-        //             console.log(`   Name: ${newModel.model_name}`)
-        //           }
-        //         } else {
-        //           console.log(
-        //             `✅ Настоящая FAL модель уже существует: ${existingRealModel.model_name}`
-        //           )
-        //
-        //           // ✅ Проверяем и исправляем api и zip_url, если они неправильные
-        //           const { data: currentModel } = await supabase
-        //             .from('model_trainings')
-        //             .select('api, zip_url')
-        //             .eq('id', existingRealModel.id)
-        //             .single()
-        //
-        //           const updates: any = {}
-        //
-        //           if (currentModel && currentModel.api !== 'fal') {
-        //             console.log(`🔧 Исправляем api с '${currentModel.api}' на 'fal'...`)
-        //             updates.api = 'fal'
-        //           }
-        //
-        //           // ✅ КРИТИЧНО: Заменяем config.json на .safetensors (LoRA weights)!
-        //           if (currentModel && currentModel.zip_url?.includes('config.json')) {
-        //             console.log(
-        //               `🔧 Исправляем zip_url с config.json на .safetensors...`
-        //             )
-        //             console.log(`   Было: ${currentModel.zip_url}`)
-        //             updates.zip_url =
-        //               'https://v3b.fal.media/files/b/zebra/oxDuX84XjyEBU_5UT85l8_pytorch_lora_weights.safetensors'
-        //             console.log(`   Стало: ${updates.zip_url}`)
-        //           }
-        //
-        //           if (Object.keys(updates).length > 0) {
-        //             await supabase
-        //               .from('model_trainings')
-        //               .update(updates)
-        //               .eq('id', existingRealModel.id)
-        //             console.log('✅ Модель обновлена:', Object.keys(updates).join(', '))
-        //           }
-        //         }
-        //
-        //         // ❌ REMOVED: Auto-run migrations - they create duplicates on every restart!
-        //         // Run migrations manually when needed via: npx tsx scripts/add-fal-model-manual.ts
-
-        // ✅ Запускаем API сервер СРАЗУ после создания первого бота
-        // (до bot.launch(), чтобы не ждать бесконечного polling loop)
-        startApiServer(bot) // Передаём только первый бот (default)
-        console.log('✅ API сервер запущен с bot instance для webhooks')
-
-        // ✅ Запускаем мониторинг провайдеров (проверка каждые 5 минут)
-        const { startProviderMonitor } = await import(
-          './services/provider-health-monitor'
-        )
-        startProviderMonitor()
-        console.log('✅ Provider health monitor запущен')
-
-        // ✅ Запускаем мониторинг биллинга владельцев ботов (проверка раз в 24ч)
-        const { startBillingMonitor } = await import(
-          './services/bot-owner-billing'
-        )
-        startBillingMonitor()
-        console.log('✅ Bot owner billing monitor запущен')
-      }
-
-      // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
-      botInstances.push(bot)
-
-      /*
-       * ОПЛАТА ЛОВИТСЯ ДО СЦЕН, А НЕ ПОСЛЕ.
-       *
-       * Раньше эти два обработчика стояли ПОСЛЕ registerCommands, внутри
-       * которого регистрируется `bot.use(stage.middleware())`. Пока кассир
-       * жил вебхуком, это было безразлично: оплата вообще не входила в
-       * цепочку middleware бота.
-       *
-       * С опросом входит — и приезжает ВНУТРИ `message`. А десятки шагов
-       * сцен устроены так: «нет текста — ответить и `return`», без вызова
-       * next(). Человек, пополняющий баланс, сидит ровно в такой сцене
-       * (balanceScene). Его оплата была бы съедена шагом сцены, деньги
-       * списаны, токены не начислены — и ни одной записи о том, что что-то
-       * произошло.
-       *
-       * Поэтому регистрация поднята ВЫШЕ сцен: Telegraf идёт по middleware в
-       * порядке регистрации, и оплата разбирается раньше, чем сцена успеет
-       * её отвергнуть.
-       *
-       * Плата за это: до stage.middleware() у контекста ещё нет `ctx.scene`,
-       * поэтому выход из сцены в обработчике зовётся через `?.` — см.
-       * paymentHandlers/index.ts.
-       */
-      bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-      bot.on('successful_payment', handleSuccessfulPayment as any)
-
-      registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
-      // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
-      setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
-      // AI fallback зарегистрирован внутри registerCommands (последний handler)
-
-      const botInfo = await bot.telegram.getMe()
-      console.log(`🤖 Бот ${botInfo.username} инициализирован`)
-
-      // Используем импортированную функцию setBotCommands
-      await setBotCommands(bot)
-
-      // 🔧 FIX: Очистка webhook перед polling
-      try {
-        const webhookInfo = await bot.telegram.getWebhookInfo()
-
-        console.log(`\n🔍 [WEBHOOK INFO] Бот: ${botInfo.username}`)
-        console.log(`   URL: ${webhookInfo.url || 'не установлен'}`)
-        console.log(
-          `   Pending updates: ${webhookInfo.pending_update_count || 0}`
-        )
-        if (webhookInfo.last_error_date) {
-          const lastErrorDate = new Date(webhookInfo.last_error_date * 1000)
-          console.log(
-            `   ⚠️  Последняя ошибка: ${webhookInfo.last_error_message}`
-          )
-          console.log(`   📅 Время ошибки: ${lastErrorDate.toISOString()}`)
-        }
-        if (webhookInfo.ip_address) {
-          console.log(`   🌐 IP адрес: ${webhookInfo.ip_address}`)
-        }
-        if (
-          webhookInfo.allowed_updates &&
-          webhookInfo.allowed_updates.length > 0
-        ) {
-          console.log(
-            `   📋 Allowed updates: ${webhookInfo.allowed_updates.join(', ')}`
-          )
-        }
-
-        /*
-         * ЗДЕСЬ СТОЯЛ CASHIER GUARD, И ОН ДЕЛАЛ БОТА ГЛУХИМ.
-         *
-         * Замысел был такой: кассир звёзд (@t27ai_bot) живёт вебхуком рендера,
-         * значит polling ему не запускаем — иначе 409 (инциденты №218-220).
-         * Один бот — один режим приёма, всё верно.
-         *
-         * Чего замысел не учёл: вебхук ставился с
-         * `allowed_updates: ['pre_checkout_query', 'successful_payment']`, а
-         * `successful_payment` — НЕ тип апдейта, это поле внутри `message`.
-         * Telegram молча выбрасывает несуществующее имя, и в вебхуке остаётся
-         * один `pre_checkout_query`. Измерено на живом getWebhookInfo 06.09.2026.
-         *
-         * Итог: `message` не шёл никуда — ни в вебхук (не разрешён), ни в
-         * очередь опроса (getUpdates отвечал 409, пока вебхук стоит). Бот не
-         * получал ни одного сообщения: ни /start, ни меню, ни оплату клуба,
-         * которая приходит ИМЕННО внутри message. Продать он тоже ничего не
-         * мог: маршрут вебхука закрыт общим гвардом (Telegram приходит без
-         * X-Api-Key и получает 401), поэтому pre_checkout никто не
-         * подтверждал и покупка срывалась на кассе. Транзакций за всё время
-         * ноль — это следствие, а не везение.
-         *
-         * Теперь кассир принимает апдейты опросом, как остальные десять ботов,
-         * а рендер больше не ставит ему вебхук (см. render-server.ts). Один
-         * режим приёма сохранён — просто это опрос, а не вебхук, и он умеет
-         * доставлять и разговор, и оплату.
-         */
-        if (webhookInfo.url) {
-          console.log(
-            `\n🔌 [WEBHOOK] Обнаружен активный вебхук для ${botInfo.username}: ${webhookInfo.url}`
-          )
-          console.log(`   🗑️  Удаляю вебхук для переключения на polling...`)
-          await bot.telegram.deleteWebhook({ drop_pending_updates: true })
-          console.log(`   ✅ Вебхук удалён, переходим к polling\n`)
-        } else {
-          console.log(`   🟢 Активного вебхука нет, можно запускать polling\n`)
-        }
-      } catch (error) {
-        console.warn(
-          '⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:',
-          String(error)
-        )
-      }
-
-      /*
-       * The blue button next to the input field, for THIS bot.
-       *
-       * Measured 2026-09-20: of eleven bots exactly one had it pointing at the
-       * mini app; the other ten opened a list of slash commands, which is what
-       * "the main button does not work in partner bots" looks like from the
-       * inside. It is per-bot state held by Telegram and had simply never been
-       * set for ten of them. Setting it here makes it a property of the code:
-       * a new bot arrives with it, and a hand-edit that breaks it is undone by
-       * the next deploy. It never fails a launch.
-       */
-      if (botInfo.username) {
-        const { pointMenuButtonAtTheApp } = await import(
-          '@/core/bot/menuButton'
-        )
-        const outcome = await pointMenuButtonAtTheApp(bot, botInfo.username)
-        console.log(`🔵 [MENU] ${botInfo.username}: menu button ${outcome}`)
-      }
-
-      // ✅ MULTI-BOT FIX: Регистрируем bot instance ДО launch (botInfo уже получен выше)
-      if (typeof setBotInstance === 'function' && botInfo.username) {
-        setBotInstance(bot, botInfo.username)
-        console.log(`✅ [MULTI-BOT] Зарегистрирован бот: ${botInfo.username}`)
-      }
-
-      // Launch without await so the loop is not blocked; 409 Conflict is retried
-      // (see launchWithConflictRetry), anything else is logged once.
-      const botPromise = launchWithConflictRetry(bot, botInfo.username, [
-        'message',
-        'callback_query',
-        'pre_checkout_query',
-        'successful_payment',
-        'chat_member',
-        'business_connection',
-        'business_message',
-        'inline_query',
-      ])
-
-      botPromises.push(botPromise)
+      await setUpAndLaunch(token, tokenName)
+    } else {
+      void launchWhenItAnswers(token, tokenName, false)
     }
   }
 

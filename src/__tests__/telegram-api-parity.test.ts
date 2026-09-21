@@ -120,4 +120,36 @@ describe('bot, render and scripts agree about every bot', () => {
     ])
     expect(scripts.telegramApiRootFor(MOVED, env)).toBe(OURS)
   })
+
+  it('the shell helper refuses to guess when the service could not be read', () => {
+    // An empty stdin is what a failed `railway variables` hands on.
+    expect(() => scripts.envFromKv('')).toThrow('could not be read')
+    // Read, but no list: that IS the service's answer (none moved).
+    expect(scripts.envFromKv('BOT_TOKEN_1=x').BOT_API_LOCAL_BOTS).toBe('')
+  })
+
+  it('tooling fails closed the same way in the bot copy and the scripts copy', () => {
+    const cases: Record<string, string>[] = [
+      {},
+      { BOT_API_LOCAL_BOTS: '' },
+      { RAILWAY_SERVICE_NAME: '999-multibots-telegraf' },
+      { RAILWAY_ENVIRONMENT_NAME: 'production' },
+      {
+        TELEGRAM_API_ROOT: OURS,
+        TELEGRAM_API_FILES_ROOT: FILES,
+        BOT_API_LOCAL_BOTS: '900000011',
+      },
+    ]
+    for (const env of cases) {
+      const verdict = (copy: any) => {
+        try {
+          return [...copy.assertBotApiListKnown(env).local.keys()]
+        } catch (e) {
+          return `throws: ${(e as Error).message}`
+        }
+      }
+      expect(verdict(scripts), JSON.stringify(env)).toEqual(verdict(bot))
+    }
+    expect(() => bot.assertBotApiListKnown({})).toThrow()
+  })
 })

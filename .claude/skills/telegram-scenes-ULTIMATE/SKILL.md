@@ -13,48 +13,50 @@ Every pattern extracted from real, battle-tested code.
 ## 🚨 ABSOLUTE RULES - BREAK THESE = INSTANT FAILURE
 
 ### RULE #1: ALWAYS Answer Callback Queries FIRST
+
 ```typescript
 // ✅ CORRECT - первая строка в ЛЮБОМ action handler
-myScene.action('button', async (ctx) => {
-  await ctx.answerCbQuery()  // <- THIS LINE IS MANDATORY!
+myScene.action('button', async ctx => {
+  await ctx.answerCbQuery() // <- THIS LINE IS MANDATORY!
 
   // Rest of your logic...
 })
 
 // ❌ WRONG - будет бесконечный loading
-myScene.action('button', async (ctx) => {
-  await ctx.reply('Processing')  // Button stuck with loading!
+myScene.action('button', async ctx => {
+  await ctx.reply('Processing') // Button stuck with loading!
 })
 ```
 
 **WHY IT MATTERS:**
+
 - Without answerCbQuery(), Telegram shows loading animation forever
 - User experience breaks
 - Button appears "broken"
 - **EVERY SINGLE action handler MUST start with this**
 
 ### RULE #2: ALWAYS Use isRussianFromState()
+
 ```typescript
 // ✅ CORRECT - единственный правильный способ
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-myScene.enter(async (ctx) => {
-  const isRu = isRussianFromState(ctx)  // <- ONLY THIS!
+myScene.enter(async ctx => {
+  const isRu = isRussianFromState(ctx) // <- ONLY THIS!
 
-  await ctx.reply(
-    isRu ? 'Привет!' : 'Hello!'
-  )
+  await ctx.reply(isRu ? 'Привет!' : 'Hello!')
 })
 
 // ❌ WRONG - inconsistent, unreliable
-myScene.enter(async (ctx) => {
-  const isRu = ctx.from?.language_code === 'ru'  // NO!
-  const lang = ctx.session.language  // NO!
-  const isRu = await isRussianWithUserChoice(ctx)  // NO! (only for menuScene)
+myScene.enter(async ctx => {
+  const isRu = ctx.from?.language_code === 'ru' // NO!
+  const lang = ctx.session.language // NO!
+  const isRu = await isRussianWithUserChoice(ctx) // NO! (only for menuScene)
 })
 ```
 
 **WHY IT MATTERS:**
+
 - Centralized language detection
 - Works consistently across all scenes
 - Reads from session state (already set)
@@ -62,13 +64,14 @@ myScene.enter(async (ctx) => {
 - **Exception: menuScene uses isRussianWithUserChoice() because it has DB access**
 
 ### RULE #3: ALWAYS Initialize Session in Step 1
+
 ```typescript
 // ✅ CORRECT - инициализация в первом step
 const myWizard = new Scenes.WizardScene<MyContext>(
   'my-wizard',
 
   // STEP 1: ALWAYS initialize session here
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Initialize clean state
@@ -78,7 +81,7 @@ const myWizard = new Scenes.WizardScene<MyContext>(
       videoFileId: null,
       audioFileId: null,
       selectedModel: null,
-      cost: 0
+      cost: 0,
     }
 
     await ctx.reply(isRu ? 'Шаг 1' : 'Step 1')
@@ -86,8 +89,8 @@ const myWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 2: Now session exists
-  async (ctx) => {
-    ctx.session.wizardData.videoFileId = 'abc'  // Safe!
+  async ctx => {
+    ctx.session.wizardData.videoFileId = 'abc' // Safe!
     return ctx.wizard.next()
   }
 )
@@ -95,34 +98,35 @@ const myWizard = new Scenes.WizardScene<MyContext>(
 // ❌ WRONG - session не инициализирован
 const badWizard = new Scenes.WizardScene<MyContext>(
   'bad-wizard',
-  async (ctx) => {
+  async ctx => {
     await ctx.reply('Step 1')
     return ctx.wizard.next()
   },
-  async (ctx) => {
-    ctx.session.data = 'value'  // TypeError: Cannot set property!
+  async ctx => {
+    ctx.session.data = 'value' // TypeError: Cannot set property!
   }
 )
 ```
 
 ### RULE #4: ALWAYS Check Cancel in EVERY Step
+
 ```typescript
 // ✅ CORRECT - check cancel in EVERY step
 const myWizard = new Scenes.WizardScene<MyContext>(
   'my-wizard',
 
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     await ctx.reply(
       'Step 1',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
       ])
     )
     return ctx.wizard.next()
   },
 
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check cancel FIRST in every step!
@@ -137,13 +141,13 @@ const myWizard = new Scenes.WizardScene<MyContext>(
     await ctx.reply(
       'Step 2',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
       ])
     )
     return ctx.wizard.next()
   },
 
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check cancel again!
@@ -160,6 +164,7 @@ const myWizard = new Scenes.WizardScene<MyContext>(
 ```
 
 ### RULE #5: NEVER Process Menu Command in Other Scenes
+
 ```typescript
 // ✅ CORRECT - from menuScene/index.ts (line 25-50)
 const menuCommandStep = async (ctx: MyContext) => {
@@ -171,7 +176,7 @@ const menuCommandStep = async (ctx: MyContext) => {
     console.log(
       `🚫 [menuCommandStep] User in different scene (${currentSceneId}), NOT processing`
     )
-    return  // Don't process!
+    return // Don't process!
   }
 
   // Safe to process menu...
@@ -179,6 +184,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 ```
 
 **WHY:**
+
 - Prevents menu from interfering with active wizards
 - User could be in middle of form
 - Menu would destroy wizard state
@@ -196,7 +202,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 export const mySimpleScene = new Scenes.BaseScene<MyContext>('scene-id')
 
 // Enter handler
-mySimpleScene.enter(async (ctx) => {
+mySimpleScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx)
 
   await ctx.reply(
@@ -204,13 +210,13 @@ mySimpleScene.enter(async (ctx) => {
     Markup.inlineKeyboard([
       [Markup.button.callback(isRu ? 'Действие 1' : 'Action 1', 'action1')],
       [Markup.button.callback(isRu ? 'Действие 2' : 'Action 2', 'action2')],
-      [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')]
+      [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')],
     ])
   )
 })
 
 // Action handlers
-mySimpleScene.action('action1', async (ctx) => {
+mySimpleScene.action('action1', async ctx => {
   await ctx.answerCbQuery()
   const isRu = isRussianFromState(ctx)
 
@@ -225,13 +231,13 @@ mySimpleScene.action('action1', async (ctx) => {
   }
 })
 
-mySimpleScene.action('back', async (ctx) => {
+mySimpleScene.action('back', async ctx => {
   await ctx.answerCbQuery()
   await ctx.scene.leave()
 })
 
 // Text handler (if needed)
-mySimpleScene.on('text', async (ctx) => {
+mySimpleScene.on('text', async ctx => {
   const isRu = isRussianFromState(ctx)
   const text = ctx.message.text
 
@@ -248,13 +254,13 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024  // 20MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 
 export const fileWizard = new Scenes.WizardScene<MyContext>(
   'file-wizard',
 
   // STEP 1: Request file
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Initialize session
@@ -262,15 +268,13 @@ export const fileWizard = new Scenes.WizardScene<MyContext>(
       step: 1,
       fileUrl: null,
       fileId: null,
-      startTime: Date.now()
+      startTime: Date.now(),
     }
 
     await ctx.reply(
-      isRu
-        ? '📹 Отправьте видео (макс. 20MB)'
-        : '📹 Send a video (max 20MB)',
+      isRu ? '📹 Отправьте видео (макс. 20MB)' : '📹 Send a video (max 20MB)',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
       ])
     )
 
@@ -278,7 +282,7 @@ export const fileWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 2: Validate and process file
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check cancel
@@ -290,12 +294,8 @@ export const fileWizard = new Scenes.WizardScene<MyContext>(
 
     // Validate message has video
     if (!ctx.message || !('video' in ctx.message)) {
-      await ctx.reply(
-        isRu
-          ? '❌ Отправьте видео'
-          : '❌ Send a video'
-      )
-      return  // Stay on same step
+      await ctx.reply(isRu ? '❌ Отправьте видео' : '❌ Send a video')
+      return // Stay on same step
     }
 
     const video = ctx.message.video
@@ -307,13 +307,16 @@ export const fileWizard = new Scenes.WizardScene<MyContext>(
           ? `❌ Файл слишком большой. Максимум: 20MB\nВаш файл: ${(video.file_size / 1024 / 1024).toFixed(1)}MB`
           : `❌ File too large. Max: 20MB\nYour file: ${(video.file_size / 1024 / 1024).toFixed(1)}MB`
       )
-      return  // Stay on step
+      return // Stay on step
     }
 
     // Get file URL
     try {
       const file = await ctx.telegram.getFile(video.file_id)
-      const fileUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+      // Never the cloud URL by hand: a bot on our own Bot API server answers
+      // file_path as a path on that server.
+      // import { telegramFileUrlFor } from '@/services/telegramApi'
+      const fileUrl = telegramFileUrlFor(ctx.telegram.token, file.file_path)
 
       // Save to session
       ctx.session.fileData.fileUrl = fileUrl
@@ -329,11 +332,10 @@ export const fileWizard = new Scenes.WizardScene<MyContext>(
       const result = await processVideo(fileUrl)
 
       await ctx.replyWithVideo(result.url, {
-        caption: isRu ? '✅ Готово!' : '✅ Done!'
+        caption: isRu ? '✅ Готово!' : '✅ Done!',
       })
 
       return ctx.scene.leave()
-
     } catch (error) {
       console.error('File processing error:', error)
       await ctx.reply(
@@ -341,7 +343,7 @@ export const fileWizard = new Scenes.WizardScene<MyContext>(
           ? '❌ Ошибка обработки. Попробуйте другой файл.'
           : '❌ Processing error. Try another file.'
       )
-      return  // Stay on step for retry
+      return // Stay on step for retry
     }
   }
 )
@@ -368,14 +370,14 @@ function isUserAdmin(telegramId: string): boolean {
 const AdminInputSchema = z.object({
   action: z.enum(['ban', 'unban', 'grant', 'revoke']),
   targetUserId: z.string().regex(/^\d+$/),
-  reason: z.string().min(1).max(200).optional()
+  reason: z.string().min(1).max(200).optional(),
 })
 
 export const adminScene = new Scenes.WizardScene<MyContext>(
   'admin-panel',
 
   // STEP 1: Verify admin and show options
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
@@ -393,15 +395,25 @@ export const adminScene = new Scenes.WizardScene<MyContext>(
     ctx.session.adminData = {
       step: 1,
       action: null,
-      targetUser: null
+      targetUser: null,
     }
 
     await ctx.reply(
       isRu ? '🔐 Админ-панель' : '🔐 Admin Panel',
       Markup.inlineKeyboard([
         [Markup.button.callback(isRu ? '🚫 Забанить' : '🚫 Ban', 'admin:ban')],
-        [Markup.button.callback(isRu ? '✅ Разбанить' : '✅ Unban', 'admin:unban')],
-        [Markup.button.callback(isRu ? '⬅️ Отмена' : '⬅️ Cancel', 'admin:cancel')]
+        [
+          Markup.button.callback(
+            isRu ? '✅ Разбанить' : '✅ Unban',
+            'admin:unban'
+          ),
+        ],
+        [
+          Markup.button.callback(
+            isRu ? '⬅️ Отмена' : '⬅️ Cancel',
+            'admin:cancel'
+          ),
+        ],
       ])
     )
 
@@ -409,7 +421,7 @@ export const adminScene = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 2: Get target user ID
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Check cancel
@@ -435,15 +447,11 @@ export const adminScene = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 3: Validate and execute
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply(
-        isRu
-          ? '❌ Отправьте ID пользователя'
-          : '❌ Send user ID'
-      )
+      await ctx.reply(isRu ? '❌ Отправьте ID пользователя' : '❌ Send user ID')
       return
     }
 
@@ -452,7 +460,7 @@ export const adminScene = new Scenes.WizardScene<MyContext>(
     // Validate with Zod
     const validation = AdminInputSchema.safeParse({
       action: ctx.session.adminData.action,
-      targetUserId: userId
+      targetUserId: userId,
     })
 
     if (!validation.success) {
@@ -461,7 +469,7 @@ export const adminScene = new Scenes.WizardScene<MyContext>(
           ? `❌ Неверный формат: ${validation.error.errors[0].message}`
           : `❌ Invalid format: ${validation.error.errors[0].message}`
       )
-      return  // Stay on step
+      return // Stay on step
     }
 
     try {
@@ -475,13 +483,10 @@ export const adminScene = new Scenes.WizardScene<MyContext>(
       )
 
       return ctx.scene.leave()
-
     } catch (error) {
       console.error('Admin action error:', error)
       await ctx.reply(
-        isRu
-          ? '❌ Ошибка выполнения действия'
-          : '❌ Action execution error'
+        isRu ? '❌ Ошибка выполнения действия' : '❌ Action execution error'
       )
       return
     }
@@ -508,7 +513,7 @@ export const paidFeatureScene = new Scenes.WizardScene<MyContext>(
   'paid-feature',
 
   // STEP 1: Check balance
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from!.id.toString()
 
@@ -516,7 +521,7 @@ export const paidFeatureScene = new Scenes.WizardScene<MyContext>(
     ctx.session.featureData = {
       step: 1,
       cost: OPERATION_COST,
-      startTime: Date.now()
+      startTime: Date.now(),
     }
 
     // Check balance
@@ -528,8 +533,13 @@ export const paidFeatureScene = new Scenes.WizardScene<MyContext>(
           ? `❌ Недостаточно звёзд\n\nНужно: ${OPERATION_COST}⭐\nУ вас: ${balance}⭐\n\nПополните баланс командой /buy`
           : `❌ Insufficient stars\n\nNeed: ${OPERATION_COST}⭐\nYou have: ${balance}⭐\n\nTop up with /buy`,
         Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? '💳 Пополнить' : '💳 Top Up', 'topup')],
-          [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')]
+          [
+            Markup.button.callback(
+              isRu ? '💳 Пополнить' : '💳 Top Up',
+              'topup'
+            ),
+          ],
+          [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')],
         ])
       )
       return ctx.wizard.next()
@@ -542,20 +552,20 @@ export const paidFeatureScene = new Scenes.WizardScene<MyContext>(
         : `💰 Cost: ${OPERATION_COST}⭐\nYour balance: ${balance}⭐\n\nContinue?`,
       Markup.inlineKeyboard([
         [Markup.button.callback(isRu ? '✅ Да' : '✅ Yes', 'confirm')],
-        [Markup.button.callback(isRu ? '❌ Нет' : '❌ No', 'cancel')]
+        [Markup.button.callback(isRu ? '❌ Нет' : '❌ No', 'cancel')],
       ])
     )
 
-    return ctx.wizard.selectStep(2)  // Skip to confirmation step
+    return ctx.wizard.selectStep(2) // Skip to confirmation step
   },
 
   // STEP 2: Handle insufficient balance
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (ctx.callbackQuery?.data === 'topup') {
       await ctx.answerCbQuery()
-      await ctx.scene.enter('payment')  // Enter payment scene
+      await ctx.scene.enter('payment') // Enter payment scene
       return
     }
 
@@ -566,7 +576,7 @@ export const paidFeatureScene = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 3: Process after confirmation
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from!.id.toString()
 
@@ -591,11 +601,10 @@ export const paidFeatureScene = new Scenes.WizardScene<MyContext>(
         await ctx.replyWithVideo(result.videoUrl, {
           caption: isRu
             ? `✅ Готово! Стоимость: ${OPERATION_COST}⭐`
-            : `✅ Done! Cost: ${OPERATION_COST}⭐`
+            : `✅ Done! Cost: ${OPERATION_COST}⭐`,
         })
 
         return ctx.scene.leave()
-
       } catch (error) {
         console.error('Operation error:', error)
 
@@ -603,9 +612,7 @@ export const paidFeatureScene = new Scenes.WizardScene<MyContext>(
         await updateUserBalance(telegramId, OPERATION_COST)
 
         await ctx.reply(
-          isRu
-            ? '❌ Ошибка. Средства возвращены.'
-            : '❌ Error. Funds refunded.'
+          isRu ? '❌ Ошибка. Средства возвращены.' : '❌ Error. Funds refunded.'
         )
 
         return ctx.scene.leave()
@@ -628,28 +635,28 @@ const MODELS = {
   'veo-3-fast': { name: 'Veo 3 Fast', cost: 40, speed: 'fast' },
   'veo-3': { name: 'Veo 3', cost: 120, speed: 'slow' },
   'kling-v1.6-pro': { name: 'Kling v1.6 Pro', cost: 60, speed: 'medium' },
-  'minimax': { name: 'Minimax', cost: 50, speed: 'medium' }
+  minimax: { name: 'Minimax', cost: 50, speed: 'medium' },
 }
 
 export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
   'model-select',
 
   // STEP 1: Show models
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     // Initialize session
     ctx.session.modelData = {
       selectedModel: null,
       cost: 0,
-      aspectRatio: null
+      aspectRatio: null,
     }
 
     // Create keyboard with Reply buttons
     const keyboard = Markup.keyboard([
       [`Veo 3 Fast (40⭐)`, `Veo 3 (120⭐)`],
       [`Kling v1.6 Pro (60⭐)`, `Minimax (50⭐)`],
-      [isRu ? '⬅️ Назад' : '⬅️ Back']
+      [isRu ? '⬅️ Назад' : '⬅️ Back'],
     ]).resize()
 
     await ctx.reply(
@@ -663,7 +670,7 @@ export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 2: Process model selection
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) {
@@ -702,11 +709,7 @@ export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if (!selectedModel) {
-      await ctx.reply(
-        isRu
-          ? '❌ Неверный выбор'
-          : '❌ Invalid selection'
-      )
+      await ctx.reply(isRu ? '❌ Неверный выбор' : '❌ Invalid selection')
       return
     }
 
@@ -718,7 +721,7 @@ export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
     const aspectKeyboard = Markup.keyboard([
       [isRu ? '📱 Вертикальное (9:16)' : '📱 Vertical (9:16)'],
       [isRu ? '🖥️ Горизонтальное (16:9)' : '🖥️ Horizontal (16:9)'],
-      [isRu ? '⬅️ Назад' : '⬅️ Back']
+      [isRu ? '⬅️ Назад' : '⬅️ Back'],
     ]).resize()
 
     await ctx.reply(
@@ -732,7 +735,7 @@ export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 3: Get aspect ratio and prompt
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) return
@@ -741,12 +744,16 @@ export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
 
     // Handle back
     if (text.includes('Назад') || text.includes('Back')) {
-      return ctx.wizard.back()  // Go back one step
+      return ctx.wizard.back() // Go back one step
     }
 
     // Determine aspect ratio
     let aspectRatio = '16:9'
-    if (text.includes('9:16') || text.includes('Вертикальное') || text.includes('Vertical')) {
+    if (
+      text.includes('9:16') ||
+      text.includes('Вертикальное') ||
+      text.includes('Vertical')
+    ) {
       aspectRatio = '9:16'
     }
 
@@ -764,14 +771,12 @@ export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
   },
 
   // STEP 4: Get prompt and generate
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (!ctx.message || !('text' in ctx.message)) {
       await ctx.reply(
-        isRu
-          ? '❌ Отправьте текстовое описание'
-          : '❌ Send a text description'
+        isRu ? '❌ Отправьте текстовое описание' : '❌ Send a text description'
       )
       return
     }
@@ -797,15 +802,14 @@ export const modelSelectWizard = new Scenes.WizardScene<MyContext>(
       const result = await generateVideo({
         model: ctx.session.modelData.selectedModel!,
         prompt,
-        aspectRatio: ctx.session.modelData.aspectRatio!
+        aspectRatio: ctx.session.modelData.aspectRatio!,
       })
 
       await ctx.replyWithVideo(result.videoUrl, {
-        caption: isRu ? '✅ Готово!' : '✅ Done!'
+        caption: isRu ? '✅ Готово!' : '✅ Done!',
       })
 
       return ctx.scene.leave()
-
     } catch (error) {
       console.error('Generation error:', error)
       await ctx.reply(
@@ -824,6 +828,7 @@ export default modelSelectWizard
 ## 🐛 EVERY ANTI-PATTERN FROM REAL CODE
 
 ### Anti-Pattern #1: Scene Interference
+
 ```typescript
 // ❌ WRONG - from menuScene line 25-42
 // Processing menu without checking current scene
@@ -838,7 +843,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 
   if (currentSceneId !== ModeEnum.MainMenu) {
     console.log(`🚫 User in different scene, ignoring menu command`)
-    return  // Don't interfere!
+    return // Don't interfere!
   }
 
   // Safe to process
@@ -847,6 +852,7 @@ const menuCommandStep = async (ctx: MyContext) => {
 ```
 
 ### Anti-Pattern #2: Multiple Model Access Methods
+
 ```typescript
 // ❌ WRONG - from neuroPhotoWizard line 44-60
 // Different functions for different bots - confusing!
@@ -866,36 +872,39 @@ let userModels = await getActiveUserModels(telegram_id, {
 ```
 
 ### Anti-Pattern #3: Not Staying on Step for Retry
+
 ```typescript
 // ❌ WRONG - wizard exits on validation error
-async (ctx) => {
+async ctx => {
   if (!ctx.message || !('video' in ctx.message)) {
     await ctx.reply('❌ Send a video')
-    return ctx.scene.leave()  // EXITS! User can't retry
+    return ctx.scene.leave() // EXITS! User can't retry
   }
 }
 
 // ✅ CORRECT - stay on step
-async (ctx) => {
+async ctx => {
   if (!ctx.message || !('video' in ctx.message)) {
     await ctx.reply('❌ Send a video. Try again:')
-    return  // STAYS! User can retry
+    return // STAYS! User can retry
   }
 }
 ```
 
 ### Anti-Pattern #4: Hardcoded Language Logic
+
 ```typescript
 // ❌ WRONG - scattered language checks
-const isRu = ctx.from?.language_code === 'ru'  // In scene A
-const lang = ctx.session.language  // In scene B
-const isRussian = await isRussianWithUserChoice(ctx)  // In scene C
+const isRu = ctx.from?.language_code === 'ru' // In scene A
+const lang = ctx.session.language // In scene B
+const isRussian = await isRussianWithUserChoice(ctx) // In scene C
 
 // ✅ CORRECT - one source of truth
-const isRu = isRussianFromState(ctx)  // EVERYWHERE!
+const isRu = isRussianFromState(ctx) // EVERYWHERE!
 ```
 
 ### Anti-Pattern #5: Silent Error Swallowing
+
 ```typescript
 // ❌ WRONG - user doesn't know what happened
 try {
@@ -919,42 +928,45 @@ try {
 ```
 
 ### Anti-Pattern #6: Not Removing Reply Keyboard
+
 ```typescript
 // ❌ WRONG - keyboard stays after wizard
-async (ctx) => {
-  await ctx.reply('Done!')  // Keyboard still visible!
+async ctx => {
+  await ctx.reply('Done!') // Keyboard still visible!
   return ctx.scene.leave()
 }
 
 // ✅ CORRECT - always remove
-async (ctx) => {
+async ctx => {
   await ctx.reply('Done!', Markup.removeKeyboard())
   return ctx.scene.leave()
 }
 ```
 
 ### Anti-Pattern #7: Using wizard.selectStep() Incorrectly
+
 ```typescript
 // ❌ WRONG - stepping to wrong index
-return ctx.wizard.selectStep(1)  // Goes to step INDEX 1 (2nd step)
+return ctx.wizard.selectStep(1) // Goes to step INDEX 1 (2nd step)
 
 // ✅ CORRECT - understand indexing
-return ctx.wizard.selectStep(0)  // Step 1 (first step)
-return ctx.wizard.selectStep(2)  // Step 3 (third step)
+return ctx.wizard.selectStep(0) // Step 1 (first step)
+return ctx.wizard.selectStep(2) // Step 3 (third step)
 // OR use next/back
-return ctx.wizard.next()  // Next step
-return ctx.wizard.back()  // Previous step
+return ctx.wizard.next() // Next step
+return ctx.wizard.back() // Previous step
 ```
 
 ### Anti-Pattern #8: Not Handling callbackQuery AND message
+
 ```typescript
 // ❌ WRONG - only handles one type
-async (ctx) => {
-  const input = ctx.message.text  // Crashes if callbackQuery!
+async ctx => {
+  const input = ctx.message.text // Crashes if callbackQuery!
 }
 
 // ✅ CORRECT - handle both
-async (ctx) => {
+async ctx => {
   // Check callbackQuery first
   if (ctx.callbackQuery?.data === 'action') {
     await ctx.answerCbQuery()
@@ -977,6 +989,7 @@ async (ctx) => {
 ## 🎯 DEBUGGING GUIDE
 
 ### Issue: "Callback query already answered"
+
 ```
 Error: 400: Bad Request: query is too old and response timeout expired or query ID is invalid
 ```
@@ -984,22 +997,24 @@ Error: 400: Bad Request: query is too old and response timeout expired or query 
 **Cause:** Calling answerCbQuery() twice
 
 **Fix:**
+
 ```typescript
 // ❌ WRONG
-myScene.action('button', async (ctx) => {
+myScene.action('button', async ctx => {
   await ctx.answerCbQuery()
   // ... some code ...
-  await ctx.answerCbQuery()  // ERROR!
+  await ctx.answerCbQuery() // ERROR!
 })
 
 // ✅ CORRECT
-myScene.action('button', async (ctx) => {
-  await ctx.answerCbQuery()  // Only once!
+myScene.action('button', async ctx => {
+  await ctx.answerCbQuery() // Only once!
   // ... rest of code ...
 })
 ```
 
 ### Issue: "Cannot set property of undefined"
+
 ```
 TypeError: Cannot set property 'data' of undefined
 ```
@@ -1007,6 +1022,7 @@ TypeError: Cannot set property 'data' of undefined
 **Cause:** Session not initialized
 
 **Fix:**
+
 ```typescript
 // ✅ Initialize in step 1
 async (ctx) => {
@@ -1020,10 +1036,11 @@ async (ctx) => {
 **Cause:** Forgot answerCbQuery()
 
 **Fix:**
+
 ```typescript
 // ✅ ALWAYS first line
-myScene.action('button', async (ctx) => {
-  await ctx.answerCbQuery()  // THIS!
+myScene.action('button', async ctx => {
+  await ctx.answerCbQuery() // THIS!
   // ...
 })
 ```
@@ -1033,6 +1050,7 @@ myScene.action('button', async (ctx) => {
 **Cause:** Using different methods
 
 **Fix:**
+
 ```typescript
 // ✅ ONLY use this
 const isRu = isRussianFromState(ctx)
@@ -1043,13 +1061,12 @@ const isRu = isRussianFromState(ctx)
 **Cause:** No cancel button
 
 **Fix:**
+
 ```typescript
 // ✅ Add cancel to EVERY step
 await ctx.reply(
   'Step X',
-  Markup.inlineKeyboard([
-    [Markup.button.callback('Cancel', 'cancel')]
-  ])
+  Markup.inlineKeyboard([[Markup.button.callback('Cancel', 'cancel')]])
 )
 
 // And handle it
@@ -1064,10 +1081,11 @@ if (ctx.callbackQuery?.data === 'cancel') {
 **Cause:** Not checking current scene
 
 **Fix:**
+
 ```typescript
 // ✅ Check before processing
 if (ctx.scene.current?.id !== ModeEnum.MainMenu) {
-  return  // Don't process!
+  return // Don't process!
 }
 ```
 
@@ -1076,6 +1094,7 @@ if (ctx.scene.current?.id !== ModeEnum.MainMenu) {
 **Cause:** Forgot to call updateUserBalance
 
 **Fix:**
+
 ```typescript
 // ✅ Always deduct before operation
 await updateUserBalance(telegramId, -COST)
@@ -1087,7 +1106,7 @@ const result = await expensiveOperation()
 try {
   // ...
 } catch (error) {
-  await updateUserBalance(telegramId, COST)  // Refund!
+  await updateUserBalance(telegramId, COST) // Refund!
   throw error
 }
 ```
@@ -1095,6 +1114,7 @@ try {
 ## 🔥 PRODUCTION-PROVEN PATTERNS
 
 ### Pattern: Shared Models Detection (from neuroPhotoWizard line 100-126)
+
 ```typescript
 // Check if model is shared (has prefix)
 const isSharedModel = model.id.toString().startsWith('shared_')
@@ -1109,6 +1129,7 @@ if (isSharedModel) {
 ```
 
 ### Pattern: Bot-Specific Logic (from neuroPhotoWizard line 38-60)
+
 ```typescript
 // Get current bot name
 const botToken = ctx.telegram.token
@@ -1123,17 +1144,16 @@ if (bot_name === 'SpecialBot_bot') {
 ```
 
 ### Pattern: Dev Mode Simulation (from menuScene line 83-86)
+
 ```typescript
 import { simulateSubscriptionForDev } from './helpers/simulateSubscription'
 
 const originalSubscription = userDetails.subscriptionType
-const newSubscription = simulateSubscriptionForDev(
-  originalSubscription,
-  isDev
-)
+const newSubscription = simulateSubscriptionForDev(originalSubscription, isDev)
 ```
 
 ### Pattern: Translation with Buttons (from menuScene line 116-121)
+
 ```typescript
 const { translation, url, buttons } = await getTranslation({
   key: translationKey,
@@ -1148,6 +1168,7 @@ const { translation, url, buttons } = await getTranslation({
 ```
 
 ### Pattern: Keyboard with Main Menu (from menuScene line 128-132)
+
 ```typescript
 const keyboard = await mainMenu({
   isRu,
@@ -1192,7 +1213,7 @@ const MAX_INPUT_LENGTH = 1000
 // Validation Schema
 const InputSchema = z.object({
   field1: z.string().min(1).max(MAX_INPUT_LENGTH),
-  field2: z.number().min(0).max(100).optional()
+  field2: z.number().min(0).max(100).optional(),
 })
 
 // Admin check (if needed)
@@ -1207,7 +1228,7 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
   // ============================================
   // STEP 1: Initialize + Admin Check + Balance Check
   // ============================================
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
@@ -1227,7 +1248,7 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
         step: 1,
         startTime: Date.now(),
         data: null,
-        cost: OPERATION_COST
+        cost: OPERATION_COST,
       }
 
       // 3. Check balance
@@ -1239,8 +1260,13 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
             ? `❌ Недостаточно звёзд\n\nНужно: ${OPERATION_COST}⭐\nУ вас: ${balance}⭐`
             : `❌ Insufficient stars\n\nNeed: ${OPERATION_COST}⭐\nYou have: ${balance}⭐`,
           Markup.inlineKeyboard([
-            [Markup.button.callback(isRu ? '💳 Пополнить' : '💳 Top Up', 'topup')],
-            [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')]
+            [
+              Markup.button.callback(
+                isRu ? '💳 Пополнить' : '💳 Top Up',
+                'topup'
+              ),
+            ],
+            [Markup.button.callback(isRu ? '🔙 Назад' : '🔙 Back', 'back')],
           ])
         )
         return ctx.wizard.next()
@@ -1252,12 +1278,11 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
           ? `💰 Стоимость: ${OPERATION_COST}⭐\n\n📝 Отправьте данные:`
           : `💰 Cost: ${OPERATION_COST}⭐\n\n📝 Send data:`,
         Markup.inlineKeyboard([
-          [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')]
+          [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
         ])
       )
 
-      return ctx.wizard.selectStep(2)  // Skip insufficient balance step
-
+      return ctx.wizard.selectStep(2) // Skip insufficient balance step
     } catch (error) {
       console.error('❌ [Scene] Step 1 error:', error)
       await ctx.reply(
@@ -1272,7 +1297,7 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
   // ============================================
   // STEP 2: Handle Insufficient Balance
   // ============================================
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
 
     if (ctx.callbackQuery?.data === 'topup') {
@@ -1290,7 +1315,7 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
   // ============================================
   // STEP 3: Process Input
   // ============================================
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from!.id.toString()
 
@@ -1304,18 +1329,16 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
     // Validate input exists
     if (!ctx.message || !('text' in ctx.message)) {
       await ctx.reply(
-        isRu
-          ? '❌ Отправьте текстовое сообщение'
-          : '❌ Send a text message'
+        isRu ? '❌ Отправьте текстовое сообщение' : '❌ Send a text message'
       )
-      return  // Stay on step
+      return // Stay on step
     }
 
     const userInput = ctx.message.text
 
     // Validate with Zod
     const validation = InputSchema.safeParse({
-      field1: userInput
+      field1: userInput,
     })
 
     if (!validation.success) {
@@ -1325,7 +1348,7 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
           ? `❌ Ошибка валидации:\n${errors}\n\nПопробуйте снова:`
           : `❌ Validation error:\n${errors}\n\nTry again:`
       )
-      return  // Stay on step for retry
+      return // Stay on step for retry
     }
 
     // Save validated data
@@ -1352,7 +1375,6 @@ export const myProductionScene = new Scenes.WizardScene<MyContext>(
       await ctx.replyWithVideo(result.url)
 
       return ctx.scene.leave()
-
     } catch (error) {
       console.error('❌ [Scene] Operation error:', error)
 

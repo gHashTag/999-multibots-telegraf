@@ -29,6 +29,8 @@ import { sweepOldMedia } from '../../deployment/telegram-bot-api/sweep.mjs'
  * root would be a list of every token on the server.
  */
 const MOVED = '900000011:ZZmovedmovedmovedmovedmovedmovedmoved'
+const TILDE = '900000022~ZZtildetildetildetildetildetildetil'
+const OTHER = '900000033:ZZotherotherotherotherotherotherother'
 
 let root = ''
 let outside = ''
@@ -45,8 +47,25 @@ beforeAll(async () => {
     Buffer.alloc(70_000, 3)
   )
   await writeFile(path.join(root, MOVED, 'td.binlog'), 'session')
+  await writeFile(path.join(root, MOVED, 'db.sqlite'), 'session db')
+  // The server's own files, at the ROOT, at names anybody can know. They take
+  // no token to name: tqueue.binlog holds the pending updates of every bot,
+  // webhooks_db.binlog is keyed by token.
+  await writeFile(path.join(root, 'tqueue.binlog'), 'every pending update')
+  await writeFile(path.join(root, 'webhooks_db.binlog'), `${MOVED} -> hook`)
+  // Media-shaped, but not where getFile ever points.
+  await mkdir(path.join(root, MOVED, 'passport'), { recursive: true })
+  await writeFile(path.join(root, MOVED, 'passport', 'file_1.jpg'), 'id')
+  await mkdir(path.join(root, 'not-a-token', 'videos'), { recursive: true })
+  await writeFile(path.join(root, 'not-a-token', 'videos', 'x.mp4'), 'x')
+  // The same server where colons are refused names the directory with `~`.
+  await mkdir(path.join(root, TILDE, 'photos'), { recursive: true })
+  await writeFile(path.join(root, TILDE, 'photos', 'file_2.jpg'), 'photo')
   await writeFile(outside, 'secret outside the root')
   await symlink(outside, path.join(root, MOVED, 'videos', 'escape.mp4'))
+  // A link that stays INSIDE the root and leads to the server's own files.
+  await mkdir(path.join(root, OTHER), { recursive: true })
+  await symlink(root, path.join(root, OTHER, 'documents'))
 
   server = createFileServer({ root })
   await new Promise<void>(r => server.listen(0, '127.0.0.1', () => r()))
@@ -75,12 +94,54 @@ describe('what it hands over', () => {
     expect(res.headers.get('content-length')).toBe('70000')
   })
 
+  it('the `~` spelling of a bot directory, as the server writes it where colons are refused', async () => {
+    const res = await get(`${root}/${TILDE}/photos/file_2.jpg`)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('photo')
+  })
+
   it('a health line for the platform', async () => {
     expect(await (await get('/healthz')).text()).toBe('ok')
   })
 })
 
 describe('what it never hands over', () => {
+  it("the server's own files at the root -- they take no token to name", async () => {
+    for (const name of ['tqueue.binlog', 'webhooks_db.binlog']) {
+      const res = await get(`${root}/${name}`)
+      expect(res.status, name).toBe(404)
+      expect(await res.text(), name).not.toContain(MOVED)
+    }
+  })
+
+  it("a bot's session: td.binlog and db.sqlite are the bot, not media", async () => {
+    for (const name of ['td.binlog', 'db.sqlite']) {
+      expect((await get(`${root}/${MOVED}/${name}`)).status, name).toBe(404)
+    }
+  })
+
+  it('media-shaped paths getFile never answers: a kind outside the list, a directory not named by a token, one level too deep', async () => {
+    await mkdir(path.join(root, MOVED, 'videos', 'deeper'), { recursive: true })
+    await writeFile(path.join(root, MOVED, 'videos', 'deeper', 'y.mp4'), 'y')
+    for (const p of [
+      `${root}/${MOVED}/passport/file_1.jpg`,
+      `${root}/not-a-token/videos/x.mp4`,
+      `${root}/${MOVED}/videos/deeper/y.mp4`,
+      // A real file, with a segment after it: not the path of that file.
+      `${root}/${MOVED}/videos/file_0.mp4/extra`,
+    ]) {
+      expect((await get(p)).status, p).toBe(404)
+    }
+  })
+
+  it('a link inside the root that leads back to its own files', async () => {
+    for (const name of ['tqueue.binlog', 'webhooks_db.binlog']) {
+      const p = `${root}/${OTHER}/documents/${name}`
+      expect((await get(p)).status, p).toBe(404)
+      expect(await resolveRequestPath(root, p)).toBeNull()
+    }
+  })
+
   it('a directory -- the root is a list of tokens -- answers 404 like a missing file', async () => {
     for (const p of [
       root,

@@ -11,7 +11,10 @@
  */
 
 import 'dotenv/config'
-import { telegramApiFor } from '../../src/services/telegramApi'
+import {
+  assertBotApiListKnown,
+  telegramApiFor,
+} from '../../src/services/telegramApi'
 
 interface BotConfig {
   username: string
@@ -107,6 +110,9 @@ async function getBotInfo(token: string): Promise<string> {
 }
 
 async function main() {
+  // A bot on our own Bot API server must not be asked on the cloud, and this
+  // script cannot tell which those are without the service's variables.
+  assertBotApiListKnown()
   console.log('\n' + '='.repeat(60))
   console.log('       ПРОВЕРКА БАЛАНСА STARS (Bot API)')
   console.log('='.repeat(60) + '\n')

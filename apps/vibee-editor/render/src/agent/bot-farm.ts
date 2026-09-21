@@ -17,6 +17,13 @@
  * A bot that does not answer getMe is simply not a cashier today. An empty
  * map is not cached: a network blink at boot must not turn every invoice
  * into a default-cashier invoice for the life of the process.
+ *
+ * Nor is a map with a bot MISSING kept for good -- only for a few minutes.
+ * A bot on our own Bot API server does not answer while that server restarts
+ * or before the move script lists it, and a bot just moved back to the cloud
+ * is refused there for 10 minutes after its logOut (src/telegram-api.ts).
+ * Remembered forever, any of those would stop being a cashier for the life of
+ * the process, its invoices quietly minted by the default cashier instead.
  */
 
 import { askSupabase } from './crm-tools'
@@ -52,12 +59,18 @@ function tokensFromEnv(env: NodeJS.ProcessEnv): string[] {
 }
 
 let farm: Promise<Map<string, string>> | undefined
+/** When the cached farm must be asked again; 0 = never (every bot answered). */
+let farmExpires = 0
+
+/** How long a farm with a bot missing is trusted before it is asked again. */
+export const INCOMPLETE_FARM_TTL_MS = 5 * 60_000
 
 async function build(
   fetchImpl: Fetch,
   env: NodeJS.ProcessEnv
-): Promise<Map<string, string>> {
+): Promise<{ map: Map<string, string>; missing: number }> {
   const map = new Map<string, string>()
+  let missing = 0
   await Promise.all(
     tokensFromEnv(env).map(async token => {
       try {
@@ -69,13 +82,15 @@ async function build(
         const u = d?.ok
           ? normaliseBotName(String(d.result?.username ?? ''))
           : ''
-        if (u && !map.has(u)) map.set(u, token)
+        if (!u) missing += 1
+        else if (!map.has(u)) map.set(u, token)
       } catch {
-        // Not a cashier today. The default cashier still answers.
+        // Not a cashier right now. The default cashier still answers.
+        missing += 1
       }
     })
   )
-  return map
+  return { map, missing }
 }
 
 /** username -> token for every bot of the farm that answers getMe. */
@@ -83,11 +98,18 @@ export async function farmMap(
   fetchImpl: Fetch = fetch,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<Map<string, string>> {
+  if (farm && farmExpires && Date.now() >= farmExpires) farm = undefined
   if (!farm) {
-    farm = build(fetchImpl, env).then(m => {
-      if (m.size === 0) farm = undefined
-      return m
+    farmExpires = 0
+    const building = build(fetchImpl, env).then(({ map, missing }) => {
+      if (map.size === 0) {
+        if (farm === building) farm = undefined
+      } else if (missing > 0) {
+        farmExpires = Date.now() + INCOMPLETE_FARM_TTL_MS
+      }
+      return map
     })
+    farm = building
   }
   return farm
 }
@@ -133,4 +155,5 @@ export async function botNameOf(
 
 export function forgetFarmForTests(): void {
   farm = undefined
+  farmExpires = 0
 }
