@@ -394,3 +394,34 @@ describe('the palette is the app palette', () => {
     expect(BRAND_CSS).toContain('@media (max-width: 480px)')
   })
 })
+
+/*
+ * THE EMOJI LAYER OVER THE PICTURE.
+ *
+ * Measured 2026-09-21 in a live viewer: the stream played with real frames,
+ * but DIV.emotes -- neko's absolute layer for flying emoji, exactly the size
+ * of the picture -- was painted #111 by the bar's ".emotes" rules and took
+ * every click. Rendered in Chromium with this stylesheet over neko's
+ * structure, the old sheet answered DIV.emotes at the centre and the fixed
+ * one answered VIDEO. This test pins the rule that made the difference; the
+ * cascade itself needs a browser, which this package does not ship.
+ */
+describe('the emoji layer never covers the picture', () => {
+  const css = BRAND_CSS.replace(/\/\*[\s\S]*?\*\//g, '')
+  const rule = /\.player-container\s*>\s*\.emotes\s*\{([^}]*)\}/.exec(css)
+
+  it('the layer over the video is transparent and lets clicks through', () => {
+    expect(rule).not.toBeNull()
+    expect(rule![1]).toMatch(/background:\s*transparent\s*!important/)
+    expect(rule![1]).toMatch(/pointer-events:\s*none\s*!important/)
+  })
+
+  it('and it comes after every rule that paints .emotes', () => {
+    const lastPaint = Math.max(
+      ...[...css.matchAll(/[^{}]*\.emotes[^{}]*\{[^}]*background:\s*\$?[^;]*/g)]
+        .filter(m => !/player-container/.test(m[0]))
+        .map(m => m.index ?? -1)
+    )
+    expect(rule!.index).toBeGreaterThan(lastPaint)
+  })
+})
