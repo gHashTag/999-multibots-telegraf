@@ -13,6 +13,7 @@ import {
   fullName,
   leadContext,
   leadCandidates,
+  fileBursts,
   type StoredMessage,
 } from './chat-memory'
 import { mirrorNow } from './crm-mirror'
@@ -26,13 +27,13 @@ import {
   forgetTranscripts,
   storedIngestMsgIds,
   dropDuplicateIngestRows,
-  mediaMessageText,
   mtprotoMediaInfo,
   MEDIA_KINDS,
   type MediaKind,
   type MediaRow,
   type MtprotoMediaLike,
 } from './media-library'
+import { sentMediaOfAll, sentFileName } from './tg-message-media'
 import { s3PutBytes } from '../lib/s3-put'
 import { imagesLookDown } from './image-health'
 import { openDebts } from './crm-owed'
@@ -101,6 +102,7 @@ interface MessageLike {
   out?: boolean
   message?: string
   media?: MtprotoMediaLike | null
+  groupedId?: { toString(): string } | null
 }
 
 /**
@@ -228,28 +230,32 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
            * by `transcribeAndMirror`. A message with neither text nor media
            * (a service action) is still dropped.
            */
-          const withInfo = raw
+          /*
+           * THE ROW SAYS WHAT IS THERE, ALBUM INCLUDED (2026-09-22). The
+           * descriptor goes to the memory, which writes the marker itself
+           * (`[фото, альбом из 8]`, `[голосовое, 0:12]`), so eight photos of
+           * one album read as one album of eight and not as eight synthetic
+           * file names. Album sizes are counted over this dialog's read.
+           */
+          const sent = sentMediaOfAll(raw)
+          const kept = raw
+            .map((m, i) => ({ m, sent: sent[i] }))
             .filter(
-              m =>
-                typeof m.id === 'number' &&
-                (m.message || (m.media && mtprotoMediaInfo(m.media, m.id)))
+              ({ m, sent }) => typeof m.id === 'number' && (m.message || sent)
             )
-            .map(m => ({
-              m,
-              info: m.media ? mtprotoMediaInfo(m.media, Number(m.id)) : null,
+            .map(x => ({
+              ...x,
+              info: x.m.media
+                ? mtprotoMediaInfo(x.m.media, Number(x.m.id))
+                : null,
             }))
-          const msgs: StoredMessage[] = withInfo.map(({ m, info }) => ({
+          const withInfo = kept.filter(x => x.info)
+          const msgs: StoredMessage[] = kept.map(({ m, sent }) => ({
             msgId: Number(m.id),
             at: new Date((m.date ?? 0) * 1000),
             out: Boolean(m.out),
-            text: info
-              ? mediaMessageText(
-                  info.kind,
-                  info.name,
-                  info.mime,
-                  m.message ? String(m.message) : null
-                )
-              : String(m.message ?? ''),
+            text: String(m.message ?? ''),
+            ...(sent ? { media: { ...sent, name: sentFileName(m) } } : {}),
           }))
           report.people += 1
           report.messages_read += msgs.length
@@ -407,6 +413,8 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const display =
         lead.display ?? displayOf(fullName(person), person?.username) ?? null
       const story = await leadContext(pool, owner, lead.id, limit)
+      // Their files, counted into bursts with dates; see chat-memory.ts.
+      const files = fileBursts(story.messages, story.lastOutboundAt)
       const [touches, balance, zep] = await Promise.all([
         touchesFor(pool, owner, lead.id, 10).catch(() => []),
         balanceOf(pool, lead.id).catch(() => null),
@@ -432,6 +440,20 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           who: m.out ? 'owner' : 'person',
           text: m.out ? m.text : foreignText(m.text),
         })),
+        /*
+         * What they sent as files, counted: "фото ×8 at 06:50". Our counts
+         * and our marker words, no third-party text -- the captions stay in
+         * `dialog`, framed.
+         */
+        ...(files.length
+          ? {
+              their_files: files,
+              files_note:
+                'Строка [фото …] — отметка о файле, а не его содержимое. Если after_our_last_word — ' +
+                'сначала tg_fetch_media {chat, msg_ids}: посмотри и послушай, потом отвечай. ' +
+                'Не описывай файл, который не открыл.',
+            }
+          : {}),
         how_to_read:
           'Предлагай то, о чём человек сам спрашивал; не предлагай того, от чего он ' +
           'отказался за 30 дней; если ждёт ответа — сначала ответ, потом продажа.',

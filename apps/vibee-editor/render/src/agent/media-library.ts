@@ -49,6 +49,7 @@ import {
   describeVideoWithVision,
   visionConfig,
 } from './media-vision'
+import { mtprotoNumber, largestPhotoBytes } from './tg-message-media'
 
 export interface Pool {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -1108,6 +1109,34 @@ export async function storedIngestMsgIds(
 }
 
 /**
+ * The rows the owner's session already holds for these messages of one lead,
+ * earliest first -- so a look at a file the ingest downloaded an hour ago
+ * reuses that shelf URL and that description instead of fetching it again.
+ *
+ * Keyed by the OWNER as every read here is: a seller asking about a message
+ * id can only ever be answered from their own rows, never from another
+ * seller's library that happens to hold the same lead.
+ */
+export async function ingestRowsByMsgIds(
+  pool: Pool,
+  owner: string,
+  lead: string,
+  msgIds: number[]
+): Promise<StoredMedia[]> {
+  const ids = [...new Set(msgIds.filter(n => Number.isInteger(n) && n > 0))]
+  if (!ids.length) return []
+  await ensureTable(pool)
+  const r = await pool.query(
+    `SELECT ${SELECT_COLUMNS} FROM user_media
+      WHERE owner_id = $1 AND lead_id = $2 AND surface = 'ingest'
+        AND msg_id = ANY($3::bigint[])
+      ORDER BY id ASC`,
+    [owner, lead, ids]
+  )
+  return (r.rows as any[]).map(rowOf)
+}
+
+/**
  * One row per (message, file) for the ingest surface: keep the earliest,
  * drop the copies an earlier pass downloaded again under a new shelf URL.
  */
@@ -1337,14 +1366,6 @@ export interface MtprotoMediaInfo {
   bytes: number | null
 }
 
-const toNumber = (v: unknown): number | null => {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null
-  if (typeof v === 'bigint') return Number(v)
-  const f = (v as { toJSNumber?: () => number } | null)?.toJSNumber
-  if (typeof f === 'function') return f.call(v)
-  return null
-}
-
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -1369,19 +1390,11 @@ export function mtprotoMediaInfo(
   if (!media || typeof media !== 'object') return null
   const tag = msgId ?? Date.now()
   if (media.className === 'MessageMediaPhoto' || media.photo) {
-    const sizes = media.photo?.sizes ?? []
-    let largest: number | null = null
-    for (const s of sizes) {
-      const n =
-        toNumber(s?.size) ??
-        (Array.isArray(s?.sizes) ? Math.max(...s.sizes) : null)
-      if (n !== null && (largest === null || n > largest)) largest = n
-    }
     return {
       kind: 'image',
       name: `photo-${tag}.jpg`,
       mime: 'image/jpeg',
-      bytes: largest,
+      bytes: largestPhotoBytes(media.photo),
     }
   }
   if (media.className === 'MessageMediaDocument' || media.document) {
@@ -1408,7 +1421,7 @@ export function mtprotoMediaInfo(
       kind,
       name: cut(named?.fileName, NAME_CAP) ?? `${prefix}-${tag}.${ext}`,
       mime,
-      bytes: toNumber(d.size),
+      bytes: mtprotoNumber(d.size),
     }
   }
   return null

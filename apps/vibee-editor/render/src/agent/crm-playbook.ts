@@ -72,6 +72,28 @@ export function salesPlaybook(who: {
     'следующий — после его кнопки: новая карточка заменяет прошлую, две сразу нельзя. Если никто не ' +
     'подходит — скажи «никого», первого попавшегося не бери. Отказ за 30 дней и «просил позже» — ' +
     'пропускай даже внутри группы. Пакетный обход по списку — команда /sweep у бота ' +
-    '(/sweep ждут, /sweep горячие, /sweep @username), не ты.'
+    '(/sweep ждут, /sweep горячие, /sweep @username), не ты.' +
+    SENT_FILES_RULE
   )
 }
+
+/*
+ * THE FILES THEY SENT ARE PART OF WHAT THEY SAID.
+ *
+ * Owner, 2026-09-22: a client sent photos for her content plan and the agent
+ * answered as if she had sent nothing -- through tg_history they were empty
+ * blocks, and nothing told the seller to open them. The frames now say what
+ * is attached and tg_fetch_media opens it; this is the line that says to.
+ *
+ * The face rule is the owner's of the same day: every picture of a person
+ * made for a client is img2img from that client's own face. A photo she sent
+ * that shows her face is the best source there is -- better than an avatar.
+ */
+export const SENT_FILES_RULE =
+  '\n9. Файлы человека — часть его слов. Прислал фото, голосовые или файлы после нашего ' +
+  'последнего слова (crm_lead_context: their_files с after_our_last_word; tg_history: media) — ' +
+  'СНАЧАЛА открой их: tg_fetch_media {chat, msg_ids или album}, и только потом отвечай. Фото, ' +
+  'присланные для контент-плана, — источники для пунктов его плана (crm_client_plan). Если на ' +
+  'фото видно его лицо — это исходник для любой картинки с ним: image_edit с image_url этой ' +
+  'ссылки; лицо обязательно. Не описывай фото, которое не открыл: «прислала фото» без ' +
+  'tg_fetch_media — догадка, а не знание.'
