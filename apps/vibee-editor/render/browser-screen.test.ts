@@ -3,6 +3,8 @@ import {
   pickFromMenu,
   wantedScreen,
   applyScreen,
+  nearbySizes,
+  fitDesktop,
   MIN_EDGE,
   MAX_WIDTH,
   MAX_HEIGHT,
@@ -275,7 +277,7 @@ describe('what happens when the pod says 422', () => {
     return { fetcher, asked, current: () => screen }
   }
 
-  it('FALLS BACK TO THE MENU INSTEAD OF GIVING UP', async () => {
+  it('TRIES THE NEIGHBOURS, THEN FALLS BACK TO THE MENU', async () => {
     const pod = podThatRefusesExact()
     const got = await applyScreen(
       'pod:8080',
@@ -284,7 +286,50 @@ describe('what happens when the pod says 422', () => {
       pod.fetcher as never
     )
     expect(`${got.width}x${got.height}`).toBe('800x1600')
-    expect(pod.asked).toEqual(['360x664', '800x1600'])
+    expect(pod.asked[0]).toBe('360x664')
+    expect(pod.asked.at(-1)).toBe('800x1600')
+    const neighbours = nearbySizes({ width: 360, height: 664, rate: 30 })
+    expect(pod.asked.slice(1, -1)).toEqual(
+      neighbours.map(n => `${n.width}x${n.height}`)
+    )
+  })
+
+  it('TAKES A NEIGHBOUR over a menu size of another shape', async () => {
+    /* Measured: at 852 high, 360 and 368 refused, 352 and 376 accepted. */
+    let screen = { width: 1280, height: 800, rate: 30 }
+    const asked: string[] = []
+    const fetcher = async (
+      url: string,
+      init?: { method?: string; body?: string }
+    ) => {
+      const ok = (o: unknown) => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(o),
+      })
+      if (url.endsWith('/api/login')) return ok({ token: 'b' })
+      if (url.endsWith('/configurations'))
+        return ok([{ width: 800, height: 1600, rate: 30 }])
+      if ((init?.method || 'GET') === 'POST') {
+        const want = JSON.parse(init!.body!)
+        asked.push(`${want.width}x${want.height}`)
+        if (want.width === 352 || want.width === 376) {
+          screen = want
+          return ok(want)
+        }
+        return { ok: false, status: 422, text: async () => 'no' }
+      }
+      return ok(screen)
+    }
+    const got = await applyScreen(
+      'pod:8080',
+      'pw',
+      { width: 360, height: 852, rate: 30 },
+      fetcher as never
+    )
+    expect(got.height).toBe(852)
+    expect([352, 376]).toContain(got.width)
+    expect(asked).not.toContain('800x1600')
   })
 
   it('does not ask twice when the exact size was taken', async () => {
@@ -352,6 +397,83 @@ describe('what happens when the pod says 422', () => {
       { width: 393, height: 852, rate: 30 },
       fetcher as never
     )
-    expect(asked).toEqual(['393', '800'])
+    expect(asked[0]).toBe('393')
+    expect(asked.at(-1)).toBe('800')
+    /* Every polite no in between was read back and disbelieved too. */
+    expect(asked).toHaveLength(
+      2 + nearbySizes({ width: 393, height: 852, rate: 30 }).length
+    )
+  })
+})
+
+describe('the neighbours of a refused size', () => {
+  const want = { width: 400, height: 800, rate: 30 }
+
+  it('are one or two snaps away, nearest first, twelve at most', () => {
+    const near = nearbySizes(want)
+    expect(near.length).toBe(12)
+    const d = (n: { width: number; height: number }) =>
+      (n.width - want.width) ** 2 + (n.height - want.height) ** 2
+    for (let i = 1; i < near.length; i++)
+      expect(d(near[i])).toBeGreaterThanOrEqual(d(near[i - 1]))
+    for (const n of near) {
+      expect(Math.abs(n.width - want.width)).toBeLessThanOrEqual(16)
+      expect(Math.abs(n.height - want.height)).toBeLessThanOrEqual(16)
+      expect(n.width % 8).toBe(0)
+    }
+    expect(near.map(n => `${n.width}x${n.height}`)).not.toContain('400x800')
+  })
+
+  it('never leave the sizes a pod may be asked for', () => {
+    for (const n of nearbySizes({ width: 320, height: 1600, rate: 30 })) {
+      expect(n.width).toBeGreaterThanOrEqual(320)
+      expect(n.height).toBeLessThanOrEqual(1600)
+    }
+  })
+})
+
+describe('the window follows the screen', () => {
+  const desk = {
+    endpoint: 'pod:8080',
+    adminToken: 'pw',
+    cdpEndpoint: 'pod:9223',
+  }
+  const want = { width: 368, height: 536, rate: 30 }
+
+  it('FITS THE WINDOW TO THE SIZE THE SCREEN REALLY GOT', async () => {
+    const fitted: unknown[] = []
+    const got = await fitDesktop(desk, want, {
+      apply: async () => ({ width: 376, height: 536, rate: 30 }),
+      fitWindow: async (cdp, size) => {
+        fitted.push([cdp, size])
+        return 1
+      },
+    })
+    expect(got.width).toBe(376)
+    expect(fitted).toEqual([
+      ['pod:9223', { width: 376, height: 536, rate: 30 }],
+    ])
+  })
+
+  it('does not touch a window it has no way to reach', async () => {
+    let called = false
+    await fitDesktop({ ...desk, cdpEndpoint: null }, want, {
+      apply: async () => ({ ...want }),
+      fitWindow: async () => {
+        called = true
+        return 0
+      },
+    })
+    expect(called).toBe(false)
+  })
+
+  it('A WINDOW THAT WILL NOT FOLLOW DOES NOT FAIL THE FIT', async () => {
+    const got = await fitDesktop(desk, want, {
+      apply: async () => ({ ...want }),
+      fitWindow: async () => {
+        throw new Error('CDP timed out')
+      },
+    })
+    expect(got).toEqual(want)
   })
 })

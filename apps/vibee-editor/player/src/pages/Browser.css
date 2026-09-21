@@ -109,7 +109,8 @@
   height: 100%;
   border: 0;
   border-radius: 12px;
-  background: #111;
+  /* The app's own black: a bar of any other shade reads as a border. */
+  background: #000;
 }
 
 /* Wide screens: the picture is one panel among several, so it takes a share. */
@@ -165,25 +166,40 @@
 }
 
 /*
- * The label sits ON the top edge of the glow. `nowrap` was wrong: the Russian
- * sentence is long, and on a 375px phone the pill stretched edge to edge and
- * stopped reading as a badge. Measured at 375x812.
+ * WHO IS DRIVING, SAID UNDER THE PICTURE.
+ *
+ * It sat on the top edge of the glow, over the picture -- and the window's
+ * own bar is exactly there. The pill lay across its controls and took their
+ * taps: the owner pressed the buttons and nothing happened. Nothing is drawn
+ * over the picture now; this is a line of text in the flow, with a dot that
+ * is the glow's colour while the agent works.
  */
 .remote-browser__working {
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1;
-  max-width: min(88%, 420px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  padding: 4px 12px;
-  border-radius: 999px;
   font-size: 12px;
   line-height: 1.35;
-  text-align: center;
-  background: rgba(10, 10, 10, 0.92);
-  color: #eafff8;
+  opacity: 0.75;
+}
+
+.remote-browser__working::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #888;
+}
+
+.remote-browser__working--agent {
+  opacity: 1;
+}
+
+.remote-browser__working--agent::before {
+  background: #00ff88;
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.7);
 }
 
 /*
@@ -282,9 +298,7 @@
     display: none;
   }
   .remote-browser--live .remote-browser__working {
-    top: -9px;
-    font-size: 11px;
-    padding: 2px 10px;
+    display: none;
   }
 }
 
@@ -299,16 +313,35 @@
   }
 }
 
-/* Fullscreen is a phone's real answer to a small screen: the element fills
-   the device and nothing else is on it, so the frame must fill the element. */
-.remote-browser__stage:fullscreen {
-  height: 100%;
-  width: 100%;
+/* ─────────────────────────────────────────────────────────────────────────
+ * FULL SCREEN: THE PICTURE COVERS THE APP.
+ *
+ * Not the element fullscreen API -- Telegram's iOS WebView does not do it
+ * for anything but a video, so the button did nothing. The stage is laid
+ * over everything, the tab bar included, and starts below Telegram's own
+ * floating buttons (--app-top-inset is their height plus the status bar's),
+ * so the window's bar is not under the clock. Back leaves; see Browser.tsx.
+ *
+ * No padding and no radius: the glow is a frame, and a frame around the
+ * whole screen is a border eating the picture.
+ * ───────────────────────────────────────────────────────────────────────── */
+.remote-browser--full .remote-browser__stage {
+  position: fixed;
+  top: var(--app-top-inset, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: calc(var(--z-tabbar, 900) + 10);
+  width: auto;
+  height: auto;
+  min-height: 0;
   padding: 0;
   border-radius: 0;
-  background: #111;
+  background: #000;
+  box-shadow: none;
 }
 
-.remote-browser__stage:fullscreen .remote-browser__frame {
+.remote-browser--full .remote-browser__frame {
   border-radius: 0;
+  background: #000;
 }

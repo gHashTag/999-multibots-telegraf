@@ -38,6 +38,8 @@
  * shape on that list is used instead. Two attempts, no guessing.
  */
 
+import { fitWindowToScreen } from './cdp'
+
 export interface ScreenSize {
   width: number
   height: number
@@ -168,6 +170,26 @@ export async function listConfigurations(
   return Array.isArray(b) ? b : []
 }
 
+/**
+ * Sizes one or two snaps away from the one wanted, nearest first. At most
+ * twelve: each is a request to the pod, and the person is waiting.
+ */
+export function nearbySizes(want: ScreenSize): ScreenSize[] {
+  const out: { size: ScreenSize; d: number }[] = []
+  for (let dw = -2; dw <= 2; dw++) {
+    for (let dh = -2; dh <= 2; dh++) {
+      const d = dw * dw + dh * dh
+      if (d === 0 || d > 4) continue
+      const width = want.width + dw * SNAP
+      const height = want.height + dh * SNAP
+      if (width < MIN_EDGE || width > MAX_WIDTH) continue
+      if (height < MIN_EDGE || height > MAX_HEIGHT) continue
+      out.push({ size: { width, height, rate: want.rate }, d })
+    }
+  }
+  return out.sort((a, b) => a.d - b.d).map(o => o.size)
+}
+
 /** Near enough that nobody would see the difference. */
 const CLOSE_ENOUGH = 16
 
@@ -231,6 +253,17 @@ export async function applyScreen(
   const exact = await ask(want)
   if (exact && landed(want, exact)) return exact
 
+  /*
+   * A refused size usually has a neighbour that is not: probed at a height
+   * of 852, widths 360 and 368 were refused and 352 and 376 accepted. A
+   * neighbour 8 or 16 pixels off is invisible; a menu size of another shape
+   * is the black bars the owner photographed. So the neighbours go first.
+   */
+  for (const near of nearbySizes(want)) {
+    const got = await ask(near)
+    if (got && landed(near, got)) return got
+  }
+
   const menu = await listConfigurations(endpoint, bearer, fetcher).catch(
     () => [] as ScreenSize[]
   )
@@ -245,4 +278,40 @@ export async function applyScreen(
    * that is rather than what it wished for -- the frame is drawn from this.
    */
   return exact ?? (await readScreen(endpoint, bearer, fetcher))
+}
+
+/**
+ * THE DESKTOP AND THE WINDOW ON IT, TOGETHER.
+ *
+ * Resizing the screen alone left Chromium's window at its old size (see
+ * fitWindowToScreen in cdp.ts), so every caller that reshapes the desktop
+ * goes through here, and the window follows the size the screen REALLY got.
+ * A window that will not follow is not a failed fit: the screen is right,
+ * and the next fit tries again.
+ */
+export interface Desktop {
+  endpoint: string
+  adminToken: string
+  cdpEndpoint?: string | null
+}
+
+export interface DesktopIo {
+  apply: typeof applyScreen
+  fitWindow: typeof fitWindowToScreen
+}
+
+export async function fitDesktop(
+  desktop: Desktop,
+  want: ScreenSize,
+  io: DesktopIo = { apply: applyScreen, fitWindow: fitWindowToScreen }
+): Promise<ScreenSize> {
+  const got = await io.apply(desktop.endpoint, desktop.adminToken, want)
+  if (desktop.cdpEndpoint) {
+    try {
+      await io.fitWindow(desktop.cdpEndpoint, got)
+    } catch {
+      /* The screen is right; the window is fitted again next time. */
+    }
+  }
+  return got
 }

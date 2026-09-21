@@ -49,6 +49,7 @@ const SESSION = {
   session_id: 'sess-abcdefgh',
   pod_id: 'browser-sess-abcdefgh',
   endpoint: '127.0.0.1:55000',
+  cdp_endpoint: '127.0.0.1:55001',
   state: 'live',
   view_token: 'view-token-aaaaaaaaaaaa', // secret-guard-ok: fixture, twelve letter a
   admin_token: 'admin-token-bbbbbbbbbbb', // secret-guard-ok: fixture, letter b
@@ -258,6 +259,8 @@ describe('the gate', () => {
       adminToken: SESSION.admin_token,
       /* And whose window it is, so the bar can show their own face. */
       telegramId: SESSION.telegram_id,
+      /* And where its window is fitted to the screen. */
+      cdpEndpoint: SESSION.cdp_endpoint,
     })
   })
 
