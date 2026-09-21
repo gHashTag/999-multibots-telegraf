@@ -11,6 +11,7 @@ import {
   itemsFromChats,
   itemsFromRows,
   scopedPrompt,
+  PACKAGE_STEP,
   itemMarker,
   progressLine,
   SYNTAX,
@@ -259,6 +260,29 @@ describe('the items and the brief', () => {
       '111111111',
       '222222222',
     ])
+  })
+
+  /*
+   * A client with a draft package is packaged first: the brief asks the agent
+   * to read the package and ask the person for the half only they can do.
+   * Only a numeric id can be looked up, so an @username brief carries none.
+   */
+  it('a numeric id gets the package step first, with its own id', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: null })
+    expect(p).toContain('crm_client_profile с telegram_id=900000041')
+    expect(p).toContain('discovery_questions')
+    expect(p).toContain('SOUL')
+    expect(p).toContain('ответы даёт сам человек')
+    expect(p).not.toContain('CHAT')
+    expect(p.indexOf('crm_client_profile')).toBeLessThan(
+      p.indexOf('crm_lead_context')
+    )
+  })
+
+  it('an @username brief has no package step', () => {
+    const p = scopedPrompt({ chat: '@pilot_client', display: null, next: null })
+    expect(p).not.toContain('crm_client_profile')
+    expect(PACKAGE_STEP).toContain('Без цены и без счёта')
   })
 
   it('the scoped brief names the one person, forbids the list, reuses the rules, and forbids pay-first', () => {

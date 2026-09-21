@@ -50,17 +50,33 @@
   align-items: flex-start;
 }
 
+/*
+ * THE APP'S OWN PILL: accent green with black on it, the one pairing the app
+ * uses for the thing to press.
+ *
+ * Height is set here, not left to padding: the design system gives every
+ * button a fixed --button-height-md, and 12px of padding above and below the
+ * text did not fit inside it -- the words hung out of the bottom of the
+ * button, photographed by the owner. A fixed height and a line-height of 1
+ * put them in the middle, whatever the design system says.
+ */
 .remote-browser__cta {
-  display: inline-block;
-  padding: 12px 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 24px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 24px;
   font-size: 16px;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
-  background: #19bd9c;
-  color: #fff;
+  background: #00ff88;
+  color: #000;
   text-decoration: none;
+  box-sizing: border-box;
 }
 
 .remote-browser__cta:disabled {
@@ -319,15 +335,25 @@
  * Not the element fullscreen API -- Telegram's iOS WebView does not do it
  * for anything but a video, so the button did nothing. The stage is laid
  * over everything, the tab bar included, and starts below Telegram's own
- * floating buttons (--app-top-inset is their height plus the status bar's),
- * so the window's bar is not under the clock. Back leaves; see Browser.tsx.
+ * floating buttons (the body is already moved below them in fullscreen; see
+ * the rule's own comment), so the window's bar is not under the clock. Back
+ * leaves; see Browser.tsx.
  *
  * No padding and no radius: the glow is a frame, and a frame around the
  * whole screen is a border eating the picture.
  * ───────────────────────────────────────────────────────────────────────── */
 .remote-browser--full .remote-browser__stage {
   position: fixed;
-  top: var(--app-top-inset, 0px);
+  /*
+   * ZERO, NOT THE INSET. In Telegram fullscreen the body itself is fixed,
+   * moved down by --app-top-inset and given a transform (styles/telegram.css)
+   * -- and a transformed ancestor is what a fixed child is positioned
+   * against. So the body's top is already below Telegram's buttons; adding
+   * the inset again put the picture half a screen down with the page's own
+   * buttons showing above it, photographed by the owner. Outside fullscreen
+   * the inset is zero anyway.
+   */
+  top: 0;
   right: 0;
   bottom: 0;
   left: 0;
