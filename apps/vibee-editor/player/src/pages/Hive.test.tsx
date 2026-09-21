@@ -53,6 +53,12 @@ vi.mock('@/lib/framedSession', async importOriginal => {
 import { getDefaultStore } from 'jotai'
 import { showLoginModalAtom } from '@/atoms'
 import HivePage from './Hive'
+// Mounted here because App.tsx mounts it: ONE card above the routes, not
+// one per page. Hive used to render its own, and these cases read the card
+// out of the page's own tree. The page's job is to OPEN the door, and that
+// is asserted on the atom below; the card is drawn by the app root, so the
+// app root is what the harness has to reproduce.
+import { LoginModal } from '@/components/Auth/LoginModal'
 
 let container: HTMLDivElement
 let root: Root
@@ -71,7 +77,14 @@ afterEach(() => {
 describe('the hive page', () => {
   it.each(['ru', 'en'])('frames and links the game in %s', lang => {
     language.lang = lang
-    act(() => root.render(<HivePage />))
+    act(() =>
+      root.render(
+        <>
+          <HivePage />
+          <LoginModal />
+        </>
+      )
+    )
 
     const expected = `https://t27.ai/?lang=${lang}#/queen`
     expect(container.querySelector('iframe')?.getAttribute('src')).toBe(
@@ -123,7 +136,14 @@ describe('the hive page answers its game frame', () => {
   })
 
   function renderAndSpy() {
-    act(() => root.render(<HivePage />))
+    act(() =>
+      root.render(
+        <>
+          <HivePage />
+          <LoginModal />
+        </>
+      )
+    )
     const frame = container.querySelector('iframe')!.contentWindow!
     const post = vi.spyOn(frame, 'postMessage').mockImplementation(() => {})
     return { frame, post }
@@ -236,6 +256,9 @@ describe('the hive page answers its game frame', () => {
       expect(modal()).toBeNull()
       deliver(SIGN_IN, frame)
       await flush()
+      // The door the page opens...
+      expect(getDefaultStore().get(showLoginModalAtom)).toBe(true)
+      // ...and the card the app root draws through it.
       expect(modal()).not.toBeNull()
       expect(window.location.href).toBe(before)
       expect(fetchMock).not.toHaveBeenCalled()
@@ -299,7 +322,14 @@ describe('the hive page answers its game frame', () => {
       const { load } = renderFrame()
       load()
       language.lang = 'ru'
-      act(() => root.render(<HivePage />))
+      act(() =>
+        root.render(
+          <>
+            <HivePage />
+            <LoginModal />
+          </>
+        )
+      )
       const iframe = container.querySelector('iframe')!
       expect(iframe.getAttribute('src')).toBe('https://t27.ai/?lang=ru#/queen')
       load()

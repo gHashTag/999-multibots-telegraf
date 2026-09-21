@@ -33,7 +33,6 @@ import {
 import { UserAvatar, PaywallModal } from '@/components/Auth'
 import { RemixBadge } from '@/components/RemixBadge'
 import './styles.css'
-import { LoginModal } from '@/components/Auth/LoginModal'
 import { brandingAtom, loadBrandingAtom } from '@/atoms/branding'
 import { getInitData, isTelegram } from '@/lib/telegram'
 import {
@@ -284,16 +283,12 @@ export function Header() {
 
   // Inside the game's TRI frame the game draws the navigation: the logo row,
   // the tabs (pinned to the bottom on phones), the language toggle and the
-  // settings go. The modals stay, because LoginModal is mounted only here and
-  // GeneratePanel, Timeline, ProfileHeader and UserCard open it through
-  // openLoginAtom. This return must stay below every hook.
+  // settings go. The paywall stays. LoginModal does NOT live here any more:
+  // it is mounted once in App.tsx, because a page without a Header could
+  // still open it and then nothing rendered. This return must stay below
+  // every hook.
   if (IS_EMBED) {
-    return (
-      <>
-        <PaywallModal />
-        <LoginModal />
-      </>
-    )
+    return <PaywallModal />
   }
 
   return (
@@ -728,9 +723,6 @@ export function Header() {
 
         {/* Paywall Modal */}
         <PaywallModal />
-
-        {/* Login Modal */}
-        <LoginModal />
       </header>
     </>
   )
