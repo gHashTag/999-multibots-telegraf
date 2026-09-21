@@ -26,6 +26,7 @@ import {
   type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
+import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 
 /**
  * THE PICTURE TAKES THE WHOLE SCREEN, AND BACK LEAVES IT.
@@ -185,7 +186,7 @@ export default function BrowserPage() {
       </header>
 
       {view === null && !error ? (
-        <p className="remote-browser__muted">{t('browser.loading')}</p>
+        <BrandLoader label={t('browser.loading')} />
       ) : null}
 
       {/* It did not forget them: the profile is where they left it. */}
