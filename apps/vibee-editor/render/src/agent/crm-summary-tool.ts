@@ -29,6 +29,7 @@ import { displayOf } from './crm-offer-tool'
 import { zepConfigured, zepFlavor } from './zep-memory'
 import { countSegments, segmentCaps, type Segment } from './crm-segments'
 import { imagesLookDown } from './image-health'
+import { openDebts } from './crm-owed'
 
 export const NEXT_STEPS = ['reply', 'deliver', 'offer', 'talk', 'wait'] as const
 export const STAGES = [
@@ -258,6 +259,7 @@ export const CRM_SUMMARY_TOOLS: AgentTool[] = [
         // The board and the queue must agree. Counting `deliver` here while
         // crm_leads hands out `offer` would show the owner two boards.
         imagesDown: imagesLookDown(),
+        owed: await openDebts(pool, owner),
       })
       const [known, history, kinds, sellerSends, paid] = await Promise.all([
         (

@@ -29,6 +29,7 @@ import { TOKEN_PRICES } from './billing-shared'
 import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic-ok: pre-existing names
 import { salesPlaybook } from './crm-playbook'
 import { imagesLookDown } from './image-health'
+import { asksForAPicture, noteOwed } from './crm-owed'
 import { allProviders, diagnose } from './provider'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
@@ -1356,6 +1357,30 @@ export async function* runAgent(
       return false
     }
   })()
+
+  /*
+   * SOMEBODY ASKED FOR A PICTURE WE CANNOT DRAW RIGHT NOW.
+   *
+   * This is the path that lost lead 2086031075 (crm-owed.ts). The playbook
+   * below is about to be told `giftIsDown`, so the agent will answer her
+   * honestly and the turn will end well -- and nothing anywhere will remember
+   * that she asked. The CRM's own refusal site records a debt; this one, the
+   * owner's business DM, recorded nothing at all. It does now, from the same
+   * fact the prompt is built from, before a single token is spent.
+   */
+  if (opts?.surface === 'business' && ctx.pool) {
+    const down = imagesLookDown()
+    const asked = [...history].reverse().find(m => m.role === 'user')
+    if (down && asksForAPicture(asked?.content)) {
+      const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
+      await noteOwed(ctx.pool as never, {
+        owner: String(OWNER_TELEGRAM_ID ?? ''),
+        lead: String(ctx.telegramId ?? ''),
+        what: 'picture',
+        why: down.why,
+      })
+    }
+  }
 
   let messages: ChatMessage[] = [
     {

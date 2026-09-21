@@ -492,6 +492,13 @@ export async function leadCandidates(
      * name a step the platform cannot take today.
      */
     imagesDown?: { why: string; minutesAgo: number } | null
+    /**
+     * What we promised these people and did not give (crm-owed.ts). Read
+     * here because no other signal in this function can see it: our own
+     * apology is an outbound message, so a debt looks exactly like a
+     * finished conversation.
+     */
+    owed?: Map<string, { what: string; why: string; at: Date }>
   } = {}
 ): Promise<LeadCandidate[]> {
   await ensureTable(pool)
@@ -662,6 +669,30 @@ export async function leadCandidates(
         `картинки не выходят ${opts.imagesDown.minutesAgo} мин.: ` +
           opts.imagesDown.why
       )
+    }
+    /*
+     * A DEBT OUTRANKS WHOSE TURN IT IS.
+     *
+     * Everything above this line answers "did they speak last?". For somebody
+     * we owe something that is the wrong question: we spoke last precisely
+     * BECAUSE we were apologising, so the rules above park them -- `wait`
+     * until two days of silence make them small talk. Production, 2026-09-21:
+     * that is fourteen hours of nothing for a picture asked for at 17:14.
+     *
+     * So an open debt puts them back: the reply is owed, not optional, and
+     * the score has to clear whatever a `written` touch subtracted. When the
+     * pictures are back this is a `deliver` -- go and give it -- and while
+     * they are still down it is a `reply`, because a person waiting a day is
+     * owed a word even if the thing itself has to wait.
+     */
+    const debt = opts.owed?.get(lead) ?? null
+    if (debt) {
+      const hours = Math.floor((now.getTime() - debt.at.getTime()) / 3600_000)
+      score += 6
+      why.push(
+        `мы должны: ${debt.what}, ${hours} ч. назад не получилось (${debt.why})`
+      )
+      next = opts.imagesDown ? 'reply' : 'deliver'
     }
     const segment = segmentOf({
       unanswered,
