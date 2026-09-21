@@ -92,8 +92,12 @@ jobs:
 
       - name: Lint changed files only
         run: |
-          # Получаем список измененных .ts файлов
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.ts$' || true)
+          # The changed TypeScript files.
+          # `grep '\.ts$'` was anchored to end-of-line and therefore matched no
+          # .tsx at all, so the linter never once looked at the React player
+          # (apps/vibee-editor/player). The step printed "No TypeScript files
+          # changed" and went green.
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep -E '\.(ts|tsx|mts|cts)$' || true)
           if [ -n "$CHANGED_FILES" ]; then
             echo "Linting changed files: $CHANGED_FILES"
             bunx eslint $CHANGED_FILES
@@ -103,7 +107,7 @@ jobs:
 
       - name: Check for console.log in changed files
         run: |
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.ts$' || true)
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep -E '\.(ts|tsx|mts|cts)$' || true)
           if [ -n "$CHANGED_FILES" ]; then
             if grep -n "console\.log" $CHANGED_FILES; then
               echo "::warning::Found console.log statements in changed files. Consider using proper logging."
