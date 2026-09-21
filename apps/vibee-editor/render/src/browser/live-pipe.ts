@@ -28,7 +28,7 @@ import {
   ENGINE_CHAT_SOUND,
 } from './skin'
 import { telegramAvatar } from './avatar'
-import { fitDesktop, wantedScreen } from './screen'
+import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
 import {
   cachePolicyFor,
   EMOJI_PATH,
@@ -372,10 +372,10 @@ async function fitFromQuery(
   }
   if (!target.adminToken) return answer(409, { ok: false, error: 'no admin' })
   const q = new URLSearchParams((req.url || '').split('?')[1] || '')
-  const want = wantedScreen({
-    width: Number(q.get('w')),
-    height: Number(q.get('h')),
-  })
+  const box = { width: Number(q.get('w')), height: Number(q.get('h')) }
+  /* A hidden window is not asking for anything (screen.ts isVisibleBox). */
+  if (!isVisibleBox(box)) return answer(200, { ok: true, ignored: 'hidden' })
+  const want = wantedScreen(box)
   try {
     const got = await fitDesktop(
       {
