@@ -45,14 +45,17 @@ function recordingPool() {
         return { rows: [] }
       }
       if (/^SELECT/i.test(text)) {
-        if (!/AND thread = \$3/.test(text))
-          throw new Error('SELECT without thread: ' + text)
-        const mine = rows.filter(
-          r => r.telegram_id === params[0] && r.thread === params[2]
-        )
-        return {
-          rows: mine.sort((a, b) => b.id - a.id).slice(0, Number(params[1])),
-        }
+        // Two shapes, and BOTH must be thread-scoped: reading a conversation
+        // (thread in $3) and the duplicate probe that refuses to store the
+        // same turn twice in a row (thread in $2, newest row only).
+        const probe = /ORDER BY id DESC LIMIT 1$/.test(text)
+        const where = probe ? /AND thread = \$2/ : /AND thread = \$3/
+        if (!where.test(text)) throw new Error('SELECT without thread: ' + text)
+        const wanted = probe ? params[1] : params[2]
+        const mine = rows
+          .filter(r => r.telegram_id === params[0] && r.thread === wanted)
+          .sort((a, b) => b.id - a.id)
+        return { rows: mine.slice(0, probe ? 1 : Number(params[1])) }
       }
       if (/^DELETE FROM agent_messages/i.test(text)) {
         const before = rows.length
