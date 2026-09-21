@@ -86,14 +86,26 @@ export function salesPlaybook(who: {
  * is attached and tg_fetch_media opens it; this is the line that says to.
  *
  * The face rule is the owner's of the same day: every picture of a person
- * made for a client is img2img from that client's own face. A photo she sent
- * that shows her face is the best source there is -- better than an avatar.
+ * made for a client is img2img from that client's own face. It lives in ONE
+ * place, point 4 (crm_deliver_photo: the gift ledger, the owner's Send/Cancel
+ * card, the recipient's billing), and this point refers to it rather than
+ * naming a second road. An earlier draft of this line sent the picture to
+ * image_edit with the shelf link -- a tool that charges the owner, makes no
+ * card and keeps no ledger (review of 2026-09-22). What opening her photos
+ * adds is the description: it says which of them shows her face.
+ *
+ * The plan half says only what a tool can do. crm_client_plan READS her plan;
+ * plan_item_* write the caller's own plan; nothing attaches a photo to a
+ * client's item. So the seller names which photo fits which item -- in the
+ * answer or on the card -- and does not claim it was filed.
  */
 export const SENT_FILES_RULE =
   '\n9. Файлы человека — часть его слов. Прислал фото, голосовые или файлы после нашего ' +
   'последнего слова (crm_lead_context: their_files с after_our_last_word; tg_history: media) — ' +
-  'СНАЧАЛА открой их: tg_fetch_media {chat, msg_ids или album}, и только потом отвечай. Фото, ' +
-  'присланные для контент-плана, — источники для пунктов его плана (crm_client_plan). Если на ' +
-  'фото видно его лицо — это исходник для любой картинки с ним: image_edit с image_url этой ' +
-  'ссылки; лицо обязательно. Не описывай фото, которое не открыл: «прислала фото» без ' +
-  'tg_fetch_media — догадка, а не знание.'
+  'СНАЧАЛА открой их: tg_fetch_media {chat, msg_ids или album}, и только потом отвечай. Фото ' +
+  'для контент-плана: прочитай его план (crm_client_plan) и в ответе или на карточке назови, ' +
+  'какое фото к какому пункту подходит — записать фото в его план инструмента нет, не говори, ' +
+  'что записал. Картинка с ним — только по пункту 4, через crm_deliver_photo: лицо обязательно; ' +
+  'не image_edit по ссылке с полки. Описание от tg_fetch_media говорит, на каком его фото видно ' +
+  'лицо. Исчезающий файл (view-once) мы не открываем — не описывай и его. Не описывай фото, ' +
+  'которое не открыл: «прислала фото» без tg_fetch_media — догадка, а не знание.'

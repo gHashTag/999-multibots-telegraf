@@ -28,6 +28,7 @@ import {
   storedIngestMsgIds,
   dropDuplicateIngestRows,
   mtprotoMediaInfo,
+  isShelfFileName,
   MEDIA_KINDS,
   type MediaKind,
   type MediaRow,
@@ -249,6 +250,12 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
                 ? mtprotoMediaInfo(x.m.media, Number(x.m.id))
                 : null,
             }))
+          /*
+           * `info` is null for a file the sender made disappear (view-once,
+           * a timer): it gets its `[фото, исчезающее]` row above and is never
+           * downloaded here. The guard is in `mtprotoMediaInfo`, shared with
+           * tg_fetch_media, so the two paths cannot disagree.
+           */
           const withInfo = kept.filter(x => x.info)
           const msgs: StoredMessage[] = kept.map(({ m, sent }) => ({
             msgId: Number(m.id),
@@ -546,7 +553,14 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
           at: x.at.toISOString(),
           who: x.out ? 'owner' : 'person',
           kind: x.kind,
-          name: x.name,
+          // A name we gave the object is ours; any other name (rows stored
+          // before the shelf named its own objects, other surfaces) is the
+          // sender's text and is read fenced like a caption.
+          name: isShelfFileName(x.name)
+            ? x.name
+            : x.name
+              ? foreignText(x.name, { limit: 200 })
+              : x.name,
           mime: x.mime,
           bytes: x.bytes,
           url: x.url,

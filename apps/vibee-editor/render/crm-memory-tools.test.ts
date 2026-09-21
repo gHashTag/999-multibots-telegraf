@@ -480,6 +480,56 @@ describe('crm_ingest_chats', () => {
     expect(texts).toContain('[фото, альбом из 2] для плана')
   })
 
+  it('a view-once photo is written as a marker and never downloaded', async () => {
+    // The sender chose "view once" (ttlSeconds on the media). The ingest runs
+    // over every dialog with nobody watching; it must not keep what the
+    // sender said may be seen once. The memory still knows one was sent.
+    const put = vi.fn(async (_b: Buffer, name: string) => ({
+      key: `assets/4-${name}`,
+      url: `https://vibee-render-production.up.railway.app/s3/assets/4-${name}`,
+    }))
+    vi.doMock('./src/lib/s3-put', () => ({ s3PutBytes: put }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 500, text: async () => '' }))
+    )
+    const f = fakeClient()
+    const once = {
+      id: 9,
+      date: 1757250000,
+      out: false,
+      message: '',
+      media: {
+        className: 'MessageMediaPhoto',
+        photo: { sizes: [{ size: 100 }] },
+        ttlSeconds: 2147483647,
+      },
+    }
+    const baseGetMessages = f.client.getMessages.bind(f.client)
+    f.client.getMessages = async (chat: string) => {
+      const rows = await baseGetMessages(chat)
+      return chat === A ? [once, ...rows] : rows
+    }
+    const downloaded: number[] = []
+    ;(f.client as any).downloadMedia = async (m: { id: number }) => {
+      downloaded.push(m.id)
+      return Buffer.from('JFIF bytes')
+    }
+    const pool = fakePool()
+    const { ingest } = await tools(f.client)
+    const r: any = await ingest.handler({ limit: 10 }, ctxFor(OWNER, pool))
+    expect(downloaded).toEqual([])
+    expect(put).not.toHaveBeenCalled()
+    expect(r.media_saved).toBe(0)
+    expect(
+      pool.queries.some(q => q.sql.startsWith('INSERT INTO user_media'))
+    ).toBe(false)
+    const ins = pool.queries.find(
+      q => q.sql.startsWith('INSERT INTO crm_messages') && q.params[1] === A
+    )!
+    expect(ins.params).toContain('[фото, исчезающее]')
+  })
+
   it('a file whose message is already on the shelf is not downloaded again on the next pass', async () => {
     const put = vi.fn(async (_b: Buffer, name: string) => ({
       key: `assets/2-${name}`,
