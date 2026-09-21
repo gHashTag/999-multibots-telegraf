@@ -13,6 +13,15 @@
  * handler marks the message answered, the person would get "I could not tell
  * what to do with it" and then, seconds later, the real answer.
  *
+ * The other side of the same trap is guarded too: on the awaited shape a
+ * throw ANYWHERE in the turn reached the net's `finally`, which answered. The
+ * net is long gone when a lane job throws, so the job must answer for it --
+ * once, and only when the turn had said nothing.
+ *
+ * And a turn the process could not finish before it stopped is announced to
+ * the person (laneNotices.ts): its update is already confirmed to Telegram,
+ * so no process will ever answer it.
+ *
  * Through the REAL registerCommands chain, only the agent and the Bot API
  * faked. Fictional ids only.
  */
@@ -71,6 +80,8 @@ let registerCommands: (opts: { bot: any }) => void
 let sessionMiddleware: () => any
 let languageMiddleware: any
 let agentLanes: typeof import('@/services/agentLanes').agentLanes
+let laneNotices: typeof import('@/services/laneNotices')
+let buildAgentTurn: typeof import('@/services/agentAttachments').buildAgentTurn
 
 beforeAll(async () => {
   delete process.env.REDIS_URL
@@ -87,6 +98,8 @@ beforeAll(async () => {
   ;({ sessionMiddleware } = await import('@/core/session/sessionStore'))
   ;({ languageMiddleware } = await import('@/middlewares/languageMiddleware'))
   ;({ agentLanes } = await import('@/services/agentLanes'))
+  laneNotices = await import('@/services/laneNotices')
+  ;({ buildAgentTurn } = await import('@/services/agentAttachments'))
 }, 60_000)
 
 afterAll(() => {
@@ -223,5 +236,84 @@ describe('the agent turn in the bot chat runs off the loop', () => {
     const said = textsTo(USER)
     expect(said.filter(t => PUZZLED.test(t))).toEqual([])
     expect(said).toContain('Второе.')
+  }, 60_000)
+
+  it('a turn that throws before saying anything still answers the person -- once', async () => {
+    const USER = 900000064
+    sink = []
+    asks.length = 0
+    const bot = productionBot()
+    // A throw outside the turn's own guard: the shelf, before the agent.
+    vi.mocked(buildAgentTurn).mockImplementationOnce(async () => {
+      throw new Error('shelf exploded')
+    })
+
+    await settlesWithin(
+      bot.handleUpdate(
+        privateMessage(USER, { text: 'расскажи про рилсы' }) as any
+      ),
+      2000
+    )
+    expect((await agentLanes.drain(10_000)).unfinished).toEqual([])
+    await new Promise(r => setTimeout(r, 50))
+    const said = textsTo(USER)
+    expect(said.filter(t => PUZZLED.test(t))).toHaveLength(1)
+    expect(said).toHaveLength(1)
+    expect(asks).toHaveLength(0)
+  }, 60_000)
+
+  it('a turn that throws AFTER it said something is not answered a second time', async () => {
+    const USER = 900000065
+    sink = []
+    asks.length = 0
+    const bot = productionBot()
+    // The refusal goes out, then reading the plan throws.
+    vi.mocked(buildAgentTurn).mockImplementationOnce(
+      async () =>
+        ({
+          refusal: 'Файл слишком большой.',
+          stored: [],
+          get text(): string {
+            throw new Error('plan exploded')
+          },
+        }) as any
+    )
+
+    await bot.handleUpdate(
+      privateMessage(USER, { text: 'вот файл, посмотри' }) as any
+    )
+    expect((await agentLanes.drain(10_000)).unfinished).toEqual([])
+    await new Promise(r => setTimeout(r, 50))
+    const said = textsTo(USER)
+    expect(said).toEqual(['Файл слишком большой.'])
+  }, 60_000)
+
+  it('a turn cut off by shutdown tells the person to send it again; a finished one tells nobody', async () => {
+    const USER = 900000066
+    sink = []
+    asks.length = 0
+    const bot = productionBot()
+
+    await bot.handleUpdate(
+      privateMessage(USER, { text: 'сделай контент-план' }) as any
+    )
+    await vi.waitFor(() => expect(asks).toHaveLength(1), { timeout: 10_000 })
+
+    // The drain gives up while the agent is still thinking.
+    const { unfinished } = await agentLanes.drain(200)
+    expect(unfinished).toEqual([`dm:${USER}`])
+    expect(await laneNotices.sendShutdownNotices(unfinished)).toBe(1)
+    const told = textsTo(USER)
+    expect(told).toHaveLength(1)
+    expect(told[0]).toMatch(/перезапускался/) // cyrillic-ok: matches UI text
+    expect(told[0]).toMatch(/ещё раз/) // cyrillic-ok: matches UI text
+
+    // Once the turn does end, its notice is let go: nothing to tell.
+    asks[0].answer('План готов.')
+    expect((await agentLanes.drain(10_000)).unfinished).toEqual([])
+    sink = []
+    expect(await laneNotices.sendShutdownNotices([`dm:${USER}`])).toBe(0)
+    expect(sink).toEqual([])
+    expect(laneNotices.heldNoticeCount()).toBe(0)
   }, 60_000)
 })

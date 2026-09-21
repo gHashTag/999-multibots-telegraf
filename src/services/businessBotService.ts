@@ -134,6 +134,58 @@ const laneOwners = new Map<
 /** The longest merged burst handed to the agent in one turn. */
 export const BURST_TEXT_CAP = 6000
 
+/**
+ * AN ANSWER THE OWNER WITHHELD IS NOT AN ANSWER THE CLIENT READ.
+ *
+ * When the owner takes a chat over mid-turn, the agent's reply is not sent
+ * (see the send loop in runBusinessBatch) -- but the render has already saved
+ * it to the conversation as said. Left like that, the agent's memory holds a
+ * price, a link or a promise the client never received, and it will build on
+ * them. So the chat is marked here and the agent's next question in it starts
+ * with this note. Process memory only: a restart loses the mark, which costs
+ * the note and nothing else.
+ */
+export const WITHHELD_NOTE =
+  '[Service note, not written by the client: your previous answer in this chat was NOT delivered. ' +
+  'The owner took the conversation over before it went out, so the client has never seen it. ' +
+  'Do not refer to it as something the client read.]'
+/** A mark older than this is dropped: the conversation has moved on. */
+export const WITHHELD_MARK_TTL_MS = 24 * 60 * 60 * 1000
+const withheldAt = new Map<string, number>()
+
+function rememberWithheld(chatKey: string, now = Date.now()): void {
+  for (const [key, at] of withheldAt)
+    if (now - at > WITHHELD_MARK_TTL_MS) withheldAt.delete(key)
+  withheldAt.set(chatKey, now)
+}
+
+/** The note for the agent's next turn in this chat, once, or null. */
+function takeWithheldNote(chatKey: string, now = Date.now()): string | null {
+  const at = withheldAt.get(chatKey)
+  withheldAt.delete(chatKey)
+  return at !== undefined && now - at <= WITHHELD_MARK_TTL_MS
+    ? WITHHELD_NOTE
+    : null
+}
+
+/** First line of the owner's notice when the agent's answer is withheld. */
+export const DISCARD_NOTICE_HEAD = 'Ответ агента не отправлен — чат ваш.'
+const PARTIAL_NOTICE_HEAD = 'Ответ агента отправлен не целиком — чат ваш.'
+
+/**
+ * What the owner is told: the chat is theirs, and here is the part of the
+ * agent's answer the client did not get, to pass on if it matters.
+ */
+export function discardNotice(withheld: string, partlySent: boolean): string {
+  const head = partlySent ? PARTIAL_NOTICE_HEAD : DISCARD_NOTICE_HEAD
+  if (!withheld.trim()) return head
+  return (
+    `${head}\n` +
+    'Клиент не видел вот это. Если там цена, ссылка или готовый результат — перешлите сами:\n\n' +
+    withheld
+  )
+}
+
 /** Owner replied manually in a chat: the AI stays silent there until this time (ms). */
 export const OWNER_TAKEOVER_MS = 30 * 60 * 1000
 const ownerTakeoverUntil = new Map<string, number>()
@@ -1423,20 +1475,26 @@ async function runBusinessBatch(
      * its own failures and returns [] -- an unreachable history is a reason to
      * answer with less context, never a reason to leave the client unanswered.
      */
-    const reply = await answerClient(String(chatId), text, async () =>
-      chatWithAI(
-        buildBusinessMessages(
-          text,
-          senderName,
-          botUsername,
-          await fetchHistory(String(chatId))
-        ),
-        undefined,
-        {
-          telegramId: String(chatId),
-          botName: `business_${botUsername}`,
-        }
-      )
+    // The agent's memory says its last answer here was said; if the owner
+    // withheld it, the agent is told so before it speaks again.
+    const withheldNote = takeWithheldNote(chatKey)
+    const reply = await answerClient(
+      String(chatId),
+      withheldNote ? `${withheldNote}\n${text}` : text,
+      async () =>
+        chatWithAI(
+          buildBusinessMessages(
+            text,
+            senderName,
+            botUsername,
+            await fetchHistory(String(chatId))
+          ),
+          undefined,
+          {
+            telegramId: String(chatId),
+            botName: `business_${botUsername}`,
+          }
+        )
     )
 
     const pay = payButton(reply)
@@ -1489,15 +1547,29 @@ async function runBusinessBatch(
         sentParts: sentParts.length,
         ofParts: parts.length,
       })
-      await bot.telegram
-        .sendMessage(conn.ownerChatId, 'Ответ агента не отправлен — чат ваш.')
-        .catch(error => {
-          logger.warn('[Business] discard notice failed', {
-            error: error instanceof Error ? error.message : String(error),
-            connId,
-            chatId,
-          })
+      /*
+       * THE WITHHELD ANSWER IS HANDED TO THE OWNER, NOT THROWN AWAY.
+       *
+       * The render has already saved it to the client's conversation as
+       * said (agent/routes.ts records every non-tools_only answer), and the
+       * turn's tools may already have paid for what it carries -- a picture,
+       * an invoice link, a price. Only the owner can still pass it on, so
+       * the notice carries the part the client never got, in the owner's
+       * own chat with the bot. The agent is told on its next turn here.
+       */
+      rememberWithheld(chatKey)
+      const withheld = parts.slice(sentParts.length).join('\n\n')
+      const notice = discardNotice(withheld, sentParts.length > 0)
+      try {
+        for (const piece of splitLongAnswer(notice))
+          await bot.telegram.sendMessage(conn.ownerChatId, piece)
+      } catch (error) {
+        logger.warn('[Business] discard notice failed', {
+          error: error instanceof Error ? error.message : String(error),
+          connId,
+          chatId,
         })
+      }
     }
 
     /*
@@ -1566,8 +1638,8 @@ export async function tellOwnersWhoWasLeftUnanswered(
     { bot: Telegraf<any>; ownerChatId: number; who: string[] }
   >()
   for (const key of unfinished) {
-    // Only business lanes have an owner on record; dm: and crm: keys are
-    // the person's own chat with the bot and have nobody else to tell.
+    // Only business lanes have a seller on record. dm: and crm: keys are the
+    // person's own chat with the bot: laneNotices.ts tells them directly.
     const owner = laneOwners.get(key)
     if (!owner) continue
     const id = `${owner.bot.botInfo?.username ?? ''}:${owner.ownerChatId}`
