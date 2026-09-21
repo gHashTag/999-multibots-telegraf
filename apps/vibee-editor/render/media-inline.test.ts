@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { docxOf, pdfOf, zipOf } from './test-support/files'
 
 /**
  * WHAT THE AGENT CANNOT PERCEIVE, IT MUST READ -- OR SAY IT DID NOT.
@@ -56,12 +57,37 @@ const PROVIDER_ENV = [
   'PUBLIC_URL',
 ]
 
+/** Every subprocess the readers started: [command, args]. */
+let tools: Array<[string, string[]]> = []
+type ToolAnswer = { stdout?: string; stderr?: string; missing?: boolean }
+type ToolDouble = (args: string[]) => ToolAnswer
+
 /**
  * The module is loaded fresh per case because both the provider chain and the
  * S3 client are decided at module scope from the environment.
+ *
+ * `answers` doubles the readers' binaries at the process boundary. A binary
+ * the case did not name is REFUSED as not installed, never answered with an
+ * empty success -- a double that says "fine, no text" to anything is how a
+ * reader that never ran can look like one that found nothing.
  */
-const load = async () => {
+const load = async (answers: Record<string, ToolDouble> = {}) => {
   vi.resetModules()
+  vi.doMock('node:child_process', () => ({
+    execFile: (cmd: string, args: string[], _o: unknown, cb: Function) => {
+      tools.push([cmd, args])
+      const a = answers[cmd]?.(args) ?? { missing: true }
+      if (a.missing) {
+        cb(
+          Object.assign(new Error(`spawn ${cmd} ENOENT`), { code: 'ENOENT' }),
+          '',
+          ''
+        )
+        return
+      }
+      cb(a.stderr ? new Error('exit 1') : null, a.stdout ?? '', a.stderr ?? '')
+    },
+  }))
   vi.doMock('@aws-sdk/client-s3', () => {
     class GetObjectCommand {
       constructor(public input: Record<string, unknown>) {}
@@ -115,6 +141,7 @@ beforeEach(() => {
   }
   FILES.clear()
   sent = []
+  tools = []
   fetchSpy = vi.fn(async () => new Response('', { status: 500 }))
   vi.stubGlobal('fetch', fetchSpy)
 })
@@ -126,6 +153,7 @@ afterEach(() => {
   }
   vi.unstubAllGlobals()
   vi.doUnmock('@aws-sdk/client-s3')
+  vi.doUnmock('node:child_process')
 })
 
 describe('documents reach the model as text', () => {
@@ -161,27 +189,58 @@ describe('documents reach the model as text', () => {
     expect(sent[0]?.Range).toBe(`bytes=0-${200 * 1024 - 1}`)
   })
 
-  it('says a .pdf was not read instead of staying silent about it', async () => {
-    const { inlineUnperceivedMedia } = await load()
+  /*
+   * A PDF IS READ (2026-09-22). It used to be refused by name -- "the .pdf
+   * format cannot be opened here" -- which is the complaint this change
+   * answers: "I asked for support for reading ALL files". Read out of the
+   * bucket by key and through pdftotext, whose command line is asserted at
+   * the process boundary so this runs on a machine without poppler too.
+   */
+  it('reads a .pdf from our own shelf into the turn', async () => {
+    FILES.set('assets/1788-report.pdf', pdfOf('ignored: the tool is doubled'))
+    const { inlineUnperceivedMedia } = await load({
+      pdftotext: () => ({ stdout: 'Счёт 4217, оплатить до пятницы\f' }),
+    })
 
     const out = await inlineUnperceivedMedia(
       turn(marker('file', 'report.pdf', 'application/pdf', PDF)),
       {}
     )
 
-    expect(tail(out)).toContain('not read')
-    expect(tail(out)).toContain('report.pdf')
-    // No extractor exists, so nothing must be fetched to discover that.
-    expect(sent).toHaveLength(0)
+    expect(tail(out)).toContain('[read: report.pdf]')
+    expect(tail(out)).toContain('Счёт 4217, оплатить до пятницы')
+    expect(tail(out)).not.toContain('not read')
+    // Straight out of the bucket, whole: one byte past the cap is asked for,
+    // so "larger than allowed" is known without a second request.
+    expect(sent[0]).toMatchObject({
+      Key: 'assets/1788-report.pdf',
+      Range: `bytes=0-${20 * 1024 * 1024}`,
+    })
+    expect(tools[0]?.[0]).toBe('pdftotext')
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  /**
-   * ORDER MATTERS. A `.docx` sitting on our own shelf is refused for its
-   * FORMAT. Checking the origin first would tell the person their file "is not
-   * on our shelf" -- a false statement about a file they just uploaded, and
-   * one that sends them to re-upload it forever.
-   */
-  it('refuses a .docx for its format, not for where it lives', async () => {
+  it('says a scanned PDF has no text layer instead of inventing one', async () => {
+    FILES.set('assets/1788-report.pdf', pdfOf(null))
+    const { inlineUnperceivedMedia } = await load({
+      pdftotext: () => ({ stdout: '\f\n\f' }),
+    })
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('file', 'report.pdf', 'application/pdf', PDF)),
+      {}
+    )
+
+    expect(tail(out)).toContain('not read: report.pdf')
+    expect(tail(out)).toContain('no text layer')
+    expect(tail(out)).toContain('do NOT guess')
+  })
+
+  it('reads a .docx from its own XML', async () => {
+    FILES.set(
+      'assets/1788-deck.docx',
+      docxOf(['Бриф: три ролика', 'Бюджет 90 000'])
+    )
     const { inlineUnperceivedMedia } = await load()
 
     const out = await inlineUnperceivedMedia(
@@ -189,9 +248,63 @@ describe('documents reach the model as text', () => {
       {}
     )
 
+    expect(tail(out)).toContain('[read: deck.docx]')
+    expect(tail(out)).toContain('Бриф: три ролика\nБюджет 90 000')
+  })
+
+  it('lists an archive and says it was not unpacked', async () => {
+    FILES.set(
+      'assets/1788-pack.zip',
+      zipOf({ 'plan.docx': 'x'.repeat(4096), 'photo.jpg': 'j' })
+    )
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(
+        marker(
+          'file',
+          'pack.zip',
+          'application/zip',
+          `${SHELF}/s3/assets/1788-pack.zip`
+        )
+      ),
+      {}
+    )
+
+    expect(tail(out)).toContain('listed, not unpacked: pack.zip')
+    expect(tail(out)).toContain('plan.docx — 4.0 KB')
+    expect(tail(out)).toContain('photo.jpg')
+    // Nothing inside was read: the member's bytes never reach the turn.
+    expect(tail(out)).not.toContain('xxxx')
+  })
+
+  /**
+   * ORDER MATTERS. A legacy `.doc` sitting on our own shelf is refused for
+   * its FORMAT. Checking the origin first would tell the person their file "is
+   * not on our shelf" -- a false statement about a file they just uploaded,
+   * and one that sends them to re-upload it forever.
+   */
+  it('refuses a legacy .doc for its format, not for where it lives', async () => {
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(
+        marker(
+          'file',
+          'old.doc',
+          'application/msword',
+          `${SHELF}/s3/assets/1788-old.doc`
+        )
+      ),
+      {}
+    )
+
     expect(tail(out)).toContain('not read')
-    expect(tail(out)).toMatch(/format/i)
-    expect(tail(out)).not.toMatch(/shelf/i)
+    expect(tail(out)).toContain('the .doc format')
+    expect(tail(out)).not.toMatch(/shelf|storage/i)
+    // The hint names formats that DO open, and a PDF is one of them now.
+    expect(tail(out)).toContain('.pdf')
+    expect(sent).toHaveLength(0)
   })
 
   it('refuses a document hosted anywhere else, and fetches nothing', async () => {
@@ -597,5 +710,120 @@ describe('the live turn hears what the sweep hears', () => {
     expect(heard).toBe('услышанные слова')
     expect(posted.some(u => u.includes('/audio/transcriptions'))).toBe(true)
     vi.unstubAllGlobals()
+  })
+})
+
+/*
+ * SPEECH INSIDE A VIDEO (2026-09-22, from #2414 commit 12f09b597).
+ *
+ * A video note is somebody talking. Until this change the live turn only ever
+ * said "[not watched]" about it, and the sweep described its frames minutes
+ * later -- the words were never heard by anyone. The soundtrack now goes to
+ * the same transcriber a voice note does.
+ */
+describe('speech inside a video is heard on the turn', () => {
+  const NOTE = `${SHELF}/s3/assets/1788-video-note-1.mp4`
+  const heardBy = (posted: FormData[]) =>
+    vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/audio/transcriptions')) {
+        posted.push(init?.body as FormData)
+        return new Response(
+          'data: {"text":"пришлите смету до вечера"}\ndata: [DONE]\n',
+          { status: 200 }
+        )
+      }
+      return new Response('', { status: 500 })
+    })
+
+  it("transcribes a video note's soundtrack out of the bucket, not through the /s3/ route", async () => {
+    process.env.WHISPER_API_KEY = 'gsk_test'
+    FILES.set('assets/1788-video-note-1.mp4', Buffer.from('small mp4 bytes'))
+    const posted: FormData[] = []
+    fetchSpy = heardBy(posted)
+    vi.stubGlobal('fetch', fetchSpy)
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('video', 'video-note-1.mp4', 'video/mp4', NOTE)),
+      {}
+    )
+
+    expect(tail(out)).toContain('[heard in the video: video-note-1.mp4')
+    expect(tail(out)).toContain('пришлите смету до вечера')
+    // Honest about what it did NOT do.
+    expect(tail(out)).toContain('do NOT describe what is on screen')
+    // The `/s3/` route would transcode the whole video first; the bucket
+    // hands over the bytes as they are.
+    expect(
+      fetchSpy.mock.calls.some((c: unknown[]) => String(c[0]).includes('/s3/'))
+    ).toBe(false)
+    expect(sent[0]?.Key).toBe('assets/1788-video-note-1.mp4')
+    const file = posted[0]?.get('file') as File
+    expect(file.name).toBe('video-note-1.mp4')
+    expect(file.type).toBe('video/mp4')
+    // Small enough for the transcriber: no ffmpeg at all.
+    expect(tools).toEqual([])
+  })
+
+  it('takes the soundtrack out with ffmpeg only when the video is too big for the transcriber', async () => {
+    process.env.WHISPER_API_KEY = 'gsk_test'
+    FILES.set('assets/1788-video-note-1.mp4', Buffer.alloc(26 * 1024 * 1024))
+    const posted: FormData[] = []
+    fetchSpy = heardBy(posted)
+    vi.stubGlobal('fetch', fetchSpy)
+    const { writeFileSync } = await import('node:fs')
+    const { inlineUnperceivedMedia } = await load({
+      ffmpeg: args => {
+        writeFileSync(args[args.length - 1], Buffer.from('m4a sound'))
+        return { stdout: '' }
+      },
+    })
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('video', 'video-note-1.mp4', 'video/mp4', NOTE)),
+      {}
+    )
+
+    expect(tools.map(t => t[0])).toEqual(['ffmpeg'])
+    const file = posted[0]?.get('file') as File
+    expect(file.name).toBe('soundtrack.m4a')
+    expect(file.size).toBe('m4a sound'.length)
+    expect(tail(out)).toContain('пришлите смету до вечера')
+  })
+
+  it('says it neither watched nor heard when nothing here can listen, and reads nothing', async () => {
+    FILES.set('assets/1788-video-note-1.mp4', Buffer.from('small mp4 bytes'))
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(marker('video', 'video-note-1.mp4', 'video/mp4', NOTE)),
+      {}
+    )
+
+    expect(tail(out)).toContain('[not watched: video-note-1.mp4')
+    expect(tail(out)).toContain('hear speech')
+    expect(sent).toHaveLength(0)
+  })
+
+  it('spends the one live transcription of the turn: a second recording waits', async () => {
+    process.env.WHISPER_API_KEY = 'gsk_test'
+    FILES.set('assets/1788-video-note-1.mp4', Buffer.from('small mp4 bytes'))
+    const posted: FormData[] = []
+    fetchSpy = heardBy(posted)
+    vi.stubGlobal('fetch', fetchSpy)
+    const { inlineUnperceivedMedia } = await load()
+
+    const out = await inlineUnperceivedMedia(
+      turn(
+        marker('video', 'video-note-1.mp4', 'video/mp4', NOTE) +
+          '\n' +
+          marker('audio', 'voice.ogg', 'audio/ogg', VOICE)
+      ),
+      {}
+    )
+
+    expect(posted).toHaveLength(1)
+    expect(tail(out)).toContain('[not heard: voice.ogg')
   })
 })

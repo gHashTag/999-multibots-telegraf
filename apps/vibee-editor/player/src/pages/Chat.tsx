@@ -553,10 +553,16 @@ function ChatThread({ client }: { client: string | null }) {
           </div>
         ) : null}
         <div className="chat-input-container">
+          {/*
+           * ANY FILE, NOT ONLY MEDIA (2026-09-22). The picker used to accept
+           * image/*, video/* and audio/* alone, so a PDF, a spreadsheet or a
+           * .txt could not even be chosen here while the bot read them. The
+           * server reads what it can and names what it cannot
+           * (render media-inline.ts), so the picker no longer decides.
+           */}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*,audio/*"
             multiple
             className="chat-file-input"
             aria-hidden="true"
@@ -566,8 +572,8 @@ function ChatThread({ client }: { client: string | null }) {
           <button
             type="button"
             className="attach-btn"
-            aria-label="Добавить фото, видео или аудио"
-            title="Добавить фото, видео или аудио"
+            aria-label={t('chat.attachAny')}
+            title={t('chat.attachAny')}
             disabled={busy || uploading || attachments.length >= 4}
             onClick={() => fileInputRef.current?.click()}
           >

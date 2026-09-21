@@ -62,14 +62,15 @@
  * instruction is something a model can smooth over and a sentence in the
  * transcript is not.
  *
- * ── WHAT IS HONESTLY NOT SUPPORTED ─────────────────────────────────────────
+ * ── WHAT IS READ, AND WHAT IS HONESTLY NOT (2026-09-22) ────────────────────
  *
- * `.pdf`, `.docx`, `.xlsx` and every other packed format. This repository has
- * no extractor for any of them -- no pdf-parse, no pdfjs, no mammoth, no
- * officeparser, no xlsx, no tika, in any package.json. They produce an
- * explicit refusal naming the format and the ones that do work. Guessing at
- * their bytes would produce mojibake, and mojibake is how a model invents a
- * document that does not exist.
+ * PDF, .docx/.xlsx/.pptx, OpenDocument and RTF are read by media-extract.ts;
+ * an archive is LISTED by name and size and never unpacked, and the line says
+ * so; a video's soundtrack is transcribed on the turn. What is still refused
+ * -- legacy .doc/.xls/.ppt, Apple's formats, .epub, anything unknown -- is
+ * refused BY NAME, with the formats that do work. Guessing at bytes would
+ * produce mojibake, and mojibake is how a model invents a document that does
+ * not exist.
  */
 
 import type { ChatMessage } from './chat'
@@ -87,9 +88,17 @@ import {
   mediaByUrls,
   readShelfDocument,
   transcribeShelfAudioNow,
+  transcribeShelfVideoNow,
   whisperConfig,
   type Pool,
 } from './media-library'
+import {
+  DOCUMENT_MAX_BYTES,
+  UNREADABLE_EXTENSIONS,
+  documentFormat,
+  readShelfExtracted,
+  type Extracted,
+} from './media-extract'
 import { visionConfig } from './media-vision'
 import { foreignText } from './telegram-tools'
 
@@ -134,11 +143,20 @@ const LIVE_DESCRIBE_MS = Math.max(
   Number(process.env.MEDIA_LIVE_DESCRIBE_MS) || 45_000
 )
 
-/** Formats named often enough to deserve being named back. */
-const KNOWN_UNREADABLE =
-  /\.(pdf|docx?|xlsx?|pptx?|pages|numbers|key|epub|rtf|odt|ods|zip|rar|7z|gz|tar)$/i
+/**
+ * Formats named often enough to deserve being named back. Built from the one
+ * list the prompt also reads (media-extract.ts), so the refusal and the
+ * promise cannot disagree about a format.
+ */
+const KNOWN_UNREADABLE = new RegExp(
+  `\\.(${UNREADABLE_EXTENSIONS.join('|')})$`,
+  'i'
+)
 
-const READABLE_HINT = '.txt, .md, .csv, .json or plain text in the message'
+const READABLE_HINT = '.pdf, .docx, .xlsx, .txt or plain text in the message'
+
+/** The character count past which `note` shows only the beginning. */
+const NOTE_SHOWS = 2000
 
 interface InlineOptions {
   pool?: Pool | null
@@ -246,13 +264,45 @@ function documentRefusal(ref: MarkerRef): string | null {
   if (known) {
     return `[not read: ${name} — the ${known[0].toLowerCase()} format cannot be opened here; ask the person for ${READABLE_HINT}]`
   }
-  if (!isTextLikeDocument(ref.mime, name)) {
+  if (!isTextLikeDocument(ref.mime, name) && !documentFormat(ref.mime, name)) {
     return `[not read: ${name} — this format cannot be opened here; ask the person for ${READABLE_HINT}]`
   }
   if (!shelfObject(ref.url)) {
     return `[not read: ${name} — the file is not on our own storage, so it cannot be opened]`
   }
   return null
+}
+
+/**
+ * What a PDF, an office file or an archive gave back, as the line the model
+ * reads. Every failure has its own sentence, because each one asks the person
+ * for something different -- a scan needs the text or a photo of the page, a
+ * locked file needs the password removed, a broken one needs sending again.
+ */
+function extractedLine(name: string, got: Extracted): string {
+  if (got.ok) {
+    const body = foreignText(defangMarkers(got.text), { limit: NOTE_SHOWS })
+    if (got.listing) {
+      return `[listed, not unpacked: ${name} — only the names and sizes inside are known; say so, and to read one of these files ask the person to send it on its own]\n${body}`
+    }
+    const shown =
+      got.chars > NOTE_SHOWS
+        ? ` — ${got.chars} characters, only the beginning is shown`
+        : ''
+    return `[read: ${name}${shown}]\n${body}`
+  }
+  switch (got.reason) {
+    case 'no-text':
+      return `[not read: ${name} — this PDF has no text layer (a scan or pictures of pages), so there is nothing to read in it. Say so plainly and ask for the text or a photo of the page; do NOT guess what it says.]`
+    case 'encrypted':
+      return `[not read: ${name} — the file is password-protected; ask the person for a copy without the password]`
+    case 'too-big':
+      return `[not read: ${name} — the file is larger than ${Math.round(DOCUMENT_MAX_BYTES / 1024 / 1024)} MB, too big to open here]`
+    case 'tool-missing':
+      return `[not read: ${name} — the reader for this format is not installed on the server yet. Say so plainly; do NOT guess what it says.]`
+    default:
+      return `[not read: ${name} — the file could not be opened (damaged, or not really this format); ask the person to send it again]`
+  }
 }
 
 /**
@@ -358,6 +408,13 @@ export async function inlineUnperceivedMedia(
         add(refusal)
         continue
       }
+      if (!isTextLikeDocument(ref.mime, name)) {
+        const got = await readShelfExtracted(url, name, ref.mime).catch(
+          (): Extracted => ({ ok: false, reason: 'damaged' })
+        )
+        add(extractedLine(name, got))
+        continue
+      }
       const text = await readShelfDocument(url).catch(() => null)
       add(
         text
@@ -420,12 +477,31 @@ export async function inlineUnperceivedMedia(
       continue
     }
 
-    // Video. Frame sampling takes minutes, so it belongs to the sweep; a live
-    // turn either has yesterday's description or admits it has none.
+    // Video. Frame sampling takes minutes, so the PICTURE belongs to the
+    // sweep; a live turn has yesterday's description or admits it has none.
+    if (stored) {
+      add(note('watched earlier', name, stored))
+      continue
+    }
+    /*
+     * THE SOUND, LIVE (2026-09-22). A video note is somebody talking, and the
+     * transcriber that hears a voice note hears it too. It spends the same
+     * one-per-turn budget as a recording: it is the same cost and the same
+     * wait.
+     */
+    let heard: string | null = null
+    if (live < MAX_LIVE_TRANSCRIPTS && whisperConfig()) {
+      live += 1
+      heard = await transcribeShelfVideoNow(
+        url,
+        name,
+        LIVE_TRANSCRIBE_MS
+      ).catch(() => null)
+    }
     add(
-      stored
-        ? note('watched earlier', name, stored)
-        : `[not watched: ${name} — nothing here could watch this video, and no description is on record. Say so plainly.]`
+      heard
+        ? `[heard in the video: ${name} — its soundtrack only; nothing has looked at the picture yet, so do NOT describe what is on screen]\n${foreignText(defangMarkers(heard))}`
+        : `[not watched: ${name} — nothing here could watch this video or hear speech in it, and no description is on record. Say so plainly.]`
     )
   }
 
