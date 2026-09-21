@@ -227,6 +227,11 @@ export async function leadAvatarUrl(
   return avatarUrlViaBotApi(lead.id)
 }
 
+/** What feed_publish tells the model to say: saved and waiting, not live. */
+const SAVED_NOT_PUBLISHED =
+  'ролик сохранён и ждёт одобрения в разделе «Ждут одобрения»; ' +
+  'в ленте и в канале его увидят только после одобрения'
+
 function selfFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers || {})
   const key = process.env.RENDER_API_KEY
@@ -1145,12 +1150,25 @@ export const TOOLS: AgentTool[] = [
       }
       if (!res.ok || !body.id) {
         return {
+          сохранено: false, // cyrillic-ok: the tool answer field the model reads
           опубликовано: false,
           причина: `публикация не прошла: HTTP ${res.status}`,
         }
       }
+      /*
+       * SAVED, NOT PUBLISHED -- and the model is told which.
+       *
+       * The post above always goes in hidden, waiting for the author's
+       * approval. This answer used to say "published: true", and the model
+       * repeated it: in the live duet of 2026-09-21 the seller told the client
+       * "the reel is published in the feed" about a row nobody but its author
+       * could see. The tool was the one lying; the model only passed it on.
+       */
       return {
-        опубликовано: true,
+        сохранено: true, // cyrillic-ok: the tool answer field the model reads
+        опубликовано: false,
+        ждёт_одобрения: true, // cyrillic-ok: the tool answer field the model reads
+        сказать_человеку: SAVED_NOT_PUBLISHED, // cyrillic-ok: the tool answer field the model reads
         id: body.id,
         создано: body.template?.created_at,
         // Отдаём результат доставки НАРУЖУ: агент должен знать, дошёл ли
