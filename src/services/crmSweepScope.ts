@@ -28,19 +28,27 @@ export const SWEEP_HEAD =
  * now counts them, and tg_fetch_media opens them -- a read, which is why it
  * comes before the one action and does not replace it.
  */
+/*
+ * A picture of him goes where every picture for a client goes:
+ * crm_deliver_photo (the gift ledger, the owner's Send/Cancel card, the
+ * recipient's billing). An earlier draft named image_edit here -- a second
+ * tool for the same job that charges the owner and makes no card, inside an
+ * unattended sweep too (review of 2026-09-22).
+ */
 export const SWEEP_FILES =
   'Если после нашего последнего слова он прислал фото, голосовые или файлы ' +
   '(their_files с after_our_last_word в crm_lead_context) — СНАЧАЛА открой их: ' +
   'tg_fetch_media {chat, msg_ids}; это чтение, не действие. Отвечай по тому, что ' +
-  'в них увидел; фото с его лицом — исходник для картинки с ним (image_edit); ' +
+  'в них увидел; картинка с ним — только crm_deliver_photo (его лицо), не image_edit; ' +
   'неоткрытый файл не описывай. '
-export const SWEEP_RULES =
-  SWEEP_FILES +
+/** The one action by `next`, without the files rule: the one-person brief reads first. */
+export const SWEEP_ACTIONS =
   'next=reply — короткий ответ по сути его последних слов через tg_send; ' +
   'next=talk — короткое продолжение разговора по контексту через tg_send, без цены ' +
   'и без счёта; next=deliver и есть токены — crm_deliver_photo по его просьбе; ' +
   'next=offer — crm_offer, и только если человек САМ спрашивал цену или хотел купить. ' +
   'НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ: клиент должен захотеть сам. '
+export const SWEEP_RULES = SWEEP_FILES + SWEEP_ACTIONS
 /*
  * STEP 4 CONTRADICTED STEP 2, AND STEP 4 WON.
  *
@@ -471,6 +479,23 @@ export const PACKAGE_STEP =
   'не записывай — ответы даёт сам человек. Если пакета нет или он подтверждён — ' +
   'действуй по шагам ниже. '
 
+/*
+ * THE READ COMES BEFORE THE PACKAGE (review of 2026-09-22).
+ *
+ * The client this brief was pressed for has a draft package, and
+ * PACKAGE_STEP makes packaging her ONE action -- "if there is no package or
+ * it is confirmed, follow the steps below". The files rule lived only inside
+ * those steps, so for exactly her the model was told to send the packaging
+ * message and never reached "open her photos". Reading her history and her
+ * files is not an action, so it now comes before any action is chosen: the
+ * package's, the portrait's, or the one by `next`.
+ */
+export const SWEEP_READ =
+  'Прежде любого действия — чтение: crm_lead_context с chat=CHAT; если в their_files ' +
+  'есть after_our_last_word — открой эти файлы: tg_fetch_media {chat=CHAT, msg_ids}. ' +
+  'Это чтение, не действие: всё ниже — по тому, что он написал и прислал; картинка с ' +
+  'ним — только crm_deliver_photo (его лицо), не image_edit; неоткрытый файл не описывай. '
+
 export function scopedPrompt(item: ScopeItem): string {
   return (
     'Обход продавца по выбору владельца: ОДИН человек — ' +
@@ -480,14 +505,15 @@ export function scopedPrompt(item: ScopeItem): string {
     'ходах — про других. ' +
     (item.next ? 'По памяти его шаг: next=' + item.next + '. ' : '') +
     (item.note ? item.note + ' ' : '') +
+    SWEEP_READ.split('CHAT').join(item.chat) +
     (/^\d{5,15}$/.test(item.chat)
       ? PACKAGE_STEP.replace('CHAT', item.chat)
       : '') +
-    'Шаги: 1) crm_lead_context с chat=' +
+    'Шаги: 1) по прочитанному в crm_lead_context с chat=' +
     item.chat +
-    ' — и продолжай ИМЕННО ЭТУ переписку, по её истории и памяти, а не начинай заново. ' +
+    ' — продолжай ИМЕННО ЭТУ переписку, по её истории и памяти, а не начинай заново. ' +
     '2) Ровно ОДНО действие: ' +
-    SWEEP_RULES +
+    SWEEP_ACTIONS +
     '3) Если писать нечего (отказ за 30 дней, просил позже, мы писали меньше двух дней ' +
     'назад и он молчит) — ответь одним словом «тихо» и ничего не готовь. ' +
     'НИЧЕГО НЕ ОТПРАВЛЯЙ САМ: только подготовь; владелец нажмёт кнопку. Ответ — одна ' +

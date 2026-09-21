@@ -55,6 +55,11 @@ export interface SentMedia {
   bytes?: number
   /** Seconds, for voice, audio, video and round videos. */
   duration?: number
+  /**
+   * The sender made it disappear: "view once", a self-destruct timer, or it
+   * already has (the file is gone from the message). See `isEphemeralMedia`.
+   */
+  ephemeral?: true
 }
 
 interface DocumentAttributeLike {
@@ -76,6 +81,9 @@ export interface GramMediaLike {
   } | null
   voice?: boolean
   round?: boolean
+  video?: boolean
+  /** Set by Telegram for "view once" (the largest int32) and self-destruct timers. */
+  ttlSeconds?: number | null
 }
 
 /** Enough of a GramJS `Message`. */
@@ -121,6 +129,31 @@ const attr = (m: GramMediaLike, name: string) =>
   (m.document?.attributes ?? []).find(a => a?.className === name)
 
 /**
+ * VIEW-ONCE IS THE SENDER'S CHOICE, AND IT IS NOT OURS TO UNDO.
+ *
+ * Telegram marks a photo, voice note or round video sent "view once" or on a
+ * self-destruct timer with `ttlSeconds` on MessageMediaPhoto /
+ * MessageMediaDocument; once it has been viewed or has expired, the photo or
+ * document is gone from the message and the timer stays. Downloading such a
+ * file over the owner's session would put on our public, permanent shelf --
+ * described into the memory and Zep, its URL handed on -- exactly what the
+ * sender chose to show once. So nothing downloads, stores or describes it:
+ * `mtprotoMediaInfo` names no file for it, and `tg_fetch_media` answers
+ * "view-once, not opened". The marker line still says one was sent.
+ */
+export function isEphemeralMedia(
+  media: GramMediaLike | null | undefined
+): boolean {
+  if (!media || typeof media !== 'object') return false
+  const cls = String(media.className ?? '')
+  const photoLike = cls === 'MessageMediaPhoto' || (!cls && !!media.photo)
+  const docLike = cls === 'MessageMediaDocument' || (!cls && !!media.document)
+  if (!photoLike && !docLike) return false
+  if (media.ttlSeconds !== undefined && media.ttlSeconds !== null) return true
+  return photoLike ? !media.photo : !media.document
+}
+
+/**
  * What one message carries, or null when it carries nothing a person sent:
  * no media, an empty media, or a link preview (its URL is already in the
  * text, and "they sent a web page" would be a false sentence).
@@ -139,15 +172,30 @@ export function sentMediaOf(
   const base = (kind: SentMediaKind): SentMedia =>
     album ? { kind, album } : { kind }
 
+  const ephemeral = isEphemeralMedia(media)
   if (cls === 'MessageMediaPhoto' || (!cls && media.photo)) {
     const out = base('photo')
     const bytes = largestPhotoBytes(media.photo)
     if (bytes !== null) out.bytes = bytes
+    if (ephemeral) out.ephemeral = true
     return out
   }
   if (cls === 'MessageMediaDocument' || (!cls && media.document)) {
     const d = media.document
-    if (!d) return null
+    if (!d) {
+      // Gone already: the message's own flags still say what it was.
+      const gone = base(
+        media.voice === true
+          ? 'voice'
+          : media.round === true
+            ? 'video_note'
+            : media.video === true
+              ? 'video'
+              : 'document'
+      )
+      gone.ephemeral = true
+      return gone
+    }
     const mime = String(d.mimeType ?? '')
     const audio = attr(media, 'DocumentAttributeAudio')
     const video = attr(media, 'DocumentAttributeVideo')
@@ -167,6 +215,7 @@ export function sentMediaOf(
     const seconds = Number((audio ?? video)?.duration)
     if (Number.isFinite(seconds) && seconds > 0)
       out.duration = Math.round(seconds)
+    if (ephemeral) out.ephemeral = true
     return out
   }
   if (cls === 'MessageMediaContact') return base('contact')
@@ -294,6 +343,7 @@ const size = (bytes: number): string =>
 export function mediaMarker(media: SentMedia, name?: string | null): string {
   const head = KIND_WORD[media.kind] + (name ? `: ${name}` : '')
   const parts = [head]
+  if (media.ephemeral) parts.push('исчезающее')
   if (media.duration) parts.push(clock(media.duration))
   if (
     media.bytes &&
