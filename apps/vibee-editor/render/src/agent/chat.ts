@@ -40,6 +40,77 @@ import { randomUUID } from 'node:crypto'
 
 const MAX_STEPS = 8
 
+/**
+ * WHAT THE TURN SAYS WHEN THE PERSON WHO ASKED HAS GONE.
+ *
+ * Not an error shown to anybody -- there is nobody left to show it to. It is
+ * the word the log and the tests agree on, so "the caller hung up" is not
+ * confused with "the model failed", which is what a bare abort used to look
+ * like from every side.
+ */
+export const ABORTED_BY_CALLER = 'ход прерван: вызывающий отключился' // cyrillic-ok
+
+/**
+ * HOW OFTEN A RUNNING TOOL SAYS IT IS STILL RUNNING.
+ *
+ * Production, 20.09.2026: one `image_edit` took 170 seconds -- provider,
+ * download, upload to our own S3 -- and emitted not one byte in between. From
+ * the bot's side that is indistinguishable from a hung render, so the bot's
+ * flat 180 s ceiling cut the turn ten seconds after the picture had actually
+ * landed in the bucket, then replayed the whole thing and paid for it twice.
+ *
+ * A beat while the work is real turns that flat ceiling into something a
+ * caller can reason about: silence now means silence.
+ */
+export const TOOL_HEARTBEAT_MS = 15_000
+
+/**
+ * RUN A TOOL AND KEEP SAYING IT IS ALIVE.
+ *
+ * On 20.09.2026 one `image_edit` ran for 170 seconds and the stream carried
+ * nothing at all in the meantime, so the bot -- which could only measure total
+ * elapsed time -- gave up 10 seconds after the picture had landed in the
+ * bucket, and replayed the turn. With a tick every TOOL_HEARTBEAT_MS the
+ * caller can wait on SILENCE instead of on the clock, which is the thing it
+ * actually cares about.
+ *
+ * A failure comes back as a tool RESULT, not as a throw: the model is told
+ * what went wrong and gets to answer around it, which is what the try/catch
+ * around the handler did before the heartbeat existed.
+ */
+/** One heartbeat tick, in the event envelope's own field names. */
+type Heartbeat = { тип: 'ждём'; имя: string; мс: number } // cyrillic-ok: envelope
+
+export async function* withHeartbeat(
+  имя: string, // cyrillic-ok: matches the event envelope's field
+  startedAt: number,
+  running: Promise<unknown>
+): AsyncGenerator<Heartbeat, unknown, void> {
+  let finished = false
+  const settled = running.then(
+    v => {
+      finished = true
+      return v
+    },
+    e => {
+      finished = true
+      return { ошибка: String(e).slice(0, 400) } // cyrillic-ok: tool result key
+    }
+  )
+  while (!finished) {
+    let beat: ReturnType<typeof setTimeout> | undefined
+    const tick = new Promise<'tick'>(resolve => {
+      beat = setTimeout(() => resolve('tick'), TOOL_HEARTBEAT_MS)
+    })
+    const who = await Promise.race([settled.then(() => 'done' as const), tick])
+    if (beat) clearTimeout(beat)
+    if (who === 'tick' && !finished) {
+      yield { тип: 'ждём', имя, мс: Date.now() - startedAt } // cyrillic-ok: event envelope
+    }
+  }
+  return await settled
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string | null
@@ -72,6 +143,15 @@ export type AgentEvent =
   | { тип: 'размышление'; текст: string }
   | { тип: 'текст'; текст: string }
   | { тип: 'инструмент'; имя: string; аргументы: string }
+  /**
+   * STILL WORKING -- emitted every TOOL_HEARTBEAT_MS while a tool runs.
+   *
+   * Carries no result and needs none: its whole content is that the turn is
+   * alive. A slow generation used to look exactly like a dead render, and a
+   * caller cannot tell those apart by waiting longer -- only by being told.
+   * Like `ход`, this is a new `тип`, which every client already ignores.
+   */
+  | { тип: 'ждём'; имя: string; мс: number } // cyrillic-ok: event envelope
   | { тип: 'результат'; имя: string; значение: unknown; мс: number }
   | { тип: 'готово'; витков: number; обрыв?: string }
   | { тип: 'ошибка'; текст: string }
@@ -727,9 +807,39 @@ function skipped(reason: string): void {
   console.warn(`${SKIP_LOG_PREFIX} ${reason}`)
 }
 
+/**
+ * A DROPPED CONNECTION IS NOT A DEAD PROVIDER.
+ *
+ * Production, 20.09.2026: `[agent] provider skipped: zai: TypeError:
+ * terminated` twice inside ten minutes -- undici's wording for "the socket
+ * went away mid-stream". The chain treated it as the provider refusing and
+ * fell through to the reserve, which means the forty seconds already spent
+ * were thrown away and the whole call restarted from zero against a slower
+ * model. Both turns then missed the caller's 180 s ceiling.
+ *
+ * A transport that dropped says nothing about whether the provider would
+ * answer; the honest response is to ask the same one again. Only before any
+ * text has reached the person -- after that a second attempt would splice two
+ * answers together -- and only once, so a genuinely dead route still falls
+ * through instead of looping.
+ */
+const DROPPED_MID_STREAM =
+  /terminated|econnreset|socket hang up|ecconnaborted|epipe|network|fetch failed/i
+
+/** Retries granted to one provider for a dropped transport, per turn. */
+export const RETRY_DROPPED_STREAM = 1
+
+/** Said when the same route is asked again, as opposed to abandoned. */
+export const RETRY_LOG_PREFIX = '[agent] provider stream dropped, retrying:'
+
 export async function* streamModel(
   messages: ChatMessage[],
-  opts: { toolsOnly?: boolean; denyTools?: ReadonlySet<string> } = {}
+  opts: {
+    toolsOnly?: boolean
+    denyTools?: ReadonlySet<string>
+    /** The caller went away: stop, do not start the next provider. */
+    signal?: AbortSignal
+  } = {}
 ): AsyncGenerator<
   | { kind: 'provider'; id: string; model: string }
   | { kind: 'reasoning'; text: string }
@@ -817,7 +927,8 @@ export async function* streamModel(
   // Собираем ПРИЧИНЫ отказа по каждому — иначе владелец увидит «не отвечает»
   // и не узнает, что дело в нулевом балансе или протухшем ключе.
   const причины: string[] = []
-  for (const p of providers) {
+  providerLoop: for (const p of providers) {
+    if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
     const body: Record<string, unknown> = {
       model: p.model,
       messages: useParts ? withMediaParts(messages) : messages,
@@ -840,106 +951,137 @@ export async function* streamModel(
     // AbortController обрывает и fetch, и чтение тела, поэтому reader.read()
     // отвергнется, а не зависнет. 120с — потолок с запасом на длинный ответ
     // с размышлением.
-    const ac = new AbortController()
-    const timer = setTimeout(() => ac.abort(), 120_000)
-    // Отдали ли клиенту хоть кусок текста. Если да, «тихо начать заново у
-    // другого провайдера» уже нельзя — человек увидел бы склейку двух ответов.
-    let ужеОтдалиТекст = false
-    try {
-      const r = await fetch(`${p.base}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${p.key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-        signal: ac.signal,
-      })
+    for (let attempt = 0; attempt <= RETRY_DROPPED_STREAM; attempt++) {
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 120_000)
+      /*
+       * The caller's departure aborts the same fetch the deadline does. Without
+       * this the render kept streaming tokens from the provider into a socket
+       * nobody was reading -- and finished the turn, tools and charges included,
+       * for a person who had already been handed a fallback answer.
+       */
+      const onGone = () => ac.abort()
+      opts.signal?.addEventListener('abort', onGone, { once: true })
+      // Отдали ли клиенту хоть кусок текста. Если да, «тихо начать заново у
+      // другого провайдера» уже нельзя — человек увидел бы склейку двух ответов.
+      let ужеОтдалиТекст = false
+      try {
+        const r = await fetch(`${p.base}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${p.key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal: ac.signal,
+        })
 
-      if (!r.ok || !r.body) {
-        const t = await r.text().catch(() => '')
-        const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
-        skipped(почему) // cyrillic-ok: pre-existing identifier
-        причины.push(почему) // cyrillic-ok: pre-existing identifier
-        continue
-      }
+        if (!r.ok || !r.body) {
+          const t = await r.text().catch(() => '')
+          const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
+          skipped(почему) // cyrillic-ok: pre-existing identifier
+          причины.push(почему) // cyrillic-ok: pre-existing identifier
+          continue providerLoop
+        }
 
-      // Who is answering. Without this line every bad answer in the log was
-      // anonymous, and the fallback chain made the guess wrong half the time.
-      yield { kind: 'provider', id: p.id, model: p.model }
-      const reader = (r.body as any).getReader()
-      const decoder = new TextDecoder()
-      let buf = ''
-      const acc: any = { role: 'assistant', content: '', tool_calls: [] }
+        // Who is answering. Without this line every bad answer in the log was
+        // anonymous, and the fallback chain made the guess wrong half the time.
+        yield { kind: 'provider', id: p.id, model: p.model }
+        const reader = (r.body as any).getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+        const acc: any = { role: 'assistant', content: '', tool_calls: [] }
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const lines = buf.split('\n')
-        buf = lines.pop() ?? ''
-        for (const line of lines) {
-          const str = line.trim()
-          if (!str.startsWith('data:')) continue
-          const payload = str.slice(5).trim()
-          if (payload === '[DONE]') continue
-          let j: any
-          try {
-            j = JSON.parse(payload)
-          } catch {
-            continue
-          }
-          // Ошибка провайдера ПОСРЕДИ потока приходит как 200 + data:{error}.
-          // Раньше `if (!d) continue` её молча проглатывал, поток заканчивался
-          // пустым, и клиент получал пустой пузырь. Теперь бросаем — runAgent
-          // поймает и покажет человеку 'ошибка', а не пустоту.
-          if (j.error) {
-            throw new Error(
-              `${p.id} прислал ошибку в потоке: ${JSON.stringify(j.error).slice(0, 150)}`
-            )
-          }
-          const d = j.choices?.[0]?.delta
-          if (!d) continue
-          if (d.reasoning_content) {
-            yield { kind: 'reasoning', text: d.reasoning_content }
-          }
-          if (d.content) {
-            acc.content += d.content
-            ужеОтдалиТекст = true
-            yield { kind: 'content', text: d.content }
-          }
-          if (d.tool_calls) {
-            for (const tc of d.tool_calls) {
-              const i = tc.index ?? 0
-              acc.tool_calls[i] ??= {
-                id: '',
-                type: 'function',
-                function: { name: '', arguments: '' },
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          const lines = buf.split('\n')
+          buf = lines.pop() ?? ''
+          for (const line of lines) {
+            const str = line.trim()
+            if (!str.startsWith('data:')) continue
+            const payload = str.slice(5).trim()
+            if (payload === '[DONE]') continue
+            let j: any
+            try {
+              j = JSON.parse(payload)
+            } catch {
+              continue
+            }
+            // Ошибка провайдера ПОСРЕДИ потока приходит как 200 + data:{error}.
+            // Раньше `if (!d) continue` её молча проглатывал, поток заканчивался
+            // пустым, и клиент получал пустой пузырь. Теперь бросаем — runAgent
+            // поймает и покажет человеку 'ошибка', а не пустоту.
+            if (j.error) {
+              throw new Error(
+                `${p.id} прислал ошибку в потоке: ${JSON.stringify(j.error).slice(0, 150)}`
+              )
+            }
+            const d = j.choices?.[0]?.delta
+            if (!d) continue
+            if (d.reasoning_content) {
+              yield { kind: 'reasoning', text: d.reasoning_content }
+            }
+            if (d.content) {
+              acc.content += d.content
+              ужеОтдалиТекст = true
+              yield { kind: 'content', text: d.content }
+            }
+            if (d.tool_calls) {
+              for (const tc of d.tool_calls) {
+                const i = tc.index ?? 0
+                acc.tool_calls[i] ??= {
+                  id: '',
+                  type: 'function',
+                  function: { name: '', arguments: '' },
+                }
+                if (tc.id) acc.tool_calls[i].id = tc.id
+                if (tc.function?.name)
+                  acc.tool_calls[i].function.name += tc.function.name
+                if (tc.function?.arguments)
+                  acc.tool_calls[i].function.arguments += tc.function.arguments
               }
-              if (tc.id) acc.tool_calls[i].id = tc.id
-              if (tc.function?.name)
-                acc.tool_calls[i].function.name += tc.function.name
-              if (tc.function?.arguments)
-                acc.tool_calls[i].function.arguments += tc.function.arguments
             }
           }
         }
+        if (!acc.tool_calls.length) delete acc.tool_calls
+        yield { kind: 'done', message: acc }
+        return
+      } catch (e) {
+        // The person left. Nothing below is worth doing for them.
+        if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
+        const почему = ac.signal.aborted
+          ? `${p.id}: не ответил за 120с (таймаут)`
+          : `${p.id}: ${String(e).slice(0, 140)}`
+        // Уже отдали текст — молчаливый перевод на другого провайдера склеил бы
+        // два ответа. Бросаем: пусть runAgent покажет, что ответ оборван.
+        if (ужеОтдалиТекст) throw new Error(почему)
+        /*
+         * The socket dropped, not the provider. Ask the same one again rather
+         * than paying the elapsed time twice on a slower reserve. Not after a
+         * timeout: there the provider really did fail to answer in 120 s.
+         */
+        if (
+          !ac.signal.aborted &&
+          attempt < RETRY_DROPPED_STREAM &&
+          DROPPED_MID_STREAM.test(String(e))
+        ) {
+          /*
+           * NOT a "provider skipped" line: nothing was skipped, and the spec
+           * (specs/automation/agent-provider-chain.t27) counts those lines to
+           * mean a route was abandoned. This one says the opposite.
+           */
+          console.warn(`${RETRY_LOG_PREFIX} ${почему}`)
+          continue
+        }
+        skipped(почему) // cyrillic-ok: pre-existing identifier
+        причины.push(почему) // cyrillic-ok: pre-existing identifier
+        continue providerLoop
+      } finally {
+        clearTimeout(timer)
+        opts.signal?.removeEventListener('abort', onGone)
       }
-      if (!acc.tool_calls.length) delete acc.tool_calls
-      yield { kind: 'done', message: acc }
-      return
-    } catch (e) {
-      const почему = ac.signal.aborted
-        ? `${p.id}: не ответил за 120с (таймаут)`
-        : `${p.id}: ${String(e).slice(0, 140)}`
-      // Уже отдали текст — молчаливый перевод на другого провайдера склеил бы
-      // два ответа. Бросаем: пусть runAgent покажет, что ответ оборван.
-      if (ужеОтдалиТекст) throw new Error(почему)
-      skipped(почему) // cyrillic-ok: pre-existing identifier
-      причины.push(почему) // cyrillic-ok: pre-existing identifier
-      continue
-    } finally {
-      clearTimeout(timer)
     }
   }
 
@@ -975,6 +1117,20 @@ export async function* runAgent(
      * crm-duet.t27 DISCOVERY_HIDES_PAID_TOOLS / DISCOVERY_REFUSES_PAID_CALL.
      */
     denyTools?: ReadonlySet<string>
+    /**
+     * THE PERSON WHO ASKED HAS GONE.
+     *
+     * The render never watched for this, and the cost was measured on
+     * 20.09.2026: the bot gave up at its 180 s ceiling and started the turn
+     * again, while the first turn ran on to completion -- charging the client
+     * a second time for the same picture and uploading it to S3 four minutes
+     * after anybody could receive it. The model then spliced the two upload
+     * names into an address that had never existed and sent it to her.
+     *
+     * Checked between steps and before each tool, so work already paid for
+     * still finishes and gets recorded, and nothing NEW is started or spent.
+     */
+    signal?: AbortSignal
     /**
      * WHO THE AGENT IS WRITING TO, IN ONE LINE (owner, 2026-09-20: "the tone
      * of voice is wrong").
@@ -1018,6 +1174,17 @@ export async function* runAgent(
   const turnId = ctx.turn ?? randomUUID().slice(0, 8)
   const turnStartedAt = Date.now()
   let toolCallCount = 0
+  /*
+   * WHERE THE TURN'S TIME ACTUALLY WENT.
+   *
+   * The incident of 20.09.2026 had to be reconstructed from the timestamps of
+   * S3 uploads, because the per-tool `мс` was yielded to the client and then
+   * dropped on the floor -- no log anywhere held it. The answer, once found,
+   * was that one tool spent 170 of the 180 seconds. That is the single number
+   * that explains the failure, and it is now in the line that ends the turn.
+   */
+  let toolMsTotal = 0
+  let slowestTool: { имя: string; мс: number } | null = null // cyrillic-ok
   console.log(
     '[agent:turn]',
     JSON.stringify({
@@ -1032,7 +1199,10 @@ export async function* runAgent(
   yield { тип: 'ход', id: turnId } // cyrillic-ok: pre-existing event envelope
 
   /** One end-of-turn line on EVERY exit from this generator, success or not. */
-  const logTurnEnd = (outcome: 'ok' | 'error' | 'truncated', details?: string) => {
+  const logTurnEnd = (
+    outcome: 'ok' | 'error' | 'truncated' | 'aborted',
+    details?: string
+  ) => {
     console.log(
       '[agent:turn]',
       JSON.stringify({
@@ -1043,6 +1213,13 @@ export async function* runAgent(
         outcome,
         ms: Date.now() - turnStartedAt,
         toolCalls: toolCallCount,
+        toolMs: toolMsTotal,
+        ...(slowestTool
+          ? {
+              slowestTool: slowestTool['имя'],
+              slowestToolMs: slowestTool['мс'],
+            }
+          : {}),
         ...(details ? { details: details.slice(0, 300) } : {}),
       })
     )
@@ -1164,11 +1341,16 @@ export async function* runAgent(
   })
 
   for (let step = 0; step < MAX_STEPS; step++) {
+    if (opts?.signal?.aborted) {
+      logTurnEnd('aborted', `caller left before step ${step + 1}`)
+      return
+    }
     let assistant: any = null
     try {
       for await (const ev of streamModel(messages, {
         toolsOnly: opts?.toolsOnly,
         denyTools: opts?.denyTools,
+        signal: opts?.signal,
       })) {
         if (ev.kind === 'provider')
           yield { тип: 'провайдер', id: ev.id, model: ev.model } // cyrillic-ok: pre-existing event envelope
@@ -1197,6 +1379,15 @@ export async function* runAgent(
     messages.push(assistant)
 
     for (const call of assistant.tool_calls) {
+      /*
+       * Nothing new is started for somebody who has gone. Work already begun
+       * above is allowed to finish and be recorded -- it is paid for -- but a
+       * second tool on a dead socket only spends the client's tokens again.
+       */
+      if (opts?.signal?.aborted) {
+        logTurnEnd('aborted', `caller left after ${toolCallCount} tool(s)`)
+        return
+      }
       toolCallCount++
       const имя = call.function.name
       yield {
@@ -1218,16 +1409,24 @@ export async function* runAgent(
         значение = refusal // cyrillic-ok: pre-existing identifier
       } else {
         countInitDataToolCall(ctx, имя) // cyrillic-ok: pre-existing local
-        try {
-          значение = await tool.handler(
+        /*
+         * Malformed arguments used to be caught by the same try/catch as the
+         * handler; the heartbeat needs a promise, so the parse is wrapped here
+         * and a bad JSON string still comes back as a tool result, not a throw.
+         */
+        const running = (async () =>
+          tool.handler(
             call.function.arguments ? JSON.parse(call.function.arguments) : {},
             ctx
-          )
-        } catch (e) {
-          значение = { ошибка: String(e).slice(0, 400) }
-        }
+          ))()
+        значение = yield* withHeartbeat(имя, t0, running) // cyrillic-ok: pre-existing locals
       }
-      yield { тип: 'результат', имя, значение, мс: Date.now() - t0 }
+      const мс = Date.now() - t0 // cyrillic-ok: pre-existing field name
+      toolMsTotal += мс
+      if (!slowestTool || мс > slowestTool['мс']) {
+        slowestTool = { имя, мс } // cyrillic-ok: pre-existing field names
+      }
+      yield { тип: 'результат', имя, значение, мс }
       messages.push({
         role: 'tool',
         tool_call_id: call.id,

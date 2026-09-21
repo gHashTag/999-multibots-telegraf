@@ -22,14 +22,28 @@
  * видно здесь, написанное здесь — там.
  */
 import { logger } from '@/utils/logger'
+import { markTurnTools, SIDE_EFFECT_TOOL } from '@/services/agentTurnSpend'
 
 /** Адрес прод-рендера литералом — как в postStarPaid: URL из ENV сканер
  *  считает потенциальным SSRF, а переопределения для этого вызова нет. */
 const БАЗА = 'https://vibee-render-production.up.railway.app'
 
-/** Потолок ожидания. Агент делает витки с инструментами и бывает медленным;
- *  но человек в чате не должен ждать бесконечно, не понимая, жив ли бот. */
-const ЖДАТЬ_МС = 180_000
+/**
+ * TWO DEADLINES, BECAUSE A FLAT ONE MEASURED THE WRONG THING.
+ *
+ * There used to be one: 180 s of total elapsed time. On 20.09.2026 an
+ * `image_edit` took 170 s of honest work, and the bot cut the turn 10 seconds
+ * after the picture had landed in the bucket -- then asked again, and the
+ * client paid a second time for the same picture and received neither.
+ *
+ * What the caller actually cares about is not how long the turn takes but
+ * whether it is still alive. The render now ticks every 15 s while a tool runs
+ * (`ждём`, chat.ts), so silence is a real signal: SILENCE_MS of nothing at all
+ * means dead, and TURN_CEILING_MS is only the backstop for a stream that
+ * chatters forever without finishing.
+ */
+export const SILENCE_MS = 90_000
+export const TURN_CEILING_MS = 420_000
 
 /** Сколько прошлых реплик подмешать. Столько же, сколько отдаёт сервер. */
 const ГЛУБИНА_ИСТОРИИ = 40
@@ -274,14 +288,6 @@ export function isLimitError(error: string | undefined): boolean {
   return !!error && LIMIT_RE.test(error)
 }
 
-/**
- * A tool whose call already spent money or already reached a human. Replaying
- * a turn that fired one of these would bill twice or send twice -- the duet's
- * rule (PAID_TOOLS) applied to the live path.
- */
-const SIDE_EFFECT_TOOL =
-  /^(image_generate|image_edit|audio_generate|video_generate|reel_render|invoice|tg_send)/
-
 /** Only once, only on a limit, only when the failed attempt paid for nothing. */
 export function retryAllowed(
   retriesDone: number,
@@ -340,13 +346,22 @@ export async function спроситьАгента(
   ]
 
   const прерыватель = new AbortController()
-  const таймер = setTimeout(() => прерыватель.abort(), ЖДАТЬ_МС)
+  const таймер = setTimeout(() => прерыватель.abort(), TURN_CEILING_MS)
 
   /*
-   * ONE controller and ONE timer for BOTH attempts, on purpose: the retry
-   * below must not buy itself a fresh 180 s. The total budget of attempt +
-   * pause + retry stays the single ceiling the caller already reasons about.
+   * ONE controller and ONE ceiling for BOTH attempts, on purpose: the retry
+   * below must not buy itself a fresh budget. The total of attempt + pause +
+   * retry stays the single ceiling the caller already reasons about.
+   *
+   * The silence timer is the live one. It is armed when the request goes out
+   * and pushed back by every byte that arrives, so a turn is killed for saying
+   * nothing, never for taking a while.
    */
+  let silence: ReturnType<typeof setTimeout> | undefined
+  const heard = () => {
+    if (silence) clearTimeout(silence)
+    silence = setTimeout(() => прерыватель.abort(), SILENCE_MS) // cyrillic-ok: pre-existing controller
+  }
   // The tools the CURRENT attempt has already called. Read by retryAllowed
   // after a failure: a turn that already generated or already sent is never
   // replayed, whatever the error says.
@@ -355,6 +370,7 @@ export async function спроситьАгента(
   // One try of the whole round trip: request, stream, parse. The return type
   // is inferred so this line stays free of the module's Cyrillic type name.
   const attempt = async () => {
+    heard()
     const о = await fetch(
       `${БАЗА}/api/agent/chat?telegram_id=${encodeURIComponent(telegramId)}`,
       {
@@ -459,6 +475,9 @@ export async function спроситьАгента(
         for (;;) {
           const { done, value } = await reader.read()
           if (done) break
+          // Proof of life, including the render's `ждём` ticks while a tool cyrillic-ok: event name
+          // runs. Anything at all pushes the silence deadline back.
+          heard()
           хвост += dec.decode(value, { stream: true }) // cyrillic-ok: pre-existing identifiers of this parser
           const строки = хвост.split('\n') // cyrillic-ok: pre-existing identifiers of this parser
           хвост = строки.pop() ?? '' // cyrillic-ok: pre-existing identifiers of this parser
@@ -540,8 +559,12 @@ export async function спроситьАгента(
         if (прерыватель.signal.aborted) throw e // cyrillic-ok: pre-existing identifiers of this parser
       }
     }
+  } catch (e) {
+    // Every way out of this function carries what the turn already spent.
+    throw markTurnTools(e, toolsUsed)
   } finally {
     clearTimeout(таймер)
+    if (silence) clearTimeout(silence)
   }
 }
 
