@@ -54,6 +54,7 @@ import {
   forgetProfile,
 } from './profiles'
 import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
+import { readJournal } from './journal'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
 
@@ -62,6 +63,7 @@ export const BROWSER_PATHS = [
   '/api/browser/profile',
   '/api/browser/screen',
   '/api/browser/cookies',
+  '/api/browser/journal',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -211,6 +213,24 @@ export async function handleBrowser(
    * Collapsing them would mean either logins lost on every close, or a red
    * button that quietly leaves the cookies behind.
    */
+  /*
+   * WHAT THE AGENT DID IN THIS BROWSER (journal.ts): the person's own steps,
+   * newest first. Read-only; the agent's key may read it too -- it is the
+   * agent's own record of its own work.
+   */
+  if (path === '/api/browser/journal') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const q = new URLSearchParams((req.url || '').split('?')[1] || '')
+    const steps = await readJournal(
+      pool,
+      who,
+      Number(q.get('limit')) || undefined
+    )
+    return { status: 200, body: { ok: true, steps } }
+  }
+
   if (path === '/api/browser/profile') {
     if (method !== 'DELETE') {
       return { status: 405, body: { ok: false, error: 'DELETE only' } }
