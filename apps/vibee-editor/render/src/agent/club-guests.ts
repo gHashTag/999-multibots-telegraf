@@ -1,10 +1,10 @@
 /**
  * THE GUEST PASS -- PEOPLE THE OWNER LETS INTO THE CLUB BY NAME.
  *
- * Owner, 2026-09-12: "give @dmtrled and @SamHold access to the digital
- * avatar setup". The setup lives behind the welcome road (value -> how ->
- * CLUB -> connect -> SOUL): nobody reaches the Telegram sign-in and the
- * SOUL slide without a paid month or a grant. Grants so far came from two
+ * Owner, 2026-09-12: give two people, named by their Telegram usernames,
+ * access to the digital avatar setup. The setup lives behind the welcome
+ * road (value -> how -> CLUB -> connect -> SOUL): nobody reaches the
+ * Telegram sign-in and the SOUL slide without a paid month or a grant. Grants so far came from two
  * facts only -- bots in `avatars`, or the keepers list -- and neither
  * describes "a person the owner invited".
  *
@@ -28,7 +28,7 @@
  *
  * AN INVITATION WRITTEN AS A NAME WAS UNREADABLE OUTSIDE TELEGRAM.
  *
- * Measured 2026-09-21. @SamHold (504608015) was on this list from the day it
+ * Measured 2026-09-21. An invited guest was on this list from the day it
  * was written and still met the 10 000-star paywall on step 3 of 7 -- because
  * he opened the app in a desktop browser. There `verifiedTelegramUsername`
  * reads `x-telegram-init-data`, that header does not exist outside the Mini
@@ -38,13 +38,23 @@
  * So an id is listed beside every name from now on. An id is the one
  * identifier every sign-in path knows, it cannot be renamed away, and it needs
  * no lookup at all. The names stay because the owner invites people by name.
+ *
+ * PENDING THE OWNER'S DECISION (#2752). This repository is public, and the
+ * two ids below are real people. They are the only person ids the agent-tree
+ * guard (no-dossier-in-the-agent-tree.test.ts) tolerates, as bare list
+ * entries in this file and no more of them. They are not moved here because
+ * moving them changes who gets into the club: CLUB_GUESTS is empty on the
+ * render service (measured 2026-09-21, #2744), so deleting them would put
+ * both guests back behind the paywall. The way out needs no code: put the
+ * ids into CLUB_GUESTS on the render service, then delete the two lines
+ * here and the exception in the guard.
  */
 export const DEFAULT_GUESTS: readonly string[] = [
   'dmtrled',
   'samhold',
-  '504608015', // @SamHold -- "mike", paid cash off-platform
+  '504608015', // an invited guest, by id (#2744)
   'farishka',
-  '373211349', // @Farishka -- Farisha, paid cash off-platform
+  '373211349', // an invited guest, by id (#2744)
 ]
 
 export function normalizeGuest(raw: string): string {

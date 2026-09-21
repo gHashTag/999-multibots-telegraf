@@ -1,7 +1,7 @@
 /**
  * THE SAME TURN TWICE IN A ROW IS NEVER A SECOND TURN.
  *
- * In a live client's transcript, telegram 2086031075, 20.09.2026, one word of
+ * In a live client's transcript, 20.09.2026, one word of
  * hers stands twice -- 17:07:45 and 17:11:10 -- with nothing in between.
  * She typed it once. The bot retries a turn the render dropped, and a retry
  * resends the same messages array, so the arrival write stored her question
@@ -14,7 +14,7 @@ import {
   забытьТаблицу as forgetTable, // cyrillic-ok: pre-existing export
 } from './conversation'
 
-const WHO = '2086031075'
+const WHO = '900000012'
 
 /** Just enough Postgres: an ordered table and the two queries this uses. */
 function fakePool() {
@@ -83,11 +83,11 @@ describe('the pair the fallback sends after a failed turn', () => {
 
     // The bot sends both turns and lets this rule settle which are new.
     await ask(pool, 'user', 'Давай')
-    await ask(pool, 'assistant', 'Запускаю, Лена.')
+    await ask(pool, 'assistant', 'Запускаю, Вера.')
 
     expect(pool.rows.map(r => [r.role, r.content])).toEqual([
       ['user', 'Давай'],
-      ['assistant', 'Запускаю, Лена.'],
+      ['assistant', 'Запускаю, Вера.'],
     ])
   })
 
@@ -96,7 +96,7 @@ describe('the pair the fallback sends after a failed turn', () => {
     await ask(pool, 'assistant', 'Вот план на месяц.')
 
     await ask(pool, 'user', 'Давай')
-    await ask(pool, 'assistant', 'Запускаю, Лена.')
+    await ask(pool, 'assistant', 'Запускаю, Вера.')
 
     expect(pool.rows).toHaveLength(3)
   })

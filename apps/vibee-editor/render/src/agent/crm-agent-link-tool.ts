@@ -25,7 +25,13 @@ import type { AgentTool, ToolContext } from './tools'
 import { requireOwner, isSeller, withClient } from './telegram-tools'
 
 export const LEELA_BOT = 'leela_chakra_ai_bot'
-export const DEFAULT_CLAIMANT = '435572800'
+/**
+ * The refusal when no claimant is named. The tool used to fall back to one
+ * real person's id; it sends from the claimant's own session, so the owner
+ * names her every time.
+ */
+export const NO_CLAIMANT_REASON =
+  'Укажите claimant — Telegram ID продавца, которого связываем: инструмент не выбирает человека сам.'
 /** Leela: `Заявка <32 hex>` on the first line of the /agent_claim reply. */
 const CLAIM_ID = /\b([0-9a-f]{32})\b/
 
@@ -109,8 +115,7 @@ export const CRM_AGENT_LINK_TOOLS: AgentTool[] = [
       properties: {
         claimant: {
           type: 'string',
-          description:
-            'Telegram ID продавца, которого связываем (по умолчанию 435572800, @playom)',
+          description: 'Telegram ID продавца, которого связываем',
         },
         bot: {
           type: 'string',
@@ -122,11 +127,13 @@ export const CRM_AGENT_LINK_TOOLS: AgentTool[] = [
             'Сколько ждать ответ бота на каждую команду, мс (по умолчанию 4000)',
         },
       },
+      required: ['claimant'],
       additionalProperties: false,
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const claimant = String(args.claimant ?? DEFAULT_CLAIMANT).trim()
+      const claimant = String(args.claimant ?? '').trim()
+      if (!claimant) throw new Error(NO_CLAIMANT_REASON)
       const bot = String(args.bot ?? LEELA_BOT)
         .replace(/^@/, '')
         .trim()

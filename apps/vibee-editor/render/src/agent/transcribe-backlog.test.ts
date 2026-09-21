@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * Ids are invented (9000000xx). No real person appears in this repository.
  */
-const OWNER = '900000701'
+const OWNER = '900000071'
 
 const transcribed: Array<{ owner: string; ids: number[] }> = []
 beforeEach(() => {
@@ -77,7 +77,7 @@ const poolOf = (rows: Row[]) => {
           .map(r => ({
             id: r.id,
             owner_id: r.owner_id,
-            lead_id: '900000801',
+            lead_id: '900000081',
             surface: 'business',
             msg_id: r.id,
             at: r.at,
@@ -280,7 +280,7 @@ describe('the backlog of unread recordings', () => {
       },
       {
         id: 11,
-        owner_id: '900000702',
+        owner_id: '900000072',
         at: new Date('2026-09-18'),
         transcribed_at: OLD,
       },
