@@ -1187,6 +1187,12 @@ export const LOST_WORDS = {
   },
 }
 
+/**
+ * The `source` of every message this window posts to its parent. The parent
+ * accepts it only from its own origin and only from its own frame.
+ */
+export const WINDOW_EVENT = 't27-browser'
+
 /** Attempts it makes by itself before it hands the person the button. */
 export const RECONNECT_TRIES = 3
 /** How long the form must stay up before it counts as a failure. */
@@ -1235,6 +1241,19 @@ export const CONNECT_SCRIPT = `
   var seen = false;
   var acted = false;
   var timer = null;
+  /*
+   * Tell the page around this window what the connection is doing
+   * (__EVENT__, same origin only). Without it the Queen's panel and the
+   * app's Browser tab showed a frozen frame for as long as neko retried,
+   * and kept showing it after the session had closed. Browserbase's live
+   * view does the same for its embedders.
+   */
+  function tell(state) {
+    try {
+      if (typeof window !== 'undefined' && window.parent && window.parent !== window)
+        window.parent.postMessage({ source: __EVENT__, state: state, session: m[1] }, location.origin);
+    } catch (e) {}
+  }
   function settle() {
     timer = null;
     var f = form();
@@ -1246,6 +1265,7 @@ export const CONNECT_SCRIPT = `
     var title = f.querySelector('span');
     var button = f.querySelector('button');
     if (win) win.setAttribute('data-t27', stuck ? 'stuck' : 'retry');
+    tell(stuck ? 'stuck' : 'reconnecting');
     if (title) title.setAttribute('data-say', stuck ? words.stuck : words.lost);
     if (button) button.setAttribute('data-say', words.again);
     if (stuck) {
@@ -1258,7 +1278,7 @@ export const CONNECT_SCRIPT = `
   }
   function check() {
     if (document.querySelector('.connect')) seen = true;
-    else if (seen) { seen = false; forget(); }
+    else if (seen) { seen = false; forget(); tell('connected'); }
     if (!form()) {
       if (timer) { clearTimeout(timer); timer = null; }
       acted = false;
@@ -1284,6 +1304,7 @@ export const CONNECT_SCRIPT = `
   });
 })();
 `
+  .replace(/__EVENT__/g, () => JSON.stringify(WINDOW_EVENT))
   .replace('__QUERY__', () => JSON.stringify(LOGIN_QUERY))
   .replace('__WORDS__', () => JSON.stringify(LOST_WORDS))
   .replace('__TRIES__', String(RECONNECT_TRIES))

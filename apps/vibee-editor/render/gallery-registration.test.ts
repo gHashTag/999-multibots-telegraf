@@ -38,8 +38,21 @@ function toolBlocks(): { name: string; body: string }[] {
 
 const BLOCKS = toolBlocks()
 
-/** Tools that push bytes into our S3 and therefore produce a file. */
-const PRODUCERS = BLOCKS.filter(b => /\/upload`/.test(b.body))
+/**
+ * The shared storage step. image_edit's upload moved here on 2026-09-21,
+ * because a picture can now arrive after the turn that paid for it and must
+ * be stored exactly like an on-time one (late-picture.ts).
+ */
+const HELPER = (() => {
+  const at = SRC.indexOf('export async function keepGeneratedImage(')
+  return at < 0 ? '' : SRC.slice(at, SRC.indexOf('\n}\n', at) + 2)
+})()
+const viaHelper = (body: string) => /keepGeneratedImage\(/.test(body)
+
+/** Tools that push bytes into our S3 -- inline, or through the helper. */
+const PRODUCERS = BLOCKS.filter(
+  b => /\/upload`/.test(b.body) || viaHelper(b.body)
+)
 
 describe('каждый инструмент, создающий файл, кладёт его в витрину', () => {
   it('разбор нашёл и инструменты, и производителей файлов', () => {
@@ -52,7 +65,9 @@ describe('каждый инструмент, создающий файл, кла
 
   it('каждый производитель пишет строку в assets', () => {
     const unregistered = PRODUCERS.filter(
-      b => !/INSERT INTO assets/.test(b.body)
+      b =>
+        !/INSERT INTO assets/.test(b.body) &&
+        !(viaHelper(b.body) && /INSERT INTO assets/.test(HELPER))
     ).map(b => b.name)
     expect(unregistered, 'файл попадёт в S3 и не попадёт в мини-апп').toEqual(
       []
@@ -62,10 +77,17 @@ describe('каждый инструмент, создающий файл, кла
   it('image_edit регистрирует именно свой загруженный файл', () => {
     const b = BLOCKS.find(x => x.name === 'image_edit')
     expect(b, 'инструмент image_edit не найден').toBeTruthy()
+    expect(HELPER, 'общий шаг сохранения не найден').not.toBe('')
     // The row must carry the URL of OUR copy, not the provider's temporary
     // link: a tempfile URL dies within the hour and the gallery would show a
     // broken picture tomorrow.
-    expect(b!.body).toMatch(/INSERT INTO assets[\s\S]{0,400}upData\.directUrl/)
+    expect(HELPER).toMatch(/\/upload`/)
+    expect(HELPER).toMatch(/INSERT INTO assets[\s\S]{0,400}upData\.directUrl/)
+    // Both the on-time picture and the late one go through it: a second,
+    // hand-copied store for the late path is how the two would drift.
+    expect(
+      (b!.body.match(/keepGeneratedImage\(/g) ?? []).length
+    ).toBeGreaterThanOrEqual(2)
   })
 
   it('сбой регистрации не отменяет успешную генерацию', () => {

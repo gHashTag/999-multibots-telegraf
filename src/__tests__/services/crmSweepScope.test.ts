@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   SWEEP_HEAD,
   SWEEP_RULES,
+  SWEEP_ACTIONS,
+  SWEEP_FILES,
   SWEEP_TAIL,
   SWEEP_WORTH,
   parseSweepArgs,
@@ -11,6 +13,7 @@ import {
   itemsFromChats,
   itemsFromRows,
   scopedPrompt,
+  faceOfItem,
   PACKAGE_STEP,
   itemMarker,
   progressLine,
@@ -274,9 +277,132 @@ describe('the items and the brief', () => {
     expect(p).toContain('SOUL')
     expect(p).toContain('ответы даёт сам человек')
     expect(p).not.toContain('CHAT')
-    expect(p.indexOf('crm_client_profile')).toBeLessThan(
-      p.indexOf('crm_lead_context')
+    // The package is the first ACTION decision: before the steps. Reading
+    // her history and her files comes before any action, the package's too.
+    expect(p.indexOf('crm_client_profile')).toBeLessThan(p.indexOf('Шаги:'))
+    expect(p.indexOf('crm_lead_context с chat=900000041')).toBeLessThan(
+      p.indexOf('crm_client_profile')
     )
+  })
+
+  /*
+   * THE PORTRAIT COMES BEFORE THE PACKAGE (owner, 2026-09-21). With a package
+   * installed, the seller's cards went to reels of the package template and
+   * the portrait from the person's own face never came. The package step now
+   * sends the portrait to the shared rule and waits its own turn after it.
+   */
+  it('the portrait from their face comes before packaging, reels and the rest', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: null })
+    expect(p).toContain('portrait')
+    expect(p).toContain('пакет, рилс и остальное — только после портрета')
+    expect(p.indexOf('раньше пакета')).toBeLessThan(p.indexOf('УПАКОВКА'))
+    // The portrait rule is the first thing the ONE action is.
+    expect(p).toContain('Ровно ОДНО действие: ПОРТРЕТ ПЕРВЫЙ')
+    // The two exceptions: an unanswered question and a recent refusal.
+    expect(p).toContain('ждёт ответа на свой вопрос — сначала ответь')
+    expect(p).toContain('отказ за 30 дней или просил позже — без портрета')
+  })
+
+  /*
+   * ONE ORDER, NOT THREE. The package step said "the portrait is your ONE
+   * action", then "no package -- act by the steps below", then the steps said
+   * "exactly ONE action: next=talk -- tg_send". A model obeying the last one
+   * never drew the portrait. The package step no longer claims the portrait,
+   * and "act by the steps below" is only for a portrait already given.
+   */
+  it('the numeric brief does not give two ONE actions for the portrait', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: 'talk' })
+    expect(p).not.toContain('твоё ОДНО действие — ПОРТРЕТ')
+    expect(p).toContain(
+      'Если портрет уже подарен, а пакета нет или он подтверждён — действуй по шагам ниже'
+    )
+    expect(p).not.toContain('Если пакета нет или он подтверждён')
+  })
+
+  /*
+   * EVERY BRIEF, NOT ONLY THE NUMERIC ONE. The thirty-minute timer's brief and
+   * the /sweep @username brief carried no portrait step at all, and their
+   * deliver rule limited the gift to people who asked and could pay.
+   */
+  it('the timer brief and the @username brief put the portrait first, and the gift needs no tokens', () => {
+    const at = scopedPrompt({
+      chat: '@pilot_client',
+      display: null,
+      next: null,
+    })
+    for (const p of [SWEEP_PROMPT, at]) {
+      expect(p).toContain('ПОРТРЕТ ПЕРВЫЙ')
+      expect(p).toContain('crm_deliver_photo с его chat')
+      expect(p).toContain('его токены не нужны')
+      expect(p).not.toContain('next=deliver и есть токены')
+      expect(p.indexOf('ПОРТРЕТ ПЕРВЫЙ')).toBeLessThan(p.indexOf('next=talk'))
+    }
+  })
+
+  it('only a numeric id is a face the render may draw', () => {
+    expect(faceOfItem({ chat: '900000041' })).toBe('900000041')
+    expect(faceOfItem({ chat: '@pilot_client' })).toBeUndefined()
+    expect(faceOfItem({ chat: '12' })).toBeUndefined()
+  })
+
+  /*
+   * THE FILES FIRST (owner, 2026-09-22): a client sent photos for her content
+   * plan and the seller answered her words only. Both briefs -- the one-person
+   * one and the whole-base sweep -- now say to open what she sent before the
+   * one action, to use a photo with her face as the picture's source, and
+   * never to describe a file nobody opened.
+   */
+  it('both briefs open the files she sent before the one action', () => {
+    const one = scopedPrompt({
+      chat: '900000041',
+      display: null,
+      next: 'reply',
+    })
+    for (const p of [one, SWEEP_PROMPT]) {
+      expect(p).toContain('tg_fetch_media')
+      expect(p).toContain('their_files')
+      expect(p).toContain('неоткрытый файл не описывай')
+      // Opening comes before the rules of the one action, not after them.
+      expect(p.indexOf('tg_fetch_media')).toBeLessThan(
+        p.indexOf('next=reply —')
+      )
+    }
+  })
+
+  /*
+   * THE READ COMES BEFORE THE PACKAGE (review of 2026-09-22). The client this
+   * was built for has a draft package, and PACKAGE_STEP makes packaging her
+   * ONE action -- "if there is no package or it is confirmed, follow the steps
+   * below". The files rule lived only inside those steps, so for exactly her
+   * the model was told to send the packaging message and never reached "open
+   * her photos". Reading is not an action: it now comes first, for everyone.
+   */
+  it('the one-person brief opens her files before the package decides anything', () => {
+    const p = scopedPrompt({ chat: '900000041', display: null, next: 'reply' })
+    const read = p.indexOf('tg_fetch_media')
+    expect(read).toBeGreaterThan(0)
+    expect(read).toBeLessThan(p.indexOf('crm_client_profile'))
+    expect(read).toBeLessThan(p.indexOf('УПАКОВКА'))
+    expect(p.indexOf('crm_lead_context с chat=900000041')).toBeLessThan(read)
+    // Every CHAT is the person: the read names her too.
+    expect(p).toContain('tg_fetch_media {chat=900000041')
+    expect(p).not.toContain('CHAT')
+    // Said once: the steps below do not repeat the files rule.
+    expect(p.split('their_files').length - 1).toBe(1)
+  })
+
+  /*
+   * ONE ROAD FOR A PICTURE OF HER: crm_deliver_photo (the gift ledger, the
+   * owner's card, the recipient's billing). The files rule used to send it to
+   * image_edit -- a second tool for the same job that charges the owner and
+   * makes no card, inside unattended sweeps too.
+   */
+  it('the files rule sends a picture of her to crm_deliver_photo, not image_edit', () => {
+    const one = scopedPrompt({ chat: '900000041', display: null, next: null })
+    for (const p of [SWEEP_FILES, one, SWEEP_PROMPT]) {
+      expect(p).toContain('crm_deliver_photo (его лицо), не image_edit')
+      expect(p).not.toContain('(image_edit)')
+    }
   })
 
   it('an @username brief has no package step', () => {
@@ -295,7 +421,8 @@ describe('the items and the brief', () => {
     expect(p).toContain('crm_leads НЕ вызывай')
     expect(p).toContain('crm_lead_context с chat=@pilot_client')
     expect(p).toContain('next=talk')
-    expect(p).toContain(SWEEP_RULES)
+    expect(p).toContain(SWEEP_ACTIONS)
+    expect(SWEEP_RULES).toBe(SWEEP_FILES + SWEEP_ACTIONS)
     expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ')
     expect(p).toContain('НИЧЕГО НЕ ОТПРАВЛЯЙ САМ')
     expect(p).toContain('«тихо»')

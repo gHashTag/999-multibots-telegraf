@@ -95,8 +95,34 @@ fi
 # Место освобождает `~/Library/Developer/CoreSimulator/Caches` выше — он
 # пересоздаётся сам и устройств не касается.
 
-# 4. Докер, если он тут есть.
-command -v docker >/dev/null && docker system prune -af --volumes 2>/dev/null | tail -1
+# 4. Docker, if it is here -- and ONLY if it answers.
+#
+# 2026-09-22: Docker Desktop stopped answering during the night and this line
+# hung `tri doctor` for over eight minutes with no output: `docker system
+# prune` waits for the daemon forever -- one from an earlier run was found
+# still hanging after 3 h 12 min. macOS has no `timeout`, and perl's alarm
+# does not work here: the docker CLI is Go, and Go ignores SIGALRM (measured:
+# it killed `sleep`, not `docker`). So a watchdog sends SIGKILL. A daemon that
+# does not answer `docker info` in 10 s is skipped with a note; the prune
+# itself gets two minutes.
+deadline() {
+  local secs="$1"; shift
+  "$@" &
+  local pid=$!
+  ( sleep "$secs"; kill -9 "$pid" 2>/dev/null ) &
+  local dog=$!
+  wait "$pid"; local rc=$?
+  kill "$dog" 2>/dev/null; wait "$dog" 2>/dev/null
+  return "$rc"
+}
+if command -v docker >/dev/null; then
+  if deadline 10 docker info >/dev/null 2>&1; then
+    deadline 120 docker system prune -af --volumes 2>/dev/null | tail -1 \
+      || echo "docker: prune did not finish in 120 s -- skipped"
+  else
+    echo "docker: daemon does not answer -- skipped (restart Docker Desktop)"
+  fi
+fi
 
 free_after=$(df -k /System/Volumes/Data | awk '{if(NR==2)print $4}')
 echo "освобождено: $(( (free_after - free_before) / 1024 )) МБ · свободно: $(( free_after / 1024 )) МБ"
