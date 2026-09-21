@@ -704,6 +704,9 @@ export async function handleAgentChat(
         signal: gone.signal,
         toolsOnly: body.tools_only === true,
         client: gate.client ?? undefined,
+        // face_of: the lead a scoped sweep makes pictures for; checked (numeric,
+        // not the caller) in chat.ts clientTurnContext. Not a thread.
+        faceOf: typeof body.face_of === 'string' ? body.face_of : undefined,
         personNote:
           typeof body.person_note === 'string' && body.person_note.trim()
             ? body.person_note.slice(0, 600)

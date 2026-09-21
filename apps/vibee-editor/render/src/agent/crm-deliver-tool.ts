@@ -34,6 +34,8 @@ import {
   clientFace,
   askForPhotoLine,
   NO_PERSON_PREFIX,
+  PORTRAIT_IDENTITY_PREFIX,
+  PORTRAIT_FRAMING_SUFFIX,
   type FaceDeps,
   type SentPhoto,
 } from './client-face'
@@ -93,6 +95,24 @@ const CAPTION_CHARS = 900
  */
 export const PORTRAIT_WAIT_MS = 60_000
 
+/**
+ * WHEN A STORED TASK IS GIVEN UP ON.
+ *
+ * A task that never reaches a verdict -- stuck in "generating", a record Kie
+ * no longer has, a 32-hex string in an old refusal that was never a task --
+ * used to keep the person in "drawing" for good: every delivery started
+ * another watch and answered "still drawing", every sweep past the watch spent
+ * a turn to hear it, and the mandatory portrait of their own face never came.
+ *
+ * GPT Image 2.5 was measured at 75 s and 380 s. An hour is three full watches
+ * (LATE_WATCH_MS) past the slowest answer ever seen; by then the owner's charge
+ * for it has already been refunded by image_edit's watch, so drawing anew does
+ * not charge twice for one picture. A finished one found later is still not
+ * lost: it is in the owner's gallery, and markReady will not let it overwrite
+ * the newer task.
+ */
+export const PORTRAIT_GIVE_UP_MS = 60 * 60_000
+
 export const LEAD_MAGNET = {
   model: LEAD_MAGNET_MODEL,
   /** The op the OWNER pays when the gift is drawn from the person's photo. */
@@ -104,26 +124,30 @@ export const LEAD_MAGNET = {
    * the "same person" constraint goes before the scene text, phrased as
    * positive instructions (what to keep) rather than a list of don'ts.
    */
-  identityPrefix:
-    'Keep the exact same person as in the reference photo: same face, eye shape, ' +
-    'nose, jawline, lips, skin tone and hairstyle; change only the scene, outfit, ' +
-    'light and mood. ',
+  identityPrefix: PORTRAIT_IDENTITY_PREFIX,
   /**
    * The 1080x1920 story frame is covered by app UI at the top (~14%) and the
    * bottom (~35%), so the face lives in the central band and nothing is
    * written into the picture: the caption carries the words.
    */
-  framingSuffix:
-    ' Vertical 9:16 story portrait, the face in the central third of the frame, ' +
-    'nothing important in the top or bottom band, no text, no watermark, no logo.',
+  framingSuffix: PORTRAIT_FRAMING_SUFFIX,
 } as const
 
-/** The gift caption: one line, a name, who made it, one soft question. No price, no link. */
-export function giftCaption(firstName: string | null | undefined): string {
+/**
+ * The gift caption: one line, a name, who made it, one soft question. No
+ * price, no link. It names the photo it was drawn from: "your avatar" on a
+ * portrait drawn from a photo they sent is a small untruth they can check.
+ */
+export function giftCaption(
+  firstName: string | null | undefined,
+  from: 'avatar' | 'sent' = 'avatar'
+): string {
   const name = String(firstName ?? '').trim()
   return (
     (name ? `${name}, ` : '') +
-    'это вы — мой ИИ-ассистент сделал портрет по вашей аватарке за минуту, ' +
+    'это вы — мой ИИ-ассистент сделал портрет по ' +
+    (from === 'sent' ? 'вашему фото' : 'вашей аватарке') +
+    ' за минуту, ' +
     'в формате сторис 9:16. Это подарок, без оплаты. ' +
     'Хотите ещё один — в другом образе?'
   )
@@ -175,7 +199,22 @@ export interface CrmDeliverDeps {
     providerUrl: string,
     note: string
   ) => Promise<string>
+  /** The clock for PORTRAIT_GIVE_UP_MS. Default: Date.now. */
+  now?: () => number
 }
+
+/*
+ * A PORTRAIT BEING DRAWN RIGHT NOW, per owner and person, in this process.
+ *
+ * The debt learns the task id the moment Kie accepts it (onImageTask), but a
+ * second request can arrive before even that -- while the first one is still
+ * reading the face. Production had exactly that entry path: on 20.09 the bot
+ * gave up on a turn at its ceiling and asked again while the first turn ran
+ * on, and the same picture was charged twice. Claimed and checked in one
+ * synchronous step, so two calls cannot both find it free.
+ */
+// owner-scope: keyed by owner|lead; holds only the task id once it is known.
+const drawingNow = new Map<string, { taskId: string | null }>()
 
 /**
  * A REFUSED GIFT LEAVES A LINE, BECAUSE NOTHING ELSE DOES.
@@ -266,11 +305,13 @@ function followLate(
  * A PORTRAIT ALREADY PAID FOR, IF THERE IS ONE -- asked BEFORE anything new.
  *
  *  ready     the debt holds a finished picture, or the stored task turns out
- *            to be finished now: hand it over, draw nothing.
+ *            to be finished now: hand it over, draw nothing. `mode` says who
+ *            pays for it: the terms it was started on (OwedDebt.taskMode).
  *  drawing   the stored task is still running (or a watch in this process is
  *            already asking): wait for it, draw nothing, pay nothing.
- *  null      nothing owed, nothing stored, or the stored task failed (then
- *            it is forgotten, and a new portrait may be drawn).
+ *  null      nothing owed, nothing stored, or the stored task failed or was
+ *            given up on (then it is forgotten, and a new portrait may be
+ *            drawn).
  */
 async function portraitAlreadyPaid(
   ctx: ToolContext,
@@ -278,15 +319,26 @@ async function portraitAlreadyPaid(
   lead: string,
   deps: CrmDeliverDeps
 ): Promise<
-  | { kind: 'ready'; url: string; taskId: string | null }
+  | {
+      kind: 'ready'
+      url: string
+      taskId: string | null
+      mode: 'gift' | 'paid' | null
+    }
   | { kind: 'drawing'; taskId: string }
   | null
 > {
   const pool = ctx.pool as never
   const debt = await debtOf(pool, owner, lead)
   if (!debt) return null
+  const mode = debt.taskMode ?? null
   if (debt.readyUrl)
-    return { kind: 'ready', url: debt.readyUrl, taskId: debt.taskId ?? null }
+    return {
+      kind: 'ready',
+      url: debt.readyUrl,
+      taskId: debt.taskId ?? null,
+      mode,
+    }
   const taskId = debt.taskId
   if (!taskId) return null
   if (isWatching(taskId)) return { kind: 'drawing', taskId }
@@ -294,12 +346,32 @@ async function portraitAlreadyPaid(
   if (out.state === 'ready') {
     await markReady(pool, { owner, lead, url: out.url, taskId })
     await noteGift(ctx, `task ${taskId}`, 'stored-id', 'gift-recovered')
-    return { kind: 'ready', url: out.url, taskId }
+    return { kind: 'ready', url: out.url, taskId, mode }
   }
-  if (out.state === 'running') {
-    // Nobody is watching it in this process (a redeploy): start again.
-    void followLate(ctx, owner, lead, taskId, deps).catch(() => undefined)
-    return { kind: 'drawing', taskId }
+  if (out.state === 'running' || out.state === 'unknown') {
+    // An old debt names its task only in words and has no task_at: its own
+    // age is the age of the task.
+    const since = (debt.taskAt ?? debt.at).getTime()
+    const age = (deps.now ?? Date.now)() - since
+    if (age < PORTRAIT_GIVE_UP_MS) {
+      // Nobody is watching it in this process (a redeploy): start again.
+      void followLate(ctx, owner, lead, taskId, deps).catch(() => undefined)
+      return { kind: 'drawing', taskId }
+    }
+    await clearTask(pool, {
+      owner,
+      lead,
+      taskId,
+      why:
+        `задача без ответа ${Math.round(age / 60_000)} мин — нарисуем заново` + // cyrillic-ok: the owner reads this reason
+        (out.reason ? ` (${out.reason})` : ''),
+    })
+    await noteGift(
+      ctx,
+      `task given up after ${Math.round(age / 60_000)} min`,
+      'stored-id'
+    )
+    return null
   }
   await clearTask(pool, { owner, lead, taskId, why: out.reason })
   return null
@@ -525,15 +597,20 @@ export function makeCrmDeliverTools(
         let have = Number.POSITIVE_INFINITY
 
         /**
-         * The card, once there is a picture to put on it. `charged` is false
-         * for a gift -- and for a portrait that was already paid for, which
+         * The card, once there is a picture to put on it. `charge` is what
+         * the recipient pays at the press, or null: nothing for a gift -- and
+         * nothing for a portrait the owner already paid for as a gift, which
          * nobody pays for a second time, whatever mode this call asked for.
          */
         const card = async (
           url: string,
           extra: Record<string, unknown>,
-          charged: boolean = !gift
+          charge: { op: string; tokens: number } | null = gift
+            ? null
+            : { op: paidOp, tokens: price },
+          from: 'avatar' | 'sent' = 'avatar'
         ): Promise<Record<string, unknown>> => {
+          const charged = charge !== null
           noteImagesWorked()
           // The picture exists, for this person: whatever we owed them is paid.
           if (ctx?.pool) await settleOwed(pool, owner, lead.id)
@@ -542,7 +619,7 @@ export function makeCrmDeliverTools(
               ? String(a.caption)
               : charged
                 ? ''
-                : giftCaption(lead.firstName),
+                : giftCaption(lead.firstName, from),
             CAPTION_CHARS
           )
           const may = await reachable(ctx, lead.id).catch(() => ({
@@ -568,9 +645,13 @@ export function makeCrmDeliverTools(
               // A gift and an owner-side recipient are never charged, so the
               // card must not promise a charge either.
               charge:
-                !charged || free
+                !charge || free
                   ? undefined
-                  : { telegramId: lead.id, op: paidOp, tokens: price },
+                  : {
+                      telegramId: lead.id,
+                      op: charge.op,
+                      tokens: charge.tokens,
+                    },
               gift: !charged || undefined,
             }
           )
@@ -579,7 +660,7 @@ export function makeCrmDeliverTools(
             preview: url,
             gift: !charged,
             aspect_ratio: aspectRatio,
-            price: charged ? price : 0,
+            price: charge ? charge.tokens : 0,
             lead_balance: !charged
               ? 'подарок — получатель не платит'
               : free
@@ -593,236 +674,327 @@ export function makeCrmDeliverTools(
         }
 
         /*
-         * 1. THE PORTRAIT THAT IS ALREADY PAID FOR. Asked before any money is
-         * even looked at: a finished late portrait goes out as it is, a task
-         * still drawing is waited for. Neither creates a task nor charges
-         * anybody -- not the owner again, and not the recipient either.
+         * 0. ONE PORTRAIT AT A TIME, PER PERSON. Checked and claimed in the
+         * same synchronous step: a second request that arrives while the first
+         * is still choosing the face or waiting for Kie is told "being drawn"
+         * instead of paying for another task.
          */
-        if (!noPerson && ctx?.pool) {
-          const paid = await portraitAlreadyPaid(
-            ctx,
-            owner,
-            lead.id,
-            deps
-          ).catch(() => null)
-          if (paid?.kind === 'ready') {
-            return card(
-              paid.url,
-              {
-                source:
-                  'готовый портрет — оплачен раньше, повторно не рисовался', // cyrillic-ok: message to the agent
-                model: LEAD_MAGNET.model,
-                recovered: true,
-                ...(paid.taskId ? { task_id: paid.taskId } : {}),
-              },
-              false
-            )
-          }
-          if (paid?.kind === 'drawing') {
+        const key = `${owner}|${lead.id}`
+        const slot: { taskId: string | null } = { taskId: null }
+        if (!noPerson) {
+          const busy = drawingNow.get(key)
+          if (busy) {
             return {
               delivered: false,
               pending: true,
-              task_id: paid.taskId,
+              ...(busy.taskId ? { task_id: busy.taskId } : {}),
               // cyrillic-ok: public API field
               причина: PORTRAIT_DRAWING,
               price: 0,
             }
           }
+          drawingNow.set(key, slot)
         }
-
-        have = free
-          ? Number.POSITIVE_INFINITY
-          : ((await balanceOf(pool, lead.id)) ?? FIRST_ROW_GRANT)
-        if (!gift && have < price) {
-          await noteGift(ctx, `balance ${have} < price ${price}`, 'balance')
-          return {
-            delivered: false,
-            // cyrillic-ok: public API field
-            причина:
-              `у получателя ${have} токенов, услуга стоит ${price} — ` +
-              'сначала предложи пополнить счёт (crm_offer), потом повтори',
-            price,
-            lead_balance: have,
+        try {
+          /*
+           * 1. THE PORTRAIT THAT IS ALREADY PAID FOR. Asked before any money
+           * is even looked at: a finished late portrait goes out as it is, a
+           * task still drawing is waited for. Neither creates a task.
+           *
+           * WHO PAYS FOR IT is decided by the terms it was started on, not by
+           * this call. A gift the owner already paid for goes out free. A
+           * PAID portrait that came late goes out as a paid one -- the
+           * recipient is charged at the press, after the usual balance check:
+           * nobody paid for it when it was drawn (chargeLater), and handing
+           * it over free would give away a portrait the person ordered.
+           */
+          if (!noPerson && ctx?.pool) {
+            const paid = await portraitAlreadyPaid(
+              ctx,
+              owner,
+              lead.id,
+              deps
+            ).catch(() => null)
+            if (paid?.kind === 'ready') {
+              const lateCharge =
+                paid.mode === 'paid'
+                  ? {
+                      op: LEAD_MAGNET.op,
+                      tokens: TOKEN_PRICES[LEAD_MAGNET.op],
+                    }
+                  : null
+              if (lateCharge && !free) {
+                have = (await balanceOf(pool, lead.id)) ?? FIRST_ROW_GRANT
+                if (have < lateCharge.tokens) {
+                  await noteGift(
+                    ctx,
+                    `late paid portrait: balance ${have} < price ${lateCharge.tokens}`,
+                    'balance'
+                  )
+                  // The debt keeps the picture: it goes out once they top up.
+                  return {
+                    delivered: false,
+                    // cyrillic-ok: public API field
+                    причина:
+                      `портрет готов, но заказан платно: у получателя ${have} токенов, ` +
+                      `он стоит ${lateCharge.tokens} — сначала предложи пополнить счёт ` +
+                      '(crm_offer), потом повтори; заново не рисуется',
+                    price: lateCharge.tokens,
+                    lead_balance: have,
+                  }
+                }
+              }
+              return card(
+                paid.url,
+                {
+                  source:
+                    'готовый портрет — оплачен раньше, повторно не рисовался', // cyrillic-ok: message to the agent
+                  model: LEAD_MAGNET.model,
+                  recovered: true,
+                  ...(paid.taskId ? { task_id: paid.taskId } : {}),
+                },
+                lateCharge
+              )
+            }
+            if (paid?.kind === 'drawing') {
+              return {
+                delivered: false,
+                pending: true,
+                task_id: paid.taskId,
+                // cyrillic-ok: public API field
+                причина: PORTRAIT_DRAWING,
+                price,
+              }
+            }
           }
-        }
 
-        /*
-         * 2. A PICTURE WITH NOBODY IN IT: the one text-to-image door.
-         */
-        if (noPerson) {
-          const gen = lookup('image_generate')
-          if (!gen)
-            throw new Error('генерация картинок недоступна на этом сервере')
-          // Paid: the owner's turn makes the picture, the recipient pays at
-          // the press (chargeLater). Gift: the owner pays now.
-          const made = (await gen.handler(
+          have = free
+            ? Number.POSITIVE_INFINITY
+            : ((await balanceOf(pool, lead.id)) ?? FIRST_ROW_GRANT)
+          if (!gift && have < price) {
+            await noteGift(ctx, `balance ${have} < price ${price}`, 'balance')
+            return {
+              delivered: false,
+              // cyrillic-ok: public API field
+              причина:
+                `у получателя ${have} токенов, услуга стоит ${price} — ` +
+                'сначала предложи пополнить счёт (crm_offer), потом повтори',
+              price,
+              lead_balance: have,
+            }
+          }
+
+          /*
+           * 2. A PICTURE WITH NOBODY IN IT: the one text-to-image door.
+           */
+          if (noPerson) {
+            const gen = lookup('image_generate')
+            if (!gen)
+              throw new Error('генерация картинок недоступна на этом сервере')
+            // Paid: the owner's turn makes the picture, the recipient pays at
+            // the press (chargeLater). Gift: the owner pays now.
+            const made = (await gen.handler(
+              {
+                prompt:
+                  NO_PERSON_PREFIX +
+                  prompt +
+                  ' Vertical frame, no text, no logo.',
+                ...sizeFor(aspectRatio),
+              },
+              gift
+                ? (ctx as ToolContext)
+                : { ...(ctx as ToolContext), chargeLater: true }
+            )) as { url?: string; причина?: string; reason?: string } // cyrillic-ok: public API field
+            if (!made?.url) {
+              noteImagesFailed(made?.причина ?? made?.reason) // cyrillic-ok: field name
+              await noteGift(ctx, made?.причина ?? made?.reason, 'generate') // cyrillic-ok: public API field
+              return {
+                delivered: false,
+                // cyrillic-ok: public API field
+                причина:
+                  made?.причина ?? made?.reason ?? 'картинка не получилась', // cyrillic-ok: public API field
+                price,
+                source: 'без людей, по описанию',
+              }
+            }
+            return card(made.url, {
+              source: 'без людей, по описанию',
+              model: 'image_generate',
+            })
+          }
+
+          /*
+           * 3. THE FACE. Theirs, or nobody's (client-face.ts).
+           */
+          const face = await clientFace(
+            ctx,
+            { id: lead.id, username: chat.startsWith('@') ? chat : null },
+            faceDeps,
+            { photoUrl: a?.photo_url ? String(a.photo_url) : null }
+          )
+          if (!face || 'refused' in face) {
+            /*
+             * NO FACE, NO PORTRAIT -- AND NO STRANGER EITHER. The person is
+             * asked for a photo in one short line, on a card like any other:
+             * that IS the action of this turn, and nothing is drawn or paid.
+             */
+            await noteGift(ctx, 'no face to draw from', 'no-face')
+            const may = await reachable(ctx, lead.id).catch(() => ({
+              ok: false as const,
+              why: 'база недоступна',
+            }))
+            const ask = askForPhotoLine(lead.firstName)
+            const p = propose(
+              'send',
+              chat,
+              ask,
+              'У человека нет ни аватарки, ни присланного фото с лицом, а портрет ' +
+                'рисуется только из его лица. Подготовлена одна строка с просьбой ' +
+                'прислать фото; пришлёт — сделай портрет из него (photo_url).',
+              ctx,
+              may.ok ? lead.id : undefined,
+              may.ok ? may.botName : undefined,
+              { display: lead.display ?? undefined }
+            )
+            return { ...p, delivered: false, need_photo: true, price: 0 }
+          }
+
+          const edit = lookup('image_edit')
+          if (!edit)
+            throw new Error('перерисовка фото недоступна на этом сервере')
+          const mode: 'gift' | 'paid' = gift ? 'gift' : 'paid'
+          /*
+           * The OWNER's turn draws it. Gift: the owner pays now. Paid: nobody
+           * pays now, the recipient pays at the press (chargeLater). The face
+           * is already chosen here, so the edit is not asked to choose another
+           * one. The task id goes onto the debt the moment Kie accepts it, not
+           * when the wait ends: from that line on the portrait is paid for.
+           */
+          const drawCtx: ToolContext = {
+            ...(ctx as ToolContext),
+            imageWaitMs: PORTRAIT_WAIT_MS,
+            faceOf: undefined,
+            onImageTask: async (taskId: string) => {
+              slot.taskId = taskId
+              if (ctx?.pool)
+                await attachTask(pool, {
+                  owner,
+                  lead: lead.id,
+                  taskId,
+                  why: `рисуется, задача ${taskId}`, // cyrillic-ok: the owner reads this reason
+                  mode,
+                })
+            },
+            ...(gift ? {} : { chargeLater: true }),
+          }
+          const made = (await edit.handler(
             {
               prompt:
-                NO_PERSON_PREFIX +
-                prompt +
-                ' Vertical frame, no text, no logo.',
-              ...sizeFor(aspectRatio),
+                LEAD_MAGNET.identityPrefix + prompt + LEAD_MAGNET.framingSuffix,
+              image_url: face.url,
+              aspect_ratio: aspectRatio,
+              model: LEAD_MAGNET.model,
             },
-            gift
-              ? (ctx as ToolContext)
-              : { ...(ctx as ToolContext), chargeLater: true }
-          )) as { url?: string; причина?: string; reason?: string } // cyrillic-ok: public API field
+            drawCtx
+          )) as {
+            url?: string
+            причина?: string // cyrillic-ok: public API field
+            reason?: string
+            pending?: boolean
+            taskId?: string
+          }
+          const source =
+            face.from === 'sent' ? 'присланное им фото' : 'его аватарка'
+
+          if (!made?.url && made?.pending && made?.taskId && ctx?.pool) {
+            /*
+             * NOT A FAILURE: paid for and still drawing. The task id is on the
+             * debt already (onImageTask; written again here in case that note
+             * failed), a watch keeps asking, and the finished portrait is
+             * handed over by the next delivery -- without a second task and
+             * without a second charge.
+             */
+            await attachTask(pool, {
+              owner,
+              lead: lead.id,
+              taskId: made.taskId,
+              why: made.reason ?? made.причина, // cyrillic-ok: public API field
+              mode,
+            })
+            void followLate(
+              ctx as ToolContext,
+              owner,
+              lead.id,
+              made.taskId,
+              deps
+            ).catch(() => undefined)
+            await noteGift(ctx, `task ${made.taskId}`, 'edit', 'gift-late')
+            return {
+              delivered: false,
+              pending: true,
+              task_id: made.taskId,
+              // cyrillic-ok: public API field
+              причина: PORTRAIT_DRAWING,
+              price,
+              source,
+            }
+          }
           if (!made?.url) {
+            /*
+             * BOTH, AND THEY ANSWER DIFFERENT QUESTIONS. `noteImagesFailed` is
+             * the in-memory health the playbook reads instead of paying for a
+             * generation to find out; `noteGift` is the line in the journal,
+             * which is where a refusal becomes visible to a person days later.
+             * Keeping only one would have quietly dropped the half that the
+             * other branch was written for.
+             */
             noteImagesFailed(made?.причина ?? made?.reason) // cyrillic-ok: field name
-            await noteGift(ctx, made?.причина ?? made?.reason, 'generate') // cyrillic-ok: public API field
+            await noteGift(ctx, made?.причина ?? made?.reason, 'edit') // cyrillic-ok: public API field
+            /*
+             * AND THE THIRD ANSWER: to whom. The two calls above know that the
+             * provider is down and that a gift was refused; neither can name
+             * the person left waiting, so nobody goes back to them when it
+             * works again (see crm-owed.ts).
+             */
+            if (ctx?.pool) {
+              await noteOwed(pool, {
+                owner,
+                lead: lead.id,
+                what: 'picture',
+                why: made?.причина ?? made?.reason, // cyrillic-ok: public API field
+              })
+              // A task Kie refused inside the wait brings nothing: it must not
+              // stay on the debt for the next attempt to ask about.
+              if (slot.taskId)
+                await clearTask(pool, {
+                  owner,
+                  lead: lead.id,
+                  taskId: slot.taskId,
+                  why: made?.причина ?? made?.reason, // cyrillic-ok: public API field
+                })
+            }
             return {
               delivered: false,
               // cyrillic-ok: public API field
               причина:
                 made?.причина ?? made?.reason ?? 'картинка не получилась', // cyrillic-ok: public API field
               price,
-              source: 'без людей, по описанию',
+              source,
             }
           }
-          return card(made.url, {
-            source: 'без людей, по описанию',
-            model: 'image_generate',
-          })
-        }
-
-        /*
-         * 3. THE FACE. Theirs, or nobody's (client-face.ts).
-         */
-        const face = await clientFace(
-          ctx,
-          { id: lead.id, username: chat.startsWith('@') ? chat : null },
-          faceDeps,
-          { photoUrl: a?.photo_url ? String(a.photo_url) : null }
-        )
-        if (!face || 'refused' in face) {
-          /*
-           * NO FACE, NO PORTRAIT -- AND NO STRANGER EITHER. The person is asked
-           * for a photo in one short line, on a card like any other: that IS
-           * the action of this turn, and nothing is drawn or paid.
-           */
-          await noteGift(ctx, 'no face to draw from', 'no-face')
-          const may = await reachable(ctx, lead.id).catch(() => ({
-            ok: false as const,
-            why: 'база недоступна',
-          }))
-          const ask = askForPhotoLine(lead.firstName)
-          const p = propose(
-            'send',
-            chat,
-            ask,
-            'У человека нет ни аватарки, ни присланного фото с лицом, а портрет ' +
-              'рисуется только из его лица. Подготовлена одна строка с просьбой ' +
-              'прислать фото; пришлёт — сделай портрет из него (photo_url).',
-            ctx,
-            may.ok ? lead.id : undefined,
-            may.ok ? may.botName : undefined,
-            { display: lead.display ?? undefined }
+          return card(
+            made.url,
+            {
+              source,
+              ...(face.ignored ? { photo_url_ignored: face.ignored } : {}),
+              model: LEAD_MAGNET.model,
+            },
+            undefined,
+            face.from
           )
-          return { ...p, delivered: false, need_photo: true, price: 0 }
+        } finally {
+          if (drawingNow.get(key) === slot) drawingNow.delete(key)
         }
-
-        const edit = lookup('image_edit')
-        if (!edit)
-          throw new Error('перерисовка фото недоступна на этом сервере')
-        /*
-         * The OWNER's turn draws it. Gift: the owner pays now. Paid: nobody
-         * pays now, the recipient pays at the press (chargeLater). The face is
-         * already chosen here, so the edit is not asked to choose another one.
-         */
-        const drawCtx: ToolContext = {
-          ...(ctx as ToolContext),
-          imageWaitMs: PORTRAIT_WAIT_MS,
-          faceOf: undefined,
-          ...(gift ? {} : { chargeLater: true }),
-        }
-        const made = (await edit.handler(
-          {
-            prompt:
-              LEAD_MAGNET.identityPrefix + prompt + LEAD_MAGNET.framingSuffix,
-            image_url: face.url,
-            aspect_ratio: aspectRatio,
-            model: LEAD_MAGNET.model,
-          },
-          drawCtx
-        )) as {
-          url?: string
-          причина?: string // cyrillic-ok: public API field
-          reason?: string
-          pending?: boolean
-          taskId?: string
-        }
-        const source =
-          face.from === 'sent' ? 'присланное им фото' : 'его аватарка'
-
-        if (!made?.url && made?.pending && made?.taskId && ctx?.pool) {
-          /*
-           * NOT A FAILURE: paid for and still drawing. The task id goes onto
-           * the debt (it outlives this process), a watch keeps asking, and the
-           * finished portrait is handed over by the next delivery -- without
-           * a second task and without a second charge.
-           */
-          await attachTask(pool, {
-            owner,
-            lead: lead.id,
-            taskId: made.taskId,
-            why: made.reason ?? made.причина, // cyrillic-ok: public API field
-          })
-          void followLate(
-            ctx as ToolContext,
-            owner,
-            lead.id,
-            made.taskId,
-            deps
-          ).catch(() => undefined)
-          await noteGift(ctx, `task ${made.taskId}`, 'edit', 'gift-late')
-          return {
-            delivered: false,
-            pending: true,
-            task_id: made.taskId,
-            // cyrillic-ok: public API field
-            причина: PORTRAIT_DRAWING,
-            price,
-            source,
-          }
-        }
-        if (!made?.url) {
-          /*
-           * BOTH, AND THEY ANSWER DIFFERENT QUESTIONS. `noteImagesFailed` is
-           * the in-memory health the playbook reads instead of paying for a
-           * generation to find out; `noteGift` is the line in the journal,
-           * which is where a refusal becomes visible to a person days later.
-           * Keeping only one would have quietly dropped the half that the
-           * other branch was written for.
-           */
-          noteImagesFailed(made?.причина ?? made?.reason) // cyrillic-ok: field name
-          await noteGift(ctx, made?.причина ?? made?.reason, 'edit') // cyrillic-ok: public API field
-          /*
-           * AND THE THIRD ANSWER: to whom. The two calls above know that the
-           * provider is down and that a gift was refused; neither can name the
-           * person left waiting, so nobody goes back to them when it works
-           * again (see crm-owed.ts).
-           */
-          if (ctx?.pool) {
-            await noteOwed(pool, {
-              owner,
-              lead: lead.id,
-              what: 'picture',
-              why: made?.причина ?? made?.reason, // cyrillic-ok: public API field
-            })
-          }
-          return {
-            delivered: false,
-            // cyrillic-ok: public API field
-            причина: made?.причина ?? made?.reason ?? 'картинка не получилась', // cyrillic-ok: public API field
-            price,
-            source,
-          }
-        }
-        return card(made.url, {
-          source,
-          ...(face.ignored ? { photo_url_ignored: face.ignored } : {}),
-          model: LEAD_MAGNET.model,
-        })
       },
     },
     {

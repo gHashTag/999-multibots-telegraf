@@ -37,6 +37,15 @@ export type LateOutcome =
   | { state: 'failed'; taskId: string; reason: string }
   /** Not finished yet, or finished but not yet copied to our storage. */
   | { state: 'running'; taskId: string; reason?: string }
+  /**
+   * The question got no answer about the task: a network error, a missing
+   * key, a record the provider no longer has (or never had). Kept apart from
+   * `running` on purpose -- "still drawing" is a fact about the task, this is
+   * not, and a task that only ever answers this must be given up on at some
+   * point (crm-deliver-tool.ts PORTRAIT_GIVE_UP_MS) instead of being waited
+   * for forever.
+   */
+  | { state: 'unknown'; taskId: string; reason: string }
 
 export interface LateDeps {
   /** One recordInfo. Default: kie-image.ts kieTaskState. */
@@ -84,16 +93,13 @@ export async function lookOnce(
   try {
     st = await deps.check(id)
   } catch (e) {
-    return { state: 'running', taskId: id, reason: String(e).slice(0, 160) }
+    return { state: 'unknown', taskId: id, reason: String(e).slice(0, 160) }
   }
   if (st.state === 'fail')
     return { state: 'failed', taskId: id, reason: st.reason }
-  if (st.state !== 'success')
-    return {
-      state: 'running',
-      taskId: id,
-      ...(st.state === 'unknown' ? { reason: st.reason } : {}),
-    }
+  if (st.state === 'unknown')
+    return { state: 'unknown', taskId: id, reason: st.reason }
+  if (st.state !== 'success') return { state: 'running', taskId: id }
   let url = ''
   try {
     url = await deps.keep(st.url, id)
@@ -118,8 +124,8 @@ export async function lookOnce(
  * Keep asking until there is a verdict or the bound runs out.
  *
  * Returns the SAME promise to every caller for one task id while it runs.
- * Resolves `running` at the bound: the task id is stored with the debt, and
- * the next attempt asks again with `lookOnce`.
+ * Resolves `running` (or `unknown`) at the bound: the task id is stored with
+ * the debt, and the next attempt asks again with `lookOnce`.
  */
 export function watchLate(
   taskId: string,
@@ -138,7 +144,9 @@ export function watchLate(
     for (;;) {
       await sleep(every)
       const out = await lookOnce(id, deps)
-      if (out.state !== 'running') return out
+      // No verdict yet -- still drawing, or the question itself failed: ask
+      // again until the bound.
+      if (out.state === 'ready' || out.state === 'failed') return out
       if (now() >= deadline) return out
     }
   })()

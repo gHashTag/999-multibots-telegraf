@@ -295,6 +295,7 @@ async function runKieJob(opts: {
   model: string
   input: Record<string, unknown>
   timeoutMs?: number
+  onCreated?: (taskId: string) => unknown
 }): Promise<KieResult> {
   if (!key()) return { ok: false, reason: 'KIE_AI_API_KEY не задан в сервисе' }
 
@@ -309,6 +310,24 @@ async function runKieJob(opts: {
       created.json?.msg || created.json?.message || created.text
     ).slice(0, 200)
     return { ok: false, reason: `Kie не принял задачу: ${msg}` }
+  }
+  /*
+   * THE ID LEAVES HERE, BEFORE THE WAIT -- not with the verdict.
+   *
+   * The task is paid for from this line on. Handing the id back only when the
+   * wait ends left a window of a whole minute in which the caller knew
+   * nothing: a second request for the same picture found no task and paid
+   * for another one, and a render killed mid-wait took the only copy of the
+   * id with it. A caller that records it here (crm_deliver_photo puts it on
+   * the person's debt) closes both. Bookkeeping must not lose the task, so a
+   * throw from it is swallowed and the wait goes on.
+   */
+  if (opts.onCreated) {
+    try {
+      await opts.onCreated(String(taskId))
+    } catch {
+      /* see above: the picture is worth more than the note about it */
+    }
   }
 
   const deadline = Date.now() + (opts.timeoutMs ?? 180_000)
@@ -354,12 +373,15 @@ export async function editImage(opts: {
   aspectRatio?: string
   model?: string
   timeoutMs?: number
+  /** Told the task id as soon as Kie accepts the task (see runKieJob). */
+  onCreated?: (taskId: string) => unknown
 }): Promise<KieResult> {
   const model = opts.model || EDIT_MODEL
   return runKieJob({
     model,
     input: editInputFor(model, opts),
     timeoutMs: opts.timeoutMs,
+    onCreated: opts.onCreated,
   })
 }
 
