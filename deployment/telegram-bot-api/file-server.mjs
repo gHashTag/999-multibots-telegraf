@@ -5,22 +5,45 @@
  * on its own disk -- `/var/lib/telegram-bot-api/<token>/videos/file_3.mp4` --
  * and serves no file downloads over HTTP at all. The bot and the render run in
  * other containers, so they need a way to read that path. This is it: GET (and
- * HEAD) of exactly that absolute path, and nothing else.
+ * HEAD) of exactly that shape of path, and nothing else.
  *
- * WHAT IT REFUSES, AND WHY EACH ONE MATTERS
+ * AN ALLOW-LIST OF ONE SHAPE, NOT A DENY-LIST OF BAD PATHS
  *
- *   - Anything outside the working directory (traversal, symlinks out).
- *   - Directories. A listing of the working directory is a list of every bot
- *     TOKEN on the server -- its subdirectories are named by them. A directory
- *     answers 404 exactly like a missing file, so not even existence leaks.
- *   - Every method but GET and HEAD. It never writes, renames or deletes.
+ * The first version served any regular file under the working directory and
+ * reasoned that "every path contains a token". It does not. The server keeps
+ * files of its own at the ROOT of that directory, at fixed, well-known names,
+ * and reading them takes no token at all:
+ *
+ *   tqueue.binlog        the pending updates of EVERY bot on the server --
+ *                        messages, business chats, payments
+ *   webhooks_db.binlog   keyed by bot TOKEN
+ *
+ * (ClientManager.cpp: `working_directory_ + "tqueue.binlog"`, `+
+ * "webhooks_db.binlog"`.) And each bot's own directory holds its session --
+ * `td.binlog`, `db.sqlite` -- whose auth key is the bot.
+ *
+ * So what is served is exactly what `getFile` can answer, and nothing that
+ * merely happens to live nearby:
+ *
+ *   <root>/<one bot directory>/<one media directory>/<file>
+ *
+ * The bot directory must be token-shaped (the server names it by the token,
+ * with `:` or `~`); the media directory must be one of MEDIA_DIRS, the same
+ * list the sweep deletes from (sweep.mjs); the file sits directly inside it.
+ * Everything else answers 404 -- the root files, the session files, a
+ * directory (a listing of the root would be a list of every token), anything
+ * outside the root, and any path through a symlink.
+ *
+ * Every method but GET and HEAD is refused. It never writes, renames or
+ * deletes.
  *
  * WHERE IT LISTENS
  *
- * On the Railway PRIVATE network only: the service gets no public domain
- * (deployment/telegram-bot-api/README.md). Every path it serves contains a bot
- * token, the same exposure as the Bot API port beside it -- which is why
- * neither is ever published.
+ * On the Railway private network only: the service gets no public domain
+ * (deployment/telegram-bot-api/README.md). The private network is NOT a
+ * boundary by itself -- the per-person browser pod sits on it too -- which is
+ * why the shape above is the rule and not "the network is private". Every path
+ * it serves now contains a bot token, so reading a file takes the token.
  *
  * It logs statuses, never paths: a path is a token.
  *
@@ -31,6 +54,15 @@ import { createServer } from 'node:http'
 import { createReadStream } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { MEDIA_DIRS } from './sweep.mjs'
+
+/**
+ * A bot's directory: the token, with the colon kept or turned into `~` (the
+ * server does that where a file system refuses colons), and `:T`/`~T` for the
+ * test environment. Nothing else lives in the root under this shape.
+ */
+const BOT_DIR = /^\d{1,20}[:~][A-Za-z0-9_-]{30,}([:~]T)?$/
+const MEDIA = new Set(MEDIA_DIRS)
 
 /**
  * The absolute file a request names, or null when it names nothing we serve.
@@ -64,20 +96,40 @@ export async function resolveRequestPath(root, rawUrl) {
     }
     decoded.push(part)
   }
-  const wanted = '/' + decoded.join('/')
-  const base = path.resolve(root)
-  if (!wanted.startsWith(base + '/')) return null
 
-  // A symlink inside the directory must not lead out of it.
-  let real
+  // Exactly <root>/<bot>/<media>/<file>: three segments below the root.
+  // The server reports paths under the REAL working directory (it calls
+  // realpath on --dir at startup), so the root is matched as configured or
+  // as resolved.
+  const base = path.resolve(root)
   let realBase
   try {
-    real = await realpath(wanted)
     realBase = await realpath(base)
   } catch {
     return null
   }
-  if (!real.startsWith(realBase + '/')) return null
+  let rest = null
+  for (const candidate of [base, realBase]) {
+    const prefix = candidate.split('/').filter(Boolean)
+    if (prefix.every((segment, i) => decoded[i] === segment)) {
+      rest = decoded.slice(prefix.length)
+      break
+    }
+  }
+  if (!rest || rest.length !== 3) return null
+  const [bot, kind, name] = rest
+  if (!BOT_DIR.test(bot) || !MEDIA.has(kind)) return null
+
+  // No symlink anywhere on the way: the real path must BE the path asked
+  // for. A link in a bot's directory could otherwise lead to the root files
+  // or out of the directory altogether.
+  let real
+  try {
+    real = await realpath(path.join(realBase, bot, kind, name))
+  } catch {
+    return null
+  }
+  if (real !== path.join(realBase, bot, kind, name)) return null
   return real
 }
 

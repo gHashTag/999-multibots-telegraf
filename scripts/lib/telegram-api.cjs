@@ -161,6 +161,30 @@ function assertBotApiConfig(env = process.env) {
   return readBotApiConfig(env)
 }
 
+/**
+ * For scripts that hold real tokens and may run outside the service: fail
+ * closed. The reasoning is in src/services/telegramApi.ts (same name): an
+ * unset BOT_API_LOCAL_BOTS means "none moved" only where the service's own
+ * variables are loaded; on a laptop it means "not known", and treating it as
+ * "every bot on the cloud" sends a moved bot's call to the cloud.
+ */
+function assertBotApiListKnown(env = process.env) {
+  const onRailway = Boolean(
+    env.RAILWAY_SERVICE_NAME ||
+      env.RAILWAY_ENVIRONMENT_NAME ||
+      env.RAILWAY_ENVIRONMENT
+  )
+  if (env[BOTS_VAR] === undefined && !onRailway) {
+    throw new Error(
+      `${BOTS_VAR} is not set here, so this script cannot tell which bots live on ` +
+        'our own Bot API server -- and a cloud request for one of those logs it back ' +
+        'into the cloud. Run it with the service variables: ' +
+        '`railway run -s 999-multibots-telegraf <command>`.'
+    )
+  }
+  return readBotApiConfig(env)
+}
+
 function botIdOfToken(token) {
   const m = /^(\d{1,20}):/.exec(String(token ?? '').trim())
   return m ? m[1] : null
@@ -213,6 +237,7 @@ module.exports = {
   BOTS_VAR,
   readBotApiConfig,
   assertBotApiConfig,
+  assertBotApiListKnown,
   botIdOfToken,
   botApiIsLocalFor,
   telegramApiRootFor,
@@ -225,17 +250,32 @@ module.exports = {
  * `KEY=VALUE` lines (the shape `railway variables --kv` prints) -> the three
  * variables this file reads, and nothing else: a script on a laptop has to
  * decide with the SERVICE's configuration, not with its own empty one.
+ *
+ * Empty input is an error, not "no bot moved": it is what a `railway` call
+ * that failed (not linked, not logged in) hands on, and reading it as "every
+ * bot on the cloud" is the failure this file exists to prevent. Variables
+ * that were read but do not include BOT_API_LOCAL_BOTS ARE the service's
+ * answer: it decides from the same list.
  */
 function envFromKv(text) {
   const env = {}
+  let lines = 0
   for (const line of String(text).split('\n')) {
     const at = line.indexOf('=')
-    if (at < 0) continue
+    if (at <= 0) continue
+    lines += 1
     const key = line.slice(0, at).trim()
     if (key === ROOT_VAR || key === FILES_VAR || key === BOTS_VAR) {
       env[key] = line.slice(at + 1).trim()
     }
   }
+  if (lines === 0) {
+    throw new Error(
+      "no KEY=VALUE lines on stdin: the service's variables could not be read " +
+        '(is `railway` linked and logged in?). Refusing to guess.'
+    )
+  }
+  if (env[BOTS_VAR] === undefined) env[BOTS_VAR] = ''
   return env
 }
 
@@ -251,8 +291,16 @@ if (require.main === module) {
     )
     process.exit(2)
   }
-  const env = fromStdin
-    ? envFromKv(require('node:fs').readFileSync(0, 'utf8'))
-    : process.env
-  process.stdout.write(telegramApiRootFor(token, env))
+  try {
+    const env = fromStdin
+      ? envFromKv(require('node:fs').readFileSync(0, 'utf8'))
+      : process.env
+    assertBotApiListKnown(env)
+    process.stdout.write(telegramApiRootFor(token, env))
+  } catch (e) {
+    // Nothing on stdout: a caller comparing it with the cloud's address must
+    // not read a failure as "on the cloud".
+    process.stderr.write(`telegram-api: ${e && e.message ? e.message : e}\n`)
+    process.exit(1)
+  }
 }

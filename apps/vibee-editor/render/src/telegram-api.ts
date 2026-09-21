@@ -197,6 +197,30 @@ export function assertBotApiConfig(env: Env = process.env): BotApiConfig {
   return readBotApiConfig(env)
 }
 
+/**
+ * Bots that must never be moved to our own server, by the variable holding
+ * their token and what they carry -- the render's copy of the bot's check
+ * (src/services/telegramApi.ts). The default cashier answers when a person's
+ * own bot is not a cashier; if it lived on our server, every fallback invoice
+ * would go silent with that server.
+ */
+export function assertBotsStayOnCloud(
+  carriers: Record<string, string>,
+  env: Env = process.env
+): void {
+  const config = readBotApiConfig(env)
+  for (const [name, what] of Object.entries(carriers)) {
+    const id = botIdOfToken(env[name])
+    if (id && config.local.has(id)) {
+      throw new Error(
+        `${BOTS_VAR} lists bot ${id}, the bot of ${name}, which carries ${what}. ` +
+          'It must stay on the cloud: take its entry out of ' +
+          `${BOTS_VAR} (deployment/telegram-bot-api/README.md).`
+      )
+    }
+  }
+}
+
 /** `123456:ABC...` -> `123456`. Null for anything that is not token-shaped. */
 export function botIdOfToken(token: string | null | undefined): string | null {
   const m = /^(\d{1,20}):/.exec(String(token ?? '').trim())

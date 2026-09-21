@@ -92,6 +92,50 @@ describe('the farm map comes from getMe, not from a hand-typed list', () => {
     })
   })
 
+  // A bot on our own Bot API server while it restarts (a network error), or
+  // one its proxy or the cloud refuses (ok:false: not yet listed there, or
+  // within 10 minutes of its logOut): not a cashier NOW, but it must become
+  // one again without a redeploy.
+  for (const [how, answer] of [
+    ['does not answer', undefined],
+    ['is refused', null],
+  ] as const) {
+    it(`a map with a bot that ${how} is kept for minutes, not for the life of the process`, async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        process.env.BOT_TOKEN_1 = 'tok-one' // secret-guard-ok: invented for this test
+        process.env.BOT_TOKEN_2 = 'tok-moved' // secret-guard-ok: invented for this test
+        const { tokenForBot, INCOMPLETE_FARM_TTL_MS } = await import(
+          './src/agent/bot-farm'
+        )
+        const down = stubGetMe({
+          'tok-one': 'neuro_blogger_bot',
+          ...(answer === null ? { 'tok-moved': null } : {}),
+        })
+        expect(
+          await tokenForBot('kaya_easy_art_bot', down.fetchImpl)
+        ).toBeNull()
+        // Within the window: remembered, not asked again.
+        expect(
+          await tokenForBot('kaya_easy_art_bot', down.fetchImpl)
+        ).toBeNull()
+        expect(down.asked).toHaveLength(2)
+
+        vi.setSystemTime(Date.now() + INCOMPLETE_FARM_TTL_MS + 1)
+        const up = stubGetMe({
+          'tok-one': 'neuro_blogger_bot',
+          'tok-moved': 'Kaya_easy_art_bot',
+        })
+        expect(await tokenForBot('kaya_easy_art_bot', up.fetchImpl)).toEqual({
+          username: 'kaya_easy_art_bot',
+          token: 'tok-moved',
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  }
+
   it('a full map IS remembered: one getMe per token per process', async () => {
     process.env.BOT_TOKEN_1 = 'tok-one' // secret-guard-ok: invented for this test
     const { fetchImpl, asked } = stubGetMe({ 'tok-one': 'neuro_blogger_bot' })

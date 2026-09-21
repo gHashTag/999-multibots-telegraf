@@ -242,6 +242,64 @@ export function assertBotApiConfig(env: Env = process.env): BotApiConfig {
   return readBotApiConfig(env)
 }
 
+/**
+ * Bots that must never be moved to our own server, by the variable holding
+ * their token and what they carry, e.g. `{ BOT_TOKEN_1: 'the admin alerts' }`.
+ *
+ * An alert that our Bot API server is down cannot travel through that server,
+ * and a default cashier that goes silent with it takes every invoice along.
+ * Listing such a bot throws at startup, like any other broken value here.
+ */
+export function assertBotsStayOnCloud(
+  carriers: Record<string, string>,
+  env: Env = process.env
+): void {
+  const config = readBotApiConfig(env)
+  for (const [name, what] of Object.entries(carriers)) {
+    const id = botIdOfToken(env[name])
+    if (id && config.local.has(id)) {
+      throw new Error(
+        `${BOTS_VAR} lists bot ${id}, the bot of ${name}, which carries ${what}. ` +
+          'It must stay on the cloud: take its entry out of ' +
+          `${BOTS_VAR} (deployment/telegram-bot-api/README.md).`
+      )
+    }
+  }
+}
+
+/**
+ * FOR TOOLING THAT RUNS OUTSIDE THE SERVICE -- FAIL CLOSED.
+ *
+ * Inside the bot service an unset BOT_API_LOCAL_BOTS means "no bot is on our
+ * server", and that is true: the service decides from that very variable.
+ * A script on a laptop is different. It takes real tokens from Infisical or
+ * .env, where BOT_API_LOCAL_BOTS is not written, and would read "unset" as
+ * "every bot on the cloud" -- and a cloud request for a moved bot is exactly
+ * the one that logs it back in there and splits its updates.
+ *
+ * So a script that holds real tokens calls this first. It passes when the
+ * variable is set (even empty: somebody decided), or when the process runs
+ * with a Railway service's variables (`railway run -s 999-multibots-telegraf`,
+ * or inside the service), where an absent variable is that service's answer.
+ * Otherwise it throws, and the script calls nobody.
+ */
+export function assertBotApiListKnown(env: Env = process.env): BotApiConfig {
+  const onRailway = Boolean(
+    env.RAILWAY_SERVICE_NAME ||
+      env.RAILWAY_ENVIRONMENT_NAME ||
+      env.RAILWAY_ENVIRONMENT
+  )
+  if (env[BOTS_VAR] === undefined && !onRailway) {
+    throw new Error(
+      `${BOTS_VAR} is not set here, so this script cannot tell which bots live on ` +
+        'our own Bot API server -- and a cloud request for one of those logs it back ' +
+        'into the cloud. Run it with the service variables: ' +
+        '`railway run -s 999-multibots-telegraf <command>`.'
+    )
+  }
+  return readBotApiConfig(env)
+}
+
 /** `123456:ABC...` -> `123456`. Null for anything that is not token-shaped. */
 export function botIdOfToken(token: string | null | undefined): string | null {
   const m = /^(\d{1,20}):/.exec(String(token ?? '').trim())

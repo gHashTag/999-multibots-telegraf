@@ -584,6 +584,7 @@ import {
 } from './src/client-errors'
 import {
   assertBotApiConfig,
+  assertBotsStayOnCloud,
   telegramApiFor,
   telegramFileUrlFor,
 } from './src/telegram-api'
@@ -11706,6 +11707,9 @@ async function main() {
    * has left it (src/telegram-api.ts says why that splits the bot's updates).
    */
   const botApi = assertBotApiConfig()
+  // The default cashier mints every invoice a person's own bot cannot; it
+  // must not go silent with our own Bot API server.
+  assertBotsStayOnCloud({ TOKENS_PAYMENT_BOT_TOKEN: 'the default cashier' })
   console.log(
     `🤖 Bot API: ${botApi.local.size} bot(s) on our server` +
       (botApi.local.size

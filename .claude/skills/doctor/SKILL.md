@@ -8,6 +8,7 @@ description: Daily production health check for the multi-bot Telegram platform o
 ## When to Use This Skill
 
 Invoke `/doctor` (or load this skill) when:
+
 - A user says "бот не отвечает" / "bot is not responding"
 - Daily autonomous monitoring fires (`/loop 1d /doctor`)
 - Before/after deployment to confirm production is healthy
@@ -17,78 +18,120 @@ Invoke `/doctor` (or load this skill) when:
 ## Quick Diagnosis — Run These Checks in Order
 
 ### 1. Railway deployment status
+
 ```bash
 railway deployment list 2>&1 | head -10
 railway status 2>&1 | head -10
 ```
+
 Expected: latest deployment is `SUCCESS` and health returns `200`.
 
 ### 2. Health endpoint
+
 ```bash
 BASE="https://999-multibots-telegraf-production-2008.up.railway.app"
 curl -s "$BASE/health"
 curl -s "$BASE/api/health"
 ```
+
 Expected: `{"status":"UP", ...}` with HTTP 200.
 
 ### 3. Bot token validity & webhook conflict
-For each `BOT_TOKEN_1` … `BOT_TOKEN_10`:
+
+Some bots may live on **our own Bot API server** (`BOT_API_LOCAL_BOTS`,
+`deployment/telegram-bot-api/README.md`). Such a bot must NEVER be asked on the
+cloud: a cloud request more than 10 minutes after its logOut logs it back in
+there and splits its updates between two servers. Its server is on the private
+network, out of reach from here. So the host comes from the bot service's own
+variables, per token, and a bot that is not on the cloud is skipped -- as is
+every bot when those variables cannot be read:
+
 ```bash
-TOKEN=$(railway variables --json 2>&1 | python3 -c "import sys,json; print(json.load(sys.stdin)['BOT_TOKEN_N'])")
-curl -s "https://api.telegram.org/bot${TOKEN}/getMe"
-curl -s "https://api.telegram.org/bot${TOKEN}/getWebhookInfo"
+KV=$(railway variables --service 999-multibots-telegraf --kv 2>/dev/null)
+CLOUD=$(node -p 'require("./scripts/lib/telegram-api.cjs").CLOUD_API_ROOT')
+for i in $(seq 1 20); do
+  TOKEN=$(printf '%s\n' "$KV" | grep "^BOT_TOKEN_${i}=" | cut -d= -f2-)
+  [ -n "$TOKEN" ] || continue
+  ROOT=$(printf '%s\n' "$KV" | BOT_API_TOKEN="$TOKEN" node scripts/lib/telegram-api.cjs api-root --env-from-stdin 2>/dev/null)
+  if [ "$ROOT" != "$CLOUD" ]; then
+    echo "BOT_TOKEN_${i}: on our own Bot API server, or the config is unreadable -- not checked from here"
+    continue
+  fi
+  echo "BOT_TOKEN_${i}:"
+  curl -s "${ROOT}/bot${TOKEN}/getMe"
+  curl -s "${ROOT}/bot${TOKEN}/getWebhookInfo"
+done
 ```
+
 Expected: `getMe.ok == true` and `webhook_url` is empty (polling mode).
-If `webhook_url` is set → delete it:
+If `webhook_url` is set on a bot the loop above resolved to the cloud → delete
+it, with the same `ROOT`:
+
 ```bash
-curl -s -X POST "https://api.telegram.org/bot${TOKEN}/deleteWebhook?drop_pending_updates=true"
+curl -s -X POST "${ROOT}/bot${TOKEN}/deleteWebhook?drop_pending_updates=true"
 ```
+
 If `pending_update_count` > 50 → possible 409 conflict or downtime backlog.
 
+A bot skipped above is checked from inside: its boot line
+`Bot API: listed bot <id> answers; launching it` and the `[bot-api]` lines of
+the server monitor in `railway logs --service 999-multibots-telegraf`, and
+`railway logs --service telegram-bot-api`.
+
 ### 4. Provider health
+
 ```bash
 curl -s "$BASE/api/providers"
 ```
+
 Expected: all essential providers `healthy: true` or `status: "up"`. Investigate `fal`, `replicate`, `openai`, `elevenlabs`, `heygen` first.
 
 ### 5. Billing / platform debt
+
 ```bash
 curl -s "$BASE/api/billing"
 ```
+
 Expected: no owner has debt > 500⭐ for more than 3 days. Auto-disable threshold: 500⭐.
 
 ### 6. Recent errors in Railway logs
+
 ```bash
 railway logs --lines 200 2>&1 | grep -iE "error|❌|CRITICAL|fail|unhandled|rejection|409|conflict" | tail -30
 ```
 
 ## Decision Matrix
 
-| Symptom | Likely Cause | Action |
-|---------|--------------|--------|
-| Health non-200 | Container crash / port misconfig | Check `railway logs -d`, verify `PORT`/`API_PORT`, restart |
-| Bot 409 Conflict | Two instances polling same token | Stop old deploy, delete webhook, redeploy single replica |
-| Bot token INVALID | Token revoked in @BotFather | Update `BOT_TOKEN_N` in Railway vars, redeploy |
-| Provider DOWN | API key empty, rate limit, outage | Check Infisical secret, balance, provider status page |
-| Debt > 500⭐ | Unpaid platform fees | Notify owner; bot may auto-disable |
-| Webhook URL set | Previous webhook not cleaned | `deleteWebhook?drop_pending_updates=true` |
+| Symptom           | Likely Cause                      | Action                                                     |
+| ----------------- | --------------------------------- | ---------------------------------------------------------- |
+| Health non-200    | Container crash / port misconfig  | Check `railway logs -d`, verify `PORT`/`API_PORT`, restart |
+| Bot 409 Conflict  | Two instances polling same token  | Stop old deploy, delete webhook, redeploy single replica   |
+| Bot token INVALID | Token revoked in @BotFather       | Update `BOT_TOKEN_N` in Railway vars, redeploy             |
+| Provider DOWN     | API key empty, rate limit, outage | Check Infisical secret, balance, provider status page      |
+| Debt > 500⭐      | Unpaid platform fees              | Notify owner; bot may auto-disable                         |
+| Webhook URL set   | Previous webhook not cleaned      | `deleteWebhook?drop_pending_updates=true`                  |
 
 ## Common Fixes
 
 ### Fix 409 Conflict (duplicate polling)
+
 1. Ensure only ONE Railway replica: `numReplicas = 1` in `railway.toml`.
 2. Delete webhooks for all tokens (script above).
 3. Stop any local dev / old Fly.io instance.
 4. Redeploy: `railway up`.
 
 ### Fix stale BASE_WEBHOOK_URL
+
 If `BASE_WEBHOOK_URL` still points to old Fly.io URL:
+
 ```bash
 railway variables --set "BASE_WEBHOOK_URL=https://999-multibots-telegraf-production-2008.up.railway.app"
 ```
 
 ### Fix missing Inngest webhook
+
 Update Inngest Cloud endpoint to:
+
 ```text
 https://999-multibots-telegraf-production-2008.up.railway.app/api/inngest
 ```

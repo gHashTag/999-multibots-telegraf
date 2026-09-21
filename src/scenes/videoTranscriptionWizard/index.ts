@@ -67,6 +67,8 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
     let videoUrl: string
     let isFromUrl = false
+    // The uploaded video's own file_id: what the result is sent back with.
+    let uploadedFileId = ''
 
     if (isVideoFile) {
       // Обработка загруженного видеофайла
@@ -113,6 +115,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
       // Downloaded by videoTranscription in this process: the private file
       // endpoint is reachable for a bot on our own Bot API server.
       videoUrl = telegramFileUrlFor(ctx.telegram.token, videoFile.file_path)
+      uploadedFileId = message.video.file_id
     } else if (isTextWithUrl) {
       // Обработка ссылки на видео
       videoUrl = message.text.trim()
@@ -378,7 +381,13 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           ? `📺 Транскрибация завершена!\n\n🤖 Сделано в боте @${ctx.botInfo.username}\n✨ Попробуйте и вы — быстро и точно!`
           : `📺 Transcription completed!\n\n🤖 Made by @${ctx.botInfo.username}\n✨ Try it yourself - fast and accurate!`
 
-        await ctx.replyWithVideo(videoUrl, {
+        // The person's own video goes back by its file_id: Telegram already
+        // holds it, nothing is uploaded, and it works on either Bot API.
+        // `videoUrl` must never be handed to Telegram here: for a bot on our
+        // own server it is the PRIVATE file endpoint (railway.internal, with
+        // the token in the path), which Telegram's servers cannot fetch -- the
+        // send threw, the charge was refunded and the transcript never came.
+        await ctx.replyWithVideo(uploadedFileId, {
           caption: shortCaption,
           supports_streaming: true, // Поддержка стриминга для лучшего качества
         })
