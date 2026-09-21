@@ -4,7 +4,9 @@ import { useLanguage } from '@/hooks/useLanguage'
 import { IS_EMBED } from '@/lib/embed'
 import {
   appScreenHref,
+  boardSignInHref,
   embedSignInNeeded,
+  framedByAppBoard,
   guestScreenOf,
   hasCredential,
   subscribeEmbedSignInNeeded,
@@ -31,13 +33,19 @@ export function EmbedGuestGate({ children }: { children: ReactNode }) {
 }
 
 /**
- * One panel for every such screen, in the game's language. The link opens the
- * same screen in the app in a new tab (target _blank), where the person can
- * sign in. It never replaces the tab (no _top): this frame stays a guest after
- * a sign-in, and the tab may be the Hive or a Telegram Mini App.
+ * One panel for every such screen, in the game's language.
+ *
+ * Inside the board on app.t27.ai the button signs in at the top of this tab
+ * and comes back to this screen: the tab's session is this frame's session,
+ * so the screen works on return.
+ *
+ * Anywhere else (the game on t27.ai, the Hive, a Telegram Mini App) the link
+ * opens the same screen in the app in a new tab (target _blank). It never
+ * replaces the tab there: this frame stays a guest after a sign-in.
  */
 export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
   const { t } = useLanguage()
+  const inBoard = typeof window !== 'undefined' && framedByAppBoard(window)
   return (
     <section
       data-embed-guest={screen}
@@ -65,11 +73,11 @@ export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
           lineHeight: 1.5,
         }}
       >
-        {t('embed.guest.body')}
+        {t(inBoard ? 'embed.guest.bodyBoard' : 'embed.guest.body')}
       </p>
       <a
-        href={appScreenHref(screen)}
-        target="_blank"
+        href={inBoard ? boardSignInHref(screen) : appScreenHref(screen)}
+        target={inBoard ? '_top' : '_blank'}
         rel="noopener"
         style={{
           marginTop: 8,
@@ -84,7 +92,7 @@ export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
           textDecoration: 'none',
         }}
       >
-        {t('embed.guest.open')}
+        {t(inBoard ? 'embed.guest.signIn' : 'embed.guest.open')}
       </a>
     </section>
   )

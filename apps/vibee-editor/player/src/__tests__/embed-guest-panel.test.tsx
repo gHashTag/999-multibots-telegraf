@@ -181,6 +181,9 @@ describe('a guest in the TRI frame', () => {
 
   it('control: a frame that holds a session opens the page', async () => {
     sessionStorage.setItem(ACCESS, 'fake-access-1')
+    // A LIVE session: a token with no expiry and no refresh behind it is
+    // litter, not a credential (embedGuest.ts hasCredential).
+    sessionStorage.setItem(EXPIRES, String(Date.now() + 600000))
     await open('/chat')
     expect(panel()).toBeNull()
     expect(host.textContent).toContain('CHAT_PAGE_SENTINEL')
@@ -245,6 +248,9 @@ describe('the tab signed in on app.t27.ai, the frame by t27.ai stays a guest', (
 describe('a session the server refuses shows the same panel', () => {
   beforeEach(() => {
     sessionStorage.setItem(ACCESS, 'fake-access-1')
+    // A LIVE session: a token with no expiry and no refresh behind it is
+    // litter, not a credential (embedGuest.ts hasCredential).
+    sessionStorage.setItem(EXPIRES, String(Date.now() + 600000))
   })
 
   it('control: a 500 from /mcp keeps the four "Could not load" blocks', async () => {
