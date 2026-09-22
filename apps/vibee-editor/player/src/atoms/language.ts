@@ -1300,6 +1300,7 @@ const en: Translations = {
   'welcome.club.signedOut':
     'The app has stopped recognising you — your sign-in has lapsed. Sign in again and your membership comes back with you. Nothing needs to be bought twice.',
   'welcome.club.join': 'Join for {stars} Stars',
+  'welcome.club.guestEnded': 'Your invitation to the club ended on {date}.',
   'welcome.club.signIn': 'Sign in to join',
   'welcome.club.signInNote':
     'The price is the same for everyone; to join, the app needs to know who you are. Owners and keepers enter free once signed in.',
@@ -3391,6 +3392,7 @@ const ru: Translations = {
   'welcome.club.signedOut':
     'Приложение перестало вас узнавать — вход истёк. Войдите снова, и членство вернётся вместе с вами. Второй раз покупать ничего не нужно.',
   'welcome.club.join': 'Вступить за {stars} звёзд',
+  'welcome.club.guestEnded': 'Ваше приглашение в клуб закончилось {date}.',
   'welcome.club.signIn': 'Войти, чтобы вступить',
   'welcome.club.signInNote':
     'Цена одна для всех; чтобы вступить, приложению нужно знать, кто вы. Владельцы и хранители после входа проходят бесплатно.',

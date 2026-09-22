@@ -52,6 +52,12 @@ export interface ClubStatus {
   stars: number
   periodDays: number
   tokensPerPeriod: number
+  /**
+   * The person's guest pass ended at this moment (ISO) and nothing else lets
+   * them in -- the render decides that (club-guests.ts); the card only says
+   * it next to the offer. Null for members and for people never invited.
+   */
+  guestEnded: string | null
 }
 
 export type ClubInvoice =
@@ -146,6 +152,10 @@ function readStatus(b: Record<string, any>): ClubStatus {
     stars: count(b.stars, 'price'),
     periodDays: count(b.period_days, 'period'),
     tokensPerPeriod: count(b.tokens_per_period, 'token count'),
+    guestEnded:
+      b.active !== true && typeof b.guest_ended === 'string'
+        ? b.guest_ended
+        : null,
   }
 }
 
