@@ -90,6 +90,7 @@ avatar video image audio profile hive chat browser club pair`. Новый экр
 npx vitest run src/__tests__/navigation/appLinks.test.ts \
   src/__tests__/navigation/appLinksParity.test.ts \
   src/__tests__/navigation/startAppDeepLink.test.ts \
+  src/__tests__/scenes/createUserSceneAppDoor.test.ts \
   src/__tests__/guards/noRawAppHostInUserText.test.ts \
   src/__tests__/services/businessAppLinksOpenInTelegram.test.ts
 (cd apps/vibee-editor/render && npx vitest run src/app-links.test.ts \
@@ -115,6 +116,17 @@ npx vitest run src/__tests__/navigation/appLinks.test.ts \
   В личке — `web_app`, вне лички — `appLinkFor`.
 - **Маршрут, которого нет в `START_PARAM_ROUTES`,** молча открывает ленту.
 - **BotFather не трогать из кода.** Main Mini App настраивает владелец руками.
+- **Копия контекста `{ ...ctx }` теряет `chat`.** У Telegraf `chat` — геттер на
+  прототипе, спред его не копирует. Так `CreateUserScene` отдавал новичку с
+  `?start=app_hive` url-кнопку обратно на `/start` вместо `web_app` (ревью
+  #2870). Копия теперь несёт `chat`, а `sendAppDoor` смотрит ещё и в
+  `ctx.message.chat`. Проверка — `createUserSceneAppDoor.test.ts` на настоящем
+  `Context`.
+- **Тело URL в сетке — только ASCII-символы адреса.** Прежнее «всё, кроме
+  пробела и скобок» глотало `»`, `”`, `**`, обратную кавычку, тире и слово
+  после него, а маршрут читался из проглоченного (`hive»` — не маршрут →
+  лента). `APP_URL_BODY` одинаков у бота и рендера, это держит
+  `appLinksParity.test.ts`.
 - Ссылка на пост ленты (`/feed?post=<id>`) пока не выражается маршрутом:
   копировать ссылку на пост из плеера — открытый вопрос (см. PR).
 

@@ -74,4 +74,14 @@ describe('the app route table is one table', () => {
       [...APP_HOSTS].sort()
     )
   })
+
+  it('bot and render end a raw app URL at the same character', () => {
+    // The URL body of rewriteAppUrls: one copy that still ran on through
+    // closing marks would put the review-of-#2870 bug back on one side only.
+    const body = (src: string) =>
+      /const APP_URL_BODY\s*=\s*'([^']*)'/.exec(src)?.[1] ?? null
+    const bot = body(read('src/navigation/helpers/appLinks.ts'))
+    expect(bot).toBeTruthy()
+    expect(body(read(RENDER))).toBe(bot)
+  })
 })
