@@ -24,6 +24,7 @@ import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { chatIdentity, readBody } from './routes'
 import { verifiedTelegramId } from '../../auth'
+import { assertArgs } from './tool-args'
 
 const PROTOCOL_VERSION = '0.3.0'
 
@@ -267,6 +268,7 @@ export async function handleA2A(
             `skill «${skill}» нет. Доступные — в agent-card.json (skills[].id).`
           )
         }
+        assertArgs(tool, message.metadata?.args || {})
         const значение = await tool.handler(message.metadata?.args || {}, {
           telegramId: owner,
           pool,
