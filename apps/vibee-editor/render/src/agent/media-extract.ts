@@ -500,7 +500,7 @@ export async function withShelfFile<T>(
  *
  * `timeoutMs` is how long the reader itself may run -- pdftotext, bsdtar or
  * the office thread -- so a live turn that stops waiting also stops the work
- * (see `readDocumentNow` in media-inline.ts). The download is not covered.
+ * (see `readShelfExtractedNow` below). The download is not covered.
  */
 export async function readShelfExtracted(
   url: string,
@@ -531,5 +531,36 @@ export async function readShelfExtracted(
       `[media-extract] could not open ${String(name ?? '').slice(-60)}: ${String(e).slice(0, 160)}`
     )
     return { ok: false, reason: 'missing' }
+  }
+}
+
+/**
+ * A document read NOW, on a live caller's own clock: the text, or `'late'`
+ * when the deadline passed first. The reader gets the same deadline, so a
+ * caller that stops waiting does not leave a pdftotext running behind it.
+ *
+ * Shared by the two live readers -- the chat turn (media-inline.ts) and the
+ * owner-session fetch (tg-fetch-media.ts) -- so the one clock is one piece of
+ * code. Never throws: a reader that throws is `damaged`.
+ */
+export async function readShelfExtractedNow(
+  url: string,
+  name: string | null,
+  mime: string | null | undefined,
+  timeoutMs: number
+): Promise<Extracted | 'late'> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<'late'>(resolve => {
+    timer = setTimeout(() => resolve('late'), timeoutMs)
+  })
+  try {
+    return await Promise.race([
+      readShelfExtracted(url, name, mime ?? null, timeoutMs).catch(
+        (): Extracted => ({ ok: false, reason: 'damaged' })
+      ),
+      late,
+    ])
+  } finally {
+    clearTimeout(timer)
   }
 }

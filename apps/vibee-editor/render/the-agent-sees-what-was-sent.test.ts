@@ -4,7 +4,9 @@ import {
   useFetchEdgesForTests,
   FETCH_MAX_FILES,
   LIVE_LOOKS,
+  LIVE_READS,
 } from './src/agent/tg-fetch-media'
+import type { Extracted } from './src/agent/media-extract'
 import { USER_MEDIA_TABLE_SQL } from './src/agent/media-library'
 import { salesPlaybook, SENT_FILES_RULE } from './src/agent/crm-playbook'
 import { CRM_MEMORY_TOOLS } from './src/agent/crm-memory-tools'
@@ -360,6 +362,21 @@ const looked: string[] = []
 const heard: string[] = []
 const queued: number[] = []
 const puts: Array<{ name: string; mime: string }> = []
+/** Every PDF / office / archive read asked of the reader, in order. */
+const extracts: Array<{
+  url: string
+  name: string | null
+  mime: string | null
+  ms: number
+}> = []
+const PDF_WORDS = 'Договор: оплата до 1 октября, 3 съёмки в месяц.'
+/** What the reader answers; a test replaces it to play a scan or a slow file. */
+let extractAnswer: (name: string | null) => Extracted | 'late' = () => ({
+  ok: true,
+  text: PDF_WORDS,
+  chars: PDF_WORDS.length,
+  listing: false,
+})
 
 const prev = {
   id: process.env.TELEGRAM_API_ID,
@@ -372,6 +389,13 @@ beforeEach(() => {
   heard.length = 0
   queued.length = 0
   puts.length = 0
+  extracts.length = 0
+  extractAnswer = () => ({
+    ok: true,
+    text: PDF_WORDS,
+    chars: PDF_WORDS.length,
+    listing: false,
+  })
   process.env.TELEGRAM_API_ID = '1'
   process.env.TELEGRAM_API_HASH = 'hash'
   // Nobody here is the platform owner: every session comes from the pool.
@@ -392,6 +416,10 @@ beforeEach(() => {
       return 'пришлю ещё фото к плану'
     },
     read: async () => null,
+    extract: async (url, name, mime, ms) => {
+      extracts.push({ url, name, mime, ms })
+      return extractAnswer(name)
+    },
     later: async (_pool, _owner, rows) => {
       queued.push(...rows.map(r => Number(r.msgId)))
       return undefined
@@ -1003,6 +1031,178 @@ describe("the sender's file name stays inside the fence", () => {
     expect(raw.name).toContain('FOREIGN CONTENT')
     expect(unfenced(r)).not.toContain('override')
     expect(r.items.some((x: any) => x.name === 'file-2.txt')).toBe(true)
+  })
+})
+
+/* ── 3d. a PDF, an office file, an archive: read, not just stored ──────── */
+
+/*
+ * WHAT WAS STORED AND NEVER OPENED (2026-09-22).
+ *
+ * #2764 taught the agent to read PDFs, office files and archives, but this
+ * tool kept its own rule: it read a document only when it was plain text,
+ * and it queued everything EXCEPT files for the background. A contract sent
+ * as a PDF was put on the shelf, recorded in her library -- and answered
+ * `stored`, with no words, live or later. And an .odt, an .rtf or a .zip was
+ * shelved as `file-<id>.bin`, a name no reader recognises.
+ */
+const WORD_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+describe('tg_fetch_media reads a PDF, an office file and an archive', () => {
+  it('a PDF she sent is read live: its words in the answer, on her row and in the memory', async () => {
+    script.messages = [pdf(2001, 'dogovor.pdf')]
+    const pool = bothSellers()
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2001] },
+      as(SELLER_A, pool)
+    )
+    expect(puts).toEqual([{ name: 'file-2001.pdf', mime: 'application/pdf' }])
+    // The reader was handed OUR shelf object, by our name, on a deadline.
+    expect(extracts).toHaveLength(1)
+    expect(extracts[0]).toMatchObject({
+      url: pool.media[0].url,
+      name: 'file-2001.pdf',
+      mime: 'application/pdf',
+    })
+    expect(extracts[0].ms).toBeGreaterThanOrEqual(5_000)
+    expect(extracts[0].ms).toBeLessThanOrEqual(90_000)
+    expect(r.files[0]).toMatchObject({
+      msg_id: 2001,
+      kind: 'document',
+      status: 'read',
+    })
+    // What the file says is data: framed, like every word from a file.
+    expect(r.files[0].document_text).toContain('FOREIGN CONTENT')
+    expect(r.files[0].document_text).toContain(PDF_WORDS)
+    expect(pool.media[0].transcript).toBe(PDF_WORDS)
+    const row = pool.crm.find(x => Number(x.msg_id) === 2001)
+    expect(String(row?.text)).toContain(PDF_WORDS)
+    // Read here, so not read a second time behind the answer.
+    expect(queued).toEqual([])
+    expect(r).not.toHaveProperty('describing_later')
+  })
+
+  it(`reads ${LIVE_READS} documents live, queues the rest, and each keeps an extension a reader knows`, async () => {
+    script.messages = [
+      doc(2101, 'plan.docx', WORD_MIME),
+      doc(2102, 'smeta.odt', 'application/vnd.oasis.opendocument.text'),
+      doc(2103, 'brief.rtf', 'application/rtf'),
+      doc(2104, 'photos.7z', 'application/x-7z-compressed'),
+    ]
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2101, 2102, 2103, 2104] },
+      as(SELLER_A, bothSellers())
+    )
+    expect(puts.map(p => p.name)).toEqual([
+      'file-2101.docx',
+      'file-2102.odt',
+      'file-2103.rtf',
+      'file-2104.7z',
+    ])
+    expect(LIVE_READS).toBe(2)
+    expect(extracts.map(e => e.name)).toEqual([
+      'file-2101.docx',
+      'file-2102.odt',
+    ])
+    expect(r.files.map((f: any) => [f.msg_id, f.status])).toEqual([
+      [2101, 'read'],
+      [2102, 'read'],
+      [2103, 'stored'],
+      [2104, 'stored'],
+    ])
+    // Not read here is read behind the answer, by the queue that knows how.
+    expect(queued).toEqual([2103, 2104])
+    expect(r.describing_later).toBe(2)
+  })
+
+  it('an archive is listed, never called read', async () => {
+    extractAnswer = () => ({
+      ok: true,
+      text: '2 file(s), 3.0 KB unpacked:\nplan.docx — 2.0 KB\nface.jpg — 1.0 KB',
+      chars: 60,
+      listing: true,
+    })
+    script.messages = [doc(2201, 'all.zip', 'application/zip')]
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2201] },
+      as(SELLER_A, bothSellers())
+    )
+    expect(puts[0].name).toBe('file-2201.zip')
+    expect(r.files[0].status).toBe('listed, not unpacked')
+    expect(r.files[0].document_text).toContain('plan.docx')
+    expect(r.how_to_read).toContain('listed, not unpacked')
+  })
+
+  it('a scan with no text layer is named as not read, with the reason, and nothing is made up', async () => {
+    extractAnswer = () => ({ ok: false, reason: 'no-text' })
+    script.messages = [pdf(2301, 'scan.pdf')]
+    const pool = bothSellers()
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2301] },
+      as(SELLER_A, pool)
+    )
+    expect(r.files[0]).toMatchObject({ status: 'not read' })
+    expect(r.files[0].why).toContain('no text layer')
+    expect(r.files[0]).not.toHaveProperty('document_text')
+    expect(pool.media[0].transcript).toBeNull()
+    expect(r.how_to_read).toContain('not read')
+  })
+
+  it('a read that outlasts the answer is left to the background, and the answer says so', async () => {
+    extractAnswer = () => 'late'
+    script.messages = [pdf(2401, 'long.pdf')]
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2401] },
+      as(SELLER_A, bothSellers())
+    )
+    expect(r.files[0]).toMatchObject({ status: 'stored' })
+    expect(r.files[0].why).toContain('background')
+    expect(r.files[0]).not.toHaveProperty('document_text')
+    expect(queued).toEqual([2401])
+    expect(r.describing_later).toBe(1)
+  })
+
+  it('an archive listed on an earlier pass is not called read earlier either', async () => {
+    script.messages = [doc(2601, 'all.zip', 'application/zip')]
+    const pool = bothSellers()
+    pool.media.push({
+      id: 98,
+      owner_id: SELLER_A,
+      lead_id: CLIENT,
+      surface: 'ingest',
+      msg_id: 2601,
+      at: new Date(),
+      out: false,
+      kind: 'file',
+      name: 'file-2601.zip',
+      mime: 'application/zip',
+      bytes: 2048,
+      url: 'https://vibee-render-production.up.railway.app/s3/assets/0-file-2601.zip',
+      tg_file_unique_id: null,
+      caption: null,
+      transcript: '1 file(s), 2.0 KB unpacked:\nplan.docx — 2.0 KB',
+      transcribed_at: new Date(),
+    })
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2601] },
+      as(SELLER_A, pool)
+    )
+    expect(script.downloads).toEqual([])
+    expect(extracts).toEqual([])
+    expect(r.files[0].status).toBe('listed earlier, not unpacked')
+    expect(r.files[0].document_text).toContain('plan.docx')
+  })
+
+  it('a file no reader opens is still only stored: not read, not queued', async () => {
+    script.messages = [doc(2501, 'old.doc', 'application/msword')]
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2501] },
+      as(SELLER_A, bothSellers())
+    )
+    expect(extracts).toEqual([])
+    expect(r.files[0]).toMatchObject({ status: 'stored' })
+    expect(queued).toEqual([])
   })
 })
 
