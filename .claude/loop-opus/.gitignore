@@ -1,8 +1,0 @@
-# Состояние конкретного прогона, а не знание. Меняется каждые 15 минут и
-# ничего не значит на другой машине.
-STATE.json
-anomalies-last.json
-dashboard.html
-*.lock
-dashboard-opus.html
-status-measured.json

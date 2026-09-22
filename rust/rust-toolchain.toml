@@ -1,4 +1,0 @@
-[toolchain]
-channel = "1.95"
-targets = ["x86_64-unknown-linux-musl"]
-components = ["clippy"]

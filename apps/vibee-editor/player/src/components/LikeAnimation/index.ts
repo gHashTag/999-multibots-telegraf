@@ -1,1 +1,0 @@
-export { LikeAnimation } from './LikeAnimation';
