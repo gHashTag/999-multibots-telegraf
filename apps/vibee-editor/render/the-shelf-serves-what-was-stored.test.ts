@@ -30,7 +30,7 @@ describe('render-server hands /s3/ to the shelf route', () => {
     expect(block).toMatch(/req\.method === 'GET'/)
     expect(block).toMatch(/req\.method === 'HEAD'/)
     expect(block).toMatch(
-      /serveShelfRequest\(req, res, \{\s*store: SHELF_STORE,\s*video: SHELF_VIDEO,?\s*\}\)/
+      /serveShelfRequest\(req, res, \{\s*store: SHELF_STORE,\s*video: SHELF_VIDEO,\s*access: \(key, query, r\) =>\s*shelfReadAccess\(key, query, hasServerKey\(r\)\),?\s*\}\)/
     )
   })
 
