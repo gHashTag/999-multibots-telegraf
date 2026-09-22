@@ -66,7 +66,7 @@ describe('readBrowserJournal', () => {
     })
     expect(await readBrowserJournal()).toHaveLength(1)
     expect(apiFetch.mock.calls[0][0]).toBe(
-      'https://render.example.com/api/browser/journal?limit=6'
+      'https://render.example.com/api/browser/journal?limit=24'
     )
     apiFetch.mockRejectedValue(Object.assign(new Error('no'), { status: 401 }))
     expect(await readBrowserJournal()).toBeNull()
@@ -100,5 +100,52 @@ describe('the dictionary', () => {
       ].map(v => `browser.journal.verb.${v}`),
     ]
     for (const k of keys) expect(src.split(`'${k}':`).length - 1).toBe(2)
+  })
+})
+
+describe('foldRepeats', () => {
+  const at = (s: number) => `2026-09-22T09:00:${String(s).padStart(2, '0')}Z`
+  const look = (s: number, seen = 'Google sign-in', ok = true) => ({
+    at: at(s),
+    tool: 'browser_screenshot',
+    ok,
+    ms: 1,
+    detail: ok ? { seen } : { error: 'down' },
+  })
+
+  it('folds the same step in a row into one line with a count, newest time kept', async () => {
+    const { foldRepeats } = await import('./browserJournal')
+    const folded = foldRepeats(
+      [
+        look(9),
+        look(8),
+        look(7),
+        step('browser_open', { url: 'https://t27.ai/' }),
+      ],
+      t
+    )
+    expect(folded.map(s => [s.tool, s.times])).toEqual([
+      ['browser_screenshot', 3],
+      ['browser_open', 1],
+    ])
+    expect(folded[0].at).toBe(at(9))
+  })
+
+  it('does not fold different facts, a failure, or steps apart', async () => {
+    const { foldRepeats } = await import('./browserJournal')
+    expect(
+      foldRepeats([look(9), look(8, 'Other page')], t).map(s => s.times)
+    ).toEqual([1, 1])
+    expect(
+      foldRepeats([look(9), look(8, 'x', false), look(7)], t).map(s => s.times)
+    ).toEqual([1, 1, 1])
+  })
+
+  it('still shows up to the limit of distinct lines after folding', async () => {
+    const { foldRepeats, JOURNAL_SHOWN } = await import('./browserJournal')
+    const many = Array.from({ length: 30 }, (_, i) =>
+      step('browser_open', { url: `https://site${i}.example/` })
+    )
+    expect(foldRepeats(many, t)).toHaveLength(JOURNAL_SHOWN)
   })
 })

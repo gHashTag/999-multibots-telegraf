@@ -34,6 +34,7 @@ import { frameStateOf, shouldReread } from '@/lib/frameState'
 import {
   readBrowserJournal,
   journalLine,
+  foldRepeats,
   JOURNAL_POLL_MS,
   type JournalStep,
 } from '@/lib/browserJournal'
@@ -350,14 +351,15 @@ export default function BrowserPage() {
               className="remote-browser__journal"
               aria-label={t('browser.journal')}
             >
-              {journal.map((step, i) => {
+              {foldRepeats(journal, t).map((step, i) => {
                 const line = journalLine(step, t)
                 return (
                   <li
                     key={`${step.at}:${i}`}
                     className={line.ok ? '' : 'is-error'}
                   >
-                    <time>{line.time}</time> <b>{line.verb}</b>{' '}
+                    <time>{line.time}</time> <b>{line.verb}</b>
+                    {step.times > 1 ? <em> ×{step.times}</em> : null}{' '}
                     <span>{line.text}</span>
                   </li>
                 )
