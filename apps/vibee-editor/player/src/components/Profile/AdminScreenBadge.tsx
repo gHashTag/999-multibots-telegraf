@@ -29,6 +29,14 @@ import './AdminScreenBadge.css'
 
 const MARK: Record<FactState, string> = { yes: '✓', no: '✗', unknown: '…' }
 
+/* Badge wording. Kept out of the JSX so a reformat cannot separate a line of
+ * Russian UI text from the marker that allows it. */
+const TAG = 'админ' // cyrillic-ok: badge text
+const META_SCREEN = 'экран: ' // cyrillic-ok: badge text
+const META_STEP = ' · шаг: ' // cyrillic-ok: badge text
+const META_DECIDED = ' · решил: ' // cyrillic-ok: badge text
+const OPEN_PAYMENT = 'Открыть шаг оплаты' // cyrillic-ok: button label
+
 export function AdminScreenBadge(props: {
   facts: VerdictInput
   /** Open the paywall step anyway. Absent = no button. */
@@ -47,8 +55,7 @@ export function AdminScreenBadge(props: {
         className="admin-badge__line"
         onClick={() => setOpen(o => !o)}
       >
-        <span className="admin-badge__tag">админ</span>{' '}
-        {/* cyrillic-ok: badge text */}
+        <span className="admin-badge__tag">{TAG}</span>
         <span className="admin-badge__reason">{v.reason}</span>
         <span className="admin-badge__chevron">{open ? '▾' : '▸'}</span>
       </button>
@@ -70,15 +77,15 @@ export function AdminScreenBadge(props: {
           </dl>
 
           <p className="admin-badge__meta">
-            {'экран: '} {/* cyrillic-ok: badge text */}
+            {META_SCREEN}
             <b>{v.screen}</b>
             {v.step ? (
               <>
-                {' · шаг: '} {/* cyrillic-ok: badge text */}
+                {META_STEP}
                 <b>{v.step}</b>
               </>
             ) : null}
-            {' · решил: '} {/* cyrillic-ok: badge text */}
+            {META_DECIDED}
             <b>{v.decidedBy}</b>
           </p>
 
@@ -88,7 +95,7 @@ export function AdminScreenBadge(props: {
               className="admin-badge__act"
               onClick={props.onOpenPayment}
             >
-              Открыть шаг оплаты {/* cyrillic-ok: button label */}
+              {OPEN_PAYMENT}
             </button>
           )}
         </div>
