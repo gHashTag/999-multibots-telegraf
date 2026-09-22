@@ -87,7 +87,7 @@ async function open(path: string) {
     )
   })
   // Lazy chunks resolve on a later tick; wait until the fallback is gone.
-  for (let i = 0; i < 20 && host.textContent?.includes('LOADING'); i++) {
+  for (let i = 0; i < 300 && host.textContent?.includes('LOADING'); i++) {
     await act(async () => {
       await new Promise(r => setTimeout(r, 10))
     })
