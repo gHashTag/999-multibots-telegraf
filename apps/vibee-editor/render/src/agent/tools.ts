@@ -937,6 +937,7 @@ import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
+import { BOTFATHER_TOOLS } from './botfather-main-app'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -3101,6 +3102,12 @@ TOOLS.push(...HIVE_BOARD_TOOLS)
  */
 TOOLS.push(...CLUB_CASH_TOOLS)
 /*
+ * The Main Mini App switch of one farm bot, pressed in @BotFather from the
+ * owner's own account (botfather-main-app.ts): owner only, and a direct call
+ * only -- it speaks to BotFather as the owner, see DIRECT_CALL_ONLY below.
+ */
+TOOLS.push(...BOTFATHER_TOOLS)
+/*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.
  * One catalogue tool instead of a hundred per-function tools (inngest-tools.ts).
@@ -3264,6 +3271,11 @@ export function toolsForProvider<T extends { name: string }>(
  */
 export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
   'club_cash_month',
+  /*
+   * Presses buttons in @BotFather as the owner and changes how a farm bot
+   * opens. A sentence in a client's DM must not be able to start that.
+   */
+  'botfather_main_app',
 ])
 
 let compactWarned = false
