@@ -644,6 +644,7 @@ import {
   telegramApiFor,
   telegramFileUrlFor,
 } from './src/telegram-api'
+import { rewriteAppUrlsForToken } from './src/app-links'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -752,7 +753,12 @@ async function postReelToChannel(input: {
   }
 
   // Telegram режет подпись на 1024 символах и отвечает отказом, если длиннее.
-  const caption = input.caption.slice(0, 1024)
+  // A raw app link in the caption becomes the posting bot's t.me link first:
+  // a channel reader outside the app cannot open the app host (app-links.ts).
+  const caption = (await rewriteAppUrlsForToken(input.caption, token)).slice(
+    0,
+    1024
+  )
 
   try {
     const r = await fetch(`${telegramApiFor(token)}/sendVideo`, {
@@ -1052,7 +1058,8 @@ async function sendTelegramMessage(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: message,
+          // Links to the app open inside Telegram only (src/app-links.ts).
+          text: await rewriteAppUrlsForToken(message, TELEGRAM_BOT_TOKEN),
           parse_mode: 'HTML',
         }),
       }
