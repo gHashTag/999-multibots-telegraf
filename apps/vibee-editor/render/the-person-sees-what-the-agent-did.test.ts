@@ -317,5 +317,21 @@ describe('the film', () => {
     await rm(dir, { recursive: true, force: true })
     expect(mp4).not.toBeNull()
     expect(mp4!.subarray(4, 8).toString()).toBe('ftyp')
+    // The pixel format a phone plays, measured, not just asked for.
+    const probeDir = await mkdtemp(`${tmpdir()}/film-probe-`)
+    await writeFile(`${probeDir}/f.mp4`, mp4!)
+    const { stdout } = await run('ffprobe', [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=pix_fmt,width,height',
+      '-of',
+      'csv=p=0',
+      `${probeDir}/f.mp4`,
+    ])
+    await rm(probeDir, { recursive: true, force: true })
+    expect(String(stdout).trim()).toBe('1280,720,yuv420p')
   }, 60_000)
 })
