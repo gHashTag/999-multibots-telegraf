@@ -157,6 +157,35 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
     }
 
+    # THE SIGN-IN DOORS, SAME-ORIGIN, SO THE REFRESH COOKIE IS FIRST-PARTY.
+    #
+    # The player calls its API at vibee-render-production.up.railway.app, and
+    # railway.app is on the Public Suffix List: from app.t27.ai that host is
+    # another SITE. A refresh cookie set there would be third-party, and Safari
+    # -- the Telegram WebView on iOS -- drops those without a word, so sign-in
+    # would look like it worked and never survive a reload. Routed through this
+    # host, the cookie belongs to app.t27.ai (render src/auth/refresh-cookie.ts).
+    #
+    # Only /api/auth/, and only to the render: every other API call keeps going
+    # where it went. ^~ for the same reason as /live/ below -- a plain prefix
+    # loses to the regex locations and the SPA fallback answers 200 with HTML.
+    location ^~ /api/auth/ {
+        proxy_pass https://vibee-render-production.up.railway.app;
+        proxy_http_version 1.1;
+        proxy_set_header Host vibee-render-production.up.railway.app;
+        # The render's sign-in brake keys on the LEFTMOST X-Forwarded-For
+        # (entry-throttle.ts). Appending keeps the person's own address first,
+        # so this hop does not put everyone in one bucket.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # The cookie is Secure from this; over Railway's TLS edge the scheme
+        # nginx sees is http, so the header the edge sent wins.
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        # Credentials pass through; nothing here is cacheable.
+        proxy_buffering off;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
     # TRI identity bridge (player/public/bridge/). The game on https://t27.ai
     # frames it when it runs top-level, to learn who the visitor is without
     # holding this app's session: the bridge reads the tab's access token and

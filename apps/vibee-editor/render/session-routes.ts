@@ -27,6 +27,13 @@ import { sendToTelegram } from './src/auth/telegram-sender'
 import { record } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { пуститьВход, allowPerKey } from './src/entry-throttle'
+import {
+  clearedRefreshCookie,
+  isSecureRequest,
+  readRefreshCookie,
+  refreshCookie,
+  wantsCookieTransport,
+} from './src/auth/refresh-cookie'
 import crypto from 'node:crypto'
 import {
   verifyTelegramInitData,
@@ -613,6 +620,41 @@ function json(res: ServerResponse, code: number, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
+/**
+ * Hand the refresh token over the way the client asked for it.
+ *
+ * A client that sent `X-Session-Transport: cookie` gets it as an HttpOnly
+ * cookie on app.t27.ai and NOT in the JSON, so no script ever holds the 60-day
+ * credential (src/auth/refresh-cookie.ts says why each attribute is there). The
+ * body says `refresh_transport: "cookie"` in its place, so the client knows the
+ * token went to the jar rather than having to infer it from an absence.
+ *
+ * Every other client -- the iOS app, the Mini App, a cached copy of the old
+ * player -- gets the body unchanged. Nothing that signs in today stops working.
+ */
+function withRefreshTransport(
+  req: IncomingMessage,
+  res: ServerResponse,
+  body: Record<string, unknown>,
+  expiresAt: Date
+): Record<string, unknown> {
+  if (!wantsCookieTransport(req) || typeof body.refresh_token !== 'string') {
+    return body
+  }
+  res.setHeader(
+    'Set-Cookie',
+    refreshCookie(body.refresh_token, expiresAt, isSecureRequest(req))
+  )
+  const { refresh_token: _spent, ...rest } = body
+  void _spent
+  return { ...rest, refresh_transport: 'cookie' }
+}
+
+/** A freshly minted refresh token lives exactly this long (session.ts). */
+function mintedRefreshExpiry(): Date {
+  return new Date(Date.now() + SESSION_TUNING.REFRESH_TTL_SECONDS * 1000)
+}
+
 async function readBody(req: IncomingMessage): Promise<string> {
   const parts: Buffer[] = []
   let size = 0
@@ -743,7 +785,11 @@ export async function handleAuthRoute(
       what: `${safeDeviceName(body.device_name)}; ${signedByBot(v.botId)}`,
     })
 
-    json(res, 200, minted.response)
+    json(
+      res,
+      200,
+      withRefreshTransport(req, res, minted.response, mintedRefreshExpiry())
+    )
     return true
   }
 
@@ -806,7 +852,16 @@ export async function handleAuthRoute(
         who: verified.telegramId,
         what: `widget; ${safeDeviceName(body.device_name)}`,
       })
-      json(res, 200, { ...session.response, telegram_user: verified.user })
+      json(
+        res,
+        200,
+        withRefreshTransport(
+          req,
+          res,
+          { ...session.response, telegram_user: verified.user },
+          mintedRefreshExpiry()
+        )
+      )
     } catch (error) {
       if (
         error instanceof StaleWidgetProfileAssertion ||
@@ -1086,7 +1141,11 @@ export async function handleAuthRoute(
       severity: 'attention',
     })
 
-    json(res, 200, minted.response)
+    json(
+      res,
+      200,
+      withRefreshTransport(req, res, minted.response, mintedRefreshExpiry())
+    )
     return true
   }
 
@@ -1118,8 +1177,24 @@ export async function handleAuthRoute(
       return true
     }
 
-    const presented = String(body.refresh_token ?? '')
+    // The body first, so a client that still holds a token from before the
+    // move keeps working; then the HttpOnly cookie a cookie-transport client
+    // cannot read and does not send (src/auth/refresh-cookie.ts).
+    const presented = String(body.refresh_token ?? '') || readRefreshCookie(req)
     if (!presented) {
+      // A cookie-transport client with no cookie is signed out, and must hear
+      // that as final. It keeps 400 for everyone else: that is what an older
+      // render answers a cookie client with, and the player retries a 400 as a
+      // deploy in progress rather than ending a session over it.
+      if (wantsCookieTransport(req)) {
+        res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
+        json(res, 401, {
+          error: 'auth_refresh_failed',
+          reason: 'no_cookie',
+          detail: 'сессии в этом браузере нет — войдите',
+        })
+        return true
+      }
       json(res, 400, { error: 'нужен refresh_token' })
       return true
     }
@@ -1158,6 +1233,12 @@ export async function handleAuthRoute(
         outcome.reason === 'reused'
           ? 'auth_reuse_detected'
           : 'auth_refresh_failed'
+      // A refused token is refused for good. If it came from the cookie, take
+      // the cookie out too, or the browser presents a dead credential on every
+      // load for the rest of its Max-Age.
+      if (wantsCookieTransport(req)) {
+        res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
+      }
       json(res, 401, {
         error: code,
         // The class a client may branch on, e.g. family_expired after 60 days.
@@ -1226,15 +1307,24 @@ export async function handleAuthRoute(
       [s.id]
     )
 
-    json(res, 200, {
-      access_token: signAccessToken({
-        telegramId: String(s.telegram_id),
-        sessionId: String(s.id),
-        deviceKeyThumbprint: String(s.device_pubkey ?? ''),
-      }),
-      refresh_token: outcome.next.token,
-      expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
-    })
+    json(
+      res,
+      200,
+      withRefreshTransport(
+        req,
+        res,
+        {
+          access_token: signAccessToken({
+            telegramId: String(s.telegram_id),
+            sessionId: String(s.id),
+            deviceKeyThumbprint: String(s.device_pubkey ?? ''),
+          }),
+          refresh_token: outcome.next.token,
+          expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+        },
+        outcome.next.expiresAt
+      )
+    )
     return true
   }
 
@@ -1504,6 +1594,11 @@ export async function handleAuthRoute(
       severity: 'attention',
     })
 
+    // Every family is revoked, this browser's included, so its cookie now
+    // names a dead token; take it out rather than let it be presented.
+    if (wantsCookieTransport(req)) {
+      res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
+    }
     json(res, 200, { logged_out: revoked.length })
     return true
   }
@@ -1535,7 +1630,10 @@ export async function handleAuthRoute(
         json(res, 400, { error: 'тело запроса не разобрано как JSON' })
         return true
       }
-      const refreshToken = String(body.refresh_token || '')
+      // A cookie-transport client never holds the token, so it cannot put it
+      // in the body; the cookie is the same proof (src/auth/refresh-cookie.ts).
+      const refreshToken =
+        String(body.refresh_token || '') || readRefreshCookie(req)
       if (refreshToken) {
         const found = await pool.query(
           `SELECT family_id, session_id FROM app_refresh_tokens
@@ -1551,6 +1649,9 @@ export async function handleAuthRoute(
     }
 
     if (!sid) {
+      if (wantsCookieTransport(req)) {
+        res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
+      }
       json(res, 401, { error: 'нужен действующий access или refresh token' })
       return true
     }
@@ -1639,6 +1740,9 @@ export async function handleAuthRoute(
     // it to have happened by the time the screen changes.
     revokeNow(sid)
 
+    if (wantsCookieTransport(req)) {
+      res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
+    }
     json(res, 200, { logged_out: true })
     return true
   }
