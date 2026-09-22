@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { addFrame, FILMED_TOOLS } from './film'
+import { addFrame, FILMED_TOOLS, TICK_MS, TICK_IDLE_MS } from './film'
 import { cdpTypeIo } from './person-type'
 import { askForInput, asKind, waitForTyped } from './input-request'
 /**
@@ -681,16 +681,28 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
  */
 export const FRAME_SETTLE_MS = 700
 
+/* The word drawn on a step's frame, in the person's language. */
+const FRAME_LABEL: Record<string, string> = {
+  browser_open: 'открыл', // cyrillic-ok: drawn on the film
+  browser_click: 'нажал', // cyrillic-ok
+  browser_type: 'напечатал', // cyrillic-ok
+  browser_evaluate: 'выполнил код', // cyrillic-ok
+  browser_close_tab: 'закрыл вкладку', // cyrillic-ok
+  browser_screenshot: 'посмотрел', // cyrillic-ok
+}
+
 async function filmStep(
   ctx: ToolContext,
   tool: string,
   at: number,
-  result: unknown
+  result: unknown,
+  args: unknown
 ): Promise<void> {
+  const label = FRAME_LABEL[tool]
   try {
     const own = (result ?? {}) as { base64?: unknown }
     if (typeof own.base64 === 'string' && own.base64) {
-      addFrame(ctx.telegramId, { at, tool, jpeg: own.base64 })
+      addFrame(ctx.telegramId, { at, tool, jpeg: own.base64, label })
       return
     }
     await new Promise(r => setTimeout(r, FRAME_SETTLE_MS))
@@ -698,12 +710,131 @@ async function filmStep(
       ctx.pool as unknown as Queryable,
       ctx.telegramId
     )
-    if (!session || session.state !== 'live' || !session.endpoint) return
+    if (!session || session.state !== 'live') return
+    /*
+     * A click is filmed as the PAGE (CDP), not the desktop: the page's
+     * pixels are the click's coordinates, so the ring marks the very spot.
+     */
+    const a = (args ?? {}) as { x?: unknown; y?: unknown }
+    if (
+      tool === 'browser_click' &&
+      session.cdpEndpoint &&
+      typeof a.x === 'number' &&
+      typeof a.y === 'number'
+    ) {
+      const page = await frontPage(session.cdpEndpoint)
+      const jpeg = await screenshot(session.cdpEndpoint, page.id)
+      addFrame(ctx.telegramId, {
+        at,
+        tool,
+        jpeg,
+        label,
+        mark: { x: a.x, y: a.y },
+      })
+      return
+    }
+    if (!session.endpoint) return
     const jpeg = await desktopShot(session.endpoint, session.adminToken)
-    addFrame(ctx.telegramId, { at, tool, jpeg })
+    addFrame(ctx.telegramId, { at, tool, jpeg, label })
   } catch {
     /* a frame is a picture, not a duty */
   }
+}
+
+/*
+ * BETWEEN STEPS, THE SCREEN KEEPS BEING FILMED (film.ts TICK_MS).
+ *
+ * A frame per step shows where the agent went, not how the page moved in
+ * between -- a spinner, a page loading, a dialog that came and went. While
+ * the agent works, a whole-screen frame is taken every two seconds; it stops
+ * by itself once no step has come for TICK_IDLE_MS. One ticker per person.
+ */
+const tickers = new Map<
+  string,
+  { last: number; timer: ReturnType<typeof setInterval> }
+>()
+
+function keepTicking(ctx: ToolContext): void {
+  const id = ctx.telegramId
+  const now = Date.now()
+  const running = tickers.get(id)
+  if (running) {
+    running.last = now
+    return
+  }
+  const state = {
+    last: now,
+    timer: undefined as unknown as ReturnType<typeof setInterval>,
+  }
+  let busy = false
+  state.timer = setInterval(() => {
+    if (Date.now() - state.last > TICK_IDLE_MS) {
+      clearInterval(state.timer)
+      tickers.delete(id)
+      return
+    }
+    if (busy) return
+    busy = true
+    void (async () => {
+      try {
+        const session = await readSession(ctx.pool as unknown as Queryable, id)
+        if (!session || session.state !== 'live' || !session.endpoint) return
+        const jpeg = await desktopShot(session.endpoint, session.adminToken)
+        addFrame(id, { at: Date.now(), tool: 'tick', jpeg })
+      } catch {
+        /* a missed tick is a missed picture */
+      } finally {
+        busy = false
+      }
+    })()
+  }, TICK_MS)
+  /* Never what keeps the process alive. */
+  ;(state.timer as { unref?: () => void }).unref?.()
+  tickers.set(id, state)
+}
+
+export function stopTickersForTests(): void {
+  for (const t of tickers.values()) clearInterval(t.timer)
+  tickers.clear()
+}
+
+/*
+ * AN AGENT OVER /mcp HAS NO "END OF TURN" (owner, 2026-09-22: "and for
+ * outside agents too"). Its steps count as one piece of work until it has
+ * been quiet for EXTERNAL_QUIET_MS; then the same report and film a chat turn
+ * gets are sent. Steps keep the window open; each new one pushes it back.
+ */
+export const EXTERNAL_QUIET_MS = 120_000
+const external = new Map<
+  string,
+  { since: number; timer: ReturnType<typeof setTimeout> }
+>()
+
+export function noteExternalStep(ctx: ToolContext): void {
+  const id = ctx.telegramId
+  const open = external.get(id)
+  if (open) clearTimeout(open.timer)
+  const since = open?.since ?? Date.now() - 1000
+  const timer = setTimeout(() => {
+    external.delete(id)
+    void import('./after-turn')
+      .then(m =>
+        m.reportAfterTurn(ctx.pool as unknown as Queryable, id, {
+          since,
+          task: 'Работа агента через подключение (MCP) — без вашего запроса в чате', // cyrillic-ok: user-facing
+          answer: '',
+          settle: false,
+        })
+      )
+      .catch(() => {})
+  }, EXTERNAL_QUIET_MS)
+  ;(timer as { unref?: () => void }).unref?.()
+  external.set(id, { since, timer })
+}
+
+export function stopExternalReportsForTests(): void {
+  for (const e of external.values()) clearTimeout(e.timer)
+  external.clear()
 }
 
 function journaled(tool: AgentTool): AgentTool {
@@ -727,7 +858,12 @@ function journaled(tool: AgentTool): AgentTool {
         const result = await tool.handler(args, ctx)
         write({ result })
         if (ctx.probe !== true && FILMED_TOOLS.has(tool.name))
-          void filmStep(ctx, tool.name, t0, result)
+          void filmStep(ctx, tool.name, t0, result, args)
+        if (ctx.probe !== true) {
+          keepTicking(ctx)
+          /* No chat turn = an agent over /mcp: report once it goes quiet. */
+          if (!ctx.turn) noteExternalStep(ctx)
+        }
         return result
       } catch (error) {
         write({ error })
