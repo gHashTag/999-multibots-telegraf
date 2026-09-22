@@ -1275,7 +1275,33 @@ export const REPEAT_REFUSED =
   'этот вызов с теми же аргументами уже выполнен на этом ходу, его ' + // cyrillic-ok: read by the model
   'результат выше; не повторяй его, ответь человеку текстом' // cyrillic-ok: read by the model
 
-/** A call's identity for REPEAT_REFUSED: its name and its parsed arguments. */
+/**
+ * The same value with every object's keys in one order, at every depth.
+ *
+ * JSON.stringify keeps keys in the order they arrived, and the call that
+ * matters here is made by ANOTHER model after the nudge: glm-5.3 writes
+ * {"limit":5,"kind":"image"}, glm-4.5 writes {"kind":"image","limit":5}. As
+ * written they differ, so the repeat guard let the second one run -- the
+ * second charge it exists to stop. Arrays keep their order: there it means
+ * something.
+ */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(value).sort())
+      out[key] = canonical((value as Record<string, unknown>)[key])
+    return out
+  }
+  return value
+}
+
+/**
+ * A call's identity for REPEAT_REFUSED: its name and its parsed arguments,
+ * key order ignored. A default spelled out by one model and left out by the
+ * other still reads as a different call: no tool schema declares its defaults,
+ * so there is nothing to fill them in from.
+ */
 function callIdentity(name: string, raw: string | undefined): string {
   let args: unknown = raw || '{}'
   try {
@@ -1283,7 +1309,7 @@ function callIdentity(name: string, raw: string | undefined): string {
   } catch {
     // Unparseable arguments are compared as written.
   }
-  return JSON.stringify([name, args])
+  return JSON.stringify([name, canonical(args)])
 }
 
 export async function* streamModel(
