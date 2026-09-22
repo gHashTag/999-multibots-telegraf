@@ -12,15 +12,25 @@ export const DETENTS: Detent[] = ['peek', 'half', 'full']
 
 /** Height of the peek: the grabber, one status line and one button. */
 export const PEEK_PX = 96
+/**
+ * The island: the closed sheet of the minimal browser -- one line of frosted
+ * glass over the picture, no taller than a finger (owner, 2026-09-22:
+ * "the browser full screen with no interface, the controls as frosted glass
+ * over it, like the site").
+ */
+export const ISLAND_PX = 60
 /** A flick faster than this (px per ms) goes to the next detent that way. */
 export const FLICK_PX_PER_MS = 0.5
 
 /** Visible height of each detent for a screen of `screen` px. Pure. */
-export function detentHeights(screen: number): Record<Detent, number> {
-  const full = Math.max(PEEK_PX + 120, Math.round(screen - 56))
+export function detentHeights(
+  screen: number,
+  peek: number = PEEK_PX
+): Record<Detent, number> {
+  const full = Math.max(peek + 120, Math.round(screen - 56))
   return {
-    peek: PEEK_PX,
-    half: Math.max(PEEK_PX + 60, Math.round(screen * 0.5)),
+    peek,
+    half: Math.max(peek + 60, Math.round(screen * 0.5)),
     full,
   }
 }

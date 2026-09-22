@@ -8,8 +8,14 @@ import { atomWithStorage, createJSONStorage } from 'jotai/utils'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { API_BASE } from '../config'
 import { authHeaders } from '../lib/apiFetch'
-import { logoutAppSession } from '../lib/appSession'
+import {
+  APP_SESSION_CLEARED,
+  APP_SESSION_PERSON,
+  logoutAppSession,
+} from '../lib/appSession'
+import { editorStore } from './Provider'
 import { sessionStore } from '../lib/framedSession'
+import { getInitData } from '../lib/telegram'
 
 // Import shared types from @vibee/atoms
 import type {
@@ -22,13 +28,55 @@ import type {
 // Re-export types for backward compatibility
 export type { TelegramUser, RenderQuota, SubscriptionInfo, InstagramStatus }
 
-// Persisted user state: the tab's sessionStorage, or memory inside a frame by
-// another site, the same store as the Bearer session (lib/framedSession.ts).
+/*
+ * The signed-in person, kept BESIDE their access token: the tab's
+ * sessionStorage, or memory inside a frame by another site (framedSession.ts).
+ *
+ * Kept together on purpose. A first version moved the person to localStorage
+ * so a new tab would show them at once; a new tab then held a person with no
+ * token, Header's guest sweep answered that with a logout, and the logout --
+ * now carrying the refresh cookie -- revoked the whole family. So the person
+ * never outruns the token: a renewed cookie session brings them with it
+ * (APP_SESSION_PERSON), and they leave with it (APP_SESSION_CLEARED).
+ */
 export const userAtom = atomWithStorage<TelegramUser | null>(
   STORAGE_KEYS.user,
   null,
   createJSONStorage(() => sessionStore())
 )
+
+/*
+ * These write to editorStore, the store the app is rendered from
+ * (atoms/Provider.tsx). A first version wrote to jotai's default store, which
+ * nothing renders, so the header never heard.
+ */
+if (typeof window !== 'undefined') {
+  // A session that ends takes the person with it: without this the header
+  // kept the avatar with neither Login nor Logout, and every action got 401.
+  window.addEventListener(APP_SESSION_CLEARED, () => {
+    // Inside Telegram the person comes from the launch, which still signs
+    // every request; a launch session ending does not end them (review,
+    // 2026-09-22). An explicit sign-out clears the person itself (logoutAtom).
+    if (getInitData()) return
+    editorStore.set(userAtom, null)
+  })
+  // A session renewed in a tab that has never seen the person brings them.
+  // The same person already here is kept as is (it may know more, is_admin
+  // among it). A DIFFERENT person means the token now acts as someone else --
+  // the browser has one cookie, and another tab signed in as another account
+  // -- so the header must show who the requests really are (review,
+  // 2026-09-22: the first version kept the old name over the new token).
+  window.addEventListener(APP_SESSION_PERSON, event => {
+    const person = (event as CustomEvent<TelegramUser>).detail
+    if (!person || typeof person.id !== 'number') return
+    // A document signed by launch data acts as the launch's person, whoever
+    // the browser's cookie belongs to.
+    if (getInitData()) return
+    const here = editorStore.get(userAtom)
+    if (here && Number(here.id) === person.id) return
+    editorStore.set(userAtom, { ...person, is_admin: false })
+  })
+}
 
 // Render quota (not persisted - fetched from API)
 export const renderQuotaAtom = atom<RenderQuota | null>(null)
