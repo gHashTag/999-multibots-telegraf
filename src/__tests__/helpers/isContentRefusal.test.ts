@@ -29,6 +29,15 @@ describe('a provider refusing the customer content', () => {
     'The image was blocked by the moderation service',
     'Prompt violates our content policy',
     'sensitive content detected, generation refused',
+    /*
+     * kie.ai / GPT-Image-2.5, measured in production 2026-09-22 on the welcome
+     * gift. It reads like machinery -- "failed" is not a verdict -- so it was
+     * logged as an ERROR, woke the owner's phone, and told the newcomer the
+     * generator was broken when the provider had simply said no.
+     */
+    'Content review failed. Please adjust the input and try again | 内容安全审查未通过，请调整输入内容后重试',
+    'Content review failed',
+    '内容安全审查未通过，请调整输入内容后重试',
   ]
 
   for (const message of REFUSALS) {
