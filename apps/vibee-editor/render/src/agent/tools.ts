@@ -53,6 +53,7 @@ import {
   isGptImage25Edit,
 } from '../kie-image'
 import { watchLate } from './late-picture'
+import { resolvingPeer } from './tg-proposals'
 import {
   clientFace,
   sentPhotosFromLibrary,
@@ -254,19 +255,37 @@ async function avatarUrlViaBotApi(tid: string): Promise<string> {
  * '' when neither door has a photo. The caller says so and falls back to a
  * text-to-image picture instead of drawing a stranger and calling it them.
  */
+/**
+ * The profile photo through a user session, by @username or by bare id.
+ *
+ * Every tool call opens a NEW client (telegram-tools.ts `client`), so its
+ * entity cache starts empty, and a bare id then fails with "Could not find
+ * the input entity" -- for every person without a @username, not only after a
+ * deploy. The send and read tools already warm the cache with the dialogs on
+ * that failure (resolvingPeer); this path did not, so the lead magnet told the
+ * owner "no avatar" for a client whose avatar he sees in his own chat list,
+ * and the agent told the client he had no profile photo (production
+ * 2026-09-22). Exported for the test.
+ */
+export async function profilePhotoViaSession(
+  c: any,
+  lead: { id: string; username?: string | null }
+): Promise<unknown> {
+  if (!c?.downloadProfilePhoto) return undefined
+  const target = lead.username
+    ? `@${String(lead.username).replace(/^@/, '')}`
+    : String(lead.id)
+  return resolvingPeer(c, target, () =>
+    c.downloadProfilePhoto(target, { isBig: true })
+  )
+}
+
 export async function leadAvatarUrl(
   ctx: any,
   lead: { id: string; username?: string | null }
 ): Promise<string> {
   try {
-    const bytes = await withClient(ctx, c =>
-      c.downloadProfilePhoto
-        ? c.downloadProfilePhoto(
-            lead.username ? `@${lead.username.replace(/^@/, '')}` : lead.id,
-            { isBig: true }
-          )
-        : Promise.resolve(undefined)
-    )
+    const bytes = await withClient(ctx, c => profilePhotoViaSession(c, lead))
     if (Buffer.isBuffer(bytes) && bytes.length > 0) {
       const url = await publishImageBytes(
         bytes,
@@ -937,6 +956,7 @@ import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
 import { CLUB_CASH_TOOLS } from './club-cash'
+import { BOTFATHER_TOOLS } from './botfather-main-app'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -984,7 +1004,16 @@ export const TOOLS: AgentTool[] = [
         [ctx.telegramId]
       )
       const профиль = u.rows[0] ?? null
-      const аватар = String(профиль?.avatar_url || '')
+      /*
+       * The app profile holds a photo only after the person opened the app.
+       * A client who never did still has a Telegram avatar: ask the bot for
+       * it before saying anything about a photo (production 2026-09-22: the
+       * agent told a client with a perfectly visible avatar that he had no
+       * profile photo).
+       */
+      const аватар =
+        String(профиль?.avatar_url || '') ||
+        (await avatarUrlViaBotApi(String(ctx.telegramId)).catch(() => ''))
       /*
        * The caller's hive role (keeper, owner or bee) from the same
        * visibilityOf that scopes the hive tools, so a signed-in surface can
@@ -1023,8 +1052,10 @@ export const TOOLS: AgentTool[] = [
             'про него самого. Перерисовать его инструментом image_edit МОЖНО: ' +
             'без image_url он сам берёт эту аватарку и сохраняет лицо. ' +
             'image_generate по-прежнему только текстовый.'
-          : 'Фото профиля нет. Предложи поставить аватар — тогда истории будут ' +
-            'про него самого, а не про абстракцию.',
+          : 'Фото отсюда не видно: в приложении его нет, а Telegram-аватарку ' +
+            'бот может не видеть из-за настроек приватности. НЕ говори человеку, ' +
+            'что у него нет фото или аватарки. Для портрета бери crm_deliver_photo ' +
+            '(он ищет лицо через аккаунт владельца) или попроси прислать фото.',
       }
     },
   },
@@ -3101,6 +3132,12 @@ TOOLS.push(...HIVE_BOARD_TOOLS)
  */
 TOOLS.push(...CLUB_CASH_TOOLS)
 /*
+ * The Main Mini App switch of one farm bot, pressed in @BotFather from the
+ * owner's own account (botfather-main-app.ts): owner only, and a direct call
+ * only -- it speaks to BotFather as the owner, see DIRECT_CALL_ONLY below.
+ */
+TOOLS.push(...BOTFATHER_TOOLS)
+/*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.
  * One catalogue tool instead of a hundred per-function tools (inngest-tools.ts).
@@ -3264,6 +3301,11 @@ export function toolsForProvider<T extends { name: string }>(
  */
 export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
   'club_cash_month',
+  /*
+   * Presses buttons in @BotFather as the owner and changes how a farm bot
+   * opens. A sentence in a client's DM must not be able to start that.
+   */
+  'botfather_main_app',
 ])
 
 let compactWarned = false

@@ -42,7 +42,14 @@ ARG VITE_APP_VERSION
 # because a name missing from this list is simply not there at build time. The
 # bundle kept the fallback and the second admin account saw no admin badge.
 ARG VITE_ADMIN_IDS
+# The sign-in door on the app's own site: auth.t27.ai is a custom domain of
+# vibee-render, and there the refresh token is an HttpOnly cookie, so a sign-in
+# outlives the tab (render src/auth/refresh-cookie.ts, player lib/appSession.ts).
+# The default is the value; a service variable only overrides it. Set it to
+# "off" (anything but an https origin) to go back to the tab's own store.
+ARG VITE_AUTH_ORIGIN=https://auth.t27.ai
 ENV VITE_ADMIN_IDS=$VITE_ADMIN_IDS \
+    VITE_AUTH_ORIGIN=$VITE_AUTH_ORIGIN \
     VITE_API_URL=$VITE_API_URL \
     VITE_RENDER_URL=$VITE_RENDER_URL \
     VITE_RENDER_SERVER_URL=$VITE_RENDER_SERVER_URL \

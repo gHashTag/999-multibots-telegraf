@@ -57,6 +57,7 @@ import {
   forgetProfile,
 } from './profiles'
 import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
+import { handMouseToPerson } from './mouse'
 import { readJournal } from './journal'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
@@ -280,6 +281,23 @@ export async function handleBrowser(
       return { status: 400, body: { ok: false, error: 'holder=person|agent' } }
     }
     await setWheel(pool, who, holder)
+    /*
+     * Taking the wheel is a touch: the pod's mouse follows it (mouse.ts).
+     * Not awaited -- the touch must not wait on the pod -- and a pod that
+     * refuses leaves the wheel taken all the same.
+     */
+    if (holder === 'person') {
+      const s = await readSession(pool, who)
+      if (s?.state === 'live' && s.endpoint)
+        void handMouseToPerson({
+          endpoint: s.endpoint,
+          adminToken: s.adminToken,
+        })
+          .then(r => console.log('[browser:mouse]', who, JSON.stringify(r)))
+          .catch(e =>
+            console.warn('[browser:mouse] failed', who, String(e).slice(0, 200))
+          )
+    }
     return { status: 200, body: { ok: true, holder } }
   }
 

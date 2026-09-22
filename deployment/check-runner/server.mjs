@@ -49,6 +49,14 @@ const PROJECTS = [
   { dir: 'apps/vibee-editor/packages/vibee-atoms', lock: 'package-lock.json' },
 ]
 
+/*
+ * Two test workers, not one per core. 2026-09-22 the render suite (300+
+ * files) died at start with EPIPE: the forked workers were killed before
+ * the first message, the service sized for one run at a time. The same
+ * suite passes with two workers in about three minutes.
+ */
+const WORKERS = process.env.CHECK_WORKERS || '2'
+
 /* What each suite runs, from the repository root. */
 export function suiteCommands(suite, files) {
   const only = files.length ? ' ' + files.map(quote).join(' ') : ''
@@ -56,15 +64,18 @@ export function suiteCommands(suite, files) {
     case 'render':
       return [
         'cd apps/vibee-editor/render && npx tsc --noEmit -p .',
-        `cd apps/vibee-editor/render && npx vitest run${only}`,
+        `cd apps/vibee-editor/render && npx vitest run --maxWorkers=${WORKERS}${only}`,
       ]
     case 'player':
       return [
         'node scripts/check-player-types.cjs',
-        `cd apps/vibee-editor/player && npx vitest run${only}`,
+        `cd apps/vibee-editor/player && npx vitest run --maxWorkers=${WORKERS}${only}`,
       ]
     case 'root':
-      return ['npx tsc --noEmit -p .', `npx vitest run${only}`]
+      return [
+        'npx tsc --noEmit -p .',
+        `npx vitest run --maxWorkers=${WORKERS}${only}`,
+      ]
     /*
      * The pre-push gate itself (scripts/test-guard.cjs): the push's files
      * arrive in the archive as .check-files, listed on the Mac where git is.

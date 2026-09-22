@@ -77,3 +77,67 @@
     transition: none;
   }
 }
+
+/*
+ * FROSTED GLASS OVER THE PICTURE -- the minimal browser (lib/browserLayout.ts).
+ *
+ * Owner, 2026-09-22: "the controls as frosted glass over the browser, like
+ * our site". The sheet floats: a margin from every edge, rounded all round,
+ * a width a thumb can cross on a tablet or a desktop too, and glass the page
+ * shows through -- dark enough that white words stay readable over a white
+ * page. It lies ABOVE the full-screen picture, which covers the tab bar.
+ */
+.detent-sheet--glass {
+  /* Centred by its two edges, never wider than 560px, 8px from a phone's. */
+  left: max(8px, calc(50% - 280px));
+  right: max(8px, calc(50% - 280px));
+  bottom: calc(8px + var(--app-safe-bottom, 0px));
+  z-index: calc(var(--z-tabbar, 900) + 20);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.1),
+      rgba(255, 255, 255, 0.02) 64px
+    ),
+    rgba(14, 17, 15, 0.62);
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #fff;
+  overflow: hidden;
+  /*
+   * The sheet is as tall as the screen and slides down; what hangs below the
+   * edge is cut off here, so what shows is a card rounded on all four
+   * corners that floats 8px above the bottom -- an island when closed.
+   */
+  clip-path: inset(0 0 calc(100% - var(--sheet-visible, 100%)) 0 round 22px);
+}
+
+/* Closed, it is an island: the grabber and one line, nothing else. */
+.detent-sheet--glass .detent-sheet__handle {
+  padding: 6px 16px 8px;
+}
+.detent-sheet--glass .detent-sheet__grabber {
+  margin-bottom: 6px;
+}
+.detent-sheet--glass .detent-sheet__peek {
+  min-height: 32px;
+  justify-content: center;
+}
+.detent-sheet--glass.detent-sheet--peek:not(.detent-sheet--dragging)
+  .detent-sheet__body {
+  visibility: hidden;
+}
+
+/* Without the blur, the glass must still be readable. */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .detent-sheet--glass {
+    background: rgba(14, 17, 15, 0.94);
+  }
+}

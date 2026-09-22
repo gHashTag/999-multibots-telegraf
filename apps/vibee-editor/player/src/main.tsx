@@ -6,6 +6,7 @@ import './styles/design-system.css'
 // Declares the open-web defaults for every --app-* property, so the Telegram
 // runtime hook only ever overrides them. Must load after the base sheets.
 import './styles/telegram.css'
+import './styles/board-shell.css'
 import App from './App.tsx'
 import { initSentry } from './lib/sentry'
 import { captureReturnTarget } from './lib/returnTarget'
@@ -15,6 +16,7 @@ import { installSessionRenewal } from './lib/sessionRenewal'
 import { sessionStore } from './lib/framedSession'
 import { startAppSessionHealing } from './lib/appSession'
 import { IS_EMBED, announceStorageBlocked } from './lib/embed'
+import { applyShell, shellOf } from './lib/shell'
 import { isTelegram } from './lib/telegram'
 
 // Initialize Sentry error tracking
@@ -119,6 +121,13 @@ if ('serviceWorker' in navigator) {
 }
 
 installGlobalClientErrorReporting()
+
+// Inside the game's frame the app wears the game's look (lib/shell.ts). Set
+// before the first render, so no screen flashes in the app's own dress first.
+applyShell(
+  document.documentElement,
+  shellOf(IS_EMBED, window.location.search, import.meta.env.DEV)
+)
 
 // `?return=` from the game's sign-in chip, read before LaunchRedirect drops the
 // query. Top level on the open web only (lib/returnTarget.ts).

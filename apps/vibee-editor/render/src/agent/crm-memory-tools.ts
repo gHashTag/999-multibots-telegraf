@@ -36,6 +36,7 @@ import {
 } from './media-library'
 import { sentMediaOfAll, sentFileName } from './tg-message-media'
 import { s3PutBytes } from '../lib/s3-put'
+import { shelfLinkFor } from '../lib/shelf-access'
 import { imagesLookDown } from './image-health'
 import { openDebts } from './crm-owed'
 import { optedOutOf } from './assistant-opt-out'
@@ -593,7 +594,9 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
               : x.name,
           mime: x.mime,
           bytes: x.bytes,
-          url: x.url,
+          // The mini app opens it as a plain link: signed when the key is
+          // walkable, or an old document would not open (shelf-access.ts).
+          url: shelfLinkFor(x.url),
           surface: x.surface,
           caption: x.caption ? foreignText(x.caption) : null,
           transcript: x.transcript

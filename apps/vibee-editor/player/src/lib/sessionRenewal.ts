@@ -3,6 +3,7 @@ import {
   hasLiveAppSession,
   hasRenewableAppSession,
   refreshAppSession,
+  TransientSessionError,
 } from './appSession'
 import { markEmbedSignInNeeded } from './embedGuest'
 
@@ -60,15 +61,46 @@ function withBearer(init: RequestInit, token: string): RequestInit {
   return { ...init, headers }
 }
 
-async function renewed(): Promise<string | null> {
+/** What a renewal came to: a fresh token, a refusal, or a bad moment. */
+type Renewal = { token: string } | { refused: true } | { transient: true }
+
+async function renewed(): Promise<Renewal> {
   try {
     await refreshAppSession()
-    return getAppAccessToken() || null
-  } catch {
-    // refreshAppSession has already cleared a refused session.
+    const token = getAppAccessToken() // secret-guard-ok: reads this tab's session, holds no value
+    return token ? { token } : { refused: true }
+  } catch (error) {
+    // refreshAppSession has already cleared a refused session. A transient
+    // failure -- the brake, a deploy, no network yet -- kept it, and asking
+    // the board to sign in again over it was a false alarm (review,
+    // 2026-09-22): the session renews on the next try.
+    if (error instanceof TransientSessionError) return { transient: true }
     markEmbedSignInNeeded()
-    return null
+    return { refused: true }
   }
+}
+
+/*
+ * A BAD MOMENT IS NOT A SIGN-OUT, SO IT MUST NOT LOOK LIKE ONE.
+ *
+ * After a transient renewal failure the request still goes out: a public route
+ * answers whatever the Bearer (templates, a feed item, branding), and the third
+ * review (2026-09-22) found the first version refusing those too. Only when the
+ * server answers 401 -- the expired token was refused -- is that answer
+ * replaced, because callers that read a 401 as "signed out" (crm.ts,
+ * agentStream.ts) would put the board's sign-in panel over the screen for a
+ * moment's trouble. The replacement is a 503 with its own code, so no caller
+ * mistakes it for another 503 (remoteBrowser.ts, explainApiError).
+ */
+export const RENEWAL_UNAVAILABLE = 'session_renewal_unavailable'
+function renewalUnavailable(): Response {
+  return new Response(
+    JSON.stringify({
+      error: RENEWAL_UNAVAILABLE,
+      detail: 'the sign-in service did not answer; try again in a moment',
+    }),
+    { status: 503, headers: { 'Content-Type': 'application/json' } }
+  )
 }
 
 export function sessionRenewingFetch(
@@ -90,9 +122,13 @@ export function sessionRenewingFetch(
 
     let request = init
     if (!hasLiveAppSession() && hasRenewableAppSession()) {
-      const fresh = await renewed()
-      if (!fresh) return base(input, init)
-      request = withBearer(init, fresh)
+      const first = await renewed()
+      if ('transient' in first) {
+        const answer = await base(input, init)
+        return answer.status === 401 ? renewalUnavailable() : answer
+      }
+      if (!('token' in first)) return base(input, init)
+      request = withBearer(init, first.token)
     }
 
     const response = await base(input, request)
@@ -101,9 +137,10 @@ export function sessionRenewingFetch(
       markEmbedSignInNeeded()
       return response
     }
-    const fresh = await renewed()
-    if (!fresh) return response
-    return base(input, withBearer(request, fresh))
+    const again = await renewed()
+    if ('transient' in again) return renewalUnavailable()
+    if (!('token' in again)) return response
+    return base(input, withBearer(request, again.token))
   }
   return wrapped as Fetch
 }
