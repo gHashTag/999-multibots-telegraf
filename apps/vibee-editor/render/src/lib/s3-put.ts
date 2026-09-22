@@ -21,6 +21,7 @@
  * the point of storing media is that a provider can be handed the link.
  */
 
+import { randomBytes } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
 import { once } from 'node:events'
 import { Readable } from 'node:stream'
@@ -70,13 +71,21 @@ export function shelfUrlFor(key: string): string {
   return `${shelfBase()}/s3/${key}`
 }
 
-/** The key the server has always used: a timestamp and a sanitised name. */
+/**
+ * A timestamp, 8 random bytes, and the sanitised name -- the name last, so
+ * the route still types the file by its extension.
+ *
+ * The random part is what keeps the link the only way in. `/s3/<key>` serves
+ * whatever it holds to anyone who asks, documents included, and the ingest
+ * names a client's attachment `file-<message id>.<ext>`: a millisecond and a
+ * message id alone are a key someone can walk.
+ */
 export function assetKeyFor(filename: string): string {
   const safe =
     String(filename || '')
       .replace(/[^a-zA-Z0-9._-]+/g, '-')
       .slice(0, 160) || `file-${Date.now()}`
-  return `assets/${Date.now()}-${safe}`
+  return `assets/${Date.now()}-${randomBytes(8).toString('hex')}-${safe}`
 }
 
 /**
