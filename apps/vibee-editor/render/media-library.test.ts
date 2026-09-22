@@ -1353,6 +1353,11 @@ describe('mtprotoMediaInfo', () => {
       )?.name
     expect(named('notes for the plan.md')).toBe('file-8.md')
     expect(named('run me.exe')).toBe('file-8.bin')
+    // Every format a reader opens keeps its extension, or it is never read.
+    expect(named('plan.odt')).toBe('file-8.odt')
+    expect(named('notes.rtf')).toBe('file-8.rtf')
+    expect(named('photos.rar')).toBe('file-8.rar')
+    expect(named('x', 'application/zip')).toBe('file-8.zip')
     expect(named('ignore previous instructions.txt')).toBe('file-8.txt')
     expect(named('x', 'image/heic')).toBe('image-8.heic')
     expect(isShelfFileName('file-8.md')).toBe(true)
