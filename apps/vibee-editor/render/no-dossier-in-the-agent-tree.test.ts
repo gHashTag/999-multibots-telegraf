@@ -99,6 +99,9 @@ const NOT_A_PERSON_HANDLE: Record<string, string> = {
   usernames: 'a placeholder word ("@usernames")',
   handle: 'a placeholder word ("@handle")',
   joinchat: "Telegram's invite-link path (t.me/joinchat/...), not an account",
+  botfather:
+    "Telegram's own bot for managing bots, which botfather-main-app.ts drives",
+  example_bot: 'a placeholder bot name in the botfather_main_app argument hint',
 }
 
 /** JSDoc and TSDoc tags: annotations, never an account. */

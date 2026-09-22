@@ -86,9 +86,9 @@ export type StepName =
 
 /**
  * The labels each press accepts, in order of preference, compared EXACTLY
- * after `labelKey`. Exact on purpose: "includes" would press
- * "@my_neuro_bot" when asked for "@neuro_bot", and "Menu Button" is one
- * substring away from a mini-app button in some wording. The first
+ * after `labelKey`. Exact on purpose: "includes" would press the button of
+ * a bot whose name merely contains the one asked for, and "Menu Button" is
+ * one substring away from a mini-app button in some wording. The first
  * alternative that matches exactly one button wins; one that matches two
  * stops the run.
  */
@@ -143,7 +143,7 @@ export const DEFAULT_POLL_MS = 800
 
 /* ─────────────────────────────── pure helpers ─────────────────────────────── */
 
-/** "⚙️ Bot Settings" -> "bot settings"; "@Neuro_Bot" -> "@neuro_bot". */
+/** "⚙️ Bot Settings" -> "bot settings"; "@Example_Bot" -> "@example_bot". */
 export function labelKey(label: string): string {
   return String(label ?? '')
     .normalize('NFKC')
