@@ -33,6 +33,7 @@ import {
   type MediaRow,
   type MediaSurface,
 } from './media-library'
+import { shelfLinkFor } from '../lib/shelf-access'
 
 const LEAD = /^\d{5,15}$/
 const MAX_ITEMS = 50
@@ -85,7 +86,10 @@ export async function handleCrmMedia(
         limit: Number(q.get('limit') ?? 20) || 20,
         kind: kind ?? undefined,
       })
-      return answer(200, { ok: true, items })
+      return answer(200, {
+        ok: true,
+        items: items.map(x => ({ ...x, url: shelfLinkFor(x.url) })),
+      })
     } catch (e) {
       return answer(500, { error: String(e).slice(0, 200) })
     }

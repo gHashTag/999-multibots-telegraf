@@ -28,6 +28,7 @@ import {
   type ByteRange,
   type ProbeResult,
 } from './shelf-route'
+import { shelfReadAccess } from './shelf-access'
 
 /**
  * THE SHELF SERVES WHAT WAS STORED -- measured through a real HTTP server.
@@ -112,7 +113,12 @@ let current: { store: ShelfStore; video?: ShelfVideo } = {
 
 beforeAll(async () => {
   server = createServer((req, res) => {
-    void serveShelfRequest(req, res, current)
+    // The real gate, with no server key: every document here has the random
+    // shape new keys get; the walkable ones live in shelf-access.test.ts.
+    void serveShelfRequest(req, res, {
+      access: (key, query) => shelfReadAccess(key, query, false),
+      ...current,
+    })
   })
   // Longer than any pause in these tests, so a pooled socket never races
   // the server closing it.
@@ -132,9 +138,11 @@ async function get(path: string, init: RequestInit = {}) {
 
 describe('documents and everything else: the stored bytes, with the right type', () => {
   it('a 4 MB zip comes back byte-identical as application/zip -- not a 500 from ffmpeg', async () => {
-    const { store } = fakeStore({ 'assets/1-archive.zip': ZIP })
+    const { store } = fakeStore({
+      'assets/1-0123456789abcdef-archive.zip': ZIP,
+    })
     current = { store }
-    const { res, body } = await get('/s3/assets/1-archive.zip')
+    const { res, body } = await get('/s3/assets/1-0123456789abcdef-archive.zip')
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('application/zip')
     expect(res.headers.get('content-length')).toBe(String(ZIP.length))
@@ -143,9 +151,13 @@ describe('documents and everything else: the stored bytes, with the right type',
   })
 
   it('a pdf comes back byte-identical as application/pdf', async () => {
-    const { store } = fakeStore({ 'assets/2-contract.pdf': PDF })
+    const { store } = fakeStore({
+      'assets/2-0123456789abcdef-contract.pdf': PDF,
+    })
     current = { store }
-    const { res, body } = await get('/s3/assets/2-contract.pdf')
+    const { res, body } = await get(
+      '/s3/assets/2-0123456789abcdef-contract.pdf'
+    )
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('application/pdf')
     expect(sha(body)).toBe(sha(PDF))
@@ -154,14 +166,14 @@ describe('documents and everything else: the stored bytes, with the right type',
   it('the video outlet is never consulted for a document, an unknown extension or no extension', async () => {
     const playable = vi.fn(async () => ({ kind: 'original' as const }))
     const { store } = fakeStore({
-      'assets/3-a.zip': ZIP,
-      'assets/4-blob.bin': PDF,
-      'assets/5-noext': PDF,
+      'assets/3-0123456789abcdef-a.zip': ZIP,
+      'assets/4-0123456789abcdef-blob.bin': PDF,
+      'assets/5-0123456789abcdef-noext': PDF,
     })
     current = { store, video: { playable } }
-    const bin = await get('/s3/assets/4-blob.bin')
-    const bare = await get('/s3/assets/5-noext')
-    await get('/s3/assets/3-a.zip')
+    const bin = await get('/s3/assets/4-0123456789abcdef-blob.bin')
+    const bare = await get('/s3/assets/5-0123456789abcdef-noext')
+    await get('/s3/assets/3-0123456789abcdef-a.zip')
     expect(bin.res.headers.get('content-type')).toBe('application/octet-stream')
     expect(bare.res.headers.get('content-type')).toBe(
       'application/octet-stream'
@@ -211,14 +223,14 @@ describe('documents and everything else: the stored bytes, with the right type',
   it('every answer says nosniff; html and svg open only in a script-less sandbox', async () => {
     const page = Buffer.from('<script>parent.alert(1)</script>')
     const { store } = fakeStore({
-      'assets/6-page.html': page,
-      'assets/7-pic.svg': page,
-      'assets/8-doc.pdf': PDF,
+      'assets/6-0123456789abcdef-page.html': page,
+      'assets/7-0123456789abcdef-pic.svg': page,
+      'assets/8-0123456789abcdef-doc.pdf': PDF,
     })
     current = { store }
-    const html = await get('/s3/assets/6-page.html')
-    const svg = await get('/s3/assets/7-pic.svg')
-    const pdf = await get('/s3/assets/8-doc.pdf')
+    const html = await get('/s3/assets/6-0123456789abcdef-page.html')
+    const svg = await get('/s3/assets/7-0123456789abcdef-pic.svg')
+    const pdf = await get('/s3/assets/8-0123456789abcdef-doc.pdf')
     for (const r of [html, svg, pdf])
       expect(r.res.headers.get('x-content-type-options')).toBe('nosniff')
     expect(html.res.headers.get('content-security-policy')).toMatch(
@@ -232,7 +244,7 @@ describe('documents and everything else: the stored bytes, with the right type',
 
   it('a key that is not on the shelf is a 404, not a 500', async () => {
     current = { store: fakeStore({}).store }
-    const { res } = await get('/s3/assets/none.zip')
+    const { res } = await get('/s3/assets/1-0123456789abcdef-none.zip')
     expect(res.status).toBe(404)
   })
 
@@ -245,27 +257,35 @@ describe('documents and everything else: the stored bytes, with the right type',
         open: store.open,
       },
     }
-    const { res } = await get('/s3/assets/gone-meanwhile.pdf')
+    const { res } = await get(
+      '/s3/assets/1-0123456789abcdef-gone-meanwhile.pdf'
+    )
     expect(res.status).toBe(404)
   })
 
   it('a malformed percent-escape is a 400, and a percent-encoded key is decoded once', async () => {
-    const { store, calls } = fakeStore({ 'assets/9 my file.pdf': PDF })
+    const { store, calls } = fakeStore({
+      'assets/9-0123456789abcdef-my file.pdf': PDF,
+    })
     current = { store }
     expect((await get('/s3/assets/%E0%A4%A.pdf')).res.status).toBe(400)
-    const ok = await get('/s3/assets/9%20my%20file.pdf')
+    const ok = await get('/s3/assets/9-0123456789abcdef-my%20file.pdf')
     expect(ok.res.status).toBe(200)
     expect(calls.filter(c => c.op === 'stat').map(c => c.key)).toEqual([
-      'assets/9 my file.pdf',
+      'assets/9-0123456789abcdef-my file.pdf',
     ])
   })
 })
 
 describe('HEAD and Range', () => {
   it('HEAD answers 200 with the real length and opens no body', async () => {
-    const { store, calls } = fakeStore({ 'assets/10-big.zip': ZIP })
+    const { store, calls } = fakeStore({
+      'assets/10-0123456789abcdef-big.zip': ZIP,
+    })
     current = { store }
-    const res = await fetch(`${base}/s3/assets/10-big.zip`, { method: 'HEAD' })
+    const res = await fetch(`${base}/s3/assets/10-0123456789abcdef-big.zip`, {
+      method: 'HEAD',
+    })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-length')).toBe(String(ZIP.length))
     expect(res.headers.get('content-type')).toBe('application/zip')
@@ -274,9 +294,11 @@ describe('HEAD and Range', () => {
   })
 
   it('a Range asks the bucket for exactly that slice and answers 206', async () => {
-    const { store, calls } = fakeStore({ 'assets/11-big.zip': ZIP })
+    const { store, calls } = fakeStore({
+      'assets/11-0123456789abcdef-big.zip': ZIP,
+    })
     current = { store }
-    const { res, body } = await get('/s3/assets/11-big.zip', {
+    const { res, body } = await get('/s3/assets/11-0123456789abcdef-big.zip', {
       headers: { Range: 'bytes=1000000-1000999' },
     })
     expect(res.status).toBe(206)
@@ -292,19 +314,19 @@ describe('HEAD and Range', () => {
   })
 
   it('an open-ended and a suffix range, and a range past the end is 416', async () => {
-    const { store } = fakeStore({ 'assets/12-doc.pdf': PDF })
+    const { store } = fakeStore({ 'assets/12-0123456789abcdef-doc.pdf': PDF })
     current = { store }
-    const tail = await get('/s3/assets/12-doc.pdf', {
+    const tail = await get('/s3/assets/12-0123456789abcdef-doc.pdf', {
       headers: { Range: `bytes=${PDF.length - 10}-` },
     })
     expect(tail.res.status).toBe(206)
     expect(sha(tail.body)).toBe(sha(PDF.subarray(PDF.length - 10)))
-    const suffix = await get('/s3/assets/12-doc.pdf', {
+    const suffix = await get('/s3/assets/12-0123456789abcdef-doc.pdf', {
       headers: { Range: 'bytes=-7' },
     })
     expect(suffix.res.status).toBe(206)
     expect(suffix.body.toString()).toBe('\n%%EOF\n')
-    const past = await get('/s3/assets/12-doc.pdf', {
+    const past = await get('/s3/assets/12-0123456789abcdef-doc.pdf', {
       headers: { Range: `bytes=${PDF.length}-` },
     })
     expect(past.res.status).toBe(416)
@@ -350,7 +372,7 @@ describe('streaming, not buffering', () => {
           ),
       },
     }
-    const res = await fetch(`${base}/s3/assets/13-stream.zip`)
+    const res = await fetch(`${base}/s3/assets/13-0123456789abcdef-stream.zip`)
     const reader = res.body!.getReader()
     let seen = 0
     while (seen < first.length) {
@@ -372,9 +394,11 @@ describe('video: the stored bytes on request, a playable copy only where needed'
       kind: 'file' as const,
       path: '/nope',
     }))
-    const { store } = fakeStore({ 'assets/14-clip.mp4': MP4 })
+    const { store } = fakeStore({ 'assets/14-0123456789abcdef-clip.mp4': MP4 })
     current = { store, video: { playable } }
-    const { res, body } = await get('/s3/assets/14-clip.mp4?original=1')
+    const { res, body } = await get(
+      '/s3/assets/14-0123456789abcdef-clip.mp4?original=1'
+    )
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('video/mp4')
     expect(sha(body)).toBe(sha(MP4))
@@ -388,8 +412,8 @@ describe('video: the stored bytes on request, a playable copy only where needed'
       const copyBytes = fixture(10_000, 99)
       writeFileSync(copy, copyBytes)
       const { store } = fakeStore({
-        'assets/15-hevc.mov': MP4,
-        'assets/16-h264.mp4': MP4,
+        'assets/15-0123456789abcdef-hevc.mov': MP4,
+        'assets/16-0123456789abcdef-h264.mp4': MP4,
       })
       current = {
         store,
@@ -400,14 +424,14 @@ describe('video: the stored bytes on request, a playable copy only where needed'
               : { kind: 'original' },
         },
       }
-      const hevc = await get('/s3/assets/15-hevc.mov', {
+      const hevc = await get('/s3/assets/15-0123456789abcdef-hevc.mov', {
         headers: { Range: 'bytes=0-99' },
       })
       expect(hevc.res.status).toBe(206)
       expect(hevc.res.headers.get('content-type')).toBe('video/mp4')
       expect(hevc.res.headers.get('content-range')).toBe('bytes 0-99/10000')
       expect(sha(hevc.body)).toBe(sha(copyBytes.subarray(0, 100)))
-      const h264 = await get('/s3/assets/16-h264.mp4')
+      const h264 = await get('/s3/assets/16-0123456789abcdef-h264.mp4')
       expect(sha(h264.body)).toBe(sha(MP4))
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -423,7 +447,9 @@ describe('video: the stored bytes on request, a playable copy only where needed'
         },
       },
     }
-    expect((await get('/s3/assets/17-gone.mp4')).res.status).toBe(404)
+    expect(
+      (await get('/s3/assets/17-0123456789abcdef-gone.mp4')).res.status
+    ).toBe(404)
   })
 })
 
@@ -819,8 +845,8 @@ describe('the real tools', () => {
           hevc,
         ])
         const objects: Record<string, Buffer> = {
-          'assets/1-h264.mp4': readFileSync(h264),
-          'assets/2-hevc.mp4': readFileSync(hevc),
+          'assets/1-0123456789abcdef-h264.mp4': readFileSync(h264),
+          'assets/2-0123456789abcdef-hevc.mp4': readFileSync(hevc),
         }
         const { store } = fakeStore(objects)
         current = {
@@ -836,12 +862,16 @@ describe('the real tools', () => {
             transcode: ffmpegH264,
           }),
         }
-        const plain = await get('/s3/assets/1-h264.mp4')
-        expect(sha(plain.body)).toBe(sha(objects['assets/1-h264.mp4']))
+        const plain = await get('/s3/assets/1-0123456789abcdef-h264.mp4')
+        expect(sha(plain.body)).toBe(
+          sha(objects['assets/1-0123456789abcdef-h264.mp4'])
+        )
 
-        const copy = await get('/s3/assets/2-hevc.mp4')
+        const copy = await get('/s3/assets/2-0123456789abcdef-hevc.mp4')
         expect(copy.res.status).toBe(200)
-        expect(sha(copy.body)).not.toBe(sha(objects['assets/2-hevc.mp4']))
+        expect(sha(copy.body)).not.toBe(
+          sha(objects['assets/2-0123456789abcdef-hevc.mp4'])
+        )
         const served = join(dir, 'served.mp4')
         writeFileSync(served, copy.body)
         const probed = await ffprobeJson(served)
@@ -850,8 +880,12 @@ describe('the real tools', () => {
         // The 10-bit source must not come out as High 10: Chrome shows black.
         expect(v?.pix_fmt).toBe('yuv420p')
 
-        const raw = await get('/s3/assets/2-hevc.mp4?original=1')
-        expect(sha(raw.body)).toBe(sha(objects['assets/2-hevc.mp4']))
+        const raw = await get(
+          '/s3/assets/2-0123456789abcdef-hevc.mp4?original=1'
+        )
+        expect(sha(raw.body)).toBe(
+          sha(objects['assets/2-0123456789abcdef-hevc.mp4'])
+        )
       } finally {
         rmSync(dir, { recursive: true, force: true })
       }
