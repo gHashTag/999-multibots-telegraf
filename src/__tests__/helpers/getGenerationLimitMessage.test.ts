@@ -172,9 +172,12 @@ describe('getGenerationLimitMessage', () => {
         expect(result).toContain('Limit resets')
       })
 
-      it('should suggest NEUROTESTER subscription', () => {
-        const result = getGenerationLimitMessage(true, false, 10, 10)
-        expect(result).toContain('NEUROTESTER')
+      it('offers the club, not a retired tier', () => {
+        for (const isRu of [true, false]) {
+          const result = getGenerationLimitMessage(isRu, false, 10, 10)
+          expect(result).toMatch(/клуб|club/) // cyrillic-ok: UI copy under test
+          expect(result).not.toMatch(/NEURO|BASIC|PRO\b|STUDIO/)
+        }
       })
     })
 
@@ -232,14 +235,16 @@ describe('getGenerationLimitMessage', () => {
         const result = getSuccessGenerationMessage(true, false, 10, 10)
         expect(result).toContain('✅')
         expect(result).toContain('последняя бесплатная генерация')
-        expect(result).toContain('NEUROTESTER')
+        expect(result).toContain('/club')
+        expect(result).not.toContain('NEUROTESTER')
       })
 
       it('should show last generation message in English', () => {
         const result = getSuccessGenerationMessage(false, false, 10, 10)
         expect(result).toContain('✅')
         expect(result).toContain('last free generation')
-        expect(result).toContain('NEUROTESTER')
+        expect(result).toContain('/club')
+        expect(result).not.toContain('NEUROTESTER')
       })
     })
   })

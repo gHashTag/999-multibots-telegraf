@@ -17,9 +17,10 @@
  * Telegram allows one reply_markup per message, so the buttons ride on the
  * second. Same shape as showMainMenu, for the same reason.
  *
- * Every callback here is a registered action (actionButtons.ts), so a press
- * always lands somewhere; every web_app link is a start_param the mini app
- * maps to a route (TelegramProvider.tsx, guarded by startParamContract.test).
+ * Every callback here is a registered action (actionButtons.ts) or the club
+ * card (clubCard.ts, registered before the scenes), so a press always lands
+ * somewhere; every web_app link is a start_param the mini app maps to a route
+ * (TelegramProvider.tsx, guarded by startParamContract.test).
  */
 import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
@@ -28,6 +29,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { buildMiniAppUrl } from '@/navigation/config/miniApp.config'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { actionButton } from '@/navigation/helpers/actionButtons'
+import { clubButton } from '@/navigation/helpers/clubCard'
 import { track } from '@/services/trackEvent'
 import { logger } from '@/utils/logger'
 
@@ -75,7 +77,7 @@ export function startGreetingText(
       'Что здесь есть:',
       '🐝 <b>Улей</b> — живая карта игры, та же, что на t27.ai',
       '🤖 <b>Агент</b> — ваш двойник: спросить или попросить сделать',
-      '⭐ <b>Клуб</b> — вход по подписке в Stars, часть оплаты возвращается токенами на баланс',
+      '⭐ <b>Клуб</b> — ваш цифровой двойник по подписке в Stars; часть каждого платежа возвращается токенами. Цена — по кнопке «Вступить в клуб»',
       '👤 <b>Профиль</b> — баланс, история, настройки',
       '',
       rubles
@@ -93,7 +95,7 @@ export function startGreetingText(
     'What is here:',
     '🐝 <b>Hive</b> — the live map of the game, the same one as on t27.ai',
     '🤖 <b>Agent</b> — your twin: ask it, or ask it to make something',
-    '⭐ <b>Club</b> — entry by a Stars subscription, part of it comes back as tokens on the balance',
+    '⭐ <b>Club</b> — your digital twin by a Stars subscription; part of every payment comes back as tokens. The price is behind the "Join the club" button',
     '👤 <b>Profile</b> — balance, history, settings',
     '',
     rubles
@@ -151,11 +153,17 @@ export function startGreetingKeyboard(
         buildMiniAppUrl('browser')
       ),
     ])
+    /*
+     * THE CLUB OPENS HERE, IN THE CHAT, NOT TWO SCREENS DEEP IN THE APP.
+     *
+     * This was a web_app button to the Mini App's `club` route, which is the
+     * profile's welcome road: the price appeared only after two more presses,
+     * and 5 of 49 new people in thirty days ever opened the app at all
+     * (measured 2026-09-22). The card in the chat shows the price and the
+     * join button on the first press (clubCard.ts).
+     */
     rows.push([
-      Markup.button.webApp(
-        isRu ? '⭐ Вступить в клуб' : '⭐ Join the club',
-        buildMiniAppUrl('club')
-      ),
+      clubButton(isRu, { join: true }),
       Markup.button.webApp(
         isRu ? '👤 Профиль' : '👤 Profile',
         buildMiniAppUrl('profile')

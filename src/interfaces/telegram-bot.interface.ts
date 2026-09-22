@@ -289,8 +289,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
   email?: string
   inviteCode?: string
-  /** Deep-link t.me/t27ai_bot?start=foundry: показать клуб после регистрации */
-  foundryDeepLink?: boolean
+  /**
+   * A club link (`?start=club|foundry|subscribe_*`) from somebody who first had
+   * to be registered: show the club card once CreateUserScene is done.
+   */
+  clubDeepLink?: boolean
   /**
    * How this person said they want to pay, in the mini app's paywall, before
    * they were sent here. It may only NARROW what the bot offers -- see

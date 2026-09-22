@@ -230,11 +230,11 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
 
   // === ОПЛАТА (ВНИЗУ!) ===
   {
-    ru: '💫 Оформить подписку',
-    en: '💫 Subscribe',
+    ru: '⭐ Клуб',
+    en: '⭐ Club',
     mode: ModeEnum.SubscriptionScene,
     category: 'payment',
-    icon: '💫',
+    icon: '⭐',
   },
   {
     ru: '💎 Пополнить баланс',
@@ -294,7 +294,7 @@ levels[102] = {
 }
 levels[103] = { title_ru: '💬 Техподдержка', title_en: '💬 Support' }
 levels[104] = { title_ru: '🏠 Главное меню', title_en: '🏠 Main menu' }
-levels[105] = { title_ru: '💫 Оформить подписку', title_en: '💫 Subscribe' }
+levels[105] = { title_ru: '⭐ Клуб', title_en: '⭐ Club' }
 levels[106] = { title_ru: '🌐 EN', title_en: '🌐 RU' }
 levels[107] = {
   title_ru: '⬆️ Увеличить качество фото',
@@ -316,7 +316,7 @@ levels[108] = {
  * 2. Баланс + Пополнить
  * 3. Пригласить + Поддержка
  * 4. Кнопка языка
- * 5. Оформить подписку (последний ряд)
+ * 5. The club (last row) -- the one subscription since 2026-09-22
  */
 export const createMainMenuKeyboard = (ctx: MyContext) => {
   const isRu = isRussianFromState(ctx)
@@ -379,8 +379,8 @@ export const createMainMenuKeyboard = (ctx: MyContext) => {
   // 4. Кнопка языка (отдельный ряд)
   keyboard.push([isRu ? '🌐 EN' : '🌐 RU'])
 
-  // 5. Оформить подписку (последний ряд)
-  keyboard.push([isRu ? '💫 Оформить подписку' : '💫 Subscribe'])
+  // 5. The club (last row): the one subscription, where the retired tiers were.
+  keyboard.push([isRu ? '⭐ Клуб' : '⭐ Club'])
 
   return Markup.keyboard(keyboard).resize()
 }

@@ -2176,6 +2176,15 @@ apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора д
 apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора каналы не превращают список долгов в список подписок
 apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора мой собственный последний ответ долгом не считается
 apps/vibee-editor/render/tg-unanswered.test.ts :: правило отбора прочитанное без ответа — ТОЖЕ долг
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: clubCaller: whose club this request is about a person's own proof always wins over a name in the query
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: clubCaller: whose club this request is about the server key cannot name a chat, a word or a short number
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: clubCaller: whose club this request is about the server key may name a person
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: clubCaller: whose club this request is about without the server key a name in the query is nobody
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: the invoice route, through clubCaller a name in the query without the server key mints nothing
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: the invoice route, through clubCaller a signed-in person naming somebody else still gets their own invoice
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: the invoice route, through clubCaller status and verify are closed the same way
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: the invoice route, through clubCaller the bot with the server key gets an invoice FOR the person it named
+apps/vibee-editor/render/the-bot-can-sell-the-club.test.ts :: the server wires it that way reads the named person only behind the server key
 apps/vibee-editor/render/the-card-outlives-the-moment.test.ts :: the env override a number is honoured
 apps/vibee-editor/render/the-card-outlives-the-moment.test.ts :: the env override a typo falls back to the default instead of becoming NaN
 apps/vibee-editor/render/the-card-outlives-the-moment.test.ts :: the env override zero and negatives fall back too — a card that expires on arrival is not a setting
@@ -3407,11 +3416,11 @@ src/__tests__/helpers/featureInfo.test.ts :: getFeatureMinCost should return min
 src/__tests__/helpers/featureInfo.test.ts :: getFeatureMinCost should return minCost for known feature
 src/__tests__/helpers/featureInfo.test.ts :: isFeaturePaid should return false for unknown feature
 src/__tests__/helpers/featureInfo.test.ts :: isFeaturePaid should return true for paid features
+src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage limit reached offers the club, not a retired tier
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage limit reached should include reset date info in English
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage limit reached should include reset date info in Russian
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage limit reached should return limit reached message in English
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage limit reached should return limit reached message in Russian
-src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage limit reached should suggest NEUROTESTER subscription
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage under limit should show monthly reset info
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage under limit should show remaining generations in English
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getGenerationLimitMessage under limit should show remaining generations in Russian
@@ -3860,6 +3869,12 @@ src/__tests__/money/aBotTopUpReachesTheLiveWallet.test.ts :: a bot star purchase
 src/__tests__/money/aBotTopUpReachesTheLiveWallet.test.ts :: it does not claim a top-up that did not happen a redelivery is NOT a failure -- the tokens are already there
 src/__tests__/money/aBotTopUpReachesTheLiveWallet.test.ts :: it does not claim a top-up that did not happen a refused credit is told to the buyer instead of a cheerful confirmation
 src/__tests__/money/aBotTopUpReachesTheLiveWallet.test.ts :: it does not claim a top-up that did not happen the owner is told when a paid top-up did not reach the wallet
+src/__tests__/money/aClubChargeIsBookedByTheRenderNotHere.test.ts :: a club charge announces only the tokens this booking credited
+src/__tests__/money/aClubChargeIsBookedByTheRenderNotHere.test.ts :: a club charge asks the render to book it for the payer, with the server key, and writes no archive row
+src/__tests__/money/aClubChargeIsBookedByTheRenderNotHere.test.ts :: a club charge is a row in the funnel, renewal or not
+src/__tests__/money/aClubChargeIsBookedByTheRenderNotHere.test.ts :: a club charge survives the render being down: the hourly sweep books it, the person is told
+src/__tests__/money/aClubChargeIsBookedByTheRenderNotHere.test.ts :: a club charge tells the truth when the booking is not visible yet, and still writes nothing
+src/__tests__/money/aClubChargeIsBookedByTheRenderNotHere.test.ts :: what is not a club charge does not take the club branch a malformed club payload is not booked as the club
 src/__tests__/money/aRefusalIsNotAnnouncedAsSuccess.test.ts :: a refusal is shown as a refusal the button is offered only when money is what is missing
 src/__tests__/money/aRefusalIsNotAnnouncedAsSuccess.test.ts :: a refusal is shown as a refusal the error is what goes out, before any success wording
 src/__tests__/money/aRefusalIsNotAnnouncedAsSuccess.test.ts :: a refusal is shown as a refusal the service says when the failure was about money
@@ -4447,7 +4462,7 @@ src/__tests__/money/superheroQuotaCounterAccumulates.test.ts :: superhero genera
 src/__tests__/money/superheroQuotaCounterAccumulates.test.ts :: superhero generation quota counter accumulates (no upsert-overwrite) self-check: detector distinguishes accumulate from upsert-overwrite
 src/__tests__/money/superheroQuotaCounterAccumulates.test.ts :: superhero generation quota counter accumulates (no upsert-overwrite) the fallback reads existing and writes existing+1 (no upsert-overwrite)
 src/__tests__/money/theFreeDemoOfferSurvivesTheMenu.test.ts :: the offer at the end of the free demo survives the menu that follows is an inline keyboard, not a reply keyboard the next message removes
-src/__tests__/money/theFreeDemoOfferSurvivesTheMenu.test.ts :: the offer at the end of the free demo survives the menu that follows still offers the subscription, not just a generic top-up
+src/__tests__/money/theFreeDemoOfferSurvivesTheMenu.test.ts :: the offer at the end of the free demo survives the menu that follows still offers the club, not just a generic top-up -- and no retired tier
 src/__tests__/money/theFreeDemoOfferSurvivesTheMenu.test.ts :: the offer at the end of the free demo survives the menu that follows the callback is answerable after the scene is left, so it is bot-level
 src/__tests__/money/theFreeDemoOfferSurvivesTheMenu.test.ts :: the offer at the end of the free demo survives the menu that follows the menu that follows is what would have wiped a reply keyboard
 src/__tests__/money/theFreeGenerationWasNeverFree.test.ts :: a free generation is never handed out on a count nobody could read the fail-open paths still let the person generate
@@ -5088,6 +5103,25 @@ src/__tests__/navigation/start-first-door.test.ts :: /start: первая две
 src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь падение базы не роняет обработчик и объясняет человеку
 src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь реферальный код из ссылки доживает до сессии
 src/__tests__/navigation/start-first-door.test.ts :: /start: первая дверь ссылка клуба доживает до сессии, а не до локальной переменной
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: every old door lands on the club card /club is the club, not the Golden Foundry
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: every old door lands on the club card /foundry is the club, not the Golden Foundry
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: every old door lands on the club card /start club opens the club card for a known person
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: every old door lands on the club card /start foundry opens the club card for a known person
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: every old door lands on the club card /start subscribe_* survives registration for a new person
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: every old door lands on the club card /start subscribe_middle_stars opens the club card for a known person
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: every old door lands on the club card the subscription scene shows the card and leaves; it lists no tiers
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the buttons are answered first and registered at bot level answers the press before the network, on join and on the card
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the buttons are answered first and registered at bot level lands the retired offers on the card, and nothing that merely looks like them
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the card asks the render with the server key, never without it
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the card does not sell the club to a member: no price, no join button
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the card has no price of its own: another price from the cashier is another price on the card
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the card records that the card was seen, with where it was asked for
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the card says the cashier did not answer, offers a retry, and records no card
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the card shows the price, the period and the tokens back -- as the cashier sent them
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the join press hands over exactly the link the render minted, and records the invoice
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the join press offers a retry when the cashier fails, instead of a dead end
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the join press refuses a link that is not a Telegram invoice link
+src/__tests__/navigation/theBotSellsTheClub.test.ts :: the join press tells a member they are in, and mints nothing
 src/__tests__/navigation/theSignInDoorHasAHandle.test.ts :: the greeting offers the way in from another device has a sign-in button when the mini app can be opened
 src/__tests__/navigation/theSignInDoorHasAHandle.test.ts :: the greeting offers the way in from another device is absent where a web_app button cannot be sent
 src/__tests__/navigation/theSignInDoorHasAHandle.test.ts :: the greeting offers the way in from another device leaves the doors that were already there
@@ -5429,10 +5463,8 @@ src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched wit
 src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched with a bounded retry on 409 Conflict self-check: the old shape is detected as a bare chain
 src/__tests__/reliability/botLaunchRetriesOn409.test.ts :: bots are launched with a bounded retry on 409 Conflict the helper retries only on 409 and gives up on anything else
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) floor: menuScene still has a positive callback-handling block
-src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) floor: subscriptionScene still has a positive callback-handling block
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) menuScene: every callback block answers before branching
 src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) self-check: an answer nested only inside a data-branch is detected
-src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts :: subscription/menu callback steps answer before branching (no spinner hang) subscriptionScene: every callback block answers before branching
 src/__tests__/reliability/canAWriteBeLostBetweenUpdates.test.ts :: can a write be lost between two updates a write that lands while Redis is refusing is still readable afterwards
 src/__tests__/reliability/canAWriteBeLostBetweenUpdates.test.ts :: can a write be lost between two updates overlapping updates share one session, so neither erases the other
 src/__tests__/reliability/canAWriteBeLostBetweenUpdates.test.ts :: can a write be lost between two updates the guard: a session that never wrote reads back empty, so the test can fail
@@ -6898,33 +6930,6 @@ src/__tests__/scenes/startScene.test.ts :: startScene (User Initialization) 7. �
 src/__tests__/scenes/startScene.test.ts :: startScene (User Initialization) 8. Завершение сцены должен вызывать scene.leave в конце
 src/__tests__/scenes/startScene.test.ts :: startScene (User Initialization) 9. Обработка ошибок должен отправлять сообщение об ошибке на английском
 src/__tests__/scenes/startScene.test.ts :: startScene (User Initialization) 9. Обработка ошибок должен отправлять сообщение об ошибке на русском
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 1. Вход в сцену (Шаг 1) должен определять язык
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 1. Вход в сцену (Шаг 1) должен получать данные о подписке пользователя
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 1. Вход в сцену (Шаг 1) должен получать перевод для subscriptionScene
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 10. Обработка команды /instagram должен показывать сообщение о необходимости подписки
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 11. Проверка telegram_id должен выходить если нет telegram_id
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 2. Фильтрация планов по админ-статусу должен показывать все планы для админа
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 2. Фильтрация планов по админ-статусу должен показывать все планы для обычного пользователя
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 3. Формирование клавиатуры должен добавлять админ-кнопку для админов
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 3. Формирование клавиатуры должен добавлять кнопку отмены
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 3. Формирование клавиатуры должен показывать звезды на английском
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 3. Формирование клавиатуры должен создавать кнопки для каждого плана
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 4. Обработка выбора плана (Шаг 2) должен находить план по callback_data
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 4. Обработка выбора плана (Шаг 2) должен переходить в PaymentScene после выбора
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 4. Обработка выбора плана (Шаг 2) должен сохранять выбранный план в сессии
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 5. Админский тест на 1 рубль должен настраивать сессию для админского теста
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 5. Админский тест на 1 рубль должен обрабатывать callback admin_test_1rub
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 5. Админский тест на 1 рубль должен отклонять не-админов
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 5. Админский тест на 1 рубль должен проверять админ-статус
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 6. Кнопка отмены должен выходить из сцены и показывать меню
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 6. Кнопка отмены должен обрабатывать cancel_subscription
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 6. Кнопка отмены должен редактировать сообщение при отмене на русском
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 7. Обработка mainmenu callback должен выходить из сцены
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 7. Обработка mainmenu callback должен обрабатывать callback mainmenu
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 8. Валидация типа подписки должен валидировать известный тип подписки
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 8. Валидация типа подписки не должен валидировать неизвестный тип
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 9. Fallback сообщения должен использовать fallback если нет перевода
-src/__tests__/scenes/subscriptionScene.test.ts :: subscriptionScene (Subscription Selection) 9. Fallback сообщения должен показывать сообщение если нет планов
 src/__tests__/scenes/textToImageDoubleCharge.test.ts :: text-to-image: a double tap on a number button charges once releases the guard after a run so a later tap generates again
 src/__tests__/scenes/textToImageDoubleCharge.test.ts :: text-to-image: a double tap on a number button charges once releases the guard when generation fails, so the user can retry
 src/__tests__/scenes/textToImageDoubleCharge.test.ts :: text-to-image: a double tap on a number button charges once runs generateTextToImageDirect once when two taps arrive concurrently
@@ -7732,6 +7737,16 @@ src/__tests__/services/theAgentStreamDiesMidBody.test.ts :: one short retry, onl
 src/__tests__/services/theAgentStreamDiesMidBody.test.ts :: one short retry, only on a provider limit (d) a NON-limit error is not retried -- waiting would change nothing
 src/__tests__/services/theAgentStreamDiesMidBody.test.ts :: one short retry, only on a provider limit (e) a second limit fails loudly rather than retrying for ever
 src/__tests__/services/theAgentStreamDiesMidBody.test.ts :: one short retry, only on a provider limit a turn that already spent money or already sent is never replayed
+src/__tests__/services/theFunnelWrites.test.ts :: a failed write is logged, not swallowed logs nothing when the row landed
+src/__tests__/services/theFunnelWrites.test.ts :: a failed write is logged, not swallowed says which step was lost and why
+src/__tests__/services/theFunnelWrites.test.ts :: a failed write is logged, not swallowed still never throws to the person waiting for an answer
+src/__tests__/services/theFunnelWrites.test.ts :: a step lands as a row creates the table it writes to, then writes the row
+src/__tests__/services/theFunnelWrites.test.ts :: a step lands as a row writes nothing for an update with nobody behind it
+src/__tests__/services/theFunnelWrites.test.ts :: a step lands as a row writes one row per step, not one per process
+src/__tests__/services/theFunnelWrites.test.ts :: the hourly pass writes the abandoned rows, once each marks the unpaid invoices and nothing else, and a second run adds nothing
+src/__tests__/services/theFunnelWrites.test.ts :: the hourly pass writes the abandoned rows, once each throws when it cannot read, instead of reporting nobody walked away
+src/__tests__/services/theFunnelWrites.test.ts :: which club invoices were abandoned (the rule) marks an invoice left unpaid past the grace period, and only that one
+src/__tests__/services/theFunnelWrites.test.ts :: which club invoices were abandoned (the rule) uses the grace period it is given, an hour by default
 src/__tests__/services/thePressLeavesATrace.test.ts :: a journal that is down must not eat a press a good answer is noted, and carries the kind and the owner
 src/__tests__/services/thePressLeavesATrace.test.ts :: a journal that is down must not eat a press a refusal is reported, never thrown
 src/__tests__/services/thePressLeavesATrace.test.ts :: a journal that is down must not eat a press a throw is caught, never raised
@@ -7926,10 +7941,11 @@ src/__tests__/tools/tonVerifySelfCheck.test.ts :: tri ton-verify is wired and ho
 src/__tests__/tools/tonVerifySelfCheck.test.ts :: tri ton-verify is wired and honest self-check of the detector: a copied loadCoins parser is refused
 src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: every call site is fire-and-forget finds the call sites it claims to check
 src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: every call site is fire-and-forget never awaits a step, at any of them
-src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: every call site is fire-and-forget records the six steps the reader counts, and no others
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: every call site is fire-and-forget records the steps the reader counts, and no others
 src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: the reader will not print a funnel it did not measure exits 2 without credentials rather than showing an empty funnel
 src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: the reader will not print a funnel it did not measure treats a non-numeric count as a refusal, not as data
-src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never reaches the caller, whatever happens resolves even when the insert throws
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never reaches the caller, whatever happens resolves even when the database throws
+src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never reaches the caller, whatever happens resolves when the database is not configured at all
 src/__tests__/tools/trackingCannotCostAnybodyAnything.test.ts :: track never reaches the caller, whatever happens resolves when there is no person to attribute the step to
 src/__tests__/tools/triForwardsItsArguments.test.ts :: tri forwards the arguments it was given does not forward with ${@:2}, which skips one after the shift
 src/__tests__/tools/triForwardsItsArguments.test.ts :: tri forwards the arguments it was given really passes a file argument through to the script
