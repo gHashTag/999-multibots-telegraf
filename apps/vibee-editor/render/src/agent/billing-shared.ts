@@ -355,6 +355,25 @@ export const TOKEN_PRICES: Record<string, number> = {
   video_generate: priceFor('video_generate'), // 40
 }
 
+/**
+ * THE MOST ONE RUN MAY COST US FOR THE PRICE TO KEEP ITS MARKUP.
+ *
+ * `priceFor` goes from cost to price: ceil(cost x markup / base). This goes
+ * back: price x base / markup. For image_generate that is 2 x 0.005 / 2 =
+ * $0.005 -- a provider link costing more than that sells the picture below
+ * the owner's price, however the chain happened to reach it. An op with no
+ * price covers nothing (0), so nothing runs on it.
+ *
+ * Rounded to the sixth place for the same reason `priceFor` is: binary
+ * arithmetic leaves 0.005000000000000001, and a comparison against it should
+ * not depend on that.
+ */
+export function costCeilingUsd(op: string): number {
+  const price = TOKEN_PRICES[op]
+  if (!price) return 0
+  return Number(((price * COST_PER_TOKEN_USD) / НАЦЕНКА).toFixed(6)) // cyrillic-ok: existing markup constant
+}
+
 /** Пул, минимально типизированный: и pg.Pool, и обёртки подходят. */
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
