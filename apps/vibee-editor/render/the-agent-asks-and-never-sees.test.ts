@@ -305,3 +305,30 @@ describe('picking an option is consent to it (owner: the agent stood on "Save")'
     expect(opens()).toBe(false)
   })
 })
+
+describe('answering the agent hands it the wheel (2026-09-22, X)', () => {
+  it('a pressed option releases the person hold so the agent can act on it', async () => {
+    const said: string[] = []
+    const d: BrowserDeps = {
+      getPool: async () =>
+        ({
+          query: async (sql: string) => (said.push(sql), { rows: [] }),
+        }) as never,
+      identity: () => WHO,
+      driver: { name: 'fake' } as never,
+      newToken: () => 't',
+      actor: () => 'person',
+      readBody: async () => JSON.stringify({ id: 'w1', option: 'Save' }),
+    }
+    askForInput(WHO, {
+      id: 'w1',
+      kind: 'choice',
+      why: 'Skip or Save?',
+      host: '',
+      label: '',
+      options: ['Skip', 'Save'],
+    })
+    await handleBrowser({ url: '/api/browser/choose', method: 'POST' }, d)
+    expect(said.some(q => /person_wheel_until = NULL/.test(q))).toBe(true)
+  })
+})
