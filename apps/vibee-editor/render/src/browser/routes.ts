@@ -59,6 +59,14 @@ import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
 import { readJournal } from './journal'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
+import {
+  cdpTypeIo,
+  canTypeInto,
+  parseTypeBody,
+  MAX_TYPE_BODY_BYTES,
+  type Focus,
+  type TypeIo,
+} from './person-type'
 
 export const BROWSER_PATHS = [
   '/api/browser/session',
@@ -67,6 +75,7 @@ export const BROWSER_PATHS = [
   '/api/browser/cookies',
   '/api/browser/journal',
   '/api/browser/wheel',
+  '/api/browser/type',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -104,6 +113,8 @@ export interface BrowserDeps {
   ) => Promise<string>
   /** Injected for tests; defaults to writing into the pod over CDP. */
   importCookies?: (cdpEndpoint: string, cookies: CookieParam[]) => Promise<void>
+  /** Injected for tests; defaults to the pod over CDP (person-type.ts). */
+  typeIo?: TypeIo
 }
 
 /**
@@ -296,6 +307,26 @@ export async function handleBrowser(
    * only: an agent key is refused, because moving somebody's sessions is
    * theirs to do, not something done to them.
    */
+  /*
+   * THE PERSON TYPES FROM THEIR OWN KEYBOARD (person-type.ts). GET says
+   * where it would land; POST types it. The person's door only.
+   */
+  if (path === '/api/browser/type') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: 'вводить текст может только сам человек', // cyrillic-ok: user-facing error
+        },
+      }
+    }
+    if (method !== 'GET' && method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    return await personTypes(pool, deps, who, req, method === 'POST')
+  }
+
   if (path === '/api/browser/cookies') {
     if (method !== 'POST') {
       return { status: 405, body: { ok: false, error: 'POST only' } }
@@ -520,6 +551,72 @@ async function wipe(
   }
   await forgetProfile(pool, who)
   return { status: 200, body: { ok: true, state: 'none', wiped: true } }
+}
+
+async function personTypes(
+  pool: Queryable,
+  deps: BrowserDeps,
+  who: string,
+  req: { url?: string; method?: string },
+  send: boolean
+): Promise<RouteResult> {
+  const session = await readSession(pool, who)
+  if (!session || session.state !== 'live' || !session.cdpEndpoint) {
+    return {
+      status: 409,
+      body: { ok: false, error: 'сначала откройте браузер' }, // cyrillic-ok: user-facing error
+    }
+  }
+  const io = deps.typeIo ?? cdpTypeIo
+  let focus: Focus
+  try {
+    focus = await io.focus(session.cdpEndpoint)
+  } catch {
+    return {
+      status: 502,
+      body: { ok: false, error: 'the browser did not answer' },
+    }
+  }
+  if (!send) return { status: 200, body: { ok: true, focus } }
+
+  if (!deps.readBody) {
+    return { status: 501, body: { ok: false, error: 'typing is not wired' } }
+  }
+  let wanted: { text: string; enter: boolean }
+  try {
+    wanted = parseTypeBody(await deps.readBody(req, MAX_TYPE_BODY_BYTES))
+  } catch (e) {
+    /* parseTypeBody throws only its own fixed sentences, never the text. */
+    return {
+      status: 400,
+      body: { ok: false, error: e instanceof Error ? e.message : 'bad body' },
+    }
+  }
+  if (wanted.text && !canTypeInto(focus)) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        focus,
+        error: 'нажмите в поле на странице, куда вводить', // cyrillic-ok: user-facing error
+      },
+    }
+  }
+  /* The person is driving now: the agent stands still (sessions.ts). */
+  await setWheel(pool, who, 'person').catch(() => {})
+  try {
+    await io.insert(session.cdpEndpoint, wanted.text, wanted.enter)
+  } catch {
+    return {
+      status: 502,
+      body: { ok: false, error: 'the browser did not take it' },
+    }
+  }
+  /* Where it went and how long it was. Never the text. */
+  return {
+    status: 200,
+    body: { ok: true, focus, typed: wanted.text.length, enter: wanted.enter },
+  }
 }
 
 async function bringLogins(

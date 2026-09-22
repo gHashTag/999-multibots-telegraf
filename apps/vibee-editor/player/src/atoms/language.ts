@@ -25,6 +25,26 @@ const en: Translations = {
     'An agent is working here. Touch the screen to take over.',
   'browser.youDrive': 'You are driving. The agent is waiting.',
   'browser.handBack': 'Let the agent continue',
+  'browser.type.open': '⌨ Type text',
+  'browser.type.title': 'Type from your phone',
+  'browser.type.close': 'Close',
+  'browser.type.noField':
+    'Tap the field on the page above -- the text goes there',
+  'browser.type.target': 'into the {kind}{label} field on {host}',
+  'browser.type.kind.password': 'password',
+  'browser.type.kind.email': 'email',
+  'browser.type.kind.text': 'text',
+  'browser.type.placeholder': 'Type or paste here',
+  'browser.type.show': 'Show',
+  'browser.type.hide': 'Hide',
+  'browser.type.put': 'Type',
+  'browser.type.putEnter': 'Type + Enter',
+  'browser.type.done': '✓ Typed {n} chars. Tap the next field and go on.',
+  'browser.type.failed': 'The browser did not take it. Try again.',
+  'browser.type.privacy':
+    'Goes straight into your browser. The agent never sees it; nothing is kept.',
+  'browser.journal.show': 'Journal · {n}',
+  'browser.journal.hide': 'Hide journal',
   'browser.journal': 'What the agent did here',
   'browser.journal.pending': 'description on its way',
   'browser.journal.chars': 'chars',
@@ -2099,6 +2119,26 @@ const ru: Translations = {
     'Здесь работает агент. Коснитесь экрана, чтобы взять управление.',
   'browser.youDrive': 'Управляете вы. Агент ждёт.',
   'browser.handBack': 'Вернуть агенту',
+  'browser.type.open': '⌨ Ввести текст', // cyrillic-ok
+  'browser.type.title': 'Ввод с телефона', // cyrillic-ok
+  'browser.type.close': 'Закрыть', // cyrillic-ok
+  'browser.type.noField': 'Нажмите в поле на странице выше — текст пойдёт туда', // cyrillic-ok
+  'browser.type.target': 'в поле {kind}{label} на {host}', // cyrillic-ok
+  'browser.type.kind.password': 'пароля', // cyrillic-ok
+  'browser.type.kind.email': 'почты', // cyrillic-ok
+  'browser.type.kind.text': 'текста', // cyrillic-ok
+  'browser.type.placeholder': 'Напишите или вставьте', // cyrillic-ok
+  'browser.type.show': 'Показать', // cyrillic-ok
+  'browser.type.hide': 'Скрыть', // cyrillic-ok
+  'browser.type.put': 'Ввести', // cyrillic-ok
+  'browser.type.putEnter': 'Ввести + Enter', // cyrillic-ok
+  'browser.type.done':
+    '✓ Введено: {n} симв. Нажмите следующее поле и продолжайте.', // cyrillic-ok
+  'browser.type.failed': 'Браузер не принял текст. Попробуйте ещё раз.', // cyrillic-ok
+  'browser.type.privacy':
+    'Идёт прямо в ваш браузер. Агент не видит, мы не храним.', // cyrillic-ok
+  'browser.journal.show': 'Журнал · {n}', // cyrillic-ok
+  'browser.journal.hide': 'Скрыть журнал', // cyrillic-ok
   'browser.journal': 'Что здесь делал агент',
   'browser.journal.pending': 'описание готовится',
   'browser.journal.chars': 'симв.',

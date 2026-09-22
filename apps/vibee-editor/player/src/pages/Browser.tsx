@@ -29,6 +29,7 @@ import {
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
+import { TypeSheet } from '@/components/Browser/TypeSheet'
 import { isBrowserPath } from '@/lib/keptBrowser'
 import { frameStateOf, shouldReread } from '@/lib/frameState'
 import {
@@ -87,6 +88,8 @@ export default function BrowserPage() {
   const [error, setError] = useState<string | null>(null)
   const [confirmForget, setConfirmForget] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showType, setShowType] = useState(false)
+  const [journalOpen, setJournalOpen] = useState(false)
   const [agentWorking, setAgentWorking] = useAtom(agentWorkingAtom)
   /* Remembers a browser that was here, so its absence can be explained. */
   const lastState = useRef<BrowserSessionView['state'] | null>(null)
@@ -347,24 +350,40 @@ export default function BrowserPage() {
           )}
 
           {embedded && journal.length > 0 ? (
-            <ol
-              className="remote-browser__journal"
-              aria-label={t('browser.journal')}
-            >
-              {foldRepeats(journal, t).map((step, i) => {
-                const line = journalLine(step, t)
-                return (
-                  <li
-                    key={`${step.at}:${i}`}
-                    className={line.ok ? '' : 'is-error'}
-                  >
-                    <time>{line.time}</time> <b>{line.verb}</b>
-                    {step.times > 1 ? <em> ×{step.times}</em> : null}{' '}
-                    <span>{line.text}</span>
-                  </li>
-                )
-              })}
-            </ol>
+            <div className="remote-browser__journal-wrap">
+              <button
+                type="button"
+                className="remote-browser__journal-toggle"
+                aria-expanded={journalOpen}
+                onClick={() => setJournalOpen(v => !v)}
+              >
+                {journalOpen
+                  ? t('browser.journal.hide')
+                  : t('browser.journal.show', {
+                      n: foldRepeats(journal, t).length,
+                    })}
+              </button>
+              {journalOpen ? (
+                <ol
+                  className="remote-browser__journal"
+                  aria-label={t('browser.journal')}
+                >
+                  {foldRepeats(journal, t).map((step, i) => {
+                    const line = journalLine(step, t)
+                    return (
+                      <li
+                        key={`${step.at}:${i}`}
+                        className={line.ok ? '' : 'is-error'}
+                      >
+                        <time>{line.time}</time> <b>{line.verb}</b>
+                        {step.times > 1 ? <em> ×{step.times}</em> : null}{' '}
+                        <span>{line.text}</span>
+                      </li>
+                    )
+                  })}
+                </ol>
+              ) : null}
+            </div>
           ) : null}
 
           {/*
@@ -383,6 +402,20 @@ export default function BrowserPage() {
             >
               {agentWorking ? t('browser.agentWorking') : t('browser.youDrive')}
             </p>
+          ) : null}
+
+          {embedded ? (
+            showType ? (
+              <TypeSheet onClose={() => setShowType(false)} />
+            ) : (
+              <button
+                type="button"
+                className="remote-browser__cta remote-browser__type"
+                onClick={() => setShowType(true)}
+              >
+                {t('browser.type.open')}
+              </button>
+            )
           ) : null}
 
           <div className="remote-browser__actions">
