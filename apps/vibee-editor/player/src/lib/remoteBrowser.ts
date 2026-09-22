@@ -215,3 +215,21 @@ export function sitesInWords(
   const rest = names.length - show
   return rest > 0 ? `${head} ${andMore(rest)}` : head
 }
+
+/**
+ * Tell the server who holds the wheel. The person's door (an agent key is
+ * refused there). A failure is swallowed: the glow on screen still says who
+ * is driving, and the next touch tries again.
+ */
+export async function setBrowserWheel(
+  holder: 'person' | 'agent'
+): Promise<boolean> {
+  try {
+    await apiFetch(`${API_BASE}/api/browser/wheel?holder=${holder}`, {
+      method: 'POST',
+    })
+    return true
+  } catch {
+    return false
+  }
+}

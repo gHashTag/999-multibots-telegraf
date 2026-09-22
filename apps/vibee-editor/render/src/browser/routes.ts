@@ -46,6 +46,7 @@ import {
   touchSession,
   type BrowserSession,
   type Queryable,
+  setWheel,
 } from './sessions'
 import {
   ensureBrowserProfiles,
@@ -64,6 +65,7 @@ export const BROWSER_PATHS = [
   '/api/browser/screen',
   '/api/browser/cookies',
   '/api/browser/journal',
+  '/api/browser/wheel',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -218,6 +220,34 @@ export async function handleBrowser(
    * newest first. Read-only; the agent's key may read it too -- it is the
    * agent's own record of its own work.
    */
+  /*
+   * WHO HOLDS THE WHEEL (sessions.ts setWheel). The person's door only: the
+   * person takes it by touching the picture and hands it back by a press;
+   * an agent key may not take it from them, or give itself the wheel back.
+   */
+  if (path === '/api/browser/wheel') {
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: "the wheel is the person's to take and give",
+        },
+      }
+    }
+    const holder = new URLSearchParams((req.url || '').split('?')[1] || '').get(
+      'holder'
+    )
+    if (holder !== 'person' && holder !== 'agent') {
+      return { status: 400, body: { ok: false, error: 'holder=person|agent' } }
+    }
+    await setWheel(pool, who, holder)
+    return { status: 200, body: { ok: true, holder } }
+  }
+
   if (path === '/api/browser/journal') {
     if (method !== 'GET') {
       return { status: 405, body: { ok: false, error: 'GET only' } }

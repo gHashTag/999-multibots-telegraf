@@ -9,6 +9,7 @@ import {
   absoluteViewUrl,
   canEmbed,
   fitBrowserScreen,
+  setBrowserWheel,
   type BrowserSessionView,
 } from '@/lib/remoteBrowser'
 import {
@@ -23,6 +24,7 @@ import {
   wentOut,
   wheelAfterTouch,
   wheelAfterHandBack,
+  shouldRenewWheel,
   type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
@@ -192,10 +194,17 @@ export default function BrowserPage() {
     }
   }, [view?.state])
 
-  const takeTheWheel = useCallback(
-    () => setAgentWorking(wheelAfterTouch() === 'agent'),
-    [setAgentWorking]
-  )
+  /* The screen AND the server: the agent's acting tools stand still while
+     the person drives (lib/browserWatch.ts shouldRenewWheel). */
+  const wheelSent = useRef<number | null>(null)
+  const takeTheWheel = useCallback(() => {
+    setAgentWorking(wheelAfterTouch() === 'agent')
+    const now = Date.now()
+    if (shouldRenewWheel(wheelSent.current, now)) {
+      wheelSent.current = now
+      void setBrowserWheel('person')
+    }
+  }, [setAgentWorking])
 
   const state = view?.state ?? 'none'
   const live = state === 'live' && Boolean(view?.viewUrl)
@@ -340,9 +349,11 @@ export default function BrowserPage() {
               <button
                 type="button"
                 className="remote-browser__secondary"
-                onClick={() =>
+                onClick={() => {
                   setAgentWorking(wheelAfterHandBack() === 'agent')
-                }
+                  wheelSent.current = null
+                  void setBrowserWheel('agent')
+                }}
               >
                 {t('browser.handBack')}
               </button>
