@@ -121,3 +121,16 @@ describe('nothing under the picture runs off the screen (owner, 2026-09-22)', ()
     )
   })
 })
+
+describe('the live screen scrolls instead of clipping the cards (owner, 2026-09-22)', () => {
+  it('the fixed-height phone column scrolls vertically', () => {
+    expect(css).toMatch(/\.remote-browser--live \{[^}]*overflow-y: auto/)
+    expect(css).not.toMatch(/\.remote-browser--live \{[^}]*overflow: hidden/)
+  })
+
+  it('only the picture flexes; cards, keys and buttons keep their height', () => {
+    expect(css).toMatch(
+      /\.remote-browser__live > :not\(\.remote-browser__stage\) \{\s*flex: 0 0 auto/
+    )
+  })
+})
