@@ -200,9 +200,16 @@ export function buttonsForAnswer(
 export function payRow(text: string): InlineKeyboardButton[] | null {
   const m = /https:\/\/t\.me\/\$[A-Za-z0-9_-]+/.exec(text)
   if (!m) return null
-  const stars = /(\d+)\s*⭐/.exec(text)
+  /*
+   * A price written with thousands apart counts as one number. The club is
+   * "10 000 ⭐" (spacedNumber in the render, toLocaleString('ru-RU') in the
+   * bot, which puts a no-break space there), and `(\d+)\s*⭐` read only the
+   * last group: the button under the club invoice asked to pay 000 stars.
+   */
+  const stars = /(\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)\s*⭐/.exec(text)
+  const amount = stars ? stars[1].replace(/[\u00a0\u202f]/g, ' ') : null
   return [
-    Markup.button.url(stars ? `Оплатить ${stars[1]} ⭐` : 'Оплатить ⭐', m[0]),
+    Markup.button.url(amount ? `Оплатить ${amount} ⭐` : 'Оплатить ⭐', m[0]),
   ]
 }
 
