@@ -33,6 +33,7 @@ import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { honestyNote } from './claimed-but-not-done'
 import { rememberMiniAppFiles } from './miniapp-media'
+import { ownerWordsOf } from './assistant-opt-out'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
@@ -715,6 +716,8 @@ export async function handleAgentChat(
         surface: поверхность, // cyrillic-ok: pre-existing local
         // Per-bot privileged path counters (src/auth/initdata-bot-counts.ts).
         initDataBot: initDataBotOf(req, telegramId) ?? undefined,
+        // The caller's own words: the one draft a stopped client may still get.
+        ownerSaid: ownerWordsOf(history, поверхность, ephemeral), // cyrillic-ok: pre-existing local
       },
       // The surface was already parsed and allow-listed above; the agent needs
       // it so that button markers are proposed in the bot and nowhere else.

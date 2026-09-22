@@ -131,6 +131,13 @@ export interface ToolContext {
    * there, and a picture drawn from text has nobody in it. Set only by code.
    */
   sellerSweep?: boolean
+  /**
+   * What the caller typed in THIS turn, on the bot surface, outside a sweep.
+   * Set only by code (routes.ts). Read by assistant-opt-out.ts: a client who
+   * switched the assistant off can still get the owner's OWN words, and this
+   * is how a draft proves they are his rather than the model's.
+   */
+  ownerSaid?: string
 }
 
 export interface AgentTool {
@@ -419,6 +426,10 @@ import {
   TOKEN_PRICES,
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
+  priceForModel,
+  replicateVideoSeconds,
+  replicateClipModel,
+  replicateClipTokens,
 } from './billing-shared'
 
 const TOKEN_START = 20
@@ -660,14 +671,23 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
 /** Списание с честным отказом: недостаток — это ответ, а не исключение. */
 async function spendTokens(
   ctx: ToolContext,
-  tool: string
+  tool: string,
+  /**
+   * The model the price belongs to, when one tool sells several prices -- a
+   * video clip is priced by its length (billing-shared `priceForModel`). The
+   * SAME lookup `spendByTid` makes, so the agent and the Mini App cannot
+   * charge two numbers for one clip. A model with no price is refused, never
+   * charged the tool's flat price.
+   */
+  modelId?: string
 ): Promise<{
   ok: boolean
   потрачено?: number
   осталось?: number
   причина?: string
 }> {
-  const price = TOKEN_PRICES[tool]
+  const price =
+    modelId === undefined ? TOKEN_PRICES[tool] : priceForModel(tool, modelId)
   /*
    * A TOOL WITHOUT A PRICE IS REFUSED, NOT GIVEN AWAY.
    *
@@ -727,8 +747,8 @@ async function spendTokens(
     telegramId: ctx.telegramId,
     delta: -price,
     kind: 'spend',
-    reason: tool,
-    meta: { tool },
+    reason: modelId ? `${tool} ${modelId}` : tool,
+    meta: modelId ? { tool, modelId } : { tool },
   })
   if (!r.ok) {
     const balance = r.balance
@@ -887,9 +907,15 @@ async function refundTokens(
 async function withTokens<T extends object>(
   ctx: ToolContext,
   tool: string,
-  result: T
+  result: T,
+  /**
+   * What the charge actually took, when the tool's price depends on the
+   * request (a 10-second clip is not the table's 5-second price). Without it
+   * the receipt would name the table price, not the one paid.
+   */
+  spent?: number
 ): Promise<T & { токены?: { потрачено: number; осталось: number } }> {
-  const price = TOKEN_PRICES[tool]
+  const price = spent ?? TOKEN_PRICES[tool]
   if (!price) return result
   const balance = await ensureTokenRow(ctx)
   return { ...result, токены: { потрачено: price, осталось: balance } }
@@ -903,12 +929,14 @@ import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
+import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
+import { CLUB_CASH_TOOLS } from './club-cash'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -1967,7 +1995,7 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'video_generate',
     description:
-      'Сгенерировать видеофрагмент по описанию (Replicate seedance-1-lite, 5 или 10 секунд). ' +
+      `Сгенерировать видеофрагмент по описанию (Replicate seedance-1-lite, 720p): 5 с — ${replicateClipTokens(5)} ток., 10 с — ${replicateClipTokens(10)}. ` +
       'Ролик сразу перекладывается в наше S3. Если вернулась ошибка — скажи человеку честно ' +
       'и собери ролик из картинок через reel_render.',
     parameters: {
@@ -1996,7 +2024,18 @@ export const TOOLS: AgentTool[] = [
           причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
         }
       }
-      const charge = await spendTokens(ctx, 'video_generate')
+      /*
+       * THE CLIP IS PRICED BY ITS LENGTH, and the route is asked for exactly
+       * that length. This used to charge one flat 40 for a 5- or 10-second
+       * clip that costs $0.18 or $0.36 at the provider; now both the charge
+       * and the order read `replicateVideoSeconds` of the same argument.
+       */
+      const clipSeconds = replicateVideoSeconds(args.duration)
+      const charge = await spendTokens(
+        ctx,
+        'video_generate',
+        replicateClipModel(clipSeconds)
+      )
       if (!charge.ok) return { сделано: false, причина: charge.причина }
       const gen = await selfFetch(`${selfBase()}/api/generate/video`, {
         method: 'POST',
@@ -2004,7 +2043,7 @@ export const TOOLS: AgentTool[] = [
         body: JSON.stringify({
           prompt: String(args.prompt),
           model: args.model,
-          duration: args.duration,
+          duration: clipSeconds,
           aspect_ratio: args.aspect_ratio,
         }),
       })
@@ -2027,11 +2066,16 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, genData.url, String(args.prompt)]
       )
-      return withTokens(ctx, 'video_generate', {
-        сделано: true,
-        url: genData.url,
-        id: r.rows[0]?.id,
-      })
+      return withTokens(
+        ctx,
+        'video_generate',
+        {
+          сделано: true, // cyrillic-ok: the tool's own response field
+          url: genData.url,
+          id: r.rows[0]?.id,
+        },
+        charge['потрачено']
+      )
     },
   },
 
@@ -2296,7 +2340,7 @@ export const TOOLS: AgentTool[] = [
       'Называй цену ИЗ ОТВЕТА этого инструмента, а не по памяти: шкала со скидкой за объём, ' +
       'и придуманное число будет обещанием, за которое платит владелец. ' +
       'Это счёт только на токены: подписка одна — клуб, и этим счётом она не ' +
-      'оформляется (её цену и путь даёт pricing).',
+      'оформляется: её цену даёт pricing, а счёт на клуб — club_invoice.',
     parameters: {
       type: 'object',
       properties: {
@@ -3003,6 +3047,11 @@ TOOLS.push(...TELEGRAM_TOOLS)
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
+// The club invoice for the person in this chat, beside the token invoice:
+// the same route decision the bot's club card reaches (club-invoice-tool.ts).
+// Pushed before the web-taint wrapper below, so a turn that read the web
+// cannot hand out a payment link.
+TOOLS.push(...CLUB_INVOICE_TOOLS)
 // Delivery borrows image_generate through the registry, not an import: the
 // generator lives in this file, and a module cycle would be the alternative.
 TOOLS.push(
@@ -3046,6 +3095,11 @@ TOOLS.push(...HIVE_TOOLS)
  * may only narrow it.
  */
 TOOLS.push(...HIVE_BOARD_TOOLS)
+/*
+ * A club month the owner was paid for in cash (club-cash.ts): owner or keeper
+ * only, and a direct call only -- see DIRECT_CALL_ONLY below.
+ */
+TOOLS.push(...CLUB_CASH_TOOLS)
 /*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.
@@ -3159,6 +3213,13 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
  *
  * The next lever, if 4k turns out to be too tight, is the DESCRIPTIONS --
  * browser_ask_permission alone is 254 tokens of prose -- not dropping tools.
+ *
+ * `club_invoice` is NOT in the kit, and that is a decision, not an omission
+ * (2026-09-22). The kit measured 6988 of 7000 the day it arrived and the tool
+ * is 263 tokens on its own (7251 with it); more to the point, the kit is the seller's, who
+ * sells to LEADS through crm_offer. The person's own cashier and price list
+ * (tokens_invoice, pricing) are not in it either, and a club invoice without
+ * the price list beside it would be a link with nothing said about it.
  */
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
@@ -3187,6 +3248,24 @@ export function toolsForProvider<T extends { name: string }>(
   )
 }
 
+/**
+ * TOOLS A MODEL TURN INSIDE THE RENDER NEVER GETS.
+ *
+ * They stay on /mcp (tools/list, tools/call) and on a2a's direct tool call,
+ * where the call itself is the verified caller's act. They are never listed to
+ * the render's own model loop (`toOpenAITools`) and a call that arrives there
+ * anyway is refused before the handler runs (chat.ts `dispatchToolCall`).
+ *
+ * Why a list and not a check inside the tool: a model turn reads other
+ * people's words -- a client's DM, a CRM thread, a web page -- while holding
+ * the owner's identity. A tool that credits money on the owner's word must not
+ * be reachable by a sentence somebody else wrote. `club_cash_month`: a club
+ * month the owner was paid for in cash (club-cash.ts).
+ */
+export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
+  'club_cash_month',
+])
+
 let compactWarned = false
 
 export function toOpenAITools(
@@ -3198,7 +3277,9 @@ export function toOpenAITools(
   /** Tools not offered on this turn (duet discovery gate). */
   deny?: ReadonlySet<string>
 ) {
-  const chosen = toolsForProvider(p, TOOLS).filter(t => !deny?.has(t.name))
+  const chosen = toolsForProvider(p, TOOLS).filter(
+    t => !deny?.has(t.name) && !DIRECT_CALL_ONLY.has(t.name)
+  )
   if (p?.compact && !compactWarned) {
     compactWarned = true
     console.warn(

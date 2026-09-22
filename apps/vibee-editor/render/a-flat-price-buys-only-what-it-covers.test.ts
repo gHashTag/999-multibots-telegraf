@@ -1,8 +1,9 @@
 /**
  * A TOOL SOLD AT ONE PRICE BUYS ONLY WHAT THAT PRICE COVERS.
  *
- * `image_generate` charges 2 tokens and `video_generate` 40, whatever the
- * caller names in `model`. The handler forwarded that name to our own
+ * `image_generate` charges 2 tokens and `video_generate` 40 (since the video
+ * floor: 72 for a 5-second clip, 144 for 10), whatever the caller names in
+ * `model`. The handler forwarded that name to our own
  * /api/generate/* with the agent key; the route skips its own charge for that
  * key and sends `kie/<id>` to its explicit Kie branch. So the agent chat and
  * /mcp could buy kie/google/imagen4-ultra ($0.06) for what covers $0.005, and

@@ -50,17 +50,51 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'grok-imagine/image-to-video':
     'grok-imagine-video-1-5-preview, image-to-video, 480p',
   'kling/ai-avatar-standard': 'Kling AI Avtar',
-  'kling/v2-1-pro': 'Kling 2.1',
+  /*
+   * PINNED TO THE VARIANT WE ARE BILLED AT, NOT THE CHEAPEST ONE THE FAMILY
+   * HAS (2026-09-22, the video price floor).
+   *
+   * These requests do not carry the field that picks the variant, so the
+   * provider bills its own default -- and "cheapest row of the family" priced
+   * them by a variant they never produce. Each default is read from the
+   * model's page, https://docs.kie.ai/market/<id>.md, the same day, and each
+   * row from the price list (its address is the last export of this file):
+   *
+   *   kling/v2-1-pro      duration default '5', Pro tier by its id
+   *                       was Standard-5.0s $0.125 -> Pro-5.0s $0.25
+   *   hailuo 02 Pro t2v   takes neither length nor resolution; the only Pro
+   *                       text-to-video row -- was the Standard 512p
+   *                       IMAGE-to-video row $0.06 -> $0.285
+   *   wan/2-6 t2v         duration default '5', resolution default 1080p
+   *                       was 5.0s-720p $0.35 -> 5.0s-1080p $0.5225
+   *   topaz/video-upscale upscale_factor default '2' -> 1x/2x $0.04/s (same)
+   *   minimax-h3 t2v      resolution default 2K; was the IMAGE-INPUT row
+   *                       $0.02 "per image" -> text to video, 2K, $0.065/s
+   *                       (the duration is sent by the route)
+   *
+   * The resolution in two of these names is the PROVIDER'S default, not the
+   * route's video resolution (kie-web-provider.ts): the route sends one only
+   * to models whose contract has the field, and billing-prices.test.ts ties
+   * the name to the route for exactly those.
+   *
+   * Not pinned: wan/2-5 (its page names no default for either field) and the
+   * per-second models whose LENGTH the provider picks -- those are not sold
+   * at all (billing-shared.ts, `kieVideoSale`), whatever their row says.
+   * wan/2-5 is refused because its name matches clips at different prices
+   * ($0.30 to $1.00); pinning its name to the row we are billed at is what
+   * would bring it back.
+   */
+  'kling/v2-1-pro': 'Kling 2.1, video-generation, Pro-5.0s',
   'kling/v3-turbo-text-to-video': 'kling 3.0 turbo',
   'bytedance/seedance-2': 'bytedance/seedance-2',
   'bytedance/seedance-2-fast': 'bytedance/seedance-2 fast',
   'bytedance/v1-pro-text-to-video': 'bytedance/seedance-1.5-pro',
-  'hailuo/02-text-to-video-pro': 'hailuo 02',
+  'hailuo/02-text-to-video-pro': 'hailuo 02, text-to-video, Pro-6.0s-1080p',
   'wan/2-5-text-to-video': 'wan 2.5',
-  'wan/2-6-text-to-video': 'wan 2.6',
+  'wan/2-6-text-to-video': 'wan 2.6, text to video, 5.0s-1080p',
   'wan/3-0-video': 'wan 3.0 video',
-  'topaz/video-upscale': 'Topaz Video Upscaler',
-  'minimax-h3/text-to-video': 'MiniMax H3',
+  'topaz/video-upscale': 'Topaz Video Upscaler, upscale factor 1x/2x',
+  'minimax-h3/text-to-video': 'MiniMax H3, text to video, 2K',
 
   // — липсинк —
   // Витринное имя ничем не напоминает ключ — как раз тот случай,
@@ -92,6 +126,29 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   // GLM идёт НЕ через KieAI, а по своей подписке z.ai, и её прайса в
   // выгрузке KieAI нет — потому null, а не выдуманная цифра.
   'glm-5.3': null,
+}
+
+/**
+ * THE RESOLUTION THE PROVIDER PICKS, for a model whose price-list name above
+ * names a resolution its request does not carry.
+ *
+ * A name that pins a resolution has to be backed by what we are actually
+ * billed at: the route's own resolution when the contract has the field (the
+ * route sends it), otherwise the provider's default -- recorded here, with
+ * where it was read, because the price list cannot say it and the route does
+ * not decide it. billing-prices.test.ts holds every pinned name to one or the
+ * other.
+ *
+ * Read 2026-09-22 from https://docs.kie.ai/market/<id>.md:
+ */
+export const PROVIDER_DEFAULT_RESOLUTION: Readonly<Record<string, string>> = {
+  // `resolution` default 480p on both model pages.
+  'grok-imagine/text-to-video': '480p',
+  'grok-imagine/image-to-video': '480p',
+  // The Pro model takes no resolution at all; its only row is 1080p.
+  'hailuo/02-text-to-video-pro': '1080p',
+  // `resolution` default 1080p.
+  'wan/2-6-text-to-video': '1080p',
 }
 
 /** Адрес прайса. POST, поле страницы называется pageNum, размер ≤ 100. */

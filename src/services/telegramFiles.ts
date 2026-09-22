@@ -90,6 +90,55 @@ export function byteLimiter(limit: number): {
   return { stream, seen: () => seen, tripped: () => tripped }
 }
 
+/**
+ * The code of an error, for a log line: undici's `fetch failed` hides the
+ * reason in `cause` (ECONNRESET, UND_ERR_SOCKET, ...). Codes and names only --
+ * a message may carry the URL, and the URL carries the token.
+ */
+export function errorCode(e: unknown): string {
+  const any = e as { name?: unknown; code?: unknown; cause?: any } | null
+  const cause = any?.cause
+  const pick = (x: unknown) => (typeof x === 'string' && x ? x : null)
+  return (
+    pick(cause?.code) ??
+    pick(cause?.name) ??
+    pick(any?.code) ??
+    pick(any?.name) ??
+    'error'
+  )
+}
+
+/**
+ * The source, read through a watcher that remembers whether IT broke. A body
+ * piped into an upload fails the upload either way; without this a download
+ * cut mid-stream was reported as "not saved on our side" (production
+ * 2026-09-22: a 44 MB document from a bot on our Bot API server, stage
+ * `upload`, error `TypeError`, no way to tell which end had failed).
+ */
+function watchedSource(body: ReadableStream<Uint8Array>): {
+  stream: ReadableStream<Uint8Array>
+  failure: () => unknown
+} {
+  let failure: unknown = null
+  const reader = body.getReader()
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) controller.close()
+        else controller.enqueue(value)
+      } catch (e) {
+        failure = e ?? new Error('source failed')
+        controller.error(e)
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    },
+  })
+  return { stream, failure: () => failure }
+}
+
 export interface MirrorOptions {
   /** Telegram's own `file_size`, when it gave one. */
   declaredBytes?: number | null
@@ -142,11 +191,17 @@ export async function mirrorTelegramFile(
   }
 
   const limiter = byteLimiter(limit)
+  const source = watchedSource(res.body)
   let url: string
   try {
-    url = (await put(res.body.pipeThrough(limiter.stream), name)).url
+    url = (await put(source.stream.pipeThrough(limiter.stream), name)).url
   } catch (e) {
     if (limiter.tripped()) throw new TelegramFileTooBig(limiter.seen(), limit)
+    if (source.failure()) {
+      throw new TelegramFileDownloadFailed(
+        `download broke after ${limiter.seen()} bytes: ${errorCode(source.failure())}`
+      )
+    }
     throw e
   }
   if (limiter.tripped()) throw new TelegramFileTooBig(limiter.seen(), limit)

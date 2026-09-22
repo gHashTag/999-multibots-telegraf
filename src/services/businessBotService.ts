@@ -9,6 +9,25 @@
 
 import { Telegraf } from 'telegraf'
 import { dmLeadMenu, takeoverMenu } from '@/navigation/helpers/crmMenu'
+import { clientStopMenu } from '@/navigation/helpers/clientStopMenu'
+import {
+  isClientStopPress,
+  handleClientStopPress,
+} from '@/navigation/handlers/clientStopActions'
+import {
+  isStopRequest,
+  STOP_ACK,
+  clientStopIsSilent,
+  type StopRequest,
+} from '@/services/clientStop'
+import {
+  assistantAllowed,
+  recordClientStop,
+  stoppedHere,
+  claimOwnerNotice,
+  releaseOwnerNotice,
+  claimClientAck,
+} from '@/services/assistantOptOut'
 import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
 import { splitLongAnswer, keepTyping } from '@/helpers/telegramLongAnswer'
 import { agentLanes } from '@/services/agentLanes'
@@ -87,6 +106,8 @@ export interface BusinessMessage {
   is_from_offline?: boolean
   /** Set on the bot's own outgoing messages in the business chat. */
   sender_business_bot?: unknown
+  /** Present when the message is a forward: somebody else's words. */
+  forward_origin?: unknown
   business_connection_id: string
 }
 
@@ -449,7 +470,10 @@ export function replyButtonUrl(botUsername: string, text: string): string {
     : `https://t.me/${botUsername}?start=${LEAD_START_PARAM}`
 }
 
-export function buildLeadNotification(msg: BusinessMessage): string {
+export function buildLeadNotification(
+  msg: BusinessMessage,
+  o: { assistantOff?: boolean } = {}
+): string {
   const name = escapeHtml(
     sanitizeSenderName(msg.from?.first_name || msg.chat.first_name)
   )
@@ -461,7 +485,9 @@ export function buildLeadNotification(msg: BusinessMessage): string {
   return (
     `🆕 Новый клиент в вашей личке: <b>${name}</b>${username}${body}\n\n` +
     `Открыть чат: tg://user?id=${msg.chat.id}\n` +
-    `Ответите сами — я замолчу в этом чате на 30 минут.`
+    (o.assistantOff
+      ? `🔕 Этот клиент попросил выключить автоответы — ассистент здесь молчит, отвечаете только вы.`
+      : `Ответите сами — я замолчу в этом чате на 30 минут.`)
   )
 }
 
@@ -473,6 +499,8 @@ interface DailyStats {
   nonTextDropped: number
   mediaRelayed: number
   takeoverSkipped: number
+  /** Messages not answered because the client switched the assistant off. */
+  clientStopSkipped: number
   /** Messages answered as part of another message's turn (a burst merged). */
   merged: number
 }
@@ -485,6 +513,7 @@ let stats: DailyStats = {
   nonTextDropped: 0,
   mediaRelayed: 0,
   takeoverSkipped: 0,
+  clientStopSkipped: 0,
   merged: 0,
 }
 
@@ -503,6 +532,7 @@ function ensureToday(): void {
       nonTextDropped: 0,
       mediaRelayed: 0,
       takeoverSkipped: 0,
+      clientStopSkipped: 0,
       merged: 0,
     }
   }
@@ -676,8 +706,32 @@ const AGENT_TRANSIENT_RE = new RegExp(
  */
 export function classifyAgentFault(message: string): ProviderFault {
   if (AGENT_STANDING_RE.test(message)) return 'standing'
+  if (isEmptyAgentAnswer(message)) return 'transient'
   if (AGENT_TRANSIENT_RE.test(message)) return 'transient'
   return 'standing'
+}
+
+/**
+ * THE RENDER SAYS NOBODY IN THE CHAIN HAD ANYTHING TO SAY.
+ *
+ * SIBLING COPY of EMPTY_ANSWER_ERROR in apps/vibee-editor/render/src/agent/
+ * chat.ts (the render's own tsconfig is out of this compilation unit's reach,
+ * the same reason AGENT_TRANSIENT_RE lives twice). Change one, look at the
+ * other.
+ *
+ * Until 2026-09-22 an empty answer resolved as an empty success and this path
+ * hard-coded it as 'transient': a warning, and a page only once a run of
+ * failed turns crossed AGENT_FAILURES_BEFORE_PAGE. The render now ends such a
+ * turn with an error event instead, and nothing here recognised its words, so
+ * the first empty turn fell through to 'standing' and paged the owner. It is
+ * the same event as before, so it keeps the same class -- and, as before, it
+ * is never replayed: the render has already asked every provider twice, and
+ * the turn may have run tools.
+ */
+const AGENT_EMPTY_ANSWER = 'модель не дала ответа' // cyrillic-ok: the render's EMPTY_ANSWER_ERROR, quoted
+
+export function isEmptyAgentAnswer(message: string): boolean {
+  return message.includes(AGENT_EMPTY_ANSWER)
 }
 
 /**
@@ -791,6 +845,9 @@ export async function answerClient(
       lastFault = classifyAgentFault(lastError)
       if (lastFault !== 'transient' || attempts > AGENT_RETRY_ON_TRANSIENT)
         break
+      // Every provider was already asked twice for words; a replay would
+      // only run this turn's tools again for the same silence.
+      if (isEmptyAgentAnswer(lastError)) break
       if (turnAlreadySpent(error)) {
         // The client has been charged once for work they may yet receive.
         // Charging them again to fix our timeout is not a retry, it is a bill.
@@ -1219,6 +1276,49 @@ async function admitBusinessMessage(
     }
     return null
   }
+
+  /*
+   * THE CLIENT ASKED THE ASSISTANT TO STOP (services/clientStop.ts).
+   *
+   * Heard here, before the takeover check and before any lane or model: the
+   * request is honoured even while the owner holds the chat, and a reply
+   * being written for an earlier message stops at its next chunk because
+   * `honourClientStop` marks this process before it awaits anything. The
+   * message itself is not answered -- answering "stop the bot" with the bot
+   * is the complaint.
+   */
+  const stop = clientsOwnWords(msg)
+    ? isStopRequest(msg.text ?? msg.caption)
+    : null
+  if (stop) {
+    ensureToday()
+    stats.clientStopSkipped++
+    honourClientStop(msg, conn, bot, stop)
+    return null
+  }
+
+  /*
+   * THE CLIENT SWITCHED IT OFF EARLIER: the owner still hears of the message
+   * (the daily lead line, the file itself), the client hears nothing from the
+   * assistant. The store answers from Postgres, so a deploy does not undo it.
+   * If the database cannot answer, the client is answered -- a blip must not
+   * silence every client of every owner -- and the store says so at error
+   * level (assistantOptOut.ts).
+   */
+  const reach = await assistantAllowed(conn.userId, chatId, {
+    whenUnknown: 'allow',
+  })
+  if (!reach.allowed) {
+    ensureToday()
+    stats.clientStopSkipped++
+    logger.info('[Business] client switched the assistant off, relayed only', {
+      connId,
+      chatId,
+    })
+    void notifyOwnerOfLead(msg, conn, bot, chatKey, { assistantOff: true })
+    relayIfMedia(msg, conn, bot)
+    return null
+  }
   const pausedUntil = ownerTakeoverUntil.get(chatKey) ?? 0
   if (pausedUntil > Date.now()) {
     ensureToday()
@@ -1409,6 +1509,9 @@ async function runBusinessBatch(
     } as any)
   const ownerHasTheChat = () =>
     (ownerTakeoverUntil.get(chatKey) ?? 0) > Date.now()
+  // Synchronous on purpose: read between two chunks, it cannot wait for a
+  // database. `honourClientStop` marks this process before it awaits.
+  const clientSaidStop = () => stoppedHere(conn.userId, chatId)
 
   try {
     /*
@@ -1420,6 +1523,25 @@ async function runBusinessBatch(
       ensureToday()
       stats.takeoverSkipped += batch.length
       logger.info('[Business] held for owner', {
+        connId,
+        chatId,
+        messages: batch.length,
+      })
+      return
+    }
+    /*
+     * The client may have switched the assistant off while this batch waited
+     * -- in this process (the mark) or in another one during a rolling deploy
+     * (the row). Either way nothing of this turn is started or sent.
+     */
+    if (
+      clientSaidStop() ||
+      !(await assistantAllowed(conn.userId, chatId, { whenUnknown: 'allow' }))
+        .allowed
+    ) {
+      ensureToday()
+      stats.clientStopSkipped += batch.length
+      logger.info('[Business] held: the client switched the assistant off', {
         connId,
         chatId,
         messages: batch.length,
@@ -1496,6 +1618,7 @@ async function runBusinessBatch(
           const said = plan?.refusal
             ? `${plan.refusal}\n\n${media.reply}`
             : media.reply
+          if (ownerHasTheChat() || clientSaidStop()) return
           await sendAsOwner(said, {
             reply_markup: {
               inline_keyboard: [
@@ -1573,6 +1696,8 @@ async function runBusinessBatch(
     let sentAsOwner: { message_id?: number } | undefined
     const sentParts: string[] = []
     let discarded = false
+    /** Why the rest was not sent: the owner took the chat, or the client said stop. */
+    let discardedFor: 'owner' | 'client' = 'owner'
     for (let i = 0; i < parts.length; i++) {
       /*
        * THE OWNER'S WORD BEATS THE AGENT'S, EVEN MID-TURN.
@@ -1587,6 +1712,13 @@ async function runBusinessBatch(
         discarded = true
         break
       }
+      // The client asked the assistant to stop while it was writing: not one
+      // more chunk of this answer reaches them.
+      if (clientSaidStop()) {
+        discarded = true
+        discardedFor = 'client'
+        break
+      }
       const lastPart = i === parts.length - 1
       sentAsOwner = (await sendAsOwner(parts[i], lastPart ? keyboard : {})) as
         | { message_id?: number }
@@ -1597,12 +1729,17 @@ async function runBusinessBatch(
     if (discarded) {
       ensureToday()
       stats.takeoverSkipped += batch.length
-      logger.info('[Business] reply discarded: owner took over', {
-        connId,
-        chatId,
-        sentParts: sentParts.length,
-        ofParts: parts.length,
-      })
+      logger.info(
+        discardedFor === 'client'
+          ? '[Business] reply discarded: the client switched the assistant off'
+          : '[Business] reply discarded: owner took over',
+        {
+          connId,
+          chatId,
+          sentParts: sentParts.length,
+          ofParts: parts.length,
+        }
+      )
       /*
        * THE WITHHELD ANSWER IS HANDED TO THE OWNER, NOT THROWN AWAY.
        *
@@ -1617,8 +1754,11 @@ async function runBusinessBatch(
       const withheld = parts.slice(sentParts.length).join('\n\n')
       const notice = discardNotice(withheld, sentParts.length > 0)
       try {
-        for (const piece of splitLongAnswer(notice))
-          await bot.telegram.sendMessage(conn.ownerChatId, piece)
+        // A client's stop has its own notice (announceClientStop); the text
+        // they asked not to receive is not something to forward on.
+        if (discardedFor === 'owner')
+          for (const piece of splitLongAnswer(notice))
+            await bot.telegram.sendMessage(conn.ownerChatId, piece)
       } catch (error) {
         logger.warn('[Business] discard notice failed', {
           error: error instanceof Error ? error.message : String(error),
@@ -1805,7 +1945,8 @@ async function notifyOwnerOfLead(
   msg: BusinessMessage,
   conn: ConnectionInfo,
   bot: Telegraf<any>,
-  chatKey: string
+  chatKey: string,
+  o: { assistantOff?: boolean } = {}
 ): Promise<void> {
   const day = todayKey()
   if (leadNotifiedOn.get(chatKey) === day) return
@@ -1814,12 +1955,16 @@ async function notifyOwnerOfLead(
     // The menu under the notification: who this is, take over, prepare a
     // reply, later, refuse -- for an owner who is an admin of this bot (a
     // farm owner outside ADMIN_IDS would press buttons nobody answers).
-    const menu = ADMIN_IDS_ARRAY.includes(Number(conn.userId))
-      ? dmLeadMenu(msg.chat.id)
-      : undefined
+    // A chat the client switched off gets the one button that means
+    // something there -- the way back -- and it answers for every owner.
+    const menu = o.assistantOff
+      ? clientStopMenu(msg.chat.id, { kept: true })
+      : ADMIN_IDS_ARRAY.includes(Number(conn.userId))
+        ? dmLeadMenu(msg.chat.id)
+        : undefined
     await bot.telegram.sendMessage(
       conn.ownerChatId,
-      buildLeadNotification(msg),
+      buildLeadNotification(msg, o),
       {
         parse_mode: 'HTML',
         ...(menu ? { reply_markup: menu.reply_markup } : {}),
@@ -1833,6 +1978,169 @@ async function notifyOwnerOfLead(
     logger.warn('[Business] Owner lead notification failed', {
       error: error instanceof Error ? error.message : String(error),
       chatKey,
+    })
+  }
+}
+
+/**
+ * ONLY THE CLIENT'S OWN WORDS CAN SWITCH THE ASSISTANT OFF.
+ *
+ * A forward carries somebody else's words -- a screenshot of another chat, a
+ * joke, an article about bots -- so "stop the bot" inside it is not this
+ * person asking. A chat that is not a private one, or a sender who is not the
+ * person the chat belongs to, is not this client speaking either. Each of
+ * these simply goes on as an ordinary message.
+ */
+export function clientsOwnWords(msg: BusinessMessage): boolean {
+  if (msg.forward_origin) return false
+  if (msg.chat.type !== 'private') return false
+  if (msg.from && msg.from.id !== msg.chat.id) return false
+  return true
+}
+
+/** The client's name as Telegram gives it, for the owner's eyes only. */
+function clientShownName(chat: BusinessMessage['chat']): string {
+  const name = [chat.first_name, chat.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 64)
+  const handle = chat.username ? `@${chat.username}` : ''
+  if (name && handle) return `${name} (${handle})`
+  return name || handle || `id ${chat.id}`
+}
+
+/**
+ * The owner's notice that a client switched the assistant off. Exported for
+ * the tests; the name is Telegram's, read off this update and never stored.
+ */
+export function clientStopNotice(
+  msg: BusinessMessage,
+  o: { acked: string | null; silent: boolean; stored: boolean; held?: boolean }
+): string {
+  const words = (msg.text ?? msg.caption ?? '').trim().slice(0, 200)
+  const lines = [
+    `🔕 <b>${escapeHtml(clientShownName(msg.chat))}</b> попросил(а) выключить автоответы.`,
+  ]
+  if (words) lines.push(`«${escapeHtml(words)}»`)
+  lines.push(
+    '',
+    'Ассистент в этом чате больше не отвечает сам, и обход не готовит этому человеку ни сообщений, ни предложений. Включить обратно можешь только ты — кнопкой ниже.',
+    o.acked
+      ? `Клиенту ушло одно сообщение от твоего имени: «${escapeHtml(o.acked)}»`
+      : o.silent
+        ? 'Клиенту ничего не отправлено: для тебя включён тихий режим.'
+        : o.held
+          ? 'Клиенту ничего не отправлено: его слова можно понять и иначе, поэтому ответ за тобой. Если это не просьба выключить — включи ассистента обратно кнопкой ниже.'
+          : 'Клиенту ничего не отправлено: сообщение не ушло.'
+  )
+  if (!o.stored)
+    lines.push(
+      '⚠️ В базу не записалось: до перезапуска бот помнит, после — может снова ответить.'
+    )
+  return lines.join('\n')
+}
+
+/*
+ * The stops being announced right now. Only so a test can wait for the
+ * announcement it caused; production never reads it.
+ */
+const stopsInFlight = new Set<Promise<void>>()
+
+/** For tests: resolves when every client stop heard so far is announced. */
+export async function clientStopsSettled(): Promise<void> {
+  while (stopsInFlight.size) await Promise.all([...stopsInFlight])
+}
+
+/**
+ * THE CLIENT SAID STOP. Mark, store, acknowledge once, tell the owner once.
+ *
+ * Not awaited by the admission path: the polling loop must not wait for a
+ * database and two sends. What must not wait -- the mark this process reads
+ * between two chunks of a reply -- happens synchronously inside
+ * `recordClientStop`, before its first await.
+ */
+function honourClientStop(
+  msg: BusinessMessage,
+  conn: ConnectionInfo,
+  bot: Telegraf<any>,
+  stop: StopRequest
+): void {
+  const work = recordClientStop(conn.userId, msg.chat.id)
+    .then(rec => announceClientStop(msg, conn, bot, stop, rec))
+    .catch(error => {
+      logger.error('[Business] client stop not announced', {
+        chatId: msg.chat.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+  stopsInFlight.add(work)
+  void work.finally(() => stopsInFlight.delete(work))
+}
+
+async function announceClientStop(
+  msg: BusinessMessage,
+  conn: ConnectionInfo,
+  bot: Telegraf<any>,
+  stop: StopRequest,
+  rec: { fresh: boolean; stored: boolean }
+): Promise<void> {
+  const connId = msg.business_connection_id
+  const owner = conn.userId
+  const client = msg.chat.id
+  logger.info('[Business] client asked the assistant to stop', {
+    connId,
+    chatId: client,
+    rule: stop.rule,
+    fresh: rec.fresh,
+    stored: rec.stored,
+  })
+
+  // ONE line to the client, in their language, from the same connection --
+  // unless the owner chose silence. Claimed first, so a repeated "stop"
+  // (or a second process) never sends it twice. Not given back on failure:
+  // a second attempt at the one message they asked us to stop sending is
+  // worse than none.
+  const silent = clientStopIsSilent(owner)
+  // Only words that cannot mean anything else get an answer in the owner's
+  // name: silence is undone by one press, a promise to the client is not.
+  // A wide match stays silent and waits for the owner (clientStop.ts, sure).
+  const held = !silent && !stop.sure
+  let acked: string | null = null
+  if (!silent && !held && (await claimClientAck(owner, client))) {
+    try {
+      await bot.telegram.sendMessage(client, STOP_ACK[stop.lang], {
+        business_connection_id: connId,
+      } as any)
+      acked = STOP_ACK[stop.lang]
+    } catch (error) {
+      logger.warn('[Business] stop acknowledgement not sent', {
+        connId,
+        chatId: client,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  // ONE notice to the owner, in his own chat with the bot, never the client's.
+  if (!(await claimOwnerNotice(owner, client))) return
+  try {
+    await bot.telegram.sendMessage(
+      conn.ownerChatId,
+      clientStopNotice(msg, { acked, silent, stored: rec.stored, held }),
+      {
+        parse_mode: 'HTML',
+        reply_markup: clientStopMenu(client).reply_markup,
+      }
+    )
+  } catch (error) {
+    // An unannounced stop is worse than a repeated notice: give it back.
+    await releaseOwnerNotice(owner, client)
+    logger.warn('[Business] client stop notice failed', {
+      connId,
+      chatId: client,
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 }
@@ -1889,6 +2197,12 @@ export function createBusinessMiddleware(bot: Telegraf<any>) {
   bot.use(async (ctx: any, next: () => Promise<void>) => {
     const update = ctx.update
 
+    // The owner's answer to "this client asked the assistant to stop".
+    if (isClientStopPress(update)) {
+      await handleClientStopPress(ctx)
+      return
+    }
+
     if (update.business_connection) {
       handleBusinessConnection(update.business_connection as BusinessConnection)
       return
@@ -1923,6 +2237,7 @@ export function getBusinessStats(): {
   todayNonText: number
   todayMediaRelayed: number
   todayTakeoverSkipped: number
+  todayClientStopSkipped: number
   todayMerged: number
   connections: Array<{ id: string; userId: number; canReply: boolean }>
 } {
@@ -1935,6 +2250,7 @@ export function getBusinessStats(): {
     todayNonText: stats.nonTextDropped,
     todayMediaRelayed: stats.mediaRelayed,
     todayTakeoverSkipped: stats.takeoverSkipped,
+    todayClientStopSkipped: stats.clientStopSkipped,
     todayMerged: stats.merged,
     connections: Array.from(connections.entries()).map(([id, info]) => ({
       id,

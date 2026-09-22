@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fallbackFailedText } from '@/navigation/helpers/agentFallback'
 
 /**
  * БОТ НЕ ИМЕЕТ ПРАВА МОЛЧАТЬ.
@@ -44,10 +45,23 @@ describe('отказ модели доходит до человека', () => {
      * перевыпуска ключа. Общее «что-то пошло не так» стоило бы владельцу
      * вечера на поиски несуществующей поломки.
      */
-    expect(CODE).toMatch(/rate\.\?limit\|429/)
-    expect(CODE).toMatch(/unauthorized\|401/)
-    expect(CODE).toContain('перегружены')
-    expect(CODE).toContain('недействителен ключ')
+    /*
+     * THE WORDS MOVED, THE BRANCH STILL SAYS THEM. Since 2026-09-22 the
+     * apology is built by fallbackFailedText (agentFallback.ts), in the
+     * person's language, so the branch must call it -- and what it returns is
+     * checked by behaviour, not by where the regex is spelled.
+     */
+    expect(REFUSAL_BRANCH).toContain('fallbackFailedText(')
+    for (const isRu of [true, false]) {
+      const limit = fallbackFailedText(isRu, 'zai: rate limit exceeded (429)')
+      const badKey = fallbackFailedText(isRu, 'openai: 401 Unauthorized')
+      const other = fallbackFailedText(isRu, 'socket hang up')
+      expect(new Set([limit, badKey, other]).size, String(isRu)).toBe(3)
+    }
+    expect(fallbackFailedText(true, 'HTTP 429')).toContain('перегружены')
+    expect(fallbackFailedText(true, 'HTTP 401')).toContain(
+      'недействителен ключ'
+    )
   })
 
   /**
@@ -77,8 +91,16 @@ describe('отказ модели доходит до человека', () => {
   })()
 
   it('человеку предлагают, что делать сейчас', () => {
-    // The next step in words -- "open the app" -- however it gets phrased.
-    expect(REFUSAL_BRANCH.toLowerCase()).toContain('откройте приложение')
+    // The next step in words -- "open the app" -- however it gets phrased,
+    // in whichever language the person gets it (the branch says it through
+    // fallbackFailedText, see above).
+    expect(REFUSAL_BRANCH).toContain('fallbackFailedText(')
+    expect(fallbackFailedText(true, '').toLowerCase()).toContain(
+      'откройте приложение'
+    )
+    expect(fallbackFailedText(false, '').toLowerCase()).toContain(
+      'open the app'
+    )
     // And something to press: a hint without a button on a phone is text
     // somebody has to retype somewhere.
     expect(REFUSAL_BRANCH).toContain('standardButtons(')

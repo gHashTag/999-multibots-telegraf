@@ -35,6 +35,7 @@ import { hangUp } from './hang-up'
 import { defangMarkers } from './media-parts'
 import type { AgentTool, ToolContext } from './tools'
 import { remember } from './tg-proposals'
+import { assistantMayReach, type Reach } from './assistant-opt-out'
 import { resolvingPeer, EXECUTABLE_ACTIONS } from './tg-proposals'
 import type {
   ProposalAction,
@@ -248,6 +249,8 @@ export interface Proposal {
   display?: string
   media?: ProposalMedia
   charge?: ProposalCharge
+  /** The owner's own words: see PendingProposal.ownerWords. */
+  ownerWords?: boolean
 }
 
 /** What a caller may attach to a draft beyond the message itself. */
@@ -404,7 +407,7 @@ function scheduleExtra(args: Record<string, any>): ProposalExtras | undefined {
   return { scheduleAt: Date.parse(String(args.schedule_at)) }
 }
 
-function propose(
+async function propose(
   action: Proposal['action'],
   target: string,
   what: string | undefined,
@@ -413,13 +416,43 @@ function propose(
   lead?: string,
   bot?: string | null,
   extra?: ProposalExtras
-): Proposal & { id: string } {
+): Promise<Proposal & { id: string }> {
   requireIdentity(ctx)
+  /*
+   * A PERSON WHO SWITCHED THE ASSISTANT OFF GETS NOTHING FROM IT.
+   *
+   * Every draft that reaches a person from the owner's side passes here --
+   * tg_send and its media siblings, tg_forward, crm_offer, crm_deliver_photo
+   * -- so this is where the client's "stop" is enforced for all of them at
+   * once (assistant-opt-out.ts). Only the owner's own typed words survive it,
+   * and they are marked so the card and the press know. A draft that came
+   * without a lead (tg_forward) is looked up by its @username in the base,
+   * so a person the owner knows is recognised however they are addressed.
+   */
+  const outward = action === 'send' || action === 'forward'
+  const reach: Reach = outward
+    ? await assistantMayReach(
+        ctx,
+        lead ?? (await leadOfTargetIn(ctx, target)),
+        {
+          text: what,
+          plainText:
+            action === 'send' &&
+            !extra?.media &&
+            !extra?.charge &&
+            !extra?.gift &&
+            extra?.invoiceId === undefined,
+        }
+      )
+    : { ok: true }
+  if (!reach.ok) throw new Error(reach.why)
+  const ownerWords = reach.ownerWords === true
   const named = {
     ...(extra?.display ? { display: extra.display } : {}),
     ...(extra?.media ? { media: extra.media } : {}),
     ...(extra?.charge ? { charge: extra.charge } : {}),
     ...(extra?.gift ? { gift: true } : {}),
+    ...(ownerWords ? { ownerWords: true } : {}),
   }
   /*
    * A SHORT ID, BECAUSE THE BUTTON HAS 64 BYTES.
@@ -476,6 +509,7 @@ function propose(
       gift: extra?.gift,
       args: extra?.args,
       theirWords: extra?.theirWords,
+      ...(ownerWords ? { ownerWords: true } : {}),
     })
   }
   /*

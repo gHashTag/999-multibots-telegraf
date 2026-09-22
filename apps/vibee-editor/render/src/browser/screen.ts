@@ -430,12 +430,56 @@ function oneAtATime<T>(key: string, work: () => Promise<T>): Promise<T> {
   return mine
 }
 
+/*
+ * A REFIT RESTARTS THE VIDEO, SO IT MUST BE RARE.
+ *
+ * Measured 2026-09-22 on the owner's pod: the video pipeline was rebuilt
+ * eight times in one minute -- the app and the window's own script each
+ * asked for the shape, a phone shape that does not land fell back to the
+ * menu, and the next ask tried again. Every rebuild reconnects the viewer,
+ * and neko takes control away from a reconnecting viewer: the owner could
+ * not press a single button. So the same ask is not repeated for
+ * FIT_GIVE_UP_MS (it has either landed or is known not to), and a
+ * different ask waits FIT_MIN_GAP_MS after the last refit.
+ */
+export const FIT_MIN_GAP_MS = 8_000
+export const FIT_GIVE_UP_MS = 10 * 60_000
+const lastFit = new Map<
+  string,
+  { at: number; want: ScreenSize; got: ScreenSize }
+>()
+
+export function resetFitMemoryForTests(): void {
+  lastFit.clear()
+}
+
+/** Whether an ask should be answered from the last refit instead. Pure. */
+export function shouldSkipFit(
+  last: { at: number; want: ScreenSize } | undefined,
+  want: ScreenSize,
+  now: number
+): boolean {
+  if (!last) return false
+  const age = now - last.at
+  if (age < FIT_MIN_GAP_MS) return true
+  const same =
+    last.want.width === want.width && last.want.height === want.height
+  return same && age < FIT_GIVE_UP_MS
+}
+
 export function fitDesktop(
   desktop: Desktop,
   want: ScreenSize,
-  io: DesktopIo = { apply: applyScreen, fitWindow: fitWindowToScreen }
+  io: DesktopIo = { apply: applyScreen, fitWindow: fitWindowToScreen },
+  now: () => number = Date.now
 ): Promise<ScreenSize> {
-  return oneAtATime(desktop.endpoint, () => fitNow(desktop, want, io))
+  const last = lastFit.get(desktop.endpoint)
+  if (last && shouldSkipFit(last, want, now())) return Promise.resolve(last.got)
+  return oneAtATime(desktop.endpoint, async () => {
+    const got = await fitNow(desktop, want, io)
+    lastFit.set(desktop.endpoint, { at: now(), want, got })
+    return got
+  })
 }
 
 async function fitNow(

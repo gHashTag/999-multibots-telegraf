@@ -44,6 +44,15 @@ import {
   buttonsForAnswer,
 } from '@/navigation/helpers/actionButtons'
 import {
+  type AgentMiss,
+  fallbackFailedText,
+  fallbackMessages,
+  honestMissLine,
+  missOfEmptyAnswer,
+  missOfError,
+  replyInRussian,
+} from '@/navigation/helpers/agentFallback'
+import {
   CRM_ROOT_RE,
   CRM_LEAD_RE,
   CRM_SCOPE_RE,
@@ -217,7 +226,7 @@ import {
 
 // Импорт глобального middleware навигации
 import { registerGlobalNavigationMiddleware } from './middleware/registerGlobalNavigationMiddleware'
-import { checkAll, unavailableWarning } from '@/services/capabilityPreflight'
+import { checkAll } from '@/services/capabilityPreflight'
 
 /**
  * ✅ ЕДИНАЯ ФУНКЦИЯ РЕГИСТРАЦИИ ВСЕХ КОМАНД И ОБРАБОТЧИКОВ
@@ -1335,6 +1344,12 @@ If not, continue on your own and click the "I myself" button`
       }
 
       /*
+       * How the agent missed this turn, when it did -- see agentFallback.ts.
+       * Set on both ways out of the try below, read after it.
+       */
+      let miss: AgentMiss = { kind: 'unreachable' }
+      let agentError: unknown
+      /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
        *
        * Здесь звался `chatWithAI` — голая модель без единого инструмента. Она
@@ -1412,9 +1427,9 @@ If not, continue on your own and click the "I myself" button`
          * burned, no card was ever drawn, and the prepared message sat in the
          * queue until it expired. The person was told nothing at all.
          *
-         * Drawn BEFORE the answer text is handled, so the two orderings below
-         * (reply-then-return, or fall through to the fallback model) both keep
-         * it.
+         * Drawn BEFORE the answer text is handled, so both ways below (the
+         * reply, or a turn with no words) keep it -- and a card with no words
+         * around it is the whole answer (see `cardShown`).
          */
         /*
          * A DRAFT WAITING FOR CONFIRMATION IS SHOWN, NOT LEFT IN A QUEUE.
@@ -1429,6 +1444,7 @@ If not, continue on your own and click the "I myself" button`
          * already happened teaches people to press the green button without
          * reading, which is the habit this card exists to prevent.
          */
+        let cardShown = false
         try {
           const { proposalCard, rememberCard, cardLeadOf } = await import(
             '@/services/telegramProposals'
@@ -1480,6 +1496,7 @@ If not, continue on your own and click the "I myself" button`
               if (!shown)
                 await ctx.reply(`${card.text}\n\n${card.photo}`, card.markup)
             }
+            cardShown = true
           }
         } catch (e: any) {
           // The answer is already delivered. A failure here costs an unsent
@@ -1525,80 +1542,117 @@ If not, continue on your own and click the "I myself" button`
             const posledniy = i === chasti.length - 1
             await ctx.reply(chasti[i], posledniy ? markup : undefined)
           }
+          /*
+           * MARKERS ARE NOT WORDS. An answer made only of `[[Label|act:id]]`
+           * markers is empty once they are stripped: the splitter returns no
+           * parts, the loop above sends nothing, and returning here was
+           * silence. Such a turn falls through to the empty-answer line below.
+           */
+          if (chasti.length > 0) return
+        }
+        /*
+         * A draft card with no words around it IS the answer: recipient, text
+         * and two buttons. A "could not answer" line under it would be false,
+         * and "please repeat" would only file a second draft.
+         */
+        if (cardShown) {
+          logger.info('🤖 [agent] answered with a draft card only', {
+            telegram_id: ctx.from?.id,
+          })
           return
         }
-        logger.warn('🤖 [Агент] пустой ответ — иду запасным путём', {
-          telegram_id: ctx.from?.id,
-        })
+        const empty = missOfEmptyAnswer(ответ.инструменты) // cyrillic-ok: fields of ОтветАгента, defined in trinityAgent.ts
+        miss = empty
+        logger.warn(
+          '🤖 [agent] empty answer -- an honest line, not the toolless model',
+          {
+            telegram_id: ctx.from?.id,
+            provider: ответ.provider, // cyrillic-ok: field of ОтветАгента
+            tools: (ответ.инструменты ?? []).slice(0, 8), // cyrillic-ok: field of ОтветАгента
+            spent: empty.spent,
+            // Text that was only button markers, as opposed to no text at all.
+            markers_only: !!ответ.текст, // cyrillic-ok: field of ОтветАгента
+          }
+        )
       } catch (err: any) {
-        logger.error('🤖 [Агент] недоступен — иду запасным путём', {
-          error: err?.message,
-          telegram_id: ctx.from?.id,
-        })
+        agentError = err
+        miss = missOfError(err)
+        logger.error(
+          miss.kind === 'empty'
+            ? '🤖 [agent] the turn failed on the render -- an honest line, not the toolless model'
+            : '🤖 [agent] unreachable -- taking the toolless fallback',
+          {
+            error: err?.message,
+            telegram_id: ctx.from?.id,
+            ...(miss.kind === 'empty' ? { spent: miss.spent } : {}),
+          }
+        )
       }
 
       /*
-       * THE FALLBACK MODEL MUST NOT PROMISE WHAT DOES NOT EXIST.
-       *
-       * Owner: "it talks complete nonsense and makes no assets". Half of that
-       * is right here. When the agent is unreachable the answer comes from a
-       * model with NO tools, and its prompt tells it to help "make photos,
-       * video, voice" -- so it happily agrees to do what it cannot invoke, and
-       * the person waits for a result that will never arrive.
-       *
-       * The prompt therefore carries a list of services that CANNOT be
-       * performed right now (the provider key is unset). The model neither
-       * invents that list nor softens it: it is computed from the environment.
+       * THE PERSON'S LANGUAGE FOR EVERYTHING BELOW: the line, the buttons, the
+       * fallback prompt and the apology when even that fails. What they wrote
+       * wins when it is plainly Russian (agentFallback.ts, replyInRussian).
        */
-      const cannotDoNow = (): string => {
-        try {
-          return unavailableWarning()
-        } catch {
-          // The check must never stop the reply: an empty string is the plain prompt.
-          return ''
-        }
+      const replyRu = replyInRussian(text, isRussianFromState(ctx))
+      // The app button in private chats only (Telegram rejects web_app
+      // elsewhere); the owner's hub row under an owner's private answers.
+      const missButtons = {
+        app: ctx.chat?.type === 'private',
+        ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
+        ctx.chat?.type === 'private'
+          ? { tail: hubRows() }
+          : {}),
+      }
+
+      /*
+       * AN EMPTY ANSWER GETS ONE HONEST LINE, NEVER THE TOOLLESS MODEL.
+       *
+       * Production 2026-09-22: the agent called two tools and said nothing, the
+       * message went to `chatWithAI`, and a model with no tools and no history
+       * answered a Russian line in English about a service that does not
+       * exist. The agent was reached and had everything; a smaller model with
+       * less can only guess. The same when the render reported the failure in
+       * its stream, or the turn already spent money (agentFallback.ts).
+       *
+       * The question is on record already -- the request reached the server --
+       * so only the line is written into the shared conversation, to keep it
+       * from ending on a question nobody answered.
+       */
+      if (miss.kind === 'empty') {
+        const { text: line, markup } = buttonsForAnswer(
+          honestMissLine(replyRu, miss.spent),
+          replyRu,
+          missButtons
+        )
+        await ctx.reply(line, markup)
+        const { recordTurns } = await import('@/services/trinityAgent')
+        void recordTurns(String(ctx.from?.id ?? ''), [
+          { role: 'assistant', content: line },
+        ])
+        return
       }
 
       try {
         const { chatWithAI } = await import('@/services/aiChatService')
+        /*
+         * THE PROMPT IS BUILT IN ONE PLACE, IN THE PERSON'S LANGUAGE.
+         *
+         * It used to be written inline here, in Russian only, and it said
+         * "there are no tariffs and no subscriptions" -- true once, false since
+         * the club became the one subscription. A Russian prompt that named no
+         * reply language let the fallback model answer a Russian line in
+         * English. agentFallback.ts now names the language first and last,
+         * tells the model it has no tools, points to /club for the price
+         * instead of writing a number, and carries the last turns of this chat
+         * when the failed agent call had already read them.
+         *
+         * The list of services that are down is no longer prepended: it was
+         * the source of the invented "Instagram analytics" (see
+         * fallbackSystemPrompt), and "you have no tools" already covers it.
+         */
         const reply = await chatWithAI(
-          [
-            {
-              role: 'system',
-              /*
-               * ЗДЕСЬ БОТ ПРОДАВАЛ ТАРИФЫ, КОТОРЫХ НЕТ.
-               *
-               * Подсказка называла «Free (3/день), Basic (299₽), Pro (699₽),
-               * Studio (1999₽)», и модель честно пересказывала это первым же
-               * сообщением каждому новому человеку. Владелец: «у нас нет
-               * тарифов, мы перепродаём токены с наценкой 200% и зарабатываем
-               * на создании рилсов и контент-плана».
-               *
-               * То есть первый экран продукта звал платить за то, чего не
-               * существует. Хуже обычной опечатки: человек уходит, не найдя
-               * обещанного, и это выглядит обманом, а не ошибкой.
-               *
-               * ЦЕНЫ В ПОДСКАЗКЕ НЕ НАЗЫВАЮТСЯ НАМЕРЕННО. Они считаются из
-               * себестоимости провайдеров и наценки (billing-shared.ts) и
-               * меняются вместе с прайсами. Число, вписанное сюда руками,
-               * разошлось бы с кассой молча — ровно так и появились тарифы,
-               * которые пришлось убирать.
-               */
-              content:
-                cannotDoNow() +
-                'Ты — ассистент Trinity S³AI. Помогаешь делать фото, видео, ' +
-                'озвучку и рилсы. Отвечай кратко (2-3 предложения). ' +
-                'Как устроена оплата: тарифов и подписок НЕТ — есть токены, ' +
-                'их покупают за звёзды Telegram и тратят на генерации. ' +
-                'Точную цену конкретной операции и баланс не выдумывай: ' +
-                'скажи, что покажешь их перед запуском, и предложи /start. ' +
-                'Мы зарабатываем на создании рилсов и контент-плана. ' +
-                'Если уместно, предложи кнопку в конце ответа маркером ' +
-                '[[Подпись|act:id]], где id — одно из: topup, balance, can, human. ' +
-                'Другие id не работают, не выдумывай их.',
-            },
-            { role: 'user', content: text },
-          ],
+          fallbackMessages({ isRu: replyRu, text, agentError }),
           undefined,
           {
             telegramId: String(ctx.from?.id),
@@ -1610,17 +1664,10 @@ If not, continue on your own and click the "I myself" button`
          * meets when the agent is down, and it is exactly when they most need
          * something to press instead of a wall of apologetic text.
          */
-        const isRuFb = isRussianFromState(ctx)
         const { text: replyClean, markup: replyMarkup } = buttonsForAnswer(
           reply,
-          isRuFb,
-          {
-            app: ctx.chat?.type === 'private',
-            ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
-            ctx.chat?.type === 'private'
-              ? { tail: hubRows() }
-              : {}),
-          }
+          replyRu,
+          missButtons
         )
         // Telegram refuses a text over 4096 characters outright; the fallback
         // answer is split like the agent's, keyboard on the last chunk.
@@ -1628,6 +1675,9 @@ If not, continue on your own and click the "I myself" button`
           '@/helpers/telegramLongAnswer'
         )
         const fbParts = splitLong(replyClean)
+        // Only markers and no words is no answer: the apology below, not
+        // silence (the loop would send nothing).
+        if (fbParts.length === 0) throw new Error('Empty response from AI')
         for (let i = 0; i < fbParts.length; i++) {
           await ctx.reply(
             fbParts[i],
@@ -1685,19 +1735,11 @@ If not, continue on your own and click the "I myself" button`
          * наружу не выносим — он ничего не говорит тому, кто просто хочет
          * сделать рилс.
          */
-        const текстОшибки = String(err?.message ?? '')
-        const этоЛимит = /лимит|rate.?limit|429/i.test(текстОшибки)
-        const этоКлюч = /ключ|api.?key|unauthorized|401/i.test(текстОшибки)
-        const причина = этоЛимит
-          ? 'Модели сейчас перегружены — это временно.'
-          : этоКлюч
-            ? 'У одного из провайдеров недействителен ключ, владелец уже знает.'
-            : 'Что-то сломалось на нашей стороне.'
+        // In the person's language, like every other line of this path.
         await ctx
           .reply(
-            `${причина}\n\nПопробуйте через пару минут или откройте приложение — ` +
-              'лента, файлы и профиль работают без модели.',
-            standardButtons(isRussianFromState(ctx), {
+            fallbackFailedText(replyRu, String(err?.message ?? '')),
+            standardButtons(replyRu, {
               app: ctx.chat?.type === 'private',
             })
           )
@@ -3478,6 +3520,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       const kb = r.lead
         ? leadMenu(r.lead, {
             next: nextOf({ waiting: r.waiting, signals: r.signals }),
+            assistantOff: r.assistantOff,
           })
         : hub()
       await sendLong(ctx, r.text, kb)

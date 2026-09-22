@@ -7,7 +7,12 @@ describe('Kie web provider catalogue', () => {
     expect(KIE_WEB_MODELS.image.map(model => model.id)).toContain(
       'kie/google/nano-banana'
     )
+    // Not Grok Imagine: billed per second at a length the request does not
+    // carry, it is refused by the server's video floor.
     expect(KIE_WEB_MODELS.video.map(model => model.id)).toContain(
+      'kie/hailuo/02-text-to-video-pro'
+    )
+    expect(KIE_WEB_MODELS.video.map(model => model.id)).not.toContain(
       'kie/grok-imagine/text-to-video'
     )
     expect(KIE_WEB_MODELS.audio.map(model => model.id)).toContain(
