@@ -579,6 +579,19 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   )
   // Somebody who came by a club link is shown the club, not the general
   // onboarding: otherwise the link's whole purpose ends in silence.
+  // The same for an app link: the screen it named, inside Telegram.
+  if (ctx.session.appDeepLink) {
+    const { appRouteFromStartParam, sendAppDoor, APP_START_PREFIX } =
+      await import('@/navigation/helpers/appLinks')
+    const route = appRouteFromStartParam(
+      APP_START_PREFIX + ctx.session.appDeepLink
+    )
+    ctx.session.appDeepLink = undefined
+    if (route) {
+      await sendAppDoor(ctx as any, route, isRussianFromState(ctx))
+      return ctx.scene.leave()
+    }
+  }
   if (ctx.session.clubDeepLink) {
     ctx.session.clubDeepLink = undefined
     const { showClubCard } = await import('@/navigation/helpers/clubCard')
