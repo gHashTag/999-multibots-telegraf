@@ -24,13 +24,22 @@
  * once, sees the client's words, and turns the assistant back on with one
  * press. A false negative is the harm this exists to end -- a person who said
  * "stop" and got another automatic reply. So the phrase lists lean wide, and
- * only three shapes are carved out, each because it is common and clearly not
+ * only these shapes are carved out, each because it is common and clearly not
  * a request about THIS assistant:
  *
- *  1. negation of the verb -- "don't turn off the bot", in either language;
+ *  1. negation of the verb, up to four words back in the same clause -- "don't
+ *     turn off the bot", "I'm not asking you to switch it off", "you must
+ *     not switch the bot off";
  *  2. a how-to question -- "how do I switch a bot off?" (this platform sells bots;
  *     a client asking how to switch off a bot is usually asking about theirs);
- *  3. the client's own bot -- "switch off MY bot", in either language.
+ *  3. the client's own bot -- "switch off MY bot", in either language;
+ *  4. product talk -- a bot in another place ("from my group"), the AI as an
+ *     attribute ("the AI watermark"), a live person or "no bot" inside a
+ *     product or price question ("a video with a real person").
+ *
+ * Wide is only affordable because a wide match is reversible: see `sure` on
+ * StopRequest -- the words to the client wait for the owner unless the
+ * request cannot mean anything else.
  *
  * Everything else that names this assistant next to a stop verb, asks for a
  * living person or for the owner to write himself, or says "enough" to the
@@ -226,29 +235,183 @@ const PARTICLE_VERB_EN = whole(['turn', 'switch', 'shut'])
 const NEGATOR = whole([
   'не',
   'ни',
+  'нельзя',
+  'никто',
+  'никогда',
+  'незачем',
   "don't",
   'dont',
   'never',
   'not',
+  'no',
+  'nobody',
   "doesn't",
   'doesnt',
+  "didn't",
+  'didnt',
+  "won't",
+  'wont',
 ])
-/** Negation through a modal: "no need to switch it off", "better not yet". */
-const SOFT_NEGATOR = whole([
-  'надо',
-  'нужно',
-  'стоит',
-  'смей',
-  'смейте',
-  'вздумай',
-  'вздумайте',
-  'спеши',
-  'спешите',
-  'торопись',
-  'торопитесь',
+/*
+ * A negator that is a politeness, not a refusal: the Russian "could you not
+ * switch it off" is "could you switch it off", and "why don't you turn it off"
+ * asks for it.
+ */
+const POLITE_AFTER_NOT = whole([
+  'мог(?:ли|ла|ешь|ете|ут)',
+  'можете',
+  'можешь',
+  'сможете',
+  'сможешь',
+  'трудно',
+  'сложно',
 ])
+const WHY = whole(['почему', 'why'])
+/** Where a negation stops reaching: a clause break or a conjunction. */
+const CLAUSE_BREAK = whole(['\\|', 'и', 'а', 'но', 'and', 'but'])
 const HOW = whole(['как', 'how'])
 const YOUR = whole(['ваш', 'вашего', 'вашу', 'ваши', 'ваших', 'your'])
+
+/*
+ * PRODUCT TALK. This platform sells bots, AI video and AI portraits, so a
+ * client talks about "a bot" and "AI" for reasons that have nothing to do with
+ * the assistant answering them. Three shapes, each from the review's probes:
+ *
+ *  - a PLACE that is not this chat: "remove the bot from my group", "switch
+ *    off the AI in my channel" -- somebody else's bot, somewhere else;
+ *  - the target as an ATTRIBUTE of the next noun: "remove the AI watermark";
+ *  - a PRODUCT or a PRICE in the message: "a video with a real person",
+ *    "how much is a site without a bot" -- a spec, not a request to stop.
+ */
+const PLACE = whole([
+  'групп[а-я]*',
+  'канал[а-я]*',
+  'бесед[а-я]*',
+  'сайт[а-я]*',
+  'приложени[а-я]*',
+  'сообществ[а-я]*',
+  'паблик[а-я]*',
+  'магазин[а-я]*',
+  'инстаграм[а-я]*',
+  'вк',
+  'вконтакте',
+  'groups?',
+  'channels?',
+  'sites?',
+  'websites?',
+  'apps?',
+  'servers?',
+  'communit(?:y|ies)',
+  'stores?',
+  'shops?',
+  'discord',
+  'slack',
+  'whatsapp',
+  'instagram',
+])
+const ATTRIBUTE_OF = whole([
+  'озвучк[а-я]*',
+  'голос[а-я]*',
+  'генераци[а-я]*',
+  'watermarks?',
+  'logos?',
+  'labels?',
+  'voices?',
+  'filters?',
+  'effects?',
+  'backgrounds?',
+  'captions?',
+  'subtitles?',
+  'generators?',
+  'images?',
+  'videos?',
+  'photos?',
+  'pictures?',
+  'avatars?',
+  'art',
+  'content',
+  'features?',
+  'marks?',
+  'tags?',
+  'badges?',
+  'stickers?',
+  'detectors?',
+  'detection',
+])
+const PRODUCT_OR_PRICE = whole([
+  'видео[а-я]*',
+  'ролик[а-я]*',
+  'клип[а-я]*',
+  'фото[а-я]*',
+  'фотк[а-я]*',
+  'картинк[а-я]*',
+  'изображени[а-я]*',
+  'аватар[а-я]*',
+  'портрет[а-я]*',
+  'персонаж[а-я]*',
+  'рилс[а-я]*',
+  'липсинк[а-я]*',
+  'озвучк[а-я]*',
+  'сайт[а-я]*',
+  'лендинг[а-я]*',
+  'приложени[а-я]*',
+  'магазин[а-я]*',
+  'воронк[а-я]*',
+  'канал[а-я]*',
+  'групп[а-я]*',
+  'сколько',
+  'стоит',
+  'стоимост[а-я]*',
+  'цен[аыуе]',
+  'прайс[а-я]*',
+  'почем',
+  'руб[а-я]*',
+  'videos?',
+  'photos?',
+  'avatars?',
+  'portraits?',
+  'images?',
+  'pictures?',
+  'clips?',
+  'reels?',
+  'websites?',
+  'landing',
+  'price[sd]?',
+  'costs?',
+])
+/** Words that make "a live person" a person to talk to, not one to film. */
+const CONTACT_WORD = new RegExp(
+  '^(?:общ|пообщ|говор|поговор|переписыв|разговар|связ|соедин|позов|talk|speak|chat|contact)'
+)
+
+/** The tokens of the clause that holds token `i` (clauses split by `|`). */
+function clauseOf(tokens: string[], i: number): string[] {
+  let from = i
+  while (from > 0 && tokens[from - 1] !== '|') from -= 1
+  let to = i
+  while (to < tokens.length - 1 && tokens[to + 1] !== '|') to += 1
+  return tokens.slice(from, to + 1)
+}
+
+/** The target at `target` is somewhere else, or a modifier of a product. */
+function aboutSomethingElse(
+  tokens: string[],
+  target: number,
+  width: number
+): boolean {
+  if (ATTRIBUTE_OF.test(tokens[target + width] ?? '')) return true
+  return clauseOf(tokens, target).some(t => PLACE.test(t))
+}
+
+/** Message tokens, with `|` where the client put a clause break. */
+function clauseTokens(raw: string): string[] {
+  return raw
+    .split(/[,.;:!?\u2026()\n\u2014\u2013]+|\s-\s/)
+    .map(normaliseForStop)
+    .filter(Boolean)
+    .join(' | ')
+    .split(' ')
+}
 
 /** Messages that are a stop by themselves, with only small words around. */
 const ALONE_STOP = whole([
@@ -330,9 +493,19 @@ const PHRASES: Array<[string, RegExp]> = [
     ),
   ],
   [
+    'ru-enough-bot',
+    new RegExp(
+      ' (?:хватит|довольно)' +
+        '(?: (?:ваш\\S*|этого|этих|этот|вот|мне|нам|больше|тут|здесь|пожалуйста|уже))' +
+        '{0,2} ' +
+        T_RU +
+        ' '
+    ),
+  ],
+  [
     'ru-no-bot',
     new RegExp(
-      ' (?:не (?:надо|нужно|нужен|нужна|нужны)|без|хватит|довольно)' +
+      ' (?:не (?:надо|нужно|нужен|нужна|нужны)|без)' +
         '(?: (?:ваш\\S*|этого|этих|этот|вот|мне|нам|больше|тут|здесь|пожалуйста|уже))' +
         '{0,2} ' +
         T_RU +
@@ -450,6 +623,17 @@ const PHRASES: Array<[string, RegExp]> = [
   ],
 ]
 
+/*
+ * Phrases a product or a price in the same message turns into a spec -- "a
+ * video with a real person", "a site without a bot" -- unless the client also
+ * says they want to TALK to that person.
+ */
+const PRODUCT_SENSITIVE = new Set([
+  'ru-live-person',
+  'ru-no-bot',
+  'en-live-person',
+])
+
 const WRITE_WORD = new RegExp(
   '(?:пиш|напиш|ответ|отвеч|свяж|звон|переписыв|общ)'
 )
@@ -465,14 +649,23 @@ function targetAt(tokens: string[], i: number, pronounOk: boolean): number {
   return 0
 }
 
-/** Is the verb at `v` negated, or asked about as a how-to? */
+/**
+ * Is the verb at `v` negated? Any negator up to four words back, inside the
+ * same clause: "don't switch it off", "I am not asking to switch it off",
+ * "nobody asked to switch it off", in either language.
+ * The review's probes (PR 2849) showed a one-word window missing all of them.
+ */
 function verbIsNegated(tokens: string[], v: number): boolean {
-  const back = (n: number) => tokens[v - n] ?? ''
-  if (NEGATOR.test(back(1))) return true
-  if (back(2) === 'не' && SOFT_NEGATOR.test(back(1))) return true
-  if (back(3) === 'не' && SOFT_NEGATOR.test(back(2))) return true
-  if (back(3) === 'no' && back(2) === 'need' && back(1) === 'to') return true
-  if (back(2) === 'do' && back(1) === 'not') return true
+  for (let n = 1; n <= 4; n++) {
+    const t = tokens[v - n]
+    if (t === undefined || CLAUSE_BREAK.test(t)) return false
+    if (!NEGATOR.test(t)) continue
+    if (POLITE_AFTER_NOT.test(tokens[v - n + 1] ?? '')) continue
+    const before = tokens[v - n - 1] ?? ''
+    if (WHY.test(before)) continue
+    if (before === 'бы' && WHY.test(tokens[v - n - 2] ?? '')) continue
+    return true
+  }
   return false
 }
 
@@ -539,6 +732,8 @@ function verbRule(tokens: string[]): string | null {
     }
     if (verbIsNegated(tokens, v)) continue
     if (isOwnBot(tokens, target)) continue
+    if (aboutSomethingElse(tokens, target, targetAt(tokens, target, named)))
+      continue
     if (isHowTo(tokens, v) && !yoursBefore(tokens, target)) continue
     return VERB_RU.test(t) ? 'ru-verb' : 'en-verb'
   }
@@ -547,6 +742,7 @@ function verbRule(tokens: string[]): string | null {
     const width = targetAt(tokens, i, false)
     if (!width) continue
     if (isOwnBot(tokens, i)) continue
+    if (aboutSomethingElse(tokens, i, width)) continue
     let v = i + width
     for (let skipped = 0; skipped <= 2; skipped++) {
       const t = tokens[v] ?? ''
@@ -594,13 +790,19 @@ export function isStopRequest(
   )
     return { lang, rule: 'alone' }
 
-  const verb = verbRule(tokens)
+  const verb = verbRule(clauseTokens(raw))
   if (verb) return { lang, rule: verb }
 
   if (letHimWrite(tokens)) return { lang, rule: 'ru-let-him-write' }
 
+  const product = tokens.some(t => PRODUCT_OR_PRICE.test(t))
+  const contact = tokens.some(t => CONTACT_WORD.test(t))
   const padded = ` ${norm} `
-  for (const [rule, re] of PHRASES) if (re.test(padded)) return { lang, rule }
+  for (const [rule, re] of PHRASES) {
+    if (!re.test(padded)) continue
+    if (product && PRODUCT_SENSITIVE.has(rule) && !contact) continue
+    return { lang, rule }
+  }
   return null
 }
 
