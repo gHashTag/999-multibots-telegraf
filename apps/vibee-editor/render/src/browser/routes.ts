@@ -394,8 +394,12 @@ export async function handleBrowser(
         }, // cyrillic-ok: user-facing error
       }
     }
-    /* A yes opens the guarded door for a few minutes (guard.ts). */
-    if (state === 'allowed') await markAllowed(pool, who)
+    /* A yes opens the guarded door for a few minutes (guard.ts), and hands
+       the agent the wheel it needs to act on it. */
+    if (state === 'allowed') {
+      await markAllowed(pool, who)
+      await setWheel(pool, who, 'agent').catch(() => {})
+    }
     return { status: 200, body: { ok: true, state } }
   }
 
@@ -447,6 +451,12 @@ export async function handleBrowser(
      * guard's few minutes; Done / Cannot (an action) opens nothing.
      */
     if (asked?.kind === 'choice') await markAllowed(pool, who)
+    /*
+     * ANSWERING THE AGENT HANDS IT THE WHEEL. The person just told the agent
+     * what to do; a touch near the card had taken the wheel, and the agent
+     * stood still on the very step it had asked about (2026-09-22, X).
+     */
+    await setWheel(pool, who, 'agent').catch(() => {})
     return { status: 200, body: { ok: true } }
   }
 
