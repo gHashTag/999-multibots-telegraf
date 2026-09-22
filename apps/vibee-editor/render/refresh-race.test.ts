@@ -69,7 +69,7 @@ describe('сервер отличает гонку от кражи', () => {
 
 describe('клиент на гонку перечитывает хранилище', () => {
   it('409 разбирается отдельно от общей ветки отказа', () => {
-    expect(КЛИЕНТ).toContain("response.status === 409")
+    expect(КЛИЕНТ).toContain('response.status === 409')
     expect(КЛИЕНТ).toContain("body.error === 'auth_refresh_raced'")
   })
 
@@ -84,29 +84,65 @@ describe('клиент на гонку перечитывает хранилищ
     )
   })
 
-  it('в ветке гонки сессия не стирается', () => {
-    const начало = КЛИЕНТ.indexOf("response.status === 409")
-    const блок = КЛИЕНТ.slice(начало, начало + 900)
-    expect(блок).not.toContain('clearAppSession')
+  /*
+   * The three checks that stood here scanned the first 900 characters after
+   * the 409 test. The branch grew (review, 2026-09-22), and one of them --
+   * "the race branch never erases the session" -- went on passing only because
+   * the tab's own end had moved past character 900. What the branch promises
+   * now is narrower and exact, so these read the whole branch: from the 409
+   * test to the success block after it. Behaviour is pinned in the player:
+   * lib/__tests__/aSignInOutlivesTheTab.test.ts and aCookieSessionAcrossTabs.
+   */
+  const CLIENT = КЛИЕНТ // cyrillic-ok: this file's name for the client source
+  const RACE = (() => {
+    const from = CLIENT.indexOf('response.status === 409')
+    const to = CLIENT.indexOf(
+      "if (response.ok && typeof body.access_token === 'string')",
+      from
+    )
+    return from < 0 || to < 0 ? '' : CLIENT.slice(from, to)
+  })()
+
+  it('the whole race branch is found', () => {
+    expect(RACE.length).toBeGreaterThan(200)
+    expect(RACE).toContain("body.error === 'auth_refresh_raced'")
   })
 
-  it('прочитанное записывается обратно — иначе таймер не заводится', () => {
-    /*
-     * `storeAppSession` заново ставит таймер обновления. Без записи проигравшая
-     * вкладка дожила бы до конца access-токена и больше не обновилась бы
-     * никогда — то есть вместо мгновенного выброса получился бы отложенный.
-     */
-    const начало = КЛИЕНТ.indexOf("response.status === 409")
-    const блок = КЛИЕНТ.slice(начало, начало + 900)
-    expect(блок).toContain('storeAppSession(')
+  it('what a winner wrote to this tab is written back, or the timer is never re-armed', () => {
+    const reread = RACE.indexOf('const fresh = storage()?.getItem(REFRESH_KEY)')
+    expect(reread).toBeGreaterThan(-1)
+    const tail = RACE.slice(reread)
+    expect(tail.indexOf('storeAppSession(')).toBeGreaterThan(-1)
+    expect(tail.indexOf('storeAppSession(')).toBeLessThan(
+      tail.indexOf('clearAppSession()')
+    )
   })
 
-  it('повтор ровно один, без цикла', () => {
-    // Цикл на 409 превратил бы гонку двух вкладок в поток запросов, который
-    // упрётся в тормоз входа и добьёт то, что чинилось.
-    const начало = КЛИЕНТ.indexOf("response.status === 409")
-    const блок = КЛИЕНТ.slice(начало, начало + 900)
-    expect(блок).not.toMatch(/\b(while|for)\s*\(/)
+  it('every retry is bounded: a literal list of at most three, and no while', () => {
+    // A loop on 409 would turn a race of tabs into a stream of requests
+    // against the sign-in brake. The cookie path tries a few times inside the
+    // grace window (several tabs present one jar token at once); the count is
+    // written out, so it cannot grow unnoticed.
+    expect(RACE).not.toMatch(/\bwhile\s*\(/)
+    const loops = [...RACE.matchAll(/\bfor\s*\(const \w+ of \[([^\]]*)\]\)/g)]
+    const anyFor = [...RACE.matchAll(/\bfor\s*\(/g)]
+    expect(anyFor.length).toBe(loops.length)
+    for (const loop of loops) {
+      expect(
+        loop[1].split(',').filter(x => x.trim()).length
+      ).toBeLessThanOrEqual(3)
+    }
+  })
+
+  it('the race branch ends at most this tab, never the family', () => {
+    // Only this tab's own spent copy ends here (a duplicated tab loses alone);
+    // nothing in the branch signs the family out on the server.
+    expect(RACE).not.toMatch(/revoke|logout/i)
+    const clears = [...RACE.matchAll(/clearAppSession\(\)/g)]
+    expect(clears.length).toBe(1)
+    // The one clear is this tab's own, right before it says why.
+    const clear = RACE.indexOf('clearAppSession()')
+    expect(RACE.slice(clear, clear + 120)).toContain('rotated in another tab')
   })
 })
 
