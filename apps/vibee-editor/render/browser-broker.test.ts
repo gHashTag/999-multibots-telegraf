@@ -1,3 +1,8 @@
+import {
+  askForInput,
+  pendingInput,
+  waitForTyped,
+} from './src/browser/input-request'
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   handleBrowser,
@@ -891,6 +896,51 @@ describe('the person types from their own keyboard (/api/browser/type)', () => {
     const out = await post(d, { text: SECRET })
     expect(out.status).toBe(409)
     expect(t.typed).toEqual([])
+  })
+
+  it('the session answer carries the open request, so the app opens the sheet', async () => {
+    const { d } = deps()
+    await handleBrowser({ url: '/api/browser/session', method: 'POST' }, d)
+    askForInput('tg-900000001', {
+      id: 'q0',
+      kind: 'code',
+      why: 'the SMS code',
+      host: 'bank.example',
+      label: 'Code',
+    })
+    const out = await handleBrowser(
+      { url: '/api/browser/session', method: 'GET' },
+      d
+    )
+    expect(
+      (out.body as { inputRequest?: { why: string; kind: string } })
+        .inputRequest
+    ).toMatchObject({
+      kind: 'code',
+      why: 'the SMS code',
+    })
+  })
+
+  it('answers the agent that asked for it (browser_ask_input), with the length only', async () => {
+    const t = typing()
+    const { d } = deps({ typeIo: t.io })
+    await open(d)
+    askForInput('tg-900000001', {
+      id: 'q1',
+      kind: 'password',
+      why: 'sign in',
+      host: 'accounts.example.com',
+      label: '',
+    })
+    await post(d, { text: SECRET, enter: true })
+    expect(pendingInput('tg-900000001')).toBeNull()
+    const got = await waitForTyped('tg-900000001', 'q1', 0)
+    expect(got).toMatchObject({
+      chars: SECRET.length,
+      field: 'password',
+      enter: true,
+    })
+    expect(JSON.stringify(got)).not.toContain(SECRET)
   })
 
   it('typing takes the wheel: the agent stands still while the person signs in', async () => {

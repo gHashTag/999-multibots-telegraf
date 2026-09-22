@@ -31,6 +31,33 @@ export interface BrowserSessionView {
   viewUrl?: string
   /** Who is driving, as the server holds it (render sessions.ts). */
   wheel?: 'person' | 'agent'
+  /** The agent is waiting for the person to type something (browser_ask_input). */
+  inputRequest?: InputRequestView | null
+}
+
+export interface InputRequestView {
+  id: string
+  kind: 'password' | 'email' | 'code' | 'text'
+  /** The agent's words: what it is for. */
+  why: string
+  host: string
+  label: string
+}
+
+function inputRequestOf(raw: unknown): InputRequestView | null {
+  const r = (raw ?? null) as Partial<InputRequestView> | null
+  if (!r || typeof r !== 'object' || typeof r.id !== 'string') return null
+  const kind =
+    r.kind === 'password' || r.kind === 'email' || r.kind === 'code'
+      ? r.kind
+      : 'text'
+  return {
+    id: r.id,
+    kind,
+    why: typeof r.why === 'string' ? r.why : '',
+    host: typeof r.host === 'string' ? r.host : '',
+    label: typeof r.label === 'string' ? r.label : '',
+  }
 }
 
 interface ServerAnswer {
@@ -39,13 +66,17 @@ interface ServerAnswer {
   sessionId?: string
   viewUrl?: string
   wheel?: string
+  inputRequest?: unknown
 }
 
-const asView = (a: ServerAnswer): BrowserSessionView => ({
+export const asView = (a: ServerAnswer): BrowserSessionView => ({
   state: (a.state as BrowserState) || 'none',
   sessionId: a.sessionId,
   viewUrl: a.viewUrl,
   ...(a.wheel === 'person' || a.wheel === 'agent' ? { wheel: a.wheel } : {}),
+  ...(a.inputRequest !== undefined
+    ? { inputRequest: inputRequestOf(a.inputRequest) }
+    : {}),
 })
 
 /**
