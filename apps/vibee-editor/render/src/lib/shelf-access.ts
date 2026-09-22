@@ -17,10 +17,17 @@
  * The rule, in the order it is checked:
  *
  *   1. A picture, a sound, a video or a `.json` is PUBLIC, whatever its key.
- *      These are exactly the kinds the route served before 2026-09-22 (the
- *      video through its H.264 copy), so nothing that reads them today can
- *      break: the feed, the player's <img>/<audio>/<video>, Remotion's Chrome,
- *      the providers handed a link, the content factory's manifests.
+ *      These are the kinds the route served before 2026-09-22 (the video
+ *      through its H.264 copy), so nothing that reads them today can break:
+ *      the feed, the player's <img>/<audio>/<video>, Remotion's Chrome, the
+ *      providers handed a link, the content factory's manifests.
+ *      Two exceptions to "whatever the route types as media". `.tif`,
+ *      `.tiff` and `.ico` are NOT public: the old route never streamed them
+ *      (they went to ffmpeg), no <img> reader here asks for them, and a
+ *      `.tif` is what a scanned document sent as a file looks like. `.oga`
+ *      IS public although the old route did not stream it either: it is
+ *      Telegram's voice-note extension, and the transcriber fetches the
+ *      shelf URL over HTTP with no credential (`transcribeWithWhisper`).
  *   2. Any other file whose name carries the random part `assetKeyFor` gives
  *      (`<ms>-<16 hex>-<name>`) is PUBLIC: the link is the only way in, as
  *      #2842 decided for new keys.
@@ -37,6 +44,13 @@
  *
  * Nobody could depend on rule 3 being otherwise: until this morning the same
  * request answered 500.
+ *
+ * What rule 1 still leaves public under a walkable key: photos and voice
+ * notes from private chats, AND any document a person sent as a file whose
+ * name ends in an image, audio, video or `.json` extension -- a `.jpg` scan,
+ * an `.mp4` recording, a `.json` export. The key shape cannot tell those
+ * apart from media; only signed links in every media reader, or moving the
+ * old objects to random keys, would close them.
  *
  * The decision reads the DECODED key the route will ask the bucket for, and
  * only its last segment: a percent-encoded path, `?original=1`, HEAD or a
@@ -55,6 +69,12 @@ export const SHELF_LINK_TTL_S = 24 * 60 * 60
 
 const LINK_LABEL = 'shelf-link-v1'
 
+/**
+ * Typed as images, never streamed by the old route, read by nothing that
+ * needs them public (rule 1's exception).
+ */
+const NOT_PUBLIC_MEDIA: ReadonlySet<string> = new Set(['tif', 'tiff', 'ico'])
+
 /** `<ms>-<16 hex>-` at the start of the last segment: `assetKeyFor`'s shape. */
 const RANDOM_NAME = /^\d{1,16}-[0-9a-f]{16}-/
 
@@ -68,7 +88,11 @@ function isCleanKey(key: string): boolean {
 export function isPublicShelfKey(key: string): boolean {
   const k = String(key ?? '')
   const type = shelfContentType(k).split(';')[0].trim()
-  if (/^(image|audio|video)\//.test(type)) return true
+  if (
+    /^(image|audio|video)\//.test(type) &&
+    !NOT_PUBLIC_MEDIA.has(shelfExtension(k))
+  )
+    return true
   if (shelfExtension(k) === 'json') return true
   if (!isCleanKey(k)) return false
   const last = k.split('/').pop() ?? ''
