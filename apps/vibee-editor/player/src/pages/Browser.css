@@ -506,3 +506,50 @@
   font-style: normal;
   color: var(--muted, #888);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * THE PHONE WITH THE SHEET: the picture takes the screen down to the
+ * sheet's peek; everything else lives in the sheet (BottomSheet), which
+ * scrolls its own body. The page itself does not scroll.
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .remote-browser--sheet {
+    padding-bottom: calc(var(--sheet-peek, 96px) + 8px);
+  }
+
+  .remote-browser--sheet .remote-browser__stage {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+}
+
+.remote-browser__peek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.remote-browser__peek::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #888;
+}
+
+.remote-browser__peek--agent::before {
+  background: #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.8);
+}
+
+.remote-browser__peek--asks {
+  color: #f5c542;
+}
+
+.remote-browser__peek--asks::before {
+  background: #f5c542;
+  box-shadow: 0 0 8px rgba(245, 197, 66, 0.8);
+}
