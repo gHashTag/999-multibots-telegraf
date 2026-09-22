@@ -146,6 +146,39 @@ describe('the words', () => {
       describeProvider({ current: null, chosen: null, env: null, chain: [] })
     ).toContain('не настроен')
   })
+
+  it('a provider the breaker parked is named, with the one answering instead', () => {
+    const zaiHead = {
+      current: { id: 'zai', model: 'glm-5.3', context: 128000, compact: false },
+      chosen: null,
+      env: 'zai',
+      chain: [
+        { id: 'zai', model: 'glm-5.3', context: 128000 },
+        { id: 'zai-lite', model: 'glm-4.5', context: 128000 },
+      ],
+    }
+    // Nothing parked, or a render too old to say: the view is as it was.
+    expect(describeProvider({ ...zaiHead, breakers: [] } as never)).toBe(
+      describeProvider(zaiHead as never)
+    )
+    const t = describeProvider({
+      ...zaiHead,
+      answering: { id: 'zai-lite', model: 'glm-4.5' },
+      breakers: [
+        {
+          id: 'zai',
+          until: '2026-09-22T08:19:00.000Z',
+          probing: false,
+          reason: 'zai: timed out after 120 s',
+        },
+      ],
+    } as never)
+    expect(t, 'the view named zai while zai-lite answered').toContain(
+      'Сейчас отвечает: платная лёгкая (GLM 4.5) · glm-4.5'
+    )
+    expect(t).toContain('до 08:19 UTC')
+    expect(t).toContain('timed out after 120 s')
+  })
 })
 
 describe('wired (source-level: the bot is not booted here)', () => {
