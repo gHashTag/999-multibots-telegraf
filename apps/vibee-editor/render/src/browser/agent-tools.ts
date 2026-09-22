@@ -718,6 +718,13 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      /*
+       * Without an id it used to answer {closed: "undefined"} and close
+       * nothing (2026-09-22): a success that did not happen. The id comes
+       * from browser_status.
+       */
+      if (typeof args.id !== 'string' || !args.id.trim())
+        throw new Error('id is required: take it from browser_status pages')
       const session = await readSession(
         ctx.pool as unknown as Queryable,
         ctx.telegramId
