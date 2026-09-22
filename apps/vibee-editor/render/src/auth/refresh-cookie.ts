@@ -239,6 +239,22 @@ export function authHostRefuses(req: HasHeaders & { url?: string }): boolean {
     .toLowerCase()
     .replace(/:\d+$/, '')
   if (host !== AUTH_HOST) return false
-  const path = String(req.url ?? '').split('?')[0]
-  return !(path.startsWith('/api/auth/') || path === '/health')
+  const raw = String(req.url ?? '').split('?')[0]
+  /*
+   * The raw path AND the path a URL parser makes of it must both be a door.
+   * Some routes match on `new URL(req.url).pathname`, which resolves dot
+   * segments: /api/auth/../feed/x starts like a door and lands on the feed.
+   * A path with a dot segment, an encoded dot, slash or backslash, or a
+   * backslash is no door at all -- none of the doors needs one.
+   */
+  if (/(^|\/)\.{1,2}(\/|$)|%2e|%2f|%5c|\\/i.test(raw)) return true
+  let resolved: string
+  try {
+    resolved = new URL(raw, 'http://auth.invalid').pathname
+  } catch {
+    return true
+  }
+  const door = (path: string) =>
+    path.startsWith('/api/auth/') || path === '/health'
+  return !(door(raw) && door(resolved))
 }

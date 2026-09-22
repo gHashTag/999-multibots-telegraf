@@ -15,6 +15,7 @@ import {
 } from '../lib/appSession'
 import { editorStore } from './Provider'
 import { sessionStore } from '../lib/framedSession'
+import { getInitData } from '../lib/telegram'
 
 // Import shared types from @vibee/atoms
 import type {
@@ -53,6 +54,10 @@ if (typeof window !== 'undefined') {
   // A session that ends takes the person with it: without this the header
   // kept the avatar with neither Login nor Logout, and every action got 401.
   window.addEventListener(APP_SESSION_CLEARED, () => {
+    // Inside Telegram the person comes from the launch, which still signs
+    // every request; a launch session ending does not end them (review,
+    // 2026-09-22). An explicit sign-out clears the person itself (logoutAtom).
+    if (getInitData()) return
     editorStore.set(userAtom, null)
   })
   // A session renewed in a tab that has never seen the person brings them.
@@ -64,6 +69,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener(APP_SESSION_PERSON, event => {
     const person = (event as CustomEvent<TelegramUser>).detail
     if (!person || typeof person.id !== 'number') return
+    // A document signed by launch data acts as the launch's person, whoever
+    // the browser's cookie belongs to.
+    if (getInitData()) return
     const here = editorStore.get(userAtom)
     if (here && Number(here.id) === person.id) return
     editorStore.set(userAtom, { ...person, is_admin: false })

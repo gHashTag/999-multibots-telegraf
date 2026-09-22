@@ -673,14 +673,24 @@ export const REUSE_GRACE_SECONDS = 10
  * was lost; the unused successor is revoked and a new one issued in its place,
  * in one statement, so two retries cannot both win.
  *
- * What is given up, honestly: a thief who replays a spent token within two
- * minutes of the legitimate rotation, before the legitimate client uses its
- * successor, is not detected -- the legitimate client is refused at its next
- * refresh and signs in again. The cookie is HttpOnly, and auth.t27.ai serves
- * nothing a person uploaded (refresh-cookie.ts authHostRefuses), so reaching
- * that token at all is the hard part.
+ * ONLY FOR THE COOKIE. A second review, the same day, broke the first version,
+ * which forgave every token: a copy of a tab's sessionStorage (any script on
+ * the page can read it, EXPIRES_KEY beside it says when the tab will rotate)
+ * replayed inside the window took the chain over, and the tab was only told
+ * "revoked". So the window opens only for a token read from the HttpOnly jar,
+ * which no script can read. A token from a body -- a tab's store, a Mini App
+ * launch, the iOS app -- keeps the old rule: every stale reuse is a theft.
+ *
+ * AND A DISPLACED SUCCESSOR STILL CATCHES THE THIEF. Reissue marks the
+ * successor it revokes (revoked, never used, replaced_by set). If that token
+ * is ever presented, two parties held the chain: the family is revoked as for
+ * any reuse, not answered a quiet "revoked" that let the other chain live.
+ *
+ * The window covers the presentation that has to come: a closed tab never
+ * retries, so the next one is another tab's timer (up to an access token's
+ * life away) or the backoff (up to five minutes).
  */
-export const LOST_REPLY_SECONDS = 120
+export const LOST_REPLY_SECONDS = ACCESS_TTL_SECONDS + 300
 
 export type RotateOutcome =
   | { ok: true; next: RefreshIssue }
@@ -757,6 +767,8 @@ export async function rotateRefreshToken(
       successorHash?: string
       /** When the successor was issued; one issued moments ago is a race. */
       successorCreatedAt?: Date | null
+      /** Revoked by a reissue, never used: presenting it is a second holder. */
+      displaced?: boolean
     } | null>
     consumeAndInsert(
       hash: string,
@@ -777,13 +789,26 @@ export async function rotateRefreshToken(
       expiresAt: Date
     ): Promise<boolean>
   },
-  now?: Date
+  now?: Date,
+  from: {
+    /** The token was read from the HttpOnly cookie (LOST_REPLY_SECONDS). */
+    jar?: boolean
+    /** digest() of the cookie this same request carried, when any. */
+    jarHash?: string
+  } = {}
 ): Promise<RotateOutcome> {
   const t = now ?? new Date()
   const hash = digest(presented)
   const row = await store.find(hash)
   if (!row) return { ok: false, reason: 'unknown' }
-  if (row.revokedAt) return { ok: false, reason: 'revoked' }
+  if (row.revokedAt) {
+    if (row.displaced) {
+      const sessionIds = await store.revokeFamily(row.familyId)
+      for (const sid of sessionIds) revokeNow(sid)
+      return { ok: false, reason: 'reused', familyId: row.familyId }
+    }
+    return { ok: false, reason: 'revoked' }
+  }
   if (row.expiresAt.getTime() <= t.getTime())
     return { ok: false, reason: 'expired' }
   /*
@@ -805,7 +830,14 @@ export async function rotateRefreshToken(
     if (прошлоСекунд <= REUSE_GRACE_SECONDS) {
       return { ok: false, reason: 'raced' }
     }
+    // A tab's stale copy whose successor is already in this browser's jar --
+    // the same request carries it. The reply did arrive, to this browser: a
+    // race between its own tabs, not a theft (review, 2026-09-22).
+    if (from.jarHash && row.successorHash === from.jarHash) {
+      return { ok: false, reason: 'raced' }
+    }
     if (
+      from.jar === true &&
       row.successorUnused === true &&
       row.successorHash &&
       (t.getTime() - row.usedAt.getTime()) / 1000 <= LOST_REPLY_SECONDS &&

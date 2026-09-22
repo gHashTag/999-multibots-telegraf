@@ -52,6 +52,7 @@ describe('a spent token presented again', () => {
           successorUnused: !!n && !n.usedAt && !n.revokedAt,
           successorHash: r.replacedBy ?? '',
           successorCreatedAt: n ? n.createdAt : null,
+          displaced: !!r.revokedAt && !r.usedAt && !!r.replacedBy,
         }
       },
       async consumeAndInsert(h: string, next: string, exp: Date) {
@@ -74,6 +75,7 @@ describe('a spent token presented again', () => {
         if (!r || r.replacedBy !== successor || !n || n.usedAt || n.revokedAt)
           return false
         n.revokedAt = new Date()
+        n.replacedBy = next
         r.replacedBy = next
         rows.set(next, { ...fresh(r.familyId, exp), createdAt: new Date() })
         return true
@@ -103,6 +105,7 @@ describe('a spent token presented again', () => {
   }
 
   const later = (seconds: number) => new Date(Date.now() + seconds * 1000)
+  const JAR = { jar: true }
   const tokenOf = (r: unknown) =>
     (r as { next?: { token: string } }).next?.token ?? ''
 
@@ -111,17 +114,24 @@ describe('a spent token presented again', () => {
     const T = s.seed()
     const lost = tokenOf(await session.rotateRefreshToken(T.token, s.store))
 
-    const retry = await session.rotateRefreshToken(T.token, s.store, later(15))
+    const retry = await session.rotateRefreshToken(
+      T.token,
+      s.store,
+      later(15),
+      JAR
+    )
     expect(retry.ok, JSON.stringify(retry)).toBe(true)
     expect(s.revokedFamilies()).toBe(0)
 
-    // The recovered successor works; the one nobody received does not.
+    // The recovered successor works.
     expect((await session.rotateRefreshToken(tokenOf(retry), s.store)).ok).toBe(
       true
     )
+    // The one nobody received was displaced: only a second holder could ever
+    // present it, so doing so is a theft and ends the family.
     expect(await session.rotateRefreshToken(lost, s.store)).toMatchObject({
       ok: false,
-      reason: 'revoked',
+      reason: 'reused',
     })
   })
 
@@ -131,7 +141,12 @@ describe('a spent token presented again', () => {
     const next = tokenOf(await session.rotateRefreshToken(T.token, s.store))
     expect((await session.rotateRefreshToken(next, s.store)).ok).toBe(true)
 
-    const replay = await session.rotateRefreshToken(T.token, s.store, later(15))
+    const replay = await session.rotateRefreshToken(
+      T.token,
+      s.store,
+      later(15),
+      JAR
+    )
     expect(replay).toMatchObject({ ok: false, reason: 'reused' })
     expect(s.revokedFamilies()).toBe(1)
   })
@@ -143,20 +158,23 @@ describe('a spent token presented again', () => {
     const late = await session.rotateRefreshToken(
       T.token,
       s.store,
-      later(session.LOST_REPLY_SECONDS + 1)
+      later(session.LOST_REPLY_SECONDS + 1),
+      JAR
     )
     expect(late).toMatchObject({ ok: false, reason: 'reused' })
   })
 
   it('the window is minutes, not "however long": a replay an hour later is a theft', async () => {
     // The two cases above move with the constant; this one does not. A
-    // mutation stretching the window to a day must fail here.
-    expect(session.LOST_REPLY_SECONDS).toBeLessThanOrEqual(300)
+    // mutation stretching the window to a day must fail here. Fifteen minutes
+    // is the next presentation a closed tab can get: another tab's timer
+    // (an access token's life) or the backoff (five minutes).
+    expect(session.LOST_REPLY_SECONDS).toBeLessThanOrEqual(900)
     const s = makeStore()
     const T = s.seed()
     await session.rotateRefreshToken(T.token, s.store)
     expect(
-      await session.rotateRefreshToken(T.token, s.store, later(3600))
+      await session.rotateRefreshToken(T.token, s.store, later(3600), JAR)
     ).toMatchObject({ ok: false, reason: 'reused' })
   })
 
@@ -165,8 +183,8 @@ describe('a spent token presented again', () => {
     const T = s.seed()
     await session.rotateRefreshToken(T.token, s.store)
     const [a, b] = await Promise.all([
-      session.rotateRefreshToken(T.token, s.store, later(20)),
-      session.rotateRefreshToken(T.token, s.store, later(20)),
+      session.rotateRefreshToken(T.token, s.store, later(20), JAR),
+      session.rotateRefreshToken(T.token, s.store, later(20), JAR),
     ])
     const outcomes = [a, b].map(r =>
       r.ok ? 'ok' : (r as { reason: string }).reason
@@ -189,10 +207,20 @@ describe('a spent token presented again', () => {
     const spent = s.rows.get(T.hash)!
     spent.usedAt = new Date(Date.now() - 30_000)
     s.rows.get(spent.replacedBy!)!.createdAt = spent.usedAt
-    const won = await session.rotateRefreshToken(T.token, s.store)
+    const won = await session.rotateRefreshToken(
+      T.token,
+      s.store,
+      undefined,
+      JAR
+    )
     expect(won.ok, JSON.stringify(won)).toBe(true)
     // Moments later: the winner's successor is milliseconds old.
-    const after = await session.rotateRefreshToken(T.token, s.store)
+    const after = await session.rotateRefreshToken(
+      T.token,
+      s.store,
+      undefined,
+      JAR
+    )
     expect(after).toMatchObject({ ok: false, reason: 'raced' })
     expect((await session.rotateRefreshToken(tokenOf(won), s.store)).ok).toBe(
       true
@@ -207,5 +235,58 @@ describe('a spent token presented again', () => {
       await session.rotateRefreshToken(T.token, s.store, later(3))
     ).toMatchObject({ ok: false, reason: 'raced' })
     expect(s.revokedFamilies()).toBe(0)
+  })
+
+  it('only the cookie is forgiven: a token from a body replayed in the window is a theft', async () => {
+    // A tab's sessionStorage is readable by any script on the page, and the
+    // expiry beside it says when the tab will rotate. A copy replayed inside
+    // the window used to take the chain over (second review, 2026-09-22).
+    const s = makeStore()
+    const T = s.seed()
+    await session.rotateRefreshToken(T.token, s.store)
+    const replay = await session.rotateRefreshToken(T.token, s.store, later(15))
+    expect(replay).toMatchObject({ ok: false, reason: 'reused' })
+    expect(s.revokedFamilies()).toBe(1)
+  })
+
+  it('a displaced successor presented later means two holders: the family is revoked', async () => {
+    // The thief replayed the jar token inside the window and got the chain;
+    // the legitimate holder's successor was displaced. When it surfaces, the
+    // family ends, and the thief's chain with it.
+    const s = makeStore()
+    const T = s.seed()
+    const held = tokenOf(await session.rotateRefreshToken(T.token, s.store))
+    const taken = await session.rotateRefreshToken(
+      T.token,
+      s.store,
+      later(15),
+      JAR
+    )
+    expect(taken.ok).toBe(true)
+    const surfaced = await session.rotateRefreshToken(held, s.store)
+    expect(surfaced).toMatchObject({ ok: false, reason: 'reused' })
+    expect(s.revokedFamilies()).toBe(1)
+    expect(
+      await session.rotateRefreshToken(tokenOf(taken), s.store)
+    ).toMatchObject({ ok: false, reason: 'revoked' })
+  })
+
+  it("a tab's stale copy whose successor is in this request's own cookie is a race", async () => {
+    // Duplicated tabs during the move to the cookie: one moved the family into
+    // the jar, its copy still holds the old token and sends it with the jar.
+    const s = makeStore()
+    const T = s.seed()
+    const next = tokenOf(await session.rotateRefreshToken(T.token, s.store))
+    const stale = await session.rotateRefreshToken(
+      T.token,
+      s.store,
+      later(30),
+      {
+        jarHash: session.digest(next),
+      }
+    )
+    expect(stale).toMatchObject({ ok: false, reason: 'raced' })
+    expect(s.revokedFamilies()).toBe(0)
+    expect((await session.rotateRefreshToken(next, s.store)).ok).toBe(true)
   })
 })

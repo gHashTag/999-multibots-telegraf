@@ -11947,6 +11947,8 @@ async function main() {
    * what broke both (see the comment on `wss`).
    */
   server.on('upgrade', async (req, socket, head) => {
+    // auth.t27.ai upgrades nothing (src/auth/refresh-cookie.ts authHostRefuses).
+    if (authHostRefuses(req)) return refuseUpgrade(socket, 404)
     const path = (req.url || '').split('?')[0]
     if (!isLivePath(path)) {
       wss.handleUpgrade(req, socket, head, ws =>
