@@ -23,7 +23,7 @@
  * Pricing.css): green glow on black, a pill badge, gradient title, a
  * highlighted price card, a glowing green CTA. Same tokens, no new colours.
  */
-import { useState, type ChangeEvent, type ReactNode } from 'react'
+import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
   Bot,
@@ -57,6 +57,7 @@ import { TelegramLoginButton } from '../Auth/TelegramLoginButton'
 import {
   WELCOME_EXIT_ROUTE,
   WELCOME_STEPS,
+  clubStepIsOver,
   composeSoul,
   soulHasSubstance,
   soulSeed,
@@ -172,6 +173,7 @@ export function WelcomeOnboarding({
 
       {step === 'club' && (
         <ClubStep
+          deliberate={startAt === 'club'}
           onJoined={() =>
             setStep(
               connected === true ? (facts.soul ? 'done' : 'soul') : 'connect'
@@ -286,7 +288,7 @@ function StoryStep(props: {
 
 /* ────────────────────────────────────────────────────────────────────────── */
 
-function ClubStep(props: { onJoined: () => void }) {
+function ClubStep(props: { onJoined: () => void; deliberate?: boolean }) {
   const { t, lang } = useLanguage()
   const status = useAtomValue(clubStatusAtom)
   const busy = useAtomValue(clubBusyAtom)
@@ -300,6 +302,22 @@ function ClubStep(props: { onJoined: () => void }) {
   // required", app.t27.ai/queen 2026-09-21), and an owner or keeper -- who
   // enters free -- would be shown a price that is not theirs. Sign in first.
   const anonymous = status?.anonymous === true
+
+  /*
+   * A MEMBER IS NEVER SHOWN A PRICE (welcomeSteps.ts, `clubStepIsOver`).
+   *
+   * The status is not fixed while this card is on screen: signing in through
+   * the widget above reloads it, and an invited person goes from "we do not
+   * know you" straight to "you are already in". `welcomeStart` ran long
+   * before that and cannot move the road, so without this the card simply
+   * re-drew as the paywall and sold a month to somebody who had one.
+   */
+  const over = clubStepIsOver(status, props.deliberate)
+  const onJoined = props.onJoined
+  useEffect(() => {
+    if (over) onJoined()
+  }, [over, onJoined])
+
   const signIn = () => {
     if (IS_EMBED) markEmbedSignInNeeded()
     else openLogin(null)
@@ -331,6 +349,10 @@ function ClubStep(props: { onJoined: () => void }) {
    * reachable while we do not know whose Stars they are.
    */
   const unknownPerson = status?.anonymous === true
+
+  // The effect above is already leaving this step; drawing the price for the
+  // one frame in between is the whole defect in miniature.
+  if (over) return null
 
   if (unknownPerson) {
     return (
