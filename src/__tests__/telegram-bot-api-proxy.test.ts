@@ -205,17 +205,23 @@ describe('the allow-list from BOT_API_ALLOWED_IDS (the move without a shell)', (
     expect(allowedBots.parseAllowedVariable('').size).toBe(0)
   })
 
-  it('a malformed entry stops the start, and a pasted token is never repeated back', () => {
-    const pasted = `Moved_test_bot=900000011,${STRANGER}`
-    let message = ''
-    try {
-      allowedBots.parseAllowedVariable(pasted)
-    } catch (e) {
-      message = String((e as Error).message)
+  it('a malformed entry is skipped and reported by position; a pasted token is never repeated back', () => {
+    const said: string[] = []
+    const m = allowedBots.parseAllowedVariable(
+      `Moved_test_bot=900000011,${STRANGER};Some_bot`,
+      (line: string) => said.push(line)
+    )
+    // Skipping only shrinks the list: a crash loop would silence every bot.
+    expect([...m.keys()]).toEqual(['900000011'])
+    expect(said).toHaveLength(2)
+    expect(said[0]).toContain('BOT_API_ALLOWED_IDS entry 2 of 3')
+    expect(said[0]).toContain('rotate that token')
+    expect(said[1]).toContain('entry 3 of 3')
+    for (const line of said) {
+      expect(line).not.toContain('ZZstranger')
+      expect(line).not.toContain('900000099')
+      expect(line).not.toContain('Some_bot')
     }
-    expect(message).toContain('BOT_API_ALLOWED_IDS: entry 2 of 2')
-    expect(message).not.toContain('ZZstranger')
-    expect(message).not.toContain('900000099')
   })
 
   it('a bot named only by the variable gets through; the file cannot take it away', async () => {

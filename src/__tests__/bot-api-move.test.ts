@@ -347,62 +347,111 @@ describe('--forget', () => {
 })
 
 describe('--cloud-logout (the move without a shell)', () => {
+  const CASHIER = '900000003:ZZcashiercashiercashiercashiercashie'
   const happy = {
     'cloud getMe': { ok: true, result: ME },
     'cloud logOut': { ok: true, result: true },
   }
-  // What `railway run --service 999-multibots-telegraf` puts in the env.
-  const service = {
+  // What `railway run --service vibee-render` puts in the env.
+  const service: Record<string, string> = {
     BOT_API_MOVE_TOKEN: '',
     BOT_TOKEN_1: OTHER,
     BOT_TOKEN_7: MOVED,
+    TOKENS_PAYMENT_BOT_TOKEN: CASHIER,
     BOT_API_LOCAL_BOTS: 'Moved_test_bot=900000011',
     TELEGRAM_WORK_DIR: '/nonexistent/volume',
   }
+  const ARGV = ['Moved_test_bot=900000011', '--cloud-logout', '--pointed']
+
+  /** Like run(), but a prompt is a failure: the token must come from the env. */
+  function runCloud(
+    argv: string[],
+    replies: Record<string, Reply | 'down'>,
+    env: Record<string, string>
+  ) {
+    const out: string[] = []
+    const { fn, calls } = fakeFetch(replies)
+    const p = move.main(argv, {
+      env,
+      fetchImpl: fn,
+      print: (l: string) => out.push(l),
+      ask: async () => {
+        throw new Error('prompted for a token')
+      },
+    })
+    return { p, out, calls }
+  }
 
   it('finds the token by the bot id, checks it on the cloud, logs out -- and calls nothing else', async () => {
-    const { p, out, calls } = run(
-      ['Moved_test_bot=900000011', '--cloud-logout'],
-      happy,
-      service
-    )
+    const { p, out, calls } = runCloud(ARGV, happy, service)
     expect(await p).toBe('Moved_test_bot=900000011')
     expect(calls).toEqual(['cloud getMe', 'cloud logOut'])
     const said = out.join('\n')
     expect(said).toContain('BOT_API_ALLOWED_IDS=Moved_test_bot=900000011')
     expect(said).toContain('logged out of the cloud at')
+    expect(said).toContain('Do NOT run --cloud-logout again')
     noSecret(out)
   })
 
-  it('refuses before any call unless BOT_API_LOCAL_BOTS already points the bot at our server', async () => {
-    const { p, calls } = run(
+  it('without --pointed: refused before any call, naming the boot lines to look for', async () => {
+    const { p, calls } = runCloud(
       ['Moved_test_bot=900000011', '--cloud-logout'],
       happy,
-      { ...service, BOT_API_LOCAL_BOTS: 'Other_test_bot=900000002' }
+      service
     )
+    await expect(p).rejects.toThrow('--pointed')
+    expect(calls).toEqual([])
+  })
+
+  it('refuses before any call unless BOT_API_LOCAL_BOTS already points the bot at our server', async () => {
+    const { p, calls } = runCloud(ARGV, happy, {
+      ...service,
+      BOT_API_LOCAL_BOTS: 'Other_test_bot=900000002',
+    })
     await expect(p).rejects.toThrow('Point first')
     expect(calls).toEqual([])
   })
 
+  it('a BOT_API_LOCAL_BOTS the services would refuse at boot is a refusal here too', async () => {
+    // The services refuse a bare username: the old processes keep polling the
+    // cloud, and a logOut now would split the bot.
+    for (const value of [
+      'Some_bot,Moved_test_bot=900000011',
+      `Moved_test_bot=900000011;${OTHER}`,
+      'Moved_test_bot=900000011,Renamed_bot=900000011',
+    ]) {
+      const { p, calls } = runCloud(ARGV, happy, {
+        ...service,
+        BOT_API_LOCAL_BOTS: value,
+      })
+      const err = await p.catch((e: Error) => e)
+      expect(String(err), value).toContain('Nothing was called')
+      expect(String(err)).not.toContain('ZZother')
+      expect(calls).toEqual([])
+    }
+  })
+
   it('never moves the admin bot or the default cashier', async () => {
     for (const name of ['BOT_TOKEN_1', 'TOKENS_PAYMENT_BOT_TOKEN']) {
-      const { p, calls } = run(
-        ['Moved_test_bot=900000011', '--cloud-logout'],
-        happy,
-        {
-          ...service,
-          BOT_TOKEN_1: OTHER,
-          [name]: MOVED,
-        }
-      )
+      const { p, calls } = runCloud(ARGV, happy, { ...service, [name]: MOVED })
       await expect(p).rejects.toThrow('never moves')
       expect(calls).toEqual([])
     }
   })
 
+  it('fails closed when either never-move token is absent -- the bot service has no cashier token', async () => {
+    for (const name of ['BOT_TOKEN_1', 'TOKENS_PAYMENT_BOT_TOKEN']) {
+      const env = { ...service }
+      delete env[name]
+      const { p, calls } = runCloud(ARGV, happy, env)
+      await expect(p).rejects.toThrow('railway run --service vibee-render')
+      expect(calls).toEqual([])
+    }
+  })
+
   it('needs username=id, like --back', async () => {
-    const { p, calls } = run(
-      ['Moved_test_bot', '--cloud-logout'],
+    const { p, calls } = runCloud(
+      ['Moved_test_bot', '--cloud-logout', '--pointed'],
       happy,
       service
     )
@@ -412,11 +461,10 @@ describe('--cloud-logout (the move without a shell)', () => {
 
   it('two different tokens for one id is a refusal, not a guess -- and neither is shown', async () => {
     const stale = '900000011:ZZmovedOLDmovedOLDmovedOLDmovedOLDmo'
-    const { p, calls } = run(
-      ['Moved_test_bot=900000011', '--cloud-logout'],
-      happy,
-      { ...service, BOT_TOKEN_9: stale }
-    )
+    const { p, calls } = runCloud(ARGV, happy, {
+      ...service,
+      BOT_TOKEN_9: stale,
+    })
     const err = await p.catch((e: Error) => e)
     expect(String(err)).toContain('2 different tokens')
     expect(String(err)).not.toContain('ZZmoved')
@@ -424,8 +472,8 @@ describe('--cloud-logout (the move without a shell)', () => {
   })
 
   it('a token that is somebody else on the cloud stops before logOut', async () => {
-    const { p, calls } = run(
-      ['Moved_test_bot=900000011', '--cloud-logout'],
+    const { p, calls } = runCloud(
+      ARGV,
       {
         'cloud getMe': {
           ok: true,
@@ -438,9 +486,43 @@ describe('--cloud-logout (the move without a shell)', () => {
     expect(calls).toEqual(['cloud getMe'])
   })
 
+  it('a cloud it cannot reach, or a refused token, says STOP -- never "go on"', async () => {
+    for (const reply of [
+      'down' as const,
+      { ok: false, description: 'Unauthorized', status: 401 },
+      { ok: false, description: 'HTTP 403', status: 403 },
+    ]) {
+      const { p, calls } = runCloud(ARGV, { 'cloud getMe': reply }, service)
+      const err = String(await p.catch((e: Error) => e))
+      expect(err).toContain('STOP')
+      expect(err).toContain('do NOT add it to BOT_API_ALLOWED_IDS')
+      expect(err).not.toContain('Go on')
+      expect(err).not.toContain('ZZmoved')
+      expect(calls).toEqual(['cloud getMe'])
+    }
+  })
+
+  it('a bot the cloud already logged out: go on with step 3, and do not run this again', async () => {
+    const { p, calls } = runCloud(
+      ARGV,
+      {
+        'cloud getMe': {
+          ok: false,
+          description: 'Bad Request: Logged out',
+          status: 400,
+        },
+      },
+      service
+    )
+    const err = String(await p.catch((e: Error) => e))
+    expect(err).toContain('Go on with step 3')
+    expect(err).toContain('Do NOT run --cloud-logout again')
+    expect(calls).toEqual(['cloud getMe'])
+  })
+
   it('a failed logOut says the bot is still on the cloud', async () => {
-    const { p } = run(
-      ['Moved_test_bot=900000011', '--cloud-logout'],
+    const { p } = runCloud(
+      ARGV,
       {
         'cloud getMe': { ok: true, result: ME },
         'cloud logOut': { ok: false, description: 'Too Many Requests' },
@@ -449,38 +531,84 @@ describe('--cloud-logout (the move without a shell)', () => {
     )
     await expect(p).rejects.toThrow('still on the cloud')
   })
+
+  it('the dry run finds the token and says whether the real run would be refused', async () => {
+    const ok = runCloud(['Moved_test_bot=900000011'], {}, service)
+    expect(await ok.p).toBe('plan')
+    expect(ok.calls).toEqual([])
+    expect(ok.out.join('\n')).toContain('token: found, for bot id 900000011')
+    expect(ok.out.join('\n')).toContain('checks of step 0 pass')
+    const refused = runCloud(
+      ['Moved_test_bot=900000011'],
+      {},
+      {
+        ...service,
+        BOT_API_LOCAL_BOTS: '',
+      }
+    )
+    await refused.p
+    expect(refused.out.join('\n')).toContain('would be REFUSED')
+    noSecret(ok.out)
+  })
+
+  it('a pasted token as the bot argument is never echoed', async () => {
+    const { p, calls } = runCloud([MOVED, '--cloud-logout'], happy, service)
+    const err = String(await p.catch((e: Error) => e))
+    expect(err).toContain('not shown')
+    expect(err).not.toContain('ZZmoved')
+    expect(calls).toEqual([])
+  })
 })
 
 describe('a bot let through by BOT_API_ALLOWED_IDS', () => {
-  it('--back refuses and names the variable when only the variable lists the bot', async () => {
-    const dir = volume({ held: true })
-    const { p, calls } = run(
-      ['Moved_test_bot=900000011', '--back'],
+  const both = {
+    'ours getMe': { ok: true, result: ME },
+    'ours close': { ok: true, result: true },
+  }
+
+  it('--back refuses and calls nothing, whether or not the file lists it too', async () => {
+    for (const listed of [false, true]) {
+      const dir = volume({ held: true, listed })
+      const { p, calls } = run(['Moved_test_bot=900000011', '--back'], both, {
+        TELEGRAM_WORK_DIR: dir,
+        BOT_API_ALLOWED_IDS: 'Moved_test_bot=900000011',
+      })
+      await expect(p).rejects.toThrow('BOT_API_ALLOWED_IDS')
+      expect(calls).toEqual([])
+      expect(listedIds(dir)).toEqual(listed ? ['900000011'] : [])
+    }
+  })
+
+  it('--forget clears the file and says the proxy still lets it through', async () => {
+    const dir = volume({ held: true, listed: true })
+    const { p, out, calls } = run(
+      ['Moved_test_bot=900000011', '--forget'],
       {},
       {
         TELEGRAM_WORK_DIR: dir,
+        BOT_API_MOVE_TOKEN: '',
+        BOT_API_ALLOWED_IDS: 'Moved_test_bot=900000011',
+      }
+    )
+    expect(await p).toBe(true)
+    expect(calls).toEqual([])
+    expect(listedIds(dir)).toEqual([])
+    expect(out.join('\n')).toContain('STILL lets it through')
+  })
+
+  it('--forget on a bot only the variable names refuses and names the variable', async () => {
+    const dir = volume({ held: true })
+    const { p, calls } = run(
+      ['Moved_test_bot=900000011', '--forget'],
+      {},
+      {
+        TELEGRAM_WORK_DIR: dir,
+        BOT_API_MOVE_TOKEN: '',
         BOT_API_ALLOWED_IDS: 'Moved_test_bot=900000011',
       }
     )
     await expect(p).rejects.toThrow('BOT_API_ALLOWED_IDS')
     expect(calls).toEqual([])
-  })
-
-  it('--back on a bot in both says the proxy still lets it through', async () => {
-    const dir = volume({ held: true, listed: true })
-    const { p, out } = run(
-      ['Moved_test_bot=900000011', '--back'],
-      {
-        'ours getMe': { ok: true, result: ME },
-        'ours close': { ok: true, result: true },
-      },
-      {
-        TELEGRAM_WORK_DIR: dir,
-        BOT_API_ALLOWED_IDS: 'Moved_test_bot=900000011',
-      }
-    )
-    expect(await p).toBe(true)
-    expect(out.join('\n')).toContain('BOT_API_ALLOWED_IDS still names it')
   })
 })
 
