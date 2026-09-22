@@ -33,9 +33,14 @@
  * then add it here -- the redeploy that brings the variable in is the moment
  * the bot may log in. The price is that redeploy: seconds in which every bot
  * already here is unreachable, which the bot service rides out by retrying.
- * The variable is strict where the file is lenient: a malformed entry stops
- * the container, and the error names the entry's position, never its text --
- * the likeliest mistake is a pasted token.
+ *
+ * A malformed entry in the variable is SKIPPED and reported by its position,
+ * never by its text -- the likeliest mistake is a pasted token. Not a refusal
+ * to start: this service has a volume, so Railway stops the old container
+ * before the new one runs, and a crash loop here would silence every bot
+ * already moved (all of them logged out of the cloud). Dropping an entry can
+ * only shrink the list, so skipping is the safe way to be wrong. The boot line
+ * prints the ids that did get in, so a mistyped id is visible.
  *
  * Format: one bot per line, `username=id` or bare `id`; `#` starts a comment.
  * Ids only -- never a token. The variable: the same entries, comma-separated.
@@ -61,24 +66,32 @@ function parseAllowedBots(text) {
 
 const VARIABLE = 'BOT_API_ALLOWED_IDS'
 
+const TOKEN_SHAPED = /\d{5,}:[A-Za-z0-9_-]{20,}/
+
 /**
- * BOT_API_ALLOWED_IDS -> Map(id -> username|null). Throws on any entry that is
- * not `username=id` or an id, naming only its position.
+ * BOT_API_ALLOWED_IDS -> Map(id -> username|null), separated like
+ * BOT_API_LOCAL_BOTS (comma, semicolon, space). An entry that is not
+ * `username=id` or an id is skipped and passed to `onSkip` as one sentence
+ * naming its position -- never its text.
  */
-function parseAllowedVariable(value) {
+function parseAllowedVariable(value, onSkip = () => {}) {
   const out = new Map()
   const entries = String(value ?? '')
-    .split(/[\s,]+/)
+    .split(/[\s,;]+/)
     .filter(Boolean)
   entries.forEach((entry, i) => {
     const m = LINE.exec(entry)
-    if (!m) {
-      throw new Error(
-        `${VARIABLE}: entry ${i + 1} of ${entries.length} is not username=id or a bot id ` +
-          '(its text is not shown: a pasted token would be the likeliest mistake)'
-      )
+    if (m) {
+      out.set(m[2], m[1] || out.get(m[2]) || null)
+      return
     }
-    out.set(m[2], m[1] || out.get(m[2]) || null)
+    const place = `${VARIABLE} entry ${i + 1} of ${entries.length}`
+    onSkip(
+      TOKEN_SHAPED.test(entry)
+        ? `${place} looks like a bot TOKEN and is skipped. Write the id (the digits ` +
+            'before the colon) and rotate that token: it has been in a dashboard field.'
+        : `${place} is not username=id or a bot id and is skipped (text not shown).`
+    )
   })
   return out
 }

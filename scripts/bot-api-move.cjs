@@ -15,8 +15,8 @@
  * Without a shell in the Bot API container, the one mode that runs from here
  * (README, step 4b):
  *
- *   railway run --service 999-multibots-telegraf -- \
- *     node scripts/bot-api-move.cjs <username>=<id> --cloud-logout
+ *   railway run --service vibee-render -- \
+ *     node scripts/bot-api-move.cjs <username>=<id> --cloud-logout --pointed
  */
 
 const move = require('../deployment/telegram-bot-api/bot-api-move.cjs')

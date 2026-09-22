@@ -18,7 +18,7 @@ host from the token it holds, and a bot not listed stays on the cloud.
 | `Dockerfile`       | `aiogram/telegram-bot-api:10.3` pinned by digest, plus node                                             |
 | `start.mjs`        | runs the server on loopback, the proxy and the file endpoint; if any part stops, the container stops    |
 | `api-proxy.mjs`    | port 8081: only bots on the allow-list, and no `file:/` value anywhere in a request                     |
-| `allowed-bots.cjs` | the allow-list: a file on the volume, written only by the move script                                   |
+| `allowed-bots.cjs` | the allow-list: a file on the volume written by the move script, plus `BOT_API_ALLOWED_IDS` (step 4b)   |
 | `file-server.mjs`  | port 8082: read-only GET/HEAD of exactly `<root>/<bot>/<media dir>/<file>`, the paths `getFile` returns |
 | `sweep.mjs`        | removes downloaded media older than `FILES_TTL_HOURS` (default 24)                                      |
 | `bot-api-move.cjs` | moves ONE bot here (`--apply`) or releases it (`--back`, `--forget`); dry run by default                |
@@ -59,7 +59,9 @@ on the server.
 
 The proxy also lets through the ids in **`BOT_API_ALLOWED_IDS`** on this
 service — for a move without a shell in this container (step 4b). A malformed
-entry stops the container; the log names the entry's position, never its text.
+entry is skipped and logged by its position, never its text; it does not stop
+the container, because a crash loop here would silence every bot already moved.
+The boot line lists the ids it took, so a mistyped id shows.
 
 ## Variables — by name only
 
@@ -175,14 +177,14 @@ cloud.
 
 2.  Redeploy **999-multibots-telegraf and vibee-render**, and wait until both
     are live. The bot log says `Bot API: 1 of 12 bot(s) on our server (<id>)`
-    and then, once a minute, `getMe still fails (403: Forbidden: bot <id> is
-not on this server's allow-list ...)`. That is expected: both services now
-    send this bot only to our server, and the proxy refuses it until it moves.
-    **From here the bot is silent**, so go straight on.
+    and then, once a minute, that `getMe still fails` with a 403 naming the
+    allow-list. That is expected: both services now send this bot only to our
+    server, and the proxy refuses it until it moves. **From here the bot is
+    silent**, so go straight on.
 
-                If either redeploy does not go live, nothing has moved: the old processes
-                still serve the bot from the cloud. Take the entry out again (or fix and
-                redeploy) — and do not run step 3.
+    If either redeploy does not go live, nothing has moved: the old processes
+    still serve the bot from the cloud. Take the entry out again (or fix and
+    redeploy) — and do not run step 3.
 
 3.  Move it:
 
@@ -233,28 +235,42 @@ of which needs this container's shell; the property is the one above — no
 process points the bot at the cloud when it logs out, and this server never
 holds the bot while the cloud does.
 
-1.  Point first: steps 4.1 and 4.2 exactly as above. The bot log says
-    `Bot API: 1 of N bot(s) on our server (<id>)`; the bot is silent from here.
+1.  Point first: steps 4.1 and 4.2 exactly as above, and make sure
+    vibee-render carries the reference
+    `BOT_API_LOCAL_BOTS=${{999-multibots-telegraf.BOT_API_LOCAL_BOTS}}`. Wait for
+    BOTH boot lines from the deployments that are live now: the bot's
+    `Bot API: 1 of N bot(s) on our server (<id>)` and the render's line naming
+    the bot on our server. The bot is silent from here. If either redeploy does
+    not go live, do **not** run step 2: take the entry out and redeploy.
 
-2.  Log it out of the cloud, from a checkout:
+2.  Log it out of the cloud — **once** — from a checkout, under the render's
+    variables (the only service holding the farm's tokens and both bots that
+    never move):
 
-        railway run --service 999-multibots-telegraf -- node scripts/bot-api-move.cjs <username>=<id>                  # dry run
-        railway run --service 999-multibots-telegraf -- node scripts/bot-api-move.cjs <username>=<id> --cloud-logout
+        railway run --service vibee-render -- node scripts/bot-api-move.cjs <username>=<id>                               # dry run
+        railway run --service vibee-render -- node scripts/bot-api-move.cjs <username>=<id> --cloud-logout --pointed
 
-    It refuses before any call unless that service's `BOT_API_LOCAL_BOTS`
-    names the id and the bot is neither the admin bot nor the default cashier.
-    It finds the token among the service's variables by the id (nothing typed,
-    nothing printed), checks it on the cloud, logs out, and prints the time —
-    note it for a rollback.
+    The dry run says whether the real run would be refused, and why.
+    `--pointed` is your statement that you saw both boot lines of step 1. The
+    real run refuses before any call unless both never-move tokens are in the
+    environment and the bot is neither, and unless `BOT_API_LOCAL_BOTS` parses
+    as the services parse it and names the id. It finds the token among the
+    variables by the id (nothing typed, nothing printed), checks it on the
+    cloud, logs out, and prints the time — note it for a rollback.
 
-3.  Let it through here:
+    If the cloud check fails for any reason other than "logged out" (no
+    network, 401, a proxy page), the script says **STOP** and nothing changed:
+    do not do step 3. Never run step 2 twice for a bot: a cloud `getMe` more
+    than 10 minutes after the logOut logs it back in there.
 
-        railway variables --service telegram-bot-api --set 'BOT_API_ALLOWED_IDS=<username>=<id>'
+3.  Let it through here. `--set` replaces the whole value, so read it first:
 
-    (append with a comma when the list is not empty). The redeploy restarts
-    this server — seconds in which bots already here are unreachable; the bot
-    service retries them. When it is live the boot line says
-    `... 1 in BOT_API_ALLOWED_IDS`, and within a minute the bot log says
+        railway variables --service telegram-bot-api --kv | grep '^BOT_API_ALLOWED_IDS='
+        railway variables --service telegram-bot-api --set 'BOT_API_ALLOWED_IDS=<current>,<username>=<id>'
+
+    The redeploy restarts this server — seconds in which bots already here are
+    unreachable; the bot service retries them. The boot line lists the ids it
+    took (`BOT_API_ALLOWED_IDS <id>`); within a minute the bot log says
     `Bot API: listed bot <id> answers; launching it`.
 
 If step 3's redeploy does not go live, the bot is off the cloud and not here:
@@ -264,8 +280,10 @@ fix the redeploy, or roll back (below, "our server is down").
 redeploy restarts this server, which then runs no polling bot until one is
 requested — what `close` would do — and the proxy refuses the bot, so nothing
 launches it here again. Then remove it from `BOT_API_LOCAL_BOTS` and redeploy
-both services, not earlier than 10 minutes after the logOut. `--back` inside the
-container refuses a bot that only the variable lets through, and says so.
+both services, not earlier than 10 minutes after the logOut. Inside the
+container, `--back` refuses a bot the variable lets through (a close would be
+undone within seconds), and `--forget` clears the file and names the variable
+step that remains.
 
 ### 5. When this server stops answering
 
