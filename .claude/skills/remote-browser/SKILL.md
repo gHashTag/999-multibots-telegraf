@@ -251,3 +251,31 @@ each fell to one measurement.
 - A view URL with `?t=` in a tool call is a credential in the transcript:
   close the session afterwards (`DELETE /api/browser/session`, logins kept)
   so the token dies.
+
+## The wheel is real (2026-09-22, #2794)
+
+The person takes the wheel by touching the picture and gives it back with
+"Hand back". The server knows: `person_wheel_until` on `browser_sessions`,
+a 10-minute lease renewed by every touch (the app renews at most every
+30 s). While it holds, the acting tools -- open, click, type, evaluate,
+close tab -- throw WHEEL_TAKEN with the reason; status, read, screenshot
+and ask-permission go on. `POST /api/browser/wheel?holder=person|agent` is
+the person's door only: an agent key gets 403 (checked live). Every step,
+refusals included, is in the journal: `tri journal`.
+
+If an agent "does nothing" in a live browser, first `tri journal` -- a row
+of refused clicks with "taken the wheel" means the person is driving, not
+that the agent is broken.
+
+**Who drives is in the session answer** (`GET /api/browser/session` ->
+`wheel: 'person' | 'agent'`, #2797), so a page opened later shows the
+truth. Both doors take and give the wheel: the app's Browser tab and the
+Queen's BROWSER panel (gHashTag/trinity#1109). A press inside a frame
+never bubbles to the page around it -- listen on the frame's OWN window
+(same origin), and re-attach on every load: the window reloads itself to
+reconnect.
+
+**Probes stay out of the person's journal** (#2803). A health check that
+calls the person's browser tools sets MCP `params._meta.probe: true`; /mcp
+passes it as `ctx.probe`, the journal keeps probes apart (last 20) and
+`GET /api/browser/journal` hides them unless `probes=1`.

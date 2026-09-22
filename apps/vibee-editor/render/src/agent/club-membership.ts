@@ -50,6 +50,7 @@ import { record } from '../hive/journal'
 import { keepers } from '../hive/roles'
 import { clubGuests, isClubGuest } from './club-guests'
 import { noteCashierFailure, noteInvoiceMinted } from './payment-alarms'
+import { telegramApiFor } from '../telegram-api'
 
 type Queryable = {
   query: (sql: string, params?: unknown[]) => Promise<any>
@@ -77,12 +78,88 @@ export function clubTitle(): string {
   return 'Trinity S³AI — клуб, 30 дней' // cyrillic-ok: invoice copy
 }
 
+/**
+ * What membership opens. The invoice, the price list and the agent's prompt
+ * all read this one string, so the product cannot be described three ways.
+ */
+export const CLUB_INSIDE =
+  'цифровой двойник: личка, группы, рилсы, контент-план, блог' // cyrillic-ok: offer copy
+
 export function clubDescription(): string {
   return (
-    'Цифровой двойник: личка, группы, рилсы, контент-план, блог. ' + // cyrillic-ok: invoice copy
+    `${CLUB_INSIDE[0].toUpperCase()}${CLUB_INSIDE.slice(1)}. ` +
     `${clubTokensPerPeriod()} токенов на генерации зачисляются каждые 30 дней.` // cyrillic-ok: invoice copy
   )
 }
+
+/**
+ * THE CLUB OFFER, ONE SOURCE FOR EVERY PLACE THE AGENT SPEAKS.
+ *
+ * Measured 2026-09-22: in thirty days the agent never once named the club's
+ * price. Its `pricing` tool and that tool's description said "there is no
+ * club" -- copy left from the 2026-09-08 tokens-only decision -- while the
+ * system prompt, written a day later, told it to sell the club at 10 000
+ * Stars. The prompt sent the agent to `pricing`, and `pricing` contradicted
+ * the prompt. Four places carried their own copy of the offer and each was
+ * right on a different day.
+ *
+ * So the numbers come from the constants above (the invoice charges by them),
+ * the product from CLUB_INSIDE (the invoice describes itself by it), and the
+ * pricing tool, its description and the prompt all read THIS. A price change
+ * is one constant; nobody is left to forget a copy.
+ */
+export interface ClubOffer {
+  stars: number
+  periodDays: number
+  /** Tokens credited back on every charge (30% on the top pack rate). */
+  back: number
+  sharePercent: number
+  inside: string
+  /** Where membership is bought. The agent does not mint this invoice. */
+  join: string
+  /** Who is let in without paying. */
+  free: string
+}
+
+/** 10000 -> "10 000": the grouping every Russian surface already uses. */
+export function spacedNumber(n: number): string {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+}
+
+export function clubOffer(): ClubOffer {
+  return {
+    stars: CLUB_STARS,
+    periodDays: Math.round(CLUB_PERIOD_S / 86_400),
+    back: clubTokensPerPeriod(),
+    sharePercent: Math.round(CLUB_TOKEN_SHARE * 100),
+    inside: CLUB_INSIDE,
+    join:
+      'в профиле мини-аппа, звёздами Telegram; счёт выставляет приложение, а не агент; ' + // cyrillic-ok: offer copy
+      'отмена — в настройках Telegram', // cyrillic-ok: offer copy
+    free:
+      'владельцам ботов платформы и хранителям — без оплаты, и те же токены ' + // cyrillic-ok: offer copy
+      'каждые 30 дней начисляются сами; счёт за клуб им не выставляют', // cyrillic-ok: offer copy
+  }
+}
+
+/** The offer in one sentence, as the agent may say it. */
+export function clubOfferLine(): string {
+  const o = clubOffer()
+  return (
+    `Клуб — ${o.inside}: ${spacedNumber(o.stars)} звёзд за ${o.periodDays} дней, ` + // cyrillic-ok: offer copy
+    `${o.sharePercent}% каждого платежа возвращается токенами на баланс ` + // cyrillic-ok: offer copy
+    `(${spacedNumber(o.back)}).` // cyrillic-ok: offer copy
+  )
+}
+
+/**
+ * WHEN THE CLUB MAY BE NAMED. The owner's rule: the person has to want to buy
+ * before anything is sold. A price, a purchase or the twin is that wish; a
+ * greeting, a request for a picture or silence is not.
+ */
+export const CLUB_OFFER_WHEN =
+  'Клуб называй, только когда человек сам спросил о цене, о покупке, о клубе ' + // cyrillic-ok: offer copy
+  'или о своём цифровом двойнике; первым не предлагай.' // cyrillic-ok: offer copy
 
 export const CLUB_PATHS = [
   '/api/club/invoice',
@@ -347,7 +424,7 @@ export async function mintClubInvoice(
   const payload = `club:${CLUB_STARS}:${forId}`
   const doFetch = input.fetchImpl ?? fetch
   const r = await doFetch(
-    `https://api.telegram.org/bot${input.botToken}/createInvoiceLink`,
+    `${telegramApiFor(input.botToken)}/createInvoiceLink`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -704,7 +781,7 @@ export async function fetchStarTransactions(
   limit = 100
 ): Promise<StarTx[]> {
   const r = await fetchImpl(
-    `https://api.telegram.org/bot${botToken}/getStarTransactions?limit=${limit}`
+    `${telegramApiFor(botToken)}/getStarTransactions?limit=${limit}`
   )
   const d = (await r.json()) as {
     ok?: boolean

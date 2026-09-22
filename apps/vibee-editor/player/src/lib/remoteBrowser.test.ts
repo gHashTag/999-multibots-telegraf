@@ -44,6 +44,26 @@ describe('reading the session', () => {
     })
   })
 
+  it('says who drives, and only in the two words it knows', async () => {
+    const { readBrowserSession } = await load()
+    apiFetch.mockResolvedValue({
+      ok: true,
+      state: 'live',
+      sessionId: 's1',
+      viewUrl: '/live/s1?t=x',
+      wheel: 'person',
+    })
+    expect((await readBrowserSession()).wheel).toBe('person')
+    apiFetch.mockResolvedValue({
+      ok: true,
+      state: 'live',
+      sessionId: 's1',
+      viewUrl: '/live/s1?t=x',
+      wheel: 'robot',
+    })
+    expect(await readBrowserSession()).not.toHaveProperty('wheel')
+  })
+
   it('treats 503 as "not set up here", not as a failure', async () => {
     const { readBrowserSession } = await load()
     const err = Object.assign(new Error('not configured'), { status: 503 })

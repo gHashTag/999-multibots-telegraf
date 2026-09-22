@@ -1,4 +1,6 @@
 import { priceFor } from './billing-shared'
+import { CLUB_OFFER_WHEN, clubOffer, spacedNumber } from './club-membership'
+import { imageChainNote } from '../image-chain'
 
 /**
  * ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ: что бесплатно, что платно, как настроить провайдеров.
@@ -79,7 +81,13 @@ export const PAID = [
   {
     функция: 'image_generate',
     токенов: priceFor('image_generate'),
-    провайдер: 'Replicate flux-schnell (или FAL при оплате)',
+    /*
+     * "Replicate flux-schnell (or FAL once paid)" -- and FAL's first model is
+     * $0.15 an image against a 2-token price. Topping FAL up would not have
+     * bought a better picture at this price, it would have bought a loss. Who
+     * draws is now the chain's price floor, and this line reads it.
+     */
+    провайдер: imageChainNote(), // cyrillic-ok: existing field name
   },
   {
     функция: 'gpt_image_edit', // cyrillic-ok: existing field name
@@ -141,7 +149,8 @@ export const PROVIDERS: Record<
     как: 'Пополнить баланс на fal.ai/dashboard/billing; ключ — fal.ai/dashboard/keys',
     стоимость: 'pay-as-you-go',
     заметка:
-      'Сейчас «User locked: Exhausted balance». Модели существуют — оплата оживит.',
+      'Сейчас «User locked: Exhausted balance». Картинки FAL дороже цены картинки, ' + // cyrillic-ok: reference copy
+      'и цепочка их пропускает: пополнение баланса само их не оживит, нужна другая цена.', // cyrillic-ok: reference copy
   },
   elevenlabs: {
     даёт: 'премиум-озвучка и клон голоса',
@@ -206,21 +215,51 @@ export const PROVIDERS: Record<
   },
 }
 
-/** Сводка бесплатное/платное — для инструмента pricing. */
-export function pricingSummary() {
+/**
+ * The club as the price list shows it, from the one source in
+ * club-membership.ts. It used to be absent here -- worse, this summary said
+ * in words that there was no club, while the prompt sold it: the agent was
+ * told to call `pricing` and `pricing` contradicted it (measured 2026-09-22:
+ * zero answers in thirty days named the club's price).
+ */
+function clubEntry() {
+  const o = clubOffer()
+  return {
+    что: o.inside, // cyrillic-ok: field name
+    цена: `${spacedNumber(o.stars)} ⭐ за ${o.periodDays} дней`, // cyrillic-ok: price list copy
+    возврат: `${o.sharePercent}% каждого платежа токенами: ${spacedNumber(o.back)}`, // cyrillic-ok: price list copy
+    как_вступить: o.join, // cyrillic-ok: field name
+    бесплатно: o.free, // cyrillic-ok: field name
+    когда_называть: CLUB_OFFER_WHEN, // cyrillic-ok: field name
+  }
+}
+
+/**
+ * Сводка бесплатное/платное — для инструмента pricing.
+ *
+ * `surface` is where the question came from. The client in the owner's DM
+ * ('business') buys pictures, not a twin: the club is not sold there (the DM
+ * prompt says the same), so that one surface gets the tokens and no club.
+ */
+export function pricingSummary(surface?: string) {
+  const dm = surface === 'business'
   return {
     бесплатно: FREE,
     платно: PAID,
-    как_платить:
-      'Токены покупаются за Telegram Stars — это ЕДИНСТВЕННЫЙ способ платить. ' +
-      'Тарифов, подписок и клуба нет; провайдеров держим мы, человеку свои ключи ' +
-      'не нужны.',
+    ...(dm ? {} : { клуб: clubEntry() }), // cyrillic-ok: field name
+    как_платить: dm
+      ? 'Клиенту — только токены за звёзды Telegram: каждая генерация списывается с ' + // cyrillic-ok: price list copy
+        'баланса. Клуб в личке не предлагается. Провайдеров держим мы, свои ключи не нужны.' // cyrillic-ok: price list copy
+      : 'Две вещи и только они. Токены за звёзды Telegram — с них списывается каждая ' + // cyrillic-ok: price list copy
+        'генерация. И одна подписка — клуб (см. «клуб»). Других тарифов, подписок и ' + // cyrillic-ok: price list copy
+        'долларовых цен нет; провайдеров держим мы, человеку свои ключи не нужны.', // cyrillic-ok: price list copy
     подсказка:
       'Ценность — в агенте-студии: рилсы в стиле и голосе человека, лента, охваты, ' +
       'производство на потоке. Бесплатная проба — витрина качества (сценарий, ' +
       'разбор, черновик). Токенами платят реальные генерации картинок/видео/' +
-      'озвучки. Кончились — выпиши счёт (tokens_invoice), не отправляй «оформлять ' +
-      'подписку». Не продавай «дёшево» — продавай результат.',
+      'озвучки. Кончились — скажи честно; хочет продолжить — выпиши счёт на токены ' + // cyrillic-ok: price list copy
+      '(tokens_invoice), клуб вместо пополнения не подсовывай. Не продавай «дёшево» — ' + // cyrillic-ok: price list copy
+      'продавай результат.', // cyrillic-ok: price list copy
   }
 }
 

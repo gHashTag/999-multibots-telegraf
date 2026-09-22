@@ -6,6 +6,10 @@
 
 import { Telegraf } from 'telegraf'
 import { validateWebhookSetup } from './webhook-manager'
+import {
+  assertBotApiListKnown,
+  telegramClientOptionsFor,
+} from '@/services/telegramApi'
 
 interface BotConfig {
   name: string
@@ -14,6 +18,9 @@ interface BotConfig {
 }
 
 async function verifyWebhooksFromEnv(): Promise<void> {
+  // A bot on our own Bot API server must not be asked on the cloud, and this
+  // script cannot tell which those are without the service's variables.
+  assertBotApiListKnown()
   console.log('🔍 Webhook Verification CLI Tool')
   console.log('================================')
 
@@ -48,7 +55,9 @@ async function verifyWebhooksFromEnv(): Promise<void> {
   // Verify each bot
   const results = await Promise.all(
     botConfigs.map(async config => {
-      const bot = new Telegraf(config.token)
+      const bot = new Telegraf(config.token, {
+        telegram: telegramClientOptionsFor(config.token),
+      })
       try {
         const validation = await validateWebhookSetup(bot, config.name)
         return { config, ...validation }

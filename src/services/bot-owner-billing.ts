@@ -13,6 +13,7 @@ import {
   isRealClientIncome,
   toStars,
 } from '@/utils/billingFilters'
+import { telegramApiFor } from '@/services/telegramApi'
 
 // -- Types --
 
@@ -149,7 +150,7 @@ async function tgSend(
   }
   if (markup) body.reply_markup = markup
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    await fetch(`${telegramApiFor(token)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

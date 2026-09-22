@@ -4,6 +4,13 @@ import {
   TEXT_LIKE_EXTENSIONS,
   isTextLikeDocument,
 } from './src/agent/media-library'
+import {
+  ARCHIVE_EXTENSIONS,
+  OFFICE_EXTENSIONS,
+  PDF_EXTENSIONS,
+  UNREADABLE_EXTENSIONS,
+  documentFormat,
+} from './src/agent/media-extract'
 
 /**
  * THE AGENT SAYS WHAT IT CAN TAKE, AND WHAT IT SAYS IS TRUE.
@@ -29,6 +36,8 @@ import {
 const HEARS = new RegExp('голосовые', 'i') // cyrillic-ok: prompt copy
 const SEES = new RegExp('фото', 'i') // cyrillic-ok: prompt copy
 const NEXT_STEP = new RegExp('ШАГИ ВПЕРЁД') // cyrillic-ok: prompt copy
+const VIDEO_SPEECH = new RegExp('видео[^.]*слышишь[^.]*речь', 'i') // cyrillic-ok: prompt copy
+const WATCHES_VIDEO = new RegExp('смотришь фото и видео', 'i') // cyrillic-ok: prompt copy
 
 describe('what the agent promises about files', () => {
   /*
@@ -71,15 +80,43 @@ describe('what the agent promises about files', () => {
   })
 
   /*
-   * AND IT NAMES WHAT IT CANNOT OPEN. A person who sends a PDF and gets a
+   * PDF, OFFICE FILES, ARCHIVES (2026-09-22). "I asked for support for
+   * reading ALL files." Every one of these is now promised in the prompt, and
+   * every one promised has a reader -- walked here format by format, through
+   * the same routing function media-inline.ts asks.
+   */
+  it('promises PDF, office files and archives, and each has a reader', () => {
+    const prompt = systemPrompt('bot')
+    for (const ext of [
+      ...PDF_EXTENSIONS,
+      ...OFFICE_EXTENSIONS,
+      ...ARCHIVE_EXTENSIONS,
+    ]) {
+      expect(prompt, `not promised: .${ext}`).toContain(`.${ext}`)
+      expect(
+        documentFormat(null, `brief.${ext}`),
+        `promised but no reader takes it: .${ext}`
+      ).not.toBeNull()
+    }
+    // The owner's words were "all files"; these three are the floor.
+    for (const ext of ['pdf', 'docx', 'xlsx']) {
+      expect(documentFormat(null, `brief.${ext}`)).not.toBeNull()
+    }
+  })
+
+  /*
+   * AND IT NAMES WHAT IT CANNOT OPEN. A person who sends a file and gets a
    * vague answer concludes the agent is stupid, not that the format is
-   * unsupported -- so the refusal has to be said out loud, in advance.
+   * unsupported -- so the refusal has to be said out loud, in advance. And a
+   * format named as refused must really be refused: no reader of any kind.
    */
   it('names the formats it cannot open, instead of staying quiet', () => {
     const prompt = systemPrompt('bot')
-    for (const ext of ['pdf', 'docx', 'xlsx']) {
+    expect(UNREADABLE_EXTENSIONS.length).toBeGreaterThan(0)
+    for (const ext of UNREADABLE_EXTENSIONS) {
       expect(prompt).toContain(`.${ext}`)
       expect(isTextLikeDocument(null, `brief.${ext}`)).toBe(false)
+      expect(documentFormat(null, `brief.${ext}`)).toBeNull()
     }
   })
 
@@ -87,6 +124,17 @@ describe('what the agent promises about files', () => {
     const prompt = systemPrompt('bot')
     expect(prompt).toMatch(HEARS)
     expect(prompt).toMatch(SEES)
+  })
+
+  /*
+   * THE VIDEO SENTENCE TELLS THE TRUTH. It used to say "you watch photos and
+   * video" while a video was only ever described minutes later by the sweep.
+   * Now the sound is heard on the turn, and the prompt says exactly that.
+   */
+  it('says it hears speech in a video, and not that it watches it live', () => {
+    const prompt = systemPrompt('bot')
+    expect(prompt).toMatch(VIDEO_SPEECH)
+    expect(prompt).not.toMatch(WATCHES_VIDEO)
   })
 
   /*

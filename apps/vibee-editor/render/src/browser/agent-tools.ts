@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 /**
  * THE REASON AN AGENT DID NOT KNOW THE BROWSER EXISTED.
  *
@@ -37,9 +38,15 @@ import {
   newApprovalToken,
   APPROVAL_TTL_MS,
 } from './approvals'
-import { readSession, markAllowed, type Queryable } from './sessions'
+import {
+  readSession,
+  markAllowed,
+  personHasTheWheel,
+  type Queryable,
+} from './sessions'
 import { agentMayOpen, mayAct } from './guard'
 import { desktopShot } from './screen'
+import { recordStep, stepOf } from './journal'
 import { askVision, shrinkJpeg, visionConfig } from '../agent/media-vision'
 import {
   frontPage,
@@ -130,29 +137,96 @@ const noArgs = { type: 'object', properties: {}, additionalProperties: false }
  * waiting, so the wait is bounded; no endpoint, a refusal or a timeout gives
  * `seen: null`, and the model is told plainly it cannot see.
  */
-export const SCREEN_VISION_MS = 45_000
+/*
+ * A PERSON IS WAITING; THE CPU IS NOT IN A HURRY.
+ *
+ * Measured 2026-09-22 on the one-slot CPU vision service: a screen it had
+ * just seen was described in 1-2 s (its prompt cache), a new one was still
+ * unfinished at 45 s -- the slot is shared with the media sweep, whose clips
+ * send four frames at a time. Raising the deadline would only make the turn
+ * slower and still miss.
+ *
+ * So the turn waits at most SCREEN_VISION_WAIT_MS. Past that the tool says
+ * `seenPending` and the description carries on in the background for up to
+ * SCREEN_VISION_BG_MS; it lands in a small cache keyed by the image itself,
+ * and the next shot of the same screen gets it at once, without asking the
+ * service twice.
+ */
+export const SCREEN_VISION_WAIT_MS = 25_000
+export const SCREEN_VISION_BG_MS = 180_000
 export const SCREEN_PROMPT =
   'This is a screenshot of a web browser. In 2-3 short sentences say which site and page is shown and any dialog, error or form on screen; quote a few visible words verbatim. If text is too small to read, say so instead of guessing. Write in Russian.'
 /** Measured decode on the CPU service can be ~1.5 tok/s: keep it short. */
 export const SCREEN_MAX_TOKENS = 120
+const SEEN_CACHE_MAX = 64
 
-export async function describeShot(base64: string): Promise<string | null> {
+type SeenEntry =
+  | { done: true; text: string | null }
+  | { done: false; work: Promise<string | null> }
+const seenCache = new Map<string, SeenEntry>()
+
+export function resetSeenCacheForTests(): void {
+  seenCache.clear()
+}
+
+function remember(key: string, entry: SeenEntry): void {
+  seenCache.delete(key)
+  seenCache.set(key, entry)
+  while (seenCache.size > SEEN_CACHE_MAX) {
+    const oldest = seenCache.keys().next().value
+    if (oldest === undefined) break
+    seenCache.delete(oldest)
+  }
+}
+
+export interface Seen {
+  seen: string | null
+  /** The description is still being made; the same screen will have it. */
+  seenPending?: true
+}
+
+export async function describeShot(
+  base64: string,
+  waitMs: number = SCREEN_VISION_WAIT_MS
+): Promise<Seen> {
   const v = visionConfig()
-  if (!v) return null
+  if (!v) return { seen: null }
+  let small: string
   try {
-    const small = (await shrinkJpeg(Buffer.from(base64, 'base64'))).toString(
-      'base64'
-    )
-    return await askVision(
+    small = (await shrinkJpeg(Buffer.from(base64, 'base64'))).toString('base64')
+  } catch {
+    return { seen: null }
+  }
+  const key = createHash('sha1').update(small).digest('hex')
+  let entry = seenCache.get(key)
+  if (entry?.done) return { seen: entry.text }
+  if (!entry) {
+    const work = askVision(
       v,
       SCREEN_PROMPT,
       [`data:image/jpeg;base64,${small}`],
-      SCREEN_VISION_MS,
-      SCREEN_MAX_TOKENS
+      SCREEN_VISION_BG_MS,
+      SCREEN_MAX_TOKENS,
+      'live'
     )
-  } catch {
-    return null
+      .catch(() => null)
+      .then(text => {
+        // A failure is not remembered: the next shot may try again.
+        if (text) remember(key, { done: true, text })
+        else seenCache.delete(key)
+        return text
+      })
+    entry = { done: false, work }
+    remember(key, entry)
   }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<'late'>(resolve => {
+    timer = setTimeout(() => resolve('late'), waitMs)
+  })
+  const got = await Promise.race([entry.work, late])
+  clearTimeout(timer)
+  if (got === 'late') return { seen: null, seenPending: true }
+  return { seen: got }
 }
 
 async function tabsOf(
@@ -189,7 +263,7 @@ const approvalBase = () =>
 const WAIT_CAP_MS = 120_000
 const POLL_MS = 2_000
 
-export const BROWSER_TOOLS: AgentTool[] = [
+const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_ask_permission',
     description:
@@ -398,7 +472,7 @@ export const BROWSER_TOOLS: AgentTool[] = [
           format: 'jpeg',
           base64,
           tabs: session!.cdpEndpoint ? await tabsOf(session!.cdpEndpoint) : [],
-          seen: await describeShot(base64),
+          ...(await describeShot(base64)),
         }
       }
       const { cdp, targetId } = await podOf(ctx)
@@ -407,7 +481,7 @@ export const BROWSER_TOOLS: AgentTool[] = [
         format: 'jpeg',
         base64,
         tabs: await tabsOf(cdp, targetId),
-        seen: await describeShot(base64),
+        ...(await describeShot(base64)),
       }
     },
   },
@@ -490,6 +564,77 @@ export const BROWSER_TOOLS: AgentTool[] = [
     },
   },
 ]
+
+/*
+ * Every call is written to the person's journal (journal.ts): which tool,
+ * where, what came back, how long. In the background and never fatal -- a
+ * journal that cannot be written must not turn a working click into an
+ * error. Typed text and evaluated code are kept by length only.
+ */
+function journaled(tool: AgentTool): AgentTool {
+  return {
+    ...tool,
+    async handler(args, ctx) {
+      const t0 = Date.now()
+      const write = (outcome: { result?: unknown; error?: unknown }) =>
+        void recordStep(
+          ctx.pool as unknown as Queryable,
+          ctx.telegramId,
+          stepOf(
+            tool.name,
+            (args ?? {}) as Record<string, unknown>,
+            outcome,
+            Date.now() - t0
+          ),
+          { probe: ctx.probe === true }
+        )
+      try {
+        const result = await tool.handler(args, ctx)
+        write({ result })
+        return result
+      } catch (error) {
+        write({ error })
+        throw error
+      }
+    },
+  }
+}
+
+/*
+ * THE PERSON HOLDS THE WHEEL: tools that act on the page stand still.
+ * Reading (status, read, screenshot) and asking permission go on -- the agent
+ * may watch and ask, not click or type under the person's hands
+ * (sessions.ts personHasTheWheel). The refusal is journaled like any other.
+ */
+export const ACTING_TOOLS: ReadonlySet<string> = new Set([
+  'browser_open',
+  'browser_click',
+  'browser_type',
+  'browser_evaluate',
+  'browser_close_tab',
+])
+
+export const WHEEL_TAKEN =
+  'the person has taken the wheel and is driving the browser themselves. Do not act in it now: ' +
+  'tell them what you were about to do and wait until they hand the wheel back ("Hand back" in the app).'
+
+function respectsTheWheel(tool: AgentTool): AgentTool {
+  if (!ACTING_TOOLS.has(tool.name)) return tool
+  return {
+    ...tool,
+    async handler(args, ctx) {
+      const session = await readSession(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+      if (personHasTheWheel(session, Date.now())) throw new Error(WHEEL_TAKEN)
+      return tool.handler(args, ctx)
+    },
+  }
+}
+
+export const BROWSER_TOOLS: AgentTool[] =
+  TOOLS_UNJOURNALED.map(respectsTheWheel).map(journaled)
 
 /**
  * The message with the two buttons.

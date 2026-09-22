@@ -2,36 +2,43 @@
  * AN INVITATION WRITTEN AS A NAME WAS UNREADABLE OUTSIDE TELEGRAM.
  *
  * Measured 2026-09-21 on production data. Two people the owner had let in --
- * @SamHold (504608015, "mike") and @Farishka (373211349, Farisha), both of
- * whom paid cash off-platform -- were stopped on step 3 of 7 of the welcome
- * road by the 10 000-star paywall. Neither owns a bot in `avatars`, neither
- * has a row in `club_period`, neither has a row in `club_grant_period`, so
- * nothing but the guest pass could have let them through.
+ * both of whom paid cash off-platform -- were stopped on step 3 of 7 of the
+ * welcome road by the 10 000-star paywall. Neither owns a bot in `avatars`,
+ * neither has a row in `club_period`, neither has a row in
+ * `club_grant_period`, so nothing but the guest pass could have let them
+ * through.
  *
- * @SamHold had been ON that guest list since the day it was written. The list
- * holds names; the name is read by `verifiedTelegramUsername`, which parses
- * `x-telegram-init-data`; and a desktop browser -- which is where he was --
- * never sends that header. So the name came back null, a list of names matched
- * nothing, and the pass he already held was unreadable. @Farishka was simply
- * never added.
+ * One of them had been ON that guest list since the day it was written. The
+ * list holds names; the name is read by `verifiedTelegramUsername`, which
+ * parses `x-telegram-init-data`; and a desktop browser -- which is where he
+ * was -- never sends that header. So the name came back null, a list of names
+ * matched nothing, and the pass he already held was unreadable. The other was
+ * simply never added.
  *
  * Two things are pinned here, because either alone leaves the hole open:
- *   1. every invited person is on the list BY ID as well as by name -- an id
- *      is the one identifier every sign-in path knows, and it cannot be
- *      renamed away;
+ *   1. an invitation is readable BY ID as well as by name -- an id is the one
+ *      identifier every sign-in path knows, and it cannot be renamed away;
  *   2. when the signature carries no name, the verified id is asked what it is
  *      called, so the NEXT person invited by name is not locked out the same
  *      way.
+ *
+ * The two real ids used to be written out here and in DEFAULT_GUESTS. They are
+ * gone from both (#2752): this repository is public, and CLUB_GUESTS on
+ * vibee-render carries every invited id. What the tests below own is the
+ * MECHANISM -- an id in the list opens the pass, from whichever source the list
+ * was assembled -- so they hold for whoever the owner invites next, and hold
+ * without naming anybody.
  */
 import { describe, it, expect } from 'vitest'
 import { clubGrantFor } from './src/agent/club-membership'
-import { DEFAULT_GUESTS, isClubGuest } from './src/agent/club-guests'
+import {
+  clubGuests,
+  DEFAULT_GUESTS,
+  isClubGuest,
+} from './src/agent/club-guests'
 
-/** The two people who were stopped, with the names the users table holds. */
-const STOPPED = [
-  { telegramId: '504608015', username: 'SamHold' },
-  { telegramId: '373211349', username: 'Farishka' },
-]
+/** An invitation of the shape the paywall stopped: a name and an id. */
+const INVITED = { telegramId: '1000000001', username: 'Invitee' }
 
 /** Nothing free: no bots, no keeper role. Only the guest pass can decide. */
 const noOtherGrant = {
@@ -39,33 +46,39 @@ const noOtherGrant = {
   keepers: () => [] as string[],
 }
 
-describe('the two people who were stopped at the paywall', () => {
-  it('are on the list by id, not only by name', () => {
-    for (const who of STOPPED) {
-      // By id ALONE -- the state a browser sign-in is actually in.
-      expect(isClubGuest({ telegramId: who.telegramId, username: null })).toBe(
-        true
-      )
-    }
+describe('an invitation carrying an id', () => {
+  /** What the environment gives the server: the name AND the id. */
+  const list = clubGuests(`${INVITED.username},${INVITED.telegramId}`)
+
+  it('is read by id alone -- the state a browser sign-in is actually in', () => {
+    expect(
+      isClubGuest({ telegramId: INVITED.telegramId, username: null }, list)
+    ).toBe(true)
   })
 
-  it('are on the list by name too, for the Mini App', () => {
-    for (const who of STOPPED) {
-      expect(isClubGuest({ telegramId: '1', username: who.username })).toBe(
-        true
-      )
-    }
+  it('is read by name too, for the Mini App', () => {
+    expect(
+      isClubGuest({ telegramId: '1', username: INVITED.username }, list)
+    ).toBe(true)
   })
 
-  it('get the club without a signature that carries a name', async () => {
-    for (const who of STOPPED) {
-      const grant = await clubGrantFor(
-        who.telegramId,
-        { ...noOtherGrant, usernameOf: () => null },
-        {}
-      )
-      expect(grant).toBe('guest')
-    }
+  it('opens the club without a signature that carries a name', async () => {
+    const grant = await clubGrantFor(
+      INVITED.telegramId,
+      { ...noOtherGrant, usernameOf: () => null, guests: () => list },
+      {}
+    )
+    expect(grant).toBe('guest')
+  })
+
+  it('lets an id through the environment, with no code change', () => {
+    expect(clubGuests(INVITED.telegramId)).toContain(INVITED.telegramId)
+  })
+
+  it('does not open the club for an id nobody invited', () => {
+    expect(
+      isClubGuest({ telegramId: '1000000002', username: null }, list)
+    ).toBe(false)
   })
 })
 

@@ -310,6 +310,8 @@ if [ "$ENV" != "dev" ] && [ "$ENV" != "development" ]; then
     local BOT_TOKEN=$(ssh $SSH_ALIAS "grep TELEGRAM_BOT_TOKEN_LEELA /root/999-agents-telegraf/.env 2>/dev/null | cut -d'=' -f2" 2>/dev/null || echo "")
 
     if [ -n "$BOT_TOKEN" ]; then
+      # The legacy SSH deploy (pre-Railway); its alert bot is not on our own
+      # Bot API server. telegram-api-root-ok
       curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
         -d "chat_id=${ADMIN_CHAT_ID}" \
         -d "text=${message}" \

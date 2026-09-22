@@ -26,9 +26,17 @@ describe('the client in the owner DM (surface business)', () => {
     expect(p.includes('картинка 1,')).toBe(false)
   })
 
-  it('denies tariffs and the club, and sends the invoice first', () => {
-    expect(p).toContain('Тарифов,')
-    expect(p).toContain('подписок и клуба для клиента НЕТ')
+  /*
+   * The DM client is offered no tariff, no subscription and no club. The
+   * wording moved from "there is no club for the client" to "do not offer
+   * it": the club exists since 2026-09-09, and a sentence denying it is the
+   * one that kept the agent from ever naming it to the people it IS for
+   * (we-sell-tokens-not-a-subscription.test.ts). The policy did not move.
+   */
+  it('offers the client no tariff, subscription or club, and never pay first', () => {
+    expect(p).toContain(
+      'Клиенту ни тарифов,\n  ни подписок, ни клуба не предлагай' // cyrillic-ok: prompt copy
+    )
     expect(p).toContain('НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ')
     expect(p).toContain('tokens_invoice')
     expect(p).toContain('my_balance')

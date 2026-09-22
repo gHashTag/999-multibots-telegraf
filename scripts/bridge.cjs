@@ -32,6 +32,13 @@
  */
 'use strict'
 
+// The host is chosen per bot: a bot on our own Bot API server must never be
+// asked on the cloud (scripts/lib/telegram-api.cjs).
+const {
+  assertBotApiListKnown,
+  telegramApiFor,
+} = require('./lib/telegram-api.cjs')
+
 const PAINT = Boolean(process.stdout.isTTY)
 const E = PAINT ? String.fromCharCode(27) : ''
 const wrap = (c, s) => (PAINT ? `${E}[${c}m${s}${E}[0m` : s)
@@ -91,7 +98,7 @@ function tokens() {
 /** What one bot looks like from Telegram's side. Read-only, three calls. */
 async function checkBot(token) {
   const tg = async (method, body) => {
-    const r = await ask(`https://api.telegram.org/bot${token}/${method}`, {
+    const r = await ask(`${telegramApiFor(token)}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
@@ -258,6 +265,11 @@ async function main() {
 
   /* ── the bots ──────────────────────────────────────────────────────────── */
   const toks = tokens()
+  if (toks.length) {
+    // A bot on our own Bot API server must not be asked on the cloud, and
+    // this script cannot tell which those are without the service's variables.
+    assertBotApiListKnown()
+  }
   console.log(bold(`bots: ${toks.length} token(s) in this environment`))
   if (!toks.length) {
     console.log(

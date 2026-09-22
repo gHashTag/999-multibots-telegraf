@@ -46,6 +46,8 @@ import {
   touchSession,
   type BrowserSession,
   type Queryable,
+  setWheel,
+  personHasTheWheel,
 } from './sessions'
 import {
   ensureBrowserProfiles,
@@ -54,6 +56,7 @@ import {
   forgetProfile,
 } from './profiles'
 import { fitDesktop, isVisibleBox, wantedScreen } from './screen'
+import { readJournal } from './journal'
 import type { PodDriver } from './pod-driver'
 import { announceBrowserStarted, type Actor, type Announcer } from './announce'
 
@@ -62,6 +65,8 @@ export const BROWSER_PATHS = [
   '/api/browser/profile',
   '/api/browser/screen',
   '/api/browser/cookies',
+  '/api/browser/journal',
+  '/api/browser/wheel',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -137,6 +142,13 @@ function publicView(s: BrowserSession): Record<string, unknown> {
     state: s.state,
     sessionId: s.sessionId,
     viewUrl: `/live/${s.sessionId}?t=${encodeURIComponent(s.viewToken)}`,
+    /*
+     * Who is driving, so a page opened later -- the board, a second device,
+     * the app after a reload -- shows the truth instead of assuming the agent
+     * (sessions.ts personHasTheWheel). An agent reads it too: "the person is
+     * driving" is worth knowing before it tries to click.
+     */
+    wheel: personHasTheWheel(s, Date.now()) ? 'person' : 'agent',
   }
 }
 
@@ -211,6 +223,54 @@ export async function handleBrowser(
    * Collapsing them would mean either logins lost on every close, or a red
    * button that quietly leaves the cookies behind.
    */
+  /*
+   * WHAT THE AGENT DID IN THIS BROWSER (journal.ts): the person's own steps,
+   * newest first. Read-only; the agent's key may read it too -- it is the
+   * agent's own record of its own work.
+   */
+  /*
+   * WHO HOLDS THE WHEEL (sessions.ts setWheel). The person's door only: the
+   * person takes it by touching the picture and hands it back by a press;
+   * an agent key may not take it from them, or give itself the wheel back.
+   */
+  if (path === '/api/browser/wheel') {
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: "the wheel is the person's to take and give",
+        },
+      }
+    }
+    const holder = new URLSearchParams((req.url || '').split('?')[1] || '').get(
+      'holder'
+    )
+    if (holder !== 'person' && holder !== 'agent') {
+      return { status: 400, body: { ok: false, error: 'holder=person|agent' } }
+    }
+    await setWheel(pool, who, holder)
+    return { status: 200, body: { ok: true, holder } }
+  }
+
+  if (path === '/api/browser/journal') {
+    if (method !== 'GET') {
+      return { status: 405, body: { ok: false, error: 'GET only' } }
+    }
+    const q = new URLSearchParams((req.url || '').split('?')[1] || '')
+    const steps = await readJournal(
+      pool,
+      who,
+      Number(q.get('limit')) || undefined,
+      // Probes (tri eyes) stay out of the person's view unless asked for.
+      { probes: q.get('probes') === '1' }
+    )
+    return { status: 200, body: { ok: true, steps } }
+  }
+
   if (path === '/api/browser/profile') {
     if (method !== 'DELETE') {
       return { status: 405, body: { ok: false, error: 'DELETE only' } }

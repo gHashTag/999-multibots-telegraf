@@ -10,6 +10,10 @@ import {
   autoConfigureProductionWebhooks,
 } from './webhook-manager'
 import { botLogger } from './logger'
+import {
+  assertBotApiListKnown,
+  telegramClientOptionsFor,
+} from '@/services/telegramApi'
 
 interface BotConfig {
   name: string
@@ -18,6 +22,9 @@ interface BotConfig {
 }
 
 async function setupWebhooksFromEnv(): Promise<void> {
+  // A bot on our own Bot API server must not be asked on the cloud, and this
+  // script cannot tell which those are without the service's variables.
+  assertBotApiListKnown()
   console.log('🔗 Webhook Setup CLI Tool')
   console.log('========================')
 
@@ -66,7 +73,9 @@ async function setupWebhooksFromEnv(): Promise<void> {
 
   // Setup webhooks
   const bots = botConfigs.map(config => ({
-    bot: new Telegraf(config.token),
+    bot: new Telegraf(config.token, {
+      telegram: telegramClientOptionsFor(config.token),
+    }),
     name: config.name,
     port: config.port,
   }))

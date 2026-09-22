@@ -11,13 +11,19 @@ FROM node:20-bookworm-slim
 
 # Chrome's shared-library dependencies plus fonts. Without the fonts, text in
 # rendered compositions falls back to boxes; without libnss3/libatk/etc Chrome
-# exits before it opens a page. ffmpeg is used for muxing.
+# exits before it opens a page. ffmpeg is used for muxing, and to take the
+# soundtrack out of a video too big for the transcriber.
+#
+# The agent's file readers (src/agent/media-extract.ts, EXTERNAL_TOOLS):
+# poppler-utils for `pdftotext` (a PDF used to reach the model as a filename),
+# libarchive-tools for `bsdtar -t` (a rar/7z/tar is LISTED, never unpacked).
+# dockerfile-has-the-readers.test.ts fails if a reader's package goes missing.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates fonts-liberation fonts-noto-color-emoji fonts-dejavu-core \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libcairo2 libcups2 \
     libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libnspr4 libnss3 libpango-1.0-0 \
     libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
-    libxrandr2 xdg-utils wget ffmpeg \
+    libxrandr2 xdg-utils wget ffmpeg poppler-utils libarchive-tools \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

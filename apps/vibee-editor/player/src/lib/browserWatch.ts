@@ -115,3 +115,20 @@ export function wheelAfterTouch(): Wheel {
 export function wheelAfterHandBack(): Wheel {
   return 'agent'
 }
+
+/**
+ * THE SERVER HOLDS THE WHEEL TOO (render sessions.ts, POST /api/browser/wheel).
+ *
+ * Touching the picture takes it for a ten-minute lease; the agent's acting
+ * tools stand still meanwhile. Every touch fires many events, so the lease
+ * is renewed at most every WHEEL_RENEW_MS -- often enough that a person
+ * still driving never loses it, rarely enough not to hammer the server.
+ */
+export const WHEEL_RENEW_MS = 30_000
+
+export function shouldRenewWheel(
+  lastSentMs: number | null,
+  nowMs: number
+): boolean {
+  return lastSentMs === null || nowMs - lastSentMs >= WHEEL_RENEW_MS
+}

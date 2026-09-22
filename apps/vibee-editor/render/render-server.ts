@@ -145,9 +145,13 @@ import { templateSchemaProblem } from './src/template-check'
 import {
   credits as kieCredits,
   generateImage as kieGenerateImage,
-  T2I_MODEL as KIE_T2I_MODEL,
 } from './src/kie-image'
-import { runImageChain } from './src/image-chain'
+import {
+  runImageChain,
+  imageChainLegs,
+  imageChainCeilingUsd,
+  falEndpointFor,
+} from './src/image-chain'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync, spawn } from 'node:child_process'
@@ -583,6 +587,12 @@ import {
   formatClientErrorAlert,
   parseClientError,
 } from './src/client-errors'
+import {
+  assertBotApiConfig,
+  assertBotsStayOnCloud,
+  telegramApiFor,
+  telegramFileUrlFor,
+} from './src/telegram-api'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -694,7 +704,7 @@ async function postReelToChannel(input: {
   const caption = input.caption.slice(0, 1024)
 
   try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+    const r = await fetch(`${telegramApiFor(token)}/sendVideo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -985,7 +995,7 @@ async function sendTelegramMessage(
   }
   try {
     const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendMessage`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1021,7 +1031,7 @@ async function sendTelegramVideo(
   }
   try {
     const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo`,
+      `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/sendVideo`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1529,7 +1539,7 @@ async function getBotBranding(botId: string) {
   const token = tokens.find(t => t.split(':')[0] === botId)
   if (!token) throw new Error(`токена бота ${botId} нет на сервере`)
 
-  const me = await fetch(`https://api.telegram.org/bot${token}/getMe`).then(
+  const me = await fetch(`${telegramApiFor(token)}/getMe`).then(
     r => r.json() as any
   )
   if (!me?.ok) throw new Error(`getMe: ${me?.description || 'отказ'}`)
@@ -1537,12 +1547,12 @@ async function getBotBranding(botId: string) {
   let avatarUrl: string | null = null
   try {
     const photos = await fetch(
-      `https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${botId}&limit=1`
+      `${telegramApiFor(token)}/getUserProfilePhotos?user_id=${botId}&limit=1`
     ).then(r => r.json() as any)
     const fileId = photos?.result?.photos?.[0]?.slice(-1)?.[0]?.file_id
     if (fileId) {
       const file = await fetch(
-        `https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`
+        `${telegramApiFor(token)}/getFile?file_id=${fileId}`
       ).then(r => r.json() as any)
       if (file?.ok?.valueOf() && file.result?.file_path) {
         // Ссылка на файл содержит токен, поэтому наружу отдаём её через свой
@@ -3605,13 +3615,8 @@ const server = createServer(async (req, res) => {
     return r.url
   }
 
-  // Supported fal.ai image models
-  const FAL_IMAGE_MODELS: Record<string, string> = {
-    'fal-ai/flux-pro/v1.1-ultra': 'fal-ai/flux-pro/v1.1-ultra',
-    'fal-ai/flux/dev': 'fal-ai/flux/dev',
-    'fal-ai/nano-banana-pro': 'fal-ai/nano-banana-pro',
-    'fal-ai/reve/text-to-image': 'fal-ai/reve/text-to-image',
-  }
+  // The fal.ai image models a caller may prefer, and what each costs, live in
+  // src/image-chain.ts (FAL_IMAGE_MODELS, IMAGE_LEG_COST_USD).
 
   /**
    * FAL, start to finish, as ONE function that either returns a URL or throws.
@@ -3819,8 +3824,7 @@ const server = createServer(async (req, res) => {
         }
 
         // Get model endpoint (default to nano-banana-pro)
-        const modelEndpoint =
-          FAL_IMAGE_MODELS[model] || 'fal-ai/nano-banana-pro'
+        const modelEndpoint = falEndpointFor(model)
 
         /**
          * THE CHAIN, IN ORDER, EVERY REFUSAL RECORDED.
@@ -3843,23 +3847,23 @@ const server = createServer(async (req, res) => {
          * without shell access to the container. The image layer was dead for
          * weeks precisely because its failure existed nowhere a person looked.
          */
+        /*
+         * THE PRICE FLOOR. The person was charged `image_generate`, one price
+         * whichever leg draws, so a leg whose own cost is above what that
+         * price covers is skipped and named in `tried` -- never run at a
+         * loss. Which legs exist and what each costs is decided in
+         * src/image-chain.ts; this route only hands over the provider calls.
+         */
         const outcome = await runImageChain(
-          [
-            {
-              name: `fal/${modelEndpoint}`,
-              run: () =>
-                generateImageViaFal(prompt, aspectRatio, modelEndpoint),
-            },
-            {
-              name: 'replicate/flux-schnell',
-              run: () => generateImageViaReplicate(prompt, aspectRatio),
-            },
-            {
-              name: `kie/${KIE_T2I_MODEL}`,
-              run: () => generateImageViaKie(prompt, aspectRatio),
-            },
-          ],
-          { log: line => console.warn(`📷 [Generate] ${line}`) }
+          imageChainLegs(modelEndpoint, {
+            fal: () => generateImageViaFal(prompt, aspectRatio, modelEndpoint),
+            replicate: () => generateImageViaReplicate(prompt, aspectRatio),
+            kie: () => generateImageViaKie(prompt, aspectRatio),
+          }),
+          {
+            ceilingUsd: imageChainCeilingUsd(),
+            log: line => console.warn(`📷 [Generate] ${line}`),
+          }
         )
         tried.push(...outcome.tried)
 
@@ -5371,16 +5375,14 @@ const server = createServer(async (req, res) => {
       if (!token) throw new Error('нет токена')
 
       const photos = await fetch(
-        `https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${botId}&limit=1`
+        `${telegramApiFor(token)}/getUserProfilePhotos?user_id=${botId}&limit=1`
       ).then(r => r.json() as any)
       const fileId = photos?.result?.photos?.[0]?.slice(-1)?.[0]?.file_id
       if (!fileId) throw new Error('аватара нет')
       const file = await fetch(
-        `https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`
+        `${telegramApiFor(token)}/getFile?file_id=${fileId}`
       ).then(r => r.json() as any)
-      const img = await fetch(
-        `https://api.telegram.org/file/bot${token}/${file.result.file_path}`
-      )
+      const img = await fetch(telegramFileUrlFor(token, file.result.file_path))
       const buf = Buffer.from(await img.arrayBuffer())
       res.writeHead(200, {
         'Content-Type': img.headers.get('content-type') || 'image/jpeg',
@@ -8918,7 +8920,7 @@ const server = createServer(async (req, res) => {
             return
           }
           const st = await fetch(
-            `https://api.telegram.org/bot${PAY_BOT}/getStarTransactions?limit=100`
+            `${telegramApiFor(PAY_BOT)}/getStarTransactions?limit=100`
           ).then(r => r.json())
           const txs = st?.result?.transactions || []
           // Exclude transactions already tied to this user's redeemed invoices:
@@ -9529,7 +9531,7 @@ const server = createServer(async (req, res) => {
         }
         // Инвойс Stars: provider_token пуст (XTR), хост фиксированный.
         const invResp = await fetch(
-          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/createInvoiceLink`,
+          `${telegramApiFor(TELEGRAM_BOT_TOKEN)}/createInvoiceLink`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -11699,6 +11701,25 @@ function понятнаяПричина(e: unknown): string {
 }
 
 async function main() {
+  /*
+   * WHICH BOTS LIVE ON OUR OWN BOT API SERVER -- CHECKED BEFORE ANYTHING ELSE.
+   *
+   * A malformed TELEGRAM_API_ROOT / TELEGRAM_API_FILES_ROOT / BOT_API_LOCAL_BOTS
+   * throws here, naming the variable, and the deploy fails its health check.
+   * The alternative is a render that quietly calls the cloud for a bot that
+   * has left it (src/telegram-api.ts says why that splits the bot's updates).
+   */
+  const botApi = assertBotApiConfig()
+  // The default cashier mints every invoice a person's own bot cannot; it
+  // must not go silent with our own Bot API server.
+  assertBotsStayOnCloud({ TOKENS_PAYMENT_BOT_TOKEN: 'the default cashier' })
+  console.log(
+    `🤖 Bot API: ${botApi.local.size} bot(s) on our server` +
+      (botApi.local.size
+        ? ` (${[...botApi.local.keys()].join(', ')}) at ${botApi.localRoot}`
+        : ', every bot on the cloud')
+  )
+
   await startSessionRevocationSync()
   await initBundle()
 

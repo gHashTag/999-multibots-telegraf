@@ -31,6 +31,7 @@ import {
 } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
+import { rememberMiniAppFiles } from './miniapp-media'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
 import {
@@ -469,6 +470,10 @@ export async function handleMcp(
       const ctx = {
         telegramId: owner,
         pool,
+        // A caller that says it is only checking (tri eyes) -- journal.ts.
+        probe:
+          (rpc.params as { _meta?: { probe?: unknown } } | undefined)?._meta
+            ?.probe === true,
         // Per-bot privileged path counters; a game token is not initData.
         initDataBot: game
           ? undefined
@@ -661,6 +666,24 @@ export async function handleAgentChat(
         // Хранение — удобство, а не условие разговора. Упавшая запись не
         // должна лишать человека ответа: он и так уже ждёт.
       })
+    }
+    /*
+     * The mini app's files join the person's media library (2026-09-22), the
+     * way the bot's always have -- see miniapp-media.ts. Not awaited: a row
+     * is memory for later turns, and this turn reads the file itself.
+     */
+    if (
+      !ephemeral &&
+      поверхность === 'miniapp' && // cyrillic-ok: pre-existing local
+      последняя?.role === 'user' // cyrillic-ok: pre-existing local
+    ) {
+      void rememberMiniAppFiles(
+        pool,
+        telegramId,
+        String(последняя.content ?? '') // cyrillic-ok: pre-existing local
+      ).catch(e =>
+        console.warn('[agent] mini app files not remembered:', String(e))
+      )
     }
 
     /*
