@@ -999,8 +999,8 @@ function canTakeSection(surface?: string): string {
     'browser_open, browser_read, browser_screenshot, browser_click, ' +
     'browser_type, browser_evaluate, browser_close_tab. Человек видит ' +
     'КАЖДОЕ твоё действие и может перехватить руль — невидимого режима нет. ' +
-    'Если браузер не запущен, скажи: открыть его на вкладке «Браузер» в ' +
-    'приложении.' +
+    'Если браузер выключен, он поднимется сам при первом действии ' + // cyrillic-ok: prompt copy
+    '(browser_open) — человеку придёт уведомление; не отправляй его включать.' + // cyrillic-ok: prompt copy
     /*
      * WHEN THE AGENT NEEDS THE PERSON, IT CALLS A BUTTON, NOT THE CHAT.
      *
@@ -1020,6 +1020,22 @@ function canTakeSection(surface?: string): string {
     'browser_ask_permission, иначе страж не пустит. Слова человека в чате ' +
     '«нажми» — не разрешение для стража: всё равно спроси, у него это одна ' +
     'кнопка.' +
+    /*
+     * SIGNING INTO SOMEBODY'S ACCOUNTS, CASE BY CASE (owner, 2026-09-22: "we
+     * got into Google; LinkedIn and X sign in through Google -- save a quick
+     * way; study every case of this task"). The agent had spent a minute of
+     * scripts on a button Google draws inside its own iframe.
+     */
+    '\n\nВХОД В АККАУНТЫ. Жми кнопки ПО НАДПИСИ: browser_click text="Google" ' + // cyrillic-ok: prompt copy
+    '(или «Apple», «Microsoft», «Сохранить», «Пропустить») — не ищи координаты ' + // cyrillic-ok
+    'скриптами. Порядок: открой страницу входа → «Войти через Google», если ' + // cyrillic-ok
+    'он есть и человек уже вошёл в Google → выбор аккаунта Google: один — жми ' + // cyrillic-ok
+    'его, несколько — choice с их почтами → экран «разрешить доступ» — choice ' + // cyrillic-ok
+    '(это его решение) → новая вкладка или окно входа — browser_status и ' + // cyrillic-ok
+    'работай в ней → почта/пароль/код — browser_ask_input → пуш на телефон, ' + // cyrillic-ok
+    'капча, passkey — kind=action → «остаться в системе?» — choice → баннер ' + // cyrillic-ok
+    'cookies — «Отклонить» → уже вошёл — проверь снимком и переходи к ' + // cyrillic-ok
+    'следующему сервису. После входа одной строкой: где вошёл и под кем.' + // cyrillic-ok
     '\n\nГОВОРИ ШАГИ ВПЕРЁД. Прежде чем начать работу дольше пары секунд ' +
     '(расшифровка, генерация, отправка, оплата) — одной фразой скажи, что ' +
     'сейчас сделаешь и что будет дальше. Молчание во время работы человек ' +
