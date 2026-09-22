@@ -1632,6 +1632,33 @@ const ourExtension = (v: unknown): string | null => {
   return OUR_EXTENSIONS.has(e) ? e : null
 }
 
+/*
+ * A DOCUMENT IS NAMED BY WHAT IT IS, NOT BY WHAT IT IS PACKED IN.
+ *
+ * A .docx, an .xlsx or an .odt IS a zip, and a client that sniffs the bytes
+ * rather than the name says so: `application/zip`. Once 'zip' became one of
+ * our words (review of 2026-09-22), that mime subtype won over the name, the
+ * Word file was shelved as `file-<id>.zip`, `documentFormat` called it an
+ * archive, and the agent got a list of `word/document.xml` parts saved as
+ * the row's transcript -- so no later pass read it either. `backup.tar.gz`
+ * sent as `application/gzip` had the same fate as a lone `.gz`.
+ *
+ * So for a file, the sender's extension wins when one of our readers opens
+ * that format (`extensionOf` folds `.tar.gz` into `tgz`), and the mime
+ * subtype is the fallback. Still a word from our list, never free text. The
+ * one mime that still outranks the name is the table's `application/pdf`:
+ * `documentFormat` itself trusts that mime over any name, and a PDF shelved
+ * as `.txt` would be decoded as text before the PDF reader ever saw it.
+ */
+function documentExtension(fileName: unknown): string | null {
+  const ext = ourExtension(extensionOf(String(fileName ?? '')))
+  if (!ext) return null
+  const probe = `file.${ext}`
+  return documentFormat(null, probe) || isTextLikeDocument(null, probe)
+    ? ext
+    : null
+}
+
 /** True for a name this module gave a shelf object; anything else is somebody's text. */
 export function isShelfFileName(name: string | null | undefined): boolean {
   return /^(photo|image|video|video-note|voice|audio|file)-\d{1,16}\.[a-z0-9]{1,8}$/.test(
@@ -1669,16 +1696,17 @@ export function mtprotoMediaInfo(
     const audio = attrs.find(a => a?.className === 'DocumentAttributeAudio')
     const named = attrs.find(a => a?.className === 'DocumentAttributeFilename')
     const video = attrs.find(a => a?.className === 'DocumentAttributeVideo')
-    const ext =
-      EXT_BY_MIME[mime] ||
-      ourExtension(mime.split('/')[1]) ||
-      ourExtension(/\.([^.]+)$/.exec(String(named?.fileName ?? ''))?.[1]) ||
-      'bin'
     let kind: MediaKind
     if (audio || mime.startsWith('audio/')) kind = 'audio'
     else if (video || mime.startsWith('video/')) kind = 'video'
     else if (mime.startsWith('image/')) kind = 'image'
     else kind = 'file'
+    const ext =
+      EXT_BY_MIME[mime] ||
+      (kind === 'file' ? documentExtension(named?.fileName) : null) ||
+      ourExtension(mime.split('/')[1]) ||
+      ourExtension(extensionOf(named?.fileName)) ||
+      'bin'
     const prefix =
       audio?.voice === true
         ? 'voice'
