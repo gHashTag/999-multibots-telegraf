@@ -113,6 +113,27 @@ export function ProfileTabs() {
     ? activeTab
     : 'templates'
   const contentRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+
+  /*
+   * THE CHOSEN SECTION IS ALWAYS IN SIGHT.
+   *
+   * Ten sections do not fit a phone's width, so the strip scrolls -- and a
+   * section chosen by swipe or by ?tab= could sit past the edge, active and
+   * invisible (2026-09-22). Brought into view on every change. Declared above
+   * the early return below: a hook after it would change the hook order
+   * between the first render (no profile yet) and the next.
+   */
+  useEffect(() => {
+    const active = headerRef.current?.querySelector<HTMLElement>(
+      '.profile-tabs__tab--active'
+    )
+    active?.scrollIntoView?.({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: 'smooth',
+    })
+  }, [visibleActiveTab])
 
   // Swipe navigation between tabs
   const goToNextTab = useCallback(() => {
@@ -237,11 +258,12 @@ export function ProfileTabs() {
 
   return (
     <div className="profile-tabs">
-      <div className="profile-tabs__header">
+      <div className="profile-tabs__header" ref={headerRef}>
         {tabs.map(tab => (
           <button
             key={tab.id}
             className={`profile-tabs__tab ${visibleActiveTab === tab.id ? 'profile-tabs__tab--active' : ''}`}
+            aria-pressed={visibleActiveTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.icon}
