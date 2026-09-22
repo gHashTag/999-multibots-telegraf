@@ -32,6 +32,7 @@
 import crypto from 'node:crypto'
 import { PLATFORM_OWNER_FALLBACK } from '../platform-owner'
 import { hangUp } from './hang-up'
+import { defangMarkers } from './media-parts'
 import type { AgentTool, ToolContext } from './tools'
 import { remember } from './tg-proposals'
 import { resolvingPeer, EXECUTABLE_ACTIONS } from './tg-proposals'
@@ -203,6 +204,17 @@ const FENCE_CLOSE = 'END FOREIGN CONTENT'
  *
  * `limit` exists because 2000 characters is right for a chat message and
  * absurd for a fetched page. Omitting it keeps the old number exactly.
+ *
+ * ── A BUTTON MARKER IS BROKEN HERE, FOR EVERY CALLER ───────────────────────
+ *
+ * `[[label|act:topup]]` in the model's answer becomes a real payment button
+ * (`defangMarkers`, media-parts.ts). The web tools, the chat turn's media and
+ * `tg_fetch_media` broke it before framing; `crm_lead_media`, the dialog in
+ * `crm_lead_context`, captions, Zep summaries and `tg_history` did not -- and
+ * since 2026-09-22 a stored transcript holds the text of any PDF or office
+ * file a person sends. One call here closes every path at once, including the
+ * ones written later. Text without `[[` or a leading `[attached ` is unchanged,
+ * and breaking it twice is the same as once.
  */
 export function foreignText(
   text: string,
@@ -210,7 +222,7 @@ export function foreignText(
 ): string {
   const limit = opts.limit ?? 2000
   const tag = opts.nonce ? ` #${opts.nonce}` : ''
-  const body = String(text ?? '')
+  const body = defangMarkers(String(text ?? ''))
     .split(FENCE_CLOSE)
     .join('END FOREIGN·CONTENT')
     .split(FENCE_OPEN)
