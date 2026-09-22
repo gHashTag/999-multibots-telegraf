@@ -66,7 +66,19 @@ async function inTransaction<T>(
 
 export async function creditStarsPayment(
   pool: MaybePool,
-  payment: { chargeId: string; telegramId: string; amount: number }
+  payment: {
+    chargeId: string
+    telegramId: string
+    amount: number
+    /**
+     * The line the person reads in their own history and the keeper reads in
+     * the journal. Absent = a Telegram Stars payment, which is every caller
+     * but one: a club month the owner was paid for in cash
+     * (agent/club-cash.ts) goes through this same door -- the same charge-id
+     * lock, the same ledger -- and must not be recorded as Stars.
+     */
+    reason?: string
+  }
 ): Promise<{ credited: boolean; reason: string }> {
   const { chargeId, telegramId: tid, amount } = payment
   if (!(amount > 0) || !tid)
@@ -126,7 +138,7 @@ export async function creditStarsPayment(
       telegramId: tid,
       delta: amount,
       kind: 'purchase',
-      reason: 'Telegram Stars',
+      reason: payment.reason || 'Telegram Stars',
       ref: chargeId,
       meta: { chargeId },
     })
@@ -155,7 +167,7 @@ export async function creditStarsPayment(
     kind: 'payment',
     who: tid,
     amount,
-    what: 'звёзды Telegram', // cyrillic-ok: journal text the keeper reads
+    what: payment.reason || 'звёзды Telegram', // cyrillic-ok: journal text the keeper reads
     severity: 'normal',
   })
 
