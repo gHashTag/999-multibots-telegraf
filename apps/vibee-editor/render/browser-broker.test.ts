@@ -979,3 +979,26 @@ describe('the person types from their own keyboard (/api/browser/type)', () => {
     expect(said.some(q => /person_wheel_until = now\(\)/.test(q))).toBe(true)
   })
 })
+
+describe('the agent starts the browser itself (A2A test, 2026-09-22)', () => {
+  it('opens through the same door as the button, as the agent, and the person is told', async () => {
+    const { configureAgentStart, startBrowserAsAgent } = await import(
+      './src/browser/routes'
+    )
+    const { d, sent, driver } = deps({ actor: () => 'person' })
+    configureAgentStart(() => d)
+    expect(await startBrowserAsAgent('tg-900000001')).toBe(true)
+    expect(driver.started).toHaveLength(1)
+    /* Announced as the AGENT's doing, whatever door the deps normally see. */
+    expect(sent).toHaveLength(1)
+    expect(sent[0].to).toBe('tg-900000001')
+  })
+
+  it('without the broker wired, it says no instead of pretending', async () => {
+    const { configureAgentStart, startBrowserAsAgent } = await import(
+      './src/browser/routes'
+    )
+    configureAgentStart(() => ({ ...deps().d, driver: null }))
+    expect(await startBrowserAsAgent('tg-900000001')).toBe(false)
+  })
+})

@@ -992,8 +992,8 @@ function canTakeSection(surface?: string): string {
     'browser_open, browser_read, browser_screenshot, browser_click, ' +
     'browser_type, browser_evaluate, browser_close_tab. Человек видит ' +
     'КАЖДОЕ твоё действие и может перехватить руль — невидимого режима нет. ' +
-    'Если браузер не запущен, скажи: открыть его на вкладке «Браузер» в ' +
-    'приложении.' +
+    'Если браузер выключен, он поднимется сам при первом действии ' + // cyrillic-ok: prompt copy
+    '(browser_open) — человеку придёт уведомление; не отправляй его включать.' + // cyrillic-ok: prompt copy
     /*
      * WHEN THE AGENT NEEDS THE PERSON, IT CALLS A BUTTON, NOT THE CHAT.
      *
