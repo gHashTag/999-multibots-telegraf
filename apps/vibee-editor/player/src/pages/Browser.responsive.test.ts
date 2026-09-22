@@ -104,3 +104,20 @@ describe('the fullscreen body is a containing block', () => {
     expect(body![1]).toMatch(/transform:/)
   })
 })
+
+describe('nothing under the picture runs off the screen (owner, 2026-09-22)', () => {
+  it('the controls are a grid, not a row that scrolls sideways', () => {
+    expect(css).toMatch(
+      /\.remote-browser--live \.remote-browser__actions \{[^}]*display: grid/
+    )
+    expect(css).not.toMatch(
+      /\.remote-browser--live \.remote-browser__actions \{[^}]*overflow-x: auto/
+    )
+  })
+
+  it('every block under the picture takes the full width, not its content width', () => {
+    expect(css).toMatch(
+      /\.remote-browser__live > \* \{[^}]*align-self: stretch[^}]*min-width: 0/
+    )
+  })
+})
