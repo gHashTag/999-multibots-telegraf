@@ -61,18 +61,42 @@ function withBearer(init: RequestInit, token: string): RequestInit {
   return { ...init, headers }
 }
 
-async function renewed(): Promise<string | null> {
+/** What a renewal came to: a fresh token, a refusal, or a bad moment. */
+type Renewal = { token: string } | { refused: true } | { transient: true }
+
+async function renewed(): Promise<Renewal> {
   try {
     await refreshAppSession()
-    return getAppAccessToken() || null
+    const token = getAppAccessToken() // secret-guard-ok: reads this tab's session, holds no value
+    return token ? { token } : { refused: true }
   } catch (error) {
     // refreshAppSession has already cleared a refused session. A transient
     // failure -- the brake, a deploy, no network yet -- kept it, and asking
     // the board to sign in again over it was a false alarm (review,
     // 2026-09-22): the session renews on the next try.
-    if (!(error instanceof TransientSessionError)) markEmbedSignInNeeded()
-    return null
+    if (error instanceof TransientSessionError) return { transient: true }
+    markEmbedSignInNeeded()
+    return { refused: true }
   }
+}
+
+/*
+ * A BAD MOMENT IS NOT A SIGN-OUT, SO IT MUST NOT LOOK LIKE ONE.
+ *
+ * After a transient renewal failure the wrapper used to send the request with
+ * the dead Bearer anyway; the server answered 401, and callers that read a 401
+ * as "signed out" (crm.ts, agentStream.ts) put the board's sign-in panel over
+ * the screen (second review, 2026-09-22). The request is answered here instead,
+ * as the service being briefly unavailable, which is what happened.
+ */
+function renewalUnavailable(): Response {
+  return new Response(
+    JSON.stringify({
+      error: 'session_renewal_unavailable',
+      detail: 'the sign-in service did not answer; try again in a moment',
+    }),
+    { status: 503, headers: { 'Content-Type': 'application/json' } }
+  )
 }
 
 export function sessionRenewingFetch(
@@ -94,9 +118,10 @@ export function sessionRenewingFetch(
 
     let request = init
     if (!hasLiveAppSession() && hasRenewableAppSession()) {
-      const fresh = await renewed()
-      if (!fresh) return base(input, init)
-      request = withBearer(init, fresh)
+      const first = await renewed()
+      if ('transient' in first) return renewalUnavailable()
+      if (!('token' in first)) return base(input, init)
+      request = withBearer(init, first.token)
     }
 
     const response = await base(input, request)
@@ -105,9 +130,10 @@ export function sessionRenewingFetch(
       markEmbedSignInNeeded()
       return response
     }
-    const fresh = await renewed()
-    if (!fresh) return response
-    return base(input, withBearer(request, fresh))
+    const again = await renewed()
+    if ('transient' in again) return renewalUnavailable()
+    if (!('token' in again)) return response
+    return base(input, withBearer(request, again.token))
   }
   return wrapped as Fetch
 }

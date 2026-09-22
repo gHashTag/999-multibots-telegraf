@@ -655,6 +655,44 @@ function mintedRefreshExpiry(): Date {
   return new Date(Date.now() + SESSION_TUNING.REFRESH_TTL_SECONDS * 1000)
 }
 
+/*
+ * A COOKIE THIS REPLY REMOVES OR REPLACES IS REVOKED, NOT ORPHANED.
+ *
+ * The browser holds one cookie. A reply that clears it (logout, logout-all) or
+ * overwrites it (a new widget sign-in) leaves the family it named with no
+ * holder -- and alive on the server for up to 60 days, out of reach of any
+ * later sign-out (review, 2026-09-22). So that family is revoked here, unless
+ * it is the one this reply keeps.
+ */
+async function revokeJarFamily(
+  pool: Pick<PoolClient, 'query'>,
+  req: IncomingMessage,
+  keepFamilyId: string | null = null
+): Promise<void> {
+  const jarToken = readRefreshCookie(req) // secret-guard-ok: reads the request's cookie, holds no value
+  if (!jarToken) return
+  const jar = await pool.query(
+    `SELECT family_id FROM app_refresh_tokens
+      WHERE token_hash = $1 AND revoked_at IS NULL
+      LIMIT 1`,
+    [digest(jarToken)]
+  )
+  const family = jar.rows.length ? String(jar.rows[0].family_id) : ''
+  if (!family || family === keepFamilyId) return
+  await pool.query(
+    `UPDATE app_sessions SET revoked_at = now()
+      WHERE family_id = $1 AND revoked_at IS NULL`,
+    [family]
+  )
+  const sessions = await pool.query(
+    `UPDATE app_refresh_tokens SET revoked_at = now()
+      WHERE family_id = $1 AND revoked_at IS NULL
+      RETURNING session_id`,
+    [family]
+  )
+  for (const row of sessions.rows) revokeNow(String(row.session_id))
+}
+
 async function readBody(req: IncomingMessage): Promise<string> {
   const parts: Buffer[] = []
   let size = 0
@@ -856,6 +894,15 @@ export async function handleAuthRoute(
         who: verified.telegramId,
         what: `widget; ${safeDeviceName(body.device_name)}`,
       })
+      // The new cookie replaces whatever the jar held; that family has no
+      // other holder, so it ends here rather than lingering for 60 days.
+      if (wantsCookieTransport(req)) {
+        try {
+          await revokeJarFamily(pool, req)
+        } catch (error) {
+          console.warn('[widget] replaced cookie family not revoked', error)
+        }
+      }
       json(
         res,
         200,
@@ -1145,11 +1192,11 @@ export async function handleAuthRoute(
       severity: 'attention',
     })
 
-    json(
-      res,
-      200,
-      withRefreshTransport(req, res, minted.response, mintedRefreshExpiry())
-    )
+    // Answered in the body only, like /api/auth/telegram: a pairing session is
+    // the iOS app's, and the browser's cookie must never carry it (review,
+    // 2026-09-22 -- any script on app.t27.ai could otherwise claim a code
+    // into the jar and replace the person's own session).
+    json(res, 200, minted.response)
     return true
   }
 
@@ -1224,7 +1271,15 @@ export async function handleAuthRoute(
       return true
     }
 
-    const outcome = await rotateRefreshToken(presented, refreshStore(pool))
+    const outcome = await rotateRefreshToken(
+      presented,
+      refreshStore(pool),
+      undefined,
+      {
+        jar: fromCookie,
+        jarHash: bodyToken && jarToken ? digest(jarToken) : '',
+      }
+    )
 
     if (!outcome.ok) {
       /*
@@ -1368,9 +1423,14 @@ export async function handleAuthRoute(
      * tab never holds one without the other. Only for cookie transport: every
      * other client gets the reply it always got.
      */
+    const isWeb = String(s.kind ?? '') === 'web'
     const toCookie =
-      wantsCookieTransport(req) &&
-      (fromCookie || (!jarToken && String(s.kind ?? '') === 'web'))
+      wantsCookieTransport(req) && isWeb && (fromCookie || !jarToken)
+    // Only a Login Widget session belongs in the jar. Anything else found
+    // there leaves it, and its successor goes back in the body.
+    if (fromCookie && !isWeb) {
+      res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
+    }
     if (toCookie) {
       type ProfileRow = {
         username?: string | null
@@ -1677,9 +1737,11 @@ export async function handleAuthRoute(
       severity: 'attention',
     })
 
-    // Every family is revoked, this browser's included, so its cookie now
-    // names a dead token; take it out rather than let it be presented.
+    // Every family of this person is revoked. The cookie may name another
+    // person's (a second account in this browser): it is taken out below, so
+    // it is revoked too rather than left alive with no holder.
     if (wantsCookieTransport(req)) {
+      await revokeJarFamily(pool, req)
       res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
     }
     json(res, 200, { logged_out: revoked.length })
@@ -1832,30 +1894,7 @@ export async function handleAuthRoute(
      * stayed live left a 60-day credential valid on the server with no one
      * holding it to sign it out (review, 2026-09-22). Revoke what we remove.
      */
-    const jarToken = readRefreshCookie(req) // secret-guard-ok: reads the request's cookie, holds no value
-    if (jarToken) {
-      const jar = await pool.query(
-        `SELECT family_id FROM app_refresh_tokens
-          WHERE token_hash = $1 AND revoked_at IS NULL
-          LIMIT 1`,
-        [digest(jarToken)]
-      )
-      const jarFamily = jar.rows.length ? String(jar.rows[0].family_id) : ''
-      if (jarFamily && jarFamily !== familyId) {
-        await pool.query(
-          `UPDATE app_sessions SET revoked_at = now()
-            WHERE family_id = $1 AND revoked_at IS NULL`,
-          [jarFamily]
-        )
-        const jarSessions = await pool.query(
-          `UPDATE app_refresh_tokens SET revoked_at = now()
-            WHERE family_id = $1 AND revoked_at IS NULL
-            RETURNING session_id`,
-          [jarFamily]
-        )
-        for (const row of jarSessions.rows) revokeNow(String(row.session_id))
-      }
-    }
+    await revokeJarFamily(pool, req, familyId)
 
     if (wantsCookieTransport(req)) {
       res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))

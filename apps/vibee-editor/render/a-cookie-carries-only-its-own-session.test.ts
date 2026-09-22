@@ -32,6 +32,8 @@ type Token = {
   used_at: string | null
   revoked_at: string | null
   expires_at: string
+  replaced_by?: string | null
+  created_at?: string
 }
 type Session = {
   id: string
@@ -101,17 +103,54 @@ describe('the refresh cookie holds only the session it was given', () => {
         if (/s\.created_at AS family_created_at/.test(q)) {
           if (!t) return { rows: [] }
           const s = rows.get(t.session_id)!
-          return { rows: [{ ...t, family_created_at: s.created_at }] }
+          const n = t.replaced_by ? tokens.get(t.replaced_by) : undefined
+          return {
+            rows: [
+              {
+                ...t,
+                family_created_at: s.created_at,
+                successor_hash: t.replaced_by ?? null,
+                successor_unused: n ? !n.used_at && !n.revoked_at : null,
+                successor_created_at: n?.created_at ?? null,
+                displaced: !!t.revoked_at && !t.used_at && !!t.replaced_by,
+              },
+            ],
+          }
+        }
+        if (q.startsWith('WITH dropped AS')) {
+          const n = tokens.get(String(params[1]))
+          if (
+            !t ||
+            t.replaced_by !== params[1] ||
+            !n ||
+            n.used_at ||
+            n.revoked_at
+          )
+            return { rows: [] }
+          n.revoked_at = new Date().toISOString()
+          n.replaced_by = String(params[2])
+          t.replaced_by = String(params[2])
+          tokens.set(String(params[2]), {
+            family_id: t.family_id,
+            session_id: t.session_id,
+            used_at: null,
+            revoked_at: null,
+            expires_at: String(params[3]),
+            created_at: new Date().toISOString(),
+          })
+          return { rows: [{ token_hash: params[2] }] }
         }
         if (q.startsWith('WITH consumed AS')) {
           if (!t || t.used_at || t.revoked_at) return { rows: [] }
           t.used_at = new Date().toISOString()
+          t.replaced_by = String(params[1])
           tokens.set(String(params[1]), {
             family_id: t.family_id,
             session_id: t.session_id,
             used_at: null,
             revoked_at: null,
             expires_at: String(params[2]),
+            created_at: new Date().toISOString(),
           })
           return { rows: [{ token_hash: params[1] }] }
         }
@@ -191,9 +230,18 @@ describe('the refresh cookie holds only the session it was given', () => {
       [...tokens.values()]
         .filter(x => x.session_id === id)
         .every(x => x.revoked_at !== null)
+    /** Move a rotation into the past, as the clock would. */
+    const age = (plain: string, seconds: number) => {
+      const spent = tokens.get(session.digest(plain))!
+      const past = new Date(Date.now() - seconds * 1000).toISOString()
+      spent.used_at = past
+      const next = spent.replaced_by ? tokens.get(spent.replaced_by) : null
+      if (next) next.created_at = past
+    }
     return {
       sent,
       familyRevoked,
+      age,
       pool: { ...client, connect: async () => client },
     }
   }
@@ -399,5 +447,76 @@ describe('the refresh cookie holds only the session it was given', () => {
     expect(d.familyRevoked('s-tab')).toBe(true)
     expect(d.familyRevoked('s-jar')).toBe(true)
     expect(setsCookie(res)).toContain('Max-Age=0')
+  })
+
+  const jarOf = (res: { headers: Record<string, string> }) =>
+    decodeURIComponent(
+      (setsCookie(res).match(new RegExp(`^${COOKIE}=([^;]*)`)) ?? [])[1] ?? ''
+    )
+
+  it('a reply lost after the rotation: the same jar token later gets a new successor, not a revoked family', async () => {
+    const d = db([
+      { token: 'jar-web', id: 's-web', kind: 'web', who: '7300012' },
+    ])
+    const first = await call('/api/auth/refresh', d, { jar: 'jar-web' })
+    expect(first.status).toBe(200)
+    // The Set-Cookie never reached the jar: the tab closed, the line dropped.
+    d.age('jar-web', 30)
+    const retry = await call('/api/auth/refresh', d, { jar: 'jar-web' })
+    expect(retry.status, JSON.stringify(retry.body)).toBe(200)
+    expect(jarOf(retry)).not.toBe('')
+    expect(d.familyRevoked('s-web')).toBe(false)
+    // And the new successor rides on.
+    const next = await call('/api/auth/refresh', d, { jar: jarOf(retry) })
+    expect(next.status).toBe(200)
+  })
+
+  it('the same replay from a body is still a theft', async () => {
+    const d = db([
+      { token: 'tab-web', id: 's-tab', kind: 'web', who: '7300013' },
+    ])
+    const first = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+      cookieClient: false,
+    })
+    expect(first.status).toBe(200)
+    d.age('tab-web', 30)
+    const replay = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+      cookieClient: false,
+    })
+    expect(replay.status).toBe(401)
+    expect(replay.body.error).toBe('auth_reuse_detected')
+    expect(d.familyRevoked('s-tab')).toBe(true)
+  })
+
+  it("a tab's stale copy sent beside the cookie that holds its successor is a race", async () => {
+    const d = db([
+      { token: 'tab-web', id: 's-tab', kind: 'web', who: '7300014' },
+    ])
+    // One tab moved the family into the empty jar...
+    const moved = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+    })
+    expect(moved.body.refresh_transport).toBe('cookie')
+    d.age('tab-web', 30)
+    // ...its duplicate still holds the old token, and sends it with the jar.
+    const stale = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+      jar: jarOf(moved),
+    })
+    expect(stale.status).toBe(409)
+    expect(setsCookie(stale)).toBe('')
+    expect(d.familyRevoked('s-tab')).toBe(false)
+  })
+
+  it('a session that is not a Login Widget one leaves the jar, its successor in the body', async () => {
+    const d = db([
+      { token: 'jar-app', id: 's-app', kind: 'app', who: '7300015' },
+    ])
+    const res = await call('/api/auth/refresh', d, { jar: 'jar-app' })
+    expect(res.status).toBe(200)
+    expect(setsCookie(res)).toContain('Max-Age=0')
+    expect(typeof res.body.refresh_token).toBe('string')
   })
 })

@@ -224,6 +224,23 @@ describe('auth.t27.ai answers the sign-in doors and nothing else', () => {
     expect(on('auth.t27.ai', '/api/authx/refresh')).toBe(true)
   })
 
+  it('refuses a path that only starts like a door', () => {
+    // Routes that match on new URL(req.url).pathname resolve dot segments.
+    for (const url of [
+      '/api/auth/../feed/x',
+      '/api/auth/../s3/x.svg',
+      '/api/auth/%2e%2e/s3/x.svg',
+      '/api/auth/%2E%2E/feed',
+      '/api/auth/..%2fs3/x.svg',
+      '/api/auth/.%2e/s3',
+      '/api/auth\\..\\s3',
+      '/api/auth/./refresh',
+      '//api/auth/refresh',
+    ]) {
+      expect(on('auth.t27.ai', url), url).toBe(true)
+    }
+  })
+
   it('reads the host the edge forwards, case and port aside', () => {
     expect(on('internal:8080', '/s3/x.svg', 'auth.t27.ai')).toBe(true)
     expect(on('AUTH.T27.AI:443', '/s3/x.svg')).toBe(true)

@@ -415,7 +415,9 @@ export function refreshStore(pool: Pool) {
                   WHERE n.token_hash = t.replaced_by) AS successor_unused,
                 (SELECT n.created_at
                    FROM app_refresh_tokens n
-                  WHERE n.token_hash = t.replaced_by) AS successor_created_at
+                  WHERE n.token_hash = t.replaced_by) AS successor_created_at,
+                (t.revoked_at IS NOT NULL AND t.used_at IS NULL
+                   AND t.replaced_by IS NOT NULL) AS displaced
            FROM app_refresh_tokens t
            JOIN app_sessions s ON s.id = t.session_id
           WHERE t.token_hash = $1`,
@@ -437,6 +439,8 @@ export function refreshStore(pool: Pool) {
         successorCreatedAt: row.successor_created_at
           ? new Date(row.successor_created_at)
           : null,
+        // Only reissue leaves a token revoked, unused and linked onward.
+        displaced: row.displaced === true,
       }
     },
 
@@ -490,7 +494,7 @@ export function refreshStore(pool: Pool) {
       const r = await pool.query(
         `WITH dropped AS (
            UPDATE app_refresh_tokens n
-              SET revoked_at = now()
+              SET revoked_at = now(), replaced_by = $3
              FROM app_refresh_tokens t
             WHERE t.token_hash = $1
               AND t.replaced_by = $2
