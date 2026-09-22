@@ -42,12 +42,30 @@ describe('the marker rule is bound to the surface that can render it', () => {
 
   it('changes nothing else: the two prompts differ only by the rule', () => {
     const withRule = systemPrompt('bot')
-    const without = systemPrompt('miniapp')
-    expect(withRule.length).toBeGreaterThan(without.length)
+    /* The mini app carries its own rule now (cards); both are cut out. */
+    const app = systemPrompt('miniapp')
     // Built with new RegExp so the Russian anchors sit inside a string literal:
     // in a regex literal they read as code to the Cyrillic gate.
     const rule = new RegExp('\\n\\nКНОПКИ[\\s\\S]*?без тебя\\.')
-    expect(withRule.replace(rule, '')).toBe(without)
+    const cards = new RegExp('\\n\\nКАРТОЧКИ[\\s\\S]*?ради украшения\\.')
+    expect(withRule).toMatch(rule)
+    expect(app).toMatch(cards)
+    expect(withRule.replace(rule, '')).toBe(app.replace(cards, ''))
+  })
+})
+
+describe('cards to approve, only where they are drawn (the mini app)', () => {
+  it('the mini app is told the card syntax and what an approval sounds like', () => {
+    const p = systemPrompt('miniapp')
+    expect(p).toContain('[[card: ')
+    expect(p).toContain('✅ Одобряю: ') // cyrillic-ok: the player's own words
+    expect(p).toContain('✖ Не надо: ') // cyrillic-ok: the player's own words
+  })
+
+  it('no other surface, and never the unattended sweep, gets it', () => {
+    for (const s of ['bot', 'business', 'ios', 'agent', 'queen', undefined])
+      expect(systemPrompt(s as string | undefined)).not.toContain('[[card: ')
+    expect(systemPrompt('miniapp', true)).not.toContain('[[card: ')
   })
 })
 
