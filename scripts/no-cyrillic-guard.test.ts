@@ -19,6 +19,15 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+/*
+ * Git hooks export GIT_DIR: under one, a bare `git config` here would write
+ * into the REAL repository (it did, 2026-09-22, from another test). Every
+ * git call in this file gets an environment without GIT_*.
+ */
+const NO_GIT_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))
+)
+
 const guard = require('./no-cyrillic-guard.cjs')
 const GUARD = path.resolve(__dirname, 'no-cyrillic-guard.cjs')
 
@@ -121,7 +130,7 @@ describe('the staged check against a real git index', () => {
   let dir: string
 
   const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
+    execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: NO_GIT_ENV })
 
   /** Exit code of the guard's staged mode: 0 clean, 1 a hit. */
   const run = (): number => {
@@ -130,6 +139,7 @@ describe('the staged check against a real git index', () => {
         cwd: dir,
         encoding: 'utf8',
         stdio: 'pipe',
+        env: NO_GIT_ENV,
       })
       return 0
     } catch (err: any) {
@@ -234,6 +244,7 @@ describe('the staged check against a real git index', () => {
       const child = spawn('node', [GUARD, 'staged'], {
         cwd: dir,
         stdio: ['ignore', 'ignore', 'pipe'],
+        env: NO_GIT_ENV,
       })
       let out = ''
       setTimeout(() => child.stderr.on('data', d => (out += d)), 400)

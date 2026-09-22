@@ -8,7 +8,13 @@
  */
 import { describe, expect, it } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdtempSync,
+  mkdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -89,8 +95,24 @@ describe('botApiFindings', () => {
  */
 describe('fresh-for-tokens.sh', () => {
   const GUARD = resolve(__dirname, '../bin/helpers/fresh-for-tokens.sh')
+  /*
+   * NO GIT_* FROM THE CALLER. Git hooks export GIT_DIR (and friends), and this
+   * file runs under the pre-push hook: the first version of these tests,
+   * run there, wrote `user.name=t` into the REAL repository's config while
+   * "initialising" a throwaway one. Every git call below gets an environment
+   * without GIT_*, the identity as `-c` (nothing written to any config), and
+   * `repos()` refuses to go on unless the new repository really lives in the
+   * temporary directory.
+   */
+  const CLEAN = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))
+  )
   const git = (cwd: string, ...args: string[]) =>
-    execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' })
+    execFileSync(
+      'git',
+      ['-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args],
+      { cwd, encoding: 'utf8', stdio: 'pipe', env: CLEAN }
+    )
 
   function repos() {
     const base = mkdtempSync(join(tmpdir(), 'fresh-tokens-'))
@@ -98,8 +120,10 @@ describe('fresh-for-tokens.sh', () => {
     const work = join(base, 'work')
     git(base, 'init', '-q', '--bare', '-b', 'main', origin)
     git(base, 'clone', '-q', origin, work)
-    git(work, 'config', 'user.email', 't@example.com')
-    git(work, 'config', 'user.name', 't')
+    const gitDir = git(work, 'rev-parse', '--absolute-git-dir').trim()
+    if (!realpathSync(gitDir).startsWith(realpathSync(base))) {
+      throw new Error(`refusing: the test repository is not in ${base}`)
+    }
     git(work, 'checkout', '-q', '-b', 'main')
     mkdirSync(join(work, 'scripts/lib'), { recursive: true })
     writeFileSync(join(work, 'scripts/lib/telegram-api.cjs'), 'v1\n')
@@ -111,7 +135,7 @@ describe('fresh-for-tokens.sh', () => {
   }
   const run = (work: string) => {
     try {
-      execFileSync('bash', [GUARD, work], { stdio: 'pipe' })
+      execFileSync('bash', [GUARD, work], { stdio: 'pipe', env: CLEAN })
       return 0
     } catch (e) {
       return (e as { status: number }).status

@@ -14,13 +14,22 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+/*
+ * Git hooks export GIT_DIR: under one, a bare `git config` here would write
+ * into the REAL repository (it did, 2026-09-22, from another test). Every
+ * git call in this file gets an environment without GIT_*.
+ */
+const NO_GIT_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))
+)
+
 const SCRIPT = path.join(__dirname, 'upstream-check.cjs')
 
 let dir: string
 let clone: string
 
 const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+  execFileSync('git', args, { cwd, encoding: 'utf8', env: NO_GIT_ENV }).trim()
 
 /** Run the check inside `clone`; returns its output and exit code. */
 function check(...args: string[]) {
@@ -28,6 +37,7 @@ function check(...args: string[]) {
     const stdout = execFileSync(process.execPath, [SCRIPT, ...args], {
       cwd: clone,
       encoding: 'utf8',
+      env: NO_GIT_ENV,
     })
     return { code: 0, out: stdout }
   } catch (e) {
@@ -136,7 +146,7 @@ describe('where each branch pulls from', () => {
         out = execFileSync(process.execPath, [SCRIPT], {
           cwd: outside,
           encoding: 'utf8',
-          env: { ...process.env, GIT_CEILING_DIRECTORIES: os.tmpdir() },
+          env: { ...NO_GIT_ENV, GIT_CEILING_DIRECTORIES: os.tmpdir() },
         })
       } catch (e) {
         const err = e as { status?: number; stdout?: string; stderr?: string }
