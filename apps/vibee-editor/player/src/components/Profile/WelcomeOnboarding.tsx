@@ -71,13 +71,27 @@ import './WelcomeOnboarding.css'
 
 interface WelcomeOnboardingProps {
   facts: WelcomeFacts
+  /**
+   * Start here instead of where the facts point. The one caller is the admin
+   * badge: a free pass makes the club active, so the road skips the paywall
+   * and there is otherwise no way to reach the till and test it (owner,
+   * 2026-09-22: "я не могу в vibee_agent пройти оплату"). Nothing is skipped
+   * by this -- a step is OPENED, not marked done.
+   */
+  startAt?: WelcomeStep
   /** The last card was pressed: club, Telegram and SOUL are all in place. */
   onDone: () => void
 }
 
-export function WelcomeOnboarding({ facts, onDone }: WelcomeOnboardingProps) {
+export function WelcomeOnboarding({
+  facts,
+  startAt,
+  onDone,
+}: WelcomeOnboardingProps) {
   const { t } = useLanguage()
-  const [step, setStep] = useState<WelcomeStep>(() => welcomeStart(facts))
+  const [step, setStep] = useState<WelcomeStep>(
+    () => startAt ?? welcomeStart(facts)
+  )
   const connected = useAtomValue(agentTelegramConnectedAtom)
   const navigate = useNavigate()
   // The last card leads into the game (welcomeSteps.ts, the fast road):

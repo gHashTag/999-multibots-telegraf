@@ -53,6 +53,12 @@ export interface ClubStatus {
   anonymous: boolean
   active: boolean
   /**
+   * A PAID period is live. `active` is also true for a free pass, and only
+   * this says money changed hands -- which is what the admin badge reports
+   * and what decides whether the till will still take a payment.
+   */
+  paid: boolean
+  /**
    * Bot owners (their bots in `avatars`) and keepers enter without paying
    * (owner, 2026-09-10). The server decides; this side only shows it.
    */
@@ -97,6 +103,7 @@ export const loadClubStatusAtom = atom(null, async (_get, set) => {
     set(clubStatusAtom, {
       anonymous: d.anonymous === true,
       active: !!d.active,
+      paid: !!d.paid,
       granted:
         d.granted === 'owner' || d.granted === 'keeper' || d.granted === 'guest'
           ? d.granted

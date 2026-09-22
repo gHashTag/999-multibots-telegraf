@@ -19,10 +19,10 @@ import {
 import { SoulCard } from '@/components/Profile/SoulCard'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import { WelcomeOnboarding } from '@/components/Profile/WelcomeOnboarding'
-import {
-  profileScreen,
-  shouldAskClubPrice,
-} from '@/components/Profile/profileGate'
+import { AdminScreenBadge } from '@/components/Profile/AdminScreenBadge'
+import type { WelcomeStep } from '@/components/Profile/welcomeSteps'
+import { shouldAskClubPrice } from '@/components/Profile/profileGate'
+import { screenVerdict } from '@/components/Profile/screenVerdict'
 import {
   agentTelegramConnectedAtom,
   loadAgentTelegramStatusAtom,
@@ -65,7 +65,17 @@ export function ProfilePage() {
   // profile opens only when club, Telegram and SOUL are all in place and the
   // person pressed the last button. Until then every visit lands on the road.
   const [onRoad, setOnRoad] = useState(false)
-  const finishWelcome = () => setOnRoad(false)
+  /*
+   * A step an admin opened on purpose from the badge. A free pass makes the
+   * club active, so the road skips the paywall and the till is unreachable
+   * for the one person who needs to test it (owner, 2026-09-22). This is the
+   * override, and it is the only thing that reads it.
+   */
+  const [forcedStep, setForcedStep] = useState<WelcomeStep | null>(null)
+  const finishWelcome = () => {
+    setOnRoad(false)
+    setForcedStep(null)
+  }
 
   useEffect(() => {
     if (username) {
@@ -126,17 +136,36 @@ export function ProfilePage() {
     club !== null ? club.active : clubError ? false : null
   const soulExists: boolean | null = soulLoaded ? !!soul?.trim() : null
 
-  const screen = profileScreen({
+  /*
+   * ONE set of facts, asked ONCE. `screenVerdict` calls `profileScreen`
+   * itself and adds the account of WHICH fact decided, so the badge can
+   * never disagree with the screen it is explaining.
+   */
+  const verdictInput = {
     loading,
     own: isOwn,
     connected,
     club: clubActive,
+    paid: club?.paid,
+    granted: club?.granted ?? null,
     soul: soulExists,
+    voice: cloneReady.voice,
     onRoad,
     devBypass:
       import.meta.env.DEV &&
       new URLSearchParams(window.location.search).has('свой'),
-  })
+  }
+  const verdict = screenVerdict(verdictInput)
+  const screen = forcedStep ? 'welcome' : verdict.screen
+  const badge = (
+    <AdminScreenBadge
+      facts={verdictInput}
+      onOpenPayment={() => {
+        setForcedStep('club')
+        setOnRoad(true)
+      }}
+    />
+  )
 
   // Derived state set during render (the React-sanctioned shape): once the
   // road is on screen it stays there until finishWelcome, whatever the facts do.
@@ -230,6 +259,7 @@ export function ProfilePage() {
         <Header />
         <div className="profile-page">
           <div className="profile-page__container">
+            {badge}
             <WelcomeOnboarding
               facts={{
                 club: clubActive === true,
@@ -237,6 +267,7 @@ export function ProfilePage() {
                 soul: soulExists === true,
                 voice: cloneReady.voice,
               }}
+              startAt={forcedStep ?? undefined}
               onDone={finishWelcome}
             />
           </div>
@@ -250,6 +281,7 @@ export function ProfilePage() {
       <Header />
       <div className="profile-page">
         <div className="profile-page__container">
+          {badge}
           {/*
             ФЛАГ РАЗРАБОТЧИКА ОБЪЯВЛЯЕТ СЕБЯ.
 
