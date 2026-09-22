@@ -553,3 +553,69 @@
   background: #f5c542;
   box-shadow: 0 0 8px rgba(245, 197, 66, 0.8);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * MINIMAL, THE DEFAULT (lib/browserLayout.ts): the picture is the screen at
+ * every size, and the only things over it are glass -- the sheet
+ * (DetentSheet.css .detent-sheet--glass) and, when there is one, a notice.
+ *
+ * The glow of a working agent is a hairline on the screen's edge, drawn by
+ * the stage and blind to the finger: nothing over the picture takes a tap.
+ * ───────────────────────────────────────────────────────────────────────── */
+.remote-browser--minimal .remote-browser__stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid transparent;
+  transition: border-color 300ms ease;
+}
+
+.remote-browser--minimal .remote-browser__stage--working::after {
+  border-color: rgba(0, 255, 136, 0.75);
+  animation: remote-browser-edge 2.4s ease-in-out infinite;
+}
+
+@keyframes remote-browser-edge {
+  50% {
+    border-color: rgba(0, 255, 136, 0.3);
+  }
+}
+
+/* A notice or an error would sit under the picture; it floats as glass. */
+.remote-browser--minimal .remote-browser__notice,
+.remote-browser--minimal .remote-browser__error {
+  position: fixed;
+  top: calc(8px + var(--app-safe-top, 0px));
+  left: max(8px, calc(50% - 280px));
+  right: max(8px, calc(50% - 280px));
+  box-sizing: border-box;
+  z-index: calc(var(--z-tabbar, 900) + 20);
+  margin: 0;
+  color: #fff;
+  background: rgba(14, 17, 15, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+}
+
+.remote-browser--minimal .remote-browser__error {
+  border-color: rgba(255, 90, 90, 0.5);
+}
+
+/* The page's own title is under the picture anyway; say nothing twice. */
+.remote-browser--minimal .remote-browser__head {
+  display: none;
+}
+
+/* Inside the glass the text is white on dark, whatever the app's theme. */
+.remote-browser--minimal .detent-sheet--glass .remote-browser__muted {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .remote-browser--minimal .remote-browser__stage--working::after {
+    animation: none;
+  }
+}

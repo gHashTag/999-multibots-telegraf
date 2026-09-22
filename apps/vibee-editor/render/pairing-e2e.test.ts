@@ -322,6 +322,41 @@ describe('вход по коду: сквозной путь', () => {
     expect(о2.тело.refresh_token).toBeTruthy()
   })
 
+  it('a code claimed with the cookie opt-in is answered in the body, and no cookie is set', async () => {
+    // A pairing session is the iOS app's. The browser's one cookie must never
+    // carry it: any script on app.t27.ai could otherwise claim a code into the
+    // jar and replace the person's own session (review, 2026-09-22).
+    const started = ответ() // cyrillic-ok: helper of this file
+    await handleAuthRoute(
+      request(
+        '/api/auth/pair/start',
+        {},
+        { 'x-telegram-init-data': подписанные(4343) } // cyrillic-ok: helper of this file
+      ),
+      started,
+      пул as any // cyrillic-ok: helper of this file
+    )
+    expect(started.status).toBe(200)
+    const claimed = ответ() // cyrillic-ok: helper of this file
+    const cookies: string[] = []
+    claimed.setHeader = (name: string, value: string) => {
+      if (name.toLowerCase() === 'set-cookie') cookies.push(String(value))
+    }
+    await handleAuthRoute(
+      request(
+        '/api/auth/pair/claim',
+        { code: started.json.code },
+        { 'x-session-transport': 'cookie', origin: 'https://app.t27.ai' }
+      ),
+      claimed,
+      пул as any // cyrillic-ok: helper of this file
+    )
+    expect(claimed.status).toBe(200)
+    expect(claimed.json.refresh_token).toBeTruthy()
+    expect(claimed.json).not.toHaveProperty('refresh_transport')
+    expect(cookies).toEqual([])
+  })
+
   /*
    * THE SIGN-IN DOES NOT WAIT FOR THE NOTIFICATION.
    *
