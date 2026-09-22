@@ -178,7 +178,7 @@ export function isClubPath(path: string): boolean {
  * so the bot could not sell the club at all -- and the bot is where all 49
  * new people of the last thirty days registered, only 5 of whom ever opened
  * the app (measured 2026-09-22). It had no way to ask for an invoice on
- * somebody's behalf, and sold the retired BASIC/PRO/STUDIO tiers instead.
+ * somebody's behalf, and sold the retired pre-club tiers instead.
  *
  * The bot now asks with the SERVER key and names the person in
  * `?telegram_id=`, the same shape `/api/feed/pending` already accepts. The
