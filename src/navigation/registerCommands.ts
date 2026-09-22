@@ -1542,7 +1542,13 @@ If not, continue on your own and click the "I myself" button`
             const posledniy = i === chasti.length - 1
             await ctx.reply(chasti[i], posledniy ? markup : undefined)
           }
-          return
+          /*
+           * MARKERS ARE NOT WORDS. An answer made only of `[[Label|act:id]]`
+           * markers is empty once they are stripped: the splitter returns no
+           * parts, the loop above sends nothing, and returning here was
+           * silence. Such a turn falls through to the empty-answer line below.
+           */
+          if (chasti.length > 0) return
         }
         /*
          * A draft card with no words around it IS the answer: recipient, text
@@ -1564,6 +1570,8 @@ If not, continue on your own and click the "I myself" button`
             provider: ответ.provider, // cyrillic-ok: field of ОтветАгента
             tools: (ответ.инструменты ?? []).slice(0, 8), // cyrillic-ok: field of ОтветАгента
             spent: empty.spent,
+            // Text that was only button markers, as opposed to no text at all.
+            markers_only: !!ответ.текст, // cyrillic-ok: field of ОтветАгента
           }
         )
       } catch (err: any) {
@@ -1667,6 +1675,9 @@ If not, continue on your own and click the "I myself" button`
           '@/helpers/telegramLongAnswer'
         )
         const fbParts = splitLong(replyClean)
+        // Only markers and no words is no answer: the apology below, not
+        // silence (the loop would send nothing).
+        if (fbParts.length === 0) throw new Error('Empty response from AI')
         for (let i = 0; i < fbParts.length; i++) {
           await ctx.reply(
             fbParts[i],
