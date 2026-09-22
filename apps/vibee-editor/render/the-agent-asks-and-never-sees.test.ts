@@ -210,3 +210,47 @@ describe('a choice, and something only the person can do (owner: "buttons for ev
     })
   })
 })
+
+describe('what is asked about comes into view (owner: "the buttons were below the edge")', () => {
+  // The probe runs in the page; here it runs against a stub document.
+  const run = (probe: string, doc: unknown) =>
+    new Function('document', `return ${probe}`)(doc) as boolean
+  const el = () => {
+    const calls: unknown[] = []
+    return { calls, scrollIntoView: (o: unknown) => calls.push(o) }
+  }
+
+  it('centres the focused field', async () => {
+    const { centerProbe } = await import('./src/browser/person-type')
+    const field = el()
+    const body = {}
+    expect(
+      run(centerProbe(), { activeElement: field, body, documentElement: {} })
+    ).toBe(true)
+    expect(field.calls).toEqual([{ block: 'center', inline: 'nearest' }])
+  })
+
+  it('with nothing focused, centres what is at the agent point', async () => {
+    const { centerProbe } = await import('./src/browser/person-type')
+    const button = el()
+    const body = {}
+    const seen: number[][] = []
+    const doc = {
+      activeElement: body,
+      body,
+      documentElement: {},
+      elementFromPoint: (x: number, y: number) => (seen.push([x, y]), button),
+    }
+    expect(run(centerProbe(120.4, 640.6), doc)).toBe(true)
+    expect(seen).toEqual([[120, 641]])
+    expect(button.calls).toHaveLength(1)
+  })
+
+  it('no focus and no point: moves nothing', async () => {
+    const { centerProbe } = await import('./src/browser/person-type')
+    const body = {}
+    expect(
+      run(centerProbe(), { activeElement: body, body, documentElement: {} })
+    ).toBe(false)
+  })
+})
