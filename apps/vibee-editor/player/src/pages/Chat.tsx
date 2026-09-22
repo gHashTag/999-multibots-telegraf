@@ -23,6 +23,8 @@ import { authHeaders } from '@/lib/apiFetch'
 import { uploadToS3 } from '@/lib/s3Upload'
 import { toAbsoluteUrl } from '@/lib/mediaUrl'
 import { reportPayOutcome } from '@/lib/payOutcome'
+import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
+import { AgentCards } from '@/components/Chat/AgentCards'
 import './Chat.css'
 
 /**
@@ -290,6 +292,32 @@ function ChatThread({ client }: { client: string | null }) {
     [attachments, client, setInput, uploading]
   )
 
+  /*
+   * THE AGENT'S PROPOSALS AS CARDS (lib/agentCards.ts). Only the latest
+   * answer's cards can be pressed, and not while the agent is still
+   * answering; a press is sent as the person's own message.
+   */
+  let lastAnswer = -1
+  messages.forEach((m, i) => {
+    if (m.role === 'assistant') lastAnswer = i
+  })
+  const cardsOf = (text: string, idx: number) => {
+    const { cards } = parseCards(text)
+    if (cards.length === 0) return null
+    const later = messages
+      .slice(idx + 1)
+      .filter(x => x.role === 'user')
+      .map(x => x.text || '')
+    return (
+      <AgentCards
+        cards={cards}
+        states={cardStates(cards, later)}
+        actionable={idx === lastAnswer && !busy}
+        onAnswer={(chosen, approve) => send(answerFor(chosen, approve))}
+      />
+    )
+  }
+
   const uploadAttachments = useCallback(
     async (files: FileList | null) => {
       const selected = Array.from(files ?? []).slice(
@@ -433,7 +461,7 @@ function ChatThread({ client }: { client: string | null }) {
       </div>
       <div className="chat-container" ref={scrollRef}>
         <div className="chat-messages">
-          {messages.map(m => (
+          {messages.map((m, idx) => (
             <div
               key={m.id}
               className={`message ${m.role === 'user' ? 'user' : 'agent'}`}
@@ -482,7 +510,15 @@ function ChatThread({ client }: { client: string | null }) {
                   видео плеером, аудио плеером. Голые ссылки не смотрятся. */}
               {m.text || (m.attachments?.length ?? 0) > 0 ? (
                 <div className="message-content">
-                  {m.text ? <ChatAssets text={m.text} /> : null}
+                  {m.text ? (
+                    <ChatAssets
+                      text={
+                        m.role === 'assistant'
+                          ? parseCards(m.text).text
+                          : m.text
+                      }
+                    />
+                  ) : null}
                   {m.attachments && m.attachments.length > 0 ? (
                     <div className="message-attachments">
                       {m.attachments.map(attachment => (
@@ -495,6 +531,7 @@ function ChatThread({ client }: { client: string | null }) {
                   ) : null}
                 </div>
               ) : null}
+              {m.role === 'assistant' ? cardsOf(m.text || '', idx) : null}
               {!m.text && m.role === 'assistant' && busy ? (
                 <div className="typing-indicator">
                   <div className="typing-dot" />
