@@ -35,6 +35,7 @@ import { hangUp } from './hang-up'
 import { mintTokenInvoice } from './token-invoice'
 import { tokenForBot } from './bot-farm'
 import { reachable } from './crm-touch-tools'
+import { refuseIfClientStopped } from './assistant-opt-out'
 
 /** The middle pack: enough to feel real, small enough to say yes to. */
 const DEFAULT_TOKENS = 50
@@ -339,6 +340,13 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
       }
       const lead = await resolveLead(ctx, chat)
       const leadId = lead.id
+      /*
+       * A PERSON WHO SWITCHED THE ASSISTANT OFF IS NOT SOLD TO BY IT -- and
+       * the refusal comes BEFORE the invoice is minted, so no payable link
+       * exists for a pitch that will never be shown. propose() checks again;
+       * this one is about the money that would move first.
+       */
+      await refuseIfClientStopped(ctx, leadId)
 
       /*
        * Is this person in our base and ours to touch? Decides whether a touch
@@ -391,7 +399,7 @@ export const CRM_OFFER_TOOLS: AgentTool[] = [
         note: a?.note ? String(a.note) : undefined,
       })
 
-      const p = propose(
+      const p = await propose(
         'send',
         chat,
         text,

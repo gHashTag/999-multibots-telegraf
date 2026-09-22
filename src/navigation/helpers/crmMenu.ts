@@ -26,6 +26,7 @@
 
 import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
+import { resumeButton } from '@/navigation/helpers/clientStopMenu'
 
 export const CRM_PREFIX = 'crm:'
 export const LEAD_ID_RE = /^\d{5,15}$/
@@ -242,7 +243,12 @@ export function emptyLeadsKeyboard() {
  */
 export function leadMenu(
   lead: string,
-  o: { next?: string | null; confirmRefuse?: boolean } = {}
+  o: {
+    next?: string | null
+    confirmRefuse?: boolean
+    /** The client switched the assistant off: the way back comes first. */
+    assistantOff?: boolean
+  } = {}
 ) {
   if (o.confirmRefuse)
     return keyboard([
@@ -257,6 +263,7 @@ export function leadMenu(
       ],
     ])
   return keyboard([
+    ...(o.assistantOff ? [[resumeButton(lead)]] : []),
     [btn(`${prepLabel(o.next)}`, crmCallback('prep', lead))],
     [
       // The url opens the real conversation; the mute stops the agent
