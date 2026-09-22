@@ -126,9 +126,28 @@ export function clubMemberText(
   return lines.join('\n')
 }
 
+/**
+ * "Your invitation ended on 29 September": said above the offer to somebody
+ * whose guest pass ran out, so the price does not read as if they had never
+ * been let in. The date is the render's (club-guests.ts), shown in UTC like
+ * every other club date. Empty when there is nothing to say.
+ */
+export function guestEndedLine(isRu: boolean, iso: string | null): string {
+  const ended = day(iso, isRu)
+  if (!ended) return ''
+  return isRu
+    ? `Ваше приглашение в клуб закончилось ${ended}.`
+    : `Your invitation to the club ended on ${ended}.`
+}
+
 /** The offer. Every number on it came from the cashier a moment ago. */
 export function clubCardText(isRu: boolean, s: ClubStatus): string {
   if (s.active) return clubMemberText(isRu, s)
+  const ended = guestEndedLine(isRu, s.guestEnded)
+  return (ended ? `${ended}\n\n` : '') + clubOfferText(isRu, s)
+}
+
+function clubOfferText(isRu: boolean, s: ClubStatus): string {
   return isRu
     ? [
         '⭐ <b>Клуб — ваш цифровой двойник</b>',

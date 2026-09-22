@@ -79,7 +79,7 @@ function renderDb() {
     if (/^CREATE (TABLE|INDEX|UNIQUE INDEX) IF NOT EXISTS/i.test(s))
       return { rows: [] }
     if (
-      /^SELECT paid_at::text, until::text, COUNT\(\*\) OVER \(\) AS periods FROM club_period WHERE telegram_id = \$1 ORDER BY until DESC LIMIT 1$/i.test(
+      /^SELECT paid_at::text, until::text, star_tx_id, COUNT\(\*\) OVER \(\) AS periods FROM club_period WHERE telegram_id = \$1 ORDER BY until DESC LIMIT 1$/i.test(
         s
       )
     ) {
@@ -92,6 +92,7 @@ function renderDb() {
               {
                 paid_at: mine[0].paid_at,
                 until: mine[0].until,
+                star_tx_id: mine[0].star_tx_id,
                 periods: mine.length,
               },
             ]
@@ -189,6 +190,9 @@ beforeAll(async () => {
           return { credited: true }
         },
         fetchImpl: cashier.fetchImpl,
+        // Nobody owns a bot and nobody keeps the hive here; the guest pass is
+        // read from CLUB_GUESTS exactly as on the render (club-guests.ts).
+        grant: { botsOwnedBy: async () => [], keepers: () => [] },
       })
       res.writeHead(out.status, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(out.body))
@@ -332,6 +336,60 @@ describe('what the person sees, end to end', () => {
     await joinClub(ctx, { fetchImpl: toTheRender })
     const pay = buttons(replies[0].extra).find(b => b.url)
     expect(pay?.url).toBe(`https://t.me/$club:10000:${STRANGER}`)
+  })
+
+  /*
+   * A GUEST PASS WITH AN END DATE (2026-09-22). The render decides from
+   * CLUB_GUESTS (`id@YYYY-MM-DD`, ends at that day's 00:00 UTC); the bot only
+   * shows what /api/club/status said.
+   */
+  describe('an invitation with an end date', () => {
+    const GUEST = '900000084'
+    const dayUTC = (offset: number) =>
+      new Date(Date.now() + offset * DAY).toISOString().slice(0, 10)
+    const ruDay = (d: string) =>
+      new Date(`${d}T00:00:00Z`).toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+    afterEach(() => vi.unstubAllEnvs())
+
+    it('ran out: the card is the join offer, with the day the invitation ended', async () => {
+      const ended = dayUTC(-1)
+      vi.stubEnv('CLUB_GUESTS', `${GUEST}@${ended}`)
+      const { ctx, replies } = person(GUEST)
+      await showClubCard(ctx, 'command', { fetchImpl: toTheRender })
+      expect(replies[0].text).toContain(
+        `Ваше приглашение в клуб закончилось ${ruDay(ended)}.` // cyrillic-ok: UI copy under test
+      )
+      // The offer itself follows, with the cashier's price.
+      expect(replies[0].text).toMatch(/10\s000 ⭐/)
+      expect(
+        buttons(replies[0].extra).some(b => b.callback_data === CLUB_JOIN)
+      ).toBe(true)
+    })
+
+    it('still running: a member until the pass ends, no join button, nothing about an ending', async () => {
+      const ends = dayUTC(7)
+      vi.stubEnv('CLUB_GUESTS', `${GUEST}@${ends}`)
+      const { ctx, replies } = person(GUEST)
+      await showClubCard(ctx, 'command', { fetchImpl: toTheRender })
+      expect(replies[0].text).toContain('Вы в клубе') // cyrillic-ok: UI copy under test
+      expect(replies[0].text).toContain(`До ${ruDay(ends)}`) // cyrillic-ok: UI copy under test
+      expect(replies[0].text).not.toContain('закончилось') // cyrillic-ok: UI copy under test
+      expect(
+        buttons(replies[0].extra).some(b => b.callback_data === CLUB_JOIN)
+      ).toBe(false)
+    })
+
+    it('a stranger is never told about an invitation they never had', async () => {
+      vi.stubEnv('CLUB_GUESTS', `${GUEST}@${dayUTC(-1)}`)
+      const { ctx, replies } = person(STRANGER)
+      await showClubCard(ctx, 'command', { fetchImpl: toTheRender })
+      expect(replies[0].text).not.toContain('приглашение') // cyrillic-ok: UI copy under test
+    })
   })
 })
 

@@ -24,6 +24,7 @@ import {
   TOOLS_BY_NAME,
   toOpenAITools,
   countInitDataToolCall,
+  DIRECT_CALL_ONLY,
   type ToolContext,
 } from './tools'
 import { TOKEN_PRICES } from './billing-shared'
@@ -166,6 +167,15 @@ export async function* dispatchToolCall(
     const missing: Record<string, unknown> = {}
     missing['ошибка'] = `инструмента ${name} не существует`
     return missing
+  }
+  // Never run from a model turn, whatever the turn allows (tools.ts
+  // DIRECT_CALL_ONLY): the caller has to make this call themselves.
+  if (DIRECT_CALL_ONLY.has(name)) {
+    const why = `инструмент ${name} вызывается только напрямую, через /mcp: его вызов — действие самого владельца, а в разговоре бывают чужие слова`
+    const refusal: Record<string, unknown> = {}
+    refusal['ошибка'] = why
+    refusal['отказано'] = true
+    return refusal
   }
   if (opts?.denyTools?.has(name)) {
     const reason = opts.denyReasons?.get(name) ?? DENIED_DEFAULT_REASON
