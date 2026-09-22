@@ -1990,7 +1990,7 @@ function clientShownName(chat: BusinessMessage['chat']): string {
  */
 export function clientStopNotice(
   msg: BusinessMessage,
-  o: { acked: string | null; silent: boolean; stored: boolean }
+  o: { acked: string | null; silent: boolean; stored: boolean; held?: boolean }
 ): string {
   const words = (msg.text ?? msg.caption ?? '').trim().slice(0, 200)
   const lines = [
@@ -2004,7 +2004,9 @@ export function clientStopNotice(
       ? `Клиенту ушло одно сообщение от твоего имени: «${escapeHtml(o.acked)}»`
       : o.silent
         ? 'Клиенту ничего не отправлено: для тебя включён тихий режим.'
-        : 'Клиенту ничего не отправлено: сообщение не ушло.'
+        : o.held
+          ? 'Клиенту ничего не отправлено: его слова можно понять и иначе, поэтому ответ за тобой. Если это не просьба выключить — включи ассистента обратно кнопкой ниже.'
+          : 'Клиенту ничего не отправлено: сообщение не ушло.'
   )
   if (!o.stored)
     lines.push(
@@ -2074,8 +2076,12 @@ async function announceClientStop(
   // a second attempt at the one message they asked us to stop sending is
   // worse than none.
   const silent = clientStopIsSilent(owner)
+  // Only words that cannot mean anything else get an answer in the owner's
+  // name: silence is undone by one press, a promise to the client is not.
+  // A wide match stays silent and waits for the owner (clientStop.ts, sure).
+  const held = !silent && !stop.sure
   let acked: string | null = null
-  if (!silent && (await claimClientAck(owner, client))) {
+  if (!silent && !held && (await claimClientAck(owner, client))) {
     try {
       await bot.telegram.sendMessage(client, STOP_ACK[stop.lang], {
         business_connection_id: connId,
@@ -2095,7 +2101,7 @@ async function announceClientStop(
   try {
     await bot.telegram.sendMessage(
       conn.ownerChatId,
-      clientStopNotice(msg, { acked, silent, stored: rec.stored }),
+      clientStopNotice(msg, { acked, silent, stored: rec.stored, held }),
       {
         parse_mode: 'HTML',
         reply_markup: clientStopMenu(client).reply_markup,

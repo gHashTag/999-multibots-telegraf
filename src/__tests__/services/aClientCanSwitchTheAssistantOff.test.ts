@@ -395,6 +395,31 @@ describe('only the owner turns it back on', () => {
 })
 
 describe('the owner s settings and a database that does not answer', () => {
+  it('a wide match stops the assistant but answers the client nothing: the owner decides', async () => {
+    // "a live person" is usually a stop and sometimes a product question.
+    // Silence is undone by one press; a promise in the owner's name is not.
+    const p = await boot(optOutDouble())
+    const bot = fakeBot()
+    await say(p, bot, 'Хочу общаться с живым человеком')
+
+    expect(asks, 'the assistant is silent all the same').toHaveLength(0)
+    expect(toCustomer(bot), 'no line to the client').toHaveLength(0)
+    const notices = stopNotices(bot)
+    expect(notices).toHaveLength(1)
+    expect(String(notices[0][1])).toContain('ответ за тобой')
+    expect(String(notices[0][1])).not.toContain(p.clientStop.STOP_ACK.ru)
+  })
+
+  it('control: words that can only mean "stop writing to me" are answered at once', async () => {
+    const p = await boot(optOutDouble())
+    const bot = fakeBot()
+    await say(p, bot, 'не пишите мне больше')
+    const acks = toCustomer(bot)
+    expect(acks).toHaveLength(1)
+    expect(acks[0][1]).toBe(p.clientStop.STOP_ACK.ru)
+    expect(String(stopNotices(bot)[0][1])).not.toContain('ответ за тобой')
+  })
+
   it('a silent owner s client gets no line, and the owner is told so', async () => {
     process.env.CLIENT_STOP_SILENT_OWNERS = String(OWNER)
     const p = await boot(optOutDouble())
