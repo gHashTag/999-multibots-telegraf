@@ -100,6 +100,14 @@ export function filmArgs(dir: string, out: string): string[] {
     `scale=${box}:force_original_aspect_ratio=decrease,pad=${box}:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p`,
     '-r',
     '10',
+    /*
+     * JPEG frames are full-range, and format=yuv420p alone came out as
+     * yuvj420p (ffprobe, 2026-09-22) -- the full-range twin some iOS players
+     * render washed out or refuse. Asking for the TV range is what turns it
+     * into plain yuv420p; -pix_fmt alone did not (tested both ways).
+     */
+    '-color_range',
+    'tv',
     '-c:v',
     'libx264',
     '-preset',
