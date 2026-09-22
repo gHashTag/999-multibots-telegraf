@@ -282,7 +282,9 @@ copy of `scripts/bridge.cjs` (one that asked `api.telegram.org` for every
 token) got normal answers to `getMe`, `getChatMenuButton` and
 `getMyCommands` for the moved bot, and a second `--cloud-logout` five minutes
 after the first found the bot logged in on the cloud again and logged it out.
-No "10 minutes" and no "Logged out" answer protected it. So for a moved bot,
+No "10 minutes" and no "Logged out" answer protected it -- as the
+maintainer puts it, any method, `getMe` included, "logs you back"
+(tdlib/telegram-bot-api#324). So for a moved bot,
 **every** request to the cloud, at any time, logs it back in there:
 
 - run `tri` and every script from a checkout of current main — the host is
@@ -291,6 +293,10 @@ No "10 minutes" and no "Logged out" answer protected it. So for a moved bot,
   `BOT_TOKEN_*` against `api.telegram.org` is the danger, not the services;
 - if it happened, run step 2 again at once — it is safe whatever the cloud
   answers — and the bot service keeps its session on our server;
+- `tri botapi` shows which bots are where and whether the bot, the render
+  and this server's allow-list agree, with the next step for any mismatch;
+  `tri bridge`, `tri pack` and `tri commands` refuse to run from a checkout
+  behind main in the files that choose the host;
 - from a laptop the bridge shows a moved bot as `on our Bot API server; not
 reachable from here`. Its health is the `[bot-api]` lines of the bot log.
 
