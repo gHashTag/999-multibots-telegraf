@@ -4,7 +4,8 @@
  *
  *   - data: manifest (SSOT) × Inngest GraphQL `apps` + `runs` (7d, single page)
  *   - 30 s in-memory cache (see status/functionsStatus.ts)
- *   - CORS allow-list: https://t27.ai and http://localhost:<any port>
+ *   - CORS allow-list: https://t27.ai, https://app.t27.ai and
+ *     http://localhost:<any port>
  *   - no mutations are reachable through this router
  *
  * Mount order: must be registered BEFORE `app.use('/api/inngest', serve(...))`
@@ -16,7 +17,12 @@ import { fetchFunctionsStatusSafe } from '@/inngest_app/status/functionsStatus'
 
 export const INNGEST_STATUS_PATH = '/api/inngest/functions/status'
 
-const ALLOWED_ORIGINS_EXACT = new Set(['https://t27.ai'])
+const ALLOWED_ORIGINS_EXACT = new Set([
+  'https://t27.ai',
+  // The signed-in surface. Same reason as APP_ORIGIN in refresh-cookie.ts:
+  // an Origin the endpoint answers CORS for is not a link given to a person.
+  'https://app.t27.ai', // app-link-ok: a CORS Origin, not a link
+])
 const LOCALHOST_RE = /^http:\/\/localhost(:\d+)?$/
 
 export function isAllowedOrigin(origin: string | undefined): boolean {

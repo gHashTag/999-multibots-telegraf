@@ -461,13 +461,16 @@ describe('GET /api/inngest/functions/status handler', () => {
     return r
   }
 
-  it('path is fixed and CORS allow-list is t27.ai + localhost:*', () => {
+  it('path is fixed and CORS allow-list is t27.ai + app.t27.ai + localhost:*', () => {
     expect(INNGEST_STATUS_PATH).toBe('/api/inngest/functions/status')
     expect(isAllowedOrigin('https://t27.ai')).toBe(true)
+    expect(isAllowedOrigin('https://app.t27.ai')).toBe(true)
     expect(isAllowedOrigin('http://localhost:5173')).toBe(true)
     expect(isAllowedOrigin('http://localhost')).toBe(true)
     expect(isAllowedOrigin('https://evil.t27.ai')).toBe(false)
     expect(isAllowedOrigin('http://t27.ai')).toBe(false)
+    expect(isAllowedOrigin('https://app.t27.ai.evil.com')).toBe(false)
+    expect(isAllowedOrigin('http://app.t27.ai')).toBe(false)
     expect(isAllowedOrigin(undefined)).toBe(false)
   })
 
