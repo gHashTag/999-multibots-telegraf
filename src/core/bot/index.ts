@@ -18,6 +18,7 @@ import { logger } from '@/utils/logger'
 import { toBotName } from '@/helpers/botName.helper'
 
 import { getBotGroupFromAvatars } from '@/core/supabase'
+import { telegramClientOptionsFor } from '@/services/telegramApi'
 
 // 🔐 УНИФИЦИРОВАННАЯ СХЕМА: везде используем BOT_TOKEN_1-N
 // Токены загружаются из Infisical автоматически, warnings убраны
@@ -95,7 +96,9 @@ export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 
 export const DEFAULT_BOT_NAME = isDev ? 'ai_koshey_bot' : 'neuro_blogger_bot'
 export const defaultBot = DEFAULT_BOT_TOKEN
-  ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
+  ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN, {
+      telegram: telegramClientOptionsFor(DEFAULT_BOT_TOKEN),
+    })
   : (null as any)
 
 if (DEFAULT_BOT_TOKEN) {
@@ -135,7 +138,11 @@ function _initializeBots(): void {
     })
     .forEach(([name, token]) => {
       _botsInternal[name as BotName] =
-        name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token)
+        name === DEFAULT_BOT_NAME
+          ? defaultBot
+          : new Telegraf<MyContext>(token, {
+              telegram: telegramClientOptionsFor(token),
+            })
     })
 
   _botsInitialized = true
@@ -193,7 +200,9 @@ export const getPulseBot = (): Telegraf<MyContext> | null => {
   const token = process.env[tokenEnvKey]
 
   if (token) {
-    _pulseBot = new Telegraf<MyContext>(token)
+    _pulseBot = new Telegraf<MyContext>(token, {
+      telegram: telegramClientOptionsFor(token),
+    })
     logger.info('🤖 Инициализация pulseBot (lazy):', {
       description: 'PulseBot lazy initialization',
       tokenEnvKey,

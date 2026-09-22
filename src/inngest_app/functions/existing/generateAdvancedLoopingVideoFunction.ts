@@ -9,6 +9,7 @@ import { Telegraf } from 'telegraf'
 import fetch from 'node-fetch'
 import { addMusic, combineVideos } from '@/helpers/video-helpers'
 import { downloadFile } from '@/helpers'
+import { telegramClientOptionsFor } from '@/services/telegramApi'
 
 const replicateApi = {
   createPrediction: async (version: string, input: object) => {
@@ -229,7 +230,9 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
     })
 
     await step.run('send-to-telegram', async () => {
-      const bot = new Telegraf(bot_token!)
+      const bot = new Telegraf(bot_token!, {
+        telegram: telegramClientOptionsFor(bot_token),
+      })
       await bot.telegram.sendVideo(
         telegram_id,
         { source: finalVideoPath },

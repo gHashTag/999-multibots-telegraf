@@ -29,6 +29,8 @@ export interface BrowserSessionView {
   sessionId?: string
   /** Path on the render server, e.g. `/live/<id>?t=<token>`. */
   viewUrl?: string
+  /** Who is driving, as the server holds it (render sessions.ts). */
+  wheel?: 'person' | 'agent'
 }
 
 interface ServerAnswer {
@@ -36,12 +38,14 @@ interface ServerAnswer {
   state?: string
   sessionId?: string
   viewUrl?: string
+  wheel?: string
 }
 
 const asView = (a: ServerAnswer): BrowserSessionView => ({
   state: (a.state as BrowserState) || 'none',
   sessionId: a.sessionId,
   viewUrl: a.viewUrl,
+  ...(a.wheel === 'person' || a.wheel === 'agent' ? { wheel: a.wheel } : {}),
 })
 
 /**
@@ -214,4 +218,22 @@ export function sitesInWords(
   const head = names.slice(0, show).join(', ')
   const rest = names.length - show
   return rest > 0 ? `${head} ${andMore(rest)}` : head
+}
+
+/**
+ * Tell the server who holds the wheel. The person's door (an agent key is
+ * refused there). A failure is swallowed: the glow on screen still says who
+ * is driving, and the next touch tries again.
+ */
+export async function setBrowserWheel(
+  holder: 'person' | 'agent'
+): Promise<boolean> {
+  try {
+    await apiFetch(`${API_BASE}/api/browser/wheel?holder=${holder}`, {
+      method: 'POST',
+    })
+    return true
+  } catch {
+    return false
+  }
 }

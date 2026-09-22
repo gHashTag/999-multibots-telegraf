@@ -26,6 +26,7 @@
  */
 import { ценаТокенов, названиеСчёта } from './token-packs' // cyrillic-ok: pre-existing export names
 import { record } from '../hive/journal'
+import { telegramApiFor } from '../telegram-api'
 
 export interface MintedInvoice {
   url: string
@@ -139,20 +140,17 @@ export async function mintTokenInvoice(
   const payload = `tokens:${tokens}:${forId}`
 
   const doFetch = input.fetchImpl ?? fetch
-  const r = await doFetch(
-    `https://api.telegram.org/bot${token}/createInvoiceLink`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title,
-        description: 'Токены для генераций в Trinity S³AI',
-        payload,
-        currency: 'XTR',
-        prices: [{ label: title, amount: stars }],
-      }),
-    }
-  )
+  const r = await doFetch(`${telegramApiFor(token)}/createInvoiceLink`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: 'Токены для генераций в Trinity S³AI',
+      payload,
+      currency: 'XTR',
+      prices: [{ label: title, amount: stars }],
+    }),
+  })
   const d = (await r.json()) as {
     ok?: boolean
     result?: unknown

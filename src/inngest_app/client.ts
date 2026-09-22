@@ -7,6 +7,7 @@ import { Inngest } from 'inngest'
 import { isProbeFailureEvent } from './safeMode'
 import { logger } from '@/utils/logger'
 import { resolveAdminChatId } from '@/helpers/adminChatId'
+import { telegramApiFor } from '@/services/telegramApi'
 
 // Кэшированный экземпляр клиента
 let _inngestClient: Inngest | null = null
@@ -209,7 +210,7 @@ export const createInngestFailureHandler = (functionName: string) => {
           `*Error:* ${(error?.message || String(error)).slice(0, 300)}\n` +
           `*Run:* \`${runId}\`\n` +
           `*Event:* ${event?.name || 'unknown'}`
-        const url = `https://api.telegram.org/bot${botToken}/sendMessage`
+        const url = `${telegramApiFor(botToken)}/sendMessage`
         const resp = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

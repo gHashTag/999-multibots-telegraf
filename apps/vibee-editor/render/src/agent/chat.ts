@@ -27,6 +27,12 @@ import {
   type ToolContext,
 } from './tools'
 import { TOKEN_PRICES } from './billing-shared'
+import {
+  CLUB_OFFER_WHEN,
+  clubOfferLine,
+  clubTokensPerPeriod,
+  spacedNumber,
+} from './club-membership'
 import { ПАКЕТЫ, ценаТокенов } from './token-packs' // cyrillic-ok: pre-existing names
 import { salesPlaybook } from './crm-playbook'
 import { imagesLookDown } from './image-health'
@@ -36,6 +42,12 @@ import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate } from './asset-links'
 import { TEXT_LIKE_EXTENSIONS } from './media-library'
+import {
+  ARCHIVE_EXTENSIONS,
+  OFFICE_EXTENSIONS,
+  PDF_EXTENSIONS,
+  UNREADABLE_EXTENSIONS,
+} from './media-extract'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -307,22 +319,29 @@ export const BUTTON_MARKERS =
   'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
 
 /**
- * THE CREATOR IN THE APP. This bullet used to sell a club at ninety-nine and
- * nine-hundred-ninety-nine dollars a month to every creator, on every turn,
- * and to hold the product behind it ("полный харнес и еженедельные встречи —
- * в клубе"). The prices are spelled in words on purpose: the census in
+ * THE CREATOR IN THE APP.
+ *
+ * History, because each layer explains a line below. Until 2026-09-08 this
+ * bullet sold an invented club at ninety-nine and nine-hundred-ninety-nine
+ * dollars a month (spelled in words here: the census in
  * we-sell-tokens-not-a-subscription.test.ts greps this directory for the
- * literals, and a comment quoting them would read as the offer itself. No such
- * subscription exists, has ever been charged, or has a billing path. The
- * owner sells ONE thing: tokens, and everything (text, picture, voice, video)
- * is drawn against them.
+ * literals). The owner then sold tokens only; on 2026-09-09 he priced ONE
+ * club, a Telegram Stars subscription, and confirmed it on 2026-09-22 as the
+ * only subscription there is.
+ *
+ * The offer itself is not written here. The sentence, the rule of when to say
+ * it and the numbers come from club-membership.ts -- the same place the
+ * invoice is minted from -- because the copy that lived here and the copy in
+ * the `pricing` tool disagreed for two weeks, and the agent, told to consult
+ * `pricing`, was told there was no club.
+ *
+ * NOT FIRST. The owner's rule is that a person must want to buy before
+ * anything is sold: the club and the invoice are named on a price, purchase
+ * or twin question, never as an opening.
  *
  * It also sent the person off to connect and pay for their OWN provider keys.
  * We are the ones holding the providers -- that is the product -- so
  * provider_setup is the owner's reference, not a task for a guest.
- *
- * The value framing is kept whole: the owner asked to sell the result, and to
- * push the top-up rather than to apologise for the price.
  *
  * One line per string, like DM_CLIENT_BULLET beside it: the Cyrillic gate
  * reads single-line literals only.
@@ -331,14 +350,16 @@ const CREATOR_MONEY_BULLET = [
   '- ДЕНЬГИ: две вещи и только они. (1) Токены на балансе — всё, что мы',
   '  делаем: текст, картинка, озвучка, видео, рилс, — списывается с них.',
   '  Пакеты: %%PACKS_LINE%% (tokens_invoice выпишет счёт на любое число).',
-  '  (2) Клуб цифрового двойника: 10 000 звёзд за 30 дней, оформляется в',
-  '  профиле мини-аппа (не через тебя); 30% каждого платежа возвращается',
-  '  токенами на баланс (2 571), остальное — доход владельца. Других тарифов,',
+  '  (2) %%CLUB_LINE%% Вступают в профиле мини-аппа — счёт за клуб выставляет',
+  '  приложение, не ты; остальное — доход владельца. Других тарифов,',
   '  долларовых цен и «премиумов» нет — не выдумывай.',
-  '  Спросили про цену, деньги, «сколько стоит» — отвечай про токены и',
-  '  СРАЗУ предлагай пополнить: вызови tokens_invoice и дай ссылку одной',
-  '  строкой. Спросили про клуб — назови цену и отправь в профиль мини-аппа.',
-  '  Владельцам ботов платформы клуб открыт без оплаты, и те же 2 571 токенов',
+  '  НЕ ПРЕДЛАГАЙ ОПЛАТУ ПЕРВЫМ. %%CLUB_WHEN%%',
+  '  Спросили про цену, «сколько стоит», как купить — назови оба пути: токены',
+  '  (цены и пакеты) и клуб (цена, возврат токенами, что внутри). Хочет токены —',
+  '  вызови tokens_invoice и дай ссылку одной строкой; хочет клуб — отправь в',
+  '  профиль мини-аппа. Спросили про клуб или про своего цифрового двойника —',
+  '  назови клуб с ценой и отправь в профиль мини-аппа.',
+  '  Владельцам ботов платформы клуб открыт без оплаты, и те же %%CLUB_BACK%% токенов',
   '  за 30 дней им начисляются сами — не выставляй им счёт за клуб.',
   '  Что бесплатно, а что платно — вызови pricing.',
   '  ПРОВАЙДЕРОВ ДЕРЖИМ МЫ. Человеку не нужно ничего подключать и не нужно',
@@ -357,16 +378,25 @@ const CREATOR_MONEY_BULLET = [
  * THE CLIENT IN THE OWNER'S DM. The business bot answers in the owner's own
  * private chats, as the owner, to people who are not creators using the
  * harness: they want a picture, a reel, a voice -- and to pay for it here.
- * Found 2026-09-08: the old responder carried invented tariffs ("Basic 299
- * rub/month"), and a person who asked to pay was told to choose one. There
- * are no tariffs. There are tokens, and there is an invoice. One line per
- * string on purpose: the Cyrillic gate reads single-line literals only.
+ * Found 2026-09-08: the old responder carried an invented tariff (a "basic"
+ * plan at two hundred ninety-nine roubles a month, spelled in words so the
+ * census in we-sell-tokens-not-a-subscription.test.ts does not read this
+ * comment as the offer), and a person who asked to pay was told to choose
+ * one. There are no tariffs. There are tokens, and there is an invoice.
+ *
+ * The club exists (club-membership.ts) and is still not for this person: a
+ * client in the DM buys pictures, not a twin. So the bullet says "do not
+ * offer it", not "there is none" -- the second was true for one day and then
+ * became the sentence that denied a product the owner sells.
+ *
+ * One line per string on purpose: the Cyrillic gate reads single-line
+ * literals only.
  */
 const DM_CLIENT_BULLET = [
   '- ТЫ ОТВЕЧАЕШЬ В ЛИЧНОЙ ПЕРЕПИСКЕ ОТ ИМЕНИ ВЛАДЕЛЬЦА ЕГО КЛИЕНТУ. Продолжай',
   '  разговор по истории ниже: отвечай на то, что человек написал, помни, о чём',
-  '  говорили раньше, обращайся так, как он сам себя назвал. Тарифов,',
-  '  подписок и клуба для клиента НЕТ — только токены за звёзды Telegram;',
+  '  говорили раньше, обращайся так, как он сам себя назвал. Клиенту ни тарифов,',
+  '  ни подписок, ни клуба не предлагай — только токены за звёзды Telegram;',
   '  пакеты: %%PACKS_LINE%%. НЕ ПРЕДЛАГАЙ ОПЛАТУ САМ: ни счёта, ни «оплатить», ни цены, пока человек не',
   '  спросил — клиент должен захотеть сам. Счёт (tokens_invoice) — только когда он',
   '  сам сказал «хочу оплатить», «как купить», «пополнить» или спросил цену и',
@@ -805,6 +835,9 @@ function systemFor(surface?: string): string {
   )
     .replace('%%TOKEN_LINE%%', tokenLine())
     .replace('%%PACKS_LINE%%', packsLine())
+    .replace('%%CLUB_LINE%%', clubOfferLine())
+    .replace('%%CLUB_WHEN%%', CLUB_OFFER_WHEN)
+    .replace('%%CLUB_BACK%%', spacedNumber(clubTokensPerPeriod()))
 }
 
 /**
@@ -892,20 +925,36 @@ export function soul(): string | null {
  * somebody widened the reader -- and the drift that matters is the one where
  * the product promises a format it refuses.
  *
- * WHAT IT REFUSES IS NAMED TOO. `.pdf`, `.docx`, `.xlsx` cannot be opened
- * here: no extractor is installed. Naming them is worth more than silence,
- * because a person who sends a PDF and gets a vague answer concludes the
- * agent is stupid rather than that the format is unsupported.
+ * WHAT IT REFUSES IS NAMED TOO. Naming a format it cannot open is worth more
+ * than silence, because a person who sends a file and gets a vague answer
+ * concludes the agent is stupid rather than that the format is unsupported.
+ *
+ * 2026-09-22: every list below is the reader's own (media-library.ts for text,
+ * media-extract.ts for PDF, office files, archives and the refused formats).
+ * The sentence used to say "you see photos and video" while a video was only
+ * ever described minutes later; it now says what happens on the turn.
  */
 function canTakeSection(surface?: string): string {
-  const readable = TEXT_LIKE_EXTENSIONS.map(e => '.' + e).join(', ')
+  const list = (exts: readonly string[]) => exts.map(e => '.' + e).join(', ')
   return (
     /* cyrillic-ok: prompt copy, read by the model and paraphrased to people */
     '\n\nЧТО ТЫ УМЕЕШЬ ПРИНИМАТЬ. Ты слышишь голосовые и аудио (их ' +
-    'расшифровывают), смотришь фото и видео, читаешь текстовые файлы: ' +
-    readable +
-    '. Открыть НЕ можешь: .pdf, .docx, .xlsx, .pptx, архивы — в них нет ' +
-    'извлекателя, и это надо сказать прямо, а не отвечать расплывчато. ' +
+    'расшифровывают), смотришь фото, в видео и видеосообщениях слышишь ' +
+    'речь (картинку видео видишь, только когда её описание уже готово). ' +
+    'Читаешь текстовые файлы: ' +
+    list(TEXT_LIKE_EXTENSIONS) +
+    '; PDF (' +
+    list(PDF_EXTENSIONS) +
+    ') — если в нём есть текст, скан без текстового слоя прочитать нельзя; ' +
+    'документы, таблицы и презентации: ' +
+    list(OFFICE_EXTENSIONS) +
+    '. Архивы (' +
+    list(ARCHIVE_EXTENSIONS) +
+    ') не распаковываешь: видишь только список файлов внутри. ' +
+    'Открыть НЕ можешь: ' +
+    list(UNREADABLE_EXTENSIONS) +
+    ' — это надо сказать прямо и попросить PDF или .docx, а не отвечать ' +
+    'расплывчато. ' +
     'Когда человек впервые присылает файл или спрашивает, что ты умеешь, — ' +
     'назови это одной строкой, без списка на пол-экрана.' +
     /*

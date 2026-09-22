@@ -44,7 +44,9 @@ import json, os, sys, time, urllib.request
 ak, base = os.environ['AK'], os.environ['B']
 def call(name, args):
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                       "params": {"name": name, "arguments": args}}).encode()
+                       # A probe says so (MCP _meta): the owner's journal
+                       # keeps it apart from the agent's real work.
+                       "params": {"name": name, "arguments": args, "_meta": {"probe": True}}}).encode()
     req = urllib.request.Request(base + "/mcp", data=body,
         headers={"X-Agent-Key": ak, "Content-Type": "application/json"})
     t0 = time.time()
@@ -57,6 +59,17 @@ print(f"  tabs: {len(pages)}" + (f" -- front: {pages[0].get('title','')[:60]}" i
 shot, err, secs = call("browser_screenshot", {"desktop": True})
 if not shot:
     print(f"  screenshot: FAILED {str(err)[:160]}"); sys.exit(1)
+# A cold screen -- right after a render deploy the description cache is
+# empty -- answers seenPending while the description is still being made.
+# That is not blindness: the same screen, a minute later, comes from the
+# cache (render agent-tools.ts describeShot). Found 2026-09-22 when eyes
+# went red right after a deploy and the journal said "description pending".
+if not shot.get("seen") and shot.get("seenPending"):
+    print(f"  screenshot: description pending after {secs:.1f} s (cold screen) -- asking again in 60 s")
+    time.sleep(60)
+    shot, err, secs = call("browser_screenshot", {"desktop": True})
+    if not shot:
+        print(f"  screenshot: FAILED {str(err)[:160]}"); sys.exit(1)
 kb = len(shot.get("base64", "")) * 3 // 4 // 1024
 seen = shot.get("seen")
 print(f"  screenshot: {kb} KB desktop, {len(shot.get('tabs') or [])} tabs named, {secs:.1f} s")

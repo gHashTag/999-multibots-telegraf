@@ -21,6 +21,9 @@
  * the point of storing media is that a provider can be handed the link.
  */
 
+import { createWriteStream } from 'node:fs'
+import { once } from 'node:events'
+import { finished } from 'node:stream/promises'
 import {
   S3Client,
   PutObjectCommand,
@@ -132,6 +135,52 @@ export async function s3GetBytes(
     if (total >= cap) break
   }
   return Buffer.concat(chunks).subarray(0, cap)
+}
+
+/**
+ * Copy the WHOLE of `key` into a local file, or answer null when it is larger
+ * than `maxBytes`. Returns the size written.
+ *
+ * The twin of `s3GetBytes` for files that are useless cut short: half a PDF or
+ * the first 20 MB of an mp4 whose index sits at the end cannot be opened, so a
+ * truncated read would be reported as a damaged file instead of a large one.
+ * The range asks for ONE byte more than the cap -- receiving it is how "larger
+ * than allowed" is known without a second request. Streamed to disk, so a
+ * 100 MB video never sits in this process's memory.
+ */
+export async function s3GetToFile(
+  key: string,
+  path: string,
+  maxBytes: number
+): Promise<number | null> {
+  const cap = Math.max(1, Math.floor(maxBytes))
+  const got = await s3().send(
+    new GetObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      Range: `bytes=0-${cap}`,
+    })
+  )
+  const body = got.Body as AsyncIterable<Uint8Array> | undefined
+  const out = createWriteStream(path)
+  let total = 0
+  let tooBig = false
+  try {
+    if (body) {
+      for await (const chunk of body) {
+        total += chunk.length
+        if (total > cap) {
+          tooBig = true
+          break
+        }
+        if (!out.write(chunk)) await once(out, 'drain')
+      }
+    }
+  } finally {
+    out.end()
+    await finished(out).catch(() => undefined)
+  }
+  return tooBig ? null : total
 }
 
 /** Bytes in, our own URL out. */

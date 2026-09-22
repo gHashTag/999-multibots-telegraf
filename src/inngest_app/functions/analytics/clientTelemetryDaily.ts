@@ -29,6 +29,7 @@ import {
 } from '@/services/clientTelemetryReport'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import { telegramApiFor } from '@/services/telegramApi'
 
 /**
  * 07:00 UTC — 10:00 in Moscow, which has no daylight saving, so the offset is
@@ -50,7 +51,7 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
   if (!token || !chatId) return
   const parts = text.match(/[\s\S]{1,4000}/g) || [text]
   for (const part of parts) {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    await fetch(`${telegramApiFor(token)}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: part, parse_mode: 'HTML' }),

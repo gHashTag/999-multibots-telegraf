@@ -9,6 +9,7 @@ import {
   absoluteViewUrl,
   canEmbed,
   fitBrowserScreen,
+  setBrowserWheel,
   type BrowserSessionView,
 } from '@/lib/remoteBrowser'
 import {
@@ -23,12 +24,20 @@ import {
   wentOut,
   wheelAfterTouch,
   wheelAfterHandBack,
+  shouldRenewWheel,
   type Wheel,
 } from '@/lib/browserWatch'
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { isBrowserPath } from '@/lib/keptBrowser'
 import { frameStateOf, shouldReread } from '@/lib/frameState'
+import {
+  readBrowserJournal,
+  journalLine,
+  foldRepeats,
+  JOURNAL_POLL_MS,
+  type JournalStep,
+} from '@/lib/browserJournal'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 
 /**
@@ -91,21 +100,27 @@ export default function BrowserPage() {
   /* The last shape we asked the pod for, so a scroll does not ask again. */
   const fitted = useRef<Box | null>(null)
 
-  const act = useCallback(async (fn: () => Promise<BrowserSessionView>) => {
-    setBusy(true)
-    setError(null)
-    try {
-      const next = await fn()
-      /* It did not forget them; say so rather than show an empty screen. */
-      setExplainGone(wentOut(lastState.current, next.state))
-      lastState.current = next.state
-      setView(next)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }, [])
+  const act = useCallback(
+    async (fn: () => Promise<BrowserSessionView>) => {
+      setBusy(true)
+      setError(null)
+      try {
+        const next = await fn()
+        /* It did not forget them; say so rather than show an empty screen. */
+        setExplainGone(wentOut(lastState.current, next.state))
+        lastState.current = next.state
+        setView(next)
+        /* The server says who is driving: after a reload, or from another
+         device, the glow shows the truth instead of assuming the agent. */
+        if (next.wheel === 'person') setAgentWorking(false)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [setAgentWorking]
+  )
 
   /*
    * Read on arrival, and again on every RETURN: the page is kept mounted
@@ -192,13 +207,39 @@ export default function BrowserPage() {
     }
   }, [view?.state])
 
-  const takeTheWheel = useCallback(
-    () => setAgentWorking(wheelAfterTouch() === 'agent'),
-    [setAgentWorking]
-  )
+  /* The screen AND the server: the agent's acting tools stand still while
+     the person drives (lib/browserWatch.ts shouldRenewWheel). */
+  const wheelSent = useRef<number | null>(null)
+  const takeTheWheel = useCallback(() => {
+    setAgentWorking(wheelAfterTouch() === 'agent')
+    const now = Date.now()
+    if (shouldRenewWheel(wheelSent.current, now)) {
+      wheelSent.current = now
+      void setBrowserWheel('person')
+    }
+  }, [setAgentWorking])
 
   const state = view?.state ?? 'none'
   const live = state === 'live' && Boolean(view?.viewUrl)
+
+  /* What the agent did here (lib/browserJournal.ts), read while the window
+     is live and this tab is on screen. */
+  const [journal, setJournal] = useState<JournalStep[]>([])
+  useEffect(() => {
+    if (!live || !onThisTab) return
+    let stopped = false
+    const pull = async () => {
+      if (document.visibilityState !== 'visible') return
+      const steps = await readBrowserJournal()
+      if (!stopped && steps) setJournal(steps)
+    }
+    void pull()
+    const timer = setInterval(() => void pull(), JOURNAL_POLL_MS)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [live, onThisTab])
   const embedded = live && canEmbed(view!.viewUrl!)
 
   const rootClass = [
@@ -305,6 +346,27 @@ export default function BrowserPage() {
             </div>
           )}
 
+          {embedded && journal.length > 0 ? (
+            <ol
+              className="remote-browser__journal"
+              aria-label={t('browser.journal')}
+            >
+              {foldRepeats(journal, t).map((step, i) => {
+                const line = journalLine(step, t)
+                return (
+                  <li
+                    key={`${step.at}:${i}`}
+                    className={line.ok ? '' : 'is-error'}
+                  >
+                    <time>{line.time}</time> <b>{line.verb}</b>
+                    {step.times > 1 ? <em> ×{step.times}</em> : null}{' '}
+                    <span>{line.text}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : null}
+
           {/*
            * Who is driving, said UNDER the picture. It used to sit on the
            * picture's top edge, and there it lay over the window's own bar:
@@ -340,9 +402,11 @@ export default function BrowserPage() {
               <button
                 type="button"
                 className="remote-browser__secondary"
-                onClick={() =>
+                onClick={() => {
                   setAgentWorking(wheelAfterHandBack() === 'agent')
-                }
+                  wheelSent.current = null
+                  void setBrowserWheel('agent')
+                }}
               >
                 {t('browser.handBack')}
               </button>

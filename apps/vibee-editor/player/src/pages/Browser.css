@@ -371,3 +371,35 @@
   border-radius: 0;
   background: #000;
 }
+
+/* What the agent did here: a few quiet lines under the picture. */
+.remote-browser__journal {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  max-height: 8.5em;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line, #2a2a2a);
+  border-radius: 8px;
+  background: var(--surface, #111);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted, #888);
+}
+.remote-browser__journal li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.remote-browser__journal b {
+  color: var(--accent, #00ff88);
+  font-weight: 500;
+}
+.remote-browser__journal li.is-error b,
+.remote-browser__journal li.is-error span {
+  color: #ff6b6b;
+}
+.remote-browser__journal em {
+  font-style: normal;
+  color: var(--muted, #888);
+}

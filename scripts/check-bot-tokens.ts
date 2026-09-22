@@ -4,14 +4,26 @@
 
 import { config } from 'dotenv'
 import path from 'path'
+import {
+  assertBotApiListKnown,
+  telegramApiFor,
+} from '../src/services/telegramApi'
 
 // Load .env
 config({ path: path.join(process.cwd(), '.env') })
 
-async function checkToken(token: string, name: string): Promise<{ name: string; valid: boolean; username?: string; error?: string }> {
+async function checkToken(
+  token: string,
+  name: string
+): Promise<{
+  name: string
+  valid: boolean
+  username?: string
+  error?: string
+}> {
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`)
-    const data = await response.json() as any
+    const response = await fetch(`${telegramApiFor(token)}/getMe`)
+    const data = (await response.json()) as any
 
     if (data.ok) {
       return {
@@ -38,10 +50,17 @@ async function checkToken(token: string, name: string): Promise<{ name: string; 
 async function checkAllTokens() {
   console.log('🔐 [CHECK] Проверка всех BOT токенов...\n')
 
-  const { initInfisical, getSecret, getSecretsStats } = await import('../src/core/infisical')
+  const { initInfisical, getSecret, getSecretsStats } = await import(
+    '../src/core/infisical'
+  )
 
   // Инициализация Infisical
   await initInfisical()
+
+  // The tokens come from Infisical; which bots live on our own Bot API server
+  // is written only on the Railway service. Without it every bot would look
+  // like a cloud bot, and a cloud getMe logs a moved bot back in there.
+  assertBotApiListKnown()
   const stats = getSecretsStats()
 
   console.log(`✅ Infisical: ${stats.environment}`)
@@ -65,7 +84,12 @@ async function checkAllTokens() {
   console.log(`🔍 Найдено токенов: ${tokens.length}\n`)
 
   // Проверяем каждый токен
-  const results: Array<{ name: string; valid: boolean; username?: string; error?: string }> = []
+  const results: Array<{
+    name: string
+    valid: boolean
+    username?: string
+    error?: string
+  }> = []
 
   for (const { key, token } of tokens) {
     console.log(`📡 Проверка ${key}...`)

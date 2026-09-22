@@ -103,7 +103,12 @@ export async function handleCrmMedia(
     return answer(400, { error: 'lead: числовой telegram_id человека' })
   }
   const surface = String(body?.surface ?? '') as MediaSurface
-  if (!MEDIA_SURFACES.includes(surface) || surface === 'ingest') {
+  // 'ingest' and 'miniapp' rows are written by this server itself, never
+  // through this door (crm-memory-tools.ts, miniapp-media.ts).
+  if (
+    !MEDIA_SURFACES.includes(surface) ||
+    (surface !== 'bot' && surface !== 'business')
+  ) {
     return answer(400, { error: "surface: 'bot' | 'business'" })
   }
   // In the bot the person IS the owner; in a business DM they never are.
@@ -118,6 +123,7 @@ export async function handleCrmMedia(
     if (isTelegramFileUrl(url)) {
       return answer(400, {
         error:
+          // telegram-api-root-ok: names the host to the caller; calls nothing.
           'url: ссылка api.telegram.org содержит токен бота и не сохраняется — загрузите файл на полку и передайте её URL',
       })
     }

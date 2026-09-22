@@ -18,6 +18,10 @@ import fs from 'fs'
 import { updateUserBalance, getUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import {
+  telegramDownloadLimitFor,
+  telegramFileUrlFor,
+} from '@/services/telegramApi'
 
 export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
   'video_transcription',
@@ -63,12 +67,15 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
     let videoUrl: string
     let isFromUrl = false
+    // The uploaded video's own file_id: what the result is sent back with.
+    let uploadedFileId = ''
 
     if (isVideoFile) {
       // Обработка загруженного видеофайла
       const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
       // getFile throws a Telegram 400 for files above the Bot API download limit
-      // (~20MB on api.telegram.org). Unguarded, that throw aborts this step and
+      // (20 MB on the cloud, more on our own server -- per bot, see
+      // services/telegramApi.ts). Unguarded, that throw aborts this step and
       // silently drops the user's uploaded video (this runs before any charge).
       // Catch it and tell the user how to proceed instead of losing the upload.
       let videoFile
@@ -84,10 +91,14 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
                 : String(getFileErr),
           }
         )
+        // The ceiling this bot actually has, not the cloud's by habit.
+        const ceilingMb = Math.round(
+          telegramDownloadLimitFor(ctx.telegram.token) / (1024 * 1024)
+        )
         await ctx.reply(
           isRu
-            ? '❌ Не удалось загрузить видео (возможно, оно больше 20 МБ). Пришлите файл поменьше или ссылку на Instagram Reel.'
-            : '❌ Could not download the video (it may exceed 20 MB). Send a smaller file or an Instagram Reel link.'
+            ? `❌ Не удалось загрузить видео (возможно, оно больше ${ceilingMb} МБ). Пришлите файл поменьше или ссылку на Instagram Reel.`
+            : `❌ Could not download the video (it may exceed ${ceilingMb} MB). Send a smaller file or an Instagram Reel link.`
         )
         return ctx.scene.leave()
       }
@@ -101,7 +112,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
+      // Downloaded by videoTranscription in this process: the private file
+      // endpoint is reachable for a bot on our own Bot API server.
+      videoUrl = telegramFileUrlFor(ctx.telegram.token, videoFile.file_path)
+      uploadedFileId = message.video.file_id
     } else if (isTextWithUrl) {
       // Обработка ссылки на видео
       videoUrl = message.text.trim()
@@ -367,7 +381,13 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           ? `📺 Транскрибация завершена!\n\n🤖 Сделано в боте @${ctx.botInfo.username}\n✨ Попробуйте и вы — быстро и точно!`
           : `📺 Transcription completed!\n\n🤖 Made by @${ctx.botInfo.username}\n✨ Try it yourself - fast and accurate!`
 
-        await ctx.replyWithVideo(videoUrl, {
+        // The person's own video goes back by its file_id: Telegram already
+        // holds it, nothing is uploaded, and it works on either Bot API.
+        // `videoUrl` must never be handed to Telegram here: for a bot on our
+        // own server it is the PRIVATE file endpoint (railway.internal, with
+        // the token in the path), which Telegram's servers cannot fetch -- the
+        // send threw, the charge was refunded and the transcript never came.
+        await ctx.replyWithVideo(uploadedFileId, {
           caption: shortCaption,
           supports_streaming: true, // Поддержка стриминга для лучшего качества
         })

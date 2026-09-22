@@ -42,6 +42,7 @@ import { isContentRefusal } from '@/helpers/isContentRefusal'
 // guard that knows only one of the two is wrong on one side of that change.
 import { BalanceRefusedError } from '@/price/helpers/refuseUnpaidGeneration'
 import { standardButtons } from '@/navigation/helpers/actionButtons'
+import { telegramFileLink } from '@/services/telegramFiles'
 
 // 🔴 DEBUG: Log when this scene loads (import time)
 console.log('🔴 [DEBUG avatarTransform] Module loaded')
@@ -2936,7 +2937,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     try {
       const photo = ctx.message.photo[ctx.message.photo.length - 1]
       const file = await ctx.telegram.getFile(photo.file_id)
-      const photoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+      const photoUrl = await telegramFileLink(ctx.telegram.token, file)
 
       // Сохраняем новое фото в сессии
       ctx.session.kontextImageUrl = photoUrl

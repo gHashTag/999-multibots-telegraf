@@ -69,6 +69,68 @@ interface UploadResult {
   error?: string
 }
 
+/** Reads the shelf's answer; one parser for bytes and for streams. */
+async function uploadAnswer(
+  res: Response,
+  filename: string
+): Promise<UploadResult & { url: string }> {
+  const raw = await res.text()
+  if (!res.ok) {
+    throw new Error(
+      `upload ${filename}: HTTP ${res.status} ${raw.slice(0, 200)}`
+    )
+  }
+  let parsed: UploadResult
+  try {
+    parsed = JSON.parse(raw) as UploadResult
+  } catch {
+    throw new Error(
+      `upload ${filename}: сервер ответил не JSON: ${raw.slice(0, 200)}`
+    )
+  }
+  if (!parsed.success || !parsed.url) {
+    throw new Error(
+      `upload ${filename}: ${parsed.error || 'сервер не вернул ссылку'}`
+    )
+  }
+  return { ...parsed, url: absolutize(parsed.url) }
+}
+
+/**
+ * Puts a STREAM on the shelf and returns a public link.
+ *
+ * For files that must not be held in memory: a video a person sent to a bot on
+ * our own Bot API server may weigh up to 2000 MB. The body flows from the
+ * source to the render's `/upload`, which spools it to its own disk and
+ * multipart-uploads it; this process holds one chunk at a time.
+ *
+ * No Content-Length: the size is not always known in advance, and a declared
+ * length that disagrees with the body fails the whole request. The shelf bounds
+ * the body itself (413 above SHELF_UPLOAD_LIMIT, ./shelfLimit.ts).
+ */
+export async function putStream(
+  body: ReadableStream<Uint8Array>,
+  filename: string
+): Promise<Artifact> {
+  const res = await fetch(`${serverBase()}/upload`, {
+    method: 'POST',
+    headers: {
+      'X-Api-Key': apiKey(),
+      'Content-Type': contentTypeOf(filename),
+      'X-Filename': encodeURIComponent(filename),
+    },
+    body,
+    // Required by undici for a streamed request body.
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' })
+  const parsed = await uploadAnswer(res, filename)
+  logger.info('[contentFactory] stream on the shelf', {
+    filename,
+    key: parsed.key,
+  })
+  return { url: parsed.url, meta: { key: parsed.key } }
+}
+
 /**
  * Puts BYTES on the shelf and returns a public link.
  *
@@ -109,28 +171,8 @@ export async function putBytes(
     body: new Uint8Array(body),
   })
 
-  const raw = await res.text()
-  if (!res.ok) {
-    throw new Error(
-      `upload ${filename}: HTTP ${res.status} ${raw.slice(0, 200)}`
-    )
-  }
-
-  let parsed: UploadResult
-  try {
-    parsed = JSON.parse(raw) as UploadResult
-  } catch {
-    throw new Error(
-      `upload ${filename}: сервер ответил не JSON: ${raw.slice(0, 200)}`
-    )
-  }
-  if (!parsed.success || !parsed.url) {
-    throw new Error(
-      `upload ${filename}: ${parsed.error || 'сервер не вернул ссылку'}`
-    )
-  }
-
-  const url = absolutize(parsed.url)
+  const parsed = await uploadAnswer(res, filename)
+  const url = parsed.url
   logger.info('[contentFactory] артефакт на полке', {
     filename,
     key: parsed.key,
