@@ -11,6 +11,12 @@
  *   node scripts/bot-api-move.cjs <username|id>            dry run
  *   node scripts/bot-api-move.cjs <username|id> --apply    move to our server
  *   node scripts/bot-api-move.cjs <username|id> --back     release it
+ *
+ * Without a shell in the Bot API container, the one mode that runs from here
+ * (README, step 4b):
+ *
+ *   railway run --service 999-multibots-telegraf -- \
+ *     node scripts/bot-api-move.cjs <username>=<id> --cloud-logout
  */
 
 const move = require('../deployment/telegram-bot-api/bot-api-move.cjs')

@@ -7,6 +7,8 @@
  *   node bot-api-move.cjs <bot> --apply           cloud logOut, then log in here
  *   node bot-api-move.cjs <username=id> --back    close here, take it off the allow-list
  *   node bot-api-move.cjs <username=id> --forget  take it off the allow-list, call nothing
+ *   node bot-api-move.cjs <username=id> --cloud-logout   the move WITHOUT a shell:
+ *                                                  cloud logOut only, from anywhere
  *
  * <bot> is a username, an id, or `username=id` -- the BOT_API_LOCAL_BOTS entry.
  * --back and --forget need the id: they must be able to refuse a wrong token
@@ -45,6 +47,27 @@
  *            bots are restored: ClientManager.cpp), which is what close would
  *            have achieved; --back would first launch it here again.
  *
+ *
+ * WITHOUT A SHELL (--cloud-logout, 2026-09-22). `railway ssh` into this
+ * container is not open to every operator, and the three modes above need it.
+ * The move then splits in three, each step by a different hand:
+ *
+ *   1. BOT_API_LOCAL_BOTS names the bot and both services are redeployed: they
+ *      send it only here, the proxy refuses it, it is silent.
+ *   2. --cloud-logout, run from a checkout under
+ *      `railway run --service 999-multibots-telegraf`: refuses unless that
+ *      service's BOT_API_LOCAL_BOTS names the bot (step 1 is configured) and
+ *      the bot is not one of the two that never move; takes the token from
+ *      that service's own variables by the bot's id (nothing typed, nothing
+ *      printed); checks getMe on the cloud; logs out of the cloud. It calls
+ *      nothing else: our server is on the private network, out of reach.
+ *   3. The id goes into BOT_API_ALLOWED_IDS on telegram-bot-api
+ *      (allowed-bots.cjs). The redeploy that brings it in is the moment the
+ *      proxy lets the bot through, and the bot service's retry logs it in.
+ *
+ * Same property as --apply: no process points the bot at the cloud when it
+ * logs out, and our server never holds it while the cloud does.
+ *
  * This file is the implementation; scripts/bot-api-move.cjs runs the same one
  * from a checkout. It lives here so it ships inside the image.
  */
@@ -69,11 +92,19 @@ function usage() {
     '  --apply   cloud logOut, then log the bot in on our server',
     '  --back    close the bot on our server and take it off the allow-list',
     '  --forget  take the bot off the allow-list only (our server was down)',
-    'the token comes from BOT_API_MOVE_TOKEN or is typed at a hidden prompt',
+    '  --cloud-logout  cloud logOut only, for a move without a shell (username=id);',
+    '            run under railway run --service 999-multibots-telegraf',
+    'the token comes from BOT_API_MOVE_TOKEN or is typed at a hidden prompt;',
+    '--cloud-logout also finds it among the variables by the bot id',
   ].join('\n')
 }
 
-const MODES = { '--apply': 'apply', '--back': 'back', '--forget': 'forget' }
+const MODES = {
+  '--apply': 'apply',
+  '--back': 'back',
+  '--forget': 'forget',
+  '--cloud-logout': 'cloud-logout',
+}
 
 function parseArgs(argv) {
   const out = { bot: null, mode: 'plan', localRoot: null }
@@ -181,6 +212,21 @@ function planLines({ bot, mode, localRoot, token }) {
       "  1. take the id off this server's allow-list. No call to any server.",
       '  for a rollback while our server was down: a restarted server runs no polling',
       '  bot until one is requested, so there is nothing to close.',
+    ]
+  }
+  if (mode === 'cloud-logout') {
+    return [
+      `PLAN (--cloud-logout) for ${who} -- the move without a shell`,
+      tokenLine,
+      '  BEFORE this: the entry is in BOT_API_LOCAL_BOTS on 999-multibots-telegraf, both',
+      '  services are redeployed, and the bot log says the bot is on our server. It is',
+      '  silent from then on, so do this straight away, in a quiet hour.',
+      '  0. no call unless: this is username=id, BOT_API_LOCAL_BOTS here names the id,',
+      '     the token is that id, and it is not the admin bot or the default cashier',
+      '  1. getMe on the CLOUD: confirm the token is this bot -- otherwise stop',
+      '  2. logOut on the CLOUD. Updates still queued there for the bot are dropped.',
+      '  3. then, by hand: add the entry to BOT_API_ALLOWED_IDS on telegram-bot-api.',
+      '     Its redeploy lets the bot through, and the bot service logs it in.',
     ]
   }
   if (mode === 'back') {
@@ -334,7 +380,120 @@ async function apply({ bot, token, localRoot, workDir, fetchImpl, print }) {
   return entryFor(localMe.result)
 }
 
-function refuseUnlessHeld({ bot, token, workDir }) {
+/** `username=id` and bare ids, as BOT_API_LOCAL_BOTS writes them -> ids. */
+function listedIds(value) {
+  const ids = new Set()
+  for (const raw of String(value || '').split(/[\s,]+/)) {
+    const m = /^(?:@?[A-Za-z][A-Za-z0-9_]{3,31}=)?(\d{5,20})$/.exec(raw.trim())
+    if (m) ids.add(m[1])
+  }
+  return ids
+}
+
+const TOKEN_SHAPE = /^\d{5,20}:[A-Za-z0-9_-]{30,}$/
+
+/**
+ * The bot's token from the service's own variables, found by its id: under
+ * `railway run --service 999-multibots-telegraf` the farm's tokens are there.
+ * Two different values for one id (an old token beside a new one) is a
+ * refusal, not a guess. The value is returned, never printed.
+ */
+function tokenFromVariables(env, id) {
+  const found = new Set()
+  for (const value of Object.values(env || {})) {
+    const v = String(value || '').trim()
+    if (TOKEN_SHAPE.test(v) && botIdOfToken(v) === id) found.add(v)
+  }
+  if (found.size > 1) {
+    throw new Error(
+      `the variables hold ${found.size} different tokens for bot ${id}; set ` +
+        'BOT_API_MOVE_TOKEN to the live one. Nothing was called.'
+    )
+  }
+  return found.size ? [...found][0] : ''
+}
+
+/** The two bots that never move (README, "Two bots never move"). */
+function neverMoves(env, id) {
+  for (const name of ['BOT_TOKEN_1', 'TOKENS_PAYMENT_BOT_TOKEN']) {
+    if (botIdOfToken(env[name]) === id) return name
+  }
+  return null
+}
+
+/** Everything refusable before a token is looked at. */
+function refuseCloudLogout({ bot, env }) {
+  if (!bot.id || !bot.username) {
+    throw new Error(
+      `--cloud-logout needs username=id, the BOT_API_LOCAL_BOTS entry (got ${bot.label}). ` +
+        'Nothing was called.'
+    )
+  }
+  const pinned = neverMoves(env, bot.id)
+  if (pinned) {
+    throw new Error(
+      `bot ${bot.id} is the bot of ${pinned}, which never moves. Nothing was called.`
+    )
+  }
+  if (!listedIds(env.BOT_API_LOCAL_BOTS).has(bot.id)) {
+    throw new Error(
+      `BOT_API_LOCAL_BOTS here does not name bot ${bot.id}. Point first: add ` +
+        `${bot.label}=${bot.id} to it on 999-multibots-telegraf, redeploy that service and ` +
+        'vibee-render, and run this under railway run --service 999-multibots-telegraf. ' +
+        'Logging out while a service still sends the bot to the cloud logs it back in ' +
+        'there. Nothing was called.'
+    )
+  }
+}
+
+async function cloudLogout({ bot, token, fetchImpl, print }) {
+  if (botIdOfToken(token) !== bot.id) {
+    throw new Error(
+      `the token is for bot id ${botIdOfToken(token)}, not ${bot.id}; nothing was called`
+    )
+  }
+  const cloudMe = await call(fetchImpl, CLOUD_API_ROOT, token, 'getMe')
+  if (!cloudMe.ok) {
+    throw new Error(
+      `the cloud does not know this token (${cloudMe.description}); nothing was changed. ` +
+        'If the bot already logged out, go on with step 3.'
+    )
+  }
+  if (!sameBot(bot, cloudMe.result)) {
+    throw new Error(
+      `the token belongs to @${cloudMe.result.username} (id ${cloudMe.result.id}), ` +
+        `not to ${bot.label}; nothing was changed`
+    )
+  }
+  print(
+    `1. the token is @${cloudMe.result.username} (id ${cloudMe.result.id}) on the cloud`
+  )
+  const out = await call(fetchImpl, CLOUD_API_ROOT, token, 'logOut')
+  if (!out.ok) {
+    throw new Error(
+      `logOut on the cloud failed: ${out.description}; the bot is still on the cloud`
+    )
+  }
+  const at = new Date().toISOString()
+  const entry = entryFor(cloudMe.result)
+  print(`2. logged out of the cloud at ${at} -- note it for a rollback`)
+  print('')
+  print(
+    '3. now add the entry on telegram-bot-api (append with a comma if the list'
+  )
+  print('   is not empty); its redeploy lets the bot through our proxy:')
+  print(`     BOT_API_ALLOWED_IDS=${entry}`)
+  print('   Within a minute of that redeploy the bot log says')
+  print(`     Bot API: listed bot ${cloudMe.result.id} answers; launching it`)
+  print('')
+  print(
+    'Rollback before step 3: take the entry out of BOT_API_LOCAL_BOTS and redeploy'
+  )
+  print(`both services not earlier than 10 minutes after ${at}.`)
+  return entry
+}
+
+function refuseUnlessHeld({ bot, token, workDir, env = {} }) {
   if (!bot.id) {
     throw new Error(
       `--back and --forget need the bot's id: write ${bot.label}=<id>, the ` +
@@ -348,7 +507,16 @@ function refuseUnlessHeld({ bot, token, workDir }) {
         'called: a getMe here with the wrong token would log THAT bot in here.'
     )
   }
-  if (!allowed.readAllowedBots(workDir).has(bot.id)) {
+  const inFile = allowed.readAllowedBots(workDir).has(bot.id)
+  if (!inFile && listedIds(env[allowed.VARIABLE]).has(bot.id)) {
+    throw new Error(
+      `bot ${bot.id} is let through by ${allowed.VARIABLE}, not by the file. Take it out ` +
+        'of that variable on telegram-bot-api: the redeploy restarts this server, which ' +
+        'then runs no polling bot until one is requested -- what close would do. Then ' +
+        'the BOT_API_LOCAL_BOTS step as usual. Nothing was called.'
+    )
+  }
+  if (!inFile) {
     throw new Error(
       `bot ${bot.id} is not on this server's allow-list: it was never moved here, ` +
         'or --back / --forget already ran. Nothing was called.'
@@ -356,8 +524,16 @@ function refuseUnlessHeld({ bot, token, workDir }) {
   }
 }
 
-async function back({ bot, token, localRoot, workDir, fetchImpl, print }) {
-  refuseUnlessHeld({ bot, token, workDir })
+async function back({
+  bot,
+  token,
+  localRoot,
+  workDir,
+  fetchImpl,
+  print,
+  env = {},
+}) {
+  refuseUnlessHeld({ bot, token, workDir, env })
   if (!holdsSession(workDir, token)) {
     throw new Error(
       `this server holds no session for that token (no ${path.join(workDir, '<token>')}). ` +
@@ -400,7 +576,14 @@ async function back({ bot, token, localRoot, workDir, fetchImpl, print }) {
         `Run --forget ${bot.label}=${bot.id} before anything calls our server for it.`
     )
   }
-  print("3. off this server's allow-list: the proxy refuses it from now on")
+  if (listedIds(env[allowed.VARIABLE]).has(bot.id)) {
+    print(
+      `3. off the file, but ${allowed.VARIABLE} still names it: the proxy lets it through`
+    )
+    print('   until that entry is removed on telegram-bot-api (its redeploy).')
+  } else {
+    print("3. off this server's allow-list: the proxy refuses it from now on")
+  }
   print('')
   print(
     `4. remove ${entryFor(me.result)} from BOT_API_LOCAL_BOTS on 999-multibots-telegraf,`
@@ -415,8 +598,8 @@ async function back({ bot, token, localRoot, workDir, fetchImpl, print }) {
   return true
 }
 
-function forget({ bot, workDir, print }) {
-  refuseUnlessHeld({ bot, token: undefined, workDir })
+function forget({ bot, workDir, print, env = {} }) {
+  refuseUnlessHeld({ bot, token: undefined, workDir, env })
   const list = allowed.readAllowedBots(workDir)
   list.delete(bot.id)
   allowed.writeAllowedBots(workDir, list)
@@ -464,12 +647,12 @@ async function main(
   const given = String(env.BOT_API_MOVE_TOKEN || '').trim()
 
   if (args.mode === 'plan') {
-    for (const mode of ['apply', 'back', 'forget']) {
+    for (const mode of ['apply', 'cloud-logout', 'back', 'forget']) {
       planLines({ bot, mode, localRoot, token: given }).forEach(l => print(l))
       print('')
     }
     print(
-      'dry run: nothing was called. Add --apply, --back or --forget to act.'
+      'dry run: nothing was called. Add --apply, --cloud-logout, --back or --forget to act.'
     )
     return 'plan'
   }
@@ -477,12 +660,27 @@ async function main(
   if (args.mode === 'forget') {
     planLines({ bot, mode: 'forget', localRoot }).forEach(l => print(l))
     print('')
-    return forget({ bot, workDir, print })
+    return forget({ bot, workDir, print, env })
+  }
+
+  if (args.mode === 'cloud-logout') {
+    refuseCloudLogout({ bot, env })
+    const token =
+      given ||
+      tokenFromVariables(env, bot.id) ||
+      (await ask(`Token of ${bot.label} (not shown): `))
+    if (!botIdOfToken(token)) {
+      throw new Error('that is not a bot token (expected <id>:<secret>)')
+    }
+    planLines({ bot, mode: args.mode, localRoot, token }).forEach(l => print(l))
+    print('')
+    return cloudLogout({ bot, token, fetchImpl, print })
   }
 
   // Everything that can be refused without the token is refused before the
   // prompt: a wrong id or a bot this server never held costs no typing.
-  if (args.mode === 'back') refuseUnlessHeld({ bot, token: undefined, workDir })
+  if (args.mode === 'back')
+    refuseUnlessHeld({ bot, token: undefined, workDir, env })
   else requireWorkDir(workDir)
 
   const token = given || (await ask(`Token of ${bot.label} (not shown): `))
@@ -493,7 +691,7 @@ async function main(
   print('')
   return args.mode === 'apply'
     ? apply({ bot, token, localRoot, workDir, fetchImpl, print })
-    : back({ bot, token, localRoot, workDir, fetchImpl, print })
+    : back({ bot, token, localRoot, workDir, fetchImpl, print, env })
 }
 
 module.exports = {
@@ -505,6 +703,8 @@ module.exports = {
   apply,
   back,
   forget,
+  cloudLogout,
+  tokenFromVariables,
   main,
   usage,
 }

@@ -57,15 +57,20 @@ file and not a variable because it must change at the moment a bot moves, and a
 variable here changes only with a redeploy — a restart under every bot already
 on the server.
 
+The proxy also lets through the ids in **`BOT_API_ALLOWED_IDS`** on this
+service — for a move without a shell in this container (step 4b). A malformed
+entry stops the container; the log names the entry's position, never its text.
+
 ## Variables — by name only
 
 On **telegram-bot-api** (this service):
 
-| name                | value                                                      |
-| ------------------- | ---------------------------------------------------------- |
-| `TELEGRAM_API_ID`   | reference: `${{999-multibots-telegraf.TELEGRAM_API_ID}}`   |
-| `TELEGRAM_API_HASH` | reference: `${{999-multibots-telegraf.TELEGRAM_API_HASH}}` |
-| `FILES_TTL_HOURS`   | optional, default `24`; `0` keeps media forever            |
+| name                  | value                                                      |
+| --------------------- | ---------------------------------------------------------- |
+| `TELEGRAM_API_ID`     | reference: `${{999-multibots-telegraf.TELEGRAM_API_ID}}`   |
+| `TELEGRAM_API_HASH`   | reference: `${{999-multibots-telegraf.TELEGRAM_API_HASH}}` |
+| `FILES_TTL_HOURS`     | optional, default `24`; `0` keeps media forever            |
+| `BOT_API_ALLOWED_IDS` | optional; `username=id` entries, comma-separated (step 4b) |
 
 No bot token is ever set on this service.
 
@@ -131,7 +136,7 @@ replicas came from the config file** before anything else.
 (`telegram-bot-api --dir=/var/lib/telegram-bot-api ... --local ...
 --http-ip-address=127.0.0.1`) and
 
-    [api] Bot API proxy on [::]:8081 -> 127.0.0.1:8083, 0 bot(s) on the allow-list, uid 101
+    [api] Bot API proxy on [::]:8081 -> 127.0.0.1:8083, allow-list: 0 bot(s) in the file, 0 in BOT_API_ALLOWED_IDS, uid 101
     [files] read-only file endpoint on [::]:8082, root /var/lib/telegram-bot-api, uid 101
 
 From a sibling service, the private network answers — and refuses a bot that
@@ -175,9 +180,9 @@ not on this server's allow-list ...)`. That is expected: both services now
     send this bot only to our server, and the proxy refuses it until it moves.
     **From here the bot is silent**, so go straight on.
 
-        If either redeploy does not go live, nothing has moved: the old processes
-        still serve the bot from the cloud. Take the entry out again (or fix and
-        redeploy) — and do not run step 3.
+                If either redeploy does not go live, nothing has moved: the old processes
+                still serve the bot from the cloud. Take the entry out again (or fix and
+                redeploy) — and do not run step 3.
 
 3.  Move it:
 
@@ -220,6 +225,47 @@ four steps.
 to 100 MB, like the mini app; a 100–2000 MB file is refused with a sentence
 naming 100 MB. And the limits on what our code SENDS (50 MB per upload in
 `ai-reels-callback.ts`, which matches the cloud) are not raised here.
+
+### 4b. Move ONE bot without a shell in this container
+
+`railway ssh` is not open to every operator. The same move in three steps, none
+of which needs this container's shell; the property is the one above — no
+process points the bot at the cloud when it logs out, and this server never
+holds the bot while the cloud does.
+
+1.  Point first: steps 4.1 and 4.2 exactly as above. The bot log says
+    `Bot API: 1 of N bot(s) on our server (<id>)`; the bot is silent from here.
+
+2.  Log it out of the cloud, from a checkout:
+
+        railway run --service 999-multibots-telegraf -- node scripts/bot-api-move.cjs <username>=<id>                  # dry run
+        railway run --service 999-multibots-telegraf -- node scripts/bot-api-move.cjs <username>=<id> --cloud-logout
+
+    It refuses before any call unless that service's `BOT_API_LOCAL_BOTS`
+    names the id and the bot is neither the admin bot nor the default cashier.
+    It finds the token among the service's variables by the id (nothing typed,
+    nothing printed), checks it on the cloud, logs out, and prints the time —
+    note it for a rollback.
+
+3.  Let it through here:
+
+        railway variables --service telegram-bot-api --set 'BOT_API_ALLOWED_IDS=<username>=<id>'
+
+    (append with a comma when the list is not empty). The redeploy restarts
+    this server — seconds in which bots already here are unreachable; the bot
+    service retries them. When it is live the boot line says
+    `... 1 in BOT_API_ALLOWED_IDS`, and within a minute the bot log says
+    `Bot API: listed bot <id> answers; launching it`.
+
+If step 3's redeploy does not go live, the bot is off the cloud and not here:
+fix the redeploy, or roll back (below, "our server is down").
+
+**Rollback without a shell.** Take the entry out of `BOT_API_ALLOWED_IDS`: the
+redeploy restarts this server, which then runs no polling bot until one is
+requested — what `close` would do — and the proxy refuses the bot, so nothing
+launches it here again. Then remove it from `BOT_API_LOCAL_BOTS` and redeploy
+both services, not earlier than 10 minutes after the logOut. `--back` inside the
+container refuses a bot that only the variable lets through, and says so.
 
 ### 5. When this server stops answering
 

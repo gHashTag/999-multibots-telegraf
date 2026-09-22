@@ -191,6 +191,54 @@ describe('which bots get through', () => {
   })
 })
 
+describe('the allow-list from BOT_API_ALLOWED_IDS (the move without a shell)', () => {
+  it('reads username=id and bare ids, comma- or space-separated', () => {
+    const m = allowedBots.parseAllowedVariable(
+      ' Moved_test_bot=900000011, 900000012\n@Third_test_bot=900000013 '
+    )
+    expect([...m.entries()]).toEqual([
+      ['900000011', 'Moved_test_bot'],
+      ['900000012', null],
+      ['900000013', 'Third_test_bot'],
+    ])
+    expect(allowedBots.parseAllowedVariable(undefined).size).toBe(0)
+    expect(allowedBots.parseAllowedVariable('').size).toBe(0)
+  })
+
+  it('a malformed entry stops the start, and a pasted token is never repeated back', () => {
+    const pasted = `Moved_test_bot=900000011,${STRANGER}`
+    let message = ''
+    try {
+      allowedBots.parseAllowedVariable(pasted)
+    } catch (e) {
+      message = String((e as Error).message)
+    }
+    expect(message).toContain('BOT_API_ALLOWED_IDS: entry 2 of 2')
+    expect(message).not.toContain('ZZstranger')
+    expect(message).not.toContain('900000099')
+  })
+
+  it('a bot named only by the variable gets through; the file cannot take it away', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'bot-api-var-'))
+    try {
+      const ids = allowedBots.allowListWatcher(
+        dir,
+        allowedBots.parseAllowedVariable('Stranger_test_bot=900000099')
+      )
+      expect(ids().has('900000099')).toBe(true)
+      allowedBots.writeAllowedBots(
+        dir,
+        new Map([['900000011', 'Moved_test_bot']])
+      )
+      expect([...ids()].sort()).toEqual(['900000011', '900000099'])
+      allowedBots.writeAllowedBots(dir, new Map())
+      expect([...ids()]).toEqual(['900000099'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('no file:/ value reaches the server', () => {
   const FILE = 'file:///var/lib/telegram-bot-api/tqueue.binlog'
 
