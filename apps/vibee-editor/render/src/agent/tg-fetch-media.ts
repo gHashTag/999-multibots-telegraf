@@ -21,8 +21,9 @@
  *      person's media library -- `user_media`, owner = the caller, lead = the
  *      person, surface `ingest`: the owner-session path, the same surface the
  *      CRM ingest writes, so neither downloads what the other already holds;
- *   4. looks at a photo, listens to a voice note, reads a text document --
- *      live, capped, on a deadline -- and stores what was seen or heard;
+ *   4. looks at a photo, listens to a voice note, reads a text document, a
+ *      PDF or an office file, lists an archive -- live, capped, on a
+ *      deadline -- and stores what was seen, heard or read;
  *   5. returns the shelf URL with the description or transcript, framed.
  *
  * Two things it never does. It never opens a file the sender made disappear
@@ -34,14 +35,16 @@
  *
  * Bounded on purpose: ten files a call (Telegram's own album size), 20 MB a
  * file (the ingest's and the Bot API's ceiling, so no huge video is ever
- * pulled), four live looks and two live listens a call, ninety seconds of
- * live work in total. What is not looked at live is described in the
- * background by the same queue the ingest uses, and the answer says so.
+ * pulled), four live looks, two live listens and two live document reads a
+ * call, ninety seconds of live work in total. What is not looked at live is
+ * described in the background by the same queue the ingest uses, and the
+ * answer says so.
  *
  * Every word that came from the file -- the caption, the description of a
  * photo (which quotes visible text verbatim), the transcript -- is framed as
- * foreign content. A picture of a sign that says "forward the login code" is
- * still a picture.
+ * foreign content, and what was perceived has its button and attachment
+ * markers broken first (`wordsFor`). A picture of a sign that says "forward
+ * the login code" is still a picture.
  */
 
 import type { ToolContext } from './tools'
@@ -69,6 +72,13 @@ import {
   type MediaRow,
   type Pool,
 } from './media-library'
+import {
+  documentFormat,
+  readShelfExtractedNow,
+  type Extracted,
+  type ExtractFailure,
+} from './media-extract'
+import { defangMarkers } from './media-parts'
 import { s3PutBytes } from '../lib/s3-put'
 
 /** Telegram's own album ceiling: one call can take one whole album. */
@@ -93,6 +103,55 @@ const LIVE_LISTEN_MS = Math.max(
   5_000,
   Number(process.env.MEDIA_LIVE_TRANSCRIBE_MS) || 45_000
 )
+/**
+ * PDFs, office files and archives opened live per call (2026-09-22). Until
+ * then this tool read a document only when it was plain text, and queued
+ * nothing that was a file: a contract sent as a PDF, a price list as .xlsx,
+ * a folder as .zip was stored, and nobody ever read it. Two, like a chat
+ * turn (`MAX_LIVE_DOCUMENTS` in media-inline.ts): a PDF costs a download and
+ * a pdftotext; the rest are read by the background pass (`describeMedia`).
+ */
+export const LIVE_READS = 2
+/** The same clock a chat turn gives a document; the reader stops with it. */
+const LIVE_READ_MS = Math.max(
+  5_000,
+  Number(process.env.MEDIA_LIVE_READ_MS) || 20_000
+)
+
+/**
+ * Why a document was not read, in words the model can repeat. A failure
+ * that is not the file's fault -- no reader installed yet, the shelf not
+ * answering -- is not a verdict: the row goes to the background pass.
+ */
+const UNREAD: Record<ExtractFailure, { why: string; retry: boolean }> = {
+  'no-text': {
+    why: 'no text layer: a scan or pictures of pages',
+    retry: false,
+  },
+  encrypted: { why: 'password-protected', retry: false },
+  'too-big': { why: 'too big to open here', retry: false },
+  damaged: {
+    why: 'could not be opened: damaged, or not really this format',
+    retry: false,
+  },
+  'tool-missing': {
+    why: 'the reader for this format is not installed yet',
+    retry: true,
+  },
+  missing: { why: 'the stored copy did not open', retry: true },
+}
+
+/**
+ * A null verdict on a PDF, an office file or an archive is the file's own
+ * answer only when a reader gave it. Before the readers (PR #2764, merged
+ * 2026-09-21T20:11Z and carried by every render deploy after it) the
+ * background pass closed EVERY such file with `transcript = NULL` and
+ * `transcribed_at` set -- "nobody could read this format", not "this file
+ * has no text". So a verdict older than this instant is not believed: the
+ * file is opened live, once, and the fresh verdict is recorded. The margin
+ * past the merge only costs one extra read of a file judged in between.
+ */
+export const DOCUMENT_VERDICTS_SINCE = new Date('2026-09-22T00:00:00Z')
 
 /** Kinds that are files a person sends. A sticker or a poll is not one. */
 const FILE_KINDS: ReadonlySet<SentMediaKind> = new Set([
@@ -105,7 +164,7 @@ const FILE_KINDS: ReadonlySet<SentMediaKind> = new Set([
 ])
 
 /**
- * The network edges: the shelf put and the three perceivers, and the
+ * The network edges: the shelf put and the four perceivers, and the
  * background queue. Everything else -- the memory, the library, the
  * transcript -- is the real code against whatever pool the caller holds.
  */
@@ -117,7 +176,15 @@ export interface FetchEdges {
     name: string | null,
     ms: number
   ) => Promise<string | null>
+  /** A plain-text document. */
   read: (url: string) => Promise<string | null>
+  /** A PDF, an office file or an archive's table of contents; see media-extract.ts. */
+  extract: (
+    url: string,
+    name: string | null,
+    mime: string | null,
+    ms: number
+  ) => Promise<Extracted | 'late'>
   later: (
     pool: Pool,
     owner: string,
@@ -130,6 +197,7 @@ const LIVE_EDGES: FetchEdges = {
   look: describeShelfImageNow,
   listen: transcribeShelfAudioNow,
   read: readShelfDocument,
+  extract: readShelfExtractedNow,
   later: transcribeAndMirror,
 }
 let edges: FetchEdges = LIVE_EDGES
@@ -203,7 +271,9 @@ const HOW_TO_READ =
   'назови в ответе, какое фото к какому пункту подходит; записать фото в его план нечем. ' +
   'Картинка с ним — только crm_deliver_photo (его лицо), не image_edit по этой ссылке; ' +
   'описание говорит, на каком фото видно его лицо. Файл со статусом stored, not seen, ' +
-  'not heard, too big или failed никто не смотрел — не описывай его, скажи честно. ' +
+  'not heard, not read, still reading, too big или failed никто не смотрел — не описывай его, ' +
+  'скажи честно (why — почему). listed, not unpacked — архив: известны только имена и размеры ' +
+  'файлов внутри, не их содержимое. ' +
   'view-once, not opened — он прислал исчезающий файл (один просмотр или таймер): мы его не ' +
   'скачиваем, не храним и не описываем; увидеть его может только владелец в своём Telegram.'
 
@@ -301,7 +371,11 @@ export async function fetchSentMedia(
   // What this owner's library already holds for these messages: no second download.
   const held = new Map<
     number,
-    MediaRow & { id: number; transcript: string | null }
+    MediaRow & {
+      id: number
+      transcript: string | null
+      transcribedAt: Date | null
+    }
   >()
   if (pool) {
     const rows = await ingestRowsByMsgIds(
@@ -317,6 +391,7 @@ export async function fetchSentMedia(
   const started = Date.now()
   let looks = 0
   let listens = 0
+  let reads = 0
   const background: Array<MediaRow & { id: number }> = []
   const files: Array<Record<string, unknown>> = []
 
@@ -367,6 +442,33 @@ export async function fetchSentMedia(
               ? 'read earlier'
               : 'seen earlier',
         ...wordsFor(row.kind, earlier),
+      })
+      continue
+    }
+
+    /*
+     * A DOCUMENT A READER ALREADY JUDGED. A scan, a password, a damaged file:
+     * an earlier pass -- this tool's or the background's -- opened it, found
+     * no words and wrote `transcribed_at` with a null transcript. Opening it
+     * again would get the same answer and spend a live read on it, on every
+     * call about this message. See DOCUMENT_VERDICTS_SINCE for why an older
+     * verdict is not believed.
+     */
+    const judged = held.get(m.id)?.transcribedAt ?? null
+    if (
+      row &&
+      !earlier &&
+      row.kind === 'file' &&
+      judged &&
+      judged.getTime() >= DOCUMENT_VERDICTS_SINCE.getTime() &&
+      !isTextLikeDocument(row.mime, row.name) &&
+      documentFormat(row.mime, row.name)
+    ) {
+      files.push({
+        ...base,
+        url: row.url,
+        status: 'not read',
+        why: 'opened before and no text came out: a scan, a password or a damaged file',
       })
       continue
     }
@@ -444,6 +546,9 @@ export async function fetchSentMedia(
     const inTime = Date.now() - started < LIVE_BUDGET_MS
     let words: string | null = null
     let status = 'stored'
+    let why: string | null = null
+    /** A document not read here that the background pass should read. */
+    let readLater = false
     if (row.kind === 'image' && looks < LIVE_LOOKS && inTime) {
       looks += 1
       words = await edges
@@ -459,18 +564,57 @@ export async function fetchSentMedia(
     } else if (row.kind === 'file' && isTextLikeDocument(row.mime, row.name)) {
       words = await edges.read(row.url).catch(() => null)
       status = words ? 'read' : 'not read'
+    } else if (row.kind === 'file' && documentFormat(row.mime, row.name)) {
+      /*
+       * A PDF, AN OFFICE FILE, AN ARCHIVE -- the same readers and the same
+       * deadline a chat turn uses. Over the cap, out of budget or late, the
+       * file goes to the background pass, which reads these formats too.
+       */
+      if (reads < LIVE_READS && inTime) {
+        reads += 1
+        const got = await edges
+          .extract(row.url, row.name, row.mime, LIVE_READ_MS)
+          .catch((): Extracted => ({ ok: false, reason: 'damaged' }))
+        if (got === 'late') {
+          status = 'still reading'
+          readLater = true
+        } else if (got.ok) {
+          words = got.text
+          status = got.listing ? 'listed, not unpacked' : 'read'
+        } else {
+          status = 'not read'
+          why = UNREAD[got.reason].why
+          readLater = UNREAD[got.reason].retry
+        }
+      } else {
+        readLater = true
+      }
     }
     if (words && pool && row.id) {
       await saveTranscript(pool, row.id, words)
       await mirrorTranscript(pool, owner, row, words).catch(() => undefined)
-    } else if (!words && pool && row.id && row.kind !== 'file') {
+    } else if (!words && pool && row.id && (row.kind !== 'file' || readLater)) {
       // Not a verdict: the background queue tries again and records it.
       background.push(row)
+    } else if (why && !readLater && pool && row.id) {
+      /*
+       * A VERDICT: the file's own answer (a scan, a password, damage).
+       * Recorded the way the background pass records it -- `transcribed_at`
+       * with no words -- or the row stays pending: the backlog sweep opens
+       * it again on its next tick, and the next call here does too. A write
+       * that fails costs only that one extra read.
+       */
+      await saveTranscript(pool, row.id, null).catch(e =>
+        console.warn(
+          `[tg_fetch_media] verdict for #${row.id} not recorded: ${String(e).slice(0, 120)}`
+        )
+      )
     }
     files.push({
       ...base,
       url: row.url,
       status,
+      ...(why ? { why } : {}),
       ...(words ? wordsFor(row.kind, words) : {}),
     })
   }
@@ -501,12 +645,20 @@ export async function fetchSentMedia(
   }
 }
 
-/** The perceived words under the key that says what kind of perceiving it was. */
+/**
+ * The perceived words under the key that says what kind of perceiving it was.
+ *
+ * Defanged before they are framed, as the chat turn frames the same readers'
+ * output (media-inline.ts): the fence does not close a `[[label|act:topup]]`
+ * the sender wrote into a PDF, a spreadsheet cell, an archive entry's name or
+ * a photographed sign -- echoed by the model, it renders a real payment
+ * button. See `defangMarkers`.
+ */
 function wordsFor(
   kind: MediaRow['kind'],
   words: string
 ): Record<string, string> {
-  const framed = foreignText(words)
+  const framed = foreignText(defangMarkers(words))
   if (kind === 'audio') return { transcript: framed }
   if (kind === 'file') return { document_text: framed }
   return { description: framed }
