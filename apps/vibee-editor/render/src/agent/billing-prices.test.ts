@@ -8,7 +8,10 @@ import {
 import { РАЗРЕШЕНИЕ_ВИДЕО, РАЗРЕШЕНИЕ_ЛИПСИНКА } from './kie-web-provider'
 import { readFileSync } from 'fs'
 import { join as pathJoin } from 'path'
-import { ИМЯ_В_ПРАЙСЕ } from './kie-price-names'
+import {
+  ИМЯ_В_ПРАЙСЕ, // cyrillic-ok: existing export
+  PROVIDER_DEFAULT_RESOLUTION,
+} from './kie-price-names'
 import {
   длинойУправляемМы,
   длинуЗадаётЧеловек,
@@ -70,7 +73,9 @@ describe('цены', () => {
     for (const [имя] of Object.entries(модельныеЦены())) {
       for (const op of Object.keys(TOKEN_PRICES)) {
         if (назовут(op, имя) !== спишут(op, имя)) {
-          расхождения.push(`${имя} / ${op}: ${назовут(op, имя)} ≠ ${спишут(op, имя)}`)
+          расхождения.push(
+            `${имя} / ${op}: ${назовут(op, имя)} ≠ ${спишут(op, имя)}`
+          )
         }
       }
     }
@@ -227,15 +232,33 @@ describe('цены', () => {
      * Тест держит их вместе: поменяете разрешение в маршруте, не поменяв имя
      * в прайсе, — упадёт здесь, а не в счёте.
      */
+    /*
+     * WHO DECIDES THE RESOLUTION DECIDES WHAT THE NAME MAY SAY. The route
+     * sends its resolution only to a model whose contract has the field
+     * (`kieInputFor` drops the rest); every other model is billed at the
+     * provider's own default, recorded with its source in
+     * PROVIDER_DEFAULT_RESOLUTION. A pinned resolution backed by neither is a
+     * price read off a row we are never billed at.
+     */
+    let checked = 0
+    const routeResolution: string = РАЗРЕШЕНИЕ_ВИДЕО // cyrillic-ok: existing export
     for (const [наш, имя] of Object.entries(ИМЯ_В_ПРАЙСЕ)) {
       if (typeof имя !== 'string') continue
       const вИмени = имя.match(/(\d{3,4}p)/)
       if (!вИмени) continue
+      const id: string = наш // cyrillic-ok: the loop's own name
+      const sent = KIE_MODELS.find(m => m.id === id)?.needs.includes(
+        'resolution'
+      )
+      const billedAt = sent ? routeResolution : PROVIDER_DEFAULT_RESOLUTION[id]
       expect(
         вИмени[1],
-        `${наш}: цена снята с ${вИмени[1]}, а маршрут просит ${РАЗРЕШЕНИЕ_ВИДЕО}`
-      ).toBe(РАЗРЕШЕНИЕ_ВИДЕО)
+        `${наш}: цена снята с ${вИмени[1]}, а счёт идёт за ${billedAt}`
+      ).toBe(billedAt)
+      checked++
     }
+    // The denominator: pins exist on both sides of the rule.
+    expect(checked).toBeGreaterThanOrEqual(3)
   })
 
   it('ВОЗВРАТ РАВЕН СПИСАНИЮ у каждой модели', async () => {
@@ -268,7 +291,9 @@ describe('цены', () => {
       }
       await refundByTid(поддельный as never, '999', оп, 10, модель)
       if (возвращено !== списано) {
-        расхождения.push(`${оп}/${модель}: списано ${списано}, возврат ${возвращено}`)
+        расхождения.push(
+          `${оп}/${модель}: списано ${списано}, возврат ${возвращено}`
+        )
       }
     }
     expect(расхождения).toEqual([])
@@ -281,7 +306,9 @@ describe('цены', () => {
      * 20 000 знаков стоил нам двадцать цен и приносил одну: $1.20 расхода
      * против $0.12 выручки, без потолка.
      */
-    expect(познаковаяМодель('kie/elevenlabs/text-to-speech-multilingual-v2')).toBe(true)
+    expect(
+      познаковаяМодель('kie/elevenlabs/text-to-speech-multilingual-v2')
+    ).toBe(true)
     expect(познаковаяМодель('kie/kling/v3-turbo-text-to-video')).toBe(false)
     expect(познаковаяМодель(undefined)).toBe(false)
 
@@ -386,7 +413,9 @@ describe('чип длительности не назначает счёт та�
     expect(посекундныеПоФайлу()).toContain('kie/topaz/video-upscale')
     // Модель с чипом длительности в списке «по замеру» быть не должна:
     // там счёт и заказ совпадают.
-    expect(посекундныеПоФайлу()).not.toContain('kie/kling/v3-turbo-text-to-video')
+    expect(посекундныеПоФайлу()).not.toContain(
+      'kie/kling/v3-turbo-text-to-video'
+    )
   })
 
   it('маршрут видео СЧИТАЕТ длину файла, а не берёт её с экрана', () => {
@@ -395,11 +424,17 @@ describe('чип длительности не назначает счёт та�
       pathJoin(__dirname, '..', '..', 'render-server.ts'),
       'utf8'
     )
-    expect(сервер).toMatch(/длинуЗадаётФайл\(контракт\)/)
-    expect(сервер).toMatch(/const измерено = await measuredRemoteDuration\(источник\)/)
+    // The rule is read by the leg now (billing-shared.ts, videoChargeLength):
+    // only the explicit Kie leg measures a file.
+    expect(сервер).toMatch(/if \(lengthRule === 'file'\) \{/) // cyrillic-ok: existing variable
+    expect(сервер).toMatch(
+      /const измерено = await measuredRemoteDuration\(источник\)/
+    )
     expect(сервер).toContain('MAX_UPSCALE_SECONDS')
     // Прежнее общее условие не должно вернуться: оно и смешивало два случая.
-    expect(сервер).not.toMatch(/посекунднаяМодель\(model\) && длинойУправляемМы\(контракт\)/)
+    expect(сервер).not.toMatch(
+      /посекунднаяМодель\(model\) && длинойУправляемМы\(контракт\)/
+    )
   })
 })
 

@@ -27,7 +27,7 @@ import {
   DIRECT_CALL_ONLY,
   type ToolContext,
 } from './tools'
-import { TOKEN_PRICES } from './billing-shared'
+import { TOKEN_PRICES, replicateClipTokens } from './billing-shared'
 import {
   CLUB_OFFER_WHEN,
   clubOfferLine,
@@ -759,7 +759,9 @@ function tokenLine(): string {
   const p = TOKEN_PRICES
   return (
     `картинка ${p.image_generate}, фото-подарок GPT ${p.gpt_image_edit}, рилс ${p.reel_render}, ` +
-    `озвучка ${p.audio_generate}, липсинк ${p.lipsync_generate}/с, видео ${p.video_generate}`
+    `озвучка ${p.audio_generate}, липсинк ${p.lipsync_generate}/с, ` +
+    // A clip is priced by its length (the video floor): name both lengths.
+    `видео ${replicateClipTokens(5)} за 5 с, ${replicateClipTokens(10)} за 10 с`
   )
 }
 function packsLine(): string {
