@@ -290,6 +290,55 @@ describe('the client says stop', () => {
   })
 })
 
+describe('only the client s own words switch it off', () => {
+  it('a forwarded "stop the bot" is somebody else s words: answered as usual', async () => {
+    const db = optOutDouble()
+    const p = await boot(db)
+    const bot = fakeBot()
+    await p.svc.handleBusinessMessage(
+      {
+        ...fromCustomer('stop the bot'),
+        forward_origin: { type: 'hidden_user', sender_user_name: 'Someone' },
+      } as any,
+      bot as any,
+      BOT
+    )
+    await p.svc.clientStopsSettled()
+
+    expect(db.rows.size, 'a forward switched the assistant off').toBe(0)
+    expect(stopNotices(bot)).toHaveLength(0)
+    expect(asks).toHaveLength(1)
+  })
+
+  it('a message whose sender is not the chat s person switches nothing off', async () => {
+    const db = optOutDouble()
+    const p = await boot(db)
+    const bot = fakeBot()
+    await p.svc.handleBusinessMessage(
+      {
+        ...fromCustomer('stop the bot'),
+        from: { id: 900000078, first_name: 'Other' },
+      } as any,
+      bot as any,
+      BOT
+    )
+    await p.svc.clientStopsSettled()
+
+    expect(db.rows.size).toBe(0)
+    expect(stopNotices(bot)).toHaveLength(0)
+  })
+
+  it('pure helper: only a private, unforwarded message from the chat s person', async () => {
+    const p = await boot(optOutDouble())
+    const own = fromCustomer('stop the bot') as any
+    expect(p.svc.clientsOwnWords(own)).toBe(true)
+    expect(p.svc.clientsOwnWords({ ...own, forward_origin: {} })).toBe(false)
+    expect(
+      p.svc.clientsOwnWords({ ...own, chat: { ...own.chat, type: 'group' } })
+    ).toBe(false)
+  })
+})
+
 describe('only the owner turns it back on', () => {
   it('the owner s press gives the chat back to the assistant', async () => {
     const db = optOutDouble()
