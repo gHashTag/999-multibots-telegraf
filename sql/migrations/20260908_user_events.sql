@@ -1,3 +1,12 @@
+-- SUPERSEDED 2026-09-22: DO NOT APPLY TO SUPABASE.
+--
+-- This file was never applied, and every funnel step written since 2026-09-08
+-- was dropped because the table did not exist (measured 2026-09-22). The table
+-- now lives in the render Postgres, next to user_tokens, and is created on
+-- first use by src/services/trackEvent.ts with the same columns as below plus
+-- one partial unique index for club_invoice_abandoned. Read it with
+-- scripts/events.cjs. Kept as the record of the shape it always meant.
+--
 -- WHAT PEOPLE DO BETWEEN ARRIVING AND PAYING.
 --
 -- Two tables already record the ends of the funnel: payments_v2 knows about

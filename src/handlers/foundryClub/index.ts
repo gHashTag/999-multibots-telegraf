@@ -1,15 +1,21 @@
-import { Telegraf, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 
 /**
- * Клуб «Золотая Литейная» (Golden Foundry) — закрытый клуб разработчиков
- * на кремнии. Живёт в боте @t27ai_bot, лендинг — t27.ai/#/foundry.
+ * THE GOLDEN FOUNDRY IS NO LONGER SOLD.
  *
- * ⚠️ ЦЕНЫ — ЧЕРНОВИК. Суммы не подтверждены владельцем (см. DRAFT_TERMS на
- * лендинге). Менять здесь и на сайте синхронно.
+ * It lived under /club in @t27ai_bot: three draft tiers (1 499 / 3 999 /
+ * 12 499 Stars), written into payments_v2, zero sales ever (measured
+ * 2026-09-22). The owner's decision the same day: the one subscription is the
+ * club (render club-membership.ts), and /club, /foundry and `?start=foundry`
+ * now open its card (navigation/helpers/clubCard.ts).
+ *
+ * What stays is only what a LATE payment of an invoice already sent needs:
+ * the tiers, to parse its payload, and the welcome. Nothing here offers or
+ * mints anything any more; an old tier button still in somebody's chat lands
+ * on the club card (RETIRED_OFFER_CALLBACK).
  */
 export const FOUNDRY_PAYLOAD_PREFIX = 'foundry-'
 
@@ -88,132 +94,6 @@ export function parseFoundryPayload(
   const stars = parseInt(parts[1], 10)
   if (isNaN(stars) || stars <= 0) return null
   return { tier, stars }
-}
-
-export const CLUB_BOT_USERNAME = 't27ai_bot'
-const CLUB_BOT_LINK = `https://t.me/${CLUB_BOT_USERNAME}?start=foundry`
-
-/**
- * Клуб продаётся только в @t27ai_bot: registerCommands вешает команды на все
- * боты платформы, а оплата в чужом боте записала бы доход чужому владельцу
- * (bot_name берётся из ctx.botInfo) и дала бы кнопку не на тот канал.
- */
-function isClubBot(ctx: MyContext): boolean {
-  return ctx.botInfo?.username === CLUB_BOT_USERNAME
-}
-
-async function redirectToClubBot(ctx: MyContext): Promise<void> {
-  const isRu = isRussianFromState(ctx)
-  await ctx.reply(
-    isRu
-      ? `🏛 Клуб «Золотая Литейная» живёт в отдельном боте: ${CLUB_BOT_LINK}`
-      : `🏛 The Golden Foundry club lives in its own bot: ${CLUB_BOT_LINK}`
-  )
-}
-
-/** Питч клуба + кнопки уровней. /club, /foundry, deep-link — только в клубном боте. */
-export async function handleClubCommand(ctx: MyContext): Promise<void> {
-  if (!isClubBot(ctx)) {
-    return redirectToClubBot(ctx)
-  }
-  const isRu = isRussianFromState(ctx)
-
-  const text = isRu
-    ? `🏛 <b>Золотая Литейная</b> — закрытый клуб разработчиков на кремнии.
-
-Внутри:
-• свой FPGA-стенд — присылаешь RTL, получаешь измерение, а не мнение
-• еженедельный разбор чужих замеров
-• право первым проверить метод до публикации
-
-Мест мало: беру столько, скольким успеваю читать код лично.
-
-Подробнее: t27.ai/foundry
-Оплата — звёздами Telegram. Выбери уровень:`
-    : `🏛 <b>Golden Foundry</b> — a private club for people who build on silicon.
-
-Inside:
-• a live FPGA bench — send RTL, get a measurement, not an opinion
-• weekly teardowns of published numbers
-• first right to check methods before they are published
-
-Seats are few: I take as many people as I can personally read code for.
-
-Details: t27.ai/foundry
-Payment — Telegram Stars. Pick a tier:`
-
-  await ctx.reply(text, {
-    parse_mode: 'HTML',
-    ...Markup.inlineKeyboard(
-      CLUB_TIERS.map(t => [
-        Markup.button.callback(
-          `${isRu ? t.ru.name : t.en.name} — ${t.stars}⭐`,
-          `club_buy_${t.key}`
-        ),
-      ])
-    ),
-  })
-}
-
-/** Кнопки уровней → инвойс в звёздах. */
-export function registerClubActions(bot: Telegraf<MyContext>): void {
-  bot.action(/^club_buy_(apprentice|master|founder)$/, async ctx => {
-    await ctx.answerCbQuery() // ВСЕГДА первой строкой
-
-    if (!isClubBot(ctx)) {
-      return redirectToClubBot(ctx)
-    }
-
-    const isRu = isRussianFromState(ctx)
-    const tier = getClubTierByKey(ctx.match[1])
-    if (!tier) {
-      logger.error('[foundryClub] Unknown tier in callback', {
-        data: ctx.match[0],
-        telegram_id: ctx.from?.id,
-      })
-      return
-    }
-
-    const loc = isRu ? tier.ru : tier.en
-    // Формат payload закреплён: parseFoundryPayload() читает первые два
-    // сегмента `foundry-<tier>_<stars>`; telegram_id в хвосте делает inv_id
-    // уникальным даже при двух оплатах в одну миллисекунду.
-    const payload = `${FOUNDRY_PAYLOAD_PREFIX}${tier.key}_${tier.stars}_${ctx.from?.id ?? 0}_${Date.now()}`
-
-    try {
-      await ctx.replyWithInvoice({
-        title: isRu
-          ? `Золотая Литейная — ${loc.name}`
-          : `Golden Foundry — ${loc.name}`,
-        description: loc.blurb,
-        payload,
-        currency: 'XTR',
-        prices: [
-          {
-            label: isRu ? 'Месяц в клубе' : 'A month in the club',
-            amount: tier.stars,
-          },
-        ],
-        provider_token: '',
-      })
-      logger.info('[foundryClub] Invoice sent', {
-        telegram_id: ctx.from?.id,
-        tier: tier.key,
-        stars: tier.stars,
-      })
-    } catch (error) {
-      logger.error('[foundryClub] Failed to send invoice', {
-        error: error instanceof Error ? error.message : String(error),
-        telegram_id: ctx.from?.id,
-        tier: tier.key,
-      })
-      await ctx.reply(
-        isRu
-          ? '❌ Не удалось создать счёт. Попробуйте позже или напишите admin@t27.ai'
-          : '❌ Could not create the invoice. Try later or write to admin@t27.ai'
-      )
-    }
-  })
 }
 
 /** Сообщение после успешной оплаты клуба (сам платёж пишет paymentHandlers). */

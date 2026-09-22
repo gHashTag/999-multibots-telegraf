@@ -76,6 +76,7 @@ import {
   sweepClubRenewals,
   sweepClubGrants,
 } from './src/agent/club-membership'
+import { clubIdentity } from './src/agent/club-identity'
 import { isClonePath, handleClone } from './src/agent/clone-readiness'
 import { isBrowserPath, handleBrowser } from './src/browser/routes'
 import { identityWithSource } from './src/agent/routes'
@@ -8294,7 +8295,11 @@ const server = createServer(async (req, res) => {
   if (isClubPath(req.url?.split('?')[0] || '')) {
     const out = await handleClub(req, {
       getPool: async () => (await getPool()) as any,
-      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      // The person by their own proof, or the bot on their behalf with the
+      // server key and `?telegram_id=` -- the only way the bot can sell the
+      // club. One function, run by the tests with a real request: see
+      // club-identity.ts for why `authenticate().via` cannot decide this.
+      identity: r => clubIdentity(r as any),
       botToken: process.env.TOKENS_PAYMENT_BOT_TOKEN || '',
       credit: async c =>
         creditStarsPayment((await getPool()) as any, {

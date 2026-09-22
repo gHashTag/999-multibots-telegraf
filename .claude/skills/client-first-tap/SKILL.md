@@ -12,7 +12,8 @@ description: 'A new client reaches a result in one or two taps: deep links survi
 - Клиент нажал «🚀 Открыть в боте» под ответом в личке и попал в сцену выбора пола/демо вместо услуги.
 - `/start` показывает два сообщения, и человек не понимает, что делают кнопки.
 - Кто-то предлагает попросить клиента ввести команду, id или «войти в профиль».
-- Воронка `user_events` (`start → menu_shown → button_pressed → topup_opened`) проседает на первом шаге.
+- Воронка `user_events` (`start → menu_shown → topup_opened`, у клуба — `club_card_shown → club_invoice_created → club_paid | club_invoice_abandoned`) проседает на первом шаге.
+  Таблица живёт в Postgres рендера (`TOKENS_DATABASE_URL`), создаётся `src/services/trackEvent.ts` при первой записи; читать — `railway run -s 999-multibots-telegraf node scripts/events.cjs`. До 22.09.2026 её не было ни в одной базе, и все шаги молча терялись.
 
 ## Quick Diagnosis
 
