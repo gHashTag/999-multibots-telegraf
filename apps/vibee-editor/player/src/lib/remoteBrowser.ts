@@ -237,3 +237,69 @@ export async function setBrowserWheel(
     return false
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * TYPING FROM THE PHONE'S OWN KEYBOARD (render/src/browser/person-type.ts).
+ *
+ * Typing through the video stream was too hard to sign in with (owner,
+ * 2026-09-22). The app's own field goes into whichever field has focus in
+ * the person's browser. The person's door only; the text is never kept.
+ * ──────────────────────────────────────────────────────────────────────── */
+export interface BrowserFocus {
+  host: string
+  /** password | email | text | ... | none */
+  field: string
+  label: string
+}
+
+function focusFrom(raw: unknown): BrowserFocus | null {
+  const f = (raw ?? null) as Partial<BrowserFocus> | null
+  if (!f || typeof f !== 'object') return null
+  return {
+    host: typeof f.host === 'string' ? f.host : '',
+    field: typeof f.field === 'string' ? f.field : 'none',
+    label: typeof f.label === 'string' ? f.label : '',
+  }
+}
+
+/** Where typed text would land now; null when it cannot be told. */
+export async function readBrowserFocus(): Promise<BrowserFocus | null> {
+  try {
+    const answer = await apiFetch<{ focus?: unknown }>(
+      `${API_BASE}/api/browser/type`
+    )
+    return focusFrom(answer.focus)
+  } catch {
+    return null
+  }
+}
+
+export type TypeOutcome =
+  | { ok: true; focus: BrowserFocus | null }
+  | { ok: false; reason: 'no-field' | 'failed'; focus: BrowserFocus | null }
+
+/** Type into the focused field; `enter` presses Enter after. Never throws. */
+export async function typeInBrowser(
+  text: string,
+  enter: boolean
+): Promise<TypeOutcome> {
+  try {
+    const answer = await apiFetch<{ focus?: unknown }>(
+      `${API_BASE}/api/browser/type`,
+      { method: 'POST', body: JSON.stringify({ text, enter }) }
+    )
+    return { ok: true, focus: focusFrom(answer.focus) }
+  } catch (e) {
+    const status = (e as ApiError).status
+    return {
+      ok: false,
+      reason: status === 409 ? 'no-field' : 'failed',
+      focus: null,
+    }
+  }
+}
+
+/** A field that hides what is typed: the sheet hides it too, by default. */
+export function isSecretField(focus: BrowserFocus | null): boolean {
+  return focus?.field === 'password'
+}

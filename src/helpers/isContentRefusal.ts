@@ -75,6 +75,18 @@ const CONTENT_REFUSAL_PATTERNS: RegExp[] = [
   /\be005\b/i,
   /flagged as sensitive/i,
   /\bcontent (?:was )?(?:rejected|refused|blocked|flagged)\b/i,
+  /*
+   * kie.ai / GPT-Image-2.5, seen in production 2026-09-22 on the welcome gift:
+   *   "Content review failed. Please adjust the input and try again |
+   *    内容安全审查未通过，请调整输入内容后重试"
+   * It carries no VERDICT word next to a CONTENT word -- "failed" is not a
+   * verdict, it is how machinery breaks -- so every one of these was logged as
+   * an ERROR, woke the owner's phone, and told the customer the generator was
+   * broken when the provider had simply said no. Both halves are matched:
+   * the provider sends the pair, and a log line may carry either alone.
+   */
+  /\bcontent review failed\b/i,
+  /内容安全审查未通过/, // cyrillic-ok: not Cyrillic -- the provider's own wording
   new RegExp(`${CONTENT}[\\s\\S]{0,40}${VERDICT}`, 'i'),
   new RegExp(`${VERDICT}[\\s\\S]{0,40}${CONTENT}`, 'i'),
 ]

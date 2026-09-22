@@ -1,0 +1,90 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const apiFetch = vi.fn()
+vi.mock('@/lib/apiFetch', () => ({
+  apiFetch: (...a: unknown[]) => apiFetch(...a),
+}))
+vi.mock('@/config', () => ({ API_BASE: 'https://render.example.com' }))
+
+import {
+  typeInBrowser,
+  readBrowserFocus,
+  isSecretField,
+} from '@/lib/remoteBrowser'
+import { whereItGoes } from './TypeSheet'
+
+/*
+ * Owner, 2026-09-22: signing in through the video stream was too hard on a
+ * phone. The app's own field types into the browser's focused field.
+ */
+const t = (key: string, vars: Record<string, string | number> = {}) =>
+  `${key}${Object.entries(vars)
+    .map(([k, v]) => `|${k}=${v}`)
+    .join('')}`
+
+beforeEach(() => apiFetch.mockReset())
+
+describe('where the text goes, said before it is sent', () => {
+  it('names the kind of field, its label and the site', () => {
+    const line = whereItGoes(
+      { host: 'accounts.google.com', field: 'password', label: 'Password' },
+      t
+    )
+    expect(line).toContain('browser.type.target')
+    expect(line).toContain('kind=browser.type.kind.password')
+    expect(line).toContain('host=accounts.google.com')
+    expect(line).toContain('Password')
+  })
+
+  it('asks to tap a field when nothing has focus, or when it cannot tell', () => {
+    expect(whereItGoes({ host: 'x', field: 'none', label: '' }, t)).toBe(
+      'browser.type.noField'
+    )
+    expect(whereItGoes(null, t)).toBe('browser.type.noField')
+  })
+
+  it('hides what is typed into a password field', () => {
+    expect(isSecretField({ host: '', field: 'password', label: '' })).toBe(true)
+    expect(isSecretField({ host: '', field: 'email', label: '' })).toBe(false)
+  })
+})
+
+describe('the calls behind the sheet', () => {
+  it('posts the text and Enter as JSON to the person-only door', async () => {
+    apiFetch.mockResolvedValue({
+      ok: true,
+      focus: { host: 'a.example', field: 'email', label: '' },
+    })
+    const out = await typeInBrowser('me@example.com', true)
+    expect(out.ok).toBe(true)
+    const [url, init] = apiFetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://render.example.com/api/browser/type')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({
+      text: 'me@example.com',
+      enter: true,
+    })
+  })
+
+  it('tells "tap a field first" apart from a plain failure', async () => {
+    apiFetch.mockRejectedValueOnce(
+      Object.assign(new Error('x'), { status: 409 })
+    )
+    expect(await typeInBrowser('a', false)).toMatchObject({
+      ok: false,
+      reason: 'no-field',
+    })
+    apiFetch.mockRejectedValueOnce(
+      Object.assign(new Error('x'), { status: 502 })
+    )
+    expect(await typeInBrowser('a', false)).toMatchObject({
+      ok: false,
+      reason: 'failed',
+    })
+  })
+
+  it('reading the focus never throws', async () => {
+    apiFetch.mockRejectedValue(new Error('down'))
+    expect(await readBrowserFocus()).toBeNull()
+  })
+})
