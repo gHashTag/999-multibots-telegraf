@@ -64,6 +64,18 @@ describe('reading the session', () => {
     expect(await readBrowserSession()).not.toHaveProperty('wheel')
   })
 
+  it('a 503 from a failed session renewal is not "not set up here"', async () => {
+    // That answer latches the watcher off for the page's life; a renewal
+    // that failed for a moment must not (third review, 2026-09-22).
+    const { readBrowserSession } = await load()
+    const err = Object.assign(new Error('the sign-in service did not answer'), {
+      status: 503,
+      code: 'session_renewal_unavailable',
+    })
+    apiFetch.mockRejectedValueOnce(err)
+    await expect(readBrowserSession()).rejects.toBe(err)
+  })
+
   it('treats 503 as "not set up here", not as a failure', async () => {
     const { readBrowserSession } = await load()
     const err = Object.assign(new Error('not configured'), { status: 503 })

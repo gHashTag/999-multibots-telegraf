@@ -135,6 +135,32 @@ describe('ProfileTabs owner workspace', () => {
     expect(host.textContent).toContain('Agent pairing')
   })
 
+  it('brings the chosen section into sight, so it is never active past the edge', async () => {
+    state.isOwn = true
+    const scrolled: Element[] = []
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this)
+    }
+    try {
+      await act(async () =>
+        root.render(
+          <MemoryRouter>
+            <ProfileTabs />
+          </MemoryRouter>
+        )
+      )
+      const last = [
+        ...host.querySelectorAll<HTMLButtonElement>('.profile-tabs__tab'),
+      ].at(-1)!
+      await act(async () => last.click())
+      expect(scrolled.at(-1)).toBe(last)
+      expect(last.getAttribute('aria-pressed')).toBe('true')
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
   it('keeps private workspace tabs hidden on somebody else profile', async () => {
     state.isOwn = false
     await act(async () =>

@@ -19,6 +19,15 @@
  * introduced rather than silently thinning the library.
  *
  * GET ?lead=&limit=&kind= answers the rows newest first, for the owner only.
+ *
+ * A document under a walkable shelf key (shelf-access.ts, rule 3) is SKIPPED
+ * at this door. GET hands every row back with a signed link, and the caller
+ * here is anyone the server can identify -- an initData from any bot, an app
+ * session, an agent key -- naming themselves as the lead. Stored, a guessed
+ * `assets/<ms>-file-<id>.pdf` would come back signed: another person's
+ * document for the price of a POST, and the background describe would read
+ * it from the bucket too. Every upload door mints `assetKeyFor` keys, so no
+ * honest writer sends such a URL; the rows stored before keep their links.
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -33,6 +42,8 @@ import {
   type MediaRow,
   type MediaSurface,
 } from './media-library'
+import { isPublicShelfKey, shelfLinkFor } from '../lib/shelf-access'
+import { shelfObject } from './media-parts'
 
 const LEAD = /^\d{5,15}$/
 const MAX_ITEMS = 50
@@ -85,7 +96,10 @@ export async function handleCrmMedia(
         limit: Number(q.get('limit') ?? 20) || 20,
         kind: kind ?? undefined,
       })
-      return answer(200, { ok: true, items })
+      return answer(200, {
+        ok: true,
+        items: items.map(x => ({ ...x, url: shelfLinkFor(x.url) })),
+      })
     } catch (e) {
       return answer(500, { error: String(e).slice(0, 200) })
     }
@@ -118,6 +132,7 @@ export async function handleCrmMedia(
 
   const raw: unknown[] = Array.isArray(body?.items) ? body.items : []
   const rows: MediaRow[] = []
+  let walkable = 0
   for (const it of raw.slice(0, MAX_ITEMS) as any[]) {
     const url = String(it?.url ?? '').trim()
     if (isTelegramFileUrl(url)) {
@@ -128,6 +143,11 @@ export async function handleCrmMedia(
       })
     }
     if (!/^https?:\/\//i.test(url)) continue
+    const onShelf = shelfObject(url)
+    if (onShelf && !isPublicShelfKey(onShelf.key)) {
+      walkable += 1
+      continue
+    }
     const kind = String(it?.kind ?? '') as MediaKind
     if (!MEDIA_KINDS.includes(kind)) continue
     const msgId = Number(it?.msg_id)
@@ -148,10 +168,16 @@ export async function handleCrmMedia(
       caption: it?.caption ? String(it.caption) : null,
     })
   }
+  if (walkable) {
+    console.warn(
+      `[media-library] skipped ${walkable} walkable shelf key(s) for owner ${owner}`
+    )
+  }
   if (!rows.length) {
     return answer(400, {
-      error:
-        'items: [{ url, kind, name, ... }] — хотя бы один с URL полки и kind',
+      error: walkable
+        ? 'url: документ под старым ключом полки не принимается — загрузите файл заново'
+        : 'items: [{ url, kind, name, ... }] — хотя бы один с URL полки и kind',
     })
   }
 

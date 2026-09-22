@@ -48,6 +48,7 @@ export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
   const inBoard = typeof window !== 'undefined' && framedByAppBoard(window)
   return (
     <section
+      className="embed-guest"
       data-embed-guest={screen}
       aria-labelledby="embed-guest-title"
       style={{
@@ -61,36 +62,17 @@ export function EmbedGuestPanel({ screen }: { screen: TriScreenId }) {
         textAlign: 'center',
       }}
     >
-      <h2 id="embed-guest-title" style={{ margin: 0, fontSize: 18 }}>
+      <h2 id="embed-guest-title" className="embed-guest__title">
         {t('embed.guest.title')}
       </h2>
-      <p
-        style={{
-          margin: 0,
-          maxWidth: 420,
-          opacity: 0.75,
-          fontSize: 14,
-          lineHeight: 1.5,
-        }}
-      >
+      <p className="embed-guest__body">
         {t(inBoard ? 'embed.guest.bodyBoard' : 'embed.guest.body')}
       </p>
       <a
         href={inBoard ? boardSignInHref(screen) : appScreenHref(screen)}
         target={inBoard ? '_top' : '_blank'}
         rel="noopener"
-        style={{
-          marginTop: 8,
-          minHeight: 44,
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '0 20px',
-          borderRadius: 10,
-          background: '#2f6b3f',
-          color: '#fff',
-          fontWeight: 600,
-          textDecoration: 'none',
-        }}
+        className="embed-guest__cta"
       >
         {t(inBoard ? 'embed.guest.signIn' : 'embed.guest.open')}
       </a>

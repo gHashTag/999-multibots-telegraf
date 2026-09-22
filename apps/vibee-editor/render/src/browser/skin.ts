@@ -1363,6 +1363,79 @@ html[data-t27-framed] .members,
 html[data-t27-framed] .members-container { height: 30px !important; }
 `
 
+/*
+ * SILENT BY DEFAULT (owner, 2026-09-22: "turn the sounds off by default -- my
+ * child is asleep and wakes up when the browser reloads"). The window carries
+ * the pod's audio: a video on X or LinkedIn playing with sound, and every
+ * reload of the window starting the stream again. So the viewer's own media
+ * elements are muted before the first frame and kept muted -- neko's client
+ * unmutes on its own after autoplay, so one mute at load is not enough.
+ * `?sound=1` on the window's address is the only way to hear it.
+ */
+export const MUTE_SCRIPT = `(function () {
+  var allowed = /[?&]sound=1(&|$)/.test(location.search);
+  if (allowed) return;
+  var hush = function (el) {
+    if (!el || (el.tagName !== 'VIDEO' && el.tagName !== 'AUDIO')) return;
+    el.defaultMuted = true;
+    if (!el.muted) el.muted = true;
+  };
+  var all = function () {
+    var list = document.querySelectorAll('video, audio');
+    for (var i = 0; i < list.length; i++) hush(list[i]);
+  };
+  document.addEventListener('volumechange', function (e) { hush(e.target); }, true);
+  document.addEventListener('play', function (e) { hush(e.target); }, true);
+  document.addEventListener('DOMContentLoaded', all);
+  new MutationObserver(all).observe(document.documentElement, { childList: true, subtree: true });
+  all();
+})();`
+
+/*
+ * WHAT IS UNDER THE FINGER (2026-09-22). The owner could not press "Trust"
+ * on Apple's page although the server had given their session control
+ * ([browser:mouse] outcome "given"). From outside the window nobody can see
+ * why a tap goes nowhere, so the first three taps after each load report,
+ * to the app that frames the window: the element at the point, whether
+ * neko's input layer takes pointer events, and neko's own idea of who
+ * controls (hosting, controlling, locked, implicit hosting). The app logs
+ * it (Browser.tsx). No coordinates of text, nothing typed.
+ */
+export const TOUCH_REPORT_SCRIPT = `(function () {
+  if (!window.parent || window.parent === window) return;
+  var left = 3;
+  var name = function (el) {
+    if (!el) return null;
+    var c = typeof el.className === 'string' ? el.className.trim().split(/\\s+/).slice(0, 3).join('.') : '';
+    return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (c ? '.' + c : '');
+  };
+  var store = function () {
+    var roots = [document.querySelector('#neko'), document.querySelector('#app'), document.body && document.body.firstElementChild];
+    for (var i = 0; i < roots.length; i++) {
+      var vm = roots[i] && roots[i].__vue__;
+      var r = vm && vm.$accessor && vm.$accessor.remote;
+      if (r) return { hosting: !!r.hosting, controlling: !!r.controlling, locked: !!r.locked, implicit: !!r.implicitHosting };
+    }
+    return null;
+  };
+  window.addEventListener('pointerdown', function (e) {
+    if (left <= 0) return;
+    left--;
+    var overlay = document.querySelector('.overlay');
+    try {
+      window.parent.postMessage({
+        source: __EVENT__,
+        report: 'touch',
+        pointer: e.pointerType,
+        at: name(document.elementFromPoint(e.clientX, e.clientY)),
+        target: name(e.target),
+        overlay: overlay ? getComputedStyle(overlay).pointerEvents : 'missing',
+        neko: store()
+      }, location.origin);
+    } catch (err) {}
+  }, true);
+})();`.replace(/__EVENT__/g, () => JSON.stringify(WINDOW_EVENT))
+
 export function injectSkin(html: string): string {
   if (!html.includes('</head>')) return html
   /*
@@ -1372,6 +1445,8 @@ export function injectSkin(html: string): string {
    */
   const head =
     `<script data-t27-framed>${FRAMED_SCRIPT}</script>` +
+    `<script data-t27-mute>${MUTE_SCRIPT}</script>` +
+    `<script data-t27-touch>${TOUCH_REPORT_SCRIPT}</script>` +
     `<style data-t27-framed>${FRAMED_CSS}</style>` +
     `<link rel="preconnect" href="https://fonts.googleapis.com">` +
     `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` +

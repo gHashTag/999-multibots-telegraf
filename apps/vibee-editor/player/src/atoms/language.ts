@@ -84,6 +84,10 @@ const en: Translations = {
   'browser.journal.verb.close_tab': 'closed a tab',
   'browser.journal.verb.ask_permission': 'asked permission',
   'browser.fullscreen': 'Full screen',
+  'browser.classic': 'Show the app menu',
+  'browser.wake.ask':
+    'I am handing the browser back to you and I need your help: look at the screen, work out where we stopped, and carry the task through. If you need something from me, call me with a button.',
+  'browser.wake.steps': 'Your last steps:',
   'browser.wentOut':
     'The browser went out while nobody was watching — that is how it stops costing anything. Your logins are still there; open it again.',
   'browser.lead':
@@ -2207,6 +2211,10 @@ const ru: Translations = {
   'browser.journal.verb.close_tab': 'закрыл вкладку',
   'browser.journal.verb.ask_permission': 'спросил разрешения',
   'browser.fullscreen': 'Во весь экран',
+  'browser.classic': 'Показать меню приложения',
+  'browser.wake.ask':
+    'Возвращаю вам браузер, и мне нужна ваша помощь: посмотрите на экран, поймите, где мы остановились, и доведите задачу до конца. Если нужно что-то от меня — позовите кнопкой.',
+  'browser.wake.steps': 'Ваши последние шаги:',
   'browser.wentOut':
     'Браузер погас, пока за ним никто не смотрел — так он перестаёт стоить денег. Ваши входы на месте, откройте его снова.',
   'browser.lead':

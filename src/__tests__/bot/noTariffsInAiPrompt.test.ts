@@ -1,12 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
   FALLBACK_BUTTON_IDS,
+  fallbackMessages,
   fallbackSystemPrompt,
+  replyInRussian,
 } from '@/navigation/helpers/agentFallback'
 import { isKnownAction } from '@/navigation/helpers/actionButtons'
 import { CAPABILITIES } from '@/services/capabilityPreflight'
+import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+
+vi.mock('@/utils/logger', () => ({
+  logger: {
+    info: () => undefined,
+    warn: () => undefined,
+    debug: () => undefined,
+    error: () => undefined,
+  },
+}))
 
 /**
  * THE FALLBACK PROMPT TELLS THE TRUTH ABOUT MONEY -- ALL OF IT.
@@ -26,21 +39,33 @@ import { CAPABILITIES } from '@/services/capabilityPreflight'
  */
 const RU = fallbackSystemPrompt(true)
 const EN = fallbackSystemPrompt(false)
+// The Russian prompt for somebody the top-up chooser shows rubles to: every
+// guard below holds for it too.
+const RU_RUBLES = fallbackSystemPrompt(true, true)
 const BOTH = [
   ['ru', RU],
+  ['ru, rubles shown', RU_RUBLES],
   ['en', EN],
 ] as const
+const RUBLES = new RegExp('рубл|ruble|rouble', 'i')
 
 // Built from strings: the Cyrillic gate allows Cyrillic in literals only.
+// Up to three words may stand between the noun and the negation: review of
+// #2844 showed natural Russian word order and "We do not sell any subscriptions"
+// both walking past the narrower patterns with all 48 tests green. Review of
+// #2855: a comma or a dash right after the noun (the Russian "no
+// subscriptions, alas") and the article "a"/"an" ("We don't offer a
+// subscription") walked past those too.
 const DENIES_A_SUBSCRIPTION = [
   new RegExp(
-    '(подписок|подписки|подписка|тарифов|клуба|клуб)(\\s+и\\s+\\S+)?\\s+(нет|не существует|отсутству)',
+    '(подписок|подписки|подписка|тарифов|клуба|клуб)[,:—–-]?(\\s+[^\\s.;!?]+){0,3}?\\s+(нет|не существует|отсутству)',
     'iu'
   ),
   new RegExp('(^|\\s)нет\\s+(никаких\\s+|ни\\s+)?(подпис|тариф|клуб)', 'iu'),
   /\bno\s+(\w+\s+)?(subscriptions?|plans?|tariffs?|club|membership)\b/i,
   /\b(subscriptions?|plans?|tariffs?|club)\s+(do(es)?\s+not|don't|doesn't)\s+exist/i,
   /\bthere\s+(is|are)\s+no\s+(\w+\s+)?(subscriptions?|plans?|tariffs?|club)/i,
+  /\b(do(es)?\s+not|don't|doesn't)\s+(sell|have|offer)\s+((any|a|an)\s+)?(subscriptions?|plans?|tariffs?|club|membership)/i,
 ]
 
 describe('the toolless fallback prompt', () => {
@@ -52,6 +77,13 @@ describe('the toolless fallback prompt', () => {
       'Подписок нет, есть токены.',
       'There are no plans or subscriptions, only tokens.',
       'We have no subscriptions.',
+      // The two mutants of the #2844 review, in ordinary word order.
+      'Подписок у нас нет, только токены; про клуб ответит /club.',
+      'We do not sell any subscriptions, only tokens; the /club command answers about the club.',
+      // The three sentences of the #2855 review, which walked past the guard.
+      'Подписок, увы, нет — только токены.',
+      "We don't offer a subscription.",
+      'We do not sell a subscription.',
     ])
       expect(
         DENIES_A_SUBSCRIPTION.some(re => re.test(said)),
@@ -83,9 +115,78 @@ describe('the toolless fallback prompt', () => {
       expect(prompt).toMatch(new RegExp('звёзд|Stars', 'i'))
     })
 
+    it(`${lang}: names crypto beside Stars, not Stars alone`, () => {
+      // Review of #2844: the top-up chooser offers Stars and crypto to
+      // everyone (PaymentScene). With "never invent anything not in this
+      // prompt", a Stars-only line made the fallback tell a person asking
+      // about another way to pay that only Stars work.
+      expect(prompt).toMatch(new RegExp('крипт|crypto', 'i'))
+    })
+
     it(`${lang}: forbids inventing services and says it has no tools`, () => {
       expect(prompt).toMatch(new RegExp('не выдумывай|never invent', 'i'))
       expect(prompt).toMatch(new RegExp('без инструментов|without tools', 'i'))
+    })
+  }
+
+  /*
+   * RUBLES ONLY WHERE THE CHOOSER DRAWS THEM. Review of #2847: the prompt
+   * said "Stars, rubles or crypto" in both languages, but PaymentScene shows
+   * the rubles key only when shouldShowRubles(ctx) is true -- a Russian
+   * speaker on a bot that takes rubles. So the English prompt promised every
+   * reader a door they would never see.
+   */
+  it('names rubles only when it is told the chooser shows them', () => {
+    expect(EN).not.toMatch(RUBLES)
+    expect(RU).not.toMatch(RUBLES)
+    expect(RU_RUBLES).toMatch(RUBLES)
+  })
+
+  /** A context shaped like the real one: the language lives in ctx.state. */
+  const person = (language: 'ru' | 'en', bot = 'neuro_blogger_bot') =>
+    ({
+      from: { id: 900000141, language_code: language },
+      state: { userLanguage: language },
+      botInfo: { username: bot },
+      scene: { current: undefined },
+    }) as never
+
+  // The prompt as the bot builds it: the same two helpers the call site in
+  // registerCommands.ts composes, for the people the review named.
+  const promptFor = (ctx: never, text: string) =>
+    fallbackMessages({
+      isRu: replyInRussian(text, isRussianFromState(ctx)),
+      text,
+      rubles: shouldShowRubles(ctx),
+    })[0].content
+
+  for (const [who, ctx, text, rubles] of [
+    ['an English speaker', person('en'), 'how do I pay?', false],
+    [
+      'a person kept as English who writes in Cyrillic',
+      person('en'),
+      'как оплатить?',
+      false,
+    ],
+    [
+      'a Russian speaker on the bot that takes no rubles',
+      person('ru', 'NeurostylistShtogrina_bot'),
+      'как оплатить?',
+      false,
+    ],
+    [
+      'a Russian speaker on a bot that takes rubles',
+      person('ru'),
+      'как оплатить?',
+      true,
+    ],
+  ] as const) {
+    it(`${who}: ${rubles ? 'names rubles' : 'names no rubles'}, as the chooser shows`, () => {
+      const prompt = promptFor(ctx, text)
+      if (rubles) expect(prompt).toMatch(RUBLES)
+      else expect(prompt).not.toMatch(RUBLES)
+      expect(prompt).toMatch(new RegExp('звёзд|Stars', 'i'))
+      expect(prompt).toMatch(new RegExp('крипт|crypto', 'i'))
     })
   }
 
@@ -138,6 +239,11 @@ describe('registerCommands.ts', () => {
 
   it('takes the fallback prompt from the builder, not from an inline literal', () => {
     expect(CODE).toContain('fallbackMessages(')
+    // ...and tells it what the top-up chooser will show this person.
+    const call = CODE.slice(CODE.indexOf('fallbackMessages({'))
+    expect(call.slice(0, call.indexOf('})'))).toMatch(
+      /rubles:\s*shouldShowRubles\(ctx\)/
+    )
     expect(CODE).not.toMatch(/role:\s*'system'/)
   })
 
