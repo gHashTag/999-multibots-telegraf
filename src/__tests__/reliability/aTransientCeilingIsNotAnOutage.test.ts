@@ -197,6 +197,58 @@ describe('a transient ceiling costs the customer nothing', () => {
   })
 })
 
+/**
+ * What the render says since 2026-09-22 when every provider in its chain ended
+ * the turn with no text (EMPTY_ANSWER_ERROR in render/src/agent/chat.ts).
+ */
+const EMPTY_ANSWER =
+  'модель не дала ответа: zai: пустой ответ после my_assets, my_renders ' + // cyrillic-ok: the render's message
+  'и повторной просьбы; zai-lite: пустой ответ и повторной просьбы' // cyrillic-ok: the render's message
+
+describe('an empty answer is the event it always was', () => {
+  it('reads as transient, as the empty success it replaced was counted', async () => {
+    const { svc } = await freshWorld()
+    expect(svc.classifyAgentFault(EMPTY_ANSWER)).toBe('transient')
+    // A key problem named in the same chain still needs a human.
+    expect(svc.classifyAgentFault(`${EMPTY_ANSWER}\n${NO_KEY}`)).toBe(
+      'standing'
+    )
+  })
+
+  it('a first empty turn is a warning, not a page, and is not replayed', async () => {
+    const { svc } = await freshWorld()
+    agentPlan = [
+      async () => {
+        throw new Error(EMPTY_ANSWER)
+      },
+    ]
+    const said = await svc.answerClient('900000004', 'покажи', () =>
+      chatWithAI()
+    )
+    expect(said).toBe('the tool-less fallback answered')
+    expect(
+      agentCalls,
+      'the render already asked every provider twice; a replay reruns the tools'
+    ).toBe(1)
+    await settle()
+    expect(pages(), 'one empty turn paged the owner').toEqual([])
+  })
+
+  it('a run of empty turns still pages once, at the threshold', async () => {
+    const { svc } = await freshWorld()
+    agentPlan = [
+      async () => {
+        throw new Error(EMPTY_ANSWER)
+      },
+    ]
+    for (let i = 0; i < svc.AGENT_FAILURES_BEFORE_PAGE; i++) {
+      await svc.answerClient('900000004', 'покажи', () => chatWithAI())
+      await settle()
+    }
+    expect(pages()).toHaveLength(1)
+  })
+})
+
 describe('what must stay loud', () => {
   it('a sustained outage pages exactly once, at the threshold', async () => {
     const { svc } = await freshWorld()
