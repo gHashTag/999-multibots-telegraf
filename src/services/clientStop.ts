@@ -57,6 +57,17 @@ export interface StopRequest {
   lang: StopLanguage
   /** Which rule matched, for the log line. Our words, never the client's. */
   rule: string
+  /**
+   * The words cannot mean anything but this chat's automatic replies: "stop",
+   * "switch off YOUR bot", "don't write to me", an imperative with no question
+   * mark. Only then does the client hear back at once.
+   *
+   * A wide match silences the assistant just the same -- a missed stop is the
+   * harm -- but its acknowledgement WAITS for the owner's press. Silence can be
+   * undone by one press; a promise made to the client in the owner's name
+   * cannot, so it is only made where it cannot be wrong, or by the owner.
+   */
+  sure: boolean
 }
 
 /** Lower case, one alphabet for e/yo, punctuation turned into spaces. */
@@ -271,6 +282,34 @@ const WHY = whole(['почему', 'why'])
 const CLAUSE_BREAK = whole(['\\|', 'и', 'а', 'но', 'and', 'but'])
 const HOW = whole(['как', 'how'])
 const YOUR = whole(['ваш', 'вашего', 'вашу', 'ваши', 'ваших', 'your'])
+/** "this bot": the one in this chat. */
+const THIS = whole(['этот', 'этого', 'эту', 'this', 'that'])
+/** A target that can only be the automatic replies this chat has. */
+const AUTOREPLY = new RegExp(
+  '^(?:авто-?ответ|автоответчик|автоматическ|auto-?repl|auto-?respon|autorespon|automat)'
+)
+/** Words that may open an imperative without making it anything else. */
+const LEAD_IN = whole([
+  'please',
+  'pls',
+  'plz',
+  'just',
+  'ok',
+  'okay',
+  'so',
+  'then',
+  'now',
+  'hey',
+  'пожалуйста',
+  'пж',
+  'ну',
+  'так',
+  'уже',
+  'все',
+  'просто',
+])
+/** The Russian infinitive ("may I switch it off?") asks; the imperative tells. */
+const RU_INFINITIVE = new RegExp('ть$')
 
 /*
  * PRODUCT TALK. This platform sells bots, AI video and AI portraits, so a
@@ -628,6 +667,28 @@ const PHRASES: Array<[string, RegExp]> = [
  * video with a real person", "a site without a bot" -- unless the client also
  * says they want to TALK to that person.
  */
+/*
+ * Phrases that can only be about this chat's messages: "don't write to me",
+ * "stop replying", "your bot is annoying". The rest -- a live person, the
+ * owner himself, "no bot" -- are usually a stop and sometimes a question, so
+ * their acknowledgement waits for the owner (see `sure`).
+ */
+const SURE_PHRASES = new Set([
+  'ru-not-with-a-bot',
+  'ru-enough-bot',
+  'ru-bot-is-annoying',
+  'ru-stop-writing',
+  'ru-dont-write-me',
+  'ru-unsubscribe',
+  'en-no-more',
+  'en-stop-replying',
+  'en-not-with-a-bot',
+  'en-dont-write-me',
+  'en-leave-me-alone',
+  'en-unsubscribe',
+  'en-bot-is-annoying',
+])
+
 const PRODUCT_SENSITIVE = new Set([
   'ru-live-person',
   'ru-no-bot',
@@ -705,8 +766,30 @@ function yoursBefore(tokens: string[], target: number): boolean {
   return false
 }
 
+/** Is the stop verb at `v` a command rather than a question or a wish? */
+function imperativeAt(tokens: string[], v: number, question: boolean): boolean {
+  if (question) return false
+  const t = tokens[v]
+  if (VERB_RU.test(t)) return !RU_INFINITIVE.test(t)
+  for (let i = v - 1; i >= 0 && tokens[i] !== '|'; i--)
+    if (!LEAD_IN.test(tokens[i])) return false
+  return true
+}
+
+/** The object names this chat's assistant beyond doubt. */
+function unmistakable(tokens: string[], target: number, width: number) {
+  if (width === 2 || AUTOREPLY.test(tokens[target])) return true
+  if (yoursBefore(tokens, target)) return true
+  for (let n = 1; n <= 2; n++)
+    if (THIS.test(tokens[target - n] ?? '')) return true
+  return false
+}
+
 /** A stop verb with this assistant as its object, not negated. */
-function verbRule(tokens: string[]): string | null {
+function verbRule(
+  tokens: string[],
+  question: boolean
+): { rule: string; sure: boolean } | null {
   const named = tokens.some((_, i) => targetAt(tokens, i, false) > 0)
   for (let v = 0; v < tokens.length; v++) {
     const t = tokens[v]
@@ -735,7 +818,12 @@ function verbRule(tokens: string[]): string | null {
     if (aboutSomethingElse(tokens, target, targetAt(tokens, target, named)))
       continue
     if (isHowTo(tokens, v) && !yoursBefore(tokens, target)) continue
-    return VERB_RU.test(t) ? 'ru-verb' : 'en-verb'
+    return {
+      rule: VERB_RU.test(t) ? 'ru-verb' : 'en-verb',
+      sure:
+        unmistakable(tokens, target, targetAt(tokens, target, named)) ||
+        imperativeAt(tokens, v, question),
+    }
   }
   // The object first: "the bot -- switch it off", in Russian word order.
   for (let i = 0; i < tokens.length; i++) {
@@ -747,7 +835,13 @@ function verbRule(tokens: string[]): string | null {
     for (let skipped = 0; skipped <= 2; skipped++) {
       const t = tokens[v] ?? ''
       if (VERB_RU.test(t) || VERB_EN.test(t)) {
-        if (!verbIsNegated(tokens, v)) return 'object-first'
+        if (!verbIsNegated(tokens, v))
+          return {
+            rule: 'object-first',
+            sure:
+              unmistakable(tokens, i, width) ||
+              (VERB_RU.test(t) && !RU_INFINITIVE.test(t) && !question),
+          }
         break
       }
       if (!FILLER.test(t)) break
@@ -788,12 +882,13 @@ export function isStopRequest(
     tokens.some(t => ALONE_STOP.test(t)) &&
     tokens.every(t => ALONE_STOP.test(t) || ALONE_FILLER.test(t))
   )
-    return { lang, rule: 'alone' }
+    return { lang, rule: 'alone', sure: true }
 
-  const verb = verbRule(clauseTokens(raw))
-  if (verb) return { lang, rule: verb }
+  const verb = verbRule(clauseTokens(raw), raw.includes('?'))
+  if (verb) return { lang, ...verb }
 
-  if (letHimWrite(tokens)) return { lang, rule: 'ru-let-him-write' }
+  if (letHimWrite(tokens))
+    return { lang, rule: 'ru-let-him-write', sure: false }
 
   const product = tokens.some(t => PRODUCT_OR_PRICE.test(t))
   const contact = tokens.some(t => CONTACT_WORD.test(t))
@@ -801,7 +896,7 @@ export function isStopRequest(
   for (const [rule, re] of PHRASES) {
     if (!re.test(padded)) continue
     if (product && PRODUCT_SENSITIVE.has(rule) && !contact) continue
-    return { lang, rule }
+    return { lang, rule, sure: SURE_PHRASES.has(rule) }
   }
   return null
 }
