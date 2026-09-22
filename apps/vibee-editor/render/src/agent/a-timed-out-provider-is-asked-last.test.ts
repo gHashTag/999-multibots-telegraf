@@ -14,6 +14,7 @@
  *      once, not per turn. The owner's /model choice is never rewritten.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockInstance } from 'vitest'
 import { PROVIDER_CEILING_MS, PROVIDER_SILENCE_MS, streamModel } from './chat'
 import {
   BREAKER_COOLDOWN_MS,
@@ -85,8 +86,8 @@ function call() {
 const answeredBy = (events: any[]) =>
   events.find(e => e.kind === 'done')?.provider as string | undefined
 
-let warn: ReturnType<typeof vi.spyOn>
-let log: ReturnType<typeof vi.spyOn>
+let warn: MockInstance<typeof console.warn>
+let log: MockInstance<typeof console.log>
 const breakerLines = (word: string) =>
   [...warn.mock.calls, ...log.mock.calls]
     .map(c => String(c[0]))
@@ -251,6 +252,43 @@ describe('the breaker', () => {
     const after = call()
     await after.finished
     expect(asked).toEqual([GLM])
+  })
+
+  it('a last-resort call that fails while the probe is out is not the probe', async () => {
+    await zaiTimesOut()
+    await vi.advanceTimersByTimeAsync(BREAKER_COOLDOWN_MS)
+
+    let release: (r: Response) => void = () => {}
+    const held = new Promise<Response>(resolve => {
+      release = resolve
+    })
+    const refuse = () => new Response('busy', { status: 429 })
+    script({
+      [GLM]: [() => held, refuse],
+      [LITE]: [refuse],
+      [NEMO]: [refuse],
+    })
+    const probe = call()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(asked).toEqual([GLM])
+
+    // Everybody else refuses this person, so the open provider is asked as
+    // the last resort -- while the probe is still out -- and refuses too.
+    const meanwhile = call()
+    await vi.advanceTimersByTimeAsync(0)
+    await meanwhile.finished
+    expect(asked).toEqual([GLM, LITE, NEMO, GLM])
+    expect(
+      breakerLines('probe failed'),
+      'a call that was not the probe reported the probe as failed'
+    ).toEqual([])
+
+    // The probe's own verdict still decides.
+    release(text('zai is back'))
+    await probe.finished
+    expect(answeredBy(probe.events)).toBe('zai')
+    expect(breakerSnapshot()).toEqual([])
+    expect(breakerLines('closed')).toHaveLength(1)
   })
 
   it('a probe that fails opens it again, said once', async () => {

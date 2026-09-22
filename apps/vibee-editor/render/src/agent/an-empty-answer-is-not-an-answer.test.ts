@@ -13,14 +13,17 @@
  * explicit error the bot recognises -- never with a quiet `готово`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockInstance } from 'vitest'
 import {
   ANSWER_NOW_NUDGE,
   EMPTY_ANSWER_ERROR,
   EMPTY_ANSWER_LOG_PREFIX,
+  REPEAT_REFUSED,
   runAgent,
 } from './chat'
 import { forgetProviderChoiceForTests } from './provider-choice'
 import { breakerSnapshot, forgetBreakersForTests } from './provider-breaker'
+import { TOOLS_BY_NAME } from './tools'
 
 /* ---------- fake providers, told apart by the model they are asked for ---------- */
 
@@ -92,7 +95,7 @@ const said = (events: Array<Record<string, unknown>>) =>
     .map(e => String(e['текст']))
     .join('')
 
-let warn: ReturnType<typeof vi.spyOn>
+let warn: MockInstance<typeof console.warn>
 const emptyLines = () =>
   warn.mock.calls
     .filter(c => String(c[0]) === EMPTY_ANSWER_LOG_PREFIX)
@@ -304,5 +307,82 @@ describe('what is NOT an empty answer', () => {
     })
     await turn()
     expect(breakerSnapshot()).toEqual([])
+  })
+})
+
+describe('the follow-up does not redo the work', () => {
+  /** A call with arguments of our choosing, as one streamed tool delta. */
+  const callWith = (name: string, args: Record<string, unknown>) => () =>
+    sse([
+      {
+        tool_calls: [
+          {
+            index: 0,
+            id: `call_${name}`,
+            function: { name, arguments: JSON.stringify(args) },
+          },
+        ],
+      },
+    ])
+  /** my_assets, answered without a database; counts how often it RAN. */
+  const countAssets = () => {
+    const tool = TOOLS_BY_NAME.get('my_assets')
+    if (!tool) throw new Error('my_assets is not in the registry')
+    return vi.spyOn(tool, 'handler').mockResolvedValue({ files: [] })
+  }
+
+  it('an identical call after the request for words is refused, and the handler does not run again', async () => {
+    const ran = countAssets()
+    const asked = providers({
+      'glm-5.3': [
+        callWith('my_assets', { limit: 5 }),
+        empty,
+        // Asked for words, it does the work again instead.
+        callWith('my_assets', { limit: 5 }),
+        () => text('Файлов пока нет.'), // cyrillic-ok: fixture answer
+      ],
+    })
+    const events = await turn()
+
+    expect(said(events)).toBe('Файлов пока нет.') // cyrillic-ok: fixture answer
+    expect(ran, 'the same call ran twice in one turn').toHaveBeenCalledTimes(1)
+    const results = events.filter(e => e['тип'] === 'результат')
+    expect(results).toHaveLength(2)
+    expect(results[1]['значение']).toMatchObject({ ['отказано']: true })
+    // The model is told why, in the result it reads next.
+    const last = asked[asked.length - 1].messages
+    const toolReplies = last.filter((m: any) => m.role === 'tool')
+    expect(String(toolReplies[toolReplies.length - 1].content)).toContain(
+      REPEAT_REFUSED
+    )
+    expect(emptyLines().map(l => l.action)).toContain('repeat refused')
+  })
+
+  it('a different call after the request for words still runs', async () => {
+    const ran = countAssets()
+    providers({
+      'glm-5.3': [
+        callWith('my_assets', { limit: 5 }),
+        empty,
+        callWith('my_assets', { limit: 20 }),
+        () => text('Вот двадцать последних.'), // cyrillic-ok: fixture answer
+      ],
+    })
+    const events = await turn()
+    expect(said(events)).toBe('Вот двадцать последних.') // cyrillic-ok: fixture answer
+    expect(ran).toHaveBeenCalledTimes(2)
+  })
+
+  it('before the request for words, a repeat runs as it always did', async () => {
+    const ran = countAssets()
+    providers({
+      'glm-5.3': [
+        callWith('my_assets', { limit: 5 }),
+        callWith('my_assets', { limit: 5 }),
+        () => text('Вот.'), // cyrillic-ok: fixture answer
+      ],
+    })
+    await turn()
+    expect(ran).toHaveBeenCalledTimes(2)
   })
 })
