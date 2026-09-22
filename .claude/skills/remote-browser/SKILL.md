@@ -251,3 +251,18 @@ each fell to one measurement.
 - A view URL with `?t=` in a tool call is a credential in the transcript:
   close the session afterwards (`DELETE /api/browser/session`, logins kept)
   so the token dies.
+
+## The wheel is real (2026-09-22, #2794)
+
+The person takes the wheel by touching the picture and gives it back with
+"Hand back". The server knows: `person_wheel_until` on `browser_sessions`,
+a 10-minute lease renewed by every touch (the app renews at most every
+30 s). While it holds, the acting tools -- open, click, type, evaluate,
+close tab -- throw WHEEL_TAKEN with the reason; status, read, screenshot
+and ask-permission go on. `POST /api/browser/wheel?holder=person|agent` is
+the person's door only: an agent key gets 403 (checked live). Every step,
+refusals included, is in the journal: `tri journal`.
+
+If an agent "does nothing" in a live browser, first `tri journal` -- a row
+of refused clicks with "taken the wheel" means the person is driving, not
+that the agent is broken.
