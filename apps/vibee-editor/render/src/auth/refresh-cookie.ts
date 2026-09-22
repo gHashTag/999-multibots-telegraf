@@ -232,8 +232,12 @@ export const AUTH_HOST = 'auth.t27.ai'
  * The Host the edge forwards is the one the browser asked for; a browser
  * cannot send another for this origin, which is the case that matters.
  */
-/** The request is addressed to auth.t27.ai, by the Host the edge forwards. */
-export function isAuthHost(req: HasHeaders): boolean {
+/**
+ * The request is addressed to auth.t27.ai, by the Host the edge forwards.
+ * The path is taken and ignored on purpose: an upgrade is refused on every
+ * path of this host, the doors' included.
+ */
+export function isAuthHost(req: HasHeaders & { url?: string }): boolean {
   const forwarded = header(req, 'x-forwarded-host').split(',')[0].trim()
   const host = (forwarded || header(req, 'host'))
     .trim()
