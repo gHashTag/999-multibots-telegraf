@@ -171,6 +171,20 @@
     display: none;
   }
 
+  /*
+   * ONE BOTTOM BAR, NOT TWO STACKED.
+   *
+   * Where the app's tab bar is up (TelegramTabBar sets body[data-tabbar]), this
+   * bar sat under it: 45px at z-index 100 beneath the tab bar's 57px at 900,
+   * measured at 390x844 -- elementFromPoint in its middle returned a
+   * .tma-tabbar__item, so not one of its links could be pressed, and its
+   * opaque ground was what the reel's bottom edge disappeared into. Where the
+   * tab bar is not mounted, this one stays the navigation.
+   */
+  body[data-tabbar] .header-tabs {
+    display: none;
+  }
+
   /* Hide hover submenu on mobile - use tap instead */
   .header-submenu {
     display: none;

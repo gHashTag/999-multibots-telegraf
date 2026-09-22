@@ -395,6 +395,15 @@ html[data-keyboard='open'] .chat-page {
 .chat-topup__pack {
   display: flex;
   flex-direction: column;
+  /* Two lines, the tokens and their price. design-system.css gives every
+     button a fixed 28px height, nowrap and centred items, and a two-line
+     pill does not fit, so the star price hung below the border. */
+  height: auto;
+  min-height: var(--touch-target, 44px);
+  align-items: flex-start;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
   gap: 2px;
   padding: 8px 14px;
   border: 1px solid #2a2820;
