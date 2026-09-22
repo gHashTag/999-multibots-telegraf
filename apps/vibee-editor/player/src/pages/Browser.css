@@ -270,25 +270,32 @@
     height: auto;
   }
 
-  /* Four buttons do not fit across 390px, and wrapping them eats the picture
-     they control. One row that scrolls sideways keeps all four reachable. */
+  /*
+   * A GRID, NOT A ROW THAT SCROLLS SIDEWAYS. The scrolling row hid its last
+   * button past the edge ("Перенести входы" cut in half, photographed by the
+   * owner 2026-09-22) and nothing said there was more. Two even columns show
+   * every control at once.
+   */
   .remote-browser--live .remote-browser__actions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
   }
 
-  .remote-browser--live .remote-browser__actions::-webkit-scrollbar {
-    display: none;
+  /* The one irreversible control gets a row of its own, not an odd half. */
+  .remote-browser--live .remote-browser__danger {
+    grid-column: 1 / -1;
   }
 
   .remote-browser--live .remote-browser__secondary,
   .remote-browser--live .remote-browser__danger {
-    flex: 0 0 auto;
-    padding: 8px 12px;
-    font-size: 13px;
+    min-width: 0;
+    height: 40px;
+    padding: 0 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Kept, not deleted: it is the sentence that stops somebody pressing the
@@ -372,11 +379,82 @@
   background: #000;
 }
 
+/*
+ * EVERYTHING UNDER THE PICTURE TAKES THE FULL WIDTH.
+ *
+ * The live column aligns its children to the start, so a child is as wide
+ * as its content: the journal, whose lines do not wrap, grew wider than the
+ * screen and was cut at the right edge (photographed by the owner). Each
+ * block below states its width instead.
+ */
+.remote-browser__live > * {
+  align-self: stretch;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* The one green pill on the live screen: typing is what a person came to do. */
+.remote-browser__type {
+  width: 100%;
+  letter-spacing: 0.04em;
+}
+
+/* The HUD look for the controls: hairline, small capitals, even height. */
+.remote-browser__secondary,
+.remote-browser__danger {
+  border-radius: 12px;
+  border-color: rgba(255, 255, 255, 0.16);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.remote-browser__secondary:active,
+.remote-browser__danger:active {
+  border-color: #00ff88;
+}
+
+.remote-browser__danger {
+  border-color: rgba(220, 60, 60, 0.45);
+}
+
+.remote-browser__journal-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.remote-browser__journal-toggle {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.remote-browser__journal-toggle::before {
+  content: '▸ ';
+  color: #00ff88;
+}
+
+.remote-browser__journal-toggle[aria-expanded='true']::before {
+  content: '▾ ';
+}
+
 /* What the agent did here: a few quiet lines under the picture. */
 .remote-browser__journal {
-  margin: 8px 0 0;
-  padding: 6px 10px;
-  max-height: 8.5em;
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 9em;
+  width: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   list-style: none;
   border: 1px solid var(--line, #2a2a2a);
@@ -390,6 +468,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+.remote-browser__journal time {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  opacity: 0.7;
 }
 .remote-browser__journal b {
   color: var(--accent, #00ff88);
