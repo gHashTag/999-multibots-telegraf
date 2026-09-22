@@ -76,9 +76,23 @@ export function focusOf(raw: unknown): Focus {
   }
 }
 
+/*
+ * THE KEYS A PHONE CANNOT SEND THROUGH A VIDEO (owner, 2026-09-22: the
+ * buttons were below the page's edge and a swipe on the stream moves the
+ * mouse, it does not scroll). Tab moves to the next field, Escape closes a
+ * dialog, and scrolling is a real mouse wheel in the middle of the page.
+ */
+export const KEYS = ['Tab', 'Escape', 'Enter'] as const
+export type Key = (typeof KEYS)[number]
+export type Scroll = 'up' | 'down'
+export const SCROLL_PX = 420
+
+const KEY_CODES: Record<Key, number> = { Tab: 9, Escape: 27, Enter: 13 }
+
 export interface TypeIo {
   focus: (cdp: string) => Promise<Focus>
   insert: (cdp: string, text: string, enter: boolean) => Promise<void>
+  press?: (cdp: string, key: Key | null, scroll: Scroll | null) => Promise<void>
 }
 
 /** The real pod, over CDP: the front page, the element that has focus. */
@@ -91,6 +105,37 @@ export const cdpTypeIo: TypeIo = {
         returnByValue: true,
       })
       return focusOf((out.result as { value?: unknown } | undefined)?.value)
+    })
+  },
+  async press(cdp, key, scroll) {
+    const page = await frontPage(cdp)
+    await onPage(cdp, page.id, async call => {
+      if (key) {
+        const code = KEY_CODES[key]
+        const base = {
+          key,
+          code: key,
+          windowsVirtualKeyCode: code,
+          nativeVirtualKeyCode: code,
+        }
+        await call('Input.dispatchKeyEvent', { type: 'keyDown', ...base })
+        await call('Input.dispatchKeyEvent', { type: 'keyUp', ...base })
+      }
+      if (scroll) {
+        const size = await call('Runtime.evaluate', {
+          expression: '({ w: innerWidth, h: innerHeight })',
+          returnByValue: true,
+        })
+        const v = ((size.result as { value?: { w?: number; h?: number } })
+          ?.value ?? {}) as { w?: number; h?: number }
+        await call('Input.dispatchMouseEvent', {
+          type: 'mouseWheel',
+          x: Math.round((v.w ?? 800) / 2),
+          y: Math.round((v.h ?? 600) / 2),
+          deltaX: 0,
+          deltaY: scroll === 'down' ? SCROLL_PX : -SCROLL_PX,
+        })
+      }
     })
   },
   async insert(cdp, text, enter) {
@@ -117,7 +162,12 @@ export const cdpTypeIo: TypeIo = {
 }
 
 /** The body of POST /api/browser/type. Throws a fixed sentence, never the text. */
-export function parseTypeBody(raw: string): { text: string; enter: boolean } {
+export function parseTypeBody(raw: string): {
+  text: string
+  enter: boolean
+  key: Key | null
+  scroll: Scroll | null
+} {
   let body: unknown
   try {
     body = JSON.parse(raw)
@@ -127,9 +177,13 @@ export function parseTypeBody(raw: string): { text: string; enter: boolean } {
   const b = (body ?? {}) as Record<string, unknown>
   const text = typeof b.text === 'string' ? b.text : ''
   const enter = b.enter === true
-  if (!text && !enter) throw new Error('nothing to type')
+  const key = (KEYS as readonly unknown[]).includes(b.key)
+    ? (b.key as Key)
+    : null
+  const scroll = b.scroll === 'up' || b.scroll === 'down' ? b.scroll : null
+  if (!text && !enter && !key && !scroll) throw new Error('nothing to type')
   if (text.length > MAX_TYPED_CHARS) throw new Error('too long')
-  return { text, enter }
+  return { text, enter, key, scroll }
 }
 
 /** A field worth typing into. */

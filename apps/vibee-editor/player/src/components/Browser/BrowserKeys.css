@@ -1,0 +1,95 @@
+/* Four keys under the picture, in the house style: hairline, mono glyphs. */
+.browser-keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.browser-keys button {
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.browser-keys button:active {
+  border-color: #00ff88;
+  color: #00ff88;
+}
+
+.browser-keys button:disabled {
+  opacity: 0.5;
+}
+
+/* The agent's question: amber, because it is waiting on a person. */
+.asked-permission {
+  padding: 12px 14px 14px;
+  border: 1px solid rgba(245, 197, 66, 0.55);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(245, 197, 66, 0.1), rgba(245, 197, 66, 0) 70%),
+    #0f0d07;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.asked-permission h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f5c542;
+}
+
+.asked-permission__what {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.asked-permission__buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.asked-permission__buttons button {
+  height: 44px;
+  border-radius: 22px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.asked-permission__no {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #fff;
+}
+
+.asked-permission__yes {
+  border: 0;
+  background: #00ff88;
+  color: #000;
+}
+
+.asked-permission__buttons button:disabled {
+  opacity: 0.5;
+}
+
+.asked-permission__note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.55);
+}
