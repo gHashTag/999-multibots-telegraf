@@ -399,3 +399,7 @@
 .remote-browser__journal li.is-error span {
   color: #ff6b6b;
 }
+.remote-browser__journal em {
+  font-style: normal;
+  color: var(--muted, #888);
+}
