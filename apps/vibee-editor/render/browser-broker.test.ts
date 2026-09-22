@@ -775,3 +775,135 @@ describe('reading the published port out of docker', () => {
     expect(firstMapping('garbage without a port')).toBeNull()
   })
 })
+
+describe('the person types from their own keyboard (/api/browser/type)', () => {
+  /*
+   * Owner, 2026-09-22: signing in through the video stream was too hard on a
+   * phone. The app's own field types into the focused field of THEIR
+   * browser -- the person's door only, and the text is never kept.
+   */
+  const SECRET = 'hunter2-not-a-real-password' // secret-guard-ok: a made-up test string, never a credential
+  const typing = (
+    focus = {
+      host: 'accounts.example.com',
+      field: 'password',
+      label: 'Password',
+    }
+  ) => {
+    const typed: Array<{ text: string; enter: boolean }> = []
+    return {
+      typed,
+      io: {
+        focus: async () => focus,
+        insert: async (_: string, text: string, enter: boolean) => {
+          typed.push({ text, enter })
+        },
+      },
+    }
+  }
+  /* A live browser, as the broker would have left it (with its CDP address). */
+  const open = async (d: BrowserDeps) => {
+    const pool = (await d.getPool()) as unknown as ReturnType<typeof fakePool>
+    pool.rows.set('tg-900000001', {
+      telegram_id: 'tg-900000001',
+      session_id: 'tok-live',
+      pod_id: 'pod-live',
+      endpoint: '127.0.0.1:32768',
+      cdp_endpoint: '127.0.0.1:9222',
+      state: 'live',
+      view_token: 'v',
+      admin_token: 'a',
+      last_seen_at: Date.now(),
+    } as never)
+  }
+  const post = (d: BrowserDeps, body: unknown) =>
+    handleBrowser(
+      { url: '/api/browser/type', method: 'POST' },
+      { ...d, readBody: async () => JSON.stringify(body) }
+    )
+
+  it('says where the text would land, before anything is sent', async () => {
+    const t = typing()
+    const { d } = deps({ typeIo: t.io })
+    await open(d)
+    const out = await handleBrowser(
+      { url: '/api/browser/type', method: 'GET' },
+      d
+    )
+    expect(out.status).toBe(200)
+    expect(
+      (out.body as { focus: { host: string; field: string } }).focus
+    ).toMatchObject({
+      host: 'accounts.example.com',
+      field: 'password',
+    })
+    expect(t.typed).toEqual([])
+  })
+
+  it('types it, and the answer never carries the text', async () => {
+    const t = typing()
+    const { d } = deps({ typeIo: t.io })
+    await open(d)
+    const out = await post(d, { text: SECRET, enter: true })
+    expect(out.status).toBe(200)
+    expect(t.typed).toEqual([{ text: SECRET, enter: true }])
+    expect(JSON.stringify(out.body)).not.toContain(SECRET)
+    expect((out.body as { typed: number }).typed).toBe(SECRET.length)
+  })
+
+  it('REFUSES an agent key, and types nothing', async () => {
+    const t = typing()
+    const { d } = deps({ typeIo: t.io, actor: () => 'agent' })
+    await open(d)
+    const out = await post(d, { text: SECRET })
+    expect(out.status).toBe(403)
+    expect(t.typed).toEqual([])
+  })
+
+  it('types nowhere when no field has focus', async () => {
+    const t = typing({ host: 'example.com', field: 'none', label: '' })
+    const { d } = deps({ typeIo: t.io })
+    await open(d)
+    const out = await post(d, { text: SECRET })
+    expect(out.status).toBe(409)
+    expect(t.typed).toEqual([])
+  })
+
+  it('a broken body is refused with our words, never with the text', async () => {
+    const t = typing()
+    const { d } = deps({ typeIo: t.io })
+    await open(d)
+    const long = await post(d, { text: SECRET.repeat(500) })
+    expect(long.status).toBe(400)
+    expect(JSON.stringify(long.body)).not.toContain(SECRET)
+    const bad = await handleBrowser(
+      { url: '/api/browser/type', method: 'POST' },
+      { ...d, readBody: async () => `{"text":"${SECRET}"` }
+    )
+    expect(bad.status).toBe(400)
+    expect(JSON.stringify(bad.body)).not.toContain(SECRET)
+    expect(t.typed).toEqual([])
+  })
+
+  it('a browser that is not running takes nothing', async () => {
+    const t = typing()
+    const { d } = deps({ typeIo: t.io })
+    const out = await post(d, { text: SECRET })
+    expect(out.status).toBe(409)
+    expect(t.typed).toEqual([])
+  })
+
+  it('typing takes the wheel: the agent stands still while the person signs in', async () => {
+    const t = typing()
+    const { d, pool } = deps({ typeIo: t.io })
+    await open(d)
+    const said: string[] = []
+    const query = pool.query.bind(pool)
+    pool.query = (async (sql: string, params?: unknown[]) => {
+      said.push(sql)
+      return query(sql, params as never)
+    }) as typeof pool.query
+    await post(d, { text: 'x' })
+    expect(said.some(q => /person_wheel_until = now\(\)/.test(q))).toBe(true)
+  })
+})
