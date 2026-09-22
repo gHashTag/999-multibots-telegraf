@@ -264,9 +264,15 @@
     gap: 8px;
   }
 
+  /*
+   * THE PICTURE STAYS THE MAIN THING. With a question, a choice and the keys
+   * under it, a column that fits one screen squeezed the picture to a strip
+   * (checked at 375x812, 2026-09-22). It keeps at least 45% of the screen;
+   * what does not fit below scrolls.
+   */
   .remote-browser--live .remote-browser__stage {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 1 0 auto;
+    min-height: max(45dvh, 280px);
     height: auto;
   }
 
