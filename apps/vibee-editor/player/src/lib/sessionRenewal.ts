@@ -83,16 +83,20 @@ async function renewed(): Promise<Renewal> {
 /*
  * A BAD MOMENT IS NOT A SIGN-OUT, SO IT MUST NOT LOOK LIKE ONE.
  *
- * After a transient renewal failure the wrapper used to send the request with
- * the dead Bearer anyway; the server answered 401, and callers that read a 401
- * as "signed out" (crm.ts, agentStream.ts) put the board's sign-in panel over
- * the screen (second review, 2026-09-22). The request is answered here instead,
- * as the service being briefly unavailable, which is what happened.
+ * After a transient renewal failure the request still goes out: a public route
+ * answers whatever the Bearer (templates, a feed item, branding), and the third
+ * review (2026-09-22) found the first version refusing those too. Only when the
+ * server answers 401 -- the expired token was refused -- is that answer
+ * replaced, because callers that read a 401 as "signed out" (crm.ts,
+ * agentStream.ts) would put the board's sign-in panel over the screen for a
+ * moment's trouble. The replacement is a 503 with its own code, so no caller
+ * mistakes it for another 503 (remoteBrowser.ts, explainApiError).
  */
+export const RENEWAL_UNAVAILABLE = 'session_renewal_unavailable'
 function renewalUnavailable(): Response {
   return new Response(
     JSON.stringify({
-      error: 'session_renewal_unavailable',
+      error: RENEWAL_UNAVAILABLE,
       detail: 'the sign-in service did not answer; try again in a moment',
     }),
     { status: 503, headers: { 'Content-Type': 'application/json' } }
@@ -119,7 +123,10 @@ export function sessionRenewingFetch(
     let request = init
     if (!hasLiveAppSession() && hasRenewableAppSession()) {
       const first = await renewed()
-      if ('transient' in first) return renewalUnavailable()
+      if ('transient' in first) {
+        const answer = await base(input, init)
+        return answer.status === 401 ? renewalUnavailable() : answer
+      }
       if (!('token' in first)) return base(input, init)
       request = withBearer(init, first.token)
     }

@@ -7,6 +7,7 @@ import {
   applyAuthCors,
   authHostRefuses,
   clearedRefreshCookie,
+  isAuthHost,
   isSecureRequest,
   readRefreshCookie,
   refreshCookie,
@@ -251,5 +252,24 @@ describe('auth.t27.ai answers the sign-in doors and nothing else', () => {
       false
     )
     expect(on('app.t27.ai', '/s3/x.svg')).toBe(false)
+  })
+})
+
+describe('auth.t27.ai upgrades nothing', () => {
+  it('knows the host on every path, doors included, so an upgrade is refused anywhere', () => {
+    // render-server.ts refuses every WebSocket upgrade for which this is true.
+    for (const url of ['/api/auth/refresh', '/health', '/live/x', '/']) {
+      expect(isAuthHost({ url, headers: { host: 'auth.t27.ai' } }), url).toBe(
+        true
+      )
+    }
+    expect(
+      isAuthHost({ headers: { host: 'x', 'x-forwarded-host': 'AUTH.t27.ai' } })
+    ).toBe(true)
+    expect(
+      isAuthHost({
+        headers: { host: 'vibee-render-production.up.railway.app' },
+      })
+    ).toBe(false)
   })
 })

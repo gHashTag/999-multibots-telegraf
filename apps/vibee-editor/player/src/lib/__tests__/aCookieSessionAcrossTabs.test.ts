@@ -17,6 +17,7 @@
  * handing the module the `storage` event the browser would.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { API_BASE } from '../../config'
 
 const AUTH = 'https://auth.t27.ai'
 const MARKER_KEY = 'trinity.app.session.cookie'
@@ -310,10 +311,35 @@ describe('the second review of the cookie session', () => {
 
     expect(m.getAppAccessToken()).toBe('')
     // Its own family is revoked through the body token, not left to move
-    // into the empty jar at its next refresh.
+    // into the empty jar at its next refresh -- and the jar is not touched:
+    // no cookie, no opt-in, the API host (third review, 2026-09-22).
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe(`${AUTH}/api/auth/logout`)
+    expect(url).toBe(`${API_BASE}/api/auth/logout`)
+    expect(init.credentials).toBe('omit')
+    expect(new Headers(init.headers).get('X-Session-Transport')).toBeNull()
     expect(JSON.parse(String(init.body))).toEqual({ refresh_token: 'own' }) // secret-guard-ok: invented test value
+  })
+
+  it('a tab restored late does not take a newer sign-in with it', async () => {
+    // Signed out in one tab, signed in again in another; a tab from before
+    // both comes back (Ctrl+Shift+T, Memory Saver) and follows the old
+    // sign-out. The browser's new session stays.
+    const m = await build()
+    m.storeAppSession(ownTokenSession, { signIn: true })
+    window.localStorage.setItem(
+      'trinity.app.session.signed-out-at',
+      String(Date.now() + 5)
+    )
+    window.localStorage.setItem(MARKER_KEY, '1') // the newer sign-in's hint
+    const fetchMock = vi.fn().mockResolvedValue(reply(200, {}))
+    vi.stubGlobal('fetch', fetchMock)
+    m.startAppSessionHealing(fakeWindow())
+    await settle()
+    expect(m.getAppAccessToken()).toBe('')
+    expect(window.localStorage.getItem(MARKER_KEY)).toBe('1')
+    expect(window.localStorage.getItem(PENDING_KEY)).toBeNull()
+    for (const [, init] of fetchMock.mock.calls as Array<[string, RequestInit]>)
+      expect(init.credentials).not.toBe('include')
   })
 
   it('a tab signed in after that sign-out is left alone', async () => {
@@ -365,7 +391,9 @@ describe('the second review of the cookie session', () => {
     window.localStorage.setItem(MARKER_KEY, '1')
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(reply(409, { error: 'auth_refresh_raced' }))
+      .mockResolvedValueOnce(
+        reply(409, { error: 'auth_refresh_raced', reason: 'successor_in_jar' })
+      )
       .mockResolvedValue(
         reply(200, {
           access_token: 'from-jar', // secret-guard-ok: invented test value
@@ -416,6 +444,88 @@ describe('the second review of the cookie session', () => {
     )
     expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(m.getAppAccessToken()).toBe('a1')
+    m.clearAppSession()
+  })
+
+  it('a plain race for a tab copy does not ride the jar: only the server naming the jar does', async () => {
+    const m = await build()
+    m.storeAppSession(ownTokenSession)
+    window.localStorage.setItem(MARKER_KEY, '1')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(reply(409, { error: 'auth_refresh_raced' }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(m.refreshAppSession()).rejects.toThrow()
+    const bodies = (fetchMock.mock.calls as Array<[string, RequestInit]>).map(
+      c => String(c[1].body)
+    )
+    expect(bodies).not.toContain('{}')
+  })
+
+  it('a document signed by launch data signs out alone, without the jar', async () => {
+    const w = window as unknown as { Telegram?: unknown }
+    w.Telegram = { WebApp: { initData: 'query_id=x&user=%7B%7D&hash=y' } }
+    try {
+      const m = await build()
+      expect(m.cookieTransportAvailable()).toBe(false)
+      window.localStorage.setItem(MARKER_KEY, '1')
+      m.storeAppSession(ownTokenSession, { signIn: true })
+      const fetchMock = vi.fn().mockResolvedValue(reply(200, {}))
+      vi.stubGlobal('fetch', fetchMock)
+      await m.logoutAppSession()
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+      expect(url.startsWith(AUTH)).toBe(false)
+      expect(init.credentials).not.toBe('include')
+      expect(
+        window.localStorage.getItem('trinity.app.session.signed-out-at')
+      ).toBeNull()
+      expect(window.localStorage.getItem(MARKER_KEY)).toBe('1')
+    } finally {
+      delete w.Telegram
+    }
+  })
+
+  it('a refresh that never reached the server does not start the backoff', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValue(
+        reply(200, {
+          access_token: 'back-online', // secret-guard-ok: invented test value
+          refresh_transport: 'cookie',
+          expires_in: 600,
+        })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(m.refreshAppSession()).rejects.toBeInstanceOf(
+      m.NetworkSessionError
+    )
+    // The 'online' heal, at once: no 15 s gate.
+    await m.refreshAppSession()
+    expect(m.getAppAccessToken()).toBe('back-online')
+    m.clearAppSession()
+  })
+
+  it('a sign-in after a clock stepped back is still after the sign-out', async () => {
+    const m = await build()
+    // A sign-out recorded an hour "ahead", then the clock was corrected.
+    window.localStorage.setItem(
+      'trinity.app.session.signed-out-at',
+      String(Date.now() + 3_600_000)
+    )
+    m.storeAppSession(ownTokenSession, { signIn: true })
+    const fetchMock = vi.fn().mockResolvedValue(
+      reply(200, {
+        access_token: 'kept', // secret-guard-ok: invented test value
+        refresh_token: 'own-2', // secret-guard-ok: invented test value
+        expires_in: 600,
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await m.refreshAppSession()
+    expect(m.getAppAccessToken()).toBe('kept')
     m.clearAppSession()
   })
 })

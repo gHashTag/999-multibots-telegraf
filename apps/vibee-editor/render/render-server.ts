@@ -34,6 +34,7 @@ import {
   applyAuthCors,
   authHostRefuses,
   BASE_ALLOW_HEADERS,
+  isAuthHost,
 } from './src/auth/refresh-cookie'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import { report } from './src/hive/queen-report'
@@ -11893,8 +11894,9 @@ async function main() {
    * what broke both (see the comment on `wss`).
    */
   server.on('upgrade', async (req, socket, head) => {
-    // auth.t27.ai upgrades nothing (src/auth/refresh-cookie.ts authHostRefuses).
-    if (authHostRefuses(req)) return refuseUpgrade(socket, 404)
+    // auth.t27.ai upgrades nothing, on any path, doors included: none of the
+    // doors is a socket (src/auth/refresh-cookie.ts).
+    if (isAuthHost(req)) return refuseUpgrade(socket, 404)
     const path = (req.url || '').split('?')[0]
     if (!isLivePath(path)) {
       wss.handleUpgrade(req, socket, head, ws =>
