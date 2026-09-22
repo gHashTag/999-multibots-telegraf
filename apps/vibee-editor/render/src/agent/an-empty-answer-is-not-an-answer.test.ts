@@ -12,7 +12,15 @@
  * the chain, and when nobody has anything to say the turn ends with an
  * explicit error the bot recognises -- never with a quiet `готово`.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  onTestFinished,
+} from 'vitest'
 import type { MockInstance } from 'vitest'
 import {
   ANSWER_NOW_NUDGE,
@@ -360,6 +368,21 @@ describe('the follow-up does not redo the work', () => {
 
   it('the next model writing the same arguments in another key order is still a repeat', async () => {
     const ran = countAssets()
+    /*
+     * The call is checked against the tool's schema before it runs
+     * (tool-args.ts), and my_assets takes only `limit`: for the length of
+     * this test it also takes the fields that make the key order interesting.
+     */
+    const tool = TOOLS_BY_NAME.get('my_assets')!
+    const schema = tool.parameters
+    tool.parameters = {
+      type: 'object',
+      properties: { limit: {}, kind: {}, where: {} },
+      additionalProperties: false,
+    }
+    onTestFinished(() => {
+      tool.parameters = schema
+    })
     providers({
       'glm-5.3': [
         callWith('my_assets', {
