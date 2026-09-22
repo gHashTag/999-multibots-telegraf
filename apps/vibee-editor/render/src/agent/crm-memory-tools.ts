@@ -38,6 +38,7 @@ import { sentMediaOfAll, sentFileName } from './tg-message-media'
 import { s3PutBytes } from '../lib/s3-put'
 import { imagesLookDown } from './image-health'
 import { openDebts } from './crm-owed'
+import { optedOutOf } from './assistant-opt-out'
 
 /**
  * THE SELLER'S MEMORY, AS TOOLS.
@@ -430,12 +431,19 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
        * out of the touches. Loaded lazily: the delivery module pulls in
        * billing and Telegram, which reading a context does not otherwise need.
        */
-      const [touches, balance, zep, portrait] = await Promise.all([
+      const [touches, balance, zep, portrait, off] = await Promise.all([
         touchesFor(pool, owner, lead.id, 10).catch(() => []),
         balanceOf(pool, lead.id).catch(() => null),
         zepContext(owner, lead.id).catch(() => null),
         import('./crm-deliver-tool')
           .then(m => m.portraitOf(pool, owner, lead.id))
+          .catch(() => null),
+        // Did this person switch the assistant off? The card shows it, and
+        // the model reads it before it thinks of writing (assistant-opt-out).
+        optedOutOf(pool, owner)
+          .then(m =>
+            m.has(lead.id) ? { since: m.get(lead.id) ?? null } : null
+          )
           .catch(() => null),
       ])
       return {
@@ -451,6 +459,15 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         intent_score: story.intentScore,
         balance_tokens: balance,
         ...(portrait ? { portrait } : {}),
+        ...(off
+          ? {
+              assistant_off: {
+                since: off.since,
+                by: 'client',
+                note: 'человек сам попросил выключить автоответы: ничего ему не готовь; пишет только владелец',
+              },
+            }
+          : {}),
         touches,
         zep_context: zep ? foreignText(zep) : null,
         // The dialog, newest last; theirs framed, the owner's own words plain.
@@ -635,7 +652,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
       const paidSet = await visibleScope(ctx)
         .then(scope => whoPaid(scope))
         .catch(() => new Set<string>())
-      const list = await leadCandidates(pool, owner, {
+      const everyone = await leadCandidates(pool, owner, {
         limit: clamp(a?.limit, 15, 50),
         touched,
         paid: paidSet,
@@ -645,6 +662,19 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
         // And what we still owe from the days it could not (crm-owed.ts).
         owed: await openDebts(pool, owner),
       })
+      /*
+       * A PERSON WHO SWITCHED THE ASSISTANT OFF IS NOT A CANDIDATE.
+       *
+       * This list is where the sweep picks whom to write to, so the client's
+       * "stop" is honoured at the source: nobody is offered who cannot be
+       * written to (assistant-opt-out.ts). Every draft is refused again at
+       * propose() in any case; this keeps the sweep from spending a model
+       * turn on a refusal. A table that cannot be read hides nobody here --
+       * the refusal at propose() fails closed on the same read.
+       */
+      const off = await optedOutOf(pool, owner).catch(() => null)
+      const list = off ? everyone.filter(l => !off.has(l.lead)) : everyone
+      const hidden = everyone.length - list.length
       /*
        * FULL DATA, NOT A LIST OF NUMBERS.
        *
@@ -722,6 +752,7 @@ export const CRM_MEMORY_TOOLS: AgentTool[] = [
             last_touch: l.lastTouch,
           }
         }),
+        ...(hidden ? { assistant_off_hidden: hidden } : {}),
         how_to_read:
           'reply — человек ждёт ответа: ответь по сути его слов, без продажи. deliver — просил услугу ' +
           'и спрашивал цену: crm_deliver_photo. offer — САМ спрашивал цену или хотел купить: crm_offer. ' +

@@ -195,6 +195,7 @@ export const OUTWARD_TOOLS = new Set<string>([
   'video_generate',
   'reel_render',
   'tokens_invoice',
+  'club_invoice',
   'provider_setup',
   // Puts a message in front of a real person in real Telegram.
   'tg_forward',

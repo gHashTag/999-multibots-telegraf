@@ -91,9 +91,20 @@ describe('an operation without a price is refused, not given away', () => {
      * file is the one with daily traffic.
      */
     const src = fs.readFileSync(path.join(__dirname, 'tools.ts'), 'utf8')
-    const at = src.indexOf('const price = TOKEN_PRICES[tool]')
+    /*
+     * The price is the tool's table price, or -- when the tool sells several
+     * prices, a video clip by its length -- the named model's price from the
+     * same lookup `spendByTid` makes. Either way it is read BEFORE the
+     * branch below, and a missing one is refused.
+     */
+    const at = src.indexOf(
+      'const price =',
+      src.indexOf('async function spendTokens(')
+    )
     expect(at, 'the agent charge must still read a price').toBeGreaterThan(-1)
-    const branch = src.slice(at, at + 700)
+    expect(src.slice(at, at + 160)).toMatch(/TOKEN_PRICES\[tool\]/)
+    // Wide enough for the explanation that sits between the two lines.
+    const branch = src.slice(at, at + 1000)
     expect(branch).toMatch(/if \(!price\)[\s\S]{0,200}ok: false/)
     expect(branch).not.toMatch(/if \(!price\) return \{ ok: true \}/)
   })

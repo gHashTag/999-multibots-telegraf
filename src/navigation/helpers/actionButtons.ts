@@ -200,10 +200,55 @@ export function buttonsForAnswer(
 export function payRow(text: string): InlineKeyboardButton[] | null {
   const m = /https:\/\/t\.me\/\$[A-Za-z0-9_-]+/.exec(text)
   if (!m) return null
-  const stars = /(\d+)\s*⭐/.exec(text)
+  const amount = invoiceAmount(text, m.index)
   return [
-    Markup.button.url(stars ? `Оплатить ${stars[1]} ⭐` : 'Оплатить ⭐', m[0]),
+    Markup.button.url(amount ? `Оплатить ${amount} ⭐` : 'Оплатить ⭐', m[0]),
   ]
+}
+
+/*
+ * A star amount as an answer writes it: the star sign, or the word.
+ *
+ * A price written with thousands apart counts as one number. The club is
+ * "10 000" (spacedNumber in the render, toLocaleString('ru-RU') in the bot,
+ * which puts a no-break space there; an English answer puts a comma), and
+ * `(\d+)\s*⭐` read only the last group: the button under the club invoice
+ * asked to pay 000 stars. A match starts at the first digit of a number,
+ * never inside one: "2026 250" before the star is 250, not "026 250".
+ *
+ * The word counts as much as the sign: clubOfferLine() -- the sentence the
+ * club_invoice tool tells the model to say -- writes the price in words, and
+ * an amount the button cannot see is an amount it cannot check.
+ */
+const STAR_AMOUNT =
+  /(?<!\d)(\d{1,3}(?:[ ,\u00a0\u202f]\d{3})+|\d+)\s*(?:⭐|зв[её]зд|stars?\b)/gi // cyrillic-ok: the Russian word for stars
+
+/**
+ * THE AMOUNT ON THE BUTTON IS THIS INVOICE'S, OR NONE.
+ *
+ * Asked for the price, the creator prompt tells the model to name both
+ * paths: the packs ("10 tokens -> 15 stars, 50 -> 65, ...") and the club
+ * (10 000 stars a month), with the club link after both. Reading the FIRST
+ * amount put the club's link under "pay 15": a subscription understated
+ * about 667 times on the very button that sells it.
+ *
+ * So the button names an amount only when the answer holds exactly ONE --
+ * written any number of times, in any spelling. Two different amounts and
+ * the text cannot say which one the link charges; the plain "pay" is honest,
+ * and Telegram's own sheet shows the real price before anyone confirms. The
+ * spelling shown is the one nearest before the link, where the model puts
+ * the offer it is handing over.
+ */
+function invoiceAmount(text: string, linkAt: number): string | null {
+  const found = [...text.matchAll(STAR_AMOUNT)].map(a => ({
+    at: a.index ?? 0,
+    written: a[1].replace(/[,\u00a0\u202f]/g, ' '),
+    value: a[1].replace(/\D/g, ''),
+  }))
+  if (found.length === 0) return null
+  if (new Set(found.map(f => f.value)).size > 1) return null
+  const before = found.filter(f => f.at < linkAt)
+  return (before.length > 0 ? before[before.length - 1] : found[0]).written
 }
 
 /** The visible text without any button markers, wherever the answer goes. */

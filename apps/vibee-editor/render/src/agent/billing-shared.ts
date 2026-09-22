@@ -1,8 +1,59 @@
 import { СЕБЕСТОИМОСТЬ_USD, ЕДИНИЦА_ЦЕНЫ } from './kie-prices.generated'
+import { DEAREST_VARIANT_USD } from './kie-prices.generated'
 // Контракты моделей: `needs` решает, задаём ли длину МЫ. Модуль без импортов,
 // цикла не создаёт.
 import { KIE_MODELS } from './kie-models'
+// Which models the route sells as VIDEO. A module without imports, like the two above.
+import { ВИДИМЫЕ_ИМЕНА } from './kie-display-names' // cyrillic-ok: existing export name
 import { moveTokens, grantWelcomeIfNew } from '../token-ledger'
+
+/**
+ * THE REPLICATE LEG OF /api/generate/video, AND WHAT ONE SECOND OF IT COSTS.
+ *
+ * Every video that is not an explicit `kie/` model -- the agent's
+ * `video_generate`, the web's default video tab -- is drawn by Replicate
+ * bytedance/seedance-1-lite at 720p, 5 or 10 seconds (render-server.ts,
+ * generateVideoViaReplicate). It was sold at ONE price, 40 tokens, set for a
+ * cost of $0.10 per clip.
+ *
+ * The provider bills by the second of output. Read 2026-09-22 from the model
+ * page, https://replicate.com/bytedance/seedance-1-lite (its billingConfig):
+ * 480p $0.018, 720p $0.036, 1080p $0.072 per second of output video. So the
+ * 5-second clip costs $0.18 and the 10-second one $0.36 -- the flat 40 tokens
+ * covered neither at the owner's markup, and the 10-second clip not even at
+ * cost: 40 x $0.005 = $0.20 against $0.36.
+ *
+ * The quality stays 720p (owner, 2026-09-22: the price moves, the picture does
+ * not); the resolution is a named constant so the route and the price read it
+ * from one place.
+ */
+export const REPLICATE_VIDEO_MODEL = 'replicate/bytedance/seedance-1-lite'
+export const REPLICATE_VIDEO_RESOLUTION = '720p'
+export const REPLICATE_VIDEO_USD_PER_SECOND = 0.036
+/** The only lengths the Replicate leg makes. */
+export const REPLICATE_VIDEO_LENGTHS = [5, 10] as const
+export type ReplicateVideoLength = (typeof REPLICATE_VIDEO_LENGTHS)[number]
+/** What a caller gets when it names no length. */
+export const REPLICATE_VIDEO_DEFAULT_LENGTH: ReplicateVideoLength = 5
+
+/**
+ * The length the Replicate leg will make for a requested `duration`.
+ *
+ * ONE function for the charge and for the order: the route used to read the
+ * body a second time inside the fallback (`parseInt(b.duration || '5') >= 8 ?
+ * 10 : 5`), the charge never read it at all, and a 10-second clip was billed
+ * as a 5-second one. Same rule as before -- 8 and above is ten seconds,
+ * anything else, garbage included, is five.
+ */
+export function replicateVideoSeconds(duration: unknown): ReplicateVideoLength {
+  const n = parseInt(String(duration ?? ''), 10)
+  return Number.isFinite(n) && n >= 8 ? 10 : REPLICATE_VIDEO_DEFAULT_LENGTH
+}
+
+/** The model id a Replicate clip of this length is priced and charged under. */
+export function replicateClipModel(seconds: ReplicateVideoLength): string {
+  return `${REPLICATE_VIDEO_MODEL}:${seconds}s`
+}
 /**
  * Тарификация — ЕДИНЫЙ источник для двух путей генерации.
  *
@@ -36,7 +87,13 @@ export const OPERATION_COST_USD: Record<string, number> = {
    * the flat `image_generate` rate would sell it below cost.
    */
   gpt_image_edit: 0.03,
-  video_generate: 0.1,
+  /**
+   * The DEFAULT clip of the Replicate leg: 5 seconds at 720p. It read 0.1, an
+   * estimate nobody had checked against the provider's page; the measured
+   * number is above, and a 10-second clip is priced by `replicateClipTokens`.
+   */
+  video_generate:
+    REPLICATE_VIDEO_USD_PER_SECOND * REPLICATE_VIDEO_DEFAULT_LENGTH,
   audio_generate: 0.03,
   /**
    * Kie infinitalk/from-audio: $0.015 за секунду звука (прайс KieAI).
@@ -81,7 +138,12 @@ export const НАЦЕНКА = 2.0
 export function priceForKieModel(modelId: string): number | null {
   const cost = СЕБЕСТОИМОСТЬ_USD[modelId]
   if (cost == null) return null
-  return вТокены(cost)
+  // A video whose bill cannot be named before the press has no price either,
+  // for the same reason as the line above (see `kieVideoSale`). Every list
+  // that admits a model by its price -- the catalogue, /api/balance -- drops
+  // it with this one check.
+  if (isKieVideoModel(modelId) && !kieVideoSaleOf(modelId).sold) return null
+  return вТокены(cost) // cyrillic-ok: existing helper name
 }
 
 /** Единица, за которую берётся цена: «за секунду», «за картинку». */
@@ -352,7 +414,333 @@ export const TOKEN_PRICES: Record<string, number> = {
   audio_generate: priceFor('audio_generate'), // 12
   lipsync_generate: priceFor('lipsync_generate'), // 6 per audio second
   reel_render: priceFor('reel_render'), // 2
-  video_generate: priceFor('video_generate'), // 40
+  video_generate: priceFor('video_generate'), // 72: the default 5-second clip
+}
+
+/**
+ * Cost in USD to tokens, by the rule every price here uses: ceil(cost x markup
+ * / base), with the binary-rounding guard. Exported so the video floor and the
+ * margin report use THIS rule instead of writing a second one.
+ */
+export function tokensForCostUsd(costUsd: number): number {
+  return вТокены(costUsd) // cyrillic-ok: existing helper name
+}
+
+/**
+ * THE VIDEO FLOOR: NO CLIP IS SOLD BELOW WHAT IT COSTS US, TIMES THE MARKUP.
+ *
+ * price = max(the price the video already had, ceil(cost of THIS clip x markup
+ * / base)). "Already had" is the op's own price for the Replicate leg and the
+ * model's per-unit price times the units for a Kie model. The floor only ever
+ * raises: a provider that gets cheaper does not make the clip cheaper, it
+ * makes the margin wider.
+ *
+ * WHY A FLOOR AND NOT A LOWER RESOLUTION. The owner was offered both on
+ * 2026-09-22 (raise the price, or drop to 480p) and did not pick; the lead
+ * picked the floor, because a person who pays for a clip should get the clip
+ * that was shown, and the loss was in the price, not in the picture.
+ */
+export function videoFloorTokens(
+  currentTokens: number,
+  costUsd: number
+): number {
+  return Math.max(currentTokens, tokensForCostUsd(costUsd))
+}
+
+/** What a Replicate clip of this length costs us, USD. */
+export function replicateClipCostUsd(seconds: ReplicateVideoLength): number {
+  return Number((REPLICATE_VIDEO_USD_PER_SECOND * seconds).toFixed(6))
+}
+
+/**
+ * What a Replicate clip of this length is sold for: 72 tokens for 5 seconds,
+ * 144 for 10, at today's page price. The quote, the charge and the refund all
+ * read this one number (through `priceForModel`).
+ */
+export function replicateClipTokens(seconds: ReplicateVideoLength): number {
+  return videoFloorTokens(
+    TOKEN_PRICES.video_generate,
+    replicateClipCostUsd(seconds)
+  )
+}
+
+/** Every length of the Replicate leg with its price -- for /api/balance. */
+export function replicateClipPrices(): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const s of REPLICATE_VIDEO_LENGTHS)
+    out[String(s)] = replicateClipTokens(s)
+  return out
+}
+
+/*
+ * The generated tables under English names, once. The guard that keeps code
+ * in English cannot mark every line that reads them, and a rename of a
+ * generated export is a generator change, not this one.
+ */
+const KIE_COST_USD = СЕБЕСТОИМОСТЬ_USD // cyrillic-ok: alias of the generated table
+const KIE_PRICE_UNIT = ЕДИНИЦА_ЦЕНЫ // cyrillic-ok: alias of the generated table
+const VIDEO_LABEL = 'видео' // the UI kind label in kie-display-names.ts
+const UNIT_PER_SECOND = 'за секунду'
+const UNIT_PER_CLIP = 'за ролик'
+// The two helpers below this file already has, under the names this block reads.
+const lengthSetByPerson = (needs: string[] | undefined) =>
+  длинуЗадаётЧеловек(needs) // cyrillic-ok: existing helper name
+const lengthSetByFile = (needs: string[] | undefined) => длинуЗадаётФайл(needs) // cyrillic-ok: existing helper name
+
+/** How a Kie VIDEO model is sold, or why it is not. */
+export type KieVideoSale =
+  | {
+      sold: true
+      /** What one unit of the price list is: a second of video, or a clip. */
+      per: 'second' | 'clip'
+      /**
+       * Who sets the billed length of a per-second model: the person's
+       * chip, which is sent to the provider, or the file the person sent,
+       * which the route measures. `null` for a per-clip model.
+       */
+      length: 'person' | 'file' | null
+    }
+  | { sold: false; why: string }
+
+/**
+ * THE RULE THAT DECIDES WHETHER A KIE VIDEO MODEL CAN BE SOLD AT ALL.
+ *
+ * A quote before the press needs two numbers: what one unit costs, and how
+ * many units the provider will bill. The price list gives the first. The
+ * second is where video lost money:
+ *
+ *   grok-imagine/text-to-video, bytedance/seedance-2, seedance-2-fast,
+ *   v1-pro-text-to-video, wan/3-0-video
+ *
+ * are billed PER SECOND, and their contract is one `prompt` -- the length is
+ * not sent, the provider makes its own (Kie's model pages, read 2026-09-22:
+ * seedance 5 s at 720p, wan 3.0 5 s at 1080P, grok anything from 6 to 30 s
+ * with no default named), and we charged ONE second. seedance-2 was 23
+ * tokens, $0.115 at the billing base, for a 5-second 720p text-only clip the
+ * price list bills at $0.205 a second: $1.025. The more seconds the provider
+ * chose, the bigger the loss.
+ *
+ * FAIL CLOSED, NOT A GUESSED LENGTH. A length we do not send is not a length
+ * we know; pricing it by the docs' default is pricing it by a sentence the
+ * provider can change without telling us. So such a model is refused before
+ * any charge, and it comes back by itself the day its contract carries
+ * `duration` (the person's chip then reaches the provider and is billed).
+ *
+ * The same holds for a video priced in a unit that does not describe a clip
+ * ("per image" on a video model is a row for its image INPUT, not its output),
+ * and for a model the price list names no price for -- that one used to fall
+ * back to the flat video price, which is exactly "sold at the flat price".
+ *
+ * Pure: the entry is passed in, so the generator can run the same rule on a
+ * price list it has just fetched, and a test can run it on a made-up one.
+ */
+export function kieVideoSale(entry: {
+  cost: number | null | undefined
+  unit: string | null | undefined
+  needs: string[] | undefined
+  /**
+   * The dearest same-unit variant the model's price-list name matches
+   * (`DEAREST_VARIANT_USD`). Above `cost` means the name did not pick one
+   * variant, so the provider does.
+   */
+  dearest?: number | null
+}): KieVideoSale {
+  if (typeof entry.cost !== 'number' || !Number.isFinite(entry.cost)) {
+    return { sold: false, why: 'the price list names no price for it' }
+  }
+  if (entry.unit === UNIT_PER_CLIP) {
+    /*
+     * A CLIP PRICE NAMES ONE CLIP ONLY WHEN ONE ROW IS BILLED.
+     *
+     * wan/2-5-text-to-video was sold at its cheapest row, $0.30 (120
+     * tokens), while its name matches rows up to $1.00 and its request
+     * carries only `prompt`: the provider picks the length and the
+     * resolution, and we guessed the cheapest -- the case refused above for
+     * per-second models. A name pinned to the variant we are billed at
+     * (kie-price-names.ts) has one row, so its dearest IS its cost.
+     */
+    if (typeof entry.dearest === 'number' && entry.dearest > entry.cost) {
+      return {
+        sold: false,
+        why:
+          `its price-list name matches clips from $${entry.cost} to ` +
+          `$${entry.dearest} and the request does not pick one, so the ` +
+          'provider does',
+      }
+    }
+    /*
+     * A clip price is ONE length's price. A contract that carries `duration`
+     * would send the chip ('10') while the price stays on its row (5 s):
+     * wan 2.6 would bill $1.0475 against 209 tokens. Refused until it is
+     * priced by length, like the per-second models below.
+     */
+    if (lengthSetByPerson(entry.needs)) {
+      return {
+        sold: false,
+        why:
+          'it is priced per clip at one length, but its request carries the ' +
+          'length the person picks',
+      }
+    }
+    return { sold: true, per: 'clip', length: null }
+  }
+  if (entry.unit !== UNIT_PER_SECOND) {
+    return {
+      sold: false,
+      why: `its price is ${entry.unit ?? 'in no unit'}, which does not say what one clip costs`,
+    }
+  }
+  if (lengthSetByPerson(entry.needs)) {
+    return { sold: true, per: 'second', length: 'person' }
+  }
+  if (lengthSetByFile(entry.needs)) {
+    return { sold: true, per: 'second', length: 'file' }
+  }
+  return {
+    sold: false,
+    why:
+      'it is billed per second and the provider picks the length: the ' +
+      'request carries none, so the bill cannot be named before the press',
+  }
+}
+
+/** Is this bare Kie id one the route treats as video? */
+export function isKieVideoModel(modelId: string): boolean {
+  return ВИДИМЫЕ_ИМЕНА[modelId]?.вид === VIDEO_LABEL // cyrillic-ok: existing table and field
+}
+
+/** `kieVideoSale` for a catalogued model, read from the generated tables. */
+export function kieVideoSaleOf(modelId: string): KieVideoSale {
+  const id = modelId.startsWith('kie/') ? modelId.slice(4) : modelId
+  return kieVideoSale({
+    cost: KIE_COST_USD[id],
+    unit: KIE_PRICE_UNIT[id],
+    needs: KIE_MODELS.find(m => m.id === id)?.needs,
+    dearest: DEAREST_VARIANT_USD[id],
+  })
+}
+
+/**
+ * THE ONE TEST FOR "THIS PRESS GOES DOWN THE KIE LEG" of /api/generate/video.
+ *
+ * Only an explicit `kie/<id>` does. Any other id -- a bare Kie id included --
+ * goes down the Replicate leg and buys one seedance clip, priced per clip under
+ * `replicateClipModel`. The route picks its leg with this predicate and counts
+ * the charge's units with `videoChargeLength`, which reads the same one, so
+ * the leg and the quantity cannot part.
+ */
+export function isExplicitKieVideo(model: unknown): model is string {
+  return typeof model === 'string' && model.startsWith('kie/')
+}
+
+/** Who names the length one video press is charged for. */
+export type VideoChargeLength = 'clip' | 'person' | 'file'
+
+/**
+ * WHAT ONE PRESS OF /api/generate/video IS CHARGED FOR, by the leg that runs.
+ *
+ *   'clip'    one unit: the Replicate clip (its price already names its
+ *             length) or a Kie model sold per clip
+ *   'person'  a per-second Kie model: the chip's seconds, the same number
+ *             its request carries to the provider
+ *   'file'    a per-second Kie model whose length is the file sent: the
+ *             seconds the route measures before the charge
+ *
+ * THE LEG DECIDES, NOT THE ID. The per-second check accepts a bare id, and
+ * the route used to ask it about every model. A signed request naming
+ * `kling/v3-turbo-text-to-video` without the prefix went down the Replicate
+ * leg, was priced as a 10-second seedance clip (144 tokens) and charged that
+ * times the chip: 1440 tokens for one clip. A bare `topaz/video-upscale`
+ * measured its file BEFORE the charge, and a file that would not measure threw
+ * into the catch, whose Replicate fallback made a clip nobody had paid for.
+ */
+export function videoChargeLength(model: unknown): VideoChargeLength {
+  if (!isExplicitKieVideo(model)) return 'clip'
+  const sale = kieVideoSaleOf(model)
+  // A refused model never reaches the charge (the route answers 400 first,
+  // and `priceForModel` refuses it again); one unit is the safe answer here.
+  if (!sale.sold || sale.per === 'clip') return 'clip'
+  return sale.length ?? 'clip'
+}
+
+/**
+ * The quantity the charge multiplies the unit price by. `measuredSeconds` is
+ * read only for 'file', and must then be a real measurement: a missing one is
+ * refused rather than charged as nothing or as one second.
+ */
+export function videoChargeUnits(
+  rule: VideoChargeLength,
+  chipSeconds: number,
+  measuredSeconds?: number
+): number {
+  if (rule === 'person') return chipSeconds
+  if (rule === 'file') {
+    if (
+      typeof measuredSeconds !== 'number' ||
+      !Number.isFinite(measuredSeconds) ||
+      measuredSeconds <= 0
+    ) {
+      throw new Error('the file was not measured, so its length is unknown')
+    }
+    return Math.ceil(measuredSeconds)
+  }
+  return 1
+}
+
+/**
+ * The price of one unit of a named model, or why there is none.
+ *
+ *   number     the model's own price (per unit the charge multiplies)
+ *   null       the model is named and must NOT be sold for this op
+ *   undefined  no model, or not one with its own price: the op's price holds
+ *
+ * The null is the new case. A Kie VIDEO model the rule above refuses returns
+ * null here, so `spendByTid` refuses it too -- the route gates first, and this
+ * is the second lock on the same door. Any other model without a price of its
+ * own keeps the old fallback to the op's price, which billing-prices.test.ts
+ * pins.
+ */
+export function priceForModel(
+  op: string,
+  modelId: string | undefined
+): number | null | undefined {
+  if (typeof modelId !== 'string') return undefined
+  for (const s of REPLICATE_VIDEO_LENGTHS) {
+    if (modelId === replicateClipModel(s)) {
+      return op === 'video_generate' ? replicateClipTokens(s) : null
+    }
+  }
+  if (!modelId.startsWith('kie/')) return undefined
+  const id = modelId.slice(4)
+  // A Kie video the floor refuses is refused under ANY op: without this its
+  // missing price would fall through to the op's flat price below.
+  if (isKieVideoModel(id) && !kieVideoSaleOf(id).sold) return null
+  return priceForKieModel(id) ?? undefined
+}
+
+/**
+ * The quote for one Kie video press: what the person will be charged, and
+ * what the provider will bill us. `units` is seconds for a per-second model
+ * and 1 for a per-clip one -- the same `секунды` the route passes to the
+ * charge. The token figure is `videoFloorTokens` over the per-unit price times
+ * the units, and that is ALWAYS the per-unit price times the units: the
+ * per-unit price is itself rounded up, so the floor never binds. The test
+ * `no-video-below-cost.test.ts` holds that for every model and length, so the
+ * charge (unit x units in spendByTid) and this quote cannot part.
+ */
+export function kieVideoQuote(
+  modelId: string,
+  units: number
+): { tokens: number; costUsd: number } | { refused: string } {
+  const id = modelId.startsWith('kie/') ? modelId.slice(4) : modelId
+  const sale = kieVideoSaleOf(id)
+  if (!sale.sold) return { refused: sale.why }
+  const cost = KIE_COST_USD[id] as number
+  const unit = priceForKieModel(id) as number
+  const n = sale.per === 'clip' ? 1 : units
+  const costUsd = Number((cost * n).toFixed(6))
+  const floor = videoFloorTokens(unit * n, costUsd)
+  return { tokens: floor, costUsd }
 }
 
 /**
@@ -475,11 +863,13 @@ export async function spendByTid(
     return { ok: true, списано: 0 }
   }
 
-  const кие =
-    typeof modelId === 'string' && modelId.startsWith('kie/')
-      ? priceForKieModel(modelId.slice(4))
-      : null
-  const unitPrice = кие ?? TOKEN_PRICES[op] // cyrillic-ok: existing local name
+  const own = priceForModel(op, modelId)
+  // A named model this op must not sell (a Kie video the floor refuses): no
+  // fallback to the op's price, which would be selling it at the flat price.
+  if (own === null) {
+    return { ok: false, причина: `model ${modelId} is not sold for ${op}` } // cyrillic-ok: public API field
+  }
+  const unitPrice = own ?? TOKEN_PRICES[op]
   /*
    * AN OPERATION WITHOUT A PRICE IS REFUSED, NOT GIVEN AWAY.
    *
@@ -607,11 +997,10 @@ export async function refundByTid(
 
   let price = typeof exact === 'number' && exact > 0 ? exact : 0
   if (!price) {
-    const кие = // cyrillic-ok: existing local name
-      typeof modelId === 'string' && modelId.startsWith('kie/')
-        ? priceForKieModel(modelId.slice(4))
-        : null
-    const unitPrice = кие ?? TOKEN_PRICES[op] // cyrillic-ok: existing local name
+    // The same lookup the charge made; a model the charge refused has nothing
+    // to give back (null -> 0 -> "no price" below).
+    const own = priceForModel(op, modelId)
+    const unitPrice = own === null ? 0 : (own ?? TOKEN_PRICES[op])
     price = (unitPrice ?? 0) * quantity
   }
   // No price and no receipt is not "nothing to do": somebody was charged and

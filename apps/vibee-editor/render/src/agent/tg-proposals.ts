@@ -114,6 +114,12 @@ export interface PendingProposal {
    * a label between them.
    */
   theirWords?: string
+  /**
+   * The words are the OWNER's own, typed by him in the turn that prepared
+   * the card (assistant-opt-out.ts `ownerWrote`). The one draft that may
+   * still reach a person who switched the assistant off; the press checks it.
+   */
+  ownerWords?: boolean
   createdAt: number
   /**
    * THE ONE-TIME SECRET, AND WHY THE ID IS NOT ENOUGH.
@@ -1085,9 +1091,10 @@ export interface SendingClient {
   ) => Promise<unknown>
   /**
    * GramJS `sendFile`: `file` may be a direct URL (which Telegram fetches
-   * itself; photo by URL is capped at 10 MB), a CustomFile built from
-   * downloaded bytes, or an array of urls for an album. Same parseMode rule
-   * as text: the approved caption must be the sent caption.
+   * itself; photo by URL is capped at 10 MB), a CustomFile over a local copy
+   * of the original bytes (`send-source.ts`), or an array of urls for an
+   * album. Same parseMode rule as text: the approved caption must be the sent
+   * caption.
    */
   sendFile?: (to: string, opts: SendFileParams) => Promise<unknown>
   /**
@@ -1298,36 +1305,6 @@ export function estimatedVoiceSeconds(bytes: number): number {
   return Math.max(1, Math.round(bytes / 6000))
 }
 
-/**
- * Download the bytes behind a media url, within hard bounds.
- *
- * https only (checked again here, because a restored row can predate a
- * validator), 50 MB (Telegram documents cap at 2 GB but a service file has
- * no business being that big, and the PRESS must not hang), 30 s wall clock.
- * Content-length is a hint, not a promise: the real check is on the bytes
- * that actually arrived.
- */
-async function downloadBytes(url: string): Promise<Buffer> {
-  if (!/^https:\/\//.test(url))
-    throw new Error('файл можно взять только по https-ссылке')
-  let res: Response
-  try {
-    res = await fetch(url, { signal: AbortSignal.timeout(30_000) })
-  } catch (e) {
-    throw new Error(
-      `не удалось скачать файл: ${String(e instanceof Error ? e.message : e).slice(0, 80)}`
-    )
-  }
-  if (!res.ok) throw new Error(`не удалось скачать файл (${res.status})`)
-  const cap = 50 * 1024 * 1024
-  const declared = Number(res.headers.get('content-length') ?? 0)
-  if (declared > cap) throw new Error('файл больше 50 МБ — не буду отправлять')
-  const buf = Buffer.from(await res.arrayBuffer())
-  if (buf.length > cap)
-    throw new Error('файл больше 50 МБ — не буду отправлять')
-  return buf
-}
-
 /** The last path segment of a url, or 'file' when there is none usable. */
 function basenameOf(url: string): string {
   try {
@@ -1352,12 +1329,19 @@ function basenameOf(url: string): string {
  *  - an album passes the urls as the array `_sendAlbum` expects, captions
  *    item by item.
  *
+ * Every uploaded kind takes `local`: the private copy `withLocalCopy` made
+ * (the ORIGINAL bytes -- read by key when the url is our shelf). The file
+ * goes to GramJS by PATH, never as a buffer: an upload over 20 MB is read
+ * from the path only, and a buffer-only CustomFile of that size dies inside
+ * the library (see `send-source.ts`).
+ *
  * The attributes are the card's promises: "~N sec" is only honest if the
  * number actually travels to Telegram.
  */
 export async function fileParamsFor(
   media: ProposalMedia,
-  caption: string | undefined
+  caption: string | undefined,
+  local?: { path: string; size: number }
 ): Promise<SendFileParams> {
   if (media.kind === 'photo')
     return { file: media.url, caption: caption ?? '', ...VERBATIM }
@@ -1367,29 +1351,24 @@ export async function fileParamsFor(
       caption: media.captions ?? caption ?? '',
       ...VERBATIM,
     }
+  if (!local) throw new Error('файл для отправки не подготовлен')
   const { CustomFile } = await import('telegram/client/uploads')
+  const fileNamed = (name: string) =>
+    new CustomFile(name, local.size, local.path) as CustomFileLike
   if (media.kind === 'document') {
-    const buf = await downloadBytes(media.url)
-    const name = media.fileName?.trim() || basenameOf(media.url)
     return {
-      file: new CustomFile(name, buf.length, '', buf) as CustomFileLike,
+      file: fileNamed(media.fileName?.trim() || basenameOf(media.url)),
       caption: caption ?? '',
       forceDocument: true,
       ...VERBATIM,
     }
   }
   if (media.kind === 'voice' || media.kind === 'video_note') {
-    const buf = await downloadBytes(media.url)
     const { Api } = await import('telegram')
+    const seconds = media.duration ?? estimatedVoiceSeconds(local.size)
     if (media.kind === 'voice') {
-      const seconds = media.duration ?? estimatedVoiceSeconds(buf.length)
       return {
-        file: new CustomFile(
-          'voice.mp3',
-          buf.length,
-          '',
-          buf
-        ) as CustomFileLike,
+        file: fileNamed('voice.mp3'),
         caption: caption ?? '',
         voiceNote: true,
         attributes: [
@@ -1398,14 +1377,8 @@ export async function fileParamsFor(
         ...VERBATIM,
       }
     }
-    const seconds = media.duration ?? estimatedVoiceSeconds(buf.length)
     return {
-      file: new CustomFile(
-        'video_note.mp4',
-        buf.length,
-        '',
-        buf
-      ) as CustomFileLike,
+      file: fileNamed('video_note.mp4'),
       caption: '', // a round video note carries no caption on Telegram
       videoNote: true,
       attributes: [
@@ -1420,14 +1393,8 @@ export async function fileParamsFor(
     }
   }
   // video
-  const buf = await downloadBytes(media.url)
   return {
-    file: new CustomFile(
-      basenameOf(media.url) || 'video.mp4',
-      buf.length,
-      '',
-      buf
-    ) as CustomFileLike,
+    file: fileNamed(basenameOf(media.url) || 'video.mp4'),
     caption: caption ?? '',
     supportsStreaming: true,
     ...VERBATIM,
@@ -1466,9 +1433,23 @@ export async function sendFileWithAddressBook(
    * into the closure below.
    */
   const send = c.sendFile.bind(c)
-  const params = await fileParamsFor(media, caption)
-  if (scheduleAt) params.scheduleDate = new Date(scheduleAt)
-  return resolvingPeer(c, target, () => send(target, params))
+  const go = (params: SendFileParams) => {
+    if (scheduleAt) params.scheduleDate = new Date(scheduleAt)
+    return resolvingPeer(c, target, () => send(target, params))
+  }
+  /*
+   * A photo and an album stay LINKS that Telegram fetches itself: an album
+   * item must be a photo Telegram can show, and the shelf serves images
+   * byte-identical anyway. Everything else is uploaded from a local copy,
+   * which lives exactly as long as the send -- the retry inside
+   * `resolvingPeer` included.
+   */
+  if (media.kind === 'photo' || media.kind === 'album')
+    return go(await fileParamsFor(media, caption))
+  const { withLocalCopy } = await import('./send-source')
+  return withLocalCopy(media.url, async local =>
+    go(await fileParamsFor(media, caption, local))
+  )
 }
 
 /** Best-effort, bounded: the journal must never hold or fail a send. */
@@ -1680,6 +1661,24 @@ export async function execute(
   const { hangUp } = await import('./hang-up')
   let c: SendingClient | null = null
   try {
+    /*
+     * THE PRESS ASKS AGAIN. A card drawn before the person said "switch the
+     * assistant off" must not leave after it -- unless its words were the
+     * owner's own (ownerWords), which is the owner speaking, not the machine.
+     * Before the session is opened and before any money moves.
+     */
+    if (p.action === 'send' || p.action === 'forward') {
+      const { assistantMayReach } = await import('./assistant-opt-out')
+      const lead =
+        p.lead ??
+        (/^\d{5,15}$/.test(String(p.target)) ? String(p.target) : undefined)
+      const reach = await assistantMayReach(
+        { telegramId: ctx.telegramId, pool: ctx.pool as never },
+        lead,
+        { pressed: true, ownerWords: p.ownerWords === true }
+      )
+      if (!reach.ok) return { done: false, why: reach.why }
+    }
     c = (await client(ctx as never)) as SendingClient
     const exec = (EXECUTORS as Partial<Record<ProposalAction, Executor>>)[
       p.action

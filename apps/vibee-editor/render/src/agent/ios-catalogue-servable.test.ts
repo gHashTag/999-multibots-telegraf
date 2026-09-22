@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { reviewedKieModel, type KieWebMediaKind } from './kie-web-provider'
+import { kieVideoSaleOf } from './billing-shared'
 import { СЕБЕСТОИМОСТЬ_USD } from './kie-prices.generated'
 
 /**
@@ -19,7 +20,14 @@ import { СЕБЕСТОИМОСТЬ_USD } from './kie-prices.generated'
  */
 const СВИФТ = fs.readFileSync(
   path.join(
-    __dirname, '..', '..', '..', '..', 'vibee-ios', 'Vibee', 'KieModels.swift'
+    __dirname,
+    '..',
+    '..',
+    '..',
+    '..',
+    'vibee-ios',
+    'Vibee',
+    'KieModels.swift'
   ),
   'utf8'
 )
@@ -31,6 +39,8 @@ interface Строка {
   опасная: boolean
   ценаЕсть: boolean
   входИзвне: boolean
+  /** The server's video floor refuses it (`kieVideoSale`, billing-shared.ts). */
+  notSold: boolean
 }
 
 /** Разбор одной строки `Модель(...)` — тех полей, по которым экран фильтрует. */
@@ -38,7 +48,8 @@ function модели(): Строка[] {
   // Построчно, а не одним выражением на всю запись: поля со значением по
   // умолчанию (`входИзвне`) в строке могут отсутствовать, и жёсткий шаблон
   // молча находил бы НОЛЬ моделей — то есть проверка была бы зелёной и пустой.
-  return СВИФТ.split('\n')
+  return СВИФТ
+    .split('\n')
     .filter(строка => строка.includes('Модель(id: "'))
     .map(строка => {
       const поле = (имя: string) =>
@@ -50,6 +61,7 @@ function модели(): Строка[] {
         опасная: поле('опасная') === 'true',
         ценаЕсть: (поле('ценаUSD') ?? 'nil') !== 'nil',
         входИзвне: поле('входИзвне') === 'true',
+        notSold: поле('notSold') === 'true', // cyrillic-ok: existing helper name
       }
     })
 }
@@ -57,7 +69,7 @@ function модели(): Строка[] {
 /** `сервернаяOK` из GenerateScreen.swift, слово в слово. */
 function показываетЭкран(м: Строка): boolean {
   if (м.вид === 'сценарий') return true
-  return м.живая && !м.опасная && м.ценаЕсть && !м.входИзвне
+  return м.живая && !м.опасная && м.ценаЕсть && !м.входИзвне && !м.notSold // cyrillic-ok: existing field names
 }
 
 const ВИД_К_KIND: Record<string, KieWebMediaKind | undefined> = {
@@ -90,6 +102,40 @@ describe('модель, которую показывает приложение
     expect(отвергнутые).toEqual([])
   })
 
+  it('the app hides exactly the videos the server refuses to price', () => {
+    /*
+     * The flag is written by the generator from the server's own rule, and
+     * the screen filters on it. Both halves are checked: the flag equals the
+     * rule for every priced video, and the screen reads the flag -- a flag
+     * nobody reads hides nothing.
+     */
+    let videos = 0
+    let hidden = 0
+    const catalogue = модели() // cyrillic-ok: existing helper name
+    for (const model of catalogue) {
+      if (model.вид !== 'видео' || !model.ценаЕсть) continue // cyrillic-ok: existing field names
+      videos++
+      if (model.notSold) hidden++
+      expect(model.notSold, model.id).toBe(!kieVideoSaleOf(model.id).sold)
+    }
+    expect(videos).toBeGreaterThan(8)
+    expect(hidden).toBeGreaterThan(2)
+    const screen = fs.readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        'vibee-ios',
+        'Vibee',
+        'GenerateScreen.swift'
+      ),
+      'utf8'
+    )
+    expect(screen).toMatch(/&& !м\.notSold/) // cyrillic-ok: the Swift source under test
+  })
+
   it('цена в приложении не расходится с серверной себестоимостью', () => {
     /*
      * Число на кнопке считается из `ценаUSD`, скопированной в Swift. Разойдись
@@ -98,9 +144,7 @@ describe('модель, которую показывает приложение
      * сервер.
      */
     const расхождения: string[] = []
-    const цены = СВИФТ.matchAll(
-      /Модель\(id: "([^"]+)"[^)]*?ценаUSD: ([^,]+),/g
-    )
+    const цены = СВИФТ.matchAll(/Модель\(id: "([^"]+)"[^)]*?ценаUSD: ([^,]+),/g)
     for (const [, id, сырое] of цены) {
       const вСвифте = сырое.trim() === 'nil' ? null : Number(сырое)
       const наСервере = СЕБЕСТОИМОСТЬ_USD[id] ?? null
@@ -159,8 +203,17 @@ describe('чип показывают только под поле, которо
      */
     const поля = поляМоделей()
     // Только `prompt` — то есть ни длительности, ни кадра.
-    expect(поля['kie/grok-imagine/text-to-video']).toEqual(['prompt'])
-    expect(поля['kie/wan/3-0-video']).toEqual(['prompt'])
+    /*
+     * grok-imagine/text-to-video and wan/3-0-video, the two named here first,
+     * are not sold any more: billed per second while the provider picks the
+     * length (billing-shared.ts, `kieVideoSale`). Two prompt-only clips that
+     * are still sold carry the same point. wan/2-5 left this list too: its
+     * price-list name matches clips from $0.30 to $1.00 and the request
+     * picks none, so it is refused as well.
+     */
+    expect(поля['kie/hailuo/02-text-to-video-pro']).toEqual(['prompt']) // cyrillic-ok: existing local name
+    expect(поля['kie/wan/2-6-text-to-video']).toEqual(['prompt']) // cyrillic-ok: existing local name
+    expect(поля['kie/wan/2-5-text-to-video']).toBeUndefined() // cyrillic-ok: existing local name
     // А эти двое получают всё, что показывает экран.
     expect(поля['kie/kling/v3-turbo-text-to-video']).toContain('duration')
     expect(поля['kie/kling/v3-turbo-text-to-video']).toContain('aspect_ratio')
@@ -194,7 +247,14 @@ describe('чип показывают только под поле, которо
     expect(сервер).toContain('modelFields: поляМоделей()')
     const веб = fs.readFileSync(
       path.join(
-        __dirname, '..', '..', '..', 'player', 'src', 'components', 'Panels',
+        __dirname,
+        '..',
+        '..',
+        '..',
+        'player',
+        'src',
+        'components',
+        'Panels',
         'GeneratePanel.tsx'
       ),
       'utf8'
@@ -210,12 +270,20 @@ describe('чип показывают только под поле, которо
     expect(веб).toContain("полеДоходит(баланс, 'aspect_ratio', imageModel)")
     const экран = fs.readFileSync(
       path.join(
-        __dirname, '..', '..', '..', '..', 'vibee-ios', 'Vibee',
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        'vibee-ios',
+        'Vibee',
         'GenerateScreen.swift'
       ),
       'utf8'
     )
-    expect(экран).toContain('полеДоходит("aspect_ratio", модель: модельДляСервера)')
+    expect(экран).toContain(
+      'полеДоходит("aspect_ratio", модель: модельДляСервера)'
+    )
     expect(экран).toContain('полеДоходит("duration", модель: модельДляСервера)')
   })
 })
@@ -275,7 +343,8 @@ describe('перечни имён, из которых выбирают, све�
     const уПровайдеров = new Set(
       именаИзБлока('const ПРОВАЙДЕРЫ = [').filter(с => !с.startsWith('http'))
     )
-    const вПриложении = СВИФТ.split('\n')
+    const вПриложении = СВИФТ
+      .split('\n')
       .filter(с => с.includes('вид: .сценарий') && с.includes('живая: true'))
       .map(с => с.match(/Модель\(id: "([^"]+)"/)![1])
     expect(вПриложении.length).toBeGreaterThan(0)
@@ -287,7 +356,9 @@ describe('перечни имён, из которых выбирают, све�
     // Выбор может не сбыться: провайдер без ключа выпадает из списка. Без
     // этого поля разница между «выбрал» и «ответил» выясняется по стилю
     // текста, а не из ответа.
-    expect(СЕРВЕР).toMatch(/captions: scriptData\.captions \|\| \[\],[\s\S]{0,900}?model: провайдер\.model,/)
+    expect(СЕРВЕР).toMatch(
+      /captions: scriptData\.captions \|\| \[\],[\s\S]{0,900}?model: провайдер\.model,/
+    )
     expect(СЕРВЕР).toMatch(/provider: провайдер\.имя,/)
   })
 })

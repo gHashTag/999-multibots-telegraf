@@ -183,11 +183,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     модель: string | undefined,
     промптПуст: boolean,
     чегоНеХватает: string,
-    количество = 1
+    количество = 1,
+    duration?: string
   ) => {
     if (isGenerating) return null
     if (промптПуст) return чегоНеХватает
-    return неХватает(операция, модель, количество)
+    return неХватает(операция, модель, количество, duration)
   }
 
   /**
@@ -208,10 +209,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
      * отдельно, здесь оставалось целиком: сервер множит (`quantity` в
      * `chargeMiniAppUser`), экран не множил нигде.
      */
-    количество = 1
+    количество = 1,
+    /** The video length chip: the default video leg is priced by it. */
+    duration?: string
   ) => {
     if (!баланс || баланс.exempt) return null
-    const ц = ценаНажатия(баланс, операция, модель)
+    const ц = ценаНажатия(баланс, операция, модель, duration)
     if (ц == null) return null
     const всего = ц * количество
     if (баланс.balance >= всего) return null
@@ -267,9 +270,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const подписьЦены = (
     операция: string,
     модель: string | undefined,
-    количество = 1
+    количество = 1,
+    duration?: string
   ) => {
-    const ц = ценаНажатия(баланс, операция, модель)
+    const ц = ценаНажатия(баланс, операция, модель, duration)
     if (ц == null) return null
     // Знаем количество — называем СУММУ: это и есть то, что спишут.
     if (количество > 1) return ` · ${ц * количество}`
@@ -1240,9 +1244,13 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               disabled={
                 isGenerating ||
                 !videoPrompt.trim() ||
-                неХватает('video_generate', videoModel) != null
+                неХватает('video_generate', videoModel, 1, videoDuration) !=
+                  null
               }
-              title={неХватает('video_generate', videoModel) ?? undefined}
+              title={
+                неХватает('video_generate', videoModel, 1, videoDuration) ??
+                undefined
+              }
             >
               {isGenerating ? (
                 <>
@@ -1253,7 +1261,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 <>
                   <Video size={16} />
                   {t('generate.generateVideo')}
-                  {подписьЦены('video_generate', videoModel)}
+                  {подписьЦены('video_generate', videoModel, 1, videoDuration)}
                 </>
               )}
             </button>
@@ -1264,14 +1272,18 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               'video_generate',
               videoModel,
               !videoPrompt.trim(),
-              'Опишите видео — без описания генерировать нечего'
+              'Опишите видео — без описания генерировать нечего',
+              1,
+              videoDuration
             ) && (
               <div className="generate-hint">
                 {почемуНельзя(
                   'video_generate',
                   videoModel,
                   !videoPrompt.trim(),
-                  'Опишите видео — без описания генерировать нечего'
+                  'Опишите видео — без описания генерировать нечего',
+                  1,
+                  videoDuration
                 )}
               </div>
             )}

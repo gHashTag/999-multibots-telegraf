@@ -16,11 +16,23 @@ export const KIE_WEB_MODELS: Record<
       description: 'Экономная генерация через Kie.ai',
     },
   ],
+  /*
+   * GROK IMAGINE IS NOT SOLD ANY MORE, so the web does not offer it.
+   *
+   * Its price is per second and its request carries no length: the provider
+   * picks 6 to 30 seconds and the server charged ONE (5 tokens for a clip
+   * billed up to $0.36). The server's video floor refuses such a model before
+   * any charge (render billing-shared.ts, `kieVideoSale`).
+   *
+   * Hailuo 02 Pro takes the place because its bill is fixed by the model
+   * itself: a prompt in, one 6-second 1080p clip out, one row of the price
+   * list ($0.285). The server prices it from that row.
+   */
   video: [
     {
-      id: 'kie/grok-imagine/text-to-video',
-      name: 'Kie · Grok Imagine',
-      description: 'Текст в видео через Kie.ai',
+      id: 'kie/hailuo/02-text-to-video-pro',
+      name: 'Kie · Hailuo 02 Pro',
+      description: 'Текст в видео через Kie.ai: 6 с, 1080p',
     },
   ],
   audio: [

@@ -226,7 +226,19 @@ async function chatViaReplicate(
       const output = Array.isArray(result.output)
         ? result.output.join('')
         : String(result.output || '')
-      return output.trim() || 'Не удалось сгенерировать ответ'
+      /*
+       * AN EMPTY OUTPUT IS A FAILURE, NOT A RUSSIAN SENTENCE.
+       *
+       * It used to come back as "could not generate an answer" in Russian,
+       * returned as if the model had said it -- so every caller delivered it
+       * as an answer, to English speakers too, and the bot chat's fallback
+       * could not tell it from a reply. The OpenAI path above already throws
+       * on an empty answer; both paths now fail the same way, and each caller
+       * says so in the person's language.
+       */
+      const text = output.trim()
+      if (!text) throw new Error('Empty response from AI')
+      return text
     }
     if (result.status === 'failed')
       throw new Error(result.error || 'Generation failed')
