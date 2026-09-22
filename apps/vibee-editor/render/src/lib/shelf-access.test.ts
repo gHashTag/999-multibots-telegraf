@@ -355,3 +355,149 @@ describe('the owner gets links that open', () => {
     expect(opened.status).toBe(200)
   })
 })
+
+/**
+ * A POOL THAT REMEMBERS: what the POST stored is what the GET lists. It knows
+ * the two user_media statements the route runs and throws on anything else,
+ * so a door that wrote somewhere unexpected fails instead of passing on an
+ * empty `rows: []`. `fresh: false` keeps the background describe out of it --
+ * the rows are what this test is about.
+ */
+function libraryPool() {
+  const rows: Array<Record<string, unknown>> = []
+  return {
+    rows,
+    async query(sql: string, params: unknown[] = []) {
+      const q = sql.replace(/\s+/g, ' ').trim()
+      if (/^CREATE (TABLE|INDEX) IF NOT EXISTS user_media/.test(q))
+        return { rows: [] }
+      if (q.startsWith('INSERT INTO user_media')) {
+        const [owner_id, lead_id, surface, msg_id, at, out, kind, name] = params
+        const url = params[10]
+        rows.push({
+          id: rows.length + 1,
+          owner_id,
+          lead_id,
+          surface,
+          msg_id,
+          at,
+          out,
+          kind,
+          name,
+          url,
+        })
+        return { rows: [{ id: rows.length, fresh: false }] }
+      }
+      if (q.startsWith('SELECT') && q.includes('FROM user_media')) {
+        const [owner, lead] = params
+        return {
+          rows: rows.filter(r => r.owner_id === owner && r.lead_id === lead),
+        }
+      }
+      throw new Error(`pool not taught: ${q.slice(0, 80)}`)
+    },
+  }
+}
+
+function jsonRes() {
+  const out: { status?: number; body?: any } = {}
+  return {
+    out,
+    writeHead(code: number) {
+      out.status = code
+      return this
+    },
+    end(b: string) {
+      out.body = JSON.parse(b)
+    },
+  }
+}
+
+function postReq(body: unknown) {
+  const s = Readable.from([JSON.stringify(body)]) as any
+  s.method = 'POST'
+  s.url = '/api/crm/media'
+  return s
+}
+
+describe('a caller cannot register a walkable key to have it signed', () => {
+  /*
+   * The door GET signs from is the door POST writes through, and POST takes
+   * anyone the server can identify naming themselves as the lead. A guessed
+   * old key stored there would come back signed: 403 turned into 200 for
+   * somebody else's document.
+   */
+  const CALLER = '900000003'
+
+  it('POST skips an old document key in every spelling, and GET then signs nothing', async () => {
+    const pool = libraryPool()
+    const posted = jsonRes()
+    await handleCrmMedia(
+      postReq({
+        lead: CALLER,
+        surface: 'bot',
+        items: [
+          { kind: 'file', name: 'a.pdf', url: `${SHELF}/s3/${OLD_PDF}` },
+          {
+            kind: 'file',
+            name: 'b.pdf',
+            url: `${SHELF}/s3/assets/1-0123456789abcdef-x/../1758000000000-file-4242.pdf`,
+          },
+          {
+            kind: 'file',
+            name: 'c.pdf',
+            url: `${SHELF}/s3/assets/1758000000000-file-4242%2Epdf?v=1`,
+          },
+          { kind: 'file', name: 'd.docx', url: `${SHELF}/s3/${OLD_NAMED}` },
+          // Public by rules 1 and 2: stored as before.
+          { kind: 'image', name: 'p.jpg', url: `${SHELF}/s3/${OLD_JPG}` },
+          { kind: 'file', name: 'n.pdf', url: `${SHELF}/s3/${NEW_PDF}` },
+        ],
+      }),
+      posted as never,
+      CALLER,
+      () => pool
+    )
+    expect(posted.out.status).toBe(200)
+    expect(pool.rows.map(r => r.url)).toEqual([
+      `${SHELF}/s3/${OLD_JPG}`,
+      `${SHELF}/s3/${NEW_PDF}`,
+    ])
+
+    const listed = jsonRes()
+    await handleCrmMedia(
+      { method: 'GET', url: `/api/crm/media?lead=${CALLER}` } as never,
+      listed as never,
+      CALLER,
+      () => pool
+    )
+    expect(listed.out.status).toBe(200)
+    const urls = (listed.out.body.items as Array<{ url: string }>).map(
+      x => x.url
+    )
+    expect(urls).toHaveLength(2)
+    for (const u of urls) expect(u).not.toMatch(/[?&]sig=/)
+  })
+
+  it('a batch of walkable keys only is refused whole, and nothing is written', async () => {
+    const pool = libraryPool()
+    const posted = jsonRes()
+    await handleCrmMedia(
+      postReq({
+        lead: CALLER,
+        surface: 'bot',
+        items: [OLD_PDF, OLD_TXT, OLD_ZIP, OLD_BARE].map(k => ({
+          kind: 'file',
+          name: 'x',
+          url: `${SHELF}/s3/${k}`,
+        })),
+      }),
+      posted as never,
+      CALLER,
+      () => pool
+    )
+    expect(posted.out.status).toBe(400)
+    expect(posted.out.body.error).toMatch(/^url:/)
+    expect(pool.rows).toHaveLength(0)
+  })
+})
