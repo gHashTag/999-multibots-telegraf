@@ -11,6 +11,11 @@ import { API_BASE } from '../config'
 import { apiFetch } from '@/lib/apiFetch'
 
 export const JOURNAL_SHOWN = 6
+/**
+ * How many rows are read so that, after repeats are folded, the panel still
+ * has JOURNAL_SHOWN distinct lines to show.
+ */
+export const JOURNAL_READ = 24
 export const JOURNAL_POLL_MS = 5000
 
 export interface JournalStep {
@@ -23,7 +28,7 @@ export interface JournalStep {
 
 /** Newest first; null when it cannot be read. Never throws. */
 export async function readBrowserJournal(
-  limit = JOURNAL_SHOWN
+  limit = JOURNAL_READ
 ): Promise<JournalStep[] | null> {
   try {
     const a = await apiFetch<{ ok?: boolean; steps?: unknown }>(
@@ -67,4 +72,40 @@ export function journalLine(
     ? ''
     : `${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`
   return { time, verb, text: text.slice(0, 140), ok: step.ok !== false }
+}
+
+/**
+ * REPEATS FOLDED INTO ONE LINE.
+ *
+ * An agent waiting for a page looks again and again; six identical "looked"
+ * lines filled the whole panel and pushed out what it did before. Steps next
+ * to each other with the same tool, the same outcome and the same fact
+ * become one line with a count, dated by the newest. Pure; input newest
+ * first, output newest first.
+ */
+export interface FoldedStep extends JournalStep {
+  times: number
+}
+
+export function foldRepeats(
+  steps: JournalStep[],
+  t: T,
+  max = JOURNAL_SHOWN
+): FoldedStep[] {
+  const out: FoldedStep[] = []
+  for (const step of steps) {
+    const prev = out[out.length - 1]
+    if (
+      prev &&
+      prev.tool === step.tool &&
+      prev.ok === step.ok &&
+      journalLine(prev, t).text === journalLine(step, t).text
+    ) {
+      prev.times += 1
+      continue
+    }
+    if (out.length === max) break
+    out.push({ ...step, times: 1 })
+  }
+  return out
 }
