@@ -42,6 +42,8 @@ import {
 } from './src/agent/billing-shared'
 import { KIE_WEB_MODELS } from './src/agent/kie-web-provider'
 import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated' // cyrillic-ok: generated table
+import { DEAREST_VARIANT_USD } from './src/agent/kie-prices.generated'
+import { KIE_MODELS } from './src/agent/kie-models'
 
 const MARKUP = НАЦЕНКА // cyrillic-ok: the owner's markup constant
 const modelPrices = модельныеЦены // cyrillic-ok: existing export
@@ -161,6 +163,37 @@ describe('which Kie videos can be sold at all', () => {
       length: null,
     })
   })
+  it('refuses a clip whose name matches dearer rows than the one it is priced at', () => {
+    // wan/2-5: priced at $0.30, its name matches rows up to $1.00, and the
+    // request carries only the prompt -- the provider picks the variant.
+    const spread = kieVideoSale({ ...clip, dearest: 1 })
+    expect(spread.sold).toBe(false)
+    // A name pinned to one row: its dearest is its cost, and it is sold.
+    expect(kieVideoSale({ ...clip, dearest: 0.3 }).sold).toBe(true)
+    expect(kieVideoSale({ ...clip, dearest: null }).sold).toBe(true)
+    // The catalogue: the one per-clip video with a spread is the one refused.
+    const s = kieVideoSaleOf('kie/wan/2-5-text-to-video')
+    expect(s.sold).toBe(false)
+    if (!s.sold) expect(s.why).toMatch(/from \$0\.3 to \$1/)
+    for (const id of Object.keys(KIE_COST)) {
+      const sale = kieVideoSaleOf(id)
+      if (isKieVideoModel(id) && sale.sold && sale.per === 'clip')
+        expect(DEAREST_VARIANT_USD[id], id).toBe(KIE_COST[id])
+    }
+  })
+
+  it('refuses a clip priced at one length whose request carries the length', () => {
+    // Latent today (no per-clip contract carries `duration`): the route would
+    // send the chip ('10') while the price stays on its 5-second row.
+    const carries = kieVideoSale({ ...clip, needs: ['prompt', 'duration'] })
+    expect(carries.sold).toBe(false)
+    for (const m of KIE_MODELS) {
+      const sale = kieVideoSaleOf(m.id)
+      if (sale.sold && sale.per === 'clip')
+        expect(m.needs, m.id).not.toContain('duration')
+    }
+  })
+
   it('refuses a unit that does not price a clip, and a missing price', () => {
     for (const unit of ['за картинку', 'за запрос', null, undefined])
       expect(kieVideoSale({ ...clip, unit }).sold, String(unit)).toBe(false)

@@ -80,6 +80,9 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
    * Not pinned: wan/2-5 (its page names no default for either field) and the
    * per-second models whose LENGTH the provider picks -- those are not sold
    * at all (billing-shared.ts, `kieVideoSale`), whatever their row says.
+   * wan/2-5 is refused because its name matches clips at different prices
+   * ($0.30 to $1.00); pinning its name to the row we are billed at is what
+   * would bring it back.
    */
   'kling/v2-1-pro': 'Kling 2.1, video-generation, Pro-5.0s',
   'kling/v3-turbo-text-to-video': 'kling 3.0 turbo',

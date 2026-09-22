@@ -188,13 +188,17 @@ const unitWord = (unit: string) => ЕДИНИЦА[unit] ?? unit // cyrillic-ok: 
  */
 function notSold(
   model: { id: string; needs?: string[] },
-  row: PriceRow | null
+  row: PriceRow | null,
+  // The dearest same-unit row this pass found (`DEAREST_VARIANT_USD`): the
+  // rule refuses a clip whose name matches rows at different prices.
+  dearest: number | null
 ): boolean {
   if (kindOf(model.id) !== 'video') return false
   return !kieVideoSale({
     cost: row ? +row.usdPrice : null,
     unit: row ? unitWord(row.creditUnit) : null,
     needs: model.needs,
+    dearest,
   }).sold
 }
 
@@ -461,7 +465,7 @@ ${записи
     const требует = отЧеловека.length
       ? [...new Set(отЧеловека)].join(' + ')
       : видимое.требует
-    return `    Модель(id: "${экр(м.id)}", название: "${экр(видимое.название)}", вид: .${видимое.вид}, живая: ${м.state === 'live'}, требует: "${экр(требует)}", опасная: ${fencedFromProbes(м.id) || видимое.опасная === true}, ценаUSD: ${ц}, единица: ${е}, входИзвне: ${входИзвне(м)}, нуженИсходник: ${нуженИсходник(м)}, видИсходника: ${видИсходника(м)}, notSold: ${notSold(м, цена)}), // cyrillic-ok: generated UI catalogue`
+    return `    Модель(id: "${экр(м.id)}", название: "${экр(видимое.название)}", вид: .${видимое.вид}, живая: ${м.state === 'live'}, требует: "${экр(требует)}", опасная: ${fencedFromProbes(м.id) || видимое.опасная === true}, ценаUSD: ${ц}, единица: ${е}, входИзвне: ${входИзвне(м)}, нуженИсходник: ${нуженИсходник(м)}, видИсходника: ${видИсходника(м)}, notSold: ${notSold(м, цена, dearestById.get(м.id) ?? null)}), // cyrillic-ok: generated UI catalogue`
   })
   .join('\n')}
   ]
