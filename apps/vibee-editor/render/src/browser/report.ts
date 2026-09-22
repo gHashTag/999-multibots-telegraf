@@ -208,7 +208,8 @@ export function taskText(content: unknown): string {
 export function filmCaption(frames: number): string {
   return (
     `🎞 Запись работы агента: ${frames} ${plural(frames, 'кадр', 'кадра', 'кадров')} — ` + // cyrillic-ok
-    'снимок всего экрана после каждого действия и каждого взгляда агента. ' + // cyrillic-ok
+    'экран каждые 2 секунды, пока агент работал, и после каждого его шага; ' + // cyrillic-ok
+    'зелёный круг — куда он нажал. ' + // cyrillic-ok
     'Как покадровая съёмка в лаборатории: быстрый процесс, разложенный на мгновения.'
   ) // cyrillic-ok
     .slice(0, CAPTION_MAX_CHARS)

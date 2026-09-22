@@ -23,6 +23,7 @@ import {
   takeFilm,
   filmArgs,
   filmToMp4,
+  annotateArgs,
   resetFilmsForTests,
   FILM_MAX_FRAMES,
   FILM_TTL_MS,
@@ -333,5 +334,111 @@ describe('the film', () => {
     ])
     await rm(probeDir, { recursive: true, force: true })
     expect(String(stdout).trim()).toBe('1280,720,yuv420p')
+  }, 60_000)
+})
+
+describe('marks on the film (owner, 2026-09-22: "a ring where it clicked")', () => {
+  it('rings the click and writes the step word through a file, never inline', () => {
+    const a = annotateArgs(
+      '/d/in.jpg',
+      '/d/out.jpg',
+      { mark: { x: 100, y: 60 }, label: 'clicked: 50%' },
+      '/d/l.txt',
+      '/f.ttf'
+    )!.join(' ')
+    expect(a).toContain('drawbox=x=76:y=36:w=48:h=48')
+    expect(a).toContain('textfile=/d/l.txt')
+    expect(a).not.toContain('50%')
+  })
+
+  it('draws nothing it cannot place: no mark, no font', () => {
+    expect(annotateArgs('/i', '/o', {}, null, null)).toBeNull()
+    expect(annotateArgs('/i', '/o', { label: 'x' }, '/l', null)).toBeNull()
+  })
+
+  it('a ring near the edge stays on the picture', () => {
+    expect(
+      annotateArgs('/i', '/o', { mark: { x: 3, y: 5 } }, null, null)!.join(' ')
+    ).toContain('drawbox=x=0:y=0')
+  })
+
+  it('a frame that cannot be drawn on is still in the film', async () => {
+    const calls: string[][] = []
+    const mp4 = await filmToMp4(
+      [
+        {
+          at: 0,
+          tool: 'browser_click',
+          jpeg: Buffer.from('a').toString('base64'),
+          mark: { x: 1, y: 1 },
+        },
+        { at: 1, tool: 'tick', jpeg: Buffer.from('b').toString('base64') },
+      ],
+      async (_bin, args) => {
+        calls.push(args)
+        if (args.some(x => x.startsWith('drawbox')))
+          throw new Error('bad frame')
+      },
+      {
+        mkdtemp,
+        writeFile,
+        readFile: async (p: string) =>
+          p.endsWith('.mp4') ? Buffer.from('mp4') : readFile(p),
+        rm,
+      },
+      tmpdir()
+    )
+    expect(mp4?.toString()).toBe('mp4')
+    expect(calls.length).toBe(2)
+  })
+
+  it('draws a real ring on a real frame (when ffmpeg is here)', async () => {
+    const run = promisify(execFile)
+    try {
+      await run('ffmpeg', ['-version'])
+    } catch {
+      return
+    }
+    const dir = await mkdtemp(`${tmpdir()}/mark-`)
+    await run('ffmpeg', [
+      '-y',
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=black:s=200x120',
+      '-frames:v',
+      '1',
+      `${dir}/in.jpg`,
+    ])
+    await run(
+      'ffmpeg',
+      annotateArgs(
+        `${dir}/in.jpg`,
+        `${dir}/out.jpg`,
+        { mark: { x: 100, y: 60 } },
+        null,
+        null
+      )!
+    )
+    await run('ffmpeg', [
+      '-y',
+      '-loglevel',
+      'error',
+      '-i',
+      `${dir}/out.jpg`,
+      '-vf',
+      'format=rgb24,crop=1:1:78:60',
+      '-f',
+      'rawvideo',
+      '-pix_fmt',
+      'rgb24',
+      `${dir}/px.raw`,
+    ])
+    const [r, g] = [...(await readFile(`${dir}/px.raw`))]
+    await rm(dir, { recursive: true, force: true })
+    expect(g).toBeGreaterThan(180)
+    expect(r).toBeLessThan(90)
   }, 60_000)
 })
