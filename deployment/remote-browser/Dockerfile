@@ -96,7 +96,14 @@ COPY cdp-bridge.conf /etc/neko/supervisord/cdp-bridge.conf
 # new tab and the home button land there; RestoreOnStartup 1 keeps the
 # person's own tabs across a restart, so t27.ai is what an EMPTY browser
 # shows, never something that replaces what they had open.
+# POP-UPS ALLOWED. "Continue with Google" on X (and most sign-ins through
+# Google, Apple, Microsoft) opens its account chooser in a pop-up. Chromium
+# blocked it when the AGENT pressed the button -- a CDP press does not count
+# as a person's gesture -- and showed the blocked-pop-up icon while the
+# agent pressed again and again (tri a2a, 2026-09-22). The person watches
+# every window this browser opens, so a pop-up hides nothing.
 RUN jq '.TranslateEnabled = false \
+      | .DefaultPopupsSetting = 1 \
       | .NewTabPageLocation = "https://t27.ai/" \
       | .HomepageLocation = "https://t27.ai/" \
       | .HomepageIsNewTabPage = false \
@@ -112,6 +119,7 @@ RUN jq '.TranslateEnabled = false \
       and .NewTabPageLocation == "https://t27.ai/" \
       and .HomepageLocation == "https://t27.ai/" \
       and .RestoreOnStartup == 1 \
+      and .DefaultPopupsSetting == 1 \
       and any(.ExtensionInstallBlocklist[]; . == "*") \
       and any(.ExtensionInstallAllowlist[]; . == "nngceckbapebfimnlniiiahkandclblb")' \
       /etc/chromium/policies/managed/policies.json
