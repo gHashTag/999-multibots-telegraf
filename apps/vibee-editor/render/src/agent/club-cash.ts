@@ -324,6 +324,18 @@ export async function recordCashClubMonth(
         next_start: dayOf(new Date(latestStart)),
       }
     }
+    // "Given by hand" with no hand grant on file would write a month of 0
+    // tokens, and every later repeat reads that 0: a paying member left with
+    // nothing and no way back through this tool (review of #2845). So the
+    // answer is taken only when there is a grant it answers for.
+    if (byHand && !(await tokensGivenByHand(pool, tid)).length) {
+      return {
+        ok: false,
+        error:
+          'tokens_already_given=true, но выданных вручную токенов за клуб у этого человека нет. ' + // cyrillic-ok: tool answer
+          'Месяц не записан. Повтори без tokens_already_given: токены месяца начислятся.', // cyrillic-ok: tool answer
+      }
+    }
     // A Stars month's tokens, or none when they were handed out by hand: the
     // row says which, so no later repeat of the command can credit them.
     const tokens = byHand ? 0 : clubTokensPerPeriod() // secret-guard-ok: token count, not a credential
