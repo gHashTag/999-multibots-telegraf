@@ -287,6 +287,31 @@ type Verdict = 'ok' | 'fail' | 'wait'
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+/** A BotFather call that had not returned when its step's time ran out. */
+export class DeadlineError extends Error {}
+
+/**
+ * `p`, or a DeadlineError once `ms` have passed. The deadline cannot live in
+ * the loop alone: a chat call that never returns would never reach the
+ * check, the run would hang, the one-run lock would stay held and the
+ * owner's client would never be hung up. A late call is abandoned, not
+ * awaited; closing the client when the run returns settles it.
+ */
+export function withDeadline<T>(
+  p: Promise<T>,
+  ms: number,
+  what: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new DeadlineError(`${what}: no answer in time`)),
+      Math.max(0, ms)
+    )
+  })
+  return Promise.race([p, late]).finally(() => clearTimeout(timer))
+}
+
 /**
  * Walk BotFather's menus for ONE bot and hand it ONE url.
  *
@@ -339,14 +364,28 @@ export async function driveBotFather(
     }
   }
 
-  /** Poll until BotFather's newest message differs from `before` and is judged. */
+  /**
+   * Poll until BotFather's newest message differs from `before` and is
+   * judged. Null when the step's deadline passes -- including while a read
+   * is still in flight.
+   */
   const waitFor = async (
     before: string,
-    judge: (m: BotFatherMessage) => Verdict
+    judge: (m: BotFatherMessage) => Verdict,
+    deadline = Date.now() + stepTimeoutMs
   ): Promise<{ m: BotFatherMessage; v: 'ok' | 'fail' } | null> => {
-    const deadline = Date.now() + stepTimeoutMs
     for (;;) {
-      const m = await chat.latest()
+      let m: BotFatherMessage | null
+      try {
+        m = await withDeadline(
+          chat.latest(),
+          deadline - Date.now(),
+          'reading BotFather'
+        )
+      } catch (e) {
+        if (e instanceof DeadlineError) return null
+        throw e
+      }
       if (m && signature(m) !== before) {
         note(m)
         current = m
@@ -364,15 +403,21 @@ export async function driveBotFather(
     judge: (m: BotFatherMessage) => Verdict
   ) => {
     const before = signature(current)
+    // One deadline for the whole step: the press and the wait after it.
+    const deadline = Date.now() + stepTimeoutMs
     let pressError: string | undefined
     try {
-      await chat.press(current!.id, button.data!)
+      await withDeadline(
+        chat.press(current!.id, button.data!),
+        stepTimeoutMs,
+        'pressing the button'
+      )
     } catch (e) {
       // BotFather may be slow to answer the callback and still edit the
       // screen; only a screen that never changes makes this a stop.
       pressError = redact(String((e as Error)?.message ?? e), 120)
     }
-    const r = await waitFor(before, judge)
+    const r = await waitFor(before, judge, deadline)
     return { r, pressError }
   }
 
@@ -387,15 +432,30 @@ export async function driveBotFather(
   const sendUrl = checkedUrl.href
 
   // ── open: /mybots ──
-  const initial = await chat.latest()
-  current = initial
+  const openBy = Date.now() + stepTimeoutMs
+  let initial: BotFatherMessage | null
+  try {
+    initial = await withDeadline(
+      chat.latest(),
+      stepTimeoutMs,
+      'reading BotFather'
+    )
+    current = initial
+    await withDeadline(
+      chat.send('/mybots'),
+      openBy - Date.now(),
+      'sending /mybots'
+    )
+  } catch (e) {
+    if (e instanceof DeadlineError) return stop('open', e.message)
+    throw e
+  }
   const hasBotOrNext = (m: BotFatherMessage): Verdict =>
     'found' in pickBotButton(m.buttons, bot) ||
     m.buttons.some(b => isNextPage(b.text))
       ? 'ok'
       : 'fail'
-  await chat.send('/mybots')
-  const opened = await waitFor(signature(initial), hasBotOrNext)
+  const opened = await waitFor(signature(initial), hasBotOrNext, openBy)
   if (!opened) return stop('open', 'BotFather did not answer /mybots in time')
   if (opened.v === 'fail') {
     return stop('open', `${bot} is not in the list /mybots shows`)
@@ -530,15 +590,26 @@ export async function driveBotFather(
 
   // ── send_url -> confirm ──
   const beforeUrl = signature(current)
-  await chat.send(sendUrl)
+  const confirmBy = Date.now() + stepTimeoutMs
+  try {
+    await withDeadline(chat.send(sendUrl), stepTimeoutMs, 'sending the URL')
+  } catch (e) {
+    if (!(e instanceof DeadlineError)) throw e
+    // Nobody knows whether it went out; reported as sent, never as not.
+    urlSent = true
+    return stop('send_url', `${e.message}; it may have reached BotFather`)
+  }
   urlSent = true
   record('send_url', true)
-  const reply = await waitFor(beforeUrl, m =>
-    REPLY_FAILED.test(m.text)
-      ? 'fail'
-      : REPLY_SUCCEEDED.test(m.text)
-        ? 'ok'
-        : 'wait'
+  const reply = await waitFor(
+    beforeUrl,
+    m =>
+      REPLY_FAILED.test(m.text)
+        ? 'fail'
+        : REPLY_SUCCEEDED.test(m.text)
+          ? 'ok'
+          : 'wait',
+    confirmBy
   )
   if (!reply) return stop('confirm', 'no reply BotFather is known to give')
   if (reply.v === 'fail') return stop('confirm', 'BotFather refused the URL')
