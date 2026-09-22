@@ -8175,7 +8175,7 @@ const server = createServer(async (req, res) => {
       if (who !== TELEGRAM_OWNER_ID)
         return sendJson(res, 403, { error: 'только владелец' })
       const { allProviders } = await import('./src/agent/provider')
-      const { chooseProvider, chosenProvider, isProviderId } = await import(
+      const { chooseProvider, isProviderId } = await import(
         './src/agent/provider-choice'
       )
       if (req.method === 'POST') {
@@ -8204,25 +8204,9 @@ const server = createServer(async (req, res) => {
         await chooseProvider(pool as never, asked)
         console.log(`[agent] provider chosen from the bot by ${who}: ${asked}`)
       }
-      const chain = allProviders()
-      const first = chain[0]
-      return sendJson(res, 200, {
-        current: first
-          ? {
-              id: first.id,
-              model: first.model,
-              context: first.context,
-              compact: first.compact,
-            }
-          : null,
-        chosen: chosenProvider(),
-        env: process.env.AGENT_PROVIDER || null,
-        chain: chain.map(p => ({
-          id: p.id,
-          model: p.model,
-          context: p.context,
-        })),
-      })
+      // What answers now, not only what was chosen: see provider-status.ts.
+      const { providerStatus } = await import('./src/agent/provider-status')
+      return sendJson(res, 200, providerStatus())
     }
 
     if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {

@@ -25,6 +25,18 @@ export interface ProviderStatus {
   chosen: ProviderId | null
   env: string | null
   chain: Array<{ id: ProviderId; model: string; context: number }>
+  /**
+   * Who a new turn asks first right now, and every provider the render's
+   * breaker has parked after a timeout (render/src/agent/provider-status.ts).
+   * Optional: a render deployed before them does not send them.
+   */
+  answering?: { id: ProviderId; model: string } | null
+  breakers?: Array<{
+    id: ProviderId
+    until: string
+    probing: boolean
+    reason: string
+  }>
 }
 
 async function call(
@@ -63,8 +75,30 @@ export function describeProvider(s: ProviderStatus): string {
     .map(p => `${PROVIDER_LABELS[p.id] ?? p.id} · ${p.model}`)
   return (
     `Модель агента: ${label}\n${c.model} · окно ${c.context} · ${kit}\n` +
-    (rest.length ? `Откат: ${rest.join(' → ')}` : 'Отката нет')
+    (rest.length ? `Откат: ${rest.join(' → ')}` : 'Отката нет') +
+    parkedLines(s)
   )
+}
+
+/**
+ * The breaker, in words: without it the view named the chosen model while the
+ * next one in the chain was answering every message.
+ */
+function parkedLines(s: ProviderStatus): string {
+  const parked = s.breakers ?? []
+  if (!parked.length) return ''
+  const lines = parked.map(
+    b =>
+      `${PROVIDER_LABELS[b.id] ?? b.id} отложена до ${b.until.slice(11, 16)} UTC` + // cyrillic-ok: owner-facing text
+      (b.probing ? ', идёт проба' : '') + // cyrillic-ok: owner-facing text
+      `: ${b.reason.slice(0, 120)}`
+  )
+  const now = s.answering
+  if (now && now.id !== s.current?.id)
+    lines.unshift(
+      `Сейчас отвечает: ${PROVIDER_LABELS[now.id] ?? now.id} · ${now.model}` // cyrillic-ok: owner-facing text
+    )
+  return `\n${lines.join('\n')}`
 }
 
 /** Who to write to next, from the seller's memory. */
