@@ -14,6 +14,7 @@ import {
   type InputRequestView,
   type PendingApproval,
   readPendingApproval,
+  isPressedAsk,
 } from '@/lib/remoteBrowser'
 import {
   askFor,
@@ -33,7 +34,11 @@ import {
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
-import { BrowserKeys, AskedPermission } from '@/components/Browser/BrowserKeys'
+import {
+  BrowserKeys,
+  AskedPermission,
+  AskedChoice,
+} from '@/components/Browser/BrowserKeys'
 import { isBrowserPath } from '@/lib/keptBrowser'
 import { frameStateOf, shouldReread } from '@/lib/frameState'
 import {
@@ -264,7 +269,13 @@ export default function BrowserPage() {
       setApproval(question)
       const asked = session?.inputRequest ?? null
       setInputRequest(asked)
-      if (asked && dismissedRequest.current !== asked.id) setShowType(true)
+      /* A request to TYPE opens the sheet; a choice has its own card. */
+      if (
+        asked &&
+        !isPressedAsk(asked) &&
+        dismissedRequest.current !== asked.id
+      )
+        setShowType(true)
     }
     void pull()
     const timer = setInterval(() => void pull(), JOURNAL_POLL_MS)
@@ -441,12 +452,19 @@ export default function BrowserPage() {
             />
           ) : null}
 
+          {embedded && inputRequest && isPressedAsk(inputRequest) ? (
+            <AskedChoice
+              request={inputRequest}
+              onAnswered={() => setInputRequest(null)}
+            />
+          ) : null}
+
           {embedded ? <BrowserKeys /> : null}
 
           {embedded ? (
             showType ? (
               <TypeSheet
-                request={inputRequest}
+                request={isPressedAsk(inputRequest) ? null : inputRequest}
                 onClose={() => {
                   dismissedRequest.current = inputRequest?.id ?? null
                   setShowType(false)

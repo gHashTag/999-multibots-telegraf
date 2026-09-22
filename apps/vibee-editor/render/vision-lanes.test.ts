@@ -66,7 +66,12 @@ describe('vision lanes', () => {
         ['data:image/jpeg;base64,AA'],
         5000
       ).catch(e => e)
-      await new Promise(r => setTimeout(r, 50))
+      /*
+       * Wait until the background ask is AT the server, not a fixed 50 ms:
+       * under load it had not arrived yet, so there was nothing to cut and
+       * it finished normally (1 in 8 runs, tri flaky, 2026-09-22).
+       */
+      await until(() => s.order.includes('clip'))
       const live = await askVision(
         s.v,
         'screen',

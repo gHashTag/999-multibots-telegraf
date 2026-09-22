@@ -105,10 +105,33 @@ describe('the agent asking for something to be typed', () => {
     expect(v.inputRequest).toEqual({
       id: 'q1',
       kind: 'password',
+      options: [],
       why: 'to sign in',
       host: 'accounts.example.com',
       label: 'Password',
     })
+  })
+
+  it('a choice carries its buttons, and is pressed, not typed', async () => {
+    const { asView, isPressedAsk } = await import('@/lib/remoteBrowser')
+    const v = asView({
+      state: 'live',
+      inputRequest: {
+        id: 'c',
+        kind: 'choice',
+        why: 'Skip or save?',
+        options: ['Skip', 'Save', 3],
+      },
+    })
+    expect(v.inputRequest?.options).toEqual(['Skip', 'Save'])
+    expect(isPressedAsk(v.inputRequest ?? null)).toBe(true)
+    expect(
+      isPressedAsk(
+        asView({ state: 'live', inputRequest: { id: 'p', kind: 'password' } })
+          .inputRequest ?? null
+      )
+    ).toBe(false)
+    expect(isPressedAsk(null)).toBe(false)
   })
 
   it('no request, or a malformed one, is none; an unknown kind is plain text', async () => {

@@ -37,7 +37,10 @@ export interface BrowserSessionView {
 
 export interface InputRequestView {
   id: string
-  kind: 'password' | 'email' | 'code' | 'text'
+  /** Typed (password, email, code, text) or pressed (choice, action). */
+  kind: 'password' | 'email' | 'code' | 'text' | 'choice' | 'action'
+  /** The buttons for choice and action. */
+  options: string[]
   /** The agent's words: what it is for. */
   why: string
   host: string
@@ -48,12 +51,19 @@ function inputRequestOf(raw: unknown): InputRequestView | null {
   const r = (raw ?? null) as Partial<InputRequestView> | null
   if (!r || typeof r !== 'object' || typeof r.id !== 'string') return null
   const kind =
-    r.kind === 'password' || r.kind === 'email' || r.kind === 'code'
+    r.kind === 'password' ||
+    r.kind === 'email' ||
+    r.kind === 'code' ||
+    r.kind === 'choice' ||
+    r.kind === 'action'
       ? r.kind
       : 'text'
   return {
     id: r.id,
     kind,
+    options: Array.isArray(r.options)
+      ? r.options.filter((o): o is string => typeof o === 'string')
+      : [],
     why: typeof r.why === 'string' ? r.why : '',
     host: typeof r.host === 'string' ? r.host : '',
     label: typeof r.label === 'string' ? r.label : '',
@@ -387,6 +397,27 @@ export async function pressInBrowser(
     await apiFetch(`${API_BASE}/api/browser/type`, {
       method: 'POST',
       body: JSON.stringify(what),
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The agent's request is answered by pressing, not typing. Pure. */
+export function isPressedAsk(r: InputRequestView | null): boolean {
+  return r?.kind === 'choice' || r?.kind === 'action'
+}
+
+/** The person pressed one of the agent's options. True when it counted. */
+export async function chooseInBrowser(
+  id: string,
+  option: string
+): Promise<boolean> {
+  try {
+    await apiFetch(`${API_BASE}/api/browser/choose`, {
+      method: 'POST',
+      body: JSON.stringify({ id, option }),
     })
     return true
   } catch {

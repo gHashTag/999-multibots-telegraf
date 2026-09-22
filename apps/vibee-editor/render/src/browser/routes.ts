@@ -68,7 +68,12 @@ import {
   type Focus,
   type TypeIo,
 } from './person-type'
-import { markTyped, pendingInput, inputRequestView } from './input-request'
+import {
+  markTyped,
+  markChosen,
+  pendingInput,
+  inputRequestView,
+} from './input-request'
 import {
   ensureApprovals,
   pendingApprovalFor,
@@ -84,6 +89,7 @@ export const BROWSER_PATHS = [
   '/api/browser/wheel',
   '/api/browser/type',
   '/api/browser/decide',
+  '/api/browser/choose',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -391,6 +397,48 @@ export async function handleBrowser(
     /* A yes opens the guarded door for a few minutes (guard.ts). */
     if (state === 'allowed') await markAllowed(pool, who)
     return { status: 200, body: { ok: true, state } }
+  }
+
+  /*
+   * THE PERSON PRESSES ONE OF THE AGENT'S OPTIONS (input-request.ts
+   * markChosen): a choice, or Done / Cannot for something only they can do.
+   * The person's door only; only an option the agent offered; only once.
+   */
+  if (path === '/api/browser/choose') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: { ok: false, error: 'выбирать может только сам человек' }, // cyrillic-ok: user-facing error
+      }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'POST only' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'not wired' } }
+    }
+    let pick: { id?: unknown; option?: unknown }
+    try {
+      pick = JSON.parse(await deps.readBody(req, 4096)) ?? {}
+    } catch {
+      return { status: 400, body: { ok: false, error: 'the body is not JSON' } }
+    }
+    if (typeof pick.id !== 'string' || typeof pick.option !== 'string') {
+      return {
+        status: 400,
+        body: { ok: false, error: 'id and option are required' },
+      }
+    }
+    if (!markChosen(who, pick.id, pick.option)) {
+      return {
+        status: 409,
+        body: {
+          ok: false,
+          error: 'на этот вопрос уже ответили или он устарел',
+        }, // cyrillic-ok: user-facing error
+      }
+    }
+    return { status: 200, body: { ok: true } }
   }
 
   if (path === '/api/browser/cookies') {

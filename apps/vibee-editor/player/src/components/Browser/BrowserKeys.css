@@ -93,3 +93,29 @@
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.55);
 }
+
+/* A decision the agent waits on: the house green, not the warning amber. */
+.asked-choice {
+  border-color: rgba(0, 255, 136, 0.45);
+  background:
+    linear-gradient(180deg, rgba(0, 255, 136, 0.08), rgba(0, 255, 136, 0) 70%),
+    #0b0f0d;
+}
+
+.asked-choice h2 {
+  color: #00ff88;
+}
+
+/* More than two options: one per row, so long words are not cut. */
+.asked-choice__list {
+  display: grid;
+  gap: 8px;
+}
+
+.asked-choice__list button {
+  height: 44px;
+  border-radius: 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}

@@ -4,7 +4,9 @@ import { useLanguage } from '@/hooks/useLanguage'
 import {
   pressInBrowser,
   answerApproval,
+  chooseInBrowser,
   type PendingApproval,
+  type InputRequestView,
 } from '@/lib/remoteBrowser'
 
 /**
@@ -116,6 +118,82 @@ export function AskedPermission({
       <p className="asked-permission__note">
         {failed ? t('browser.ask.failed') : t('browser.ask.note')}
       </p>
+    </section>
+  )
+}
+
+/**
+ * THE AGENT NEEDS A DECISION, OR A HAND (render input-request.ts).
+ *
+ * choice: the agent's own options as buttons ("Skip" / "Save").
+ * action: something only the person can do -- a captcha, a push on their
+ * phone, a QR code -- done in the window above, then Done or Cannot.
+ */
+export function AskedChoice({
+  request,
+  onAnswered,
+}: {
+  request: InputRequestView
+  onAnswered: () => void
+}) {
+  const { t } = useLanguage()
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const action = request.kind === 'action'
+  const pick = async (option: string) => {
+    setBusy(true)
+    const ok = await chooseInBrowser(request.id, option)
+    setBusy(false)
+    setFailed(!ok)
+    if (ok) onAnswered()
+  }
+  const labelOf = (o: string) =>
+    action
+      ? o === 'done'
+        ? t('browser.choice.done')
+        : t('browser.choice.cannot')
+      : o
+  return (
+    <section
+      className="asked-permission asked-choice"
+      role="alertdialog"
+      aria-labelledby="asked-choice-title"
+    >
+      <h2 id="asked-choice-title">
+        {action ? t('browser.choice.actionTitle') : t('browser.choice.title')}
+      </h2>
+      <p className="asked-permission__what">{request.why}</p>
+      {action ? (
+        <p className="asked-permission__note">
+          {t('browser.choice.actionHint')}
+        </p>
+      ) : null}
+      <div
+        className={
+          request.options.length > 2
+            ? 'asked-choice__list'
+            : 'asked-permission__buttons'
+        }
+      >
+        {request.options.map((o, i) => (
+          <button
+            key={o}
+            type="button"
+            disabled={busy}
+            className={
+              (action ? o === 'done' : i === 0)
+                ? 'asked-permission__yes'
+                : 'asked-permission__no'
+            }
+            onClick={() => void pick(o)}
+          >
+            {labelOf(o)}
+          </button>
+        ))}
+      </div>
+      {failed ? (
+        <p className="asked-permission__note">{t('browser.ask.failed')}</p>
+      ) : null}
     </section>
   )
 }

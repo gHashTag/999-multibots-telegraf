@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { addFrame, FILMED_TOOLS, TICK_MS, TICK_IDLE_MS } from './film'
 import { cdpTypeIo } from './person-type'
-import { askForInput, asKind, waitForTyped } from './input-request'
+import { askForInput, asKind, optionsFor, waitForAnswer } from './input-request'
 /**
  * THE REASON AN AGENT DID NOT KNOW THE BROWSER EXISTED.
  *
@@ -286,9 +286,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         waitSeconds: {
           type: 'number',
           description:
-            'подождать ответа прямо в этом вызове, до 120 с. ' + // cyrillic-ok
-            'По умолчанию НЕ ждёт: спрашивает и сразу возвращает pending, ' + // cyrillic-ok
-            'а ответ ты читаешь следующим вызовом.', // cyrillic-ok
+            'ждать ответа, до 120 с; по умолчанию 0 — pending, ответ следующим вызовом', // cyrillic-ok
         },
       },
       required: ['what'],
@@ -361,13 +359,17 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
      */
     name: 'browser_ask_input',
     description:
-      'Пароль, код, почту вводит САМ человек; ты их не увидишь. x,y — поле. ' + // cyrillic-ok: tool description
-      'Ждёт до 120 с; typed — продолжай.', // cyrillic-ok
+      'Нужен человек: секрет вводит САМ (не увидишь), x,y — поле; choice — options; ' + // cyrillic-ok: tool description
+      'action — сделать ему (капча). Ждёт 120 с.', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['password', 'email', 'code', 'text'] },
+        kind: {
+          type: 'string',
+          enum: ['password', 'email', 'code', 'text', 'choice', 'action'],
+        },
         why: { type: 'string' },
+        options: { type: 'array', items: { type: 'string' } },
         x: { type: 'number' },
         y: { type: 'number' },
       },
@@ -378,6 +380,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       const a = args as {
         kind?: unknown
         why?: unknown
+        options?: unknown
         x?: unknown
         y?: unknown
       }
@@ -386,6 +389,9 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         .slice(0, 200)
       if (!why) throw new Error('say in one sentence what it is for')
       const kind = asKind(a.kind)
+      const options = optionsFor(kind, a.options)
+      /* password, email, code, text are typed; choice and action are pressed. */
+      const typing = kind !== 'choice' && kind !== 'action'
       const { cdp, targetId } = await podOf(ctx)
       const session = await readSession(
         ctx.pool as unknown as Queryable,
@@ -398,6 +404,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
        */
       let pointed = false
       if (
+        typing &&
         typeof a.x === 'number' &&
         typeof a.y === 'number' &&
         !personHasTheWheel(session, Date.now())
@@ -418,16 +425,31 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
         kind,
         why,
         host: focus.host,
-        label: focus.label,
+        label: typing ? focus.label : '',
+        options,
       })
       await askForInputInTelegram(ctx.telegramId, kind, why, focus.host).catch(
         () => {}
       )
-      const typed = await waitForTyped(
+      const answer = await waitForAnswer(
         ctx.telegramId,
         request.id,
         ctx.probe === true ? 0 : WAIT_CAP_MS
       )
+      if (answer?.chosen) {
+        const option = answer.chosen.option
+        return {
+          answered: true,
+          chosen: option,
+          note:
+            kind !== 'action'
+              ? 'the person chose this. Do exactly that, then continue.'
+              : option === 'done'
+                ? 'the person says it is done. Look (browser_screenshot) and continue.'
+                : 'the person cannot do it now. Stop this step and tell them what else could work.',
+        }
+      }
+      const typed = answer?.typed
       if (typed) {
         return {
           typed: true,
@@ -441,11 +463,14 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       }
       return {
         typed: false,
+        answered: false,
         pointed,
         field: focus.field,
-        note:
-          'not typed yet; the field is waiting on their screen. Tell them in one line what to enter ' +
-          'and where, then check later with browser_screenshot. Never ask for it in the chat.',
+        note: typing
+          ? 'not typed yet; the field is waiting on their screen. Tell them in one line what to enter ' +
+            'and where, then check later with browser_screenshot. Never ask for it in the chat.'
+          : 'no answer yet; the buttons are on their screen and in Telegram. Tell them in one line ' +
+            'what you are waiting for, then ask again later.',
       }
     },
   },
@@ -917,14 +942,21 @@ export const BROWSER_TOOLS: AgentTool[] =
  * drag the sender into every one of them.
  */
 /* The person's Telegram: a button that opens the typing sheet in the app. */
-async function askForInputInTelegram(
-  telegramId: string,
-  kind: string,
-  why: string,
-  host: string
-): Promise<void> {
-  const { sendToTelegram } = await import('../auth/telegram-sender')
-  const { openBrowserButton, BROWSER_TAB_URL } = await import('./announce')
+/** The Telegram words for each kind of ask. Pure. */
+export function askText(kind: string, why: string, host: string): string {
+  const where = host ? ` (${host})` : ''
+  if (kind === 'choice') {
+    return (
+      `🤔 Агенту нужно ваше решение${where}:\n\n«${why}»\n\n` + // cyrillic-ok: user-facing
+      'Выберите в приложении — агент продолжит сам.' // cyrillic-ok: user-facing
+    )
+  }
+  if (kind === 'action') {
+    return (
+      `🙋 Агенту нужно, чтобы вы сделали это сами${where}:\n\n«${why}»\n\n` + // cyrillic-ok: user-facing
+      'Сделайте и нажмите «Готово» в приложении.' // cyrillic-ok: user-facing
+    )
+  }
   const what =
     kind === 'password'
       ? 'пароль' // cyrillic-ok: user-facing
@@ -933,17 +965,31 @@ async function askForInputInTelegram(
         : kind === 'email'
           ? 'почту' // cyrillic-ok: user-facing
           : 'текст' // cyrillic-ok: user-facing
-  await sendToTelegram(
-    telegramId,
+  return (
     `🔑 Агенту нужен ваш ${what}${host ? ` для ${host}` : ''}.\n\n` + // cyrillic-ok: user-facing
-      `«${why}»\n\n` +
-      'Введите его сами — агент его не увидит и продолжит, как только вы введёте.', // cyrillic-ok: user-facing
-    {
-      inline_keyboard: [
-        [openBrowserButton('⌨ Ввести', `${BROWSER_TAB_URL}?type=1`)], // cyrillic-ok: button label
-      ],
-    }
+    `«${why}»\n\n` +
+    'Введите его сами — агент его не увидит и продолжит, как только вы введёте.' // cyrillic-ok: user-facing
   )
+}
+
+async function askForInputInTelegram(
+  telegramId: string,
+  kind: string,
+  why: string,
+  host: string
+): Promise<void> {
+  const { sendToTelegram } = await import('../auth/telegram-sender')
+  const { openBrowserButton, BROWSER_TAB_URL } = await import('./announce')
+  const pressed = kind === 'choice' || kind === 'action'
+  await sendToTelegram(telegramId, askText(kind, why, host), {
+    inline_keyboard: [
+      [
+        pressed
+          ? openBrowserButton('👆 Ответить', BROWSER_TAB_URL) // cyrillic-ok: button label
+          : openBrowserButton('⌨ Ввести', `${BROWSER_TAB_URL}?type=1`), // cyrillic-ok: button label
+      ],
+    ],
+  })
 }
 
 async function askThePerson(
