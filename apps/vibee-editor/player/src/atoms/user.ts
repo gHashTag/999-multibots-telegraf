@@ -3,16 +3,17 @@
 // Freemium model: 3 free renders
 // ===============================
 
-import { atom, getDefaultStore } from 'jotai'
+import { atom } from 'jotai'
 import { atomWithStorage, createJSONStorage } from 'jotai/utils'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { API_BASE } from '../config'
 import { authHeaders } from '../lib/apiFetch'
 import {
   APP_SESSION_CLEARED,
-  hasCookieSession,
+  APP_SESSION_PERSON,
   logoutAppSession,
 } from '../lib/appSession'
+import { editorStore } from './Provider'
 import { sessionStore } from '../lib/framedSession'
 
 // Import shared types from @vibee/atoms
@@ -27,50 +28,40 @@ import type {
 export type { TelegramUser, RenderQuota, SubscriptionInfo, InstagramStatus }
 
 /*
- * Where the signed-in person is remembered: beside their session.
+ * The signed-in person, kept BESIDE their access token: the tab's
+ * sessionStorage, or memory inside a frame by another site (framedSession.ts).
  *
- * With the refresh token in the HttpOnly cookie the session outlives the tab,
- * so the person must too, or a new tab renews the session and still shows
- * "Log in" -- the header has no one to show. localStorage then; it holds a
- * name, a username and a photo, never a credential. Without a cookie session
- * it stays where the session is: the tab's sessionStorage, or memory inside a
- * frame by another site (lib/framedSession.ts).
+ * Kept together on purpose. A first version moved the person to localStorage
+ * so a new tab would show them at once; a new tab then held a person with no
+ * token, Header's guest sweep answered that with a logout, and the logout --
+ * now carrying the refresh cookie -- revoked the whole family. So the person
+ * never outruns the token: a renewed cookie session brings them with it
+ * (APP_SESSION_PERSON), and they leave with it (APP_SESSION_CLEARED).
  */
-function personStore(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
-  if (hasCookieSession()) {
-    try {
-      return window.localStorage
-    } catch {
-      // A browser that refuses storage: fall through to the tab's store.
-    }
-  }
-  return sessionStore()
-}
-
 export const userAtom = atomWithStorage<TelegramUser | null>(
   STORAGE_KEYS.user,
   null,
-  createJSONStorage(() => personStore())
+  createJSONStorage(() => sessionStore())
 )
 
 /*
- * A SESSION THAT ENDS TAKES THE PERSON WITH IT.
- *
- * clearAppSession used to drop the tokens and leave this atom set, so after a
- * dead session the header kept the avatar with neither Login nor Logout, and
- * every action failed with 401. It now fires APP_SESSION_CLEARED; this is the
- * other end. localStorage is cleared by name as well as the atom reset: by the
- * time the event fires the cookie hint is already gone, so the atom's own
- * write would land in the tab's store and leave the long-lived copy behind.
+ * These write to editorStore, the store the app is rendered from
+ * (atoms/Provider.tsx). A first version wrote to jotai's default store, which
+ * nothing renders, so the header never heard.
  */
 if (typeof window !== 'undefined') {
+  // A session that ends takes the person with it: without this the header
+  // kept the avatar with neither Login nor Logout, and every action got 401.
   window.addEventListener(APP_SESSION_CLEARED, () => {
-    try {
-      window.localStorage.removeItem(STORAGE_KEYS.user)
-    } catch {
-      // Nothing persisted there to remove.
-    }
-    getDefaultStore().set(userAtom, null)
+    editorStore.set(userAtom, null)
+  })
+  // A session renewed in a tab that has never seen the person brings them.
+  // Only into an empty slot: a person already here is not replaced by a reply.
+  window.addEventListener(APP_SESSION_PERSON, event => {
+    const person = (event as CustomEvent<TelegramUser>).detail
+    if (!person || typeof person.id !== 'number') return
+    if (editorStore.get(userAtom)) return
+    editorStore.set(userAtom, { ...person, is_admin: false })
   })
 }
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  APP_ORIGIN,
   REFRESH_COOKIE_NAME,
   REFRESH_COOKIE_PATH,
+  applyAuthCors,
   clearedRefreshCookie,
   isSecureRequest,
   readRefreshCookie,
@@ -36,8 +38,16 @@ describe('the refresh cookie a server sets', () => {
     )
   })
 
-  it('carries Secure only over TLS', () => {
-    expect(refreshCookie('tok', in60Days, false, now)).not.toContain('Secure')
+  it('is always Secure, which __Host- requires or the browser drops it', () => {
+    expect(refreshCookie('tok', in60Days, false, now)).toContain('Secure')
+    expect(clearedRefreshCookie(false)).toContain('Secure')
+  })
+
+  it('is a __Host- cookie on Path=/ with no Domain, so no sibling can shadow it', () => {
+    const c = refreshCookie('tok', in60Days, true, now)
+    expect(REFRESH_COOKIE_NAME.startsWith('__Host-')).toBe(true)
+    expect(c).toContain('Path=/;')
+    expect(c).not.toMatch(/Domain=/i)
   })
 
   it('escapes a token so it cannot inject another attribute', () => {
@@ -82,6 +92,17 @@ describe('reading the cookie back', () => {
     ).toBe('')
   })
 
+  it('spends neither when two cookies share the name -- one was planted', () => {
+    expect(
+      readRefreshCookie({
+        headers: {
+          ...optIn,
+          cookie: `${REFRESH_COOKIE_NAME}=planted; ${REFRESH_COOKIE_NAME}=mine`,
+        },
+      })
+    ).toBe('')
+  })
+
   it('answers empty rather than throwing on a malformed escape', () => {
     expect(
       readRefreshCookie({
@@ -111,5 +132,46 @@ describe('the opt-in and the scheme', () => {
       false
     )
     expect(isSecureRequest({ headers: {} })).toBe(false)
+  })
+})
+
+describe('credentialed CORS for the sign-in doors', () => {
+  function run(url: string, origin: string | undefined) {
+    const set: Record<string, string> = {}
+    applyAuthCors(
+      { url, headers: origin ? { origin } : {} },
+      { setHeader: (k: string, v: string) => (set[k] = v) }
+    )
+    return set
+  }
+
+  it('names app.t27.ai and allows credentials on /api/auth/*', () => {
+    const h = run('/api/auth/refresh', APP_ORIGIN)
+    expect(h['Access-Control-Allow-Origin']).toBe(APP_ORIGIN)
+    expect(h['Access-Control-Allow-Credentials']).toBe('true')
+    expect(h['Access-Control-Allow-Headers']).toContain('x-session-transport')
+    expect(h.Vary).toBe('Origin')
+  })
+
+  it('gives nothing to a sibling on the same site', () => {
+    // Same site as the app, so SameSite=Strict would let its requests carry
+    // the cookie; the missing credentials grant is what keeps it out.
+    expect(run('/api/auth/refresh', 'https://t27.ai')).toEqual({})
+    expect(run('/api/auth/refresh', 'https://leela.t27.ai')).toEqual({})
+  })
+
+  it('gives nothing outside the sign-in doors, even to the app', () => {
+    expect(run('/api/feed', APP_ORIGIN)).toEqual({})
+    expect(run('/api/authx/refresh', APP_ORIGIN)).toEqual({})
+  })
+
+  it('gives nothing to a request with no Origin', () => {
+    expect(run('/api/auth/refresh', undefined)).toEqual({})
+  })
+
+  it('ignores a query string when matching the path', () => {
+    expect(
+      run('/api/auth/refresh?x=1', APP_ORIGIN)['Access-Control-Allow-Origin']
+    ).toBe(APP_ORIGIN)
   })
 })
