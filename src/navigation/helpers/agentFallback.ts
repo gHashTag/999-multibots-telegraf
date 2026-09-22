@@ -129,11 +129,28 @@ function buttonLabel(id: string, isRu: boolean): string {
  * available". The list guarded against promising what cannot run; the
  * no-tools line below guards against promising ANYTHING, which is the truth
  * of this path.
+ *
+ * RUBLES ONLY WHERE THE CHOOSER SHOWS THEM. The top-up button opens
+ * PaymentScene, which draws Stars and crypto for everyone and rubles only when
+ * shouldShowRubles(ctx) says so -- a Russian speaker, on a bot that takes
+ * rubles. The English prompt is built for somebody that check has already
+ * turned away, and a Russian line can be written to somebody whose stored
+ * language is English, so the caller passes the chooser's own answer and the
+ * prompt names rubles only when it is true. Default: no rubles -- a door the
+ * prompt names and the chooser does not draw is a false promise, and Stars
+ * work everywhere.
  */
-export function fallbackSystemPrompt(isRu: boolean): string {
+export function fallbackSystemPrompt(isRu: boolean, rubles = false): string {
   const ids = FALLBACK_BUTTON_IDS.join(', ')
   const topup = buttonLabel('topup', isRu)
   const balance = buttonLabel('balance', isRu)
+  const ways = isRu
+    ? rubles
+      ? 'звёздами Telegram, рублями или криптой'
+      : 'звёздами Telegram или криптой'
+    : rubles
+      ? 'Telegram Stars, rubles or crypto'
+      : 'Telegram Stars or crypto'
   const lines = isRu
     ? [
         'Язык ответа: русский.',
@@ -141,7 +158,7 @@ export function fallbackSystemPrompt(isRu: boolean): string {
         'Сейчас ты отвечаешь без инструментов: не можешь ничего сгенерировать, узнать баланс, открыть ссылку или файл. Если просят действие — коротко скажи, что сейчас это не получится, и предложи повторить через минуту.',
         'Отвечай на последнее сообщение человека по существу и кратко (2-3 предложения). Не представляйся и не здоровайся, если с тобой не поздоровались.',
         'Не выдумывай услуги, функции, цены и тарифы, которых нет в этой подсказке. Не угадывай, что внутри ссылки или файла: если непонятно, чего хочет человек, спроси.',
-        `Оплата: генерации тратят токены, токены покупают звёздами Telegram, рублями или криптой — всё под кнопкой «${topup}».`,
+        `Оплата: генерации тратят токены, токены покупают ${ways} — всё под кнопкой «${topup}».`,
         'Подписка одна — клуб: цифровой двойник человека, который отвечает в личке и в группах его голосом и делает рилсы в его стиле. Цену и вступление показывает команда /club, сам цифр не называй.',
         `Точную цену операции и баланс не выдумывай: баланс — кнопка «${balance}», цена показывается перед запуском.`,
         `Если уместно, предложи кнопку в конце ответа маркером [[Подпись|act:id]], где id — одно из: ${ids}. Другие id не работают, не выдумывай их.`,
@@ -153,7 +170,7 @@ export function fallbackSystemPrompt(isRu: boolean): string {
         'Right now you answer without tools: you cannot generate anything, look up a balance, or open a link or a file. If the person asks for an action, say briefly that it cannot be done right now and suggest trying again in a minute.',
         "Answer the person's last message to the point and briefly (2-3 sentences). Do not introduce yourself or greet unless you were greeted.",
         'Never invent services, features, prices or plans that are not in this prompt. Do not guess what is behind a link or a file: if it is unclear what the person wants, ask.',
-        `Payment: generations spend tokens, and tokens are bought with Telegram Stars, rubles or crypto -- all under the "${topup}" button.`,
+        `Payment: generations spend tokens, and tokens are bought with ${ways} -- all under the "${topup}" button.`,
         'There is one subscription, the club: a digital twin of the person that answers in DMs and groups in their voice and makes reels in their style. The /club command shows its price and how to join; never name a number yourself.',
         `Do not invent the price of an operation or a balance: the balance is under the "${balance}" button, and a price is shown before anything starts.`,
         `If it fits, offer a button at the end of the answer with a marker [[Label|act:id]], where id is one of: ${ids}. Other ids do not work; do not invent them.`,
@@ -200,11 +217,17 @@ export function recentTurns(
 export function fallbackMessages(opts: {
   isRu: boolean
   text: string
+  /**
+   * Whether the top-up chooser shows rubles to this person
+   * (shouldShowRubles). Required: the prompt must not name a door the
+   * chooser does not draw.
+   */
+  rubles: boolean
   /** The failed agent call's error, which may carry the history it read. */
   agentError?: unknown
 }): ChatMessage[] {
   return [
-    { role: 'system', content: fallbackSystemPrompt(opts.isRu) },
+    { role: 'system', content: fallbackSystemPrompt(opts.isRu, opts.rubles) },
     ...recentTurns(historyOf(opts.agentError)),
     { role: 'user', content: opts.text },
   ]
