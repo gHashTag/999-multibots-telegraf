@@ -34,6 +34,9 @@ import {
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
+import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
+import { PEEK_PX, type Detent } from '@/lib/sheetDetents'
+import { PHONE_MAX } from '@/lib/browserFit'
 import {
   BrowserKeys,
   AskedPermission,
@@ -254,6 +257,28 @@ export default function BrowserPage() {
   const dismissedRequest = useRef<string | null>(null)
   /* The agent's open question (render approvals.ts), shown with two buttons. */
   const [approval, setApproval] = useState<PendingApproval | null>(null)
+
+  /*
+   * THE SHEET ON A PHONE. It opens by itself to half the screen when the
+   * agent needs the person -- a permission, a choice, something to type --
+   * so nobody has to find the question; otherwise it stays a peek and the
+   * picture has the screen.
+   */
+  const [sheet, setSheet] = useState<Detent>('peek')
+  const [phone, setPhone] = useState(
+    () => window.matchMedia?.(`(max-width: ${PHONE_MAX}px)`).matches ?? false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia?.(`(max-width: ${PHONE_MAX}px)`)
+    if (!mq) return
+    const on = () => setPhone(mq.matches)
+    mq.addEventListener?.('change', on)
+    return () => mq.removeEventListener?.('change', on)
+  }, [])
+  const needsPerson = Boolean(approval || inputRequest || showType)
+  useEffect(() => {
+    if (needsPerson) setSheet(s => (s === 'peek' ? 'half' : s))
+  }, [needsPerson])
   useEffect(() => {
     if (!live || !onThisTab) return
     let stopped = false
@@ -286,16 +311,208 @@ export default function BrowserPage() {
   }, [live, onThisTab])
   const embedded = live && canEmbed(view!.viewUrl!)
 
+  /* The peek's height, for the picture to end above it (Browser.css). */
+  const sheetStyle = { ['--sheet-peek' as string]: `${PEEK_PX}px` }
+
   const rootClass = [
     'remote-browser',
     live && embedded ? 'remote-browser--live' : '',
     live && embedded && full ? 'remote-browser--full' : '',
+    live && embedded && phone && !full ? 'remote-browser--sheet' : '',
   ]
     .filter(Boolean)
     .join(' ')
 
+  /*
+   * EVERYTHING UNDER THE PICTURE: on a phone it lives in the bottom sheet
+   * (components/DetentSheet), so the picture takes the whole screen and the
+   * controls come up when they are wanted; elsewhere it stays in the flow.
+   */
+  const underPicture = (
+    <>
+      {embedded && journal.length > 0 ? (
+        <div className="remote-browser__journal-wrap">
+          <button
+            type="button"
+            className="remote-browser__journal-toggle"
+            aria-expanded={journalOpen}
+            onClick={() => setJournalOpen(v => !v)}
+          >
+            {journalOpen
+              ? t('browser.journal.hide')
+              : t('browser.journal.show', {
+                  n: foldRepeats(journal, t).length,
+                })}
+          </button>
+          {journalOpen ? (
+            <ol
+              className="remote-browser__journal"
+              aria-label={t('browser.journal')}
+            >
+              {foldRepeats(journal, t).map((step, i) => {
+                const line = journalLine(step, t)
+                return (
+                  <li
+                    key={`${step.at}:${i}`}
+                    className={line.ok ? '' : 'is-error'}
+                  >
+                    <time>{line.time}</time> <b>{line.verb}</b>
+                    {step.times > 1 ? <em> ×{step.times}</em> : null}{' '}
+                    <span>{line.text}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/*
+       * Who is driving, said UNDER the picture. It used to sit on the
+       * picture's top edge, and there it lay over the window's own bar:
+       * the controls under it could not be pressed.
+       */}
+      {embedded ? (
+        <p
+          className={
+            agentWorking
+              ? 'remote-browser__working remote-browser__working--agent'
+              : 'remote-browser__working'
+          }
+          aria-live="polite"
+        >
+          {agentWorking ? t('browser.agentWorking') : t('browser.youDrive')}
+        </p>
+      ) : null}
+
+      {embedded && approval ? (
+        <AskedPermission
+          approval={approval}
+          onAnswered={() => setApproval(null)}
+        />
+      ) : null}
+
+      {embedded && inputRequest && isPressedAsk(inputRequest) ? (
+        <AskedChoice
+          request={inputRequest}
+          onAnswered={() => setInputRequest(null)}
+        />
+      ) : null}
+
+      {embedded ? <BrowserKeys /> : null}
+
+      {embedded ? (
+        showType ? (
+          <TypeSheet
+            request={isPressedAsk(inputRequest) ? null : inputRequest}
+            onClose={() => {
+              dismissedRequest.current = inputRequest?.id ?? null
+              setShowType(false)
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="remote-browser__cta remote-browser__type"
+            onClick={() => setShowType(true)}
+          >
+            {t('browser.type.open')}
+          </button>
+        )
+      ) : null}
+
+      <div className="remote-browser__actions">
+        {/* A history entry, so Back is the way out; see FULL_VIEW. */}
+        {embedded ? (
+          <button
+            type="button"
+            className="remote-browser__secondary"
+            onClick={() => setParams({ view: FULL_VIEW })}
+          >
+            {t('browser.fullscreen')}
+          </button>
+        ) : null}
+
+        {/* Handing the wheel back is a press, never a timeout. */}
+        {!agentWorking ? (
+          <button
+            type="button"
+            className="remote-browser__secondary"
+            onClick={() => {
+              setAgentWorking(wheelAfterHandBack() === 'agent')
+              wheelSent.current = null
+              void setBrowserWheel('agent')
+            }}
+          >
+            {t('browser.handBack')}
+          </button>
+        ) : null}
+
+        {/* Passwords through the vault, sessions from a file; see ImportLogins. */}
+        <button
+          type="button"
+          className="remote-browser__secondary"
+          aria-expanded={showImport}
+          onClick={() => setShowImport(v => !v)}
+        >
+          {t('browser.import.open')}
+        </button>
+
+        <button
+          type="button"
+          className="remote-browser__secondary"
+          disabled={busy}
+          onClick={() => void act(BROWSER_BUTTONS.close)}
+        >
+          {t('browser.close')}
+        </button>
+
+        {/* Irreversible, so it asks once. */}
+        <button
+          type="button"
+          className="remote-browser__danger"
+          disabled={busy}
+          onClick={() => {
+            const step = tapWipe(confirmForget)
+            setConfirmForget(step.confirming)
+            if (step.wipeNow) void act(BROWSER_BUTTONS.forget)
+          }}
+        >
+          {confirmForget ? t('browser.forget.sure') : t('browser.forget')}
+        </button>
+      </div>
+      {showImport ? <ImportLogins /> : null}
+      <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
+    </>
+  )
+
+  /* The closed sheet: who is driving, or what the agent is waiting on. */
+  const waitingOn = approval
+    ? t('browser.ask.title')
+    : inputRequest
+      ? isPressedAsk(inputRequest)
+        ? inputRequest.kind === 'action'
+          ? t('browser.choice.actionTitle')
+          : t('browser.choice.title')
+        : t(`browser.type.ask.${inputRequest.kind}`)
+      : null
+  const peekLine = (
+    <span
+      className={
+        waitingOn
+          ? 'remote-browser__peek remote-browser__peek--asks'
+          : agentWorking
+            ? 'remote-browser__peek remote-browser__peek--agent'
+            : 'remote-browser__peek'
+      }
+    >
+      {waitingOn ??
+        (agentWorking ? t('browser.agentWorking') : t('browser.youDrive'))}
+    </span>
+  )
+
   return (
-    <div className={rootClass}>
+    <div className={rootClass} style={sheetStyle}>
       <header className="remote-browser__head">
         <h1>{t('browser.title')}</h1>
         <p className="remote-browser__lead">{t('browser.lead')}</p>
@@ -390,159 +607,18 @@ export default function BrowserPage() {
             </div>
           )}
 
-          {embedded && journal.length > 0 ? (
-            <div className="remote-browser__journal-wrap">
-              <button
-                type="button"
-                className="remote-browser__journal-toggle"
-                aria-expanded={journalOpen}
-                onClick={() => setJournalOpen(v => !v)}
-              >
-                {journalOpen
-                  ? t('browser.journal.hide')
-                  : t('browser.journal.show', {
-                      n: foldRepeats(journal, t).length,
-                    })}
-              </button>
-              {journalOpen ? (
-                <ol
-                  className="remote-browser__journal"
-                  aria-label={t('browser.journal')}
-                >
-                  {foldRepeats(journal, t).map((step, i) => {
-                    const line = journalLine(step, t)
-                    return (
-                      <li
-                        key={`${step.at}:${i}`}
-                        className={line.ok ? '' : 'is-error'}
-                      >
-                        <time>{line.time}</time> <b>{line.verb}</b>
-                        {step.times > 1 ? <em> ×{step.times}</em> : null}{' '}
-                        <span>{line.text}</span>
-                      </li>
-                    )
-                  })}
-                </ol>
-              ) : null}
-            </div>
-          ) : null}
-
-          {/*
-           * Who is driving, said UNDER the picture. It used to sit on the
-           * picture's top edge, and there it lay over the window's own bar:
-           * the controls under it could not be pressed.
-           */}
-          {embedded ? (
-            <p
-              className={
-                agentWorking
-                  ? 'remote-browser__working remote-browser__working--agent'
-                  : 'remote-browser__working'
-              }
-              aria-live="polite"
+          {embedded && phone ? (
+            <DetentSheet
+              detent={sheet}
+              onDetent={setSheet}
+              label={t('browser.sheet.label')}
+              peek={peekLine}
             >
-              {agentWorking ? t('browser.agentWorking') : t('browser.youDrive')}
-            </p>
-          ) : null}
-
-          {embedded && approval ? (
-            <AskedPermission
-              approval={approval}
-              onAnswered={() => setApproval(null)}
-            />
-          ) : null}
-
-          {embedded && inputRequest && isPressedAsk(inputRequest) ? (
-            <AskedChoice
-              request={inputRequest}
-              onAnswered={() => setInputRequest(null)}
-            />
-          ) : null}
-
-          {embedded ? <BrowserKeys /> : null}
-
-          {embedded ? (
-            showType ? (
-              <TypeSheet
-                request={isPressedAsk(inputRequest) ? null : inputRequest}
-                onClose={() => {
-                  dismissedRequest.current = inputRequest?.id ?? null
-                  setShowType(false)
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                className="remote-browser__cta remote-browser__type"
-                onClick={() => setShowType(true)}
-              >
-                {t('browser.type.open')}
-              </button>
-            )
-          ) : null}
-
-          <div className="remote-browser__actions">
-            {/* A history entry, so Back is the way out; see FULL_VIEW. */}
-            {embedded ? (
-              <button
-                type="button"
-                className="remote-browser__secondary"
-                onClick={() => setParams({ view: FULL_VIEW })}
-              >
-                {t('browser.fullscreen')}
-              </button>
-            ) : null}
-
-            {/* Handing the wheel back is a press, never a timeout. */}
-            {!agentWorking ? (
-              <button
-                type="button"
-                className="remote-browser__secondary"
-                onClick={() => {
-                  setAgentWorking(wheelAfterHandBack() === 'agent')
-                  wheelSent.current = null
-                  void setBrowserWheel('agent')
-                }}
-              >
-                {t('browser.handBack')}
-              </button>
-            ) : null}
-
-            {/* Passwords through the vault, sessions from a file; see ImportLogins. */}
-            <button
-              type="button"
-              className="remote-browser__secondary"
-              aria-expanded={showImport}
-              onClick={() => setShowImport(v => !v)}
-            >
-              {t('browser.import.open')}
-            </button>
-
-            <button
-              type="button"
-              className="remote-browser__secondary"
-              disabled={busy}
-              onClick={() => void act(BROWSER_BUTTONS.close)}
-            >
-              {t('browser.close')}
-            </button>
-
-            {/* Irreversible, so it asks once. */}
-            <button
-              type="button"
-              className="remote-browser__danger"
-              disabled={busy}
-              onClick={() => {
-                const step = tapWipe(confirmForget)
-                setConfirmForget(step.confirming)
-                if (step.wipeNow) void act(BROWSER_BUTTONS.forget)
-              }}
-            >
-              {confirmForget ? t('browser.forget.sure') : t('browser.forget')}
-            </button>
-          </div>
-          {showImport ? <ImportLogins /> : null}
-          <p className="remote-browser__muted">{t('browser.closeKeeps')}</p>
+              {underPicture}
+            </DetentSheet>
+          ) : (
+            underPicture
+          )}
         </section>
       ) : null}
     </div>

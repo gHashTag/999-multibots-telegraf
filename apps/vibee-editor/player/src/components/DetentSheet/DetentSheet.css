@@ -1,0 +1,79 @@
+/*
+ * The sheet: dark glass with a hairline of the house green along its top
+ * edge, a pill grabber, and a body that scrolls on its own. It moves by
+ * transform, so dragging never reflows the picture under it.
+ */
+.detent-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--app-tabbar-total, 56px));
+  z-index: calc(var(--z-tabbar, 900) - 1);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border-top: 1px solid rgba(0, 255, 136, 0.35);
+  border-radius: 18px 18px 0 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 255, 136, 0.06),
+      rgba(0, 255, 136, 0) 120px
+    ),
+    rgba(10, 13, 11, 0.96);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.55);
+  transition: transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  will-change: transform;
+}
+
+.detent-sheet--dragging {
+  transition: none;
+}
+
+.detent-sheet__handle {
+  flex: 0 0 auto;
+  padding: 8px 14px 10px;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.detent-sheet__grabber {
+  display: block;
+  width: 38px;
+  height: 5px;
+  margin: 0 auto 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.detent-sheet--dragging .detent-sheet__grabber {
+  background: #00ff88;
+}
+
+.detent-sheet__peek {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detent-sheet__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detent-sheet {
+    transition: none;
+  }
+}

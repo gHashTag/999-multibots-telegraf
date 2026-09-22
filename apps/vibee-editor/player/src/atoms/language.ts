@@ -26,6 +26,7 @@ const en: Translations = {
   'browser.youDrive': 'You are driving. The agent is waiting.',
   'browser.handBack': 'Let the agent continue',
   'browser.type.open': '⌨ Type text',
+  'browser.sheet.label': 'Browser controls',
   'chat.cards.label': 'What the agent proposes',
   'chat.cards.approve': '✓ Approve',
   'chat.cards.decline': 'Decline',
@@ -2145,6 +2146,7 @@ const ru: Translations = {
   'browser.youDrive': 'Управляете вы. Агент ждёт.',
   'browser.handBack': 'Вернуть агенту',
   'browser.type.open': '⌨ Ввести текст', // cyrillic-ok
+  'browser.sheet.label': 'Управление браузером', // cyrillic-ok
   'chat.cards.label': 'Что предлагает агент', // cyrillic-ok
   'chat.cards.approve': '✓ Одобрить', // cyrillic-ok
   'chat.cards.decline': 'Не надо', // cyrillic-ok
