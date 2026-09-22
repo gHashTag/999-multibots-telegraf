@@ -1363,6 +1363,34 @@ html[data-t27-framed] .members,
 html[data-t27-framed] .members-container { height: 30px !important; }
 `
 
+/*
+ * SILENT BY DEFAULT (owner, 2026-09-22: "turn the sounds off by default -- my
+ * child is asleep and wakes up when the browser reloads"). The window carries
+ * the pod's audio: a video on X or LinkedIn playing with sound, and every
+ * reload of the window starting the stream again. So the viewer's own media
+ * elements are muted before the first frame and kept muted -- neko's client
+ * unmutes on its own after autoplay, so one mute at load is not enough.
+ * `?sound=1` on the window's address is the only way to hear it.
+ */
+export const MUTE_SCRIPT = `(function () {
+  var allowed = /[?&]sound=1(&|$)/.test(location.search);
+  if (allowed) return;
+  var hush = function (el) {
+    if (!el || (el.tagName !== 'VIDEO' && el.tagName !== 'AUDIO')) return;
+    el.defaultMuted = true;
+    if (!el.muted) el.muted = true;
+  };
+  var all = function () {
+    var list = document.querySelectorAll('video, audio');
+    for (var i = 0; i < list.length; i++) hush(list[i]);
+  };
+  document.addEventListener('volumechange', function (e) { hush(e.target); }, true);
+  document.addEventListener('play', function (e) { hush(e.target); }, true);
+  document.addEventListener('DOMContentLoaded', all);
+  new MutationObserver(all).observe(document.documentElement, { childList: true, subtree: true });
+  all();
+})();`
+
 export function injectSkin(html: string): string {
   if (!html.includes('</head>')) return html
   /*
@@ -1372,6 +1400,7 @@ export function injectSkin(html: string): string {
    */
   const head =
     `<script data-t27-framed>${FRAMED_SCRIPT}</script>` +
+    `<script data-t27-mute>${MUTE_SCRIPT}</script>` +
     `<style data-t27-framed>${FRAMED_CSS}</style>` +
     `<link rel="preconnect" href="https://fonts.googleapis.com">` +
     `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` +
