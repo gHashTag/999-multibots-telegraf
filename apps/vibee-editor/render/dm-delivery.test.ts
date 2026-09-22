@@ -674,6 +674,19 @@ async function executor(
     },
   }))
   const { execute, TYPING_MS } = await import('./src/agent/tg-proposals')
+  /*
+   * The media urls below (https://s3.example/...) are not our shelf, so the
+   * send path downloads them under the render's rules for fetched media --
+   * which resolve the host first and would refuse a name that does not
+   * exist. These tests are about the shape of the send, not about DNS: the
+   * download goes through whatever `fetch` the test stubbed, read at call
+   * time. The address rules have their own tests in send-source.test.ts.
+   */
+  const { useDownloadForTests } = await import('./src/agent/send-source')
+  useDownloadForTests({
+    fetchImpl: ((...a: Parameters<typeof fetch>) =>
+      globalThis.fetch(...a)) as typeof fetch,
+  })
   return { execute, timeline, touches, journal, TYPING_MS }
 }
 const pool = { query: async () => ({ rows: [] }) }
