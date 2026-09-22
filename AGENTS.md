@@ -152,6 +152,14 @@ before editing any test. The short version:
   summary: a platform summary also tells them about other people.
 - **Silence is not zero.** An unreachable service and a quiet one look identical
   on a dashboard and mean opposite things. Say which.
+- **Links to the app open inside Telegram.** The app knows a person only by
+  Telegram's signed launch data, so `app.t27.ai` opened in a phone browser
+  does not work (owner, 2026-09-22). A person gets a `web_app` button in a
+  private chat, or `appLinkFor(bot, route)` everywhere else
+  (`t.me/<bot>?start=app_<route>`, or `?startapp=` once the bot has a Main
+  Mini App) -- never the bare host. Recipe:
+  `.claude/skills/links-open-in-telegram/SKILL.md`; the guard is
+  `src/__tests__/guards/noRawAppHostInUserText.test.ts`.
 
 ---
 

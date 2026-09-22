@@ -32,7 +32,7 @@ grep -n "surface === 'bot' ? BUTTON_MARKERS" apps/vibee-editor/render/src/agent/
 пути (`где id — одно из: topup, balance, can, human`). Тест `agentPromptMatchesOurButtons` не даст забыть.
 2. **Ответ сцены.** `await ctx.reply(text, standardButtons(isRu, { app: ctx.chat?.type === 'private' }))`;
    для подписи к фото/документу — `reply_markup: standardButtons(...).reply_markup`.
-3. **Ответ агента и запасной путь.** `buttonsForAnswer(text, isRu, { app: private, tail })`: ряд оплаты первым,
+3. **Ответ агента и запасной путь.** `buttonsForAnswer(text, isRu, { app: private, bot: ctx.botInfo, tail })`: ряд оплаты первым,
    если в ответе уже есть ссылка `https://t.me/$…` (`payRow`), затем предложенные агентом кнопки, стандартный
    набор, хаб владельца. Длинный текст — `разбитьДлинное`, клавиатура на последнем куске.
 4. **Маркеры.** Только на поверхности `bot`. В бизнес-личке `stripAgentMarkers` перед записью в память и отправкой.
@@ -44,6 +44,12 @@ grep -n "surface === 'bot' ? BUTTON_MARKERS" apps/vibee-editor/render/src/agent/
   сценах проверять живым нажатием (перенос на `stage.action` — отдельный шаг, см. риски дизайна).
 - `parseAgentButtons` молча выбрасывает неизвестные id: id в промпте без записи в `ACTIONS` не рисуется.
 - `web_app` в группе роняет всё сообщение — всегда передавать `{ app: private }`.
+- **Ссылки на приложение открываются ВНУТРИ Telegram** (владелец, 2026-09-22). Кнопка в
+  приложение: в личке — `web_app`, вне лички (группа, канал, бизнес) — url-кнопка на
+  `appLinkFor(bot, route)` (`appButton` в `src/navigation/helpers/appLinks.ts`). Никогда
+  url-кнопка или текст с голым `app.t27.ai`/`vibee-editor-production`: в браузере без подписи
+  приложение не открывается. `buttonsForAnswer` получает `{ bot: ctx.botInfo }` — тогда
+  сырой адрес приложения в ответе модели переписывается сам. Скил `links-open-in-telegram`.
 - `qwen3:1.7b` отвечает `[[Подпись|can]]` без инструментов — прежде чем судить о кнопках, переключить `/model`.
 
 ## Related Resources

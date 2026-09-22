@@ -56,6 +56,7 @@
  */
 
 import { telegramApiFor } from './telegram-api'
+import { appLinkForToken } from './app-links'
 
 /**
  * Structural, deliberately not `import type { Pool } from 'pg'` -- the same
@@ -270,21 +271,22 @@ export const MARK_ATTEMPT = `UPDATE public_templates
 /**
  * Channel caption: title, the first line of the description, and the way back
  * into the feed. Telegram refuses a caption over 1024 characters outright.
+ *
+ * THE WAY BACK IS THE POSTING BOT'S t.me LINK, NEVER THE APP'S HOST. A
+ * channel reader who taps `app.t27.ai/feed` lands in a phone browser with no
+ * Telegram signature, and the app does not open there (owner, 2026-09-22).
+ * `feedLink` comes from appLinkForToken (app-links.ts); when the bot did not
+ * answer getMe there is no link at all rather than a dead one. The link is
+ * put in first and the text cut around it, so the 1024 cut never eats it.
  */
-export function captionFor(reel: PendingReel): string {
+export function captionFor(reel: PendingReel, feedLink = ''): string {
   const firstLine =
     String(reel.description || '')
       .split('\n')
       .find(l => l.trim()) ?? ''
-  return [
-    String(reel.name),
-    '',
-    firstLine.slice(0, 220),
-    '',
-    'Смотреть в ленте: https://app.t27.ai/feed',
-  ]
-    .join('\n')
-    .slice(0, 1024)
+  const tail = feedLink ? `\n\nСмотреть в ленте: ${feedLink}` : ''
+  const head = [String(reel.name), '', firstLine.slice(0, 220)].join('\n')
+  return head.slice(0, Math.max(0, 1024 - tail.length)) + tail
 }
 
 /**
@@ -355,6 +357,8 @@ export async function deliverToChannel(opts: {
   env?: Env
   send?: SendVideo
   now?: Date
+  /** The posting bot's link to a screen; tests pass a fake (no network). */
+  appLink?: (token: string, route: 'feed') => Promise<string>
 }): Promise<DeliveryOutcome> {
   const { db, log } = opts
   const env = opts.env || process.env
@@ -432,6 +436,12 @@ export async function deliverToChannel(opts: {
       return outcome({ ...base, reason, pending })
     }
 
+    // Asked once per run: getMe of the posting bot, on its own Bot API host.
+    const feedLink = await (opts.appLink || appLinkForToken)(
+      cfg.token,
+      'feed'
+    ).catch(() => '')
+
     let sent = 0
     let failed = 0
     for (const reel of rows) {
@@ -466,7 +476,7 @@ export async function deliverToChannel(opts: {
         token: cfg.token,
         chatId: cfg.chatId,
         videoUrl: url,
-        caption: captionFor(reel),
+        caption: captionFor(reel, feedLink),
       })
       if (res.ok) {
         // Mark AFTER the confirmation, never before.
