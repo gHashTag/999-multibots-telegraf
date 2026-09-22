@@ -334,7 +334,10 @@ describe('an unreachable agent', () => {
     }>
     const system = messages[0]
     expect(system.role).toBe('system')
-    expect(system.content).toBe(fallback.fallbackSystemPrompt(true))
+    // A Russian speaker on a bot that takes rubles: the top-up chooser draws
+    // the rubles key for them, so the prompt may name it (shouldShowRubles).
+    expect(system.content).toBe(fallback.fallbackSystemPrompt(true, true))
+    expect(system.content).toContain('рублями')
     expect(system.content).toContain('/club')
     // The service list that produced "Instagram analytics" does not travel,
     // although this environment, like production, has no Instagram key.
@@ -362,6 +365,8 @@ describe('an unreachable agent', () => {
     const system = (chatWithAI.mock.calls[0][0] as any[])[0]
     expect(system.content).toBe(fallback.fallbackSystemPrompt(false))
     expect(system.content).not.toMatch(CYRILLIC)
+    // The chooser shows an English speaker no rubles; neither does the prompt.
+    expect(system.content).not.toMatch(/ruble/i)
   }, 60_000)
 
   it('when even the fallback model fails, the apology is in the person’s language', async () => {
