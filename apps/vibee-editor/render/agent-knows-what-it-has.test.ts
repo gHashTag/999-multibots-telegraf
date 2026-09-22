@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { TOOLS } from './src/agent/tools'
+import { TOOLS, DIRECT_CALL_ONLY } from './src/agent/tools'
 import { systemPrompt } from './src/agent/chat'
 
 /**
@@ -26,15 +26,21 @@ const named = (prompt: string, family: string, names: string[]) =>
 
 describe('the agent is told what it has', () => {
   const all = TOOLS.map(t => t.name)
+  /*
+   * A DIRECT_CALL_ONLY tool is never offered to a model turn (tools.ts), so
+   * it is not a capability the agent has: naming it in the prompt would be
+   * the mirror of the defect above -- the agent promising what it cannot do.
+   */
+  const offered = all.filter(n => !DIRECT_CALL_ONLY.has(n))
 
   it('NAMES EVERY TOOL FAMILY on the surface the owner talks to', () => {
     const prompt = systemPrompt('bot')
-    const missing = familiesOf(all).filter(
+    const missing = familiesOf(offered).filter(
       f =>
         !named(
           prompt,
           f,
-          all.filter(n => n.startsWith(f + '_'))
+          offered.filter(n => n.startsWith(f + '_'))
         )
     )
     expect(missing, `не названы: ${missing.join(' ')}`).toEqual([])
