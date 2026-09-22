@@ -71,10 +71,14 @@ export function stepOf(
     case 'browser_open':
       detail.url = bareUrl(args.url)
       break
-    case 'browser_click':
-      detail.x = Number(args.x)
-      detail.y = Number(args.y)
+    case 'browser_click': {
+      const at = (r.clicked ?? args) as Record<string, unknown>
+      detail.x = Number(at.x)
+      detail.y = Number(at.y)
+      /* A click by label says which label: the person reads words, not points. */
+      if (typeof args.text === 'string') detail.what = clip(args.text, 80)
       break
+    }
     case 'browser_type':
       // The text itself is never stored: only how long it was.
       detail.chars = typeof args.text === 'string' ? args.text.length : 0
