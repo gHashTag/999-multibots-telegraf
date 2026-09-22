@@ -244,6 +244,22 @@ describe('an empty agent answer', () => {
     expect(line).not.toBe(fallback.honestMissLine(true, false))
   }, 60_000)
 
+  it('an answer made only of button markers has no words: the line, not silence', async () => {
+    // Stripped of its markers the text is empty, the splitter returns no
+    // parts, and the send loop used to send nothing and return.
+    const USER = 900000080
+    cannedAnswer = async () => ({
+      текст: '[[Пополнить|act:topup]]', // cyrillic-ok: field of the agent answer
+      инструменты: ['my_assets'], // cyrillic-ok: field of the agent answer
+    })
+    await turn(USER, 'что у меня есть?', 'ru')
+
+    expect(chatWithAI).not.toHaveBeenCalled()
+    const out = sent(USER)
+    expect(out).toHaveLength(1)
+    expect(out[0].payload.text).toBe(fallback.honestMissLine(true, false))
+  }, 60_000)
+
   it('a draft card with no words is the answer: no apology under it, no fallback', async () => {
     const USER = 900000075
     cannedAnswer = async () => ({
@@ -364,5 +380,22 @@ describe('an unreachable agent', () => {
       fallback.fallbackFailedText(false, 'Replicate timeout')
     )
     expect(out[0].payload.text).not.toMatch(CYRILLIC)
+  }, 60_000)
+
+  it('a fallback answer of markers only is not silence: the apology', async () => {
+    const USER = 900000081
+    render({
+      chat: async () => {
+        throw new TypeError('fetch failed')
+      },
+    })
+    chatWithAI.mockImplementation(async () => '[[Top up|act:topup]]')
+    await turn(USER, 'anyone?', 'en')
+
+    const out = sent(USER)
+    expect(out).toHaveLength(1)
+    expect(out[0].payload.text).toBe(
+      fallback.fallbackFailedText(false, 'Empty response from AI')
+    )
   }, 60_000)
 })
