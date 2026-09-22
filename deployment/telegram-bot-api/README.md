@@ -276,6 +276,24 @@ holds the bot while the cloud does.
 If step 3's redeploy does not go live, the bot is off the cloud and not here:
 fix the redeploy, or roll back (below, "our server is down").
 
+**Observed on the first move (HaimGroupMedia_bot, 2026-09-22): the cloud
+takes a bot back AT ONCE.** Three minutes after a successful `logOut`, a stale
+copy of `scripts/bridge.cjs` (one that asked `api.telegram.org` for every
+token) got normal answers to `getMe`, `getChatMenuButton` and
+`getMyCommands` for the moved bot, and a second `--cloud-logout` five minutes
+after the first found the bot logged in on the cloud again and logged it out.
+No "10 minutes" and no "Logged out" answer protected it. So for a moved bot,
+**every** request to the cloud, at any time, logs it back in there:
+
+- run `tri` and every script from a checkout of current main — the host is
+  chosen per token only there (`scripts/lib/telegram-api.cjs`); a stale
+  checkout of the bridge or of any one-off script that loops over
+  `BOT_TOKEN_*` against `api.telegram.org` is the danger, not the services;
+- if it happened, run step 2 again at once — it is safe whatever the cloud
+  answers — and the bot service keeps its session on our server;
+- from a laptop the bridge shows a moved bot as `on our Bot API server; not
+reachable from here`. Its health is the `[bot-api]` lines of the bot log.
+
 **Rollback without a shell.** Take the entry out of `BOT_API_ALLOWED_IDS`: the
 redeploy restarts this server, which then runs no polling bot until one is
 requested — what `close` would do — and the proxy refuses the bot, so nothing
