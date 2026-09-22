@@ -48,7 +48,7 @@
 import { МАКС_ЗВЁЗД_ПОДПИСКА, ПЕРИОД_ПОДПИСКИ_С, СТУПЕНИ } from './token-packs' // cyrillic-ok: pre-existing export names
 import { record } from '../hive/journal'
 import { keepers } from '../hive/roles'
-import { clubGuests, isClubGuest } from './club-guests'
+import { clubGuests, guestPassFor } from './club-guests'
 import { noteCashierFailure, noteInvoiceMinted } from './payment-alarms'
 import { telegramApiFor } from '../telegram-api'
 
@@ -297,23 +297,51 @@ export interface ClubGrantSource {
 }
 
 /**
+ * Everything the club knows about one person's free access, decided ONCE.
+ *
+ * `grant` is why the club is open without a charge (null = it is not). The
+ * guest fields exist because a pass can now end (club-guests.ts): an active
+ * guest's pass may carry an end, and somebody whose pass ended must be told
+ * so -- "your invitation ended on 29 September" -- instead of being shown the
+ * price as if they had never been invited.
+ */
+export interface ClubAccess {
+  grant: ClubGrant
+  /** A guest's pass end (ISO). Null for a pass without an end, and for everyone else. */
+  guestUntil: string | null
+  /** The pass this person held ended at this moment (ISO), and nothing else lets them in. */
+  guestEnded: string | null
+}
+
+const NO_ACCESS: ClubAccess = {
+  grant: null,
+  guestUntil: null,
+  guestEnded: null,
+}
+
+/**
  * Is the club open to `who` without paying? Fail-closed like roles.ts: when
  * ownership cannot be established the grant is absent and the paid path
  * decides, so a database hiccup costs a paywall, never a free month for a
  * stranger.
+ *
+ * THE ONE MEMBERSHIP DECISION FOR FREE ACCESS. handleClub asks this and hands
+ * the answer to clubStatus; the bot and the app read that status and decide
+ * nothing themselves. `clubGrantFor` below is this function's `grant`.
  */
-export async function clubGrantFor(
+export async function clubAccessFor(
   who: string,
   source: ClubGrantSource | undefined,
-  req?: unknown
-): Promise<ClubGrant> {
+  req?: unknown,
+  now: Date = new Date()
+): Promise<ClubAccess> {
   const id = String(who ?? '').trim()
-  if (!id || !source) return null
+  if (!id || !source) return NO_ACCESS
   const keeperList = source.keepers ? source.keepers() : keepers()
-  if (keeperList.includes(id)) return 'keeper'
+  if (keeperList.includes(id)) return { ...NO_ACCESS, grant: 'keeper' }
   try {
     const bots = await source.botsOwnedBy(id)
-    if (bots.length) return 'owner'
+    if (bots.length) return { ...NO_ACCESS, grant: 'owner' }
   } catch {
     // Ownership unknown: fall through to the guest list, which needs no
     // database. A stranger still gets null; an invited person is not locked
@@ -332,8 +360,32 @@ export async function clubGrantFor(
     }
   }
   const list = source.guests ? source.guests() : clubGuests()
-  return isClubGuest({ telegramId: id, username }, list) ? 'guest' : null
+  const pass = guestPassFor({ telegramId: id, username }, list, now)
+  if (pass.kind === 'guest') {
+    return { grant: 'guest', guestUntil: pass.until, guestEnded: null }
+  }
+  if (pass.kind === 'expired') {
+    return { grant: null, guestUntil: null, guestEnded: pass.endedOn }
+  }
+  return NO_ACCESS
 }
+
+/** Why the club is open without a charge -- `clubAccessFor(...).grant`. */
+export async function clubGrantFor(
+  who: string,
+  source: ClubGrantSource | undefined,
+  req?: unknown,
+  now: Date = new Date()
+): Promise<ClubGrant> {
+  return (await clubAccessFor(who, source, req, now)).grant
+}
+
+/**
+ * A club month paid in cash is written to `club_period` like a Stars charge,
+ * under a transaction id of its own shape (club-cash.ts). This prefix is how
+ * status tells the two apart; a Telegram transaction id never carries it.
+ */
+export const CASH_TX_PREFIX = 'cash:'
 
 export interface ClubStatus {
   active: boolean
@@ -352,6 +404,18 @@ export interface ClubStatus {
   /** Set when the club is open without a charge (bot owner / keeper). */
   granted: ClubGrant
   /**
+   * How the live paid period was paid: 'stars' (Telegram) or 'cash' (the
+   * owner took the money by hand and recorded the month, club-cash.ts).
+   * Null when no paid period is live.
+   */
+  paid_via: 'stars' | 'cash' | null
+  /**
+   * The guest pass this person held ended at this moment (ISO), and nothing
+   * else lets them in: the join offer is shown with "your invitation ended on
+   * <date>". Null for members and for people who were never invited.
+   */
+  guest_ended: string | null
+  /**
    * End of the current period. A paid period when one is active; otherwise
    * the current free period of a granted person; null when neither exists.
    */
@@ -368,11 +432,18 @@ export async function clubStatus(
   pool: Queryable,
   telegramId: string,
   now: Date = new Date(),
-  granted: ClubGrant = null
+  access: ClubGrant | ClubAccess = null
 ): Promise<ClubStatus> {
   await ensureClubTables(pool)
+  // A bare grant is still accepted (bookkeeping callers, older tests);
+  // handleClub passes the whole ClubAccess so the guest dates travel too.
+  const acc: ClubAccess =
+    access && typeof access === 'object'
+      ? access
+      : { ...NO_ACCESS, grant: access }
+  const granted = acc.grant
   const r = await pool.query(
-    `SELECT paid_at::text, until::text, COUNT(*) OVER () AS periods
+    `SELECT paid_at::text, until::text, star_tx_id, COUNT(*) OVER () AS periods
        FROM club_period WHERE telegram_id = $1 ORDER BY until DESC LIMIT 1`,
     [String(telegramId)]
   )
@@ -380,24 +451,38 @@ export async function clubStatus(
   const untilMs = row ? new Date(row.until).getTime() : NaN
   const paid = Number.isFinite(untilMs) && untilMs > now.getTime()
   const active = paid || granted !== null
+  const paidVia: ClubStatus['paid_via'] = !paid
+    ? null
+    : String(row?.star_tx_id ?? '').startsWith(CASH_TX_PREFIX)
+      ? 'cash'
+      : 'stars'
+  const dayMs = 24 * 60 * 60 * 1000
   // A granted person without an active paid month reads the free period, so
   // the screen can say when the next tokens come.
   let until: string | null = row ? String(row.until) : null
-  let daysLeft = paid
-    ? Math.ceil((untilMs - now.getTime()) / (24 * 60 * 60 * 1000))
-    : 0
-  if (!paid && granted) {
+  let daysLeft = paid ? Math.ceil((untilMs - now.getTime()) / dayMs) : 0
+  if (!paid && (granted === 'owner' || granted === 'keeper')) {
     const g = await latestGrantPeriod(pool, telegramId)
     const gUntil = g ? new Date(g.until).getTime() : NaN
     if (Number.isFinite(gUntil) && gUntil > now.getTime()) {
       until = g!.until
-      daysLeft = Math.ceil((gUntil - now.getTime()) / (24 * 60 * 60 * 1000))
+      daysLeft = Math.ceil((gUntil - now.getTime()) / dayMs)
     }
+  }
+  // A guest whose pass has an end: that end IS the period, so the card says
+  // "until 29 September (7 days left)" rather than a stale paid date.
+  if (!paid && granted === 'guest' && acc.guestUntil) {
+    until = acc.guestUntil
+    daysLeft = Math.ceil(
+      (new Date(acc.guestUntil).getTime() - now.getTime()) / dayMs
+    )
   }
   return {
     active,
     paid,
     granted,
+    paid_via: paidVia,
+    guest_ended: active ? null : acc.guestEnded,
     until,
     paid_at: row ? String(row.paid_at) : null,
     days_left: daysLeft,
@@ -833,6 +918,11 @@ export type Credit = (input: {
   telegramId: string
   tokens: number
   chargeId: string
+  /**
+   * What the person reads in their own history. Absent for a Stars charge
+   * (the ledger says "Telegram Stars"); a cash month says cash (club-cash.ts).
+   */
+  reason?: string
 }) => Promise<{ credited: boolean; reason?: string }>
 
 export interface BookedPeriod {
@@ -977,6 +1067,8 @@ export async function handleClub(
           active: false,
           paid: false,
           granted: null,
+          paid_via: null,
+          guest_ended: null,
           until: null,
           paid_at: null,
           days_left: 0,
@@ -1003,7 +1095,10 @@ export async function handleClub(
   }
   const pool = await deps.getPool()
   const now = deps.now ? deps.now() : new Date()
-  const granted = await clubGrantFor(who, deps.grant, req)
+  // THE one decision about free access, guest dates included; every answer
+  // below reads it through clubStatus.
+  const access = await clubAccessFor(who, deps.grant, req, now)
+  const granted = access.grant
   // A granted person's visit opens their free period and credits the month.
   // A guest is let in, not paid: the invitation opens the avatar setup, it is
   // not a token budget (club-guests.ts).
@@ -1018,7 +1113,7 @@ export async function handleClub(
   if (path === '/api/club/status' && req.method === 'GET') {
     return {
       status: 200,
-      body: { ok: true, ...(await clubStatus(pool, who, now, granted)) },
+      body: { ok: true, ...(await clubStatus(pool, who, now, access)) },
     }
   }
 
@@ -1028,7 +1123,7 @@ export async function handleClub(
     }
     const txs = await fetchStarTransactions(deps.botToken, deps.fetchImpl)
     const booked = await bookClubPeriods(pool, txs, deps.credit, who)
-    const status = await clubStatus(pool, who, now, granted)
+    const status = await clubStatus(pool, who, now, access)
     const creditedTokens = booked.reduce(
       (sum, b) => sum + (b.credited ? b.tokens : 0),
       0

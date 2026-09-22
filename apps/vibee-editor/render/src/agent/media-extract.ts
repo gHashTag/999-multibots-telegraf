@@ -476,7 +476,8 @@ export async function soundtrackFromFile(
 export async function withShelfFile<T>(
   url: string,
   maxBytes: number,
-  use: (path: string, size: number) => Promise<T>
+  use: (path: string, size: number) => Promise<T>,
+  signal?: AbortSignal
 ): Promise<T | 'missing' | 'too-big'> {
   const found = shelfObject(url)
   if (!found) return 'missing'
@@ -484,7 +485,7 @@ export async function withShelfFile<T>(
   const dir = await mkdtemp(join(tmpdir(), 'shelf-'))
   const path = join(dir, ext ? `file.${ext}` : 'file')
   try {
-    const size = await s3GetToFile(found.key, path, maxBytes)
+    const size = await s3GetToFile(found.key, path, maxBytes, signal)
     if (size === null) return 'too-big'
     if (size === 0) return 'missing'
     return await use(path, size)

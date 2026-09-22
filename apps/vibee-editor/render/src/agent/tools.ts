@@ -910,6 +910,7 @@ import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
 import { CRM_SELLERS_TOOLS } from './crm-sellers-tool'
 import { HIVE_TOOLS, botsOwnedBy } from './hive-tools'
 import { HIVE_BOARD_TOOLS } from './hive-board-tool'
+import { CLUB_CASH_TOOLS } from './club-cash'
 import { visibilityOf, keepers } from '../hive/roles'
 import { record } from '../hive/journal'
 import {
@@ -3053,6 +3054,11 @@ TOOLS.push(...HIVE_TOOLS)
  */
 TOOLS.push(...HIVE_BOARD_TOOLS)
 /*
+ * A club month the owner was paid for in cash (club-cash.ts): owner or keeper
+ * only, and a direct call only -- see DIRECT_CALL_ONLY below.
+ */
+TOOLS.push(...CLUB_CASH_TOOLS)
+/*
  * The Inngest function catalogue (both apps, read live), runs and invocation.
  * Keeper-only, like hive_queen: function names carry paths and internal state.
  * One catalogue tool instead of a hundred per-function tools (inngest-tools.ts).
@@ -3200,6 +3206,24 @@ export function toolsForProvider<T extends { name: string }>(
   )
 }
 
+/**
+ * TOOLS A MODEL TURN INSIDE THE RENDER NEVER GETS.
+ *
+ * They stay on /mcp (tools/list, tools/call) and on a2a's direct tool call,
+ * where the call itself is the verified caller's act. They are never listed to
+ * the render's own model loop (`toOpenAITools`) and a call that arrives there
+ * anyway is refused before the handler runs (chat.ts `dispatchToolCall`).
+ *
+ * Why a list and not a check inside the tool: a model turn reads other
+ * people's words -- a client's DM, a CRM thread, a web page -- while holding
+ * the owner's identity. A tool that credits money on the owner's word must not
+ * be reachable by a sentence somebody else wrote. `club_cash_month`: a club
+ * month the owner was paid for in cash (club-cash.ts).
+ */
+export const DIRECT_CALL_ONLY: ReadonlySet<string> = new Set([
+  'club_cash_month',
+])
+
 let compactWarned = false
 
 export function toOpenAITools(
@@ -3211,7 +3235,9 @@ export function toOpenAITools(
   /** Tools not offered on this turn (duet discovery gate). */
   deny?: ReadonlySet<string>
 ) {
-  const chosen = toolsForProvider(p, TOOLS).filter(t => !deny?.has(t.name))
+  const chosen = toolsForProvider(p, TOOLS).filter(
+    t => !deny?.has(t.name) && !DIRECT_CALL_ONLY.has(t.name)
+  )
   if (p?.compact && !compactWarned) {
     compactWarned = true
     console.warn(

@@ -63,6 +63,19 @@ export interface ClubStatus {
    * (owner, 2026-09-10). The server decides; this side only shows it.
    */
   granted: ClubGrant
+  /**
+   * How the live paid period was paid: Telegram Stars, or cash the owner
+   * took by hand and recorded (render/src/agent/club-cash.ts). Null when no
+   * paid period is live.
+   */
+  paid_via: 'stars' | 'cash' | null
+  /**
+   * The person's guest pass ended at this moment (ISO) and nothing else lets
+   * them in. The server decides (club-guests.ts); the paywall only says
+   * "your invitation ended on <date>" above the price, so an invited person
+   * whose time ran out is not shown the offer as if they were a stranger.
+   */
+  guest_ended: string | null
   until: string | null
   days_left: number
   periods: number
@@ -78,6 +91,39 @@ export type ClubBuyOutcome =
   | 'failed'
   | 'unsupported'
   | 'pending'
+
+/**
+ * A club date as a person reads it, "29 September 2026" in the person's
+ * language. In UTC, like the server that set it -- a pass that ends at
+ * 00:00 UTC on the 29th must not read as the 28th in a western time zone.
+ * Null when there is no readable date, so the caller says nothing.
+ */
+export function clubDay(
+  iso: string | null | undefined,
+  lang: 'ru' | 'en'
+): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return null
+  return d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+/**
+ * The line above the price for somebody whose invitation ran out -- only when
+ * the club is closed to them; a member is never told about an old pass.
+ */
+export function guestEndedDate(
+  status: Pick<ClubStatus, 'active' | 'guest_ended'> | null,
+  lang: 'ru' | 'en'
+): string | null {
+  if (!status || status.active) return null
+  return clubDay(status.guest_ended, lang)
+}
 
 /** null = not asked yet; the screen shows a skeleton until the first answer. */
 export const clubStatusAtom = atom<ClubStatus | null>(null)
@@ -108,6 +154,10 @@ export const loadClubStatusAtom = atom(null, async (_get, set) => {
         d.granted === 'owner' || d.granted === 'keeper' || d.granted === 'guest'
           ? d.granted
           : null,
+      paid_via:
+        d.paid_via === 'stars' || d.paid_via === 'cash' ? d.paid_via : null,
+      guest_ended:
+        !d.active && typeof d.guest_ended === 'string' ? d.guest_ended : null,
       until: d.until ?? null,
       days_left: Number(d.days_left ?? 0),
       periods: Number(d.periods ?? 0),
