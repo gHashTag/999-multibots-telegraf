@@ -46,8 +46,11 @@ describe('the offer at the end of the free demo survives the menu that follows',
     expect(block).not.toContain('Markup.keyboard')
   })
 
-  it('still offers the subscription, not just a generic top-up', () => {
-    expect(limitReply()).toMatch(/Оформить подписку|Subscribe/) // cyrillic-ok: the UI copy under test
+  it('still offers the club, not just a generic top-up -- and no retired tier', () => {
+    // The one subscription since 2026-09-22 is the club; the old label sold
+    // BASIC / PRO / STUDIO.
+    expect(limitReply()).toMatch(/Клуб|Club/) // cyrillic-ok: the UI copy under test
+    expect(limitReply()).not.toMatch(/Оформить подписку|Subscribe/) // cyrillic-ok: the UI copy under test
   })
 
   it('the menu that follows is what would have wiped a reply keyboard', () => {

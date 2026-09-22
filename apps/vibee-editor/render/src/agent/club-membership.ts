@@ -171,6 +171,37 @@ export function isClubPath(path: string): boolean {
   return (CLUB_PATHS as readonly string[]).includes(path)
 }
 
+/**
+ * WHO THE CLUB ROUTES ARE ABOUT: THE PERSON, OR THE BOT ACTING FOR ONE.
+ *
+ * The routes were built for the Mini App (signature, app session, agent key),
+ * so the bot could not sell the club at all -- and the bot is where all 49
+ * new people of the last thirty days registered, only 5 of whom ever opened
+ * the app (measured 2026-09-22). It had no way to ask for an invoice on
+ * somebody's behalf, and sold the retired pre-club tiers instead.
+ *
+ * The bot now asks with the SERVER key and names the person in
+ * `?telegram_id=`, the same shape `/api/feed/pending` already accepts. The
+ * name is read ONLY behind the server key: these paths are PUBLIC_EXACT in
+ * auth.ts (they check identity themselves), so without that check anybody
+ * could ask for anybody's membership by typing a number.
+ *
+ * A person's own proof always wins over the parameter: the Mini App cannot be
+ * steered into another id by a query string.
+ */
+export function clubCaller(
+  req: { url?: string },
+  person: string | null,
+  isServer: boolean
+): string | null {
+  if (person) return person
+  if (!isServer) return null
+  const named = new URL(req.url || '/', 'http://x').searchParams.get(
+    'telegram_id'
+  )
+  return named && /^\d{5,15}$/.test(named) ? named : null
+}
+
 let tablesReady = false
 
 /**

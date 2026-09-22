@@ -327,11 +327,19 @@ describe('telling the person their browser started', () => {
      * `inline_keyboard` survived a test that only looked for the URL.
      */
     const markup = sent[0].markup as {
-      inline_keyboard?: Array<Array<{ text?: string; url?: string }>>
+      inline_keyboard?: Array<
+        Array<{ text?: string; url?: string; web_app?: { url?: string } }>
+      >
     }
     expect(Array.isArray(markup.inline_keyboard)).toBe(true)
     const button = markup.inline_keyboard![0][0]
-    expect(button.url).toContain('/browser')
+    /*
+     * A web_app button, not a url one: a url button opens the phone's own
+     * browser, where the person is not signed in and sees nothing
+     * (owner, 2026-09-22). The mini app arrives signed.
+     */
+    expect(button.url).toBeUndefined()
+    expect(button.web_app?.url).toContain('/browser')
     expect(button.text).toBeTruthy()
   })
 

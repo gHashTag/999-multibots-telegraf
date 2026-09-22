@@ -152,7 +152,7 @@ describe('/start: первая дверь', () => {
     supabase.getUserDetailsSubscription.mockResolvedValue({ isExist: false })
     const { ctx } = собратьКонтекст('/start foundry')
     await команды.get('start')(ctx)
-    expect(ctx.session.foundryDeepLink).toBe(true)
+    expect(ctx.session.clubDeepLink).toBe(true)
   })
 
   it('падение базы не роняет обработчик и объясняет человеку', async () => {
