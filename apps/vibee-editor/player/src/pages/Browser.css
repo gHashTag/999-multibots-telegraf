@@ -244,7 +244,21 @@
     height: var(--app-vh-stable, 100dvh);
     padding: 8px 8px calc(8px + var(--app-safe-bottom, 0px));
     gap: 8px;
-    overflow: hidden;
+    /*
+     * SCROLLS, NOT CLIPS. With the agent's cards, the keys and the buttons
+     * under the picture the column is taller than the screen; `hidden` cut
+     * the cards off at the tab bar, half of one showing (owner, 2026-09-22).
+     */
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Everything under the picture keeps its own height: a card squeezed by the
+     column drew its buttons over its own text. Only the picture flexes. */
+  .remote-browser--live .remote-browser__live > :not(.remote-browser__stage) {
+    flex: 0 0 auto;
   }
 
   /* Same reasoning as `.editor`: a fixed-height page has to SHRINK for the
