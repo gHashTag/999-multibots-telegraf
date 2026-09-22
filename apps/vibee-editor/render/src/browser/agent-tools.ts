@@ -99,26 +99,29 @@ async function mustBeAllowedToAct(
   )
 }
 
+/*
+ * THE PERSON'S LIVE BROWSER, STARTED IF IT IS OFF (routes.ts
+ * startBrowserAsAgent). Every tool that acts goes through here: the first
+ * version put the start in podOf only, and browser_open -- the very first
+ * call of any task -- kept its own check and failed in 6 ms (found by the
+ * second tri a2a run, 2026-09-22). A probe never starts a browser.
+ */
+export async function liveSession(ctx: ToolContext) {
+  const pool = ctx.pool as unknown as Queryable
+  const session = await readSession(pool, ctx.telegramId)
+  if (session?.state === 'live' && session.cdpEndpoint) return session
+  if (ctx.probe === true) return session
+  const { startBrowserAsAgent } = await import('./routes')
+  if (!(await startBrowserAsAgent(ctx.telegramId).catch(() => false)))
+    return session
+  return await readSession(pool, ctx.telegramId)
+}
+
 /** What every tool here needs, and the one refusal they all share. */
 async function podOf(
   ctx: ToolContext
 ): Promise<{ cdp: string; targetId: string }> {
-  let session = await readSession(
-    ctx.pool as unknown as Queryable,
-    ctx.telegramId
-  )
-  if (
-    (!session || session.state !== 'live' || !session.cdpEndpoint) &&
-    ctx.probe !== true
-  ) {
-    const { startBrowserAsAgent } = await import('./routes')
-    if (await startBrowserAsAgent(ctx.telegramId).catch(() => false)) {
-      session = await readSession(
-        ctx.pool as unknown as Queryable,
-        ctx.telegramId
-      )
-    }
-  }
+  const session = await liveSession(ctx)
   if (!session || session.state !== 'live' || !session.cdpEndpoint) {
     throw new Error(
       'no browser is running for this person. They open one in the mini app, ' +
@@ -537,13 +540,6 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      const session = await readSession(
-        ctx.pool as unknown as Queryable,
-        ctx.telegramId
-      )
-      if (!session?.cdpEndpoint || session.state !== 'live') {
-        throw new Error('no browser is running for this person')
-      }
       /* The web only: never the browser's settings, extensions or vault. */
       if (!agentMayOpen(String(args.url))) {
         throw new Error(
@@ -551,6 +547,10 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
             "browser's own pages -- settings, extensions, the password " +
             "manager -- are the person's to open, not an agent's."
         )
+      }
+      const session = await liveSession(ctx)
+      if (!session?.cdpEndpoint || session.state !== 'live') {
+        throw new Error('no browser is running for this person')
       }
       const page = await newPage(session.cdpEndpoint, String(args.url))
       return { opened: page.url || String(args.url), id: page.id }

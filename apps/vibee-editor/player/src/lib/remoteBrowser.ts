@@ -386,7 +386,7 @@ export async function answerApproval(
   }
 }
 
-export type BrowserKey = 'Tab' | 'Escape'
+export type BrowserKey = 'Tab' | 'Escape' | 'Enter'
 export type BrowserScroll = 'up' | 'down'
 
 /** Scroll the page or press a key the video cannot carry. Never throws. */

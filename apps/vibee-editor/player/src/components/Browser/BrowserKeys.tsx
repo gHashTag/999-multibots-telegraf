@@ -14,7 +14,7 @@ import {
  *
  * A swipe on the stream moves the remote mouse; it does not scroll. So a
  * page whose buttons sit below the edge could not be finished from a phone
- * (owner, 2026-09-22). Four keys, always under the picture.
+ * (owner, 2026-09-22). Five keys, always under the picture.
  */
 export function BrowserKeys() {
   const { t } = useLanguage()
@@ -60,6 +60,15 @@ export function BrowserKeys() {
         onClick={() => void press({ key: 'Escape' })}
       >
         Esc
+      </button>
+      {/* Tab to a page's button, Enter presses it: "Save" without a tap. */}
+      <button
+        type="button"
+        disabled={busy}
+        className="browser-keys__enter"
+        onClick={() => void press({ key: 'Enter' })}
+      >
+        Enter ⏎
       </button>
     </div>
   )
