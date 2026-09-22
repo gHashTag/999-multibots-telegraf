@@ -30,7 +30,7 @@ describe('render-server hands /s3/ to the shelf route', () => {
     expect(block).toMatch(/req\.method === 'GET'/)
     expect(block).toMatch(/req\.method === 'HEAD'/)
     expect(block).toMatch(
-      /serveShelfRequest\(req, res, \{\s*store: SHELF_STORE,\s*video: SHELF_VIDEO,?\s*\}\)/
+      /serveShelfRequest\(req, res, \{\s*store: SHELF_STORE,\s*video: SHELF_VIDEO,\s*access: \(key, query, r\) =>\s*shelfReadAccess\(key, query, hasServerKey\(r\)\),?\s*\}\)/
     )
   })
 
@@ -60,5 +60,24 @@ describe('render-server hands /s3/ to the shelf route', () => {
     const outlet = SERVER.slice(at, SERVER.indexOf('\n})', at))
     expect(outlet).toMatch(/\bstat: s3Stat,/)
     expect(outlet).toMatch(/\bmaxBytes: SHELF_VIDEO_MAX_BYTES,/)
+  })
+})
+
+describe('no new walkable key, and the owner is handed links that open', () => {
+  it('every upload in render-server.ts takes its key from assetKeyFor', () => {
+    // A timestamp and a file name alone is a key someone can walk; see
+    // src/lib/shelf-access.ts.
+    expect(SERVER).not.toMatch(/`assets\/\$\{Date\.now\(\)\}-\$\{/)
+    expect(SERVER.match(/const key = assetKeyFor\(filename\)/g)?.length).toBe(2)
+  })
+
+  it('crm_lead_media and tg_fetch_media sign the URL they hand out', () => {
+    const read = (p: string) => fs.readFileSync(path.join(__dirname, p), 'utf8')
+    expect(read('src/agent/crm-memory-tools.ts')).toMatch(
+      /url: shelfLinkFor\(x\.url\)/
+    )
+    expect(read('src/agent/tg-fetch-media.ts')).toMatch(
+      /files: files\.map\(f =>\s*typeof f\.url === 'string' \? \{ \.\.\.f, url: shelfLinkFor\(f\.url\) \} : f\s*\)/
+    )
   })
 })
