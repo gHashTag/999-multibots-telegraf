@@ -130,6 +130,12 @@ before editing any test. The short version:
 - Test clock and code clock must be on the same scale.
 - A flaky neighbour is worse than a failing test: it teaches people to re-run
   until green, and then a real regression gets re-run away too.
+- **A test that runs git inherits the hook's `GIT_DIR`.** The pre-push gate
+  runs related tests inside a git hook, where `cwd` does not beat `GIT_DIR`:
+  a `git config user.name t` in a temp repo wrote the REAL shared config
+  (2026-09-22). Strip every `GIT_*` from the env of each git call and spawned
+  script, pass the identity as `git -c user.name=…`, and prove it with
+  `GIT_DIR=<throwaway>/.git npx vitest run <file>` (#2829).
 
 ---
 
