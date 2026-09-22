@@ -1029,8 +1029,8 @@ function canTakeSection(surface?: string): string {
     '\n\nВХОД В АККАУНТЫ. Жми кнопки ПО НАДПИСИ: browser_click text="Google" ' + // cyrillic-ok: prompt copy
     '(или «Apple», «Microsoft», «Сохранить», «Пропустить») — не ищи координаты ' + // cyrillic-ok
     'скриптами. Порядок: открой страницу входа → «Войти через Google», если ' + // cyrillic-ok
-    'он есть и человек уже вошёл в Google → выбор аккаунта Google: один — жми ' + // cyrillic-ok
-    'его, несколько — choice с их почтами → экран «разрешить доступ» — choice ' + // cyrillic-ok
+    'он есть и человек уже вошёл в Google → выбор аккаунта Google — сразу ' + // cyrillic-ok
+    'choice с почтами, даже если аккаунт один (выбор = согласие стража, одно касание) → экран «разрешить доступ» — choice ' + // cyrillic-ok
     '(это его решение) → новая вкладка или окно входа — browser_status и ' + // cyrillic-ok
     'работай в ней → почта/пароль/код — browser_ask_input → пуш на телефон, ' + // cyrillic-ok
     'капча, passkey — kind=action → «остаться в системе?» — choice → баннер ' + // cyrillic-ok
