@@ -14,7 +14,15 @@
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  padding-bottom: var(--nav-height, 64px);
+  /* The tab bar publishes its measured height (ResizeObserver in
+     TelegramTabBar) and telegram.css adds the safe area to it. This reserved
+     the bare --nav-height constant instead, so on a phone with a home
+     indicator the last ~27px of the frame sat under the bar -- where the
+     Queen's command rail keeps its second row, half of it invisible. */
+  padding-bottom: var(
+    --app-tabbar-total,
+    calc(var(--nav-height, 64px) + env(safe-area-inset-bottom, 0px))
+  );
   overflow: hidden;
   background: #05080a; /* her page's own background, so the load is not a white flash */
 }

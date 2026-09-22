@@ -7,6 +7,7 @@ import { ProfilePlan } from './ProfilePlan'
 import { ProfilePending } from './ProfilePending'
 import { ConnectTelegram } from './ConnectTelegram'
 import { useIsOwnProfile } from './useIsOwnProfile'
+import { revealInStrip } from './revealInStrip'
 import { ProfileBlog } from './ProfileBlog'
 import { SoulEditor } from './SoulEditor'
 import { PairWithApp } from './PairWithApp'
@@ -115,26 +116,6 @@ export function ProfileTabs() {
   const contentRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
 
-  /*
-   * THE CHOSEN SECTION IS ALWAYS IN SIGHT.
-   *
-   * Ten sections do not fit a phone's width, so the strip scrolls -- and a
-   * section chosen by swipe or by ?tab= could sit past the edge, active and
-   * invisible (2026-09-22). Brought into view on every change. Declared above
-   * the early return below: a hook after it would change the hook order
-   * between the first render (no profile yet) and the next.
-   */
-  useEffect(() => {
-    const active = headerRef.current?.querySelector<HTMLElement>(
-      '.profile-tabs__tab--active'
-    )
-    active?.scrollIntoView?.({
-      block: 'nearest',
-      inline: 'nearest',
-      behavior: 'smooth',
-    })
-  }, [visibleActiveTab])
-
   // Swipe navigation between tabs
   const goToNextTab = useCallback(() => {
     const currentIndex = tabOrder.indexOf(visibleActiveTab)
@@ -175,6 +156,25 @@ export function ProfileTabs() {
     } else if (visibleActiveTab === 'following') {
       loadFollowing(profile.username)
     }
+  }, [visibleActiveTab, profile?.username])
+
+  /*
+   * THE CHOSEN SECTION IS ALWAYS IN SIGHT (revealInStrip below).
+   *
+   * Ten sections do not fit a phone's width, so the strip scrolls -- and a
+   * section chosen by swipe or by ?tab= could sit past the edge, active and
+   * invisible (2026-09-22). Brought into view on every change, and once more
+   * when the profile arrives: the strip is not drawn before it, so a section
+   * named in the address had nothing to scroll on the first pass. Declared
+   * above the early return below: a hook after it would change the hook
+   * order between the first render (no profile yet) and the next.
+   */
+  useEffect(() => {
+    const strip = headerRef.current
+    const active = strip?.querySelector<HTMLElement>(
+      '.profile-tabs__tab--active'
+    )
+    if (strip && active) revealInStrip(strip, active)
   }, [visibleActiveTab, profile?.username])
 
   if (!profile) return null
