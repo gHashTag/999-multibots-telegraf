@@ -131,6 +131,13 @@ export interface ToolContext {
    * there, and a picture drawn from text has nobody in it. Set only by code.
    */
   sellerSweep?: boolean
+  /**
+   * What the caller typed in THIS turn, on the bot surface, outside a sweep.
+   * Set only by code (routes.ts). Read by assistant-opt-out.ts: a client who
+   * switched the assistant off can still get the owner's OWN words, and this
+   * is how a draft proves they are his rather than the model's.
+   */
+  ownerSaid?: string
 }
 
 export interface AgentTool {

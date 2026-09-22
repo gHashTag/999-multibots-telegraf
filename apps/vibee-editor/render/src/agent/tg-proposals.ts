@@ -114,6 +114,12 @@ export interface PendingProposal {
    * a label between them.
    */
   theirWords?: string
+  /**
+   * The words are the OWNER's own, typed by him in the turn that prepared
+   * the card (assistant-opt-out.ts `ownerWrote`). The one draft that may
+   * still reach a person who switched the assistant off; the press checks it.
+   */
+  ownerWords?: boolean
   createdAt: number
   /**
    * THE ONE-TIME SECRET, AND WHY THE ID IS NOT ENOUGH.
@@ -1680,6 +1686,24 @@ export async function execute(
   const { hangUp } = await import('./hang-up')
   let c: SendingClient | null = null
   try {
+    /*
+     * THE PRESS ASKS AGAIN. A card drawn before the person said "switch the
+     * assistant off" must not leave after it -- unless its words were the
+     * owner's own (ownerWords), which is the owner speaking, not the machine.
+     * Before the session is opened and before any money moves.
+     */
+    if (p.action === 'send' || p.action === 'forward') {
+      const { assistantMayReach } = await import('./assistant-opt-out')
+      const lead =
+        p.lead ??
+        (/^\d{5,15}$/.test(String(p.target)) ? String(p.target) : undefined)
+      const reach = await assistantMayReach(
+        { telegramId: ctx.telegramId, pool: ctx.pool as never },
+        lead,
+        { pressed: true, ownerWords: p.ownerWords === true }
+      )
+      if (!reach.ok) return { done: false, why: reach.why }
+    }
     c = (await client(ctx as never)) as SendingClient
     const exec = (EXECUTORS as Partial<Record<ProposalAction, Executor>>)[
       p.action
