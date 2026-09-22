@@ -93,21 +93,27 @@ export default function BrowserPage() {
   /* The last shape we asked the pod for, so a scroll does not ask again. */
   const fitted = useRef<Box | null>(null)
 
-  const act = useCallback(async (fn: () => Promise<BrowserSessionView>) => {
-    setBusy(true)
-    setError(null)
-    try {
-      const next = await fn()
-      /* It did not forget them; say so rather than show an empty screen. */
-      setExplainGone(wentOut(lastState.current, next.state))
-      lastState.current = next.state
-      setView(next)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }, [])
+  const act = useCallback(
+    async (fn: () => Promise<BrowserSessionView>) => {
+      setBusy(true)
+      setError(null)
+      try {
+        const next = await fn()
+        /* It did not forget them; say so rather than show an empty screen. */
+        setExplainGone(wentOut(lastState.current, next.state))
+        lastState.current = next.state
+        setView(next)
+        /* The server says who is driving: after a reload, or from another
+         device, the glow shows the truth instead of assuming the agent. */
+        if (next.wheel === 'person') setAgentWorking(false)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [setAgentWorking]
+  )
 
   /*
    * Read on arrival, and again on every RETURN: the page is kept mounted

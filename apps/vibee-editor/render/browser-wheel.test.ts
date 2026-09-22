@@ -159,3 +159,31 @@ describe('POST /api/browser/wheel', () => {
     ).toBe(405)
   })
 })
+
+describe('GET /api/browser/session says who drives', () => {
+  const deps = (w: ReturnType<typeof world>) => ({
+    getPool: async () => w.pool,
+    identity: () => ID,
+    driver: fixedDriver({ endpoint: 'pod:8080' }),
+    newToken: () => 'tok',
+    actor: () => 'person' as const,
+    env: { BROWSER_POD_OWNER: ID },
+  })
+  const read = (w: ReturnType<typeof world>) =>
+    handleBrowser(
+      { url: '/api/browser/session', method: 'GET' },
+      deps(w) as never
+    )
+
+  it('the person, while the lease runs; the agent otherwise', async () => {
+    expect(
+      ((await read(world(NOW + 60_000))).body as { wheel: string }).wheel
+    ).toBe('person')
+    expect(((await read(world(NOW - 1))).body as { wheel: string }).wheel).toBe(
+      'agent'
+    )
+    expect(((await read(world(null))).body as { wheel: string }).wheel).toBe(
+      'agent'
+    )
+  })
+})

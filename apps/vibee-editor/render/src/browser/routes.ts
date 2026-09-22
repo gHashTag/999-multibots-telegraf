@@ -47,6 +47,7 @@ import {
   type BrowserSession,
   type Queryable,
   setWheel,
+  personHasTheWheel,
 } from './sessions'
 import {
   ensureBrowserProfiles,
@@ -141,6 +142,13 @@ function publicView(s: BrowserSession): Record<string, unknown> {
     state: s.state,
     sessionId: s.sessionId,
     viewUrl: `/live/${s.sessionId}?t=${encodeURIComponent(s.viewToken)}`,
+    /*
+     * Who is driving, so a page opened later -- the board, a second device,
+     * the app after a reload -- shows the truth instead of assuming the agent
+     * (sessions.ts personHasTheWheel). An agent reads it too: "the person is
+     * driving" is worth knowing before it tries to click.
+     */
+    wheel: personHasTheWheel(s, Date.now()) ? 'person' : 'agent',
   }
 }
 
