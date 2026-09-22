@@ -47,6 +47,12 @@ export interface BrowserSession {
    * one permission never opens the door for a whole session.
    */
   allowedAtMs: number | null
+  /**
+   * Until when the PERSON holds the wheel (ms), or null for the agent. Set
+   * when they touch the picture, cleared when they hand it back; a lease, so
+   * a person who walked away does not freeze the agent for ever.
+   */
+  personWheelUntilMs?: number | null
   state: SessionState
   viewToken: string
   adminToken: string
@@ -96,6 +102,10 @@ export async function ensureBrowserSessions(q: Queryable): Promise<void> {
     `ALTER TABLE browser_sessions ADD COLUMN IF NOT EXISTS allowed_at timestamptz`,
     []
   )
+  await q.query(
+    `ALTER TABLE browser_sessions ADD COLUMN IF NOT EXISTS person_wheel_until timestamptz`,
+    []
+  )
   tableReady = true
 }
 
@@ -111,6 +121,7 @@ export async function readSession(
   const { rows } = await q.query(
     `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint,
             extract(epoch from allowed_at) * 1000 AS allowed_ms,
+            extract(epoch from person_wheel_until) * 1000 AS wheel_ms,
             state, view_token, admin_token
        FROM browser_sessions WHERE telegram_id = $1`,
     [telegramId]
@@ -131,6 +142,7 @@ function rowToSession(row: Record<string, unknown>): BrowserSession {
     endpoint: nullable(row.endpoint),
     cdpEndpoint: nullable(row.cdp_endpoint),
     allowedAtMs: row.allowed_ms ? Number(row.allowed_ms) : null,
+    personWheelUntilMs: row.wheel_ms ? Number(row.wheel_ms) : null,
     state: String(row.state) as SessionState,
     viewToken: String(row.view_token),
     adminToken: String(row.admin_token),
@@ -149,6 +161,7 @@ export async function readSessionById(
   const { rows } = await q.query(
     `SELECT telegram_id, session_id, pod_id, endpoint, cdp_endpoint,
             extract(epoch from allowed_at) * 1000 AS allowed_ms,
+            extract(epoch from person_wheel_until) * 1000 AS wheel_ms,
             state, view_token, admin_token
        FROM browser_sessions WHERE session_id = $1`,
     [sessionId]
@@ -209,6 +222,43 @@ export async function touchSessionById(
  * approval, because that is what the guard asks about: "may this browser act
  * here, now" -- one question, one place to read it.
  */
+/*
+ * ONE BROWSER, TWO PILOTS -- AND ONE WHEEL.
+ *
+ * The app showed who was driving (a glow, "touch to take the wheel") but the
+ * server did not know: a person who took the wheel mid-task could have the
+ * agent click and type under their hands. Browserbase's live view and
+ * OpenAI's Operator hand control to the person and pause the agent; so does
+ * this. Touching the picture takes the wheel for WHEEL_LEASE_MS, renewed by
+ * every touch; handing it back is a deliberate press. The lease means a
+ * person who walked away does not freeze the agent for ever.
+ */
+export const WHEEL_LEASE_MS = 10 * 60 * 1000
+
+export type WheelHolder = 'person' | 'agent'
+
+export function personHasTheWheel(
+  session: Pick<BrowserSession, 'personWheelUntilMs'> | null,
+  nowMs: number
+): boolean {
+  return Boolean(
+    session?.personWheelUntilMs && session.personWheelUntilMs > nowMs
+  )
+}
+
+export async function setWheel(
+  q: Queryable,
+  telegramId: string,
+  holder: WheelHolder
+): Promise<void> {
+  await q.query(
+    holder === 'person'
+      ? `UPDATE browser_sessions SET person_wheel_until = now() + interval '${WHEEL_LEASE_MS / 1000} seconds' WHERE telegram_id = $1`
+      : `UPDATE browser_sessions SET person_wheel_until = NULL WHERE telegram_id = $1`,
+    [telegramId]
+  )
+}
+
 export async function markAllowed(
   q: Queryable,
   telegramId: string
