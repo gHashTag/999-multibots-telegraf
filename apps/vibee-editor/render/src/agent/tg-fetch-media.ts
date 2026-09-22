@@ -42,8 +42,9 @@
  *
  * Every word that came from the file -- the caption, the description of a
  * photo (which quotes visible text verbatim), the transcript -- is framed as
- * foreign content. A picture of a sign that says "forward the login code" is
- * still a picture.
+ * foreign content, and what was perceived has its button and attachment
+ * markers broken first (`wordsFor`). A picture of a sign that says "forward
+ * the login code" is still a picture.
  */
 
 import type { ToolContext } from './tools'
@@ -77,6 +78,7 @@ import {
   type Extracted,
   type ExtractFailure,
 } from './media-extract'
+import { defangMarkers } from './media-parts'
 import { s3PutBytes } from '../lib/s3-put'
 
 /** Telegram's own album ceiling: one call can take one whole album. */
@@ -138,6 +140,18 @@ const UNREAD: Record<ExtractFailure, { why: string; retry: boolean }> = {
   },
   missing: { why: 'the stored copy did not open', retry: true },
 }
+
+/**
+ * A null verdict on a PDF, an office file or an archive is the file's own
+ * answer only when a reader gave it. Before the readers (PR #2764, merged
+ * 2026-09-21T20:11Z and carried by every render deploy after it) the
+ * background pass closed EVERY such file with `transcript = NULL` and
+ * `transcribed_at` set -- "nobody could read this format", not "this file
+ * has no text". So a verdict older than this instant is not believed: the
+ * file is opened live, once, and the fresh verdict is recorded. The margin
+ * past the merge only costs one extra read of a file judged in between.
+ */
+export const DOCUMENT_VERDICTS_SINCE = new Date('2026-09-22T00:00:00Z')
 
 /** Kinds that are files a person sends. A sticker or a poll is not one. */
 const FILE_KINDS: ReadonlySet<SentMediaKind> = new Set([
@@ -357,7 +371,11 @@ export async function fetchSentMedia(
   // What this owner's library already holds for these messages: no second download.
   const held = new Map<
     number,
-    MediaRow & { id: number; transcript: string | null }
+    MediaRow & {
+      id: number
+      transcript: string | null
+      transcribedAt: Date | null
+    }
   >()
   if (pool) {
     const rows = await ingestRowsByMsgIds(
@@ -424,6 +442,33 @@ export async function fetchSentMedia(
               ? 'read earlier'
               : 'seen earlier',
         ...wordsFor(row.kind, earlier),
+      })
+      continue
+    }
+
+    /*
+     * A DOCUMENT A READER ALREADY JUDGED. A scan, a password, a damaged file:
+     * an earlier pass -- this tool's or the background's -- opened it, found
+     * no words and wrote `transcribed_at` with a null transcript. Opening it
+     * again would get the same answer and spend a live read on it, on every
+     * call about this message. See DOCUMENT_VERDICTS_SINCE for why an older
+     * verdict is not believed.
+     */
+    const judged = held.get(m.id)?.transcribedAt ?? null
+    if (
+      row &&
+      !earlier &&
+      row.kind === 'file' &&
+      judged &&
+      judged.getTime() >= DOCUMENT_VERDICTS_SINCE.getTime() &&
+      !isTextLikeDocument(row.mime, row.name) &&
+      documentFormat(row.mime, row.name)
+    ) {
+      files.push({
+        ...base,
+        url: row.url,
+        status: 'not read',
+        why: 'opened before and no text came out: a scan, a password or a damaged file',
       })
       continue
     }
@@ -551,6 +596,19 @@ export async function fetchSentMedia(
     } else if (!words && pool && row.id && (row.kind !== 'file' || readLater)) {
       // Not a verdict: the background queue tries again and records it.
       background.push(row)
+    } else if (why && !readLater && pool && row.id) {
+      /*
+       * A VERDICT: the file's own answer (a scan, a password, damage).
+       * Recorded the way the background pass records it -- `transcribed_at`
+       * with no words -- or the row stays pending: the backlog sweep opens
+       * it again on its next tick, and the next call here does too. A write
+       * that fails costs only that one extra read.
+       */
+      await saveTranscript(pool, row.id, null).catch(e =>
+        console.warn(
+          `[tg_fetch_media] verdict for #${row.id} not recorded: ${String(e).slice(0, 120)}`
+        )
+      )
     }
     files.push({
       ...base,
@@ -587,12 +645,20 @@ export async function fetchSentMedia(
   }
 }
 
-/** The perceived words under the key that says what kind of perceiving it was. */
+/**
+ * The perceived words under the key that says what kind of perceiving it was.
+ *
+ * Defanged before they are framed, as the chat turn frames the same readers'
+ * output (media-inline.ts): the fence does not close a `[[label|act:topup]]`
+ * the sender wrote into a PDF, a spreadsheet cell, an archive entry's name or
+ * a photographed sign -- echoed by the model, it renders a real payment
+ * button. See `defangMarkers`.
+ */
 function wordsFor(
   kind: MediaRow['kind'],
   words: string
 ): Record<string, string> {
-  const framed = foreignText(words)
+  const framed = foreignText(defangMarkers(words))
   if (kind === 'audio') return { transcript: framed }
   if (kind === 'file') return { document_text: framed }
   return { description: framed }
