@@ -35,6 +35,7 @@ vi.mock('@/services/contentFactory/storage', () => ({
 import {
   TelegramFileDownloadFailed,
   TelegramFileTooBig,
+  errorCode,
   forgetMirroredForTests,
   installLocalFileLinks,
   mirrorTelegramFile,
@@ -143,6 +144,66 @@ describe('a bot on our server: the bytes come from the file endpoint', () => {
     expect(String(err.message)).toContain('404')
     expect(String(err.message)).not.toContain('ZZmoved')
     expect(String(err.message)).not.toContain('telegram-bot-api')
+  })
+})
+
+describe('a streamed file that fails says which end broke', () => {
+  // A body that gives one chunk and then dies, like a reset connection.
+  const breaking = () =>
+    new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array(1000))
+      },
+      pull(c) {
+        c.error(
+          Object.assign(new TypeError('terminated'), {
+            cause: { code: 'ECONNRESET' },
+          })
+        )
+      },
+    })
+  const reading = async (body: ReadableStream<Uint8Array>) => {
+    const r = body.getReader()
+    for (;;) if ((await r.read()).done) break
+    return { url: 'https://shelf.example/s3/x', meta: {} }
+  }
+
+  it('a download cut mid-stream is a download failure, with the byte count and the code', async () => {
+    const err = await mirrorTelegramFile(MOVED, ABS, 'x.zip', {
+      fetchImpl: (async () => new Response(breaking())) as typeof fetch,
+      put: reading as never,
+    }).catch(e => e)
+    expect(err).toBeInstanceOf(TelegramFileDownloadFailed)
+    expect(String(err.message)).toContain('after 1000 bytes')
+    expect(String(err.message)).toContain('ECONNRESET')
+    expect(String(err.message)).not.toContain('ZZmoved')
+  })
+
+  it('a shelf that breaks is the shelf s failure, and its code is readable', async () => {
+    const whole = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array(10))
+        c.close()
+      },
+    })
+    const err = await mirrorTelegramFile(MOVED, ABS, 'x.zip', {
+      fetchImpl: (async () => new Response(whole)) as typeof fetch,
+      put: (async () => {
+        throw Object.assign(new TypeError('fetch failed'), {
+          cause: { code: 'UND_ERR_SOCKET' },
+        })
+      }) as never,
+    }).catch(e => e)
+    expect(err).not.toBeInstanceOf(TelegramFileDownloadFailed)
+    expect(err.name).toBe('TypeError')
+    expect(errorCode(err)).toBe('UND_ERR_SOCKET')
+  })
+
+  it('errorCode never hands back a message', () => {
+    expect(
+      errorCode(new Error(`GET https://x/file/bot${MOVED}/y failed`))
+    ).toBe('Error')
+    expect(errorCode(null)).toBe('error')
   })
 })
 
