@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { addFrame, FILMED_TOOLS } from './film'
 /**
  * THE REASON AN AGENT DID NOT KNOW THE BROWSER EXISTED.
  *
@@ -571,6 +572,41 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
  * journal that cannot be written must not turn a working click into an
  * error. Typed text and evaluated code are kept by length only.
  */
+/*
+ * ONE FRAME PER STEP, FOR THE FILM SENT AFTER THE TURN (film.ts).
+ *
+ * A look already carries its picture; any other step gets the whole screen
+ * from the pod a moment later, once the page has reacted. Stamped with the
+ * step's start so frames stay in step order. Never throws, never waited on:
+ * a missing frame costs one picture, not the step.
+ */
+export const FRAME_SETTLE_MS = 700
+
+async function filmStep(
+  ctx: ToolContext,
+  tool: string,
+  at: number,
+  result: unknown
+): Promise<void> {
+  try {
+    const own = (result ?? {}) as { base64?: unknown }
+    if (typeof own.base64 === 'string' && own.base64) {
+      addFrame(ctx.telegramId, { at, tool, jpeg: own.base64 })
+      return
+    }
+    await new Promise(r => setTimeout(r, FRAME_SETTLE_MS))
+    const session = await readSession(
+      ctx.pool as unknown as Queryable,
+      ctx.telegramId
+    )
+    if (!session || session.state !== 'live' || !session.endpoint) return
+    const jpeg = await desktopShot(session.endpoint, session.adminToken)
+    addFrame(ctx.telegramId, { at, tool, jpeg })
+  } catch {
+    /* a frame is a picture, not a duty */
+  }
+}
+
 function journaled(tool: AgentTool): AgentTool {
   return {
     ...tool,
@@ -591,6 +627,8 @@ function journaled(tool: AgentTool): AgentTool {
       try {
         const result = await tool.handler(args, ctx)
         write({ result })
+        if (ctx.probe !== true && FILMED_TOOLS.has(tool.name))
+          void filmStep(ctx, tool.name, t0, result)
         return result
       } catch (error) {
         write({ error })
