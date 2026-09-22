@@ -235,6 +235,25 @@ describe('sendAppDoor -- the answer to /start app_<route>', () => {
     expect(rows[0]).toHaveLength(1)
     expect(rows[0][0].web_app.url).toMatch(/tgWebAppStartParam=browser$/)
   })
+
+  it('a copy without the chat getter still reads the chat from the message', async () => {
+    // CreateUserScene passes `{ ...ctx }`: Telegraf's `chat` getter is gone,
+    // `message.chat` is there. Without the fallback a new person got a url
+    // button back to ?start=app_hive -- a loop, not the screen.
+    const reply = vi.fn().mockResolvedValue(undefined)
+    await sendAppDoor(
+      {
+        reply,
+        message: { chat: { type: 'private' } },
+        botInfo: { username: BOT },
+      },
+      'hive',
+      false
+    )
+    const button = reply.mock.calls[0][1].reply_markup.inline_keyboard[0][0]
+    expect(button.web_app?.url).toMatch(/tgWebAppStartParam=hive$/)
+    expect(button.url).toBeUndefined()
+  })
 })
 
 describe('buttonsForAnswer -- the agent’s answer in the bot chat', () => {

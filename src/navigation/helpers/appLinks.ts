@@ -347,18 +347,25 @@ export function appDoorText(isRu: boolean): string {
  * The answer to `/start app_<route>`: ONE message, ONE web_app button to that
  * screen. /start is always a private chat (t.me/<bot>?start opens one), so the
  * web_app button is legal here.
+ *
+ * The chat type is read from `ctx.chat` and, failing that, from
+ * `ctx.message.chat`: CreateUserScene hands on a copy made with `{ ...ctx }`,
+ * and a spread drops Telegraf's `chat` getter (it lives on the prototype). A
+ * new person would then get a url button back to ?start=app_<route> -- a loop
+ * to a second /start instead of the screen.
  */
 export async function sendAppDoor(
   ctx: {
     reply: (text: string, extra?: any) => Promise<unknown>
     chat?: { type?: string }
+    message?: { chat?: { type?: string } }
     botInfo?: { username?: string }
   },
   route: AppRoute,
   isRu: boolean
 ): Promise<void> {
   const button = appButton(appDoorLabel(route, isRu), route, {
-    chatType: ctx.chat?.type,
+    chatType: ctx.chat?.type ?? ctx.message?.chat?.type,
     botUsername: ctx.botInfo?.username,
   })
   await ctx.reply(
