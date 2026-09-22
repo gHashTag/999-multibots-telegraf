@@ -36,6 +36,8 @@ export interface ApiError extends Error {
   /** Причина от сервера: поле detail, если пришло. */
   detail?: string
   hint?: string
+  /** The server's machine-readable error code (body.error), when it sent one. */
+  code?: string
 }
 
 /** Заголовки с подписью. Пустая подпись не добавляется — незачем. */
@@ -170,6 +172,7 @@ export async function apiFetch<T = unknown>(
     err.status = res.status
     err.detail = body.detail
     err.hint = body.hint
+    err.code = body.error
     throw err
   }
 
@@ -185,6 +188,10 @@ export function explainApiError(e: unknown): string {
       : 'Сервер не подтвердил личность. Откройте приложение через кнопку меню бота.'
   }
   if (err?.status === 413) return 'Файл больше 100 МБ — сервер его не примет.'
+  // The sign-in service had a bad moment (lib/sessionRenewal.ts), not the
+  // bundle: say what happened.
+  if (err?.code === 'session_renewal_unavailable')
+    return err.detail || err.message
   if (err?.status === 503)
     return 'Сервер ещё собирает бандл шаблонов. Попробуйте через минуту.'
   return err?.message || 'Неизвестная ошибка'

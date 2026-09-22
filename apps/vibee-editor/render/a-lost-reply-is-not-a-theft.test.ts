@@ -25,6 +25,7 @@ type Row = {
   familyCreatedAt: Date
   createdAt: Date
   replacedBy: string | null
+  toJar: boolean
 }
 
 describe('a spent token presented again', () => {
@@ -53,6 +54,7 @@ describe('a spent token presented again', () => {
           successorHash: r.replacedBy ?? '',
           successorCreatedAt: n ? n.createdAt : null,
           displaced: !!r.revokedAt && !r.usedAt && !!r.replacedBy,
+          toJar: r.toJar,
         }
       },
       async consumeAndInsert(h: string, next: string, exp: Date) {
@@ -60,7 +62,12 @@ describe('a spent token presented again', () => {
         if (!r || r.usedAt || r.revokedAt) return false
         r.usedAt = new Date()
         r.replacedBy = next
-        rows.set(next, { ...fresh(r.familyId, exp), createdAt: new Date() })
+        rows.set(next, {
+          ...fresh(r.familyId, exp),
+          createdAt: new Date(),
+          // Marked by the route when it writes the successor into the jar.
+          toJar: r.toJar,
+        })
         return true
       },
       async revokeFamily(f: string) {
@@ -77,7 +84,11 @@ describe('a spent token presented again', () => {
         n.revokedAt = new Date()
         n.replacedBy = next
         r.replacedBy = next
-        rows.set(next, { ...fresh(r.familyId, exp), createdAt: new Date() })
+        rows.set(next, {
+          ...fresh(r.familyId, exp),
+          createdAt: new Date(),
+          toJar: true,
+        })
         return true
       },
     }
@@ -90,15 +101,17 @@ describe('a spent token presented again', () => {
         familyCreatedAt: new Date(Date.now() - 86_400_000),
         createdAt: new Date(),
         replacedBy: null,
+        toJar: false,
       }
     }
     return {
       store,
       rows,
       revokedFamilies: () => revokedFamilies,
-      seed() {
+      /** A session handed over through the jar, unless `toJar` is false. */
+      seed(toJar = true) {
         const t = session.issueRefreshToken()
-        rows.set(t.hash, fresh('fam', t.expiresAt))
+        rows.set(t.hash, { ...fresh('fam', t.expiresAt), toJar })
         return t
       },
     }
@@ -242,7 +255,7 @@ describe('a spent token presented again', () => {
     // expiry beside it says when the tab will rotate. A copy replayed inside
     // the window used to take the chain over (second review, 2026-09-22).
     const s = makeStore()
-    const T = s.seed()
+    const T = s.seed(false)
     await session.rotateRefreshToken(T.token, s.store)
     const replay = await session.rotateRefreshToken(T.token, s.store, later(15))
     expect(replay).toMatchObject({ ok: false, reason: 'reused' })
@@ -271,22 +284,38 @@ describe('a spent token presented again', () => {
     ).toMatchObject({ ok: false, reason: 'revoked' })
   })
 
-  it("a tab's stale copy whose successor is in this request's own cookie is a race", async () => {
+  it("a tab's stale copy of the family in this request's own cookie is a race, rotations later too", async () => {
     // Duplicated tabs during the move to the cookie: one moved the family into
-    // the jar, its copy still holds the old token and sends it with the jar.
+    // the jar and rotated it again since; its copy still holds the old token
+    // and sends it with the jar. Matched by family, not by the next token.
     const s = makeStore()
-    const T = s.seed()
-    const next = tokenOf(await session.rotateRefreshToken(T.token, s.store))
+    const T = s.seed(false)
+    const n1 = tokenOf(await session.rotateRefreshToken(T.token, s.store))
+    const n2 = tokenOf(await session.rotateRefreshToken(n1, s.store))
     const stale = await session.rotateRefreshToken(
       T.token,
       s.store,
       later(30),
-      {
-        jarHash: session.digest(next),
-      }
+      { jarFamily: 'fam' }
     )
-    expect(stale).toMatchObject({ ok: false, reason: 'raced' })
+    expect(stale).toMatchObject({ ok: false, reason: 'raced', inJar: true })
     expect(s.revokedFamilies()).toBe(0)
-    expect((await session.rotateRefreshToken(next, s.store)).ok).toBe(true)
+    expect((await session.rotateRefreshToken(n2, s.store)).ok).toBe(true)
+  })
+
+  it('a token the render never put in the jar is not forgiven, whatever header carries it', async () => {
+    // A Cookie header proves nothing about how the token got there: a thief
+    // with a copied body token can send one from curl (third review).
+    const s = makeStore()
+    const T = s.seed(false)
+    await session.rotateRefreshToken(T.token, s.store)
+    const forged = await session.rotateRefreshToken(
+      T.token,
+      s.store,
+      later(60),
+      JAR
+    )
+    expect(forged).toMatchObject({ ok: false, reason: 'reused' })
+    expect(s.revokedFamilies()).toBe(1)
   })
 })

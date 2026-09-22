@@ -109,6 +109,14 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
     `CREATE INDEX IF NOT EXISTS app_refresh_family
        ON app_refresh_tokens (family_id)`
   )
+  // Where the token was handed over: true only when the render itself wrote it
+  // into the HttpOnly jar with Set-Cookie. Only such a token may be forgiven a
+  // lost reply (session.ts LOST_REPLY_SECONDS): a Cookie header proves nothing
+  // about how the token got there, and a non-browser client can send one with
+  // a token it copied from anywhere (third review, 2026-09-22).
+  await pool.query(
+    `ALTER TABLE app_refresh_tokens ADD COLUMN IF NOT EXISTS to_jar boolean NOT NULL DEFAULT false`
+  )
 
   /**
    * One-time tickets for streaming endpoints.
@@ -407,7 +415,7 @@ export function refreshStore(pool: Pool) {
        * session row is gone is unknown and is refused before it is spent.
        */
       const r = await pool.query(
-        `SELECT t.family_id, t.used_at, t.revoked_at, t.expires_at,
+        `SELECT t.family_id, t.used_at, t.revoked_at, t.expires_at, t.to_jar,
                 s.created_at AS family_created_at,
                 t.replaced_by AS successor_hash,
                 (SELECT n.used_at IS NULL AND n.revoked_at IS NULL
@@ -441,6 +449,7 @@ export function refreshStore(pool: Pool) {
           : null,
         // Only reissue leaves a token revoked, unused and linked onward.
         displaced: row.displaced === true,
+        toJar: row.to_jar === true,
       }
     },
 
@@ -511,14 +520,22 @@ export function refreshStore(pool: Pool) {
             RETURNING token_hash
          )
          INSERT INTO app_refresh_tokens
-           (token_hash, family_id, session_id, expires_at)
-         SELECT $3, d.family_id, d.session_id, $4
+           (token_hash, family_id, session_id, expires_at, to_jar)
+         SELECT $3, d.family_id, d.session_id, $4, true
            FROM dropped d
           WHERE EXISTS (SELECT 1 FROM relinked)
          RETURNING token_hash`,
         [hash, successorHash, nextHash, expiresAt.toISOString()]
       )
       return r.rows.length === 1
+    },
+
+    /** Record that `hash` is being written into the HttpOnly jar. */
+    async markToJar(hash: string) {
+      await pool.query(
+        `UPDATE app_refresh_tokens SET to_jar = true WHERE token_hash = $1`,
+        [hash]
+      )
     },
 
     async revokeFamily(familyId: string) {

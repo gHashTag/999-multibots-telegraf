@@ -895,12 +895,21 @@ export async function handleAuthRoute(
         what: `widget; ${safeDeviceName(body.device_name)}`,
       })
       // The new cookie replaces whatever the jar held; that family has no
-      // other holder, so it ends here rather than lingering for 60 days.
+      // other holder, so it ends here rather than lingering for 60 days. And
+      // the new token is recorded as handed over through the jar.
       if (wantsCookieTransport(req)) {
         try {
           await revokeJarFamily(pool, req)
         } catch (error) {
           console.warn('[widget] replaced cookie family not revoked', error)
+        }
+        const minted = session.response.refresh_token
+        if (typeof minted === 'string') {
+          try {
+            await refreshStore(pool).markToJar(digest(minted))
+          } catch (error) {
+            console.warn('[widget] to_jar not recorded', error)
+          }
         }
       }
       json(
@@ -1271,15 +1280,23 @@ export async function handleAuthRoute(
       return true
     }
 
-    const outcome = await rotateRefreshToken(
-      presented,
-      refreshStore(pool),
-      undefined,
-      {
-        jar: fromCookie,
-        jarHash: bodyToken && jarToken ? digest(jarToken) : '',
-      }
-    )
+    // A body token sent beside a live cookie: the family that cookie names,
+    // so a stale copy of this browser's own family is told so (session.ts).
+    let jarFamily = ''
+    if (bodyToken && jarToken) {
+      const jar = await pool.query(
+        `SELECT family_id FROM app_refresh_tokens
+          WHERE token_hash = $1 AND revoked_at IS NULL AND used_at IS NULL
+          LIMIT 1`,
+        [digest(jarToken)]
+      )
+      jarFamily = jar.rows.length ? String(jar.rows[0].family_id) : ''
+    }
+    const store = refreshStore(pool)
+    const outcome = await rotateRefreshToken(presented, store, undefined, {
+      jar: fromCookie,
+      jarFamily,
+    })
 
     if (!outcome.ok) {
       /*
@@ -1296,6 +1313,9 @@ export async function handleAuthRoute(
       if (outcome.reason === 'raced') {
         json(res, 409, {
           error: 'auth_refresh_raced',
+          // The family lives on in this request's own cookie: the tab's copy
+          // is stale, and the player rides the jar instead of retrying it.
+          ...(outcome.inJar ? { reason: 'successor_in_jar' } : {}),
           detail:
             'этот токен обновляют прямо сейчас — перечитайте хранилище и повторите',
         })
@@ -1455,6 +1475,14 @@ export async function handleAuthRoute(
         ...(p?.username ? { username: p.username } : {}),
         ...(p?.avatar_url ? { photo_url: p.avatar_url } : {}),
         auth_date: Number(p?.telegram_auth_date ?? 0),
+      }
+      // Recorded as handed over through the jar: only such a token may later
+      // be forgiven a lost reply. Best-effort -- unrecorded, it just keeps the
+      // strict rule.
+      try {
+        await store.markToJar(outcome.next.hash)
+      } catch (error) {
+        console.warn('[auth] refresh: to_jar not recorded', error)
       }
       json(
         res,

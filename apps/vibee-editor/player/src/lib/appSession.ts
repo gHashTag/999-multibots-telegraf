@@ -68,6 +68,14 @@ export function cookieTransportAvailable(): boolean {
   if (!AUTH_ORIGIN) return false
   if (typeof window === 'undefined') return false
   if (window.location.origin !== APP_ORIGIN) return false
+  /*
+   * A document signed by Telegram launch data signs in as it always did, and
+   * never touches the jar: its requests act as the launch's person, whoever
+   * the browser's cookie belongs to. Three reviews found a new way for the two
+   * to meet each time; not meeting at all ends that (third review,
+   * 2026-09-22).
+   */
+  if (getInitData()) return false
   const win = window as unknown as FramedWindow
   if (win.self === win.top) return true
   if (!sessionTrustedIn(win)) return false
@@ -131,6 +139,37 @@ function announceSignOut(): void {
     window.localStorage.setItem(SIGNED_OUT_AT_KEY, String(Date.now()))
   } catch {
     // Without storage the other tabs are not told; each renews on its own.
+  }
+}
+
+/*
+ * A TAB FOLLOWING A SIGN-OUT ENDS ITS OWN SESSION, AND NOTHING ELSE.
+ *
+ * The first version ran the full sign-out, whose request carries the browser's
+ * cookie: a tab restored late (Ctrl+Shift+T, Memory Saver, iOS eviction) then
+ * revoked whatever the jar held by now -- a newer sign-in, another person's
+ * (third review, 2026-09-22). So: this tab's store only, and its own family by
+ * its own token, sent to the API host with no cookie and no opt-in, so the
+ * render cannot even see the jar. The hint and the pending flag stay as they
+ * are; they belong to the cookie's session, not to this tab's.
+ */
+async function endOwnSession(): Promise<void> {
+  const access = getAppAccessToken()
+  const refresh = storage()?.getItem(REFRESH_KEY) || ''
+  clearAppSession()
+  if (!refresh && !access) return
+  try {
+    await fetch(`${API_BASE}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(access ? { Authorization: `Bearer ${access}` } : {}),
+      },
+      body: JSON.stringify(refresh ? { refresh_token: refresh } : {}),
+    })
+  } catch {
+    // Its family expires on its own; this tab no longer holds it.
   }
 }
 
@@ -238,6 +277,14 @@ export function authHeaders(
  */
 export class TransientSessionError extends Error {}
 
+/*
+ * The request never reached the server (no network yet after sleep, the line
+ * dropped). It spent no slot of the sign-in brake, so it does not start the
+ * backoff: the 'online' heal and the next request may try at once, as before
+ * this work (third review, 2026-09-22).
+ */
+export class NetworkSessionError extends TransientSessionError {}
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 let refreshInFlight: Promise<AppSession> | null = null
 let sessionGeneration = 0
@@ -302,7 +349,12 @@ export function storeAppSession(
   if (signIn) sessionGeneration += 1
   resetRefreshBackoff()
   if (signIn || !s.getItem(SESSION_SINCE_KEY)) {
-    s.setItem(SESSION_SINCE_KEY, String(Date.now()))
+    // After the last sign-out whatever the clock says: a clock stepped back
+    // must not make a new sign-in look older than it (third review).
+    s.setItem(
+      SESSION_SINCE_KEY,
+      String(Math.max(Date.now(), signedOutAt() + 1))
+    )
   }
   s.setItem(ACCESS_KEY, session.access_token)
   if (session.refresh_transport === 'cookie' || !session.refresh_token) {
@@ -514,7 +566,7 @@ export function startAppSessionHealing(
     // Not in a document signed by Telegram launch data: its requests act as
     // the launch's person, and renewing into the jar would show another
     // (second review, 2026-09-22).
-    if (outlivedBySignOut()) void logoutAppSession({ broadcast: false })
+    if (outlivedBySignOut()) void endOwnSession()
     else if (!hasLiveAppSession() && hasCookieSession() && !getInitData())
       void ensureFreshSession()
   }
@@ -557,7 +609,7 @@ function followTheJar(event?: { key?: string | null }): void {
     return
   if (!cookieTransportAvailable()) return
   if (outlivedBySignOut()) {
-    void logoutAppSession({ broadcast: false })
+    void endOwnSession()
     return
   }
   const ownToken = !!storage()?.getItem(REFRESH_KEY)
@@ -627,7 +679,7 @@ export async function refreshAppSession(): Promise<AppSession> {
     throw new Error('signed out in this browser')
   }
   if (outlivedBySignOut()) {
-    void logoutAppSession({ broadcast: false })
+    void endOwnSession()
     throw new Error('signed out in this browser')
   }
   const generation = sessionGeneration
@@ -637,7 +689,11 @@ export async function refreshAppSession(): Promise<AppSession> {
   refreshInFlight = (async () => {
     const attempt = async (): Promise<{
       response: Response
-      body: Partial<AppSession> & { error?: string; detail?: string }
+      body: Partial<AppSession> & {
+        error?: string
+        detail?: string
+        reason?: string
+      }
     }> => {
       let response: Response
       try {
@@ -651,7 +707,7 @@ export async function refreshAppSession(): Promise<AppSession> {
         })
       } catch {
         // No network yet (waking from sleep), or the connection dropped.
-        throw new TransientSessionError('network')
+        throw new NetworkSessionError('network')
       }
       const body = (await response
         .json()
@@ -689,7 +745,10 @@ export async function refreshAppSession(): Promise<AppSession> {
           if (!(response.status === 409 && body.error === 'auth_refresh_raced'))
             break
         }
-      } else if (cookieTransportAvailable() && readMarker()) {
+      } else if (
+        body.reason === 'successor_in_jar' &&
+        cookieTransportAvailable()
+      ) {
         /*
          * A stale copy in this tab, and a session in the jar: the server
          * answers raced when the jar already holds this token's successor.
@@ -798,7 +857,10 @@ export async function refreshAppSession(): Promise<AppSession> {
         return session
       },
       (error: unknown) => {
-        if (error instanceof TransientSessionError) {
+        if (
+          error instanceof TransientSessionError &&
+          !(error instanceof NetworkSessionError)
+        ) {
           retryNotBefore = Date.now() + retryMs
         }
         throw error
@@ -810,12 +872,7 @@ export async function refreshAppSession(): Promise<AppSession> {
   return refreshInFlight
 }
 
-export async function logoutAppSession({
-  broadcast = true,
-}: {
-  /** False when this tab is only following a sign-out made in another. */
-  broadcast?: boolean
-} = {}): Promise<void> {
+export async function logoutAppSession(): Promise<void> {
   const access = getAppAccessToken()
   const refresh = storage()?.getItem(REFRESH_KEY) || ''
   // Read before clearing: clearAppSession drops the marker.
@@ -827,7 +884,7 @@ export async function logoutAppSession({
   // too (render /logout), so the hint goes even from a tab with its own token,
   // and the tabs with their own token are told (SIGNED_OUT_AT_KEY).
   if (viaCookie) writeMarker(false)
-  if (broadcast && cookieTransportAvailable()) announceSignOut()
+  if (cookieTransportAvailable()) announceSignOut()
   if (!access && !refresh && !viaCookie) return
   if (viaCookie && !refresh) {
     // The server revokes the family and takes the HttpOnly cookie out of the

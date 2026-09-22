@@ -145,16 +145,12 @@ describe('sessionRenewingFetch', () => {
     expect(calls.some(c => c.url.endsWith('/api/auth/refresh'))).toBe(false)
   })
 
-  it('a renewal that fails for a bad moment answers 503 and does not send the dead token', async () => {
+  it('after a bad moment a refused private request reads 503, not "signed out"', async () => {
     // The board's CRM and chat read a 401 as "signed out" and show the sign-in
-    // panel; after a transient failure the wrapper used to send the expired
-    // Bearer anyway and hand them exactly that 401 (review, 2026-09-22).
+    // panel; after a transient renewal failure that 401 is the expired token,
+    // not the person (review, 2026-09-22).
     signIn('old', -1000)
-    const calls: string[] = []
-    const base = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      calls.push(
-        `${String(input)} ${new Headers(init?.headers).get('Authorization') ?? ''}`
-      )
+    const base = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).endsWith('/api/auth/refresh'))
         return new Response('{"error":"deploy"}', { status: 503 })
       return new Response('{}', { status: 401 })
@@ -167,7 +163,22 @@ describe('sessionRenewingFetch', () => {
       body: '{}',
     })
     expect(r.status).toBe(503)
-    expect(calls.some(c => c.includes('/api/crm/tool'))).toBe(false)
+    expect((await r.json()).error).toBe('session_renewal_unavailable')
     expect(markEmbedSignInNeeded).not.toHaveBeenCalled()
+  })
+
+  it('after a bad moment a public request still goes out and succeeds', async () => {
+    // Templates, a feed item, branding answer whatever the Bearer: refusing
+    // them locally broke pages that work signed out (third review).
+    signIn('old', -1000)
+    const base = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/api/auth/refresh'))
+        return new Response('{"error":"deploy"}', { status: 503 })
+      return new Response('{"templates":[]}', { status: 200 })
+    })
+    globalThis.fetch = base as typeof fetch
+    const f = sessionRenewingFetch(base as typeof fetch, ours)
+    const r = await f('https://api.test/templates', { headers: bearer() })
+    expect(r.status).toBe(200)
   })
 })

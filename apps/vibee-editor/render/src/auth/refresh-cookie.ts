@@ -232,13 +232,18 @@ export const AUTH_HOST = 'auth.t27.ai'
  * The Host the edge forwards is the one the browser asked for; a browser
  * cannot send another for this origin, which is the case that matters.
  */
-export function authHostRefuses(req: HasHeaders & { url?: string }): boolean {
+/** The request is addressed to auth.t27.ai, by the Host the edge forwards. */
+export function isAuthHost(req: HasHeaders): boolean {
   const forwarded = header(req, 'x-forwarded-host').split(',')[0].trim()
   const host = (forwarded || header(req, 'host'))
     .trim()
     .toLowerCase()
     .replace(/:\d+$/, '')
-  if (host !== AUTH_HOST) return false
+  return host === AUTH_HOST
+}
+
+export function authHostRefuses(req: HasHeaders & { url?: string }): boolean {
+  if (!isAuthHost(req)) return false
   const raw = String(req.url ?? '').split('?')[0]
   /*
    * The raw path AND the path a URL parser makes of it must both be a door.

@@ -34,6 +34,7 @@ type Token = {
   expires_at: string
   replaced_by?: string | null
   created_at?: string
+  to_jar?: boolean
 }
 type Session = {
   id: string
@@ -69,7 +70,14 @@ describe('the refresh cookie holds only the session it was given', () => {
 
   /** A database holding the named sessions, each with one live token. */
   function db(
-    sessions: Array<{ token: string; id: string; kind: string; who: string }>,
+    sessions: Array<{
+      token: string
+      id: string
+      kind: string
+      who: string
+      /** Handed over through the jar (to_jar); a token named jar-* is. */
+      jar?: boolean
+    }>,
     failures: { profiles?: boolean; lastSeen?: boolean } = {}
   ) {
     const tokens = new Map<string, Token>()
@@ -92,6 +100,7 @@ describe('the refresh cookie holds only the session it was given', () => {
         used_at: null,
         revoked_at: null,
         expires_at: new Date(Date.now() + 30 * DAY_MS).toISOString(),
+        to_jar: s.jar ?? s.token.startsWith('jar-'),
       })
     }
     const client = {
@@ -137,6 +146,7 @@ describe('the refresh cookie holds only the session it was given', () => {
             revoked_at: null,
             expires_at: String(params[3]),
             created_at: new Date().toISOString(),
+            to_jar: true,
           })
           return { rows: [{ token_hash: params[2] }] }
         }
@@ -184,6 +194,10 @@ describe('the refresh cookie holds only the session it was given', () => {
                 ? [{ family_id: t.family_id, session_id: t.session_id }]
                 : [],
           }
+        }
+        if (q.startsWith('UPDATE app_refresh_tokens SET to_jar = true')) {
+          if (t) t.to_jar = true
+          return { rows: [] }
         }
         if (q.startsWith('SELECT family_id FROM app_refresh_tokens')) {
           return {
@@ -506,6 +520,7 @@ describe('the refresh cookie holds only the session it was given', () => {
       jar: jarOf(moved),
     })
     expect(stale.status).toBe(409)
+    expect(stale.body.reason).toBe('successor_in_jar')
     expect(setsCookie(stale)).toBe('')
     expect(d.familyRevoked('s-tab')).toBe(false)
   })
@@ -518,5 +533,47 @@ describe('the refresh cookie holds only the session it was given', () => {
     expect(res.status).toBe(200)
     expect(setsCookie(res)).toContain('Max-Age=0')
     expect(typeof res.body.refresh_token).toBe('string')
+  })
+
+  it('a copied body token sent as a cookie is not forgiven: the family ends', async () => {
+    // The render never wrote this token into a jar, so a Cookie header
+    // carrying it is somebody's copy (third review, 2026-09-22).
+    const d = db([
+      {
+        token: 'tab-web',
+        id: 's-tab',
+        kind: 'web',
+        who: '7300016',
+        jar: false,
+      },
+    ])
+    const first = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+      cookieClient: false,
+    })
+    expect(first.status).toBe(200)
+    d.age('tab-web', 30)
+    const forged = await call('/api/auth/refresh', d, { jar: 'tab-web' })
+    expect(forged.status).toBe(401)
+    expect(forged.body.error).toBe('auth_reuse_detected')
+    expect(d.familyRevoked('s-tab')).toBe(true)
+  })
+
+  it('a token the route itself wrote into the jar is forgiven a lost reply later', async () => {
+    // Not only the sign-in's token: every successor the refresh door writes
+    // into the jar is recorded as handed over there (markToJar).
+    const d = db([
+      { token: 'jar-web', id: 's-web', kind: 'web', who: '7300017' },
+    ])
+    const first = await call('/api/auth/refresh', d, { jar: 'jar-web' })
+    const inJar = jarOf(first)
+    expect(inJar).not.toBe('')
+    const second = await call('/api/auth/refresh', d, { jar: inJar })
+    expect(second.status).toBe(200)
+    // The second reply was lost; the jar still holds the first successor.
+    d.age(inJar, 30)
+    const retry = await call('/api/auth/refresh', d, { jar: inJar })
+    expect(retry.status, JSON.stringify(retry.body)).toBe(200)
+    expect(d.familyRevoked('s-web')).toBe(false)
   })
 })

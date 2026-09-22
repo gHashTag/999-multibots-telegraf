@@ -704,7 +704,12 @@ export type RotateOutcome =
    * победитель гонки уже положил новый токен туда, откуда проигравший его
    * прочитает.
    */
-  | { ok: false; reason: 'raced' }
+  | {
+      ok: false
+      reason: 'raced'
+      /** The family's live token is in this request's own cookie. */
+      inJar?: true
+    }
 
 /**
  * Rotate a refresh token, detecting reuse.
@@ -769,6 +774,8 @@ export async function rotateRefreshToken(
       successorCreatedAt?: Date | null
       /** Revoked by a reissue, never used: presenting it is a second holder. */
       displaced?: boolean
+      /** The render wrote this token into the HttpOnly jar (to_jar). */
+      toJar?: boolean
     } | null>
     consumeAndInsert(
       hash: string,
@@ -793,8 +800,13 @@ export async function rotateRefreshToken(
   from: {
     /** The token was read from the HttpOnly cookie (LOST_REPLY_SECONDS). */
     jar?: boolean
-    /** digest() of the cookie this same request carried, when any. */
-    jarHash?: string
+    /**
+     * The family of the live token in the cookie this same request carried,
+     * when the presented token came from a body. Only this browser can send
+     * its HttpOnly, SameSite=Strict cookie, and only the holder of that live
+     * token can name it.
+     */
+    jarFamily?: string
   } = {}
 ): Promise<RotateOutcome> {
   const t = now ?? new Date()
@@ -830,14 +842,17 @@ export async function rotateRefreshToken(
     if (прошлоСекунд <= REUSE_GRACE_SECONDS) {
       return { ok: false, reason: 'raced' }
     }
-    // A tab's stale copy whose successor is already in this browser's jar --
-    // the same request carries it. The reply did arrive, to this browser: a
-    // race between its own tabs, not a theft (review, 2026-09-22).
-    if (from.jarHash && row.successorHash === from.jarHash) {
-      return { ok: false, reason: 'raced' }
+    // A tab's stale copy of a family whose live token is in this browser's
+    // jar -- the same request carries it. The family moved on in this very
+    // browser: a race between its own tabs, not a theft. Matched by family,
+    // not by the next token, so a copy that comes back after more rotations
+    // is still recognised (third review, 2026-09-22).
+    if (from.jarFamily && row.familyId === from.jarFamily) {
+      return { ok: false, reason: 'raced', inJar: true }
     }
     if (
       from.jar === true &&
+      row.toJar === true &&
       row.successorUnused === true &&
       row.successorHash &&
       (t.getTime() - row.usedAt.getTime()) / 1000 <= LOST_REPLY_SECONDS &&
