@@ -6,6 +6,7 @@ import {
   typeInBrowser,
   isSecretField,
   type BrowserFocus,
+  type InputRequestView,
 } from '@/lib/remoteBrowser'
 
 /** How often the sheet asks where the text would go, while it is open. */
@@ -34,7 +35,14 @@ export function whereItGoes(focus: BrowserFocus | null, t: T): string {
  * (render/src/browser/person-type.ts). It says where BEFORE sending, hides
  * a password as it is typed, and forgets the text the moment it is sent.
  */
-export function TypeSheet({ onClose }: { onClose: () => void }) {
+export function TypeSheet({
+  onClose,
+  request = null,
+}: {
+  onClose: () => void
+  /** The agent is waiting for this (render input-request.ts). */
+  request?: InputRequestView | null
+}) {
   const { t } = useLanguage()
   const [focus, setFocus] = useState<BrowserFocus | null>(null)
   const [text, setText] = useState('')
@@ -57,7 +65,7 @@ export function TypeSheet({ onClose }: { onClose: () => void }) {
     }
   }, [])
 
-  const secret = isSecretField(focus)
+  const secret = isSecretField(focus) || request?.kind === 'password'
   const canSend = !busy && (text.length > 0 || focus?.field !== 'none')
 
   const send = async (enter: boolean) => {
@@ -98,6 +106,13 @@ export function TypeSheet({ onClose }: { onClose: () => void }) {
           ×
         </button>
       </header>
+
+      {request ? (
+        <p className="type-sheet__ask" role="status">
+          <b>{t(`browser.type.ask.${request.kind}`)}</b>
+          {request.why ? <span>{request.why}</span> : null}
+        </p>
+      ) : null}
 
       <p
         className={

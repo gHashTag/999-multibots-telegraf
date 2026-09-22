@@ -88,3 +88,38 @@ describe('the calls behind the sheet', () => {
     expect(await readBrowserFocus()).toBeNull()
   })
 })
+
+describe('the agent asking for something to be typed', () => {
+  it('reads the request from the session answer', async () => {
+    const { asView } = await import('@/lib/remoteBrowser')
+    const v = asView({
+      state: 'live',
+      inputRequest: {
+        id: 'q1',
+        kind: 'password',
+        why: 'to sign in',
+        host: 'accounts.example.com',
+        label: 'Password',
+      },
+    })
+    expect(v.inputRequest).toEqual({
+      id: 'q1',
+      kind: 'password',
+      why: 'to sign in',
+      host: 'accounts.example.com',
+      label: 'Password',
+    })
+  })
+
+  it('no request, or a malformed one, is none; an unknown kind is plain text', async () => {
+    const { asView } = await import('@/lib/remoteBrowser')
+    expect(asView({ state: 'live' }).inputRequest ?? null).toBeNull()
+    expect(
+      asView({ state: 'live', inputRequest: { kind: 'password' } }).inputRequest
+    ).toBeNull()
+    expect(
+      asView({ state: 'live', inputRequest: { id: 'x', kind: 'ssn' } })
+        .inputRequest?.kind
+    ).toBe('text')
+  })
+})
