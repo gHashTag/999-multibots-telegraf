@@ -31,6 +31,8 @@ function page(els: El[]) {
     return {
       el,
       innerText: el.text ?? '',
+      id: el.attrs?.id ?? '',
+      type: el.attrs?.type ?? '',
       value: undefined,
       getAttribute: (k: string) => el.attrs?.[k] ?? null,
       getBoundingClientRect: () => ({ left: x, top: y, width: w, height: h }),
@@ -106,5 +108,39 @@ describe('press by what it says', () => {
       { tag: 'div', attrs: { role: 'button' }, text: 'Continue with Google' },
     ])
     expect(run('continue with google')?.how).toBe('text')
+  })
+
+  it('finds a field by its placeholder (Apple, 2026-09-22)', () => {
+    page([
+      {
+        tag: 'input',
+        attrs: { type: 'text', placeholder: 'Email or Phone Number' },
+        box: [120, 300, 460, 56],
+      },
+    ])
+    const got = run('Email or Phone Number')
+    expect(got?.how).toBe('field')
+    expect(got?.y).toBe(328)
+  })
+
+  it('finds a field by its <label for>', () => {
+    page([
+      {
+        tag: 'label',
+        attrs: { for: 'pw' },
+        text: 'Password',
+        box: [0, 0, 0, 0],
+      },
+      { tag: 'input', attrs: { type: 'password', id: 'pw' } },
+    ])
+    expect(run('password')?.how).toBe('field')
+  })
+
+  it('a button still wins over a field that says the same', () => {
+    page([
+      { tag: 'input', attrs: { placeholder: 'Search' } },
+      { tag: 'button', text: 'Search' },
+    ])
+    expect(run('search')?.how).toBe('text')
   })
 })

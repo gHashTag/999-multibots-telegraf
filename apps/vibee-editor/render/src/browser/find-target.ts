@@ -57,6 +57,29 @@ export function findProbe(text: string): string {
       if (vis(f)) return Object.assign(centre(f), { how: 'google-frame', label: 'Sign in with Google' });
     }
   }
+  /*
+   * A FIELD BY WHAT IT IS CALLED (2026-09-22, Apple's "Email or Phone
+   * Number"): its words are a placeholder, an aria-label or a <label for>,
+   * none of which is the field's own text. Pressing it focuses it, so
+   * browser_type goes where the words said.
+   */
+  const fieldName = el => {
+    const own = [el.getAttribute('placeholder') || '', el.getAttribute('aria-label') || ''];
+    if (el.id) {
+      for (const l of document.querySelectorAll('label[for]'))
+        if (l.getAttribute('for') === el.id) own.push(l.innerText || l.textContent || '');
+    }
+    return own.join(' ').trim().toLowerCase().replace(/\\s+/g, ' ');
+  };
+  let field = null, fieldScore = -1, fieldLabel = '';
+  for (const el of document.querySelectorAll('input, textarea, [contenteditable="true"]')) {
+    if (!vis(el) || el.type === 'hidden') continue;
+    const t = fieldName(el);
+    if (!t.includes(want)) continue;
+    const score = (t === want ? 100000 : 0) + 10000 - Math.min(t.length, 9999);
+    if (score > fieldScore) { field = el; fieldScore = score; fieldLabel = t; }
+  }
+  if (field) return Object.assign(centre(field), { how: 'field', label: fieldLabel.slice(0, 80) });
   const other = pick('a, [role="link"], [role="menuitem"], label, [onclick]');
   const best = other ? other.el : null;
   const bestLabel = other ? other.label : '';
