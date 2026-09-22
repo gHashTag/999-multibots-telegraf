@@ -532,6 +532,22 @@
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   border-bottom: 1px solid var(--border-color, var(--bg-input));
+  /* Ten sections do not fit a phone: the edges fade, so the strip reads as
+     "there is more this way" instead of ending at the sixth section. */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
 }
 
 .profile-tabs__tab {
@@ -2392,6 +2408,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* Two lines -- the tokens and their price. design-system.css gives every
+     button a fixed 28px height, which pushed the price out through the
+     border (measured 2026-09-22). */
+  height: auto;
+  min-height: var(--touch-target, 44px);
   padding: 10px 14px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
   border-radius: 12px;

@@ -709,6 +709,96 @@ describe('tokens already given by hand', () => {
     }
   })
 
+  it('"given by hand" with no hand grant on file is refused, nothing written', async () => {
+    // Review of #2845: the row would carry 0 tokens and every repeat reads
+    // that 0, so a paying member would end with nothing and no way back.
+    db.ledger.length = 0
+    db.balances.clear()
+    const out = await record({
+      telegram_id: MEMBER,
+      tokens_already_given: true,
+    })
+    expect(out).toMatchObject({ ok: false })
+    expect(out.error).toMatch(/tokens_already_given=true/)
+    expect(writes()).toEqual([])
+    expect(db.periods).toHaveLength(0)
+    // ...and the plain call after it is a normal month.
+    const plain = await record({ telegram_id: MEMBER })
+    expect(plain).toMatchObject({ ok: true, tokens: MONTH, credited: true })
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+  })
+
+  it('"given by hand" for the next month, with only last month\'s grant on file, is refused', async () => {
+    // Review of #2855: the refusal must count only a grant NOT yet answered
+    // for. Last month's grant was answered for when month 1 was recorded; if
+    // it still counted, month 2 would be written with 0 tokens and no grant
+    // behind it -- the original bug, one month later.
+    await record({ telegram_id: MEMBER, tokens_already_given: true })
+    expect(db.periods).toHaveLength(1)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-22T09:00:00Z'))
+    try {
+      const out = (await cashTool().handler(
+        {
+          telegram_id: MEMBER,
+          start: '2026-10-22',
+          tokens_already_given: true,
+        },
+        ctxOf(KEEPER)
+      )) as Record<string, any>
+      expect(out).toMatchObject({ ok: false })
+      expect(out.error).toMatch(/tokens_already_given=true/)
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(db.periods).toHaveLength(1)
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+  })
+
+  it('two months handed out before the first was recorded: the refusal does not steer to a second credit', async () => {
+    // Review of #2855: month 1's row answers for BOTH grants, so month 2's
+    // "given by hand" finds nothing open and is refused. The refusal must not
+    // then tell the caller that the plain call is safe -- here it would pay
+    // month 2 twice.
+    db.ledger.push({
+      telegram_id: MEMBER,
+      delta: MONTH,
+      kind: 'grant',
+      reason: 'club month, cash, by hand',
+      ref: `cash-club-2026-10-22-${MEMBER}`,
+      created_at: '2026-09-22T05:30:00.000Z',
+    })
+    db.balances.set(MEMBER, 2 * MONTH)
+    await record({ telegram_id: MEMBER, tokens_already_given: true })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-22T09:00:00Z'))
+    let error = ''
+    try {
+      const out = (await cashTool().handler(
+        {
+          telegram_id: MEMBER,
+          start: '2026-10-22',
+          tokens_already_given: true,
+        },
+        ctxOf(KEEPER)
+      )) as Record<string, any>
+      expect(out).toMatchObject({ ok: false })
+      error = String(out.error)
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(db.periods).toHaveLength(1)
+    expect(db.balances.get(MEMBER)).toBe(2 * MONTH)
+    // The old line said, unconditionally, "repeat without it: the tokens will
+    // be credited".
+    expect(error).not.toContain(
+      'Повтори без tokens_already_given: токены месяца начислятся'
+    ) // cyrillic-ok: the old tool answer
+    expect(error).toContain('ТОЛЬКО если') // cyrillic-ok: tool answer
+    expect(error).toContain('ни вместе с прошлым месяцем') // cyrillic-ok: tool answer
+    expect(error).toContain('token_ledger')
+  })
+
   it('an answer that is not true or false is refused, nothing written', async () => {
     const out = await record({
       telegram_id: MEMBER,

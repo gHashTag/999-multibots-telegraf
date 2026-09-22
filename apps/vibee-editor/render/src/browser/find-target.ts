@@ -13,6 +13,13 @@
  *
  * Shortest matching label wins ("Save" beats "Save and continue later"),
  * an exact match beats both. Invisible elements never match.
+ *
+ * A BUTTON THAT SAYS IT COMES BEFORE GOOGLE'S FRAME. 2026-09-22, X's new
+ * sign-in dialog: "Continue with Google" is an ordinary button there, and a
+ * leftover GIS frame elsewhere on the page took the press instead -- nothing
+ * happened. So buttons that say the words are tried first, then the frame,
+ * then links and labels (a "Google Privacy Policy" link must not beat the
+ * frame on LinkedIn).
  */
 
 /** Runs in the page; returns {x, y, how, label} or null. */
@@ -31,21 +38,28 @@ export function findProbe(text: string): string {
     const r = el.getBoundingClientRect();
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
   };
+  const pick = selector => {
+    let best = null, bestScore = -1, bestLabel = '';
+    for (const el of document.querySelectorAll(selector)) {
+      if (!vis(el)) continue;
+      const t = [el.innerText || el.textContent || el.value || '', el.getAttribute('aria-label') || '', el.getAttribute('title') || '']
+        .join(' ').trim().toLowerCase().replace(/\\s+/g, ' ');
+      if (!t.includes(want)) continue;
+      const score = (t === want ? 100000 : 0) + 10000 - Math.min(t.length, 9999);
+      if (score > bestScore) { best = el; bestScore = score; bestLabel = t; }
+    }
+    return best ? { el: best, label: bestLabel } : null;
+  };
+  const button = pick('button, [role="button"], input[type="submit"], input[type="button"]');
+  if (button) return Object.assign(centre(button.el), { how: 'text', label: button.label.slice(0, 80) });
   if (want.includes('google')) {
     for (const f of document.querySelectorAll('iframe[src*="accounts.google.com/gsi"]')) {
       if (vis(f)) return Object.assign(centre(f), { how: 'google-frame', label: 'Sign in with Google' });
     }
   }
-  const pool = document.querySelectorAll('button, a, [role="button"], [role="link"], [role="menuitem"], input[type="submit"], input[type="button"], label, [onclick]');
-  let best = null, bestScore = -1, bestLabel = '';
-  for (const el of pool) {
-    if (!vis(el)) continue;
-    const t = [el.innerText || el.value || '', el.getAttribute('aria-label') || '', el.getAttribute('title') || '']
-      .join(' ').trim().toLowerCase().replace(/\\s+/g, ' ');
-    if (!t.includes(want)) continue;
-    const score = (t === want ? 100000 : 0) + 10000 - Math.min(t.length, 9999);
-    if (score > bestScore) { best = el; bestScore = score; bestLabel = t; }
-  }
+  const other = pick('a, [role="link"], [role="menuitem"], label, [onclick]');
+  const best = other ? other.el : null;
+  const bestLabel = other ? other.label : '';
   if (!best) return null;
   return Object.assign(centre(best), { how: 'text', label: bestLabel.slice(0, 80) });
 })()`
