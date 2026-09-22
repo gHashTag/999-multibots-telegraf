@@ -264,7 +264,9 @@ export async function handleBrowser(
     const steps = await readJournal(
       pool,
       who,
-      Number(q.get('limit')) || undefined
+      Number(q.get('limit')) || undefined,
+      // Probes (tri eyes) stay out of the person's view unless asked for.
+      { probes: q.get('probes') === '1' }
     )
     return { status: 200, body: { ok: true, steps } }
   }
