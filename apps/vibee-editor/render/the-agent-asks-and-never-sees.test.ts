@@ -254,3 +254,54 @@ describe('what is asked about comes into view (owner: "the buttons were below th
     ).toBe(false)
   })
 })
+
+describe('picking an option is consent to it (owner: the agent stood on "Save")', () => {
+  const said: string[] = []
+  const d = (body: unknown): BrowserDeps => ({
+    getPool: async () =>
+      ({
+        query: async (sql: string) => (said.push(sql), { rows: [] }),
+      }) as never,
+    identity: () => WHO,
+    driver: { name: 'fake' } as never,
+    newToken: () => 't',
+    actor: () => 'person',
+    readBody: async () => JSON.stringify(body),
+  })
+  const opens = () => said.some(q => /allowed_at = now\(\)/.test(q))
+
+  it('a choice opens the guard window for the agent', async () => {
+    said.length = 0
+    const r = askForInput(WHO, {
+      id: 'g1',
+      kind: 'choice',
+      why: 'Skip or Save?',
+      host: '',
+      label: '',
+      options: ['Skip', 'Save'],
+    })
+    const out = await handleBrowser(
+      { url: '/api/browser/choose', method: 'POST' },
+      d({ id: r.id, option: 'Save' })
+    )
+    expect(out.status).toBe(200)
+    expect(opens()).toBe(true)
+  })
+
+  it('Done / Cannot on an action opens nothing', async () => {
+    said.length = 0
+    const r = askForInput(WHO, {
+      id: 'g2',
+      kind: 'action',
+      why: 'Solve the captcha',
+      host: '',
+      label: '',
+      options: optionsFor('action', null),
+    })
+    await handleBrowser(
+      { url: '/api/browser/choose', method: 'POST' },
+      d({ id: r.id, option: 'done' })
+    )
+    expect(opens()).toBe(false)
+  })
+})

@@ -78,7 +78,38 @@ import {
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
 import { isClonePath, handleClone } from './src/agent/clone-readiness'
-import { isBrowserPath, handleBrowser } from './src/browser/routes'
+import {
+  isBrowserPath,
+  handleBrowser,
+  configureAgentStart,
+  type BrowserDeps,
+} from './src/browser/routes'
+
+/*
+ * The browser broker's wiring, in one place: the HTTP route uses it, and so
+ * does an agent that finds the browser off and starts it itself
+ * (routes.ts startBrowserAsAgent) -- through the same door, announced the
+ * same way, so the person hears "the agent opened your browser".
+ */
+function browserBrokerDeps(): BrowserDeps {
+  return {
+    getPool: async () => (await getPool()) as any,
+    identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+    driver: podDriver(),
+    newToken: newSessionToken,
+    actor: r => {
+      const src = identityWithSource(r as any, verifiedTelegramId(r as any))
+      /* An agent key is an agent; a signature or a session is the person. */
+      return src?.source === 'agent-key' ? 'agent' : 'person'
+    },
+    announcer: {
+      send: (id, text, markup) => sendToTelegram(id, text, markup),
+    },
+    /* The logins import: the only browser route with a body. */
+    readBody: (r, maxBytes) => readBody(r as any, maxBytes),
+  }
+}
+configureAgentStart(browserBrokerDeps)
 import { identityWithSource } from './src/agent/routes'
 import { podDriver, newSessionToken } from './src/browser/wire'
 import { isLivePath, parseLive, authorizeLive } from './src/browser/live-proxy'
@@ -8453,22 +8484,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (isBrowserPath(req.url?.split('?')[0] || '')) {
-    const out = await handleBrowser(req, {
-      getPool: async () => (await getPool()) as any,
-      identity: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
-      driver: podDriver(),
-      newToken: newSessionToken,
-      actor: r => {
-        const src = identityWithSource(r as any, verifiedTelegramId(r as any))
-        /* An agent key is an agent; a signature or a session is the person. */
-        return src?.source === 'agent-key' ? 'agent' : 'person'
-      },
-      announcer: {
-        send: (id, text, markup) => sendToTelegram(id, text, markup),
-      },
-      /* The logins import: the only browser route with a body. */
-      readBody: (r, maxBytes) => readBody(r as any, maxBytes),
-    })
+    const out = await handleBrowser(req, browserBrokerDeps())
     res.writeHead(out.status, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(out.body))
     return

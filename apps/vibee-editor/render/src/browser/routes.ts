@@ -429,6 +429,7 @@ export async function handleBrowser(
         body: { ok: false, error: 'id and option are required' },
       }
     }
+    const asked = pendingInput(who)
     if (!markChosen(who, pick.id, pick.option)) {
       return {
         status: 409,
@@ -438,6 +439,14 @@ export async function handleBrowser(
         }, // cyrillic-ok: user-facing error
       }
     }
+    /*
+     * PICKING AN OPTION IS CONSENT TO IT. The agent asked "Skip or Save?" on
+     * a guarded page; the person pressed Save. Asking a second time for
+     * permission to press Save is the double question that left the agent
+     * standing on the Google page (owner, 2026-09-22). A choice opens the
+     * guard's few minutes; Done / Cannot (an action) opens nothing.
+     */
+    if (asked?.kind === 'choice') await markAllowed(pool, who)
     return { status: 200, body: { ok: true } }
   }
 
@@ -489,6 +498,29 @@ async function describe(
    * idle reaper would never fire. Only real use counts -- see reaper.ts.
    */
   return { status: 200, body: publicView(existing) }
+}
+
+/*
+ * THE AGENT STARTS THE BROWSER ITSELF (owner's A2A test, 2026-09-22: the
+ * agent found the browser off and told the person to go and switch it on --
+ * a trip to another tab for something the agent key is allowed to do).
+ * Same door as the button, marked as the agent, so the person gets the
+ * "the agent opened your browser" message with a way to watch.
+ */
+let agentStartDeps: (() => BrowserDeps) | null = null
+
+export function configureAgentStart(deps: () => BrowserDeps): void {
+  agentStartDeps = deps
+}
+
+export async function startBrowserAsAgent(who: string): Promise<boolean> {
+  const deps = agentStartDeps?.()
+  if (!deps?.driver) return false
+  const pool = await deps.getPool()
+  await ensureBrowserSessions(pool)
+  await ensureBrowserProfiles(pool)
+  const out = await open(pool, deps, deps.driver, who, 'agent')
+  return out.status < 300
 }
 
 async function open(

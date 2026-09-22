@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { addFrame, FILMED_TOOLS, TICK_MS, TICK_IDLE_MS } from './film'
 import { cdpTypeIo, centerProbe } from './person-type'
+import { findProbe, foundOf } from './find-target'
 import { askForInput, asKind, optionsFor, waitForAnswer } from './input-request'
 /**
  * THE REASON AN AGENT DID NOT KNOW THE BROWSER EXISTED.
@@ -99,14 +100,29 @@ async function mustBeAllowedToAct(
   )
 }
 
+/*
+ * THE PERSON'S LIVE BROWSER, STARTED IF IT IS OFF (routes.ts
+ * startBrowserAsAgent). Every tool that acts goes through here: the first
+ * version put the start in podOf only, and browser_open -- the very first
+ * call of any task -- kept its own check and failed in 6 ms (found by the
+ * second tri a2a run, 2026-09-22). A probe never starts a browser.
+ */
+export async function liveSession(ctx: ToolContext) {
+  const pool = ctx.pool as unknown as Queryable
+  const session = await readSession(pool, ctx.telegramId)
+  if (session?.state === 'live' && session.cdpEndpoint) return session
+  if (ctx.probe === true) return session
+  const { startBrowserAsAgent } = await import('./routes')
+  if (!(await startBrowserAsAgent(ctx.telegramId).catch(() => false)))
+    return session
+  return await readSession(pool, ctx.telegramId)
+}
+
 /** What every tool here needs, and the one refusal they all share. */
 async function podOf(
   ctx: ToolContext
 ): Promise<{ cdp: string; targetId: string }> {
-  const session = await readSession(
-    ctx.pool as unknown as Queryable,
-    ctx.telegramId
-  )
+  const session = await liveSession(ctx)
   if (!session || session.state !== 'live' || !session.cdpEndpoint) {
     throw new Error(
       'no browser is running for this person. They open one in the mini app, ' +
@@ -499,7 +515,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (!session || session.state !== 'live') {
         return {
           running: false,
-          hint: 'the person opens one on the Browser tab',
+          hint: 'call browser_open: it starts the browser itself, and the person is told',
         }
       }
       const targets = await listTargets(session.cdpEndpoint!).catch(() => [])
@@ -525,13 +541,6 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      const session = await readSession(
-        ctx.pool as unknown as Queryable,
-        ctx.telegramId
-      )
-      if (!session?.cdpEndpoint || session.state !== 'live') {
-        throw new Error('no browser is running for this person')
-      }
       /* The web only: never the browser's settings, extensions or vault. */
       if (!agentMayOpen(String(args.url))) {
         throw new Error(
@@ -539,6 +548,10 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
             "browser's own pages -- settings, extensions, the password " +
             "manager -- are the person's to open, not an agent's."
         )
+      }
+      const session = await liveSession(ctx)
+      if (!session?.cdpEndpoint || session.state !== 'live') {
+        throw new Error('no browser is running for this person')
       }
       const page = await newPage(session.cdpEndpoint, String(args.url))
       return { opened: page.url || String(args.url), id: page.id }
@@ -622,22 +635,44 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_click',
     description:
-      'Нажать в точке экрана браузера. Координаты бери из browser_screenshot. ' + // cyrillic-ok
-      'Это НАСТОЯЩЕЕ нажатие мышью, его видно человеку.', // cyrillic-ok
+      'Настоящий клик. text — надпись кнопки («Google», «Сохранить»): найду и нажму; ' + // cyrillic-ok
+      'иначе x,y со снимка.', // cyrillic-ok
     parameters: {
       type: 'object',
       properties: {
+        text: { type: 'string' },
         x: { type: 'number' },
         y: { type: 'number' },
       },
-      required: ['x', 'y'],
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      const a = args as { text?: unknown; x?: unknown; y?: unknown }
       const { cdp, targetId } = await podOf(ctx)
       await mustBeAllowedToAct(ctx, cdp, targetId)
-      await clickAt(cdp, targetId, Number(args.x), Number(args.y))
-      return { clicked: { x: Number(args.x), y: Number(args.y) } }
+      /* By what it says (find-target.ts): no coordinates guessed from a picture. */
+      if (typeof a.text === 'string' && a.text.trim()) {
+        const found = foundOf(
+          await evaluateOn(cdp, targetId, findProbe(a.text)).catch(() => null)
+        )
+        if (!found) {
+          throw new Error(
+            `nothing visible on the page says "${a.text.trim().slice(0, 60)}". ` +
+              'Take browser_screenshot and click by x,y, or ask the person (browser_ask_input kind=action).'
+          )
+        }
+        await clickAt(cdp, targetId, found.x, found.y)
+        return {
+          clicked: { x: found.x, y: found.y },
+          found: found.label,
+          how: found.how,
+        }
+      }
+      if (typeof a.x !== 'number' || typeof a.y !== 'number') {
+        throw new Error('give text (the button label) or x and y')
+      }
+      await clickAt(cdp, targetId, a.x, a.y)
+      return { clicked: { x: a.x, y: a.y } }
     },
   },
   {
@@ -749,7 +784,10 @@ async function filmStep(
      * A click is filmed as the PAGE (CDP), not the desktop: the page's
      * pixels are the click's coordinates, so the ring marks the very spot.
      */
-    const a = (args ?? {}) as { x?: unknown; y?: unknown }
+    const clicked = (
+      (result ?? {}) as { clicked?: { x?: unknown; y?: unknown } }
+    ).clicked
+    const a = (clicked ?? args ?? {}) as { x?: unknown; y?: unknown }
     if (
       tool === 'browser_click' &&
       session.cdpEndpoint &&

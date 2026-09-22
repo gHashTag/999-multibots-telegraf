@@ -57,6 +57,47 @@ ENV VITE_ADMIN_IDS=$VITE_ADMIN_IDS \
 # `tsc -b` currently emits 519 pre-existing errors in this tree.
 RUN npm run build
 
+# ---------- test ----------
+# THE GATE THAT DOES NOT DEPEND ON GITHUB.
+#
+# Measured 2026-09-21: every GitHub Actions job in this repository stopped
+# starting ("recent account payments have failed or your spending limit needs
+# to be increased"), on main as on every branch. Deploys never depended on it -
+# Railway builds this file on every push to main - but the tests did, so for
+# as long as billing was broken nothing checked what shipped. A pull request
+# gate can also be merged past; a build step cannot.
+#
+# So the player's own suite runs HERE, and the image that serves the app
+# depends on it (the marker copied into `serve` below): a red test means no new
+# image, and the running deployment keeps serving the previous one.
+#
+#   - tsc --noEmit -p . is the player-only check, clean today (0 errors); the
+#     519 of `tsc -b` noted above are the repository-wide config.
+#   - --maxWorkers=2 --retry=2: measured on a loaded machine, a full parallel
+#     run failed 23 tests that pass alone - waits tuned to a fast laptop, not
+#     defects. Two workers and a retry separate the two; a real defect fails
+#     all three tries.
+#   - Excluded, with the reason: two tests read the repository ROOT, which this
+#     build context (apps/vibee-editor) cannot contain - no-later-on-paywall
+#     loads scripts/lib/anchored-slice.cjs, and startParamContract scans the
+#     bot's own src/. The repository's hooks still run both. The list lives in
+#     player/scripts/test-gate.mjs.
+#   - Dockerfile, nginx/ and render/ are copied because tests read them as
+#     text: this file's build-time names, the nginx template the app ships, and
+#     render sources the player mirrors. First real run without them: 4 files
+#     failed on ENOENT, none on a defect.
+FROM build AS test
+WORKDIR /workspace
+COPY Dockerfile ./Dockerfile
+COPY nginx/ ./nginx/
+COPY render/ ./render/
+WORKDIR /workspace/player
+# scripts/test-gate.mjs runs the suite and decides on the tests themselves (its
+# header says why vitest's exit code alone is not enough, and what it refuses).
+RUN npx tsc --noEmit -p . \
+ && node scripts/test-gate.mjs \
+ && touch /workspace/player/.tests-passed
+
 # ---------- queen ----------
 # The Queen board moves here from t27.ai, so that the product is ONE server at
 # ONE origin (owner, 2026-09-21: "чтобы не два сервера а на одном все было …
@@ -86,7 +127,7 @@ RUN npm run build
 FROM node:20-alpine AS queen
 WORKDIR /queen
 ARG QUEEN_REPO=https://github.com/gHashTag/trinity.git
-ARG QUEEN_REF=de13c2ce77c2957100a41a5646168bbd541c34f1
+ARG QUEEN_REF=85081311581911d838c382160cb82866a33f220a
 RUN apk add --no-cache git
 
 # fetch-by-SHA rather than `clone --branch`: a tag or branch name can be moved
@@ -114,6 +155,11 @@ FROM nginx:alpine AS serve
 RUN apk add --no-cache gettext
 
 COPY --from=build /workspace/player/dist/ /usr/share/nginx/html/
+# Nothing is served unless the test stage passed: this COPY is what makes
+# BuildKit run it (an unreferenced stage is skipped), and the file itself is
+# deleted again at once.
+COPY --from=test /workspace/player/.tests-passed /tmp/.tests-passed
+RUN rm /tmp/.tests-passed
 COPY --from=queen /queen/apps/website/dist/ /usr/share/nginx/html/queen/
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /docker-entrypoint-vibee.sh
