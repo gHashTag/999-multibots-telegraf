@@ -31,6 +31,9 @@ import {
   kieVideoSaleOf,
   kieVideoQuote,
   isKieVideoModel,
+  isExplicitKieVideo,
+  videoChargeLength,
+  videoChargeUnits,
   priceForKieModel,
   priceForModel,
   модельныеЦены, // cyrillic-ok: existing export
@@ -272,6 +275,77 @@ describe('the charge itself', () => {
   })
 })
 
+describe('the leg that runs decides what one press is charged for', () => {
+  /*
+   * A bare per-second Kie id (no `kie/`) goes down the Replicate leg and buys
+   * ONE seedance clip. The route used to ask the per-second check about the
+   * bare id and multiply the clip's price by the chip: 1440 tokens for a
+   * 10-second clip priced 144. These are the ids that did it, and the one
+   * that measured its file before the charge.
+   */
+  const BARE_PER_SECOND = [
+    ['kling/v3-turbo-text-to-video', 10],
+    ['minimax-h3/text-to-video', 5],
+    ['topaz/video-upscale', 10],
+  ] as const
+
+  it('the ids are per-second Kie videos, sold as such under their prefix', () => {
+    // Without this the cases below would pass on ids that are not the risk.
+    for (const [id] of BARE_PER_SECOND) {
+      const sale = kieVideoSaleOf(`kie/${id}`)
+      expect(sale, id).toMatchObject({ sold: true, per: 'second' })
+      expect(isExplicitKieVideo(id), id).toBe(false)
+      expect(isExplicitKieVideo(`kie/${id}`), id).toBe(true)
+    }
+  })
+
+  it('a bare id is one Replicate clip: quantity 1, charged the clip price', async () => {
+    for (const [id, asked] of BARE_PER_SECOND) {
+      const rule = videoChargeLength(id)
+      expect(rule, id).toBe('clip')
+      // The route passes its chip (6 or 10) and no measurement; neither counts.
+      const units = videoChargeUnits(rule, asked <= 6 ? 6 : 10)
+      expect(units, id).toBe(1)
+      const clip = replicateVideoSeconds(asked)
+      const w = wallet(10_000)
+      const spent = await spendByTid(
+        w.pool as never,
+        BUYER,
+        'video_generate',
+        units,
+        replicateClipModel(clip)
+      )
+      expect(spent.ok, id).toBe(true)
+      expect(w.debits, id).toEqual([replicateClipTokens(clip)])
+    }
+  })
+
+  it('no model, a garbage model and a Replicate id are one clip too', () => {
+    for (const model of [undefined, null, 42, '', 'seedance', 'kling-pro'])
+      expect(
+        videoChargeUnits(videoChargeLength(model), 10),
+        String(model)
+      ).toBe(1)
+  })
+
+  it('the same ids with the prefix are charged by their unit', () => {
+    expect(videoChargeLength('kie/kling/v3-turbo-text-to-video')).toBe('person')
+    expect(videoChargeUnits('person', 10)).toBe(10)
+    expect(videoChargeLength('kie/topaz/video-upscale')).toBe('file')
+    expect(videoChargeUnits('file', 10, 12.2)).toBe(13)
+    // A file that was not measured is refused, not charged one second.
+    expect(() => videoChargeUnits('file', 10)).toThrow()
+    expect(() => videoChargeUnits('file', 10, 0)).toThrow()
+    // A per-clip Kie video is one unit, whatever the chip says.
+    const perClip = Object.keys(KIE_COST).find(id => {
+      const sale = kieVideoSaleOf(id)
+      return isKieVideoModel(id) && sale.sold && sale.per === 'clip'
+    })
+    expect(perClip).toBeDefined()
+    expect(videoChargeLength(`kie/${perClip}`)).toBe('clip')
+  })
+})
+
 describe('the route orders what it charged', () => {
   /*
    * The route is one handler inside a createServer the size of a small
@@ -287,6 +361,9 @@ describe('the route orders what it charged', () => {
   const start = server.indexOf("req.url === '/api/generate/video'")
   const end = server.indexOf('GET /api/balance', start)
   const route = server.slice(start, end)
+  // The route's names for the charged quantity and the chip, as written there.
+  const QTY = 'секунды'
+  const CHIP = 'длинаРолика'
 
   it('the slice is the video route', () => {
     expect(start).toBeGreaterThan(-1)
@@ -308,9 +385,10 @@ describe('the route orders what it charged', () => {
   it('the Replicate leg is priced and ordered by one length', () => {
     expect(route).toMatch(/clipSeconds = replicateVideoSeconds\(duration\)/)
     expect(route).toMatch(/billedModel = replicateClipModel\(clipSeconds\)/)
+    // The quantity is the route's one counted variable, not any expression.
     expect(route).toMatch(
       new RegExp(
-        "chargeMiniAppUser\\(\\s*req,\\s*'video_generate',\\s*\\S+,\\s*billedModel\\s*\\)"
+        `chargeMiniAppUser\\(\\s*req,\\s*'video_generate',\\s*${QTY},\\s*billedModel\\s*\\)`
       )
     )
     // The fallback orders the paid length, not a second reading of the body.
@@ -324,6 +402,34 @@ describe('the route orders what it charged', () => {
     )
     expect(helper).toMatch(/duration: durationSec,/)
     expect(helper).toMatch(/resolution: REPLICATE_VIDEO_RESOLUTION,/)
+  })
+
+  it('the leg is picked once, and only its rule sets the quantity', () => {
+    // One predicate picks the leg for the price, the quantity and the order.
+    expect(route).toMatch(/const explicitKie = isExplicitKieVideo\(model\)/)
+    expect(route).toMatch(
+      /if \(explicitKie\) \{\s*const kieModel = reviewedKieModel\('video', model\)!/
+    )
+    expect(route).not.toMatch(/model\.startsWith\('kie\/'\)/)
+    // The quantity has exactly two assignments: its default of one, and the
+    // rule's answer. An inline override (the chip on the Replicate leg) is a
+    // third and fails here.
+    const assignments =
+      route.match(new RegExp(`(?:let )?${QTY} = [^\\n]*`, 'g')) ?? []
+    expect(assignments).toEqual([
+      `let ${QTY} = 1`,
+      `${QTY} = videoChargeUnits(lengthRule, ${CHIP}, measuredSeconds) // cyrillic-ok: existing variables`,
+    ])
+    const rule = route.indexOf('const lengthRule = videoChargeLength(model)')
+    const measureIf = route.indexOf("if (lengthRule === 'file') {")
+    const measure = route.indexOf('measuredRemoteDuration(')
+    const charge = route.indexOf('chargeMiniAppUser(')
+    expect(rule).toBeGreaterThan(-1)
+    // A file is measured only on the rule's say-so, and before the charge.
+    expect(measureIf).toBeGreaterThan(rule)
+    expect(measure).toBeGreaterThan(measureIf)
+    expect(charge).toBeGreaterThan(measure)
+    expect(route.split('measuredRemoteDuration(').length - 1).toBe(1)
   })
 
   it('every refund gives back under the model that was charged', () => {

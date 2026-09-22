@@ -580,6 +580,73 @@ export function kieVideoSaleOf(modelId: string): KieVideoSale {
 }
 
 /**
+ * THE ONE TEST FOR "THIS PRESS GOES DOWN THE KIE LEG" of /api/generate/video.
+ *
+ * Only an explicit `kie/<id>` does. Any other id -- a bare Kie id included --
+ * goes down the Replicate leg and buys one seedance clip, priced per clip under
+ * `replicateClipModel`. The route picks its leg with this predicate and counts
+ * the charge's units with `videoChargeLength`, which reads the same one, so
+ * the leg and the quantity cannot part.
+ */
+export function isExplicitKieVideo(model: unknown): model is string {
+  return typeof model === 'string' && model.startsWith('kie/')
+}
+
+/** Who names the length one video press is charged for. */
+export type VideoChargeLength = 'clip' | 'person' | 'file'
+
+/**
+ * WHAT ONE PRESS OF /api/generate/video IS CHARGED FOR, by the leg that runs.
+ *
+ *   'clip'    one unit: the Replicate clip (its price already names its
+ *             length) or a Kie model sold per clip
+ *   'person'  a per-second Kie model: the chip's seconds, the same number
+ *             its request carries to the provider
+ *   'file'    a per-second Kie model whose length is the file sent: the
+ *             seconds the route measures before the charge
+ *
+ * THE LEG DECIDES, NOT THE ID. The per-second check accepts a bare id, and
+ * the route used to ask it about every model. A signed request naming
+ * `kling/v3-turbo-text-to-video` without the prefix went down the Replicate
+ * leg, was priced as a 10-second seedance clip (144 tokens) and charged that
+ * times the chip: 1440 tokens for one clip. A bare `topaz/video-upscale`
+ * measured its file BEFORE the charge, and a file that would not measure threw
+ * into the catch, whose Replicate fallback made a clip nobody had paid for.
+ */
+export function videoChargeLength(model: unknown): VideoChargeLength {
+  if (!isExplicitKieVideo(model)) return 'clip'
+  const sale = kieVideoSaleOf(model)
+  // A refused model never reaches the charge (the route answers 400 first,
+  // and `priceForModel` refuses it again); one unit is the safe answer here.
+  if (!sale.sold || sale.per === 'clip') return 'clip'
+  return sale.length ?? 'clip'
+}
+
+/**
+ * The quantity the charge multiplies the unit price by. `measuredSeconds` is
+ * read only for 'file', and must then be a real measurement: a missing one is
+ * refused rather than charged as nothing or as one second.
+ */
+export function videoChargeUnits(
+  rule: VideoChargeLength,
+  chipSeconds: number,
+  measuredSeconds?: number
+): number {
+  if (rule === 'person') return chipSeconds
+  if (rule === 'file') {
+    if (
+      typeof measuredSeconds !== 'number' ||
+      !Number.isFinite(measuredSeconds) ||
+      measuredSeconds <= 0
+    ) {
+      throw new Error('the file was not measured, so its length is unknown')
+    }
+    return Math.ceil(measuredSeconds)
+  }
+  return 1
+}
+
+/**
  * The price of one unit of a named model, or why there is none.
  *
  *   number     the model's own price (per unit the charge multiplies)
