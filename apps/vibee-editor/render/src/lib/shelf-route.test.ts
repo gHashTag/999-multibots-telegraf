@@ -710,4 +710,45 @@ describe('the real tools', () => {
     },
     60_000
   )
+
+  it.skipIf(!HAS_FFMPEG)(
+    'an odd-sized 4:4:4 clip still gets its copy: 8-bit 4:2:0 needs even sides, so the copy is cut to them',
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'shelf-odd-'))
+      try {
+        const odd = join(dir, 'odd.mp4')
+        const out = join(dir, 'out.mp4')
+        await promisify(execFile)('ffmpeg', [
+          '-v',
+          'error',
+          '-f',
+          'lavfi',
+          '-i',
+          'testsrc=size=321x241:rate=10',
+          '-t',
+          '1',
+          '-c:v',
+          'libx264',
+          '-pix_fmt',
+          'yuv444p',
+          '-y',
+          odd,
+        ])
+        // Without the even-sides scale libx264 refuses: "width not divisible
+        // by 2 (321x241)", and the file would go out as a 4:4:4 original.
+        await ffmpegH264(odd, out)
+        const probed = await ffprobeJson(out)
+        const v = probed?.streams?.find(s => s.codec_type === 'video')
+        expect(v?.codec_name).toBe('h264')
+        expect(v?.pix_fmt).toBe('yuv420p')
+        expect([
+          (v as { width?: number })?.width,
+          (v as { height?: number })?.height,
+        ]).toEqual([320, 240])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+    60_000
+  )
 })
