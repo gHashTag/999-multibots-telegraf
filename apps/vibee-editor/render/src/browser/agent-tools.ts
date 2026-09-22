@@ -310,27 +310,9 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     },
     async handler(args, ctx) {
       const pool = ctx.pool as unknown as Queryable
-      await ensureApprovals(pool)
       const what = String(args.what || '').trim()
       if (!what) throw new Error('say what exactly will happen')
-
-      const { id, allowToken, denyToken } = await askFor(pool, {
-        telegramId: ctx.telegramId,
-        what,
-        newId: newApprovalToken,
-        newToken: newApprovalToken, // secret-guard-ok: a generator, not a value
-      })
-
-      const link = (token: string) =>
-        `${approvalBase().replace(/\/+$/, '')}/api/browser/approve` +
-        `?id=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`
-
-      await askThePerson(
-        ctx.telegramId,
-        what,
-        link(allowToken),
-        link(denyToken)
-      )
+      const id = await requestPermission(pool, ctx.telegramId, what)
 
       /*
        * ASKING IS INSTANT; WAITING IS A CHOICE.
@@ -1037,6 +1019,32 @@ async function askForInputInTelegram(
       ],
     ],
   })
+}
+
+/**
+ * Ask the person one yes/no question about something that cannot be undone:
+ * a row in browser_approvals, the card in the app (/api/browser/decide) and
+ * two buttons in Telegram. Returns the question's id; read the answer with
+ * readApproval. Shared by browser_ask_permission and anything else that must
+ * not act without a yes -- the blog-share cron (agent/blog-share.ts).
+ */
+export async function requestPermission(
+  pool: Queryable,
+  telegramId: string,
+  what: string
+): Promise<string> {
+  await ensureApprovals(pool)
+  const { id, allowToken, denyToken } = await askFor(pool, {
+    telegramId,
+    what,
+    newId: newApprovalToken,
+    newToken: newApprovalToken, // secret-guard-ok: a generator, not a value
+  })
+  const link = (token: string) =>
+    `${approvalBase().replace(/\/+$/, '')}/api/browser/approve` +
+    `?id=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`
+  await askThePerson(telegramId, what, link(allowToken), link(denyToken))
+  return id
 }
 
 async function askThePerson(
