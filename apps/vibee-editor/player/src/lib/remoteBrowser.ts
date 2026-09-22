@@ -29,6 +29,8 @@ export interface BrowserSessionView {
   sessionId?: string
   /** Path on the render server, e.g. `/live/<id>?t=<token>`. */
   viewUrl?: string
+  /** Who is driving, as the server holds it (render sessions.ts). */
+  wheel?: 'person' | 'agent'
 }
 
 interface ServerAnswer {
@@ -36,12 +38,14 @@ interface ServerAnswer {
   state?: string
   sessionId?: string
   viewUrl?: string
+  wheel?: string
 }
 
 const asView = (a: ServerAnswer): BrowserSessionView => ({
   state: (a.state as BrowserState) || 'none',
   sessionId: a.sessionId,
   viewUrl: a.viewUrl,
+  ...(a.wheel === 'person' || a.wheel === 'agent' ? { wheel: a.wheel } : {}),
 })
 
 /**
