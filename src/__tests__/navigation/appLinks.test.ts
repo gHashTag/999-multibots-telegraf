@@ -148,6 +148,25 @@ describe('rewriteAppUrls -- the safety net on model text', () => {
     )
   })
 
+  it('ends the URL at a closing mark, a dash or a word -- keeps them, and the route', () => {
+    // Review of PR #2870: the URL body ran on through closing marks and read
+    // the route from them -- "hive»" is no route, so the link opened the feed
+    // and the closing mark (or a whole word) was gone.
+    const L = 'https://t.me/example_farm_bot?start=app_hive'
+    const cases: Array<[string, string]> = [
+      ['«https://app.t27.ai/hive»', `«${L}»`],
+      ['“https://app.t27.ai/hive”', `“${L}”`],
+      ['**https://app.t27.ai/hive**', `**${L}**`],
+      ['`https://app.t27.ai/hive`', `\`${L}\``],
+      ['https://app.t27.ai/hive—там', `${L}—там`],
+      ['app.t27.ai/hive, там', `${L}, там`],
+      ['https://app.t27.ai/hive?x=1&y=2#top.', `${L}.`],
+    ]
+    for (const [input, output] of cases) {
+      expect(rewriteAppUrls(input, 'example_farm_bot')).toBe(output)
+    }
+  })
+
   it('counts: two URLs in, two links out, none left raw', () => {
     const out = rewriteAppUrls(
       'https://app.t27.ai/a https://app.t27.ai/hive',

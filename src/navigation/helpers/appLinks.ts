@@ -248,6 +248,16 @@ export function routeOfAppUrl(url: string): AppRoute {
   return APP_HOME_ROUTE
 }
 
+/**
+ * The part of an app URL after the host: ASCII URL characters only, minus the
+ * ones that close markup -- quotes, brackets, angle brackets, `*` and the
+ * backtick. So the match ends at the first character that cannot be in a URL
+ * a model writes: «…», “…”, **…**, `…`, an em dash, a Cyrillic word. A body
+ * that ran on through them swallowed the closing mark and read the route from
+ * the swallowed text ("hive»" is no route, so the link fell back to the feed).
+ */
+const APP_URL_BODY = '[\\w\\-.~:/?#@!$&+,;=%]*'
+
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -267,10 +277,8 @@ export function rewriteAppUrls(
 ): string {
   if (!text || !botHandle(botUsername)) return text
   const hosts = appHosts().map(escapeRe).join('|')
-  // Stops at whitespace, quotes, brackets and angle brackets, so a URL inside
-  // HTML href="…", Markdown (…) or <…> is replaced and the markup kept.
   const re = new RegExp(
-    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])[^\\s"'<>()\\[\\]]*`,
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])${APP_URL_BODY}`,
     'gi'
   )
   return text.replace(re, raw => {

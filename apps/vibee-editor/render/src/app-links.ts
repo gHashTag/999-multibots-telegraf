@@ -104,6 +104,14 @@ function escapeRe(s: string): string {
 
 const HOSTS_RE = APP_HOSTS.map(escapeRe).join('|')
 
+/**
+ * After the host: ASCII URL characters minus quotes, brackets, angle
+ * brackets, `*` and the backtick, so «…», **…**, `…`, an em dash or a Cyrillic
+ * word ends the URL instead of being swallowed into its route. Same as the
+ * bot's src/navigation/helpers/appLinks.ts.
+ */
+const APP_URL_BODY = '[\\w\\-.~:/?#@!$&+,;=%]*'
+
 /** Any raw app URL in the text becomes the in-Telegram link of this bot. */
 export function rewriteAppUrls(
   text: string,
@@ -112,7 +120,7 @@ export function rewriteAppUrls(
 ): string {
   if (!text || !botHandle(botUsername)) return text
   const re = new RegExp(
-    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${HOSTS_RE})(?![\\w.-])[^\\s"'<>()\\[\\]]*`,
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${HOSTS_RE})(?![\\w.-])${APP_URL_BODY}`,
     'gi'
   )
   return text.replace(re, raw => {
