@@ -140,6 +140,20 @@ async function sendCookieLogout(access: string): Promise<boolean> {
   }
 }
 
+/** Send a pending cookie logout once; clear the flag when it is confirmed. */
+let finishingLogout: Promise<void> | null = null
+function finishPendingLogout(): Promise<void> {
+  if (finishingLogout) return finishingLogout
+  finishingLogout = sendCookieLogout('')
+    .then(done => {
+      if (done) setLogoutPending(false)
+    })
+    .finally(() => {
+      finishingLogout = null
+    })
+  return finishingLogout
+}
+
 /** A cookie session is believed to exist in this browser. */
 export function hasCookieSession(): boolean {
   return cookieTransportAvailable() && readMarker()
@@ -224,9 +238,24 @@ export function hasRenewableAppSession(): boolean {
   return !!storage()?.getItem(REFRESH_KEY) || hasCookieSession()
 }
 
-export function storeAppSession(session: AppSession): void {
+/**
+ * Keep a session in this tab. `signIn` is true only for a door the person
+ * walked through (the Login Widget, a Telegram launch), never for a refresh:
+ *
+ *   - a sign-in starts a new session, so a refresh still in flight from the
+ *     old one must not write over it (sessionGeneration);
+ *   - only a sign-in that put a NEW cookie in the jar supersedes a sign-out
+ *     that has not reached the server yet. A refresh used to clear that flag
+ *     too, so another tab's rotation landing just after "Sign out" cancelled
+ *     it and the family lived on (review, 2026-09-22).
+ */
+export function storeAppSession(
+  session: AppSession,
+  { signIn = false }: { signIn?: boolean } = {}
+): void {
   const s = storage()
   if (!s) return
+  if (signIn) sessionGeneration += 1
   resetRefreshBackoff()
   s.setItem(ACCESS_KEY, session.access_token)
   if (session.refresh_transport === 'cookie' || !session.refresh_token) {
@@ -237,7 +266,7 @@ export function storeAppSession(session: AppSession): void {
     // A new sign-in supersedes a sign-out that never finished: its cookie has
     // just replaced the old one in the jar, and finishing the old logout at
     // the next boot would revoke THIS session instead.
-    setLogoutPending(false)
+    if (signIn) setLogoutPending(false)
   } else {
     // A server that did not answer with a cookie (an older render mid-deploy,
     // a context without cookie transport): keep it where it always was, so
@@ -267,8 +296,17 @@ export function clearAppSession(): void {
   // The backoff belonged to the session that just ended. A sign-in after this
   // is a new session and must not inherit the old one's pause.
   resetRefreshBackoff()
-  writeMarker(false)
   const s = storage()
+  /*
+   * THE HINT IS THE BROWSER'S, SO ONLY THE COOKIE'S END TAKES IT AWAY.
+   *
+   * A tab holding its own token (a Telegram launch, a sign-in from before the
+   * move) that ends its session says nothing about the cookie every other tab
+   * rides. Dropping the hint there left those tabs unable to renew a healthy
+   * cookie session: ten minutes later they were signed out for nothing
+   * (review, 2026-09-22).
+   */
+  if (!s?.getItem(REFRESH_KEY)) writeMarker(false)
   if (s) {
     s.removeItem(ACCESS_KEY)
     s.removeItem(REFRESH_KEY)
@@ -406,10 +444,21 @@ export function startAppSessionHealing(
 ): () => void {
   if (cookieTransportAvailable() && logoutPending()) {
     // A sign-out that never reached the server: finish it, and do not renew.
-    void sendCookieLogout('').then(done => {
-      if (done) setLogoutPending(false)
-    })
+    if (getAppAccessToken() && !storage()?.getItem(REFRESH_KEY)) {
+      clearAppSession()
+    }
+    void finishPendingLogout()
   } else {
+    // A tab reloaded after the cookie session ended elsewhere: it holds an
+    // access token and no way to renew it. Signed out, and shown so.
+    if (
+      cookieTransportAvailable() &&
+      getAppAccessToken() &&
+      !storage()?.getItem(REFRESH_KEY) &&
+      !readMarker()
+    ) {
+      clearAppSession()
+    }
     scheduleRefresh()
     // A new tab, a bookmark, a restart: no access token here yet, but the jar
     // may hold a cookie session. Ask now, so the person appears as soon as
@@ -422,9 +471,38 @@ export function startAppSessionHealing(
   }
   const events = ['visibilitychange', 'focus', 'online']
   for (const event of events) win.addEventListener(event, heal)
+  win.addEventListener('storage', followTheJar)
   return () => {
     for (const event of events) win.removeEventListener(event, heal)
+    win.removeEventListener('storage', followTheJar)
   }
+}
+
+/*
+ * ONE BROWSER, ONE SIGN-IN: EVERY TAB FOLLOWS THE COOKIE.
+ *
+ * The cookie is the browser's, but each tab kept its own idea of who is signed
+ * in, so "Sign out" in one tab left the others showing the person with a dead
+ * token, and a sign-in in one left the others asking to sign in (review,
+ * 2026-09-22). The hint in localStorage changes in every tab at once, and the
+ * `storage` event tells the others: the hint gone means the cookie session
+ * ended, and a tab riding it signs out too; the hint back means a session is
+ * in the jar, and a tab with none renews into it -- the person appears with
+ * the token (APP_SESSION_PERSON), never before it.
+ *
+ * Decided from the state, not from the event's fields, so a `storage.clear()`
+ * (key null) and a plain object in tests are read the same way.
+ */
+function followTheJar(event?: { key?: string | null }): void {
+  const key = event?.key
+  if (key !== undefined && key !== null && key !== COOKIE_MARKER_KEY) return
+  if (!cookieTransportAvailable()) return
+  const ownToken = !!storage()?.getItem(REFRESH_KEY)
+  if (!readMarker()) {
+    if (getAppAccessToken() && !ownToken) clearAppSession()
+    return
+  }
+  if (!getAppAccessToken() && !ownToken) void ensureFreshSession()
 }
 
 /**
@@ -450,7 +528,25 @@ export async function refreshAppSession(): Promise<AppSession> {
   }
   const stored = storage()?.getItem(REFRESH_KEY) || ''
   const viaCookie = hasCookieSession()
-  if (!stored && !viaCookie) throw new Error('browser session is not available')
+  if (!stored && !viaCookie) {
+    /*
+     * A TAB HOLDING A TOKEN WITH NOTHING LEFT TO RENEW IT IS SIGNED OUT.
+     *
+     * The cookie session ended in another tab (it signed out, or its refresh
+     * was refused) and took the browser's hint with it. This tab still held
+     * the access token, so the header kept the person while every request
+     * came back 401 -- after a reload too (review, 2026-09-22). Say so.
+     */
+    if (getAppAccessToken()) clearAppSession()
+    throw new Error('browser session is not available')
+  }
+  if (viaCookie && !stored && logoutPending()) {
+    // "Sign out" was pressed in this browser and has not reached the server
+    // yet. Renewing now would keep alive the very family it is ending.
+    clearAppSession()
+    void finishPendingLogout()
+    throw new Error('signed out in this browser')
+  }
   const generation = sessionGeneration
   refreshInFlight = (async () => {
     const attempt = async (): Promise<{
@@ -535,6 +631,13 @@ export async function refreshAppSession(): Promise<AppSession> {
       if (generation !== sessionGeneration) {
         throw new Error('browser session changed during refresh')
       }
+      if (viaCookie && !stored && logoutPending()) {
+        // Another tab signed out while this reply was on its way: do not
+        // bring the session back to life in this one.
+        clearAppSession()
+        void finishPendingLogout()
+        throw new Error('signed out in this browser')
+      }
       const session: AppSession = {
         access_token: body.access_token,
         refresh_token:
@@ -608,6 +711,9 @@ export async function logoutAppSession(): Promise<void> {
   // Local logout is synchronous and fail-closed. A stalled network request or
   // a tab close must not leave a reusable browser credential behind.
   clearAppSession()
+  // "Sign out" signs this browser out: the server revokes the cookie's family
+  // too (render /logout), so the hint goes even from a tab with its own token.
+  if (viaCookie) writeMarker(false)
   if (!access && !refresh && !viaCookie) return
   if (viaCookie && !refresh) {
     // The server revokes the family and takes the HttpOnly cookie out of the
@@ -644,18 +750,40 @@ export async function logoutAppSession(): Promise<void> {
  */
 export async function logoutAllAppSessions(): Promise<boolean> {
   const access = getAppAccessToken()
+  // Read before clearing: clearAppSession drops the hint.
+  const viaCookie = hasCookieSession()
   clearAppSession()
-  if (!access) return false
+  if (viaCookie) {
+    writeMarker(false)
+    // As logoutAppSession: until the server confirms, this browser's own
+    // cookie is still live, and only a reply from the render can remove it.
+    setLogoutPending(true)
+  }
+  if (!access) {
+    if (viaCookie && (await sendCookieLogout(''))) setLogoutPending(false)
+    return false
+  }
+  let ok = false
   try {
     const response = await fetch(authUrl('/api/auth/logout-all'), {
       method: 'POST',
       credentials: authCredentials(),
       headers: authHeaders({ Authorization: `Bearer ${access}` }),
     })
-    return response.ok
+    ok = response.ok
   } catch {
-    return false
+    ok = false
   }
+  /*
+   * "Everywhere" failed -- an expired Bearer, the network -- but THIS browser
+   * must still be signed out: its cookie's family is revoked by the plain
+   * logout, which the cookie alone can prove (review, 2026-09-22: a failed
+   * logout-all left the cookie and its family alive, with nothing pending).
+   */
+  if (viaCookie) {
+    if (ok || (await sendCookieLogout(access))) setLogoutPending(false)
+  }
+  return ok
 }
 
 /**
@@ -727,7 +855,7 @@ export async function exchangeTelegramLaunch(
       return null
     }
     const session = body
-    storeAppSession(session)
+    storeAppSession(session, { signIn: true })
     return session
   } catch {
     // Сеть отвалилась — не повод трогать то, что уже работает.
@@ -774,6 +902,6 @@ export async function exchangeTelegramWidget(
     throw new Error(body.detail || body.error || `HTTP ${response.status}`)
   }
   const session = body
-  storeAppSession(session)
+  storeAppSession(session, { signIn: true })
   return session
 }

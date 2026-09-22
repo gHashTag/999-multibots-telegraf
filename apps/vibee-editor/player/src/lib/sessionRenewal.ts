@@ -3,6 +3,7 @@ import {
   hasLiveAppSession,
   hasRenewableAppSession,
   refreshAppSession,
+  TransientSessionError,
 } from './appSession'
 import { markEmbedSignInNeeded } from './embedGuest'
 
@@ -64,9 +65,12 @@ async function renewed(): Promise<string | null> {
   try {
     await refreshAppSession()
     return getAppAccessToken() || null
-  } catch {
-    // refreshAppSession has already cleared a refused session.
-    markEmbedSignInNeeded()
+  } catch (error) {
+    // refreshAppSession has already cleared a refused session. A transient
+    // failure -- the brake, a deploy, no network yet -- kept it, and asking
+    // the board to sign in again over it was a false alarm (review,
+    // 2026-09-22): the session renews on the next try.
+    if (!(error instanceof TransientSessionError)) markEmbedSignInNeeded()
     return null
   }
 }

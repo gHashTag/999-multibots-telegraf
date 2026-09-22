@@ -655,6 +655,33 @@ export function issueRefreshToken(now?: Date): RefreshIssue {
  */
 export const REUSE_GRACE_SECONDS = 10
 
+/*
+ * A REPLY THAT NEVER ARRIVED IS NOT A THEFT.
+ *
+ * The rotation commits before the reply is written, so a reply lost on the way
+ * back -- the connection dropped, the tab closed or reloaded mid-request, an
+ * error after the commit -- leaves the client holding a spent token and the
+ * server holding a successor nobody received. The client's honest retry, 15 s
+ * later by its backoff, was past REUSE_GRACE_SECONDS and revoked the family:
+ * with the cookie shared by every tab, that signed the whole browser out, the
+ * "I have to sign in every time" this work set out to end (review,
+ * 2026-09-22).
+ *
+ * The signal is the successor: a thief presents a spent token AFTER the
+ * legitimate client moved on, and a client that moved on has presented its
+ * successor. A successor never presented, within this window, means the reply
+ * was lost; the unused successor is revoked and a new one issued in its place,
+ * in one statement, so two retries cannot both win.
+ *
+ * What is given up, honestly: a thief who replays a spent token within two
+ * minutes of the legitimate rotation, before the legitimate client uses its
+ * successor, is not detected -- the legitimate client is refused at its next
+ * refresh and signs in again. The cookie is HttpOnly, and auth.t27.ai serves
+ * nothing a person uploaded (refresh-cookie.ts authHostRefuses), so reaching
+ * that token at all is the hard part.
+ */
+export const LOST_REPLY_SECONDS = 120
+
 export type RotateOutcome =
   | { ok: true; next: RefreshIssue }
   | {
@@ -720,6 +747,16 @@ export async function rotateRefreshToken(
       expiresAt: Date
       /** When the family's session row was created (app_sessions.created_at). */
       familyCreatedAt: Date
+      /**
+       * True when this token's successor exists and has never been
+       * presented (LOST_REPLY_SECONDS). Absent in a store that cannot tell,
+       * which keeps the old rule: every stale reuse is a theft.
+       */
+      successorUnused?: boolean
+      /** The successor's hash (replaced_by), which reissue must still see. */
+      successorHash?: string
+      /** When the successor was issued; one issued moments ago is a race. */
+      successorCreatedAt?: Date | null
     } | null>
     consumeAndInsert(
       hash: string,
@@ -727,6 +764,18 @@ export async function rotateRefreshToken(
       expiresAt: Date
     ): Promise<boolean>
     revokeFamily(familyId: string): Promise<string[]>
+    /**
+     * Revoke `successorHash`, the unused successor of `hash`, and issue
+     * `nextHash` in its place, atomically. False when that successor is no
+     * longer the one, or no longer unused: another retry won, or the
+     * legitimate client presented it meanwhile.
+     */
+    reissue?(
+      hash: string,
+      successorHash: string,
+      nextHash: string,
+      expiresAt: Date
+    ): Promise<boolean>
   },
   now?: Date
 ): Promise<RotateOutcome> {
@@ -754,6 +803,32 @@ export async function rotateRefreshToken(
   if (row.usedAt) {
     const прошлоСекунд = (t.getTime() - row.usedAt.getTime()) / 1000
     if (прошлоСекунд <= REUSE_GRACE_SECONDS) {
+      return { ok: false, reason: 'raced' }
+    }
+    if (
+      row.successorUnused === true &&
+      row.successorHash &&
+      (t.getTime() - row.usedAt.getTime()) / 1000 <= LOST_REPLY_SECONDS &&
+      store.reissue
+    ) {
+      // A successor issued moments ago -- by the rotation, or by a retry that
+      // just won -- is on its way to someone: that is a race, as above, not a
+      // lost reply. Measured on Postgres: without this, the second of two
+      // simultaneous retries revoked the successor the first had just handed
+      // out, and the jar could keep the dead one.
+      const bornAt = row.successorCreatedAt?.getTime()
+      if (
+        typeof bornAt === 'number' &&
+        (t.getTime() - bornAt) / 1000 <= REUSE_GRACE_SECONDS
+      ) {
+        return { ok: false, reason: 'raced' }
+      }
+      const next = issueRefreshToken(t)
+      if (
+        await store.reissue(hash, row.successorHash, next.hash, next.expiresAt)
+      ) {
+        return { ok: true, next }
+      }
       return { ok: false, reason: 'raced' }
     }
     const sessionIds = await store.revokeFamily(row.familyId)
