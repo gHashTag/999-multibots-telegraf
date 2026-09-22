@@ -425,19 +425,25 @@ async function propose(
    * tg_send and its media siblings, tg_forward, crm_offer, crm_deliver_photo
    * -- so this is where the client's "stop" is enforced for all of them at
    * once (assistant-opt-out.ts). Only the owner's own typed words survive it,
-   * and they are marked so the card and the press know.
+   * and they are marked so the card and the press know. A draft that came
+   * without a lead (tg_forward) is looked up by its @username in the base,
+   * so a person the owner knows is recognised however they are addressed.
    */
   const outward = action === 'send' || action === 'forward'
   const reach: Reach = outward
-    ? await assistantMayReach(ctx, lead ?? leadOfTarget(target), {
-        text: what,
-        plainText:
-          action === 'send' &&
-          !extra?.media &&
-          !extra?.charge &&
-          !extra?.gift &&
-          extra?.invoiceId === undefined,
-      })
+    ? await assistantMayReach(
+        ctx,
+        lead ?? (await leadOfTargetIn(ctx, target)),
+        {
+          text: what,
+          plainText:
+            action === 'send' &&
+            !extra?.media &&
+            !extra?.charge &&
+            !extra?.gift &&
+            extra?.invoiceId === undefined,
+        }
+      )
     : { ok: true }
   if (!reach.ok) throw new Error(reach.why)
   const ownerWords = reach.ownerWords === true
