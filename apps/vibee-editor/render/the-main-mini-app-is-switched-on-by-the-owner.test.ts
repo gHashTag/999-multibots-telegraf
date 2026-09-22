@@ -156,6 +156,10 @@ interface Script {
   configureLabel?: string
   enableLabel?: string
   askText?: string
+  /** The texts of the bot, Bot Settings and Mini App screens. */
+  botText?: string
+  settingsText?: string
+  miniAppText?: string
   /** Ask for the URL only after this many ms, with the menu edited first. */
   askLater?: number
   /** Labels that arrive as url / web-view buttons: no callback data. */
@@ -164,8 +168,10 @@ interface Script {
   onUrl?: () => void
 }
 
-const botScreen = (buttons?: string[]): Screen => ({
-  text: `Here it is: Neuro Test @${BOT}.\nWhat do you want to do with the bot?`,
+const botScreen = (buttons?: string[], text?: string): Screen => ({
+  text:
+    text ??
+    `Here it is: Neuro Test @${BOT}.\nWhat do you want to do with the bot?`,
   buttons: buttons ?? [
     'API Token',
     'Edit Bot',
@@ -213,10 +219,10 @@ function botFather(s: Script = {}) {
         page += 1
         fb.edit(list(page))
       } else if (label === `@${BOT}` || label.startsWith('@')) {
-        fb.edit(botScreen(s.botButtons))
+        fb.edit(botScreen(s.botButtons, s.botText))
       } else if (label === 'Bot Settings') {
         fb.edit({
-          text: `Settings for @${BOT}.`,
+          text: s.settingsText ?? `Settings for @${BOT}.`,
           buttons: s.settingsButtons ?? [
             'Inline Mode',
             'Allow Groups?',
@@ -228,7 +234,7 @@ function botFather(s: Script = {}) {
         })
       } else if (label === configure) {
         fb.edit({
-          text: `Main Mini App is disabled for @${BOT}.`,
+          text: s.miniAppText ?? `Main Mini App is disabled for @${BOT}.`,
           buttons: s.miniAppButtons ?? [enable, '« Back'],
         })
       } else if (label === enable) {
@@ -531,6 +537,131 @@ describe('it stops on surprise, and says where', () => {
     expect(r.status).toBe('stopped')
     expect(JSON.stringify(r)).not.toContain(leaked)
     expect(r.transcript!.join('\n')).toContain('<redacted>')
+  })
+})
+
+describe('every screen after the bot is picked is about that bot', () => {
+  const SIDE = '@private_side_bot'
+
+  it('the owner switches bots on another device mid-run: stops, the URL goes nowhere', async () => {
+    // The reported case: after @neuro_test_bot was pressed, the next
+    // screens were about another bot and the old driver sent it our URL.
+    const fb = botFather({
+      settingsText: `Settings for ${SIDE}.`,
+      askText: `OK. Send me the URL of the Main Mini App for ${SIDE}.`,
+      onUrl: flip,
+    })
+    const r = await run(fb).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('bot_settings')
+    expect(r.reason).toContain(SIDE)
+    expect(r.url_sent).toBe(false)
+    expect(fb.sent).toEqual(['/mybots'])
+    expect(fb.pressed).toEqual([`@${BOT}`, 'Bot Settings'])
+  })
+
+  it('the bot screen itself names another bot: stops at pick_bot', async () => {
+    const fb = botFather({ botText: `Here it is: Side ${SIDE}.` })
+    const r = await run(fb).result
+    expect(r.stopped_at).toBe('pick_bot')
+    expect(fb.pressed).toEqual([`@${BOT}`])
+  })
+
+  it('the Mini App screen names another bot: stops, nothing is sent', async () => {
+    const fb = botFather({
+      miniAppText: `Main Mini App is disabled for ${SIDE}.`,
+    })
+    const r = await run(fb).result
+    expect(r.stopped_at).toBe('configure_mini_app')
+    expect(fb.sent).toEqual(['/mybots'])
+  })
+
+  it('a screen that looks already on but names another bot is a stop, not already_on', async () => {
+    const fb = botFather({
+      miniAppText: `Main Mini App is enabled for ${SIDE}.`,
+      miniAppButtons: ['Edit Mini App URL', 'Disable Mini App', '« Back'],
+    })
+    const r = await run(fb).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('configure_mini_app')
+  })
+
+  it('only the question names another bot: the URL is not sent', async () => {
+    const fb = botFather({
+      askText: `OK. Send me the URL of the Main Mini App for ${SIDE}.`,
+    })
+    const r = await run(fb).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('send_url')
+    expect(r.reason).toContain(SIDE)
+    expect(fb.sent).toEqual(['/mybots'])
+  })
+
+  it('neither the Mini App screen nor the question names the bot: the URL is not sent', async () => {
+    const fb = botFather({
+      miniAppText: 'Main Mini App is disabled.',
+      askText: 'OK. Send me the URL of the Main Mini App.',
+    })
+    const r = await run(fb).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('send_url')
+    expect(r.url_sent).toBe(false)
+    expect(fb.sent).toEqual(['/mybots'])
+  })
+
+  it('named on the question alone, or on the Mini App screen alone, is enough', async () => {
+    const onAsk = botFather({
+      miniAppText: 'Main Mini App is disabled.',
+      onUrl: flip,
+    })
+    expect((await run(onAsk).result).status).toBe('enabled')
+    state[TOKEN_A].hasMainWebApp = false
+    const onScreen = botFather({
+      askText: 'OK. Send me the URL of the Main Mini App.',
+      onUrl: flip,
+    })
+    expect((await run(onScreen).result).status).toBe('enabled')
+  })
+
+  it('the bot named in another case is still the bot', async () => {
+    const fb = botFather({
+      settingsText: `Settings for @${BOT.toUpperCase()}.`,
+      miniAppText: 'Main Mini App is disabled.',
+      askText: `Send me the URL for @${BOT.toUpperCase()}.`,
+      onUrl: flip,
+    })
+    expect((await run(fb).result).status).toBe('enabled')
+  })
+
+  it('the reply after the URL names another bot: stops at confirm', async () => {
+    const fb = botFather({
+      replyText: `Success! Main Mini App enabled for ${SIDE}.`,
+      onUrl: flip,
+    })
+    const r = await run(fb).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('confirm')
+    expect(r.url_sent).toBe(true)
+  })
+
+  it('accounts that are not bots do not stop the run', async () => {
+    const fb = botFather({
+      settingsText: `Settings for @${BOT}. Questions: @BotFather, @BotSupport.`,
+      onUrl: flip,
+    })
+    expect((await run(fb).result).status).toBe('enabled')
+  })
+
+  it('names are read as bots only when they end in "bot", in any case', () => {
+    expect(
+      mod.botsNamedIn(
+        'Settings for @Neuro_Test_Bot. Ask @BotFather or @side_BOT, @x.'
+      )
+    ).toEqual(['neuro_test_bot', 'side_bot'])
+    expect(mod.otherBotIn(`Settings for @${BOT}.`, `@${BOT}`)).toBeNull()
+    expect(mod.otherBotIn(`For @${BOT.toUpperCase()} and ${SIDE}.`, BOT)).toBe(
+      SIDE
+    )
   })
 })
 
