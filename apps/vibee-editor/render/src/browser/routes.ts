@@ -429,6 +429,7 @@ export async function handleBrowser(
         body: { ok: false, error: 'id and option are required' },
       }
     }
+    const asked = pendingInput(who)
     if (!markChosen(who, pick.id, pick.option)) {
       return {
         status: 409,
@@ -438,6 +439,14 @@ export async function handleBrowser(
         }, // cyrillic-ok: user-facing error
       }
     }
+    /*
+     * PICKING AN OPTION IS CONSENT TO IT. The agent asked "Skip or Save?" on
+     * a guarded page; the person pressed Save. Asking a second time for
+     * permission to press Save is the double question that left the agent
+     * standing on the Google page (owner, 2026-09-22). A choice opens the
+     * guard's few minutes; Done / Cannot (an action) opens nothing.
+     */
+    if (asked?.kind === 'choice') await markAllowed(pool, who)
     return { status: 200, body: { ok: true } }
   }
 
