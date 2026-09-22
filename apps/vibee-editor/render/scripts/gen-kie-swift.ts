@@ -21,6 +21,8 @@ import { KIE_MODELS, NEVER_PROBE } from '../src/agent/kie-models'
 import { ИМЯ_В_ПРАЙСЕ, АДРЕС_ПРАЙСА } from '../src/agent/kie-price-names'
 import { ПОЛЯ_МАРШРУТА } from '../src/agent/kie-web-provider'
 import { ВИДИМЫЕ_ИМЕНА } from '../src/agent/kie-display-names'
+// The server's video sale rule, run on the price list this pass fetched.
+import { kieVideoSale } from '../src/agent/billing-shared'
 
 type Строка = {
   modelDescription: string
@@ -167,6 +169,35 @@ const ЕДИНИЦА: Record<string, string> = {
 
 const экр = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 
+/*
+ * The names this block reads, once in English: the guard that keeps code in
+ * English cannot mark every line that would otherwise use them.
+ */
+type PriceRow = Строка // cyrillic-ok: existing type name
+const kindOf = (id: string) => ВИД_К_KIND_ГЕН[ВИДИМЫЕ_ИМЕНА[id]?.вид ?? ''] // cyrillic-ok: existing tables
+const unitWord = (unit: string) => ЕДИНИЦА[unit] ?? unit // cyrillic-ok: existing table
+
+/**
+ * Does the server refuse to sell this model as a video?
+ *
+ * The SAME rule the route and the charge apply (`kieVideoSale`,
+ * billing-shared.ts), run on the price-list row this pass chose -- so the app
+ * hides exactly what the server refuses, before the press rather than after.
+ * Computed here and not copied into Swift: a copy of a money rule in a second
+ * language is the drift this generator exists to prevent.
+ */
+function notSold(
+  model: { id: string; needs?: string[] },
+  row: PriceRow | null
+): boolean {
+  if (kindOf(model.id) !== 'video') return false
+  return !kieVideoSale({
+    cost: row ? +row.usdPrice : null,
+    unit: row ? unitWord(row.creditUnit) : null,
+    needs: model.needs,
+  }).sold
+}
+
 async function main() {
   const строки = await прайс()
   /*
@@ -203,6 +234,8 @@ async function main() {
     })
   }
 
+  /** Model id -> the dearest same-unit variant its price-list name matches. */
+  const dearestById = new Map<string, number>()
   const записи = KIE_MODELS.map(м => {
     const видимое = ВИДИМЫЕ_ИМЕНА[м.id]
     if (!видимое)
@@ -248,6 +281,21 @@ async function main() {
       )
     }
     const min = годные.reduce((a, b) => (+a.usdPrice <= +b.usdPrice ? a : b))
+    /*
+     * THE DEAREST VARIANT OF THE SAME UNIT, KEPT BESIDE THE CHEAPEST.
+     *
+     * The cheapest row is what the model is quoted at, and for a model whose
+     * name matches several variants it is a row we may never be billed at:
+     * `hailuo 02` was priced by "image-to-video, Standard-6.0s-512p" ($0.06)
+     * while ours is the Pro text-to-video model, whose only row is $0.285.
+     * The margin report (`tri margin`) shows both, so a spread that could
+     * put a sale under cost is visible without fetching the price list.
+     */
+    const sameUnit = годные.filter(r => r.creditUnit === min.creditUnit) // cyrillic-ok: existing local name
+    const dearest = sameUnit.reduce((a, b) =>
+      +a.usdPrice >= +b.usdPrice ? a : b
+    )
+    dearestById.set(м.id, +dearest.usdPrice) // cyrillic-ok: existing loop variable
     /*
      * ЕДИНИЦА, КОТОРУЮ НЕЛЬЗЯ ПЕРЕВЕСТИ В ЦЕНУ ЗА ВЫЗОВ.
      *
@@ -349,6 +397,14 @@ struct Модель: Identifiable, Hashable {
   /// Какой файл просит: «фото», «видео» или «звук». Показать выбор фотографий
   /// там, где нужен ролик, — предложить работу, которая не сработает.
   var видИсходника: String? = nil
+  /**
+   * The server does not sell this video: the provider picks the length the
+   * request does not carry, or its price names no unit a clip is billed in.
+   * The rule is the server's own (\`kieVideoSale\`, billing-shared.ts), run by
+   * the generator -- the app hides the model instead of taking a press the
+   * server will refuse.
+   */
+  var notSold: Bool = false
 
   enum Вид: String, CaseIterable { case картинка, видео, звук, липсинк, сценарий }
 
@@ -405,7 +461,7 @@ ${записи
     const требует = отЧеловека.length
       ? [...new Set(отЧеловека)].join(' + ')
       : видимое.требует
-    return `    Модель(id: "${экр(м.id)}", название: "${экр(видимое.название)}", вид: .${видимое.вид}, живая: ${м.state === 'live'}, требует: "${экр(требует)}", опасная: ${fencedFromProbes(м.id) || видимое.опасная === true}, ценаUSD: ${ц}, единица: ${е}, входИзвне: ${входИзвне(м)}, нуженИсходник: ${нуженИсходник(м)}, видИсходника: ${видИсходника(м)}), // cyrillic-ok: generated UI catalogue`
+    return `    Модель(id: "${экр(м.id)}", название: "${экр(видимое.название)}", вид: .${видимое.вид}, живая: ${м.state === 'live'}, требует: "${экр(требует)}", опасная: ${fencedFromProbes(м.id) || видимое.опасная === true}, ценаUSD: ${ц}, единица: ${е}, входИзвне: ${входИзвне(м)}, нуженИсходник: ${нуженИсходник(м)}, видИсходника: ${видИсходника(м)}, notSold: ${notSold(м, цена)}), // cyrillic-ok: generated UI catalogue`
   })
   .join('\n')}
   ]
@@ -430,6 +486,20 @@ ${записи
    * третья копия прайса (Swift-каталог, эта таблица, чьи-то правки) и
    * разойдётся на первом же обновлении цен у провайдера.
    */
+  /*
+   * The DEAREST_VARIANT_USD rows, built here under English names so the
+   * template below only splices a string.
+   */
+  const escapeQuoted = экр // cyrillic-ok: existing helper
+  const catalogue = записи // cyrillic-ok: existing local name
+  const dearestTable = catalogue
+    .map(entry => {
+      const id = entry.м.id // cyrillic-ok: existing field
+      const priced = Boolean(entry.цена) // cyrillic-ok: existing field
+      const dearest = priced ? (dearestById.get(id) ?? null) : null
+      return `  '${escapeQuoted(id)}': ${dearest},`
+    })
+    .join('\n')
   const ценыTS = `/**
  * Себестоимость моделей KieAI, $ — СГЕНЕРИРОВАНО.
  *
@@ -462,6 +532,17 @@ ${записи
     return `  '${экр(м.id)}': ${строка ? `'${экр(ЕДИНИЦА[строка.creditUnit] ?? строка.creditUnit)}'` : null},`
   })
   .join('\n')}
+}
+
+/**
+ * The DEAREST variant of the same unit that the model's price-list name
+ * matches, $. The first table above holds the cheapest one; where the two
+ * differ the provider bills one of several variants, and which one is its
+ * choice. Read by \`tri margin\` to show the spread; \`null\` where the model
+ * has no price.
+ */
+export const DEAREST_VARIANT_USD: Record<string, number | null> = {
+${dearestTable}
 }
 `
   const кудаЦены = path.join(__dirname, '../src/agent/kie-prices.generated.ts')

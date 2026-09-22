@@ -573,6 +573,13 @@ import {
   секундыКОплате,
   PER_SECOND_OPS,
   владелец,
+  kieVideoSaleOf,
+  replicateVideoSeconds,
+  replicateClipModel,
+  replicateClipPrices,
+  REPLICATE_VIDEO_DEFAULT_LENGTH,
+  REPLICATE_VIDEO_RESOLUTION,
+  type ReplicateVideoLength,
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 import { installGracefulShutdown } from './src/graceful-shutdown'
@@ -3921,7 +3928,9 @@ const server = createServer(async (req, res) => {
    */
   async function generateVideoViaReplicate(
     prompt: string,
-    durationSec: number,
+    // The length that was PAID for: the caller computes it with the same
+    // `replicateVideoSeconds` the charge priced, so the order cannot differ.
+    durationSec: ReplicateVideoLength,
     aspectRatio: string
   ): Promise<string> {
     const REPLICATE_TOKEN =
@@ -3941,9 +3950,10 @@ const server = createServer(async (req, res) => {
         body: JSON.stringify({
           input: {
             prompt,
-            duration: durationSec >= 8 ? 10 : 5,
+            duration: durationSec,
             aspect_ratio: aspectRatio || '9:16',
-            resolution: '720p',
+            // The resolution the price was read at (billing-shared.ts).
+            resolution: REPLICATE_VIDEO_RESOLUTION,
           },
         }),
       }
@@ -4027,11 +4037,47 @@ const server = createServer(async (req, res) => {
       let секунды = 1
       // Длина в сетке провайдера — одна на счёт и на заказ.
       let длинаРолика = 6
+      /*
+       * THE REPLICATE LEG'S LENGTH AND THE MODEL ID IT IS CHARGED UNDER.
+       * Outside the try for the same reason as the seconds above: the
+       * Replicate call and the refund both live in the catch, and they must
+       * order and give back exactly what the charge priced.
+       */
+      let clipSeconds: ReplicateVideoLength = REPLICATE_VIDEO_DEFAULT_LENGTH
+      let billedModel: string | undefined
       try {
         const { model, prompt, duration, aspect_ratio, image_url, video_url } =
           JSON.parse(body)
         requestedModel = typeof model === 'string' ? model : undefined
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
+
+        /*
+         * NO VIDEO IS SOLD WHOSE BILL WE CANNOT NAME -- decided BEFORE the
+         * charge. A Kie model the floor refuses (`kieVideoSale`: billed per
+         * second while the provider picks the length, or no usable price)
+         * used to be charged ONE second and billed five by the provider.
+         * Everything else is the Replicate leg, priced by the clip it will
+         * actually make: 5 or 10 seconds at 720p.
+         */
+        const explicitKie =
+          typeof model === 'string' && model.startsWith('kie/')
+        if (explicitKie) {
+          const sale = kieVideoSaleOf(model)
+          if (!sale.sold) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: `модель ${model} не продаётся: ${sale.why}. Ничего не списано.`,
+              })
+            )
+            return
+          }
+          billedModel = model
+        } else {
+          clipSeconds = replicateVideoSeconds(duration)
+          billedModel = replicateClipModel(clipSeconds)
+        }
 
         /*
          * СЧИТАЕМ СЕКУНДЫ, ЕСЛИ МОДЕЛЬ ПРОДАЁТСЯ ПО СЕКУНДАМ.
@@ -4117,7 +4163,7 @@ const server = createServer(async (req, res) => {
           req,
           'video_generate',
           секунды,
-          model
+          billedModel
         )
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
@@ -4185,7 +4231,7 @@ const server = createServer(async (req, res) => {
               billedTid,
               'video_generate',
               секунды,
-              requestedModel,
+              billedModel,
               receipt.charged,
               billedSpendId
             )
@@ -4315,7 +4361,7 @@ const server = createServer(async (req, res) => {
             billedTid,
             'video_generate',
             секунды,
-            requestedModel,
+            billedModel,
             receipt.charged,
             billedSpendId
           )
@@ -4342,7 +4388,8 @@ const server = createServer(async (req, res) => {
           const b = JSON.parse(body || '{}')
           const videoUrl = await generateVideoViaReplicate(
             String(b.prompt || ''),
-            parseInt(String(b.duration || '5'), 10) || 5,
+            // The paid length, not a second reading of the body.
+            clipSeconds,
             String(b.aspect_ratio || '9:16')
           )
           res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -4365,7 +4412,7 @@ const server = createServer(async (req, res) => {
             billedTid,
             'video_generate',
             секунды,
-            requestedModel,
+            billedModel,
             receipt.charged,
             billedSpendId
           )
@@ -4456,6 +4503,13 @@ const server = createServer(async (req, res) => {
            *   видео   20 против 5 — запрет того, что человеку по карману.
            */
           modelPrices: модельныеЦены(),
+          /**
+           * The price of a video from the DEFAULT leg (no Kie model: the
+           * Replicate clip), by the seconds the route will make: {"5": 72,
+           * "10": 144}. One number for "video" was true for one length only;
+           * the button must name the clip the person picked.
+           */
+          defaultVideoPrices: replicateClipPrices(),
           /**
            * Какие МОДЕЛИ считаются посекундно. `perSecond` ниже помечает виды
            * работы, и для видео такая пометка невозможна: половина моделей

@@ -205,7 +205,10 @@ struct GenerateScreen: View {
     // `входИзвне` — модель просит картинку/видео/звук, которых экран не шлёт.
     // Показывать её значит обещать работу, которой не будет: сервер такую
     // модель к оплате не допускает (kie-web-provider.ts, ПОЛЯ_МАРШРУТА).
-    return м.живая && !м.опасная && м.ценаUSD != nil && !м.входИзвне
+    // `notSold`: a video the server refuses to price (the provider picks the
+    // length the request does not carry). The generator runs the server's own
+    // rule, so the app hides exactly what the route would refuse.
+    return м.живая && !м.опасная && м.ценаUSD != nil && !м.входИзвне && !м.notSold // cyrillic-ok: existing identifiers
   }
 
   private var модельДляСервера: String {

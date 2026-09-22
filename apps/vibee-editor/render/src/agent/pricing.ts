@@ -1,4 +1,9 @@
-import { priceFor } from './billing-shared'
+import {
+  priceFor,
+  replicateClipTokens,
+  REPLICATE_VIDEO_LENGTHS,
+  REPLICATE_VIDEO_RESOLUTION,
+} from './billing-shared'
 import { CLUB_OFFER_WHEN, clubOffer, spacedNumber } from './club-membership'
 import { imageChainNote } from '../image-chain'
 
@@ -63,6 +68,19 @@ export const FREE = [
 ]
 
 /**
+ * The video line of the price list: which clip, at which quality, for how
+ * much -- every length with its price. The price is the video floor
+ * (billing-shared `replicateClipTokens`): never below what the provider bills
+ * for that clip, times the owner's markup.
+ */
+function videoProviderNote(): string {
+  const byLength = REPLICATE_VIDEO_LENGTHS.map(
+    s => `${s} с — ${replicateClipTokens(s)}` // cyrillic-ok: price list copy
+  ).join(', ')
+  return `Replicate seedance-1-lite, ${REPLICATE_VIDEO_RESOLUTION}: ${byLength} токенов` // cyrillic-ok: price list copy
+}
+
+/**
  * Paid work: costs the person tokens (bought with Telegram Stars) and costs
  * us money at the provider.
  *
@@ -101,8 +119,10 @@ export const PAID = [
   },
   {
     функция: 'video_generate',
-    токенов: priceFor('video_generate'),
-    провайдер: 'Replicate seedance-1-lite',
+    // The default 5-second clip. A 10-second one costs more, and the line
+    // below names both from the same function the charge reads.
+    токенов: priceFor('video_generate'), // cyrillic-ok: existing field name
+    провайдер: videoProviderNote(), // cyrillic-ok: existing field name
   },
   {
     функция: 'reel_render',
