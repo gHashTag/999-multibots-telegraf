@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { detentHeights, settle, nextDetent, PEEK_PX } from './sheetDetents'
+import {
+  detentHeights,
+  settle,
+  nextDetent,
+  PEEK_PX,
+  ISLAND_PX,
+} from './sheetDetents'
 
 const h = detentHeights(800) // peek 96, half 400, full 744
 
@@ -32,5 +38,15 @@ describe('where a dragged sheet comes to rest', () => {
       nextDetent('half'),
       nextDetent('full'),
     ]).toEqual(['half', 'full', 'peek'])
+  })
+})
+
+describe('the island of the minimal browser', () => {
+  it('is a shorter closed sheet, with the same open detents', () => {
+    const island = detentHeights(800, ISLAND_PX)
+    expect(island.peek).toBe(ISLAND_PX)
+    expect(island.half).toBe(400)
+    expect(island.full).toBe(744)
+    expect(settle(70, 0, island)).toBe('peek')
   })
 })

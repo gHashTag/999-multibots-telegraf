@@ -30,6 +30,12 @@ import {
   resolvePublicAddress,
 } from './src/lib/remoteMediaDuration'
 import { handleAuthRouteSafely } from './session-routes'
+import {
+  applyAuthCors,
+  authHostRefuses,
+  BASE_ALLOW_HEADERS,
+  isAuthHost,
+} from './src/auth/refresh-cookie'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import { report } from './src/hive/queen-report'
 import { record } from './src/hive/journal'
@@ -482,7 +488,9 @@ import {
   s3OpenStream,
   s3GetToFile,
   isMissingObject,
+  assetKeyFor,
 } from './src/lib/s3-put'
+import { shelfReadAccess } from './src/lib/shelf-access'
 import {
   serveShelfRequest,
   createShelfVideo,
@@ -1800,7 +1808,8 @@ async function uploadToS3(
   filename: string,
   contentType: string
 ): Promise<UploadedAsset> {
-  const key = `assets/${Date.now()}-${filename}`
+  // Random part and all: a walkable key is a public document (shelf-access.ts).
+  const key = assetKeyFor(filename)
 
   try {
     // The put itself lives in src/lib/s3-put.ts, shared with the CRM ingest
@@ -1825,7 +1834,7 @@ async function uploadRequestToS3(
   contentType: string,
   maxBytes: number
 ): Promise<UploadedAsset> {
-  const key = `assets/${Date.now()}-${filename}`
+  const key = assetKeyFor(filename)
   const { stream, receivedBytes } = boundedUploadTransform(maxBytes)
   const tempDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), 'vibee-upload-')
@@ -3149,10 +3158,21 @@ const server = createServer(async (req, res) => {
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, OPTIONS'
   )
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
-  )
+  res.setHeader('Access-Control-Allow-Headers', BASE_ALLOW_HEADERS)
+  // The sign-in doors, called by the player from app.t27.ai on auth.t27.ai
+  // with the HttpOnly refresh cookie (src/auth/refresh-cookie.ts). A
+  // credentialed request is refused under `*`, so for exactly this origin and
+  // exactly these paths the answer names the origin and allows credentials.
+  // Every other origin and path keeps the answer above.
+  applyAuthCors(req, res)
+
+  // auth.t27.ai holds the refresh cookie, so nothing a person uploaded may be
+  // served from it (src/auth/refresh-cookie.ts authHostRefuses).
+  if (authHostRefuses(req)) {
+    res.writeHead(404, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: 'not found' }))
+    return
+  }
 
   if (req.method === 'OPTIONS') {
     res.writeHead(200)
@@ -5921,6 +5941,7 @@ const server = createServer(async (req, res) => {
     await serveShelfRequest(req, res, {
       store: SHELF_STORE,
       video: SHELF_VIDEO,
+      access: (key, query, r) => shelfReadAccess(key, query, hasServerKey(r)),
     })
     return
   }
@@ -11877,6 +11898,9 @@ async function main() {
    * what broke both (see the comment on `wss`).
    */
   server.on('upgrade', async (req, socket, head) => {
+    // auth.t27.ai upgrades nothing, on any path, doors included: none of the
+    // doors is a socket (src/auth/refresh-cookie.ts).
+    if (isAuthHost(req)) return refuseUpgrade(socket, 404)
     const path = (req.url || '').split('?')[0]
     if (!isLivePath(path)) {
       wss.handleUpgrade(req, socket, head, ws =>

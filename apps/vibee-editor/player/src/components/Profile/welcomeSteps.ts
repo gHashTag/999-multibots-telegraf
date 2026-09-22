@@ -72,6 +72,37 @@ export function welcomeStart(facts: WelcomeFacts): WelcomeStep {
   return 'done'
 }
 
+/**
+ * THE CLUB STEP IS OVER THE MOMENT THE CLUB IS OPEN.
+ *
+ * `welcomeStart` decides where the road BEGINS, once, from the facts we had
+ * at that moment. It cannot decide anything afterwards -- and the club step
+ * is the one step whose fact changes while the person stands on it.
+ *
+ * Measured 2026-09-22 for 504608015, an invited guest: the app did not know
+ * him yet, so the club card drew the signed-out variant; he pressed Telegram's
+ * login widget, the widget reloaded the status, and the server answered
+ * `active: true, granted: "guest"` -- he was already a member. The card then
+ * re-drew as the PRICE, offered him "join for 10 000 stars", and he pressed
+ * it. The till is deliberately open to a pass holder (club-membership.ts), so
+ * a subscription invoice for a month he already had was minted in his name
+ * (hive_events #864) and Telegram's own sheet failed on it. He read that as
+ * "we gave you access and you still cannot get in", and he was right: nothing
+ * should have shown him a price at all.
+ *
+ * `deliberate` is the one exception: the admin badge OPENS this step on
+ * purpose, precisely because a free pass otherwise makes the till unreachable
+ * (owner, 2026-09-22: "я не могу в vibee_agent пройти оплату"). A step opened
+ * on purpose is not skipped out from under the person who opened it.
+ */
+export function clubStepIsOver(
+  status: { active?: boolean } | null | undefined,
+  deliberate = false
+): boolean {
+  if (deliberate) return false
+  return status?.active === true
+}
+
 /** 1-based position for the "step N of 6" line. */
 export function welcomeIndex(step: WelcomeStep): number {
   return WELCOME_STEPS.indexOf(step) + 1
