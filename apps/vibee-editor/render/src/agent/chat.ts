@@ -1166,38 +1166,53 @@ export const RETRY_LOG_PREFIX = '[agent] provider stream dropped, retrying:'
  *
  * Kept at 120 s. It is the backstop for a stream that keeps talking (GLM
  * streams its reasoning) and never finishes; catching a route that went
- * quiet is PROVIDER_SILENCE_MS's job. Against the measurement below the
- * slowest normal call took 46 s, so 120 s cuts nothing that was going to
- * finish.
+ * quiet is PROVIDER_SILENCE_MS's job. Lowering it cannot be justified from
+ * the logs yet (measurement below): the slowest single call they pin down
+ * took 75 s, but tool turns only give an average per call, and 23 of the 89
+ * spent more than 60 s in model calls in all -- one call there may well have
+ * run past 90 s and finished. `slowestModelMs` in the turn's end line is
+ * what a lower ceiling has to be read from.
+ *
+ * It is also the deadline turn 6b3f6cad most likely hit. The bot hangs up
+ * after 90 s with no byte from the render, the render forwards every
+ * reasoning chunk, and the bot did NOT hang up during zai's 120 s -- so zai
+ * was probably streaming its thinking all along. A silence deadline does not
+ * shorten that wait for the person it happens to; the breaker
+ * (provider-breaker.ts) is what spares the next person.
  */
 export const PROVIDER_CEILING_MS = 120_000
 
 /**
  * A PROVIDER THAT HAS SAID NOTHING FOR THIS LONG IS NOT GOING TO.
  *
- * Production, 2026-09-22, turn 6b3f6cad: `zai: не ответил за 120с (таймаут)`.
- * The only deadline was the 120 s ceiling on the whole call, so a route that
- * accepted the request and went quiet cost the person two minutes before the
- * next provider was tried. Worse, the bot's own silence limit is 90 s
- * (SILENCE_MS in src/services/trinityAgent.ts), so on a quiet route the bot
- * hung up BEFORE the render ever reached the fallback: in the same logs a
- * turn with no tool calls ended at 90 009 ms as "caller left".
+ * The other shape of a stuck route. With the 120 s ceiling as the only
+ * deadline, a route that accepted the request and went quiet kept the person
+ * waiting two minutes before the next provider was tried. Worse, the bot's
+ * own silence limit is 90 s (SILENCE_MS in src/services/trinityAgent.ts), so
+ * on a quiet route the bot hung up BEFORE the render ever reached the
+ * fallback: on 2026-09-21 a turn with no tool calls ended at 90 009 ms as
+ * "caller left".
  *
  * Silence, not duration: the timer is armed with the request and pushed back
  * by every byte the provider sends -- headers, reasoning, text, tool deltas,
  * keep-alive comments -- so an answer that keeps streaming is never cut.
  *
  * MEASURED, vibee-render `[agent:turn]` end lines from the 97 deployments of
- * 2026-09-20..22 (143 turns). A turn with no tool calls is exactly one
- * provider call, request to last byte; 51 of them ended ok:
- *   p50 8.8 s, p90 28.5 s, p95 42.8 s, max 45.9 s.
- * Tool turns, (turn ms - tool ms) / (tool calls + 1) per model call, 80 ok:
- *   p50 11.7 s, p90 26.3 s, p95 28.7 s, max 43.1 s.
- * A call's longest silence is at most its whole duration, so 60 s is above
- * the slowest normal call even if that call had sent every byte at the very
- * end -- nothing measured would have been cut. And it leaves 30 s inside the
- * bot's 90 s for the next provider's FIRST byte (after which the bot's timer
- * restarts), against a whole-call median of 8.8 s.
+ * 2026-09-20..22 (150 turns, nearest-rank percentiles). A turn with no tool
+ * calls is exactly one provider call, request to last byte; 53 ended ok:
+ *   p50 8.9 s, p90 36.5 s, p95 43.7 s, max 75.0 s.
+ * Tool turns, (turn ms - tool ms) / (tool calls + 1) per model call, 89 ok:
+ *   p50 11.6 s, p90 26.5 s, p95 34.4 s, max 43.1 s (averages, see above).
+ * A call's longest silence is at most its whole duration, so among the
+ * single-call turns a 60 s silence deadline could have touched one at most --
+ * the 75 s one, on 22.09 at 08:36 -- and only if it had sent nothing for 60 s
+ * of its 75. It leaves 30 s inside the bot's 90 s for the next provider's
+ * FIRST byte (after which the bot's timer restarts), against a whole-call
+ * median of 8.9 s. The cost of being wrong is bounded: a call cut here goes
+ * to the next provider, not to an error, and parks its own provider for one
+ * breaker window. The logs held no time-to-first-byte at all, which is why
+ * the turn's end line now carries `slowestFirstByteMs`: the next change to
+ * this number should read it rather than bound it.
  */
 export const PROVIDER_SILENCE_MS = 60_000
 
@@ -1232,8 +1247,28 @@ export const NO_PROVIDER_LEFT = 'no provider left for this turn'
  */
 export const ANSWER_NOW_NUDGE =
   '(Служебная заметка, её пишет не человек.) Ты закончил ход без ответа. ' + // cyrillic-ok: prompt copy
-  'Результаты инструментов уже выше. Ответь человеку текстом сейчас — на ' + // cyrillic-ok: prompt copy
-  'языке его последнего сообщения, не этой заметки.' // cyrillic-ok: prompt copy
+  'Если ты вызывал инструменты, их результаты уже выше — не вызывай их ' + // cyrillic-ok: prompt copy
+  'снова. Ответь человеку текстом сейчас — на языке его последнего ' + // cyrillic-ok: prompt copy
+  'сообщения, не этой заметки.' // cyrillic-ok: prompt copy
+
+/**
+ * What the model reads when, after the nudge, it repeats a call this turn
+ * already made with the same arguments. See `ranThisTurn` in runAgent.
+ */
+export const REPEAT_REFUSED =
+  'этот вызов с теми же аргументами уже выполнен на этом ходу, его ' + // cyrillic-ok: read by the model
+  'результат выше; не повторяй его, ответь человеку текстом' // cyrillic-ok: read by the model
+
+/** A call's identity for REPEAT_REFUSED: its name and its parsed arguments. */
+function callIdentity(name: string, raw: string | undefined): string {
+  let args: unknown = raw || '{}'
+  try {
+    args = JSON.parse(String(raw || '{}'))
+  } catch {
+    // Unparseable arguments are compared as written.
+  }
+  return JSON.stringify([name, args])
+}
 
 export async function* streamModel(
   messages: ChatMessage[],
@@ -1399,7 +1434,7 @@ export async function* streamModel(
     let settled = false
     const fail = (kind: 'timeout' | 'error', why: string) => {
       settled = true
-      recordFailure(p.id, kind, why)
+      recordFailure(p.id, kind, why, Date.now(), probe)
     }
 
     try {
@@ -1982,6 +2017,19 @@ export async function* runAgent(
   const askedAgain = new Set<string>()
   const excluded = new Set<string>()
   const emptyFrom: string[] = []
+  /*
+   * THE REQUEST FOR WORDS IS NOT A LICENCE TO REDO THE WORK.
+   *
+   * After the nudge the same messages may reach another model, which sees
+   * tool calls it did not make. A paid picture called again with the same
+   * arguments is a second charge for a result already in the history, and a
+   * sent message sent twice cannot be unsent. So once the nudge is in, a call
+   * identical to one this turn already ran is answered with a refusal the
+   * model reads (REPEAT_REFUSED) and its handler never runs. Before the nudge
+   * nothing changes: a repeat inside an ordinary turn -- a status poll -- is
+   * the model's call, as it always was.
+   */
+  const ranThisTurn = new Set<string>()
   const logEmpty = (action: string, provider: string) =>
     console.warn(
       EMPTY_ANSWER_LOG_PREFIX,
@@ -2122,9 +2170,21 @@ export async function* runAgent(
         аргументы: call.function.arguments || '{}',
       }
       const t0 = Date.now()
-      // Unknown, refused on this turn, or run: dispatchToolCall decides.
-      // cyrillic-ok-next-line
-      const значение = yield* dispatchToolCall(call, ctx, opts, t0)
+      const identity = callIdentity(имя, call.function.arguments) // cyrillic-ok: pre-existing local
+      const repeat = nudged && ranThisTurn.has(identity)
+      ranThisTurn.add(identity)
+      let значение: unknown // cyrillic-ok: pre-existing local
+      if (repeat) {
+        const refusal: Record<string, unknown> = {}
+        refusal['ошибка'] = `${имя}: ${REPEAT_REFUSED}` // cyrillic-ok: envelope field and pre-existing local
+        refusal['отказано'] = true
+        значение = refusal // cyrillic-ok: pre-existing local
+        logEmpty('repeat refused', answeredBy ?? 'unknown')
+      } else {
+        // Unknown, refused on this turn, or run: dispatchToolCall decides.
+        // cyrillic-ok-next-line
+        значение = yield* dispatchToolCall(call, ctx, opts, t0)
+      }
       const мс = Date.now() - t0 // cyrillic-ok: pre-existing field name
       toolMsTotal += мс
       if (!slowestTool || мс > slowestTool['мс']) {

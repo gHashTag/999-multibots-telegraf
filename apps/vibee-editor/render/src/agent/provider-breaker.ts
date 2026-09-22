@@ -39,15 +39,21 @@ export const BREAKER_FAILURES_TO_OPEN = 3
 /**
  * How long an open provider is asked last.
  *
- * Measured on vibee-render, 2026-09-20..22 (97 deployments' logs): the zai
- * timeouts and the turns the callers abandoned while waiting on a provider
- * came in clusters, not one-offs. The cost on each side is what decides the
- * number: while open, a turn that would have been answered by the head of
- * the chain is answered by the next provider instead (a model downgrade for
- * minutes); while wrongly closed, one person waits a whole silence deadline.
- * One probe per window caps the second cost at one person per window.
+ * MEASURED, vibee-render logs of the 97 deployments of 2026-09-20..22 (~65
+ * hours, 149 turns): zai timed out three times, on three different days
+ * (20.09 15:03, 21.09 14:56, 22.09 08:17 UTC), and no timeout was followed by
+ * a second one. The quiet spells are short. After the 22.09 timeout the next
+ * turn started 4.7 minutes later and was answered in 52 s with no provider
+ * skipped, i.e. by the head of the chain -- a five-minute window would have
+ * sent it to the next model for nothing.
+ *
+ * So the window covers what follows a timeout immediately -- turns already in
+ * flight, the bot's own retry, a person resending after the bot's 90 s
+ * silence -- and then lets one probe decide. Open costs a downgrade to the
+ * next provider for two minutes; wrongly closed costs one person one silence
+ * deadline, and the single probe caps that at one person per window.
  */
-export const BREAKER_COOLDOWN_MS = 5 * 60_000
+export const BREAKER_COOLDOWN_MS = 2 * 60_000
 
 export const BREAKER_LOG_PREFIX = '[agent] provider breaker'
 
@@ -128,12 +134,21 @@ export function recordSuccess(id: string): void {
 /**
  * The provider failed this call. Returns true when this call opened (or
  * re-opened after a probe) the breaker -- the one moment worth a log line.
+ *
+ * `probe` is what claimProbe told the caller about THIS call. It matters
+ * while a probe is out: another turn that ran out of providers asks the open
+ * one as its last resort, and when that call fails it is not the probe. It
+ * must not settle the probe in flight or log "probe failed" for it -- the
+ * probe's own verdict is still to come. A caller that cannot say (runAgent,
+ * recording an empty answer after the call has ended) leaves it undefined,
+ * and the clock decides, unless somebody else's probe is out.
  */
 export function recordFailure(
   id: string,
   kind: FailureKind,
   reason: string,
-  now: number = Date.now()
+  now: number = Date.now(),
+  probe?: boolean
 ): boolean {
   let e = entries.get(id)
   if (!e) {
@@ -142,8 +157,8 @@ export function recordFailure(
   }
   const secs = Math.round(BREAKER_COOLDOWN_MS / 1000)
   if (e.openUntil !== 0) {
-    const wasProbe = e.probing || now >= e.openUntil
-    e.probing = false
+    const wasProbe = probe ?? (!e.probing && now >= e.openUntil)
+    if (wasProbe) e.probing = false
     e.openUntil = now + BREAKER_COOLDOWN_MS
     e.reason = reason
     // Asked as the last resort while open and failed again: the opening was
