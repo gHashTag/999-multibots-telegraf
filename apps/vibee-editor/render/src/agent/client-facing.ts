@@ -31,11 +31,15 @@
  *    ios, agent) keep every one of them.
  * 2. `createContactGuard` -- what the model can still invent or carry in from
  *    the open web. A phone, an e-mail or an @handle that this chat has not
- *    already seen, that is not the owner's or the client's own and not a bot,
- *    does not leave: the text becomes an honest line and the owner is told.
+ *    already seen -- written out or inside a messenger or profile link
+ *    (wa.me, t.me/+, tg://resolve, instagram.com, vk.com) -- that is not the
+ *    owner's or the client's own and not a bot, does not leave: the text
+ *    becomes an honest line and the owner is told.
  *
  * A rule in a prompt is a request. These are the places the answer passes.
  */
+
+import { isAssetUrl } from './asset-links'
 
 /** Surfaces whose words go to a client in the owner's name. */
 export const CLIENT_FACING_SURFACES: ReadonlySet<string> = new Set(['business'])
@@ -143,7 +147,13 @@ export interface Contact {
 export const CONTACT_WITHHELD_LINE =
   'Чужие контакты я не пересылаю — владелец ответит вам лично.'
 
-const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>()]+/gi
+/**
+ * An address: a web link, a messenger's app link (tg://, whatsapp://,
+ * viber://), or one of the messenger and profile hosts a model writes without
+ * a scheme ("wa.me/...", "instagram.com/...").
+ */
+const LINK_RE =
+  /(?:\b(?:https?|tg|whatsapp|viber):\/\/|\bwww\.|\b(?:wa\.me|api\.whatsapp\.com|(?:t|telegram)\.me|instagram\.com|vk\.com|signal\.me)\/)[^\s<>()"'`]*/gi
 const TME_RE = /\b(?:t\.me|telegram\.me)\/([A-Za-z][A-Za-z0-9_]{3,31})\b/gi
 const EMAIL_RE =
   /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g
@@ -151,7 +161,7 @@ const HANDLE_RE = /(^|[^A-Za-z0-9_.@/])@([A-Za-z][A-Za-z0-9_]{3,31})\b/g
 const PHONE_RE = /(?:\+\s?)?\d[\d\s().-]{7,}\d/g
 
 /** A run of digits grouped in threes is an amount: "1 000 000 000". */
-const AMOUNT_RE = /^\d{1,3}(?:[ \u00a0]\d{3})+$/
+const AMOUNT_RE = /^\d{1,3}(?:[  ]\d{3})+$/
 /** 2026-09-22, 2026.09.22 -- a date, not a number to call. */
 const DATE_RE = /^\d{4}[-.]\d{2}[-.]\d{2}(?:[ T]\d{2}:\d{2})?$/
 
@@ -163,19 +173,131 @@ function phoneKey(raw: string): string | null {
   return digits.slice(-10)
 }
 
+/*
+ * WHAT AN ADDRESS SAYS ABOUT A PERSON.
+ *
+ * A link is the usual way somebody's number is passed on: wa.me/<number>,
+ * t.me/+<number>, tg://resolve?domain=<name>, a profile on instagram.com or
+ * vk.com. The first version of the guard deleted every address before it
+ * looked for phones and handles, so each of those went to the client as it
+ * was. Now an address is read by its shape.
+ *
+ * Not read as prose, on purpose: a digit run inside an arbitrary address is
+ * not a phone. Measured over 10 000 random samples, 17% of signed S3 links
+ * (a 64-hex signature) and 8.6% of uuid render links carry a 10-15 digit run
+ * -- a client's own reel withheld one time in six. Only the parts of an
+ * address that name a person are read: the messenger hosts' paths, phone and
+ * number parameters, a "+" and its digits, "/@name", an e-mail, a t.me name.
+ * Our own asset addresses are not read at all.
+ */
+const INSTAGRAM_NOT_PEOPLE = new Set([
+  'p',
+  'reel',
+  'reels',
+  'tv',
+  'explore',
+  'accounts',
+  'direct',
+  'about',
+  'legal',
+  'developer',
+  'web',
+  'challenge',
+])
+const VK_NOT_PEOPLE = new Set([
+  'feed',
+  'im',
+  'search',
+  'friends',
+  'groups',
+  'music',
+  'video',
+  'audio',
+  'apps',
+  'settings',
+  'login',
+  'away',
+])
+const PLUS_PHONE_RE = /\+(\d{10,15})(?!\d)/g
+const WA_PHONE_RE = /\bwa\.me\/\+?(\d{10,15})(?!\d)/gi
+const PHONE_PARAM_RE = /[?&#](?:phone|number|tel|mobile)=\+?(\d{10,15})(?!\d)/gi
+const AT_SEGMENT_RE = /\/@([A-Za-z0-9_.]{3,32})/g
+
+function decoded(s: string): string {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return s
+  }
+}
+
+function profileHandle(seg: string | undefined, notPeople: Set<string>) {
+  const h = String(seg ?? '').replace(/^@/, '')
+  if (!/^[A-Za-z0-9_.]{3,32}$/.test(h)) return null
+  if (notPeople.has(h.toLowerCase())) return null
+  return h.toLowerCase()
+}
+
+/** The contacts one address names. Our own asset addresses name nobody. */
+function contactsInLink(link: string): Contact[] {
+  if (isAssetUrl(link)) return []
+  const out: Contact[] = []
+  const phone = (digits: string) => {
+    const key = phoneKey(`+${digits}`)
+    if (key) out.push({ kind: 'phone', key })
+  }
+  const handle = (key: string | null) => {
+    if (key) out.push({ kind: 'handle', key })
+  }
+  const text = decoded(link)
+  for (const m of text.matchAll(TME_RE)) handle(m[1].toLowerCase())
+  for (const m of text.matchAll(PLUS_PHONE_RE)) phone(m[1])
+  for (const m of text.matchAll(WA_PHONE_RE)) phone(m[1])
+  for (const m of text.matchAll(PHONE_PARAM_RE)) phone(m[1])
+  for (const m of text.matchAll(AT_SEGMENT_RE)) handle(m[1].toLowerCase())
+  for (const m of text.matchAll(EMAIL_RE)) {
+    out.push({ kind: 'email', key: m[0].toLowerCase() })
+  }
+  let u: URL
+  try {
+    u = new URL(
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(link) ? link : `https://${link}`
+    )
+  } catch {
+    return out
+  }
+  const host = u.hostname.toLowerCase().replace(/^(?:www|m)\./, '')
+  const segs = u.pathname.split('/').filter(Boolean).map(decoded)
+  if (u.protocol === 'tg:' && host === 'resolve') {
+    const domain = u.searchParams.get('domain')
+    if (domain && /^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(domain)) {
+      handle(domain.toLowerCase())
+    }
+  }
+  if (host === 'instagram.com') {
+    handle(
+      segs[0] === 'stories'
+        ? profileHandle(segs[1], INSTAGRAM_NOT_PEOPLE)
+        : profileHandle(segs[0], INSTAGRAM_NOT_PEOPLE)
+    )
+  }
+  if (host === 'vk.com') handle(profileHandle(segs[0], VK_NOT_PEOPLE))
+  return out
+}
+
 /**
- * Every contact in a text. t.me/<name> counts as the handle it opens; the rest
- * of a web address is not scanned, so an asset URL full of digits is not a
- * phone and a link is not an e-mail.
+ * Every contact in a text. An address is read by its shape (contactsInLink);
+ * the prose around it is read for phones, e-mails and handles, so an asset
+ * URL full of digits is not a phone and a link is not an e-mail.
  */
 export function contactsIn(text: unknown): Contact[] {
   const s = String(text ?? '')
   if (!s) return []
   const out: Contact[] = []
-  for (const m of s.matchAll(TME_RE)) {
-    out.push({ kind: 'handle', key: m[1].toLowerCase() })
-  }
-  let rest = s.replace(URL_RE, ' ').replace(TME_RE, ' ')
+  let rest = s.replace(LINK_RE, raw => {
+    out.push(...contactsInLink(raw.replace(/[.,;:!?]+$/, '')))
+    return ' '
+  })
   for (const m of rest.matchAll(EMAIL_RE)) {
     out.push({ kind: 'email', key: m[0].toLowerCase() })
   }
