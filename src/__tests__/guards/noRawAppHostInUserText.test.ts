@@ -34,6 +34,10 @@ export const ALLOWED: Record<string, string> = {
     "the web tools' own-host deny list: internal, never shown",
   'apps/vibee-editor/render/src/browser/announce.ts':
     'BROWSER_TAB_URL: only ever the url of a web_app button, which opens inside Telegram',
+  'apps/vibee-editor/render/src/agent/botfather-main-app.ts':
+    'APP_HOSTS: the hosts a Main Mini App URL may point at, checked before BotFather is told; never text to a person',
+  'apps/vibee-editor/render/src/auth/refresh-cookie.ts':
+    'APP_ORIGIN: the Origin header the sign-in doors accept credentialed calls from; never a link',
 }
 
 const TREES = ['src', 'apps/vibee-editor/render/src']
