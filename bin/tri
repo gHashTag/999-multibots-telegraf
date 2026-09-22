@@ -88,6 +88,7 @@ tri — оболочка Trinity S³AI
   tri bridge [id...]  радужный мост: вся ферма и обе стороны разом, никому не пишет
   tri commands   каждая команда меню на каждом боте: ответил / молчит / не пробовали
   tri pack <id> <username>  упаковка клиента: восемь частей, у каждой — следующее нажатие
+  tri botapi     какие боты на нашем Bot API сервере и согласны ли бот, рендер и сервер
   tri inflight   что в работе: открытые PR, рабочие деревья, диск, последние выкатки
   tri session    сессии: срок жизни, ротация, обнаружение повторного использования
   tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
@@ -693,9 +694,13 @@ PYEOF
     # хоть сто раз в день. Чего так проверить НЕЛЬЗЯ — печатается отдельно.
     #
     # Запускать на сервисе бота: там и токены ботов, и RENDER_API_KEY.
+    #
+    # `--service`, never `railway service`: the link is per directory and
+    # shared by every session in this checkout (see `commands` below).
     shift
-    railway service 999-multibots-telegraf >/dev/null 2>&1
-    railway run node "$ROOT/scripts/bridge.cjs" "$@"
+    bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
+    railway run --service 999-multibots-telegraf -- \
+      node "$ROOT/scripts/bridge.cjs" "$@"
     ;;
 
   pack)
@@ -705,6 +710,7 @@ PYEOF
     # First case, 2026-09-21: plan 0 of 14 and a platform-written SOUL eight
     # days after the package was installed.
     shift
+    bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/client-pack.cjs" "$@"
     ;;
@@ -723,8 +729,18 @@ PYEOF
     # by every session working in this checkout. Switching it here once pulled
     # the link out from under a session deploying the browser pod.
     shift
+    bash "$ROOT/bin/helpers/fresh-for-tokens.sh" "$ROOT" || exit 3
     railway run --service 999-multibots-telegraf -- \
       node "$ROOT/scripts/commands-answered.cjs" "$@"
+    ;;
+
+  botapi)
+    # WHICH BOTS LIVE ON OUR OWN BOT API SERVER, and do the bot, the render and
+    # the server's allow-list agree -- with the next step for each bot that is
+    # mid-move, silent, half rolled back or split. Token-free and read-only:
+    # three variables and the boot lines (scripts/botapi-state.cjs).
+    shift
+    node "$ROOT/scripts/botapi-state.cjs" "$@"
     ;;
 
   tg-as)
