@@ -205,8 +205,10 @@ export function payRow(text: string): InlineKeyboardButton[] | null {
    * "10 000 ⭐" (spacedNumber in the render, toLocaleString('ru-RU') in the
    * bot, which puts a no-break space there), and `(\d+)\s*⭐` read only the
    * last group: the button under the club invoice asked to pay 000 stars.
+   * A match starts at the first digit of a number, never inside one: "2026
+   * 250" before the star is 250, not "026 250".
    */
-  const stars = /(\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)\s*⭐/.exec(text)
+  const stars = /(?<!\d)(\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)\s*⭐/.exec(text)
   const amount = stars ? stars[1].replace(/[\u00a0\u202f]/g, ' ') : null
   return [
     Markup.button.url(amount ? `Оплатить ${amount} ⭐` : 'Оплатить ⭐', m[0]),

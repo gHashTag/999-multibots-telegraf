@@ -754,6 +754,15 @@ stood here never matched this project and was removed on 2026-09-22.
 Rules: never write new rows into `payments_v2`; crediting tokens is the owner's decision;
 give access with the guest pass, not with a subscription row.
 
+**Where a club invoice is minted (2026-09-22):** one function, `clubInvoiceFor` in
+`club-membership.ts`, behind three doors -- the Mini App paywall and the bot's club card
+(both through `/api/club/invoice`) and the agent's `club_invoice` tool
+(`render/src/agent/club-invoice-tool.ts`, only when the person asked). The cashier is
+ONE bot, `clubCashierToken()` (`TOKENS_PAYMENT_BOT_TOKEN`), and NOT the person's farm
+bot that token invoices use: a subscription renews into the ledger of the bot that
+minted it, and `/api/club/verify` and `sweepClubRenewals` read only this one ledger.
+A club invoice from a farm bot is a paid month nobody credits.
+
 ## 🕉️ Sanskrit Wisdom for Payments
 
 ### On Accuracy
