@@ -67,6 +67,27 @@ export const FOCUS_PROBE = `(() => {
   return { host, field, label: String(label).trim().slice(0, 60) };
 })()`
 
+/**
+ * Bring the thing the agent asks about into the middle of the screen: the
+ * focused field, or -- for a choice or an action, where nothing is focused --
+ * whatever is at the agent's point. Owner, 2026-09-22: on a phone-sized
+ * desktop the buttons in question sat below the edge. Scrolling changes
+ * nothing on the page, so it needs no permission. Returns whether it moved.
+ */
+export function centerProbe(x?: number, y?: number): string {
+  const point =
+    typeof x === 'number' && typeof y === 'number'
+      ? `document.elementFromPoint(${Math.round(x)}, ${Math.round(y)})`
+      : 'null'
+  return `(() => {
+  const focused = document.activeElement;
+  const el = focused && focused !== document.body && focused !== document.documentElement ? focused : ${point};
+  if (!el || !el.scrollIntoView) return false;
+  el.scrollIntoView({ block: 'center', inline: 'nearest' });
+  return true;
+})()`
+}
+
 export function focusOf(raw: unknown): Focus {
   const r = (raw ?? {}) as Record<string, unknown>
   return {

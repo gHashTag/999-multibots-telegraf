@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { addFrame, FILMED_TOOLS, TICK_MS, TICK_IDLE_MS } from './film'
-import { cdpTypeIo } from './person-type'
+import { cdpTypeIo, centerProbe } from './person-type'
 import { askForInput, asKind, optionsFor, waitForAnswer } from './input-request'
 /**
  * THE REASON AN AGENT DID NOT KNOW THE BROWSER EXISTED.
@@ -417,6 +417,15 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           /* asked anyway; the person points */
         }
       }
+      /* What is asked about goes to the middle of the screen (person-type.ts). */
+      await evaluateOn(
+        cdp,
+        targetId,
+        centerProbe(
+          typeof a.x === 'number' ? a.x : undefined,
+          typeof a.y === 'number' ? a.y : undefined
+        )
+      ).catch(() => false)
       const focus = await cdpTypeIo
         .focus(cdp)
         .catch(() => ({ host: '', field: 'none', label: '' }))
