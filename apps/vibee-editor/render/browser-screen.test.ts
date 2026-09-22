@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
+  resetFitMemoryForTests,
+  shouldSkipFit,
+  FIT_MIN_GAP_MS,
+  FIT_GIVE_UP_MS,
   pickFromMenu,
   wantedScreen,
   MIN_WINDOW_WIDTH,
@@ -20,6 +24,9 @@ import {
  * pod's own screen is reshaped, and these pin the arithmetic and the one
  * thing the pod lies about.
  */
+
+/* Each test starts with no memory of the refits before it (screen.ts). */
+beforeEach(() => resetFitMemoryForTests())
 
 describe('the size we ask the pod for', () => {
   it('KEEPS A PHONE PORTRAIT', () => {
@@ -610,5 +617,23 @@ describe('one fit at a time', () => {
     })
     await expect(failing).rejects.toThrow('pod down')
     expect(await queued).toEqual(want)
+  })
+})
+
+describe('a refit restarts the video, so it is rare (2026-09-22: 8 rebuilds in a minute)', () => {
+  const w = (width: number, height: number) => ({ width, height, rate: 30 })
+  it('the first ask always runs', () => {
+    expect(shouldSkipFit(undefined, w(400, 800), 0)).toBe(false)
+  })
+  it('the same ask is not repeated for ten minutes -- landed or not', () => {
+    const last = { at: 0, want: w(400, 800) }
+    expect(shouldSkipFit(last, w(400, 800), FIT_MIN_GAP_MS + 1)).toBe(true)
+    expect(shouldSkipFit(last, w(400, 800), FIT_GIVE_UP_MS - 1)).toBe(true)
+    expect(shouldSkipFit(last, w(400, 800), FIT_GIVE_UP_MS + 1)).toBe(false)
+  })
+  it('a different ask (a turned phone) waits only the short gap', () => {
+    const last = { at: 0, want: w(400, 800) }
+    expect(shouldSkipFit(last, w(800, 400), FIT_MIN_GAP_MS - 1)).toBe(true)
+    expect(shouldSkipFit(last, w(800, 400), FIT_MIN_GAP_MS + 1)).toBe(false)
   })
 })

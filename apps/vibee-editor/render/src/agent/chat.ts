@@ -24,6 +24,7 @@ import {
   TOOLS_BY_NAME,
   toOpenAITools,
   countInitDataToolCall,
+  DIRECT_CALL_ONLY,
   type ToolContext,
 } from './tools'
 import { TOKEN_PRICES } from './billing-shared'
@@ -38,6 +39,13 @@ import { salesPlaybook } from './crm-playbook'
 import { imagesLookDown } from './image-health'
 import { asksForAPicture, noteOwed } from './crm-owed'
 import { allProviders, diagnose } from './provider'
+import {
+  claimProbe,
+  orderByBreaker,
+  recordFailure,
+  recordSuccess,
+  releaseProbe,
+} from './provider-breaker'
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate } from './asset-links'
@@ -166,6 +174,15 @@ export async function* dispatchToolCall(
     const missing: Record<string, unknown> = {}
     missing['ошибка'] = `инструмента ${name} не существует`
     return missing
+  }
+  // Never run from a model turn, whatever the turn allows (tools.ts
+  // DIRECT_CALL_ONLY): the caller has to make this call themselves.
+  if (DIRECT_CALL_ONLY.has(name)) {
+    const why = `инструмент ${name} вызывается только напрямую, через /mcp: его вызов — действие самого владельца, а в разговоре бывают чужие слова`
+    const refusal: Record<string, unknown> = {}
+    refusal['ошибка'] = why
+    refusal['отказано'] = true
+    return refusal
   }
   if (opts?.denyTools?.has(name)) {
     const reason = opts.denyReasons?.get(name) ?? DENIED_DEFAULT_REASON
@@ -1178,6 +1195,141 @@ export const RETRY_DROPPED_STREAM = 1
 /** Said when the same route is asked again, as opposed to abandoned. */
 export const RETRY_LOG_PREFIX = '[agent] provider stream dropped, retrying:'
 
+/**
+ * CEILING ON ONE PROVIDER CALL, however much it is saying.
+ *
+ * Kept at 120 s. It is the backstop for a stream that keeps talking (GLM
+ * streams its reasoning) and never finishes; catching a route that went
+ * quiet is PROVIDER_SILENCE_MS's job. Lowering it cannot be justified from
+ * the logs yet (measurement below): the slowest single call they pin down
+ * took 75 s, but tool turns only give an average per call, and 23 of the 89
+ * spent more than 60 s in model calls in all -- one call there may well have
+ * run past 90 s and finished. `slowestModelMs` in the turn's end line is
+ * what a lower ceiling has to be read from.
+ *
+ * It is also the deadline turn 6b3f6cad most likely hit. The bot hangs up
+ * after 90 s with no byte from the render, the render forwards every
+ * reasoning chunk, and the bot did NOT hang up during zai's 120 s -- so zai
+ * was probably streaming its thinking all along. A silence deadline does not
+ * shorten that wait for the person it happens to; the breaker
+ * (provider-breaker.ts) is what spares the next person.
+ */
+export const PROVIDER_CEILING_MS = 120_000
+
+/**
+ * A PROVIDER THAT HAS SAID NOTHING FOR THIS LONG IS NOT GOING TO.
+ *
+ * The other shape of a stuck route. With the 120 s ceiling as the only
+ * deadline, a route that accepted the request and went quiet kept the person
+ * waiting two minutes before the next provider was tried. Worse, the bot's
+ * own silence limit is 90 s (SILENCE_MS in src/services/trinityAgent.ts), so
+ * on a quiet route the bot hung up BEFORE the render ever reached the
+ * fallback: on 2026-09-21 a turn with no tool calls ended at 90 009 ms as
+ * "caller left".
+ *
+ * Silence, not duration: the timer is armed with the request and pushed back
+ * by every byte the provider sends -- headers, reasoning, text, tool deltas,
+ * keep-alive comments -- so an answer that keeps streaming is never cut.
+ *
+ * MEASURED, vibee-render `[agent:turn]` end lines from the 97 deployments of
+ * 2026-09-20..22 (150 turns, nearest-rank percentiles). A turn with no tool
+ * calls is exactly one provider call, request to last byte; 53 ended ok:
+ *   p50 8.9 s, p90 36.5 s, p95 43.7 s, max 75.0 s.
+ * Tool turns, (turn ms - tool ms) / (tool calls + 1) per model call, 89 ok:
+ *   p50 11.6 s, p90 26.5 s, p95 34.4 s, max 43.1 s (averages, see above).
+ * A call's longest silence is at most its whole duration, so among the
+ * single-call turns a 60 s silence deadline could have touched one at most --
+ * the 75 s one, on 22.09 at 08:36 -- and only if it had sent nothing for 60 s
+ * of its 75. It leaves 30 s inside the bot's 90 s for the next provider's
+ * FIRST byte (after which the bot's timer restarts), against a whole-call
+ * median of 8.9 s. The cost of being wrong is bounded: a call cut here goes
+ * to the next provider, not to an error, and parks its own provider for one
+ * breaker window. The logs held no time-to-first-byte at all, which is why
+ * the turn's end line now carries `slowestFirstByteMs`: the next change to
+ * this number should read it rather than bound it.
+ */
+export const PROVIDER_SILENCE_MS = 60_000
+
+/**
+ * THE ANSWER THE PERSON NEVER GOT.
+ *
+ * Production, 2026-09-22, turn 271956af: glm-5.3 called my_assets and
+ * my_renders, and then ended the turn with no text at all -- 70 s, length 0.
+ * The route reported that as a finished turn, the bot logged "empty answer"
+ * and handed the person to a tool-less fallback with no history, which
+ * answered a Russian message in English about a service nobody offered.
+ *
+ * An empty final answer is the provider failing THIS turn, not a success:
+ * first one follow-up on the same provider, asking for the answer in text
+ * (the tool results are already in the history), then the next provider in
+ * the chain; when nobody has anything to say, an explicit error event
+ * starting with EMPTY_ANSWER_ERROR, never a quiet `готово`.
+ */
+export const EMPTY_ANSWER_ERROR = 'модель не дала ответа' // cyrillic-ok: shown to the person and matched by callers
+
+/** One line per decision about an empty answer; names only, never text. */
+export const EMPTY_ANSWER_LOG_PREFIX = '[agent] empty answer:'
+
+/** streamModel's word for "every provider was excluded by this turn". */
+export const NO_PROVIDER_LEFT = 'no provider left for this turn'
+
+/**
+ * The follow-up, as a user-role note: every provider in the chain accepts a
+ * user message after tool results, while a mid-conversation system message is
+ * refused by some chat templates. It lives only in this turn's messages --
+ * the route stores the person's words and the answer, never this.
+ */
+export const ANSWER_NOW_NUDGE =
+  '(Служебная заметка, её пишет не человек.) Ты закончил ход без ответа. ' + // cyrillic-ok: prompt copy
+  'Если ты вызывал инструменты, их результаты уже выше — не вызывай их ' + // cyrillic-ok: prompt copy
+  'снова. Ответь человеку текстом сейчас — на языке его последнего ' + // cyrillic-ok: prompt copy
+  'сообщения, не этой заметки.' // cyrillic-ok: prompt copy
+
+/**
+ * What the model reads when, after the nudge, it repeats a call this turn
+ * already made with the same arguments. See `ranThisTurn` in runAgent.
+ */
+export const REPEAT_REFUSED =
+  'этот вызов с теми же аргументами уже выполнен на этом ходу, его ' + // cyrillic-ok: read by the model
+  'результат выше; не повторяй его, ответь человеку текстом' // cyrillic-ok: read by the model
+
+/**
+ * The same value with every object's keys in one order, at every depth.
+ *
+ * JSON.stringify keeps keys in the order they arrived, and the call that
+ * matters here is made by ANOTHER model after the nudge: glm-5.3 writes
+ * {"limit":5,"kind":"image"}, glm-4.5 writes {"kind":"image","limit":5}. As
+ * written they differ, so the repeat guard let the second one run -- the
+ * second charge it exists to stop. Arrays keep their order: there it means
+ * something.
+ */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(value).sort())
+      out[key] = canonical((value as Record<string, unknown>)[key])
+    return out
+  }
+  return value
+}
+
+/**
+ * A call's identity for REPEAT_REFUSED: its name and its parsed arguments,
+ * key order ignored. A default spelled out by one model and left out by the
+ * other still reads as a different call: no tool schema declares its defaults,
+ * so there is nothing to fill them in from.
+ */
+function callIdentity(name: string, raw: string | undefined): string {
+  let args: unknown = raw || '{}'
+  try {
+    args = JSON.parse(String(raw || '{}'))
+  } catch {
+    // Unparseable arguments are compared as written.
+  }
+  return JSON.stringify([name, canonical(args)])
+}
+
 export async function* streamModel(
   messages: ChatMessage[],
   opts: {
@@ -1185,12 +1337,27 @@ export async function* streamModel(
     denyTools?: ReadonlySet<string>
     /** The caller went away: stop, do not start the next provider. */
     signal?: AbortSignal
+    /**
+     * Ask this provider first whatever the breaker says: the follow-up to
+     * its own empty answer goes back to the model that holds the context.
+     */
+    prefer?: string
+    /** Providers that already gave this turn an empty answer twice. */
+    exclude?: ReadonlySet<string>
   } = {}
 ): AsyncGenerator<
   | { kind: 'provider'; id: string; model: string }
   | { kind: 'reasoning'; text: string }
   | { kind: 'content'; text: string }
-  | { kind: 'done'; message: any }
+  | {
+      kind: 'done'
+      message: any
+      /** Which provider this message came from. */
+      provider: string
+      /** From the request to the first byte of the stream, and to the last. */
+      firstByteMs: number
+      ms: number
+    }
 > {
   /*
    * A TURN WITH A PICTURE GOES TO A PROVIDER THAT CAN SEE IT.
@@ -1269,11 +1436,37 @@ export async function* streamModel(
     )
   }
 
+  /*
+   * Providers that already gave this turn an empty answer twice are out of
+   * it (runAgent decides that). With nobody left, the reasons are runAgent's
+   * to name: it knows which providers were empty and after which tools.
+   */
+  const remaining = opts.exclude?.size
+    ? providers.filter(p => !opts.exclude?.has(p.id))
+    : providers
+  if (!remaining.length) {
+    throw new Error(NO_PROVIDER_LEFT)
+  }
+
+  /*
+   * A provider whose breaker is open is asked LAST, not first
+   * (provider-breaker.ts): the next person does not wait out a deadline the
+   * previous one just hit. The follow-up to an empty answer goes back to the
+   * provider that gave it, whatever the breaker says -- it just answered.
+   */
+  const { ordered } = orderByBreaker(remaining)
+  const preferred = opts.prefer
+    ? ordered.find(p => p.id === opts.prefer)
+    : undefined
+  const chain = preferred
+    ? [preferred, ...ordered.filter(p => p !== preferred)]
+    : ordered
+
   // Перебираем настроенных провайдеров: заданный ключ ещё не значит рабочий.
   // Собираем ПРИЧИНЫ отказа по каждому — иначе владелец увидит «не отвечает»
   // и не узнает, что дело в нулевом балансе или протухшем ключе.
   const причины: string[] = []
-  providerLoop: for (const p of providers) {
+  providerLoop: for (const p of chain) {
     if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
     const body: Record<string, unknown> = {
       model: p.model,
@@ -1291,143 +1484,208 @@ export async function* streamModel(
     // ceiling (spec: agent-provider-chain.t27 RESERVE_SENDS_MAX_TOKENS).
     if (p.maxTokens) body.max_tokens = p.maxTokens
 
-    // Дедлайн на ВЕСЬ ответ провайдера. Без него зависшее соединение
-    // (провайдер открыл поток и молчит) вешало reader.read() навсегда: канал
-    // к клиенту висел без heartbeat, человек крутил точки печати вечно.
-    // AbortController обрывает и fetch, и чтение тела, поэтому reader.read()
-    // отвергнется, а не зависнет. 120с — потолок с запасом на длинный ответ
-    // с размышлением.
-    for (let attempt = 0; attempt <= RETRY_DROPPED_STREAM; attempt++) {
-      const ac = new AbortController()
-      const timer = setTimeout(() => ac.abort(), 120_000)
-      /*
-       * The caller's departure aborts the same fetch the deadline does. Without
-       * this the render kept streaming tokens from the provider into a socket
-       * nobody was reading -- and finished the turn, tools and charges included,
-       * for a person who had already been handed a fallback answer.
-       */
-      const onGone = () => ac.abort()
-      opts.signal?.addEventListener('abort', onGone, { once: true })
-      // Отдали ли клиенту хоть кусок текста. Если да, «тихо начать заново у
-      // другого провайдера» уже нельзя — человек увидел бы склейку двух ответов.
-      let ужеОтдалиТекст = false
-      try {
-        const r = await fetch(`${p.base}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${p.key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-          signal: ac.signal,
-        })
+    /*
+     * The breaker hears exactly one verdict per provider per call: success,
+     * failure, or -- when the caller left or the answer was empty and the
+     * turn has not decided yet -- nothing, in which case a claimed probe is
+     * handed back so the next turn can probe instead.
+     */
+    const probe = claimProbe(p.id)
+    let settled = false
+    const fail = (kind: 'timeout' | 'error', why: string) => {
+      settled = true
+      recordFailure(p.id, kind, why, Date.now(), probe)
+    }
 
-        if (!r.ok || !r.body) {
-          const t = await r.text().catch(() => '')
-          const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
-          skipped(почему) // cyrillic-ok: pre-existing identifier
-          причины.push(почему) // cyrillic-ok: pre-existing identifier
-          continue providerLoop
+    try {
+      for (let attempt = 0; attempt <= RETRY_DROPPED_STREAM; attempt++) {
+        /*
+         * Two deadlines on one controller. The ceiling bounds the whole call;
+         * the silence deadline is armed with the request and pushed back by
+         * every byte, so a quiet route is left after PROVIDER_SILENCE_MS and a
+         * talkative one is never cut short of the ceiling. AbortController
+         * обрывает и fetch, и чтение тела, поэтому reader.read() отвергнется,
+         * а не зависнет.
+         */
+        const ac = new AbortController()
+        let deadline: 'silence' | 'ceiling' | null = null
+        const ceiling = setTimeout(() => {
+          deadline = 'ceiling'
+          ac.abort()
+        }, PROVIDER_CEILING_MS)
+        let silence: ReturnType<typeof setTimeout> | undefined
+        const heard = () => {
+          if (silence) clearTimeout(silence)
+          silence = setTimeout(() => {
+            deadline ??= 'silence'
+            ac.abort()
+          }, PROVIDER_SILENCE_MS)
         }
+        const startedAt = Date.now()
+        let firstByteAt = 0
+        heard()
+        /*
+         * The caller's departure aborts the same fetch the deadline does.
+         * Without this the render kept streaming tokens from the provider into
+         * a socket nobody was reading -- and finished the turn, tools and
+         * charges included, for a person who had already been handed a
+         * fallback answer.
+         */
+        const onGone = () => ac.abort()
+        opts.signal?.addEventListener('abort', onGone, { once: true })
+        // Отдали ли клиенту хоть кусок текста. Если да, «тихо начать заново у
+        // другого провайдера» уже нельзя — человек увидел бы склейку двух ответов.
+        let ужеОтдалиТекст = false
+        try {
+          const r = await fetch(`${p.base}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${p.key}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+            signal: ac.signal,
+          })
+          heard()
 
-        // Who is answering. Without this line every bad answer in the log was
-        // anonymous, and the fallback chain made the guess wrong half the time.
-        yield { kind: 'provider', id: p.id, model: p.model }
-        const reader = (r.body as any).getReader()
-        const decoder = new TextDecoder()
-        let buf = ''
-        const acc: any = { role: 'assistant', content: '', tool_calls: [] }
+          if (!r.ok || !r.body) {
+            const t = await r.text().catch(() => '')
+            const почему = diagnose(p.id, r.status, t) // cyrillic-ok: pre-existing identifier
+            skipped(почему) // cyrillic-ok: pre-existing identifier
+            причины.push(почему) // cyrillic-ok: pre-existing identifier
+            fail('error', почему) // cyrillic-ok: pre-existing identifier
+            continue providerLoop
+          }
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buf += decoder.decode(value, { stream: true })
-          const lines = buf.split('\n')
-          buf = lines.pop() ?? ''
-          for (const line of lines) {
-            const str = line.trim()
-            if (!str.startsWith('data:')) continue
-            const payload = str.slice(5).trim()
-            if (payload === '[DONE]') continue
-            let j: any
-            try {
-              j = JSON.parse(payload)
-            } catch {
-              continue
-            }
-            // Ошибка провайдера ПОСРЕДИ потока приходит как 200 + data:{error}.
-            // Раньше `if (!d) continue` её молча проглатывал, поток заканчивался
-            // пустым, и клиент получал пустой пузырь. Теперь бросаем — runAgent
-            // поймает и покажет человеку 'ошибка', а не пустоту.
-            if (j.error) {
-              throw new Error(
-                `${p.id} прислал ошибку в потоке: ${JSON.stringify(j.error).slice(0, 150)}`
-              )
-            }
-            const d = j.choices?.[0]?.delta
-            if (!d) continue
-            if (d.reasoning_content) {
-              yield { kind: 'reasoning', text: d.reasoning_content }
-            }
-            if (d.content) {
-              acc.content += d.content
-              ужеОтдалиТекст = true
-              yield { kind: 'content', text: d.content }
-            }
-            if (d.tool_calls) {
-              for (const tc of d.tool_calls) {
-                const i = tc.index ?? 0
-                acc.tool_calls[i] ??= {
-                  id: '',
-                  type: 'function',
-                  function: { name: '', arguments: '' },
+          // Who is answering. Without this line every bad answer in the log
+          // was anonymous, and the fallback chain made the guess wrong half
+          // the time.
+          yield { kind: 'provider', id: p.id, model: p.model }
+          const reader = (r.body as any).getReader()
+          const decoder = new TextDecoder()
+          let buf = ''
+          const acc: any = { role: 'assistant', content: '', tool_calls: [] }
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            heard()
+            if (!firstByteAt) firstByteAt = Date.now()
+            buf += decoder.decode(value, { stream: true })
+            const lines = buf.split('\n')
+            buf = lines.pop() ?? ''
+            for (const line of lines) {
+              const str = line.trim()
+              if (!str.startsWith('data:')) continue
+              const payload = str.slice(5).trim()
+              if (payload === '[DONE]') continue
+              let j: any
+              try {
+                j = JSON.parse(payload)
+              } catch {
+                continue
+              }
+              // Ошибка провайдера ПОСРЕДИ потока приходит как 200 + data:{error}.
+              // Раньше `if (!d) continue` её молча проглатывал, поток
+              // заканчивался пустым, и клиент получал пустой пузырь. Теперь
+              // бросаем — runAgent поймает и покажет человеку 'ошибка'.
+              if (j.error) {
+                throw new Error(
+                  `${p.id} прислал ошибку в потоке: ${JSON.stringify(j.error).slice(0, 150)}`
+                )
+              }
+              const d = j.choices?.[0]?.delta
+              if (!d) continue
+              if (d.reasoning_content) {
+                yield { kind: 'reasoning', text: d.reasoning_content }
+              }
+              if (d.content) {
+                acc.content += d.content
+                ужеОтдалиТекст = true
+                yield { kind: 'content', text: d.content }
+              }
+              if (d.tool_calls) {
+                for (const tc of d.tool_calls) {
+                  const i = tc.index ?? 0
+                  acc.tool_calls[i] ??= {
+                    id: '',
+                    type: 'function',
+                    function: { name: '', arguments: '' },
+                  }
+                  if (tc.id) acc.tool_calls[i].id = tc.id
+                  if (tc.function?.name)
+                    acc.tool_calls[i].function.name += tc.function.name
+                  if (tc.function?.arguments)
+                    acc.tool_calls[i].function.arguments +=
+                      tc.function.arguments
                 }
-                if (tc.id) acc.tool_calls[i].id = tc.id
-                if (tc.function?.name)
-                  acc.tool_calls[i].function.name += tc.function.name
-                if (tc.function?.arguments)
-                  acc.tool_calls[i].function.arguments += tc.function.arguments
               }
             }
           }
-        }
-        if (!acc.tool_calls.length) delete acc.tool_calls
-        yield { kind: 'done', message: acc }
-        return
-      } catch (e) {
-        // The person left. Nothing below is worth doing for them.
-        if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
-        const почему = ac.signal.aborted
-          ? `${p.id}: не ответил за 120с (таймаут)`
-          : `${p.id}: ${String(e).slice(0, 140)}`
-        // Уже отдали текст — молчаливый перевод на другого провайдера склеил бы
-        // два ответа. Бросаем: пусть runAgent покажет, что ответ оборван.
-        if (ужеОтдалиТекст) throw new Error(почему)
-        /*
-         * The socket dropped, not the provider. Ask the same one again rather
-         * than paying the elapsed time twice on a slower reserve. Not after a
-         * timeout: there the provider really did fail to answer in 120 s.
-         */
-        if (
-          !ac.signal.aborted &&
-          attempt < RETRY_DROPPED_STREAM &&
-          DROPPED_MID_STREAM.test(String(e))
-        ) {
+          if (!acc.tool_calls.length) delete acc.tool_calls
           /*
-           * NOT a "provider skipped" line: nothing was skipped, and the spec
-           * (specs/automation/agent-provider-chain.t27) counts those lines to
-           * mean a route was abandoned. This one says the opposite.
+           * Something to act on or to show is a success. An empty message is
+           * no verdict here: whether it is a failure is the turn's call (one
+           * follow-up first), and runAgent records it when it gives up.
            */
-          console.warn(`${RETRY_LOG_PREFIX} ${почему}`)
-          continue
+          if (String(acc.content || '').trim() || acc.tool_calls?.length) {
+            settled = true
+            recordSuccess(p.id)
+          }
+          const endedAt = Date.now()
+          yield {
+            kind: 'done',
+            message: acc,
+            provider: p.id,
+            firstByteMs: (firstByteAt || endedAt) - startedAt,
+            ms: endedAt - startedAt,
+          }
+          return
+        } catch (e) {
+          // The person left. Nothing below is worth doing for them.
+          if (opts.signal?.aborted) throw new Error(ABORTED_BY_CALLER)
+          const timedOut = ac.signal.aborted
+          const почему = !timedOut
+            ? `${p.id}: ${String(e).slice(0, 140)}`
+            : deadline === 'silence'
+              ? `${p.id}: молчал ${PROVIDER_SILENCE_MS / 1000}с (таймаут)` // cyrillic-ok: reason text
+              : `${p.id}: не ответил за ${PROVIDER_CEILING_MS / 1000}с (таймаут)` // cyrillic-ok: reason text
+          // Уже отдали текст — молчаливый перевод на другого провайдера склеил
+          // бы два ответа. Бросаем: пусть runAgent покажет, что ответ оборван.
+          if (ужеОтдалиТекст) {
+            fail(timedOut ? 'timeout' : 'error', почему)
+            throw new Error(почему)
+          }
+          /*
+           * The socket dropped, not the provider. Ask the same one again
+           * rather than paying the elapsed time twice on a slower reserve. Not
+           * after a timeout: there the provider really did fail to answer.
+           */
+          if (
+            !timedOut &&
+            attempt < RETRY_DROPPED_STREAM &&
+            DROPPED_MID_STREAM.test(String(e))
+          ) {
+            /*
+             * NOT a "provider skipped" line: nothing was skipped, and the spec
+             * (specs/automation/agent-provider-chain.t27) counts those lines
+             * to mean a route was abandoned. This one says the opposite.
+             */
+            console.warn(`${RETRY_LOG_PREFIX} ${почему}`)
+            continue
+          }
+          skipped(почему) // cyrillic-ok: pre-existing identifier
+          причины.push(почему) // cyrillic-ok: pre-existing identifier
+          fail(timedOut ? 'timeout' : 'error', почему) // cyrillic-ok: pre-existing identifier
+          continue providerLoop
+        } finally {
+          clearTimeout(ceiling)
+          if (silence) clearTimeout(silence)
+          opts.signal?.removeEventListener('abort', onGone)
         }
-        skipped(почему) // cyrillic-ok: pre-existing identifier
-        причины.push(почему) // cyrillic-ok: pre-existing identifier
-        continue providerLoop
-      } finally {
-        clearTimeout(timer)
-        opts.signal?.removeEventListener('abort', onGone)
       }
+    } finally {
+      if (probe && !settled) releaseProbe(p.id)
     }
   }
 
@@ -1540,6 +1798,20 @@ export async function* runAgent(
    */
   let toolMsTotal = 0
   let slowestTool: { имя: string; мс: number } | null = null // cyrillic-ok
+  /*
+   * THE PROVIDER'S SHARE OF THE TURN, PER CALL.
+   *
+   * PROVIDER_SILENCE_MS had to be set from whole-turn durations because no
+   * log held a single model call's latency. These put it in the end line:
+   * how many calls, who answered last, the slowest time to first byte and
+   * the slowest call -- so the next change to a deadline reads a number.
+   */
+  let modelCalls = 0
+  let lastProvider: string | null = null
+  let slowestFirstByteMs = 0
+  let slowestModelMs = 0
+  /** Names of the tools this turn called, in order: the empty-answer log. */
+  const toolNames: string[] = []
   console.log(
     '[agent:turn]',
     JSON.stringify({
@@ -1569,6 +1841,10 @@ export async function* runAgent(
         ms: Date.now() - turnStartedAt,
         toolCalls: toolCallCount,
         toolMs: toolMsTotal,
+        modelCalls,
+        provider: lastProvider,
+        slowestFirstByteMs,
+        slowestModelMs,
         ...(slowestTool
           ? {
               slowestTool: slowestTool['имя'],
@@ -1783,17 +2059,63 @@ export async function* runAgent(
     )
   }
 
+  /*
+   * AN EMPTY ANSWER IS THIS PROVIDER FAILING THIS TURN (see EMPTY_ANSWER_ERROR).
+   *
+   * `said` counts what actually reached the person -- after the link gate, so
+   * a turn whose only text was withheld as an invented address said nothing.
+   * `askedAgain` holds the providers that already had their one follow-up,
+   * `excluded` the ones that are out of this turn, `emptyFrom` why, for the
+   * explicit failure when nobody is left.
+   *
+   * The unattended sweep (toolsOnly) is exempt: its product is the tool calls,
+   * and a turn of tool calls with no prose is exactly what it asked for.
+   */
+  let said = 0
+  let nudged = false
+  let prefer: string | undefined
+  const askedAgain = new Set<string>()
+  const excluded = new Set<string>()
+  const emptyFrom: string[] = []
+  /*
+   * THE REQUEST FOR WORDS IS NOT A LICENCE TO REDO THE WORK.
+   *
+   * After the nudge the same messages may reach another model, which sees
+   * tool calls it did not make. A paid picture called again with the same
+   * arguments is a second charge for a result already in the history, and a
+   * sent message sent twice cannot be unsent. So once the nudge is in, a call
+   * identical to one this turn already ran is answered with a refusal the
+   * model reads (REPEAT_REFUSED) and its handler never runs. Before the nudge
+   * nothing changes: a repeat inside an ordinary turn -- a status poll -- is
+   * the model's call, as it always was.
+   */
+  const ranThisTurn = new Set<string>()
+  const logEmpty = (action: string, provider: string) =>
+    console.warn(
+      EMPTY_ANSWER_LOG_PREFIX,
+      JSON.stringify({
+        turn: turnId,
+        surface: opts?.surface ?? 'unknown',
+        provider,
+        tools: [...new Set(toolNames)].slice(0, 12),
+        action,
+      })
+    )
+
   for (let step = 0; step < MAX_STEPS; step++) {
     if (opts?.signal?.aborted) {
       logTurnEnd('aborted', `caller left before step ${step + 1}`)
       return
     }
     let assistant: any = null
+    let answeredBy: string | null = null
     try {
       for await (const ev of streamModel(messages, {
         toolsOnly: opts?.toolsOnly,
         denyTools: opts?.denyTools,
         signal: opts?.signal,
+        prefer,
+        exclude: excluded,
       })) {
         if (ev.kind === 'provider')
           yield { тип: 'провайдер', id: ev.id, model: ev.model } // cyrillic-ok: pre-existing event envelope
@@ -1801,9 +2123,20 @@ export async function* runAgent(
           yield { тип: 'размышление', текст: ev.text }
         else if (ev.kind === 'content') {
           const safe = links.push(ev.text)
-          if (safe) yield { тип: 'текст', текст: safe }
-        } else assistant = ev.message
+          if (safe) {
+            said += safe.trim().length
+            yield { тип: 'текст', текст: safe }
+          }
+        } else {
+          assistant = ev.message
+          answeredBy = ev.provider
+          modelCalls++
+          lastProvider = ev.provider
+          slowestFirstByteMs = Math.max(slowestFirstByteMs, ev.firstByteMs)
+          slowestModelMs = Math.max(slowestModelMs, ev.ms)
+        }
       }
+      prefer = undefined
       /*
        * The model has stopped writing for this step, so whatever the gate was
        * holding is as finished as it will ever be. Flushing here and not only
@@ -1811,11 +2144,25 @@ export async function* runAgent(
        * tool call that may take minutes.
        */
       const tail = links.flush()
-      if (tail) yield { тип: 'текст', текст: tail }
+      if (tail) {
+        said += tail.trim().length
+        yield { тип: 'текст', текст: tail }
+      }
       noteFabricated()
     } catch (e) {
-      logTurnEnd('error', String(e))
-      yield { тип: 'ошибка', текст: String(e).slice(0, 500) }
+      const why = String(e)
+      /*
+       * Nobody left who had anything to say: an explicit failure naming every
+       * provider that was empty, never a quiet end of turn. The rest of the
+       * chain's reasons follow when they are not just "all were excluded".
+       */
+      const text = emptyFrom.length
+        ? `${EMPTY_ANSWER_ERROR}: ${emptyFrom.join('; ')}` +
+          (why.includes(NO_PROVIDER_LEFT) ? '' : `\n${why}`)
+        : why
+      if (emptyFrom.length) logEmpty('failed', lastProvider ?? 'none')
+      logTurnEnd('error', text)
+      yield { тип: 'ошибка', текст: text.slice(0, 500) }
       return
     }
     if (!assistant) {
@@ -1825,6 +2172,38 @@ export async function* runAgent(
     }
 
     if (!assistant.tool_calls?.length) {
+      if (said === 0 && !opts?.toolsOnly && answeredBy) {
+        const who = answeredBy
+        if (!askedAgain.has(who)) {
+          // One follow-up on the same provider: the tool results are already
+          // in `messages`, only the words are missing.
+          askedAgain.add(who)
+          if (!nudged) {
+            messages.push({ role: 'user', content: ANSWER_NOW_NUDGE })
+            nudged = true
+          }
+          prefer = who
+          logEmpty('follow-up', who)
+        } else {
+          // Empty twice: out of this turn, and the breaker hears about it.
+          excluded.add(who)
+          const tools = [...new Set(toolNames)]
+          const reason =
+            `${who}: пустой ответ` + // cyrillic-ok: reason text
+            (tools.length ? ` после ${tools.slice(0, 6).join(', ')}` : '') + // cyrillic-ok: reason text
+            ' и повторной просьбы' // cyrillic-ok: reason text
+          emptyFrom.push(reason)
+          recordFailure(who, 'empty', reason)
+          logEmpty('next provider', who)
+        }
+        /*
+         * Not a tool step, so it does not spend one. Bounded all the same:
+         * every pass here either gives a provider its one follow-up or
+         * excludes it, and with every provider excluded streamModel throws.
+         */
+        step--
+        continue
+      }
       logTurnEnd('ok')
       yield { тип: 'готово', витков: step + 1 }
       return
@@ -1844,15 +2223,28 @@ export async function* runAgent(
       }
       toolCallCount++
       const имя = call.function.name
+      toolNames.push(имя) // cyrillic-ok: pre-existing local
       yield {
         тип: 'инструмент',
         имя,
         аргументы: call.function.arguments || '{}',
       }
       const t0 = Date.now()
-      // Unknown, refused on this turn, or run: dispatchToolCall decides.
-      // cyrillic-ok-next-line
-      const значение = yield* dispatchToolCall(call, ctx, opts, t0)
+      const identity = callIdentity(имя, call.function.arguments) // cyrillic-ok: pre-existing local
+      const repeat = nudged && ranThisTurn.has(identity)
+      ranThisTurn.add(identity)
+      let значение: unknown // cyrillic-ok: pre-existing local
+      if (repeat) {
+        const refusal: Record<string, unknown> = {}
+        refusal['ошибка'] = `${имя}: ${REPEAT_REFUSED}` // cyrillic-ok: envelope field and pre-existing local
+        refusal['отказано'] = true
+        значение = refusal // cyrillic-ok: pre-existing local
+        logEmpty('repeat refused', answeredBy ?? 'unknown')
+      } else {
+        // Unknown, refused on this turn, or run: dispatchToolCall decides.
+        // cyrillic-ok-next-line
+        значение = yield* dispatchToolCall(call, ctx, opts, t0)
+      }
       const мс = Date.now() - t0 // cyrillic-ok: pre-existing field name
       toolMsTotal += мс
       if (!slowestTool || мс > slowestTool['мс']) {

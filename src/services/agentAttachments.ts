@@ -62,6 +62,7 @@ import {
 import {
   TelegramFileDownloadFailed,
   TelegramFileTooBig,
+  errorCode,
   mirrorTelegramFile,
 } from '@/services/telegramFiles'
 
@@ -568,6 +569,11 @@ async function streamedFromOurServer(
       name: a.name,
       stage,
       error: e instanceof Error ? e.name : String(e),
+      // The reason, not the message: undici's TypeError says only "fetch
+      // failed" and keeps ECONNRESET & co. in `cause`.
+      cause: errorCode(e),
+      // Ours, built without a URL: says where a mid-stream download broke.
+      ...(e instanceof TelegramFileDownloadFailed ? { detail: e.message } : {}),
     })
     return stage === 'download'
       ? {

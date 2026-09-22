@@ -47,6 +47,7 @@ import {
   clubStatusAtom,
   loadClubStatusAtom,
   joinClubAtom,
+  guestEndedDate,
   type ClubBuyOutcome,
 } from '@/atoms/club'
 import { saveSoulAtom, soulErrorAtom, soulSavingAtom } from '@/atoms/soul'
@@ -286,7 +287,7 @@ function StoryStep(props: {
 /* ────────────────────────────────────────────────────────────────────────── */
 
 function ClubStep(props: { onJoined: () => void }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const status = useAtomValue(clubStatusAtom)
   const busy = useAtomValue(clubBusyAtom)
   const error = useAtomValue(clubErrorAtom)
@@ -315,6 +316,9 @@ function ClubStep(props: { onJoined: () => void }) {
   const days = status?.period_days ?? 0
   const tokens = status?.tokens_per_period ?? 0
   const share = stars > 0 && tokens > 0 ? t('welcome.club.share') : ''
+  // An invited person whose pass ran out is told so above the price, instead
+  // of being shown the offer as if they had never been let in.
+  const guestEnded = guestEndedDate(status, lang)
 
   /*
    * THE SERVER DOES NOT KNOW WHO THIS IS -- SAY THAT, DO NOT SELL.
@@ -355,6 +359,11 @@ function ClubStep(props: { onJoined: () => void }) {
       <div className="welcome__why">
         <Star size={28} aria-hidden="true" />
         <h2>{t('welcome.club.title')}</h2>
+        {guestEnded && (
+          <p className="welcome__note" data-testid="welcome-guest-ended">
+            {t('welcome.club.guestEnded', { date: guestEnded })}
+          </p>
+        )}
         <p>{t('welcome.club.lead')}</p>
       </div>
 
