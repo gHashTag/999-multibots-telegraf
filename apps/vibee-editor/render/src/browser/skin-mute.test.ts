@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { injectSkin, MUTE_SCRIPT } from './skin'
+import { injectSkin, MUTE_SCRIPT, TOUCH_REPORT_SCRIPT } from './skin'
 
 /*
  * A page with one video, written by hand: the script only needs the
@@ -56,5 +56,16 @@ describe('the browser window is silent by default', () => {
       '<html><head><script src="app.js"></script></head><body></body></html>'
     )
     expect(html).toContain('data-t27-mute')
+  })
+})
+
+describe('the window reports what a tap met', () => {
+  it('is valid script, carries the window s event name, and is injected', () => {
+    expect(() => new Function(TOUCH_REPORT_SCRIPT)).not.toThrow()
+    expect(TOUCH_REPORT_SCRIPT).toContain('"t27-browser"')
+    expect(TOUCH_REPORT_SCRIPT).toContain('split(/\\s+/)')
+    expect(injectSkin('<html><head></head><body></body></html>')).toContain(
+      'data-t27-touch'
+    )
   })
 })
