@@ -182,6 +182,44 @@ describe('the outward gate', () => {
     )
     expect(outcome.error).toContain('не публикую')
   })
+
+  it('covers every registered outward tool, whichever line pushed it', async () => {
+    // The wrapper in tools.ts only covers what was pushed ABOVE it. A tool
+    // moved below it (next to BROWSER_TOOLS) still answers isOutwardTool and
+    // still passes the name-only test above, while a tainted turn mints with
+    // it. Review of #2843: moving CLUB_INVOICE_TOOLS down kept 40 tests green.
+    // So every outward tool is called through the registry after a search;
+    // the pool is null and fetch refuses, so a handler reached here fails.
+    const { TOOLS } = await import('./src/agent/tools')
+    const outward = TOOLS.filter(t => isOutwardTool(t.name))
+    expect(outward.map(t => t.name)).toEqual(
+      expect.arrayContaining(['club_invoice', 'tokens_invoice', 'feed_publish'])
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('no network in this test')
+      })
+    )
+    try {
+      const ctx = ctxFor('t-every-outward')
+      await search.handler({ query: 'q' }, ctx)
+      const unguarded: string[] = []
+      for (const tool of outward) {
+        let outcome: Record<string, any> = {}
+        try {
+          outcome = result(await tool.handler({}, ctx))
+        } catch {
+          outcome = {}
+        }
+        if (!String(outcome.error ?? '').includes('не публикую'))
+          unguarded.push(tool.name)
+      }
+      expect(unguarded).toEqual([])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
 
 describe('the exfiltration cap', () => {
