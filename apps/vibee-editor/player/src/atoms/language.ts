@@ -26,6 +26,10 @@ const en: Translations = {
   'browser.youDrive': 'You are driving. The agent is waiting.',
   'browser.handBack': 'Let the agent continue',
   'browser.type.open': '⌨ Type text',
+  'browser.type.ask.password': '🤖 The agent needs your password',
+  'browser.type.ask.email': '🤖 The agent needs your email',
+  'browser.type.ask.code': '🤖 The agent needs a code',
+  'browser.type.ask.text': '🤖 The agent needs you to type',
   'browser.type.title': 'Type from your phone',
   'browser.type.close': 'Close',
   'browser.type.noField':
@@ -2120,6 +2124,10 @@ const ru: Translations = {
   'browser.youDrive': 'Управляете вы. Агент ждёт.',
   'browser.handBack': 'Вернуть агенту',
   'browser.type.open': '⌨ Ввести текст', // cyrillic-ok
+  'browser.type.ask.password': '🤖 Агенту нужен ваш пароль', // cyrillic-ok
+  'browser.type.ask.email': '🤖 Агенту нужна ваша почта', // cyrillic-ok
+  'browser.type.ask.code': '🤖 Агенту нужен код', // cyrillic-ok
+  'browser.type.ask.text': '🤖 Агент просит ввести текст', // cyrillic-ok
   'browser.type.title': 'Ввод с телефона', // cyrillic-ok
   'browser.type.close': 'Закрыть', // cyrillic-ok
   'browser.type.noField': 'Нажмите в поле на странице выше — текст пойдёт туда', // cyrillic-ok

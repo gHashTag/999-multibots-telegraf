@@ -1,5 +1,7 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { addFrame, FILMED_TOOLS } from './film'
+import { cdpTypeIo } from './person-type'
+import { askForInput, asKind, waitForTyped } from './input-request'
 /**
  * THE REASON AN AGENT DID NOT KNOW THE BROWSER EXISTED.
  *
@@ -351,6 +353,103 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
     },
   },
   {
+    /*
+     * THE AGENT POINTS AT THE FIELD; THE PERSON TYPES (input-request.ts).
+     * Owner, 2026-09-22. The agent never learns the text -- only that it
+     * was typed, how long it was, and into what kind of field -- and goes on
+     * in the same turn.
+     */
+    name: 'browser_ask_input',
+    description:
+      'Пароль, код, почту вводит САМ человек; ты их не увидишь. x,y — поле. ' + // cyrillic-ok: tool description
+      'Ждёт до 120 с; typed — продолжай.', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['password', 'email', 'code', 'text'] },
+        why: { type: 'string' },
+        x: { type: 'number' },
+        y: { type: 'number' },
+      },
+      required: ['kind', 'why'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const a = args as {
+        kind?: unknown
+        why?: unknown
+        x?: unknown
+        y?: unknown
+      }
+      const why = String(a.why ?? '')
+        .trim()
+        .slice(0, 200)
+      if (!why) throw new Error('say in one sentence what it is for')
+      const kind = asKind(a.kind)
+      const { cdp, targetId } = await podOf(ctx)
+      const session = await readSession(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+      /*
+       * The cursor goes into the field when the agent may click there: not
+       * while the person drives, not on a guarded page without a yes. If it
+       * may not, the person taps the field themselves -- the sheet says so.
+       */
+      let pointed = false
+      if (
+        typeof a.x === 'number' &&
+        typeof a.y === 'number' &&
+        !personHasTheWheel(session, Date.now())
+      ) {
+        try {
+          await mustBeAllowedToAct(ctx, cdp, targetId)
+          await clickAt(cdp, targetId, a.x, a.y)
+          pointed = true
+        } catch {
+          /* asked anyway; the person points */
+        }
+      }
+      const focus = await cdpTypeIo
+        .focus(cdp)
+        .catch(() => ({ host: '', field: 'none', label: '' }))
+      const request = askForInput(ctx.telegramId, {
+        id: randomUUID(),
+        kind,
+        why,
+        host: focus.host,
+        label: focus.label,
+      })
+      await askForInputInTelegram(ctx.telegramId, kind, why, focus.host).catch(
+        () => {}
+      )
+      const typed = await waitForTyped(
+        ctx.telegramId,
+        request.id,
+        ctx.probe === true ? 0 : WAIT_CAP_MS
+      )
+      if (typed) {
+        return {
+          typed: true,
+          chars: typed.chars,
+          field: typed.field,
+          enter: typed.enter,
+          note:
+            'the person typed it into their browser. You did not see it and must not ask for it. ' +
+            'Continue: browser_screenshot to see the next step.',
+        }
+      }
+      return {
+        typed: false,
+        pointed,
+        field: focus.field,
+        note:
+          'not typed yet; the field is waiting on their screen. Tell them in one line what to enter ' +
+          'and where, then check later with browser_screenshot. Never ask for it in the chat.',
+      }
+    },
+  },
+  {
     name: 'browser_status',
     description:
       'Есть ли у человека запущенный браузер, которым ты можешь работать. ' + // cyrillic-ok: tool description
@@ -681,6 +780,36 @@ export const BROWSER_TOOLS: AgentTool[] =
  * tests exercise the decision, not Telegram, and a top-level import would
  * drag the sender into every one of them.
  */
+/* The person's Telegram: a button that opens the typing sheet in the app. */
+async function askForInputInTelegram(
+  telegramId: string,
+  kind: string,
+  why: string,
+  host: string
+): Promise<void> {
+  const { sendToTelegram } = await import('../auth/telegram-sender')
+  const { openBrowserButton, BROWSER_TAB_URL } = await import('./announce')
+  const what =
+    kind === 'password'
+      ? 'пароль' // cyrillic-ok: user-facing
+      : kind === 'code'
+        ? 'код' // cyrillic-ok: user-facing
+        : kind === 'email'
+          ? 'почту' // cyrillic-ok: user-facing
+          : 'текст' // cyrillic-ok: user-facing
+  await sendToTelegram(
+    telegramId,
+    `🔑 Агенту нужен ваш ${what}${host ? ` для ${host}` : ''}.\n\n` + // cyrillic-ok: user-facing
+      `«${why}»\n\n` +
+      'Введите его сами — агент его не увидит и продолжит, как только вы введёте.', // cyrillic-ok: user-facing
+    {
+      inline_keyboard: [
+        [openBrowserButton('⌨ Ввести', `${BROWSER_TAB_URL}?type=1`)], // cyrillic-ok: button label
+      ],
+    }
+  )
+}
+
 async function askThePerson(
   telegramId: string,
   what: string,

@@ -96,6 +96,13 @@ export function stepOf(
       detail.running = r.running === true
       detail.pages = Array.isArray(r.pages) ? r.pages.length : null
       break
+    case 'browser_ask_input':
+      // What was asked for and whether it came; never what was typed.
+      detail.kind = clip(args.kind, 20)
+      detail.what = clip(args.why, 200)
+      detail.typed = r.typed === true
+      if (typeof r.chars === 'number') detail.chars = r.chars
+      break
     case 'browser_ask_permission':
       detail.what = clip(args.what ?? args.action ?? args.text, 200)
       break

@@ -67,6 +67,7 @@ import {
   type Focus,
   type TypeIo,
 } from './person-type'
+import { markTyped, pendingInput, inputRequestView } from './input-request'
 
 export const BROWSER_PATHS = [
   '/api/browser/session',
@@ -160,6 +161,8 @@ function publicView(s: BrowserSession): Record<string, unknown> {
      * driving" is worth knowing before it tries to click.
      */
     wheel: personHasTheWheel(s, Date.now()) ? 'person' : 'agent',
+    /* The agent is waiting for the person to type something (input-request.ts). */
+    inputRequest: inputRequestView(pendingInput(s.telegramId)),
   }
 }
 
@@ -612,6 +615,12 @@ async function personTypes(
       body: { ok: false, error: 'the browser did not take it' },
     }
   }
+  /* An agent waiting for this (browser_ask_input) learns that it came. */
+  markTyped(who, {
+    chars: wanted.text.length,
+    field: focus.field,
+    enter: wanted.enter,
+  })
   /* Where it went and how long it was. Never the text. */
   return {
     status: 200,
