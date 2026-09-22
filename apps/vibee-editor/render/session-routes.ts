@@ -1184,7 +1184,28 @@ export async function handleAuthRoute(
     // The body first, so a client that still holds a token from before the
     // move keeps working; then the HttpOnly cookie a cookie-transport client
     // cannot read and does not send (src/auth/refresh-cookie.ts).
-    const presented = String(body.refresh_token ?? '') || readRefreshCookie(req)
+    const bodyToken = String(body.refresh_token ?? '')
+    const jarToken = readRefreshCookie(req) // secret-guard-ok: reads the request's cookie, holds no value
+    const presented = bodyToken || jarToken
+    /*
+     * WHERE THE TOKEN CAME FROM DECIDES WHAT THE COOKIE MAY DO.
+     *
+     * The first version set the cookie for any token a cookie client sent and
+     * cleared it on any refusal. Review, 2026-09-22, found both wrong:
+     *
+     *   - A tab can hold a token the cookie must never carry: a Mini App launch
+     *     session from /api/auth/telegram, whose initData can arrive in any
+     *     browser from a link. Rotated into the cookie, a stranger's link
+     *     would sign this browser in as the stranger for 60 days.
+     *   - The jar holds ONE cookie. A tab's own token rotated into it replaced
+     *     another tab's healthy session, and a tab's dead token cleared it.
+     *
+     * So: a token read from the jar rotates the jar. A token from the body
+     * moves into the jar only when it is a Login Widget session (kind 'web')
+     * and the jar is empty; otherwise it is answered in the body, as before.
+     * A refusal clears the cookie only when the refused token was the cookie.
+     */
+    const fromCookie = !bodyToken && !!jarToken
     if (!presented) {
       // A cookie-transport client with no cookie is signed out, and must hear
       // that as final. It keeps 400 for everyone else: that is what an older
@@ -1239,8 +1260,9 @@ export async function handleAuthRoute(
           : 'auth_refresh_failed'
       // A refused token is refused for good. If it came from the cookie, take
       // the cookie out too, or the browser presents a dead credential on every
-      // load for the rest of its Max-Age.
-      if (wantsCookieTransport(req)) {
+      // load for the rest of its Max-Age. A refused BODY token says nothing
+      // about the cookie, which may be another tab's healthy session.
+      if (fromCookie) {
         res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))
       }
       json(res, 401, {
@@ -1258,7 +1280,7 @@ export async function handleAuthRoute(
     // The rotation returned a new token; the session it belongs to is the one
     // recorded against the family.
     const row = await pool.query(
-      `SELECT s.id, s.telegram_id, s.device_pubkey
+      `SELECT s.id, s.telegram_id, s.device_pubkey, s.kind
          FROM app_refresh_tokens t
          JOIN app_sessions s ON s.id = t.session_id
         WHERE t.token_hash = $1 AND s.revoked_at IS NULL`,
@@ -1306,10 +1328,25 @@ export async function handleAuthRoute(
       }
     }
 
-    await pool.query(
-      `UPDATE app_sessions SET last_seen_at = now() WHERE id = $1`,
-      [s.id]
-    )
+    /*
+     * NOTHING AFTER THE ROTATION MAY FAIL THE REPLY.
+     *
+     * rotateRefreshToken has already committed: the presented token is spent
+     * and its successor exists only in the reply being built. A throw from
+     * here on answers 503 without that successor, the client keeps the spent
+     * token, and its retry past the grace window is judged reuse -- which
+     * revokes the whole family (review, 2026-09-22). So the bookkeeping below
+     * is best-effort: a lost last_seen_at or a reply without the person's
+     * name costs nothing a person would notice.
+     */
+    try {
+      await pool.query(
+        `UPDATE app_sessions SET last_seen_at = now() WHERE id = $1`,
+        [s.id]
+      )
+    } catch (error) {
+      console.warn('[auth] refresh: last_seen_at not written', error)
+    }
 
     const reply: Record<string, unknown> = {
       access_token: signAccessToken({
@@ -1331,20 +1368,27 @@ export async function handleAuthRoute(
      * tab never holds one without the other. Only for cookie transport: every
      * other client gets the reply it always got.
      */
-    if (wantsCookieTransport(req)) {
-      const who = await pool.query(
-        `SELECT username, display_name, avatar_url, telegram_auth_date
-           FROM profiles WHERE telegram_id = $1 LIMIT 1`,
-        [String(s.telegram_id)]
-      )
-      const p = who.rows[0] as
-        | {
-            username?: string | null
-            display_name?: string | null
-            avatar_url?: string | null
-            telegram_auth_date?: string | number | null
-          }
-        | undefined
+    const toCookie =
+      wantsCookieTransport(req) &&
+      (fromCookie || (!jarToken && String(s.kind ?? '') === 'web'))
+    if (toCookie) {
+      type ProfileRow = {
+        username?: string | null
+        display_name?: string | null
+        avatar_url?: string | null
+        telegram_auth_date?: string | number | null
+      }
+      let p: ProfileRow | undefined
+      try {
+        const who = await pool.query(
+          `SELECT username, display_name, avatar_url, telegram_auth_date
+             FROM profiles WHERE telegram_id = $1 LIMIT 1`,
+          [String(s.telegram_id)]
+        )
+        p = who.rows[0] as ProfileRow | undefined
+      } catch (error) {
+        console.warn('[auth] refresh: profile not read for the reply', error)
+      }
       reply.telegram_user = {
         id: Number(s.telegram_id),
         first_name: p?.display_name || p?.username || '',
@@ -1352,13 +1396,18 @@ export async function handleAuthRoute(
         ...(p?.avatar_url ? { photo_url: p.avatar_url } : {}),
         auth_date: Number(p?.telegram_auth_date ?? 0),
       }
+      json(
+        res,
+        200,
+        withRefreshTransport(req, res, reply, outcome.next.expiresAt)
+      )
+      return true
     }
 
-    json(
-      res,
-      200,
-      withRefreshTransport(req, res, reply, outcome.next.expiresAt)
-    )
+    // The body's token stays in the body: a launch or pairing session, a
+    // session from before kinds were recorded, or a jar that already holds
+    // another session. The tab keeps it where it always did.
+    json(res, 200, reply)
     return true
   }
 
@@ -1773,6 +1822,40 @@ export async function handleAuthRoute(
     // Immediately, not on the next poll: a person pressing "log out" expects
     // it to have happened by the time the screen changes.
     revokeNow(sid)
+
+    /*
+     * THE COOKIE THIS REPLY TAKES OUT IS REVOKED TOO.
+     *
+     * The session above is named by the Bearer first, and a tab's Bearer can
+     * belong to another family than the browser's cookie: a tab signed in
+     * before the move, a second account. Clearing the cookie while its family
+     * stayed live left a 60-day credential valid on the server with no one
+     * holding it to sign it out (review, 2026-09-22). Revoke what we remove.
+     */
+    const jarToken = readRefreshCookie(req) // secret-guard-ok: reads the request's cookie, holds no value
+    if (jarToken) {
+      const jar = await pool.query(
+        `SELECT family_id FROM app_refresh_tokens
+          WHERE token_hash = $1 AND revoked_at IS NULL
+          LIMIT 1`,
+        [digest(jarToken)]
+      )
+      const jarFamily = jar.rows.length ? String(jar.rows[0].family_id) : ''
+      if (jarFamily && jarFamily !== familyId) {
+        await pool.query(
+          `UPDATE app_sessions SET revoked_at = now()
+            WHERE family_id = $1 AND revoked_at IS NULL`,
+          [jarFamily]
+        )
+        const jarSessions = await pool.query(
+          `UPDATE app_refresh_tokens SET revoked_at = now()
+            WHERE family_id = $1 AND revoked_at IS NULL
+            RETURNING session_id`,
+          [jarFamily]
+        )
+        for (const row of jarSessions.rows) revokeNow(String(row.session_id))
+      }
+    }
 
     if (wantsCookieTransport(req)) {
       res.setHeader('Set-Cookie', clearedRefreshCookie(isSecureRequest(req)))

@@ -56,11 +56,16 @@ if (typeof window !== 'undefined') {
     editorStore.set(userAtom, null)
   })
   // A session renewed in a tab that has never seen the person brings them.
-  // Only into an empty slot: a person already here is not replaced by a reply.
+  // The same person already here is kept as is (it may know more, is_admin
+  // among it). A DIFFERENT person means the token now acts as someone else --
+  // the browser has one cookie, and another tab signed in as another account
+  // -- so the header must show who the requests really are (review,
+  // 2026-09-22: the first version kept the old name over the new token).
   window.addEventListener(APP_SESSION_PERSON, event => {
     const person = (event as CustomEvent<TelegramUser>).detail
     if (!person || typeof person.id !== 'number') return
-    if (editorStore.get(userAtom)) return
+    const here = editorStore.get(userAtom)
+    if (here && Number(here.id) === person.id) return
     editorStore.set(userAtom, { ...person, is_admin: false })
   })
 }
