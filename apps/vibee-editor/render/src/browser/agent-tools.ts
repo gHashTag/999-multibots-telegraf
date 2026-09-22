@@ -56,6 +56,7 @@ import {
   frontPage,
   newPage,
   closePage,
+  activatePage,
   listTargets,
   evaluateOn,
   clickAt,
@@ -484,12 +485,14 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
   {
     name: 'browser_status',
     description:
-      'Есть ли у человека запущенный браузер, которым ты можешь работать. ' + // cyrillic-ok: tool description
-      'Зови ПЕРВЫМ, прежде чем обещать «сейчас зайду на сайт»: без запущенного ' + // cyrillic-ok
-      'браузера остальные browser_* инструменты откажут, и человеку придётся ' + // cyrillic-ok
-      'открыть его самому во вкладке «Браузер» в мини-аппе.', // cyrillic-ok
-    parameters: noArgs,
-    async handler(_args, ctx) {
+      'Запущен ли браузер и его вкладки (id). front=id — вывести вкладку вперёд ' + // cyrillic-ok: tool description
+      '(окно входа Google открывается отдельной вкладкой).', // cyrillic-ok
+    parameters: {
+      type: 'object',
+      properties: { front: { type: 'string' } },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
       const session = await readSession(
         ctx.pool as unknown as Queryable,
         ctx.telegramId
@@ -500,13 +503,23 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
           hint: 'call browser_open: it starts the browser itself, and the person is told',
         }
       }
+      /*
+       * THE TAB TO WORK IN, BROUGHT TO THE FRONT. Every other tool acts on the
+       * front page; a sign-in pop-up (Google's account chooser for X, 2026-09-22)
+       * opened behind another tab, and the agent could neither name it nor
+       * reach it. Showing a tab changes nothing on any page.
+       */
+      const front = (args as { front?: unknown }).front
+      if (typeof front === 'string' && front) {
+        await activatePage(session.cdpEndpoint!, front).catch(() => {})
+      }
       const targets = await listTargets(session.cdpEndpoint!).catch(() => [])
       return {
         running: true,
         /* No endpoints, no tokens: an agent needs neither to use the tools. */
         pages: targets
           .filter(t => t.type === 'page')
-          .map(t => ({ title: t.title, url: t.url })),
+          .map(t => ({ id: t.id, title: t.title, url: t.url })),
         watchedByThePerson: true,
       }
     },
@@ -705,6 +718,13 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      /*
+       * Without an id it used to answer {closed: "undefined"} and close
+       * nothing (2026-09-22): a success that did not happen. The id comes
+       * from browser_status.
+       */
+      if (typeof args.id !== 'string' || !args.id.trim())
+        throw new Error('id is required: take it from browser_status pages')
       const session = await readSession(
         ctx.pool as unknown as Queryable,
         ctx.telegramId

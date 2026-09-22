@@ -136,6 +136,10 @@ const statusOf = (e: unknown): number =>
 /** Two refusals are ordinary states; everything else is a real failure. */
 function stateOrThrow(e: unknown): BrowserSessionView {
   const status = statusOf(e)
+  // A renewal that failed for a moment is not "this deployment has no pods":
+  // that answer latches the watcher off for the page's life (useBrowserWatch).
+  if ((e as ApiError | undefined)?.code === 'session_renewal_unavailable')
+    throw e
   if (status === 503) return { state: 'unavailable' }
   if (status === 401) return { state: 'signin' }
   throw e

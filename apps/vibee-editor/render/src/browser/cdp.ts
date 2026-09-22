@@ -168,6 +168,15 @@ export async function newPage(given: string, url: string): Promise<CdpTarget> {
   return reachable((await res.json()) as CdpTarget, endpoint)
 }
 
+/** Bring a tab to the front, so the tools that act on the front page reach it. */
+export async function activatePage(given: string, id: string): Promise<void> {
+  const endpoint = await ipEndpoint(given)
+  const res = await fetch(
+    `${httpBase(endpoint)}/json/activate/${encodeURIComponent(id)}`
+  )
+  if (!res.ok) throw new Error(`CDP activate failed: HTTP ${res.status}`)
+}
+
 export async function closePage(given: string, id: string): Promise<void> {
   const endpoint = await ipEndpoint(given)
   await fetch(`${httpBase(endpoint)}/json/close/${id}`)

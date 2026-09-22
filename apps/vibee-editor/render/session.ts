@@ -665,6 +665,43 @@ export function issueRefreshToken(now?: Date): RefreshIssue {
  */
 export const REUSE_GRACE_SECONDS = 10
 
+/*
+ * A REPLY THAT NEVER ARRIVED IS NOT A THEFT.
+ *
+ * The rotation commits before the reply is written, so a reply lost on the way
+ * back -- the connection dropped, the tab closed or reloaded mid-request, an
+ * error after the commit -- leaves the client holding a spent token and the
+ * server holding a successor nobody received. The client's honest retry, 15 s
+ * later by its backoff, was past REUSE_GRACE_SECONDS and revoked the family:
+ * with the cookie shared by every tab, that signed the whole browser out, the
+ * "I have to sign in every time" this work set out to end (review,
+ * 2026-09-22).
+ *
+ * The signal is the successor: a thief presents a spent token AFTER the
+ * legitimate client moved on, and a client that moved on has presented its
+ * successor. A successor never presented, within this window, means the reply
+ * was lost; the unused successor is revoked and a new one issued in its place,
+ * in one statement, so two retries cannot both win.
+ *
+ * ONLY FOR THE COOKIE. A second review, the same day, broke the first version,
+ * which forgave every token: a copy of a tab's sessionStorage (any script on
+ * the page can read it, EXPIRES_KEY beside it says when the tab will rotate)
+ * replayed inside the window took the chain over, and the tab was only told
+ * "revoked". So the window opens only for a token read from the HttpOnly jar,
+ * which no script can read. A token from a body -- a tab's store, a Mini App
+ * launch, the iOS app -- keeps the old rule: every stale reuse is a theft.
+ *
+ * AND A DISPLACED SUCCESSOR STILL CATCHES THE THIEF. Reissue marks the
+ * successor it revokes (revoked, never used, replaced_by set). If that token
+ * is ever presented, two parties held the chain: the family is revoked as for
+ * any reuse, not answered a quiet "revoked" that let the other chain live.
+ *
+ * The window covers the presentation that has to come: a closed tab never
+ * retries, so the next one is another tab's timer (up to an access token's
+ * life away) or the backoff (up to five minutes).
+ */
+export const LOST_REPLY_SECONDS = ACCESS_TTL_SECONDS + 300
+
 export type RotateOutcome =
   | { ok: true; next: RefreshIssue }
   | {
@@ -677,7 +714,12 @@ export type RotateOutcome =
    * победитель гонки уже положил новый токен туда, откуда проигравший его
    * прочитает.
    */
-  | { ok: false; reason: 'raced' }
+  | {
+      ok: false
+      reason: 'raced'
+      /** The family's live token is in this request's own cookie. */
+      inJar?: true
+    }
 
 /**
  * Rotate a refresh token, detecting reuse.
@@ -730,21 +772,68 @@ export async function rotateRefreshToken(
       expiresAt: Date
       /** When the family's session row was created (app_sessions.created_at). */
       familyCreatedAt: Date
+      /**
+       * True when this token's successor exists and has never been
+       * presented (LOST_REPLY_SECONDS). Absent in a store that cannot tell,
+       * which keeps the old rule: every stale reuse is a theft.
+       */
+      successorUnused?: boolean
+      /** The successor's hash (replaced_by), which reissue must still see. */
+      successorHash?: string
+      /** When the successor was issued; one issued moments ago is a race. */
+      successorCreatedAt?: Date | null
+      /** Revoked by a reissue, never used: presenting it is a second holder. */
+      displaced?: boolean
+      /** The render wrote this token into the HttpOnly jar (to_jar). */
+      toJar?: boolean
     } | null>
     consumeAndInsert(
       hash: string,
       replacedByHash: string,
-      expiresAt: Date
+      expiresAt: Date,
+      toJar?: boolean
     ): Promise<boolean>
     revokeFamily(familyId: string): Promise<string[]>
+    /**
+     * Revoke `successorHash`, the unused successor of `hash`, and issue
+     * `nextHash` in its place, atomically. False when that successor is no
+     * longer the one, or no longer unused: another retry won, or the
+     * legitimate client presented it meanwhile.
+     */
+    reissue?(
+      hash: string,
+      successorHash: string,
+      nextHash: string,
+      expiresAt: Date
+    ): Promise<boolean>
   },
-  now?: Date
+  now?: Date,
+  from: {
+    /** The token was read from the HttpOnly cookie (LOST_REPLY_SECONDS). */
+    jar?: boolean
+    /**
+     * The family of the live token in the cookie this same request carried,
+     * when the presented token came from a body. Only this browser can send
+     * its HttpOnly, SameSite=Strict cookie, and only the holder of that live
+     * token can name it.
+     */
+    jarFamily?: string
+    /** The successor goes into the HttpOnly jar (to_jar, same statement). */
+    toJar?: boolean
+  } = {}
 ): Promise<RotateOutcome> {
   const t = now ?? new Date()
   const hash = digest(presented)
   const row = await store.find(hash)
   if (!row) return { ok: false, reason: 'unknown' }
-  if (row.revokedAt) return { ok: false, reason: 'revoked' }
+  if (row.revokedAt) {
+    if (row.displaced) {
+      const sessionIds = await store.revokeFamily(row.familyId)
+      for (const sid of sessionIds) revokeNow(sid)
+      return { ok: false, reason: 'reused', familyId: row.familyId }
+    }
+    return { ok: false, reason: 'revoked' }
+  }
   if (row.expiresAt.getTime() <= t.getTime())
     return { ok: false, reason: 'expired' }
   /*
@@ -761,9 +850,45 @@ export async function rotateRefreshToken(
   )
     return { ok: false, reason: 'family_expired' }
 
+  // A tab's stale copy of a family whose token is in this browser's jar --
+  // the same request carries it. The family moved on in this very browser: a
+  // race between its own tabs, not a theft. Matched by family, not by the next
+  // token, so a copy that comes back after more rotations is still recognised
+  // (third review), and checked before the grace window, so a duplicate in the
+  // usual timing -- milliseconds after its twin -- is told too (fourth).
+  const inThisJar = !!from.jarFamily && row.familyId === from.jarFamily
   if (row.usedAt) {
+    if (inThisJar) return { ok: false, reason: 'raced', inJar: true }
     const прошлоСекунд = (t.getTime() - row.usedAt.getTime()) / 1000
     if (прошлоСекунд <= REUSE_GRACE_SECONDS) {
+      return { ok: false, reason: 'raced' }
+    }
+    if (
+      from.jar === true &&
+      row.toJar === true &&
+      row.successorUnused === true &&
+      row.successorHash &&
+      (t.getTime() - row.usedAt.getTime()) / 1000 <= LOST_REPLY_SECONDS &&
+      store.reissue
+    ) {
+      // A successor issued moments ago -- by the rotation, or by a retry that
+      // just won -- is on its way to someone: that is a race, as above, not a
+      // lost reply. Measured on Postgres: without this, the second of two
+      // simultaneous retries revoked the successor the first had just handed
+      // out, and the jar could keep the dead one.
+      const bornAt = row.successorCreatedAt?.getTime()
+      if (
+        typeof bornAt === 'number' &&
+        (t.getTime() - bornAt) / 1000 <= REUSE_GRACE_SECONDS
+      ) {
+        return { ok: false, reason: 'raced' }
+      }
+      const next = issueRefreshToken(t)
+      if (
+        await store.reissue(hash, row.successorHash, next.hash, next.expiresAt)
+      ) {
+        return { ok: true, next }
+      }
       return { ok: false, reason: 'raced' }
     }
     const sessionIds = await store.revokeFamily(row.familyId)
@@ -772,8 +897,17 @@ export async function rotateRefreshToken(
   }
 
   const next = issueRefreshToken(t)
-  const consumed = await store.consumeAndInsert(hash, next.hash, next.expiresAt)
-  if (!consumed) return { ok: false, reason: 'raced' }
+  const consumed = await store.consumeAndInsert(
+    hash,
+    next.hash,
+    next.expiresAt,
+    from.toJar === true
+  )
+  if (!consumed) {
+    return inThisJar
+      ? { ok: false, reason: 'raced', inJar: true }
+      : { ok: false, reason: 'raced' }
+  }
   return { ok: true, next }
 }
 
