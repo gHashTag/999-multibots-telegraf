@@ -428,6 +428,12 @@ describe('the tool in the registry', () => {
       expect(p, surface).toContain('Сначала разговор, потом оплата') // cyrillic-ok: the rule
       // The old instruction that sent everybody to the Mini App is gone.
       expect(p, surface).not.toContain('отправь в') // cyrillic-ok: the removed copy
+      // A bare price question is not a wish to join (review of #2843): the
+      // closing clause used to allow club_invoice on "how much is a picture?".
+      expect(p, surface).not.toContain('только на просьбу про клуб, цену') // cyrillic-ok: the removed clause
+      expect(p, surface).toContain(
+        'club_invoice — только когда человек сказал, что хочет вступить' // cyrillic-ok: the rule
+      )
     }
     // The client in the owner's DM is not sold the club.
     expect(systemPrompt('business')).not.toContain('club_invoice')
