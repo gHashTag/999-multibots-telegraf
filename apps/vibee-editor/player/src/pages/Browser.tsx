@@ -31,6 +31,12 @@ import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { isBrowserPath } from '@/lib/keptBrowser'
 import { frameStateOf, shouldReread } from '@/lib/frameState'
+import {
+  readBrowserJournal,
+  journalLine,
+  JOURNAL_POLL_MS,
+  type JournalStep,
+} from '@/lib/browserJournal'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 
 /**
@@ -214,6 +220,25 @@ export default function BrowserPage() {
 
   const state = view?.state ?? 'none'
   const live = state === 'live' && Boolean(view?.viewUrl)
+
+  /* What the agent did here (lib/browserJournal.ts), read while the window
+     is live and this tab is on screen. */
+  const [journal, setJournal] = useState<JournalStep[]>([])
+  useEffect(() => {
+    if (!live || !onThisTab) return
+    let stopped = false
+    const pull = async () => {
+      if (document.visibilityState !== 'visible') return
+      const steps = await readBrowserJournal()
+      if (!stopped && steps) setJournal(steps)
+    }
+    void pull()
+    const timer = setInterval(() => void pull(), JOURNAL_POLL_MS)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [live, onThisTab])
   const embedded = live && canEmbed(view!.viewUrl!)
 
   const rootClass = [
@@ -319,6 +344,26 @@ export default function BrowserPage() {
               <p className="remote-browser__muted">{t('browser.whyTab')}</p>
             </div>
           )}
+
+          {embedded && journal.length > 0 ? (
+            <ol
+              className="remote-browser__journal"
+              aria-label={t('browser.journal')}
+            >
+              {journal.map((step, i) => {
+                const line = journalLine(step, t)
+                return (
+                  <li
+                    key={`${step.at}:${i}`}
+                    className={line.ok ? '' : 'is-error'}
+                  >
+                    <time>{line.time}</time> <b>{line.verb}</b>{' '}
+                    <span>{line.text}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : null}
 
           {/*
            * Who is driving, said UNDER the picture. It used to sit on the
