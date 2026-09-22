@@ -38,7 +38,12 @@ ARG VITE_AGENT_WS_URL
 ARG VITE_SENTRY_DSN
 ARG VITE_WALLET_CONNECT_PROJECT_ID
 ARG VITE_APP_VERSION
-ENV VITE_API_URL=$VITE_API_URL \
+# Measured 2026-09-22: setting VITE_ADMIN_IDS on the service changed nothing,
+# because a name missing from this list is simply not there at build time. The
+# bundle kept the fallback and the second admin account saw no admin badge.
+ARG VITE_ADMIN_IDS
+ENV VITE_ADMIN_IDS=$VITE_ADMIN_IDS \
+    VITE_API_URL=$VITE_API_URL \
     VITE_RENDER_URL=$VITE_RENDER_URL \
     VITE_RENDER_SERVER_URL=$VITE_RENDER_SERVER_URL \
     VITE_BRIDGE_URL=$VITE_BRIDGE_URL \
