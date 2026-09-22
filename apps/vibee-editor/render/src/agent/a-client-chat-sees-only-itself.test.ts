@@ -238,7 +238,7 @@ describe('the outgoing contact guard', () => {
     expect(kinds('the club is 10 000 stars, 1 000 000 000 total')).toEqual([])
     expect(kinds('on 2026-09-22 at 14:57')).toEqual([])
     expect(
-      kinds('https://cdn.example.com/u/9000000011/1758552000123456.png')
+      kinds('https://cdn.example.com/u/900000011/1758552000123456.png')
     ).toEqual([])
   })
 
