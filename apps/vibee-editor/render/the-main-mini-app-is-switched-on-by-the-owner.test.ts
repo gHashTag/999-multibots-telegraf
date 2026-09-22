@@ -302,7 +302,13 @@ function run(
       openChat: async (_c, fn) => {
         opened.push('chat')
         if (!fb) throw new Error('no chat in this test')
-        return fn(fb)
+        try {
+          return await fn(fb)
+        } finally {
+          // withClient hangs the client up here; a run that never returns
+          // would leave a live MTProto client behind.
+          opened.push('closed')
+        }
       },
       stepTimeoutMs: 150,
       pollMs: 2,
@@ -705,6 +711,79 @@ describe('who, which bot, which address', () => {
     const second = run(botFather())
     await expect(second.result).rejects.toThrow('уже настраивается')
     expect((await first.result).status).toBe('enabled')
+  })
+})
+
+describe('a BotFather call that never returns', () => {
+  const never = () => new Promise<never>(() => {})
+
+  /** The run stops in bounded time, closes the chat, and frees the lock. */
+  async function stopsAndReleases(fb: FakeBotFather) {
+    const t0 = Date.now()
+    const { result, opened } = run(fb)
+    const r = await result
+    expect(Date.now() - t0).toBeLessThan(2000)
+    expect(r.status).toBe('stopped')
+    expect(opened).toEqual(['chat', 'closed'])
+    const next = await run(botFather({ onUrl: flip })).result
+    expect(next.status).toBe('enabled')
+    return r
+  }
+
+  it('reading BotFather hangs after the bot is pressed: stops at pick_bot', async () => {
+    const fb = botFather()
+    const read = fb.latest.bind(fb)
+    fb.latest = () => (fb.pressed.length ? never() : read())
+    const r = await stopsAndReleases(fb)
+    expect(r.stopped_at).toBe('pick_bot')
+    expect(r.url_sent).toBe(false)
+  }, 5000)
+
+  it('the very first read hangs: stops at open, nothing is sent', async () => {
+    const fb = botFather()
+    fb.latest = never
+    const r = await stopsAndReleases(fb)
+    expect(r.stopped_at).toBe('open')
+    expect(fb.sent).toEqual([])
+  }, 5000)
+
+  it('sending /mybots hangs: stops at open', async () => {
+    const fb = botFather()
+    fb.send = never
+    const r = await stopsAndReleases(fb)
+    expect(r.stopped_at).toBe('open')
+  }, 5000)
+
+  it('a press hangs and the screen never changes: stops at that step', async () => {
+    const fb = botFather()
+    fb.press = never
+    const r = await stopsAndReleases(fb)
+    expect(r.stopped_at).toBe('pick_bot')
+    expect(r.reason).toContain('in time')
+  }, 5000)
+
+  it('sending the URL hangs: stops at send_url and says it may have gone', async () => {
+    const fb = botFather()
+    const send = fb.send.bind(fb)
+    fb.send = (text: string) =>
+      text.startsWith('https://') ? never() : send(text)
+    const r = await stopsAndReleases(fb)
+    expect(r.stopped_at).toBe('send_url')
+    expect(r.url_sent).toBe(true)
+  }, 5000)
+
+  it('a completed run releases the lock: the next run goes ahead', async () => {
+    // Enabled, unverified, stopped: each one frees the lock for the next.
+    expect((await run(botFather({ onUrl: flip })).result).status).toBe(
+      'enabled'
+    )
+    state[TOKEN_A].hasMainWebApp = false
+    expect((await run(botFather()).result).status).toBe('unverified')
+    const stopped = await run(
+      botFather({ settingsButtons: ['Menu Button', '« Back to Bot'] })
+    ).result
+    expect(stopped.status).toBe('stopped')
+    expect((await run(botFather()).result).status).toBe('unverified')
   })
 })
 

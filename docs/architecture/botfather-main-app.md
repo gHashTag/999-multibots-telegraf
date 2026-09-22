@@ -38,7 +38,14 @@ The accepted labels live in `STEP_LABELS`. The dry-run plan is built from that
 same table. Labels match exactly after emoji and case are trimmed, never as
 substrings. If two buttons match one label, the run stops.
 
-**Every step has a 20 s timeout.** The run stops, and returns the step, the
+**Every step has a 20 s timeout**, and it bounds each call to BotFather
+itself, not only the gaps between calls: a press, a read or a send that
+never returns is raced against the step's deadline (`withDeadline`) and
+abandoned. Without that, one hung call held the one-run lock and the owner's
+client until the render restarted. A URL send that runs out of time is
+reported as `url_sent: true`, because nobody knows whether it went out.
+
+The run stops, and returns the step, the
 reason, BotFather's texts (tokens redacted) and the labels on the screen, when:
 
 - a button is missing
