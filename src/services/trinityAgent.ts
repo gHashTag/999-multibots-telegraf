@@ -22,7 +22,12 @@
  * видно здесь, написанное здесь — там.
  */
 import { logger } from '@/utils/logger'
-import { markTurnTools, SIDE_EFFECT_TOOL } from '@/services/agentTurnSpend'
+import {
+  markReportedByAgent,
+  markTurnHistory,
+  markTurnTools,
+  SIDE_EFFECT_TOOL,
+} from '@/services/agentTurnSpend'
 
 /** Адрес прод-рендера литералом — как в postStarPaid: URL из ENV сканер
  *  считает потенциальным SSRF, а переопределения для этого вызова нет. */
@@ -533,7 +538,13 @@ export async function спроситьАгента(
     строку(хвост)
 
     const собрано = части.join('').trim()
-    if (!собрано && ошибка) throw new Error(ошибка)
+    /*
+     * The render ran this turn and SAID it failed. Marked, so the bot does not
+     * hand the same message to a model with no tools and no history: see
+     * agentTurnSpend.ts, REPORTED. The message is unchanged -- the retry above
+     * and every caller's classifier still read it as before.
+     */
+    if (!собрано && ошибка) throw markReportedByAgent(new Error(ошибка)) // cyrillic-ok: pre-existing identifiers of this parser
 
     logger.info('[trinityAgent] ответ получен', {
       telegram_id: telegramId,
@@ -570,8 +581,10 @@ export async function спроситьАгента(
       }
     }
   } catch (e) {
-    // Every way out of this function carries what the turn already spent.
-    throw markTurnTools(e, toolsUsed)
+    // Every way out of this function carries what the turn already spent, and
+    // the conversation it was read with -- the bot's fallback answers from it
+    // instead of from nothing (agentTurnSpend.ts, HISTORY).
+    throw markTurnHistory(markTurnTools(e, toolsUsed), past)
   } finally {
     clearTimeout(таймер)
     if (silence) clearTimeout(silence)
