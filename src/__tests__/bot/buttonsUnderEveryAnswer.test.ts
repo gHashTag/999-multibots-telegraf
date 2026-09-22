@@ -18,6 +18,7 @@ import {
   payRow,
   stripAgentMarkers,
 } from '@/navigation/helpers/actionButtons'
+import { fallbackSystemPrompt } from '@/navigation/helpers/agentFallback'
 
 const read = (rel: string) =>
   fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8')
@@ -115,23 +116,37 @@ describe('every answer path is wired', () => {
       src.indexOf('const chasti =')
     )
     expect(agent).toContain("app: ctx.chat?.type === 'private'")
+    // The honest line after an empty answer and the fallback answer share
+    // one set of options, gated by chat type.
+    const optsAt = src.indexOf('const missButtons = {')
+    expect(optsAt).toBeGreaterThan(-1)
+    expect(src.slice(optsAt, optsAt + 300)).toContain(
+      "app: ctx.chat?.type === 'private'"
+    )
+    const emptyAt = src.indexOf("if (miss.kind === 'empty') {")
+    expect(emptyAt).toBeGreaterThan(-1)
+    expect(src.slice(emptyAt, emptyAt + 400)).toMatch(
+      /buttonsForAnswer\([\s\S]*missButtons/
+    )
     const fb = src.slice(
       src.indexOf(
         'const { text: replyClean, markup: replyMarkup } = buttonsForAnswer('
       ),
       src.indexOf('THE FALLBACK ANSWER GOES INTO THE SHARED CONVERSATION')
     )
-    expect(fb).toContain("app: ctx.chat?.type === 'private'")
+    expect(fb).toContain('missButtons')
     expect(fb).toContain('const fbParts = splitLong(replyClean)')
     expect(fb).toMatch(/i === fbParts\.length - 1 \? replyMarkup : undefined/)
-    const fail = src.slice(
-      src.indexOf('Модели сейчас перегружены'),
-      src.indexOf('Модели сейчас перегружены') + 700
+    const failAt = src.indexOf('fallbackFailedText(replyRu')
+    expect(failAt).toBeGreaterThan(-1)
+    expect(src.slice(failAt, failAt + 300)).toContain(
+      "app: ctx.chat?.type === 'private'"
     )
-    expect(fail).toContain("app: ctx.chat?.type === 'private'")
-    expect(src).toContain(
-      "'[[Подпись|act:id]], где id — одно из: topup, balance, can, human. '"
-    )
+    // The marker grammar the fallback model is taught, in both languages.
+    for (const isRu of [true, false])
+      expect(fallbackSystemPrompt(isRu)).toMatch(
+        /act:id\]\][^:]*: topup, balance, can, human\./
+      )
   })
 
   it('the chat scenes answer with the standard set: text, photo caption, document caption', () => {
