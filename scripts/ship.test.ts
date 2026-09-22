@@ -14,13 +14,22 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+/*
+ * Git hooks export GIT_DIR: under one, a bare `git config` here would write
+ * into the REAL repository (it did, 2026-09-22, from another test). Every
+ * git call in this file gets an environment without GIT_*.
+ */
+const NO_GIT_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))
+)
+
 const SCRIPT = path.join(__dirname, 'ship.cjs')
 
 const roots: string[] = []
 let work: string
 
 const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+  execFileSync('git', args, { cwd, encoding: 'utf8', env: NO_GIT_ENV }).trim()
 
 /** Run ship in `work`; returns its exit code and everything it printed. */
 function ship(...args: string[]) {
@@ -28,6 +37,7 @@ function ship(...args: string[]) {
     const out = execFileSync(process.execPath, [SCRIPT, ...args], {
       cwd: work,
       encoding: 'utf8',
+      env: NO_GIT_ENV,
     })
     return { code: 0, out }
   } catch (e) {
