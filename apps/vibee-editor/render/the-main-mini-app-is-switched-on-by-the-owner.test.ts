@@ -21,6 +21,8 @@ const TOKEN_A = '900000101:test-alpha' // secret-guard-ok: invented for this tes
 const TOKEN_B = '900000102:test-beta' // secret-guard-ok: invented for this test
 const BOT = 'neuro_test_bot'
 const APP = 'https://app.t27.ai'
+/** What is sent: the address exactly as it was validated, normalised. */
+const APP_HREF = 'https://app.t27.ai/'
 
 const ENV_PREFIXES = [
   /^BOT_TOKEN_\d+$/,
@@ -321,7 +323,7 @@ describe('the happy path, with BotFather editing its menus in place', () => {
     const r = await run(fb).result
     expect(r.status).toBe('enabled')
     expect(r.has_main_web_app).toBe(true)
-    expect(fb.sent).toEqual(['/mybots', APP])
+    expect(fb.sent).toEqual(['/mybots', APP_HREF])
     expect(fb.pressed).toEqual([
       `@${BOT}`,
       'Bot Settings',
@@ -362,7 +364,7 @@ describe('the happy path, with BotFather editing its menus in place', () => {
     const fb = botFather({ askLater: 30, onUrl: flip })
     const r = await run(fb).result
     expect(r.status).toBe('enabled')
-    expect(fb.sent).toEqual(['/mybots', APP])
+    expect(fb.sent).toEqual(['/mybots', APP_HREF])
   })
 
   it('turns the /mybots page when the bot is on the second one', async () => {
@@ -401,7 +403,7 @@ describe('the happy path, with BotFather editing its menus in place', () => {
       url: 'https://vibee-editor-production.up.railway.app',
     }).result
     expect(r.url_source).toBe('argument')
-    expect(fb.sent[1]).toBe('https://vibee-editor-production.up.railway.app')
+    expect(fb.sent[1]).toBe('https://vibee-editor-production.up.railway.app/')
   })
 })
 
@@ -598,6 +600,76 @@ describe('who, which bot, which address', () => {
     ).rejects.toThrow(/https/)
   })
 
+  it('whitespace or a control character inside the url is refused, not stripped', async () => {
+    // new URL() silently drops \n and \t, so the check saw app.t27.ai
+    // while BotFather would have been sent both lines.
+    for (const url of [
+      'https://app.t27.ai/\nhttps://evil.example',
+      'https://app.t27.ai/\thttps://evil.example',
+      'https://app.t27.ai/ https://evil.example',
+      'https://app.t27.ai/\u0000x',
+      'https://app.t27.ai/\u200bx',
+    ]) {
+      const fb = botFather({ onUrl: flip })
+      const { result, opened } = run(fb, { bot: `@${BOT}`, url })
+      await expect(result).rejects.toThrow('пробел')
+      expect(opened).toEqual([])
+      expect(fb.sent).toEqual([])
+    }
+  })
+
+  it('a menu button url with a newline inside is refused too', async () => {
+    state[TOKEN_A].menuUrl = 'https://app.t27.ai/\nhttps://evil.example'
+    const { result, opened } = run(botFather())
+    await expect(result).rejects.toThrow('пробел')
+    expect(opened).toEqual([])
+  })
+
+  it('a port on our host is refused', async () => {
+    const fb = botFather({ onUrl: flip })
+    const { result, opened } = run(fb, {
+      bot: `@${BOT}`,
+      url: 'https://app.t27.ai:4444/',
+    })
+    await expect(result).rejects.toThrow('порт')
+    expect(opened).toEqual([])
+  })
+
+  it('BotFather is sent the normalised address that was checked, not the raw string', async () => {
+    const fb = botFather({ onUrl: flip })
+    const r = await run(fb, {
+      bot: `@${BOT}`,
+      url: 'https://APP.t27.ai:443/app?from=bot',
+    }).result
+    expect(r.status).toBe('enabled')
+    expect(fb.sent[1]).toBe('https://app.t27.ai/app?from=bot')
+    expect(r.url).toBe('https://app.t27.ai/app?from=bot')
+  })
+
+  it('the driver, called directly with a bad url, sends nothing at all', async () => {
+    const fb = botFather({ onUrl: flip })
+    const d = await mod.driveBotFather(
+      fb,
+      { username: BOT, url: 'https://app.t27.ai/\nhttps://evil.example' },
+      { stepTimeoutMs: 150, pollMs: 2, log: () => {} }
+    )
+    expect(d.outcome).toBe('stopped')
+    expect(d.stoppedAt).toBe('send_url')
+    expect(d.urlSent).toBe(false)
+    expect(fb.sent).toEqual([])
+  })
+
+  it('the driver, called directly, sends the normalised form it checked', async () => {
+    const fb = botFather({ onUrl: flip })
+    const d = await mod.driveBotFather(
+      fb,
+      { username: BOT, url: 'https://APP.t27.ai:443/app' },
+      { stepTimeoutMs: 150, pollMs: 2, log: () => {} }
+    )
+    expect(d.outcome).toBe('confirmed')
+    expect(fb.sent).toEqual(['/mybots', 'https://app.t27.ai/app'])
+  })
+
   it('no web_app menu button and no url: refused, not guessed', async () => {
     state[TOKEN_A].menuUrl = null
     await expect(run(botFather()).result).rejects.toThrow('передайте url')
@@ -608,7 +680,7 @@ describe('who, which bot, which address', () => {
     const { result, opened } = run(fb, { bot: `@${BOT}`, dry_run: true })
     const r = await result
     expect(r.status).toBe('dry_run')
-    expect(r.url).toBe(APP)
+    expect(r.url).toBe(APP_HREF)
     expect(r.plan).toHaveLength(8)
     expect(r.plan!.join('\n')).toContain('Configure Mini App'.toLowerCase())
     expect(opened).toEqual([])

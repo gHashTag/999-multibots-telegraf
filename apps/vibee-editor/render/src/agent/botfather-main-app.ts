@@ -209,20 +209,53 @@ function signature(m: BotFatherMessage | null): string {
   ].join('')
 }
 
-/** https, our host, nothing hidden in it. Returns the reason it is refused. */
-export function appUrlProblem(raw: unknown): string | null {
+/**
+ * Whitespace, control and format characters (zero-width, bidi). new URL()
+ * silently DROPS \n and \t, so a check on the parsed URL would pass
+ * "https://app.t27.ai/\nhttps://evil.example" while BotFather got both lines.
+ */
+const HIDDEN_IN_URL = /[\s\p{Cc}\p{Cf}]/u
+
+/**
+ * https, our host, no port, nothing hidden in it. Returns the address in the
+ * one form that was checked -- `u.href` -- and that form is what BotFather
+ * is sent, never the raw string.
+ */
+export function checkAppUrl(
+  raw: unknown
+): { href: string } | { problem: string } {
+  const text = String(raw ?? '').trim()
+  if (HIDDEN_IN_URL.test(text)) {
+    return {
+      problem:
+        'в адресе не должно быть пробелов и невидимых или управляющих символов',
+    }
+  }
   let u: URL
   try {
-    u = new URL(String(raw ?? '').trim())
+    u = new URL(text)
   } catch {
-    return 'это не адрес'
+    return { problem: 'это не адрес' }
   }
-  if (u.protocol !== 'https:') return 'адрес должен начинаться с https://'
-  if (u.username || u.password) return 'в адресе не должно быть логина'
+  if (u.protocol !== 'https:') {
+    return { problem: 'адрес должен начинаться с https://' }
+  }
+  if (u.username || u.password) {
+    return { problem: 'в адресе не должно быть логина' }
+  }
   if (!APP_HOSTS.includes(u.hostname.toLowerCase())) {
-    return `это не наше приложение (${u.hostname}); допустимы: ${APP_HOSTS.join(', ')}`
+    return {
+      problem: `это не наше приложение (${u.hostname}); допустимы: ${APP_HOSTS.join(', ')}`,
+    }
   }
-  return null
+  if (u.port !== '') return { problem: 'в адресе не должно быть порта' }
+  return { href: u.href }
+}
+
+/** The reason a URL is refused, or null. */
+export function appUrlProblem(raw: unknown): string | null {
+  const c = checkAppUrl(raw)
+  return 'problem' in c ? c.problem : null
 }
 
 /* ──────────────────────────────── the driver ──────────────────────────────── */
@@ -272,6 +305,7 @@ export async function driveBotFather(
   const pollMs = o.pollMs ?? DEFAULT_POLL_MS
   const log = o.log ?? ((line: string) => console.log(line))
   const bot = '@' + normaliseBotName(target.username)
+  const checkedUrl = checkAppUrl(target.url)
   const steps: StepRecord[] = []
   const transcript: string[] = []
   const seen = new Set<string>()
@@ -344,6 +378,13 @@ export async function driveBotFather(
 
   const pressable = (b: BotFatherButton) =>
     b.data instanceof Uint8Array && b.data.length > 0
+
+  // Checked before anything reaches BotFather; the driver is exported, so
+  // it does not trust its caller to have checked.
+  if ('problem' in checkedUrl) {
+    return stop('send_url', `the URL is refused: ${checkedUrl.problem}`)
+  }
+  const sendUrl = checkedUrl.href
 
   // ── open: /mybots ──
   const initial = await chat.latest()
@@ -489,7 +530,7 @@ export async function driveBotFather(
 
   // ── send_url -> confirm ──
   const beforeUrl = signature(current)
-  await chat.send(target.url)
+  await chat.send(sendUrl)
   urlSent = true
   record('send_url', true)
   const reply = await waitFor(beforeUrl, m =>
@@ -730,15 +771,20 @@ export async function configureMainMiniApp(
   }
 
   const given = args?.url == null ? '' : String(args.url).trim()
-  const url = given || (await menuButtonUrl(token, fetchImpl)) || ''
+  const rawUrl = given || (await menuButtonUrl(token, fetchImpl)) || ''
   const source = given ? 'argument' : 'menu_button'
-  if (!url) {
+  if (!rawUrl) {
     throw new Error(
       `${bot}: у кнопки меню нет адреса приложения — передайте url явно`
     )
   }
-  const problem = appUrlProblem(url)
-  if (problem) throw new Error(`${bot}: url отклонён — ${problem}`)
+  const checked = checkAppUrl(rawUrl)
+  if ('problem' in checked) {
+    throw new Error(`${bot}: url отклонён — ${checked.problem}`)
+  }
+  // From here on only the normalised form exists: it is what is shown in
+  // the plan, what BotFather is sent and what the result reports.
+  const url = checked.href
 
   if (dry) {
     return {
