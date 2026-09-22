@@ -1,0 +1,291 @@
+// @vitest-environment-options {"url": "https://app.t27.ai/"}
+/**
+ * ONE BROWSER, ONE COOKIE: WHAT EACH TAB DOES WHEN ANOTHER ONE MOVES.
+ *
+ * Review of the cookie session, 2026-09-22. The cookie is the browser's, but
+ * each tab kept its own idea of who is signed in:
+ *
+ *   - "Sign out" in one tab left the others showing the person over a dead
+ *     token, after a reload too;
+ *   - a tab with its own token (a Telegram launch) ending its session took
+ *     away the hint every cookie tab needs to renew;
+ *   - another tab's refresh landing just after "Sign out" cancelled it;
+ *   - a failed "Sign out everywhere" left this browser's cookie alive.
+ *
+ * The module is built the way the shipped bundle is (VITE_AUTH_ORIGIN set, the
+ * page on app.t27.ai), and another tab is played by writing localStorage and
+ * handing the module the `storage` event the browser would.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const AUTH = 'https://auth.t27.ai'
+const MARKER_KEY = 'trinity.app.session.cookie'
+const REFRESH_KEY = 'trinity.app.session.refresh'
+const PENDING_KEY = 'trinity.app.session.logout-pending'
+
+type M = typeof import('../appSession')
+
+async function build(): Promise<M> {
+  vi.resetModules()
+  vi.stubEnv('VITE_AUTH_ORIGIN', AUTH)
+  return import('../appSession')
+}
+
+function reply(status: number, body: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  }
+}
+
+/** A window whose listeners the test can fire, as another tab would. */
+function fakeWindow() {
+  const listeners = new Map<string, Array<(e?: unknown) => void>>()
+  return {
+    addEventListener(type: string, fn: (e?: unknown) => void) {
+      listeners.set(type, [...(listeners.get(type) ?? []), fn])
+    },
+    removeEventListener(type: string, fn: (e?: unknown) => void) {
+      listeners.set(
+        type,
+        (listeners.get(type) ?? []).filter(x => x !== fn)
+      )
+    },
+    fire(type: string, event?: unknown) {
+      for (const fn of listeners.get(type) ?? []) fn(event)
+    },
+  }
+}
+
+const cookieSession = {
+  access_token: 'a1', // secret-guard-ok: invented test value
+  refresh_transport: 'cookie' as const,
+  expires_in: 600,
+}
+const ownTokenSession = {
+  access_token: 'a1', // secret-guard-ok: invented test value
+  refresh_token: 'own', // secret-guard-ok: invented test value
+  expires_in: 600,
+}
+
+const settle = () => new Promise(done => setTimeout(done, 0))
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
+  window.localStorage.clear()
+  window.sessionStorage.clear()
+})
+
+describe('the hint belongs to the browser', () => {
+  it("a tab with its own token ending its session leaves the cookie tabs' hint alone", async () => {
+    const m = await build()
+    window.localStorage.setItem(MARKER_KEY, '1') // another tab's cookie session
+    m.storeAppSession(ownTokenSession)
+    m.clearAppSession()
+    expect(window.localStorage.getItem(MARKER_KEY)).toBe('1')
+  })
+
+  it('a cookie tab ending its session takes the hint away', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    m.clearAppSession()
+    expect(window.localStorage.getItem(MARKER_KEY)).toBeNull()
+  })
+
+  it('"Sign out" in a tab with its own token still signs the browser out', async () => {
+    const m = await build()
+    window.localStorage.setItem(MARKER_KEY, '1')
+    m.storeAppSession(ownTokenSession)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply(200, {})))
+    await m.logoutAppSession()
+    expect(window.localStorage.getItem(MARKER_KEY)).toBeNull()
+  })
+})
+
+describe('every tab follows the cookie', () => {
+  it('the hint gone: a tab riding the cookie signs out, and says so', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    const win = fakeWindow()
+    m.startAppSessionHealing(win)
+    const cleared = vi.fn()
+    window.addEventListener(m.APP_SESSION_CLEARED, cleared)
+
+    window.localStorage.removeItem(MARKER_KEY) // "Sign out" in another tab
+    win.fire('storage', { key: MARKER_KEY })
+
+    window.removeEventListener(m.APP_SESSION_CLEARED, cleared)
+    expect(m.getAppAccessToken()).toBe('')
+    expect(cleared).toHaveBeenCalled()
+  })
+
+  it('the hint gone: a tab with its own token keeps its session', async () => {
+    const m = await build()
+    m.storeAppSession(ownTokenSession)
+    const win = fakeWindow()
+    m.startAppSessionHealing(win)
+    win.fire('storage', { key: MARKER_KEY })
+    expect(m.getAppAccessToken()).toBe('a1')
+  })
+
+  it('the hint back: a signed-out tab renews into the session and the person arrives', async () => {
+    const m = await build()
+    const win = fakeWindow()
+    m.startAppSessionHealing(win)
+    const fetchMock = vi.fn().mockResolvedValue(
+      reply(200, {
+        access_token: 'a2', // secret-guard-ok: invented test value
+        refresh_transport: 'cookie',
+        expires_in: 600,
+        telegram_user: { id: 42, first_name: 'Owner', auth_date: 1 },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const person = vi.fn()
+    window.addEventListener(m.APP_SESSION_PERSON, person)
+
+    window.localStorage.setItem(MARKER_KEY, '1') // a sign-in in another tab
+    win.fire('storage', { key: MARKER_KEY })
+    await settle()
+    await settle()
+
+    window.removeEventListener(m.APP_SESSION_PERSON, person)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`${AUTH}/api/auth/refresh`)
+    expect(m.getAppAccessToken()).toBe('a2')
+    expect(person).toHaveBeenCalled()
+    m.clearAppSession()
+  })
+
+  it('other keys changing elsewhere do nothing', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    const win = fakeWindow()
+    m.startAppSessionHealing(win)
+    window.localStorage.removeItem(MARKER_KEY)
+    win.fire('storage', { key: 'some.other.setting' })
+    expect(m.getAppAccessToken()).toBe('a1')
+    m.clearAppSession()
+  })
+
+  it('a tab reloaded after the cookie session ended elsewhere starts signed out', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    window.localStorage.removeItem(MARKER_KEY)
+    // The reload: a fresh module over the same tab storage.
+    const again = await build()
+    vi.stubGlobal('fetch', vi.fn())
+    again.startAppSessionHealing(undefined)
+    expect(again.getAppAccessToken()).toBe('')
+  })
+
+  it('a tab asked to renew with nothing left to renew with is signed out', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    window.localStorage.removeItem(MARKER_KEY)
+    await expect(m.refreshAppSession()).rejects.toThrow()
+    expect(m.getAppAccessToken()).toBe('')
+  })
+})
+
+describe('a sign-out not yet confirmed is not undone', () => {
+  it('a refresh does not clear it; a sign-in does', async () => {
+    const m = await build()
+    window.localStorage.setItem(PENDING_KEY, '1')
+    m.storeAppSession(cookieSession) // what a refresh stores
+    expect(window.localStorage.getItem(PENDING_KEY)).toBe('1')
+    m.storeAppSession(cookieSession, { signIn: true })
+    expect(window.localStorage.getItem(PENDING_KEY)).toBeNull()
+    m.clearAppSession()
+  })
+
+  it('a tab asked to renew while it is pending finishes the sign-out instead', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    window.localStorage.setItem(PENDING_KEY, '1')
+    const fetchMock = vi.fn().mockResolvedValue(reply(200, {}))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(m.refreshAppSession()).rejects.toThrow()
+    await settle()
+    const urls = fetchMock.mock.calls.map(c => String(c[0]))
+    expect(urls).not.toContain(`${AUTH}/api/auth/refresh`)
+    expect(urls).toContain(`${AUTH}/api/auth/logout`)
+    expect(m.getAppAccessToken()).toBe('')
+  })
+
+  it('a reply that lands after "Sign out" does not bring the session back', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    let answer: (v: unknown) => void = () => undefined
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise(done => (answer = done)))
+      .mockResolvedValue(reply(200, {}))
+    vi.stubGlobal('fetch', fetchMock)
+    const inFlight = m.refreshAppSession()
+    window.localStorage.setItem(PENDING_KEY, '1') // "Sign out" in another tab
+    answer(
+      reply(200, {
+        access_token: 'revived', // secret-guard-ok: invented test value
+        refresh_transport: 'cookie',
+        expires_in: 600,
+      })
+    )
+    await expect(inFlight).rejects.toThrow()
+    expect(m.getAppAccessToken()).not.toBe('revived')
+  })
+
+  it('a failed "Sign out everywhere" still signs this browser out', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reply(401, { error: 'auth_session_required' }))
+      .mockResolvedValue(reply(200, { logged_out: true }))
+    vi.stubGlobal('fetch', fetchMock)
+    const ok = await m.logoutAllAppSessions()
+    expect(ok).toBe(false)
+    const urls = fetchMock.mock.calls.map(c => String(c[0]))
+    expect(urls).toEqual([
+      `${AUTH}/api/auth/logout-all`,
+      `${AUTH}/api/auth/logout`,
+    ])
+    expect(window.localStorage.getItem(PENDING_KEY)).toBeNull()
+    expect(window.localStorage.getItem(MARKER_KEY)).toBeNull()
+  })
+
+  it('and when even that fails, the sign-out is left pending for the next start', async () => {
+    const m = await build()
+    m.storeAppSession(cookieSession)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
+    await m.logoutAllAppSessions()
+    expect(window.localStorage.getItem(PENDING_KEY)).toBe('1')
+  })
+})
+
+describe('the widget sign-in when the cookie door does not answer', () => {
+  it('signs in on the API host the way it always did', async () => {
+    const m = await build()
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue(
+        reply(200, {
+          access_token: 'a', // secret-guard-ok: invented test value
+          refresh_token: 'r', // secret-guard-ok: invented test value
+          expires_in: 600,
+        })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    await m.exchangeTelegramWidget({ id: 1, hash: 'x' })
+    const [first] = fetchMock.mock.calls[0] as [string]
+    const [second, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+    expect(first).toBe(`${AUTH}/api/auth/widget`)
+    expect(second.startsWith(AUTH)).toBe(false)
+    expect(second.endsWith('/api/auth/widget')).toBe(true)
+    expect(new Headers(init.headers).get('X-Session-Transport')).toBeNull()
+    expect(window.sessionStorage.getItem(REFRESH_KEY)).toBe('r')
+    m.clearAppSession()
+  })
+})

@@ -408,7 +408,14 @@ export function refreshStore(pool: Pool) {
        */
       const r = await pool.query(
         `SELECT t.family_id, t.used_at, t.revoked_at, t.expires_at,
-                s.created_at AS family_created_at
+                s.created_at AS family_created_at,
+                t.replaced_by AS successor_hash,
+                (SELECT n.used_at IS NULL AND n.revoked_at IS NULL
+                   FROM app_refresh_tokens n
+                  WHERE n.token_hash = t.replaced_by) AS successor_unused,
+                (SELECT n.created_at
+                   FROM app_refresh_tokens n
+                  WHERE n.token_hash = t.replaced_by) AS successor_created_at
            FROM app_refresh_tokens t
            JOIN app_sessions s ON s.id = t.session_id
           WHERE t.token_hash = $1`,
@@ -422,6 +429,14 @@ export function refreshStore(pool: Pool) {
         revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
         expiresAt: new Date(row.expires_at),
         familyCreatedAt: new Date(row.family_created_at),
+        // The successor exists and was never presented: a lost reply, not a
+        // theft (session.ts LOST_REPLY_SECONDS). NULL -- no successor row --
+        // is not that.
+        successorUnused: row.successor_unused === true,
+        successorHash: row.successor_hash ? String(row.successor_hash) : '',
+        successorCreatedAt: row.successor_created_at
+          ? new Date(row.successor_created_at)
+          : null,
       }
     },
 
@@ -454,6 +469,52 @@ export function refreshStore(pool: Pool) {
         [hash, replacedByHash, expiresAt.toISOString()]
       )
       return claimed.rows.length === 1
+    },
+
+    async reissue(
+      hash: string,
+      successorHash: string,
+      nextHash: string,
+      expiresAt: Date
+    ) {
+      /*
+       * A lost reply, retried (session.ts LOST_REPLY_SECONDS): revoke the
+       * successor nobody received and issue another in its place, all in one
+       * statement. The successor's own `used_at IS NULL AND revoked_at IS
+       * NULL` is the single-use guard here, as in consumeAndInsert, and
+       * `t.replaced_by = $2` pins the successor this retry saw: of two
+       * retries at once, one revokes it and relinks, and the other finds the
+       * link already moved and answers raced (measured on Postgres: without
+       * the pin, the second revoked the first one's fresh successor).
+       */
+      const r = await pool.query(
+        `WITH dropped AS (
+           UPDATE app_refresh_tokens n
+              SET revoked_at = now()
+             FROM app_refresh_tokens t
+            WHERE t.token_hash = $1
+              AND t.replaced_by = $2
+              AND n.token_hash = $2
+              AND n.used_at IS NULL
+              AND n.revoked_at IS NULL
+            RETURNING n.family_id, n.session_id
+         ), relinked AS (
+           UPDATE app_refresh_tokens
+              SET replaced_by = $3
+            WHERE token_hash = $1
+              AND replaced_by = $2
+              AND EXISTS (SELECT 1 FROM dropped)
+            RETURNING token_hash
+         )
+         INSERT INTO app_refresh_tokens
+           (token_hash, family_id, session_id, expires_at)
+         SELECT $3, d.family_id, d.session_id, $4
+           FROM dropped d
+          WHERE EXISTS (SELECT 1 FROM relinked)
+         RETURNING token_hash`,
+        [hash, successorHash, nextHash, expiresAt.toISOString()]
+      )
+      return r.rows.length === 1
     },
 
     async revokeFamily(familyId: string) {
