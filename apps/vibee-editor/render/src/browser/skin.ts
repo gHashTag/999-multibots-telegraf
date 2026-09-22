@@ -1391,6 +1391,51 @@ export const MUTE_SCRIPT = `(function () {
   all();
 })();`
 
+/*
+ * WHAT IS UNDER THE FINGER (2026-09-22). The owner could not press "Trust"
+ * on Apple's page although the server had given their session control
+ * ([browser:mouse] outcome "given"). From outside the window nobody can see
+ * why a tap goes nowhere, so the first three taps after each load report,
+ * to the app that frames the window: the element at the point, whether
+ * neko's input layer takes pointer events, and neko's own idea of who
+ * controls (hosting, controlling, locked, implicit hosting). The app logs
+ * it (Browser.tsx). No coordinates of text, nothing typed.
+ */
+export const TOUCH_REPORT_SCRIPT = `(function () {
+  if (!window.parent || window.parent === window) return;
+  var left = 3;
+  var name = function (el) {
+    if (!el) return null;
+    var c = typeof el.className === 'string' ? el.className.trim().split(/\\s+/).slice(0, 3).join('.') : '';
+    return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (c ? '.' + c : '');
+  };
+  var store = function () {
+    var roots = [document.querySelector('#neko'), document.querySelector('#app'), document.body && document.body.firstElementChild];
+    for (var i = 0; i < roots.length; i++) {
+      var vm = roots[i] && roots[i].__vue__;
+      var r = vm && vm.$accessor && vm.$accessor.remote;
+      if (r) return { hosting: !!r.hosting, controlling: !!r.controlling, locked: !!r.locked, implicit: !!r.implicitHosting };
+    }
+    return null;
+  };
+  window.addEventListener('pointerdown', function (e) {
+    if (left <= 0) return;
+    left--;
+    var overlay = document.querySelector('.overlay');
+    try {
+      window.parent.postMessage({
+        source: __EVENT__,
+        report: 'touch',
+        pointer: e.pointerType,
+        at: name(document.elementFromPoint(e.clientX, e.clientY)),
+        target: name(e.target),
+        overlay: overlay ? getComputedStyle(overlay).pointerEvents : 'missing',
+        neko: store()
+      }, location.origin);
+    } catch (err) {}
+  }, true);
+})();`.replace(/__EVENT__/g, () => JSON.stringify(WINDOW_EVENT))
+
 export function injectSkin(html: string): string {
   if (!html.includes('</head>')) return html
   /*
@@ -1401,6 +1446,7 @@ export function injectSkin(html: string): string {
   const head =
     `<script data-t27-framed>${FRAMED_SCRIPT}</script>` +
     `<script data-t27-mute>${MUTE_SCRIPT}</script>` +
+    `<script data-t27-touch>${TOUCH_REPORT_SCRIPT}</script>` +
     `<style data-t27-framed>${FRAMED_CSS}</style>` +
     `<link rel="preconnect" href="https://fonts.googleapis.com">` +
     `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` +
