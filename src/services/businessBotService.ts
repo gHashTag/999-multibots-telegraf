@@ -676,8 +676,32 @@ const AGENT_TRANSIENT_RE = new RegExp(
  */
 export function classifyAgentFault(message: string): ProviderFault {
   if (AGENT_STANDING_RE.test(message)) return 'standing'
+  if (isEmptyAgentAnswer(message)) return 'transient'
   if (AGENT_TRANSIENT_RE.test(message)) return 'transient'
   return 'standing'
+}
+
+/**
+ * THE RENDER SAYS NOBODY IN THE CHAIN HAD ANYTHING TO SAY.
+ *
+ * SIBLING COPY of EMPTY_ANSWER_ERROR in apps/vibee-editor/render/src/agent/
+ * chat.ts (the render's own tsconfig is out of this compilation unit's reach,
+ * the same reason AGENT_TRANSIENT_RE lives twice). Change one, look at the
+ * other.
+ *
+ * Until 2026-09-22 an empty answer resolved as an empty success and this path
+ * hard-coded it as 'transient': a warning, and a page only once a run of
+ * failed turns crossed AGENT_FAILURES_BEFORE_PAGE. The render now ends such a
+ * turn with an error event instead, and nothing here recognised its words, so
+ * the first empty turn fell through to 'standing' and paged the owner. It is
+ * the same event as before, so it keeps the same class -- and, as before, it
+ * is never replayed: the render has already asked every provider twice, and
+ * the turn may have run tools.
+ */
+const AGENT_EMPTY_ANSWER = 'модель не дала ответа' // cyrillic-ok: the render's EMPTY_ANSWER_ERROR, quoted
+
+export function isEmptyAgentAnswer(message: string): boolean {
+  return message.includes(AGENT_EMPTY_ANSWER)
 }
 
 /**
@@ -791,6 +815,9 @@ export async function answerClient(
       lastFault = classifyAgentFault(lastError)
       if (lastFault !== 'transient' || attempts > AGENT_RETRY_ON_TRANSIENT)
         break
+      // Every provider was already asked twice for words; a replay would
+      // only run this turn's tools again for the same silence.
+      if (isEmptyAgentAnswer(lastError)) break
       if (turnAlreadySpent(error)) {
         // The client has been charged once for work they may yet receive.
         // Charging them again to fix our timeout is not a retry, it is a bill.
