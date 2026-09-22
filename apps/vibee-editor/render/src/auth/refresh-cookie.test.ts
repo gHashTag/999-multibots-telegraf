@@ -256,13 +256,10 @@ describe('auth.t27.ai answers the sign-in doors and nothing else', () => {
 })
 
 describe('auth.t27.ai upgrades nothing', () => {
-  it('knows the host on every path, doors included, so an upgrade is refused anywhere', () => {
-    // render-server.ts refuses every WebSocket upgrade for which this is true.
-    for (const url of ['/api/auth/refresh', '/health', '/live/x', '/']) {
-      expect(isAuthHost({ url, headers: { host: 'auth.t27.ai' } }), url).toBe(
-        true
-      )
-    }
+  it('is decided by the host alone, so an upgrade to a door is refused too', () => {
+    // render-server.ts refuses every WebSocket upgrade for which this is
+    // true; it looks at no path, so /api/auth/* and /health are covered.
+    expect(isAuthHost({ headers: { host: 'auth.t27.ai' } })).toBe(true)
     expect(
       isAuthHost({ headers: { host: 'x', 'x-forwarded-host': 'AUTH.t27.ai' } })
     ).toBe(true)

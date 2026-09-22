@@ -120,7 +120,13 @@ async function mintSession(
    * одноразовый по своей записи, вторая — по первичному ключу
    * `app_widget_assertions`.
    */
-  отпечатокЗапуска?: string // cyrillic-ok: existing parameter
+  отпечатокЗапуска?: string, // cyrillic-ok: existing parameter
+  /**
+   * The token is about to be written into the HttpOnly jar (a Login Widget
+   * sign-in with cookie transport). Recorded in the same INSERT that creates
+   * it, so it cannot be lost to a failed follow-up write (fourth review).
+   */
+  toJar = false
 ): Promise<Minted> {
   let sessionId: string = crypto.randomUUID()
   let familyId: string = crypto.randomUUID()
@@ -179,11 +185,18 @@ async function mintSession(
     [sessionId, telegramId, dkt, String(body.device_name ?? ''), familyId, kind]
   )
   await pool.query(
-    `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
-     VALUES ($1, $2, $3, $4)`,
-    [refresh.hash, familyId, sessionId, refresh.expiresAt.toISOString()]
+    `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at, to_jar)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      refresh.hash,
+      familyId,
+      sessionId,
+      refresh.expiresAt.toISOString(),
+      toJar && kind === 'web',
+    ]
   )
   if (отпечатокЗапуска) {
+    // cyrillic-ok: existing parameter
     await pool.query(
       `INSERT INTO app_launch_families (assertion_hash, telegram_id, family_id, session_id)
        VALUES ($1, $2, $3, $4)
@@ -433,7 +446,9 @@ export async function syncVerifiedWidgetProfile(
 async function mintWidgetSession(
   pool: Pool,
   user: VerifiedTelegramWidgetUser,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  /** The reply will carry the token in the HttpOnly jar (mintSession). */
+  toJar = false
 ): Promise<Minted> {
   const assertion = String(body.hash || '')
   const assertionHash = digest(`telegram-widget:${assertion}`)
@@ -450,7 +465,14 @@ async function mintWidgetSession(
     )
     if (!consumed.rows.length) throw new ReplayedWidgetAssertion()
     await syncVerifiedWidgetProfileWithClient(client, user)
-    const session = await mintSession(client, telegramId, body, 'web')
+    const session = await mintSession(
+      client,
+      telegramId,
+      body,
+      'web',
+      undefined,
+      toJar
+    )
     await client.query('COMMIT')
     return session
   } catch (error) {
@@ -874,7 +896,12 @@ export async function handleAuthRoute(
       return true
     }
     try {
-      const session = await mintWidgetSession(pool, verified.user, body)
+      const session = await mintWidgetSession(
+        pool,
+        verified.user,
+        body,
+        wantsCookieTransport(req)
+      )
       // After COMMIT, so the check cannot run ahead of its own session row.
       if (
         await signedOutSince(pool, verified.telegramId, verified.user.auth_date)
@@ -895,21 +922,13 @@ export async function handleAuthRoute(
         what: `widget; ${safeDeviceName(body.device_name)}`,
       })
       // The new cookie replaces whatever the jar held; that family has no
-      // other holder, so it ends here rather than lingering for 60 days. And
-      // the new token is recorded as handed over through the jar.
+      // other holder, so it ends here rather than lingering for 60 days. (The
+      // new token was recorded as handed over through the jar when minted.)
       if (wantsCookieTransport(req)) {
         try {
           await revokeJarFamily(pool, req)
         } catch (error) {
           console.warn('[widget] replaced cookie family not revoked', error)
-        }
-        const minted = session.response.refresh_token
-        if (typeof minted === 'string') {
-          try {
-            await refreshStore(pool).markToJar(digest(minted))
-          } catch (error) {
-            console.warn('[widget] to_jar not recorded', error)
-          }
         }
       }
       json(
@@ -1284,9 +1303,12 @@ export async function handleAuthRoute(
     // so a stale copy of this browser's own family is told so (session.ts).
     let jarFamily = ''
     if (bodyToken && jarToken) {
+      // Named by provenance, not by being unused: the jar token may have
+      // rotated a moment ago (another tab's refresh in flight, a lost reply),
+      // and it still names this browser's family (fourth review, 2026-09-22).
       const jar = await pool.query(
         `SELECT family_id FROM app_refresh_tokens
-          WHERE token_hash = $1 AND revoked_at IS NULL AND used_at IS NULL
+          WHERE token_hash = $1 AND revoked_at IS NULL AND to_jar
           LIMIT 1`,
         [digest(jarToken)]
       )
@@ -1296,6 +1318,9 @@ export async function handleAuthRoute(
     const outcome = await rotateRefreshToken(presented, store, undefined, {
       jar: fromCookie,
       jarFamily,
+      // The successor will be written into the jar if this is a Login Widget
+      // session (the store checks the kind in the same statement).
+      toJar: wantsCookieTransport(req) && (fromCookie || !jarToken),
     })
 
     if (!outcome.ok) {
@@ -1475,14 +1500,6 @@ export async function handleAuthRoute(
         ...(p?.username ? { username: p.username } : {}),
         ...(p?.avatar_url ? { photo_url: p.avatar_url } : {}),
         auth_date: Number(p?.telegram_auth_date ?? 0),
-      }
-      // Recorded as handed over through the jar: only such a token may later
-      // be forgiven a lost reply. Best-effort -- unrecorded, it just keeps the
-      // strict rule.
-      try {
-        await store.markToJar(outcome.next.hash)
-      } catch (error) {
-        console.warn('[auth] refresh: to_jar not recorded', error)
       }
       json(
         res,

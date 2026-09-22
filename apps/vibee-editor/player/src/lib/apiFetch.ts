@@ -189,9 +189,9 @@ export function explainApiError(e: unknown): string {
   }
   if (err?.status === 413) return 'Файл больше 100 МБ — сервер его не примет.'
   // The sign-in service had a bad moment (lib/sessionRenewal.ts), not the
-  // bundle: say what happened.
+  // bundle: say what happened, in the same language as the lines around it.
   if (err?.code === 'session_renewal_unavailable')
-    return err.detail || err.message
+    return 'Сервис входа сейчас не ответил. Повторите через минуту.'
   if (err?.status === 503)
     return 'Сервер ещё собирает бандл шаблонов. Попробуйте через минуту.'
   return err?.message || 'Неизвестная ошибка'
