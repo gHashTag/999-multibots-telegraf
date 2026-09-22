@@ -1,0 +1,115 @@
+/* The agent's proposals: HUD cards, green hairline, one tap to decide. */
+.agent-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.agent-card--live {
+  border-color: rgba(0, 255, 136, 0.35);
+  border-left-color: #00ff88;
+  background:
+    linear-gradient(90deg, rgba(0, 255, 136, 0.08), rgba(0, 255, 136, 0) 60%),
+    #0b0f0d;
+}
+
+.agent-card--approved {
+  border-left-color: #00ff88;
+  opacity: 0.75;
+}
+
+.agent-card--declined,
+.agent-card--open {
+  opacity: 0.5;
+}
+
+.agent-card__body h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #fff;
+}
+
+.agent-card__body p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.agent-card__buttons {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+}
+
+.agent-card__buttons button,
+.agent-cards__all {
+  height: 40px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.agent-card__no {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #fff;
+}
+
+.agent-card__yes,
+.agent-cards__all {
+  border: 0;
+  background: #00ff88;
+  color: #000;
+}
+
+.agent-cards__all {
+  background: transparent;
+  border: 1px solid #00ff88;
+  color: #00ff88;
+}
+
+.agent-card__state {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.agent-card--approved .agent-card__state {
+  color: #00ff88;
+}
+
+/* A step of a plan carries its number. */
+.agent-card__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  border: 1px solid #00ff88;
+  border-radius: 50%;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: #00ff88;
+  vertical-align: 1px;
+}
