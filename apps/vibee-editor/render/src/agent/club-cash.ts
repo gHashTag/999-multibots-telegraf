@@ -328,12 +328,21 @@ export async function recordCashClubMonth(
     // tokens, and every later repeat reads that 0: a paying member left with
     // nothing and no way back through this tool (review of #2845). So the
     // answer is taken only when there is a grant it answers for.
+    //
+    // The refusal must not steer to a credit, though (review of #2855): the
+    // tool sees only `cash-club-*` grants newer than the last recorded cash
+    // month. A month handed out under another ref, or two months handed out
+    // before the first was recorded (that row's time answers for both), look
+    // exactly like "nothing on file" -- and "repeat without the flag" would
+    // then credit the month a second time. So the message names the one case
+    // where the plain call is right, and says to read the ledger otherwise.
     if (byHand && !(await tokensGivenByHand(pool, tid)).length) {
       return {
         ok: false,
         error:
-          'tokens_already_given=true, но выданных вручную токенов за клуб у этого человека нет. ' + // cyrillic-ok: tool answer
-          'Месяц не записан. Повтори без tokens_already_given: токены месяца начислятся.', // cyrillic-ok: tool answer
+          'tokens_already_given=true, но ручной выдачи токенов за клуб (ref cash-club-...), на которую ещё не ответил записанный месяц, у этого человека нет. Месяц не записан. ' + // cyrillic-ok: tool answer
+          'Повторяй без tokens_already_given (токены месяца начислятся) ТОЛЬКО если токены за этот месяц не выдавались вручную никак: ни под другим ref, ни вместе с прошлым месяцем. ' + // cyrillic-ok: tool answer
+          'Если выдавались или ты не уверен -- остановись и прочитай журнал токенов человека (token_ledger): повтор без флага начислит этот месяц второй раз.', // cyrillic-ok: tool answer
       }
     }
     // A Stars month's tokens, or none when they were handed out by hand: the
