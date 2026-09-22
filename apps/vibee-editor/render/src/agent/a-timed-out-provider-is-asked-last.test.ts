@@ -51,6 +51,46 @@ const quiet = (init?: RequestInit) =>
     )
   })
 
+const THOUGHT_EVERY_MS = 20_000
+
+/**
+ * A provider that streams a thought every THOUGHT_EVERY_MS and answers after
+ * `thoughts` of them (Infinity: never). The body obeys the request's signal
+ * the way a real fetch body does -- a fake that ignored it could not show a
+ * deadline cutting the stream at all.
+ */
+const talking = (thoughts: number) => (init?: RequestInit) => {
+  const enc = new TextEncoder()
+  let n = 0
+  let cut = false
+  const body = new ReadableStream<Uint8Array>({
+    start(ctrl) {
+      init?.signal?.addEventListener('abort', () => {
+        cut = true
+        ctrl.error(new DOMException('This operation was aborted', 'AbortError'))
+      })
+      const tick = () => {
+        if (cut) return
+        n += 1
+        const delta =
+          n <= thoughts
+            ? { reasoning_content: `thinking ${n}` }
+            : { content: 'done' }
+        ctrl.enqueue(
+          enc.encode(`data: ${JSON.stringify({ choices: [{ delta }] })}\n`)
+        )
+        if (n <= thoughts) setTimeout(tick, THOUGHT_EVERY_MS)
+        else {
+          ctrl.enqueue(enc.encode('data: [DONE]\n'))
+          ctrl.close()
+        }
+      }
+      setTimeout(tick, THOUGHT_EVERY_MS)
+    },
+  })
+  return new Response(body, { status: 200 })
+}
+
 type Reply = (init?: RequestInit) => Response | Promise<Response>
 let asked: string[] = []
 /** Each model answers from its own queue; past the end it answers 'ok'. */
@@ -154,40 +194,34 @@ describe('a quiet provider', () => {
   })
 
   it('a provider that keeps streaming is not cut by the silence deadline', async () => {
-    // Reasoning every 20 s for 100 s, then the answer: longer than the
-    // silence deadline in total, never silent for that long.
-    const talkative = () => {
-      const enc = new TextEncoder()
-      let n = 0
-      const body = new ReadableStream<Uint8Array>({
-        start(ctrl) {
-          const tick = () => {
-            n += 1
-            const delta =
-              n <= 5
-                ? { reasoning_content: `thinking ${n}` }
-                : { content: 'done' }
-            ctrl.enqueue(
-              enc.encode(`data: ${JSON.stringify({ choices: [{ delta }] })}\n`)
-            )
-            if (n <= 5) setTimeout(tick, 20_000)
-            else {
-              ctrl.enqueue(enc.encode('data: [DONE]\n'))
-              ctrl.close()
-            }
-          }
-          setTimeout(tick, 20_000)
-        },
-      })
-      return new Response(body, { status: 200 })
-    }
-    script({ [GLM]: [talkative] })
+    // A thought every 20 s for 80 s, the answer at 100 s: longer than the
+    // silence deadline in total, never silent for that long, and inside the
+    // ceiling.
+    script({ [GLM]: [talking(4)] })
     const c = call()
-    await vi.advanceTimersByTimeAsync(6 * 20_000 + 1)
+    await vi.advanceTimersByTimeAsync(5 * THOUGHT_EVERY_MS + 1)
     await c.finished
     expect(c.state.error).toBeNull()
     expect(asked).toEqual([GLM])
     expect(c.events).toContainEqual({ kind: 'content', text: 'done' })
+  })
+
+  it('a provider that talks and never answers is cut at the ceiling, and parked', async () => {
+    // Turn 6b3f6cad's likely shape: the bot, which hangs up after 90 s of
+    // silence, stayed on the line for zai's whole 120 s.
+    script({ [GLM]: [talking(Infinity)], [LITE]: [() => text('lite')] })
+    const c = call()
+    await vi.advanceTimersByTimeAsync(PROVIDER_CEILING_MS - 1_000)
+    expect(c.state.done, 'cut before the ceiling').toBe(false)
+    await vi.advanceTimersByTimeAsync(1_001)
+    await c.finished
+    expect(asked).toEqual([GLM, LITE])
+    expect(answeredBy(c.events)).toBe('zai-lite')
+    expect(breakerSnapshot().map(b => b.id)).toEqual(['zai'])
+    const skip = warn.mock.calls
+      .map(c => String(c[0]))
+      .find(l => l.includes('provider skipped: zai:'))
+    expect(skip).toContain(`${PROVIDER_CEILING_MS / 1000}`)
   })
 })
 
