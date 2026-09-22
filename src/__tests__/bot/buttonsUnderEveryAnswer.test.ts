@@ -94,6 +94,11 @@ describe('the pay row and the markers', () => {
     expect(
       payRow('За 30 дней 10000 ⭐, вернётся 2 571 токен https://t.me/$c3')?.[0]
     ).toMatchObject({ text: 'Оплатить 10000 ⭐' })
+    // A year right before the price is not read as its first group: without
+    // the digit lookbehind this read "026 250".
+    expect(
+      payRow('Счёт за сентябрь 2026 250 ⭐ https://t.me/$c4')?.[0]
+    ).toMatchObject({ text: 'Оплатить 250 ⭐' })
     expect(payRow('зайди на https://t.me/neuro_blogger_bot')).toBeNull()
     const kb = buttonsForAnswer(
       'Готово, вот счёт 65 ⭐ https://t.me/$abc [[Пополнить|act:topup]]',

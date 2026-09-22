@@ -403,6 +403,12 @@ describe('the tool in the registry', () => {
     expect(kit).not.toContain('pricing')
   }, 60_000)
 
+  it('the token invoice sends a club request to club_invoice, not to itself', async () => {
+    const { TOOLS_BY_NAME } = await import('./src/agent/tools')
+    const d = TOOLS_BY_NAME.get('tokens_invoice')!.description
+    expect(d).toContain('club_invoice')
+  }, 60_000)
+
   it('is outward: a turn that read the web cannot hand out a payment link', () => {
     expect(isOutwardTool('club_invoice')).toBe(true)
   })
