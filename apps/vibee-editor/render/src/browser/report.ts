@@ -85,6 +85,21 @@ function sinceStart(iso: string, start: number): string {
   return `+${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
+/** Russian plural form for n: one (1, 21), few (2-4, 22-24), many (5-20, 25). Pure. */
+export function plural(
+  n: number,
+  one: string,
+  few: string,
+  many: string
+): string {
+  const a = Math.abs(n) % 100
+  const b = a % 10
+  if (a > 10 && a < 20) return many
+  if (b === 1) return one
+  if (b >= 2 && b <= 4) return few
+  return many
+}
+
 function duration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000))
   if (s < 60) return `${s} с` // cyrillic-ok
@@ -143,7 +158,9 @@ export function workReport(input: ReportInput): string {
     out.push(`${i + 1}. ${sinceStart(l.at, first)} ${l.text}${count}`)
   })
   if (lines.length > REPORT_MAX_STEPS)
-    out.push(`… и ещё ${lines.length - REPORT_MAX_STEPS} шагов`) // cyrillic-ok
+    out.push(
+      `… и ещё ${lines.length - REPORT_MAX_STEPS} ${plural(lines.length - REPORT_MAX_STEPS, 'шаг', 'шага', 'шагов')}` // cyrillic-ok
+    )
   if (seen.length) {
     out.push('')
     out.push('👁 Наблюдения — что агент увидел на экране своими «глазами»:') // cyrillic-ok
@@ -190,7 +207,8 @@ export function taskText(content: unknown): string {
 /** The caption under the film. Pure. */
 export function filmCaption(frames: number): string {
   return (
-    `🎞 Запись работы агента: ${frames} кадров, по одному после каждого шага. ` + // cyrillic-ok
+    `🎞 Запись работы агента: ${frames} ${plural(frames, 'кадр', 'кадра', 'кадров')} — ` + // cyrillic-ok
+    'снимок всего экрана после каждого действия и каждого взгляда агента. ' + // cyrillic-ok
     'Как покадровая съёмка в лаборатории: быстрый процесс, разложенный на мгновения.'
   ) // cyrillic-ok
     .slice(0, CAPTION_MAX_CHARS)

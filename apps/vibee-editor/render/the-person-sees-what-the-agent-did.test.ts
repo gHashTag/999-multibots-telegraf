@@ -15,6 +15,7 @@ import {
   stepInWords,
   taskText,
   filmCaption,
+  plural,
   REPORT_MAX_CHARS,
 } from './src/browser/report'
 import {
@@ -118,7 +119,15 @@ describe('the lab-notebook report', () => {
     expect(taskText(undefined)).toBe('')
   })
 
+  it('counts in Russian correctly', () => {
+    const f = (n: number) => plural(n, 'a', 'b', 'c')
+    expect([1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 101, 111].map(f).join('')).toBe(
+      'abbcccc' + 'abcac'
+    )
+  })
+
   it('captions the film within the caption limit', () => {
+    expect(filmCaption(3)).toMatch(/3 кадра /) // cyrillic-ok: asserting caption text
     expect(filmCaption(7)).toContain('7')
     expect(filmCaption(7).length).toBeLessThanOrEqual(1000)
   })
