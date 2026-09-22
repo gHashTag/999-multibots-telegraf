@@ -49,6 +49,12 @@ import {
 import { withMediaParts, mediaKindsPresent } from './media-parts'
 import { inlineUnperceivedMedia } from './media-inline'
 import { createLinkGate } from './asset-links'
+import {
+  clientSurfaceDenial,
+  createContactGuard,
+  isClientFacing,
+  ownPhones,
+} from './client-facing'
 import { TEXT_LIKE_EXTENSIONS } from './media-library'
 import {
   ARCHIVE_EXTENSIONS,
@@ -1938,6 +1944,16 @@ export async function* runAgent(
 
   const dmContext = dmHistory + clientBrief + clientContext + personContext
 
+  /*
+   * A CLIENT'S CHAT SEES ONLY ITSELF (client-facing.ts, 21.09.2026).
+   *
+   * On a surface whose words go to a client in the owner's name, the tools
+   * that open other people's chats, contact cards, the CRM archive or the
+   * account holder's browser are neither listed nor run -- whoever's session
+   * `ctx.telegramId` resolves to. The caller's own denials keep their reasons.
+   */
+  const denial = clientSurfaceDenial(opts?.surface, opts, TOOLS_BY_NAME.keys())
+
   // Decided once per turn: a seller is anyone with a connected account.
   const seller = await (async () => {
     try {
@@ -2041,6 +2057,65 @@ export async function* runAgent(
   const links = createLinkGate(messages.map(m => m.content))
 
   /*
+   * NO CONTACT LEAVES FOR A CLIENT THAT THIS CHAT HAS NOT ALREADY SEEN
+   * (client-facing.ts). Seen means the conversation itself, the owner's
+   * transcript with this person and the person's own open card -- never a
+   * tool result, and never the owner's notes about them, which are his, not
+   * the chat's. The owner's and the client's own numbers are theirs to hear.
+   * A step's text is held until the step ends so a number split across two
+   * chunks is still one number; nobody reads a client's answer mid-stream.
+   */
+  const contacts = isClientFacing(opts?.surface)
+    ? await (async () => {
+        const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
+        return createContactGuard({
+          seen: [
+            systemPrompt(opts?.surface, opts?.toolsOnly === true),
+            dmHistory,
+            personContext,
+            ...messages.slice(1).map(m => m.content),
+          ],
+          own: await ownPhones(ctx.pool as never, [
+            String(OWNER_TELEGRAM_ID ?? ''),
+            String(ctx.telegramId ?? ''),
+          ]),
+        })
+      })()
+    : null
+  let heldForClient = ''
+  let withheldSeen = 0
+  const noteWithheld = async () => {
+    const kinds = contacts?.withheld() ?? []
+    if (kinds.length === withheldSeen) return
+    withheldSeen = kinds.length
+    // Kinds and ids only: the value is the very thing that must not spread.
+    console.error(
+      '[agent] a contact of somebody else was withheld from a client',
+      JSON.stringify({
+        turn: turnId,
+        telegram_id: ctx.telegramId,
+        surface: opts?.surface ?? 'unknown',
+        kinds: [...new Set(kinds)],
+      })
+    )
+    if (!ctx.pool) return
+    try {
+      const { OWNER_TELEGRAM_ID } = await import('./telegram-tools')
+      const { record } = await import('../hive/journal')
+      await record(ctx.pool as never, {
+        kind: 'failure',
+        who: String(OWNER_TELEGRAM_ID ?? '') || null,
+        what:
+          'чужой контакт не отправлен клиенту, ответьте лично: ' +
+          `${ctx.telegramId} (${[...new Set(kinds)].join(', ')})`,
+        severity: 'attention',
+      })
+    } catch {
+      // The notice is observation; the client already got the honest line.
+    }
+  }
+
+  /*
    * A composed address is a model defect, and it is invisible unless the
    * address itself is kept: the 20.09 one was only ever diagnosed because the
    * client pasted it back. Logged as an error, once per new address.
@@ -2114,7 +2189,7 @@ export async function* runAgent(
     try {
       for await (const ev of streamModel(messages, {
         toolsOnly: opts?.toolsOnly,
-        denyTools: opts?.denyTools,
+        denyTools: denial.denyTools,
         signal: opts?.signal,
         prefer,
         exclude: excluded,
@@ -2125,7 +2200,8 @@ export async function* runAgent(
           yield { тип: 'размышление', текст: ev.text }
         else if (ev.kind === 'content') {
           const safe = links.push(ev.text)
-          if (safe) {
+          if (safe && contacts) heldForClient += safe
+          else if (safe) {
             said += safe.trim().length
             yield { тип: 'текст', текст: safe }
           }
@@ -2145,12 +2221,15 @@ export async function* runAgent(
        * at the end of the turn keeps a held tail from being delayed behind a
        * tool call that may take minutes.
        */
-      const tail = links.flush()
+      const flushed = links.flush()
+      const tail = contacts ? contacts.check(heldForClient + flushed) : flushed
+      heldForClient = ''
       if (tail) {
         said += tail.trim().length
         yield { тип: 'текст', текст: tail }
       }
       noteFabricated()
+      await noteWithheld()
     } catch (e) {
       const why = String(e)
       /*
@@ -2245,7 +2324,7 @@ export async function* runAgent(
       } else {
         // Unknown, refused on this turn, or run: dispatchToolCall decides.
         // cyrillic-ok-next-line
-        значение = yield* dispatchToolCall(call, ctx, opts, t0)
+        значение = yield* dispatchToolCall(call, ctx, denial, t0)
       }
       const мс = Date.now() - t0 // cyrillic-ok: pre-existing field name
       toolMsTotal += мс
