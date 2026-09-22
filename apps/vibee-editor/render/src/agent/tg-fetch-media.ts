@@ -80,6 +80,7 @@ import {
 } from './media-extract'
 import { defangMarkers } from './media-parts'
 import { s3PutBytes } from '../lib/s3-put'
+import { shelfLinkFor } from '../lib/shelf-access'
 
 /** Telegram's own album ceiling: one call can take one whole album. */
 export const FETCH_MAX_FILES = 10
@@ -626,7 +627,11 @@ export async function fetchSentMedia(
   return {
     chat,
     lead,
-    files,
+    // Signed where the key is walkable (shelf-access.ts): the owner opens a
+    // document from this answer, and an old key is not public on its own.
+    files: files.map(f =>
+      typeof f.url === 'string' ? { ...f, url: shelfLinkFor(f.url) } : f
+    ),
     ...(leftOut.length
       ? {
           left_out: leftOut,

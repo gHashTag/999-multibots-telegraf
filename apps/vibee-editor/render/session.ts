@@ -483,9 +483,19 @@ export interface GameClaims {
  * environment value to configure or rotate.
  */
 function gameSigningKey(): Buffer {
+  return derivedSigningKey('tri-game-token-v1')
+}
+
+/**
+ * A key of its own for one kind of signature: HMAC of the session key under
+ * `label`. A signature made with it fails every other kind's check, and there
+ * is still only one secret to configure. Throws when the session key is
+ * missing, like `signingKey`.
+ */
+export function derivedSigningKey(label: string): Buffer {
   return crypto
     .createHmac('sha256', signingKey())
-    .update('tri-game-token-v1', 'utf8')
+    .update(label, 'utf8')
     .digest()
 }
 

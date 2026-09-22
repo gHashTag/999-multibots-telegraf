@@ -15,9 +15,15 @@
  *
  * Only OUR shelf: a marker is text a person typed, and a row is a promise that
  * the file is ours to describe. Anything else is skipped, not stored.
+ *
+ * Nor a document under a walkable key (shelf-access.ts, rule 3): the library
+ * hands its rows back with a signed link (`crm_lead_media`), so storing a
+ * guessed `assets/<ms>-file-<id>.pdf` from a typed marker would sign another
+ * person's document. The app's own uploads carry `assetKeyFor`'s random part.
  */
 
 import { parseMarkers, shelfObject } from './media-parts'
+import { isPublicShelfKey } from '../lib/shelf-access'
 import {
   rememberMedia,
   transcribeAndMirror,
@@ -48,6 +54,7 @@ export async function rememberMiniAppFiles(
     if (stored >= MAX_FILES) break
     const found = shelfObject(ref.url)
     if (!found || seen.has(found.url)) continue
+    if (!isPublicShelfKey(found.key)) continue
     seen.add(found.url)
     const row: MediaRow = {
       lead: owner,

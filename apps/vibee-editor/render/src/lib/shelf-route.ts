@@ -161,6 +161,8 @@ const IMMUTABLE = 'public, max-age=31536000'
  * decision this code makes, and a decision can change with a deploy.
  */
 const DECIDED = 'public, max-age=3600'
+/** A file served on a credential or a signature: nobody else's cache. */
+const PRIVATE = 'private, no-store'
 
 /** The lower-case extension of the key's last segment, without the dot. */
 export function shelfExtension(key: string): string {
@@ -363,7 +365,21 @@ function answerJson(res: ServerResponse, status: number, body: object): void {
 export async function serveShelfRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  deps: { store: ShelfStore; video?: ShelfVideo }
+  deps: {
+    store: ShelfStore
+    video?: ShelfVideo
+    /**
+     * Who may read this key -- `shelfReadAccess` in shelf-access.ts, with the
+     * request's server key. Required, so no caller can forget the gate; asked
+     * BEFORE the bucket is, so a refusal says nothing about whether the key
+     * exists.
+     */
+    access: (
+      key: string,
+      query: URLSearchParams,
+      req: IncomingMessage
+    ) => 'public' | 'granted' | 'refused'
+  }
 ): Promise<void> {
   const raw = req.url ?? ''
   const q = raw.indexOf('?')
@@ -382,6 +398,14 @@ export async function serveShelfRequest(
   }
   if (!key || key.includes('\0')) {
     answerJson(res, 400, { error: 'bad key' })
+    return
+  }
+
+  const access = deps.access(key, query, req)
+  if (access === 'refused') {
+    answerJson(res, 403, {
+      error: 'This file opens only from a link the service handed out',
+    })
     return
   }
 
@@ -413,7 +437,14 @@ export async function serveShelfRequest(
     await sendBody(req, res, {
       size: meta.size,
       type: shelfContentType(key),
-      cacheControl: video && !original ? DECIDED : IMMUTABLE,
+      // A file that needed a credential must not sit in a shared cache,
+      // where the next asker would get it without one.
+      cacheControl:
+        access === 'granted'
+          ? PRIVATE
+          : video && !original
+            ? DECIDED
+            : IMMUTABLE,
       etag: meta.etag,
       lastModified: meta.lastModified,
       open: r => deps.store.open(key, r),
