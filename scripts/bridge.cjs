@@ -36,6 +36,7 @@
 // asked on the cloud (scripts/lib/telegram-api.cjs).
 const {
   assertBotApiListKnown,
+  botApiIsLocalFor,
   telegramApiFor,
 } = require('./lib/telegram-api.cjs')
 
@@ -95,8 +96,31 @@ function tokens() {
   return out
 }
 
-/** What one bot looks like from Telegram's side. Read-only, three calls. */
+/**
+ * A bot on our own Bot API server, seen from a laptop. Its server listens on
+ * the Railway private network only, so from outside the check cannot reach it
+ * -- and must NOT fall back to the cloud: on 2026-09-22 a stale copy of this
+ * script, which asked api.telegram.org for every token, logged a freshly moved
+ * bot back into the cloud three minutes after its logOut. So an unreachable
+ * local bot is reported as what it is, by id, and counts as nobody's task.
+ */
 async function checkBot(token) {
+  if (!botApiIsLocalFor(token)) return checkBotAt(token)
+  const id = String(token).split(':')[0]
+  try {
+    return { ...(await checkBotAt(token)), local: true }
+  } catch (e) {
+    return {
+      name: `id ${id}`,
+      alive: null,
+      local: true,
+      why: e && e.cause && e.cause.code ? e.cause.code : 'unreachable',
+    }
+  }
+}
+
+/** What one bot looks like from Telegram's side. Read-only, three calls. */
+async function checkBotAt(token) {
   const tg = async (method, body) => {
     const r = await ask(`${telegramApiFor(token)}/${method}`, {
       method: 'POST',
@@ -280,9 +304,18 @@ async function main() {
     for (const b of bots.sort((x, y) =>
       String(x.name).localeCompare(String(y.name))
     )) {
+      if (b.alive === null) {
+        console.log(
+          `  ${dim('·')} ${String(b.name).padEnd(28)} ${dim(
+            `on our Bot API server; not reachable from here (${b.why}) -- ` +
+              'its health is the "[bot-api]" lines of the bot log'
+          )}`
+        )
+        continue
+      }
       if (!b.alive) {
         needsAPerson++
-        console.log(`  ${red('✗')} ${b.name}`)
+        console.log(`  ${red('✗')} ${b.name ?? b.error ?? 'a bot'}`)
         continue
       }
       const door = b.opensApp
@@ -293,7 +326,7 @@ async function main() {
         `  ${b.opensApp ? green('✓') : red('✗')} ${String(b.name).padEnd(28)}` +
           ` ${door}  "${b.buttonText}"  commands: ${
             b.commands === null ? '?' : b.commands || red('0')
-          }`
+          }${b.local ? dim('  (our Bot API server)') : ''}`
       )
     }
   }
@@ -388,7 +421,7 @@ async function main() {
   process.exitCode = needsAPerson ? 1 : 0
 }
 
-module.exports = { profileGaps }
+module.exports = { profileGaps, checkBot }
 
 if (require.main === module) {
   main().catch(e => {
