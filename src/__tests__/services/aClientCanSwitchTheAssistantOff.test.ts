@@ -433,3 +433,91 @@ describe('the owner s settings and a database that does not answer', () => {
     expect(db.rows.get(`${OWNER}:${CUSTOMER}`)?.active).toBe(true)
   })
 })
+
+/*
+ * A READ OF THE LIST THAT WAS ISSUED BEFORE A CHANGE MAY NOT UNDO IT.
+ *
+ * Telegraf runs the updates of one batch concurrently, so a client's second
+ * message can be reading the list while their first message ("switch the bot
+ * off") is still writing the row. The read's snapshot has no row; if the
+ * memory followed it, the mark the stop just set would be gone and the reply
+ * being written would reach the person who just said stop.
+ *
+ * `held` is the database double with one SELECT taken at its issue (the
+ * snapshot) and delivered only when the test lets it go.
+ */
+function heldList(db: ReturnType<typeof optOutDouble>) {
+  let hold = false
+  let issued!: () => void
+  let letGo!: () => void
+  const wasIssued = new Promise<void>(r => (issued = r))
+  const gate = new Promise<void>(r => (letGo = r))
+  const held = {
+    async query(sql: string, params: unknown[] = []) {
+      const result = await db.query(sql, params)
+      if (hold && /^\s*SELECT client_id/.test(sql)) {
+        hold = false
+        issued()
+        await gate
+      }
+      return result
+    },
+  }
+  return {
+    held,
+    holdNextList: () => (hold = true),
+    wasIssued,
+    letGo: () => letGo(),
+  }
+}
+
+describe('a read issued before a change does not undo it', () => {
+  it('a stop stored while an older read is in flight stays marked', async () => {
+    const db = optOutDouble()
+    const h = heldList(db)
+    const p = await boot(h.held as never)
+    await p.store.optedOutClients(OWNER) // the table exists
+
+    h.holdNextList()
+    const olderRead = p.store.optedOutClients(OWNER)
+    await h.wasIssued
+    const stop = await p.store.recordClientStop(OWNER, CUSTOMER)
+    expect(stop).toEqual({ fresh: true, stored: true })
+    expect(p.store.stoppedHere(OWNER, CUSTOMER)).toBe(true)
+
+    h.letGo()
+    const seen = await olderRead
+    expect(p.store.stoppedHere(OWNER, CUSTOMER)).toBe(true)
+    // What the read hands back is no older than what this process knows.
+    expect(seen?.has(String(CUSTOMER))).toBe(true)
+  })
+
+  it('a resume made while an older read is in flight is not undone', async () => {
+    const db = optOutDouble()
+    const h = heldList(db)
+    const p = await boot(h.held as never)
+    await p.store.recordClientStop(OWNER, CUSTOMER)
+
+    h.holdNextList()
+    const olderRead = p.store.optedOutClients(OWNER)
+    await h.wasIssued
+    expect(await p.store.resumeAssistant(OWNER, CUSTOMER)).toBe(true)
+
+    h.letGo()
+    const seen = await olderRead
+    expect(p.store.stoppedHere(OWNER, CUSTOMER)).toBe(false)
+    expect(seen?.has(String(CUSTOMER))).toBe(false)
+  })
+
+  it('control: a read issued after a change still follows the database', async () => {
+    const db = optOutDouble()
+    const p = await boot(db)
+    await p.store.recordClientStop(OWNER, CUSTOMER)
+    expect(p.store.stoppedHere(OWNER, CUSTOMER)).toBe(true)
+
+    // Turned back on elsewhere (the render shares the row).
+    db.rows.get(`${OWNER}:${CUSTOMER}`)!.active = false
+    await p.store.optedOutClients(OWNER)
+    expect(p.store.stoppedHere(OWNER, CUSTOMER)).toBe(false)
+  })
+})
