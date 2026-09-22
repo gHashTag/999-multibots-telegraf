@@ -170,3 +170,17 @@ describe('who is driving', () => {
     expect(wheelAfterTouch()).not.toBe(wheelAfterHandBack())
   })
 })
+
+/*
+ * The server holds the wheel too: every touch would otherwise post, so the
+ * lease is renewed at most every WHEEL_RENEW_MS.
+ */
+describe('shouldRenewWheel', () => {
+  it('the first touch sends, the next ones only after the renew interval', async () => {
+    const { shouldRenewWheel, WHEEL_RENEW_MS } = await import('./browserWatch')
+    expect(shouldRenewWheel(null, 1000)).toBe(true)
+    expect(shouldRenewWheel(1000, 1000 + WHEEL_RENEW_MS - 1)).toBe(false)
+    expect(shouldRenewWheel(1000, 1000 + WHEEL_RENEW_MS)).toBe(true)
+    expect(WHEEL_RENEW_MS).toBeLessThan(10 * 60 * 1000)
+  })
+})

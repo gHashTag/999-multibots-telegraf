@@ -38,7 +38,12 @@ import {
   newApprovalToken,
   APPROVAL_TTL_MS,
 } from './approvals'
-import { readSession, markAllowed, type Queryable } from './sessions'
+import {
+  readSession,
+  markAllowed,
+  personHasTheWheel,
+  type Queryable,
+} from './sessions'
 import { agentMayOpen, mayAct } from './guard'
 import { desktopShot } from './screen'
 import { recordStep, stepOf } from './journal'
@@ -594,7 +599,41 @@ function journaled(tool: AgentTool): AgentTool {
   }
 }
 
-export const BROWSER_TOOLS: AgentTool[] = TOOLS_UNJOURNALED.map(journaled)
+/*
+ * THE PERSON HOLDS THE WHEEL: tools that act on the page stand still.
+ * Reading (status, read, screenshot) and asking permission go on -- the agent
+ * may watch and ask, not click or type under the person's hands
+ * (sessions.ts personHasTheWheel). The refusal is journaled like any other.
+ */
+export const ACTING_TOOLS: ReadonlySet<string> = new Set([
+  'browser_open',
+  'browser_click',
+  'browser_type',
+  'browser_evaluate',
+  'browser_close_tab',
+])
+
+export const WHEEL_TAKEN =
+  'the person has taken the wheel and is driving the browser themselves. Do not act in it now: ' +
+  'tell them what you were about to do and wait until they hand the wheel back ("Hand back" in the app).'
+
+function respectsTheWheel(tool: AgentTool): AgentTool {
+  if (!ACTING_TOOLS.has(tool.name)) return tool
+  return {
+    ...tool,
+    async handler(args, ctx) {
+      const session = await readSession(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+      if (personHasTheWheel(session, Date.now())) throw new Error(WHEEL_TAKEN)
+      return tool.handler(args, ctx)
+    },
+  }
+}
+
+export const BROWSER_TOOLS: AgentTool[] =
+  TOOLS_UNJOURNALED.map(respectsTheWheel).map(journaled)
 
 /**
  * The message with the two buttons.
