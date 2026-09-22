@@ -709,6 +709,25 @@ describe('tokens already given by hand', () => {
     }
   })
 
+  it('"given by hand" with no hand grant on file is refused, nothing written', async () => {
+    // Review of #2845: the row would carry 0 tokens and every repeat reads
+    // that 0, so a paying member would end with nothing and no way back.
+    db.ledger.length = 0
+    db.balances.clear()
+    const out = await record({
+      telegram_id: MEMBER,
+      tokens_already_given: true,
+    })
+    expect(out).toMatchObject({ ok: false })
+    expect(out.error).toMatch(/tokens_already_given=true/)
+    expect(writes()).toEqual([])
+    expect(db.periods).toHaveLength(0)
+    // ...and the plain call after it is a normal month.
+    const plain = await record({ telegram_id: MEMBER })
+    expect(plain).toMatchObject({ ok: true, tokens: MONTH, credited: true })
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+  })
+
   it('an answer that is not true or false is refused, nothing written', async () => {
     const out = await record({
       telegram_id: MEMBER,
