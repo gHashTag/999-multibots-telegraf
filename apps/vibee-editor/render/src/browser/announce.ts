@@ -24,6 +24,25 @@ export type Actor = 'person' | 'agent'
 /** Where the person lands. The tab watches, and switches, from there. */
 export const BROWSER_TAB_URL = 'https://app.t27.ai/browser'
 
+/*
+ * A `web_app` BUTTON, NEVER A `url` ONE.
+ *
+ * Owner, 2026-09-22: "the links open in another browser, I am not signed in
+ * there, so I cannot see what the agent does". A `url` button leaves
+ * Telegram for the phone's default browser, which has no session of ours.
+ * A `web_app` button opens the same page INSIDE Telegram as the mini app,
+ * carrying the person's signed initData -- which the render verifies against
+ * every farm bot's token (auth.ts botTokens), so whichever bot sent this,
+ * the person arrives signed in. Only valid in a private chat, which is the
+ * only place these messages go.
+ */
+export function openBrowserButton(
+  text: string,
+  url = BROWSER_TAB_URL
+): { text: string; web_app: { url: string } } {
+  return { text, web_app: { url } }
+}
+
 export interface Announcement {
   text: string
   replyMarkup: unknown
@@ -36,7 +55,7 @@ export function browserStartedMessage(url = BROWSER_TAB_URL): Announcement {
       'Откройте, чтобы смотреть за ним — и в любой момент взять управление.', // cyrillic-ok: user-facing
     replyMarkup: {
       inline_keyboard: [
-        [{ text: '👁 Смотреть за агентом', url }], // cyrillic-ok: button label
+        [openBrowserButton('👁 Смотреть за агентом', url)], // cyrillic-ok: button label
       ],
     },
   }
