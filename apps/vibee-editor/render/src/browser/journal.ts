@@ -21,6 +21,17 @@ import type { Queryable } from './sessions'
 
 export const KEEP_STEPS = 200
 export const READ_STEPS = 50
+/*
+ * PROBES ARE NOT THE AGENT'S WORK.
+ *
+ * On 2026-09-22 every row of the owner's journal was a `tri eyes` check --
+ * "checked tabs, looked" every hour of the night -- and a person opening the
+ * panel would have read steps nobody asked for, while real ones were pushed
+ * toward the 200-row limit. A caller marks a probe (MCP _meta.probe); probes
+ * are kept apart (the last KEEP_PROBES), hidden from the person's view, and
+ * shown to `tri journal`, where their timings are the point.
+ */
+export const KEEP_PROBES = 20
 
 export interface Step {
   tool: string
@@ -131,17 +142,28 @@ export function resetJournalCacheForTests(): void {
 export async function recordStep(
   q: Queryable,
   telegramId: string,
-  step: Step
+  step: Step,
+  opts: { probe?: boolean } = {}
 ): Promise<void> {
   try {
     await ensureJournal(q)
+    const detail = opts.probe ? { ...step.detail, probe: true } : step.detail
     await q.query(
       `INSERT INTO browser_journal (telegram_id, tool, ok, ms, detail) VALUES ($1, $2, $3, $4, $5)`,
-      [telegramId, step.tool, step.ok, step.ms, JSON.stringify(step.detail)]
+      [telegramId, step.tool, step.ok, step.ms, JSON.stringify(detail)]
+    )
+    // Real steps and probes are trimmed apart: probes never push out work.
+    await q.query(
+      `DELETE FROM browser_journal WHERE telegram_id = $1 AND (detail->>'probe') IS NULL AND id NOT IN (
+         SELECT id FROM browser_journal WHERE telegram_id = $1 AND (detail->>'probe') IS NULL
+         ORDER BY at DESC, id DESC LIMIT ${KEEP_STEPS}
+       )`,
+      [telegramId]
     )
     await q.query(
-      `DELETE FROM browser_journal WHERE telegram_id = $1 AND id NOT IN (
-         SELECT id FROM browser_journal WHERE telegram_id = $1 ORDER BY at DESC, id DESC LIMIT ${KEEP_STEPS}
+      `DELETE FROM browser_journal WHERE telegram_id = $1 AND (detail->>'probe') IS NOT NULL AND id NOT IN (
+         SELECT id FROM browser_journal WHERE telegram_id = $1 AND (detail->>'probe') IS NOT NULL
+         ORDER BY at DESC, id DESC LIMIT ${KEEP_PROBES}
        )`,
       [telegramId]
     )
@@ -161,12 +183,14 @@ export interface JournalRow {
 export async function readJournal(
   q: Queryable,
   telegramId: string,
-  limit: number = READ_STEPS
+  limit: number = READ_STEPS,
+  opts: { probes?: boolean } = {}
 ): Promise<JournalRow[]> {
   await ensureJournal(q)
   const n = Math.max(1, Math.min(KEEP_STEPS, Math.floor(limit) || READ_STEPS))
+  const onlyWork = opts.probes ? '' : ` AND (detail->>'probe') IS NULL`
   const { rows } = await q.query(
-    `SELECT at, tool, ok, ms, detail FROM browser_journal WHERE telegram_id = $1 ORDER BY at DESC, id DESC LIMIT ${n}`,
+    `SELECT at, tool, ok, ms, detail FROM browser_journal WHERE telegram_id = $1${onlyWork} ORDER BY at DESC, id DESC LIMIT ${n}`,
     [telegramId]
   )
   return (rows as Array<Record<string, unknown>>).map(r => ({
