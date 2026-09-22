@@ -44,7 +44,8 @@ import {
   AskedChoice,
 } from '@/components/Browser/BrowserKeys'
 import { isBrowserPath } from '@/lib/keptBrowser'
-import { frameStateOf, shouldReread } from '@/lib/frameState'
+import { frameStateOf, shouldReread, touchReportOf } from '@/lib/frameState'
+import { reportClientError } from '@/lib/clientErrorBeacon'
 import {
   readBrowserJournal,
   journalLine,
@@ -168,6 +169,13 @@ export default function BrowserPage() {
         window.location.origin
       )
       if (shouldReread(state)) void act(readBrowserSession)
+      /* What a tap met inside the window, for the server log (skin.ts). */
+      const touch = touchReportOf(
+        e,
+        frame.current?.contentWindow,
+        window.location.origin
+      )
+      if (touch) reportClientError({ kind: 'browser-touch', message: touch })
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)

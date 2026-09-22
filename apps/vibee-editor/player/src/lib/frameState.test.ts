@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { frameStateOf, shouldReread, WINDOW_EVENT } from './frameState'
+import {
+  frameStateOf,
+  shouldReread,
+  WINDOW_EVENT,
+  touchReportOf,
+} from './frameState'
 
 const ORIGIN = 'https://app.t27.ai'
 const frame = {}
@@ -62,5 +67,71 @@ describe('frameStateOf', () => {
       'utf8'
     )
     expect(skin).toContain(`export const WINDOW_EVENT = '${WINDOW_EVENT}'`)
+  })
+})
+
+describe('a tap report from inside the window', () => {
+  const win = {}
+  const msg = (
+    data: unknown,
+    over: Partial<{ origin: string; source: unknown }> = {}
+  ) => ({
+    origin: 'https://app.t27.ai',
+    source: win,
+    data,
+    ...over,
+  })
+  it('turns the window s report into one log line', () => {
+    const line = touchReportOf(
+      msg({
+        source: 't27-browser',
+        report: 'touch',
+        pointer: 'touch',
+        at: 'textarea.overlay',
+        target: 'textarea.overlay',
+        overlay: 'none',
+        neko: {
+          hosting: false,
+          controlling: false,
+          locked: false,
+          implicit: true,
+          extra: 1,
+        },
+      }),
+      win,
+      'https://app.t27.ai'
+    )
+    expect(JSON.parse(line!)).toEqual({
+      pointer: 'touch',
+      at: 'textarea.overlay',
+      target: 'textarea.overlay',
+      overlay: 'none',
+      neko: {
+        hosting: false,
+        controlling: false,
+        locked: false,
+        implicit: true,
+      },
+    })
+  })
+  it('ignores another origin, another window and other messages', () => {
+    const data = { source: 't27-browser', report: 'touch' }
+    expect(
+      touchReportOf(
+        msg(data, { origin: 'https://evil' }),
+        win,
+        'https://app.t27.ai'
+      )
+    ).toBeNull()
+    expect(
+      touchReportOf(msg(data, { source: {} }), win, 'https://app.t27.ai')
+    ).toBeNull()
+    expect(
+      touchReportOf(
+        msg({ source: 't27-browser', state: 'live' }),
+        win,
+        'https://app.t27.ai'
+      )
+    ).toBeNull()
   })
 })
