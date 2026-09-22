@@ -1,12 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
   FALLBACK_BUTTON_IDS,
+  fallbackMessages,
   fallbackSystemPrompt,
+  replyInRussian,
 } from '@/navigation/helpers/agentFallback'
 import { isKnownAction } from '@/navigation/helpers/actionButtons'
 import { CAPABILITIES } from '@/services/capabilityPreflight'
+import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
+
+vi.mock('@/utils/logger', () => ({
+  logger: {
+    info: () => undefined,
+    warn: () => undefined,
+    debug: () => undefined,
+    error: () => undefined,
+  },
+}))
 
 /**
  * THE FALLBACK PROMPT TELLS THE TRUTH ABOUT MONEY -- ALL OF IT.
@@ -26,10 +39,15 @@ import { CAPABILITIES } from '@/services/capabilityPreflight'
  */
 const RU = fallbackSystemPrompt(true)
 const EN = fallbackSystemPrompt(false)
+// The Russian prompt for somebody the top-up chooser shows rubles to: every
+// guard below holds for it too.
+const RU_RUBLES = fallbackSystemPrompt(true, true)
 const BOTH = [
   ['ru', RU],
+  ['ru, rubles shown', RU_RUBLES],
   ['en', EN],
 ] as const
+const RUBLES = new RegExp('рубл|ruble|rouble', 'i')
 
 // Built from strings: the Cyrillic gate allows Cyrillic in literals only.
 // Up to three words may stand between the noun and the negation: review of
@@ -90,18 +108,78 @@ describe('the toolless fallback prompt', () => {
       expect(prompt).toMatch(new RegExp('звёзд|Stars', 'i'))
     })
 
-    it(`${lang}: names every way to pay the top-up button opens, not Stars alone`, () => {
-      // Review of #2844: the top-up chooser offers Stars, rubles and crypto
-      // (actionButtons.ts, pay_rub / pay_crypto). With "never invent anything
-      // not in this prompt", a Stars-only line made the fallback tell a person
-      // asking about rubles that only Stars work.
-      expect(prompt).toMatch(new RegExp('рубл|rubles', 'i'))
+    it(`${lang}: names crypto beside Stars, not Stars alone`, () => {
+      // Review of #2844: the top-up chooser offers Stars and crypto to
+      // everyone (PaymentScene). With "never invent anything not in this
+      // prompt", a Stars-only line made the fallback tell a person asking
+      // about another way to pay that only Stars work.
       expect(prompt).toMatch(new RegExp('крипт|crypto', 'i'))
     })
 
     it(`${lang}: forbids inventing services and says it has no tools`, () => {
       expect(prompt).toMatch(new RegExp('не выдумывай|never invent', 'i'))
       expect(prompt).toMatch(new RegExp('без инструментов|without tools', 'i'))
+    })
+  }
+
+  /*
+   * RUBLES ONLY WHERE THE CHOOSER DRAWS THEM. Review of #2847: the prompt
+   * said "Stars, rubles or crypto" in both languages, but PaymentScene shows
+   * the rubles key only when shouldShowRubles(ctx) is true -- a Russian
+   * speaker on a bot that takes rubles. So the English prompt promised every
+   * reader a door they would never see.
+   */
+  it('names rubles only when it is told the chooser shows them', () => {
+    expect(EN).not.toMatch(RUBLES)
+    expect(RU).not.toMatch(RUBLES)
+    expect(RU_RUBLES).toMatch(RUBLES)
+  })
+
+  /** A context shaped like the real one: the language lives in ctx.state. */
+  const person = (language: 'ru' | 'en', bot = 'neuro_blogger_bot') =>
+    ({
+      from: { id: 900000141, language_code: language },
+      state: { userLanguage: language },
+      botInfo: { username: bot },
+      scene: { current: undefined },
+    }) as never
+
+  // The prompt as the bot builds it: the same two helpers the call site in
+  // registerCommands.ts composes, for the people the review named.
+  const promptFor = (ctx: never, text: string) =>
+    fallbackMessages({
+      isRu: replyInRussian(text, isRussianFromState(ctx)),
+      text,
+      rubles: shouldShowRubles(ctx),
+    })[0].content
+
+  for (const [who, ctx, text, rubles] of [
+    ['an English speaker', person('en'), 'how do I pay?', false],
+    [
+      'a person kept as English who writes in Cyrillic',
+      person('en'),
+      'как оплатить?',
+      false,
+    ],
+    [
+      'a Russian speaker on the bot that takes no rubles',
+      person('ru', 'NeurostylistShtogrina_bot'),
+      'как оплатить?',
+      false,
+    ],
+    [
+      'a Russian speaker on a bot that takes rubles',
+      person('ru'),
+      'как оплатить?',
+      true,
+    ],
+  ] as const) {
+    it(`${who}: ${rubles ? 'names rubles' : 'names no rubles'}, as the chooser shows`, () => {
+      const prompt = promptFor(ctx, text)
+      if (rubles) expect(prompt).toMatch(RUBLES)
+      else expect(prompt).not.toMatch(RUBLES)
+      expect(prompt).toMatch(new RegExp('звёзд|Stars', 'i'))
+      expect(prompt).toMatch(new RegExp('крипт|crypto', 'i'))
     })
   }
 
@@ -154,6 +232,11 @@ describe('registerCommands.ts', () => {
 
   it('takes the fallback prompt from the builder, not from an inline literal', () => {
     expect(CODE).toContain('fallbackMessages(')
+    // ...and tells it what the top-up chooser will show this person.
+    const call = CODE.slice(CODE.indexOf('fallbackMessages({'))
+    expect(call.slice(0, call.indexOf('})'))).toMatch(
+      /rubles:\s*shouldShowRubles\(ctx\)/
+    )
     expect(CODE).not.toMatch(/role:\s*'system'/)
   })
 

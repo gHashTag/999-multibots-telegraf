@@ -1652,7 +1652,12 @@ If not, continue on your own and click the "I myself" button`
          * fallbackSystemPrompt), and "you have no tools" already covers it.
          */
         const reply = await chatWithAI(
-          fallbackMessages({ isRu: replyRu, text, agentError }),
+          fallbackMessages({
+            isRu: replyRu,
+            text,
+            agentError,
+            rubles: shouldShowRubles(ctx),
+          }),
           undefined,
           {
             telegramId: String(ctx.from?.id),
