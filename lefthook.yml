@@ -64,7 +64,8 @@ pre-commit:
     typecheck:
       glob: "*.{ts,tsx}"
       exclude: '^apps/'
-      run: npx tsc --noEmit --pretty false
+      # In the cloud first (scripts/cloud-check.sh); locally only if it is out of reach.
+      run: bash scripts/cloud-check.sh root-types -- npx tsc --noEmit --pretty false
       fail_text: "Ошибки типов. Правка не поедет в историю."
 
     # 5. Плеер живёт под apps/ и в проверку выше не попадает: у него свой
@@ -77,7 +78,7 @@ pre-commit:
     #    ReferenceError и три молча теряемых значения.
     player-types:
       glob: "apps/vibee-editor/player/**/*.{ts,tsx}"
-      run: node scripts/check-player-types.cjs
+      run: bash scripts/cloud-check.sh player-types -- node scripts/check-player-types.cjs
       fail_text: "Ошибок типов в плеере стало больше. Это находки, а не фон."
 
     # 6. No Cyrillic in code comments. The bot is bilingual, so Cyrillic inside
@@ -209,7 +210,7 @@ pre-push:
     # The script works out its own range instead; see scripts/test-guard.cjs.
     related-tests:
       skip_empty: false
-      run: node scripts/test-guard.cjs
+      run: bash scripts/cloud-check.sh guard -- node scripts/test-guard.cjs
       fail_text: "Упали тесты, которых не было в базе."
 
     # The production bundle must get past its own imports. On 2026-09-22 a
@@ -220,7 +221,7 @@ pre-push:
     # and runs it with an empty environment, ~3 s. Only when bot source moved.
     bundle-boots:
       glob: "src/**/*.{ts,tsx}"
-      run: npx vitest run src/__tests__/bot/bundleBootsPastImports.test.ts
+      run: bash scripts/cloud-check.sh boots -- npx vitest run src/__tests__/bot/bundleBootsPastImports.test.ts
       fail_text: "The bot bundle crashes while loading its modules -- it will not start in production."
 
     # Событие без подписчика — деньги уходят провайдерам, а результат никуда.
