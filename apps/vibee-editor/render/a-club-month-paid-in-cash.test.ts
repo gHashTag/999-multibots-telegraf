@@ -58,6 +58,7 @@ function renderDb() {
     star_tx_id: string
     paid_at: string
     until: string
+    created_at?: string
   }> = []
   const charges = new Set<string>()
   const balances = new Map<string, number>()
@@ -67,6 +68,7 @@ function renderDb() {
     kind: string
     reason: string
     ref: string | null
+    created_at?: string
   }> = []
   const journal: unknown[][] = []
   const statements: string[] = []
@@ -76,12 +78,46 @@ function renderDb() {
     if (/payments_v2/i.test(s)) throw new Error('the archive is never written')
     if (/^(CREATE|ALTER|BEGIN|COMMIT|ROLLBACK)/i.test(s)) return { rows: [] }
     if (
-      /^SELECT id FROM club_period WHERE star_tx_id = \$1 LIMIT 1$/i.test(s)
+      /^SELECT id, tokens_granted FROM club_period WHERE star_tx_id = \$1 LIMIT 1$/i.test(
+        s
+      )
     ) {
       return {
         rows: periods
           .filter(p => p.star_tx_id === params[0])
-          .map(p => ({ id: p.id })),
+          .map(p => ({ id: p.id, tokens_granted: p.tokens_granted })),
+      }
+    }
+    if (
+      /^SELECT MAX\(created_at\)::text AS at FROM club_period WHERE telegram_id = \$1 AND star_tx_id LIKE \$2$/i.test(
+        s
+      )
+    ) {
+      const prefix = String(params[1]).replace(/%$/, '')
+      const at = periods
+        .filter(
+          p => p.telegram_id === params[0] && p.star_tx_id.startsWith(prefix)
+        )
+        .map(p => p.created_at ?? '')
+        .sort()
+        .pop()
+      return { rows: [{ at: at || null }] }
+    }
+    if (
+      /^SELECT ref, delta, created_at::text AS at FROM token_ledger WHERE telegram_id = \$1 AND ref LIKE \$2 AND delta > 0 ORDER BY created_at$/i.test(
+        s
+      )
+    ) {
+      const prefix = String(params[1]).replace(/%$/, '')
+      return {
+        rows: ledger
+          .filter(
+            l =>
+              l.telegram_id === params[0] &&
+              (l.ref ?? '').startsWith(prefix) &&
+              l.delta > 0
+          )
+          .map(l => ({ ref: l.ref, delta: l.delta, at: l.created_at })),
       }
     }
     if (
@@ -127,6 +163,7 @@ function renderDb() {
         star_tx_id,
         paid_at,
         until,
+        created_at: new Date().toISOString(),
       })
       return { rows: [{ id: periods.length }] }
     }
@@ -173,6 +210,7 @@ function renderDb() {
         kind: String(params[3]),
         reason: String(params[4]),
         ref: params[5] == null ? null : String(params[5]),
+        created_at: new Date().toISOString(),
       })
       return { rows: [{ id: ledger.length }] }
     }
@@ -289,6 +327,7 @@ describe('the month goes where a Stars month goes', () => {
         kind: 'purchase',
         reason: CASH_MONTH_REASON,
         ref: `club:cash:${MEMBER}:${TODAY}`,
+        created_at: NOW.toISOString(),
       },
     ])
     expect(CASH_MONTH_REASON).toMatch(/наличн/) // cyrillic-ok: the reason under test
@@ -480,5 +519,210 @@ describe('only the owner or a keeper, only by a direct call', () => {
     while (!r.done) r = await gen.next()
     expect(r.value).toMatchObject({ отказано: true }) // cyrillic-ok: the envelope's field
     expect(db.statements).toEqual([])
+  })
+})
+
+/*
+ * TOKENS HANDED OUT BY HAND ARE NOT HANDED OUT AGAIN (2026-09-22). Before the
+ * tool existed, a cash member's month of tokens could only be a plain ledger
+ * grant (ref `cash-club-<day>-<id>`), with no club month behind it. Recording
+ * that month must not credit the same tokens a second time.
+ */
+describe('tokens already given by hand', () => {
+  const HAND_REF = `cash-club-${TODAY}-${MEMBER}`
+  const HAND_AT = '2026-09-22T05:26:00.000Z'
+  beforeEach(() => {
+    db.ledger.push({
+      telegram_id: MEMBER,
+      delta: MONTH,
+      kind: 'grant',
+      reason: 'club month, cash, by hand',
+      ref: HAND_REF,
+      created_at: HAND_AT,
+    })
+    db.balances.set(MEMBER, MONTH)
+  })
+  const writes = () =>
+    db.statements.filter(s => /^(INSERT|UPDATE|DELETE)/i.test(s))
+
+  it('stop the call with the question, and nothing is written', async () => {
+    const out = await record({ telegram_id: MEMBER })
+    expect(out).toMatchObject({
+      ok: false,
+      tokens_given_by_hand: [{ ref: HAND_REF, tokens: MONTH, at: HAND_AT }],
+    })
+    expect(out.error).toMatch(/tokens_already_given=true/)
+    expect(writes()).toEqual([])
+    expect(db.periods).toHaveLength(0)
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+  })
+
+  it('"they were this month\'s": the month is recorded, paid via cash, and no token is credited', async () => {
+    const out = await record({
+      telegram_id: MEMBER,
+      tokens_already_given: true,
+    })
+    expect(out).toMatchObject({
+      ok: true,
+      recorded: 'now',
+      tokens: 0,
+      credited: false,
+      tokens_by_hand: true,
+    })
+    expect(db.periods).toEqual([
+      expect.objectContaining({ tokens_granted: 0, stars: 0 }),
+    ])
+    expect(db.charges.size).toBe(0)
+    expect(db.ledger).toHaveLength(1)
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+    // Not an alarm: nothing was lost, the tokens came earlier.
+    expect(db.journal.some(p => p[0] === 'payment-lost')).toBe(false)
+    expect(await statusOf(MEMBER)).toMatchObject({
+      active: true,
+      paid: true,
+      paid_via: 'cash',
+      until: '2026-10-22T00:00:00.000Z',
+    })
+  })
+
+  it('...and a repeat without the answer neither asks again nor credits', async () => {
+    await record({ telegram_id: MEMBER, tokens_already_given: true })
+    const again = await record({ telegram_id: MEMBER })
+    expect(again).toMatchObject({
+      ok: true,
+      recorded: 'already',
+      tokens: 0,
+      credited: false,
+    })
+    expect(db.charges.size).toBe(0)
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+  })
+
+  it('...a repeat that says "false" does not credit either: the recorded month decides', async () => {
+    await record({ telegram_id: MEMBER, tokens_already_given: true })
+    const again = await record({
+      telegram_id: MEMBER,
+      tokens_already_given: false,
+    })
+    expect(again).toMatchObject({ recorded: 'already', credited: false })
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+  })
+
+  it('...and the next month is a normal month: no question, the tokens come', async () => {
+    await record({ telegram_id: MEMBER, tokens_already_given: true })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-22T09:00:00Z'))
+    try {
+      const out = (await cashTool().handler(
+        { telegram_id: MEMBER, start: '2026-10-22' },
+        ctxOf(KEEPER)
+      )) as Record<string, any>
+      expect(out).toMatchObject({ ok: true, recorded: 'now', credited: true })
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(db.balances.get(MEMBER)).toBe(2 * MONTH)
+  })
+
+  it('"they were something else": the month is credited as usual', async () => {
+    const out = await record({
+      telegram_id: MEMBER,
+      tokens_already_given: false,
+    })
+    expect(out).toMatchObject({ ok: true, tokens: MONTH, credited: true })
+    expect(db.balances.get(MEMBER)).toBe(2 * MONTH)
+  })
+
+  it('a month with tokens whose credit failed is not credited once the owner says they came by hand', async () => {
+    db.ledger.length = 0
+    db.balances.clear()
+    const broken = async () => ({ credited: false, reason: 'wallet down' })
+    await recordCashClubMonth(
+      db,
+      { telegramId: MEMBER, by: KEEPER, tokensGivenAlready: false },
+      broken,
+      NOW
+    )
+    const credits: unknown[] = []
+    const out = await recordCashClubMonth(
+      db,
+      { telegramId: MEMBER, by: KEEPER, tokensGivenAlready: true },
+      async c => {
+        credits.push(c)
+        return { credited: true }
+      },
+      NOW
+    )
+    expect(out).toMatchObject({
+      ok: true,
+      recorded: 'already',
+      credited: false,
+    })
+    expect(credits).toEqual([])
+  })
+
+  it('only that ref shape asks: a Stars charge or another grant on file does not', async () => {
+    db.ledger.length = 0
+    db.ledger.push(
+      {
+        telegram_id: MEMBER,
+        delta: 500,
+        kind: 'purchase',
+        reason: 'Telegram Stars',
+        ref: 'stx-telegram-charge',
+        created_at: HAND_AT,
+      },
+      {
+        telegram_id: MEMBER,
+        delta: 100,
+        kind: 'grant',
+        reason: 'welcome tokens',
+        ref: `welcome:${MEMBER}`,
+        created_at: HAND_AT,
+      }
+    )
+    const out = await record({ telegram_id: MEMBER })
+    expect(out).toMatchObject({ ok: true, credited: true })
+  })
+
+  it('a grant whose time cannot be read is still asked about, not let through', async () => {
+    await record({ telegram_id: MEMBER, tokens_already_given: true })
+    db.ledger.push({
+      telegram_id: MEMBER,
+      delta: MONTH,
+      kind: 'grant',
+      reason: 'club month, cash, by hand',
+      ref: `cash-club-2026-10-22-${MEMBER}`,
+      created_at: 'not a time',
+    })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-22T09:00:00Z'))
+    try {
+      const out = (await cashTool().handler(
+        { telegram_id: MEMBER, start: '2026-10-22' },
+        ctxOf(KEEPER)
+      )) as Record<string, any>
+      expect(out).toMatchObject({ ok: false })
+      expect(out.tokens_given_by_hand).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('an answer that is not true or false is refused, nothing written', async () => {
+    const out = await record({
+      telegram_id: MEMBER,
+      tokens_already_given: 'maybe',
+    })
+    expect(out).toMatchObject({ ok: false })
+    expect(writes()).toEqual([])
+  })
+
+  it('"true" and "false" as strings are read, as an MCP client may send them', async () => {
+    const out = await record({
+      telegram_id: MEMBER,
+      tokens_already_given: 'true',
+    })
+    expect(out).toMatchObject({ ok: true, tokens: 0, credited: false })
   })
 })
