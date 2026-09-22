@@ -171,16 +171,17 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
 
   subscriptionScene: {
     id: 'subscriptionScene',
-    name: 'Оформление подписки',
-    description: 'Выбор и оформление подписки на бота',
+    name: 'Клуб',
+    description:
+      'Карточка клуба — единственной подписки (10 000 звёзд за 30 дней)',
     category: SceneCategory.PAYMENT,
     accessLevel: AccessLevel.PUBLIC,
     status: SceneStatus.ACTIVE,
     modeEnum: ModeEnum.SubscriptionScene,
     cost: 0,
     supportedLanguages: ['ru', 'en'],
-    tags: ['subscription', 'payment', 'plan'],
-    version: '1.0.0',
+    tags: ['subscription', 'payment', 'club'],
+    version: '2.0.0',
   },
 
   paymentScene: {

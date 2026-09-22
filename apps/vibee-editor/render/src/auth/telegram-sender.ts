@@ -62,3 +62,40 @@ export async function sendToTelegram(
     throw new Error(`Telegram ответил ${о.status}: ${описание}`)
   }
 }
+
+/**
+ * A video to the person's chat (the browser film, browser/film.ts). Same
+ * token, same host choice and same error shape as sendToTelegram; multipart
+ * because the bytes are ours, not at a public address Telegram could fetch.
+ */
+export async function sendVideoToTelegram(
+  telegramId: string,
+  mp4: Buffer,
+  caption: string
+): Promise<void> {
+  const t = токен() // cyrillic-ok: pre-existing helper name
+  if (!t) {
+    console.warn(
+      '[telegram] TELEGRAM_BOT_TOKEN is not set; the video was not sent'
+    )
+    return
+  }
+  const form = new FormData()
+  form.append('chat_id', telegramId)
+  form.append('caption', caption)
+  form.append('supports_streaming', 'true')
+  form.append(
+    'video',
+    new Blob([new Uint8Array(mp4)], { type: 'video/mp4' }),
+    'agent-work.mp4'
+  )
+  const res = await fetch(`${telegramApiFor(t)}/sendVideo`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const body = (await res.text().catch(() => '')).slice(0, 200)
+    const why = /"description":"([^"]+)"/.exec(body)?.[1] ?? 'no description'
+    throw new Error(`Telegram answered ${res.status}: ${why}`)
+  }
+}

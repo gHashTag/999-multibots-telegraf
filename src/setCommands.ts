@@ -85,14 +85,17 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         command: 'price',
         description: '⭐️ Price / Цена',
       },
-    ]
-    // Клубный бот показывает вход в «Золотую Литейную» прямо в меню
-    if (botName === 't27ai_bot') {
-      privateCommands.splice(1, 0, {
+      /*
+       * THE CLUB, IN EVERY BOT. This entry used to exist only in @t27ai_bot
+       * and to sell the "Golden Foundry" (zero sales). The one subscription
+       * is the club, and people arrive through every bot -- 49 new ones in
+       * thirty days, most of them nowhere near @t27ai_bot (2026-09-22).
+       */
+      {
         command: 'club',
-        description: '🏛 Золотая Литейная / Golden Foundry',
-      })
-    }
+        description: '⭐ Клуб — ваш цифровой двойник / Club',
+      },
+    ]
     await bot.telegram.setMyCommands(privateCommands, {
       scope: {
         type: 'all_private_chats',

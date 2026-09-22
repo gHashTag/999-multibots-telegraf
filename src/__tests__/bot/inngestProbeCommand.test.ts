@@ -178,9 +178,13 @@ describe('/inngest_probe', () => {
      * one destructive step, the 45-day prune, is explicitly guarded off under
      * `isSafeMode`, because a probe that quietly ran a DELETE would be the
      * opposite of a proof that a function is harmless.
+     *
+     * 32 -> 33 on 2026-09-22: `club-invoice-abandoned-watch` writes only a
+     * funnel row, charges nobody, messages nobody, and returns at the
+     * safe-mode guard before it reads anything.
      */
     expect(texts[0]).toContain(
-      'К запуску: 32, пропуск: 0, всего в манифесте: 32'
+      'К запуску: 33, пропуск: 0, всего в манифесте: 33'
     )
     const last = sent().at(-1)!
     const buttons = (last.payload.reply_markup.inline_keyboard as any[])

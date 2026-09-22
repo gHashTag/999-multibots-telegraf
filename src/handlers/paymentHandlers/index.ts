@@ -16,6 +16,7 @@ import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { ModeEnum } from '@/interfaces'
 import { telegramLogService } from '@/services/telegram-log.service'
 import { resolveAdminChatId } from '@/helpers/adminChatId'
+import { handleClubPayment } from './clubPayment'
 
 /**
  * Валидация URL для серверных запросов бота: только http/https, хост не
@@ -282,6 +283,24 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         ? 'Произошла ошибка с валютой платежа. Обратитесь в поддержку.'
         : 'Payment currency error. Please contact support.'
     )
+    await ctx.scene?.leave?.()
+    return
+  }
+
+  /*
+   * THE CLUB FIRST: payload `club:<stars>:<id>`, minted by the render. Nothing
+   * is written here -- no payments_v2 row, no top-up credit; the render books
+   * the charge and credits the club's tokens (see clubPayment.ts for the
+   * 12 571-tokens-for-10 000-stars defect this branch closes).
+   */
+  if (
+    await handleClubPayment(ctx, {
+      payload: payload ?? '',
+      chargeId: telegramPaymentChargeId,
+      totalAmount: successfulPayment.total_amount,
+      recurring: (successfulPayment as { is_recurring?: boolean }).is_recurring,
+    })
+  ) {
     await ctx.scene?.leave?.()
     return
   }

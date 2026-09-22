@@ -172,11 +172,23 @@ export const PROFILE_BUTTONS: Record<string, ButtonConfig> = {
     mode: ModeEnum.TopUpBalance,
     directScene: true,
   },
+  /*
+   * THE CLUB, under the id the old subscription button had. It used to open
+   * BASIC / PRO / STUDIO; the one subscription is the club now (2026-09-22).
+   * The old labels stay as aliases because reply keyboards live on in
+   * people's chats: a press on a stale "💫 Оформить подписку" still lands.
+   */
   subscription: {
     id: 'subscription',
-    ru: '💫 Оформить подписку',
-    en: '💫 Subscribe',
-    aliases: ['оформить подписку', 'subscribe', 'подписка'],
+    ru: '⭐ Клуб',
+    en: '⭐ Club',
+    aliases: [
+      '💫 оформить подписку',
+      '💫 subscribe',
+      'оформить подписку',
+      'subscribe',
+      'подписка',
+    ],
     action: 'go_subscription',
     sceneId: ModeEnum.SubscriptionScene,
     mode: ModeEnum.SubscriptionScene,

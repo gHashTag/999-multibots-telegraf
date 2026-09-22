@@ -23,7 +23,6 @@ import { track } from '@/services/trackEvent'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
-import { payMethodOf } from '@/helpers/railsForThisPerson'
 import {
   attachmentFromMessage,
   buildAgentTurn,
@@ -77,7 +76,10 @@ import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { defaultSession } from '@/store'
 import { extractPromoFromContext } from '@/helpers/contextUtils'
-import { handleClubCommand, registerClubActions } from '@/handlers/foundryClub'
+import {
+  registerClubButtons,
+  showClubCard,
+} from '@/navigation/helpers/clubCard'
 import { handleFactoryCommand } from '@/handlers/factoryCommand'
 import { Scenes } from 'telegraf'
 import { message } from 'telegraf/filters'
@@ -312,6 +314,11 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      */
     registerProposalButtons(bot)
     registerCrmCommands(bot)
+    /*
+     * The club's buttons, for the same reason: "Join" is the press that pays,
+     * and a wizard step must not be able to swallow it (clubCard.ts).
+     */
+    registerClubButtons(bot)
 
     // 3. Добавляем Stage middleware - теперь ctx.scene доступен!
     bot.use(stage.middleware())
@@ -473,14 +480,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
     setupInteractiveStats(bot)
 
-    // 🏛 КЛУБ «ЗОЛОТАЯ ЛИТЕЙНАЯ» (Golden Foundry, @t27ai_bot)
+    /*
+     * /club IS THE CLUB. Until 2026-09-22 it sold the "Golden Foundry", three
+     * draft tiers written into payments_v2 with zero sales ever, while the
+     * real club -- the one subscription the owner sells -- had no command at
+     * all. /foundry is kept as a door: the t27.ai landing links to it.
+     */
     bot.command(['club', 'foundry'], async ctx => {
       if (ctx.chat.type !== 'private') {
         return sendGroupCommandReply(ctx)
       }
-      await handleClubCommand(ctx)
+      await showClubCard(ctx, 'command')
     })
-    registerClubActions(bot)
 
     // 🌍 THE PERSON'S OWN BROWSER. Until this command the bot said nothing
     // about it at all: grep across src/ for browser_ returned nothing, and
@@ -950,41 +961,30 @@ If not, continue on your own and click the "I myself" button`
       createSceneActionHandler('improve_prompt', ModeEnum.ImprovePromptWizard)
     )
 
+    /*
+     * THE OLD SUBSCRIPTION BUTTONS LAND ON THE CLUB.
+     *
+     * `go_to_subscription_scene` is the offer at the end of the free portrait
+     * and on the digital-avatar screen; `subscribe_*` is the inline form of
+     * the retired tiers. They used to open BASIC / PRO / STUDIO. There is one
+     * subscription now, so every one of them shows the club card -- directly,
+     * without a trip through a scene that would only show it and leave.
+     */
     bot.action(
       'go_to_subscription_scene',
-      createSceneActionHandler(
-        'go_to_subscription_scene',
-        ModeEnum.SubscriptionScene,
-        {
-          beforeEnter: async ctx => {
-            ctx.session.mode = ModeEnum.SubscriptionScene
-          },
-          afterEnter: async () => {
-            logger.info(
-              'Successfully entered subscription scene via global action'
-            )
-          },
-        }
-      )
+      withErrorHandling(async ctx => {
+        await ctx.answerCbQuery().catch(() => {})
+        await ctx.scene.leave()
+        await showClubCard(ctx, 'portrait_limit')
+      }, 'go_to_subscription_scene')
     )
 
     bot.action(
       /^subscribe_(.+)$/,
       withErrorHandling(async ctx => {
-        const subscriptionType = ctx.match[1]
-        logger.info('🚀 INLINE CALLBACK: Subscribe button pressed', {
-          telegramId: ctx.from?.id,
-          subscriptionType,
-        })
-
-        await ctx.answerCbQuery()
+        await ctx.answerCbQuery().catch(() => {})
         await ctx.scene.leave()
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        logger.info('About to enter subscription scene via inline callback')
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
-        logger.info(
-          'Successfully entered subscription scene via inline callback'
-        )
+        await showClubCard(ctx, 'retired_offer')
       }, 'subscribe_*')
     )
 
@@ -1000,9 +1000,10 @@ If not, continue on your own and click the "I myself" button`
       withErrorHandling(async ctx => {
         await ctx.answerCbQuery()
         await ctx.deleteMessage().catch(() => {
-          // Игнорируем ошибку если сообщение уже удалено
+          // The message may already be gone; the card below is what matters.
         })
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
+        await ctx.scene.leave()
+        await showClubCard(ctx, 'retired_offer')
       }, 'subscription_menu')
     )
 
@@ -2681,10 +2682,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       ctx.session = { ...defaultSession }
       console.log('🔴 [DEBUG /start] Session RESET done')
 
-      // Handle start parameters (invite code / клуб)
-      let wantsFoundryClub = false
-      let wantsSubscription: { plan: string; method: string | null } | null =
-        null
+      // Handle start parameters (invite code / the club)
+      let wantsClub = false
       let wantsTopUp: { method: 'rub' | 'crypto' | null } | null = null
       let inlineService: ServiceCard | undefined
       if (ctx.message && 'text' in ctx.message) {
@@ -2724,13 +2723,23 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
           if (!promoInfo?.isPromo && /^\d+$/.test(startParam)) {
             ctx.session.inviteCode = startParam
             logger.info('Referral code set', { telegramId, startParam })
-          } else if (/^(club|foundry)$/i.test(startParam)) {
-            // Ссылка с лендинга t27.ai/foundry: t.me/t27ai_bot?start=foundry.
-            // В сессию тоже: новый пользователь сперва уходит в CreateUserScene,
-            // и локальная переменная до показа клуба не доживает.
-            wantsFoundryClub = true
-            ctx.session.foundryDeepLink = true
-            logger.info('Foundry deep-link', { telegramId, startParam })
+          } else if (
+            /^(club|foundry)$/i.test(startParam) ||
+            subscribeIntent(startParam)
+          ) {
+            /*
+             * Every link that used to sell a subscription -- the club, the
+             * t27.ai Foundry landing, the Mini App paywall's
+             * `subscribe_<plan>_<method>` -- lands on the one club card. The
+             * plan and the method in the paywall link named tiers and cashiers
+             * that no longer exist; the club is paid in Stars.
+             *
+             * Into the session too: a new person goes through CreateUserScene
+             * first, and a local variable does not survive that trip.
+             */
+            wantsClub = true
+            ctx.session.clubDeepLink = true
+            logger.info('Club deep-link', { telegramId, startParam })
           } else if (topupIntent(startParam)) {
             // The mini app's rouble and crypto buttons: the cashier is here.
             wantsTopUp = topupIntent(startParam)
@@ -2738,21 +2747,6 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
               telegramId,
               startParam,
               method: wantsTopUp?.method,
-            })
-          } else if (subscribeIntent(startParam)) {
-            // The mini app's paywall sends the person here with the plan and
-            // the payment method they chose. Land them in front of a cashier.
-            wantsSubscription = subscribeIntent(startParam)
-            // Carried into the session because the scene is entered after a
-            // possible trip through CreateUserScene, and a local variable does
-            // not survive that.
-            const chosen = payMethodOf(wantsSubscription?.method)
-            if (chosen) ctx.session.payMethod = chosen
-            logger.info('Paywall deep-link', {
-              telegramId,
-              startParam,
-              plan: wantsSubscription?.plan,
-              method: wantsSubscription?.method,
             })
           } else if (startParam.startsWith(START_PARAM_PREFIX)) {
             // Inline card "open in the bot" (src/handlers/inlineQuery.ts):
@@ -2784,9 +2778,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       } else if (inlineService?.mode) {
         ctx.session.mode = inlineService.mode
         await ctx.scene.enter(inlineService.mode)
-      } else if (wantsFoundryClub) {
-        console.log('🔴 [DEBUG /start] Foundry deep-link, showing club...')
-        await handleClubCommand(ctx)
+      } else if (wantsClub) {
+        ctx.session.clubDeepLink = undefined
+        await showClubCard(ctx, 'deeplink')
       } else if (wantsTopUp) {
         /*
          * Straight to the cashier the person chose. A bot that hides roubles
@@ -2802,15 +2796,6 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             ...(wantsTopUp.method === 'crypto' ? { crypto: true } : {}),
           })
         }
-      } else if (wantsSubscription) {
-        /*
-         * A person who pressed "pay" in the mini app is not browsing. The
-         * greeting, however friendly, is the wrong screen: they already chose
-         * a plan and a way to pay, and every extra step is somewhere to drop
-         * out. Straight to the cashier the bot actually has.
-         */
-        ctx.session.mode = ModeEnum.SubscriptionScene
-        await ctx.scene.enter(ModeEnum.SubscriptionScene)
       } else {
         console.log('🔴 [DEBUG /start] User exists, showing start greeting...')
         // The project greeting with a door for every thing and every one,

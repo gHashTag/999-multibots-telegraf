@@ -71,7 +71,11 @@ describe('the plan', () => {
     // safeRecipient (or skips the send entirely when that is unconfigured),
     // and its one destructive step -- the 45-day prune -- is guarded off in
     // safe mode, so a probe deletes nothing.
-    expect(plans).toHaveLength(32)
+    // +club-invoice-abandoned-watch on 2026-09-22: marks club invoices nobody
+    // paid as a funnel row. It charges nobody, calls no provider, messages
+    // nobody, and under a probe it returns at the safe-mode guard before
+    // touching the table.
+    expect(plans).toHaveLength(33)
     for (const p of plans) expect(p.slug).toBe(`${APP}-${p.id}`)
   })
 
