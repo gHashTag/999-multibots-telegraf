@@ -51,4 +51,14 @@ describe('render-server hands /s3/ to the shelf route', () => {
     )
     expect(SERVER).toMatch(/probe: ffprobeJson,\s*transcode: ffmpegH264/)
   })
+
+  it('the video outlet knows the size before it downloads: a stat and the ceiling', () => {
+    // Without them a video over the ceiling is downloaded to the ceiling on
+    // every request -- each ranged request of a <video>, each HEAD.
+    const at = SERVER.indexOf('const SHELF_VIDEO = createShelfVideo(')
+    expect(at).toBeGreaterThan(0)
+    const outlet = SERVER.slice(at, SERVER.indexOf('\n})', at))
+    expect(outlet).toMatch(/\bstat: s3Stat,/)
+    expect(outlet).toMatch(/\bmaxBytes: SHELF_VIDEO_MAX_BYTES,/)
+  })
 })

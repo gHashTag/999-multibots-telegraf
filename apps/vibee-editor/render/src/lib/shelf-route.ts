@@ -495,12 +495,31 @@ export interface VideoTools {
    * 'too-big' when it is larger than this server will transcode.
    */
   download(key: string, dest: string): Promise<'ok' | 'missing' | 'too-big'>
-  /** ffprobe's JSON for the file, or null when it cannot be read as media. */
+  /**
+   * The stored object's size without its bytes (null: no such key). With
+   * `maxBytes`, a video too big to transcode is known from one HEAD instead
+   * of a download that stops one byte past the ceiling.
+   */
+  stat?(key: string): Promise<{ size: number } | null>
+  /** The largest object this server downloads to transcode. */
+  maxBytes?: number
+  /**
+   * ffprobe's JSON for the file, or null when ffprobe read it and it is not
+   * media. THROWS when the tool itself failed (not installed, timed out): that
+   * says nothing about the file, so it must not be remembered as its verdict.
+   */
   probe(file: string): Promise<ProbeResult | null>
   transcode(src: string, dest: string): Promise<void>
   /** How many transcodes may run at once (default 2). */
   parallel?: number
+  /** How long a failed probe or transcode is left alone (default 10 min). */
+  retryAfterMs?: number
+  /** The clock, for the backoff; tests move it. */
+  now?: () => number
 }
+
+/** Keys in backoff, at most; a flood of broken videos cannot grow it. */
+const MAX_BACKOFF_KEYS = 1000
 
 /** A small FIFO semaphore: at most `n` jobs at a time, the slot handed over. */
 function limiter(n: number) {
@@ -541,21 +560,73 @@ export function h264CacheName(key: string): string {
  * old code let each of them run ffmpeg on the same file).
  *
  * The copy is written under a temporary name and renamed into place, so no
- * request ever serves a half-written file. When the probe or the transcode
- * fails, the answer is the stored bytes -- not a 500 -- and nothing is
- * remembered, so the next request tries again.
+ * request ever serves a half-written file.
+ *
+ * Every verdict that cannot change for a key is written down as the marker,
+ * not only "plays as stored": a video over `maxBytes` (known from a stat,
+ * before any download) and a file ffprobe read and called not-media. Keys are
+ * timestamped and never rewritten, so without the marker each later request
+ * -- every ranged request of a `<video>`, every HEAD -- would download the
+ * whole object again only to reach the same answer.
+ *
+ * A failure that says nothing about the file -- the transcode broke, ffprobe
+ * could not run -- is answered with the stored bytes (not a 500) and is NOT
+ * written down; the key is left alone for `retryAfterMs` instead, in memory,
+ * and then tried again.
  */
 export function createShelfVideo(tools: VideoTools): ShelfVideo {
   const inflight = new Map<string, Promise<Playable>>()
   const gate = limiter(Math.max(1, tools.parallel ?? 2))
+  const now = tools.now ?? Date.now
+  const retryAfter = Math.max(0, tools.retryAfterMs ?? 10 * 60_000)
+  /** key -> the moment it may be tried again. */
+  const backoff = new Map<string, number>()
+
+  function holdOff(key: string): void {
+    const t = now()
+    if (backoff.size >= MAX_BACKOFF_KEYS) {
+      for (const [k, until] of backoff) if (until <= t) backoff.delete(k)
+    }
+    while (backoff.size >= MAX_BACKOFF_KEYS) {
+      const oldest = backoff.keys().next().value
+      if (oldest === undefined) break
+      backoff.delete(oldest)
+    }
+    backoff.set(key, t + retryAfter)
+  }
+
+  /** The marker, with why. A marker that cannot be written costs a retry. */
+  async function remember(marker: string, why: string): Promise<void> {
+    try {
+      await writeFile(marker, why)
+    } catch (e) {
+      console.warn(`[shelf] marker not written: ${String(e).slice(0, 120)}`)
+    }
+  }
 
   async function decide(key: string): Promise<Playable> {
     const copy = join(tools.cacheDir, h264CacheName(key))
     const marker = `${copy}.original`
     if (existsSync(copy)) return { kind: 'file', path: copy }
     if (existsSync(marker)) return { kind: 'original' }
+    const until = backoff.get(key)
+    if (until !== undefined) {
+      if (until > now()) return { kind: 'original' }
+      backoff.delete(key)
+    }
 
     await mkdir(tools.cacheDir, { recursive: true })
+    let stored: number | undefined
+    if (tools.stat && tools.maxBytes !== undefined) {
+      const meta = await tools.stat(key)
+      if (!meta) throw new ShelfMissing(key)
+      stored = meta.size
+      if (meta.size > tools.maxBytes) {
+        await remember(marker, 'too-big')
+        console.warn(`[shelf] ${key}: too big to transcode, serving as stored`)
+        return { kind: 'original' }
+      }
+    }
     // The download is scratch: outside the cache, which only ever holds
     // finished copies and markers.
     const work = await mkdtemp(join(tmpdir(), 'shelf-video-'))
@@ -565,18 +636,34 @@ export function createShelfVideo(tools: VideoTools): ShelfVideo {
       const got = await tools.download(key, source)
       if (got === 'missing') throw new ShelfMissing(key)
       if (got === 'too-big') {
+        await remember(marker, 'too-big')
         console.warn(`[shelf] ${key}: too big to transcode, serving as stored`)
         return { kind: 'original' }
       }
-      const probe = await tools.probe(source)
-      if (!probe) {
+      // A download cut short would read as "not media" and be written down
+      // for good; a short copy is a failed download, not a verdict.
+      if (stored !== undefined && (await stat(source)).size !== stored) {
+        holdOff(key)
+        console.warn(`[shelf] ${key}: download came up short, as stored`)
+        return { kind: 'original' }
+      }
+      let probe: ProbeResult | null
+      try {
+        probe = await tools.probe(source)
+      } catch (e) {
+        holdOff(key)
         console.warn(
-          `[shelf] ${key}: ffprobe could not read it, serving as stored`
+          `[shelf] ${key}: ffprobe did not run, serving as stored: ${String(e).slice(0, 160)}`
         )
         return { kind: 'original' }
       }
+      if (!probe) {
+        await remember(marker, 'not-media')
+        console.warn(`[shelf] ${key}: ffprobe calls it not media, as stored`)
+        return { kind: 'original' }
+      }
       if (playsAsStored(key, probe)) {
-        await writeFile(marker, '')
+        await remember(marker, 'plays')
         console.log(`[shelf] ${key}: plays as stored, no transcode`)
         return { kind: 'original' }
       }
@@ -586,6 +673,7 @@ export function createShelfVideo(tools: VideoTools): ShelfVideo {
         await rename(part, copy)
       } catch (e) {
         await rm(part, { force: true }).catch(() => undefined)
+        holdOff(key)
         console.warn(
           `[shelf] ${key}: transcode failed, serving as stored: ${String(e).slice(0, 160)}`
         )
@@ -636,10 +724,17 @@ function absolute(p: string): string {
   return p
 }
 
-/** ffprobe's streams and format as JSON, or null when it cannot read the file. */
+/**
+ * ffprobe's streams and format as JSON; null when ffprobe read the file to
+ * the end and refused it (an exit code of its own: not media). Anything else
+ * -- no ffprobe on the PATH, killed by the timeout, output past the buffer --
+ * is the TOOL failing, and throws, so the outlet does not write it down as
+ * the file's verdict.
+ */
 export async function ffprobeJson(file: string): Promise<ProbeResult | null> {
+  let stdout: string
   try {
-    const { stdout } = await run(
+    ;({ stdout } = await run(
       'ffprobe',
       [
         '-v',
@@ -651,7 +746,13 @@ export async function ffprobeJson(file: string): Promise<ProbeResult | null> {
         absolute(file),
       ],
       30_000
-    )
+    ))
+  } catch (e) {
+    const err = e as { code?: unknown; killed?: boolean; signal?: unknown }
+    if (typeof err.code === 'number' && !err.killed && !err.signal) return null
+    throw e
+  }
+  try {
     const parsed = JSON.parse(stdout) as ProbeResult
     return parsed && Array.isArray(parsed.streams) ? parsed : null
   } catch {
