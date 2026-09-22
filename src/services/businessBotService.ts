@@ -106,6 +106,8 @@ export interface BusinessMessage {
   is_from_offline?: boolean
   /** Set on the bot's own outgoing messages in the business chat. */
   sender_business_bot?: unknown
+  /** Present when the message is a forward: somebody else's words. */
+  forward_origin?: unknown
   business_connection_id: string
 }
 
@@ -1258,7 +1260,9 @@ async function admitBusinessMessage(
    * message itself is not answered -- answering "stop the bot" with the bot
    * is the complaint.
    */
-  const stop = isStopRequest(msg.text ?? msg.caption)
+  const stop = clientsOwnWords(msg)
+    ? isStopRequest(msg.text ?? msg.caption)
+    : null
   if (stop) {
     ensureToday()
     stats.clientStopSkipped++
@@ -1949,6 +1953,22 @@ async function notifyOwnerOfLead(
       chatKey,
     })
   }
+}
+
+/**
+ * ONLY THE CLIENT'S OWN WORDS CAN SWITCH THE ASSISTANT OFF.
+ *
+ * A forward carries somebody else's words -- a screenshot of another chat, a
+ * joke, an article about bots -- so "stop the bot" inside it is not this
+ * person asking. A chat that is not a private one, or a sender who is not the
+ * person the chat belongs to, is not this client speaking either. Each of
+ * these simply goes on as an ordinary message.
+ */
+export function clientsOwnWords(msg: BusinessMessage): boolean {
+  if (msg.forward_origin) return false
+  if (msg.chat.type !== 'private') return false
+  if (msg.from && msg.from.id !== msg.chat.id) return false
+  return true
 }
 
 /** The client's name as Telegram gives it, for the owner's eyes only. */
