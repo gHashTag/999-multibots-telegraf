@@ -661,14 +661,19 @@ export async function ffprobeJson(file: string): Promise<ProbeResult | null> {
 
 /**
  * The same H.264 copy the route has always made -- libx264, preset fast,
- * CRF 23, AAC, faststart -- with two changes:
+ * CRF 23, AAC, faststart -- with three changes:
  *
  *   - it no longer blocks the event loop: the old `execFileSync` froze every
  *     other request of the server for up to five minutes while one video
  *     converted;
  *   - `-pix_fmt yuv420p`: an iPhone's HDR clip is 10-bit HEVC, and libx264
  *     keeps the bit depth unless told otherwise, so the "playable" copy came
- *     out as High 10 -- which Chrome does not decode either.
+ *     out as High 10 -- which Chrome does not decode either;
+ *   - the picture is cut to even sides: 4:2:0 halves the chroma planes, so
+ *     libx264 refuses an odd width or height ("width not divisible by 2") and
+ *     a 321x241 clip would get no copy at all. Rounding DOWN drops at most one
+ *     edge row and column; ffmpeg's autorotate runs before this filter, so the
+ *     sides it rounds are the ones the viewer sees.
  */
 export async function ffmpegH264(src: string, dest: string): Promise<void> {
   await run(
@@ -684,6 +689,8 @@ export async function ffmpegH264(src: string, dest: string): Promise<void> {
       'fast',
       '-crf',
       '23',
+      '-vf',
+      'scale=trunc(iw/2)*2:trunc(ih/2)*2',
       '-pix_fmt',
       'yuv420p',
       '-c:a',
