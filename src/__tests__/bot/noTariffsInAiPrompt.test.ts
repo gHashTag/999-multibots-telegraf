@@ -32,15 +32,19 @@ const BOTH = [
 ] as const
 
 // Built from strings: the Cyrillic gate allows Cyrillic in literals only.
+// Up to three words may stand between the noun and the negation: review of
+// #2844 showed natural Russian word order and "We do not sell any subscriptions"
+// both walking past the narrower patterns with all 48 tests green.
 const DENIES_A_SUBSCRIPTION = [
   new RegExp(
-    '(подписок|подписки|подписка|тарифов|клуба|клуб)(\\s+и\\s+\\S+)?\\s+(нет|не существует|отсутству)',
+    '(подписок|подписки|подписка|тарифов|клуба|клуб)(\\s+[^\\s.;!?]+){0,3}?\\s+(нет|не существует|отсутству)',
     'iu'
   ),
   new RegExp('(^|\\s)нет\\s+(никаких\\s+|ни\\s+)?(подпис|тариф|клуб)', 'iu'),
   /\bno\s+(\w+\s+)?(subscriptions?|plans?|tariffs?|club|membership)\b/i,
   /\b(subscriptions?|plans?|tariffs?|club)\s+(do(es)?\s+not|don't|doesn't)\s+exist/i,
   /\bthere\s+(is|are)\s+no\s+(\w+\s+)?(subscriptions?|plans?|tariffs?|club)/i,
+  /\b(do(es)?\s+not|don't|doesn't)\s+(sell|have|offer)\s+(any\s+)?(subscriptions?|plans?|tariffs?|club|membership)/i,
 ]
 
 describe('the toolless fallback prompt', () => {
@@ -52,6 +56,9 @@ describe('the toolless fallback prompt', () => {
       'Подписок нет, есть токены.',
       'There are no plans or subscriptions, only tokens.',
       'We have no subscriptions.',
+      // The two mutants of the #2844 review, in ordinary word order.
+      'Подписок у нас нет, только токены; про клуб ответит /club.',
+      'We do not sell any subscriptions, only tokens; the /club command answers about the club.',
     ])
       expect(
         DENIES_A_SUBSCRIPTION.some(re => re.test(said)),
