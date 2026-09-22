@@ -1134,6 +1134,43 @@ describe('tg_fetch_media reads a PDF, an office file and an archive', () => {
     expect(r.how_to_read).toContain('listed, not unpacked')
   })
 
+  /*
+   * A .docx IS a zip, and a client that sniffs bytes says `application/zip`.
+   * When that subtype outranked the name, the Word file was shelved as
+   * `.zip`, listed as `word/document.xml` parts, and the listing was saved as
+   * its transcript -- so no later pass ever read it (review of 2026-09-22).
+   */
+  it('a Word file its sender typed as application/zip is shelved as .docx and read, not listed', async () => {
+    script.messages = [doc(2701, 'plan.docx', 'application/zip')]
+    const pool = bothSellers()
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2701] },
+      as(SELLER_A, pool)
+    )
+    expect(puts).toEqual([{ name: 'file-2701.docx', mime: 'application/zip' }])
+    expect(extracts.map(e => e.name)).toEqual(['file-2701.docx'])
+    expect(r.files[0]).toMatchObject({ msg_id: 2701, status: 'read' })
+    expect(r.files[0].document_text).toContain(PDF_WORDS)
+    expect(pool.media[0].transcript).toBe(PDF_WORDS)
+  })
+
+  it('a .tar.gz is shelved as .tgz, so the tar inside is what gets listed', async () => {
+    extractAnswer = () => ({
+      ok: true,
+      text: '1 file(s), 2.0 KB unpacked:\nsite/index.html — 2.0 KB',
+      chars: 50,
+      listing: true,
+    })
+    script.messages = [doc(2702, 'backup.tar.gz', 'application/gzip')]
+    const r: any = await tool('tg_fetch_media').handler(
+      { chat: CLIENT, msg_ids: [2702] },
+      as(SELLER_A, bothSellers())
+    )
+    expect(puts[0].name).toBe('file-2702.tgz')
+    expect(extracts.map(e => e.name)).toEqual(['file-2702.tgz'])
+    expect(r.files[0].status).toBe('listed, not unpacked')
+  })
+
   it('a scan with no text layer is named as not read, with the reason, and nothing is made up', async () => {
     extractAnswer = () => ({ ok: false, reason: 'no-text' })
     script.messages = [pdf(2301, 'scan.pdf')]
