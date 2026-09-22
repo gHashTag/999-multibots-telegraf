@@ -1,4 +1,5 @@
 import { СЕБЕСТОИМОСТЬ_USD, ЕДИНИЦА_ЦЕНЫ } from './kie-prices.generated'
+import { DEAREST_VARIANT_USD } from './kie-prices.generated'
 // Контракты моделей: `needs` решает, задаём ли длину МЫ. Модуль без импортов,
 // цикла не создаёт.
 import { KIE_MODELS } from './kie-models'
@@ -537,11 +538,50 @@ export function kieVideoSale(entry: {
   cost: number | null | undefined
   unit: string | null | undefined
   needs: string[] | undefined
+  /**
+   * The dearest same-unit variant the model's price-list name matches
+   * (`DEAREST_VARIANT_USD`). Above `cost` means the name did not pick one
+   * variant, so the provider does.
+   */
+  dearest?: number | null
 }): KieVideoSale {
   if (typeof entry.cost !== 'number' || !Number.isFinite(entry.cost)) {
     return { sold: false, why: 'the price list names no price for it' }
   }
   if (entry.unit === UNIT_PER_CLIP) {
+    /*
+     * A CLIP PRICE NAMES ONE CLIP ONLY WHEN ONE ROW IS BILLED.
+     *
+     * wan/2-5-text-to-video was sold at its cheapest row, $0.30 (120
+     * tokens), while its name matches rows up to $1.00 and its request
+     * carries only `prompt`: the provider picks the length and the
+     * resolution, and we guessed the cheapest -- the case refused above for
+     * per-second models. A name pinned to the variant we are billed at
+     * (kie-price-names.ts) has one row, so its dearest IS its cost.
+     */
+    if (typeof entry.dearest === 'number' && entry.dearest > entry.cost) {
+      return {
+        sold: false,
+        why:
+          `its price-list name matches clips from $${entry.cost} to ` +
+          `$${entry.dearest} and the request does not pick one, so the ` +
+          'provider does',
+      }
+    }
+    /*
+     * A clip price is ONE length's price. A contract that carries `duration`
+     * would send the chip ('10') while the price stays on its row (5 s):
+     * wan 2.6 would bill $1.0475 against 209 tokens. Refused until it is
+     * priced by length, like the per-second models below.
+     */
+    if (lengthSetByPerson(entry.needs)) {
+      return {
+        sold: false,
+        why:
+          'it is priced per clip at one length, but its request carries the ' +
+          'length the person picks',
+      }
+    }
     return { sold: true, per: 'clip', length: null }
   }
   if (entry.unit !== UNIT_PER_SECOND) {
@@ -576,6 +616,7 @@ export function kieVideoSaleOf(modelId: string): KieVideoSale {
     cost: KIE_COST_USD[id],
     unit: KIE_PRICE_UNIT[id],
     needs: KIE_MODELS.find(m => m.id === id)?.needs,
+    dearest: DEAREST_VARIANT_USD[id],
   })
 }
 

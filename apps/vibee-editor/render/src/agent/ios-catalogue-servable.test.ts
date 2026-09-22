@@ -207,10 +207,13 @@ describe('чип показывают только под поле, которо
      * grok-imagine/text-to-video and wan/3-0-video, the two named here first,
      * are not sold any more: billed per second while the provider picks the
      * length (billing-shared.ts, `kieVideoSale`). Two prompt-only clips that
-     * are still sold carry the same point.
+     * are still sold carry the same point. wan/2-5 left this list too: its
+     * price-list name matches clips from $0.30 to $1.00 and the request
+     * picks none, so it is refused as well.
      */
     expect(поля['kie/hailuo/02-text-to-video-pro']).toEqual(['prompt']) // cyrillic-ok: existing local name
-    expect(поля['kie/wan/2-5-text-to-video']).toEqual(['prompt']) // cyrillic-ok: existing local name
+    expect(поля['kie/wan/2-6-text-to-video']).toEqual(['prompt']) // cyrillic-ok: existing local name
+    expect(поля['kie/wan/2-5-text-to-video']).toBeUndefined() // cyrillic-ok: existing local name
     // А эти двое получают всё, что показывает экран.
     expect(поля['kie/kling/v3-turbo-text-to-video']).toContain('duration')
     expect(поля['kie/kling/v3-turbo-text-to-video']).toContain('aspect_ratio')
