@@ -1448,7 +1448,8 @@ if (!fs.existsSync(RENDER_TEMP_DIR)) {
  * a store, and the outlet that decides whether a video needs its H.264 copy.
  * The copies live in public/video-cache, where the old inline route kept
  * them. The 1 GB ceiling is for the transcode download only -- a larger video
- * is served as stored rather than pulled onto this disk.
+ * is served as stored rather than pulled onto this disk, and the outlet learns
+ * that from a HEAD (`stat`), not from a download that stops at the ceiling.
  */
 const SHELF_STORE: ShelfStore = { stat: s3Stat, open: s3OpenStream }
 const SHELF_VIDEO_MAX_BYTES = 1024 * 1024 * 1024
@@ -1463,6 +1464,8 @@ const SHELF_VIDEO = createShelfVideo({
       throw e
     }
   },
+  stat: s3Stat,
+  maxBytes: SHELF_VIDEO_MAX_BYTES,
   probe: ffprobeJson,
   transcode: ffmpegH264,
 })

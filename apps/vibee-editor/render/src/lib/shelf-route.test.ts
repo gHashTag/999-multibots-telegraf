@@ -510,11 +510,15 @@ describe('createShelfVideo: probe once, copy once, never serve half a file', () 
   function tools(verdict: 'h264' | 'hevc', over: Record<string, unknown> = {}) {
     const dir = mkdtempSync(join(tmpdir(), 'shelf-video-test-'))
     const counts = { download: 0, probe: 0, transcode: 0 }
+    const clock = { t: 1_000_000 }
     return {
       dir,
       counts,
+      clock,
       tools: {
         cacheDir: join(dir, 'cache'),
+        now: () => clock.t,
+        retryAfterMs: 60_000,
         download: async (_key: string, dest: string) => {
           counts.download++
           writeFileSync(dest, MP4)
@@ -587,11 +591,16 @@ describe('createShelfVideo: probe once, copy once, never serve half a file', () 
       const video = createShelfVideo(t.tools)
       expect(await video.playable('assets/c.mov')).toEqual({ kind: 'original' })
       fail = false
+      // Inside the backoff the key is left alone: no download, no ffmpeg.
+      expect(await video.playable('assets/c.mov')).toEqual({ kind: 'original' })
+      expect(t.counts.download).toBe(1)
+      t.clock.t += 60_001
       const second = await video.playable('assets/c.mov')
       expect(second.kind).toBe('file')
       expect(readFileSync((second as { path: string }).path, 'utf8')).toBe(
         'h264 copy'
       )
+      expect(t.counts.download).toBe(2)
     } finally {
       rmSync(t.dir, { recursive: true, force: true })
     }
@@ -603,6 +612,125 @@ describe('createShelfVideo: probe once, copy once, never serve half a file', () 
       await expect(
         createShelfVideo(t.tools).playable('assets/d.mp4')
       ).rejects.toBeInstanceOf(ShelfMissing)
+    } finally {
+      rmSync(t.dir, { recursive: true, force: true })
+    }
+  })
+
+  /* A verdict that cannot change for a key is written down; each request
+   * below would otherwise pull the whole object again (a <video> sends
+   * several ranged requests, a HEAD is one more). */
+
+  async function fiveTimes(video: ShelfVideo, key: string) {
+    for (let i = 0; i < 5; i++)
+      expect(await video.playable(key)).toEqual({ kind: 'original' })
+  }
+
+  it('a video over the ceiling is known from a stat: five requests, no download, and a restart remembers it', async () => {
+    let stats = 0
+    const t = tools('hevc', {
+      stat: async () => {
+        stats++
+        return { size: 2_000_000_000 }
+      },
+      maxBytes: 1024 * 1024 * 1024,
+    })
+    try {
+      await fiveTimes(createShelfVideo(t.tools), 'assets/huge.mov')
+      await fiveTimes(createShelfVideo(t.tools), 'assets/huge.mov')
+      expect(t.counts).toEqual({ download: 0, probe: 0, transcode: 0 })
+      expect(stats).toBe(1)
+    } finally {
+      rmSync(t.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('without a stat, a download that hits the ceiling is still remembered: one download for five requests', async () => {
+    const t = tools('hevc', {
+      download: async () => {
+        t.counts.download++
+        return 'too-big' as const
+      },
+    })
+    try {
+      await fiveTimes(createShelfVideo(t.tools), 'assets/huge2.mov')
+      expect(t.counts.download).toBe(1)
+    } finally {
+      rmSync(t.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a file ffprobe refuses is remembered: one download and one probe for five requests', async () => {
+    const t = tools('hevc', {
+      probe: async () => {
+        t.counts.probe++
+        return null
+      },
+    })
+    try {
+      await fiveTimes(createShelfVideo(t.tools), 'assets/broken.mp4')
+      expect(t.counts).toEqual({ download: 1, probe: 1, transcode: 0 })
+    } finally {
+      rmSync(t.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('an ffprobe that did not run is no verdict: left alone for a while, then tried again', async () => {
+    let broken = true
+    const t = tools('hevc', {
+      probe: async () => {
+        t.counts.probe++
+        if (broken)
+          throw Object.assign(new Error('spawn ffprobe ENOENT'), {
+            code: 'ENOENT',
+          })
+        return withVideo({ codec_name: 'hevc' })
+      },
+    })
+    try {
+      const video = createShelfVideo(t.tools)
+      await fiveTimes(video, 'assets/e.mov')
+      expect(t.counts).toEqual({ download: 1, probe: 1, transcode: 0 })
+      broken = false
+      t.clock.t += 60_001
+      expect((await video.playable('assets/e.mov')).kind).toBe('file')
+      expect(t.counts).toEqual({ download: 2, probe: 2, transcode: 1 })
+    } finally {
+      rmSync(t.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a download that came up short is no verdict: nothing is probed or written down', async () => {
+    const t = tools('hevc', {
+      stat: async () => ({ size: MP4.length + 1 }),
+      maxBytes: 1024 * 1024 * 1024,
+      probe: async () => {
+        t.counts.probe++
+        return null
+      },
+    })
+    try {
+      const video = createShelfVideo(t.tools)
+      expect(await video.playable('assets/f.mov')).toEqual({ kind: 'original' })
+      expect(t.counts).toEqual({ download: 1, probe: 0, transcode: 0 })
+      t.clock.t += 60_001
+      await video.playable('assets/f.mov')
+      expect(t.counts.download).toBe(2)
+    } finally {
+      rmSync(t.dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a stat that finds no object is ShelfMissing, before any download', async () => {
+    const t = tools('h264', {
+      stat: async () => null,
+      maxBytes: 1024 * 1024 * 1024,
+    })
+    try {
+      await expect(
+        createShelfVideo(t.tools).playable('assets/g.mp4')
+      ).rejects.toBeInstanceOf(ShelfMissing)
+      expect(t.counts.download).toBe(0)
     } finally {
       rmSync(t.dir, { recursive: true, force: true })
     }
@@ -622,6 +750,26 @@ const HAS_FFMPEG = (() => {
 })()
 
 describe('the real tools', () => {
+  it.skipIf(!HAS_FFMPEG)(
+    'ffprobeJson: a file it refuses is null (a verdict); an ffprobe that cannot run throws (not one)',
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'shelf-probe-'))
+      const path = process.env.PATH
+      try {
+        const junk = join(dir, 'junk.mp4')
+        writeFileSync(junk, 'this is not a video')
+        expect(await ffprobeJson(junk)).toBeNull()
+        process.env.PATH = dir
+        await expect(ffprobeJson(junk)).rejects.toMatchObject({
+          code: 'ENOENT',
+        })
+      } finally {
+        process.env.PATH = path
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+  )
+
   it.skipIf(!HAS_FFMPEG)(
     'an H.264 mp4 is served as stored; an HEVC one gets an 8-bit H.264 copy; ?original=1 gives the HEVC bytes',
     async () => {
