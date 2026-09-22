@@ -36,6 +36,15 @@ export function deliveryPool(owed: OwedDouble, balance?: number) {
     query: async (sql: string, p: unknown[] = []) => {
       const flat = sql.replace(/\s+/g, ' ').trim()
       if (/\bcrm_owed\b/.test(flat)) return owed.query(sql, p)
+      // Nobody here switched the assistant off (assistant-opt-out.ts).
+      if (/^CREATE TABLE IF NOT EXISTS assistant_opt_outs /.test(flat))
+        return { rows: [] }
+      if (
+        /^SELECT client_id, since FROM assistant_opt_outs WHERE owner_id = \$1 AND active$/.test(
+          flat
+        )
+      )
+        return { rows: [] }
       other.push(flat)
       if (/^CREATE (TABLE|INDEX) IF NOT EXISTS hive_events/.test(flat))
         return { rows: [] }

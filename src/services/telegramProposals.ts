@@ -85,6 +85,11 @@ export interface Proposal {
   charge?: { telegramId: string; op: string; tokens: number }
   /** The person in the base this draft is for, when the server knew one. */
   lead?: string
+  /**
+   * The words are the owner's own (render assistant-opt-out.ts): the only
+   * draft a client who switched the assistant off may still receive.
+   */
+  ownerWords?: boolean
 }
 
 const NUMERIC_LEAD = /^\d{5,15}$/
@@ -591,7 +596,14 @@ export function proposalCard(
   const quote = theirs
     ? `\n${isRu ? 'Последнее сообщение' : 'Their last message'}: «${theirs}»`
     : ''
-  const head = `${ask}\n\n${label}: ${to}${why}${quote}${fromLine}${warn}${price}${when}`
+  // The client switched the assistant off; only the owner's own words got
+  // this far, and the owner should know why this card is still allowed.
+  const own = p.ownerWords
+    ? isRu
+      ? '\n✍️ Твои слова дословно: человек просил без автоответов, уйдёт только по нажатию'
+      : '\n✍️ Your own words: this person asked for no automatic replies; it leaves only on your press'
+    : ''
+  const head = `${ask}\n\n${label}: ${to}${why}${quote}${own}${fromLine}${warn}${price}${when}`
   const tail = cut
     ? isRu
       ? `\n\n(показано ${limit} из ${body.length} символов — отправится целиком)`

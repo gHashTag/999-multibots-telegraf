@@ -40,6 +40,7 @@ import {
   type SendingClient,
 } from './tg-proposals'
 import { clientProfileFor } from './crm-client-setup-tool'
+import { assistantMayReach } from './assistant-opt-out'
 import { violatesLeelaVoice, LEELA_CTA_RU, LEELA_PLAY_RU } from './leela-canon'
 
 /**
@@ -1860,6 +1861,20 @@ export async function askBuyerModel(
   throw new Error(`buyer model: ${reasons.join('; ')}`)
 }
 
+/**
+ * A duet writes from a real session to a real person. If that person has
+ * switched the sender's assistant off -- even halfway through the run -- the
+ * next line does not leave (assistant-opt-out.ts). The throw ends the turn
+ * the way any failed send does.
+ */
+async function mayStillWrite(fromCtx: ToolContext, to: string): Promise<void> {
+  const reach = await assistantMayReach(
+    { telegramId: fromCtx.telegramId, pool: fromCtx.pool, sellerSweep: true },
+    to
+  )
+  if (!reach.ok) throw new Error(reach.why)
+}
+
 /** Live wiring: the real agent, the real model, the real sessions. */
 async function liveDeps(pool?: RunsPool): Promise<DuetDeps> {
   const { runAgent } = await import('./chat')
@@ -1878,11 +1893,13 @@ async function liveDeps(pool?: RunsPool): Promise<DuetDeps> {
     buyerModel,
     persist: pool ? run => upsertRun(pool, run) : undefined,
     sendText: async (fromCtx, to, text) => {
+      await mayStillWrite(fromCtx, to)
       await withClient(fromCtx, c =>
         sendWithAddressBook(c as unknown as SendingClient, to, text)
       )
     },
     sendMedia: async (fromCtx, to, url, caption) => {
+      await mayStillWrite(fromCtx, to)
       await withClient(fromCtx, async c => {
         try {
           await sendFileWithAddressBook(
@@ -1945,6 +1962,18 @@ export const CRM_DUET_TOOLS: AgentTool[] = [
           `аккаунт ${buyer} не подключён в приложении — за покупателя может отвечать только ` +
             'тот, кто сам вошёл в свой Telegram в мини-аппе'
         )
+      }
+      /*
+       * The buyer is a real person on the other end of the owner's account.
+       * One who switched the owner's assistant off is not written to by a
+       * duet either; a dry run sends nothing and stays allowed.
+       */
+      if (args.dry_run !== true) {
+        const reach = await assistantMayReach(
+          { ...ctx!, sellerSweep: true },
+          buyer
+        )
+        if (!reach.ok) throw new Error(reach.why)
       }
       const running = [...runs.values()].find(r => r.state === 'running')
       if (running) {

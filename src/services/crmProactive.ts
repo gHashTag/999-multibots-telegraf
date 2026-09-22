@@ -42,6 +42,7 @@ import {
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { fetchLeadRows, callTool } from './modelSwitch'
 import { noteSweepToHive } from './hiveNote'
+import { assistantAllowed } from './assistantOptOut'
 import { Markup } from 'telegraf'
 
 /**
@@ -915,6 +916,27 @@ export async function sweepOnce(
       ])
     }
     if (answer.proposal) {
+      /*
+       * A PERSON WHO SWITCHED THE ASSISTANT OFF GETS NO OUTREACH CARD.
+       *
+       * The render already hides them from crm_leads and refuses to prepare
+       * a draft for them (render assistant-opt-out.ts). This is the bot's own
+       * reading of the same row at the last door -- the owner's chat -- for a
+       * draft made by a turn that started before the client said stop. An
+       * unreadable row lets the card through: the render's refusal already
+       * failed closed on it, and this check must not silence a whole seller.
+       */
+      const stopFor = cardLeadOf(answer.proposal as never)
+      if (stopFor) {
+        const reach = await assistantAllowed(ownerId, stopFor, {
+          whenUnknown: 'allow',
+        })
+        if (!reach.allowed)
+          return {
+            did: 'idle',
+            why: `${stopFor} попросил(а) выключить автоответы — карточку не рисую`,
+          }
+      }
       stage = 'карточка владельцу'
       /*
        * THE MODEL'S OWN LINE GOES ON THE CARD.
