@@ -1,5 +1,10 @@
 import { API_BASE } from '../config'
-import { sessionStore, type SessionStore } from './framedSession'
+import {
+  sessionStore,
+  sessionTrustedIn,
+  type FramedWindow,
+  type SessionStore,
+} from './framedSession'
 import { isTelegram } from './telegram'
 
 const ACCESS_KEY = 'trinity.app.session.access'
@@ -7,13 +12,109 @@ const REFRESH_KEY = 'trinity.app.session.refresh'
 const EXPIRES_KEY = 'trinity.app.session.expires-at'
 const REFRESH_EARLY_MS = 60_000
 
+/*
+ * THE REFRESH TOKEN LIVES IN AN HttpOnly COOKIE, NOT IN THIS TAB.
+ *
+ * Measured 2026-09-22: the 60-day refresh token sat in the tab's sessionStorage
+ * (since 215480af6, 2026-09-01), so every new tab, bookmark, Telegram link and
+ * fresh browser start was signed out while the server would have honoured the
+ * family for 60 days -- the owner's "I have to log in every time". The render
+ * now hands it over as an HttpOnly cookie on app.t27.ai when asked (render
+ * src/auth/refresh-cookie.ts): the jar keeps it across tabs and restarts, and
+ * no script can read it, which is stricter than either Web Storage.
+ *
+ * The cookie only exists where nginx proxies /api/auth/ same-origin, so the
+ * auth doors are called on app.t27.ai itself there, and on API_BASE as before
+ * everywhere else (a dev server, a frame this app does not trust).
+ */
+export const APP_ORIGIN = 'https://app.t27.ai'
+const SESSION_TRANSPORT_HEADER = 'X-Session-Transport'
+
+/**
+ * Not a credential: only "a cookie session may be in the jar, try a silent
+ * refresh". Without it every anonymous visitor would spend a refresh -- and a
+ * share of the sign-in brake's ten attempts a minute -- on every page load.
+ * localStorage so a new tab sees it; the token itself is never here.
+ */
+const COOKIE_MARKER_KEY = 'trinity.app.session.cookie'
+
+/**
+ * Where cookie transport works: app.t27.ai, top-level or framed only by
+ * app.t27.ai itself (the board at app.t27.ai/queen/).
+ *
+ * Stricter than sessionTrustedIn, which also admits Telegram's frames. A
+ * SameSite=Strict cookie is not sent from inside a frame on another site, so
+ * in Telegram Web -- app.t27.ai framed by web.telegram.org -- a cookie session
+ * could be minted but never spent, and the refresh would retry for nothing.
+ * There the Mini App signs in from initData on every launch anyway, and keeps
+ * the tab's store as before.
+ */
+export function cookieTransportAvailable(): boolean {
+  if (typeof window === 'undefined') return false
+  if (window.location.origin !== APP_ORIGIN) return false
+  const win = window as unknown as FramedWindow
+  if (win.self === win.top) return true
+  if (!sessionTrustedIn(win)) return false
+  const list = win.location.ancestorOrigins
+  return !!list && Array.from(list).every(origin => origin === APP_ORIGIN)
+}
+
+function readMarker(): boolean {
+  try {
+    return window.localStorage.getItem(COOKIE_MARKER_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeMarker(on: boolean): void {
+  try {
+    if (on) window.localStorage.setItem(COOKIE_MARKER_KEY, '1')
+    else window.localStorage.removeItem(COOKIE_MARKER_KEY)
+  } catch {
+    // A browser that refuses storage still keeps the cookie; it only loses the
+    // hint, so a new tab signs in again, which is where it was before.
+  }
+}
+
+/** A cookie session is believed to exist in this browser. */
+export function hasCookieSession(): boolean {
+  return cookieTransportAvailable() && readMarker()
+}
+
+/** The URL of an auth door: same-origin under cookie transport. */
+export function authUrl(path: string): string {
+  return cookieTransportAvailable() ? path : `${API_BASE}${path}`
+}
+
+/** Headers an auth request carries: the opt-in under cookie transport. */
+export function authHeaders(
+  extra: Record<string, string> = {}
+): Record<string, string> {
+  return cookieTransportAvailable()
+    ? { ...extra, [SESSION_TRANSPORT_HEADER]: 'cookie' }
+    : extra
+}
+
+/**
+ * A failure that says nothing about whether the session is still good: the
+ * brake answered 429, the render answered 5xx during a deploy, the network was
+ * not up yet after the laptop woke. These used to clear the session, which is
+ * how a valid 60-day sign-in was thrown away by one bad minute. They are now
+ * surfaced as this, and the session is left alone to be tried again.
+ */
+export class TransientSessionError extends Error {}
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 let refreshInFlight: Promise<AppSession> | null = null
 let sessionGeneration = 0
 
 export interface AppSession {
   access_token: string
-  refresh_token: string
+  /** Absent when the server put it in the HttpOnly cookie instead. */
+  refresh_token?: string
+  /** "cookie" when the refresh token went to the jar (render). */
+  refresh_transport?: 'cookie'
   expires_in: number
   telegram_user?: {
     id: number
@@ -45,20 +146,33 @@ export function hasLiveAppSession(): boolean {
  * (lib/sessionRenewal.ts renews it before the next request).
  */
 export function hasRenewableAppSession(): boolean {
-  return !!storage()?.getItem(REFRESH_KEY)
+  return !!storage()?.getItem(REFRESH_KEY) || hasCookieSession()
 }
 
 export function storeAppSession(session: AppSession): void {
   const s = storage()
   if (!s) return
   s.setItem(ACCESS_KEY, session.access_token)
-  s.setItem(REFRESH_KEY, session.refresh_token)
+  if (session.refresh_transport === 'cookie' || !session.refresh_token) {
+    // The token is in the jar. Drop any copy an older reply left in this tab:
+    // the jar is now the one place it lives.
+    s.removeItem(REFRESH_KEY)
+    writeMarker(true)
+  } else {
+    // A server that did not answer with a cookie (an older render mid-deploy,
+    // a context without cookie transport): keep it where it always was, so
+    // the order in which the two services deploy does not matter.
+    s.setItem(REFRESH_KEY, session.refresh_token)
+  }
   s.setItem(
     EXPIRES_KEY,
     String(Date.now() + Math.max(1, session.expires_in) * 1000)
   )
   scheduleRefresh()
 }
+
+/** Fired when the session is cleared for good; atoms/user.ts listens. */
+export const APP_SESSION_CLEARED = 'trinity:app-session-cleared'
 
 export function clearAppSession(): void {
   // Invalidate every refresh response that started before this clear/logout.
@@ -67,23 +181,58 @@ export function clearAppSession(): void {
   sessionGeneration += 1
   if (refreshTimer) clearTimeout(refreshTimer)
   refreshTimer = null
+  writeMarker(false)
   const s = storage()
-  if (!s) return
-  s.removeItem(ACCESS_KEY)
-  s.removeItem(REFRESH_KEY)
-  s.removeItem(EXPIRES_KEY)
+  if (s) {
+    s.removeItem(ACCESS_KEY)
+    s.removeItem(REFRESH_KEY)
+    s.removeItem(EXPIRES_KEY)
+  }
+  /*
+   * THE PERSON IS SIGNED OUT, SO THE HEADER MUST SAY SO.
+   *
+   * This cleared the tokens and left userAtom set, so after a dead session the
+   * header kept the avatar and showed neither Login nor Logout (Logout needs a
+   * token), and every action failed with 401 -- the "authorization anomalies".
+   * An event rather than an import: atoms/user.ts imports this module.
+   */
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(APP_SESSION_CLEARED))
+  }
 }
 
-function scheduleRefresh(): void {
+/** After a transient failure, try again in this long, then twice as long. */
+const RETRY_MS = 15_000
+const RETRY_MAX_MS = 5 * 60_000
+let retryMs = RETRY_MS
+
+function scheduleRefresh(delayOverride?: number): void {
   if (refreshTimer) clearTimeout(refreshTimer)
   refreshTimer = null
-  const s = storage()
-  const refresh = s?.getItem(REFRESH_KEY) || ''
-  const expiresAt = Number(s?.getItem(EXPIRES_KEY) || 0)
-  if (!refresh || !Number.isFinite(expiresAt) || expiresAt <= 0) return
-  const delay = Math.max(0, expiresAt - Date.now() - REFRESH_EARLY_MS)
+  if (!hasRenewableAppSession()) return
+  const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
+  // A cookie session in a fresh tab has no stored expiry yet: renew now.
+  const due =
+    Number.isFinite(expiresAt) && expiresAt > 0
+      ? expiresAt - Date.now() - REFRESH_EARLY_MS
+      : 0
+  const delay = Math.max(0, delayOverride ?? due)
   refreshTimer = setTimeout(() => {
-    void refreshAppSession().catch(() => clearAppSession())
+    void refreshAppSession().then(
+      () => {
+        retryMs = RETRY_MS
+      },
+      (error: unknown) => {
+        // A definitive refusal has already cleared the session inside
+        // refreshAppSession. Anything else -- 429, 5xx, no network yet after
+        // sleep -- says nothing about the session, so try again later rather
+        // than throwing away a sign-in that is still good.
+        if (error instanceof TransientSessionError) {
+          scheduleRefresh(retryMs)
+          retryMs = Math.min(RETRY_MAX_MS, retryMs * 2)
+        }
+      }
+    )
   }, delay)
 }
 
@@ -138,7 +287,7 @@ export async function ensureFreshSession(): Promise<boolean> {
  * refresh family itself is finished -- and the caller must not retry.
  */
 export async function renewAppSession(): Promise<boolean> {
-  if (!(storage()?.getItem(REFRESH_KEY) || '')) return false
+  if (!hasRenewableAppSession()) return false
   try {
     await refreshAppSession()
     return true
@@ -170,6 +319,10 @@ export function startAppSessionHealing(
     : (window as unknown as HealingWindow)
 ): () => void {
   scheduleRefresh()
+  // A new tab, a bookmark, a restart: no access token here yet, but the jar
+  // may hold a cookie session. Ask now instead of waiting for the first request
+  // to find out, so the header shows the person signed in from the start.
+  if (!hasLiveAppSession() && hasCookieSession()) void ensureFreshSession()
   if (!win) return () => {}
   const heal = () => {
     void ensureFreshSession()
@@ -183,77 +336,111 @@ export function startAppSessionHealing(
 
 export async function refreshAppSession(): Promise<AppSession> {
   if (refreshInFlight) return refreshInFlight
-  const refreshToken = storage()?.getItem(REFRESH_KEY) || ''
-  if (!refreshToken) throw new Error('browser session is not available')
+  const stored = storage()?.getItem(REFRESH_KEY) || ''
+  const viaCookie = hasCookieSession()
+  if (!stored && !viaCookie) throw new Error('browser session is not available')
   const generation = sessionGeneration
   refreshInFlight = (async () => {
-    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    })
-    const body = (await response
-      .json()
-      .catch(() => ({}))) as Partial<AppSession> & {
-      error?: string
-      detail?: string
+    const attempt = async (): Promise<{
+      response: Response
+      body: Partial<AppSession> & { error?: string; detail?: string }
+    }> => {
+      let response: Response
+      try {
+        response = await fetch(authUrl('/api/auth/refresh'), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          // A token still held from before the move goes in the body, so a
+          // tab signed in yesterday keeps working; a cookie session sends none.
+          body: JSON.stringify(stored ? { refresh_token: stored } : {}),
+        })
+      } catch {
+        // No network yet (waking from sleep), or the connection dropped.
+        throw new TransientSessionError('network')
+      }
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as Partial<AppSession> & {
+        error?: string
+        detail?: string
+      }
+      return { response, body }
     }
+
+    let { response, body } = await attempt()
+
     /*
-     * ГОНКА ВКЛАДОК: ЧИСТИТЬ СЕССИЮ ЗДЕСЬ — ЗНАЧИТ ВЫГНАТЬ ЧЕЛОВЕКА ЗРЯ.
+     * TWO TABS, ONE FAMILY: THE LOSER RETRIES, IT DOES NOT SIGN OUT.
      *
-     * `refreshInFlight` — переменная модуля, то есть одна НА ВКЛАДКУ, а
-     * refresh лежит в localStorage, общем для всех вкладок одного браузера.
-     * Две открытые вкладки заводят таймер от одного и того же срока и приходят
-     * обновляться с разницей в миллисекунды. Одна выигрывает и кладёт новый
-     * токен в хранилище; вторая узнаёт об этом по 409.
-     *
-     * Ответ на 409 — перечитать хранилище, а не стирать его: победитель уже
-     * положил туда то, что нужно. Одна попытка, без цикла: если там всё ещё
-     * прежний токен, значит дело не в гонке, и общая ветка ниже отработает
-     * честно.
+     * Two tabs arm their timers from the same expiry and arrive milliseconds
+     * apart; one rotates, the other hears 409. With the token in the cookie
+     * there is one jar for the whole browser, so the winner's Set-Cookie is
+     * already in it -- the loser asks once more and rides the new token.
+     * With a token held in this tab (the path from before the move), re-read
+     * storage as before: the winner may have written it there.
      */
     if (response.status === 409 && body.error === 'auth_refresh_raced') {
-      await new Promise(готово => setTimeout(готово, 400))
-      const свежий = storage()?.getItem(REFRESH_KEY) || ''
-      if (
-        свежий &&
-        свежий !== refreshToken &&
-        generation === sessionGeneration
-      ) {
-        const access = getAppAccessToken()
-        const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
-        if (access) {
-          const сессия: AppSession = {
-            access_token: access,
-            refresh_token: свежий,
-            expires_in: Math.max(
-              1,
-              Math.round((expiresAt - Date.now()) / 1000)
-            ),
+      await new Promise(done => setTimeout(done, 400))
+      if (viaCookie && !stored) {
+        ;({ response, body } = await attempt())
+      } else {
+        const fresh = storage()?.getItem(REFRESH_KEY) || ''
+        if (fresh && fresh !== stored && generation === sessionGeneration) {
+          const access = getAppAccessToken()
+          const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
+          if (access) {
+            const session: AppSession = {
+              access_token: access,
+              refresh_token: fresh,
+              expires_in: Math.max(
+                1,
+                Math.round((expiresAt - Date.now()) / 1000)
+              ),
+            }
+            // Write, not just return: storeAppSession re-arms the timer, or
+            // the losing tab would never refresh again.
+            storeAppSession(session)
+            return session
           }
-          // Записать, а не просто вернуть: `storeAppSession` заново заводит
-          // таймер обновления. Без этого проигравшая вкладка дожила бы до
-          // конца access-токена и больше не обновилась бы никогда.
-          storeAppSession(сессия)
-          return сессия
         }
       }
     }
-    if (
-      !response.ok ||
-      typeof body.access_token !== 'string' ||
-      typeof body.refresh_token !== 'string' ||
-      typeof body.expires_in !== 'number'
-    ) {
+
+    if (response.ok && typeof body.access_token === 'string') {
+      if (generation !== sessionGeneration) {
+        throw new Error('browser session changed during refresh')
+      }
+      const session: AppSession = {
+        access_token: body.access_token,
+        refresh_token:
+          typeof body.refresh_token === 'string'
+            ? body.refresh_token
+            : undefined,
+        refresh_transport: body.refresh_transport,
+        expires_in: typeof body.expires_in === 'number' ? body.expires_in : 600,
+      }
+      storeAppSession(session)
+      return session
+    }
+
+    /*
+     * ONLY THE SERVER SAYING "THIS TOKEN IS DONE" ENDS THE SESSION.
+     *
+     * 401 is that answer: unknown, revoked, expired, reused, family over 60
+     * days -- log in again. Everything else is not: 429 is the brake (ten
+     * attempts a minute per client, shared with every sign-in door), 5xx is
+     * the render or Railway's edge during a deploy, 400 is an older render
+     * that does not yet read the cookie. Clearing on those is how one bad
+     * minute used to throw away a 60-day sign-in; now they are retried.
+     */
+    if (response.status === 401) {
       clearAppSession()
-      throw new Error(body.detail || body.error || `HTTP ${response.status}`)
+      throw new Error(body.detail || body.error || 'HTTP 401')
     }
-    const session = body as AppSession
-    if (generation !== sessionGeneration) {
-      throw new Error('browser session changed during refresh')
-    }
-    storeAppSession(session)
-    return session
+    throw new TransientSessionError(
+      body.detail || body.error || `HTTP ${response.status}`
+    )
   })().finally(() => {
     refreshInFlight = null
   })
@@ -263,18 +450,23 @@ export async function refreshAppSession(): Promise<AppSession> {
 export async function logoutAppSession(): Promise<void> {
   const access = getAppAccessToken()
   const refresh = storage()?.getItem(REFRESH_KEY) || ''
+  // Read before clearing: clearAppSession drops the marker.
+  const viaCookie = hasCookieSession()
   // Local logout is synchronous and fail-closed. A stalled network request or
   // a tab close must not leave a reusable browser credential behind.
   clearAppSession()
-  if (!access && !refresh) return
+  if (!access && !refresh && !viaCookie) return
   try {
-    await fetch(`${API_BASE}/api/auth/logout`, {
+    // The server revokes the family and takes the HttpOnly cookie out of the
+    // jar; only it can, since no script here can read or delete that cookie.
+    await fetch(authUrl('/api/auth/logout'), {
       method: 'POST',
-      headers: {
+      credentials: 'same-origin',
+      headers: authHeaders({
         'Content-Type': 'application/json',
         ...(access ? { Authorization: `Bearer ${access}` } : {}),
-      },
-      body: JSON.stringify({ refresh_token: refresh }),
+      }),
+      body: JSON.stringify(refresh ? { refresh_token: refresh } : {}),
     })
   } catch {
     // The short-lived access token will expire server-side. Local credentials
@@ -296,9 +488,10 @@ export async function logoutAllAppSessions(): Promise<boolean> {
   clearAppSession()
   if (!access) return false
   try {
-    const response = await fetch(`${API_BASE}/api/auth/logout-all`, {
+    const response = await fetch(authUrl('/api/auth/logout-all'), {
       method: 'POST',
-      headers: { Authorization: `Bearer ${access}` },
+      credentials: 'same-origin',
+      headers: authHeaders({ Authorization: `Bearer ${access}` }),
     })
     return response.ok
   } catch {
@@ -340,14 +533,24 @@ export function canSignOutEverywhere(): boolean {
  * ОТКАЗ НЕ ЛОМАЕТ НИЧЕГО. Не вышло — работаем ровно как вчера, по подписи.
  * Поэтому здесь нет ни одного `throw`: это добавка, а не замена.
  */
+/** A sign-in reply that carries a session, however its refresh travelled. */
+function isSessionReply(body: Partial<AppSession>): body is AppSession {
+  return (
+    typeof body.access_token === 'string' &&
+    (typeof body.refresh_token === 'string' ||
+      body.refresh_transport === 'cookie')
+  )
+}
+
 export async function exchangeTelegramLaunch(
   initData: string
 ): Promise<AppSession | null> {
   if (!initData) return null
   try {
-    const response = await fetch(`${API_BASE}/api/auth/telegram`, {
+    const response = await fetch(authUrl('/api/auth/telegram'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ init_data: initData }),
     })
     const body = (await response
@@ -355,13 +558,12 @@ export async function exchangeTelegramLaunch(
       .catch(() => ({}))) as Partial<AppSession>
     if (
       !response.ok ||
-      typeof body.access_token !== 'string' ||
-      typeof body.refresh_token !== 'string' ||
+      !isSessionReply(body) ||
       typeof body.expires_in !== 'number'
     ) {
       return null
     }
-    const session = body as AppSession
+    const session = body
     storeAppSession(session)
     return session
   } catch {
@@ -373,9 +575,10 @@ export async function exchangeTelegramLaunch(
 export async function exchangeTelegramWidget(
   payload: Record<string, unknown>
 ): Promise<AppSession> {
-  const response = await fetch(`${API_BASE}/api/auth/widget`, {
+  const response = await fetch(authUrl('/api/auth/widget'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   })
   const body = (await response
@@ -384,14 +587,10 @@ export async function exchangeTelegramWidget(
     error?: string
     detail?: string
   }
-  if (
-    !response.ok ||
-    typeof body.access_token !== 'string' ||
-    typeof body.refresh_token !== 'string'
-  ) {
+  if (!response.ok || !isSessionReply(body)) {
     throw new Error(body.detail || body.error || `HTTP ${response.status}`)
   }
-  const session = body as AppSession
+  const session = body
   storeAppSession(session)
   return session
 }
