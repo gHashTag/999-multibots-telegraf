@@ -18,6 +18,18 @@ import {
   payRow,
   stripAgentMarkers,
 } from '@/navigation/helpers/actionButtons'
+import {
+  CLUB_STARS,
+  clubOfferLine,
+  spacedNumber,
+} from '../../../apps/vibee-editor/render/src/agent/club-membership'
+import {
+  ПАКЕТЫ as PACKS, // cyrillic-ok: the render's own export name
+  ценаТокенов, // cyrillic-ok: the render's own export name
+} from '../../../apps/vibee-editor/render/src/agent/token-packs'
+
+/** The price list's answer for n tokens, under an English name. */
+const tokenPrice = (n: number) => ({ stars: ценаТокенов(n).звёзд }) // cyrillic-ok: the render's own API
 
 const read = (rel: string) =>
   fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8')
@@ -114,6 +126,51 @@ describe('the pay row and the markers', () => {
       'act:human',
     ])
     expect(kb.text).not.toContain('[[')
+  })
+
+  /*
+   * THE AMOUNT ON THE BUTTON IS THIS INVOICE'S, OR NONE.
+   *
+   * Asked for the price, the creator prompt tells the model to name both
+   * paths: the packs ("10 tokens -> 15 stars, ...") and the club offer, whose
+   * price is written in words ("10 000 stars", no star sign). The button used
+   * to read the FIRST "N star-sign" in the answer, so the club link sat under
+   * "pay 15" -- a 10 000-star monthly subscription understated ~667 times.
+   * The strings below are the real ones: the packs from the price list in
+   * chat.ts's shape, the offer from clubOfferLine().
+   */
+  it('the club link under a price answer never wears a pack price', () => {
+    const packs = PACKS.map(
+      n => `${n} токенов → ${tokenPrice(n).stars}⭐`
+    ).join(', ')
+    const club = spacedNumber(CLUB_STARS)
+    const link = 'https://t.me/$club_invoice_2'
+
+    // The offer alone: the price in words is the price on the button.
+    expect(payRow(`${clubOfferLine()}\n${link}`)?.[0]).toMatchObject({
+      text: `Оплатить ${club} ⭐`,
+      url: link,
+    })
+
+    // Packs, then the offer, then the club link: more than one amount, so the
+    // button names none -- Telegram's own sheet shows the real one.
+    const both = `Токены: ${packs}.\n${clubOfferLine()}\n${link}`
+    const b = payRow(both)?.[0] as { text: string; url: string }
+    expect(b).toMatchObject({ text: 'Оплатить ⭐', url: link })
+    for (const n of PACKS)
+      expect(b.text).not.toContain(String(tokenPrice(n).stars))
+
+    // The same amount written twice is still one amount; the spelling is the
+    // one nearest before the link.
+    expect(
+      payRow(`Клуб — 10000 ⭐ в месяц, то есть 10 000 звёзд.\n${link}`)?.[0]
+    ).toMatchObject({ text: 'Оплатить 10 000 ⭐' })
+
+    // An English answer: "stars" is the star sign, and a comma between the
+    // thousands does not leave "000" on the button.
+    expect(
+      payRow(`The club is 10,000 Stars for 30 days.\n${link}`)?.[0]
+    ).toMatchObject({ text: 'Оплатить 10 000 ⭐' })
   })
 
   it('stripAgentMarkers removes every marker, known or not, and collapses the gap', () => {
