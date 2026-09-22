@@ -579,6 +579,19 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   )
   // Somebody who came by a club link is shown the club, not the general
   // onboarding: otherwise the link's whole purpose ends in silence.
+  // The same for an app link: the screen it named, inside Telegram.
+  if (ctx.session.appDeepLink) {
+    const { appRouteFromStartParam, sendAppDoor, APP_START_PREFIX } =
+      await import('@/navigation/helpers/appLinks')
+    const route = appRouteFromStartParam(
+      APP_START_PREFIX + ctx.session.appDeepLink
+    )
+    ctx.session.appDeepLink = undefined
+    if (route) {
+      await sendAppDoor(ctx as any, route, isRussianFromState(ctx))
+      return ctx.scene.leave()
+    }
+  }
   if (ctx.session.clubDeepLink) {
     ctx.session.clubDeepLink = undefined
     const { showClubCard } = await import('@/navigation/helpers/clubCard')
@@ -612,8 +625,13 @@ createUserScene.enter(async ctx => {
 
   // Вызываем функцию создания пользователя напрямую
   // Создаем правильную структуру сообщения с сессией и методами
+  // `chat` is a getter on Telegraf's Context prototype, so the spread below
+  // drops it: without this line chat_id is always null and every reader of
+  // ctx.chat (the app door among them) sees no chat at all.
+  const chat = ctx.chat || { id: ctx.from.id, type: 'private' as const }
   const fakeMessage = {
     ...ctx,
+    chat,
     from: ctx.from, // Убедимся, что from передается правильно
     session: ctx.session, // Передаем сессию из реального контекста
     reply: ctx.reply.bind(ctx), // Передаем метод reply
@@ -623,7 +641,7 @@ createUserScene.enter(async ctx => {
     message: {
       message_id: 0,
       date: Math.floor(Date.now() / 1000),
-      chat: ctx.chat || { id: ctx.from.id, type: 'private' },
+      chat,
       text: ctx.session.inviteCode
         ? `/start ${ctx.session.inviteCode}`
         : '/start',

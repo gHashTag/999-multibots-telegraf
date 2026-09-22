@@ -39,6 +39,12 @@ import {
   rememberClientMediaQuietly,
 } from '@/services/mediaLibrary'
 import {
+  appRouteFromStartParam,
+  refreshMainWebApp,
+  sendAppDoor,
+  type AppRoute,
+} from '@/navigation/helpers/appLinks'
+import {
   ACTION_PREFIX,
   standardButtons,
   buttonsForAnswer,
@@ -509,7 +515,10 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     bot.command('browser', async ctx => {
       const isRu = await isRussianFromState(ctx)
       const app = ctx.chat.type === 'private'
-      const keyboard = browserInviteKeyboard(isRu, { app })
+      const keyboard = browserInviteKeyboard(isRu, {
+        app,
+        botUsername: ctx.botInfo?.username,
+      })
       await ctx.reply(
         app ? browserInviteText(isRu) : browserElsewhereText(isRu),
         {
@@ -1525,12 +1534,17 @@ If not, continue on your own and click the "I myself" button`
            * keyboard per message, and repeating it under every part of a long
            * answer would give the person the same three buttons four times.
            */
+          // Keeps "has a Main Mini App" fresh for the links in this answer
+          // and the next (helpers/appLinks.ts); this bot's own client, so its
+          // own Bot API host. Cached for minutes, never throws.
+          void refreshMainWebApp(ctx.telegram, ctx.botInfo?.username)
           const { text: ochishcheno, markup } = buttonsForAnswer(
             ответ.текст, // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
             isRuOtvet,
             // The seller's hub under every owner answer, one tap away.
             {
               app: ctx.chat?.type === 'private',
+              bot: ctx.botInfo,
               ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
               ctx.chat?.type === 'private'
                 ? { tail: hubRows() }
@@ -1599,6 +1613,7 @@ If not, continue on your own and click the "I myself" button`
       // elsewhere); the owner's hub row under an owner's private answers.
       const missButtons = {
         app: ctx.chat?.type === 'private',
+        bot: ctx.botInfo,
         ...(ADMIN_IDS_ARRAY.includes(Number(ctx.from?.id)) &&
         ctx.chat?.type === 'private'
           ? { tail: hubRows() }
@@ -2733,6 +2748,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       let wantsClub = false
       let wantsTopUp: { method: 'rub' | 'crypto' | null } | null = null
       let inlineService: ServiceCard | undefined
+      let wantsApp: AppRoute | null = null
       if (ctx.message && 'text' in ctx.message) {
         const parts = ctx.message.text.split(' ')
         if (parts.length > 1) {
@@ -2760,6 +2776,18 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             // Not the owner: say nothing about what the payload meant and let
             // /start behave exactly as it does for everybody else.
             logger.info('CRM prepare deep-link refused', { telegramId })
+          }
+
+          /*
+           * `t.me/<bot>?start=app_<route>` -- the two-tap link to a screen of
+           * the app (helpers/appLinks.ts). It is how every link to the app
+           * opens INSIDE Telegram while the bot has no Main Mini App: the
+           * answer is one message with one web_app button to that screen.
+           */
+          wantsApp = appRouteFromStartParam(startParam)
+          if (wantsApp) {
+            ctx.session.appDeepLink = wantsApp
+            logger.info('App deep-link', { telegramId, route: wantsApp })
           }
 
           const { extractPromoFromContext } = await import(
@@ -2822,6 +2850,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
         console.log('🔴 [DEBUG /start] CreateUserScene entered')
+      } else if (wantsApp) {
+        ctx.session.appDeepLink = undefined
+        await sendAppDoor(ctx as any, wantsApp, isRussianFromState(ctx))
       } else if (inlineService?.mode) {
         ctx.session.mode = inlineService.mode
         await ctx.scene.enter(inlineService.mode)

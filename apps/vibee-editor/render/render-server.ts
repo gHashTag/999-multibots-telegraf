@@ -652,6 +652,7 @@ import {
   telegramApiFor,
   telegramFileUrlFor,
 } from './src/telegram-api'
+import { rewriteAppUrlsForToken } from './src/app-links'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -703,14 +704,11 @@ const SERVICE_ENDPOINTS = {
   // dead-domain-ok: замены нет, отказ теперь виден в ответе публикации
   bridge:
     process.env.TELEGRAM_BRIDGE_URL || 'https://vibee-telegram-bridge.fly.dev',
-  /**
-   * Собственный домен, а не служебный адрес Railway: этот URL уходит ЛЮДЯМ —
-   * в подпись поста в канале. Замер 2026-08-26: app.t27.ai отдаёт 200 и тот
-   * же бандл (index-D06s1d0l.js), что и адрес Railway, а /feed на нём тоже
-   * 200. Раньше домена не существовало, поэтому в постах стоял служебный
-   * адрес — технически живой и нечитаемый для человека.
+  /*
+   * `player` (PLAYER_URL || app.t27.ai) stood here, read by nothing. Removed
+   * 2026-09-22: a link to the app for a person is the bot's t.me link
+   * (src/app-links.ts), and an unused default is how a dead link comes back.
    */
-  player: process.env.PLAYER_URL || 'https://app.t27.ai',
 } as const
 
 /**
@@ -760,7 +758,12 @@ async function postReelToChannel(input: {
   }
 
   // Telegram режет подпись на 1024 символах и отвечает отказом, если длиннее.
-  const caption = input.caption.slice(0, 1024)
+  // A raw app link in the caption becomes the posting bot's t.me link first:
+  // a channel reader outside the app cannot open the app host (app-links.ts).
+  const caption = (await rewriteAppUrlsForToken(input.caption, token)).slice(
+    0,
+    1024
+  )
 
   try {
     const r = await fetch(`${telegramApiFor(token)}/sendVideo`, {
@@ -1060,7 +1063,8 @@ async function sendTelegramMessage(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: message,
+          // Links to the app open inside Telegram only (src/app-links.ts).
+          text: await rewriteAppUrlsForToken(message, TELEGRAM_BOT_TOKEN),
           parse_mode: 'HTML',
         }),
       }
@@ -6034,7 +6038,7 @@ const server = createServer(async (req, res) => {
     // из него не было видно, ни почему файла нет, ни куда идти.
     const MEDIA_HINT =
       process.env.MEDIA_ORIGIN ||
-      'https://vibee-editor-production.up.railway.app'
+      'https://vibee-editor-production.up.railway.app' // app-link-ok: a 404 hint for a developer, not a link to a person
     console.log(
       `❌ Media requested from the render server: ${filePath}\n` +
         `   Этот сервер не хранит public/. Правильный адрес: ${MEDIA_HINT}${req.url}\n` +

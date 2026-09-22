@@ -25,6 +25,7 @@
 import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
 import { buildMiniAppUrl } from '@/navigation/config/miniApp.config'
+import { appLinkFor } from '@/navigation/helpers/appLinks'
 
 /** The start_param the mini app maps to /browser (TelegramProvider.tsx). */
 export const BROWSER_START_PARAM = 'browser'
@@ -52,17 +53,31 @@ export function browserInviteText(isRu: boolean): string {
 }
 
 /**
- * A web_app button in a private chat, and nothing at all anywhere else.
+ * A web_app button in a private chat; elsewhere a url button to the t.me link
+ * of this bot, and nothing at all when the bot's name is unknown.
  *
- * Returning an empty keyboard rather than a url button is deliberate: a url
- * would open the app outside Telegram, where the person is not signed in,
- * and they would meet a sign-in wall instead of their browser.
+ * Never a url button to the app's own host: that would open the app outside
+ * Telegram, where the person is not signed in, and they would meet a sign-in
+ * wall instead of their browser. The t.me link opens the private chat, where
+ * /start app_browser answers with the web_app button (helpers/appLinks.ts).
  */
 export function browserInviteKeyboard(
   isRu: boolean,
-  opts: { app: boolean }
+  opts: { app: boolean; botUsername?: string | null }
 ): InlineKeyboardButton[][] {
-  if (!opts.app) return []
+  if (!opts.app) {
+    const link = appLinkFor(opts.botUsername, BROWSER_START_PARAM)
+    return link
+      ? [
+          [
+            Markup.button.url(
+              isRu ? '🌍 Открыть браузер' : '🌍 Open the browser', // cyrillic-ok
+              link
+            ),
+          ],
+        ]
+      : []
+  }
   return [
     [
       Markup.button.webApp(
