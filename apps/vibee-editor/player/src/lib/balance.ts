@@ -33,6 +33,13 @@ export interface Баланс {
    * провайдера не доходили вовсе.
    */
   modelFields?: Record<string, string[]>
+  /**
+   * A video without a Kie model is the server's default leg, and that clip is
+   * priced by its LENGTH: {"5": 72, "10": 144}. One number for "video" was
+   * true for one chip only -- the 10-second clip cost twice what the button
+   * said.
+   */
+  defaultVideoPrices?: Record<string, number>
   exempt?: boolean
 }
 
@@ -86,11 +93,33 @@ export async function загрузитьБаланс(): Promise<Баланс | n
 export function ценаНажатия(
   б: Баланс | null,
   операция: string,
-  модель: string | undefined
+  модель: string | undefined,
+  /** The length chip, for a video: the default leg is priced by it. */
+  duration?: string
 ): number | null {
   if (!б) return null
   if (модель && б.modelPrices?.[модель] != null) return б.modelPrices[модель]
+  const byLength = defaultVideoPrice(б, операция, модель, duration) // cyrillic-ok: existing parameter names
+  if (byLength != null) return byLength
   return б.prices?.[операция] ?? null
+}
+
+/**
+ * The price of a default-leg video clip of the chosen length, or null when
+ * this press is not one: a Kie model (priced by `modelPrices`), another
+ * operation, no chip, or an older server without the table. The key is the
+ * chip's seconds, the same lengths the server makes ("5s" -> "5").
+ */
+export function defaultVideoPrice(
+  balance: Баланс | null, // cyrillic-ok: existing type name
+  op: string,
+  model: string | undefined,
+  duration: string | undefined
+): number | null {
+  if (!balance || op !== 'video_generate' || !duration) return null
+  if (model?.startsWith('kie/')) return null
+  const seconds = parseInt(duration, 10)
+  return balance.defaultVideoPrices?.[String(seconds)] ?? null
 }
 
 /**

@@ -39,6 +39,7 @@ tri — оболочка Trinity S³AI
   tri disk       освободить место и проверить сам инструмент чистки
   tri pipeline   проверка конвейера без единой траты кредитов
   tri prices     таблица цен: модель, токены, единица
+  tri margin     маржа каждой картинки и видео: себестоимость, токены, выручка по курсу клуба
   tri card       как выглядит карточка владельца на живых данных
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
@@ -188,6 +189,9 @@ case "${1:-}" in
   pipeline) (cd "$RENDER" && npx tsx scripts/pipeline-check.ts) ;;
   card)   shift; bash "$ROOT/bin/helpers/card.sh" "$ROOT" "$@" ;;
   prices)   (cd "$RENDER" && npx tsx scripts/prices.ts) ;;
+  # The margin of every image and video the code can sell, from the code's
+  # own tables: no network, no tokens. Exit 1 when any sale is below cost.
+  margin)   (cd "$RENDER" && npx tsx scripts/margin.ts) ;;
   feed)
     # В ЛЕНТЕ НЕТ ССЫЛОК НА ПОСТЫ — ни в вебе, ни в приложении. Сослаться на
     # конкретный ролик из интерфейса нечем, поэтому id достаём отсюда.

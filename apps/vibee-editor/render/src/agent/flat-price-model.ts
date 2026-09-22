@@ -20,6 +20,12 @@
  * over the agent chat and over /mcp alike, since both reach the same handler
  * with the caller's arguments untouched.
  *
+ * (The 40 above is the price of that day's measurement. Later the same day
+ * the video floor priced the Replicate clip by its length -- 72 tokens for 5
+ * seconds, 144 for 10 at 720p (billing-shared.ts, `replicateClipTokens`) --
+ * and the refusal below still holds: no single tool price covers every Kie
+ * model.)
+ *
  * REFUSED BEFORE THE CHARGE, NOT PRICED PER MODEL. Pricing per model here
  * would mean a second charge path in the tool file with daily traffic, and a
  * refund that has to mirror it model for model (refund-equals-the-charge
