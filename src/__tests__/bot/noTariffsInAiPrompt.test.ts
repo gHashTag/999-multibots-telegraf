@@ -90,6 +90,15 @@ describe('the toolless fallback prompt', () => {
       expect(prompt).toMatch(new RegExp('звёзд|Stars', 'i'))
     })
 
+    it(`${lang}: names every way to pay the top-up button opens, not Stars alone`, () => {
+      // Review of #2844: the top-up chooser offers Stars, rubles and crypto
+      // (actionButtons.ts, pay_rub / pay_crypto). With "never invent anything
+      // not in this prompt", a Stars-only line made the fallback tell a person
+      // asking about rubles that only Stars work.
+      expect(prompt).toMatch(new RegExp('рубл|rubles', 'i'))
+      expect(prompt).toMatch(new RegExp('крипт|crypto', 'i'))
+    })
+
     it(`${lang}: forbids inventing services and says it has no tools`, () => {
       expect(prompt).toMatch(new RegExp('не выдумывай|never invent', 'i'))
       expect(prompt).toMatch(new RegExp('без инструментов|without tools', 'i'))
