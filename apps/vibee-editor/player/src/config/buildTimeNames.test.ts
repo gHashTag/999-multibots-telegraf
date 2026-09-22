@@ -38,12 +38,28 @@ function everyFile(dir: string): string[] {
   return out
 }
 
+/*
+ * EVERY SPELLING, NOT ONE.
+ *
+ * This matched `import.meta.env.VITE_X` only. lib/appSession.ts read
+ * VITE_AUTH_ORIGIN as `(import.meta.env as Record<...>).VITE_AUTH_ORIGIN`, the
+ * census could not see it, the Dockerfile never declared it, and setting it on
+ * Railway would have changed nothing -- the very failure this file exists for.
+ * A cast, optional chaining, a bracket, a destructure: each hides the name
+ * from a pattern anchored on `import.meta.env.`. So any VITE_ name that shipped
+ * source mentions counts as read. A mention in a comment is counted too; that
+ * costs a declaration at worst, and a miss costs a silent production switch.
+ */
+function namesIn(text: string): string[] {
+  return [...text.matchAll(/\bVITE_[A-Z0-9_]+\b/g)].map(m => m[0])
+}
+
 function namesReadBySource(): Set<string> {
   const names = new Set<string>()
   for (const file of everyFile(SRC)) {
-    const text = readFileSync(file, 'utf8')
-    for (const m of text.matchAll(/import\.meta\.env\.(VITE_[A-Z0-9_]+)/g))
-      names.add(m[1])
+    // Tests do not ship; their fixtures name variables on purpose.
+    if (/\.test\.tsx?$/.test(file) || file.includes('__tests__')) continue
+    for (const name of namesIn(readFileSync(file, 'utf8'))) names.add(name)
   }
   return names
 }
@@ -58,6 +74,28 @@ describe('every build-time name reaches the build', () => {
     const read = namesReadBySource()
     expect(read.size).toBeGreaterThan(5)
     expect(read.has('VITE_API_URL')).toBe(true)
+  })
+
+  it('sees a name however the source spells the read', () => {
+    const spellings = [
+      'import.meta.env.VITE_ONE',
+      '(import.meta.env as Record<string, string>).VITE_TWO',
+      'import.meta.env?.VITE_THREE',
+      "import.meta.env['VITE_FOUR']",
+      'const { VITE_FIVE } = import.meta.env',
+    ].join('\n')
+    expect(namesIn(spellings)).toEqual([
+      'VITE_ONE',
+      'VITE_TWO',
+      'VITE_THREE',
+      'VITE_FOUR',
+      'VITE_FIVE',
+    ])
+  })
+
+  it('counts the sign-in door, the name the old pattern missed', () => {
+    expect(namesReadBySource().has('VITE_AUTH_ORIGIN')).toBe(true)
+    expect(declared.has('VITE_AUTH_ORIGIN')).toBe(true)
   })
 
   it('declares every name the source reads, or marks it dev-only', () => {
