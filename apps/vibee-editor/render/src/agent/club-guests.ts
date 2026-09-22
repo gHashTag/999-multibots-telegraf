@@ -39,22 +39,28 @@
  * identifier every sign-in path knows, it cannot be renamed away, and it needs
  * no lookup at all. The names stay because the owner invites people by name.
  *
- * PENDING THE OWNER'S DECISION (#2752). This repository is public, and the
- * two ids below are real people. They are the only person ids the agent-tree
- * guard (no-dossier-in-the-agent-tree.test.ts) tolerates, as bare list
- * entries in this file and no more of them. They are not moved here because
- * moving them changes who gets into the club: CLUB_GUESTS is empty on the
- * render service (measured 2026-09-21, #2744), so deleting them would put
- * both guests back behind the paywall. The way out needs no code: put the
- * ids into CLUB_GUESTS on the render service, then delete the two lines
- * here and the exception in the guard.
+ * WHERE THE IDS LIVE NOW (#2752). This repository is public, and an id is a
+ * real person. Two of them sat in the list below because the alternative was
+ * worse: CLUB_GUESTS was empty on the render service (measured 2026-09-21,
+ * #2744), so deleting them would have put two invited guests back behind the
+ * paywall. That is no longer true -- every invited id is in CLUB_GUESTS on
+ * vibee-render, verified against production on 2026-09-22 -- so the ids are
+ * gone from here, together with the exception that excused them in
+ * no-dossier-in-the-agent-tree.test.ts.
+ *
+ * What stays is the names, and only the names: they are what the owner speaks
+ * when he invites someone, and they keep working for a Mini App sign-in even
+ * if the variable is ever lost.
+ *
+ * This is the guest pass, not the whole sweep. The same two ids are still
+ * written in one-off money scripts (scripts/money/), in an architecture note
+ * and in a player comment -- outside this tree and outside the guard. #2752
+ * covers them; this change covers the list that decides who gets in.
  */
 export const DEFAULT_GUESTS: readonly string[] = [
   'dmtrled',
   'samhold',
-  '504608015', // an invited guest, by id (#2744)
   'farishka',
-  '373211349', // an invited guest, by id (#2744)
 ]
 
 export function normalizeGuest(raw: string): string {
