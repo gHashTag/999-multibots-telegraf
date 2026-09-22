@@ -143,10 +143,30 @@ function narrowToBranch(declared) {
 }
 
 const isCode = f => /\.(ts|tsx|js|jsx)$/.test(f)
+
+/*
+ * THE SAME GATE, RUN IN THE CLOUD (bin/helpers/remote-check.sh, the
+ * check-runner service; owner 2026-09-22: "everything in the cloud"). The
+ * runner has the code but no .git, so the push's files are worked out HERE
+ * (--print-files) and travel with the code as a list (TEST_GUARD_FILES_FROM);
+ * the baseline and every rule below stay the same in both places.
+ */
+if (process.argv.includes('--print-files')) {
+  process.stdout.write(filesBeingPushed().filter(isCode).join('\n') + '\n')
+  process.exit(0)
+}
+const listed = process.env.TEST_GUARD_FILES_FROM
+  ? readFileSync(resolve(root, process.env.TEST_GUARD_FILES_FROM), 'utf8')
+      .split('\n')
+      .map(s => s.trim())
+      .filter(isCode)
+  : null
 const passed = process.argv.slice(2).filter(isCode)
-const changed = passed.length
-  ? narrowToBranch(passed)
-  : filesBeingPushed().filter(isCode)
+const changed = listed
+  ? listed
+  : passed.length
+    ? narrowToBranch(passed)
+    : filesBeingPushed().filter(isCode)
 
 /**
  * THE TESTS THAT READ A FILE INSTEAD OF IMPORTING IT.
