@@ -97,6 +97,7 @@ interface Screen {
 }
 
 class FakeBotFather {
+  noData: string[] = []
   msgs: Msg[] = []
   sent: string[] = []
   pressed: string[] = []
@@ -110,10 +111,11 @@ class FakeBotFather {
       id,
       text: s.text,
       ...(editDate ? { editDate } : {}),
-      buttons: s.buttons.map(text => ({
-        text,
-        data: Buffer.from('cb:' + text),
-      })),
+      buttons: s.buttons.map(text =>
+        this.noData.includes(text)
+          ? { text }
+          : { text, data: Buffer.from('cb:' + text) }
+      ),
     }
   }
   post(s: Screen) {
@@ -154,6 +156,8 @@ interface Script {
   askText?: string
   /** Ask for the URL only after this many ms, with the menu edited first. */
   askLater?: number
+  /** Labels that arrive as url / web-view buttons: no callback data. */
+  noData?: string[]
   replyText?: string
   onUrl?: () => void
 }
@@ -185,7 +189,7 @@ function botFather(s: Script = {}) {
     text: s.askText ?? `OK. Send me the URL of the Main Mini App for @${BOT}.`,
     buttons: [],
   }
-  return new FakeBotFather(
+  const fb = new FakeBotFather(
     (text, fb) => {
       if (text === '/mybots') {
         page = 0
@@ -235,6 +239,8 @@ function botFather(s: Script = {}) {
       }
     }
   )
+  fb.noData = s.noData ?? []
+  return fb
 }
 
 /* ─────────────────────────────────── setup ─────────────────────────────────── */
@@ -449,6 +455,24 @@ describe('it stops on surprise, and says where', () => {
     expect(r.status).toBe('stopped')
     expect(r.stopped_at).toBe('configure_mini_app')
     expect(fb.sent).toEqual(['/mybots'])
+  })
+
+  it('a url or web-view button is never pressed: stops, says why', async () => {
+    const fb = botFather({ noData: ['Configure Mini App'] })
+    const r = await run(fb).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('configure_mini_app')
+    expect(r.reason).toContain('cannot be pressed')
+    expect(fb.pressed).toEqual([`@${BOT}`, 'Bot Settings'])
+  })
+
+  it('turns at most MAX_PAGES pages of /mybots, then stops', async () => {
+    const pages = Array.from({ length: 8 }, (_, i) => [`@page${i}_test_bot`])
+    const fb = botFather({ pages })
+    const r = await run(fb).result
+    expect(r.status).toBe('stopped')
+    expect(r.stopped_at).toBe('pick_bot')
+    expect(fb.pressed.filter(p => p === '»')).toHaveLength(mod.MAX_PAGES - 1)
   })
 
   it('a bot /mybots does not list stops at open', async () => {
@@ -683,5 +707,37 @@ describe('the real BotFather adapter', () => {
     expect(gram.sendMessage).toHaveBeenCalledWith('BotFather', {
       message: '/mybots',
     })
+  })
+})
+
+describe('the matching rules', () => {
+  const b = (...labels: string[]) => labels.map(text => ({ text }))
+
+  it('labels match exactly after trimming emoji and case, never as a substring', () => {
+    expect(mod.labelKey('⚙️ Bot Settings')).toBe('bot settings')
+    expect(mod.labelKey('@Neuro_Test_Bot')).toBe('@neuro_test_bot')
+    const pick = mod.pickButton(
+      b('Menu Button', 'Mini App Directory', 'Enable Mini App Notifications'),
+      [
+        ...mod.STEP_LABELS.configure_mini_app,
+        ...mod.STEP_LABELS.enable_mini_app,
+      ]
+    )
+    expect(pick).toEqual({ missing: true })
+    expect(
+      mod.pickButton(
+        b('Menu Button', '📱 Mini App'),
+        mod.STEP_LABELS.configure_mini_app
+      )
+    ).toEqual({
+      found: { text: '📱 Mini App' },
+    })
+  })
+
+  it('the next page is », never a back button', () => {
+    expect(mod.isNextPage('»')).toBe(true)
+    expect(mod.isNextPage('Next »')).toBe(true)
+    expect(mod.isNextPage('« Back to Bots List')).toBe(false)
+    expect(mod.isNextPage('Bot Settings')).toBe(false)
   })
 })

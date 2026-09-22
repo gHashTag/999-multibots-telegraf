@@ -476,7 +476,8 @@ export async function driveBotFather(
     const { r, pressError } = await press(enable.found, m =>
       ASKS_FOR_URL.test(m.text) ? 'ok' : 'wait'
     )
-    if (!r) {
+    // Only a screen that ASKS earns the URL; anything else is a stop.
+    if (!r || r.v !== 'ok') {
       return stop(
         'send_url',
         'BotFather did not ask for the URL' +
