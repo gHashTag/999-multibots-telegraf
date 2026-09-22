@@ -1,4 +1,5 @@
 import type { ProviderId } from './provider'
+import { resetBreaker } from './provider-breaker'
 
 /**
  * WHICH MODEL, CHOSEN FROM THE BOT.
@@ -79,6 +80,10 @@ export async function chooseProvider(
 ): Promise<void> {
   if (!isProviderId(id)) throw new Error(`unknown provider: ${String(id)}`)
   chosen = id
+  // A breaker left open by earlier timeouts must not overrule the owner's
+  // hand: the model he just picked answers his next message
+  // (provider-breaker.ts).
+  resetBreaker(id)
   if (!pool) return
   try {
     await ensureTable(pool)
