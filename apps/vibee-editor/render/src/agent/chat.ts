@@ -319,6 +319,27 @@ export const BUTTON_MARKERS =
   'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
 
 /**
+ * CARDS THE AGENT PROPOSES IN THE APP (owner, 2026-09-22: "steer the agent by
+ * approving or declining cards"). The mini app's chat draws `[[card: title |
+ * what exactly will happen]]` as a card with Approve / Decline
+ * (player lib/agentCards.ts); a press comes back as the person's message
+ * "✅ Одобряю: title" or "✖ Не надо: title". Only for the mini app -- the
+ * bot has its own act: buttons, and anywhere else a marker is bracket soup.
+ *
+ * An approval here is the person's decision about WHAT to do; it is not the
+ * browser guard's permission for a guarded page, which stays its own button.
+ */
+export const CARD_MARKERS =
+  '\n\nКАРТОЧКИ. Ты в приложении, где человек управляет тобой, одобряя ' + // cyrillic-ok: prompt copy
+  'карточки. Когда у задачи есть варианты или шаги — не спрашивай абзацем, а ' + // cyrillic-ok: prompt copy
+  'в конце ответа предложи 1–4 карточки. Варианты, из которых выберут один: ' + // cyrillic-ok: prompt copy
+  '[[card: короткий заголовок | что именно сделаешь]]. Шаги плана по порядку: ' + // cyrillic-ok: prompt copy
+  '[[step: заголовок | что сделаешь]]. Человек нажмёт «Одобрить» или «Не надо», и тебе придёт ' + // cyrillic-ok: prompt copy
+  'сообщение «✅ Одобряю: заголовок» или «✖ Не надо: заголовок» — одобренное ' + // cyrillic-ok: prompt copy
+  'делай сразу, не переспрашивая. Заголовок до 80 символов, без ] и |. ' + // cyrillic-ok: prompt copy
+  'Одна карточка — одно действие. Не ставь карточку ради украшения.' // cyrillic-ok: prompt copy
+
+/**
  * THE CREATOR IN THE APP.
  *
  * History, because each layer explains a line below. Until 2026-09-08 this
@@ -1047,7 +1068,13 @@ export function systemPrompt(surface?: string, toolsOnly = false): string {
   // The unattended sweep (tools_only) must call tools, not draw buttons:
   // the markers section was the root of marker-only `[[...|no_one_available]]`
   // answers (CRM audit 2026-09-12, P2 #14).
-  const buttons = surface === 'bot' && !toolsOnly ? BUTTON_MARKERS : ''
+  const buttons = toolsOnly
+    ? ''
+    : surface === 'bot'
+      ? BUTTON_MARKERS
+      : surface === 'miniapp'
+        ? CARD_MARKERS
+        : ''
   /*
    * Not for the unattended sweep: it must call tools, not explain itself to
    * nobody. Everything else -- the bot, the business DM, the mini app -- is a
