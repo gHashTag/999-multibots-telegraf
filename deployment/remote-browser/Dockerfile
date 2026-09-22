@@ -60,6 +60,15 @@ COPY unlock-profile.sh /usr/local/bin/unlock-profile.sh
 COPY start-chromium.sh /usr/local/bin/start-chromium.sh
 RUN chmod +x /usr/local/bin/own-profile.sh /usr/local/bin/unlock-profile.sh /usr/local/bin/start-chromium.sh
 
+# THE PERSON'S TOUCH TAKES CONTROL. neko's default is implicit_hosting=false:
+# a viewer's clicks are ignored until they press neko's own "request
+# control" icon, which nobody on a phone knows to do -- the owner could not
+# press a single button on a Google page by hand (2026-09-22). With implicit
+# hosting the first touch takes control. The agent drives over CDP, not
+# neko, so this changes nothing for it; who holds the wheel is ours
+# (sessions.ts), not neko's.
+ENV NEKO_SESSION_IMPLICIT_HOSTING=true
+
 COPY chromium.conf /etc/neko/supervisord/chromium.conf
 COPY cdp-bridge.conf /etc/neko/supervisord/cdp-bridge.conf
 
