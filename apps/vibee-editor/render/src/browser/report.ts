@@ -36,9 +36,11 @@ const STEP_WORDS: Record<string, (d: Record<string, unknown>) => string> = {
     `Прочитал текст страницы${typeof d.title === 'string' && d.title ? ` «${d.title}»` : ''}`, // cyrillic-ok
   browser_screenshot: () => 'Посмотрел на экран', // cyrillic-ok
   browser_click: d =>
-    typeof d.x === 'number' && typeof d.y === 'number'
-      ? `Нажал в точку (${d.x}, ${d.y})` // cyrillic-ok
-      : 'Нажал на странице', // cyrillic-ok
+    typeof d.what === 'string' && d.what
+      ? `Нажал «${d.what}»` // cyrillic-ok
+      : typeof d.x === 'number' && typeof d.y === 'number'
+        ? `Нажал в точку (${d.x}, ${d.y})` // cyrillic-ok
+        : 'Нажал на странице', // cyrillic-ok
   browser_type: d =>
     `Напечатал текст: ${Number(d.chars) || 0} симв. (сам текст не хранится)`, // cyrillic-ok
   browser_evaluate: d =>

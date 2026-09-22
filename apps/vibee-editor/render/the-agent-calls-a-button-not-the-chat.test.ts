@@ -39,3 +39,25 @@ describe('the agent knows which button to call', () => {
     )
   })
 })
+
+describe('signing in, case by case (owner: "pull the button and get in")', () => {
+  const prompt = systemPrompt('miniapp')
+  it('presses by label, and names every case of a sign-in', () => {
+    expect(prompt).toContain('browser_click text="Google"')
+    for (const bit of [
+      'choice',
+      'kind=action',
+      'browser_ask_input',
+      'cookies',
+      'browser_status',
+    ])
+      expect(prompt).toContain(bit)
+  })
+  it('browser_click really takes a label', () => {
+    const click = BROWSER_TOOLS.find(t => t.name === 'browser_click')!
+    expect(
+      (click.parameters as { properties: Record<string, unknown> }).properties
+        .text
+    ).toBeTruthy()
+  })
+})
