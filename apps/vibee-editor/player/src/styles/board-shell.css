@@ -1,0 +1,579 @@
+/*
+ * THE BOARD'S LOOK, FOR THE APP INSIDE THE BOARD'S FRAME (lib/shell.ts).
+ *
+ * Taken from the board itself (trinity apps/website: Queen.css, QueenTri.css),
+ * measured on app.t27.ai/queen/ 2026-09-22:
+ *   ground      pure black
+ *   panels      rgba(2, 8, 6, .88), a 1px green line rgba(0, 255, 136, .22),
+ *               corners cut on a 10px diagonal (--hud-notch)
+ *   heads       mono caps, .14em apart, muted white; a figure beside in gold
+ *   screens     JetBrains Mono 12px, 44px tall, a 6px corner; the active one
+ *               outlined and lettered in #00ff88
+ *   pills       caps .12em apart, a thin line, no corner at all
+ *   buttons     the landing's pair: solid #00ff88 with black caps, and a
+ *               thin-lined twin
+ *
+ * EVERY RULE STARTS WITH html[data-shell='board']. boardShellScope.test.ts
+ * reads this file and fails on any rule that does not, because an unscoped
+ * rule here would restyle the app in a browser tab and in Telegram too.
+ */
+
+/* ---- tokens ------------------------------------------------------------- */
+
+html[data-shell='board'] {
+  --board-green: #00ff88;
+  --board-green-soft: rgba(0, 255, 136, 0.08);
+  --board-gold: #ffd700;
+  --board-cold: #ff6b6b;
+  --board-line: rgba(0, 255, 136, 0.22);
+  --board-line-strong: rgba(0, 255, 136, 0.5);
+  --board-panel: rgba(2, 8, 6, 0.88);
+  --board-muted: rgba(255, 255, 255, 0.78);
+  --board-dim: #8b9490;
+  --board-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --board-notch: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+
+  /* The app's own tokens, pointed at the board's. */
+  --vibee-green: var(--board-green);
+  --vibee-green-light: #4dffaa;
+  --vibee-green-dark: #00cc66;
+  --vibee-gold: var(--board-gold);
+  --color-primary: var(--board-green);
+  --accent: var(--board-green);
+  --color-brand-amber-rgb: 0, 255, 136;
+  --color-bg-primary: #000;
+  --color-bg-primary-rgb: 0, 0, 0;
+  --color-bg-elevated: var(--board-panel);
+  --color-bg-secondary: var(--board-green-soft);
+  --bg-primary: #000;
+  --bg-elevated: var(--board-panel);
+  --bg-secondary: var(--board-panel);
+  --bg-tertiary: var(--board-green-soft);
+  --bg-input: rgba(0, 0, 0, 0.6);
+  --bg-card: var(--board-panel);
+  --text-primary: #fff;
+  --text-secondary: var(--board-muted);
+  --text-muted: var(--board-dim);
+  --border-color: var(--board-line);
+  --border: var(--board-line);
+  --vibee-border: var(--board-line);
+  --radius-sm: 0;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+
+  background: #000;
+}
+
+html[data-shell='board'] body {
+  background: #000;
+  font-family:
+    'Outfit',
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+/* Buttons the app draws itself: the board's thin-lined button. */
+html[data-shell='board'] button:not([class*='__tab']):not([role='tab']) {
+  border-radius: 0;
+}
+
+/* ---- profile: the page and its panels ----------------------------------- */
+
+html[data-shell='board'] .profile-page {
+  --bg-primary: #000;
+  --bg-elevated: var(--board-panel);
+  --bg-secondary: var(--board-panel);
+  --bg-tertiary: var(--board-green-soft);
+  --bg-input: rgba(0, 0, 0, 0.6);
+  --bg-surface-hover: var(--board-green-soft);
+  --bg-hover: var(--board-green-soft);
+  --bg-card: var(--board-panel);
+
+  min-height: 100%;
+  padding: 12px;
+  background: #000;
+}
+
+html[data-shell='board'] .profile-page__container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* The board is the chrome here: no empty banner above the person. */
+html[data-shell='board'] .profile-cover {
+  display: none;
+}
+
+html[data-shell='board'] .profile-header,
+html[data-shell='board'] .soul-card,
+html[data-shell='board'] .profile-topup,
+html[data-shell='board'] .profile-tabs {
+  margin: 0;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  box-shadow: none;
+  clip-path: var(--board-notch);
+}
+
+/* ---- profile: who this is ------------------------------------------------ */
+
+html[data-shell='board'] .profile-header {
+  margin-top: 0 !important;
+  padding: 18px 20px 16px;
+}
+
+html[data-shell='board'] .profile-header__top {
+  align-items: center;
+  gap: 18px;
+  padding-top: 0;
+}
+
+html[data-shell='board'] .profile-header__avatar {
+  width: 88px;
+  height: 88px;
+  padding: 2px;
+  background: var(--board-line-strong);
+  box-shadow: 0 0 18px rgba(0, 255, 136, 0.18);
+}
+
+html[data-shell='board'] .profile-header__avatar::before {
+  background: #000;
+}
+
+html[data-shell='board'] .profile-header__info {
+  padding-top: 0;
+}
+
+html[data-shell='board'] .profile-header__name {
+  margin: 0 0 4px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+html[data-shell='board'] .profile-header__username {
+  margin: 0;
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .profile-header__bio {
+  margin: 8px 0 0;
+  color: var(--board-muted);
+}
+
+/* Edit and follow: the board's two buttons. */
+html[data-shell='board'] .profile-header__edit-btn,
+html[data-shell='board'] .follow-button {
+  height: auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--board-line-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .follow-button:not(.follow-button--following) {
+  border-color: var(--board-green);
+  background: var(--board-green);
+  color: #000;
+}
+
+html[data-shell='board'] .profile-header__edit-btn:hover,
+html[data-shell='board'] .follow-button:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+/* The figures: the board's resource cells. The grid draws its top and left
+   edge, every cell its right and bottom one, so the lines stay right however
+   the row wraps -- a left border per cell left a stray line on the second row
+   at 660px, and a painted ground filled the empty slot at 375px. */
+html[data-shell='board'] .profile-stats {
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 0;
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: 1px solid var(--board-line);
+  border-left: 1px solid var(--board-line);
+}
+
+html[data-shell='board'] .profile-stat-card {
+  align-items: flex-start;
+  padding: 12px 14px 8px;
+  border: 0;
+  border-right: 1px solid var(--board-line);
+  border-bottom: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  transform: none;
+  backdrop-filter: none;
+}
+
+html[data-shell='board'] .profile-stat-card:hover {
+  border-color: var(--board-line);
+  background: var(--board-green-soft);
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-shell='board'] .profile-stat-card__icon {
+  justify-content: flex-start;
+  margin-bottom: 6px;
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-stat-card__value {
+  color: #fff;
+  font-family: var(--board-mono);
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .profile-stat-card__label {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ---- profile: panel heads, as the board writes them ---------------------- */
+
+html[data-shell='board'] .soul-card {
+  padding: 0;
+}
+
+html[data-shell='board'] .soul-card__head,
+html[data-shell='board'] .profile-topup__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--board-line);
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .soul-card__title {
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+html[data-shell='board'] .soul-card__head svg {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .soul-card__text,
+html[data-shell='board'] .soul-card__empty {
+  padding: 12px 14px 4px;
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .soul-card__h1,
+html[data-shell='board'] .soul-card__h2 {
+  color: #fff;
+}
+
+html[data-shell='board'] .soul-card__edit,
+html[data-shell='board'] .soul-card__more {
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .soul-card__more {
+  margin: 0 14px 10px;
+}
+
+html[data-shell='board'] .soul-card__a2a {
+  margin: 0;
+  padding: 8px 14px;
+  border-top: 1px solid var(--board-line);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.62rem;
+}
+
+/* ---- profile: the balance and the CRM door ------------------------------- */
+
+html[data-shell='board'] .profile-topup {
+  padding: 0 0 12px;
+}
+
+html[data-shell='board'] .profile-topup__packs,
+html[data-shell='board'] .profile-topup__others {
+  gap: 6px;
+  margin: 0;
+  padding: 12px 14px 0;
+}
+
+html[data-shell='board'] .profile-topup__pack,
+html[data-shell='board'] .profile-topup__other {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.5);
+  font-family: var(--board-mono);
+  font-size: 0.78rem;
+}
+
+html[data-shell='board'] .profile-topup__pack span {
+  color: var(--board-gold);
+  font-size: 0.7rem;
+  opacity: 1;
+}
+
+html[data-shell='board'] .profile-topup__pack:hover,
+html[data-shell='board'] .profile-topup__other:hover {
+  border-style: solid;
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .profile-topup__note {
+  margin: 0;
+  padding: 10px 14px 0;
+  color: var(--board-dim);
+  font-size: 0.78rem;
+}
+
+/* The CRM door is a door, not a field (CrmCard). */
+html[data-shell='board'] a.profile-topup__pack {
+  display: inline-flex;
+  width: auto;
+  margin: 12px 14px 0;
+  padding: 10px 14px;
+  border-color: var(--board-line-strong);
+  color: var(--board-green);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+/* ---- profile: the sections, as the board's screen buttons ---------------- */
+
+html[data-shell='board'] .profile-tabs {
+  overflow: visible;
+}
+
+/* Every section in sight at once: the strip wraps instead of hiding six of
+   ten sections past the edge. */
+html[data-shell='board'] .profile-tabs__header {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  overflow: visible;
+  border-bottom: 1px solid var(--board-line);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+html[data-shell='board'] .profile-tabs__tab {
+  flex: 0 0 auto;
+  min-width: 0;
+  height: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--board-line);
+  border-radius: 6px;
+  background: rgba(2, 8, 6, 0.6);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .profile-tabs__tab:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: #fff;
+}
+
+html[data-shell='board'] .profile-tabs__tab--active,
+html[data-shell='board'] .profile-tabs__tab--active:hover {
+  border: 1px solid var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-tabs__count {
+  padding: 0 6px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-gold);
+  font-size: 0.66rem;
+}
+
+html[data-shell='board'] .profile-tabs__content {
+  padding: 14px;
+  scrollbar-color: var(--board-line) transparent;
+}
+
+html[data-shell='board'] .profile-tabs__content::-webkit-scrollbar-thumb {
+  background: var(--board-line);
+}
+
+html[data-shell='board'] .profile-tabs__loading,
+html[data-shell='board'] .profile-tabs__empty {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+/* Rows inside the sections (templates, files, skills, plan, people). */
+html[data-shell='board']
+  .profile-tabs__content
+  :is(
+    [class$='-item'],
+    [class*='-item '],
+    [class$='-card'],
+    [class*='-card '],
+    [class$='-row'],
+    [class*='-row ']
+  ) {
+  border-color: var(--board-line);
+  border-radius: 0;
+}
+
+/* ---- the admin badge and the developer strip keep their meaning ---------- */
+
+html[data-shell='board'] .admin-badge,
+html[data-shell='board'] .profile-devflag {
+  margin: 0;
+  border-radius: 0;
+}
+
+/* ---- the other screens the board frames ---------------------------------- */
+
+/* CRM: its panels are the board's panels, its titles the board's heads. */
+html[data-shell='board'] .crm__panel {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  clip-path: var(--board-notch);
+}
+
+html[data-shell='board'] .crm__panel-title {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* AI: the pipeline's stages are the board's screen buttons. */
+html[data-shell='board'] .ai-pipeline {
+  gap: 6px;
+  border-bottom-color: var(--board-line);
+}
+
+html[data-shell='board'] .ai-pipeline__item {
+  border: 1px solid var(--board-line);
+  border-radius: 6px;
+  background: rgba(2, 8, 6, 0.6);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .ai-pipeline__item:hover {
+  border-color: var(--board-line-strong);
+  color: #fff;
+}
+
+html[data-shell='board'] .ai-pipeline__item.is-active {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+/* Agent: its replies sit in the board's panels, the person's in a green line. */
+html[data-shell='board'] .message.agent .message-content {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+}
+
+html[data-shell='board'] .message.user .message-content {
+  border: 1px solid var(--board-line-strong);
+  border-radius: 0;
+  background: var(--board-green-soft);
+}
+
+/* ---- the frame's "sign in first" screen (Navigation/EmbedGuestGate) ------ */
+/* Only ever drawn inside the frame, so it wears only the board's look: the
+   landing's lead line, a muted body, and its solid green button in caps. */
+
+html[data-shell='board'] .embed-guest__title {
+  margin: 0;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+html[data-shell='board'] .embed-guest__body {
+  max-width: 420px;
+  margin: 0;
+  color: var(--board-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+html[data-shell='board'] .embed-guest__cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0 20px;
+  border: 1px solid var(--board-green);
+  background: var(--board-green);
+  color: #000;
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .embed-guest__cta:hover {
+  background: #4dffaa;
+}
