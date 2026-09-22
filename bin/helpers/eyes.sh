@@ -44,7 +44,9 @@ import json, os, sys, time, urllib.request
 ak, base = os.environ['AK'], os.environ['B']
 def call(name, args):
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                       "params": {"name": name, "arguments": args}}).encode()
+                       # A probe says so (MCP _meta): the owner's journal
+                       # keeps it apart from the agent's real work.
+                       "params": {"name": name, "arguments": args, "_meta": {"probe": True}}}).encode()
     req = urllib.request.Request(base + "/mcp", data=body,
         headers={"X-Agent-Key": ak, "Content-Type": "application/json"})
     t0 = time.time()

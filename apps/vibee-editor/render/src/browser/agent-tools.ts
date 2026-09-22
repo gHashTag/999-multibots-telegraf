@@ -585,7 +585,8 @@ function journaled(tool: AgentTool): AgentTool {
             (args ?? {}) as Record<string, unknown>,
             outcome,
             Date.now() - t0
-          )
+          ),
+          { probe: ctx.probe === true }
         )
       try {
         const result = await tool.handler(args, ctx)

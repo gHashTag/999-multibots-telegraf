@@ -339,3 +339,35 @@ describe('every other Bearer reader refuses a game token', () => {
     expect(upstream).not.toHaveBeenCalled()
   })
 })
+
+/*
+ * A caller may say it is only checking (MCP params._meta.probe -- tri eyes).
+ * The browser journal keeps such calls apart from the agent's work.
+ */
+describe('/mcp and a probe', () => {
+  it('passes _meta.probe to the tool as ctx.probe, and only when it is exactly true', async () => {
+    const spy = spyTool('browser_status')
+    for (const [meta, expected] of [
+      [{ probe: true }, true],
+      [{ probe: 'yes' }, false],
+      [undefined, false],
+    ] as const) {
+      spy.mockClear()
+      const res = await mcp(
+        { 'x-agent-key': AGENT_KEY },
+        {
+          jsonrpc: '2.0',
+          id: 7,
+          method: 'tools/call',
+          params: {
+            name: 'browser_status',
+            arguments: {},
+            ...(meta ? { _meta: meta } : {}),
+          },
+        }
+      )
+      expect(res.status).toBe(200)
+      expect((spy.mock.calls[0][1] as { probe?: boolean }).probe).toBe(expected)
+    }
+  })
+})

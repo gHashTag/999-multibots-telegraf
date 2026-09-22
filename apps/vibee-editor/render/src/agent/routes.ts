@@ -470,6 +470,10 @@ export async function handleMcp(
       const ctx = {
         telegramId: owner,
         pool,
+        // A caller that says it is only checking (tri eyes) -- journal.ts.
+        probe:
+          (rpc.params as { _meta?: { probe?: unknown } } | undefined)?._meta
+            ?.probe === true,
         // Per-bot privileged path counters; a game token is not initData.
         initDataBot: game
           ? undefined

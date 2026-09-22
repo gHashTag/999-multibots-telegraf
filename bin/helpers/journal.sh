@@ -16,7 +16,8 @@ MAIN=$(git -C "$ROOT" worktree list --porcelain | awk 'NR==1{print $2}')
 AK=$( (cd "${MAIN:-$ROOT}" && railway variables --service vibee-render --kv 2>/dev/null) \
       | grep -E '^AGENT_KEYS=' | cut -d= -f2- | cut -d, -f1 | cut -d: -f1 )
 [ -z "$AK" ] && { echo "journal: no agent key (railway login?) -- could not read"; exit 2; }
-ANSWER=$(curl -s -m 30 "$B/api/browser/journal?limit=$N" -H "X-Agent-Key: $AK")
+# probes=1: this view shows the checks too, marked, since their timings matter here.
+ANSWER=$(curl -s -m 30 "$B/api/browser/journal?limit=$N&probes=1" -H "X-Agent-Key: $AK")
 # The answer goes in through the environment and the code through a quoted
 # heredoc: the first version put Python inside a single-quoted bash string,
 # escaped its quotes, and died with SyntaxError on its first real answer.
@@ -43,7 +44,7 @@ for s in steps:
     elif "x" in det: key = f"x={det['x']} y={det['y']}"
     elif "pages" in det: key = f"pages={det['pages']}"
     else: key = ""
-    mark = "ok " if s.get("ok") else "ERR"
+    mark = ("ok " if s.get("ok") else "ERR") + (" probe" if det.get("probe") else "      ")
     at = s["at"][5:19].replace("T", " ")
     print(f"  {at}  {mark}  {s['tool']:<22} {s['ms']:>6} ms  {str(key)[:90]}")
 PY
