@@ -90,6 +90,10 @@ const NOT_A_PERSON_HANDLE: Record<string, string> = {
   example_client: 'the invented handle of the synthetic clients/example',
   pilot_client: 'an invented recipient in a doc comment (crm-offer, proposals)',
   ourcommunity: 'an invented public channel in a doc comment (crm-offer-tool)',
+  placeholder_changer:
+    'an invented third party whose contact the client-facing guard withholds (a-client-chat-sees-only-itself.test.ts)',
+  placeholder_pay_bot:
+    'an invented bot the client-facing guard lets through (a-client-chat-sees-only-itself.test.ts)',
   someone: 'a placeholder word in a prompt-injection example',
   username: 'a placeholder word ("@username")',
   usernames: 'a placeholder word ("@usernames")',
