@@ -117,10 +117,54 @@ const NOT_STOPS: string[] = [
   'выключили свет, напишу позже',
   '',
   '   ',
+  // Product talk (review of PR 2849): a live person to film, a site without
+  // a bot, somebody else's group or channel, an AI watermark.
+  'Можно сделать видео с реальным человеком?',
+  'Хочу аватар с живым человеком, не мультяшный',
+  'Сколько стоит сайт без бота?',
+  'Мне не нужен бот, нужен лендинг',
+  'Подскажите, можно удалить бота из моей группы?',
+  'Помогите убрать бота из канала',
+  'хочу отключить ИИ в моём канале',
+  'stop the bot from posting in my channel',
+  'please remove the AI watermark',
+  'бот не отвечает',
+  'stop generating',
+  'выключи уведомления',
+  'отключите уведомления от бота в группе',
+  // Negations the one-word window missed (review of PR 2849).
+  "Don't ever switch off the bot",
+  'Я не прошу выключить бота',
+  'Нельзя выключать бота',
+  'Я бы не стал отключать бота',
+  'никто не просил выключать бота',
+  "I'm not asking you to switch off the bot",
+  'no one asked to stop the bot',
+]
+
+/*
+ * Stops that stay stops next to the carve-outs above: politeness that looks
+ * like a negation, a negation in another clause, a live person to TALK to.
+ */
+const STILL_STOPS: string[] = [
+  'почему бы не выключить бота',
+  "why don't you turn off the bot",
+  'Не надо мне видео, выключите бота',
+  'Хочу поговорить с живым человеком про видео',
+  'не пишите мне и выключите бота',
+  'удалите этого бота из чата',
 ]
 
 describe('a client asking the assistant to stop is recognised', () => {
   for (const text of STOPS) {
+    it(`stop: ${text}`, () => {
+      expect(isStopRequest(text), `missed a stop: ${text}`).not.toBeNull()
+    })
+  }
+})
+
+describe('stops next to the carve-outs are still heard', () => {
+  for (const text of STILL_STOPS) {
     it(`stop: ${text}`, () => {
       expect(isStopRequest(text), `missed a stop: ${text}`).not.toBeNull()
     })
