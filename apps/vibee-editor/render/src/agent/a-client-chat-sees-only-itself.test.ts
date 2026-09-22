@@ -264,6 +264,59 @@ describe('the outgoing contact guard', () => {
     ).toEqual([])
   })
 
+  it.each([
+    ['https://wa.me/10000000099', 'phone'],
+    ['wa.me/10000000099', 'phone'],
+    ['https://api.whatsapp.com/send?phone=10000000099', 'phone'],
+    ['whatsapp://send?phone=10000000099', 'phone'],
+    ['viber://chat?number=%2B10000000099', 'phone'],
+    ['https://t.me/+10000000099', 'phone'],
+    ['https://signal.me/#p/+10000000099', 'phone'],
+    ['tg://resolve?domain=placeholder_changer', 'handle'],
+    ['tg://resolve?phone=10000000099', 'phone'],
+    ['https://t.me/placeholder_changer', 'handle'],
+    ['https://instagram.com/placeholder_changer', 'handle'],
+    ['https://www.instagram.com/placeholder.changer/', 'handle'],
+    ['instagram.com/stories/placeholder_changer/1', 'handle'],
+    ['https://vk.com/placeholder_changer', 'handle'],
+    ['https://m.vk.com/placeholder_changer', 'handle'],
+    ['https://example.com/@placeholder_changer', 'handle'],
+    ['https://example.com/contact?to=someone.else%40example.com', 'email'],
+  ])('reads the person an address names: %s', (link, kind) => {
+    expect(contactsIn(`Write here: ${link}.`).map(c => c.kind)).toContain(kind)
+    const g = createContactGuard({ seen: ['hello'] })
+    expect(g.check(`Write here: ${link}`)).toBe(CONTACT_WITHHELD_LINE)
+  })
+
+  it('an address that names nobody is not read as one', () => {
+    for (const link of [
+      'https://instagram.com/p/AbCdEf123',
+      'https://vk.com/feed',
+      'https://t.me/$AbCdEfGh1234567890',
+      // A signed link's hex signature and a uuid carry long digit runs.
+      'https://storage.example.com/b/r.mp4?X-Amz-Date=20260922T145700Z&X-Amz-Signature=0a1234567890123bcdef',
+      'https://render.example.com/renders/1a2b3c4d-0000-4000-8000-123456789012.mp4',
+      'https://example.com/news/2026-09-22/1234567890123',
+    ]) {
+      expect(contactsIn(link), link).toEqual([])
+    }
+  })
+
+  it('our own asset addresses are not read at all', () => {
+    const own = 'https://assets.example.com/u/+10000000099-agent-image.png'
+    expect(contactsIn(own).map(c => c.kind)).toEqual(['phone'])
+    vi.stubEnv('S3_PUBLIC_URL', 'https://assets.example.com')
+    expect(contactsIn(own)).toEqual([])
+  })
+
+  it('an address the client already gave in this chat passes', () => {
+    const g = createContactGuard({
+      seen: ['client: my friend is at https://wa.me/10000000099'],
+    })
+    const fine = 'Yes, wa.me/10000000099 is the one.'
+    expect(g.check(fine)).toBe(fine)
+  })
+
   it('withholds a third party it has not seen, and tells only kinds', () => {
     const g = createContactGuard({ seen: ['hello'] })
     expect(g.check(`try ${THIRD_HANDLE}, ${THIRD_PHONE}`)).toBe(
@@ -297,6 +350,13 @@ describe('the outgoing contact guard', () => {
     expect(String(logged?.[1])).not.toContain('0042')
     expect(String(logged?.[1])).not.toContain('placeholder_changer')
     expect(pool.sql.some(q => q.includes('INSERT INTO hive_events'))).toBe(true)
+  })
+
+  it('on the business surface a messenger link to a third party is withheld', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    provider([text('The exchanger is here: https://wa.me/10000000099')])
+    const { said } = await turn('business', ask)
+    expect(said).toBe(CONTACT_WITHHELD_LINE)
   })
 
   it('a contact the client already has in this chat passes', async () => {
