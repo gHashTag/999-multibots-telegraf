@@ -35,6 +35,17 @@
  * cannot hand out two months for the same days, and a month recorded ahead of
  * time always joins the one before it.
  *
+ * TOKENS ALREADY GIVEN BY HAND ARE NOT GIVEN AGAIN. Before this tool existed
+ * (2026-09-22) a cash member's month of tokens could only be handed out as a
+ * plain ledger grant (ref `cash-club-<day>-<id>`, HAND_GIVEN_REF_PREFIX), with
+ * no club month behind it. Recording that month now must not credit the same
+ * tokens twice, and the tool cannot know by itself whether such a grant was
+ * THIS month's -- so it asks. A hand grant of that shape newer than the
+ * person's last recorded cash month stops the call, writing nothing, until the
+ * caller says `tokens_already_given`: true records the month and credits
+ * nothing (the row carries 0 tokens, so no later repeat credits it either),
+ * false credits the month's tokens as usual.
+ *
  * WHO MAY. Only the platform owner or a keeper: the person who took the money.
  * And only by a DIRECT call -- /mcp or an a2a tool call, where the call itself
  * is that person's act. The render's own model turns never see this tool
@@ -45,6 +56,7 @@
 import { record } from '../hive/journal'
 import { keepers } from '../hive/roles'
 import { creditStarsPayment } from '../stars-credit'
+import { ensureTokenLedger } from '../token-ledger'
 import { parseDay } from './club-guests'
 import {
   CASH_TX_PREFIX,
@@ -93,6 +105,58 @@ export interface CashMonthInput {
   start?: string
   /** Who recorded it (the verified caller) -- for the audit line. */
   by: string
+  /**
+   * The caller's answer about tokens handed out by hand for this month:
+   * true = they were, record the month and credit nothing; false = they were
+   * not, credit as usual; absent = not asked yet (a hand grant on file then
+   * stops the call with the question).
+   */
+  tokensGivenAlready?: boolean
+}
+
+/**
+ * The ref shape a cash member's tokens were handed out under before this tool
+ * existed: `cash-club-<day>-<telegram_id>`, a plain ledger grant.
+ */
+export const HAND_GIVEN_REF_PREFIX = 'cash-club-'
+
+export interface HandGiven {
+  ref: string
+  tokens: number
+  at: string
+}
+
+/**
+ * Tokens handed out by hand for a cash club month (HAND_GIVEN_REF_PREFIX) that
+ * no recorded cash month has answered for yet: newer than the person's last
+ * cash row in club_period. Once a month is recorded -- either way -- the grant
+ * before it has been decided on and is not asked about again.
+ */
+async function tokensGivenByHand(
+  pool: Queryable,
+  tid: string
+): Promise<HandGiven[]> {
+  await ensureTokenLedger(pool as never)
+  const last = await pool.query(
+    `SELECT MAX(created_at)::text AS at FROM club_period WHERE telegram_id = $1 AND star_tx_id LIKE $2`,
+    [tid, `${CASH_TX_PREFIX}%`]
+  )
+  const lastAt = last.rows?.[0]?.at
+  const since = lastAt ? new Date(String(lastAt)).getTime() : -Infinity
+  // Unsure is "not answered for": a time that cannot be read on either side
+  // keeps the grant in the question rather than letting it through silently.
+  const answeredFor = (at: unknown) => new Date(String(at)).getTime() <= since
+  const r = await pool.query(
+    `SELECT ref, delta, created_at::text AS at FROM token_ledger WHERE telegram_id = $1 AND ref LIKE $2 AND delta > 0 ORDER BY created_at`,
+    [tid, `${HAND_GIVEN_REF_PREFIX}%`]
+  )
+  return (r.rows ?? [])
+    .filter((row: { at: unknown }) => !answeredFor(row.at))
+    .map((row: { ref: unknown; delta: unknown; at: unknown }) => ({
+      ref: String(row.ref),
+      tokens: Number(row.delta),
+      at: String(row.at),
+    }))
 }
 
 export type CashMonth =
@@ -103,12 +167,21 @@ export type CashMonth =
       telegram_id: string
       start: string
       until: string
+      /** The tokens this month carries: a Stars month's, or 0 when given by hand. */
       tokens: number
       /** Whether THIS call credited the tokens. */
       credited: boolean
       credit_note?: string
+      /** The month's tokens were handed out by hand before; none credited here. */
+      tokens_by_hand?: true
     }
-  | { ok: false; error: string; next_start?: string }
+  | {
+      ok: false
+      error: string
+      next_start?: string
+      /** Hand grants the caller must say something about (tokens_already_given). */
+      tokens_given_by_hand?: HandGiven[]
+    }
 
 /**
  * The audit line. The member's id and the recorder's id, the dates and the
@@ -164,15 +237,30 @@ export async function recordCashClubMonth(
 
   await ensureClubTables(pool)
   const key = cashTxId(tid, start)
-  const tokens = clubTokensPerPeriod() // secret-guard-ok: token count, not a credential
-  const creditInput = {
-    telegramId: tid,
-    tokens,
-    chargeId: `club:${key}`,
-    reason: CASH_MONTH_REASON,
+  const byHand = input.tokensGivenAlready === true
+
+  // Tokens handed out by hand for a cash month, not yet answered for: the
+  // caller says whether they were this month's before anything is written.
+  if (input.tokensGivenAlready === undefined) {
+    const hand = await tokensGivenByHand(pool, tid)
+    if (hand.length) {
+      const list = hand
+        .map(h => `${h.tokens} (${h.at.slice(0, 10)}, ${h.ref})`)
+        .join('; ')
+      return {
+        ok: false,
+        error:
+          `этому человеку уже выданы токены за клуб наличными вручную: ${list}. Месяц не записан. ` + // cyrillic-ok: tool answer
+          'Если это токены этого месяца -- повтори с tokens_already_given=true: месяц запишется без второго начисления. ' + // cyrillic-ok: tool answer
+          'Если нет -- с tokens_already_given=false.', // cyrillic-ok: tool answer
+        tokens_given_by_hand: hand,
+      }
+    }
   }
+
   const done = (
     recorded: 'now' | 'already',
+    tokens: number,
     c: { credited: boolean; reason?: string }
   ): CashMonth => ({
     ok: true,
@@ -183,13 +271,29 @@ export async function recordCashClubMonth(
     tokens,
     credited: c.credited,
     ...(c.credited ? {} : { credit_note: c.reason ?? '' }),
+    ...(tokens === 0 ? { tokens_by_hand: true as const } : {}),
   })
+  const creditFor = (tokens: number) =>
+    askCredit(credit, {
+      telegramId: tid,
+      tokens,
+      chargeId: `club:${key}`,
+      reason: CASH_MONTH_REASON,
+    })
+  const NOT_BY_US = {
+    credited: false,
+    reason: 'токены этого месяца выданы вручную раньше; здесь не начислялись', // cyrillic-ok: tool answer
+  }
+  const onFile = async () =>
+    (
+      await pool.query(
+        `SELECT id, tokens_granted FROM club_period WHERE star_tx_id = $1 LIMIT 1`,
+        [key]
+      )
+    ).rows?.[0] as { id: unknown; tokens_granted: unknown } | undefined
 
-  const seen = await pool.query(
-    `SELECT id FROM club_period WHERE star_tx_id = $1 LIMIT 1`,
-    [key]
-  )
-  if (!seen.rows?.length) {
+  let row = await onFile()
+  if (!row) {
     const latest = await pool.query(
       `SELECT until::text FROM club_period WHERE telegram_id = $1 ORDER BY until DESC LIMIT 1`,
       [tid]
@@ -220,6 +324,9 @@ export async function recordCashClubMonth(
         next_start: dayOf(new Date(latestStart)),
       }
     }
+    // A Stars month's tokens, or none when they were handed out by hand: the
+    // row says which, so no later repeat of the command can credit them.
+    const tokens = byHand ? 0 : clubTokensPerPeriod() // secret-guard-ok: token count, not a credential
     // The same INSERT a Stars charge makes (bookClubPeriods): the same table,
     // the same unique key. `stars` is 0 -- no Telegram Stars were charged, and
     // a sum over this column must not count cash as Stars.
@@ -230,7 +337,7 @@ export async function recordCashClubMonth(
       [tid, 0, tokens, key, start.toISOString(), until.toISOString()]
     )
     if (ins.rows?.length) {
-      const c = await askCredit(credit, creditInput)
+      const c = tokens > 0 ? await creditFor(tokens) : NOT_BY_US
       audit({
         outcome: 'recorded',
         member: tid,
@@ -240,29 +347,37 @@ export async function recordCashClubMonth(
         credited: c.credited,
         by: input.by,
       })
+      const lost = tokens > 0 && !c.credited
       try {
         await record(pool as never, {
-          kind: c.credited ? 'payment' : 'payment-lost',
+          kind: lost ? 'payment-lost' : 'payment',
           who: tid,
           amount: 0,
-          what: c.credited
-            ? `клуб, наличные: 30 дней до ${dayOf(until)}, ${tokens} токенов зачислено` // cyrillic-ok: journal text
-            : `клуб, наличные: месяц записан, токены НЕ зачислены: ${c.reason ?? ''}`, // cyrillic-ok: journal text
-          severity: c.credited ? 'normal' : 'alarm',
+          what:
+            tokens === 0
+              ? `клуб, наличные: 30 дней до ${dayOf(until)}, токены месяца выданы вручную раньше` // cyrillic-ok: journal text
+              : c.credited
+                ? `клуб, наличные: 30 дней до ${dayOf(until)}, ${tokens} токенов зачислено` // cyrillic-ok: journal text
+                : `клуб, наличные: месяц записан, токены НЕ зачислены: ${c.reason ?? ''}`, // cyrillic-ok: journal text
+          severity: lost ? 'alarm' : 'normal',
         })
       } catch {
         // The period row is the record that matters; the journal is a courtesy.
       }
-      return done('now', c)
+      return done('now', tokens, c)
     }
     // Somebody else wrote this very month a moment ago: fall through to the
     // repeat path below, which writes nothing.
+    row = await onFile()
   }
 
-  // Already on file. Nothing is written again; the credit is asked again
-  // because it is idempotent on the charge id -- a lost credit is repaired, a
-  // made one is refused as a redelivery.
-  const c = await askCredit(credit, creditInput)
+  // Already on file. Nothing is written again. The credit is asked again when
+  // the month carries tokens, because it is idempotent on the charge id -- a
+  // lost credit is repaired, a made one is refused as a redelivery. A month
+  // recorded without tokens (given by hand) stays without them, and so does
+  // one the caller now says was paid by hand.
+  const tokens = Number(row?.tokens_granted ?? 0)
+  const c = tokens > 0 && !byHand ? await creditFor(tokens) : NOT_BY_US
   audit({
     outcome: 'already-on-file',
     member: tid,
@@ -284,7 +399,18 @@ export async function recordCashClubMonth(
       // Courtesy only, as above.
     }
   }
-  return done('already', c)
+  return done('already', tokens, c)
+}
+
+/**
+ * A yes/no argument as an MCP client may send it: a boolean, or its string.
+ * Anything else is not guessed at -- a money flag read wrong is money moved.
+ */
+function readYesNo(v: unknown): boolean | undefined | 'unreadable' {
+  if (v === undefined || v === null) return undefined
+  if (v === true || v === 'true') return true
+  if (v === false || v === 'false') return false
+  return 'unreadable'
 }
 
 /**
@@ -301,7 +427,9 @@ export const CLUB_CASH_TOOLS: AgentTool[] = [
       'звёздами, и начисляются те же токены месяца с пометкой «наличные». ' + // cyrillic-ok: tool description
       'Повтор с тем же днём начала ничего не удваивает. start -- первый день ' + // cyrillic-ok: tool description
       '(ГГГГ-ММ-ДД, UTC), по умолчанию сегодня; если оплаченный месяц ещё идёт, ' + // cyrillic-ok: tool description
-      'инструмент назовёт день, с которого начать следующий.', // cyrillic-ok: tool description
+      'инструмент назовёт день, с которого начать следующий. Если токены этого месяца ' + // cyrillic-ok: tool description
+      'уже выданы вручную, передай tokens_already_given=true: месяц запишется без ' + // cyrillic-ok: tool description
+      'второго начисления.', // cyrillic-ok: tool description
     parameters: {
       type: 'object',
       properties: {
@@ -313,6 +441,11 @@ export const CLUB_CASH_TOOLS: AgentTool[] = [
           type: 'string',
           description:
             'первый день месяца, ГГГГ-ММ-ДД; по умолчанию сегодня (UTC)', // cyrillic-ok: tool description
+        },
+        tokens_already_given: {
+          type: 'boolean',
+          description:
+            'true -- токены этого месяца уже выданы вручную, не начислять; false -- начислить как обычно', // cyrillic-ok: tool description
         },
       },
       required: ['telegram_id'],
@@ -326,6 +459,13 @@ export const CLUB_CASH_TOOLS: AgentTool[] = [
             'деньги принимал он, и отметку ставит тоже он.' // cyrillic-ok: refusal text
         )
       }
+      const given = readYesNo(args?.tokens_already_given)
+      if (given === 'unreadable') {
+        return {
+          ok: false,
+          error: 'tokens_already_given -- true или false', // cyrillic-ok: tool answer
+        }
+      }
       const pool = ctx.pool as Queryable
       return recordCashClubMonth(
         pool,
@@ -333,6 +473,7 @@ export const CLUB_CASH_TOOLS: AgentTool[] = [
           telegramId: String(args?.telegram_id ?? ''),
           start: args?.start === undefined ? undefined : String(args.start),
           by,
+          tokensGivenAlready: given,
         },
         c =>
           creditStarsPayment(pool, {
