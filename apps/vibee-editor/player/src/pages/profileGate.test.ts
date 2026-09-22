@@ -87,9 +87,26 @@ describe('the gate is wired, not decorative', () => {
   const connect = read('components/Profile/ConnectTelegram.tsx')
   const gate = read('components/Profile/ProfileConnectGate.tsx')
   const road = read('components/Profile/WelcomeOnboarding.tsx')
+  const verdictSource = read('components/Profile/screenVerdict.ts')
 
   it('the page decides through profileScreen and renders the road for "welcome"', () => {
-    expect(page).toContain('const screen = profileScreen({')
+    /*
+     * Since #2820 the page asks screenVerdict, which calls profileScreen
+     * itself and adds which fact decided (for the admin badge). The chain
+     * is asserted link by link, so neither link can be dropped quietly.
+     */
+    expect(page).toContain('const verdict = screenVerdict(verdictInput)')
+    expect(verdictSource).toContain('const screen = profileScreen({')
+    expect(verdictSource).toMatch(/return \{ screen, /)
+    /*
+     * The one override the page keeps can only OPEN the road (the badge's
+     * "pay" button), never skip it: forcing any other screen would bypass
+     * the gate.
+     */
+    expect(page).toContain(
+      "const screen = forcedStep ? 'welcome' : verdict.screen"
+    )
+    expect(page).not.toMatch(/const screen = [^\n]*\? '(?!welcome)[a-z]+'/)
     expect(page).toMatch(
       /if \(screen === 'welcome'\) \{[\s\S]*<WelcomeOnboarding[\s\S]*onDone=\{finishWelcome\}/
     )
