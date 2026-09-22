@@ -1321,6 +1321,48 @@ export const PAGE_TITLE = `Браузер · ${BRAND_NAME}` // cyrillic-ok: read
  * an error page, a redirect body, anything unexpected. A window that looks
  * plain is a working window; a window mangled by a careless replace is not.
  */
+/*
+ * INSIDE THE APP, NOT neko's BAR (owner, 2026-09-22, with a screenshot: "the
+ * header covers the site -- it looks like a browser from the nineties").
+ *
+ * The glass bar floated over the top of the person's screen and lay across
+ * Chromium's own tab strip, carrying a dozen of neko's controls -- sound,
+ * emoji, pause, lock, a menu, "request control" -- none of which the app
+ * needs: the person takes control by touching (implicit hosting), types
+ * through the app's own sheet, and the app has its own bar. So when the
+ * window is framed (the app's Browser tab, the Queen's panel) the bar goes
+ * and the picture is the whole window. One thing stays: the small row of
+ * who is watching, as a pill in the corner -- it is the sign that somebody
+ * else is looking, and that is not a decoration.
+ *
+ * Set before the first paint (a script at the top of <head>), so the bar
+ * never flashes on and off.
+ */
+export const FRAMED_SCRIPT = `try { if (window.parent && window.parent !== window) document.documentElement.setAttribute('data-t27-framed', ''); } catch (e) {}`
+
+export const FRAMED_CSS = `
+html[data-t27-framed] .header-container { display: none !important; }
+html[data-t27-framed] .room-container {
+  top: auto !important;
+  bottom: 10px !important;
+  right: 10px !important;
+  height: 32px !important;
+  padding: 0 8px !important;
+  border-radius: 16px !important;
+  background: rgba(10, 13, 11, 0.72) !important;
+  border: 1px solid rgba(0, 255, 136, 0.3) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
+  pointer-events: none !important;
+}
+html[data-t27-framed] .room-container .room-menu,
+html[data-t27-framed] .room-container .settings,
+html[data-t27-framed] .room-container .controls,
+html[data-t27-framed] .room-container .emotes { display: none !important; }
+html[data-t27-framed] .members,
+html[data-t27-framed] .members-container { height: 30px !important; }
+`
+
 export function injectSkin(html: string): string {
   if (!html.includes('</head>')) return html
   /*
@@ -1329,6 +1371,8 @@ export function injectSkin(html: string): string {
    * and `display=swap` means a slow font never delays the window.
    */
   const head =
+    `<script data-t27-framed>${FRAMED_SCRIPT}</script>` +
+    `<style data-t27-framed>${FRAMED_CSS}</style>` +
     `<link rel="preconnect" href="https://fonts.googleapis.com">` +
     `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` +
     `<link rel="stylesheet" href="${FONT_HREF}">` +
