@@ -23,10 +23,12 @@
  *
  * Two lines, on purpose:
  *
- * 1. `clientSurfaceDenial` -- tool availability by surface. The tools that
- *    read other people's chats, contact cards, the CRM archive or the account
- *    holder's own browser are not listed and a call is refused. The owner's
- *    own surfaces (bot, miniapp, ios, agent) keep every one of them.
+ * 1. `clientSurfaceDenial` -- tool availability by surface. Only the tools
+ *    named in CLIENT_SURFACE_TOOLS are listed; every other one -- other
+ *    people's chats, contact cards, the CRM archive, the account holder's own
+ *    browser, the hive journal, and whatever reader lands next -- is not
+ *    listed and a call is refused. The owner's own surfaces (bot, miniapp,
+ *    ios, agent) keep every one of them.
  * 2. `createContactGuard` -- what the model can still invent or carry in from
  *    the open web. A phone, an e-mail or an @handle that this chat has not
  *    already seen, that is not the owner's or the client's own and not a bot,
@@ -43,34 +45,59 @@ export function isClientFacing(surface?: string): boolean {
 }
 
 /**
- * CRM tools that act on the person in this conversation and read nobody
- * else: the gift portrait, the invoice card, the follow-up note. Every other
- * crm_* tool reads the owner's workspace -- other leads, their words, their
- * files, their profiles -- and has no business in a client's chat.
+ * THE ONLY TOOLS A CLIENT'S CHAT IS OFFERED -- AN ALLOWLIST, NOT A DENYLIST.
+ *
+ * The first version of this gate closed three prefixes (tg_, browser_, crm_)
+ * and left 56 registry tools open. Several of them read other people through
+ * the account the turn runs as: in the duet that account is the OWNER's, and
+ * when the owner keeps the hive, hive_events / hive_board / hive_pulse return
+ * the farm journal (other people's ids and notes) and inngest_runs /
+ * inngest_run return event payloads; soul_of reads anybody's SOUL by name. A
+ * denylist also opens every future reader (mail_*, zep_*) the day it lands.
+ *
+ * So the business surface is shown exactly what serving THIS person needs:
+ *
+ * - the three CRM tools that act on the person in this conversation and read
+ *   nobody else: the gift portrait, the invoice card, the follow-up note;
+ * - this person's money: the token invoice, the balance, the price list;
+ * - the work itself: pictures, voice, video, the reel and its status, the
+ *   reel templates and the Leela plan text the duet's reels are made from;
+ * - the open web, whose text the outgoing contact guard still reads.
+ *
+ * `club_invoice` is not here on purpose: the club is not sold to a client in
+ * the DM (DM_CLIENT_BULLET in chat.ts) and the tool refuses that surface
+ * itself. Adding a tool here is a decision that it reads nobody but this
+ * client -- the test pins this set by name.
  */
-export const CLIENT_SURFACE_KEEPS: ReadonlySet<string> = new Set([
+export const CLIENT_SURFACE_TOOLS: ReadonlySet<string> = new Set([
   'crm_deliver_photo',
   'crm_offer',
   'crm_touch',
+  'tokens_invoice',
+  'my_balance',
+  'pricing',
+  'image_generate',
+  'image_edit',
+  'audio_generate',
+  'video_generate',
+  'reel_render',
+  'render_status',
+  'templates_list',
+  'leela_plan',
+  'web_search',
+  'web_read',
 ])
 
 /**
- * Whether a tool can put somebody other than this client within reach.
- *
- * By prefix, so a tg_* reader added next month is covered the day it lands:
- * tg_* open the account's other chats and contact cards; browser_* drive the
- * account holder's own browser -- his mail, his messengers; crm_* read the
- * workspace, except the three that act on this person.
+ * Whether a tool is closed to a client's chat: every tool that is not named
+ * in CLIENT_SURFACE_TOOLS, including one added to the registry next month.
  */
-export function readsOtherPeople(name: string): boolean {
-  if (name.startsWith('tg_')) return true
-  if (name.startsWith('browser_')) return true
-  if (name.startsWith('crm_')) return !CLIENT_SURFACE_KEEPS.has(name)
-  return false
+export function closedToClients(name: string): boolean {
+  return !CLIENT_SURFACE_TOOLS.has(name)
 }
 
 export const CLIENT_SURFACE_DENY_REASON =
-  'ты пишешь клиенту от имени владельца: чужие чаты, контакты и CRM здесь закрыты — отвечай по этому разговору, а чужой контакт владелец даст сам'
+  'ты пишешь клиенту от имени владельца: здесь открыты только инструменты для этого клиента (работа, счёт, баланс, веб) — чужие чаты, контакты, CRM и журналы закрыты; отвечай по этому разговору, а чужой контакт владелец даст сам'
 
 /**
  * The turn's denial, widened on a client-facing surface. The caller's own
@@ -93,7 +120,7 @@ export function clientSurfaceDenial(
   const deny = new Set(base.denyTools ?? [])
   const reasons = new Map(base.denyReasons ?? [])
   for (const name of toolNames) {
-    if (!readsOtherPeople(name) || deny.has(name)) continue
+    if (!closedToClients(name) || deny.has(name)) continue
     deny.add(name)
     reasons.set(name, CLIENT_SURFACE_DENY_REASON)
   }
