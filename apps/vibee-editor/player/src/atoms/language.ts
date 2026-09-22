@@ -26,6 +26,13 @@ const en: Translations = {
   'browser.youDrive': 'You are driving. The agent is waiting.',
   'browser.handBack': 'Let the agent continue',
   'browser.type.open': '⌨ Type text',
+  'chat.cards.label': 'What the agent proposes',
+  'chat.cards.approve': '✓ Approve',
+  'chat.cards.decline': 'Decline',
+  'chat.cards.approved': '✓ Approved',
+  'chat.cards.declined': '✖ Declined',
+  'chat.cards.skipped': 'Not chosen',
+  'chat.cards.approveAll': 'Approve all · {n}',
   'browser.choice.title': '🤔 The agent needs your decision',
   'browser.choice.actionTitle': '🙋 The agent needs your hand',
   'browser.choice.actionHint': 'Do it in the window above, then press Done.',
@@ -2138,6 +2145,13 @@ const ru: Translations = {
   'browser.youDrive': 'Управляете вы. Агент ждёт.',
   'browser.handBack': 'Вернуть агенту',
   'browser.type.open': '⌨ Ввести текст', // cyrillic-ok
+  'chat.cards.label': 'Что предлагает агент', // cyrillic-ok
+  'chat.cards.approve': '✓ Одобрить', // cyrillic-ok
+  'chat.cards.decline': 'Не надо', // cyrillic-ok
+  'chat.cards.approved': '✓ Одобрено', // cyrillic-ok
+  'chat.cards.declined': '✖ Отклонено', // cyrillic-ok
+  'chat.cards.skipped': 'Не выбрано', // cyrillic-ok
+  'chat.cards.approveAll': 'Одобрить все · {n}', // cyrillic-ok
   'browser.choice.title': '🤔 Агенту нужно ваше решение', // cyrillic-ok
   'browser.choice.actionTitle': '🙋 Агенту нужна ваша рука', // cyrillic-ok
   'browser.choice.actionHint': 'Сделайте это в окне выше и нажмите «Готово».', // cyrillic-ok

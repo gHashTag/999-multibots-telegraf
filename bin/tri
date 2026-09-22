@@ -107,6 +107,7 @@ tri — оболочка Trinity S³AI
   tri deployed <PR|sha> [сервис…]  дождаться выкатки ИМЕННО этого коммита и её статуса
   tri in-bundle <текст> [app|queen]  доехал ли текст в живой бандл приложения или доски
   tri work-report <PR> [repo]  примет ли шлюз trinity отчёт о работе: head_sha и валидатор
+  tri a2a "<задача>" [--surface s] [--fresh]  дать задачу агенту владельца и смотреть, как он справится
   tri app-smoke  что app.t27.ai обязан отвечать [--save|--compare ФАЙЛ]
   tri guards     защиты, которые ничего не защищают
   tri space      место на диске: что заняли мы и что можно вернуть
@@ -406,6 +407,7 @@ case "${1:-}" in
 
   in-bundle) shift; bash "$ROOT/bin/helpers/in-bundle.sh" "$ROOT" "$@" ;;
   work-report) shift; bash "$ROOT/bin/helpers/work-report.sh" "$@" ;;
+  a2a) shift; bash "$ROOT/bin/helpers/a2a.sh" "$ROOT" "$@" ;;
   deployed) shift; bash "$ROOT/bin/helpers/deployed.sh" "$ROOT" "$@" ;;
   journal) shift; bash "$ROOT/bin/helpers/journal.sh" "$ROOT" "$@" ;;
   flaky)  shift; bash "$ROOT/bin/helpers/flaky.sh" "$ROOT" "$@" ;;
