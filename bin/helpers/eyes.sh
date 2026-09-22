@@ -77,6 +77,27 @@ print(f"  seen: {seen[:200] if seen else 'NONE -- the agent is blind to this sho
 sys.exit(0 if (seen and pages) else 1)
 PY
 code=$?
+
+# THE PERSON'S DOORS STAY SHUT TO AN AGENT (render browser/routes.ts).
+# Typing into the person's browser from the app and bringing their logins
+# are theirs alone; an agent key must get 403. The typing probe sends an
+# EMPTY body on purpose: were the door ever open, it would fail as "nothing
+# to type" (400) and still type nothing into the owner's browser.
+door() {
+  curl -s -m 30 -o /dev/null -w '%{http_code}' -X POST "$B$1" \
+    -H "X-Agent-Key: $AK" -H 'Content-Type: application/json' -d "$2"
+}
+for probe in "/api/browser/type|{}" "/api/browser/cookies|"; do
+  path=${probe%%|*}; body=${probe#*|}
+  got=$(door "$path" "$body")
+  if [ "$got" = 403 ]; then
+    echo "  agent at $path: refused (403)"
+  else
+    echo "  agent at $path: $got -- EXPECTED 403, the person's door is open to an agent"
+    code=1
+  fi
+done
+
 if [ "$opened" = 1 ]; then
   curl -s -m 60 -X DELETE "$B/api/browser/session" -H "X-Agent-Key: $AK" >/dev/null
   echo "  session: closed (logins kept)"
