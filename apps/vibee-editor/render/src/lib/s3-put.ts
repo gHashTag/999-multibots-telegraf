@@ -23,11 +23,13 @@
 
 import { createWriteStream } from 'node:fs'
 import { once } from 'node:events'
+import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3'
 
 const S3_ENDPOINT =
@@ -100,12 +102,13 @@ export async function s3PutObject(
  * Read at most `maxBytes` of `key`, straight from the bucket.
  *
  * NOT over `${PUBLIC_URL}/s3/<key>`, and that is the whole reason this exists.
- * The proxy route in `render-server.ts` branches on the extension: images,
- * audio and `.json` are streamed back, and EVERYTHING ELSE -- including every
- * text document -- falls into the branch that downloads the object and runs
- * ffmpeg on it to transcode a video. A `.txt` fetched that way comes back as
- * an ffmpeg failure, so the HTTP path has never been able to read the very
- * documents it was written for.
+ * Until 2026-09-22 the proxy route branched on the extension: images, audio
+ * and `.json` were streamed back, and EVERYTHING ELSE -- including every text
+ * document -- fell into the branch that downloaded the object and ran ffmpeg
+ * on it to transcode a video, so a `.txt` came back as an ffmpeg failure.
+ * The route now serves documents as stored (`src/lib/shelf-route.ts`), but
+ * reading by key stays the rule here: a URL is a thing a pasted marker line
+ * can aim, a key on our own shelf is not.
  *
  * The cap is a `Range` header rather than a slice afterwards: the object is a
  * file a PERSON attached, so its size is their choice, and a gigabyte would
@@ -151,7 +154,8 @@ export async function s3GetBytes(
 export async function s3GetToFile(
   key: string,
   path: string,
-  maxBytes: number
+  maxBytes: number,
+  signal?: AbortSignal
 ): Promise<number | null> {
   const cap = Math.max(1, Math.floor(maxBytes))
   const got = await s3().send(
@@ -159,7 +163,8 @@ export async function s3GetToFile(
       Bucket: S3_BUCKET,
       Key: key,
       Range: `bytes=0-${cap}`,
-    })
+    }),
+    signal ? { abortSignal: signal } : undefined
   )
   const body = got.Body as AsyncIterable<Uint8Array> | undefined
   const out = createWriteStream(path)
@@ -181,6 +186,63 @@ export async function s3GetToFile(
     await finished(out).catch(() => undefined)
   }
   return tooBig ? null : total
+}
+
+/** A missing key, in any of the spellings the SDK and S3 clones use. */
+export function isMissingObject(e: unknown): boolean {
+  const err = e as {
+    name?: string
+    Code?: string
+    $metadata?: { httpStatusCode?: number }
+  }
+  return (
+    err?.name === 'NoSuchKey' ||
+    err?.name === 'NotFound' ||
+    err?.Code === 'NoSuchKey' ||
+    err?.$metadata?.httpStatusCode === 404
+  )
+}
+
+/**
+ * Size and validators of `key`, or null when there is no such object -- the
+ * `/s3/` route's `stat` (see `src/lib/shelf-route.ts`).
+ */
+export async function s3Stat(
+  key: string
+): Promise<{ size: number; etag?: string; lastModified?: Date } | null> {
+  try {
+    const h = await s3().send(
+      new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key })
+    )
+    return {
+      size: Number(h.ContentLength ?? 0),
+      etag: h.ETag,
+      lastModified: h.LastModified,
+    }
+  } catch (e) {
+    if (isMissingObject(e)) return null
+    throw e
+  }
+}
+
+/**
+ * A stream of `key`, or of the inclusive byte range asked for -- the `/s3/`
+ * route's `open`. The range goes to the bucket, so a player seeking to the
+ * end of a 100 MB video pulls the end, not the whole file.
+ */
+export async function s3OpenStream(
+  key: string,
+  range?: { start: number; end: number }
+): Promise<Readable> {
+  const got = await s3().send(
+    new GetObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+    })
+  )
+  const body = got.Body as Readable | undefined
+  return body ?? Readable.from([])
 }
 
 /** Bytes in, our own URL out. */

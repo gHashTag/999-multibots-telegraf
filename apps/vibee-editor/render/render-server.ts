@@ -476,7 +476,20 @@ import {
   UploadConcurrencyGate,
   UploadTooLargeError,
 } from './src/lib/boundedUpload'
-import { s3PutObject } from './src/lib/s3-put'
+import {
+  s3PutObject,
+  s3Stat,
+  s3OpenStream,
+  s3GetToFile,
+  isMissingObject,
+} from './src/lib/s3-put'
+import {
+  serveShelfRequest,
+  createShelfVideo,
+  ffprobeJson,
+  ffmpegH264,
+  type ShelfStore,
+} from './src/lib/shelf-route'
 import { handleCrmMedia } from './src/agent/media-library-route'
 import {
   captionsFromCharacterAlignment,
@@ -1429,6 +1442,30 @@ const RENDER_TEMP_DIR = path.join(process.cwd(), 'public', 'render-temp')
 if (!fs.existsSync(RENDER_TEMP_DIR)) {
   fs.mkdirSync(RENDER_TEMP_DIR, { recursive: true })
 }
+
+/**
+ * The two halves of the `/s3/` route (src/lib/shelf-route.ts): the bucket as
+ * a store, and the outlet that decides whether a video needs its H.264 copy.
+ * The copies live in public/video-cache, where the old inline route kept
+ * them. The 1 GB ceiling is for the transcode download only -- a larger video
+ * is served as stored rather than pulled onto this disk.
+ */
+const SHELF_STORE: ShelfStore = { stat: s3Stat, open: s3OpenStream }
+const SHELF_VIDEO_MAX_BYTES = 1024 * 1024 * 1024
+const SHELF_VIDEO = createShelfVideo({
+  cacheDir: path.join(process.cwd(), 'public', 'video-cache'),
+  async download(key, dest) {
+    try {
+      const size = await s3GetToFile(key, dest, SHELF_VIDEO_MAX_BYTES)
+      return size === null ? 'too-big' : 'ok'
+    } catch (e) {
+      if (isMissingObject(e)) return 'missing'
+      throw e
+    }
+  },
+  probe: ffprobeJson,
+  transcode: ffmpegH264,
+})
 
 /**
  * Pre-download S3 asset to temp directory for faster rendering
@@ -5783,162 +5820,26 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // S3 video proxy with HEVC → H.264 conversion for browser compatibility
-  if (req.url?.startsWith('/s3/') && req.method === 'GET') {
-    const s3Key = decodeURIComponent(req.url.slice(4).split('?')[0]) // Remove /s3/ and query string, decode URL
-    const ext = path.extname(s3Key).toLowerCase()
-    /**
-     * HEIC/HEIF ARE HERE FOR COMPLETENESS -- BECAUSE THEY ALREADY ARRIVE.
-     *
-     * iPhone stores photos as HEIC by default, and Files/AirDrop hand it to
-     * a web upload as-is -- Safari only converts to JPEG on some picker
-     * paths, not all of them. Without these two extensions a HEIC photo
-     * matched neither `isImage` nor `isAudio` and fell through to the branch
-     * below ("must be video, convert it"): the server ran the photo through
-     * ffmpeg as if it were video and, unsurprisingly, got nothing back.
-     * That's the actual cause of "preview doesn't show" -- not a rare edge
-     * case, but the ordinary path for an iPhone photo.
-     */
-    const isImage = [
-      '.jpg',
-      '.jpeg',
-      '.png',
-      '.gif',
-      '.webp',
-      '.svg',
-      '.bmp',
-      '.heic',
-      '.heif',
-      '.avif',
-    ].includes(ext)
-    /**
-     * `.webm` IS HERE, NOT JUST "ANOTHER FORMAT".
-     *
-     * The mini app's voice recorder (`useAudioRecorder.ts`) writes
-     * `audio/webm` -- the only source of .webm in this chat; the app never
-     * generates or accepts video in that format. This list is KEPT IN SYNC
-     * with `ChatAssets.tsx` on the client, where `.webm` is also marked
-     * audio, not video -- before this fix it was the other way around, and a
-     * voice message rendered in chat as a silent black video player with no
-     * frame at all.
-     */
-    const isAudio = [
-      '.mp3',
-      '.wav',
-      '.ogg',
-      '.m4a',
-      '.aac',
-      '.webm',
-      '.opus',
-      '.flac',
-    ].includes(ext)
-    const isJson = ext === '.json'
-
-    console.log(
-      `🎬 S3 proxy request: ${s3Key} (image: ${isImage}, audio: ${isAudio}, json: ${isJson})`
-    )
-
-    // For images, audio, and JSON - serve directly from S3 without conversion
-    if (isImage || isAudio || isJson) {
-      try {
-        const command = new GetObjectCommand({
-          Bucket: S3_BUCKET,
-          Key: s3Key,
-        })
-        const response = await s3Client.send(command)
-        const contentType =
-          response.ContentType ||
-          (isImage ? 'image/jpeg' : isAudio ? 'audio/mpeg' : 'application/json')
-
-        res.writeHead(200, {
-          'Content-Type': contentType,
-          'Content-Length': response.ContentLength?.toString() || '',
-          'Cache-Control': 'public, max-age=31536000',
-          'Access-Control-Allow-Origin': '*',
-        })
-
-        const body = response.Body as NodeJS.ReadableStream
-        body.pipe(res)
-      } catch (error) {
-        console.error(`❌ S3 proxy error for ${s3Key}:`, error)
-        res.writeHead(404, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'File not found' }))
-      }
-      return
-    }
-
-    // For videos - download, convert to H.264, cache
-    const cacheDir = path.join(process.cwd(), 'public', 'video-cache')
-    const cacheFilename = `${s3Key.replace(/\//g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')}-h264.mp4`
-    const cachePath = path.join(cacheDir, cacheFilename)
-
-    // Check cache first
-    if (fs.existsSync(cachePath)) {
-      console.log(`✅ Serving cached H.264 video: ${cachePath}`)
-      serveStaticFile(res, cachePath)
-      return
-    }
-
-    // Download and convert
-    try {
-      if (!fs.existsSync(cacheDir)) {
-        fs.mkdirSync(cacheDir, { recursive: true })
-      }
-
-      const tempPath = path.join(cacheDir, `temp-${Date.now()}.mp4`)
-
-      // Download from S3
-      console.log(`📥 Downloading from S3: ${s3Key}`)
-      const command = new GetObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: s3Key,
-      })
-      const response = await s3Client.send(command)
-      const body = response.Body as NodeJS.ReadableStream
-
-      await new Promise<void>((resolve, reject) => {
-        const file = fs.createWriteStream(tempPath)
-        body.pipe(file)
-        file.on('finish', () => {
-          file.close()
-          resolve()
-        })
-        file.on('error', reject)
-      })
-
-      // Convert to H.264
-      console.log(`🔄 Converting to H.264: ${cachePath}`)
-      execFileSync(
-        'ffmpeg',
-        [
-          '-i',
-          ffArg(tempPath),
-          '-c:v',
-          'libx264',
-          '-preset',
-          'fast',
-          '-crf',
-          '23',
-          '-c:a',
-          'aac',
-          '-movflags',
-          '+faststart',
-          '-y',
-          ffArg(cachePath),
-        ],
-        { stdio: 'pipe', timeout: 300000 }
-      )
-
-      // Remove temp file
-      fs.unlinkSync(tempPath)
-
-      console.log(`✅ Converted and cached: ${cachePath}`)
-      serveStaticFile(res, cachePath)
-    } catch (error) {
-      console.error(`❌ S3 video proxy error:`, error)
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Failed to process video' }))
-    }
+  /*
+   * THE SHELF: GET and HEAD /s3/<key>[?original=1].
+   *
+   * Documents, images, audio and anything unknown are served byte-identical
+   * from the bucket (Range, HEAD, streamed). A video keeps its H.264 copy
+   * only when the stored file would not play in a browser -- the player's
+   * `<video>`, Remotion's Chrome (b-roll and background videos are fetched
+   * through this route), and the providers handed a /s3/ link all need a
+   * picture they can decode; `?original=1` always gives the stored bytes.
+   * The whole rule, and the measurements that forced it, live in
+   * src/lib/shelf-route.ts.
+   */
+  if (
+    req.url?.startsWith('/s3/') &&
+    (req.method === 'GET' || req.method === 'HEAD')
+  ) {
+    await serveShelfRequest(req, res, {
+      store: SHELF_STORE,
+      video: SHELF_VIDEO,
+    })
     return
   }
 
