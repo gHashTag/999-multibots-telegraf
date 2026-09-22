@@ -126,6 +126,14 @@ html[data-shell='board'] .profile-tabs {
   border-radius: 0;
   background: var(--board-panel);
   box-shadow: none;
+}
+
+/* The notch, but not on the sections panel: the skills dialog and the
+   template delete confirmation are position:fixed INSIDE it, and a clip-path
+   there clipped them to the panel's box (found in review, 2026-09-22). */
+html[data-shell='board'] .profile-header,
+html[data-shell='board'] .soul-card,
+html[data-shell='board'] .profile-topup {
   clip-path: var(--board-notch);
 }
 
@@ -417,6 +425,13 @@ html[data-shell='board'] .profile-tabs__tab {
   letter-spacing: 0.04em;
 }
 
+/* A finger's height on a phone, as the app's own rule gives it (44px). */
+@media (pointer: coarse), (max-width: 768px) {
+  html[data-shell='board'] .profile-tabs__tab {
+    min-height: 44px;
+  }
+}
+
 html[data-shell='board'] .profile-tabs__tab:hover {
   border-color: var(--board-line-strong);
   background: var(--board-green-soft);
@@ -454,21 +469,6 @@ html[data-shell='board'] .profile-tabs__empty {
   font-family: var(--board-mono);
   font-size: 0.72rem;
   letter-spacing: 0.08em;
-}
-
-/* Rows inside the sections (templates, files, skills, plan, people). */
-html[data-shell='board']
-  .profile-tabs__content
-  :is(
-    [class$='-item'],
-    [class*='-item '],
-    [class$='-card'],
-    [class*='-card '],
-    [class$='-row'],
-    [class*='-row ']
-  ) {
-  border-color: var(--board-line);
-  border-radius: 0;
 }
 
 /* ---- the admin badge and the developer strip keep their meaning ---------- */
@@ -576,4 +576,3293 @@ html[data-shell='board'] .embed-guest__cta {
 
 html[data-shell='board'] .embed-guest__cta:hover {
   background: #4dffaa;
+}
+
+/* ======================================================================
+ * PROFILE SECTIONS: what is inside each of the ten, and the edit dialog
+ * ====================================================================== */
+
+/* ==== profile sections: what is inside each of the ten (and the edit dialog) ==== */
+
+/* The two dialogs are position:fixed but render INSIDE the notched tabs panel.
+   clip-path clips fixed descendants and makes a stacking context, so while
+   one is open the panel gives up its notch. */
+
+/* ---- block panels ---- */
+html[data-shell='board'] .profile-templates__item,
+html[data-shell='board'] .profile-skills__card,
+html[data-shell='board'] .profile-blog__item,
+html[data-shell='board'] .profile-pending__item,
+html[data-shell='board'] .profile-files__item,
+html[data-shell='board'] .soul-editor,
+html[data-shell='board'] .pair-with-app,
+html[data-shell='board'] .connect-tg,
+html[data-shell='board'] .tg-code,
+html[data-shell='board'] .tg-qr,
+html[data-shell='board'] .profile-skills__editor,
+html[data-shell='board'] .profile-templates__confirm,
+html[data-shell='board'] .profile-edit {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  box-shadow: none;
+  clip-path: var(--board-notch);
+}
+
+html[data-shell='board'] .soul-editor {
+  margin: 0;
+  padding: 16px;
+}
+
+html[data-shell='board'] .pair-with-app {
+  padding: 18px;
+}
+
+html[data-shell='board'] .connect-tg,
+html[data-shell='board'] .tg-code,
+html[data-shell='board'] .tg-qr {
+  margin-top: 10px;
+  padding: 18px;
+}
+
+html[data-shell='board'] .profile-skills__card {
+  padding: 12px 14px;
+}
+
+html[data-shell='board'] .profile-pending__item {
+  padding: 10px;
+}
+
+html[data-shell='board'] .profile-templates__item:hover {
+  border-color: var(--board-line-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-shell='board'] .profile-blog__item:hover {
+  border-color: var(--board-line-strong);
+}
+
+html[data-shell='board'] .profile-skills__market,
+html[data-shell='board'] .profile-plan__items,
+html[data-shell='board'] .soul-editor__skills {
+  border-top-color: var(--board-line);
+}
+
+/* ---- heads, as the board writes them ---- */
+html[data-shell='board'] .soul-editor h2,
+html[data-shell='board'] .soul-editor__skills h3,
+html[data-shell='board'] .pair-with-app__title,
+html[data-shell='board'] .profile-skills__editor-head,
+html[data-shell='board'] .profile-edit__header h2,
+html[data-shell='board'] .profile-skills__market > .profile-skills__hint,
+html[data-shell='board'] .connect-tg__label,
+html[data-shell='board'] .profile-edit__field label {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .soul-editor h2 svg {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-edit__field--checkbox label {
+  margin-bottom: 0;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Screen titles of the agent tab: the board's lead line (as .embed-guest__title). */
+html[data-shell='board'] .connect-tg__top h3,
+html[data-shell='board'] .connect-tg > h3,
+html[data-shell='board'] .tg-code__title,
+html[data-shell='board'] .tg-qr__title {
+  margin: 0;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* ---- figures: gold, mono, tabular ---- */
+html[data-shell='board'] .profile-templates__group-count,
+html[data-shell='board'] .profile-plan__count,
+html[data-shell='board'] .connect-tg__step,
+html[data-shell='board'] .tg-code__step {
+  color: var(--board-gold);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+}
+
+html[data-shell='board'] .pair-with-app__code {
+  color: var(--board-gold);
+  font-family: var(--board-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .soul-editor__counter,
+html[data-shell='board'] .pair-with-app__timer,
+html[data-shell='board'] .profile-templates__stats {
+  font-family: var(--board-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .profile-blog__date {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- text colours ---- */
+html[data-shell='board'] .profile-skills__name,
+html[data-shell='board'] .profile-plan__item-title,
+html[data-shell='board'] .profile-blog__title,
+html[data-shell='board'] .profile-pending__name,
+html[data-shell='board'] .user-card__name,
+html[data-shell='board'] .connect-tg__account,
+html[data-shell='board'] .profile-templates__confirm h3 {
+  color: #fff;
+}
+
+html[data-shell='board'] .profile-blog__item:hover .profile-blog__title {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-skills__content,
+html[data-shell='board'] .profile-blog__desc,
+html[data-shell='board'] .pair-with-app__steps,
+html[data-shell='board'] .pair-with-app__unavailable,
+html[data-shell='board'] .pair-with-app__instructions,
+html[data-shell='board'] .connect-tg__facts,
+html[data-shell='board'] .tg-qr__steps,
+html[data-shell='board'] .soul-editor__skills li,
+html[data-shell='board'] .profile-templates__confirm p {
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .profile-skills__hint,
+html[data-shell='board'] .profile-plan__aside,
+html[data-shell='board'] .profile-plan__item-note,
+html[data-shell='board'] .profile-pending__desc,
+html[data-shell='board'] .profile-skills__author,
+html[data-shell='board'] .soul-editor__hint,
+html[data-shell='board'] .soul-editor__counter,
+html[data-shell='board'] .pair-with-app__note,
+html[data-shell='board'] .pair-with-app__timer,
+html[data-shell='board'] .connect-tg__hint,
+html[data-shell='board'] .tg-code__where,
+html[data-shell='board'] .tg-code__hint,
+html[data-shell='board'] .tg-code__warn,
+html[data-shell='board'] .tg-qr__note,
+html[data-shell='board'] .tg-qr__waiting,
+html[data-shell='board'] .profile-edit__hint,
+html[data-shell='board'] .profile-files__empty,
+html[data-shell='board'] .empty-state__desc {
+  color: var(--board-dim);
+  opacity: 1;
+}
+
+html[data-shell='board'] .tg-code__phone {
+  color: #fff;
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .pair-with-app__steps li::marker,
+html[data-shell='board'] .connect-tg__facts li::marker,
+html[data-shell='board'] .tg-qr__steps li::marker {
+  color: var(--board-green);
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .soul-editor__skills code {
+  padding: 1px 6px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+}
+
+/* Empty text of "awaiting approval" had no stylesheet at all. */
+html[data-shell='board'] .profile-empty {
+  padding: 24px 8px;
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* ---- templates: the group rows and the reels ---- */
+html[data-shell='board'] .profile-templates__group-head {
+  height: auto;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--board-line);
+  background: rgba(2, 8, 6, 0.6);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .profile-templates__group-head:hover:not(:disabled) {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: #fff;
+  transform: none;
+  filter: none;
+}
+
+html[data-shell='board'] .profile-templates__group-head[aria-expanded='true'],
+html[data-shell='board']
+  .profile-templates__group-head[aria-expanded='true']:hover:not(:disabled) {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-templates__thumbnail,
+html[data-shell='board'] .profile-templates__thumbnail :is(img, video) {
+  background: #000;
+}
+
+html[data-shell='board'] .profile-templates__placeholder {
+  background: #000;
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .profile-templates__preview-toggle {
+  border: 1px solid var(--board-line-strong);
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: none;
+  color: var(--board-green);
+  backdrop-filter: none;
+}
+
+/* Keeps its centring: design-system's button:hover/:active (0,2,1) swapped
+   translate(-50%,-50%) for translateY(..) and the button jumped. */
+html[data-shell='board']
+  .profile-templates__preview-toggle:is(:hover, :focus-visible, :active),
+html[data-shell='board'] .profile-templates__preview-toggle.is-playing {
+  border-color: var(--board-green);
+  background: var(--board-green);
+  color: #000;
+  filter: none;
+  transform: translate(-50%, -50%);
+}
+
+html[data-shell='board'] .profile-templates__social-action {
+  border: 1px solid var(--board-line-strong);
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: none;
+  color: #fff;
+  backdrop-filter: none;
+}
+
+html[data-shell='board'] .profile-templates__social-action--edit {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-templates__social-action--delete {
+  color: var(--board-cold);
+}
+
+html[data-shell='board'] .profile-templates__social-action:hover:not(:disabled),
+html[data-shell='board'] .profile-templates__social-action:focus-visible {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board']
+  .profile-templates__social-action--delete:hover:not(:disabled),
+html[data-shell='board']
+  .profile-templates__social-action--delete:focus-visible {
+  border-color: var(--board-cold);
+  background: rgba(255, 107, 107, 0.14);
+}
+
+html[data-shell='board'] .profile-templates__confirm > svg {
+  color: var(--board-cold);
+}
+
+/* ---- files ---- */
+html[data-shell='board'] .profile-files__media {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .profile-files__type {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-files__empty svg {
+  color: var(--board-green);
+}
+
+/* ---- pending ---- */
+html[data-shell='board'] .profile-pending__cover {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+}
+
+/* ---- empty states ---- */
+html[data-shell='board'] .empty-state__icon {
+  padding: 1.1rem;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .empty-state__title {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---- people ---- */
+html[data-shell='board'] .profile-tabs__users {
+  gap: 6px;
+}
+
+html[data-shell='board'] .user-card {
+  padding: 10px 12px;
+  border: 1px solid var(--board-line);
+  background: var(--board-panel);
+}
+
+html[data-shell='board'] .user-card:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .user-card__avatar {
+  border: 1px solid var(--board-line-strong);
+}
+
+html[data-shell='board'] .user-card__avatar-placeholder {
+  background: #000;
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .user-card__username {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+/* The follow button's own gradient overlay still faded in on hover, under
+   the board's green hover text. */
+html[data-shell='board'] .follow-button::before {
+  display: none;
+}
+
+html[data-shell='board'] .follow-button:hover {
+  box-shadow: none;
+  filter: none;
+  transform: none;
+}
+
+/* ---- primary action: solid green, black mono caps ---- */
+html[data-shell='board'] .empty-state__action,
+html[data-shell='board'] .profile-pending__approve,
+html[data-shell='board'] .profile-skills__save,
+html[data-shell='board'] .soul-editor__save,
+html[data-shell='board'] .pair-with-app__action,
+html[data-shell='board'] .connect-tg button,
+html[data-shell='board'] .tg-code__go,
+html[data-shell='board'] .profile-edit__save {
+  height: auto;
+  border: 1px solid var(--board-green);
+  border-radius: 0;
+  background: var(--board-green);
+  box-shadow: none;
+  color: #000;
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+html[data-shell='board'] .empty-state__action,
+html[data-shell='board'] .profile-skills__save,
+html[data-shell='board'] .soul-editor__save,
+html[data-shell='board'] .profile-edit__save {
+  min-height: 44px;
+}
+
+/* Without these, design-system's button:hover (0,2,1) paints the green
+   button panel-dark under its black label. */
+html[data-shell='board']
+  :is(
+    .empty-state__action,
+    .profile-pending__approve,
+    .profile-skills__save,
+    .soul-editor__save,
+    .pair-with-app__action,
+    .tg-code__go,
+    .profile-edit__save
+  ):hover:not(:disabled),
+html[data-shell='board'] .connect-tg button:hover:not(:disabled) {
+  border-color: #4dffaa;
+  background: #4dffaa;
+  color: #000;
+  filter: none;
+  transform: none;
+}
+
+/* Disabled: dimmed, still a button (ConnectTelegram.css:120-130). */
+html[data-shell='board']
+  :is(
+    .profile-pending__approve,
+    .profile-skills__save,
+    .soul-editor__save,
+    .tg-code__go,
+    .profile-edit__save
+  ):disabled,
+html[data-shell='board'] .connect-tg button:disabled {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: var(--board-dim);
+  opacity: 1;
+}
+
+/* ---- secondary action: thin green line, green mono caps ---- */
+html[data-shell='board'] .profile-skills__add,
+html[data-shell='board'] .profile-files__cta,
+html[data-shell='board'] .profile-templates__load-more,
+html[data-shell='board'] .profile-templates__confirm-actions button,
+html[data-shell='board'] .soul-editor__template,
+html[data-shell='board'] .tg-code__open-chat,
+html[data-shell='board'] .tg-qr__here,
+html[data-shell='board'] .profile-edit__cancel,
+html[data-shell='board'] .profile-edit__add-link,
+html[data-shell='board'] .connect-tg button.connect-tg__qr {
+  height: auto;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--board-line-strong);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+html[data-shell='board'] a.profile-files__cta,
+html[data-shell='board'] .tg-qr__here {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+html[data-shell='board']
+  :is(
+    .profile-skills__add,
+    .profile-files__cta,
+    .profile-templates__load-more,
+    .soul-editor__template,
+    .tg-code__open-chat,
+    .tg-qr__here,
+    .profile-edit__cancel,
+    .profile-edit__add-link
+  ):hover:not(:disabled),
+html[data-shell='board']
+  .profile-templates__confirm-actions
+  button:hover:not(:disabled),
+html[data-shell='board']
+  .connect-tg
+  button.connect-tg__qr:hover:not(:disabled) {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board'] .connect-tg button.connect-tg__qr:disabled {
+  opacity: 0.5;
+}
+
+/* Disconnect keeps its gold: it must not wear connect's green. */
+html[data-shell='board'] .connect-tg button.connect-tg__off,
+html[data-shell='board']
+  .connect-tg
+  button.connect-tg__off:hover:not(:disabled) {
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  background: transparent;
+  color: var(--board-gold);
+}
+
+/* Delete is the one red: the board's own --board-cold. */
+html[data-shell='board']
+  .profile-templates__confirm-actions
+  .profile-templates__confirm-delete,
+html[data-shell='board']
+  .profile-templates__confirm-actions
+  .profile-templates__confirm-delete:hover:not(:disabled) {
+  border-color: var(--board-cold);
+  background: var(--board-cold);
+  color: #000;
+}
+
+html[data-shell='board'] .profile-edit__remove-link {
+  height: auto;
+  min-width: 40px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-cold);
+}
+
+html[data-shell='board'] .profile-edit__remove-link:hover {
+  border-color: var(--board-cold);
+  background: rgba(255, 107, 107, 0.14);
+  color: var(--board-cold);
+  transform: none;
+}
+
+/* ---- text buttons of the code/QR screens ---- */
+html[data-shell='board'] .tg-code__back,
+html[data-shell='board'] .tg-qr__back,
+html[data-shell='board'] .tg-code__change,
+html[data-shell='board'] .tg-code__resend,
+html[data-shell='board'] .tg-code__use-qr {
+  height: auto;
+  border: 0;
+  background: none;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+html[data-shell='board'] .tg-code__resend.is-waiting {
+  color: var(--board-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board']
+  :is(
+    .tg-code__back,
+    .tg-qr__back,
+    .tg-code__change,
+    .tg-code__resend,
+    .tg-code__use-qr,
+    .profile-plan__goal-title
+  ):hover:not(:disabled) {
+  background: transparent;
+  filter: none;
+  transform: none;
+}
+
+/* ---- small icon buttons ---- */
+html[data-shell='board'] .profile-skills__actions button,
+html[data-shell='board'] .profile-skills__editor-head button,
+html[data-shell='board'] .profile-edit__close {
+  height: auto;
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .profile-skills__actions button:hover:not(:disabled),
+html[data-shell='board']
+  .profile-skills__editor-head
+  button:hover:not(:disabled),
+html[data-shell='board'] .profile-edit__close:hover {
+  border-color: var(--board-line);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+  transform: none;
+}
+
+/* ---- chips ---- */
+html[data-shell='board'] .profile-plan__status,
+html[data-shell='board'] .profile-skills__install {
+  height: auto;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .profile-skills__install {
+  border-color: var(--board-line-strong);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .profile-plan__status--doing {
+  border-color: rgba(255, 215, 0, 0.45);
+  color: var(--board-gold);
+}
+
+html[data-shell='board'] .profile-plan__status--done {
+  border-color: var(--board-green);
+  color: var(--board-green);
+  text-decoration: none;
+}
+
+html[data-shell='board']
+  :is(.profile-plan__status, .profile-skills__install):hover:not(:disabled) {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+  filter: none;
+  transform: none;
+}
+
+/* ---- inputs ---- */
+html[data-shell='board'] .profile-skills__input,
+html[data-shell='board'] .profile-skills__textarea,
+html[data-shell='board'] .soul-editor__area,
+html[data-shell='board'] .connect-tg input,
+html[data-shell='board']
+  .profile-edit__field
+  :is(input[type='text'], input[type='url'], textarea),
+html[data-shell='board'] .profile-edit__social-link select {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: none;
+  color: #fff;
+}
+
+html[data-shell='board'] .soul-editor__area {
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board']
+  :is(
+    .profile-skills__input,
+    .profile-skills__textarea,
+    .soul-editor__area,
+    .profile-edit__social-link select
+  ):focus,
+html[data-shell='board'] .connect-tg input:focus,
+html[data-shell='board'] .profile-edit__field :is(input, textarea):focus {
+  border-color: var(--board-green);
+  box-shadow: none;
+  outline: none;
+}
+
+html[data-shell='board']
+  :is(
+    .profile-skills__input,
+    .profile-skills__textarea,
+    .soul-editor__area
+  )::placeholder,
+html[data-shell='board'] .connect-tg input::placeholder,
+html[data-shell='board']
+  .profile-edit__field
+  :is(input, textarea)::placeholder {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .profile-edit__social-link select option {
+  background: #000;
+  color: #fff;
+}
+
+/* The code cells: one invisible input under them, so no pointer-events or
+   z-index here (ConnectCode.css:139-160). */
+html[data-shell='board'] .tg-code__cell {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: var(--board-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .tg-code__cell.is-filled,
+html[data-shell='board'] .tg-code__cell.is-next {
+  border-color: var(--board-line-strong);
+}
+
+html[data-shell='board'] .tg-code__field.is-focused .tg-code__cell.is-next {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  box-shadow: none;
+}
+
+/* The QR stays dark on white for scanners: only its corner goes. */
+html[data-shell='board'] .tg-qr__code {
+  border-radius: 0;
+}
+
+/* ---- errors: gold, as the connect screens already chose ---- */
+html[data-shell='board'] .soul-editor__error,
+html[data-shell='board'] .pair-with-app__error,
+html[data-shell='board'] .connect-tg__error,
+html[data-shell='board'] .tg-code__error,
+html[data-shell='board'] .tg-qr__error,
+html[data-shell='board'] .profile-templates__error,
+html[data-shell='board'] .profile-edit__error {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: 0;
+  background: rgba(255, 215, 0, 0.06);
+  color: var(--board-gold);
+}
+
+html[data-shell='board'] .profile-skills__note {
+  color: var(--board-gold);
+}
+
+/* ---- overlays and the edit dialog ---- */
+html[data-shell='board'] .profile-templates__confirm-overlay,
+html[data-shell='board'] .profile-skills__modal,
+html[data-shell='board'] .profile-edit-overlay {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: none;
+}
+
+html[data-shell='board'] .profile-edit__header,
+html[data-shell='board'] .profile-edit__footer {
+  padding: 12px 16px;
+  border-color: var(--board-line);
+}
+
+html[data-shell='board'] .profile-edit__header h2 {
+  margin: 0;
+}
+
+html[data-shell='board'] .profile-edit__content {
+  gap: 16px;
+  padding: 16px;
+}
+
+/* Skeleton corners are inline (style={{ borderRadius: 12 }}). */
+html[data-shell='board']
+  .profile-tabs__content
+  .skeleton:not(.skeleton-avatar) {
+  border-radius: 0 !important;
+}
+
+/* At 640px and below the edit dialog is a full-screen sheet (Profile.css:1464-1471). */
+@media (max-width: 640px) {
+  html[data-shell='board'] .profile-edit {
+    clip-path: none;
+    border: 0;
+  }
+}
+
+/* ---- phones: the mobile layout the board shell had overridden ---- */
+@media (max-width: 480px) {
+  /* One strip that scrolls (Profile.css:1391-1404), so ProfileTabs'
+     revealInStrip has something to do; the wrapped strip took four rows of
+     a phone screen. The touch height is set once, above, for coarse
+     pointers and narrow screens. The edges fade as in the app, so the strip
+     reads as "more this way" rather than ending at the fourth section. */
+  html[data-shell='board'] .profile-tabs__header {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-inline: 16px 28px;
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 16px,
+      #000 calc(100% - 28px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 16px,
+      #000 calc(100% - 28px),
+      transparent 100%
+    );
+  }
+
+  html[data-shell='board'] .profile-tabs__header::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Five figures in one row (Profile.css:1509-1540), in the board's cells. */
+  html[data-shell='board'] .profile-stats {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  html[data-shell='board'] .profile-stat-card {
+    padding: 8px 4px 6px;
+  }
+
+  html[data-shell='board'] .profile-stat-card__value {
+    font-size: 0.95rem;
+  }
+
+  html[data-shell='board'] .profile-stat-card__label {
+    font-size: 0.5rem;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  /* Agent panels: PairWithApp.css:105-109's 14px, for all of them. */
+  html[data-shell='board'] .pair-with-app,
+  html[data-shell='board'] .connect-tg,
+  html[data-shell='board'] .tg-code,
+  html[data-shell='board'] .tg-qr,
+  html[data-shell='board'] .soul-editor {
+    padding: 14px;
+  }
+
+  /* iOS zooms the page on a focused field under 16px (ConnectTelegram.css:70-77). */
+  html[data-shell='board']
+    :is(
+      .profile-skills__input,
+      .profile-skills__textarea,
+      .soul-editor__area,
+      .profile-edit__social-link select
+    ),
+  html[data-shell='board']
+    .profile-edit__field
+    :is(input[type='text'], input[type='url'], textarea) {
+    font-size: 16px;
+  }
+
+  html[data-shell='board'] .profile-skills__head,
+  html[data-shell='board'] .profile-pending__item {
+    flex-wrap: wrap;
+  }
+
+  html[data-shell='board'] .profile-pending__approve {
+    width: 100%;
+  }
+}
+
+/* ======================================================================
+ * FEED
+ * ====================================================================== */
+
+/* ---- feed: /feed (pages/Feed.tsx, Panels/FeedPanel.tsx, Panels/FeedCard.tsx) ---- */
+/* Specificity note: the feed's own rules are .feed-panel.fullscreen ... (0,3,0)
+   and load later (lazy chunk); the board's global button rule above is (0,3,2).
+   Every selector here is longer than both on purpose. */
+
+/* Layout: the frame draws neither the app header (Header.tsx:290) nor the tab
+   bar (TelegramTabBar.tsx:143), yet the reel still subtracted a 56px header
+   (FeedPanel.css:692-694) and a 60px bottom nav on phones (Feed.css:27-31). */
+html[data-shell='board'] .feed-panel.fullscreen {
+  --feed-chrome: 0px;
+}
+
+@media (max-width: 767px) {
+  html[data-shell='board'] .feed-main {
+    padding-bottom: 0;
+  }
+}
+
+/* The floating title: a board panel head. No notch -- it is a small strip. */
+html[data-shell='board'] .feed-panel.fullscreen .panel-header {
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .panel-header svg {
+  color: var(--board-green);
+}
+
+/* Новые | Популярные: the board's screen buttons, identical to
+   .profile-tabs__tab and .ai-pipeline__item above. Position, padding and the
+   mobile 44px min-height (FeedPanel.css:1588-1592) are left alone. */
+html[data-shell='board'] .feed-panel.fullscreen .feed-sort {
+  gap: 6px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .feed-sort .sort-btn {
+  border: 1px solid var(--board-line);
+  border-radius: 6px;
+  background: rgba(2, 8, 6, 0.6);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .feed-sort .sort-btn:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: #fff;
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .feed-sort .sort-btn.active,
+html[data-shell='board']
+  .feed-panel.fullscreen
+  .feed-sort
+  .sort-btn.active:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+/* Desktop only: phones keep the 44px touch target. */
+@media (min-width: 769px) {
+  html[data-shell='board'] .feed-panel.fullscreen .feed-sort .sort-btn {
+    min-height: 36px;
+  }
+}
+
+/* The caption: a board panel instead of a gradient. Only padding-top changes
+   (the box is bottom-anchored, so no text moves); padding-right keeps
+   --feed-rail-reserve because the shorthand is not touched. */
+html[data-shell='board'] .feed-panel.fullscreen .feed-card-info {
+  padding-top: 12px;
+  border: 1px solid var(--board-line);
+  background: rgba(2, 8, 6, 0.6);
+  clip-path: var(--board-notch);
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .feed-card-creator {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  letter-spacing: 0.04em;
+  opacity: 1;
+}
+
+html[data-shell='board']
+  .feed-panel.fullscreen
+  .feed-card-creator-link
+  .feed-card-creator {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .feed-card-avatar {
+  border: 1px solid var(--board-line-strong);
+}
+
+/* The rail: geometry untouched (the text reserve is derived from it). Only
+   the counts go mono -- a mono "Ремикс" would widen the rail past 60px. One
+   neutral shadow stays for legibility over video; the coloured glows go. */
+html[data-shell='board'] .feed-card-actions .action-btn {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+html[data-shell='board'] .feed-card-actions .action-btn svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+}
+
+html[data-shell='board'] .feed-card-actions .action-btn:hover,
+html[data-shell='board'] .feed-card-actions .action-btn:hover svg {
+  transform: none;
+}
+
+html[data-shell='board'] .feed-card-actions .action-btn.star-btn span,
+html[data-shell='board'] .feed-card-actions .action-btn.views-btn span,
+html[data-shell='board'] .feed-card-actions .action-btn.uses-btn span {
+  font-family: var(--board-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+html[data-shell='board'] .feed-card-actions .action-btn.sound-btn.unmuted,
+html[data-shell='board'] .feed-card-actions .action-btn.link-btn.copied {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .feed-card-actions .action-btn.star-btn.starred {
+  color: var(--board-gold);
+}
+
+html[data-shell='board'] .feed-card-actions .action-btn.delete-btn:hover {
+  background: transparent;
+  color: var(--board-cold);
+}
+
+/* Badges on the reel: board pills. */
+html[data-shell='board'] .feed-card .feed-card-featured,
+html[data-shell='board'] .feed-card .feed-card-remix {
+  border-radius: 0;
+  background: var(--board-panel);
+  font-family: var(--board-mono);
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .feed-card .feed-card-featured {
+  border: 1px solid var(--board-green);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .feed-card .feed-card-remix {
+  border: 1px solid var(--board-line);
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .feed-card .feed-card-remix svg {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .feed-card .feed-card-remix:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+  transform: none;
+}
+
+/* Per-reel states over the video. */
+html[data-shell='board'] .feed-card .feed-card-loading {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .feed-card .feed-card-error {
+  color: var(--board-cold);
+}
+
+html[data-shell='board'] .feed-card .feed-card-error span {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Secondary actions: the board's thin-lined twin. */
+html[data-shell='board'] .feed-card .feed-card-error .retry-btn,
+html[data-shell='board'] .feed-panel.fullscreen .feed-error button,
+html[data-shell='board'] .feed-panel.fullscreen .feed-load-more,
+html[data-shell='board'] .feed-card .remix-info-modal .remix-close-btn,
+html[data-shell='board'] .feed-card .delete-confirm-buttons .cancel-btn {
+  border: 1px solid var(--board-line-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .feed-card .feed-card-error .retry-btn:hover,
+html[data-shell='board'] .feed-panel.fullscreen .feed-error button:hover,
+html[data-shell='board'] .feed-panel.fullscreen .feed-load-more:hover,
+html[data-shell='board'] .feed-card .remix-info-modal .remix-close-btn:hover,
+html[data-shell='board'] .feed-card .delete-confirm-buttons .cancel-btn:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+/* The destructive one keeps its meaning in the board's cold colour. */
+html[data-shell='board'] .feed-card .delete-confirm-buttons .confirm-btn {
+  border: 1px solid var(--board-cold);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-cold);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .feed-card .delete-confirm-buttons .confirm-btn:hover {
+  background: rgba(255, 107, 107, 0.12);
+}
+
+/* Block panels: the two modals, the error box, the not-found notice. */
+html[data-shell='board'] .feed-card .delete-confirm-modal,
+html[data-shell='board'] .feed-card .remix-info-modal,
+html[data-shell='board'] .feed-panel.fullscreen .feed-error,
+html[data-shell='board'] .feed-content .feed-notice {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  clip-path: var(--board-notch);
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .feed-error {
+  color: var(--board-cold);
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .feed-content .feed-notice {
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .feed-card .delete-confirm-modal .delete-confirm-icon {
+  color: var(--board-cold);
+}
+
+html[data-shell='board'] .feed-card .remix-info-modal .remix-info-header h3 {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .feed-card .remix-info-modal .remix-icon {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .feed-card .remix-info-modal .remix-info-text {
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .feed-card .remix-info-modal .remix-creator-avatar {
+  border: 1px solid var(--board-line-strong);
+}
+
+/* Loading / empty: the board's quiet mono line. */
+html[data-shell='board'] .feed-panel.fullscreen .feed-loading span,
+html[data-shell='board'] .feed-panel.fullscreen .feed-empty span {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .feed-panel.fullscreen .feed-loading svg,
+html[data-shell='board'] .feed-panel.fullscreen .feed-empty svg {
+  color: var(--board-green);
+}
+
+/* Pull-to-refresh: no shadow, a visible ring. */
+html[data-shell='board'] .feed-content .pull-indicator {
+  border: 1px solid var(--board-line);
+  background: var(--board-panel);
+  box-shadow: none;
+}
+
+html[data-shell='board'] .feed-content .pull-spinner {
+  border-color: var(--board-line);
+  border-top-color: var(--board-green);
+}
+
+/* Double-tap heart: green, no glow (fill/stroke beat the SVG attributes). */
+html[data-shell='board'] .feed-card .like-heart {
+  filter: none;
+}
+
+html[data-shell='board'] .feed-card .like-heart svg {
+  fill: var(--board-green);
+  stroke: var(--board-green);
+}
+
+html[data-shell='board'] .feed-card .like-heart::before,
+html[data-shell='board'] .feed-card .like-heart::after {
+  background: var(--board-green);
+}
+
+/* ======================================================================
+ * AGENT
+ * ====================================================================== */
+
+/* ---- agent chat (/chat and /crm/:clientId/chat) -------------------------- */
+
+/* The page's own tokens (Chat.css:10-17), pointed at the board's. This one
+   rule turns the toolbar and composer hairlines green and the #888 greys dim. */
+html[data-shell='board'] .chat-page {
+  --t27-bg: #000;
+  --t27-surface: rgba(0, 0, 0, 0.6);
+  --t27-border: var(--board-line);
+  --t27-muted: var(--board-dim);
+  --t27-accent: var(--board-green);
+  background: #000;
+}
+
+html[data-shell='board'] .chat-container {
+  scrollbar-color: var(--board-line) transparent;
+}
+
+/* Toolbar: "new conversation" and the balance, as the board's pills. */
+html[data-shell='board'] .chat-reset,
+html[data-shell='board'] .chat-tokens {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--board-line);
+  background: transparent;
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .chat-reset {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .chat-tokens {
+  color: var(--board-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .chat-reset:hover,
+html[data-shell='board'] .chat-tokens:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+/* The balance pill reads as selected while its top-up strip is open. */
+html[data-shell='board'] .chat-toolbar:has(> .chat-topup) > .chat-tokens {
+  border-color: var(--board-green);
+  color: var(--board-green);
+}
+
+/* Top-up strip: the same packs as the profile's (.profile-topup__pack). */
+html[data-shell='board'] .chat-topup {
+  gap: 6px;
+}
+
+html[data-shell='board'] .chat-topup__pack {
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--board-line);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-family: var(--board-mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+html[data-shell='board'] .chat-topup__pack span {
+  color: var(--board-gold);
+  font-size: 0.7rem;
+}
+
+html[data-shell='board'] .chat-topup__pack:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .chat-topup__note {
+  color: var(--board-dim);
+  font-size: 0.78rem;
+}
+
+/* Around the bubbles: where a turn came from, the thinking, the tools. */
+html[data-shell='board'] .message-surface {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .thinking-toggle {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .thinking-toggle:hover {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .thinking-body {
+  border-left: 2px solid var(--board-line-strong);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .tool-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 0;
+  background: var(--board-green);
+}
+
+/* Inside the bubbles: attachments and the agent's media and markup. */
+html[data-shell='board'] .message-attachment > span {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .chat-assets__image-link,
+html[data-shell='board'] .chat-assets__video {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+}
+
+html[data-shell='board'] .chat-assets__image-link:hover {
+  border-color: var(--board-green);
+}
+
+html[data-shell='board'] .chat-assets__image {
+  background: #000;
+}
+
+html[data-shell='board'] .chat-assets__code {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .chat-assets__heading {
+  color: #fff;
+}
+
+html[data-shell='board'] .chat-assets__list li::before {
+  color: var(--board-green);
+}
+
+/* The agent's proposals: the board's panels, its two buttons. */
+html[data-shell='board'] .agent-card {
+  border: 1px solid var(--board-line);
+  border-left: 3px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  clip-path: var(--board-notch);
+}
+
+html[data-shell='board'] .agent-card--live {
+  border-color: var(--board-line-strong);
+  border-left-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .agent-card--approved {
+  border-left-color: var(--board-green);
+}
+
+html[data-shell='board'] .agent-card__body p {
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .agent-card__n {
+  border-color: var(--board-line-strong);
+  border-radius: 0;
+  color: var(--board-gold);
+  font-family: var(--board-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .agent-card__buttons button,
+html[data-shell='board'] .agent-cards__all {
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+html[data-shell='board'] .agent-card__yes {
+  border: 1px solid var(--board-green);
+  background: var(--board-green);
+  color: #000;
+}
+
+html[data-shell='board'] .agent-card__yes:hover {
+  background: #4dffaa;
+}
+
+html[data-shell='board'] .agent-card__no {
+  border: 1px solid var(--board-line);
+  background: transparent;
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .agent-card__no:hover {
+  border-color: var(--board-line-strong);
+  color: #fff;
+}
+
+html[data-shell='board'] .agent-cards__all {
+  border: 1px solid var(--board-line-strong);
+  background: transparent;
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .agent-cards__all:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .agent-card__state {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+
+html[data-shell='board'] .agent-card--approved .agent-card__state {
+  color: var(--board-green);
+}
+
+/* First questions: the board's thin-lined button. */
+html[data-shell='board'] .suggestion-btn {
+  border: 1px solid var(--board-line-strong);
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  line-height: 1.45;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .suggestion-btn:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+/* Composer. The input keeps its font size: touch screens force 16px
+   (design-system.css:527-539) so iOS does not zoom on focus. */
+html[data-shell='board'] .attach-btn {
+  border: 1px solid var(--board-line-strong);
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+html[data-shell='board'] .attach-btn:hover:not(:disabled) {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .chat-input {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+
+html[data-shell='board'] .chat-input:focus {
+  border-color: var(--board-green);
+  box-shadow: none;
+}
+
+html[data-shell='board'] .chat-input::placeholder {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .send-btn {
+  padding: 0 14px;
+  border: 1px solid var(--board-green);
+  background: var(--board-green);
+  color: #000;
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .send-btn:hover:not(:disabled) {
+  background: #4dffaa;
+  filter: none;
+}
+
+/* On a phone the caps word must leave the input room (Chat.css:337-349). */
+@media (max-width: 480px) {
+  html[data-shell='board'] .send-btn {
+    padding: 0 10px;
+    letter-spacing: 0.08em;
+  }
+}
+
+/* File names stay in their own case: a chip, but not in caps. */
+html[data-shell='board'] .chat-attachment-chip {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .chat-attachment-chip button {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .chat-attachment-chip button:hover {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .chat-attachment-error {
+  color: var(--board-cold);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+/* A client thread's strip: the way back, and a board head. */
+html[data-shell='board'] .chat-client__back {
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .chat-client__title {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ======================================================================
+ * AI PIPELINE
+ * ====================================================================== */
+
+/* ---- the AI pipeline: script, voice, photo, avatar, video, editor -------- */
+/* Pages: pages/Script.tsx, pages/Generate.tsx (+ Panels/GeneratePanel,
+   Results/ResultsGallery), pages/Editor.tsx (+ AI/AiAssemblyBar,
+   Panels/TemplatesPanel). Colour, line, type only: no width, height,
+   min-height, padding, position, transform or display is set here, so every
+   phone rule in Script.css / Generate.css / GeneratePanel.css / index.css /
+   App.css keeps working as written. */
+
+/* Tokens the block at the top does not reach: the pages' own grounds and the
+   grey their labels are lettered in. Scoped to the three pipeline roots. */
+html[data-shell='board'] :is(.script-page, .generate-page, .editor) {
+  --bg-darker: #000;
+  --bg-darkest: rgba(0, 0, 0, 0.6);
+  --bg-hover: var(--board-line-strong);
+  --text-muted-light: var(--board-dim);
+}
+
+/* ---- grounds and the lines between them ---------------------------------- */
+
+html[data-shell='board'] .script-sidebar,
+html[data-shell='board'] .generate-sidebar,
+html[data-shell='board'] .sidebar-left {
+  border-color: var(--board-line);
+  background: #000;
+}
+
+html[data-shell='board'] .results-gallery,
+html[data-shell='board'] .canvas-area,
+html[data-shell='board'] .timeline-area {
+  background: #000;
+}
+
+/* The phone sheet (Script.css @media 767): square top, no cast shadow; its
+   grab bar was var(--bg-input), which the board made black on black. */
+html[data-shell='board'] .script-sidebar {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-shell='board'] .script-sidebar::before {
+  border-radius: 0;
+  background: var(--board-line-strong);
+}
+
+/* Every hairline these pages drew in --bg-elevated / --bg-secondary, both of
+   which the board turned into its near-black panel colour. */
+html[data-shell='board'] .script-output-block,
+html[data-shell='board'] .script-output-header,
+html[data-shell='board'] .script-output-actions,
+html[data-shell='board'] .script-platform-tabs,
+html[data-shell='board'] .script-templates-header,
+html[data-shell='board'] .script-template-save,
+html[data-shell='board'] .script-template-item,
+html[data-shell='board'] .script-history-header,
+html[data-shell='board'] .script-history-item,
+html[data-shell='board'] .script-preview-stats,
+html[data-shell='board'] .script-progress-note,
+html[data-shell='board'] .generated-results,
+html[data-shell='board'] .results-gallery .result-info,
+html[data-shell='board'] .templates-transfer {
+  border-color: var(--board-line);
+}
+
+/* ---- block panels: the board's notched panel ----------------------------- */
+
+html[data-shell='board'] .script-output-section,
+html[data-shell='board'] .script-tips,
+html[data-shell='board'] .script-shortcuts-hint,
+html[data-shell='board'] .script-templates-panel,
+html[data-shell='board'] .script-history-panel,
+html[data-shell='board'] .script-preview,
+html[data-shell='board'] .script-progress,
+html[data-shell='board'] .broll-prompt-queue,
+html[data-shell='board'] .results-gallery .result-card {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+  box-shadow: none;
+  clip-path: var(--board-notch);
+}
+
+html[data-shell='board'] .results-gallery .result-card:hover {
+  border-color: var(--board-green);
+  box-shadow: none;
+  transform: none;
+}
+
+/* ---- titles and panel heads ---------------------------------------------- */
+
+html[data-shell='board'] .script-panel-title {
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+html[data-shell='board'] .script-panel-subtitle {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+}
+
+html[data-shell='board'] .script-field label,
+html[data-shell='board'] .generate-form .form-group label,
+html[data-shell='board'] .script-output-block-title,
+html[data-shell='board'] .script-output-header h3,
+html[data-shell='board'] .script-tips-header,
+html[data-shell='board'] .script-shortcuts-title,
+html[data-shell='board'] .script-templates-header h3,
+html[data-shell='board'] .script-history-header h3,
+html[data-shell='board'] .script-preview-header h4,
+html[data-shell='board'] .script-progress-header h4,
+html[data-shell='board'] .generate-panel .results-header > span:first-child,
+html[data-shell='board'] .broll-prompt-queue__header,
+html[data-shell='board'] .template-section-title,
+html[data-shell='board'] .ai-assembly__copy strong {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .template-section-title {
+  opacity: 1;
+}
+
+html[data-shell='board'] .script-output-block-title svg,
+html[data-shell='board'] .script-tips-header svg,
+html[data-shell='board'] .script-preview-header svg,
+html[data-shell='board'] .script-preview-stat svg,
+html[data-shell='board'] .script-preview-section-icon svg,
+html[data-shell='board'] .ai-assembly__copy > svg,
+html[data-shell='board'] .voice-loading,
+html[data-shell='board'] .result-audio-info {
+  color: var(--board-green);
+}
+
+/* The figure beside a head: gold, mono, tabular. */
+html[data-shell='board'] .broll-prompt-queue__header span:last-child {
+  color: var(--board-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .script-word-count,
+html[data-shell='board'] .script-segment-count,
+html[data-shell='board'] .script-duration-badge {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-gold);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .script-duration-badge {
+  color: var(--board-dim);
+}
+
+/* The mobile sheet's title row (display, height and padding stay Script.css's). */
+html[data-shell='board'] .script-sheet-handle {
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .script-sheet-handle:hover {
+  background: transparent;
+  filter: none;
+  transform: none;
+}
+
+/* ---- fields ---------------------------------------------------------------- */
+
+/* background-color, not background: .script-select draws its chevron as a
+   background-image (Script.css:135). */
+html[data-shell='board'] .script-textarea,
+html[data-shell='board'] .script-select,
+html[data-shell='board'] .script-template-input,
+html[data-shell='board'] .script-voiceover-edit,
+html[data-shell='board'] .form-textarea {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  box-shadow: none;
+  color: #fff;
+}
+
+html[data-shell='board'] .script-textarea:hover,
+html[data-shell='board'] .script-select:hover,
+html[data-shell='board'] .script-template-input:hover,
+html[data-shell='board'] .form-textarea:hover {
+  border-color: var(--board-line-strong);
+}
+
+html[data-shell='board'] .script-textarea:focus,
+html[data-shell='board'] .script-select:focus,
+html[data-shell='board'] .script-template-input:focus,
+html[data-shell='board'] .script-voiceover-edit,
+html[data-shell='board'] .script-voiceover-edit:focus,
+html[data-shell='board'] .form-textarea:focus {
+  border-color: var(--board-green);
+  box-shadow: none;
+  outline: none;
+}
+
+html[data-shell='board'] .script-textarea::placeholder,
+html[data-shell='board'] .script-template-input::placeholder,
+html[data-shell='board'] .form-textarea::placeholder {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .script-select option {
+  background: #000;
+  color: #fff;
+}
+
+/* The microphone inside the topic field. */
+html[data-shell='board'] .script-voice-btn {
+  border: 1px solid var(--board-line);
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .script-voice-btn:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board'] .script-voice-btn.listening {
+  border-color: var(--board-cold);
+  background: rgba(255, 107, 107, 0.08);
+  color: var(--board-cold);
+}
+
+/* Speed slider (Voice): a green line and a square green thumb. */
+html[data-shell='board'] .form-range {
+  border-radius: 0;
+  background: var(--board-line);
+}
+
+html[data-shell='board'] .form-range::-webkit-slider-thumb {
+  border-radius: 0;
+  background: var(--board-green);
+}
+
+html[data-shell='board'] .form-range::-moz-range-thumb {
+  border-radius: 0;
+  background: var(--board-green);
+}
+
+/* ---- chips: style ---------------------------------------------------------- */
+
+html[data-shell='board'] .script-chips .script-chip {
+  border: 1px solid var(--board-line);
+  background: transparent;
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .script-chips .script-chip:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: #fff;
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board'] .script-chips .script-chip.active,
+html[data-shell='board'] .script-chips .script-chip.active:hover {
+  border-color: var(--board-green);
+  background: transparent;
+  color: var(--board-green);
+}
+
+/* Words inside a result are content, not labels: no capitals. */
+html[data-shell='board'] .script-keyword,
+html[data-shell='board'] .script-hashtag {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .script-hashtag {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .script-shortcuts-list kbd {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+}
+
+/* ---- segments: duration, language, ratio, platform, shot, sidebar tab ------ */
+/* Specificity is (0,4,1)+ on purpose: the board's own
+   `button:not([class*='__tab']):not([role='tab'])` rule is (0,3,2) and would
+   otherwise flatten these 6px corners back to 0. Script's duration and
+   language are the 4th and 5th .script-field of .script-panel
+   (Script.tsx:819, :840); style (3rd) stays a chip. */
+html[data-shell='board']
+  .script-panel
+  > .script-field:nth-of-type(n + 4)
+  .script-chip,
+html[data-shell='board'] .generate-form .form-chips .form-chip,
+html[data-shell='board']
+  .script-output-section
+  .script-platform-tabs
+  .script-platform-tab,
+html[data-shell='board']
+  .broll-prompt-queue
+  .broll-prompt-queue__items
+  .broll-prompt-queue__item,
+html[data-shell='board'] .sidebar-left .sidebar-content-tabs .content-tab {
+  border: 1px solid var(--board-line);
+  border-radius: 6px;
+  background: rgba(2, 8, 6, 0.6);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+html[data-shell='board']
+  .script-panel
+  > .script-field:nth-of-type(n + 4)
+  .script-chip:hover,
+html[data-shell='board'] .generate-form .form-chips .form-chip:hover,
+html[data-shell='board']
+  .script-output-section
+  .script-platform-tabs
+  .script-platform-tab:hover,
+html[data-shell='board']
+  .broll-prompt-queue
+  .broll-prompt-queue__items
+  .broll-prompt-queue__item:hover,
+html[data-shell='board']
+  .sidebar-left
+  .sidebar-content-tabs
+  .content-tab:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: #fff;
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board']
+  .broll-prompt-queue
+  .broll-prompt-queue__items
+  .broll-prompt-queue__item.is-complete {
+  color: var(--board-gold);
+}
+
+html[data-shell='board']
+  .script-panel
+  > .script-field:nth-of-type(n + 4)
+  .script-chip.active,
+html[data-shell='board'] .generate-form .form-chips .form-chip.active,
+html[data-shell='board']
+  .script-output-section
+  .script-platform-tabs
+  .script-platform-tab.active,
+html[data-shell='board']
+  .broll-prompt-queue
+  .broll-prompt-queue__items
+  .broll-prompt-queue__item.is-active,
+html[data-shell='board']
+  .sidebar-left
+  .sidebar-content-tabs
+  .content-tab.active {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+/* The editor tab's word sits in its own span with its own grey (App.css:132). */
+html[data-shell='board']
+  .sidebar-left
+  .sidebar-content-tabs
+  .content-tab
+  span:last-child {
+  color: inherit;
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+
+html[data-shell='board'] .sidebar-content-tabs {
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ---- model and voice cards (height, padding, wrap: GeneratePanel.css:313) -- */
+
+html[data-shell='board'] .model-btn {
+  border: 1px solid var(--board-line);
+  background: rgba(2, 8, 6, 0.6);
+  box-shadow: none;
+}
+
+html[data-shell='board'] .model-btn:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board'] .model-btn .model-name {
+  color: #fff;
+  font-family: var(--board-mono);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+html[data-shell='board'] .model-btn .model-desc {
+  color: var(--board-dim);
+}
+
+/* One selected look for image, video and voice (was amber / violet / cyan). */
+html[data-shell='board'] .model-btn.active,
+html[data-shell='board'] .model-btn.active:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  box-shadow: none;
+}
+
+html[data-shell='board'] .model-btn.active .model-name {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .model-btn.active .model-desc {
+  color: var(--board-muted);
+}
+
+/* ---- the primary action: solid green, black caps --------------------------- */
+
+html[data-shell='board'] .script-generate-btn,
+html[data-shell='board'] .generate-btn,
+html[data-shell='board'] .script-output-cta,
+html[data-shell='board'] .script-action-btn.primary,
+html[data-shell='board'] .ai-assembly__button {
+  border: 1px solid var(--board-green);
+  background: var(--board-green);
+  box-shadow: none;
+  color: #000;
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .script-generate-btn:hover:not(:disabled),
+html[data-shell='board'] .generate-btn:hover:not(:disabled),
+html[data-shell='board'] .script-output-cta:hover,
+html[data-shell='board'] .script-action-btn.primary:hover:not(:disabled),
+html[data-shell='board'] .ai-assembly__button:hover:not(:disabled) {
+  border-color: #4dffaa;
+  background: #4dffaa;
+  box-shadow: none;
+  color: #000;
+  filter: none;
+  transform: none;
+}
+
+/* Disabled says so in the board's own terms: a dim outline, not a faded slab. */
+html[data-shell='board'] .script-generate-btn:disabled,
+html[data-shell='board'] .generate-btn:disabled,
+html[data-shell='board'] .script-action-btn.primary:disabled,
+html[data-shell='board'] .ai-assembly__button:disabled {
+  border-color: var(--board-line);
+  background: transparent;
+  color: var(--board-dim);
+  opacity: 1;
+}
+
+html[data-shell='board'] .script-generate-btn .script-shortcut {
+  border: 1px solid currentColor;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+/* ---- secondary: a thin green line, green caps ------------------------------ */
+
+html[data-shell='board'] .script-action-btn,
+html[data-shell='board'] .script-copy-all-btn,
+html[data-shell='board'] .script-history-toggle,
+html[data-shell='board'] .script-clear-btn,
+html[data-shell='board'] .script-templates-toggle,
+html[data-shell='board'] .script-template-save-btn,
+html[data-shell='board'] .audio-source-btn,
+html[data-shell='board'] .templates-transfer-btn,
+html[data-shell='board'] .results-gallery .result-share-btn {
+  border: 1px solid var(--board-line-strong);
+  background: transparent;
+  box-shadow: none;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .script-action-btn:hover:not(:disabled),
+html[data-shell='board'] .script-copy-all-btn:hover,
+html[data-shell='board'] .script-history-toggle:hover,
+html[data-shell='board'] .script-templates-toggle:hover,
+html[data-shell='board'] .script-template-save-btn:hover:not(:disabled),
+html[data-shell='board'] .audio-source-btn:hover:not(:disabled),
+html[data-shell='board'] .templates-transfer-btn:hover,
+html[data-shell='board'] .results-gallery .result-share-btn:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board'] .script-clear-btn:hover {
+  border-color: var(--board-cold);
+  background: transparent;
+  color: var(--board-cold);
+  filter: none;
+  transform: none;
+}
+
+/* Recording keeps its red; the pulsing box-shadow ring goes (the counter
+   in the label already says it is live). */
+html[data-shell='board'] .audio-source-btn.recording {
+  border-color: var(--board-cold);
+  background: rgba(255, 107, 107, 0.1);
+  color: var(--board-cold);
+  animation: none;
+}
+
+/* ---- small icon controls ----------------------------------------------------- */
+
+html[data-shell='board'] .script-broll-copy,
+html[data-shell='board'] .clear-audio-btn,
+html[data-shell='board'] .result-drag-handle,
+html[data-shell='board'] .generate-panel .result-remove-btn,
+html[data-shell='board'] .results-gallery .result-remove-btn {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .script-broll-copy:hover,
+html[data-shell='board'] .script-templates-close:hover,
+html[data-shell='board'] .script-history-close:hover {
+  border-color: var(--board-green);
+  background: transparent;
+  color: var(--board-green);
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board'] .script-templates-close,
+html[data-shell='board'] .script-history-close,
+html[data-shell='board'] .script-template-delete {
+  background: transparent;
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .avatar-photo-remove,
+html[data-shell='board'] .template-card-delete {
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+html[data-shell='board'] .script-template-delete:hover,
+html[data-shell='board'] .clear-audio-btn:hover,
+html[data-shell='board'] .generate-panel .result-remove-btn:hover,
+html[data-shell='board'] .results-gallery .result-remove-btn:hover,
+html[data-shell='board'] .avatar-photo-remove:hover,
+html[data-shell='board'] .template-card-delete:hover {
+  border-color: var(--board-cold);
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--board-cold);
+  filter: none;
+  transform: none;
+}
+
+/* Add to the timeline / publish: the board's green, black icon. */
+html[data-shell='board'] .result-add-btn,
+html[data-shell='board'] .result-publish-btn,
+html[data-shell='board'] .results-gallery .result-add-timeline-btn {
+  border: 1px solid var(--board-green);
+  background: var(--board-green);
+  color: #000;
+}
+
+html[data-shell='board'] .result-add-btn:hover,
+html[data-shell='board'] .result-publish-btn:hover,
+html[data-shell='board'] .results-gallery .result-add-timeline-btn:hover {
+  background: #4dffaa;
+  filter: none;
+  transform: none;
+}
+
+/* ---- script: tips, hotkeys, templates, history -------------------------------- */
+
+html[data-shell='board'] .script-tips-list {
+  color: var(--board-muted);
+  font-size: 0.78rem;
+}
+
+html[data-shell='board'] .script-tips-list li::marker {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .script-shortcuts-list span {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .script-template-load:hover,
+html[data-shell='board'] .script-history-item:hover {
+  background: var(--board-green-soft);
+  filter: none;
+  transform: none;
+}
+
+html[data-shell='board'] .script-template-name,
+html[data-shell='board'] .script-history-topic {
+  color: #fff;
+}
+
+html[data-shell='board'] .script-template-meta,
+html[data-shell='board'] .script-history-meta {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .script-templates-empty {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---- script: preview and progress -------------------------------------------- */
+
+html[data-shell='board'] .script-preview-stat {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .script-preview-section-icon {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+html[data-shell='board'] .script-preview-section-content h5 {
+  color: #fff;
+}
+
+html[data-shell='board'] .script-preview-section-content p {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .script-preview-note {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .script-preview-note p {
+  color: var(--board-muted);
+}
+
+/* The fill's width is inline (ScriptProgress.tsx:38); only its paint here. */
+html[data-shell='board'] .script-progress-bar {
+  border-radius: 0;
+  background: var(--board-line);
+}
+
+html[data-shell='board'] .script-progress-bar-fill {
+  border-radius: 0;
+  background: var(--board-green);
+}
+
+html[data-shell='board'] .script-progress-stage {
+  border-radius: 0;
+}
+
+html[data-shell='board'] .script-progress-stage.completed,
+html[data-shell='board'] .script-progress-stage.current {
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .script-progress-stage-icon {
+  border-radius: 0;
+  font-family: var(--board-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+html[data-shell='board']
+  .script-progress-stage.completed
+  .script-progress-stage-icon,
+html[data-shell='board']
+  .script-progress-stage.current
+  .script-progress-stage-icon {
+  background: var(--board-green);
+  color: #000;
+}
+
+html[data-shell='board']
+  .script-progress-stage.pending
+  .script-progress-stage-icon {
+  border: 1px solid var(--board-line);
+  background: transparent;
+  color: var(--board-dim);
+}
+
+html[data-shell='board']
+  .script-progress-stage.pending
+  .script-progress-stage-label {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .script-progress-note {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+/* ---- script: the four outputs ------------------------------------------------ */
+
+html[data-shell='board'] .script-voiceover-text,
+html[data-shell='board'] .script-cover-prompt,
+html[data-shell='board'] .script-caption-text {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+
+html[data-shell='board'] .script-broll-item {
+  border: 1px solid var(--board-line);
+  border-left: 2px solid var(--board-green);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-shell='board'] .script-broll-timing {
+  color: var(--board-gold);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .script-broll-prompt {
+  color: #fff;
+}
+
+html[data-shell='board'] .script-caption-meta {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .script-caption-meta .over-limit {
+  color: var(--board-cold);
+  font-weight: 500;
+}
+
+/* ---- empty states -------------------------------------------------------------- */
+
+html[data-shell='board'] .script-output-empty,
+html[data-shell='board'] .script-output-empty-section {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .script-output-empty > svg,
+html[data-shell='board'] .script-output-empty-section > svg {
+  color: var(--board-green);
+  opacity: 0.55;
+}
+
+html[data-shell='board'] .script-output-empty p,
+html[data-shell='board'] .script-output-empty-section p {
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .results-empty {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .results-empty-icon {
+  opacity: 0.45;
+}
+
+html[data-shell='board'] .results-empty-text,
+html[data-shell='board'] .avatar-photos-empty {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---- generation: reasons, receipts, errors ------------------------------------ */
+
+/* The line under every Generate button (why it is off, what was charged);
+   GeneratePanel.css never styled it. */
+html[data-shell='board'] .generate-hint {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+html[data-shell='board'] .script-error,
+html[data-shell='board'] .generate-error,
+html[data-shell='board'] .voices-error {
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  border-radius: 0;
+  background: rgba(255, 107, 107, 0.06);
+  color: var(--board-cold);
+}
+
+html[data-shell='board'] .broll-prompt-queue__hint {
+  color: var(--board-dim);
+  font-size: 0.72rem;
+}
+
+/* ---- avatar: sources and saved faces -------------------------------------------- */
+
+html[data-shell='board'] .recording-preview,
+html[data-shell='board'] .current-audio,
+html[data-shell='board'] .current-image {
+  border: 1px solid var(--board-line-strong);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-shell='board'] .upload-progress {
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .audio-preview,
+html[data-shell='board'] .result-audio-player,
+html[data-shell='board'] .current-image .image-preview {
+  border-radius: 0;
+}
+
+html[data-shell='board'] .avatar-photo-tile {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-shell='board'] .avatar-photo-tile.active {
+  border-color: var(--board-green);
+}
+
+html[data-shell='board'] .avatar-photo-tile--loading {
+  color: var(--board-green);
+}
+
+/* ---- results: in the form and in the gallery ------------------------------------ */
+
+html[data-shell='board'] .generate-panel .result-item {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+}
+
+html[data-shell='board'] .generate-panel .result-item:hover {
+  border-color: var(--board-green);
+  box-shadow: none;
+}
+
+html[data-shell='board'] .generate-panel .results-hint {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .generate-panel .result-name {
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .results-gallery .result-preview {
+  background: #000;
+}
+
+html[data-shell='board'] .result-audio-container {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-shell='board'] .result-audio-icon {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .results-gallery .result-info {
+  background: transparent;
+}
+
+html[data-shell='board'] .results-gallery .result-name {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .voices-grid::-webkit-scrollbar-thumb,
+html[data-shell='board']
+  .generate-panel
+  > .generate-content::-webkit-scrollbar-thumb,
+html[data-shell='board'] .results-gallery::-webkit-scrollbar-thumb {
+  border-radius: 0;
+  background: var(--board-line);
+}
+
+/* ---- editor: the assembly bar and the templates column --------------------------- */
+
+html[data-shell='board'] .ai-assembly {
+  border-bottom: 1px solid var(--board-line);
+  background: var(--board-panel);
+}
+
+html[data-shell='board'] .ai-assembly__copy {
+  color: var(--board-muted);
+}
+
+html[data-shell='board'] .ai-assembly__copy span {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .template-card {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+}
+
+html[data-shell='board'] .template-card:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  box-shadow: none;
+  transform: none;
+}
+
+html[data-shell='board'] .template-card.selected {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .template-card-add {
+  border: 1px dashed var(--board-line-strong);
+}
+
+html[data-shell='board'] .template-card-thumbnail {
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .template-card-check {
+  border-radius: 0;
+}
+
+html[data-shell='board'] .template-card-meta {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  opacity: 1;
+}
+
+html[data-shell='board'] .template-empty {
+  border: 1px dashed var(--board-line);
+  border-radius: 0;
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  opacity: 1;
+}
+
+html[data-shell='board'] .template-error {
+  border-color: rgba(255, 107, 107, 0.4);
+  color: var(--board-cold);
+}
+
+/* ======================================================================
+ * CRM
+ * ====================================================================== */
+
+/* ---- CRM: header -------------------------------------------------------- */
+
+html[data-shell='board'] .crm__top {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--board-line);
+}
+
+html[data-shell='board'] .crm__top h2 {
+  font-size: 1.25rem;
+  letter-spacing: 0.01em;
+}
+
+/* Refresh sends nothing: the thin-lined twin, so the chat door on /crm/:id
+   stays the only solid green thing. */
+html[data-shell='board'] .crm__top > button {
+  flex: none;
+  padding: 0 14px;
+  border: 1px solid var(--board-line-strong);
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm__top > button:hover:not(:disabled) {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .crm__top > button:disabled {
+  border-color: var(--board-line);
+  background: transparent;
+  color: var(--board-dim);
+}
+
+/* ---- CRM: panel head as the board's head bar ----------------------------- */
+
+html[data-shell='board'] .crm__panel {
+  padding: 0 14px 14px;
+}
+
+html[data-shell='board'] .crm__panel-title {
+  margin: 0 -14px 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--board-line);
+}
+
+html[data-shell='board'] .crm__unreachable {
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .crm__counts {
+  font-family: var(--board-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .crm__note {
+  font-size: 0.78rem;
+}
+
+/* ---- CRM: rows ---------------------------------------------------------- */
+
+html[data-shell='board'] .crm__row {
+  border-color: var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Restated: the rule above out-ranks Crm.css:115 and CrmClient.css:107-118. */
+html[data-shell='board'] .crm__row--ours {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .crm-client__duet--done {
+  border-left-color: var(--board-green);
+}
+
+html[data-shell='board'] .crm-client__duet--running {
+  border-left-color: rgba(255, 255, 255, 0.5);
+}
+
+html[data-shell='board'] .crm-client__duet--failed,
+html[data-shell='board'] .crm-client__duet--lost {
+  border-left-color: var(--board-gold);
+}
+
+html[data-shell='board'] .crm__who {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+html[data-shell='board'] .crm__open {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+html[data-shell='board'] .crm__open .crm__muted,
+html[data-shell='board'] .crm__top h2 .crm__muted {
+  font-family: var(--board-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .crm__stage {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board'] .crm__stage a:hover {
+  color: var(--board-green);
+}
+
+/* Recording a fact: quiet lined buttons, green only under the finger. */
+html[data-shell='board'] .crm__acts button {
+  padding: 0 12px;
+  border: 1px solid var(--board-line);
+  background: transparent;
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm__acts button:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .crm__acts button.crm-client__duet-yes,
+html[data-shell='board'] .crm__acts button.crm-client__duet-yes:hover {
+  border-color: var(--board-gold);
+  background: rgba(255, 215, 0, 0.06);
+  color: var(--board-gold);
+}
+
+/* ---- CRM: figures as the board's resource cells ------------------------- */
+
+html[data-shell='board'] .crm__stats {
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--board-line);
+  border-left: 1px solid var(--board-line);
+}
+
+html[data-shell='board'] .crm__stats > div {
+  padding: 10px 12px 8px;
+  border-right: 1px solid var(--board-line);
+  border-bottom: 1px solid var(--board-line);
+}
+
+html[data-shell='board'] .crm__stats dt {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm__stats dd {
+  font-family: var(--board-mono);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+html[data-shell='board'] .crm__stats dd .crm__muted {
+  color: var(--board-gold);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+}
+
+/* ---- CRM: the clients filter is a screen switch, same as every tab ------ */
+/* Out-ranks the global square-button rule (0,3,2) at the top of this file. */
+
+html[data-shell='board'] .crm__filter[role='group'] button.crm__chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--board-line);
+  border-radius: 6px;
+  background: rgba(2, 8, 6, 0.6);
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .crm__filter[role='group'] button.crm__chip:hover {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+  color: #fff;
+}
+
+html[data-shell='board'] .crm__filter[role='group'] button.crm__chip--on,
+html[data-shell='board'] .crm__filter[role='group'] button.crm__chip--on:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .crm__badge {
+  padding: 0 6px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+
+html[data-shell='board'] .crm__badge--paid {
+  border-color: var(--board-green);
+  background: transparent;
+  color: var(--board-green);
+}
+
+/* ---- CRM client page ---------------------------------------------------- */
+
+html[data-shell='board'] .crm-client__crumb {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm-client__crumb:hover {
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .crm-client__chat {
+  border: 1px solid var(--board-green);
+  border-radius: 0;
+  background: var(--board-green);
+  color: #000;
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm-client__chat:hover {
+  border-color: #4dffaa;
+  background: #4dffaa;
+}
+
+html[data-shell='board'] .crm-client__chips li {
+  padding: 2px 8px;
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm-client__chips li.crm-client__chip--fail {
+  border-color: var(--board-gold);
+  color: var(--board-gold);
+}
+
+html[data-shell='board'] .crm-client__bar {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+html[data-shell='board'] .crm-client__bar > span {
+  border-radius: 0;
+}
+
+html[data-shell='board'] .crm-client__duet-error {
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .crm-client__time {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+html[data-shell='board'] .crm-client__kind {
+  padding: 0 6px;
+  border: 1px solid var(--board-line);
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+}
+
+html[data-shell='board'] .crm-client__dm li {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+html[data-shell='board'] .crm-client__dm li.crm-client__dm--out {
+  border-color: var(--board-line-strong);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .crm-client__waiting {
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm-client__duet-start label {
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm-client__duet-start select {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-family: var(--board-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+}
+
+html[data-shell='board'] .crm-client__duet-start select:focus {
+  border-color: var(--board-green);
+  outline: none;
+}
+
+html[data-shell='board'] .crm-client__duet-start input[type='checkbox'] {
+  accent-color: var(--board-green);
+}
+
+html[data-shell='board'] .crm-client__duet-go {
+  border: 1px solid var(--board-line-strong);
+  background: transparent;
+  color: var(--board-green);
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .crm-client__duet-go:hover:not(:disabled) {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .crm-client__duet-confirm {
+  border-radius: 0;
+}
+
+/* ---- CRM client thread (/crm/:id/chat, the chat page in client mode) ----- */
+
+html[data-shell='board'] .chat-page:has(> .chat-client) {
+  --t27-surface: rgba(2, 8, 6, 0.6);
+  --t27-surface-2: var(--board-green-soft);
+  --t27-border: var(--board-line);
+  --t27-muted: var(--board-dim);
+}
+
+html[data-shell='board'] .chat-client {
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--board-line);
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .chat-client__title {
+  min-width: 0;
+  color: var(--board-muted);
+  font-weight: 400;
+}
+
+html[data-shell='board']
+  .chat-page:has(> .chat-client)
+  :is(.chat-reset, .chat-tokens) {
+  padding: 4px 10px;
+  border: 1px solid var(--board-line);
+  background: transparent;
+  font-family: var(--board-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .chat-reset {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .chat-tokens {
+  color: var(--board-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-shell='board']
+  .chat-page:has(> .chat-client)
+  :is(.chat-reset, .chat-tokens):hover {
+  border-color: var(--board-green);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .chat-topup__pack {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-family: var(--board-mono);
+  font-size: 0.78rem;
+}
+
+html[data-shell='board']
+  .chat-page:has(> .chat-client)
+  .chat-topup__pack:hover {
+  border-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .chat-topup__note {
+  color: var(--board-dim);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .suggestion-btn {
+  background: rgba(2, 8, 6, 0.6);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .suggestion-btn:hover {
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .tool-chip {
+  border-color: var(--board-line);
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+}
+
+html[data-shell='board']
+  .chat-page:has(> .chat-client)
+  :is(.thinking-toggle, .thinking-body) {
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .thinking-body {
+  border-radius: 0;
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .message-surface {
+  color: var(--board-dim);
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .agent-card {
+  border-color: var(--board-line);
+  border-left-color: var(--board-line-strong);
+  border-radius: 0;
+  background: var(--board-panel);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .agent-card--live {
+  border-color: var(--board-line-strong);
+  border-left-color: var(--board-green);
+  background: var(--board-green-soft);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .agent-card--approved {
+  border-left-color: var(--board-green);
+}
+
+html[data-shell='board']
+  .chat-page:has(> .chat-client)
+  :is(.agent-card__buttons button, .agent-cards__all) {
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .agent-card__no {
+  border-color: var(--board-line-strong);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .agent-card__n {
+  border-radius: 0;
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .agent-card__state {
+  font-family: var(--board-mono);
+  font-size: 0.6rem;
+  font-weight: 400;
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .chat-attachment-chip {
+  border-radius: 0;
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .attach-btn {
+  border-color: var(--board-line-strong);
+  background: transparent;
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .chat-input {
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-shell='board'] .chat-page:has(> .chat-client) .send-btn {
+  padding: 0 14px;
+  font-family: var(--board-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ======================================================================
+ * EDITOR INSIDES: the canvas controls, the asset type marks, the clip badges
+ * Found by the colour audit of /generate/editor, after the stages above.
+ * ====================================================================== */
+
+html[data-shell='board'] .canvas-controls {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: var(--board-panel);
+}
+
+html[data-shell='board'] .canvas-control-btn {
+  border-radius: 0;
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+}
+
+html[data-shell='board'] .canvas-control-btn:hover:not(:disabled) {
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .canvas-control-btn.active {
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .canvas-control-divider {
+  background: var(--board-line);
+}
+
+/* The type mark on an asset card. Its colour comes inline from
+   ASSET_TYPE_CONFIG (pink image, violet text, orange fx); the icon inside
+   already says the type, so here it is one board mark for all of them. The
+   inline background can only be answered with !important. */
+html[data-shell='board'] .asset-card-badge {
+  border: 1px solid var(--board-line-strong);
+  border-radius: 0;
+  background-color: #000 !important;
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .asset-card-audio-icon {
+  background: var(--board-green-soft);
+  color: var(--board-green);
+}
+
+/* Clip badges keep an OPAQUE ground, which is the point of Timeline.css:
+   the clip colour under them is unknown, so contrast must not depend on it.
+   Black under board colours: green 15.7:1, gold 15.0:1, muted 12.4:1,
+   cold 7.6:1, dim 6.7:1 (all over the 4.5 the 8px text needs). */
+html[data-shell='board'] .track-badge {
+  border: 1px solid var(--board-line);
+  border-radius: 0;
+  background: #000;
+  color: var(--board-muted);
+  font-family: var(--board-mono);
+  text-shadow: none;
+}
+
+html[data-shell='board'] .track-badge.speed.fast {
+  background: #000;
+  color: var(--board-cold);
+}
+
+html[data-shell='board'] .track-badge.speed.slow {
+  background: #000;
+  color: var(--board-gold);
+}
+
+html[data-shell='board'] .track-badge.volume {
+  background: #000;
+  color: var(--board-green);
+}
+
+html[data-shell='board'] .track-badge.volume.muted {
+  background: #000;
+  color: var(--board-dim);
 }

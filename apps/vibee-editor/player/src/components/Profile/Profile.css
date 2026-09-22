@@ -532,6 +532,10 @@
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   border-bottom: 1px solid var(--border-color, var(--bg-input));
+  /* The padding is the fade's width, so at either end of the scroll the fade
+     lies over empty padding, not over the first or last section (measured
+     2026-09-22 at 390px: scrolled to the end, "Following" sat in the fade). */
+  padding-inline: 16px 28px;
   /* Ten sections do not fit a phone: the edges fade, so the strip reads as
      "there is more this way" instead of ending at the sixth section. */
   -webkit-mask-image: linear-gradient(
