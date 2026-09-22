@@ -577,6 +577,8 @@ const en: Translations = {
   'embed.guest.signIn': 'Sign in with Telegram',
   'login.button': 'Login',
   'login.buttonFull': 'Sign in with Telegram',
+  'login.opensInTelegram':
+    'Opening @{bot} in Telegram: press Start, then the button',
 
   // Quota
   'quota.unlimited': 'Unlimited',
@@ -2664,6 +2666,8 @@ const ru: Translations = {
   'embed.guest.signIn': 'Войти через Telegram',
   'login.button': 'Войти',
   'login.buttonFull': 'Войти через Telegram',
+  'login.opensInTelegram':
+    'Открываю @{bot} в Telegram: нажмите «Старт», затем кнопку',
 
   // Quota
   'quota.unlimited': 'Безлимит',

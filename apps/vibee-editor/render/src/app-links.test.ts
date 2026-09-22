@@ -54,6 +54,26 @@ describe('botOfToken -- getMe on the bot’s own host, remembered', () => {
     )
   })
 
+  /*
+   * A bot moved to our own Bot API server must never be asked on the cloud:
+   * that request logs it back in there (src/telegram-api.ts). With the bot
+   * listed as local, getMe goes to OUR host.
+   */
+  it('a bot on our own Bot API server is asked there, not on the cloud', async () => {
+    vi.stubEnv('TELEGRAM_API_ROOT', 'http://bot-api.internal.test:8081')
+    vi.stubEnv('BOT_API_LOCAL_BOTS', '900000071')
+    vi.stubEnv('TELEGRAM_API_FILES_ROOT', 'http://bot-api.internal.test:8082')
+    try {
+      const f = getMe({ username: 'example_farm_bot' })
+      await botOfToken(TOKEN, f)
+      const asked = String((f as any).mock.calls[0][0])
+      expect(asked.startsWith('http://bot-api.internal.test:8081/')).toBe(true)
+      expect(asked).not.toContain('api.telegram.org')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('asks again once the answer is stale -- BotFather may have changed', async () => {
     const f = getMe({ username: 'example_farm_bot', has_main_web_app: true })
     await botOfToken(TOKEN, f, 0)

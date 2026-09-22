@@ -1,6 +1,7 @@
 // Telegram Login Widget
 // Uses official Telegram Login Widget for web authentication
 
+import { appLinkFor } from '@/lib/appLink'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
@@ -174,9 +175,16 @@ export function TelegramLoginButton({
     // Раньше здесь был переход t.me/<bot>?start=login — но бот-кассир не
     // отвечает на сообщения (и не должен), и человек упирался в тишину.
     // Честный путь: войти из самого Telegram, открыв мини-апп бота.
-    setHint('Открываю подписанный Mini App у @' + botUsername)
+    /*
+     * `?startapp=profile` opened ONLY the chat: none of our bots has a Main
+     * Mini App (getMe has_main_web_app=false, measured 2026-09-22), and for
+     * such a bot Telegram drops the parameter. `?start=app_profile` opens the
+     * chat too, and the bot answers it with a web_app button to the profile
+     * -- a signed launch, inside Telegram (lib/appLink.ts).
+     */
+    setHint(t('login.opensInTelegram', { bot: botUsername }))
     window.open(
-      `https://t.me/${encodeURIComponent(botUsername)}?startapp=profile`,
+      appLinkFor(botUsername, 'profile'),
       '_blank',
       'noopener,noreferrer'
     )
