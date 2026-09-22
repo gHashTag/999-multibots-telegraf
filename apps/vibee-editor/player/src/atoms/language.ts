@@ -26,6 +26,15 @@ const en: Translations = {
   'browser.youDrive': 'You are driving. The agent is waiting.',
   'browser.handBack': 'Let the agent continue',
   'browser.type.open': '⌨ Type text',
+  'browser.keys.label': 'Keys for the page',
+  'browser.keys.up': 'Scroll up',
+  'browser.keys.down': 'Scroll down',
+  'browser.ask.title': '🛡 The agent asks your permission',
+  'browser.ask.allow': 'Allow',
+  'browser.ask.deny': 'Decline',
+  'browser.ask.note':
+    'Allow lets the agent act on this page for a few minutes.',
+  'browser.ask.failed': 'Did not go through: the question may have expired.',
   'browser.type.ask.password': '🤖 The agent needs your password',
   'browser.type.ask.email': '🤖 The agent needs your email',
   'browser.type.ask.code': '🤖 The agent needs a code',
@@ -2124,6 +2133,15 @@ const ru: Translations = {
   'browser.youDrive': 'Управляете вы. Агент ждёт.',
   'browser.handBack': 'Вернуть агенту',
   'browser.type.open': '⌨ Ввести текст', // cyrillic-ok
+  'browser.keys.label': 'Клавиши для страницы', // cyrillic-ok
+  'browser.keys.up': 'Прокрутить вверх', // cyrillic-ok
+  'browser.keys.down': 'Прокрутить вниз', // cyrillic-ok
+  'browser.ask.title': '🛡 Агент просит разрешения', // cyrillic-ok
+  'browser.ask.allow': 'Разрешить', // cyrillic-ok
+  'browser.ask.deny': 'Отклонить', // cyrillic-ok
+  'browser.ask.note':
+    '«Разрешить» даёт агенту действовать на этой странице несколько минут.', // cyrillic-ok
+  'browser.ask.failed': 'Не получилось: вопрос мог устареть.', // cyrillic-ok
   'browser.type.ask.password': '🤖 Агенту нужен ваш пароль', // cyrillic-ok
   'browser.type.ask.email': '🤖 Агенту нужна ваша почта', // cyrillic-ok
   'browser.type.ask.code': '🤖 Агенту нужен код', // cyrillic-ok

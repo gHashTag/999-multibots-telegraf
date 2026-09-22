@@ -48,6 +48,7 @@ import {
   type Queryable,
   setWheel,
   personHasTheWheel,
+  markAllowed,
 } from './sessions'
 import {
   ensureBrowserProfiles,
@@ -68,6 +69,11 @@ import {
   type TypeIo,
 } from './person-type'
 import { markTyped, pendingInput, inputRequestView } from './input-request'
+import {
+  ensureApprovals,
+  pendingApprovalFor,
+  decideAsPerson,
+} from './approvals'
 
 export const BROWSER_PATHS = [
   '/api/browser/session',
@@ -77,6 +83,7 @@ export const BROWSER_PATHS = [
   '/api/browser/journal',
   '/api/browser/wheel',
   '/api/browser/type',
+  '/api/browser/decide',
 ] as const
 
 export function isBrowserPath(path: string): boolean {
@@ -328,6 +335,62 @@ export async function handleBrowser(
       return { status: 405, body: { ok: false, error: 'GET or POST' } }
     }
     return await personTypes(pool, deps, who, req, method === 'POST')
+  }
+
+  /*
+   * THE PERSON ANSWERS THE AGENT'S QUESTION IN THE APP (approvals.ts
+   * decideAsPerson). GET: their open question; POST {id, allow}: the answer.
+   * The person's door only -- an agent answering its own question would be
+   * no question at all.
+   */
+  if (path === '/api/browser/decide') {
+    if (deps.actor(req) !== 'person') {
+      return {
+        status: 403,
+        body: {
+          ok: false,
+          error: 'отвечать на вопрос агента может только сам человек', // cyrillic-ok: user-facing error
+        },
+      }
+    }
+    await ensureApprovals(pool)
+    if (method === 'GET') {
+      return {
+        status: 200,
+        body: { ok: true, approval: await pendingApprovalFor(pool, who) },
+      }
+    }
+    if (method !== 'POST') {
+      return { status: 405, body: { ok: false, error: 'GET or POST' } }
+    }
+    if (!deps.readBody) {
+      return { status: 501, body: { ok: false, error: 'not wired' } }
+    }
+    let answer: { id?: unknown; allow?: unknown }
+    try {
+      answer = JSON.parse(await deps.readBody(req, 4096)) ?? {}
+    } catch {
+      return { status: 400, body: { ok: false, error: 'the body is not JSON' } }
+    }
+    if (typeof answer.id !== 'string' || typeof answer.allow !== 'boolean') {
+      return {
+        status: 400,
+        body: { ok: false, error: 'id and allow are required' },
+      }
+    }
+    const state = await decideAsPerson(pool, who, answer.id, answer.allow)
+    if (!state) {
+      return {
+        status: 409,
+        body: {
+          ok: false,
+          error: 'на этот вопрос уже ответили или он устарел',
+        }, // cyrillic-ok: user-facing error
+      }
+    }
+    /* A yes opens the guarded door for a few minutes (guard.ts). */
+    if (state === 'allowed') await markAllowed(pool, who)
+    return { status: 200, body: { ok: true, state } }
   }
 
   if (path === '/api/browser/cookies') {
@@ -585,7 +648,7 @@ async function personTypes(
   if (!deps.readBody) {
     return { status: 501, body: { ok: false, error: 'typing is not wired' } }
   }
-  let wanted: { text: string; enter: boolean }
+  let wanted: ReturnType<typeof parseTypeBody>
   try {
     wanted = parseTypeBody(await deps.readBody(req, MAX_TYPE_BODY_BYTES))
   } catch (e) {
@@ -608,7 +671,12 @@ async function personTypes(
   /* The person is driving now: the agent stands still (sessions.ts). */
   await setWheel(pool, who, 'person').catch(() => {})
   try {
-    await io.insert(session.cdpEndpoint, wanted.text, wanted.enter)
+    if (wanted.key || wanted.scroll) {
+      await io.press?.(session.cdpEndpoint, wanted.key, wanted.scroll)
+    }
+    if (wanted.text || wanted.enter) {
+      await io.insert(session.cdpEndpoint, wanted.text, wanted.enter)
+    }
   } catch {
     return {
       status: 502,
@@ -616,11 +684,13 @@ async function personTypes(
     }
   }
   /* An agent waiting for this (browser_ask_input) learns that it came. */
-  markTyped(who, {
-    chars: wanted.text.length,
-    field: focus.field,
-    enter: wanted.enter,
-  })
+  if (wanted.text) {
+    markTyped(who, {
+      chars: wanted.text.length,
+      field: focus.field,
+      enter: wanted.enter,
+    })
+  }
   /* Where it went and how long it was. Never the text. */
   return {
     status: 200,

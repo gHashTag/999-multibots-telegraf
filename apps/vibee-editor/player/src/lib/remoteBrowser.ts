@@ -334,3 +334,62 @@ export async function typeInBrowser(
 export function isSecretField(focus: BrowserFocus | null): boolean {
   return focus?.field === 'password'
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * THE AGENT'S QUESTION AND THE PHONE'S MISSING KEYS (owner, 2026-09-22).
+ * The question used to live only in Telegram; the page's buttons sat below
+ * the edge with no way to scroll from a phone.
+ * ──────────────────────────────────────────────────────────────────────── */
+export interface PendingApproval {
+  id: string
+  what: string
+}
+
+/** The agent's open question to this person; null when none or unreadable. */
+export async function readPendingApproval(): Promise<PendingApproval | null> {
+  try {
+    const a = await apiFetch<{ approval?: Partial<PendingApproval> | null }>(
+      `${API_BASE}/api/browser/decide`
+    )
+    const p = a.approval
+    return p && typeof p.id === 'string' && typeof p.what === 'string'
+      ? { id: p.id, what: p.what }
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** The person's answer. True when it counted. Never throws. */
+export async function answerApproval(
+  id: string,
+  allow: boolean
+): Promise<boolean> {
+  try {
+    await apiFetch(`${API_BASE}/api/browser/decide`, {
+      method: 'POST',
+      body: JSON.stringify({ id, allow }),
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export type BrowserKey = 'Tab' | 'Escape'
+export type BrowserScroll = 'up' | 'down'
+
+/** Scroll the page or press a key the video cannot carry. Never throws. */
+export async function pressInBrowser(
+  what: { key: BrowserKey } | { scroll: BrowserScroll }
+): Promise<boolean> {
+  try {
+    await apiFetch(`${API_BASE}/api/browser/type`, {
+      method: 'POST',
+      body: JSON.stringify(what),
+    })
+    return true
+  } catch {
+    return false
+  }
+}

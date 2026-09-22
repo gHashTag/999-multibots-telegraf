@@ -12,6 +12,8 @@ import {
   setBrowserWheel,
   type BrowserSessionView,
   type InputRequestView,
+  type PendingApproval,
+  readPendingApproval,
 } from '@/lib/remoteBrowser'
 import {
   askFor,
@@ -31,6 +33,7 @@ import {
 import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
+import { BrowserKeys, AskedPermission } from '@/components/Browser/BrowserKeys'
 import { isBrowserPath } from '@/lib/keptBrowser'
 import { frameStateOf, shouldReread } from '@/lib/frameState'
 import {
@@ -244,17 +247,21 @@ export default function BrowserPage() {
     null
   )
   const dismissedRequest = useRef<string | null>(null)
+  /* The agent's open question (render approvals.ts), shown with two buttons. */
+  const [approval, setApproval] = useState<PendingApproval | null>(null)
   useEffect(() => {
     if (!live || !onThisTab) return
     let stopped = false
     const pull = async () => {
       if (document.visibilityState !== 'visible') return
-      const [steps, session] = await Promise.all([
+      const [steps, session, question] = await Promise.all([
         readBrowserJournal(),
         readBrowserSession().catch(() => null),
+        readPendingApproval(),
       ])
       if (stopped) return
       if (steps) setJournal(steps)
+      setApproval(question)
       const asked = session?.inputRequest ?? null
       setInputRequest(asked)
       if (asked && dismissedRequest.current !== asked.id) setShowType(true)
@@ -426,6 +433,15 @@ export default function BrowserPage() {
               {agentWorking ? t('browser.agentWorking') : t('browser.youDrive')}
             </p>
           ) : null}
+
+          {embedded && approval ? (
+            <AskedPermission
+              approval={approval}
+              onAnswered={() => setApproval(null)}
+            />
+          ) : null}
+
+          {embedded ? <BrowserKeys /> : null}
 
           {embedded ? (
             showType ? (

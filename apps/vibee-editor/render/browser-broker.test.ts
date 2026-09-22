@@ -890,6 +890,28 @@ describe('the person types from their own keyboard (/api/browser/type)', () => {
     expect(t.typed).toEqual([])
   })
 
+  it('scrolls and presses Tab even with no field in focus, and types nothing', async () => {
+    const t = typing({ host: 'gds.example.com', field: 'none', label: '' })
+    const pressed: Array<[unknown, unknown]> = []
+    const io = {
+      ...t.io,
+      press: async (_: string, key: unknown, scroll: unknown) => {
+        pressed.push([key, scroll])
+      },
+    }
+    const { d } = deps({ typeIo: io })
+    await open(d)
+    expect((await post({ ...d, typeIo: io }, { scroll: 'down' })).status).toBe(
+      200
+    )
+    expect((await post({ ...d, typeIo: io }, { key: 'Tab' })).status).toBe(200)
+    expect(pressed).toEqual([
+      [null, 'down'],
+      ['Tab', null],
+    ])
+    expect(t.typed).toEqual([])
+  })
+
   it('a browser that is not running takes nothing', async () => {
     const t = typing()
     const { d } = deps({ typeIo: t.io })

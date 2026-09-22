@@ -162,3 +162,49 @@ export async function readApproval(
     state,
   }
 }
+
+/*
+ * THE QUESTION ON THE PERSON'S OWN SCREEN, NOT ONLY IN TELEGRAM.
+ *
+ * Owner, 2026-09-22: the agent stood still on a Google settings page waiting
+ * for "Allow", and the owner, watching the Browser tab, never saw the
+ * question -- it was a message in another app. The tab now shows the open
+ * question with two buttons. No token travels to the app: the person's own
+ * door (a Mini App signature or an app session; an agent key is refused in
+ * routes.ts) IS the proof, and the statement only lets them decide their
+ * OWN question, once, while it is fresh.
+ */
+export async function pendingApprovalFor(
+  q: Queryable,
+  telegramId: string,
+  ttlMs: number = APPROVAL_TTL_MS
+): Promise<{ id: string; what: string } | null> {
+  const { rows } = await q.query(
+    `SELECT id, what FROM browser_approvals
+      WHERE telegram_id = $1 AND state = 'pending'
+        AND created_at > now() - ($2::bigint * interval '1 millisecond')
+      ORDER BY created_at DESC LIMIT 1`,
+    [telegramId, ttlMs]
+  )
+  const row = rows[0]
+  return row ? { id: String(row.id), what: String(row.what) } : null
+}
+
+export async function decideAsPerson(
+  q: Queryable,
+  telegramId: string,
+  id: string,
+  allow: boolean,
+  ttlMs: number = APPROVAL_TTL_MS
+): Promise<ApprovalState | null> {
+  const { rows } = await q.query(
+    `UPDATE browser_approvals
+        SET state = $3, decided_at = now()
+      WHERE id = $1 AND telegram_id = $2
+        AND state = 'pending'
+        AND created_at > now() - ($4::bigint * interval '1 millisecond')
+      RETURNING state`,
+    [id, telegramId, allow ? 'allowed' : 'denied', ttlMs]
+  )
+  return rows[0] ? (String(rows[0].state) as ApprovalState) : null
+}
