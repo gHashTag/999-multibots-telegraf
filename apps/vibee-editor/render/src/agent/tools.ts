@@ -419,6 +419,10 @@ import {
   TOKEN_PRICES,
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
+  priceForModel,
+  replicateVideoSeconds,
+  replicateClipModel,
+  replicateClipTokens,
 } from './billing-shared'
 
 const TOKEN_START = 20
@@ -660,14 +664,23 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
 /** Списание с честным отказом: недостаток — это ответ, а не исключение. */
 async function spendTokens(
   ctx: ToolContext,
-  tool: string
+  tool: string,
+  /**
+   * The model the price belongs to, when one tool sells several prices -- a
+   * video clip is priced by its length (billing-shared `priceForModel`). The
+   * SAME lookup `spendByTid` makes, so the agent and the Mini App cannot
+   * charge two numbers for one clip. A model with no price is refused, never
+   * charged the tool's flat price.
+   */
+  modelId?: string
 ): Promise<{
   ok: boolean
   потрачено?: number
   осталось?: number
   причина?: string
 }> {
-  const price = TOKEN_PRICES[tool]
+  const price =
+    modelId === undefined ? TOKEN_PRICES[tool] : priceForModel(tool, modelId)
   /*
    * A TOOL WITHOUT A PRICE IS REFUSED, NOT GIVEN AWAY.
    *
@@ -727,8 +740,8 @@ async function spendTokens(
     telegramId: ctx.telegramId,
     delta: -price,
     kind: 'spend',
-    reason: tool,
-    meta: { tool },
+    reason: modelId ? `${tool} ${modelId}` : tool,
+    meta: modelId ? { tool, modelId } : { tool },
   })
   if (!r.ok) {
     const balance = r.balance
@@ -887,9 +900,15 @@ async function refundTokens(
 async function withTokens<T extends object>(
   ctx: ToolContext,
   tool: string,
-  result: T
+  result: T,
+  /**
+   * What the charge actually took, when the tool's price depends on the
+   * request (a 10-second clip is not the table's 5-second price). Without it
+   * the receipt would name the table price, not the one paid.
+   */
+  spent?: number
 ): Promise<T & { токены?: { потрачено: number; осталось: number } }> {
-  const price = TOKEN_PRICES[tool]
+  const price = spent ?? TOKEN_PRICES[tool]
   if (!price) return result
   const balance = await ensureTokenRow(ctx)
   return { ...result, токены: { потрачено: price, осталось: balance } }
@@ -1967,7 +1986,7 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'video_generate',
     description:
-      'Сгенерировать видеофрагмент по описанию (Replicate seedance-1-lite, 5 или 10 секунд). ' +
+      `Сгенерировать видеофрагмент по описанию (Replicate seedance-1-lite, 720p): 5 с — ${replicateClipTokens(5)} ток., 10 с — ${replicateClipTokens(10)}. ` +
       'Ролик сразу перекладывается в наше S3. Если вернулась ошибка — скажи человеку честно ' +
       'и собери ролик из картинок через reel_render.',
     parameters: {
@@ -1996,7 +2015,18 @@ export const TOOLS: AgentTool[] = [
           причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
         }
       }
-      const charge = await spendTokens(ctx, 'video_generate')
+      /*
+       * THE CLIP IS PRICED BY ITS LENGTH, and the route is asked for exactly
+       * that length. This used to charge one flat 40 for a 5- or 10-second
+       * clip that costs $0.18 or $0.36 at the provider; now both the charge
+       * and the order read `replicateVideoSeconds` of the same argument.
+       */
+      const clipSeconds = replicateVideoSeconds(args.duration)
+      const charge = await spendTokens(
+        ctx,
+        'video_generate',
+        replicateClipModel(clipSeconds)
+      )
       if (!charge.ok) return { сделано: false, причина: charge.причина }
       const gen = await selfFetch(`${selfBase()}/api/generate/video`, {
         method: 'POST',
@@ -2004,7 +2034,7 @@ export const TOOLS: AgentTool[] = [
         body: JSON.stringify({
           prompt: String(args.prompt),
           model: args.model,
-          duration: args.duration,
+          duration: clipSeconds,
           aspect_ratio: args.aspect_ratio,
         }),
       })
@@ -2027,11 +2057,16 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, genData.url, String(args.prompt)]
       )
-      return withTokens(ctx, 'video_generate', {
-        сделано: true,
-        url: genData.url,
-        id: r.rows[0]?.id,
-      })
+      return withTokens(
+        ctx,
+        'video_generate',
+        {
+          сделано: true, // cyrillic-ok: the tool's own response field
+          url: genData.url,
+          id: r.rows[0]?.id,
+        },
+        charge['потрачено']
+      )
     },
   },
 
