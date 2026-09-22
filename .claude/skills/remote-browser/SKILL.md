@@ -266,3 +266,11 @@ refusals included, is in the journal: `tri journal`.
 If an agent "does nothing" in a live browser, first `tri journal` -- a row
 of refused clicks with "taken the wheel" means the person is driving, not
 that the agent is broken.
+
+**Who drives is in the session answer** (`GET /api/browser/session` ->
+`wheel: 'person' | 'agent'`, #2797), so a page opened later shows the
+truth. Both doors take and give the wheel: the app's Browser tab and the
+Queen's BROWSER panel (gHashTag/trinity#1109). A press inside a frame
+never bubbles to the page around it -- listen on the frame's OWN window
+(same origin), and re-attach on every load: the window reloads itself to
+reconnect.
