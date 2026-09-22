@@ -43,7 +43,12 @@
   min-width: 260px;
 }
 
-.telegram-login-btn:hover {
+/* `:not(:disabled)` is not decoration: design-system.css has
+   `button:hover:not(:disabled)` at (0,2,1), which beat a plain `:hover` here
+   and painted the hovered button #2a2a2a under its #001809 text (1.1:1,
+   measured 2026-09-22). This selector is (0,3,0) and keeps the green. */
+.telegram-login-btn:hover:not(:disabled) {
+  background: #00ff88;
   opacity: 0.88;
 }
 

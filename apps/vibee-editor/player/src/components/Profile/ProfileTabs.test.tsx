@@ -2,6 +2,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 const state = vi.hoisted(() => ({ isOwn: true, profileLoaded: true }))
 
@@ -73,7 +75,8 @@ vi.mock('./PairWithApp', () => ({
 vi.mock('./UserCard', () => ({ UserCard: () => <div>User card</div> }))
 vi.mock('./profileTabCounts', () => ({ profileTabCount: () => null }))
 
-import { ProfileTabs, revealInStrip } from './ProfileTabs'
+import { ProfileTabs } from './ProfileTabs'
+import { revealInStrip } from './revealInStrip'
 
 describe('ProfileTabs owner workspace', () => {
   let host: HTMLDivElement
@@ -183,7 +186,7 @@ describe('ProfileTabs owner workspace', () => {
     ].at(-1)!
     await act(async () => last.click())
     // The tenth tab ends at 990px; the 300px window scrolls to show it.
-    expect(strip.scrolledTo()).toBe(990 - 300 + 16)
+    expect(strip.scrolledTo()).toBe(990 - 300 + 32)
     expect(last.getAttribute('aria-pressed')).toBe('true')
   })
 
@@ -237,7 +240,7 @@ describe('ProfileTabs owner workspace', () => {
       const active = host.querySelector('.profile-tabs__tab--active')
       expect(active?.textContent).toContain('Following')
       // "Following" is the tenth: it ends at 990px.
-      expect(scrolls.at(-1)).toBe(990 - 300 + 16)
+      expect(scrolls.at(-1)).toBe(990 - 300 + 32)
     } finally {
       state.profileLoaded = true
     }
@@ -279,13 +282,26 @@ describe('revealInStrip', () => {
   it('scrolls right to a tab past the right edge, with a margin', () => {
     const s = strip()
     revealInStrip(s, item(280, 380))
-    expect(s.scrollLeft).toBe(96)
+    expect(s.scrollLeft).toBe(112)
   })
 
   it('scrolls left to a tab past the left edge', () => {
     const s = strip(200)
     revealInStrip(s, item(-50, 40))
-    expect(s.scrollLeft).toBe(134)
+    expect(s.scrollLeft).toBe(118)
+  })
+
+  it('stops the tab clear of the edge fade Profile.css draws', () => {
+    // The strip fades its right edge; a tab parked inside the fade reads as
+    // half-hidden. The fade width is read from the stylesheet, so widening
+    // it there without widening the margin here fails this test.
+    const css = readFileSync(join(__dirname, 'Profile.css'), 'utf8')
+    const fade = Number(css.match(/#000 calc\(100% - (\d+)px\)/)?.[1])
+    expect(fade).toBeGreaterThan(0)
+    const s = strip()
+    revealInStrip(s, item(280, 380))
+    const gapToEdge = 300 - (380 - s.scrollLeft)
+    expect(gapToEdge).toBeGreaterThan(fade)
   })
 
   it('leaves the strip alone when the tab is already in sight', () => {
