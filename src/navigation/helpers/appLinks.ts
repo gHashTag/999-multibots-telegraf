@@ -234,7 +234,7 @@ function appHosts(): string[] {
 export function routeOfAppUrl(url: string): AppRoute {
   let u: URL
   try {
-    u = new URL(url)
+    u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`)
   } catch {
     return APP_HOME_ROUTE
   }
@@ -270,7 +270,7 @@ export function rewriteAppUrls(
   // Stops at whitespace, quotes, brackets and angle brackets, so a URL inside
   // HTML href="…", Markdown (…) or <…> is replaced and the markup kept.
   const re = new RegExp(
-    `https?:\\/\\/(?:${hosts})(?![\\w.-])[^\\s"'<>()\\[\\]]*`,
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])[^\\s"'<>()\\[\\]]*`,
     'gi'
   )
   return text.replace(re, raw => {
@@ -284,9 +284,10 @@ export function rewriteAppUrls(
 /** True when this text still carries a raw app URL. */
 export function hasRawAppUrl(text: string): boolean {
   const hosts = appHosts().map(escapeRe).join('|')
-  return new RegExp(`https?:\\/\\/(?:${hosts})(?![\\w.-])`, 'i').test(
-    String(text ?? '')
-  )
+  return new RegExp(
+    `(?<![\\w.@/-])(?:https?:\\/\\/)?(?:${hosts})(?![\\w.-])`,
+    'i'
+  ).test(String(text ?? ''))
 }
 
 // ── the button ───────────────────────────────────────────────────────────

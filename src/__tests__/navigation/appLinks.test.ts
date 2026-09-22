@@ -286,3 +286,13 @@ describe('/browser in a group -- a door that opens inside Telegram', () => {
     expect(rows[0][0].web_app).toBeUndefined()
   })
 })
+
+describe('a bare host is a link too -- Telegram auto-links it', () => {
+  it('rewrites app.t27.ai/feed without a scheme, not an e-mail or a path', () => {
+    expect(rewriteAppUrls('Лента: app.t27.ai/feed', BOT)).toBe(
+      'Лента: https://t.me/example_farm_bot?start=app_feed'
+    )
+    const untouched = 'me@app.t27.ai https://example.com/app.t27.ai/x'
+    expect(rewriteAppUrls(untouched, BOT)).toBe(untouched)
+  })
+})

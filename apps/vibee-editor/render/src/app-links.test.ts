@@ -1,0 +1,111 @@
+/**
+ * The render's copy of "links to the app open inside Telegram" (app-links.ts).
+ *
+ * The render knows a bot by its token, so these drive getMe through a fake
+ * fetch: no network, and the host asked is checked to be the one
+ * telegramApiFor picks for that token. Bot names are invented.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import {
+  appLinkFor,
+  appLinkForToken,
+  botOfToken,
+  forgetBotsOfTokensForTests,
+  hasRawAppUrl,
+  rewriteAppUrls,
+  rewriteAppUrlsForToken,
+  BOT_OF_TOKEN_TTL_MS,
+} from './app-links'
+import { telegramApiFor } from './telegram-api'
+
+const TOKEN = '900000071:fake-secret'
+
+function getMe(result: Record<string, unknown> | null) {
+  return vi.fn(async (_url: string) => ({
+    json: async () => (result ? { ok: true, result } : { ok: false }),
+  })) as unknown as typeof fetch & ReturnType<typeof vi.fn>
+}
+
+beforeEach(() => forgetBotsOfTokensForTests())
+
+describe('appLinkFor (render mirror)', () => {
+  it('two-tap without a Main Mini App, one tap with it', () => {
+    expect(appLinkFor('example_farm_bot', 'hive')).toBe(
+      'https://t.me/example_farm_bot?start=app_hive'
+    )
+    expect(appLinkFor('example_farm_bot', 'hive', { mainWebApp: true })).toBe(
+      'https://t.me/example_farm_bot?startapp=hive'
+    )
+    expect(appLinkFor('', 'hive')).toBe('')
+  })
+})
+
+describe('botOfToken -- getMe on the bot’s own host, remembered', () => {
+  it('asks telegramApiFor(token)/getMe once, then remembers', async () => {
+    const f = getMe({ username: 'example_farm_bot', has_main_web_app: false })
+    expect(await botOfToken(TOKEN, f)).toEqual({
+      username: 'example_farm_bot',
+      mainWebApp: false,
+    })
+    await botOfToken(TOKEN, f)
+    expect(f).toHaveBeenCalledTimes(1)
+    expect(String((f as any).mock.calls[0][0])).toBe(
+      `${telegramApiFor(TOKEN)}/getMe`
+    )
+  })
+
+  it('asks again once the answer is stale -- BotFather may have changed', async () => {
+    const f = getMe({ username: 'example_farm_bot', has_main_web_app: true })
+    await botOfToken(TOKEN, f, 0)
+    await botOfToken(TOKEN, f, BOT_OF_TOKEN_TTL_MS + 1)
+    expect(f).toHaveBeenCalledTimes(2)
+  })
+
+  it('a bot that does not answer is null, and not remembered', async () => {
+    expect(await botOfToken(TOKEN, getMe(null))).toBeNull()
+    const f = getMe({ username: 'example_farm_bot' })
+    expect(await botOfToken(TOKEN, f)).not.toBeNull()
+  })
+})
+
+describe('rewriteAppUrlsForToken -- the safety net on render notices', () => {
+  it('turns raw app URLs into this bot’s t.me link', async () => {
+    const f = getMe({ username: 'example_farm_bot', has_main_web_app: false })
+    const out = await rewriteAppUrlsForToken(
+      'Готово: https://app.t27.ai/browser и vibee-editor-production.up.railway.app/hive',
+      TOKEN,
+      f
+    )
+    expect(out).toBe(
+      'Готово: https://t.me/example_farm_bot?start=app_browser и https://t.me/example_farm_bot?start=app_hive'
+    )
+    expect(hasRawAppUrl(out)).toBe(false)
+  })
+
+  it('does not ask Telegram when there is nothing to fix', async () => {
+    const f = getMe({ username: 'example_farm_bot' })
+    expect(await rewriteAppUrlsForToken('https://t27.ai', TOKEN, f)).toBe(
+      'https://t27.ai'
+    )
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('an unknown bot leaves the text as it was rather than guess one', async () => {
+    const text = 'https://app.t27.ai/hive'
+    expect(await rewriteAppUrlsForToken(text, TOKEN, getMe(null))).toBe(text)
+    expect(await rewriteAppUrlsForToken(text, '', getMe(null))).toBe(text)
+  })
+
+  it('appLinkForToken: one-tap for a bot with a Main Mini App', async () => {
+    const f = getMe({ username: 'example_farm_bot', has_main_web_app: true })
+    expect(await appLinkForToken(TOKEN, 'feed', f)).toBe(
+      'https://t.me/example_farm_bot?startapp=feed'
+    )
+  })
+
+  it('leaves look-alike hosts alone', () => {
+    const t =
+      'https://app.t27.ai.evil.example/x https://vibee-render-production.up.railway.app/s3/a'
+    expect(rewriteAppUrls(t, 'example_farm_bot')).toBe(t)
+  })
+})

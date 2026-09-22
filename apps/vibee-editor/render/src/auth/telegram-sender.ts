@@ -12,6 +12,7 @@
  */
 
 import { telegramApiFor } from '../telegram-api'
+import { rewriteAppUrlsForToken } from '../app-links'
 
 /**
  * Токен читается ПРИ КАЖДОМ ВЫЗОВЕ, а не один раз при импорте.
@@ -47,7 +48,10 @@ export async function sendToTelegram(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: telegramId,
-      text: message,
+      // A raw app URL opened outside Telegram has no signature and does not
+      // open; it becomes this bot's t.me link (app-links.ts). getMe is asked
+      // only when there is such a URL, on this bot's own Bot API host.
+      text: await rewriteAppUrlsForToken(message, t),
       ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     }),
   })
@@ -82,7 +86,7 @@ export async function sendVideoToTelegram(
   }
   const form = new FormData()
   form.append('chat_id', telegramId)
-  form.append('caption', caption)
+  form.append('caption', await rewriteAppUrlsForToken(caption, t))
   form.append('supports_streaming', 'true')
   form.append(
     'video',

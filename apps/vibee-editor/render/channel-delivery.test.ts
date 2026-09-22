@@ -18,6 +18,19 @@
  * WHERE clause it cannot see from here.
  */
 import { describe, it, expect, vi } from 'vitest'
+
+/*
+ * The caption's way back is the posting bot's t.me link, learned from getMe.
+ * No network here: the token is fake, and the link is read off it.
+ */
+vi.mock('./src/app-links', () => ({
+  appLinkForToken: vi.fn(async (token: string, route: string) =>
+    token
+      ? `https://t.me/bot_of_${token.replace(/\W/g, '_')}?start=app_${route}`
+      : ''
+  ),
+}))
+
 import {
   COUNT_TODAY,
   DEFAULT_MAX_PER_RUN,
@@ -359,14 +372,32 @@ describe('the names it reads and the shape of what it sends', () => {
   })
 
   it('the caption carries the title, one line of the body and the way back', () => {
-    const c = captionFor(reel({ name: 'Заголовок' }))
+    const link = 'https://t.me/example_channel_bot?start=app_feed'
+    const c = captionFor(reel({ name: 'Заголовок' }), link)
     expect(c.startsWith('Заголовок')).toBe(true)
     expect(c).toContain('первая строка')
-    expect(c).toContain('app.t27.ai/feed')
-    // Telegram refuses a caption over 1024 characters outright.
-    expect(
-      captionFor(reel({ description: 'д'.repeat(4000) })).length
-    ).toBeLessThanOrEqual(1024)
+    expect(c.endsWith(link)).toBe(true)
+    // Telegram refuses a caption over 1024 characters outright -- and the cut
+    // must never eat the way back.
+    const long = captionFor(reel({ description: 'д'.repeat(4000) }), link)
+    expect(long.length).toBeLessThanOrEqual(1024)
+    expect(long.endsWith(link)).toBe(true)
+  })
+
+  /*
+   * Owner, 2026-09-22: a link to the app opened outside Telegram does not
+   * open. A channel reader taps the caption in Telegram, so the way back is
+   * the posting bot's link; with no bot known there is no link rather than a
+   * dead one.
+   */
+  it('the way back opens inside Telegram, never at the app host', async () => {
+    expect(captionFor(reel(), '')).not.toMatch(/https?:/)
+    const { db } = fakeDb({ pending: [reel({ id: 7 })] })
+    const send = sender()
+    await deliverToChannel({ db, log, send, env: LIVE_ENV })
+    const caption = String(send.mock.calls[0][0].caption)
+    expect(caption).toContain('https://t.me/bot_of_token_x?start=app_feed')
+    expect(caption).not.toMatch(/app\.t27\.ai|vibee-editor-production/)
   })
 
   it('it sends a URL with the resolved credentials', async () => {
