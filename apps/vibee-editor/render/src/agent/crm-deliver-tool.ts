@@ -1,5 +1,6 @@
 import type { AgentTool, ToolContext } from './tools'
 import { propose, requireSeller, requireOwner } from './telegram-tools'
+import { assistantMayReach } from './assistant-opt-out'
 import { resolveLead, oneLine } from './crm-offer-tool'
 import { personOf } from './chat-memory'
 import { reachable } from './crm-touch-tools'
@@ -539,6 +540,26 @@ export function makeCrmDeliverTools(
           lead = await resolveLead(ctx, '@' + handle)
         }
         /*
+         * NOTHING IS DRAWN FOR A PERSON WHO SWITCHED THE ASSISTANT OFF.
+         *
+         * Before the picture, not at the card: a portrait costs the owner a
+         * generation, and one that can never be sent is money thrown after a
+         * "stop" (assistant-opt-out.ts). Written down like every other gift
+         * refusal, so the journal says why no portrait came.
+         */
+        const reach = await assistantMayReach(ctx, lead.id)
+        if (!reach.ok) {
+          await noteGift(
+            ctx,
+            'the person switched the assistant off',
+            'client-stop'
+          )
+          return {
+            delivered: false,
+            причина: reach.why, // cyrillic-ok: public API field
+          }
+        }
+        /*
          * A SELLER CHARGES ONLY THEIR OWN CLIENTS.
          *
          * Found by the adversarial security sweep of 2026-09-20 and confirmed
@@ -626,7 +647,7 @@ export function makeCrmDeliverTools(
             ok: false as const,
             why: 'база недоступна',
           }))
-          const p = propose(
+          const p = await propose(
             'send',
             chat,
             caption || undefined,
@@ -844,7 +865,7 @@ export function makeCrmDeliverTools(
               why: 'база недоступна',
             }))
             const ask = askForPhotoLine(lead.firstName)
-            const p = propose(
+            const p = await propose(
               'send',
               chat,
               ask,

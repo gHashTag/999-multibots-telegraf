@@ -293,8 +293,14 @@ export function formatLead(s: Record<string, any>): string {
         .join('\n')
     : ''
   const zep = unframe(s.zep_context)
+  // The client switched the assistant off: first thing under the name, so the
+  // owner reads it before any button that would prepare something for them.
+  const off = s.assistant_off
+    ? `🔕 Автоответы выключены по просьбе клиента${s.assistant_off.since ? ' с ' + day(s.assistant_off.since) : ''} — ассистент молчит, пишешь только ты.`
+    : ''
   return [
     `${s.display ?? 'id ' + s.lead} · ${s.lead}`,
+    off,
     `Ждёт ответа: ${s.waiting_for_reply ? 'ДА' : 'нет'} · от них ${day(s.last_inbound)} · от меня ${day(s.last_outbound)} · сообщений ${s.messages_kept ?? 0}`,
     `Сигналы: ${signalsRu(s.signals)} · интент ${s.intent_score ?? 0} · баланс ${s.balance_tokens ?? '?'} токенов`,
     `Касания: ${touches || 'не было'}`,
@@ -317,6 +323,8 @@ export async function fetchLead(
   display: string | null
   waiting: boolean
   signals: string[]
+  /** The client asked the assistant to stop (render crm_lead_context). */
+  assistantOff: boolean
 }> {
   const chat = String(who ?? '').trim()
   if (!chat)
@@ -329,6 +337,7 @@ export async function fetchLead(
     display: s.display ? String(s.display) : null,
     waiting: Boolean(s.waiting_for_reply),
     signals: Array.isArray(s.signals) ? s.signals.map(String) : [],
+    assistantOff: Boolean(s.assistant_off),
   }
 }
 

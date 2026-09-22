@@ -3520,6 +3520,7 @@ export function registerCrmCommands(bot: Telegraf<MyContext>): void {
       const kb = r.lead
         ? leadMenu(r.lead, {
             next: nextOf({ waiting: r.waiting, signals: r.signals }),
+            assistantOff: r.assistantOff,
           })
         : hub()
       await sendLong(ctx, r.text, kb)
