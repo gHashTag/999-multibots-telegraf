@@ -12,7 +12,8 @@
  *   1. ANY BOT NOT ON THIS SERVER'S ALLOW-LIST. The server starts a client for
  *      any token it is sent, a throwaway bot from BotFather included. The
  *      allow-list is the file allowed-bots.cjs describes, written only by the
- *      move script inside this container. The path must be exactly
+ *      move script inside this container, plus the ids in this service's
+ *      BOT_API_ALLOWED_IDS (the move without a shell). The path must be exactly
  *      `/bot<id>:<secret>/<method>`; `/` alone is passed through so the
  *      services can see the server is up.
  *
@@ -345,7 +346,8 @@ export function createApiProxy({ upstream, allowed, log = () => {} }) {
         return deny(
           403,
           `Forbidden: bot ${m[1]} is not on this server's allow-list ` +
-            '(bot-api-move.cjs --apply adds a bot when it moves it here)',
+            '(bot-api-move.cjs --apply, or BOT_API_ALLOWED_IDS on this service, ' +
+            'adds a bot when it moves here)',
           'not listed'
         )
       }

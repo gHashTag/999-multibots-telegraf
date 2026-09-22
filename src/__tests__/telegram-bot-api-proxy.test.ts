@@ -191,6 +191,60 @@ describe('which bots get through', () => {
   })
 })
 
+describe('the allow-list from BOT_API_ALLOWED_IDS (the move without a shell)', () => {
+  it('reads username=id and bare ids, comma- or space-separated', () => {
+    const m = allowedBots.parseAllowedVariable(
+      ' Moved_test_bot=900000011, 900000012\n@Third_test_bot=900000013 '
+    )
+    expect([...m.entries()]).toEqual([
+      ['900000011', 'Moved_test_bot'],
+      ['900000012', null],
+      ['900000013', 'Third_test_bot'],
+    ])
+    expect(allowedBots.parseAllowedVariable(undefined).size).toBe(0)
+    expect(allowedBots.parseAllowedVariable('').size).toBe(0)
+  })
+
+  it('a malformed entry is skipped and reported by position; a pasted token is never repeated back', () => {
+    const said: string[] = []
+    const m = allowedBots.parseAllowedVariable(
+      `Moved_test_bot=900000011,${STRANGER};Some_bot`,
+      (line: string) => said.push(line)
+    )
+    // Skipping only shrinks the list: a crash loop would silence every bot.
+    expect([...m.keys()]).toEqual(['900000011'])
+    expect(said).toHaveLength(2)
+    expect(said[0]).toContain('BOT_API_ALLOWED_IDS entry 2 of 3')
+    expect(said[0]).toContain('rotate that token')
+    expect(said[1]).toContain('entry 3 of 3')
+    for (const line of said) {
+      expect(line).not.toContain('ZZstranger')
+      expect(line).not.toContain('900000099')
+      expect(line).not.toContain('Some_bot')
+    }
+  })
+
+  it('a bot named only by the variable gets through; the file cannot take it away', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'bot-api-var-'))
+    try {
+      const ids = allowedBots.allowListWatcher(
+        dir,
+        allowedBots.parseAllowedVariable('Stranger_test_bot=900000099')
+      )
+      expect(ids().has('900000099')).toBe(true)
+      allowedBots.writeAllowedBots(
+        dir,
+        new Map([['900000011', 'Moved_test_bot']])
+      )
+      expect([...ids()].sort()).toEqual(['900000011', '900000099'])
+      allowedBots.writeAllowedBots(dir, new Map())
+      expect([...ids()]).toEqual(['900000099'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('no file:/ value reaches the server', () => {
   const FILE = 'file:///var/lib/telegram-bot-api/tqueue.binlog'
 
