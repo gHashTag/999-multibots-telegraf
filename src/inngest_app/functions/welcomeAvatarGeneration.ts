@@ -22,92 +22,12 @@ import { generateGptImage25 } from '@/services/generateGptImage25'
 import { DEFAULT_ASPECT_RATIO } from '@/config/aspectRatio'
 import { reserveWelcomeGiftSlot } from '@/inngest_app/functions/welcomeGiftBudget'
 import { isContentRefusal } from '@/helpers/isContentRefusal'
-
-// Top heroes for each gender (safe, recognizable prompts)
-const MALE_HEROES = [
-  'Человек-паук',
-  'Железный человек',
-  'Капитан Америка',
-  'Тор',
-  'Бэтмен',
-] as const
-
-const FEMALE_HEROES = [
-  'Чудо-женщина',
-  'Чёрная вдова',
-  'Супергёрл',
-  'Гамора',
-  'Капитан Марвел',
-] as const
-
-// Hero prompts (adapted from avatarTransformScene)
-const getHeroPrompt = (heroName: string, gender: 'male' | 'female'): string => {
-  const baseSettings = `[Cinematic portrait photography. Medium shot. Aspect ratio 9:16. Professional studio lighting with dramatic effects]`
-
-  const heroPrompts: Record<string, string> = {
-    'Человек-паук': `${baseSettings} A charismatic ${
-      gender === 'male' ? 'man' : 'woman'
-    } in red and blue athletic outfit with web-like patterns. ${
-      gender === 'male' ? 'Athletic build' : 'Athletic silhouette'
-    }. Stylish clear glasses. Dynamic pose with hands positioned as if casting webs. Background with urban cityscape elements and geometric web patterns in blue and red colors. Superhero aesthetic with confident expression and energetic atmosphere.`,
-
-    'Железный человек': `${baseSettings} A confident ${
-      gender === 'male' ? 'man' : 'woman'
-    } in sleek red and gold high-tech styled outfit. ${
-      gender === 'male' ? 'Strong jawline' : 'Elegant features'
-    }. Circular glowing element on chest area. One hand raised with glowing palm effect. Background with technological elements and holographic displays in blue and gold.`,
-
-    'Капитан Америка': `${baseSettings} A heroic ${
-      gender === 'male' ? 'man' : 'woman'
-    } in blue outfit with white star emblem. ${
-      gender === 'male' ? 'Strong patriotic stance' : 'Confident patriotic pose'
-    }. Holding a circular shield-like prop. Red, white and blue color palette throughout. Classic heroic lighting.`,
-
-    Тор: `${baseSettings} A mighty ${
-      gender === 'male' ? 'Norse god' : 'Norse goddess'
-    } in royal blue and silver Asgardian armor with cape. ${
-      gender === 'male' ? 'Godlike powerful stance' : 'Divine warrior pose'
-    }. Mystical hammer in hand with lightning effects. Lightning bolts crackling around. Divine golden light.`,
-
-    Бэтмен: `${baseSettings} A mysterious ${
-      gender === 'male' ? 'man' : 'woman'
-    } in dark tactical armor with bat-themed elements. ${
-      gender === 'male' ? 'Brooding vigilante stance' : 'Shadow warrior pose'
-    }. Cape flowing in darkness. Gotham cityscape background with dark blue and black colors.`,
-
-    'Чудо-женщина': `${baseSettings} A powerful ${
-      gender === 'male' ? 'warrior' : 'Amazon warrior'
-    } in golden and red armor with star elements. ${
-      gender === 'male' ? 'Warrior champion stance' : 'Wonder Woman iconic pose'
-    }. Golden lasso glowing. Greek temple background with divine golden lighting.`,
-
-    'Чёрная вдова': `${baseSettings} A skilled ${
-      gender === 'male' ? 'spy' : 'super spy'
-    } in sleek black tactical suit. ${
-      gender === 'male' ? 'Secret agent stance' : 'Black Widow combat pose'
-    }. Red hair flowing. High-tech gadgets visible. Urban night background with red and black accents.`,
-
-    Супергёрл: `${baseSettings} A powerful ${
-      gender === 'male' ? 'Kryptonian hero' : 'Kryptonian heroine'
-    } in blue outfit with red cape and S symbol. ${
-      gender === 'male' ? 'Hero landing pose' : 'Supergirl flying pose'
-    }. Cape billowing dramatically. Sky background with clouds and golden sunlight.`,
-
-    Гамора: `${baseSettings} A deadly ${
-      gender === 'male' ? 'assassin' : 'assassin warrior'
-    } with green skin in black and purple tactical gear. ${
-      gender === 'male' ? 'Deadly warrior stance' : 'Guardian assassin pose'
-    }. Sword in hand. Space background with cosmic elements and green energy.`,
-
-    'Капитан Марвел': `${baseSettings} A cosmic ${
-      gender === 'male' ? 'hero' : 'heroine'
-    } in red, blue and gold suit with star emblem. ${
-      gender === 'male' ? 'Cosmic power stance' : 'Captain Marvel power pose'
-    }. Energy glowing from hands. Space background with cosmic energy in blue and gold.`,
-  }
-
-  return heroPrompts[heroName] || heroPrompts['Человек-паук']
-}
+import {
+  giftLookById,
+  giftPrompt,
+  pickGiftLook,
+  PLAIN_LOOK,
+} from '@/inngest_app/functions/welcomeGiftLooks'
 
 // Event data interface
 interface WelcomeAvatarEventData {
@@ -199,20 +119,26 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       return { success: false, ...skipped }
     }
 
-    // Step 2: Select random hero based on gender
-    const selectedHero = await step.run('select-hero', async () => {
-      const heroes = gender === 'female' ? FEMALE_HEROES : MALE_HEROES
-      const randomIndex = Math.floor(Math.random() * heroes.length)
-      const hero = heroes[randomIndex]
-
-      logger.info('🎁 [Welcome Avatar] Hero selected', {
+    /*
+     * Step 2: pick the look.
+     *
+     * Gender no longer chooses it. It used to pick between a male and a female
+     * list of characters, which is how the gift ended up promising a specific
+     * body in the costume; now the reference photo decides how the person
+     * looks and the look only decides what they are wearing (welcomeGiftLooks).
+     * `gender` is still logged, because the analysis that produces it is what
+     * gates the gift upstream in createUserScene.
+     */
+    const selectedLookId = await step.run('select-look', async () => {
+      const look = pickGiftLook()
+      logger.info('🎁 [Welcome Avatar] Look selected', {
         telegram_id,
-        hero,
+        look: look.id,
         gender,
       })
-
-      return hero
+      return look.id
     })
+    const selectedLook = giftLookById(selectedLookId)
 
     // Step 2.5: Reserve a slot from the per-process burst breaker before we
     // spend the owner's provider money. Done in a step so an Inngest retry
@@ -249,15 +175,6 @@ export const welcomeAvatarGeneration = inngest.createFunction(
             return { success: false as const, error: 'Bot not available' }
           }
           const bot = botData.bot
-
-          const heroGender = gender === 'unknown' ? 'male' : gender
-          const prompt = getHeroPrompt(selectedHero, heroGender)
-
-          logger.info('🎁 [Welcome Avatar] Generating image', {
-            telegram_id,
-            hero: selectedHero,
-            promptLength: prompt.length,
-          })
 
           // Create a minimal context for generation
           const mockCtx = {
@@ -303,8 +220,6 @@ export const welcomeAvatarGeneration = inngest.createFunction(
            * swallows its failures and returns null, so the reason arrives
            * through its onError hook rather than through a throw.
            */
-          let failure: string | null = null
-
           // The service's own status line is tied to the same flag as its
           // five-star price caption, and a gift has no price -- so the gift
           // runs silent and says this much itself.
@@ -314,46 +229,89 @@ export const welcomeAvatarGeneration = inngest.createFunction(
               : '🎁 Preparing your gift — an AI portrait from your avatar...'
           )
 
-          const imageUrl = await generateGptImage25({
-            telegram_id,
-            promptText: prompt,
-            // The gift is made FROM the newcomer's own avatar: image-to-image.
-            // pickGptImage25Model switches on this being a non-empty url.
-            inputImageUrl: avatarUrl,
-            ctx: mockCtx,
-            username,
-            is_ru,
-            aspect_ratio: DEFAULT_ASPECT_RATIO,
-            resolution: '1K',
-            // The owner pays the provider for this one, not the newcomer --
-            // this skips both the balance check and the charge, so the
-            // service's refund path stays correctly dormant.
-            skipBalanceCheck: true,
-            suppressUserErrors: true,
-            silent: true,
-            onError: message => {
-              failure = message
-            },
-          })
+          const attempt = async (look: typeof selectedLook) => {
+            let failure: string | null = null
+            const prompt = giftPrompt(look)
+
+            logger.info('🎁 [Welcome Avatar] Generating image', {
+              telegram_id,
+              look: look.id,
+              promptLength: prompt.length,
+            })
+
+            const imageUrl = await generateGptImage25({
+              telegram_id,
+              promptText: prompt,
+              // The gift is made FROM the newcomer's own avatar: image-to-image.
+              // pickGptImage25Model switches on this being a non-empty url.
+              inputImageUrl: avatarUrl,
+              ctx: mockCtx,
+              username,
+              is_ru,
+              aspect_ratio: DEFAULT_ASPECT_RATIO,
+              resolution: '1K',
+              // The owner pays the provider for this one, not the newcomer --
+              // this skips both the balance check and the charge, so the
+              // service's refund path stays correctly dormant.
+              skipBalanceCheck: true,
+              suppressUserErrors: true,
+              silent: true,
+              onError: message => {
+                failure = message
+              },
+            })
+
+            return {
+              imageUrl,
+              message: failure ?? 'GPT-Image-2.5 returned no image',
+            }
+          }
+
+          let result = await attempt(selectedLook)
+          let look = selectedLook
+
+          /*
+           * A REFUSAL IS ABOUT THE WHOLE REQUEST, NOT ONLY THE PHOTO.
+           *
+           * The costume is half of what the filter reads, so a refused costume
+           * must not cost the newcomer their gift. The plain portrait carries
+           * nothing to object to and is still their own face; only when THAT
+           * is refused too has the photo itself been judged, and only then is
+           * the customer asked for a different one.
+           */
+          if (!result.imageUrl && isContentRefusal(result.message)) {
+            logger.warn('🎁 [Welcome Avatar] Look refused — retrying plain', {
+              telegram_id,
+              look: selectedLook.id,
+              error: result.message,
+            })
+            look = PLAIN_LOOK
+            result = await attempt(PLAIN_LOOK)
+          }
 
           await mockCtx.deleteMessage(status.message_id)
 
-          if (imageUrl) return { success: true as const, imageUrl }
+          if (result.imageUrl) {
+            return {
+              success: true as const,
+              imageUrl: result.imageUrl,
+              lookId: look.id,
+            }
+          }
 
-          const message = failure ?? 'GPT-Image-2.5 returned no image'
-          const refused = isContentRefusal(message)
+          const refused = isContentRefusal(result.message)
           if (refused) {
             logger.warn('🎁 [Welcome Avatar] Photo refused on a content rule', {
               telegram_id,
-              error: message,
+              error: result.message,
             })
           } else {
             logger.error('🎁 [Welcome Avatar] Generation failed', {
               telegram_id,
-              error: message,
+              error: result.message,
             })
           }
-          return { success: false as const, error: message, refused }
+          return { success: false as const, error: result.message, refused }
         })
 
     // Step 4: Send welcome message
@@ -370,9 +328,17 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       const bot = botData.bot
 
       if (generationResult.success) {
+        // The look that was DELIVERED, which is not always the one picked: a
+        // refused costume falls back to the plain portrait, and the caption
+        // must name what is actually in the picture.
+        const delivered = giftLookById(
+          'lookId' in generationResult
+            ? String(generationResult.lookId)
+            : selectedLookId
+        )
         const message = is_ru
-          ? `🎁 *Добро пожаловать!*\n\nВот ваш первый нейро-портрет в образе *${selectedHero}* в подарок!\n\n✨ Попробуйте создать ещё больше образов в главном меню.`
-          : `🎁 *Welcome!*\n\nHere's your first AI portrait as *${selectedHero}* as a gift!\n\n✨ Try creating more looks in the main menu.`
+          ? `🎁 *Добро пожаловать!*\n\nВот ваш первый нейро-портрет по вашей аватарке — образ *${delivered.ru}* в подарок!\n\n✨ Попробуйте создать ещё больше образов в главном меню.`
+          : `🎁 *Welcome!*\n\nHere's your first AI portrait from your own avatar — the *${delivered.id}* look, as a gift!\n\n✨ Try creating more looks in the main menu.`
 
         /*
          * The picture and the words arrive together, as one gift. The
@@ -419,13 +385,13 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     logger.info('🎁 [Welcome Avatar] Completed', {
       telegram_id,
       success: generationResult.success,
-      hero: selectedHero,
+      look: selectedLookId,
     })
 
     return {
       success: generationResult.success,
       telegram_id,
-      hero: selectedHero,
+      look: selectedLookId,
     }
   }
 )
