@@ -59,25 +59,18 @@ const NOT_A_PERSON: Record<string, string> = {
  * values: no id is written here, NOT_A_PERSON stays free of people, and a
  * line with a handle or a note beside the id does not fit the shape.
  *
- * club-guests.ts: the owner's club guests, added by #2744 after this guard
- * was written. Moving them changes who gets into the club -- CLUB_GUESTS is
- * empty on the render service, so deleting them puts two invited guests back
- * behind the paywall -- and that is the owner's call, not this change's. The
- * way out needs no code: put the ids into CLUB_GUESTS on the render service,
- * delete the two lines, then delete this entry. The count is exact, so the
- * entry cannot outlive the lines it excuses. Tracked in #2752, together with
- * every place outside this tree that still names a client.
+ * It is EMPTY, and that is the point. Its one entry excused two club-guest
+ * ids in club-guests.ts (#2744): deleting them would have put two invited
+ * guests back behind the paywall, because CLUB_GUESTS was empty on the render
+ * service. It no longer is -- every invited id sits in that variable, checked
+ * against production on 2026-09-22 -- so the lines went, and the entry with
+ * them (#2752). The shape stays defined so the next such exception has to be
+ * written down, named, counted and shaped, rather than argued for once.
  */
 const PENDING_OWNER_DECISION: Record<
   string,
   { lines: number; shape: RegExp; why: string }
-> = {
-  'club-guests.ts': {
-    lines: 2,
-    shape: /^ {2}'\d{6,10}', \/\/ an invited guest, by id \(#2744\)$/,
-    why: 'club guests by id, #2744; where they live is the owner decision (#2752)',
-  },
-}
+> = {}
 
 /**
  * A Telegram username: 5-32 characters, a letter first. Written as @name or
