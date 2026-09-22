@@ -134,6 +134,7 @@ describe('the outward gate', () => {
       'image_generate',
       'video_generate',
       'tokens_invoice',
+      'club_invoice',
       'tg_send_message',
       'crm_deliver_message',
     ]) {

@@ -78,6 +78,22 @@ describe('the pay row and the markers', () => {
     expect(payRow('оплата: https://t.me/$x9')?.[0]).toMatchObject({
       text: 'Оплатить ⭐',
     })
+    // The club invoice the agent hands over (club_invoice): a five-digit
+    // price written with its thousands apart is one number, not "000".
+    expect(
+      payRow('Клуб — 10 000 ⭐ за 30 дней.\nhttps://t.me/$club_invoice_1')?.[0]
+    ).toMatchObject({
+      text: 'Оплатить 10 000 ⭐',
+      url: 'https://t.me/$club_invoice_1',
+    })
+    // The same with the no-break space toLocaleString('ru-RU') puts there.
+    expect(
+      payRow('Счёт готов: 10\u00a0000 ⭐ https://t.me/$c2')?.[0]
+    ).toMatchObject({ text: 'Оплатить 10 000 ⭐' })
+    // A number nearby that is not the price is not glued to it.
+    expect(
+      payRow('За 30 дней 10000 ⭐, вернётся 2 571 токен https://t.me/$c3')?.[0]
+    ).toMatchObject({ text: 'Оплатить 10000 ⭐' })
     expect(payRow('зайди на https://t.me/neuro_blogger_bot')).toBeNull()
     const kb = buttonsForAnswer(
       'Готово, вот счёт 65 ⭐ https://t.me/$abc [[Пополнить|act:topup]]',
