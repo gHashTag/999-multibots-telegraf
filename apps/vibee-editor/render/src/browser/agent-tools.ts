@@ -103,10 +103,22 @@ async function mustBeAllowedToAct(
 async function podOf(
   ctx: ToolContext
 ): Promise<{ cdp: string; targetId: string }> {
-  const session = await readSession(
+  let session = await readSession(
     ctx.pool as unknown as Queryable,
     ctx.telegramId
   )
+  if (
+    (!session || session.state !== 'live' || !session.cdpEndpoint) &&
+    ctx.probe !== true
+  ) {
+    const { startBrowserAsAgent } = await import('./routes')
+    if (await startBrowserAsAgent(ctx.telegramId).catch(() => false)) {
+      session = await readSession(
+        ctx.pool as unknown as Queryable,
+        ctx.telegramId
+      )
+    }
+  }
   if (!session || session.state !== 'live' || !session.cdpEndpoint) {
     throw new Error(
       'no browser is running for this person. They open one in the mini app, ' +
@@ -499,7 +511,7 @@ const TOOLS_UNJOURNALED: AgentTool[] = [
       if (!session || session.state !== 'live') {
         return {
           running: false,
-          hint: 'the person opens one on the Browser tab',
+          hint: 'call browser_open: it starts the browser itself, and the person is told',
         }
       }
       const targets = await listTargets(session.cdpEndpoint!).catch(() => [])
