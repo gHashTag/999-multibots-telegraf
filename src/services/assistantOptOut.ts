@@ -120,8 +120,38 @@ const claimedHere = new Set<string>()
  */
 const unsaved = new Set<string>()
 
+/*
+ * WHEN EACH KEY LAST CHANGED HERE, on one counter that also stamps every read
+ * of the list at the moment it is issued.
+ *
+ * Telegraf runs the updates of one batch concurrently, so a client's next
+ * message can be reading the list while their "switch the bot off" is still
+ * writing the row. That read's snapshot is older than the stop; if the memory
+ * followed it, the mark would be wiped and the reply being written would reach
+ * the person who just said stop. So a read only overrules keys that last
+ * changed BEFORE it was issued; anything newer is this process's to say.
+ *
+ * owner-scope: keyed `${owner}:${client}`.
+ */
+let clock = 0
+const changedAt = new Map<string, number>()
+/** Stamps of the reads in flight: the oldest bounds what `changedAt` keeps. */
+const readsInFlight = new Set<number>()
+
 const keyOf = (owner: string | number, client: string | number) =>
   `${String(owner)}:${String(client)}`
+
+function touch(key: string): void {
+  changedAt.set(key, ++clock)
+}
+
+/** Forget stamps no read in flight is older than: they can decide nothing. */
+function pruneChanges(): void {
+  let oldest = clock + 1
+  for (const stamp of readsInFlight) if (stamp < oldest) oldest = stamp
+  for (const [key, stamp] of changedAt)
+    if (stamp < oldest) changedAt.delete(key)
+}
 
 function db(): Db | null {
   if (injected) return injected
@@ -162,6 +192,8 @@ export function forgetOptOutMemoryForTests(): void {
   knownOff.clear()
   claimedHere.clear()
   unsaved.clear()
+  changedAt.clear()
+  readsInFlight.clear()
   schemaReady = null
 }
 
@@ -210,6 +242,20 @@ async function run(sql: string, params: unknown[]): Promise<any[] | null> {
 export async function optedOutClients(
   owner: string | number
 ): Promise<Map<string, string | null> | null> {
+  const issued = ++clock
+  readsInFlight.add(issued)
+  try {
+    return await readList(owner, issued)
+  } finally {
+    readsInFlight.delete(issued)
+    pruneChanges()
+  }
+}
+
+async function readList(
+  owner: string | number,
+  issued: number
+): Promise<Map<string, string | null> | null> {
   const rows = await run(OPT_OUT_LIST, [String(owner)])
   if (!rows) return null
   const out = new Map<string, string | null>()
@@ -220,11 +266,24 @@ export async function optedOutClients(
     out.set(String(r.client_id), since)
   }
   // The database answered: this process's memory follows it, both ways --
-  // except for stops it never received, which are written now.
+  // except for what changed here after the read was issued (newer than its
+  // snapshot, so the memory wins), and for stops it never received, which
+  // are written now.
   const prefix = `${String(owner)}:`
+  const newer = (k: string) => (changedAt.get(k) ?? 0) > issued
   for (const k of [...knownOff])
-    if (k.startsWith(prefix) && !unsaved.has(k)) knownOff.delete(k)
-  for (const client of out.keys()) knownOff.add(keyOf(owner, client))
+    if (k.startsWith(prefix) && !unsaved.has(k) && !newer(k)) knownOff.delete(k)
+  for (const client of out.keys()) {
+    const k = keyOf(owner, client)
+    if (!newer(k)) knownOff.add(k)
+  }
+  for (const k of changedAt.keys()) {
+    if (!k.startsWith(prefix) || !newer(k)) continue
+    const client = k.slice(prefix.length)
+    if (knownOff.has(k)) {
+      if (!out.has(client)) out.set(client, null)
+    } else out.delete(client)
+  }
   for (const k of [...unsaved]) {
     if (!k.startsWith(prefix)) continue
     const client = k.slice(prefix.length)
@@ -291,9 +350,14 @@ export async function recordClientStop(
   const key = keyOf(owner, client)
   const seenBefore = knownOff.has(key)
   knownOff.add(key)
+  touch(key)
   const rows = await run(OPT_OUT_STOP, [String(owner), String(client)])
   if (rows) {
     unsaved.delete(key)
+    // The row is written: mark again, so no read issued while it was in
+    // flight -- whose snapshot may lack it -- counts as newer.
+    knownOff.add(key)
+    touch(key)
     return { fresh: rows.length > 0, stored: true }
   }
   unsaved.add(key)
@@ -356,6 +420,7 @@ export async function resumeAssistant(
   const wasHere = knownOff.has(key)
   const forget = () => {
     knownOff.delete(key)
+    touch(key)
     unsaved.delete(key)
     claimedHere.delete(`owner:${key}`)
     claimedHere.delete(`client:${key}`)
