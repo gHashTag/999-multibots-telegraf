@@ -30,7 +30,7 @@ a render MCP tool, in `apps/vibee-editor/render/src/agent/botfather-main-app.ts`
 3. `bot_settings`: press `Bot Settings`.
 4. `configure_mini_app`: press `Configure Mini App` or `Mini App`.
 5. `enable_mini_app`: press `Enable Mini App` or `Turn on`. If the screen shows `Disable Mini App` or `Edit Mini App URL`, the run returns `already_on`.
-6. `send_url`: send the URL, but only after BotFather's message asks for one.
+6. `send_url`: send the URL, but only after BotFather's message asks for one, and only when the Mini App screen or that question names `@username`.
 7. `confirm`: a refusal stops the run, even when the same reply also says "updated".
 8. `verify`: call getMe.
 
@@ -52,6 +52,11 @@ reason, BotFather's texts (tokens redacted) and the labels on the screen, when:
 - a label is doubled
 - a button is a url or web-view button rather than a callback button
 - BotFather gives a reply the driver does not recognise
+- a screen after the bot's button was pressed names another bot by
+  `@...bot`. The owner may be using BotFather on another device, or have
+  sent `/mybots` there, and the driver reads screens by their labels, so
+  without this check it would carry on with that other bot and send it our
+  URL
 - the timeout expires
 
 Each step writes one log line: `[botfather-main-app] @bot <step> ok|stop (reason)`.

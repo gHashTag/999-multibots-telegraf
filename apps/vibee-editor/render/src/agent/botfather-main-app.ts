@@ -190,6 +190,26 @@ export function isNextPage(label: string): boolean {
   return /^(»|›|→|>>?|»»)$/.test(raw) || /^next\b/i.test(labelKey(raw))
 }
 
+/**
+ * Every bot a text names by @username, lowercased, without the @. Only names
+ * that end in "bot" count: every bot username does, and @BotFather does not.
+ */
+export function botsNamedIn(text: string): string[] {
+  const out: string[] = []
+  for (const m of String(text ?? '').matchAll(/@([A-Za-z0-9_]+)/g)) {
+    const name = m[1].toLowerCase()
+    if (name.endsWith('bot') && !out.includes(name)) out.push(name)
+  }
+  return out
+}
+
+/** The first bot other than `bot` that the text names, as "@name", or null. */
+export function otherBotIn(text: string, bot: string): string | null {
+  const own = normaliseBotName(bot)
+  const other = botsNamedIn(text).find(n => n !== own)
+  return other ? '@' + other : null
+}
+
 const TOKEN_SHAPED = /\d{5,}:[A-Za-z0-9_-]{20,}/g
 
 /** BotFather's text as it may leave this module: no token, bounded. */
@@ -284,6 +304,8 @@ export interface DriveOptions {
 }
 
 type Verdict = 'ok' | 'fail' | 'wait'
+/** 'stray': the screen is about a bot other than the one being configured. */
+type Outcome = 'ok' | 'fail' | 'stray'
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -336,6 +358,13 @@ export async function driveBotFather(
   const seen = new Set<string>()
   let urlSent = false
   let current: BotFatherMessage | null = null
+  /**
+   * Set when the bot's own button is pressed. From then on BotFather's
+   * screens are only read by label, so a screen that names ANOTHER bot --
+   * the owner tapping BotFather on another device, or sending /mybots there
+   * -- must stop the run before a press or the URL follows it.
+   */
+  let bound = false
 
   const note = (m: BotFatherMessage | null) => {
     const s = signature(m)
@@ -373,7 +402,7 @@ export async function driveBotFather(
     before: string,
     judge: (m: BotFatherMessage) => Verdict,
     deadline = Date.now() + stepTimeoutMs
-  ): Promise<{ m: BotFatherMessage; v: 'ok' | 'fail' } | null> => {
+  ): Promise<{ m: BotFatherMessage; v: Outcome } | null> => {
     for (;;) {
       let m: BotFatherMessage | null
       try {
@@ -389,6 +418,7 @@ export async function driveBotFather(
       if (m && signature(m) !== before) {
         note(m)
         current = m
+        if (bound && otherBotIn(m.text, bot)) return { m, v: 'stray' }
         const v = judge(m)
         if (v !== 'wait') return { m, v }
       }
@@ -423,6 +453,13 @@ export async function driveBotFather(
 
   const pressable = (b: BotFatherButton) =>
     b.data instanceof Uint8Array && b.data.length > 0
+
+  const strayed = (step: StepName, m: BotFatherMessage) =>
+    stop(
+      step,
+      `BotFather's screen is about ${otherBotIn(m.text, bot)}, not ${bot}; ` +
+        'BotFather may be in use on another device'
+    )
 
   // Checked before anything reaches BotFather; the driver is exported, so
   // it does not trust its caller to have checked.
@@ -472,6 +509,7 @@ export async function driveBotFather(
       if (!pressable(pick.found)) {
         return stop('pick_bot', `the ${bot} button cannot be pressed`)
       }
+      bound = true
       const { r, pressError } = await press(pick.found, m =>
         'found' in pickButton(m.buttons, STEP_LABELS.bot_settings)
           ? 'ok'
@@ -484,6 +522,7 @@ export async function driveBotFather(
             (pressError ? `: ${pressError}` : '')
         )
       }
+      if (r.v === 'stray') return strayed('pick_bot', r.m)
       if (r.v === 'fail') {
         return stop(
           'bot_settings',
@@ -519,6 +558,7 @@ export async function driveBotFather(
           (pressError ? `: ${pressError}` : '')
       )
     }
+    if (r.v === 'stray') return strayed('bot_settings', r.m)
     if (r.v === 'fail') {
       const ambiguous =
         'ambiguous' in pickButton(r.m.buttons, STEP_LABELS.configure_mini_app)
@@ -554,6 +594,7 @@ export async function driveBotFather(
           (pressError ? `: ${pressError}` : '')
       )
     }
+    if (r.v === 'stray') return strayed('configure_mini_app', r.m)
     if (r.v === 'fail') {
       return stop(
         'enable_mini_app',
@@ -562,6 +603,9 @@ export async function driveBotFather(
     }
     record('configure_mini_app', true)
   }
+  const ownName = (text: string) =>
+    botsNamedIn(text).includes(normaliseBotName(bot))
+  const namedOnMiniApp = ownName(current!.text)
 
   const enable = pickButton(current!.buttons, STEP_LABELS.enable_mini_app)
   if (!('found' in enable)) {
@@ -577,12 +621,21 @@ export async function driveBotFather(
     const { r, pressError } = await press(enable.found, m =>
       ASKS_FOR_URL.test(m.text) ? 'ok' : 'wait'
     )
+    if (r?.v === 'stray') return strayed('send_url', r.m)
     // Only a screen that ASKS earns the URL; anything else is a stop.
     if (!r || r.v !== 'ok') {
       return stop(
         'send_url',
         'BotFather did not ask for the URL' +
           (pressError ? `: ${pressError}` : '')
+      )
+    }
+    // The URL goes out only when BotFather has said, on the Mini App
+    // screen or in the question itself, which bot it is for.
+    if (!namedOnMiniApp && !ownName(r.m.text)) {
+      return stop(
+        'send_url',
+        `neither the Mini App screen nor BotFather's question names ${bot}`
       )
     }
     record('enable_mini_app', true)
@@ -612,6 +665,7 @@ export async function driveBotFather(
     confirmBy
   )
   if (!reply) return stop('confirm', 'no reply BotFather is known to give')
+  if (reply.v === 'stray') return strayed('confirm', reply.m)
   if (reply.v === 'fail') return stop('confirm', 'BotFather refused the URL')
   record('confirm', true)
   return { outcome: 'confirmed', steps, transcript, urlSent }
