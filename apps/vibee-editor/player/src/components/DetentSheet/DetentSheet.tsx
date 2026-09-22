@@ -27,6 +27,8 @@ export function DetentSheet({
   peek,
   children,
   label,
+  peekPx,
+  className,
 }: {
   detent: Detent
   onDetent: (d: Detent) => void
@@ -34,6 +36,9 @@ export function DetentSheet({
   peek: ReactNode
   children: ReactNode
   label: string
+  /** Height of the closed sheet; the default is lib/sheetDetents PEEK_PX. */
+  peekPx?: number
+  className?: string
 }) {
   const [screen, setScreen] = useState(() => window.innerHeight)
   useEffect(() => {
@@ -41,7 +46,7 @@ export function DetentSheet({
     window.addEventListener('resize', on)
     return () => window.removeEventListener('resize', on)
   }, [])
-  const heights = detentHeights(screen)
+  const heights = detentHeights(screen, peekPx)
   const [drag, setDrag] = useState<number | null>(null)
   const start = useRef<{
     y: number
@@ -94,10 +99,12 @@ export function DetentSheet({
 
   return (
     <section
-      className={`detent-sheet detent-sheet--${detent}${drag !== null ? ' detent-sheet--dragging' : ''}`}
+      className={`detent-sheet detent-sheet--${detent}${drag !== null ? ' detent-sheet--dragging' : ''}${className ? ` ${className}` : ''}`}
       style={{
         height: `${heights.full}px`,
         transform: `translateY(${heights.full - visible}px)`,
+        /* What is on screen; the glass variant clips itself to it. */
+        ['--sheet-visible' as string]: `${visible}px`,
       }}
       aria-label={label}
     >
