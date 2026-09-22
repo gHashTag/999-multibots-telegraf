@@ -358,6 +358,41 @@ describe('the follow-up does not redo the work', () => {
     expect(emptyLines().map(l => l.action)).toContain('repeat refused')
   })
 
+  it('the next model writing the same arguments in another key order is still a repeat', async () => {
+    const ran = countAssets()
+    providers({
+      'glm-5.3': [
+        callWith('my_assets', {
+          limit: 5,
+          kind: 'image',
+          where: { a: 1, b: 2 },
+        }),
+        empty,
+        empty,
+      ],
+      // zai-lite gets the history and the nudge, and redoes the work with the
+      // keys in its own order, nested ones included.
+      'glm-4.5': [
+        callWith('my_assets', {
+          where: { b: 2, a: 1 },
+          kind: 'image',
+          limit: 5,
+        }),
+        () => text('Вот твои картинки.'), // cyrillic-ok: fixture answer
+      ],
+    })
+    const events = await turn()
+    expect(said(events)).toBe('Вот твои картинки.') // cyrillic-ok: fixture answer
+    expect(
+      ran,
+      'reordered keys made the same call run twice'
+    ).toHaveBeenCalledTimes(1)
+    const results = events.filter(e => e['тип'] === 'результат')
+    expect(results[results.length - 1]['значение']).toMatchObject({
+      ['отказано']: true,
+    })
+  })
+
   it('a different call after the request for words still runs', async () => {
     const ran = countAssets()
     providers({
