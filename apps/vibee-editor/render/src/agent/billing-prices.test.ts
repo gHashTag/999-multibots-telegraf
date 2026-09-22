@@ -424,7 +424,9 @@ describe('чип длительности не назначает счёт та�
       pathJoin(__dirname, '..', '..', 'render-server.ts'),
       'utf8'
     )
-    expect(сервер).toMatch(/длинуЗадаётФайл\(контракт\)/)
+    // The rule is read by the leg now (billing-shared.ts, videoChargeLength):
+    // only the explicit Kie leg measures a file.
+    expect(сервер).toMatch(/if \(lengthRule === 'file'\) \{/) // cyrillic-ok: existing variable
     expect(сервер).toMatch(
       /const измерено = await measuredRemoteDuration\(источник\)/
     )

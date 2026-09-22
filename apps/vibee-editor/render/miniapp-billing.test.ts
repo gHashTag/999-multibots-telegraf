@@ -86,11 +86,16 @@ describe('mini-app generation is billed', () => {
     // comment. Marked rather than rewritten: renaming those functions is a
     // separate change, and a test that stops matching them would stop
     // guarding the per-second billing.
+    //
+    // The split now lives in one rule read by the LEG that runs
+    // (billing-shared.ts, videoChargeLength / videoChargeUnits): only the
+    // explicit Kie leg is counted by the chip or the file, and the Replicate
+    // leg is one clip whatever id named it. no-video-below-cost.test.ts runs
+    // that rule; these pins hold that the route still reads it.
+    expect(SERVER).toMatch(/const lengthRule = videoChargeLength\(model\)/)
+    expect(SERVER).toMatch(/if \(lengthRule === 'file'\) \{/)
     expect(SERVER).toMatch(
-      /посекунднаяМодель\(model\) && длинуЗадаётФайл\(контракт\)/ // cyrillic-ok: identifiers under test
-    )
-    expect(SERVER).toMatch(
-      /посекунднаяМодель\(model\) && длинуЗадаётЧеловек\(контракт\)/ // cyrillic-ok: identifiers under test
+      /секунды = videoChargeUnits\(lengthRule, длинаРолика, measuredSeconds\)/ // cyrillic-ok: identifiers under test
     )
     expect(SERVER).toMatch(/measuredRemoteDuration\(источник\)/)
     expect(SERVER).toContain('MAX_UPSCALE_SECONDS')

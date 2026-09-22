@@ -5,7 +5,6 @@ import { запомнитьНомер } from './src/agent/known-phone'
 import { soul } from './src/agent/chat'
 import { удалитьСвоёФото } from './src/assets/delete-own-photo'
 import { serviceOwnerFromKey } from './src/auth/service-owner'
-import { KIE_MODELS } from './src/agent/kie-models'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
 // экран показывал чужие голоса, а выбор до провайдера не доходил.
@@ -593,9 +592,6 @@ import {
   refundByTid,
   TOKEN_PRICES,
   модельныеЦены,
-  посекунднаяМодель,
-  длинуЗадаётЧеловек,
-  длинуЗадаётФайл,
   посекундныеМодели,
   посекундныеПоФайлу,
   познаковаяМодель,
@@ -605,6 +601,9 @@ import {
   PER_SECOND_OPS,
   владелец,
   kieVideoSaleOf,
+  isExplicitKieVideo,
+  videoChargeLength,
+  videoChargeUnits,
   replicateVideoSeconds,
   replicateClipModel,
   replicateClipPrices,
@@ -4090,8 +4089,7 @@ const server = createServer(async (req, res) => {
          * Everything else is the Replicate leg, priced by the clip it will
          * actually make: 5 or 10 seconds at 720p.
          */
-        const explicitKie =
-          typeof model === 'string' && model.startsWith('kie/')
+        const explicitKie = isExplicitKieVideo(model)
         if (explicitKie) {
           const sale = kieVideoSaleOf(model)
           if (!sale.sold) {
@@ -4133,10 +4131,6 @@ const server = createServer(async (req, res) => {
          * контракт просит один `prompt`: длительность до провайдера не
          * доходит, и умножать счёт на неё значит брать за незаказанное.
          */
-        const контракт = KIE_MODELS.find(
-          (м: { id: string; needs?: string[] }) =>
-            м.id === String(model ?? '').replace(/^kie\//, '')
-        )?.needs
         /*
          * ДВА РАЗНЫХ СЛУЧАЯ, КОТОРЫЕ ЗДЕСЬ БЫЛИ ОДНИМ.
          *
@@ -4153,7 +4147,16 @@ const server = createServer(async (req, res) => {
          * ffprobe, ставим потолок. Замер идёт ДО списания — иначе неудачный
          * замер оставил бы списанные деньги без работы.
          */
-        if (посекунднаяМодель(model) && длинуЗадаётФайл(контракт)) {
+        /*
+         * THE LEG DECIDES WHAT IS COUNTED (billing-shared.ts,
+         * `videoChargeLength`). Only the explicit Kie leg is ever charged by
+         * the second; the Replicate leg is one clip whatever id named it, and
+         * it never measures a file -- a measurement that throws before the
+         * charge would land in the catch, whose fallback makes a free clip.
+         */
+        const lengthRule = videoChargeLength(model)
+        let measuredSeconds: number | undefined
+        if (lengthRule === 'file') {
           const источник =
             typeof video_url === 'string' && video_url
               ? video_url
@@ -4181,13 +4184,10 @@ const server = createServer(async (req, res) => {
             )
             return
           }
-          секунды = Math.ceil(измерено)
-        } else {
-          секунды =
-            посекунднаяМодель(model) && длинуЗадаётЧеловек(контракт)
-              ? длинаРолика
-              : 1
+          measuredSeconds = измерено // cyrillic-ok: existing variable
         }
+        // The one assignment of the charged quantity after its default.
+        секунды = videoChargeUnits(lengthRule, длинаРолика, measuredSeconds) // cyrillic-ok: existing variables
 
         // Charge BEFORE spending the provider's money.
         const billed = await chargeMiniAppUser(
@@ -4228,7 +4228,7 @@ const server = createServer(async (req, res) => {
         const job = startJob('video', jobOwner, prompt)
         recordInto(job, res)
 
-        if (typeof model === 'string' && model.startsWith('kie/')) {
+        if (explicitKie) {
           const kieModel = reviewedKieModel('video', model)!
           const вход = kieInputFor(kieModel, {
             prompt,
