@@ -29,6 +29,7 @@ import {
   claimClientAck,
 } from '@/services/assistantOptOut'
 import { payRow, stripAgentMarkers } from '@/navigation/helpers/actionButtons'
+import { rewriteAppUrls } from '@/navigation/helpers/appLinks'
 import { splitLongAnswer, keepTyping } from '@/helpers/telegramLongAnswer'
 import { agentLanes } from '@/services/agentLanes'
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -1657,23 +1658,33 @@ async function runBusinessBatch(
     // The agent's memory says its last answer here was said; if the owner
     // withheld it, the agent is told so before it speaks again.
     const withheldNote = takeWithheldNote(chatKey)
-    const reply = await answerClient(
-      String(chatId),
-      withheldNote ? `${withheldNote}\n${text}` : text,
-      async () =>
-        chatWithAI(
-          buildBusinessMessages(
-            text,
-            senderName,
-            botUsername,
-            await fetchHistory(String(chatId))
-          ),
-          undefined,
-          {
-            telegramId: String(chatId),
-            botName: `business_${botUsername}`,
-          }
-        )
+    /*
+     * A raw app URL in the answer is a dead link for the client: outside
+     * Telegram the app has no signature and does not open. It becomes this
+     * bot's t.me link (navigation/helpers/appLinks.ts), which opens inside
+     * Telegram. Business messages cannot carry web_app buttons, so a link is
+     * the only door here.
+     */
+    const reply = rewriteAppUrls(
+      await answerClient(
+        String(chatId),
+        withheldNote ? `${withheldNote}\n${text}` : text,
+        async () =>
+          chatWithAI(
+            buildBusinessMessages(
+              text,
+              senderName,
+              botUsername,
+              await fetchHistory(String(chatId))
+            ),
+            undefined,
+            {
+              telegramId: String(chatId),
+              botName: `business_${botUsername}`,
+            }
+          )
+      ),
+      botUsername
     )
 
     const pay = payButton(reply)

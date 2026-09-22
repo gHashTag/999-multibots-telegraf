@@ -23,6 +23,7 @@
 import { Markup } from 'telegraf'
 import type { InlineKeyboardButton } from 'telegraf/types'
 import { MINI_APP_URL } from '../config/miniApp.config'
+import { rememberBotInfo, rewriteAppUrls } from './appLinks'
 
 /** Prefix for every callback this module owns, so presses route unambiguously. */
 export const ACTION_PREFIX = 'act:'
@@ -168,13 +169,27 @@ export function parseAgentButtons(
 /**
  * What to attach to an agent answer: what it proposed, and the standard set
  * underneath, so there is always something to press.
+ *
+ * `bot` is the bot this conversation is with (Telegraf's `ctx.botInfo`). With
+ * it, any raw app URL the model wrote becomes that bot's in-Telegram link
+ * (helpers/appLinks.ts): outside Telegram the app has no signature and does
+ * not open, so a raw app URL in an answer is a dead link.
  */
 export function buttonsForAnswer(
   text: string,
   isRu: boolean,
-  opts: { tail?: InlineKeyboardButton[][]; app?: boolean } = {}
+  opts: {
+    tail?: InlineKeyboardButton[][]
+    app?: boolean
+    bot?: { username?: string; has_main_web_app?: boolean } | null
+  } = {}
 ) {
-  const { text: cleaned, buttons } = parseAgentButtons(text, isRu)
+  const parsed = parseAgentButtons(text, isRu)
+  const buttons = parsed.buttons
+  rememberBotInfo(opts.bot)
+  const cleaned = opts.bot?.username
+    ? rewriteAppUrls(parsed.text, opts.bot.username)
+    : parsed.text
   const standard = standardButtons(isRu, { app: opts.app }).reply_markup
     .inline_keyboard
   const pay = payRow(cleaned)

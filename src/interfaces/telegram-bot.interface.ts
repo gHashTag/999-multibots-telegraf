@@ -295,6 +295,12 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
    */
   clubDeepLink?: boolean
   /**
+   * An app link (`?start=app_<route>`, navigation/helpers/appLinks.ts) from
+   * somebody who first had to be registered: open that screen once
+   * CreateUserScene is done.
+   */
+  appDeepLink?: string
+  /**
    * How this person said they want to pay, in the mini app's paywall, before
    * they were sent here. It may only NARROW what the bot offers -- see
    * helpers/railsForThisPerson.
