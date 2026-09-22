@@ -44,6 +44,13 @@ const FILES_HOST = process.env.FILES_HOST || '::'
 const TTL_HOURS = Number(process.env.FILES_TTL_HOURS ?? 24)
 const RUN_AS = Number(process.env.FILES_UID || 101)
 
+// A malformed entry is skipped and reported, never fatal: a crash loop here
+// would silence every bot already moved (allowed-bots.cjs has the reasoning).
+const fromVariable = allowedBots.parseAllowedVariable(
+  process.env[allowedBots.VARIABLE],
+  line => console.error(`[api] ${line}`)
+)
+
 let stopping = false
 const api = spawn('/docker-entrypoint.sh', [], {
   stdio: 'inherit',
@@ -72,7 +79,7 @@ const stopAll = reason => {
 // Statuses only, never paths: a path is a token.
 const proxy = createApiProxy({
   upstream: `http://127.0.0.1:${UPSTREAM_PORT}`,
-  allowed: allowedBots.allowListWatcher(ROOT),
+  allowed: allowedBots.allowListWatcher(ROOT, fromVariable),
   log: line => {
     if (!/ [23]\d\d$/.test(line)) console.log(`[api] ${line}`)
   },
@@ -95,15 +102,19 @@ Promise.all([listening(proxy), listening(files)]).then(() => {
     process.setgid(RUN_AS)
     process.setuid(RUN_AS)
   }
-  let listed = '?'
+  // Ids, not counts: a mistyped id must be visible in the boot line. An id
+  // is not a secret; the token never reaches this process.
+  const ids = map => (map.size ? [...map.keys()].join(',') : 'none')
+  let inFile = '?'
   try {
-    listed = String(allowedBots.readAllowedBots(ROOT).size)
+    inFile = ids(allowedBots.readAllowedBots(ROOT))
   } catch {
-    // Unreadable is an empty list to the proxy; the count is only a log line.
+    // Unreadable is an empty list to the proxy; this is only a log line.
   }
   console.log(
     `[api] Bot API proxy on [${API_HOST}]:${API_PORT} -> 127.0.0.1:${UPSTREAM_PORT}, ` +
-      `${listed} bot(s) on the allow-list, uid ${process.getuid?.()}`
+      `allow-list: file ${inFile}; ${allowedBots.VARIABLE} ${ids(fromVariable)}; ` +
+      `uid ${process.getuid?.()}`
   )
   console.log(
     `[files] read-only file endpoint on [${FILES_HOST}]:${FILES_PORT}, ` +

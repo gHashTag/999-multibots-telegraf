@@ -18,7 +18,7 @@ host from the token it holds, and a bot not listed stays on the cloud.
 | `Dockerfile`       | `aiogram/telegram-bot-api:10.3` pinned by digest, plus node                                             |
 | `start.mjs`        | runs the server on loopback, the proxy and the file endpoint; if any part stops, the container stops    |
 | `api-proxy.mjs`    | port 8081: only bots on the allow-list, and no `file:/` value anywhere in a request                     |
-| `allowed-bots.cjs` | the allow-list: a file on the volume, written only by the move script                                   |
+| `allowed-bots.cjs` | the allow-list: a file on the volume written by the move script, plus `BOT_API_ALLOWED_IDS` (step 4b)   |
 | `file-server.mjs`  | port 8082: read-only GET/HEAD of exactly `<root>/<bot>/<media dir>/<file>`, the paths `getFile` returns |
 | `sweep.mjs`        | removes downloaded media older than `FILES_TTL_HOURS` (default 24)                                      |
 | `bot-api-move.cjs` | moves ONE bot here (`--apply`) or releases it (`--back`, `--forget`); dry run by default                |
@@ -57,15 +57,22 @@ file and not a variable because it must change at the moment a bot moves, and a
 variable here changes only with a redeploy — a restart under every bot already
 on the server.
 
+The proxy also lets through the ids in **`BOT_API_ALLOWED_IDS`** on this
+service — for a move without a shell in this container (step 4b). A malformed
+entry is skipped and logged by its position, never its text; it does not stop
+the container, because a crash loop here would silence every bot already moved.
+The boot line lists the ids it took, so a mistyped id shows.
+
 ## Variables — by name only
 
 On **telegram-bot-api** (this service):
 
-| name                | value                                                      |
-| ------------------- | ---------------------------------------------------------- |
-| `TELEGRAM_API_ID`   | reference: `${{999-multibots-telegraf.TELEGRAM_API_ID}}`   |
-| `TELEGRAM_API_HASH` | reference: `${{999-multibots-telegraf.TELEGRAM_API_HASH}}` |
-| `FILES_TTL_HOURS`   | optional, default `24`; `0` keeps media forever            |
+| name                  | value                                                      |
+| --------------------- | ---------------------------------------------------------- |
+| `TELEGRAM_API_ID`     | reference: `${{999-multibots-telegraf.TELEGRAM_API_ID}}`   |
+| `TELEGRAM_API_HASH`   | reference: `${{999-multibots-telegraf.TELEGRAM_API_HASH}}` |
+| `FILES_TTL_HOURS`     | optional, default `24`; `0` keeps media forever            |
+| `BOT_API_ALLOWED_IDS` | optional; `username=id` entries, comma-separated (step 4b) |
 
 No bot token is ever set on this service.
 
@@ -131,7 +138,7 @@ replicas came from the config file** before anything else.
 (`telegram-bot-api --dir=/var/lib/telegram-bot-api ... --local ...
 --http-ip-address=127.0.0.1`) and
 
-    [api] Bot API proxy on [::]:8081 -> 127.0.0.1:8083, 0 bot(s) on the allow-list, uid 101
+    [api] Bot API proxy on [::]:8081 -> 127.0.0.1:8083, allow-list: 0 bot(s) in the file, 0 in BOT_API_ALLOWED_IDS, uid 101
     [files] read-only file endpoint on [::]:8082, root /var/lib/telegram-bot-api, uid 101
 
 From a sibling service, the private network answers — and refuses a bot that
@@ -170,14 +177,14 @@ cloud.
 
 2.  Redeploy **999-multibots-telegraf and vibee-render**, and wait until both
     are live. The bot log says `Bot API: 1 of 12 bot(s) on our server (<id>)`
-    and then, once a minute, `getMe still fails (403: Forbidden: bot <id> is
-not on this server's allow-list ...)`. That is expected: both services now
-    send this bot only to our server, and the proxy refuses it until it moves.
-    **From here the bot is silent**, so go straight on.
+    and then, once a minute, that `getMe still fails` with a 403 naming the
+    allow-list. That is expected: both services now send this bot only to our
+    server, and the proxy refuses it until it moves. **From here the bot is
+    silent**, so go straight on.
 
-        If either redeploy does not go live, nothing has moved: the old processes
-        still serve the bot from the cloud. Take the entry out again (or fix and
-        redeploy) — and do not run step 3.
+    If either redeploy does not go live, nothing has moved: the old processes
+    still serve the bot from the cloud. Take the entry out again (or fix and
+    redeploy) — and do not run step 3.
 
 3.  Move it:
 
@@ -220,6 +227,63 @@ four steps.
 to 100 MB, like the mini app; a 100–2000 MB file is refused with a sentence
 naming 100 MB. And the limits on what our code SENDS (50 MB per upload in
 `ai-reels-callback.ts`, which matches the cloud) are not raised here.
+
+### 4b. Move ONE bot without a shell in this container
+
+`railway ssh` is not open to every operator. The same move in three steps, none
+of which needs this container's shell; the property is the one above — no
+process points the bot at the cloud when it logs out, and this server never
+holds the bot while the cloud does.
+
+1.  Point first: steps 4.1 and 4.2 exactly as above, and make sure
+    vibee-render carries the reference
+    `BOT_API_LOCAL_BOTS=${{999-multibots-telegraf.BOT_API_LOCAL_BOTS}}`. Wait for
+    BOTH boot lines from the deployments that are live now: the bot's
+    `Bot API: 1 of N bot(s) on our server (<id>)` and the render's line naming
+    the bot on our server. The bot is silent from here. If either redeploy does
+    not go live, do **not** run step 2: take the entry out and redeploy.
+
+2.  Log it out of the cloud — **once** — from a checkout, under the render's
+    variables (the only service holding the farm's tokens and both bots that
+    never move):
+
+        railway run --service vibee-render -- node scripts/bot-api-move.cjs <username>=<id>                               # dry run
+        railway run --service vibee-render -- node scripts/bot-api-move.cjs <username>=<id> --cloud-logout --pointed
+
+    The dry run says whether the real run would be refused, and why.
+    `--pointed` is your statement that you saw both boot lines of step 1. The
+    real run refuses before any call unless both never-move tokens are in the
+    environment and the bot is neither, and unless `BOT_API_LOCAL_BOTS` parses
+    as the services parse it and names the id. It finds the token among the
+    variables by the id (nothing typed, nothing printed), checks it on the
+    cloud, logs out, and prints the time — note it for a rollback.
+
+    If the cloud check fails for any reason other than "logged out" (no
+    network, 401, a proxy page), the script says **STOP** and nothing changed:
+    do not do step 3. Never run step 2 twice for a bot: a cloud `getMe` more
+    than 10 minutes after the logOut logs it back in there.
+
+3.  Let it through here. `--set` replaces the whole value, so read it first:
+
+        railway variables --service telegram-bot-api --kv | grep '^BOT_API_ALLOWED_IDS='
+        railway variables --service telegram-bot-api --set 'BOT_API_ALLOWED_IDS=<current>,<username>=<id>'
+
+    The redeploy restarts this server — seconds in which bots already here are
+    unreachable; the bot service retries them. The boot line lists the ids it
+    took (`BOT_API_ALLOWED_IDS <id>`); within a minute the bot log says
+    `Bot API: listed bot <id> answers; launching it`.
+
+If step 3's redeploy does not go live, the bot is off the cloud and not here:
+fix the redeploy, or roll back (below, "our server is down").
+
+**Rollback without a shell.** Take the entry out of `BOT_API_ALLOWED_IDS`: the
+redeploy restarts this server, which then runs no polling bot until one is
+requested — what `close` would do — and the proxy refuses the bot, so nothing
+launches it here again. Then remove it from `BOT_API_LOCAL_BOTS` and redeploy
+both services, not earlier than 10 minutes after the logOut. Inside the
+container, `--back` refuses a bot the variable lets through (a close would be
+undone within seconds), and `--forget` clears the file and names the variable
+step that remains.
 
 ### 5. When this server stops answering
 
