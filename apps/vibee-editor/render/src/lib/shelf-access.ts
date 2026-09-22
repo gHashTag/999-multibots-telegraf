@@ -62,7 +62,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { derivedSigningKey } from '../../session'
 import { shelfExtension, shelfContentType } from './shelf-route'
-import { shelfBase } from './s3-put'
+import { shelfObject } from '../agent/media-parts'
 
 /** How long a link handed out stays good. Every reader lists again. */
 export const SHELF_LINK_TTL_S = 24 * 60 * 60
@@ -165,31 +165,21 @@ export function shelfReadAccess(
  * object on our shelf). Applied where a URL LEAVES the server, never to what
  * is stored: `user_media` keys its rows by the bare URL, and every reader
  * that reads by key (`shelfObject`) drops the query anyway.
+ *
+ * "On our shelf" is `shelfObject`'s answer, the same one every by-key reader
+ * and both library write doors use: a relative `/s3/<key>` row is ours and
+ * comes back absolute and signed, and the set of URLs signed here is exactly
+ * the set those doors refuse to store from a caller. The link is its
+ * canonical spelling -- query and fragment dropped, as the route ignores
+ * them for a document -- so the signature covers the key the route decodes.
  */
 export function shelfLinkFor(raw: string, nowMs: number = Date.now()): string {
   const text = String(raw ?? '')
-  let url: URL
-  try {
-    url = new URL(text)
-  } catch {
-    return text
-  }
-  let own: string
-  try {
-    own = new URL(shelfBase()).origin
-  } catch {
-    return text
-  }
-  if (url.origin !== own || !url.pathname.startsWith('/s3/')) return text
-  let key: string
-  try {
-    key = decodeURIComponent(url.pathname.slice('/s3/'.length))
-  } catch {
-    return text
-  }
-  if (!key || isPublicShelfKey(key)) return text
-  const signed = signShelfKey(key, nowMs)
+  const found = shelfObject(text)
+  if (!found || isPublicShelfKey(found.key)) return text
+  const signed = signShelfKey(found.key, nowMs)
   if (!signed) return text
+  const url = new URL(found.url)
   url.searchParams.set('exp', String(signed.exp))
   url.searchParams.set('sig', signed.sig)
   return url.toString()

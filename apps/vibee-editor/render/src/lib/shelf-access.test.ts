@@ -540,3 +540,30 @@ describe('media kinds the old route never streamed', () => {
     expect((await ask(`/s3/${enc(OLD_OGA)}`)).res.status).toBe(200)
   })
 })
+
+describe('every spelling of our shelf gets a link that opens', () => {
+  /*
+   * shelfLinkFor used to sign only an absolute URL on the current origin:
+   * a relative `/s3/` row, which every by-key reader (`shelfObject`) takes
+   * as ours, came back unsigned and answered 403 in the mini app.
+   */
+  it.each([
+    ['relative', `/s3/${OLD_PDF}`],
+    ['relative, no leading slash', `s3/${OLD_PDF}`],
+    ['with a query of its own', `${SHELF}/s3/${OLD_PDF}?v=2#page=3`],
+    ['with a dot segment', `${SHELF}/s3/assets/x/../${OLD_PDF.slice(7)}`],
+    ['percent-encoded', `${SHELF}/s3/${OLD_PDF.replace('.pdf', '%2Epdf')}`],
+  ])('%s: signed, absolute, and it opens', async (_what, url) => {
+    const link = shelfLinkFor(url)
+    expect(link.startsWith(`${SHELF}/s3/`)).toBe(true)
+    expect(link).toMatch(/\?exp=\d+&sig=[A-Za-z0-9_-]{43}$/)
+    const { res, body } = await ask(local(link))
+    expect(res.status).toBe(200)
+    expect(body.equals(DOC)).toBe(true)
+  })
+
+  it('a relative public key is handed out as it was', () => {
+    expect(shelfLinkFor(`/s3/${OLD_JPG}`)).toBe(`/s3/${OLD_JPG}`)
+    expect(shelfLinkFor(`/s3/${NEW_PDF}`)).toBe(`/s3/${NEW_PDF}`)
+  })
+})
