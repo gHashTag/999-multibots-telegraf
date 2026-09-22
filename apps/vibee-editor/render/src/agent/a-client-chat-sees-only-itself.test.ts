@@ -17,11 +17,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgent } from './chat'
 import {
   CLIENT_SURFACE_DENY_REASON,
+  CLIENT_SURFACE_TOOLS,
   CONTACT_WITHHELD_LINE,
   clientSurfaceDenial,
+  closedToClients,
   contactsIn,
   createContactGuard,
-  readsOtherPeople,
 } from './client-facing'
 import { forgetProviderChoiceForTests } from './provider-choice'
 import { forgetBreakersForTests } from './provider-breaker'
@@ -150,21 +151,29 @@ describe('tool availability by surface', () => {
       'crm_client_profile',
       'crm_summary',
       'browser_read',
+      // Not prefixed like the readers above, and just as open onto others:
+      // the farm journal, background-job payloads, anybody's SOUL by name.
+      'hive_events',
+      'hive_board',
+      'hive_pulse',
+      'inngest_runs',
+      'inngest_run',
+      'soul_of',
+      'my_assets',
+      'club_invoice',
     ]) {
       expect(TOOLS_BY_NAME.has(name), name).toBe(true)
       expect(d.denyTools?.has(name), name).toBe(true)
       expect(d.denyReasons?.get(name)).toBe(CLIENT_SURFACE_DENY_REASON)
     }
-    for (const name of [
-      'tokens_invoice',
-      'image_generate',
-      'my_balance',
-      'crm_deliver_photo',
-      'crm_offer',
-      'crm_touch',
-    ]) {
+    for (const name of CLIENT_SURFACE_TOOLS) {
+      expect(TOOLS_BY_NAME.has(name), name).toBe(true)
       expect(d.denyTools?.has(name) ?? false, name).toBe(false)
     }
+    // Everything else in the registry is closed: an allowlist, not prefixes.
+    expect(all.length - (d.denyTools?.size ?? 0)).toBe(
+      CLIENT_SURFACE_TOOLS.size
+    )
   })
 
   it("the owner's own surfaces keep every one of them", () => {
@@ -187,22 +196,31 @@ describe('tool availability by surface', () => {
     expect(d.denyTools?.has('image_generate')).toBe(true)
   })
 
-  it('a tool named later is covered by its family', () => {
-    expect(readsOtherPeople('tg_something_new')).toBe(true)
-    expect(readsOtherPeople('browser_something_new')).toBe(true)
-    expect(readsOtherPeople('crm_something_new')).toBe(true)
-    expect(readsOtherPeople('image_generate')).toBe(false)
+  it('a tool named later is closed until it is named here, whatever its prefix', () => {
+    for (const name of [
+      'tg_something_new',
+      'browser_something_new',
+      'crm_something_new',
+      'mail_read',
+      'zep_search',
+      'hive_something_new',
+    ]) {
+      expect(closedToClients(name), name).toBe(true)
+      expect(
+        clientSurfaceDenial('business', {}, [name]).denyTools?.has(name),
+        name
+      ).toBe(true)
+    }
+    expect(closedToClients('image_generate')).toBe(false)
   })
 
-  it('the listing a business turn sends to the model has no cross-chat tool', async () => {
+  it('the listing a business turn sends to the model is exactly the client set', async () => {
     const asked = provider([text('ok')])
     await turn('business', ask)
     const listed: string[] = (asked[0]?.tools ?? []).map(
       (t: any) => t.function.name
     )
-    expect(listed.length).toBeGreaterThan(0)
-    expect(listed.filter(readsOtherPeople)).toEqual([])
-    expect(listed).toContain('crm_offer')
+    expect([...listed].sort()).toEqual([...CLIENT_SURFACE_TOOLS].sort())
   })
 
   it('the listing an owner turn sends still has them', async () => {
@@ -213,19 +231,23 @@ describe('tool availability by surface', () => {
     )
     // Compact or full, the owner's listing is whatever the registry gives.
     const expected = toOpenAITools(undefined).map(t => t.function.name)
-    expect(expected.filter(readsOtherPeople).length).toBeGreaterThan(0)
-    expect(listed.some(readsOtherPeople)).toBe(true)
+    expect(expected.filter(closedToClients).length).toBeGreaterThan(0)
+    expect(listed.some(closedToClients)).toBe(true)
+    expect(listed).toContain('hive_events')
   })
 
-  it('a cross-chat call that arrives anyway is refused and never runs', async () => {
-    const tool = TOOLS_BY_NAME.get('tg_contacts')!
-    const handler = vi.spyOn(tool, 'handler')
-    provider([call('tg_contacts'), text('I will ask the owner.')])
-    const { events } = await turn('business', ask)
-    expect(handler).not.toHaveBeenCalled()
-    const result = events.find(e => e['тип'] === 'результат') as any
-    expect(result?.['значение']?.['отказано']).toBe(true)
-  })
+  it.each(['tg_contacts', 'hive_events', 'inngest_runs'])(
+    'a closed call (%s) that arrives anyway is refused and never runs',
+    async name => {
+      const tool = TOOLS_BY_NAME.get(name)!
+      const handler = vi.spyOn(tool, 'handler')
+      provider([call(name), text('I will ask the owner.')])
+      const { events } = await turn('business', ask)
+      expect(handler).not.toHaveBeenCalled()
+      const result = events.find(e => e['тип'] === 'результат') as any
+      expect(result?.['значение']?.['отказано']).toBe(true)
+    }
+  )
 })
 
 describe('the outgoing contact guard', () => {
