@@ -13,7 +13,7 @@
  * - Every tg_* and crm_* tool resolves WHOSE account to open from
  *   `ctx.telegramId`. In the bot's business DM that is the client -- and a
  *   client who has connected their own Telegram is a seller, so tg_contacts,
- *   tg_search and the 80k-row CRM archive of THEIR account answered. In the
+ *   tg_search and the whole CRM archive of THEIR account answered. In the
  *   duet (crm-duet-tool.ts) the same surface runs with the OWNER's ctx, so the
  *   same tools read the owner's other chats and contact cards, and the words
  *   go to a real person from the owner's session.
