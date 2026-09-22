@@ -502,18 +502,47 @@ describe('bot owners and keepers enter without paying', () => {
     expect(out.body).toMatchObject({ active: false, granted: null })
   })
 
-  it('an owner is not sold an invoice: already_active with the reason', async () => {
+  /*
+   * A FREE PASS IS NOT A PAYMENT, AND THE TILL MUST NOT SAY IT IS.
+   *
+   * This used to assert the opposite: a granted person was refused with
+   * "the club is open to bot owners without payment". Measured 2026-09-22 --
+   * the owner, testing the cashier from his second account after putting it
+   * on the guest list the day before, could not pay at all, and was told he
+   * was a bot owner, which he is not. Nobody grants themselves a month by
+   * accident: an invoice is only minted when it is asked for, and a person
+   * holding out money is not asking for the pass they already have.
+   *
+   * What still closes the till is a PAID month (the test above) -- nobody is
+   * sold the same thirty days twice.
+   */
+  it('a granted person who asks to pay is sold a month, not refused', async () => {
     const out = await handleClub(
       { url: '/api/club/invoice', method: 'POST' },
-      deps(fakePool(), '555', grant({ '555': ['woody_weed_bot'] }))
+      // A real-length id: the cashier refuses to mint for anything shorter,
+      // and a 502 from that guard would hide what this test is about.
+      deps(
+        fakePool(),
+        '6579515876',
+        grant({ '6579515876': ['woody_weed_bot'] })
+      )
     )
     expect(out.status).toBe(200)
+    expect(out.body).toMatchObject({ ok: true, stars: 10_000 })
+    expect(out.body.already_active).toBeUndefined()
+    expect(String(out.body.link ?? '')).toBeTruthy()
+  })
+
+  it('status separates a free pass from a paid month', async () => {
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps(fakePool(), '555', grant({ '555': ['woody_weed_bot'] }))
+    )
     expect(out.body).toMatchObject({
-      ok: false,
-      already_active: true,
+      active: true,
+      paid: false,
       granted: 'owner',
     })
-    expect(String(out.body.error)).toMatch(new RegExp('без оплаты')) // cyrillic-ok: user-facing wording
   })
 
   it('a failing avatars lookup means no grant, not a free month', async () => {
@@ -564,15 +593,28 @@ describe('bot owners and keepers enter without paying', () => {
 describe('a granted person gets the monthly tokens', () => {
   const NOW = new Date('2026-09-10T12:00:00Z')
   function fakeGrantCredit(fail = false) {
-    const credits: Array<{ telegramId: string; tokens: number; ref: string; grant: string }> = []
-    const fn = async (c: { telegramId: string; tokens: number; ref: string; grant: 'owner' | 'keeper' }) => {
+    const credits: Array<{
+      telegramId: string
+      tokens: number
+      ref: string
+      grant: string
+    }> = []
+    const fn = async (c: {
+      telegramId: string
+      tokens: number
+      ref: string
+      grant: 'owner' | 'keeper'
+    }) => {
       if (fail) return { credited: false, reason: 'ledger down' }
       credits.push(c)
       return { credited: true }
     }
     return { credits, fn }
   }
-  const source = (bots: Record<string, string[]>, keeperIds: string[] = []) => ({
+  const source = (
+    bots: Record<string, string[]>,
+    keeperIds: string[] = []
+  ) => ({
     botsOwnedBy: async (id: string) => bots[id] ?? [],
     keepers: () => keeperIds,
     allOwners: async () => Object.keys(bots),
@@ -592,12 +634,30 @@ describe('a granted person gets the monthly tokens', () => {
       until: '2026-10-10T00:00:00.000Z',
     })
     expect(credits).toHaveLength(1)
-    expect(credits[0].ref).toBe(grantRef('555', new Date('2026-09-10T00:00:00Z')))
+    expect(credits[0].ref).toBe(
+      grantRef('555', new Date('2026-09-10T00:00:00Z'))
+    )
     expect(credits[0].ref).toBe('club-grant:555:2026-09-10')
 
     // The same day, an hour later, and a week later: nothing more.
-    expect(await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-09-10T13:00:00Z'))).toBeNull()
-    expect(await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-09-17T12:00:00Z'))).toBeNull()
+    expect(
+      await bookGrantPeriod(
+        pool,
+        '555',
+        'owner',
+        fn,
+        new Date('2026-09-10T13:00:00Z')
+      )
+    ).toBeNull()
+    expect(
+      await bookGrantPeriod(
+        pool,
+        '555',
+        'owner',
+        fn,
+        new Date('2026-09-17T12:00:00Z')
+      )
+    ).toBeNull()
     expect(credits).toHaveLength(1)
   })
 
@@ -605,16 +665,43 @@ describe('a granted person gets the monthly tokens', () => {
     const pool = fakePool()
     const { credits, fn } = fakeGrantCredit()
     await bookGrantPeriod(pool, '555', 'owner', fn, NOW)
-    expect(await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-10-09T23:00:00Z'))).toBeNull()
-    const second = await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-10-10T00:00:01Z'))
-    expect(second).toMatchObject({ opened: true, credited: true, periodStart: '2026-10-10T00:00:00.000Z' })
-    expect(credits.map(c => c.ref)).toEqual(['club-grant:555:2026-09-10', 'club-grant:555:2026-10-10'])
+    expect(
+      await bookGrantPeriod(
+        pool,
+        '555',
+        'owner',
+        fn,
+        new Date('2026-10-09T23:00:00Z')
+      )
+    ).toBeNull()
+    const second = await bookGrantPeriod(
+      pool,
+      '555',
+      'owner',
+      fn,
+      new Date('2026-10-10T00:00:01Z')
+    )
+    expect(second).toMatchObject({
+      opened: true,
+      credited: true,
+      periodStart: '2026-10-10T00:00:00.000Z',
+    })
+    expect(credits.map(c => c.ref)).toEqual([
+      'club-grant:555:2026-09-10',
+      'club-grant:555:2026-10-10',
+    ])
   })
 
   it('no back-fill: three silent months give one period, from today', async () => {
     const pool = fakePool()
     const { credits, fn } = fakeGrantCredit()
-    await bookGrantPeriod(pool, '555', 'owner', fn, new Date('2026-06-01T12:00:00Z'))
+    await bookGrantPeriod(
+      pool,
+      '555',
+      'owner',
+      fn,
+      new Date('2026-06-01T12:00:00Z')
+    )
     const late = await bookGrantPeriod(pool, '555', 'owner', fn, NOW)
     expect(late).toMatchObject({ periodStart: '2026-09-10T00:00:00.000Z' })
     expect(credits).toHaveLength(2)
@@ -625,13 +712,33 @@ describe('a granted person gets the monthly tokens', () => {
     const broken = fakeGrantCredit(true)
     const first = await bookGrantPeriod(pool, '555', 'owner', broken.fn, NOW)
     expect(first).toMatchObject({ opened: true, credited: false })
-    expect(pool.journal.some(j => JSON.stringify(j).includes('alarm'))).toBe(true)
+    expect(pool.journal.some(j => JSON.stringify(j).includes('alarm'))).toBe(
+      true
+    )
 
     const good = fakeGrantCredit()
-    const retry = await bookGrantPeriod(pool, '555', 'owner', good.fn, new Date('2026-09-11T12:00:00Z'))
-    expect(retry).toMatchObject({ opened: false, credited: true, periodStart: '2026-09-10T00:00:00.000Z' })
+    const retry = await bookGrantPeriod(
+      pool,
+      '555',
+      'owner',
+      good.fn,
+      new Date('2026-09-11T12:00:00Z')
+    )
+    expect(retry).toMatchObject({
+      opened: false,
+      credited: true,
+      periodStart: '2026-09-10T00:00:00.000Z',
+    })
     expect(good.credits).toHaveLength(1)
-    expect(await bookGrantPeriod(pool, '555', 'owner', good.fn, new Date('2026-09-12T12:00:00Z'))).toBeNull()
+    expect(
+      await bookGrantPeriod(
+        pool,
+        '555',
+        'owner',
+        good.fn,
+        new Date('2026-09-12T12:00:00Z')
+      )
+    ).toBeNull()
   })
 
   it('status of an owner opens the period, credits, and names until / days_left', async () => {
@@ -647,7 +754,10 @@ describe('a granted person gets the monthly tokens', () => {
       grant: source({ '555': ['woody_weed_bot'] }),
       creditGrant: fn,
     }
-    const out = await handleClub({ url: '/api/club/status', method: 'GET' }, deps)
+    const out = await handleClub(
+      { url: '/api/club/status', method: 'GET' },
+      deps
+    )
     expect(out.body).toMatchObject({
       active: true,
       granted: 'owner',
@@ -684,13 +794,20 @@ describe('a granted person gets the monthly tokens', () => {
   it('the sweep books every owner and keeper once, keepers as keepers', async () => {
     const pool = fakePool()
     const { credits, fn } = fakeGrantCredit()
-    const src = source({ '555': ['a_bot'], '666': ['b_bot'], '144022504': ['c_bot'] }, ['144022504'])
-    const booked = await sweepClubGrants(pool, src, fn, NOW)
-    expect(booked.map(b => `${b.telegramId}:${b.grant}`).sort()).toEqual(
-      ['144022504:keeper', '555:owner', '666:owner']
+    const src = source(
+      { '555': ['a_bot'], '666': ['b_bot'], '144022504': ['c_bot'] },
+      ['144022504']
     )
+    const booked = await sweepClubGrants(pool, src, fn, NOW)
+    expect(booked.map(b => `${b.telegramId}:${b.grant}`).sort()).toEqual([
+      '144022504:keeper',
+      '555:owner',
+      '666:owner',
+    ])
     expect(credits).toHaveLength(3)
-    expect(await sweepClubGrants(pool, src, fn, new Date('2026-09-20T12:00:00Z'))).toEqual([])
+    expect(
+      await sweepClubGrants(pool, src, fn, new Date('2026-09-20T12:00:00Z'))
+    ).toEqual([])
     expect(credits).toHaveLength(3)
   })
 
@@ -699,7 +816,13 @@ describe('a granted person gets the monthly tokens', () => {
     const { credits, fn } = fakeGrantCredit()
     const booked = await sweepClubGrants(
       pool,
-      { botsOwnedBy: async () => [], keepers: () => [], allOwners: async () => { throw new Error('avatars 500') } },
+      {
+        botsOwnedBy: async () => [],
+        keepers: () => [],
+        allOwners: async () => {
+          throw new Error('avatars 500')
+        },
+      },
       fn,
       NOW
     )

@@ -333,6 +333,18 @@ export async function clubGrantFor(
 
 export interface ClubStatus {
   active: boolean
+  /**
+   * A PAID period is live right now. NOT the same as `active`, which is also
+   * true for a free pass, and the difference is what the cashier turns on.
+   *
+   * Measured 2026-09-22: the owner, testing from his second account, could
+   * not buy a month. His account was on the guest list from the day before,
+   * so `active` was true and the invoice route answered `already_active` --
+   * telling a guest "the club is open to bot owners without payment", which
+   * he is not. A pass is an invitation, not a purchase: it must not make the
+   * till refuse money from somebody who is holding it out.
+   */
+  paid: boolean
   /** Set when the club is open without a charge (bot owner / keeper). */
   granted: ClubGrant
   /**
@@ -380,6 +392,7 @@ export async function clubStatus(
   }
   return {
     active,
+    paid,
     granted,
     until,
     paid_at: row ? String(row.paid_at) : null,
@@ -833,6 +846,7 @@ export async function handleClub(
           ok: true,
           anonymous: true,
           active: false,
+          paid: false,
           granted: null,
           until: null,
           paid_at: null,
@@ -922,8 +936,16 @@ export async function handleClub(
       }
     }
     const current = await clubStatus(pool, who, now, granted)
-    if (current.active) {
-      // A bot owner is not sold a month they already have: no invoice.
+    /*
+     * ONLY A PAID MONTH CLOSES THE TILL. It used to be `active`, which is
+     * also true of a free pass -- so the owner, testing the cashier from his
+     * second account after putting it on the guest list, was answered
+     * `already_active` and could not pay at all (measured 2026-09-22). A
+     * pass is an invitation; a person holding out money is not asking for
+     * the pass. Selling a month to somebody who already has free access is
+     * their decision to make, and a bot owner who never asks is never asked.
+     */
+    if (current.paid) {
       return {
         status: 200,
         body: {
@@ -932,9 +954,7 @@ export async function handleClub(
           granted: current.granted,
           until: current.until,
           days_left: current.days_left,
-          error: current.granted
-            ? 'клуб открыт владельцам ботов без оплаты' // cyrillic-ok: user-facing error
-            : 'клуб уже оплачен', // cyrillic-ok: user-facing error
+          error: 'клуб уже оплачен', // cyrillic-ok: user-facing error
         },
       }
     }
