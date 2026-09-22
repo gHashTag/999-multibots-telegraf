@@ -11,6 +11,7 @@ import {
   fitBrowserScreen,
   setBrowserWheel,
   type BrowserSessionView,
+  type InputRequestView,
 } from '@/lib/remoteBrowser'
 import {
   askFor,
@@ -57,6 +58,8 @@ import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
 const FULL_VIEW = 'full'
 /* The address parameter it lives in: ?view=full. */
 const VIEW_PARAM = 'view'
+/* ?type=1: the Telegram button "Type it" lands here with the sheet open. */
+const TYPE_PARAM = 'type'
 
 /**
  * THE PERSON'S OWN BROWSER, ON A SCREEN.
@@ -97,6 +100,10 @@ export default function BrowserPage() {
   const stage = useRef<HTMLDivElement | null>(null)
   const [params, setParams] = useSearchParams()
   const full = params.get(VIEW_PARAM) === FULL_VIEW
+  const typeAsked = params.get(TYPE_PARAM) === '1'
+  useEffect(() => {
+    if (typeAsked) setShowType(true)
+  }, [typeAsked])
   /* Undoes the listeners on the frame's current window; see frameTouch.ts. */
   const unlistenFrame = useRef<(() => void) | null>(null)
   useEffect(() => () => unlistenFrame.current?.(), [])
@@ -228,13 +235,29 @@ export default function BrowserPage() {
   /* What the agent did here (lib/browserJournal.ts), read while the window
      is live and this tab is on screen. */
   const [journal, setJournal] = useState<JournalStep[]>([])
+  /*
+   * THE AGENT ASKS FOR SOMETHING TO BE TYPED (render input-request.ts): read
+   * on the same beat as the journal, and it opens the typing sheet with the
+   * agent's words on it. A request the person closed stays closed.
+   */
+  const [inputRequest, setInputRequest] = useState<InputRequestView | null>(
+    null
+  )
+  const dismissedRequest = useRef<string | null>(null)
   useEffect(() => {
     if (!live || !onThisTab) return
     let stopped = false
     const pull = async () => {
       if (document.visibilityState !== 'visible') return
-      const steps = await readBrowserJournal()
-      if (!stopped && steps) setJournal(steps)
+      const [steps, session] = await Promise.all([
+        readBrowserJournal(),
+        readBrowserSession().catch(() => null),
+      ])
+      if (stopped) return
+      if (steps) setJournal(steps)
+      const asked = session?.inputRequest ?? null
+      setInputRequest(asked)
+      if (asked && dismissedRequest.current !== asked.id) setShowType(true)
     }
     void pull()
     const timer = setInterval(() => void pull(), JOURNAL_POLL_MS)
@@ -406,7 +429,13 @@ export default function BrowserPage() {
 
           {embedded ? (
             showType ? (
-              <TypeSheet onClose={() => setShowType(false)} />
+              <TypeSheet
+                request={inputRequest}
+                onClose={() => {
+                  dismissedRequest.current = inputRequest?.id ?? null
+                  setShowType(false)
+                }}
+              />
             ) : (
               <button
                 type="button"
