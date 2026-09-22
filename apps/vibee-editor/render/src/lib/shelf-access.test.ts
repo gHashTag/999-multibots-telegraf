@@ -501,3 +501,42 @@ describe('a caller cannot register a walkable key to have it signed', () => {
     expect(pool.rows).toHaveLength(0)
   })
 })
+
+describe('media kinds the old route never streamed', () => {
+  /*
+   * Rule 1 reads the route's type table, and that table names `.tif`,
+   * `.tiff` and `.ico` as images -- kinds the route before 2026-09-22 sent to
+   * ffmpeg instead of streaming. A `.tif` is how a scanned document sent as
+   * a file looks, so under a walkable key it stays behind the gate.
+   */
+  const OLD_TIF = 'assets/1757000000020-file-21.tif'
+  const OLD_TIFF = 'assets/1757000000021-scan.TIFF'
+  const OLD_ICO = 'assets/1757000000022-file-22.ico'
+  const OLD_OGA = 'assets/1757000000023-voice-23.oga'
+  const NEW_TIF = 'assets/1759000000001-0123456789abcdef-scan.tif'
+
+  it.each([OLD_TIF, OLD_TIFF, OLD_ICO])(
+    '%s under the old shape is refused, and a signed link opens it',
+    async key => {
+      bucket = fakeStore({ [key]: DOC })
+      expect(isPublicShelfKey(key)).toBe(false)
+      const { res } = await ask(`/s3/${enc(key)}`)
+      expect(res.status).toBe(403)
+      expect(bucket.asked).toEqual([])
+      const opened = await ask(local(shelfLinkFor(`${SHELF}/s3/${key}`)))
+      expect(opened.res.status).toBe(200)
+    }
+  )
+
+  it('a tif under the random shape stays public by rule 2', async () => {
+    bucket = fakeStore({ [NEW_TIF]: DOC })
+    expect(isPublicShelfKey(NEW_TIF)).toBe(true)
+    expect((await ask(`/s3/${enc(NEW_TIF)}`)).res.status).toBe(200)
+  })
+
+  it('an old .oga voice note stays public: the transcriber fetches it with no credential', async () => {
+    bucket = fakeStore({ [OLD_OGA]: DOC })
+    expect(isPublicShelfKey(OLD_OGA)).toBe(true)
+    expect((await ask(`/s3/${enc(OLD_OGA)}`)).res.status).toBe(200)
+  })
+})
