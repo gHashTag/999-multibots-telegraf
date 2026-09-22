@@ -217,6 +217,9 @@ const en: Translations = {
   'crm.client.messages.us': 'we',
   'crm.client.messages.them': 'client',
   'crm.client.chat.title': 'Conversation about client {id}',
+  // The row of conversations above the chat (components/Chat/ChatThreads.tsx).
+  'chat.threads.label': 'Conversations',
+  'chat.threads.agent': 'Agent',
   'crm.client.chat.back': 'To the client',
   'crm.client.chat.welcome':
     'This is the conversation about client {id}. I already hold their profile, plan and last messages — ask what to do next.',
@@ -2335,6 +2338,8 @@ const ru: Translations = {
   'crm.client.messages.us': 'мы',
   'crm.client.messages.them': 'клиент',
   'crm.client.chat.title': 'Разговор о клиенте {id}',
+  'chat.threads.label': 'Разговоры',
+  'chat.threads.agent': 'Агент',
   'crm.client.chat.back': 'К клиенту',
   'crm.client.chat.welcome':
     'Это разговор о клиенте {id}. Я уже держу его профиль, план и последние сообщения — спроси, что делать дальше.',

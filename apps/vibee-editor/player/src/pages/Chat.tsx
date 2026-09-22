@@ -25,6 +25,7 @@ import { toAbsoluteUrl } from '@/lib/mediaUrl'
 import { reportPayOutcome } from '@/lib/payOutcome'
 import { parseCards, cardStates, answerFor } from '@/lib/agentCards'
 import { AgentCards } from '@/components/Chat/AgentCards'
+import { ChatThreads } from '@/components/Chat/ChatThreads'
 import './Chat.css'
 
 /**
@@ -376,6 +377,7 @@ function ChatThread({ client }: { client: string | null }) {
   return (
     <div className="chat-page">
       <Header />
+      <ChatThreads current={client} />
       {/* Бренд (знак + Trinity S³AI) уже стоит в Header выше — здесь его
           не повторяем, иначе название дублируется на экране дважды. */}
       {/* The greeting lives in the list as the agent's first message and

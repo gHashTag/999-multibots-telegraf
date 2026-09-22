@@ -134,6 +134,11 @@ captureReturnTarget(
 installSessionRenewal(isOurServer)
 resumeAppSessionRefresh()
 
+// Inside the board's frame the page is glass (index.css, html[data-embed]):
+// the board paints the frosted pane behind the frame, because a document in a
+// frame cannot blur what is behind it.
+if (IS_EMBED) document.documentElement.setAttribute('data-embed', '1')
+
 // Inside the game's TRI frame, a browser that refuses this frame its storage
 // is reported to the game once (lib/embed.ts). The screen still renders.
 announceStorageBlocked()

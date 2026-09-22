@@ -336,3 +336,20 @@ a:hover {
     min-height: var(--touch-target, 44px);
   }
 }
+
+/* GLASS IN THE BOARD'S FRAME (owner, 2026-09-22: "the chat translucent and
+   matte, like the other screens"). The board draws a frosted pane behind the
+   frame (gHashTag/trinity QueenTri.css); here the page steps out of its way:
+   no black behind the app, and the chat's own black page becomes transparent
+   so only its translucent surfaces - messages, input - remain. Set by
+   main.tsx only when IS_EMBED. */
+html[data-embed='1'],
+html[data-embed='1'] body,
+html[data-embed='1'] #root {
+  background: transparent !important;
+}
+html[data-embed='1'] .chat-page {
+  --t27-bg: transparent;
+  --t27-surface: rgba(12, 18, 20, 0.55);
+  --t27-surface-2: rgba(12, 18, 20, 0.7);
+}
