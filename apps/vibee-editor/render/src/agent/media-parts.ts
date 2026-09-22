@@ -182,10 +182,12 @@ function shelfBase(): string {
  * ONLY our own shelf, only under `/s3/`, and only with an extension that both
  * the shelf and the provider handle.
  *
- * The extension check is not cosmetic. The `/s3/` route decides what to do by
- * extension, and a key without one falls into the video branch and answers
- * HTTP 500 -- so a provider fetching it would get an error page instead of
- * media and report something confusing.
+ * The extension check is not cosmetic. The `/s3/` route chooses the
+ * Content-Type by extension (`src/lib/shelf-route.ts`), and a key without one
+ * is served as `application/octet-stream` -- a provider handed that as an
+ * image or a voice note would guess, or refuse, and report something
+ * confusing. (Until 2026-09-22 such a key fell into the old route's video
+ * branch and answered HTTP 500.)
  *
  * The origin check is the security half: a marker line arrives inside a
  * message a PERSON wrote, so its URL is untrusted input. Without this, someone
