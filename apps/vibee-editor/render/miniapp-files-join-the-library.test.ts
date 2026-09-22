@@ -22,6 +22,8 @@ import { handleAgentChat } from './src/agent/routes'
 
 const PERSON = '900000031'
 const SHELF = 'https://vibee-render-production.up.railway.app'
+/** A document as the app uploads it today: `assetKeyFor`'s random part. */
+const BRIEF = 'assets/1758000000000-0123456789abcdef-brief.pdf'
 
 /** The columns the table really has, read from its own CREATE statement. */
 const COLUMNS = new Set(
@@ -80,12 +82,7 @@ describe('rememberMiniAppFiles', () => {
     const pool = strictPool()
     const text = [
       'посмотри файлы', // cyrillic-ok: what a person types
-      marker(
-        'file',
-        'brief.pdf',
-        'application/pdf',
-        `${SHELF}/s3/assets/1-brief.pdf`
-      ),
+      marker('file', 'brief.pdf', 'application/pdf', `${SHELF}/s3/${BRIEF}`),
       marker(
         'video',
         'clip.mp4',
@@ -114,6 +111,44 @@ describe('rememberMiniAppFiles', () => {
     }
     expect(pool.inserted.map(r => r.kind)).toEqual(['file', 'video'])
     expect(pool.inserted[1].url).toBe(`${SHELF}/s3/assets/1-clip.mp4`)
+  })
+
+  /*
+   * A marker is text a person typed, and the library signs what it stores
+   * (`crm_lead_media`): a guessed old document key stored here would come
+   * back as a link that opens somebody else's file (shelf-access.ts).
+   */
+  it('skips a document under a walkable key, however it is spelled', async () => {
+    const pool = strictPool()
+    const text = [
+      marker(
+        'file',
+        'a.pdf',
+        'application/pdf',
+        `${SHELF}/s3/assets/1758000000000-file-4242.pdf`
+      ),
+      marker(
+        'file',
+        'b.pdf',
+        'application/pdf',
+        `${SHELF}/s3/assets/1-0123456789abcdef-x/../1757000000000-file-7.pdf`
+      ),
+      marker('file', 'c.txt', 'text/plain', '/s3/assets/1757000000001-c.txt'),
+      // An old-shape photo is public (rule 1) and still joins the library.
+      marker(
+        'image',
+        'p.jpg',
+        'image/jpeg',
+        `${SHELF}/s3/assets/1757000000006-photo-12.jpg`
+      ),
+    ].join('\n')
+
+    const got = await rememberMiniAppFiles(pool as never, PERSON, text)
+
+    expect(got.stored).toBe(1)
+    expect(pool.inserted.map(r => r.url)).toEqual([
+      `${SHELF}/s3/assets/1757000000006-photo-12.jpg`,
+    ])
   })
 
   it('writes nothing for a message with no files', async () => {
@@ -157,7 +192,7 @@ describe('the chat route records mini app files', () => {
     'file',
     'brief.pdf',
     'application/pdf',
-    `${SHELF}/s3/assets/1-brief.pdf`
+    `${SHELF}/s3/${BRIEF}`
   )
 
   it('from the mini app', async () => {

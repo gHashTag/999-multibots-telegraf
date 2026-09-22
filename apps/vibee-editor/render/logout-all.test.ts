@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { BASE_ALLOW_HEADERS } from './src/auth/refresh-cookie'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -924,8 +925,11 @@ describe('POST /api/auth/logout-all', () => {
     }
     expect(preflight).toBeLessThan(guard)
     expect(guard).toBeLessThan(mount)
+    // One list for every reply, kept in src/auth/refresh-cookie.ts so the
+    // sign-in doors can only add to it (review, 2026-09-22).
     expect(server).toMatch(
-      /'Access-Control-Allow-Headers',\s*'[^']*\bAuthorization\b/
+      /'Access-Control-Allow-Headers',\s*BASE_ALLOW_HEADERS\b/
     )
+    expect(BASE_ALLOW_HEADERS).toMatch(/\bAuthorization\b/)
   })
 })

@@ -219,3 +219,97 @@ describe('auth HTTP error boundary', () => {
     expect(response.destroy).not.toHaveBeenCalled()
   })
 })
+
+describe('a widget sign-in into the jar records where its token went', () => {
+  /*
+   * Lost-reply forgiveness needs to_jar on the presented token, and a widget
+   * sign-in is where a jar family begins. A reviewer found no test would fail
+   * if the widget stopped recording it -- and then the first jar token of every
+   * widget session would never be forgiven a lost reply (2026-09-22).
+   */
+  async function signInThroughWidget(headers: Record<string, string>) {
+    const botToken = '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' // secret-guard-ok: invented test value
+    const widget = {
+      id: 404,
+      first_name: 'Owner',
+      username: 'owner_404',
+      auth_date: Math.floor(Date.now() / 1000),
+    }
+    const check = Object.entries(widget)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${String(value)}`)
+      .join('\n')
+    const hmacKey = crypto.createHash('sha256').update(botToken).digest()
+    const body = {
+      ...widget,
+      hash: crypto.createHmac('sha256', hmacKey).update(check).digest('hex'),
+    }
+    process.env.BOT_TOKEN_12 = botToken
+    process.env.SESSION_SIGNING_KEY = 'x'.repeat(48)
+    const request = Readable.from([Buffer.from(JSON.stringify(body))]) as any
+    request.url = '/api/auth/widget'
+    request.method = 'POST'
+    request.headers = headers
+    request.socket = {
+      remoteAddress: `10.40.4.${Math.floor(Math.random() * 200)}`,
+    }
+    const response: any = {
+      status: 0,
+      body: '',
+      headers: {} as Record<string, string>,
+      setHeader(name: string, value: string) {
+        this.headers[name.toLowerCase()] = String(value)
+      },
+      writeHead(status: number) {
+        this.status = status
+      },
+      end(text: string) {
+        this.body = text
+      },
+    }
+    const profiles = concurrentProfilePool()
+    const inserted: unknown[][] = []
+    const client = await profiles.connect()
+    const minting = {
+      release() {},
+      async query(sql: string, params: unknown[] = []) {
+        const q = sql.replace(/\s+/g, ' ').trim()
+        if (q.startsWith('INSERT INTO app_widget_assertions'))
+          return { rows: [{ assertion_hash: params[0] }] }
+        if (q.startsWith('INSERT INTO app_sessions')) return { rows: [] }
+        if (q.startsWith('INSERT INTO app_refresh_tokens')) {
+          inserted.push(params)
+          return { rows: [] }
+        }
+        return client.query(sql, params)
+      },
+    }
+    const pool = {
+      query: async () => ({ rows: [] }),
+      connect: async () => minting,
+    }
+    await handleAuthRouteSafely(request, response, () => pool as any)
+    return { response, inserted }
+  }
+
+  it('with the cookie opt-in, the minted token is recorded as in the jar', async () => {
+    const { response, inserted } = await signInThroughWidget({
+      'x-session-transport': 'cookie',
+      origin: 'https://app.t27.ai',
+    })
+    expect(response.status, response.body).toBe(200)
+    expect(String(response.headers['set-cookie'] ?? '')).toMatch(
+      /^__Host-t27_refresh=/
+    )
+    expect(inserted).toHaveLength(1)
+    // token_hash, family_id, session_id, expires_at, to_jar
+    expect(inserted[0][4]).toBe(true)
+  })
+
+  it('without it, the token stays in the body and is not', async () => {
+    const { response, inserted } = await signInThroughWidget({})
+    expect(response.status, response.body).toBe(200)
+    expect(JSON.parse(response.body).refresh_token).toBeTruthy()
+    expect(inserted[0][4]).toBe(false)
+  })
+})

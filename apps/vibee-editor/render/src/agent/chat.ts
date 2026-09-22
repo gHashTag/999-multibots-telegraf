@@ -66,6 +66,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { assertArgs } from './tool-args'
 
 const MAX_STEPS = 8
 
@@ -204,7 +205,11 @@ export async function* dispatchToolCall(
    * a bad JSON string still comes back as a tool result, not a throw.
    */
   const raw = call.function.arguments
-  const running = (async () => tool.handler(raw ? JSON.parse(raw) : {}, ctx))()
+  const running = (async () => {
+    const args = raw ? JSON.parse(raw) : {}
+    assertArgs(tool, args)
+    return tool.handler(args, ctx)
+  })()
   return yield* withHeartbeat(name, startedAt, running)
 }
 
