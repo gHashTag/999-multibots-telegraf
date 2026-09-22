@@ -528,4 +528,22 @@ describe('the second review of the cookie session', () => {
     expect(m.getAppAccessToken()).toBe('kept')
     m.clearAppSession()
   })
+
+  it('a sign-out after a fast-clock one still reaches a tab stamped against it', async () => {
+    const m = await build()
+    const ahead = Date.now() + 3_600_000
+    window.localStorage.setItem(
+      'trinity.app.session.signed-out-at',
+      String(ahead)
+    )
+    m.storeAppSession(ownTokenSession, { signIn: true }) // since = ahead + 1
+    // Signed out again, now on a corrected clock, in this very tab's browser.
+    const other = await build()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply(200, {})))
+    other.storeAppSession(cookieSession, { signIn: true })
+    await other.logoutAppSession()
+    expect(
+      Number(window.localStorage.getItem('trinity.app.session.signed-out-at'))
+    ).toBeGreaterThan(ahead + 1)
+  })
 })

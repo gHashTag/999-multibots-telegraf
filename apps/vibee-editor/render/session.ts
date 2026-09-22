@@ -780,7 +780,8 @@ export async function rotateRefreshToken(
     consumeAndInsert(
       hash: string,
       replacedByHash: string,
-      expiresAt: Date
+      expiresAt: Date,
+      toJar?: boolean
     ): Promise<boolean>
     revokeFamily(familyId: string): Promise<string[]>
     /**
@@ -807,6 +808,8 @@ export async function rotateRefreshToken(
      * token can name it.
      */
     jarFamily?: string
+    /** The successor goes into the HttpOnly jar (to_jar, same statement). */
+    toJar?: boolean
   } = {}
 ): Promise<RotateOutcome> {
   const t = now ?? new Date()
@@ -837,18 +840,18 @@ export async function rotateRefreshToken(
   )
     return { ok: false, reason: 'family_expired' }
 
+  // A tab's stale copy of a family whose token is in this browser's jar --
+  // the same request carries it. The family moved on in this very browser: a
+  // race between its own tabs, not a theft. Matched by family, not by the next
+  // token, so a copy that comes back after more rotations is still recognised
+  // (third review), and checked before the grace window, so a duplicate in the
+  // usual timing -- milliseconds after its twin -- is told too (fourth).
+  const inThisJar = !!from.jarFamily && row.familyId === from.jarFamily
   if (row.usedAt) {
+    if (inThisJar) return { ok: false, reason: 'raced', inJar: true }
     const прошлоСекунд = (t.getTime() - row.usedAt.getTime()) / 1000
     if (прошлоСекунд <= REUSE_GRACE_SECONDS) {
       return { ok: false, reason: 'raced' }
-    }
-    // A tab's stale copy of a family whose live token is in this browser's
-    // jar -- the same request carries it. The family moved on in this very
-    // browser: a race between its own tabs, not a theft. Matched by family,
-    // not by the next token, so a copy that comes back after more rotations
-    // is still recognised (third review, 2026-09-22).
-    if (from.jarFamily && row.familyId === from.jarFamily) {
-      return { ok: false, reason: 'raced', inJar: true }
     }
     if (
       from.jar === true &&
@@ -884,8 +887,17 @@ export async function rotateRefreshToken(
   }
 
   const next = issueRefreshToken(t)
-  const consumed = await store.consumeAndInsert(hash, next.hash, next.expiresAt)
-  if (!consumed) return { ok: false, reason: 'raced' }
+  const consumed = await store.consumeAndInsert(
+    hash,
+    next.hash,
+    next.expiresAt,
+    from.toJar === true
+  )
+  if (!consumed) {
+    return inThisJar
+      ? { ok: false, reason: 'raced', inJar: true }
+      : { ok: false, reason: 'raced' }
+  }
   return { ok: true, next }
 }
 

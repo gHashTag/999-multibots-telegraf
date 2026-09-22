@@ -161,6 +161,9 @@ describe('the refresh cookie holds only the session it was given', () => {
             revoked_at: null,
             expires_at: String(params[2]),
             created_at: new Date().toISOString(),
+            // As the SQL: asked for, and a Login Widget session.
+            to_jar:
+              params[3] === true && rows.get(t.session_id)?.kind === 'web',
           })
           return { rows: [{ token_hash: params[1] }] }
         }
@@ -195,14 +198,15 @@ describe('the refresh cookie holds only the session it was given', () => {
                 : [],
           }
         }
-        if (q.startsWith('UPDATE app_refresh_tokens SET to_jar = true')) {
-          if (t) t.to_jar = true
-          return { rows: [] }
-        }
         if (q.startsWith('SELECT family_id FROM app_refresh_tokens')) {
-          return {
-            rows: t && !t.revoked_at ? [{ family_id: t.family_id }] : [],
-          }
+          // Every condition the real query states, so the double cannot
+          // answer where Postgres would not (fourth review, 2026-09-22).
+          const ok =
+            !!t &&
+            !t.revoked_at &&
+            (!/\bused_at IS NULL\b/.test(q) || !t.used_at) &&
+            (!/\bAND to_jar\b/.test(q) || t.to_jar === true)
+          return { rows: ok ? [{ family_id: t!.family_id }] : [] }
         }
         if (q.startsWith('SELECT family_id FROM app_sessions WHERE id')) {
           const s = rows.get(String(params[0]))
@@ -575,5 +579,43 @@ describe('the refresh cookie holds only the session it was given', () => {
     const retry = await call('/api/auth/refresh', d, { jar: inJar })
     expect(retry.status, JSON.stringify(retry.body)).toBe(200)
     expect(d.familyRevoked('s-web')).toBe(false)
+  })
+
+  it("a stale tab copy beside a jar token that has just rotated is still this browser's race", async () => {
+    // Another tab's jar rotation is in flight (or its reply was lost): the
+    // jar token is used, and it still names this browser's family.
+    const d = db([
+      { token: 'tab-web', id: 's-tab', kind: 'web', who: '7300018' },
+    ])
+    const moved = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+    })
+    const n1 = jarOf(moved)
+    expect(n1).not.toBe('')
+    const rotated = await call('/api/auth/refresh', d, { jar: n1 })
+    expect(rotated.status).toBe(200) // its Set-Cookie has not landed yet
+    d.age('tab-web', 30)
+    const stale = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+      jar: n1,
+    })
+    expect(stale.status).toBe(409)
+    expect(stale.body.reason).toBe('successor_in_jar')
+    expect(d.familyRevoked('s-tab')).toBe(false)
+  })
+
+  it('a duplicate in the usual timing, milliseconds after its twin, is told the family is in the jar', async () => {
+    const d = db([
+      { token: 'tab-web', id: 's-tab', kind: 'web', who: '7300019' },
+    ])
+    const moved = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+    })
+    const twin = await call('/api/auth/refresh', d, {
+      body: { refresh_token: 'tab-web' }, // secret-guard-ok: invented test value
+      jar: jarOf(moved),
+    })
+    expect(twin.status).toBe(409)
+    expect(twin.body.reason).toBe('successor_in_jar')
   })
 })

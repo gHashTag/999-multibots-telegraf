@@ -136,7 +136,13 @@ function signedOutAt(): number {
 
 function announceSignOut(): void {
   try {
-    window.localStorage.setItem(SIGNED_OUT_AT_KEY, String(Date.now()))
+    // Monotone, like SESSION_SINCE: always past the last stamp, so a sign-in
+    // stamped against an earlier (fast-clock) sign-out is still caught by the
+    // next one (fourth review, 2026-09-22).
+    window.localStorage.setItem(
+      SIGNED_OUT_AT_KEY,
+      String(Math.max(Date.now(), signedOutAt() + 2))
+    )
   } catch {
     // Without storage the other tabs are not told; each renews on its own.
   }

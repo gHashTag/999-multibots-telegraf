@@ -456,7 +456,9 @@ export function refreshStore(pool: Pool) {
     async consumeAndInsert(
       hash: string,
       replacedByHash: string,
-      expiresAt: Date
+      expiresAt: Date,
+      /** Written into the jar: recorded now, for a Login Widget session only. */
+      toJar = false
     ) {
       /**
        * `WHERE used_at IS NULL` is what makes rotation single-use under
@@ -476,10 +478,14 @@ export function refreshStore(pool: Pool) {
             RETURNING family_id, session_id
          )
          INSERT INTO app_refresh_tokens
-           (token_hash, family_id, session_id, expires_at)
-         SELECT $2, family_id, session_id, $3 FROM consumed
+           (token_hash, family_id, session_id, expires_at, to_jar)
+         SELECT $2, c.family_id, c.session_id, $3,
+                $4::boolean AND EXISTS (
+                  SELECT 1 FROM app_sessions s
+                   WHERE s.id = c.session_id AND s.kind = 'web')
+           FROM consumed c
          RETURNING token_hash`,
-        [hash, replacedByHash, expiresAt.toISOString()]
+        [hash, replacedByHash, expiresAt.toISOString(), toJar]
       )
       return claimed.rows.length === 1
     },
@@ -528,14 +534,6 @@ export function refreshStore(pool: Pool) {
         [hash, successorHash, nextHash, expiresAt.toISOString()]
       )
       return r.rows.length === 1
-    },
-
-    /** Record that `hash` is being written into the HttpOnly jar. */
-    async markToJar(hash: string) {
-      await pool.query(
-        `UPDATE app_refresh_tokens SET to_jar = true WHERE token_hash = $1`,
-        [hash]
-      )
     },
 
     async revokeFamily(familyId: string) {

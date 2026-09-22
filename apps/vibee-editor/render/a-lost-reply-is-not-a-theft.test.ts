@@ -57,7 +57,12 @@ describe('a spent token presented again', () => {
           toJar: r.toJar,
         }
       },
-      async consumeAndInsert(h: string, next: string, exp: Date) {
+      async consumeAndInsert(
+        h: string,
+        next: string,
+        exp: Date,
+        toJar = false
+      ) {
         const r = rows.get(h)
         if (!r || r.usedAt || r.revokedAt) return false
         r.usedAt = new Date()
@@ -65,8 +70,8 @@ describe('a spent token presented again', () => {
         rows.set(next, {
           ...fresh(r.familyId, exp),
           createdAt: new Date(),
-          // Marked by the route when it writes the successor into the jar.
-          toJar: r.toJar,
+          // As the SQL: recorded when asked for (sessions here are web).
+          toJar,
         })
         return true
       },
@@ -317,5 +322,29 @@ describe('a spent token presented again', () => {
     )
     expect(forged).toMatchObject({ ok: false, reason: 'reused' })
     expect(s.revokedFamilies()).toBe(1)
+  })
+
+  it('a stale copy of the jar family inside the grace window is told so too', async () => {
+    const s = makeStore()
+    const T = s.seed(false)
+    await session.rotateRefreshToken(T.token, s.store)
+    const twin = await session.rotateRefreshToken(T.token, s.store, later(1), {
+      jarFamily: 'fam',
+    })
+    expect(twin).toMatchObject({ ok: false, reason: 'raced', inJar: true })
+  })
+
+  it('a successor is recorded as in the jar only when the rotation says so', async () => {
+    const s = makeStore()
+    const T = s.seed()
+    const intoJar = tokenOf(
+      await session.rotateRefreshToken(T.token, s.store, undefined, {
+        jar: true,
+        toJar: true,
+      })
+    )
+    expect(s.rows.get(session.digest(intoJar))!.toJar).toBe(true)
+    const intoBody = tokenOf(await session.rotateRefreshToken(intoJar, s.store))
+    expect(s.rows.get(session.digest(intoBody))!.toJar).toBe(false)
   })
 })
