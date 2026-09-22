@@ -46,6 +46,9 @@ import { usableMediaUrl, shelfObject } from './media-parts'
 import { s3GetBytes } from '../lib/s3-put'
 import { readFile } from 'node:fs/promises'
 import {
+  ARCHIVE_EXTENSIONS,
+  OFFICE_EXTENSIONS,
+  PDF_EXTENSIONS,
   documentFormat,
   extensionOf,
   readShelfExtracted,
@@ -1602,11 +1605,19 @@ const EXT_BY_MIME: Record<string, string> = {
  * sender's name -- but only when it is one of the words below, never as
  * free text. The sender's name itself lives in the memory's marker line,
  * which every reader shows fenced.
+ *
+ * Every format media-extract.ts opens is one of these words, taken from its
+ * own lists (2026-09-22). Before that, an .odt, an .rtf or a .zip was shelved
+ * as `file-<id>.bin`, and `documentFormat` -- which knows those formats by
+ * their extension -- could never open it, live or in the background.
  */
 const OUR_EXTENSIONS: ReadonlySet<string> = new Set([
   ...Object.values(EXT_BY_MIME),
   ...TEXT_LIKE_EXTENSIONS,
   ...TRANSCRIBABLE_EXT.map(e => e.slice(1)),
+  ...PDF_EXTENSIONS,
+  ...OFFICE_EXTENSIONS,
+  ...ARCHIVE_EXTENSIONS,
   'jpeg',
   'gif',
   'bmp',
@@ -1614,9 +1625,6 @@ const OUR_EXTENSIONS: ReadonlySet<string> = new Set([
   'heif',
   'avif',
   'mov',
-  'docx',
-  'xlsx',
-  'pptx',
 ])
 
 const ourExtension = (v: unknown): string | null => {

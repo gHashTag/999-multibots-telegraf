@@ -21,8 +21,9 @@
  *      person's media library -- `user_media`, owner = the caller, lead = the
  *      person, surface `ingest`: the owner-session path, the same surface the
  *      CRM ingest writes, so neither downloads what the other already holds;
- *   4. looks at a photo, listens to a voice note, reads a text document --
- *      live, capped, on a deadline -- and stores what was seen or heard;
+ *   4. looks at a photo, listens to a voice note, reads a text document, a
+ *      PDF or an office file and lists an archive -- live, capped, on a
+ *      deadline -- and stores what was seen, heard or read;
  *   5. returns the shelf URL with the description or transcript, framed.
  *
  * Two things it never does. It never opens a file the sender made disappear
@@ -34,9 +35,10 @@
  *
  * Bounded on purpose: ten files a call (Telegram's own album size), 20 MB a
  * file (the ingest's and the Bot API's ceiling, so no huge video is ever
- * pulled), four live looks and two live listens a call, ninety seconds of
- * live work in total. What is not looked at live is described in the
- * background by the same queue the ingest uses, and the answer says so.
+ * pulled), four live looks, two live listens and two live document reads a
+ * call, ninety seconds of live work in total. What is not looked at live is
+ * described in the background by the same queue the ingest uses, and the
+ * answer says so.
  *
  * Every word that came from the file -- the caption, the description of a
  * photo (which quotes visible text verbatim), the transcript -- is framed as
@@ -69,6 +71,12 @@ import {
   type MediaRow,
   type Pool,
 } from './media-library'
+import {
+  documentFormat,
+  readShelfExtractedNow,
+  type Extracted,
+  type ExtractFailure,
+} from './media-extract'
 import { s3PutBytes } from '../lib/s3-put'
 
 /** Telegram's own album ceiling: one call can take one whole album. */
@@ -84,6 +92,13 @@ export const FETCH_SCAN = 100
  */
 export const LIVE_LOOKS = 4
 export const LIVE_LISTENS = 2
+/**
+ * PDFs, office files and archives opened live per call: the chat turn's own
+ * number (MAX_LIVE_DOCUMENTS in media-inline.ts). A PDF is a download back
+ * from the shelf and a pdftotext of up to the deadline below; the rest are
+ * read by the background queue, which has the longer clock.
+ */
+export const LIVE_READS = 2
 const LIVE_BUDGET_MS = 90_000
 const LIVE_LOOK_MS = Math.max(
   5_000,
@@ -93,6 +108,27 @@ const LIVE_LISTEN_MS = Math.max(
   5_000,
   Number(process.env.MEDIA_LIVE_TRANSCRIBE_MS) || 45_000
 )
+/** The chat turn's clock for a document, read from the same variable. */
+const LIVE_READ_MS = Math.max(
+  5_000,
+  Number(process.env.MEDIA_LIVE_READ_MS) || 20_000
+)
+
+/**
+ * Why a PDF, an office file or an archive was not read, in the words the
+ * model repeats to the owner. Each asks for something different: a scan needs
+ * the text or a photo of the page, a locked file its password removed.
+ */
+const WHY_NOT_READ: Record<ExtractFailure, string> = {
+  'no-text':
+    'this PDF has no text layer (a scan or pictures of pages); ask for the text or a photo of the page',
+  encrypted: 'password-protected; ask for a copy without the password',
+  'too-big': 'too big to open here, or too much packed inside it',
+  damaged: 'could not be opened: damaged, or not really this format',
+  'tool-missing':
+    'the reader for this format is not installed on the server yet',
+  missing: 'could not be taken back from our storage',
+}
 
 /** Kinds that are files a person sends. A sticker or a poll is not one. */
 const FILE_KINDS: ReadonlySet<SentMediaKind> = new Set([
@@ -105,7 +141,7 @@ const FILE_KINDS: ReadonlySet<SentMediaKind> = new Set([
 ])
 
 /**
- * The network edges: the shelf put and the three perceivers, and the
+ * The network edges: the shelf put and the four perceivers, and the
  * background queue. Everything else -- the memory, the library, the
  * transcript -- is the real code against whatever pool the caller holds.
  */
@@ -117,7 +153,15 @@ export interface FetchEdges {
     name: string | null,
     ms: number
   ) => Promise<string | null>
+  /** A text-like document: decoded as it is. */
   read: (url: string) => Promise<string | null>
+  /** A PDF, an office file or an archive's listing, on a deadline. */
+  extract: (
+    url: string,
+    name: string | null,
+    mime: string | null,
+    ms: number
+  ) => Promise<Extracted | 'late'>
   later: (
     pool: Pool,
     owner: string,
@@ -130,6 +174,7 @@ const LIVE_EDGES: FetchEdges = {
   look: describeShelfImageNow,
   listen: transcribeShelfAudioNow,
   read: readShelfDocument,
+  extract: readShelfExtractedNow,
   later: transcribeAndMirror,
 }
 let edges: FetchEdges = LIVE_EDGES
@@ -203,7 +248,9 @@ const HOW_TO_READ =
   'назови в ответе, какое фото к какому пункту подходит; записать фото в его план нечем. ' +
   'Картинка с ним — только crm_deliver_photo (его лицо), не image_edit по этой ссылке; ' +
   'описание говорит, на каком фото видно его лицо. Файл со статусом stored, not seen, ' +
-  'not heard, too big или failed никто не смотрел — не описывай его, скажи честно. ' +
+  'not heard, not read, too big или failed никто не смотрел — не описывай его, скажи честно; ' +
+  'why говорит почему (скан без текста, пароль, повреждён). listed, not unpacked — архив: ' +
+  'в document_text только имена и размеры файлов внутри, сами файлы никто не открывал. ' +
   'view-once, not opened — он прислал исчезающий файл (один просмотр или таймер): мы его не ' +
   'скачиваем, не храним и не описываем; увидеть его может только владелец в своём Telegram.'
 
@@ -317,6 +364,7 @@ export async function fetchSentMedia(
   const started = Date.now()
   let looks = 0
   let listens = 0
+  let reads = 0
   const background: Array<MediaRow & { id: number }> = []
   const files: Array<Record<string, unknown>> = []
 
@@ -363,9 +411,11 @@ export async function fetchSentMedia(
         status:
           row.kind === 'audio'
             ? 'heard earlier'
-            : row.kind === 'file'
-              ? 'read earlier'
-              : 'seen earlier',
+            : row.kind !== 'file'
+              ? 'seen earlier'
+              : documentFormat(row.mime, row.name) === 'archive'
+                ? 'listed earlier, not unpacked'
+                : 'read earlier',
         ...wordsFor(row.kind, earlier),
       })
       continue
@@ -444,6 +494,9 @@ export async function fetchSentMedia(
     const inTime = Date.now() - started < LIVE_BUDGET_MS
     let words: string | null = null
     let status = 'stored'
+    let why: string | null = null
+    // A document the background reads, because it was not read here.
+    let readLater = false
     if (row.kind === 'image' && looks < LIVE_LOOKS && inTime) {
       looks += 1
       words = await edges
@@ -459,11 +512,42 @@ export async function fetchSentMedia(
     } else if (row.kind === 'file' && isTextLikeDocument(row.mime, row.name)) {
       words = await edges.read(row.url).catch(() => null)
       status = words ? 'read' : 'not read'
+    } else if (row.kind === 'file' && documentFormat(row.mime, row.name)) {
+      /*
+       * PDF, OFFICE, ARCHIVE (2026-09-22). These used to be stored and never
+       * opened here: only a text-like document was read, and the background
+       * queue below took everything EXCEPT files. Now the first LIVE_READS
+       * are read on the deadline, and the rest -- and one that outlasts it --
+       * go to the background, where `describeMedia` reads the same formats.
+       */
+      if (reads < LIVE_READS && inTime) {
+        reads += 1
+        const got = await edges
+          .extract(row.url, row.name, row.mime, LIVE_READ_MS)
+          .catch((): Extracted => ({ ok: false, reason: 'damaged' }))
+        if (got === 'late') {
+          readLater = true
+          why = 'took longer than this answer can wait; read in the background'
+        } else if (got.ok) {
+          words = got.text
+          status = got.listing ? 'listed, not unpacked' : 'read'
+        } else {
+          /*
+           * Named, not guessed. No verdict is written here: the row stays
+           * pending, and the backlog sweep (transcribe-backlog.ts) reads it
+           * once more on the longer clock and records what it finds.
+           */
+          status = 'not read'
+          why = WHY_NOT_READ[got.reason] ?? WHY_NOT_READ.damaged
+        }
+      } else {
+        readLater = true
+      }
     }
     if (words && pool && row.id) {
       await saveTranscript(pool, row.id, words)
       await mirrorTranscript(pool, owner, row, words).catch(() => undefined)
-    } else if (!words && pool && row.id && row.kind !== 'file') {
+    } else if (!words && pool && row.id && (row.kind !== 'file' || readLater)) {
       // Not a verdict: the background queue tries again and records it.
       background.push(row)
     }
@@ -471,6 +555,7 @@ export async function fetchSentMedia(
       ...base,
       url: row.url,
       status,
+      ...(why ? { why } : {}),
       ...(words ? wordsFor(row.kind, words) : {}),
     })
   }

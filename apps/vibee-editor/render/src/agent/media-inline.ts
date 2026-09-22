@@ -96,7 +96,7 @@ import {
   DOCUMENT_MAX_BYTES,
   UNREADABLE_EXTENSIONS,
   documentFormat,
-  readShelfExtracted,
+  readShelfExtractedNow,
   type Extracted,
 } from './media-extract'
 import { visionConfig } from './media-vision'
@@ -321,33 +321,6 @@ function extractedLine(name: string, got: Extracted): string {
 }
 
 /**
- * A document read NOW, on the turn's own clock: the text, or `'late'` when the
- * deadline passed first. The reader gets the same deadline, so a turn that
- * stops waiting does not leave a pdftotext running behind it.
- */
-async function readDocumentNow(
-  url: string,
-  name: string,
-  mime: string | null | undefined,
-  timeoutMs: number
-): Promise<Extracted | 'late'> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<'late'>(resolve => {
-    timer = setTimeout(() => resolve('late'), timeoutMs)
-  })
-  try {
-    return await Promise.race([
-      readShelfExtracted(url, name, mime ?? null, timeoutMs).catch(
-        (): Extracted => ({ ok: false, reason: 'damaged' })
-      ),
-      late,
-    ])
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-/**
  * Read what the chain cannot perceive and append it to the last user turn.
  *
  * Returns the SAME array when there is nothing to add, so the ordinary
@@ -476,7 +449,12 @@ export async function inlineUnperceivedMedia(
           continue
         }
         opened += 1
-        const got = await readDocumentNow(url, name, ref.mime, LIVE_READ_MS)
+        const got = await readShelfExtractedNow(
+          url,
+          name,
+          ref.mime,
+          LIVE_READ_MS
+        )
         add(
           got === 'late'
             ? `[still reading: ${name} — the file is taking longer to open than this answer can wait. Say so plainly and do NOT guess what it says; ask the person to send it again in a minute, or to paste the part that matters.]`
