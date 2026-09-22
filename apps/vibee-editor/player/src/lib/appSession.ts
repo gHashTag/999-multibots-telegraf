@@ -19,13 +19,13 @@ const REFRESH_EARLY_MS = 60_000
  * (since 215480af6, 2026-09-01), so every new tab, bookmark, Telegram link and
  * fresh browser start was signed out while the server would have honoured the
  * family for 60 days -- the owner's "I have to log in every time". The render
- * now hands it over as an HttpOnly cookie on app.t27.ai when asked (render
+ * now hands it over as an HttpOnly cookie on auth.t27.ai when asked (render
  * src/auth/refresh-cookie.ts): the jar keeps it across tabs and restarts, and
  * no script can read it, which is stricter than either Web Storage.
  *
- * The cookie only exists where nginx proxies /api/auth/ same-origin, so the
- * auth doors are called on app.t27.ai itself there, and on API_BASE as before
- * everywhere else (a dev server, a frame this app does not trust).
+ * The sign-in doors are called on AUTH_ORIGIN where cookie transport works
+ * (cookieTransportAvailable), and on API_BASE as before everywhere else (a dev
+ * server, Telegram's frames, a build without AUTH_ORIGIN).
  */
 export const APP_ORIGIN = 'https://app.t27.ai'
 const SESSION_TRANSPORT_HEADER = 'X-Session-Transport'
@@ -33,17 +33,26 @@ const SESSION_TRANSPORT_HEADER = 'X-Session-Transport'
 /*
  * WHERE THE COOKIE LIVES: auth.t27.ai, the render's own custom domain.
  *
- * Empty turns cookie transport off, and this build signs in exactly as before
- * -- which is the state it ships in until auth.t27.ai answers. A first version
- * reached the render through an nginx hop on app.t27.ai; Railway's edge
- * replaces X-Forwarded-For (measured), so that put every person behind the
- * ten-a-minute sign-in brake as one. auth.t27.ai is on the same site as the
- * app, so its cookie is first-party, and the browser reaches it through one
- * edge (render src/auth/refresh-cookie.ts).
+ * The Dockerfile passes VITE_AUTH_ORIGIN (default https://auth.t27.ai). A
+ * first version reached the render through an nginx hop on app.t27.ai;
+ * Railway's edge replaces X-Forwarded-For (measured), so that put every person
+ * behind the ten-a-minute sign-in brake as one. auth.t27.ai is on the same
+ * site as the app, so its cookie is first-party, and the browser reaches it
+ * through one edge (render src/auth/refresh-cookie.ts).
+ *
+ * Anything but a bare https origin turns cookie transport off and the build
+ * signs in exactly as before. That is the kill switch: set VITE_AUTH_ORIGIN=off
+ * on the vibee-editor service and redeploy.
+ *
+ * Read as import.meta.env.VITE_AUTH_ORIGIN, plainly: config/buildTimeNames.test
+ * matches that spelling to prove the Dockerfile declares the name. The first
+ * version read it through a cast, the test could not see it, and the Dockerfile
+ * never passed it -- the switch would have been set on Railway and done nothing.
  */
-const AUTH_ORIGIN: string = String(
-  (import.meta.env as Record<string, string | undefined>).VITE_AUTH_ORIGIN ?? ''
-).replace(/\/+$/, '')
+const AUTH_ORIGIN: string = (() => {
+  const raw = String(import.meta.env.VITE_AUTH_ORIGIN ?? '').replace(/\/+$/, '')
+  return /^https:\/\/[a-z0-9.-]+$/i.test(raw) ? raw : ''
+})()
 
 /**
  * Not a credential: only "a cookie session may be in the jar, try a silent
@@ -64,10 +73,14 @@ const COOKIE_MARKER_KEY = 'trinity.app.session.cookie'
  * There the Mini App signs in from initData on every launch anyway, and keeps
  * the tab's store as before.
  */
-export function cookieTransportAvailable(): boolean {
+export function cookieTransportAvailable(
+  win: FramedWindow | undefined = typeof window === 'undefined'
+    ? undefined
+    : (window as unknown as FramedWindow)
+): boolean {
   if (!AUTH_ORIGIN) return false
-  if (typeof window === 'undefined') return false
-  if (window.location.origin !== APP_ORIGIN) return false
+  if (!win) return false
+  if (win.location.origin !== APP_ORIGIN) return false
   /*
    * A document signed by Telegram launch data signs in as it always did, and
    * never touches the jar: its requests act as the launch's person, whoever
@@ -76,7 +89,6 @@ export function cookieTransportAvailable(): boolean {
    * 2026-09-22).
    */
   if (getInitData()) return false
-  const win = window as unknown as FramedWindow
   if (win.self === win.top) return true
   if (!sessionTrustedIn(win)) return false
   const list = win.location.ancestorOrigins
