@@ -35,7 +35,8 @@ import { listenForTouchInside } from '@/lib/frameTouch'
 import { ImportLogins } from '@/components/Browser/ImportLogins'
 import { TypeSheet } from '@/components/Browser/TypeSheet'
 import { DetentSheet } from '@/components/DetentSheet/DetentSheet'
-import { PEEK_PX, type Detent } from '@/lib/sheetDetents'
+import { PEEK_PX, ISLAND_PX, type Detent } from '@/lib/sheetDetents'
+import { browserLayout, CLASSIC_VIEW } from '@/lib/browserLayout'
 import { PHONE_MAX } from '@/lib/browserFit'
 import {
   BrowserKeys,
@@ -52,19 +53,17 @@ import {
   type JournalStep,
 } from '@/lib/browserJournal'
 import { BrandLoader } from '@/components/BrandLoader/BrandLoader'
+import { sendToAgent, isAgentBusy } from '@/lib/agentStream'
+import { shouldWakeAgent, wakeMessage } from '@/lib/wakeAgent'
 
 /**
- * THE PICTURE TAKES THE WHOLE SCREEN, AND BACK LEAVES IT.
+ * THE PICTURE TAKES THE WHOLE SCREEN -- BY DEFAULT (lib/browserLayout.ts).
  *
- * This was the element fullscreen API, which Telegram's iOS WebView does not
- * implement for anything but a video: the button did nothing, photographed
- * by the owner. The app is already fullscreen on a phone, so "full screen"
- * here means the picture covers the app -- the tab bar, the buttons, the
- * text -- and nothing else is on it.
- *
- * It is an entry in the history, not a flag in memory, so the way out is the
- * way out of everything else: Telegram's own Back button, or the browser's.
- * No button of ours floats over the picture to close it.
+ * Not the element fullscreen API, which Telegram's iOS WebView does not
+ * implement for anything but a video. The picture covers the app -- the tab
+ * bar included -- and the controls float over it in one frosted-glass sheet.
+ * The classic page (`?view=classic`) is a history entry, so Back, Telegram's
+ * own or the browser's, returns to the minimal view.
  */
 const FULL_VIEW = 'full'
 /* The address parameter it lives in: ?view=full. */
@@ -110,7 +109,7 @@ export default function BrowserPage() {
   const [explainGone, setExplainGone] = useState(false)
   const stage = useRef<HTMLDivElement | null>(null)
   const [params, setParams] = useSearchParams()
-  const full = params.get(VIEW_PARAM) === FULL_VIEW
+  const viewParam = params.get(VIEW_PARAM)
   const typeAsked = params.get(TYPE_PARAM) === '1'
   useEffect(() => {
     if (typeAsked) setShowType(true)
@@ -310,15 +309,19 @@ export default function BrowserPage() {
     }
   }, [live, onThisTab])
   const embedded = live && canEmbed(view!.viewUrl!)
+  const layout = browserLayout({ embedded, phone, view: viewParam })
+  const minimal = layout === 'minimal'
+  const peekPx = minimal ? ISLAND_PX : PEEK_PX
 
   /* The peek's height, for the picture to end above it (Browser.css). */
-  const sheetStyle = { ['--sheet-peek' as string]: `${PEEK_PX}px` }
+  const sheetStyle = { ['--sheet-peek' as string]: `${peekPx}px` }
 
   const rootClass = [
     'remote-browser',
-    live && embedded ? 'remote-browser--live' : '',
-    live && embedded && full ? 'remote-browser--full' : '',
-    live && embedded && phone && !full ? 'remote-browser--sheet' : '',
+    embedded ? 'remote-browser--live' : '',
+    /* The minimal view reuses full screen's stage: fixed, over the app. */
+    minimal ? 'remote-browser--full remote-browser--minimal' : '',
+    layout === 'sheet' ? 'remote-browser--sheet' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -422,15 +425,25 @@ export default function BrowserPage() {
       ) : null}
 
       <div className="remote-browser__actions">
-        {/* A history entry, so Back is the way out; see FULL_VIEW. */}
+        {/* A history entry either way, so Back undoes it; see browserLayout. */}
         {embedded ? (
-          <button
-            type="button"
-            className="remote-browser__secondary"
-            onClick={() => setParams({ view: FULL_VIEW })}
-          >
-            {t('browser.fullscreen')}
-          </button>
+          minimal ? (
+            <button
+              type="button"
+              className="remote-browser__secondary"
+              onClick={() => setParams({ view: CLASSIC_VIEW })}
+            >
+              {t('browser.classic')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="remote-browser__secondary"
+              onClick={() => setParams({ view: FULL_VIEW })}
+            >
+              {t('browser.fullscreen')}
+            </button>
+          )
         ) : null}
 
         {/* Handing the wheel back is a press, never a timeout. */}
@@ -442,6 +455,26 @@ export default function BrowserPage() {
               setAgentWorking(wheelAfterHandBack() === 'agent')
               wheelSent.current = null
               void setBrowserWheel('agent')
+              /* The agent wakes knowing the person needs help (wakeAgent.ts). */
+              if (
+                shouldWakeAgent({
+                  agentWaiting: Boolean(approval || inputRequest),
+                  replying: isAgentBusy(),
+                  lastStepAt: journal[0]?.at ?? null,
+                  now: Date.now(),
+                })
+              )
+                void sendToAgent(
+                  wakeMessage(
+                    t('browser.wake.ask'),
+                    t('browser.wake.steps'),
+                    journal,
+                    step => {
+                      const l = journalLine(step, t)
+                      return `${l.verb} ${l.text}`.trim()
+                    }
+                  )
+                )
             }}
           >
             {t('browser.handBack')}
@@ -607,12 +640,14 @@ export default function BrowserPage() {
             </div>
           )}
 
-          {embedded && phone ? (
+          {minimal || layout === 'sheet' ? (
             <DetentSheet
               detent={sheet}
               onDetent={setSheet}
               label={t('browser.sheet.label')}
               peek={peekLine}
+              peekPx={peekPx}
+              className={minimal ? 'detent-sheet--glass' : undefined}
             >
               {underPicture}
             </DetentSheet>

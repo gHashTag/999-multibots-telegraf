@@ -488,7 +488,9 @@ import {
   s3OpenStream,
   s3GetToFile,
   isMissingObject,
+  assetKeyFor,
 } from './src/lib/s3-put'
+import { shelfReadAccess } from './src/lib/shelf-access'
 import {
   serveShelfRequest,
   createShelfVideo,
@@ -1806,7 +1808,8 @@ async function uploadToS3(
   filename: string,
   contentType: string
 ): Promise<UploadedAsset> {
-  const key = `assets/${Date.now()}-${filename}`
+  // Random part and all: a walkable key is a public document (shelf-access.ts).
+  const key = assetKeyFor(filename)
 
   try {
     // The put itself lives in src/lib/s3-put.ts, shared with the CRM ingest
@@ -1831,7 +1834,7 @@ async function uploadRequestToS3(
   contentType: string,
   maxBytes: number
 ): Promise<UploadedAsset> {
-  const key = `assets/${Date.now()}-${filename}`
+  const key = assetKeyFor(filename)
   const { stream, receivedBytes } = boundedUploadTransform(maxBytes)
   const tempDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), 'vibee-upload-')
@@ -5938,6 +5941,7 @@ const server = createServer(async (req, res) => {
     await serveShelfRequest(req, res, {
       store: SHELF_STORE,
       video: SHELF_VIDEO,
+      access: (key, query, r) => shelfReadAccess(key, query, hasServerKey(r)),
     })
     return
   }

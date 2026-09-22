@@ -21,6 +21,7 @@
  *    одной существующей композиции.
  */
 import { randomUUID } from 'node:crypto'
+import { assertArgs } from './tool-args'
 import type { IncomingMessage, ServerResponse } from 'http'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 import {
@@ -482,6 +483,7 @@ export async function handleMcp(
           : (initDataBotOf(req, owner) ?? undefined),
       }
       countInitDataToolCall(ctx, имя) // cyrillic-ok: pre-existing local
+      assertArgs(tool, rpc.params?.arguments || {})
       const значение = await tool.handler(rpc.params?.arguments || {}, ctx)
       return ok({
         content: [{ type: 'text', text: JSON.stringify(значение, null, 1) }],
