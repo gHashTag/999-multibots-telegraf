@@ -346,6 +346,144 @@ describe('--forget', () => {
   })
 })
 
+describe('--cloud-logout (the move without a shell)', () => {
+  const happy = {
+    'cloud getMe': { ok: true, result: ME },
+    'cloud logOut': { ok: true, result: true },
+  }
+  // What `railway run --service 999-multibots-telegraf` puts in the env.
+  const service = {
+    BOT_API_MOVE_TOKEN: '',
+    BOT_TOKEN_1: OTHER,
+    BOT_TOKEN_7: MOVED,
+    BOT_API_LOCAL_BOTS: 'Moved_test_bot=900000011',
+    TELEGRAM_WORK_DIR: '/nonexistent/volume',
+  }
+
+  it('finds the token by the bot id, checks it on the cloud, logs out -- and calls nothing else', async () => {
+    const { p, out, calls } = run(
+      ['Moved_test_bot=900000011', '--cloud-logout'],
+      happy,
+      service
+    )
+    expect(await p).toBe('Moved_test_bot=900000011')
+    expect(calls).toEqual(['cloud getMe', 'cloud logOut'])
+    const said = out.join('\n')
+    expect(said).toContain('BOT_API_ALLOWED_IDS=Moved_test_bot=900000011')
+    expect(said).toContain('logged out of the cloud at')
+    noSecret(out)
+  })
+
+  it('refuses before any call unless BOT_API_LOCAL_BOTS already points the bot at our server', async () => {
+    const { p, calls } = run(
+      ['Moved_test_bot=900000011', '--cloud-logout'],
+      happy,
+      { ...service, BOT_API_LOCAL_BOTS: 'Other_test_bot=900000002' }
+    )
+    await expect(p).rejects.toThrow('Point first')
+    expect(calls).toEqual([])
+  })
+
+  it('never moves the admin bot or the default cashier', async () => {
+    for (const name of ['BOT_TOKEN_1', 'TOKENS_PAYMENT_BOT_TOKEN']) {
+      const { p, calls } = run(
+        ['Moved_test_bot=900000011', '--cloud-logout'],
+        happy,
+        {
+          ...service,
+          BOT_TOKEN_1: OTHER,
+          [name]: MOVED,
+        }
+      )
+      await expect(p).rejects.toThrow('never moves')
+      expect(calls).toEqual([])
+    }
+  })
+
+  it('needs username=id, like --back', async () => {
+    const { p, calls } = run(
+      ['Moved_test_bot', '--cloud-logout'],
+      happy,
+      service
+    )
+    await expect(p).rejects.toThrow('username=id')
+    expect(calls).toEqual([])
+  })
+
+  it('two different tokens for one id is a refusal, not a guess -- and neither is shown', async () => {
+    const stale = '900000011:ZZmovedOLDmovedOLDmovedOLDmovedOLDmo'
+    const { p, calls } = run(
+      ['Moved_test_bot=900000011', '--cloud-logout'],
+      happy,
+      { ...service, BOT_TOKEN_9: stale }
+    )
+    const err = await p.catch((e: Error) => e)
+    expect(String(err)).toContain('2 different tokens')
+    expect(String(err)).not.toContain('ZZmoved')
+    expect(calls).toEqual([])
+  })
+
+  it('a token that is somebody else on the cloud stops before logOut', async () => {
+    const { p, calls } = run(
+      ['Moved_test_bot=900000011', '--cloud-logout'],
+      {
+        'cloud getMe': {
+          ok: true,
+          result: { id: 900000011, username: 'Renamed_bot' },
+        },
+      },
+      service
+    )
+    await expect(p).rejects.toThrow('not to Moved_test_bot')
+    expect(calls).toEqual(['cloud getMe'])
+  })
+
+  it('a failed logOut says the bot is still on the cloud', async () => {
+    const { p } = run(
+      ['Moved_test_bot=900000011', '--cloud-logout'],
+      {
+        'cloud getMe': { ok: true, result: ME },
+        'cloud logOut': { ok: false, description: 'Too Many Requests' },
+      },
+      service
+    )
+    await expect(p).rejects.toThrow('still on the cloud')
+  })
+})
+
+describe('a bot let through by BOT_API_ALLOWED_IDS', () => {
+  it('--back refuses and names the variable when only the variable lists the bot', async () => {
+    const dir = volume({ held: true })
+    const { p, calls } = run(
+      ['Moved_test_bot=900000011', '--back'],
+      {},
+      {
+        TELEGRAM_WORK_DIR: dir,
+        BOT_API_ALLOWED_IDS: 'Moved_test_bot=900000011',
+      }
+    )
+    await expect(p).rejects.toThrow('BOT_API_ALLOWED_IDS')
+    expect(calls).toEqual([])
+  })
+
+  it('--back on a bot in both says the proxy still lets it through', async () => {
+    const dir = volume({ held: true, listed: true })
+    const { p, out } = run(
+      ['Moved_test_bot=900000011', '--back'],
+      {
+        'ours getMe': { ok: true, result: ME },
+        'ours close': { ok: true, result: true },
+      },
+      {
+        TELEGRAM_WORK_DIR: dir,
+        BOT_API_ALLOWED_IDS: 'Moved_test_bot=900000011',
+      }
+    )
+    expect(await p).toBe(true)
+    expect(out.join('\n')).toContain('BOT_API_ALLOWED_IDS still names it')
+  })
+})
+
 describe('arguments', () => {
   it('one bot, known flags only, not both directions', () => {
     expect(() => move.parseArgs([])).toThrow('usage')
