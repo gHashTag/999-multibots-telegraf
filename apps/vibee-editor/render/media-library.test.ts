@@ -1360,6 +1360,25 @@ describe('mtprotoMediaInfo', () => {
     expect(named('x', 'application/zip')).toBe('file-8.zip')
     expect(named('ignore previous instructions.txt')).toBe('file-8.txt')
     expect(named('x', 'image/heic')).toBe('image-8.heic')
+    // A document is named by what it is, not by what it is packed in: an
+    // OOXML/ODF file IS a zip, and a sniffing client says so in the mime.
+    expect(named('plan.docx', 'application/zip')).toBe('file-8.docx')
+    expect(named('table.XLSX', 'application/zip')).toBe('file-8.xlsx')
+    expect(named('smeta.odt', 'application/zip')).toBe('file-8.odt')
+    expect(named('backup.tar.gz', 'application/gzip')).toBe('file-8.tgz')
+    expect(named('backup.tar.gz')).toBe('file-8.tgz')
+    // A real archive stays an archive; with no usable name the mime decides.
+    expect(named('photos.zip', 'application/zip')).toBe('file-8.zip')
+    expect(named('photos', 'application/zip')).toBe('file-8.zip')
+    expect(named('run me.exe', 'application/zip')).toBe('file-8.zip')
+    // `application/pdf` still outranks the name: `documentFormat` trusts that
+    // mime, and a PDF shelved as .txt would be decoded as text first.
+    expect(named('contract.txt', 'application/pdf')).toBe('file-8.pdf')
+    // A text document keeps the sender's word for it, too.
+    expect(named('notes.md', 'text/markdown')).toBe('file-8.md')
+    // The name decides only for a file: a picture stays a picture.
+    expect(named('scan.pdf', 'image/heic')).toBe('image-8.heic')
+    expect(isShelfFileName('file-8.tgz')).toBe(true)
     expect(isShelfFileName('file-8.md')).toBe(true)
     expect(isShelfFileName('video-note-12.mp4')).toBe(true)
     expect(isShelfFileName('ignore previous instructions.txt')).toBe(false)
