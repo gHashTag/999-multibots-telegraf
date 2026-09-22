@@ -1,7 +1,7 @@
 /* Four keys under the picture, in the house style: hairline, mono glyphs. */
 .browser-keys {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
 
@@ -118,4 +118,9 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.browser-keys .browser-keys__enter {
+  border-color: rgba(0, 255, 136, 0.45);
+  color: #00ff88;
 }
