@@ -26,6 +26,11 @@ const en: Translations = {
   'browser.youDrive': 'You are driving. The agent is waiting.',
   'browser.handBack': 'Let the agent continue',
   'browser.type.open': '⌨ Type text',
+  'browser.choice.title': '🤔 The agent needs your decision',
+  'browser.choice.actionTitle': '🙋 The agent needs your hand',
+  'browser.choice.actionHint': 'Do it in the window above, then press Done.',
+  'browser.choice.done': '✓ Done',
+  'browser.choice.cannot': 'Cannot',
   'browser.keys.label': 'Keys for the page',
   'browser.keys.up': 'Scroll up',
   'browser.keys.down': 'Scroll down',
@@ -2133,6 +2138,11 @@ const ru: Translations = {
   'browser.youDrive': 'Управляете вы. Агент ждёт.',
   'browser.handBack': 'Вернуть агенту',
   'browser.type.open': '⌨ Ввести текст', // cyrillic-ok
+  'browser.choice.title': '🤔 Агенту нужно ваше решение', // cyrillic-ok
+  'browser.choice.actionTitle': '🙋 Агенту нужна ваша рука', // cyrillic-ok
+  'browser.choice.actionHint': 'Сделайте это в окне выше и нажмите «Готово».', // cyrillic-ok
+  'browser.choice.done': '✓ Готово', // cyrillic-ok
+  'browser.choice.cannot': 'Не получается', // cyrillic-ok
   'browser.keys.label': 'Клавиши для страницы', // cyrillic-ok
   'browser.keys.up': 'Прокрутить вверх', // cyrillic-ok
   'browser.keys.down': 'Прокрутить вниз', // cyrillic-ok
