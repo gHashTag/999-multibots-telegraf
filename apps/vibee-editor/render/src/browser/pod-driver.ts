@@ -165,6 +165,9 @@ export function dockerDriver(opts: {
         '--shm-size=1g',
         '-e',
         `NEKO_DESKTOP_SCREEN=${screen}`,
+        /* The person's first touch takes control (see the pod Dockerfile). */
+        '-e',
+        'NEKO_SESSION_IMPLICIT_HOSTING=true',
         '-e',
         `NEKO_MEMBER_MULTIUSER_USER_PASSWORD=${input.viewToken}`,
         '-e',
