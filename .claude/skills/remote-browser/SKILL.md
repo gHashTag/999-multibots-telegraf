@@ -274,3 +274,8 @@ Queen's BROWSER panel (gHashTag/trinity#1109). A press inside a frame
 never bubbles to the page around it -- listen on the frame's OWN window
 (same origin), and re-attach on every load: the window reloads itself to
 reconnect.
+
+**Probes stay out of the person's journal** (#2803). A health check that
+calls the person's browser tools sets MCP `params._meta.probe: true`; /mcp
+passes it as `ctx.probe`, the journal keeps probes apart (last 20) and
+`GET /api/browser/journal` hides them unless `probes=1`.
