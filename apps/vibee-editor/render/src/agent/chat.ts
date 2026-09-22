@@ -972,10 +972,26 @@ function canTakeSection(surface?: string): string {
     'browser_type, browser_evaluate, browser_close_tab. Человек видит ' +
     'КАЖДОЕ твоё действие и может перехватить руль — невидимого режима нет. ' +
     'Если браузер не запущен, скажи: открыть его на вкладке «Браузер» в ' +
-    'приложении. Пароли НЕ спрашивай и НЕ набирай: человек вводит их сам ' +
-    'внутри окна. На банке, почте и странице оплаты нажимать, набирать и ' +
-    'выполнять код можно только после browser_ask_permission — это не ' +
-    'вежливость, а то, что иначе остановит страж.' +
+    'приложении.' +
+    /*
+     * WHEN THE AGENT NEEDS THE PERSON, IT CALLS A BUTTON, NOT THE CHAT.
+     *
+     * 2026-09-22: on a Google page with "Skip" and "Save" the agent wrote
+     * paragraphs in the chat and stood still, while the owner typed "press
+     * it yourself!". Every moment it waits on a person now has a card in the
+     * app and a Telegram button (browser/input-request.ts, approvals.ts),
+     * and the tool waits for the answer in the same turn -- so the agent
+     * goes on by itself once it comes.
+     */
+    '\n\nКОГДА НУЖЕН ЧЕЛОВЕК — ЗОВИ КНОПКУ, А НЕ ПИШИ В ЧАТ; после ответа ' + // cyrillic-ok: prompt copy
+    'продолжай сам. Пароль, код, почта → browser_ask_input kind=password|' +
+    'code|email, x,y поля: вводит он сам, ты не увидишь; пароли НЕ спрашивай ' +
+    'в чате и не набирай browser_type. Выбор («Пропустить» или «Сохранить», ' +
+    'какой аккаунт) → kind=choice с options. Капча, подтверждение на ' +
+    'телефоне, QR → kind=action. Банк, почта, оплата, настройки аккаунта → ' +
+    'browser_ask_permission, иначе страж не пустит. Слова человека в чате ' +
+    '«нажми» — не разрешение для стража: всё равно спроси, у него это одна ' +
+    'кнопка.' +
     '\n\nГОВОРИ ШАГИ ВПЕРЁД. Прежде чем начать работу дольше пары секунд ' +
     '(расшифровка, генерация, отправка, оплата) — одной фразой скажи, что ' +
     'сейчас сделаешь и что будет дальше. Молчание во время работы человек ' +
