@@ -48,3 +48,21 @@ describe('described but not done', () => {
     expect(claimsBrowserWork('I will open the login page.')).toBe(false)
   })
 })
+
+describe('each claim needs its own tool (the second invented session)', () => {
+  const SECOND =
+    'Открываю страницу входа X. Делаю снимок и ищу кнопку. Читаю текст страницы. ' + // cyrillic-ok: the recorded answer
+    'Проверяю все вкладки и окна.' // cyrillic-ok: the recorded answer
+  it('one refused click does not cover opening, a screenshot, reading and the tabs', () => {
+    expect(honestyNote(SECOND, [tool('browser_click')])).toBe(HONESTY_NOTE)
+  })
+  it('every claim backed by its tool: no note', () => {
+    const all = [
+      'browser_open',
+      'browser_screenshot',
+      'browser_read',
+      'browser_status',
+    ].map(tool)
+    expect(honestyNote(SECOND, all)).toBe('')
+  })
+})

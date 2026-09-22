@@ -4,8 +4,10 @@
  * 2026-09-22, tri a2a: asked to sign into X, the agent answered in 11
  * seconds with zero tool calls -- and described a whole session: "opening
  * the login page", "taking a screenshot", "the Google button is in the DOM
- * at zero size". None of it happened. A client reading that would believe
- * the work was done.
+ * at zero size". None of it happened. The next invented session, the same
+ * day, had ONE refused click and a paragraph of "opening the page, taking a
+ * screenshot, reading the page, checking the tabs" -- so each claimed action
+ * is matched to the tool that would have done it, not to "any tool at all".
  *
  * The streamed words cannot be taken back, so the turn ends with a plain
  * note saying so, stored with the answer: the person is not misled, and the
@@ -15,43 +17,82 @@
  * "I will open", "shall I open?" and "open it yourself" are not claims.
  */
 
-/* Claimed browser actions, as the agent says them. */
-const CLAIMS: RegExp[] = [
-  /(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+(страниц|сайт|вкладк|linkedin|x\.com|google)/i, // cyrillic-ok: matched text
-  /(^|[\s.,:;—-])(делаю|сделал)\s+(снимок|скриншот)/i, // cyrillic-ok: matched text
-  /(^|[\s.,:;—-])(нажимаю|нажал|жму)\s/i, // cyrillic-ok: matched text
-  /(^|[\s.,:;—-])(прокручиваю|прокрутил)\s/i, // cyrillic-ok: matched text
-  /(^|[\s.,:;—-])на экране (сейчас )?(вижу|видно|отображается)/i, // cyrillic-ok: matched text
-  /(^|[\s.,:;—-])(ищу|нашёл|нашел) (кнопку|поле|ссылку)/i, // cyrillic-ok: matched text
-  /\b(I'm |I am |I )(opening|opened|clicking|clicked|taking a screenshot|took a screenshot|scrolling|scrolled)\b/i,
+/* Claimed browser actions, each with the tool(s) that would have done it. */
+const CLAIMS: Array<{ re: RegExp; tools: string[] }> = [
+  {
+    re: /(^|[\s.,:;—-])(открываю|открыл|открылась|открылся)\s+(страниц|сайт|вкладк|linkedin|x\.com|google)/i, // cyrillic-ok: matched text
+    tools: ['browser_open'],
+  },
+  {
+    re: /(^|[\s.,:;—-])(делаю|сделал)\s+(снимок|скриншот)/i, // cyrillic-ok: matched text
+    tools: ['browser_screenshot'],
+  },
+  {
+    re: /(^|[\s.,:;—-])(читаю|прочитал)\s+(текст|страниц)/i, // cyrillic-ok: matched text
+    tools: ['browser_read'],
+  },
+  {
+    re: /(^|[\s.,:;—-])(нажимаю|нажал|жму)\s/i, // cyrillic-ok: matched text
+    tools: ['browser_click'],
+  },
+  {
+    re: /(^|[\s.,:;—-])(прокручиваю|прокрутил)\s/i, // cyrillic-ok: matched text
+    tools: ['browser_evaluate', 'browser_click'],
+  },
+  {
+    re: /(^|[\s.,:;—-])(проверяю|смотрю) (все )?вкладки/i, // cyrillic-ok: matched text
+    tools: ['browser_status'],
+  },
+  {
+    re: /(^|[\s.,:;—-])на экране (сейчас )?(вижу|видно|отображается)/i, // cyrillic-ok: matched text
+    tools: ['browser_screenshot', 'browser_read'],
+  },
+  { re: /\b(I'm |I am |I )(opening|opened)\b/i, tools: ['browser_open'] },
+  { re: /\b(I'm |I am |I )(clicking|clicked)\b/i, tools: ['browser_click'] },
+  {
+    re: /\b(I'm |I am |I )(taking|took) a screenshot\b/i,
+    tools: ['browser_screenshot'],
+  },
 ]
+
+function calledTools(events: Array<Record<string, unknown>>): string[] {
+  return events
+    .filter(
+      e => e['тип'] === 'инструмент' && typeof e['имя'] === 'string' // cyrillic-ok: the event envelope's fields
+    )
+    .map(e => e['имя'] as string) // cyrillic-ok: the event envelope's field
+}
 
 /** Does the answer claim it acted in the browser? Pure. */
 export function claimsBrowserWork(text: string): boolean {
-  return CLAIMS.some(re => re.test(text))
+  return CLAIMS.some(c => c.re.test(text))
 }
 
 /** How many browser tools the turn really called, from its events. Pure. */
 export function browserCalls(events: Array<Record<string, unknown>>): number {
-  return events.filter(
-    e =>
-      e['тип'] === 'инструмент' && // cyrillic-ok: the event envelope's field
-      typeof e['имя'] === 'string' && // cyrillic-ok: the event envelope's field
-      (e['имя'] as string).startsWith('browser_') // cyrillic-ok: the event envelope's field
-  ).length
+  return calledTools(events).filter(n => n.startsWith('browser_')).length
+}
+
+/** The claimed actions no call of their own tool backs. Pure. */
+export function unbackedClaims(
+  text: string,
+  events: Array<Record<string, unknown>>
+): string[] {
+  const called = new Set(calledTools(events))
+  return CLAIMS.filter(c => c.re.test(text))
+    .filter(c => !c.tools.some(t => called.has(t)))
+    .map(c => c.tools[0])
 }
 
 export const HONESTY_NOTE =
   '\n\n⚠️ Проверка: в этом ответе агент описал действия в браузере, но не ' + // cyrillic-ok: shown to the person
-  'выполнил ни одного — ничего из описанного не произошло. Попросите его ' + // cyrillic-ok
+  'выполнил их — часть описанного не происходила. Попросите его ' + // cyrillic-ok
   'повторить, и он сделает это по-настоящему.' // cyrillic-ok
 
-/** The note to append, or '' when the answer is honest. Pure. */
+/** The note to append, or '' when every claimed action really ran. Pure. */
 export function honestyNote(
   text: string,
   events: Array<Record<string, unknown>>
 ): string {
-  return claimsBrowserWork(text) && browserCalls(events) === 0
-    ? HONESTY_NOTE
-    : ''
+  return unbackedClaims(text, events).length ? HONESTY_NOTE : ''
 }

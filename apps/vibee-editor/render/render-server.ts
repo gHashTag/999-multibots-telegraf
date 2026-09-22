@@ -2521,6 +2521,29 @@ setInterval(
 )
 
 /*
+ * THE BLOG GOES TO LINKEDIN AND X, ONE ARTICLE A DAY, ONLY AFTER A YES
+ * (src/agent/blog-share.ts; owner's decision 2026-09-22). The tick is
+ * cheap -- a database row, and the feed at most once a day -- so it runs
+ * every half hour and an answered question is acted on within that.
+ * Off unless BLOG_SHARE_ENABLED=1.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const { runBlogShare } = await import('./src/agent/blog-share-wiring')
+        const said = await runBlogShare(getPool() as any)
+        if (said !== 'off' && said !== 'asked today already')
+          console.log(`[blog-share] ${said}`)
+      } catch (e) {
+        console.error('[blog-share] failed:', String(e).slice(0, 300))
+      }
+    })()
+  },
+  30 * 60 * 1000
+)
+
+/*
  * THE QUEEN'S REPORT -- THE ONLY READER OF THE JOURNAL THAT ARRIVES BY ITSELF.
  *
  * The pulse tool in the agent chat answers when asked. That is not enough: the
