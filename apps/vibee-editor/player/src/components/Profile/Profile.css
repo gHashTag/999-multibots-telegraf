@@ -532,6 +532,10 @@
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   border-bottom: 1px solid var(--border-color, var(--bg-input));
+  /* The padding is the fade's width, so at either end of the scroll the fade
+     lies over empty padding, not over the first or last section (measured
+     2026-09-22 at 390px: scrolled to the end, "Following" sat in the fade). */
+  padding-inline: 16px 28px;
   /* Ten sections do not fit a phone: the edges fade, so the strip reads as
      "there is more this way" instead of ending at the sixth section. */
   -webkit-mask-image: linear-gradient(
@@ -1618,7 +1622,10 @@
   }
 
   .profile-tabs__tab {
-    flex: 1 0 auto;
+    /* Its own width, as at 768px: the strip scrolls, and a tab that grows to
+       fill it contradicted the block above (768px says keep your width, this
+       said stretch), so the last tab's cut edge moved with every label. */
+    flex: 0 0 auto;
     flex-direction: row;
     gap: 0.3rem;
     padding: 0.6rem 0.5rem;
@@ -2413,6 +2420,11 @@
      border (measured 2026-09-22). */
   height: auto;
   min-height: var(--touch-target, 44px);
+  /* ...and its centred, nowrap items put the price in the middle under the
+     name instead of where the name starts. */
+  align-items: flex-start;
+  justify-content: flex-start;
+  white-space: normal;
   padding: 10px 14px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
   border-radius: 12px;
