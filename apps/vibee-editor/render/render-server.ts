@@ -75,6 +75,7 @@ import {
   handleClub,
   sweepClubRenewals,
   sweepClubGrants,
+  clubCashierToken,
 } from './src/agent/club-membership'
 import { clubIdentity } from './src/agent/club-identity'
 import { isClonePath, handleClone } from './src/agent/clone-readiness'
@@ -2463,7 +2464,8 @@ setInterval(() => {
 setInterval(
   () => {
     void (async () => {
-      const token = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
+      // The ledger read here is the ledger club invoices are minted into.
+      const token = clubCashierToken() // secret-guard-ok: a function call, no value in source
       if (!token) return
       try {
         const pool = (await getPool()) as any
@@ -8242,7 +8244,9 @@ const server = createServer(async (req, res) => {
       // club. One function, run by the tests with a real request: see
       // club-identity.ts for why `authenticate().via` cannot decide this.
       identity: r => clubIdentity(r as any),
-      botToken: process.env.TOKENS_PAYMENT_BOT_TOKEN || '',
+      // One cashier for the club, the same the sweep reads and the agent's
+      // club_invoice mints with (clubCashierToken, club-membership.ts).
+      botToken: clubCashierToken(), // secret-guard-ok: a function call, no value in source
       credit: async c =>
         creditStarsPayment((await getPool()) as any, {
           chargeId: c.chargeId,

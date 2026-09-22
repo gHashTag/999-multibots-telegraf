@@ -115,7 +115,11 @@ export interface ClubOffer {
   back: number
   sharePercent: number
   inside: string
-  /** Where membership is bought. The agent does not mint this invoice. */
+  /**
+   * Where membership is bought: the Mini App profile, or the link the agent
+   * hands over with `club_invoice` (club-invoice-tool.ts) when the person
+   * asked. Both are minted by `clubInvoiceFor` below.
+   */
   join: string
   /** Who is let in without paying. */
   free: string
@@ -134,8 +138,8 @@ export function clubOffer(): ClubOffer {
     sharePercent: Math.round(CLUB_TOKEN_SHARE * 100),
     inside: CLUB_INSIDE,
     join:
-      'в профиле мини-аппа, звёздами Telegram; счёт выставляет приложение, а не агент; ' + // cyrillic-ok: offer copy
-      'отмена — в настройках Telegram', // cyrillic-ok: offer copy
+      'в профиле мини-аппа или по ссылке на оплату в чате (club_invoice — только когда человек сам попросил), ' + // cyrillic-ok: offer copy
+      'звёздами Telegram; отмена — в настройках Telegram', // cyrillic-ok: offer copy
     free:
       'владельцам ботов платформы и хранителям — без оплаты, и те же токены ' + // cyrillic-ok: offer copy
       'каждые 30 дней начисляются сами; счёт за клуб им не выставляют', // cyrillic-ok: offer copy
@@ -489,6 +493,34 @@ export async function clubStatus(
   }
 }
 
+/**
+ * THE CLUB HAS ONE CASHIER, AND IT IS NOT THE PERSON'S OWN BOT.
+ *
+ * Every token invoice in this service is minted by the person's own farm bot
+ * (bot-farm.ts), and that is right for tokens: the bot's payment handler
+ * credits a `tokens:` payload from any bot of the farm.
+ *
+ * The club cannot follow that rule. It is a SUBSCRIPTION: Telegram charges
+ * every renewal into the Stars ledger of the bot that minted the first
+ * invoice, and this file books club months by reading exactly ONE ledger --
+ * this bot's, in `/api/club/verify` and in the hourly `sweepClubRenewals`.
+ * A club invoice from any other bot would be a paid month, and every renewal
+ * after it, that nobody ever credits. So the route, the sweep and the agent's
+ * `club_invoice` all read the cashier from here, and the bot that mints is by
+ * construction the bot whose ledger is read.
+ */
+export function clubCashierToken(env: NodeJS.ProcessEnv = process.env): string {
+  return env.TOKENS_PAYMENT_BOT_TOKEN || ''
+}
+
+/**
+ * A free pass that comes with the month's tokens (bot owner, keeper). A guest
+ * pass does not: it is an invitation, not a budget (club-guests.ts).
+ */
+export function isFundedGrant(g: ClubGrant): g is FundedGrant {
+  return g === 'owner' || g === 'keeper'
+}
+
 export interface MintClubInput {
   forTelegramId: string
   botToken: string
@@ -554,6 +586,103 @@ export async function mintClubInvoice(
     tokens: clubTokensPerPeriod(), // secret-guard-ok: token count, not a credential
     period_s: CLUB_PERIOD_S,
   }
+}
+
+export type ClubInvoiceOutcome =
+  /** Already in: nothing is minted. `status` says until when. */
+  | { kind: 'member'; status: ClubStatus }
+  /** Our side could not mint; already journaled as a cashier failure. */
+  | { kind: 'unavailable'; code: 502 | 503; error: string }
+  | { kind: 'invoice'; minted: MintedClubInvoice; status: ClubStatus }
+
+export interface ClubInvoiceInput {
+  /** The person the invoice is for; its id goes into the payload. */
+  who: string
+  /** Why the club is open without a charge, from `clubGrantFor`. */
+  granted: ClubGrant
+  botToken: string
+  fetchImpl?: typeof fetch
+  now?: Date
+  /**
+   * Treat a funded free pass (bot owner, keeper) as membership too.
+   *
+   * The route leaves this off: a person who opens the paywall and presses
+   * "join" while holding a free pass is making their own choice (see the
+   * comment in handleClub). The agent turns it on: it must not SELL the club
+   * to somebody who already has it, with the month's tokens, for free -- the
+   * prompt has said so since 2026-09-10, and now the till says it too.
+   */
+  fundedPassIsMembership?: boolean
+}
+
+/**
+ * ONE DECISION FOR EVERY DOOR THAT MINTS A CLUB INVOICE.
+ *
+ * The Mini App's paywall and the bot's club card reach it through
+ * `/api/club/invoice`; the agent's `club_invoice` calls it in process. The
+ * refusal of a paid member, the cashier, the alarm when the cashier fails and
+ * the journal line of a minted invoice live here once, so the three doors
+ * cannot drift apart.
+ */
+export async function clubInvoiceFor(
+  pool: Queryable,
+  input: ClubInvoiceInput
+): Promise<ClubInvoiceOutcome> {
+  const who = input.who
+  if (!input.botToken) {
+    // Our fault, not the person's: alarm at the point of failure.
+    await noteCashierFailure(
+      pool,
+      who,
+      'club',
+      'TOKENS_PAYMENT_BOT_TOKEN not set'
+    )
+    return {
+      kind: 'unavailable',
+      code: 503,
+      error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан', // cyrillic-ok: user-facing error
+    }
+  }
+  const current = await clubStatus(
+    pool,
+    who,
+    input.now ?? new Date(),
+    input.granted
+  )
+  /*
+   * ONLY A PAID MONTH CLOSES THE TILL. It used to be `active`, which is
+   * also true of a free pass -- so the owner, testing the cashier from his
+   * second account after putting it on the guest list, was answered
+   * `already_active` and could not pay at all (measured 2026-09-22). A
+   * pass is an invitation; a person holding out money is not asking for
+   * the pass. Selling a month to somebody who already has free access is
+   * their decision to make, and a bot owner who never asks is never asked.
+   */
+  if (
+    current.paid ||
+    (input.fundedPassIsMembership && isFundedGrant(current.granted))
+  ) {
+    return { kind: 'member', status: current }
+  }
+  let minted: MintedClubInvoice
+  try {
+    minted = await mintClubInvoice({
+      forTelegramId: who,
+      botToken: input.botToken,
+      fetchImpl: input.fetchImpl,
+    })
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e)
+    await noteCashierFailure(pool, who, 'club', reason)
+    return {
+      kind: 'unavailable',
+      code: 502,
+      error: `касса не выписала счёт: ${reason.slice(0, 120)}`, // cyrillic-ok: user-facing error
+    }
+  }
+  // The sale was asked for: visible in the journal even if nothing follows.
+  await noteInvoiceMinted(pool, who, 'club', minted.stars)
+  return { kind: 'invoice', minted, status: current }
 }
 
 export type CreditGrant = (input: {
@@ -1014,73 +1143,37 @@ export async function handleClub(
   }
 
   if (path === '/api/club/invoice' && req.method === 'POST') {
-    if (!deps.botToken) {
-      // Our fault, not the person's: alarm at the point of failure.
-      await noteCashierFailure(
-        pool,
-        who,
-        'club',
-        'TOKENS_PAYMENT_BOT_TOKEN not set'
-      )
-      return {
-        status: 503,
-        body: {
-          ok: false,
-          error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан', // cyrillic-ok: user-facing error
-        },
-      }
+    const out = await clubInvoiceFor(pool, {
+      who,
+      granted,
+      botToken: deps.botToken,
+      fetchImpl: deps.fetchImpl,
+      now,
+    })
+    if (out.kind === 'unavailable') {
+      return { status: out.code, body: { ok: false, error: out.error } }
     }
-    const current = await clubStatus(pool, who, now, access)
-    /*
-     * ONLY A PAID MONTH CLOSES THE TILL. It used to be `active`, which is
-     * also true of a free pass -- so the owner, testing the cashier from his
-     * second account after putting it on the guest list, was answered
-     * `already_active` and could not pay at all (measured 2026-09-22). A
-     * pass is an invitation; a person holding out money is not asking for
-     * the pass. Selling a month to somebody who already has free access is
-     * their decision to make, and a bot owner who never asks is never asked.
-     */
-    if (current.paid) {
+    if (out.kind === 'member') {
       return {
         status: 200,
         body: {
           ok: false,
           already_active: true,
-          granted: current.granted,
-          until: current.until,
-          days_left: current.days_left,
+          granted: out.status.granted,
+          until: out.status.until,
+          days_left: out.status.days_left,
           error: 'клуб уже оплачен', // cyrillic-ok: user-facing error
         },
       }
     }
-    let minted: Awaited<ReturnType<typeof mintClubInvoice>>
-    try {
-      minted = await mintClubInvoice({
-        forTelegramId: who,
-        botToken: deps.botToken,
-        fetchImpl: deps.fetchImpl,
-      })
-    } catch (e) {
-      const reason = e instanceof Error ? e.message : String(e)
-      await noteCashierFailure(pool, who, 'club', reason)
-      return {
-        status: 502,
-        body: {
-          ok: false,
-          error: `касса не выписала счёт: ${reason.slice(0, 120)}`, // cyrillic-ok: user-facing error
-        },
-      }
-    }
-    // The sale was asked for: visible in the journal even if nothing follows.
-    await noteInvoiceMinted(pool, who, 'club', minted.stars)
     return {
       status: 200,
       body: {
         ok: true,
-        link: minted.url,
-        stars: minted.stars,
-        tokens: minted.tokens,
-        period_days: minted.period_s / (24 * 60 * 60),
+        link: out.minted.url,
+        stars: out.minted.stars,
+        tokens: out.minted.tokens,
+        period_days: out.minted.period_s / (24 * 60 * 60),
       },
     }
   }

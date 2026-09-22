@@ -903,6 +903,7 @@ import { CRM_CLIENT_TOOLS } from './crm-client-setup-tool'
 import { CRM_CLIENT_WORKSPACE_TOOLS } from './crm-client-workspace-tools'
 import { CRM_TOUCH_TOOLS } from './crm-touch-tools'
 import { CRM_OFFER_TOOLS } from './crm-offer-tool'
+import { CLUB_INVOICE_TOOLS } from './club-invoice-tool'
 import { makeCrmDeliverTools } from './crm-deliver-tool'
 import { CRM_MEMORY_TOOLS } from './crm-memory-tools'
 import { CRM_SUMMARY_TOOLS } from './crm-summary-tool'
@@ -2297,7 +2298,7 @@ export const TOOLS: AgentTool[] = [
       'Называй цену ИЗ ОТВЕТА этого инструмента, а не по памяти: шкала со скидкой за объём, ' +
       'и придуманное число будет обещанием, за которое платит владелец. ' +
       'Это счёт только на токены: подписка одна — клуб, и этим счётом она не ' +
-      'оформляется (её цену и путь даёт pricing).',
+      'оформляется: её цену даёт pricing, а счёт на клуб — club_invoice.',
     parameters: {
       type: 'object',
       properties: {
@@ -3004,6 +3005,11 @@ TOOLS.push(...TELEGRAM_TOOLS)
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...CRM_TOUCH_TOOLS)
 TOOLS.push(...CRM_OFFER_TOOLS)
+// The club invoice for the person in this chat, beside the token invoice:
+// the same route decision the bot's club card reaches (club-invoice-tool.ts).
+// Pushed before the web-taint wrapper below, so a turn that read the web
+// cannot hand out a payment link.
+TOOLS.push(...CLUB_INVOICE_TOOLS)
 // Delivery borrows image_generate through the registry, not an import: the
 // generator lives in this file, and a module cycle would be the alternative.
 TOOLS.push(
@@ -3165,6 +3171,13 @@ export function countInitDataToolCall(ctx: ToolContext, name: string): void {
  *
  * The next lever, if 4k turns out to be too tight, is the DESCRIPTIONS --
  * browser_ask_permission alone is 254 tokens of prose -- not dropping tools.
+ *
+ * `club_invoice` is NOT in the kit, and that is a decision, not an omission
+ * (2026-09-22). The kit measured 6988 of 7000 the day it arrived and the tool
+ * is 263 tokens on its own (7251 with it); more to the point, the kit is the seller's, who
+ * sells to LEADS through crm_offer. The person's own cashier and price list
+ * (tokens_invoice, pricing) are not in it either, and a club invoice without
+ * the price list beside it would be a link with nothing said about it.
  */
 export const COMPACT_TOOLS = /^(crm_|tg_|soul_|browser_)/
 /** Owner-only diagnostics and uploads wear the crm_ prefix but are not a seller's tool; a 16k window does not pay for them. */
