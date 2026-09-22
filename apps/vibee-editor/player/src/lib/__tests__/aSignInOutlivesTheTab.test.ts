@@ -12,13 +12,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   APP_SESSION_CLEARED,
+  APP_SESSION_PERSON,
   TransientSessionError,
   clearAppSession,
+  exchangeTelegramLaunch,
   getAppAccessToken,
   hasRenewableAppSession,
   refreshAppSession,
   storeAppSession,
 } from '../appSession'
+import { API_BASE } from '../../config'
 
 const REFRESH_KEY = 'trinity.app.session.refresh'
 const MARKER_KEY = 'trinity.app.session.cookie'
@@ -150,5 +153,143 @@ describe('where the refresh token is kept', () => {
     })
     clearAppSession()
     expect(window.localStorage.getItem(MARKER_KEY)).toBeNull()
+  })
+})
+
+/*
+ * What an adversarial review broke in the first version, pinned down so it
+ * cannot come back quietly.
+ */
+describe('the person never outruns the token', () => {
+  afterEach(() => {
+    clearAppSession()
+    vi.unstubAllGlobals()
+  })
+
+  it('arrives with a renewed session, in the store the app renders', async () => {
+    const { userAtom } = await import('../../atoms/user')
+    const { editorStore } = await import('../../atoms/Provider')
+    editorStore.set(userAtom, null)
+    storeAppSession({
+      access_token: 'a', // secret-guard-ok: invented test value
+      refresh_token: 'r', // secret-guard-ok: invented test value
+      expires_in: 600,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        reply(200, {
+          access_token: 'renewed', // secret-guard-ok: invented test value
+          refresh_transport: 'cookie',
+          expires_in: 600,
+          telegram_user: { id: 42, first_name: 'Owner', auth_date: 1 },
+        })
+      )
+    )
+    await refreshAppSession()
+    // The token is stored before the person appears, so Header's guest sweep
+    // never sees a person without one.
+    expect(getAppAccessToken()).toBe('renewed')
+    expect(editorStore.get(userAtom)).toMatchObject({ id: 42, is_admin: false })
+  })
+
+  it('does not replace a person already in the tab', async () => {
+    const { userAtom } = await import('../../atoms/user')
+    const { editorStore } = await import('../../atoms/Provider')
+    editorStore.set(userAtom, { id: 7, first_name: 'Here', auth_date: 1 })
+    window.dispatchEvent(
+      new CustomEvent(APP_SESSION_PERSON, {
+        detail: { id: 42, first_name: 'Other', auth_date: 1 },
+      })
+    )
+    expect(editorStore.get(userAtom)).toMatchObject({ id: 7 })
+  })
+
+  it('leaves with the session, in the store the app renders', async () => {
+    const { userAtom } = await import('../../atoms/user')
+    const { editorStore } = await import('../../atoms/Provider')
+    editorStore.set(userAtom, { id: 7, first_name: 'Here', auth_date: 1 })
+    clearAppSession()
+    expect(editorStore.get(userAtom)).toBeNull()
+  })
+})
+
+describe('the launch door never touches the cookie', () => {
+  afterEach(() => {
+    clearAppSession()
+    vi.unstubAllGlobals()
+  })
+
+  it('calls the API host with no transport header', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      reply(200, {
+        access_token: 'a', // secret-guard-ok: invented test value
+        refresh_token: 'r', // secret-guard-ok: invented test value
+        expires_in: 600,
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await exchangeTelegramLaunch('query_id=x&user=%7B%7D&hash=y')
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    // initData can arrive in any browser from a link (#tgWebAppData), so this
+    // door must never write a persistent, browser-wide credential.
+    expect(url).toBe(`${API_BASE}/api/auth/telegram`)
+    const headers = new Headers(init.headers)
+    expect(headers.get('X-Session-Transport')).toBeNull()
+    expect(init.credentials).not.toBe('include')
+  })
+})
+
+describe('the brake is not spent during a backoff', () => {
+  afterEach(() => {
+    clearAppSession()
+    vi.unstubAllGlobals()
+  })
+
+  it('refuses without calling the server while backing off', async () => {
+    storeAppSession({
+      access_token: 'a', // secret-guard-ok: invented test value
+      refresh_token: 'r', // secret-guard-ok: invented test value
+      expires_in: 600,
+    })
+    const fetchMock = vi.fn().mockResolvedValue(reply(429, { error: 'x' }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(refreshAppSession()).rejects.toBeInstanceOf(
+      TransientSessionError
+    )
+    await expect(refreshAppSession()).rejects.toBeInstanceOf(
+      TransientSessionError
+    )
+    // Every path to the server goes through the one gate: the second call
+    // never reached the brake, ten attempts a minute shared with sign-in.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not carry one session's backoff into the next sign-in", async () => {
+    storeAppSession({
+      access_token: 'a', // secret-guard-ok: invented test value
+      refresh_token: 'r', // secret-guard-ok: invented test value
+      expires_in: 600,
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply(503, {})))
+    await expect(refreshAppSession()).rejects.toBeInstanceOf(
+      TransientSessionError
+    )
+    clearAppSession()
+    storeAppSession({
+      access_token: 'b', // secret-guard-ok: invented test value
+      refresh_token: 's', // secret-guard-ok: invented test value
+      expires_in: 600,
+    })
+    const fresh = vi.fn().mockResolvedValue(
+      reply(200, {
+        access_token: 'c', // secret-guard-ok: invented test value
+        refresh_token: 't', // secret-guard-ok: invented test value
+        expires_in: 600,
+      })
+    )
+    vi.stubGlobal('fetch', fresh)
+    await refreshAppSession()
+    expect(fresh).toHaveBeenCalledTimes(1)
   })
 })

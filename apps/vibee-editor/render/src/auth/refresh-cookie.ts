@@ -1,5 +1,5 @@
 /**
- * THE WEB SESSION'S REFRESH TOKEN, AS AN HttpOnly COOKIE.
+ * THE WEB SESSION'S REFRESH TOKEN, AS AN HttpOnly COOKIE ON auth.t27.ai.
  *
  * Measured 2026-09-22. The player kept the 60-day refresh token in the tab's
  * sessionStorage (since 215480af6, 2026-09-01), so a new tab, a bookmark, a
@@ -14,25 +14,27 @@
  *
  * WHY THESE ATTRIBUTES, EACH ONE
  *
+ *   __Host- prefix     The browser refuses a cookie of this name that has a
+ *                      Domain, is not Secure, or whose Path is not /. So no
+ *                      sibling on t27.ai can plant one to shadow ours.
  *   HttpOnly           Not readable from document.cookie. The point of the move.
- *   Secure             Only over TLS. Set when the connection reached the edge
- *                      over https (X-Forwarded-Proto, as live-proxy.ts does).
- *   SameSite=Strict    A cross-site request never carries it. The refresh is a
- *                      same-origin fetch from app.t27.ai, so Strict costs
- *                      nothing and closes cross-site request forgery on the
- *                      one door that mints credentials.
- *   Path=/api/auth/    Sent only to the auth doors, not with every page, asset
- *                      and API call on app.t27.ai.
- *   Max-Age            The refresh token's own remaining life. A cookie that
- *                      outlived its token would be sent for nothing.
+ *   Secure             Required by __Host-; auth.t27.ai is only served over TLS.
+ *   SameSite=Strict    Sent only on same-site requests. app.t27.ai and
+ *                      auth.t27.ai are one site (t27.ai), so the player's calls
+ *                      carry it and a request started from another site never does.
+ *   Path=/             Required by __Host-. This host is the render, and the
+ *                      player sends it nothing but the sign-in doors.
+ *   Max-Age            The refresh token's own remaining life.
  *
- * THE COOKIE ONLY WORKS SAME-ORIGIN. The player calls its API at
+ * WHY A HOST OF ITS OWN. The player's other API calls go to
  * vibee-render-production.up.railway.app, and railway.app is on the Public
  * Suffix List: from app.t27.ai that host is ANOTHER SITE, so a cookie it set
- * would be third-party, and Safari -- which is the Telegram WebView on iOS --
- * drops those silently. So the auth doors are proxied through app.t27.ai
- * (nginx `location ^~ /api/auth/`, the same shape as /live/), and the cookie is
- * first-party there.
+ * would be third-party, and Safari -- the Telegram WebView on iOS -- drops
+ * those without a word. auth.t27.ai is a custom domain of the same render, on
+ * the same site as the app, so its cookie is first-party. The browser reaches
+ * it through one Railway edge, so the sign-in brake sees the person's own
+ * address; a proxy hop through app.t27.ai would cross the edge twice, and the
+ * edge replaces X-Forwarded-For (measured), putting every person in one bucket.
  *
  * OPT-IN, SO NOTHING THAT WORKS TODAY STOPS WORKING. A client asks for cookie
  * transport with the header below. The iOS app (pairing), the Mini App, and any
@@ -40,16 +42,38 @@
  * they got yesterday, refresh_token included.
  *
  * The header is also the cross-site-request-forgery gate for reading the
- * cookie: a form on another site cannot set a custom header, and a cross-site
- * fetch that sets one needs a CORS preflight this server does not grant.
+ * cookie: a form on another site cannot set a custom header, and a fetch that
+ * sets one from any origin but app.t27.ai is not granted credentials by
+ * applyAuthCors below.
  */
 
 /** The header a client sends to ask for the refresh token as a cookie. */
 export const SESSION_TRANSPORT_HEADER = 'x-session-transport'
 export const SESSION_TRANSPORT_COOKIE = 'cookie'
 
-export const REFRESH_COOKIE_NAME = 't27_refresh'
-export const REFRESH_COOKIE_PATH = '/api/auth/'
+/*
+ * __Host-, on a host of its own.
+ *
+ * The first version put the cookie on app.t27.ai behind an nginx hop, named
+ * plainly. Two reviews broke that. Railway's edge REPLACES X-Forwarded-For
+ * with whoever connects to it (measured), so the hop put every web sign-in in
+ * one bucket of the ten-a-minute brake -- a platform-wide lockout. And a plain
+ * name can be shadowed: any page on t27.ai may set a cookie with
+ * Domain=t27.ai and a longer path, and the browser lists it first.
+ *
+ * On auth.t27.ai -- the render's own custom domain -- the browser talks to the
+ * render through one edge, so the brake sees the person; the cookie is
+ * first-party because auth.t27.ai is the same site as app.t27.ai; and the
+ * __Host- prefix makes the browser refuse any cookie of this name that
+ * carries a Domain, is not Secure, or has a Path other than /. A sibling on
+ * t27.ai can no longer plant one. Path=/ is safe here: this host serves the
+ * render, and the player sends it nothing but the sign-in doors.
+ */
+export const REFRESH_COOKIE_NAME = '__Host-t27_refresh'
+export const REFRESH_COOKIE_PATH = '/'
+
+/** The one origin whose credentialed calls to the sign-in doors we answer. */
+export const APP_ORIGIN = 'https://app.t27.ai'
 
 interface HasHeaders {
   headers?: Record<string, string | string[] | undefined>
@@ -70,8 +94,8 @@ export function wantsCookieTransport(req: HasHeaders): boolean {
 
 /**
  * TLS as the edge saw it. Railway ends TLS at its edge, so the scheme this
- * process sees is http; the edge's X-Forwarded-Proto is the truth, and nginx
- * passes it through for this path (default.conf.template).
+ * process sees is http and X-Forwarded-Proto is the truth. Kept for callers;
+ * the cookie itself is always Secure (__Host-).
  */
 export function isSecureRequest(req: HasHeaders): boolean {
   return header(req, 'x-forwarded-proto').split(',')[0].trim() === 'https'
@@ -87,17 +111,22 @@ export function isSecureRequest(req: HasHeaders): boolean {
 export function readRefreshCookie(req: HasHeaders): string {
   if (!wantsCookieTransport(req)) return ''
   const jar = header(req, 'cookie')
+  const found: string[] = []
   for (const part of jar.split(';')) {
     const eq = part.indexOf('=')
     if (eq < 0) continue
     if (part.slice(0, eq).trim() !== REFRESH_COOKIE_NAME) continue
-    try {
-      return decodeURIComponent(part.slice(eq + 1).trim())
-    } catch {
-      return ''
-    }
+    found.push(part.slice(eq + 1).trim())
   }
-  return ''
+  // Two cookies of one name means someone planted the second. Spending either
+  // would let the planter choose whose session this browser rides, so neither
+  // is spent: the person signs in again, which is a nuisance and not a swap.
+  if (found.length !== 1) return ''
+  try {
+    return decodeURIComponent(found[0])
+  } catch {
+    return ''
+  }
 }
 
 /** Set-Cookie for a freshly minted or rotated refresh token. */
@@ -115,7 +144,9 @@ export function refreshCookie(
     'SameSite=Strict',
     `Max-Age=${maxAge}`,
   ]
-  if (secure) bits.push('Secure')
+  // __Host- is refused by the browser without Secure, so it is not optional.
+  void secure
+  bits.push('Secure')
   return bits.join('; ')
 }
 
@@ -131,6 +162,39 @@ export function clearedRefreshCookie(secure: boolean): string {
     'SameSite=Strict',
     'Max-Age=0',
   ]
-  if (secure) bits.push('Secure')
+  void secure
+  bits.push('Secure')
   return bits.join('; ')
+}
+
+interface CorsResponse {
+  setHeader(name: string, value: string): unknown
+}
+
+/**
+ * Credentialed CORS for the sign-in doors, from app.t27.ai only.
+ *
+ * The render answers every request with `Access-Control-Allow-Origin: *`, and
+ * a browser refuses to send cookies to -- or read a reply from -- a
+ * credentialed request answered that way. So for a request to /api/auth/*
+ * whose Origin is exactly app.t27.ai the answer names that origin, allows
+ * credentials and admits the transport header. Anything else, including a
+ * sibling on t27.ai, keeps `*` and gets no credentials, which is the forgery
+ * gate: another origin cannot send X-Session-Transport with the cookie.
+ */
+export function applyAuthCors(
+  req: HasHeaders & { url?: string },
+  res: CorsResponse
+): void {
+  const path = String(req.url ?? '').split('?')[0]
+  if (!path.startsWith('/api/auth/')) return
+  if (header(req, 'origin') !== APP_ORIGIN) return
+  res.setHeader('Access-Control-Allow-Origin', APP_ORIGIN)
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    `Content-Type, Authorization, ${SESSION_TRANSPORT_HEADER}`
+  )
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Vary', 'Origin')
 }

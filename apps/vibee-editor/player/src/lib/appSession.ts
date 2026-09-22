@@ -30,6 +30,21 @@ const REFRESH_EARLY_MS = 60_000
 export const APP_ORIGIN = 'https://app.t27.ai'
 const SESSION_TRANSPORT_HEADER = 'X-Session-Transport'
 
+/*
+ * WHERE THE COOKIE LIVES: auth.t27.ai, the render's own custom domain.
+ *
+ * Empty turns cookie transport off, and this build signs in exactly as before
+ * -- which is the state it ships in until auth.t27.ai answers. A first version
+ * reached the render through an nginx hop on app.t27.ai; Railway's edge
+ * replaces X-Forwarded-For (measured), so that put every person behind the
+ * ten-a-minute sign-in brake as one. auth.t27.ai is on the same site as the
+ * app, so its cookie is first-party, and the browser reaches it through one
+ * edge (render src/auth/refresh-cookie.ts).
+ */
+const AUTH_ORIGIN: string = String(
+  (import.meta.env as Record<string, string | undefined>).VITE_AUTH_ORIGIN ?? ''
+).replace(/\/+$/, '')
+
 /**
  * Not a credential: only "a cookie session may be in the jar, try a silent
  * refresh". Without it every anonymous visitor would spend a refresh -- and a
@@ -50,6 +65,7 @@ const COOKIE_MARKER_KEY = 'trinity.app.session.cookie'
  * the tab's store as before.
  */
 export function cookieTransportAvailable(): boolean {
+  if (!AUTH_ORIGIN) return false
   if (typeof window === 'undefined') return false
   if (window.location.origin !== APP_ORIGIN) return false
   const win = window as unknown as FramedWindow
@@ -77,14 +93,73 @@ function writeMarker(on: boolean): void {
   }
 }
 
+/*
+ * A SIGN-OUT THAT DID NOT REACH THE SERVER IS NOT FINISHED.
+ *
+ * Only the render's reply can take an HttpOnly cookie out of the jar; no
+ * script here can read or delete it. So a logout whose request was lost --
+ * no network, the tab closed first -- left a live 60-day credential in the
+ * browser and its family open on the server. The flag says "finish it", and
+ * the next boot sends the logout again before anything else.
+ */
+const LOGOUT_PENDING_KEY = 'trinity.app.session.logout-pending'
+
+function setLogoutPending(on: boolean): void {
+  try {
+    if (on) window.localStorage.setItem(LOGOUT_PENDING_KEY, '1')
+    else window.localStorage.removeItem(LOGOUT_PENDING_KEY)
+  } catch {
+    // Without storage the retry is lost; the cookie still expires on its own.
+  }
+}
+
+function logoutPending(): boolean {
+  try {
+    return window.localStorage.getItem(LOGOUT_PENDING_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Send the cookie's logout; true when the server confirmed. */
+async function sendCookieLogout(access: string): Promise<boolean> {
+  try {
+    const response = await fetch(authUrl('/api/auth/logout'), {
+      method: 'POST',
+      credentials: authCredentials(),
+      headers: authHeaders({
+        'Content-Type': 'application/json',
+        ...(access ? { Authorization: `Bearer ${access}` } : {}),
+      }),
+      body: '{}',
+    })
+    // 401 means nothing is left to revoke: finished, just as 200 is.
+    return response.ok || response.status === 401
+  } catch {
+    return false
+  }
+}
+
 /** A cookie session is believed to exist in this browser. */
 export function hasCookieSession(): boolean {
   return cookieTransportAvailable() && readMarker()
 }
 
-/** The URL of an auth door: same-origin under cookie transport. */
+/** The URL of an auth door: auth.t27.ai under cookie transport. */
 export function authUrl(path: string): string {
-  return cookieTransportAvailable() ? path : `${API_BASE}${path}`
+  return cookieTransportAvailable()
+    ? `${AUTH_ORIGIN}${path}`
+    : `${API_BASE}${path}`
+}
+
+/**
+ * Credentials for an auth request. `include` only under cookie transport: the
+ * old API host answers `Access-Control-Allow-Origin: *`, and a browser refuses
+ * the reply to a credentialed request answered that way -- so sending cookies
+ * there would break the very sign-in that works today.
+ */
+export function authCredentials(): RequestCredentials {
+  return cookieTransportAvailable() ? 'include' : 'same-origin'
 }
 
 /** Headers an auth request carries: the opt-in under cookie transport. */
@@ -152,12 +227,17 @@ export function hasRenewableAppSession(): boolean {
 export function storeAppSession(session: AppSession): void {
   const s = storage()
   if (!s) return
+  resetRefreshBackoff()
   s.setItem(ACCESS_KEY, session.access_token)
   if (session.refresh_transport === 'cookie' || !session.refresh_token) {
     // The token is in the jar. Drop any copy an older reply left in this tab:
     // the jar is now the one place it lives.
     s.removeItem(REFRESH_KEY)
     writeMarker(true)
+    // A new sign-in supersedes a sign-out that never finished: its cookie has
+    // just replaced the old one in the jar, and finishing the old logout at
+    // the next boot would revoke THIS session instead.
+    setLogoutPending(false)
   } else {
     // A server that did not answer with a cookie (an older render mid-deploy,
     // a context without cookie transport): keep it where it always was, so
@@ -174,6 +254,9 @@ export function storeAppSession(session: AppSession): void {
 /** Fired when the session is cleared for good; atoms/user.ts listens. */
 export const APP_SESSION_CLEARED = 'trinity:app-session-cleared'
 
+/** Fired with the person a renewed session belongs to; atoms/user.ts listens. */
+export const APP_SESSION_PERSON = 'trinity:app-session-person'
+
 export function clearAppSession(): void {
   // Invalidate every refresh response that started before this clear/logout.
   // A fetch cannot be reliably cancelled once the server has rotated the
@@ -181,6 +264,9 @@ export function clearAppSession(): void {
   sessionGeneration += 1
   if (refreshTimer) clearTimeout(refreshTimer)
   refreshTimer = null
+  // The backoff belonged to the session that just ended. A sign-in after this
+  // is a new session and must not inherit the old one's pause.
+  resetRefreshBackoff()
   writeMarker(false)
   const s = storage()
   if (s) {
@@ -318,11 +404,18 @@ export function startAppSessionHealing(
     ? undefined
     : (window as unknown as HealingWindow)
 ): () => void {
-  scheduleRefresh()
-  // A new tab, a bookmark, a restart: no access token here yet, but the jar
-  // may hold a cookie session. Ask now instead of waiting for the first request
-  // to find out, so the header shows the person signed in from the start.
-  if (!hasLiveAppSession() && hasCookieSession()) void ensureFreshSession()
+  if (cookieTransportAvailable() && logoutPending()) {
+    // A sign-out that never reached the server: finish it, and do not renew.
+    void sendCookieLogout('').then(done => {
+      if (done) setLogoutPending(false)
+    })
+  } else {
+    scheduleRefresh()
+    // A new tab, a bookmark, a restart: no access token here yet, but the jar
+    // may hold a cookie session. Ask now, so the person appears as soon as
+    // the token does -- and not a moment before it (see APP_SESSION_PERSON).
+    if (!hasLiveAppSession() && hasCookieSession()) void ensureFreshSession()
+  }
   if (!win) return () => {}
   const heal = () => {
     void ensureFreshSession()
@@ -334,8 +427,27 @@ export function startAppSessionHealing(
   }
 }
 
+/**
+ * Not before this moment may a refresh go out again after a transient failure.
+ *
+ * One gate, here, because every path to the server comes through this
+ * function: the timer, the heal listeners, apiFetch before and after a 401,
+ * sessionRenewal. A gate on only one of them let the others spend three
+ * refreshes per API call against the sign-in brake, ten a minute per person
+ * and shared with every sign-in door.
+ */
+let retryNotBefore = 0
+
+function resetRefreshBackoff(): void {
+  retryNotBefore = 0
+  retryMs = RETRY_MS
+}
+
 export async function refreshAppSession(): Promise<AppSession> {
   if (refreshInFlight) return refreshInFlight
+  if (Date.now() < retryNotBefore) {
+    throw new TransientSessionError('backing off after a transient failure')
+  }
   const stored = storage()?.getItem(REFRESH_KEY) || ''
   const viaCookie = hasCookieSession()
   if (!stored && !viaCookie) throw new Error('browser session is not available')
@@ -349,7 +461,7 @@ export async function refreshAppSession(): Promise<AppSession> {
       try {
         response = await fetch(authUrl('/api/auth/refresh'), {
           method: 'POST',
-          credentials: 'same-origin',
+          credentials: authCredentials(),
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           // A token still held from before the move goes in the body, so a
           // tab signed in yesterday keeps working; a cookie session sends none.
@@ -421,6 +533,19 @@ export async function refreshAppSession(): Promise<AppSession> {
         expires_in: typeof body.expires_in === 'number' ? body.expires_in : 600,
       }
       storeAppSession(session)
+      /*
+       * The person arrives WITH the token, never before it. A new tab renewing
+       * a cookie session holds no one; the render sends who this is beside the
+       * access token (cookie transport only), and atoms/user.ts takes it. The
+       * first version kept the person in localStorage so a new tab showed them
+       * at once -- before any token -- and Header's guest sweep answered "a
+       * person with no token" with a logout that revoked the whole family.
+       */
+      if (body.telegram_user && typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent(APP_SESSION_PERSON, { detail: body.telegram_user })
+        )
+      }
       return session
     }
 
@@ -441,9 +566,25 @@ export async function refreshAppSession(): Promise<AppSession> {
     throw new TransientSessionError(
       body.detail || body.error || `HTTP ${response.status}`
     )
-  })().finally(() => {
-    refreshInFlight = null
-  })
+  })()
+    .then(
+      session => {
+        // Any success, not only the timer's: a refresh apiFetch started must
+        // also reset the backoff, or one bad minute inflates every later pause.
+        retryNotBefore = 0
+        retryMs = RETRY_MS
+        return session
+      },
+      (error: unknown) => {
+        if (error instanceof TransientSessionError) {
+          retryNotBefore = Date.now() + retryMs
+        }
+        throw error
+      }
+    )
+    .finally(() => {
+      refreshInFlight = null
+    })
   return refreshInFlight
 }
 
@@ -456,12 +597,18 @@ export async function logoutAppSession(): Promise<void> {
   // a tab close must not leave a reusable browser credential behind.
   clearAppSession()
   if (!access && !refresh && !viaCookie) return
-  try {
+  if (viaCookie && !refresh) {
     // The server revokes the family and takes the HttpOnly cookie out of the
-    // jar; only it can, since no script here can read or delete that cookie.
+    // jar; only it can. Mark it pending first, so a request lost on the way
+    // is finished by the next boot instead of leaving the credential behind.
+    setLogoutPending(true)
+    if (await sendCookieLogout(access)) setLogoutPending(false)
+    return
+  }
+  try {
     await fetch(authUrl('/api/auth/logout'), {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: authCredentials(),
       headers: authHeaders({
         'Content-Type': 'application/json',
         ...(access ? { Authorization: `Bearer ${access}` } : {}),
@@ -490,7 +637,7 @@ export async function logoutAllAppSessions(): Promise<boolean> {
   try {
     const response = await fetch(authUrl('/api/auth/logout-all'), {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: authCredentials(),
       headers: authHeaders({ Authorization: `Bearer ${access}` }),
     })
     return response.ok
@@ -547,10 +694,14 @@ export async function exchangeTelegramLaunch(
 ): Promise<AppSession | null> {
   if (!initData) return null
   try {
-    const response = await fetch(authUrl('/api/auth/telegram'), {
+    // Never cookie transport on this door. initData is launch material the
+    // person did not type: telegram-web-app.js reads it from `#tgWebAppData`
+    // in any browser, so a link carrying someone else's launch would have
+    // written THEIR session into this browser's jar for sixty days. The Mini
+    // App signs in from initData on every launch, so it keeps the tab store.
+    const response = await fetch(`${API_BASE}/api/auth/telegram`, {
       method: 'POST',
-      credentials: 'same-origin',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ init_data: initData }),
     })
     const body = (await response
@@ -577,7 +728,7 @@ export async function exchangeTelegramWidget(
 ): Promise<AppSession> {
   const response = await fetch(authUrl('/api/auth/widget'), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: authCredentials(),
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   })

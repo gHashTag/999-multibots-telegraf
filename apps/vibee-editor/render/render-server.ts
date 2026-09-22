@@ -31,6 +31,7 @@ import {
   resolvePublicAddress,
 } from './src/lib/remoteMediaDuration'
 import { handleAuthRouteSafely } from './session-routes'
+import { applyAuthCors } from './src/auth/refresh-cookie'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import { report } from './src/hive/queen-report'
 import { record } from './src/hive/journal'
@@ -3105,6 +3106,12 @@ const server = createServer(async (req, res) => {
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
   )
+  // The sign-in doors, called by the player from app.t27.ai on auth.t27.ai
+  // with the HttpOnly refresh cookie (src/auth/refresh-cookie.ts). A
+  // credentialed request is refused under `*`, so for exactly this origin and
+  // exactly these paths the answer names the origin and allows credentials.
+  // Every other origin and path keeps the answer above.
+  applyAuthCors(req, res)
 
   if (req.method === 'OPTIONS') {
     res.writeHead(200)

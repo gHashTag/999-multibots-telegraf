@@ -785,11 +785,15 @@ export async function handleAuthRoute(
       what: `${safeDeviceName(body.device_name)}; ${signedByBot(v.botId)}`,
     })
 
-    json(
-      res,
-      200,
-      withRefreshTransport(req, res, minted.response, mintedRefreshExpiry())
-    )
+    // NEVER a cookie on this door. initData is launch material the person
+    // did not type: telegram-web-app.js reads it from `#tgWebAppData` in ANY
+    // browser, so a link carrying someone else's launch would have minted
+    // THEIR session into this browser's jar -- for sixty days, under the
+    // victim's own name in the header -- and everything uploaded after that
+    // would land in the attacker's account. The Mini App signs in from
+    // initData on every launch anyway, so it gains nothing from persisting;
+    // the answer here stays the per-tab JSON it has always been.
+    json(res, 200, minted.response)
     return true
   }
 
@@ -1307,23 +1311,53 @@ export async function handleAuthRoute(
       [s.id]
     )
 
+    const reply: Record<string, unknown> = {
+      access_token: signAccessToken({
+        telegramId: String(s.telegram_id),
+        sessionId: String(s.id),
+        deviceKeyThumbprint: String(s.device_pubkey ?? ''),
+      }),
+      refresh_token: outcome.next.token,
+      expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+    }
+    /*
+     * WHO THIS IS, FOR A TAB THAT HAS NEVER SEEN THEM.
+     *
+     * A cookie session renews in a new tab that holds no one: the person is
+     * kept per tab, beside the access token, on purpose -- the first version
+     * kept them in localStorage and a new tab showed them before it had a
+     * token, which Header's guest sweep answered with a logout that revoked
+     * the whole family. So the person arrives WITH the token, here, and the
+     * tab never holds one without the other. Only for cookie transport: every
+     * other client gets the reply it always got.
+     */
+    if (wantsCookieTransport(req)) {
+      const who = await pool.query(
+        `SELECT username, display_name, avatar_url, telegram_auth_date
+           FROM profiles WHERE telegram_id = $1 LIMIT 1`,
+        [String(s.telegram_id)]
+      )
+      const p = who.rows[0] as
+        | {
+            username?: string | null
+            display_name?: string | null
+            avatar_url?: string | null
+            telegram_auth_date?: string | number | null
+          }
+        | undefined
+      reply.telegram_user = {
+        id: Number(s.telegram_id),
+        first_name: p?.display_name || p?.username || '',
+        ...(p?.username ? { username: p.username } : {}),
+        ...(p?.avatar_url ? { photo_url: p.avatar_url } : {}),
+        auth_date: Number(p?.telegram_auth_date ?? 0),
+      }
+    }
+
     json(
       res,
       200,
-      withRefreshTransport(
-        req,
-        res,
-        {
-          access_token: signAccessToken({
-            telegramId: String(s.telegram_id),
-            sessionId: String(s.id),
-            deviceKeyThumbprint: String(s.device_pubkey ?? ''),
-          }),
-          refresh_token: outcome.next.token,
-          expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
-        },
-        outcome.next.expiresAt
-      )
+      withRefreshTransport(req, res, reply, outcome.next.expiresAt)
     )
     return true
   }
