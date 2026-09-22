@@ -728,6 +728,33 @@ describe('tokens already given by hand', () => {
     expect(db.balances.get(MEMBER)).toBe(MONTH)
   })
 
+  it('"given by hand" for the next month, with only last month\'s grant on file, is refused', async () => {
+    // Review of #2855: the refusal must count only a grant NOT yet answered
+    // for. Last month's grant was answered for when month 1 was recorded; if
+    // it still counted, month 2 would be written with 0 tokens and no grant
+    // behind it -- the original bug, one month later.
+    await record({ telegram_id: MEMBER, tokens_already_given: true })
+    expect(db.periods).toHaveLength(1)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-22T09:00:00Z'))
+    try {
+      const out = (await cashTool().handler(
+        {
+          telegram_id: MEMBER,
+          start: '2026-10-22',
+          tokens_already_given: true,
+        },
+        ctxOf(KEEPER)
+      )) as Record<string, any>
+      expect(out).toMatchObject({ ok: false })
+      expect(out.error).toMatch(/tokens_already_given=true/)
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(db.periods).toHaveLength(1)
+    expect(db.balances.get(MEMBER)).toBe(MONTH)
+  })
+
   it('an answer that is not true or false is refused, nothing written', async () => {
     const out = await record({
       telegram_id: MEMBER,
