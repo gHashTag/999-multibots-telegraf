@@ -175,10 +175,12 @@ describe('the clocks the application arms at boot', () => {
 
     const stop = startAppSessionHealing(win)
     // A tab coming back from the background or a sleeping machine, a window
-    // focused again, a network that returned.
+    // focused again, a network that returned. And `storage`: not a heal, but
+    // the cookie session moving in another tab (appSession followTheJar).
     expect([...listeners.keys()].sort()).toEqual([
       'focus',
       'online',
+      'storage',
       'visibilitychange',
     ])
 
