@@ -31,6 +31,7 @@ import {
 } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools, countInitDataToolCall } from './tools'
 import { runAgent, type ChatMessage } from './chat'
+import { honestyNote } from './claimed-but-not-done'
 import { rememberMiniAppFiles } from './miniapp-media'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId, hasServerKey, initDataBotOf } from '../../auth'
@@ -742,6 +743,29 @@ export async function handleAgentChat(
       res.write(JSON.stringify(ev) + '\n')
     }
 
+    /*
+     * DESCRIBED BUT NOT DONE (claimed-but-not-done.ts): an answer that
+     * claims browser actions no tool performed ends with a plain note, sent
+     * and stored, so nobody is misled and the model sees it next turn.
+     */
+    const note = honestyNote(
+      собратьОтвет(события), // cyrillic-ok: pre-existing helper
+      события as Array<Record<string, unknown>> // cyrillic-ok: pre-existing local
+    )
+    if (note) {
+      const ev = { тип: 'текст', текст: note } // cyrillic-ok: event envelope
+      события.push(ev) // cyrillic-ok: pre-existing local
+      res.write(JSON.stringify(ev) + '\n')
+      console.warn(
+        '[agent:honesty] ' +
+          JSON.stringify({
+            turn,
+            telegram_id: telegramId,
+            claim: 'browser',
+            toolCalls: 0,
+          })
+      )
+    }
     const ответ = собратьОтвет(события)
     if (ответ && !ephemeral) {
       await записатьРеплику(
