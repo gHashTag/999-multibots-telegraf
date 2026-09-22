@@ -84,6 +84,24 @@ const PUBLIC_TAB_ORDER: TabId[] = [
   'following',
 ]
 
+/**
+ * Scroll the section strip -- and only the strip -- so `item` is fully in
+ * sight. `scrollIntoView` also moves every scrolling ancestor, so a profile
+ * opened at ?tab= jumped the page down to the strip, and its smooth scroll
+ * was cancelled by the layout still settling as the profile loaded (measured
+ * at 390px: the active tab stayed past the edge). Instant, horizontal, here.
+ */
+export function revealInStrip(
+  strip: HTMLElement,
+  item: HTMLElement,
+  margin = 16
+): void {
+  const s = strip.getBoundingClientRect()
+  const a = item.getBoundingClientRect()
+  if (a.left < s.left) strip.scrollLeft -= s.left - a.left + margin
+  else if (a.right > s.right) strip.scrollLeft += a.right - s.right + margin
+}
+
 export function ProfileTabs() {
   const { t } = useLanguage()
   const isOwn = useIsOwnProfile()
@@ -114,26 +132,6 @@ export function ProfileTabs() {
     : 'templates'
   const contentRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
-
-  /*
-   * THE CHOSEN SECTION IS ALWAYS IN SIGHT.
-   *
-   * Ten sections do not fit a phone's width, so the strip scrolls -- and a
-   * section chosen by swipe or by ?tab= could sit past the edge, active and
-   * invisible (2026-09-22). Brought into view on every change. Declared above
-   * the early return below: a hook after it would change the hook order
-   * between the first render (no profile yet) and the next.
-   */
-  useEffect(() => {
-    const active = headerRef.current?.querySelector<HTMLElement>(
-      '.profile-tabs__tab--active'
-    )
-    active?.scrollIntoView?.({
-      block: 'nearest',
-      inline: 'nearest',
-      behavior: 'smooth',
-    })
-  }, [visibleActiveTab])
 
   // Swipe navigation between tabs
   const goToNextTab = useCallback(() => {
@@ -175,6 +173,25 @@ export function ProfileTabs() {
     } else if (visibleActiveTab === 'following') {
       loadFollowing(profile.username)
     }
+  }, [visibleActiveTab, profile?.username])
+
+  /*
+   * THE CHOSEN SECTION IS ALWAYS IN SIGHT (revealInStrip below).
+   *
+   * Ten sections do not fit a phone's width, so the strip scrolls -- and a
+   * section chosen by swipe or by ?tab= could sit past the edge, active and
+   * invisible (2026-09-22). Brought into view on every change, and once more
+   * when the profile arrives: the strip is not drawn before it, so a section
+   * named in the address had nothing to scroll on the first pass. Declared
+   * above the early return below: a hook after it would change the hook
+   * order between the first render (no profile yet) and the next.
+   */
+  useEffect(() => {
+    const strip = headerRef.current
+    const active = strip?.querySelector<HTMLElement>(
+      '.profile-tabs__tab--active'
+    )
+    if (strip && active) revealInStrip(strip, active)
   }, [visibleActiveTab, profile?.username])
 
   if (!profile) return null
