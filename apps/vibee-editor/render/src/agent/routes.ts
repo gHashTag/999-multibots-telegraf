@@ -703,6 +703,8 @@ export async function handleAgentChat(
     })
 
     const события: Array<{ тип?: string; текст?: string }> = []
+    // The work report covers the journal steps from here on (browser/report.ts).
+    const turnStartedAt = Date.now()
     for await (const ev of runAgent(
       history,
       {
@@ -755,6 +757,27 @@ export async function handleAgentChat(
         // Ответ человек уже получил потоком; потерянная запись — потеря
         // памяти, а не ответа.
       })
+    }
+    /*
+     * THE PERSON SEES WHAT THE AGENT DID IN THEIR BROWSER, IN THEIR CHAT.
+     *
+     * Owner, 2026-09-22: watching needed a sign-in in some other browser, so
+     * they saw nothing. After a turn that touched the browser a lab-notebook
+     * report and a film of the steps go to their Telegram (browser/report.ts,
+     * film.ts). Silent for a turn that did not; not awaited, never fatal.
+     */
+    if (!ephemeral) {
+      void import('../browser/after-turn')
+        .then(m =>
+          m.reportAfterTurn(pool as any, telegramId, {
+            since: turnStartedAt,
+            task: m.taskText(последняя?.content), // cyrillic-ok: pre-existing local
+            answer: ответ || '', // cyrillic-ok: pre-existing local
+          })
+        )
+        .catch(e =>
+          console.warn('[agent] browser work report:', String(e).slice(0, 200))
+        )
     }
   } catch (e) {
     res.write(
